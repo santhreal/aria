@@ -18,6 +18,10 @@ use crate::chrome::dialog::{DialogBody, dialog_surface};
 use crate::fluent::FluentBuilder;
 use crate::theme::Theme;
 
+#[cfg(test)]
+#[path = "scroll_tests.rs"]
+mod scroll_tests;
+
 pub fn render(
     state: &Entity<AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
@@ -26,6 +30,7 @@ pub fn render(
     let theme = Theme::of(cx);
     let hits = state.read(cx).palette_hits();
     let highlight = state.read(cx).palette_highlight();
+    let scroll = state.read(cx).palette_scroll.clone();
     let mut rows = Vec::with_capacity(hits.len());
     for (at, offer) in hits.iter().enumerate() {
         rows.push(row(&theme, *offer, at, highlight == Some(at), cx).into_any_element());
@@ -74,7 +79,9 @@ pub fn render(
         "Command palette",
         state,
         cx,
-        DialogBody::new(list).header(query_row),
+        DialogBody::new(list)
+            .header(query_row)
+            .track_scroll(&scroll),
     )
 }
 
@@ -95,7 +102,10 @@ fn row(
         .px(px(Theme::SPACE_SM))
         .py(px(Theme::SPACE_XS))
         .rounded(px(Theme::CONTROL_RADIUS))
-        .when(highlighted, |el| el.bg(theme.surface_raised_hover))
+        .when(highlighted, |el| {
+            el.bg(theme.surface_raised_hover)
+                .debug_selector(|| "palette-highlight".into())
+        })
         .text_size(px(13.))
         .text_color(theme.text)
         .cursor(CursorStyle::PointingHand)

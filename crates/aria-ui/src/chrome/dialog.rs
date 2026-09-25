@@ -12,11 +12,12 @@
 //! not fit.
 
 use gpui::{
-    AnyElement, App, Div, Entity, InteractiveElement, IntoElement, ParentElement,
+    AnyElement, App, Div, Entity, InteractiveElement, IntoElement, ParentElement, ScrollHandle,
     StatefulInteractiveElement, Styled, div, px,
 };
 
 use crate::app::{AppState, DialogKind};
+use crate::fluent::FluentBuilder;
 use crate::plugins::overlay_host::{OverlayWhen, exit_t};
 use crate::theme::Theme;
 
@@ -41,6 +42,7 @@ pub struct DialogBody {
     content: Div,
     header: Option<AnyElement>,
     actions: Vec<AnyElement>,
+    scroll: Option<ScrollHandle>,
 }
 
 /// Elements have no `Debug`; this prints which regions the body has.
@@ -49,6 +51,7 @@ impl std::fmt::Debug for DialogBody {
         f.debug_struct("DialogBody")
             .field("header", &self.header.is_some())
             .field("actions", &self.actions.len())
+            .field("scroll", &self.scroll.is_some())
             .finish_non_exhaustive()
     }
 }
@@ -61,6 +64,7 @@ impl DialogBody {
             content,
             header: None,
             actions: Vec::new(),
+            scroll: None,
         }
     }
 
@@ -74,6 +78,13 @@ impl DialogBody {
     /// A body with no action draws no action row.
     pub fn action(mut self, action: impl IntoElement) -> Self {
         self.actions.push(action.into_any_element());
+        self
+    }
+
+    /// Tracks the content region with `handle`, so the caller can scroll a
+    /// row of `content` into view by its index among `content`'s children.
+    pub fn track_scroll(mut self, handle: &ScrollHandle) -> Self {
+        self.scroll = Some(handle.clone());
         self
     }
 }
@@ -120,6 +131,7 @@ pub fn dialog_layer(
         content,
         header,
         actions,
+        scroll,
     } = body;
     let header = div()
         .flex_none()
@@ -144,7 +156,8 @@ pub fn dialog_layer(
         .id("dialog-content")
         .overflow_y_scroll()
         .p(px(Theme::SPACE_LG))
-        .debug_selector(|| "dialog-content".into());
+        .debug_selector(|| "dialog-content".into())
+        .when_some(scroll, |content, handle| content.track_scroll(&handle));
     let footer = (!actions.is_empty()).then(|| {
         div()
             .flex_none()

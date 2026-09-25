@@ -63,6 +63,19 @@ pub(crate) fn drawn_shell<'a>(
     (state, visual)
 }
 
+/// Whether `inner` lies inside `outer`, edges included. Layout is in floats, so
+/// an edge shared with the outer box may land a rounding error past it.
+pub(crate) fn bounds_inside(
+    inner: gpui::Bounds<gpui::Pixels>,
+    outer: gpui::Bounds<gpui::Pixels>,
+) -> bool {
+    let slack = gpui::px(0.5);
+    inner.left() >= outer.left() - slack
+        && inner.top() >= outer.top() - slack
+        && inner.right() <= outer.right() + slack
+        && inner.bottom() <= outer.bottom() + slack
+}
+
 #[cfg(test)]
 mod error_writes;
 

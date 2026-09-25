@@ -19,7 +19,7 @@ use gpui::{Bounds, Pixels, Size, TestAppContext, VisualTestContext, point, px, s
 
 use crate::app::DialogKind;
 use crate::plugins::overlay_host::host_of;
-use crate::test_support::drawn_shell;
+use crate::test_support::{bounds_inside, drawn_shell};
 
 /// A window narrower and shorter than a dialog card.
 const SHORT: Size<Pixels> = size(px(480.), px(320.));
@@ -29,16 +29,6 @@ const NO_CARD: &[(DialogKind, &str)] = &[(
     DialogKind::ProjectReport,
     "the report is drawn in the shell's own column, with no scrim and no card",
 )];
-
-/// Whether `inner` lies inside `outer`, edges included. Layout is in floats, so
-/// an edge shared with the outer box may land a rounding error past it.
-fn inside(inner: Bounds<Pixels>, outer: Bounds<Pixels>) -> bool {
-    let slack = px(0.5);
-    inner.left() >= outer.left() - slack
-        && inner.top() >= outer.top() - slack
-        && inner.right() <= outer.right() + slack
-        && inner.bottom() <= outer.bottom() + slack
-}
 
 #[gpui::test]
 fn every_dialog_card_fits_a_short_window(cx: &mut TestAppContext) {
@@ -114,7 +104,7 @@ fn misplaced(
         )];
     };
     let mut out = Vec::new();
-    if !inside(card, window) {
+    if !bounds_inside(card, window) {
         out.push(format!(
             "{kind:?}: the card {card:?} is not inside the window"
         ));
@@ -122,7 +112,7 @@ fn misplaced(
     for region in ["dialog-header", "dialog-content"] {
         match visual.debug_bounds(region) {
             None => out.push(format!("{kind:?} drew no {region}")),
-            Some(bounds) if !inside(bounds, card) => out.push(format!(
+            Some(bounds) if !bounds_inside(bounds, card) => out.push(format!(
                 "{kind:?}: {region} {bounds:?} is not inside the card {card:?}"
             )),
             Some(_) => {}
@@ -130,7 +120,7 @@ fn misplaced(
     }
     // A body with no action draws no action row.
     if let Some(footer) = visual.debug_bounds("dialog-footer")
-        && !inside(footer, card)
+        && !bounds_inside(footer, card)
     {
         out.push(format!(
             "{kind:?}: the action row {footer:?} is not inside the card {card:?}"

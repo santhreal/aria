@@ -227,20 +227,36 @@ impl AppState {
     /// the first.
     pub fn palette_move(&mut self, delta: isize) {
         let count = self.palette_hits().len();
-        self.palette_index =
-            crate::popover::menu_step(self.palette_highlight(), count, delta).unwrap_or(0);
+        let index = crate::popover::menu_step(self.palette_highlight(), count, delta).unwrap_or(0);
+        self.palette_index = index;
+        // Scrolls the least distance that draws the row whole, on the next
+        // frame, when the row's bounds are known.
+        self.palette_scroll.scroll_to_item(index);
     }
 
     /// Type into the query. The highlight returns to the first hit, because the
     /// row under it is not the row it was.
     pub fn palette_push(&mut self, ch: char) {
         self.palette_query.push(ch);
-        self.palette_index = 0;
+        self.palette_restart();
     }
 
     pub fn palette_pop(&mut self) {
         self.palette_query.pop();
+        self.palette_restart();
+    }
+
+    /// Highlights the first hit and returns the list to its top.
+    ///
+    /// The offset is set outright rather than scrolled to, since scrolling to
+    /// the first row stops with the row at the region's edge and the padding
+    /// above it out of view. The scroll to the first row replaces a scroll
+    /// requested before this frame, which would otherwise land on whatever
+    /// row now has that index.
+    pub(crate) fn palette_restart(&mut self) {
         self.palette_index = 0;
+        self.palette_scroll.set_offset(gpui::Point::default());
+        self.palette_scroll.scroll_to_item(0);
     }
 
     /// Run the row at `index`.

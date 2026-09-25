@@ -489,7 +489,7 @@ impl AppState {
         }
         if kind != DialogKind::Palette {
             self.palette_query.clear();
-            self.palette_index = 0;
+            self.palette_restart();
         }
         // Leaving the unsaved-changes prompt any other way than answering it —
         // Escape, or a dialog opened over it — drops the parked intent, so it

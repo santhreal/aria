@@ -492,6 +492,7 @@ impl AppState {
             palette_query: String::new(),
             palette_cache: Default::default(),
             palette_index: 0,
+            palette_scroll: gpui::ScrollHandle::new(),
             rename: None,
             rename_draft: String::new(),
             clock_draft: None,
