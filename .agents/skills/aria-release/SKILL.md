@@ -74,7 +74,7 @@ Rewrite [`CHANGELOG.md`](../../../CHANGELOG.md) in the existing shape:
 
 - Header + link to prior releases on GitHub
 - One `## [alpha-X.Y.Z] — YYYY-MM-DD` section (Added / Changed / Removed as needed)
-- Bottom link: `[alpha-X.Y.Z]: https://github.com/1Mr-Newton/aria/releases/tag/alpha-X.Y.Z`
+- Bottom link: `[alpha-X.Y.Z]: https://github.com/santhreal/aria/releases/tag/alpha-X.Y.Z`
 
 Derive bullets from `git log <last-tag>..HEAD`. User-facing only; omit internal
 gallery/dev-only noise unless it matters to downloaders.

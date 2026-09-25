@@ -1,7 +1,7 @@
 # Changelog
 
 Notes for the latest release. For previous releases, see the
-[GitHub releases page](https://github.com/1Mr-Newton/aria/releases).
+[GitHub releases page](https://github.com/santhreal/aria/releases).
 
 
 ## Unreleased
@@ -2357,4 +2357,4 @@ Notes for the latest release. For previous releases, see the
 - **Text backgrounds animate.** The text background card (color, padding,
   radius, opacity) is animatable and rendered in preview and export.
 
-[alpha-0.7.0]: https://github.com/1Mr-Newton/aria/releases/tag/alpha-0.7.0
+[alpha-0.7.0]: https://github.com/santhreal/aria/releases/tag/alpha-0.7.0

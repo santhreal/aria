@@ -17,7 +17,7 @@
 #define MyAppName "Aria"
 #define MyAppExeName "aria-desktop.exe"
 #define MyAppPublisher "Aria"
-#define MyAppURL "https://github.com/1Mr-Newton/aria"
+#define MyAppURL "https://github.com/santhreal/aria"
 ; The mark, as a multi-size .ico built from assets/icon/aria-icon.png. Used for
 ; the setup wizard, the shortcuts, and the project file type: the executable
 ; carries no icon resource, so every icon a user sees points at this file.

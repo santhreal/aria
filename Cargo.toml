@@ -49,7 +49,7 @@ version = "0.7.0-alpha.0"
 edition = "2024"
 rust-version = "1.92"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/1mrnewton/aria"
+repository = "https://github.com/santhreal/aria"
 
 # Workspace lint levels distinguish build-breaking defects from advisory
 # maintainability findings. CI uses these levels rather than promoting every

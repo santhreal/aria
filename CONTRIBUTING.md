@@ -31,7 +31,7 @@ just gives reviewers helpful context.
 - Check [ROADMAP.md](ROADMAP.md) to see what is planned, in progress, or
   already done. Intentionally parked work lives in
   [docs/deferred.md](docs/deferred.md).
-- Search [open issues](https://github.com/1Mr-Newton/aria/issues) before
+- Search [open issues](https://github.com/santhreal/aria/issues) before
   filing a new one or starting work, so effort is not duplicated.
 - For anything larger than a small fix, open an issue first to discuss the
   approach. It saves everyone a wasted PR.

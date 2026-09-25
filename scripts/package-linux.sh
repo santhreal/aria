@@ -83,7 +83,7 @@ Needs GStreamer plugins on the host (\`gstreamer1.0-plugins-base\`,
 \`-good\`, and either \`-ugly\`/\`-libav\` or a VAAPI/NVENC plugin). Stills
 work without them. Missing plugins name the package to install.
 
-See https://github.com/1Mr-Newton/aria for source and issue tracker.
+See https://github.com/santhreal/aria for source and issue tracker.
 EOF
 
 TARBALL="$DIST/Aria-${VERSION}-linux-${ARCH}.tar.gz"

@@ -121,7 +121,7 @@ jobs:
   # Both publish jobs authenticate with PyPI Trusted Publishing (OIDC): the
   # index is configured to trust this repo + workflow + environment, so no
   # API token is stored in the repo. Configure the publisher on
-  # (test.)pypi.org for project `aria-py`, repository 1mrnewton/aria,
+  # (test.)pypi.org for project `aria-py`, repository santhreal/aria,
   # workflow pywheels.yml, environment testpypi/pypi before the first run.
   publish-testpypi:
     name: publish to testpypi

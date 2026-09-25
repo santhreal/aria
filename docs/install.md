@@ -1,6 +1,6 @@
 # Install
 
-Builds are on the [releases page](https://github.com/1mrnewton/aria/releases).
+Builds are on the [releases page](https://github.com/santhreal/aria/releases).
 Settings live in `~/.aria/config.toml`. Projects use the `.aria` extension.
 
 ## macOS

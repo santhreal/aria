@@ -70,7 +70,7 @@ else to install. The H.264 video / AAC audio pair is the only output.
 To get a Start-menu entry, a desktop icon and .aria files that open by
 double-click, use the Setup.exe installer instead of this zip.
 
-See https://github.com/1Mr-Newton/aria for source and issue tracker.
+See https://github.com/santhreal/aria for source and issue tracker.
 "@
 Set-Content -Path (Join-Path $PkgDir "README-INSTALL.txt") -Value $Readme -Encoding utf8
 

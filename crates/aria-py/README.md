@@ -1,6 +1,6 @@
 # aria (Python)
 
-MoviePy-style Python bindings for the [Aria](https://github.com/1mrnewton/aria)
+MoviePy-style Python bindings for the [Aria](https://github.com/santhreal/aria)
 video engine. Build a project with explicit tracks, place clips, animate properties,
 and export, all through a track-first object model over the pure-Rust timeline,
 GPU compositor, and platform-native exporter.

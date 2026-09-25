@@ -1,0 +1,19 @@
+Aria
+Copyright (c) 2026 Santh and the Aria contributors.
+
+Aria is derived from cutlass (https://github.com/1mrnewton/cutlass),
+Copyright (c) 2026 Emmanuel Aidoo and the cutlass contributors, licensed
+under the MIT license (LICENSE-MIT) or the Apache License 2.0
+(LICENSE-APACHE), at your option. The git history of this repository
+contains the cutlass history.
+
+Aria is licensed under the same terms: MIT (LICENSE-MIT) or Apache-2.0
+(LICENSE-APACHE), at your option.
+
+Third-party code:
+
+- Comet (https://github.com/zeronsh/comet): motion, theme, loaders,
+  popover, frost, and edge-fade code is adapted from Comet. MIT license;
+  text in LICENSES/comet-MIT.txt.
+- GPUI (https://github.com/zed-industries/zed): the user interface
+  framework. Apache-2.0 license; text in LICENSES/zed-Apache-2.0.txt.

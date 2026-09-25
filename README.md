@@ -40,7 +40,7 @@ spinner. Clip bodies stay neutral; track type is a 2 px left border.
 
 ## Install
 
-Download a build from the [releases page](https://github.com/1mrnewton/aria/releases),
+Download a build from the [releases page](https://github.com/santhreal/aria/releases),
 or build from source with a recent stable Rust:
 
 ```bash
@@ -52,12 +52,14 @@ Per-platform steps, codec support, and the GStreamer packages Linux needs are in
 
 ## Credits
 
+- Aria is derived from [cutlass](https://github.com/1mrnewton/cutlass) by
+  Emmanuel Aidoo and contributors, used under the MIT and Apache-2.0
+  licenses. [`NOTICE`](NOTICE) lists every source and its license.
 - Motion, theme, loaders, popover, frost, and edge-fade are adapted from
   [Comet](https://github.com/zeronsh/comet) (MIT). License:
   [`LICENSES/comet-MIT.txt`](LICENSES/comet-MIT.txt).
 - GPUI is pinned from the `wingleeio/zed` fork. Provenance:
   [`vendor/README.md`](vendor/README.md).
-- Engine, compositor, and project model are Aria.
 
 ## Docs
 

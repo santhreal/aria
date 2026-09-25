@@ -4,7 +4,7 @@ version = "0.5.3-alpha.1"
 edition = "2024"
 rust-version = "1.92"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/1mrnewton/aria"
+repository = "https://github.com/santhreal/aria"
 description = "Python bindings for the Aria video engine: a MoviePy-style API over the Rust timeline/render/export pipeline."
 publish = false
 
