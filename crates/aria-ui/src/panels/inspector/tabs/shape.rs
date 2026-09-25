@@ -1,0 +1,43 @@
+//! Shape tab: the geometry and the fill of a shape clip.
+//!
+//! Every row comes from the catalog's `shape` group, which the inspector drew
+//! nowhere: a rectangle's corner radius, a star's inner ratio, the stroke width
+//! and the fill were all animatable in the model and unreachable in the product.
+//!
+//! What is still missing is stated rather than faked: the shape *kind* (which
+//! outline the clip is) is a structural choice, and there is no command that
+//! changes one, so this tab does not offer a picker that could not bind.
+
+use gpui::{IntoElement, ParentElement, Styled, div, px};
+
+use crate::theme::Theme;
+use crate::types::UiClip;
+
+use crate::panels::inspector::blocks::widgets::{param_rows, section_label};
+
+pub fn shape_tab(
+    theme: &Theme,
+    clip: &UiClip,
+    state: &gpui::Entity<crate::app::AppState>,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> impl IntoElement {
+    let rows = param_rows(theme, "shape", state, cx);
+    let empty = rows.is_empty();
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(Theme::SPACE_XS))
+        .child(section_label(theme, "Shape"))
+        .children(rows)
+        .child(
+            div()
+                .text_size(px(11.))
+                .text_color(theme.text_faint)
+                .child(if empty {
+                    "This clip carries no shape properties"
+                } else {
+                    "Which outline a shape draws is set when it is placed"
+                }),
+        )
+        .child(crate::panels::inspector::blocks::keyframes::keyframes_block(theme, clip, state, cx))
+}

@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Performance
 
-Cutlass is interactive (timeline scrubbing, preview, export). **Performance is a correctness concern** for anything on the critical path; optimize when measurements or complexity analysis say it matters, not from habit alone.
+Aria is interactive (timeline scrubbing, preview, export). **Performance is a correctness concern** for anything on the critical path; optimize when measurements or complexity analysis say it matters, not from habit alone.
 
 ## Algorithms and data structures
 

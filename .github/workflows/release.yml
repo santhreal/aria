@@ -31,22 +31,103 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
+      - name: Validate Apple signing configuration
+        id: apple-signing
+        shell: bash
+        env:
+          CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          values=(
+            "$CERTIFICATE"
+            "$CERTIFICATE_PASSWORD"
+            "$SIGNING_IDENTITY"
+            "$APPLE_ID"
+            "$APPLE_APP_PASSWORD"
+            "$APPLE_TEAM_ID"
+          )
+          present=0
+          for value in "${values[@]}"; do
+            [[ -n "$value" ]] && present=$((present + 1))
+          done
+          if [[ $present -ne 0 && $present -ne ${#values[@]} ]]; then
+            echo "Apple signing requires all six certificate and notarization secrets." >&2
+            exit 1
+          fi
+          [[ $present -eq ${#values[@]} ]] && enabled=true || enabled=false
+          echo "enabled=$enabled" >> "$GITHUB_OUTPUT"
+
+      - name: Import Developer ID certificate
+        if: steps.apple-signing.outputs.enabled == 'true'
+        uses: Apple-Actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+
       # Media decode/encode is AVFoundation/VideoToolbox — nothing to install.
-      - name: Build cutlass-desktop (release)
-        run: cargo build --release -p cutlass-desktop
+      - name: Build aria-desktop (release)
+        run: cargo build --release -p aria-desktop --locked
 
       # package-macos.sh derives the arch from `uname -m`, so each runner
       # produces a native build for its own architecture.
       - name: Package .app
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ steps.apple-signing.outputs.enabled == 'true' && secrets.APPLE_SIGNING_IDENTITY || '' }}
         run: chmod +x scripts/package-macos.sh && ./scripts/package-macos.sh
+
+      - name: Notarize, staple, and repackage
+        if: steps.apple-signing.outputs.enabled == 'true'
+        shell: bash
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          shopt -s nullglob
+          artifacts=(dist/Aria-*-macos-*.zip)
+          if [[ ${#artifacts[@]} -ne 1 ]]; then
+            echo "Expected one macOS zip, found ${#artifacts[@]}." >&2
+            exit 1
+          fi
+          app="dist/staging-${{ matrix.arch }}/release/Aria.app"
+          xcrun notarytool submit "${artifacts[0]}" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+          xcrun stapler staple "$app"
+          xcrun stapler validate "$app"
+          rm "${artifacts[0]}"
+          (
+            cd "$(dirname "$app")"
+            zip -r -y "$GITHUB_WORKSPACE/${artifacts[0]}" \
+              Aria.app INSTALL-macos.txt
+          )
+
+      - name: Enforce macOS archive size ceiling
+        shell: bash
+        run: |
+          shopt -s nullglob
+          artifacts=(dist/Aria-*-macos-*.zip)
+          if [[ ${#artifacts[@]} -ne 1 ]]; then
+            echo "Expected one macOS zip, found ${#artifacts[@]}." >&2
+            exit 1
+          fi
+          bytes=$(wc -c < "${artifacts[0]}")
+          ceiling=$((32 * 1024 * 1024))
+          echo "${artifacts[0]}: ${bytes} bytes (ceiling ${ceiling})"
+          [[ $bytes -le $ceiling ]]
 
       - uses: actions/upload-artifact@v4
         with:
-          name: cutlass-macos-${{ matrix.arch }}
-          path: dist/Cutlass-*-macos-*.zip
+          name: aria-macos-${{ matrix.arch }}
+          path: dist/Aria-*-macos-*.zip
 
-  # Windows/Linux ship as UI previews: the app runs but media decode/encode
-  # backends aren't implemented on these platforms yet (see packaging/README).
+  # Linux uses GStreamer and Windows uses Media Foundation for media I/O.
   build-linux:
     name: linux / x86_64
     runs-on: ubuntu-24.04
@@ -66,16 +147,30 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      - name: Build cutlass-desktop (release)
-        run: cargo build --release -p cutlass-desktop
+      - name: Build aria-desktop (release)
+        run: cargo build --release -p aria-desktop --locked
 
       - name: Package tarball
         run: chmod +x scripts/package-linux.sh && ./scripts/package-linux.sh
 
+      - name: Enforce Linux archive size ceiling
+        shell: bash
+        run: |
+          shopt -s nullglob
+          artifacts=(dist/Aria-*-linux-*.tar.gz)
+          if [[ ${#artifacts[@]} -ne 1 ]]; then
+            echo "Expected one Linux tarball, found ${#artifacts[@]}." >&2
+            exit 1
+          fi
+          bytes=$(wc -c < "${artifacts[0]}")
+          ceiling=$((40 * 1024 * 1024))
+          echo "${artifacts[0]}: ${bytes} bytes (ceiling ${ceiling})"
+          [[ $bytes -le $ceiling ]]
+
       - uses: actions/upload-artifact@v4
         with:
-          name: cutlass-linux-x86_64
-          path: dist/Cutlass-*-linux-*.tar.gz
+          name: aria-linux-x86_64
+          path: dist/Aria-*-linux-*.tar.gz
 
   build-windows:
     name: windows / ${{ matrix.arch }}
@@ -96,8 +191,60 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      - name: Build cutlass-desktop (release)
-        run: cargo build --release -p cutlass-desktop
+      - name: Validate Windows signing configuration
+        id: windows-signing
+        shell: pwsh
+        env:
+          CERTIFICATE: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE }}
+          CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_PASSWORD }}
+        run: |
+          $hasCertificate = -not [string]::IsNullOrWhiteSpace($env:CERTIFICATE)
+          $hasPassword = -not [string]::IsNullOrWhiteSpace($env:CERTIFICATE_PASSWORD)
+          if ($hasCertificate -ne $hasPassword) {
+            throw "Windows signing requires both certificate secrets."
+          }
+          $enabled = $hasCertificate.ToString().ToLowerInvariant()
+          "enabled=$enabled" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
+          if ($hasCertificate) {
+            $certificatePath = Join-Path $env:RUNNER_TEMP "aria-signing.pfx"
+            [IO.File]::WriteAllBytes(
+              $certificatePath,
+              [Convert]::FromBase64String($env:CERTIFICATE)
+            )
+            "certificate=$certificatePath" |
+              Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
+          }
+
+      - name: Build aria-desktop (release)
+        run: cargo build --release -p aria-desktop --locked
+
+      - name: Sign release executable
+        if: steps.windows-signing.outputs.enabled == 'true'
+        shell: pwsh
+        env:
+          CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_PASSWORD }}
+        run: |
+          $metadata = cargo --locked metadata --no-deps --format-version 1 |
+            ConvertFrom-Json
+          $binary = Join-Path $metadata.target_directory "release\aria-desktop.exe"
+          $toolArch = if ("${{ matrix.arch }}" -eq "arm64") { "arm64" } else { "x64" }
+          $signToolCandidates = Get-ChildItem `
+            "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\$toolArch\signtool.exe"
+          $signTool = $signToolCandidates |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+          if (-not $signTool) {
+            throw "signtool.exe for $toolArch was not found."
+          }
+          $signArguments = @(
+            "sign", "/fd", "SHA256", "/td", "SHA256",
+            "/tr", "http://timestamp.digicert.com",
+            "/f", "${{ steps.windows-signing.outputs.certificate }}",
+            "/p", "$env:CERTIFICATE_PASSWORD",
+            "$binary"
+          )
+          & $signTool.FullName @signArguments
+          & $signTool.FullName verify /pa "$binary"
 
       - name: Install Inno Setup
         run: choco install innosetup --no-progress -y
@@ -106,12 +253,55 @@ jobs:
         shell: pwsh
         run: ./scripts/package-windows-installer.ps1 -Arch ${{ matrix.arch }}
 
+      - name: Sign Windows installer
+        if: steps.windows-signing.outputs.enabled == 'true'
+        shell: pwsh
+        env:
+          CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_PASSWORD }}
+        run: |
+          $installers = @(Get-ChildItem dist/Aria-*-windows-*-Setup.exe)
+          if ($installers.Count -ne 1) {
+            throw "Expected one Windows installer, found $($installers.Count)."
+          }
+          $toolArch = if ("${{ matrix.arch }}" -eq "arm64") { "arm64" } else { "x64" }
+          $signToolCandidates = Get-ChildItem `
+            "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\$toolArch\signtool.exe"
+          $signTool = $signToolCandidates |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+          if (-not $signTool) {
+            throw "signtool.exe for $toolArch was not found."
+          }
+          $signArguments = @(
+            "sign", "/fd", "SHA256", "/td", "SHA256",
+            "/tr", "http://timestamp.digicert.com",
+            "/f", "${{ steps.windows-signing.outputs.certificate }}",
+            "/p", "$env:CERTIFICATE_PASSWORD",
+            $installers[0].FullName
+          )
+          & $signTool.FullName @signArguments
+          & $signTool.FullName verify /pa $installers[0].FullName
+
+      - name: Enforce Windows installer size ceiling
+        shell: pwsh
+        run: |
+          $artifacts = @(Get-ChildItem dist/Aria-*-windows-*-Setup.exe)
+          if ($artifacts.Count -ne 1) {
+            throw "Expected one Windows installer, found $($artifacts.Count)."
+          }
+          $ceiling = 24MB
+          $bytes = $artifacts[0].Length
+          Write-Host "$($artifacts[0].FullName): $bytes bytes (ceiling $ceiling)"
+          if ($bytes -gt $ceiling) {
+            throw "Windows installer exceeds the size ceiling."
+          }
+
       - uses: actions/upload-artifact@v4
         with:
-          name: cutlass-windows-${{ matrix.arch }}
+          name: aria-windows-${{ matrix.arch }}
           path: |
-            dist/Cutlass-*-windows-*.zip
-            dist/Cutlass-*-windows-*-Setup.exe
+            dist/Aria-*-windows-*.zip
+            dist/Aria-*-windows-*-Setup.exe
 
   publish:
     name: github release
@@ -119,14 +309,38 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
+      attestations: write
       contents: write
+      id-token: write
     steps:
       - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: taiki-e/install-action@cargo-cyclonedx
 
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
           merge-multiple: true
+
+      - name: Generate CycloneDX SBOM
+        run: |
+          cargo --locked cyclonedx \
+            --manifest-path apps/aria-desktop/Cargo.toml \
+            --format json \
+            --all \
+            --override-filename aria-sbom.cdx.json
+          mv apps/aria-desktop/aria-sbom.cdx.json artifacts/
+
+      - name: Generate SHA-256 checksums
+        working-directory: artifacts
+        run: sha256sum -- * > SHA256SUMS
+
+      - name: Attest release provenance
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: artifacts/**/*
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

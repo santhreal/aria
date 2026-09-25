@@ -1,0 +1,38 @@
+[package]
+name = "aria-mobile"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Mobile FFI bridge for Aria: renders frames for the iOS/Android test apps (C ABI + JNI)."
+
+# `staticlib` for the iOS app (linked into the binary), `cdylib` (.so) for the
+# Android app (loaded at runtime via System.loadLibrary), `rlib` so host
+# integration tests can link the crate. Each platform consumes the one it needs.
+[lib]
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[dependencies]
+aria-core = { path = "../aria-core" }
+aria-commands = { path = "../aria-commands" }
+aria-compositor = { path = "../aria-compositor" }
+aria-decoder = { path = "../aria-decoder" }
+aria-engine = { path = "../aria-engine" }
+aria-models = { path = "../aria-models" }
+aria-render = { path = "../aria-render" }
+log = "0.4"
+png = "0.17"
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+
+# Android: JNI entry points the Kotlin app calls. (iOS uses the plain C ABI.)
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
+android_logger = "0.14"
+
+[lints]
+workspace = true

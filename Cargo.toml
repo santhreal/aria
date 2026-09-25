@@ -1,34 +1,47 @@
 [workspace]
 members = [
-    "crates/cutlass-analysis",
-    "crates/cutlass-core",
-    "crates/cutlass-decoder",
-    "crates/cutlass-compositor",
-    "crates/cutlass-text",
-    "crates/cutlass-shapes",
-    "crates/cutlass-models",
-    "crates/cutlass-commands",
-    "crates/cutlass-ai",
-    "crates/cutlass-cloud",
-    "crates/cutlass-render",
-    "crates/cutlass-encoder",
-    "crates/cutlass-engine",
-    "crates/cutlass-cli",
-    "crates/cutlass-mobile",
-    "crates/cutlass-settings",
-    "crates/cutlass-jobs",
-    "crates/cutlass-storage",
-    "crates/cutlass-transcription",
-    "crates/cutlass-ui-gallery",
-    "apps/cutlass-desktop",
+    "crates/aria-analysis",
+    "crates/aria-detect",
+    "crates/aria-core",
+    "crates/aria-decoder",
+    "crates/aria-compositor",
+    "crates/aria-text",
+    "crates/aria-shapes",
+    "crates/aria-models",
+    "crates/aria-commands",
+    "crates/aria-ai",
+    "crates/aria-dialog",
+    "crates/aria-cloud",
+    "crates/aria-render",
+    "crates/aria-encoder",
+    "crates/aria-engine",
+    "crates/aria-cli",
+    "crates/aria-mobile",
+    "crates/aria-settings",
+    "crates/aria-jobs",
+    "crates/aria-storage",
+    "crates/aria-transcription",
+    "crates/aria-ui-gallery",
+    "crates/aria-plugin",
+    "crates/aria-ui",
+    "apps/aria-desktop",
+    "examples/notes-plugin",
 ]
 # Bare `cargo run` / `cargo build` from the workspace root target the desktop
 # app. Use `--workspace` (or `-p <crate>`) for full-workspace / other binaries.
-default-members = ["apps/cutlass-desktop"]
-# cutlass-py is a PyO3 cdylib shipped to PyPI on its own (maturin). Kept out of
+default-members = ["apps/aria-desktop"]
+# aria-py is a PyO3 cdylib shipped to PyPI on its own (maturin). Kept out of
 # the default workspace build so `cargo build --workspace` and the mobile
 # cross-compiles never pull Python/pyo3. Build it from its own directory.
-exclude = ["crates/cutlass-py"]
+exclude = [
+    "crates/aria-py",
+    "fuzz",
+    "vendor/gpui_shared_string",
+    "vendor/gpui_util",
+    "vendor/gpui",
+    "vendor/ztracing",
+    "vendor/ztracing_macro",
+]
 resolver = "3"
 
 [workspace.package]
@@ -36,7 +49,29 @@ version = "0.7.0-alpha.0"
 edition = "2024"
 rust-version = "1.92"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/1mrnewton/cutlass"
+repository = "https://github.com/1mrnewton/aria"
+
+# Workspace lint levels distinguish build-breaking defects from advisory
+# maintainability findings. CI uses these levels rather than promoting every
+# Clippy warning to an error.
+[workspace.lints.clippy]
+redundant_clone = "deny"
+clone_on_copy = "deny"
+inefficient_to_string = "deny"
+large_types_passed_by_value = "deny"
+dbg_macro = "deny"
+todo = "warn"
+unwrap_used = "warn"
+expect_used = "warn"
+unimplemented = "deny"
+wildcard_imports = "warn"
+manual_let_else = "warn"
+match_same_arms = "warn"
+
+[workspace.lints.rust]
+unsafe_code = "warn"
+unreachable_pub = "warn"
+missing_debug_implementations = "warn"
 
 [workspace.dependencies]
 thiserror = "2"
@@ -44,9 +79,83 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.150"
 rustc-hash = "2"
 tracing = "0.1"
-# GPU compositor. wgpu 29 matches Slint 1.17's `unstable-wgpu-29` so the
-# desktop UI can hand the compositor its own device/queue and share textures
-# (zero-copy present) instead of round-tripping pixels through the CPU.
+parking_lot = "0.12"
+# dlopen for external plugin libraries.
+libloading = "0.8"
+# GPU compositor. Preview currently CPU-readbacks into GPUI textures;
+# wgpu stays pinned so the engine compositor does not drift.
 wgpu = "29"
 bytemuck = { version = "1", features = ["derive"] }
 pollster = "0.4"
+# gpui — Comet's pin of the wingleeio/zed fork (rev 5d1f83d).
+# Provenance: https://github.com/zeronsh/comet Cargo.toml workspace.dependencies.
+# License: Apache-2.0 (gpui) / see vendor/README.md.
+gpui = { git = "https://github.com/wingleeio/zed", rev = "5d1f83d9f27a19bec1fb241dc33b42238af9cf8d" }
+gpui_platform = { git = "https://github.com/wingleeio/zed", rev = "5d1f83d9f27a19bec1fb241dc33b42238af9cf8d", features = [
+    "wayland",
+    "x11",
+    "font-kit",
+    "runtime_shaders",
+] }
+gpui_tokio = { git = "https://github.com/wingleeio/zed", rev = "5d1f83d9f27a19bec1fb241dc33b42238af9cf8d" }
+
+[patch."https://github.com/wingleeio/zed"]
+# The Zed tree also contains tooling/lints/test_fixture/gpui_shared_string
+# (version 0.0.0, no Debug/Eq/Hash). Cargo resolver 3 picks that fixture
+# over crates/gpui_shared_string. Force the real crate from this tree.
+gpui_shared_string = { path = "vendor/gpui_shared_string" }
+# Rust 1.92 also predates `std::hint::cold_path`; retain the pinned GPUI
+# implementation with a stable cold helper.
+gpui = { path = "vendor/gpui" }
+# Rust 1.92 predates `slice::as_array`; retain the pinned implementation with
+# that one call expressed through stable `TryInto`.
+gpui_util = { path = "vendor/gpui_util" }
+# `sum_tree` uses only ztracing's disabled no-op surface. Patch out the GPL
+# logger/profiler crates so the shipped dependency graph stays dual-licensed.
+ztracing = { path = "vendor/ztracing" }
+ztracing_macro = { path = "vendor/ztracing_macro" }
+
+# No profile was declared here, so every build ran stock: `dev` at opt-level 0
+# for the whole graph, `release` at codegen-units 16 with thin-local LTO. A video
+# editor spends its time in the compositor, the resolver and the decoders, and at
+# opt-level 0 those are 10-40x off their real speed, which is what makes the app
+# feel heavy and what makes a test run take minutes of CPU.
+[profile.dev]
+# The crate being worked on stays cheap to rebuild, but not free: opt-level 1
+# keeps debug builds honest without paying full inlining on every edit.
+opt-level = 1
+debug = 1
+# Splitting debug info keeps linking fast; the symbols stay on disk for a debugger.
+split-debuginfo = "unpacked"
+incremental = true
+
+# Dependencies are built once and then read-only for weeks: there is no reason to
+# run them unoptimised. This is the single biggest cut in how heavy the app feels
+# in a debug run, because wgpu, the decoders and the font stack all live here.
+[profile.dev.package."*"]
+opt-level = 3
+debug = false
+
+# Tests are dependencies of nothing and run constantly. Optimising them cuts wall
+# time and the CPU a run costs the machine it runs on.
+[profile.test]
+opt-level = 2
+
+[profile.release]
+opt-level = 3
+# Whole-program LTO with one codegen unit: the compositor and resolver cross crate
+# boundaries on every frame, and those calls only inline when the whole graph is
+# one unit.
+lto = "fat"
+codegen-units = 1
+# `abort` would be faster still, but the job system asserts on panic recovery and
+# `#[should_panic]` tests need unwinding, so correctness keeps this one.
+panic = "unwind"
+strip = "debuginfo"
+
+# Profiling and benchmarking need release code with symbols, not a third profile
+# that nobody keeps current.
+[profile.bench]
+inherits = "release"
+strip = "none"
+debug = 1

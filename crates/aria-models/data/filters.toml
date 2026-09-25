@@ -1,0 +1,74 @@
+# Colour-grade filter presets.
+#
+# `id` is what a project stores; it is permanent once shipped. Every other key is
+# a grade offset applied at full intensity, in the same units as a manual
+# adjustment: -1 … 1 for the tonal keys, 0 … 1 for sharpness and vignette. A key
+# left out is 0, so a preset lists only what it changes.
+#
+# Copy this file to <data dir>/catalogs/filters.toml to change the set. A filter
+# added here renders with no rebuild.
+
+[[entry]]
+id = "vivid"
+label = "Vivid"
+saturation = 0.45
+contrast = 0.15
+
+[[entry]]
+id = "warm"
+label = "Warm"
+temperature = 0.4
+brightness = 0.05
+
+[[entry]]
+id = "cool"
+label = "Cool"
+temperature = -0.4
+
+[[entry]]
+id = "mono"
+label = "Mono"
+saturation = -1.0
+contrast = 0.1
+
+[[entry]]
+id = "fade"
+label = "Fade"
+contrast = -0.3
+brightness = 0.1
+saturation = -0.2
+
+[[entry]]
+id = "chrome"
+label = "Chrome"
+contrast = 0.25
+saturation = 0.1
+brightness = 0.05
+
+[[entry]]
+id = "noir"
+label = "Noir"
+saturation = -1.0
+contrast = 0.35
+brightness = -0.05
+
+[[entry]]
+id = "sunset"
+label = "Sunset"
+temperature = 0.5
+tint = 0.1
+saturation = 0.15
+
+[[entry]]
+id = "forest"
+label = "Forest"
+tint = -0.25
+saturation = 0.2
+brightness = 0.03
+
+[[entry]]
+id = "berry"
+label = "Berry"
+tint = 0.35
+temperature = -0.1
+saturation = 0.25

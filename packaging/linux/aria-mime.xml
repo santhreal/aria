@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The project file type, so a file manager shows `.aria` files as Aria projects
+  and opens them with the editor. A project is JSON whose first key is a schema
+  block naming the kind; the magic matches that kind string wherever the writer
+  puts it in the first line or two, and the glob carries the rest.
+-->
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-aria-project">
+    <comment>Aria project</comment>
+    <sub-class-of type="application/json"/>
+    <glob pattern="*.aria"/>
+    <magic priority="60">
+      <match type="string" value="&quot;aria.project&quot;" offset="8:96"/>
+    </magic>
+    <icon name="aria"/>
+  </mime-type>
+</mime-info>

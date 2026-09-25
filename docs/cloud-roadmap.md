@@ -1,14 +1,14 @@
 # Cloud Roadmap — backend, asset catalog, and BYOK architecture
 
 **Status (macos-dev, Jul 2026):** desktop v1 ships **anonymous cloud + BYOK
-only**. Cutlass account / device sign-in / managed credits are **not in the
+only**. Aria account / device sign-in / managed credits are **not in the
 desktop client** for this release (backend/website may still exist out of
 tree). This doc is the client-side architecture for everything cloud-shaped
 that remains: stock media, templates, text presets, SFX/LUT packs, fal BYOK
 generation, and the update check. The backend's own technical notes live in
-`cutlass-backend/docs/ARCHITECTURE.md`.
+`aria-backend/docs/ARCHITECTURE.md`.
 
-Policy: **Cutlass is free, and the cloud is optional.** The backend exists so
+Policy: **Aria is free, and the cloud is optional.** The backend exists so
 anonymous catalogs and stock search work without users juggling provider
 accounts for those surfaces — never to gate the editor.
 
@@ -27,7 +27,7 @@ accounts for those surfaces — never to gate the editor.
   backend (the provider API keys must stay server-side — an embedded key in
   an open-source binary is public, and rate limits are per key). The actual
   media files download **directly from the provider CDNs** (keyless URLs),
-  so stock bandwidth never hits our egress. Cutlass-owned assets (template
+  so stock bandwidth never hits our egress. Aria-owned assets (template
   bundles, SFX, LUTs, Lottie files) serve from object storage/CDN, not the
   Axum process.
 - **The editor never blocks on the backend.** Fully offline editing is
@@ -38,21 +38,21 @@ accounts for those surfaces — never to gate the editor.
   months and cannot be force-updated. API evolution is additive-only within
   `/v1` (new optional fields, new endpoints); breaking changes mean `/v2`
   with `/v1` kept alive on a stated deprecation window. The shared DTO
-  crate (`cutlass-cloud`) encodes this: unknown-field-tolerant serde
+  crate (`aria-cloud`) encodes this: unknown-field-tolerant serde
   everywhere. The app gets a lightweight update-check nudge
   (`/v1/app/latest-version` behind a non-blocking launch-screen chip); a
   real auto-updater is explicitly later.
 - **Privacy is explicit.** BYOK keys never transit our servers. No telemetry
   without opt-in.
 
-## The client seam: `crates/cutlass-cloud`
+## The client seam: `crates/aria-cloud`
 
 One crate owns all backend/provider HTTP for the editor, shaped like
-`cutlass-ai`: engine-free, blocking HTTP on worker threads, trait-based so
+`aria-ai`: engine-free, blocking HTTP on worker threads, trait-based so
 tests use scripted fakes.
 
 - **DTOs are the contract source of truth.** Request/response types for
-  every backend route live here; `cutlass-backend` consumes this crate as a
+  every backend route live here; `aria-backend` consumes this crate as a
   git dependency and its contract tests fail CI on drift. The editor repo
   stays self-contained (no path deps across sibling repos).
 - **Routing rule**, applied per capability: BYOK key configured → call the
@@ -73,7 +73,7 @@ tests use scripted fakes.
 
 ## Credentials and config
 
-- `~/.cutlass/config.toml` (single owner: `cutlass-settings`) holds a
+- `~/.aria/config.toml` (single owner: `aria-settings`) holds a
   `[providers.<name>]` key registry (literal key or `_env` indirection,
   the `AiSettings` pattern) and a `[cloud]` table (`base_url` for the API
   host — override only). Legacy `[account].base_url` still loads into
@@ -98,10 +98,10 @@ tests use scripted fakes.
 
 ## Scope statements
 
-- **Desktop-first.** `cutlass-cloud` is engine-free Rust, so
-  `cutlass-mobile` can expose it over FFI later — but mobile parity for
+- **Desktop-first.** `aria-cloud` is engine-free Rust, so
+  `aria-mobile` can expose it over FFI later — but mobile parity for
   stock/templates/AI generation is out of scope for this roadmap.
-- **`cutlass-py` gets none of this.** It stays a local scripting wrapper.
+- **`aria-py` gets none of this.** It stays a local scripting wrapper.
 - **Launch rail "Learn" tab**: out of scope. If it ever ships, it rides
   the asset catalog as a links/articles feed.
 - **Community submissions** (templates, skills): schema fields reserved
@@ -111,20 +111,20 @@ tests use scripted fakes.
 ## Workstreams
 
 Ordered; each lands independently. Details per workstream live with the
-code and in `cutlass-backend/docs/ARCHITECTURE.md`.
+code and in `aria-backend/docs/ARCHITECTURE.md`.
 
 1. **Architecture docs** — this file plus the backend architecture update
    (stock search, asset catalog).
-2. **`cutlass-cloud`, anonymous half** — DTOs, stock/catalog client,
+2. **`aria-cloud`, anonymous half** — DTOs, stock/catalog client,
    `StockProvider` trait, download cache. No auth anywhere.
 3. **Backend foundation & ops** — Postgres + migrations, config,
    rate-limit middleware, staging/prod deploy, observability, CI with
    DTO contract tests.
 4. **Stock media slice** — `/v1/stock/search` (metadata only) + Library
    Stock sections browsing → direct-CDN download → existing import path.
-5. **Templates** — bundle format (a raw `.cutlasst` references sample
+5. **Templates** — bundle format (a raw `.ariat` references sample
    media by local path and is not distributable), minimal authoring flow
-   (slot-marking UI or `cutlass-py` script), backend catalog, launch-rail
+   (slot-marking UI or `aria-py` script), backend catalog, launch-rail
    gallery, `ApplyTemplate` pick flow. Text presets ride along
    (bundled-OFL-fonts-only).
 6. **Update check** — anonymous `latest-version` + launch-screen chip
@@ -137,7 +137,7 @@ code and in `cutlass-backend/docs/ARCHITECTURE.md`.
    stickers), file-backed animated asset model.
 9. **SFX + LUT packs** — catalog browsing/import; LUT browsing gates on
    the `.cube` compositor pass landing (no phantom features).
-10. **Agent rules & skills** — `~/.cutlass/agent/` (rules, skills, slash
+10. **Agent rules & skills** — `~/.aria/agent/` (rules, skills, slash
     commands), read-only `read_skill` tool via the vocabulary growth
     checklist, project rules in `ProjectMetadata` (shown before first use
     on imported projects), bundled first-party skills; skills packs join

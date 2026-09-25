@@ -9,7 +9,7 @@ on paper, not in a PR.
 
 ## Why this is hard here
 
-`cutlass-ai`'s prompt loop is built on a **closed command vocabulary**:
+`aria-ai`'s prompt loop is built on a **closed command vocabulary**:
 every tool the model can call is a `WireCommand` defined in this repo,
 validated against a project snapshot before it touches the engine,
 rehearsed in a sandbox, rendered as a human-readable plan, and replayed as
@@ -48,13 +48,13 @@ problems and deliberately share no mechanism.
   wrapped in a fence that names the server and states that the content is
   external data, not instructions (prompt-injection posture, below).
 
-### 2. Architecture: `cutlass-mcp` crate + a trait seam
+### 2. Architecture: `aria-mcp` crate + a trait seam
 
-- New crate `crates/cutlass-mcp`: MCP client only. JSON-RPC framing,
+- New crate `crates/aria-mcp`: MCP client only. JSON-RPC framing,
   the `initialize` handshake, `tools/list`, `tools/call`, timeouts,
   and the **stdio transport** (spawn a child process) first; streamable
-  HTTP later. No engine, no Slint, no `cutlass-ai` dependency.
-- `cutlass-ai` stays transport-free. `run_prompt` gains an optional
+  HTTP later. No engine, no UI toolkit, no `aria-ai` dependency.
+- `aria-ai` stays transport-free. `run_prompt` gains an optional
   `external_tools: &mut dyn ExternalTools` seam (mirroring
   `EngineBridge`):
 
@@ -77,7 +77,7 @@ problems and deliberately share no mechanism.
 
 ### 3. Configuration
 
-In `~/.cutlass/config.toml`, following the `[providers.*]` registry
+In `~/.aria/config.toml`, following the `[providers.*]` registry
 pattern:
 
 ```toml
@@ -113,7 +113,7 @@ project file must never be able to name an executable to run
   rehearsed as today, and the only path to another side effect is
   another consented MCP call.
 - **Sampling is refused.** MCP servers may request LLM completions
-  (`sampling/*`); Cutlass declines the capability at handshake. A tool
+  (`sampling/*`); Aria declines the capability at handshake. A tool
   server does not get to spend the user's tokens or steer the loop.
 
 ### 5. Dry-run and undo semantics — stated, not faked
@@ -127,7 +127,7 @@ conversation's causality. So:
   consent policy above. They are never part of the parked plan.
 - Apply/Discard and Cmd+Z cover timeline edits only. The approve/deny
   card for a side-effectful call says exactly that: *"Runs now; not
-  undoable from Cutlass."*
+  undoable from Aria."*
 - The transcript logs every MCP call (server, tool, argument summary,
   duration, ok/error) so a prompt's external footprint is auditable
   after the fact.

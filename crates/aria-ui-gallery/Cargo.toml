@@ -1,0 +1,17 @@
+[package]
+name = "aria-ui-gallery"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "GPUI gallery for Aria theme, motion, and chrome widgets."
+publish = false
+
+[dependencies]
+aria-ui = { path = "../aria-ui" }
+gpui = { workspace = true }
+gpui_platform = { workspace = true }
+
+[lints]
+workspace = true

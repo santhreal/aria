@@ -1,5 +1,5 @@
 ---
-description: File size limits and module-splitting conventions for Rust and Slint
+description: File size limits and module-splitting conventions for Rust
 alwaysApply: true
 ---
 
@@ -11,7 +11,7 @@ Large files are expensive to read, review, and reason about. Keep them small and
 
 - **Soft target: ≤ 500 lines.** Aim for this when writing new code or when a natural split presents itself.
 - **Hard ceiling: 1000 lines.** No file may cross it. If an edit would push a file past 1000 lines, split **before** adding the new code.
-- Applies to Rust (`.rs`) and Slint (`.slint`) alike. Generated code is exempt.
+- Applies to Rust (`.rs`) sources. Generated code is exempt.
 
 ## How to split
 
@@ -38,7 +38,7 @@ Never split mechanically at a line count — every extracted module must be a co
 
 ## Existing oversized files
 
-Many legacy files exceed the ceiling (worst: `preview_worker.rs`). Do **not** launch cleanup sprees. Instead:
+Many legacy files exceed the ceiling. Do **not** launch cleanup sprees. Instead:
 
 - When a task requires substantial edits to an oversized file, propose splitting it first (or extract just the region you're working in).
 - Trivial edits to oversized files are fine as-is.

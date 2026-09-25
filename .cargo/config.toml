@@ -1,6 +1,14 @@
-# Slint's compiler and generated UI code can exceed Windows' default 1 MiB stack
-# (build scripts and debug binaries). Match typical Linux stack size (~10 MiB).
-# https://github.com/slint-ui/slint/issues/4586
+# Temporary files belong to this workspace, not to the machine. Tests reach for
+# the temp directory in 188 places (`tempfile::tempdir`, `std::env::temp_dir`),
+# and a shared /tmp is where those directories pile up when a test panics
+# before its guard drops. TMPDIR points at a tracked, gitignored directory next
+# to this config instead; the path is relative so no host path enters the file,
+# and it is forced so an inherited TMPDIR cannot put the pile back in /tmp.
+[env]
+TMPDIR = { value = "scratch", relative = true, force = true }
+
+# Windows debug binaries and build scripts can exceed the default 1 MiB stack.
+# Match typical Linux stack size (~10 MiB).
 
 [target.x86_64-pc-windows-msvc]
 rustflags = ["-C", "link-arg=/STACK:10000000"]

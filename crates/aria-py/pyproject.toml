@@ -1,0 +1,44 @@
+[build-system]
+# 1.9+ for PEP 639 license metadata (license-files below).
+requires = ["maturin>=1.9,<2.0"]
+build-backend = "maturin"
+
+# Distribution name is `aria-py` (the bare `aria` name on PyPI belongs to
+# an unrelated project); the import name stays `aria` via [tool.maturin]
+# module-name below.
+[project]
+name = "aria-py"
+description = "MoviePy-style Python bindings for the Aria video engine."
+readme = "README.md"
+requires-python = ">=3.9"
+# PEP 639 SPDX expression + explicit license-files. The explicit list (rather
+# than maturin's LICENSE-* auto-detection) keeps the sdist's License-File
+# metadata pointing at paths that actually exist at the archive root — PyPI
+# rejects the upload otherwise.
+license = "MIT OR Apache-2.0"
+license-files = ["LICENSE-APACHE", "LICENSE-MIT"]
+keywords = ["video", "editing", "ffmpeg-alternative", "moviepy", "rust"]
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: 3",
+    "Topic :: Multimedia :: Video",
+]
+dynamic = ["version"]
+dependencies = ["numpy>=1.21"]
+
+[project.urls]
+Repository = "https://github.com/1mrnewton/aria"
+
+# Build the `aria` extension module from this crate. The Rust library name
+# (`aria`) is the import name; the version is read from Cargo.toml. The
+# adjacent `aria.pyi` stub is auto-detected by maturin and ships in the
+# wheel as `aria/__init__.pyi`.
+[tool.maturin]
+module-name = "aria"
+# The wheel is the build that borrows CPython's symbols: `extension-module`
+# leaves them to the host interpreter, so the module imports into any supported
+# Python instead of linking one. The crate's default feature is the opposite
+# choice (link an interpreter, so `cargo test` runs), and the two cannot both be
+# on — hence turning the default off here.
+no-default-features = true
+features = ["extension-module"]

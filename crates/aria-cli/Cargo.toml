@@ -1,0 +1,27 @@
+[package]
+name = "aria-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Aria's command line: render a frame, export a span, inspect a project, run the detectors."
+
+[[bin]]
+name = "aria"
+path = "src/main.rs"
+
+[dependencies]
+aria-analysis = { path = "../aria-analysis" }
+aria-commands = { path = "../aria-commands" }
+aria-compositor = { path = "../aria-compositor" }
+aria-engine = { path = "../aria-engine" }
+aria-core = { path = "../aria-core" }
+aria-detect = { path = "../aria-detect" }
+aria-encoder = { path = "../aria-encoder" }
+aria-models = { path = "../aria-models" }
+aria-render = { path = "../aria-render" }
+aria-text = { path = "../aria-text" }
+
+[lints]
+workspace = true

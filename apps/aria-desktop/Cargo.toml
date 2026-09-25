@@ -1,0 +1,18 @@
+[package]
+name = "aria-desktop"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Aria desktop editor (GPUI): a native Rust frontend that links the platform-independent engine directly."
+
+[dependencies]
+# Process bring-up plus the GPUI shell. Engine crates reach the binary through
+# aria-ui / aria-plugin, not as unused direct deps of this crate.
+aria-plugin = { path = "../../crates/aria-plugin" }
+aria-ui = { path = "../../crates/aria-ui" }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[lints]
+workspace = true

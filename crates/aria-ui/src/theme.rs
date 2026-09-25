@@ -1,0 +1,522 @@
+//! The app theme — two concrete appearances, one token set.
+//!
+//! Ported from Comet (<https://github.com/zeronsh/comet>)
+//! MIT License — see LICENSES/comet-MIT.txt
+//!
+//! Colors are precomputed from an oklch-derived neutral scale into gpui
+//! [`Hsla`]. Numbers drive layout, colors are paint.
+
+use gpui::{App, Global, Hsla, SharedString, hsla};
+use std::sync::atomic::{AtomicU8, AtomicU32, Ordering};
+/// Which appearance the app is painting.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum Appearance {
+    #[default]
+    Dark,
+    Light,
+}
+impl Appearance {
+    pub fn is_dark(self) -> bool {
+        matches!(self, Self::Dark)
+    }
+
+    pub fn is_light(self) -> bool {
+        matches!(self, Self::Light)
+    }
+
+    pub fn from_window(appearance: gpui::WindowAppearance) -> Self {
+        use gpui::WindowAppearance::*;
+        match appearance {
+            Light | VibrantLight => Self::Light,
+            Dark | VibrantDark => Self::Dark,
+        }
+    }
+}
+static CURRENT_APPEARANCE: AtomicU8 = AtomicU8::new(0);
+static THEME_GENERATION: AtomicU32 = AtomicU32::new(0);
+pub fn current_appearance() -> Appearance {
+    match CURRENT_APPEARANCE.load(Ordering::Relaxed) {
+        1 => Appearance::Light,
+        _ => Appearance::Dark,
+    }
+}
+pub fn theme_generation() -> u32 {
+    THEME_GENERATION.load(Ordering::Relaxed)
+}
+#[cfg(test)]
+pub(crate) fn lock_appearance() -> std::sync::MutexGuard<'static, ()> {
+    static APPEARANCE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    APPEARANCE_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+}
+pub fn set_current_appearance(appearance: Appearance) {
+    let encoded = match appearance {
+        Appearance::Dark => 0,
+        Appearance::Light => 1,
+    };
+    if CURRENT_APPEARANCE.swap(encoded, Ordering::Relaxed) != encoded {
+        THEME_GENERATION.fetch_add(1, Ordering::Relaxed);
+    }
+}
+pub const INK_FILL_SCALE: f32 = 1.0;
+pub const INK_HAIRLINE_SCALE: f32 = 1.35;
+/// Git history intentionally softens lane saturation so the graph remains
+/// colorful without competing with content. Syntax and track tints use the
+/// same treatment.
+pub fn git_graph_tone(mut color: Hsla) -> Hsla {
+    color.s *= 0.72;
+    color
+}
+/// The app theme. Two concrete instances — [`Theme::dark`] and [`Theme::light`].
+#[derive(Debug, Clone)]
+pub struct Theme {
+    pub appearance: Appearance,
+    pub bg: Hsla,
+    pub surface: Hsla,
+    pub surface_raised: Hsla,
+    pub surface_card: Hsla,
+    pub surface_dialog: Hsla,
+    pub surface_overlay: Hsla,
+    pub element_hover: Hsla,
+    pub element_active: Hsla,
+    pub border: Hsla,
+    pub border_strong: Hsla,
+    pub text: Hsla,
+    pub text_muted: Hsla,
+    pub text_faint: Hsla,
+    pub text_dim: Hsla,
+    pub solid: Hsla,
+    pub on_solid: Hsla,
+    pub accent: Hsla,
+    pub accent_strong: Hsla,
+    pub on_accent: Hsla,
+    pub danger: Hsla,
+    pub danger_muted: Hsla,
+    pub warning: Hsla,
+    pub warning_muted: Hsla,
+    pub success: Hsla,
+    pub busy: Hsla,
+    pub success_muted: Hsla,
+    pub surface_raised_hover: Hsla,
+    pub band: Hsla,
+    pub input_bg: Hsla,
+    pub selection: Hsla,
+    pub cursor: Hsla,
+    pub caret: Hsla,
+    pub danger_strong: Hsla,
+    pub font_sans: SharedString,
+    pub font_mono: SharedString,
+    pub font_sans_fallback: SharedString,
+    pub font_mono_fallback: SharedString,
+    // Video-editor tokens (Comet derivation, chroma 0.03).
+    pub track_video: Hsla,
+    pub track_audio: Hsla,
+    pub track_text: Hsla,
+    pub track_shape: Hsla,
+    pub track_generator: Hsla,
+    pub playhead: Hsla,
+    pub snap_guide: Hsla,
+    pub waveform_peak: Hsla,
+    pub waveform_rms: Hsla,
+    pub recording_dot: Hsla,
+}
+impl Theme {
+    pub const GLASS_ALPHA: f32 = if cfg!(target_os = "macos") { 0.80 } else { 1.0 };
+    pub const GLASS_ALPHA_LIGHT: f32 = if cfg!(target_os = "macos") { 0.80 } else { 1.0 };
+    pub const GLASS_BLUR: f32 = 44.0;
+    pub const HEADER_HEIGHT: f32 = 44.0;
+    pub const TITLEBAR_HEIGHT: f32 = 38.0;
+    pub const TITLEBAR_TOP_PAD: f32 = 2.0;
+    pub const STATUS_STRIP_HEIGHT: f32 = 24.0;
+    pub const BUBBLE_RADIUS: f32 = 16.0;
+    pub const PANEL_RADIUS: f32 = 10.0;
+    pub const CONTROL_RADIUS: f32 = 6.0;
+    pub const SPACE_XXS: f32 = 2.0;
+    pub const SPACE_XS: f32 = 4.0;
+    pub const SPACE_SM: f32 = 8.0;
+    pub const SPACE_MD: f32 = 12.0;
+    pub const SPACE_LG: f32 = 16.0;
+
+    pub fn glass(&self) -> Hsla {
+        match self.appearance {
+            Appearance::Dark => {
+                if Self::GLASS_ALPHA < 1.0 {
+                    grey(8).opacity(Self::GLASS_ALPHA)
+                } else {
+                    self.surface
+                }
+            }
+            Appearance::Light => {
+                if Self::GLASS_ALPHA_LIGHT < 1.0 {
+                    grey(0xfa).opacity(Self::GLASS_ALPHA_LIGHT)
+                } else {
+                    self.surface
+                }
+            }
+        }
+    }
+
+    pub fn is_glass(&self) -> bool {
+        self.glass().a < 1.0
+    }
+
+    pub fn glass_hover(&self) -> Hsla {
+        match self.appearance {
+            Appearance::Dark => wash_for(Appearance::Dark, 0.11),
+            Appearance::Light => wash_for(Appearance::Light, 0.06),
+        }
+    }
+
+    pub fn glass_overlay(&self) -> Hsla {
+        match self.appearance {
+            Appearance::Dark => oklch(0.33, 0.0, 0.0).opacity(0.34),
+            Appearance::Light => self.surface_overlay.opacity(0.85),
+        }
+    }
+
+    pub fn input_glass_bg(&self) -> Hsla {
+        if self.is_glass() && matches!(self.appearance, Appearance::Light) {
+            self.input_bg.opacity(0.30)
+        } else {
+            self.input_bg
+        }
+    }
+
+    pub fn card_glass_bg(&self) -> Hsla {
+        if self.is_glass() {
+            self.surface.opacity(0.40)
+        } else {
+            self.surface
+        }
+    }
+
+    pub fn scrim(&self) -> Hsla {
+        scrim_for(self.appearance, SCRIM_ALPHA_DARK)
+    }
+
+    pub fn window_background_appearance(&self) -> gpui::WindowBackgroundAppearance {
+        if self.is_glass() {
+            gpui::WindowBackgroundAppearance::Blurred
+        } else {
+            gpui::WindowBackgroundAppearance::Opaque
+        }
+    }
+
+    pub fn dark() -> Self {
+        let text = neutral(0.922);
+        let text_muted = neutral(0.708);
+        let text_faint = neutral(0.556);
+        let accent = oklch(0.673, 0.182, 276.935);
+        let warning = oklch(0.828, 0.189, 84.429);
+        let danger = oklch(0.704, 0.191, 22.216);
+        Self {
+            appearance: Appearance::Dark,
+            bg: grey(6),
+            surface: grey(13),
+            surface_raised: neutral(0.235),
+            surface_card: grey(0x0e),
+            surface_dialog: grey(0x10),
+            surface_overlay: grey(0x16),
+            element_hover: hsla(0.0, 0.0, 0.92, 0.11),
+            element_active: hsla(0.0, 0.0, 0.92, 0.16),
+            border: hsla(0.0, 0.0, 1.0, 0.08),
+            border_strong: hsla(0.0, 0.0, 1.0, 0.14),
+            text,
+            text_muted,
+            text_faint,
+            text_dim: grey(0x98),
+            solid: neutral(0.922),
+            on_solid: grey(0x0e),
+            accent,
+            accent_strong: oklch(0.585, 0.233, 277.117),
+            on_accent: neutral(0.985),
+            danger,
+            danger_muted: oklch(0.808, 0.114, 19.571),
+            warning,
+            warning_muted: oklch(0.924, 0.12, 95.746),
+            success: oklch(0.765, 0.177, 163.223),
+            busy: oklch(0.718, 0.202, 349.761),
+            success_muted: oklch(0.845, 0.143, 164.978),
+            surface_raised_hover: neutral(0.29),
+            band: band_for(Appearance::Dark),
+            input_bg: hsla(0.0, 0.0, 1.0, 0.03),
+            selection: hsla(0.66, 0.6, 0.55, 0.35),
+            cursor: hsla(0.0, 0.0, 1.0, 0.35),
+            caret: hsla(0.66, 0.7, 0.7, 1.0),
+            danger_strong: oklch(0.58, 0.16, 25.0),
+            font_sans: "Geist".into(),
+            font_mono: "Geist Mono".into(),
+            font_sans_fallback: system_sans().into(),
+            font_mono_fallback: system_mono().into(),
+            track_video: oklch(0.65, 0.03, 270.0),
+            track_audio: oklch(0.65, 0.03, 140.0),
+            track_text: oklch(0.65, 0.03, 60.0),
+            track_shape: oklch(0.65, 0.03, 200.0),
+            track_generator: oklch(0.65, 0.03, 0.0),
+            playhead: accent,
+            snap_guide: warning,
+            waveform_peak: text_muted.opacity(0.6),
+            waveform_rms: text_faint.opacity(0.4),
+            recording_dot: danger,
+        }
+    }
+
+    pub fn light() -> Self {
+        let text = neutral(0.25);
+        let text_muted = neutral(0.439);
+        let text_faint = neutral(0.535);
+        let warning = oklch(0.555, 0.163, 48.998);
+        let danger = oklch(0.577, 0.245, 27.325);
+        Self {
+            appearance: Appearance::Light,
+            bg: grey(0xff),
+            surface: neutral(0.968),
+            surface_raised: neutral(0.940),
+            surface_card: grey(0xff),
+            surface_dialog: grey(0xff),
+            surface_overlay: grey(0xff),
+            element_hover: hsla(0.0, 0.0, 0.10, 0.06),
+            element_active: hsla(0.0, 0.0, 0.10, 0.10),
+            border: hsla(0.0, 0.0, 0.0, 0.10),
+            border_strong: hsla(0.0, 0.0, 0.0, 0.17),
+            text,
+            text_muted,
+            text_faint,
+            text_dim: neutral(0.50),
+            solid: neutral(0.205),
+            on_solid: neutral(0.985),
+            accent: oklch(0.511, 0.262, 276.966),
+            accent_strong: oklch(0.511, 0.262, 276.966),
+            on_accent: neutral(0.985),
+            danger,
+            danger_muted: oklch(0.505, 0.213, 27.518),
+            warning,
+            warning_muted: oklch(0.473, 0.137, 46.201),
+            success: oklch(0.596, 0.145, 163.225),
+            busy: oklch(0.592, 0.249, 0.584),
+            success_muted: oklch(0.508, 0.118, 165.612),
+            surface_raised_hover: neutral(0.900),
+            band: band_for(Appearance::Light),
+            input_bg: grey(0xff),
+            selection: hsla(0.66, 0.75, 0.62, 0.28),
+            cursor: hsla(0.0, 0.0, 0.0, 0.55),
+            caret: hsla(0.66, 0.78, 0.42, 1.0),
+            danger_strong: oklch(0.51, 0.20, 25.0),
+            font_sans: "Geist".into(),
+            font_mono: "Geist Mono".into(),
+            font_sans_fallback: system_sans().into(),
+            font_mono_fallback: system_mono().into(),
+            track_video: oklch(0.65, 0.03, 270.0),
+            track_audio: oklch(0.65, 0.03, 140.0),
+            track_text: oklch(0.65, 0.03, 60.0),
+            track_shape: oklch(0.65, 0.03, 200.0),
+            track_generator: oklch(0.65, 0.03, 0.0),
+            playhead: neutral(0.0),
+            snap_guide: warning,
+            waveform_peak: text_muted.opacity(0.6),
+            waveform_rms: text_faint.opacity(0.4),
+            recording_dot: danger,
+        }
+    }
+
+    pub fn for_appearance(appearance: Appearance) -> Self {
+        match appearance {
+            Appearance::Dark => Self::dark(),
+            Appearance::Light => Self::light(),
+        }
+    }
+
+    /// Retint the accent family for one saved [`aria_settings::ThemeChoice`].
+    ///
+    /// A choice is a hue, not a second palette: every neutral, every track tint, and
+    /// every contrast pairing is already balanced against both appearances, and a
+    /// parallel palette per choice would need that work three times over and drift.
+    /// So the accent, the playhead that follows it, and the caret move together, and
+    /// the tested contrast rules keep holding.
+    pub fn with_choice(mut self, choice: aria_settings::ThemeChoice) -> Self {
+        let hue = match choice {
+            // The shipped indigo, unchanged.
+            aria_settings::ThemeChoice::Default => return self,
+            aria_settings::ThemeChoice::Ember => 55.0,
+            aria_settings::ThemeChoice::DarkBlue => 245.0,
+        };
+        self.accent = retint(self.accent, hue);
+        self.accent_strong = retint(self.accent_strong, hue);
+        self.playhead = self.accent;
+        self.caret = retint(self.caret, hue);
+        self.selection = retint(self.selection, hue);
+        self
+    }
+
+    /// The saved theme choice, applied on top of the current appearance.
+    pub fn for_choice(appearance: Appearance, choice: aria_settings::ThemeChoice) -> Self {
+        Self::for_appearance(appearance).with_choice(choice)
+    }
+
+    /// Build the theme for this appearance and choice and install it as the
+    /// one the whole window reads.
+    ///
+    /// Built here and nowhere else: a render reads the installed value, so the
+    /// token construction below runs once per appearance or choice change
+    /// rather than once per panel per frame.
+    pub fn install(appearance: Appearance, choice: aria_settings::ThemeChoice, cx: &mut App) {
+        set_current_appearance(appearance);
+        cx.set_global(ThemeHandle::from(Self::for_choice(appearance, choice)));
+    }
+
+    /// The installed theme, as a handle.
+    ///
+    /// A handle rather than a borrow because a panel cannot hold a borrow of
+    /// the app across the listeners it attaches, and rather than a copy
+    /// because a copy is every token in the struct: this is one refcount bump.
+    /// `theme.token`, `&theme` and `theme.method()` all keep working, through
+    /// [`Deref`](std::ops::Deref).
+    pub fn of(cx: &App) -> ThemeHandle {
+        cx.global::<ThemeHandle>().clone()
+    }
+
+    pub fn ink(&self, alpha: f32) -> Hsla {
+        ink_for(self.appearance, alpha)
+    }
+
+    pub fn hairline(&self, alpha: f32) -> Hsla {
+        hairline_for(self.appearance, alpha)
+    }
+
+    pub fn wash(&self, alpha: f32) -> Hsla {
+        wash_for(self.appearance, alpha)
+    }
+
+    pub fn glass_selected_bg(&self) -> Hsla {
+        match self.appearance {
+            Appearance::Dark => wash_for(Appearance::Dark, 0.11),
+            Appearance::Light => wash_for(Appearance::Light, 0.06),
+        }
+    }
+
+    /// The screen colour of a marker flag.
+    ///
+    /// One owner for the eight palette entries, so the ruler flag, the marker
+    /// list, and anything that shows a marker later cannot disagree about what
+    /// "Teal" looks like. Saturation and lightness are fixed and the hue is the
+    /// only thing that varies, so no entry reads as brighter than another.
+    pub fn marker(&self, color: aria_models::MarkerColor) -> Hsla {
+        let hue = match color {
+            aria_models::MarkerColor::Teal => 0.48,
+            aria_models::MarkerColor::Blue => 0.58,
+            aria_models::MarkerColor::Purple => 0.75,
+            aria_models::MarkerColor::Pink => 0.90,
+            aria_models::MarkerColor::Red => 0.99,
+            aria_models::MarkerColor::Orange => 0.07,
+            aria_models::MarkerColor::Yellow => 0.14,
+            aria_models::MarkerColor::Green => 0.34,
+        };
+        let lightness = match self.appearance {
+            Appearance::Dark => 0.62,
+            Appearance::Light => 0.46,
+        };
+        hsla(hue, 0.68, lightness, 1.0)
+    }
+}
+impl Default for Theme {
+    fn default() -> Self {
+        Self::dark()
+    }
+}
+
+/// A shared reference to the installed [`Theme`].
+///
+/// Cloning one is a refcount bump, which is the point: a render used to copy
+/// every token in the struct at each of the panels that asked for the theme.
+/// It derefs to [`Theme`], so a field read, a method call, and passing `&theme`
+/// to a helper that takes `&Theme` all read as before.
+#[derive(Clone, Debug)]
+pub struct ThemeHandle(std::sync::Arc<Theme>);
+
+impl std::ops::Deref for ThemeHandle {
+    type Target = Theme;
+
+    fn deref(&self) -> &Theme {
+        &self.0
+    }
+}
+
+impl From<Theme> for ThemeHandle {
+    fn from(theme: Theme) -> Self {
+        Self(std::sync::Arc::new(theme))
+    }
+}
+
+impl Default for ThemeHandle {
+    fn default() -> Self {
+        Theme::default().into()
+    }
+}
+
+/// The global is the handle, not the theme: whoever installs a theme hands
+/// over ownership once and every reader after that shares it.
+impl Global for ThemeHandle {}
+pub fn neutral(lightness: f32) -> Hsla {
+    let [v, _, _] = oklch_to_srgb(lightness, 0.0, 0.0);
+    hsla(0.0, 0.0, v, 1.0)
+}
+pub fn ink(alpha: f32) -> Hsla {
+    ink_for(current_appearance(), alpha)
+}
+pub fn ink_for(appearance: Appearance, alpha: f32) -> Hsla {
+    match appearance {
+        Appearance::Dark => hsla(0.0, 0.0, 1.0, alpha),
+        Appearance::Light => hsla(0.0, 0.0, 0.0, alpha * INK_FILL_SCALE),
+    }
+}
+pub fn hairline(alpha: f32) -> Hsla {
+    hairline_for(current_appearance(), alpha)
+}
+pub fn hairline_for(appearance: Appearance, alpha: f32) -> Hsla {
+    match appearance {
+        Appearance::Dark => hsla(0.0, 0.0, 1.0, alpha),
+        Appearance::Light => hsla(0.0, 0.0, 0.0, (alpha * INK_HAIRLINE_SCALE).min(0.5)),
+    }
+}
+pub fn wash(alpha: f32) -> Hsla {
+    wash_for(current_appearance(), alpha)
+}
+pub fn wash_for(appearance: Appearance, alpha: f32) -> Hsla {
+    match appearance {
+        Appearance::Dark => hsla(0.0, 0.0, 0.92, alpha),
+        Appearance::Light => hsla(0.0, 0.0, 0.10, alpha * INK_FILL_SCALE),
+    }
+}
+pub const SCRIM_ALPHA_DARK: f32 = 0.60;
+pub fn scrim(alpha_dark: f32) -> Hsla {
+    scrim_for(current_appearance(), alpha_dark)
+}
+pub fn scrim_for(appearance: Appearance, alpha_dark: f32) -> Hsla {
+    match appearance {
+        Appearance::Dark => hsla(0.0, 0.0, 0.0, alpha_dark),
+        Appearance::Light => hsla(0.0, 0.0, 0.0, 0.32 * (alpha_dark / SCRIM_ALPHA_DARK)),
+    }
+}
+pub fn band() -> Hsla {
+    band_for(current_appearance())
+}
+pub fn band_for(appearance: Appearance) -> Hsla {
+    match appearance {
+        Appearance::Dark => hsla(0.0, 0.0, 0.0, 0.16),
+        Appearance::Light => hsla(0.0, 0.0, 0.0, 0.045),
+    }
+}
+#[cfg(test)]
+#[path = "theme_tests.rs"]
+mod tests;
+
+// Helpers live in sibling files, declared here. Each is `pub(super)`, so the
+// parent and the siblings reach it by name and nothing is left unreachable.
+#[path = "theme_system.rs"]
+mod system;
+use system::{gamma_encode, retint, system_mono, system_sans};
+
+// Moved to a sibling file to stay under the file ceiling; re-exported so
+// every existing path keeps resolving.
+#[path = "theme_tokens.rs"]
+mod tokens;
+pub use tokens::*;

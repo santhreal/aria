@@ -1,0 +1,100 @@
+[package]
+name = "aria-render"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Aria render bridge: resolve a project timeline into composited frames and export them to video."
+# Test binaries are declared explicitly: oversized test files are split into
+# `<name>_<concern>.rs` siblings that are `#[path]` modules of their parent, not
+# standalone binaries. Autodiscovery would compile each sibling on its own.
+autotests = false
+
+[dependencies]
+aria-core = { path = "../aria-core" }
+aria-models = { path = "../aria-models" }
+aria-compositor = { path = "../aria-compositor" }
+aria-decoder = { path = "../aria-decoder" }
+aria-encoder = { path = "../aria-encoder" }
+aria-shapes = { path = "../aria-shapes" }
+aria-text = { path = "../aria-text" }
+thiserror.workspace = true
+tracing.workspace = true
+png = "0.17"
+nnnoiseless = "0.5"
+tempfile = "3"
+# The `lut-pack` baker bin writes the starter-pack `luts.json` catalog.
+serde_json.workspace = true
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+aria-compositor = { path = "../aria-compositor" }
+aria-core = { path = "../aria-core" }
+aria-models = { path = "../aria-models" }
+# The zero-copy parity test inspects the adapter backend to skip on non-Metal
+# (software) hosts where the Apple import path doesn't apply.
+wgpu = { workspace = true }
+
+[[bench]]
+name = "resolve"
+harness = false
+
+[[bench]]
+name = "export_audio_mix"
+harness = false
+
+[[bench]]
+name = "text_anim"
+harness = false
+
+[[test]]
+name = "export_mp4"
+path = "tests/export_mp4.rs"
+
+[[test]]
+name = "export_sequence"
+path = "tests/export_sequence.rs"
+
+[[test]]
+name = "export_sound"
+path = "tests/export_sound.rs"
+
+[[test]]
+name = "lottie_render"
+path = "tests/lottie_render.rs"
+
+[[test]]
+name = "lut_render"
+path = "tests/lut_render.rs"
+
+[[test]]
+name = "render_frame"
+path = "tests/render_frame.rs"
+
+[[test]]
+name = "sticker_render"
+path = "tests/sticker_render.rs"
+
+[[test]]
+name = "still_render"
+path = "tests/still_render.rs"
+
+[[test]]
+name = "text_glyph_smoke"
+path = "tests/text_glyph_smoke.rs"
+
+[[test]]
+name = "text_composite"
+path = "tests/text_composite.rs"
+
+[[test]]
+name = "text_keyframe_smoke"
+path = "tests/text_keyframe_smoke.rs"
+
+[[test]]
+name = "zero_copy"
+path = "tests/zero_copy.rs"
+
+[lints]
+workspace = true

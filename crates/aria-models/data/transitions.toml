@@ -1,0 +1,39 @@
+# Transitions the compositor can render.
+#
+# `id` must match a transition the compositor dispatches
+# (`aria_compositor::transition_ids`); an id with no pass behind it
+# cross-dissolves. `label` is what the UI shows.
+#
+# Copy this file to <data dir>/catalogs/transitions.toml to change the set.
+
+[[entry]]
+id = "crossfade"
+label = "Cross Fade"
+
+[[entry]]
+id = "dip_to_black"
+label = "Dip to Black"
+
+[[entry]]
+id = "dip_to_white"
+label = "Dip to White"
+
+[[entry]]
+id = "wipe_left"
+label = "Wipe Left"
+
+[[entry]]
+id = "wipe_right"
+label = "Wipe Right"
+
+[[entry]]
+id = "wipe_up"
+label = "Wipe Up"
+
+[[entry]]
+id = "wipe_down"
+label = "Wipe Down"
+
+[[entry]]
+id = "slide"
+label = "Slide"

@@ -1,0 +1,44 @@
+[package]
+name = "aria-analysis"
+description = "Deterministic, dependency-light audio analysis primitives for Aria"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+# Test binaries are declared explicitly: oversized test files are split into
+# `<name>_partN.rs` siblings that are `#[path]` modules of their parent, not
+# standalone binaries. Autodiscovery would compile each sibling on its own.
+autotests = false
+
+[dependencies]
+rusqlite = { version = "0.39.0", features = ["bundled", "limits"], optional = true }
+
+[features]
+sqlite = ["dep:rusqlite"]
+
+[dev-dependencies]
+tempfile = "3.27.0"
+
+[[test]]
+name = "audio_analysis"
+path = "tests/audio_analysis.rs"
+
+[[test]]
+name = "moment_adapters"
+path = "tests/moment_adapters.rs"
+
+[[test]]
+name = "moments"
+path = "tests/moments.rs"
+
+[[test]]
+name = "moments_sqlite"
+path = "tests/moments_sqlite.rs"
+
+[[test]]
+name = "shot_detection"
+path = "tests/shot_detection.rs"
+
+[lints]
+workspace = true

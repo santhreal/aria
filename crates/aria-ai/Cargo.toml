@@ -1,0 +1,43 @@
+[package]
+name = "aria-ai"
+description = "Prompt-to-edit layer: LLM-facing wire commands, validation, and project summaries"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+# Test binaries are declared explicitly: oversized test files are split into
+# `<name>_partN.rs` siblings that are `#[path]` modules of their parent, not
+# standalone binaries. Autodiscovery would compile each sibling on its own.
+autotests = false
+
+[dependencies]
+base64 = "0.22"
+aria-cloud = { path = "../aria-cloud" }
+aria-commands = { path = "../aria-commands" }
+aria-models = { path = "../aria-models" }
+aria-settings = { path = "../aria-settings" }
+parking_lot.workspace = true
+schemars = "1"
+serde.workspace = true
+serde_json.workspace = true
+ureq = "2"
+
+[dev-dependencies]
+aria-engine = { path = "../aria-engine" }
+tempfile = "3"
+
+[lints]
+workspace = true
+
+[[test]]
+name = "agent_eval"
+path = "tests/agent_eval.rs"
+
+[[test]]
+name = "engine_roundtrip"
+path = "tests/engine_roundtrip.rs"
+
+[[test]]
+name = "tool_schema"
+path = "tests/tool_schema.rs"

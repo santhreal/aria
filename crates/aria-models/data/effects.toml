@@ -1,0 +1,89 @@
+# GPU effects: what each one is called and what it can be tuned by.
+#
+# `id` must be an effect the compositor dispatches; an id with no pass behind it
+# is skipped, so it changes nothing. Parameter order is the shader's uniform
+# order — reordering `params` feeds the shader the wrong slots, so append rather
+# than reorder.
+#
+# `kind` is `scalar`, `vec2`, or `color`. A scalar uses `default`, `min`, `max`;
+# a vec2 uses `default_vec2` with `min`/`max` bounding each component; a colour
+# uses `default_color` as RGBA 0 … 255 and ignores the range.
+#
+# Copy this file to <data dir>/catalogs/effects.toml to change the set.
+
+[[entry]]
+id = "gaussian_blur"
+label = "Gaussian Blur"
+params = [{ name = "radius", label = "Radius", default = 4.0, min = 0.0, max = 64.0 }]
+
+[[entry]]
+id = "vignette"
+label = "Vignette"
+params = [{ name = "amount", label = "Amount", default = 0.6, min = 0.0, max = 1.0 }]
+
+[[entry]]
+id = "sharpen"
+label = "Sharpen"
+params = [{ name = "amount", label = "Amount", default = 0.5, min = 0.0, max = 3.0 }]
+
+[[entry]]
+id = "pixelate"
+label = "Pixelate"
+params = [{ name = "size", label = "Cell Size", default = 8.0, min = 1.0, max = 256.0 }]
+
+[[entry]]
+id = "glitch"
+label = "Glitch"
+params = [
+  { name = "amount", label = "Amount", default = 0.5, min = 0.0, max = 1.0 },
+  { name = "seed", label = "Seed", default = 0.0, min = 0.0, max = 1000.0 },
+]
+
+[[entry]]
+id = "chromatic_aberration"
+label = "Chromatic Aberration"
+params = [{ name = "amount", label = "Amount", default = 0.4, min = 0.0, max = 1.0 }]
+
+[[entry]]
+id = "grain"
+label = "Film Grain"
+params = [
+  { name = "amount", label = "Amount", default = 0.3, min = 0.0, max = 1.0 },
+  { name = "seed", label = "Seed", default = 0.0, min = 0.0, max = 1000.0 },
+]
+
+[[entry]]
+id = "glow"
+label = "Glow"
+params = [
+  { name = "threshold", label = "Threshold", default = 0.7, min = 0.0, max = 1.0 },
+  { name = "intensity", label = "Intensity", default = 0.8, min = 0.0, max = 4.0 },
+]
+
+[[entry]]
+id = "zoom_blur"
+label = "Zoom Blur"
+params = [{ name = "amount", label = "Amount", default = 0.5, min = 0.0, max = 1.0 }]
+
+[[entry]]
+id = "mirror"
+label = "Mirror"
+params = [{ name = "mode", label = "Mode", default = 0.0, min = 0.0, max = 3.0 }]
+
+[[entry]]
+id = "color_overlay"
+label = "Color Overlay"
+params = [
+  { name = "color", label = "Color", kind = "color", default_color = [255, 0, 0, 255] },
+  { name = "offset", label = "Offset", kind = "vec2", default_vec2 = [0.0, 0.0], min = -1.0, max = 1.0 },
+  { name = "amount", label = "Amount", default = 0.5, min = 0.0, max = 1.0 },
+]
+
+[[entry]]
+id = "duotone"
+label = "Duotone"
+params = [
+  { name = "shadow_color", label = "Shadow", kind = "color", default_color = [20, 16, 60, 255] },
+  { name = "highlight_color", label = "Highlight", kind = "color", default_color = [255, 220, 160, 255] },
+  { name = "intensity", label = "Intensity", default = 1.0, min = 0.0, max = 1.0 },
+]

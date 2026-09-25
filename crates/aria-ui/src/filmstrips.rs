@@ -1,0 +1,215 @@
+//! Filmstrip cells for the timeline.
+//!
+//! A cell is a rendered frame of the sequence at one tick, scaled down to the
+//! strip's height. Rendering rather than decoding the source is deliberate: the
+//! renderer already owns colour conversion, transforms, and effects, so a cell
+//! shows what will actually be seen at that tick instead of a raw source frame
+//! the operator never watches.
+//!
+//! Cells are keyed by tick. A normal edit invalidates only cells whose ticks
+//! intersect the picture span it changed; audio-only and organizational edits
+//! keep every rendered cell. The session revision still rejects a render that
+//! finishes after a newer edit. Only one render is in flight at a time: a
+//! filmstrip is worth idle capacity, never a stall in front of a scrub.
+
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use aria_models::RationalTime;
+use gpui::{App, Entity, RenderImage};
+
+use crate::app::AppState;
+
+/// Height of a filmstrip cell, and of the strip. A 16:9 cell is then 60px wide,
+/// which is about one cell per second at the default zoom.
+pub const CELL_H: u32 = 34;
+
+/// Widest cell that is ever requested, so a very wide canvas cannot make a
+/// thumbnail that costs more than the strip can show.
+const CELL_MAX_W: u32 = 96;
+
+/// Cells kept across all clips. A cell is a few KB; this bounds the strip's
+/// memory at a few megabytes on a project with many lanes.
+const MAX_CELLS: usize = 512;
+
+/// One rendered cell.
+#[derive(Clone)]
+pub struct Cell {
+    pub image: Arc<RenderImage>,
+}
+
+/// Cells by the tick they were rendered at.
+#[derive(Default)]
+pub struct FilmstripStore {
+    revision: u64,
+    cells: HashMap<i64, Cell>,
+    /// The tick currently being rendered, if any. One at a time.
+    in_flight: Option<i64>,
+    /// Ticks that produced no frame, so a gap in the sequence is not retried
+    /// every frame for as long as it stays on screen.
+    empty: Vec<i64>,
+}
+
+impl FilmstripStore {
+    pub fn get(&self, tick: i64) -> Option<&Cell> {
+        self.cells.get(&tick)
+    }
+
+    /// Whether `tick` should be rendered now: there is no retained cell for it,
+    /// it did not already come back empty, and nothing else is in flight.
+    pub fn wants(&self, tick: i64) -> bool {
+        self.in_flight.is_none() && !self.cells.contains_key(&tick) && !self.empty.contains(&tick)
+    }
+
+    /// Drop everything rendered against an older revision. This is the safety
+    /// fallback for mutations that do not report picture spans.
+    pub fn sync_revision(&mut self, revision: u64) {
+        if self.revision != revision {
+            self.revision = revision;
+            self.cells.clear();
+            self.empty.clear();
+            // A render started against the old project is no longer wanted; it
+            // is dropped on arrival by the revision check.
+            self.in_flight = None;
+        }
+    }
+
+    /// Advance to `revision`, retaining cells outside the modified picture spans.
+    ///
+    /// A cell is one frame at one exact timeline tick, so half-open span
+    /// intersection reduces to membership. Empty results follow the same rule:
+    /// an edit inside a gap may put a frame there, while an edit elsewhere
+    /// cannot.
+    pub fn sync_revision_selective(&mut self, revision: u64, spans: &[(i64, i64)]) {
+        if self.revision == revision {
+            return;
+        }
+        self.revision = revision;
+        self.cells.retain(|tick, _| {
+            !spans
+                .iter()
+                .any(|(start, end)| *tick >= *start && *tick < *end)
+        });
+        self.empty.retain(|tick| {
+            !spans
+                .iter()
+                .any(|(start, end)| *tick >= *start && *tick < *end)
+        });
+        // Any in-flight result describes the old revision. It is rejected by
+        // `finish`, even when its tick sits outside the dirty spans: retaining
+        // the already-rendered cell is safe; adopting work started under an
+        // unknown renderer state is not.
+        self.in_flight = None;
+    }
+
+    fn start(&mut self, tick: i64) {
+        self.in_flight = Some(tick);
+    }
+
+    fn finish(&mut self, revision: u64, tick: i64, cell: Option<Cell>) {
+        if self.in_flight == Some(tick) {
+            self.in_flight = None;
+        }
+        if revision != self.revision {
+            return;
+        }
+        match cell {
+            Some(cell) => {
+                if self.cells.len() >= MAX_CELLS {
+                    self.cells.clear();
+                }
+                self.cells.insert(tick, cell);
+            }
+            None => self.empty.push(tick),
+        }
+    }
+}
+
+/// Ticks between filmstrip cells at a given zoom, rounded to a power of two.
+///
+/// A step derived from one clip's own span would put every clip on a different
+/// grid, so nothing would ever be shared and a split would double the renders.
+/// Rounding to a power of two also means a small zoom change reuses the cells
+/// already rendered instead of asking for a whole new set.
+pub fn cell_step(span_ticks: i64, width_px: f32, cell_w: f32) -> i64 {
+    if span_ticks <= 0 || width_px <= 0.0 || cell_w <= 0.0 {
+        return 0;
+    }
+    let per_cell = (span_ticks as f64 / f64::from(width_px) * f64::from(cell_w)).max(1.0);
+    let exponent = per_cell.log2().round().max(0.0) as u32;
+    1i64 << exponent.min(30)
+}
+
+/// The ticks a clip's filmstrip is built from: the cells of the global grid
+/// that fall inside the clip, so two clips cut from one region share them.
+pub fn cell_ticks(start_ticks: i64, end_ticks: i64, width_px: f32, cell_w: f32) -> Vec<i64> {
+    let span = end_ticks - start_ticks;
+    let step = cell_step(span, width_px, cell_w);
+    if step == 0 {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    let mut tick = start_ticks - start_ticks.rem_euclid(step);
+    if tick < start_ticks {
+        tick += step;
+    }
+    while tick < end_ticks {
+        out.push(tick);
+        tick += step;
+    }
+    if out.is_empty() {
+        out.push(start_ticks);
+    }
+    out
+}
+
+/// Render one cell if the store wants it. Safe to call from a render: the tick
+/// is marked in flight before the thread starts.
+pub fn request(state: &Entity<AppState>, cx: &mut App, tick: i64) {
+    let revision = {
+        let app = state.read(cx);
+        app.engine().lock().revision()
+    };
+    let wanted = state.update(cx, |state, _| {
+        state.filmstrips.sync_revision(revision);
+        if !state.filmstrips.wants(tick) {
+            return false;
+        }
+        state.filmstrips.start(tick);
+        true
+    });
+    if !wanted {
+        return;
+    }
+    let engine = state.read(cx).engine().clone();
+    let rate = state.read(cx).playhead.rate;
+    let state = state.clone();
+    cx.spawn(async move |cx| {
+        let at = RationalTime::new(tick, rate);
+        // Its own thread, so a codec that panics cannot take the window with it,
+        // and the wait is as long as the render: waiting on the foreground
+        // executor would hold every animation still for it, and a lane of cells
+        // asks for one after another.
+        let rendered =
+            crate::handoff::on_a_thread(cx.background_executor(), "aria-filmstrip", move || {
+                engine
+                    .lock()
+                    .get_frame_fit(at, CELL_MAX_W, CELL_H)
+                    .ok()
+                    .and_then(|frame| crate::frame::rgba_to_render(&frame))
+            })
+            .await
+            .flatten();
+        let _ = state.update(cx, |state, cx| {
+            state
+                .filmstrips
+                .finish(revision, tick, rendered.map(|image| Cell { image }));
+            cx.notify();
+        });
+    })
+    .detach();
+}
+
+#[cfg(test)]
+#[path = "filmstrip_tests.rs"]
+mod filmstrip_tests;

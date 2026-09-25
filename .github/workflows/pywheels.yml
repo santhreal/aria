@@ -1,7 +1,7 @@
 name: Python wheels
 
-# Builds and publishes the `cutlass-py` distribution (import name `cutlass`,
-# crates/cutlass-py). Separate from the desktop Release workflow: Python
+# Builds and publishes the `aria-py` distribution (import name `aria`,
+# crates/aria-py). Separate from the desktop Release workflow: Python
 # releases ride their own `py-v*` tags so an app release never blocks on
 # wheels or vice versa. A manual dispatch builds everything without
 # publishing (or dry-runs against TestPyPI) — use that before the first
@@ -53,10 +53,10 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          # cutlass-py is excluded from the cargo workspace: its lockfile
+          # aria-py is excluded from the cargo workspace: its lockfile
           # and target dir live inside the crate. One cache per platform —
           # the Rust deps don't vary across interpreters.
-          workspaces: crates/cutlass-py
+          workspaces: crates/aria-py
           key: ${{ matrix.platform.name }}
 
       # Interpreters come from uv, not actions/setup-python: the arm64
@@ -75,25 +75,25 @@ jobs:
       - name: Build wheel
         uses: PyO3/maturin-action@v1
         with:
-          working-directory: crates/cutlass-py
+          working-directory: crates/aria-py
           args: --release --out dist --interpreter ${{ steps.python.outputs.path }}
 
       # Import-only smoke test: proves the extension loads against this
       # exact interpreter line. Frame/export tests need a GPU and hardware
       # encoders the hosted runners don't reliably have; those run on dev
-      # machines (see crates/cutlass-py/README.md). --no-project keeps uv
+      # machines (see crates/aria-py/README.md). --no-project keeps uv
       # from trying to build the crate itself from pyproject.toml.
       - name: Import smoke test
         shell: bash
-        working-directory: crates/cutlass-py
+        working-directory: crates/aria-py
         run: |
           uv run --no-project --python ${{ matrix.python }} --with dist/*.whl \
-            python -c "import cutlass; print('cutlass', cutlass.__version__)"
+            python -c "import aria; print('aria', aria.__version__)"
 
       - uses: actions/upload-artifact@v4
         with:
           name: wheel-${{ matrix.platform.name }}-py${{ matrix.python }}
-          path: crates/cutlass-py/dist/*.whl
+          path: crates/aria-py/dist/*.whl
 
   sdist:
     name: sdist
@@ -102,26 +102,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # maturin bundles the local path dependencies (cutlass-core, -render,
+      # maturin bundles the local path dependencies (aria-core, -render,
       # …) into the sdist, so a source install works from the archive alone
       # (Rust toolchain required; media backends still gate which platforms
       # can export).
       - name: Build sdist
         uses: PyO3/maturin-action@v1
         with:
-          working-directory: crates/cutlass-py
+          working-directory: crates/aria-py
           command: sdist
           args: --out dist
 
       - uses: actions/upload-artifact@v4
         with:
           name: sdist
-          path: crates/cutlass-py/dist/*.tar.gz
+          path: crates/aria-py/dist/*.tar.gz
 
   # Both publish jobs authenticate with PyPI Trusted Publishing (OIDC): the
   # index is configured to trust this repo + workflow + environment, so no
   # API token is stored in the repo. Configure the publisher on
-  # (test.)pypi.org for project `cutlass-py`, repository 1mrnewton/cutlass,
+  # (test.)pypi.org for project `aria-py`, repository 1mrnewton/aria,
   # workflow pywheels.yml, environment testpypi/pypi before the first run.
   publish-testpypi:
     name: publish to testpypi

@@ -1,0 +1,36 @@
+[package]
+name = "aria-models"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Aria editing data model: project, media pool, timeline, tracks, clips, and CapCut-style templates."
+
+[dependencies]
+aria-core = { path = "../aria-core" }
+rustc-hash.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+# Template bundles (`.ariab`) are uncompressed tar archives — sample
+# media is already-compressed mp4/jpg, so no compression deps.
+tar = "0.4"
+# Catalog data files are TOML: a catalog is authored by hand, and TOML keeps the
+# comments that say what an id has to match.
+toml = "0.8"
+thiserror.workspace = true
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+tempfile = "3"
+
+[[bench]]
+name = "param_sample"
+harness = false
+
+[[bench]]
+name = "project_persist"
+harness = false
+
+[lints]
+workspace = true

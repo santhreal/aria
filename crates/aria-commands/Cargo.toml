@@ -1,0 +1,27 @@
+[package]
+name = "aria-commands"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Aria structured editor commands (import, trim, split, and related edits)"
+# The wire-format tests are one target split across sibling module files, so
+# cargo must not also pick each sibling up as a test binary of its own.
+autotests = false
+
+[dependencies]
+aria-models = { path = "../aria-models" }
+# `ExportFormat`: what an export command asks the encoder for. Data only — the
+# encoder itself is nowhere near this crate.
+aria-core = { path = "../aria-core" }
+serde.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[[test]]
+name = "wire_format"
+path = "tests/wire_format.rs"
+
+[lints]
+workspace = true

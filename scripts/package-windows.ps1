@@ -1,20 +1,20 @@
-# Assemble a distributable Windows zip for Cutlass (alpha packaging).
+# Assemble a distributable Windows zip for Aria (alpha packaging).
 #
-# DORMANT: the app compiles and launches on Windows, but this branch's media
-# stack (decode/encode) has no Windows backend yet — imported media won't
-# play. No FFmpeg DLLs are bundled (the engine doesn't link FFmpeg); the
-# script is kept working so packaging is ready when the backend lands.
+# Decode and encode go through Media Foundation, which is part of the OS: no
+# codec libraries are bundled and none are needed. The zip runs in place; the
+# Start-menu shortcut, the project file association and the uninstaller come
+# from the installer built by package-windows-installer.ps1.
 #
 # Usage:
 #   .\scripts\package-windows.ps1
 #   .\scripts\package-windows.ps1 -Arch arm64
 #
 # Output:
-#   dist\Cutlass-<version>-windows-<arch>.zip
+#   dist\Aria-<version>-windows-<arch>.zip
 #
 # Prerequisites:
 #   - Rust stable (see rust-toolchain.toml)
-#   - release build: cargo build --release -p cutlass-desktop
+#   - release build: cargo build --release -p aria-desktop
 
 param(
     [ValidateSet("x86_64", "arm64")]
@@ -26,18 +26,22 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $Root
 
-$VersionLine = (Select-String -Path Cargo.toml -Pattern '^version' | Select-Object -First 1).Line
-$Version = $VersionLine -replace '.*"(.*)".*', '$1'
+$Metadata = cargo metadata --locked --no-deps --format-version 1 | ConvertFrom-Json
+$Version = ($Metadata.packages | Where-Object { $_.name -eq "aria-desktop" }).version
+if (-not $Version) {
+    throw "aria-desktop is missing from cargo metadata."
+}
+$TargetDir = $Metadata.target_directory
 $Dist = "dist"
 $Staging = Join-Path $Dist "staging-windows-$Arch"
-$Pkg = "cutlass-$Version-windows-$Arch"
+$Pkg = "aria-$Version-windows-$Arch"
 
-Write-Host "==> packaging Cutlass $Version for Windows ($Arch)"
+Write-Host "==> packaging Aria $Version for Windows ($Arch)"
 
-$BinarySrc = "target\release\cutlass-desktop.exe"
+$BinarySrc = Join-Path $TargetDir "release\aria-desktop.exe"
 if (-not (Test-Path $BinarySrc)) {
-    Write-Host "==> release binary missing; building cutlass-desktop"
-    cargo build --release -p cutlass-desktop
+    Write-Host "==> release binary missing; building aria-desktop"
+    cargo build --release -p aria-desktop --locked
 }
 
 if (Test-Path $Staging) {
@@ -46,24 +50,31 @@ if (Test-Path $Staging) {
 $PkgDir = Join-Path $Staging $Pkg
 New-Item -ItemType Directory -Path $PkgDir -Force | Out-Null
 
-Copy-Item $BinarySrc (Join-Path $PkgDir "cutlass-desktop.exe")
+Copy-Item $BinarySrc (Join-Path $PkgDir "aria-desktop.exe")
 Copy-Item LICENSE-MIT, LICENSE-APACHE -Destination $PkgDir
+# The executable carries no icon resource, so the shortcut, the wizard and the
+# .aria file type all point at this file. It travels in the payload because the
+# installer references it under {app}.
+Copy-Item (Join-Path $Root "packaging\windows\aria.ico") -Destination $PkgDir
 
 $Readme = @"
-Cutlass $Version — Windows ($Arch)
+Aria $Version — Windows ($Arch)
 ===================================
 
 Run:
-  .\cutlass-desktop.exe
+  .\aria-desktop.exe
 
-Preview build: the editor UI runs, but video/audio decode and export are
-not implemented on Windows yet in this line — imported media will not play.
+Decode and export use Media Foundation, which ships with Windows: nothing
+else to install. The H.264 video / AAC audio pair is the only output.
 
-See https://github.com/1Mr-Newton/cutlass for source and issue tracker.
+To get a Start-menu entry, a desktop icon and .aria files that open by
+double-click, use the Setup.exe installer instead of this zip.
+
+See https://github.com/1Mr-Newton/aria for source and issue tracker.
 "@
 Set-Content -Path (Join-Path $PkgDir "README-INSTALL.txt") -Value $Readme -Encoding utf8
 
-$Zip = Join-Path $Dist "Cutlass-${Version}-windows-${Arch}.zip"
+$Zip = Join-Path $Dist "Aria-${Version}-windows-${Arch}.zip"
 if (Test-Path $Zip) {
     Remove-Item $Zip
 }

@@ -1,0 +1,19 @@
+[package]
+name = "aria-notes-plugin"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Sample external Aria plugin: claims a file type and vetoes a command."
+publish = false
+
+[lib]
+# The host loads a shared library, so this is the only crate type that matters.
+crate-type = ["cdylib"]
+
+[dependencies]
+aria-plugin = { path = "../../crates/aria-plugin" }
+
+[lints]
+workspace = true

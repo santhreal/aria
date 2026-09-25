@@ -44,7 +44,7 @@ Rationale:
   `DecodeError` — a hostile or over-fancy file yields a failed load, never
   a crashed editor. The curation drift test catches these before shipping.
 
-The module lives in `cutlass-decoder` (`lottie.rs`), mirroring the
+The module lives in `aria-decoder` (`lottie.rs`), mirroring the
 animated-sticker decode module: bytes/path in, `RgbaImage` frames out.
 velato and `vello_cpu` are portable pure-Rust deps compiled on every
 platform.
@@ -76,6 +76,7 @@ arbitrarily long. Policy instead:
   playback costs zero rasterization. Frames used by the scene currently
   being composed are never evicted (scene-stamped), so multi-clip frames
   can't alias mid-frame.
+- **Recycle raster storage on eviction.** The decoder keeps its render context and writes into caller-provided pixel storage. The frame cache passes the largest evicted allocation into the next rasterization, so steady-state playback reuses both the rasterizer and the frame-sized buffer.
 - **Duration/looping** follow sticker semantics: the animation loops over
   its intrinsic duration for the life of the clip.
 
@@ -118,14 +119,13 @@ Generator::Lottie {
 
 ## Distribution
 
-- Catalog: `GET /v1/assets/lottie` — the same file-driven
-  `CatalogResponse` the other asset kinds use ([backend
-  catalog](../../cutlass-backend/docs/ARCHITECTURE.md)); files and preview
-  thumbnails on the CDN, metadata only through the backend, anonymous +
-  rate-limited + ETag-cached.
-- Client: `cutlass-cloud` gets `lottie()` beside `sfx()`/`luts()`;
+- Catalog: `GET /v1/assets/lottie` uses the same file-driven
+  `CatalogResponse` as the other asset kinds. Files and preview thumbnails
+  are on the CDN; metadata requests are anonymous, rate-limited, and
+  ETag-cached.
+- Client: `aria-cloud` gets `lottie()` beside `sfx()`/`luts()`;
   downloads go through the existing quota-managed asset cache
-  (`cutlass_cloud::download`).
+  (`aria_cloud::download`).
 - Desktop: Library > Stickers grows a **Lottie** section (catalog browse,
   eager download of the small JSON files, thumbnail = frame 0, drop =
   `Generator::Lottie`).

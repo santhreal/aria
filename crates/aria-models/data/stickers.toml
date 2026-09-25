@@ -1,0 +1,68 @@
+# Sticker catalog: which stickers exist, what they are called, the intrinsic
+# pixel size of the art, and the file the art is read from.
+#
+# `id` is permanent once shipped — projects store it — so retire a sticker by
+# keeping its entry and swapping the art. `file` is looked for in
+# `<data dir>/catalogs/stickers/`, and falls back to the copy bundled in the
+# binary; an entry whose art resolves to neither is dropped and the reason is
+# reported. `animated` marks multi-frame art (APNG or animated GIF).
+#
+# Copy this file to <data dir>/catalogs/stickers.toml to change the set.
+
+[[entry]]
+id = "heart"
+label = "Heart"
+width = 256
+height = 256
+file = "heart.png"
+
+[[entry]]
+id = "star"
+label = "Star"
+width = 256
+height = 256
+file = "star.png"
+
+[[entry]]
+id = "smiley"
+label = "Smiley"
+width = 256
+height = 256
+file = "smiley.png"
+
+[[entry]]
+id = "bolt"
+label = "Lightning Bolt"
+width = 256
+height = 256
+file = "bolt.png"
+
+[[entry]]
+id = "bubble"
+label = "Speech Bubble"
+width = 256
+height = 256
+file = "bubble.png"
+
+[[entry]]
+id = "flower"
+label = "Flower"
+width = 256
+height = 256
+file = "flower.png"
+
+[[entry]]
+id = "star_spin"
+label = "Spinning Star"
+width = 128
+height = 128
+animated = true
+file = "star_spin.gif"
+
+[[entry]]
+id = "heart_beat"
+label = "Beating Heart"
+width = 128
+height = 128
+animated = true
+file = "heart_beat.png"

@@ -1,0 +1,23 @@
+[package]
+name = "aria-detect"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "The seam between platform media decoding and Aria's deterministic detectors: decode audio to analysis-rate mono, sample video frames for shot detection."
+
+[dependencies]
+aria-analysis = { path = "../aria-analysis" }
+aria-core = { path = "../aria-core" }
+aria-decoder = { path = "../aria-decoder" }
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "shot_format_convert"
+harness = false
+
+[lints]
+workspace = true

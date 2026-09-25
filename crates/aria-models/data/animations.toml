@@ -1,0 +1,196 @@
+# Animation presets: which named animations exist, what slot each belongs to, and
+# which knobs the UI offers for it.
+#
+# `id` selects a curve the renderer implements; an id with no implementation
+# animates nothing. `slot` is `in`, `out`, or `combo`. `text_only` presets are
+# offered on text clips only. `stagger` applies per character, so it is only
+# meaningful for the `char_` presets.
+#
+# Copy this file to <data dir>/catalogs/animations.toml to change the set.
+
+[[entry]]
+id = "fade_in"
+label = "Fade in"
+slot = "in"
+
+[[entry]]
+id = "slide_up"
+label = "Slide up"
+slot = "in"
+
+[[entry]]
+id = "zoom_in"
+label = "Zoom in"
+slot = "in"
+
+[[entry]]
+id = "spin_in"
+label = "Spin in"
+slot = "in"
+
+[[entry]]
+id = "bounce"
+label = "Bounce"
+slot = "in"
+
+[[entry]]
+id = "fade_out"
+label = "Fade out"
+slot = "out"
+
+[[entry]]
+id = "slide_down"
+label = "Slide down"
+slot = "out"
+
+[[entry]]
+id = "zoom_out"
+label = "Zoom out"
+slot = "out"
+
+[[entry]]
+id = "spin_out"
+label = "Spin out"
+slot = "out"
+
+[[entry]]
+id = "drop"
+label = "Drop"
+slot = "out"
+
+[[entry]]
+id = "pulse"
+label = "Pulse"
+slot = "combo"
+
+[[entry]]
+id = "rock"
+label = "Rock"
+slot = "combo"
+
+[[entry]]
+id = "swing"
+label = "Swing"
+slot = "combo"
+
+[[entry]]
+id = "flicker"
+label = "Flicker"
+slot = "combo"
+
+[[entry]]
+id = "breathe"
+label = "Breathe"
+slot = "combo"
+
+[[entry]]
+id = "char_typewriter"
+label = "Typewriter"
+slot = "in"
+text_only = true
+knobs = { speed = true, intensity = true, stagger = true }
+
+[[entry]]
+id = "char_fade_in"
+label = "Fade in"
+slot = "in"
+text_only = true
+knobs = { speed = true, intensity = true, stagger = true }
+
+[[entry]]
+id = "char_bounce_in"
+label = "Bounce in"
+slot = "in"
+text_only = true
+knobs = { speed = true, intensity = true, stagger = true }
+
+[[entry]]
+id = "char_slide_in"
+label = "Slide in"
+slot = "in"
+text_only = true
+knobs = { speed = true, intensity = true, stagger = true }
+
+[[entry]]
+id = "char_pop_in"
+label = "Pop in"
+slot = "in"
+text_only = true
+knobs = { speed = true, intensity = true, stagger = true }
+
+[[entry]]
+id = "char_fade_out"
+label = "Fade out"
+slot = "out"
+text_only = true
+knobs = { speed = true, intensity = true, stagger = true }
+
+[[entry]]
+id = "char_fall_away"
+label = "Fall away"
+slot = "out"
+text_only = true
+knobs = { speed = true, intensity = true, stagger = true }
+
+[[entry]]
+id = "char_typewriter_out"
+label = "Type out"
+slot = "out"
+text_only = true
+knobs = { speed = true, intensity = true, stagger = true }
+
+[[entry]]
+id = "typewriter"
+label = "Typewriter"
+slot = "combo"
+text_only = true
+knobs = { speed = true, intensity = true, stagger = true }
+
+[[entry]]
+id = "text_fade"
+label = "Fade"
+slot = "combo"
+text_only = true
+knobs = { speed = true, intensity = true, stagger = true }
+
+[[entry]]
+id = "text_bounce"
+label = "Bounce"
+slot = "combo"
+text_only = true
+knobs = { speed = true, intensity = true, stagger = true }
+
+[[entry]]
+id = "text_slide"
+label = "Slide"
+slot = "combo"
+text_only = true
+knobs = { speed = true, intensity = true, stagger = true }
+
+[[entry]]
+id = "pop"
+label = "Pop"
+slot = "combo"
+text_only = true
+knobs = { speed = true, intensity = true, stagger = true }
+
+[[entry]]
+id = "wave"
+label = "Wave"
+slot = "combo"
+text_only = true
+knobs = { speed = true, intensity = true, stagger = true }
+
+[[entry]]
+id = "char_jitter"
+label = "Jitter"
+slot = "combo"
+text_only = true
+knobs = { speed = true, intensity = true, stagger = true }
+
+[[entry]]
+id = "char_pulse"
+label = "Pulse"
+slot = "combo"
+text_only = true
+knobs = { speed = true, intensity = true, stagger = true }

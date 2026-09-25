@@ -1,0 +1,104 @@
+[package]
+name = "aria-compositor"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "WGPU compositor: turns decoded aria-core VideoFrames into a composited RGBA canvas (preview + export readback)."
+# `tests/render.rs` carries its test bodies in `render_*.rs` siblings it declares
+# with `#[path]`. Auto-discovery would also build each sibling as its own test
+# binary, where `use super::*` has no parent, so the targets are listed here.
+autotests = false
+
+[dependencies]
+aria-core = { path = "../aria-core" }
+# The effect catalog: this crate renders the parameters the model declares and
+# holds no second list of its own. Data only — no GPU, no UI.
+aria-models = { path = "../aria-models" }
+aria-shapes = { path = "../aria-shapes" }
+image = { version = "0.25", default-features = false }
+rustc-hash = { workspace = true }
+sha2 = "0.10"
+wgpu = { workspace = true }
+bytemuck = { workspace = true }
+pollster = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+# Apple zero-copy import: map IOSurface-backed CVPixelBuffers straight into
+# wgpu textures via CVMetalTextureCache + wgpu-hal's Metal interop. Pinned to
+# the same `objc2-metal` 0.3 line wgpu-hal 29 links, so the
+# `Retained<ProtocolObject<dyn MTLTexture>>` we hand to `texture_from_raw` is
+# the exact type it expects (cargo unifies the two).
+[target.'cfg(target_vendor = "apple")'.dependencies]
+objc2 = "0.6"
+objc2-metal = { version = "0.3.2", features = ["MTLDevice", "MTLTexture", "MTLTypes"] }
+
+# Windows zero-copy import: open the decoder's shared D3D11 NV12 textures on
+# wgpu's D3D12 device (OpenSharedHandle) and adopt them via wgpu-hal's dx12
+# interop. Pinned to the same `windows` 0.62 crate wgpu-hal 29 links, so the
+# `ID3D12Resource` we hand to `texture_from_raw` is the exact type it expects
+# (cargo unifies the two).
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.62", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Direct3D12",
+] }
+
+# Linux zero-copy import: DMA-BUF → VkImage via VK_KHR_external_memory_fd.
+# `ash` 0.38 is the same line wgpu-hal 29 links.
+[target.'cfg(target_os = "linux")'.dependencies]
+ash = "0.38"
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+pollster = { workspace = true }
+aria-text = { path = "../aria-text" }
+
+[[bench]]
+name = "blend_pipeline"
+harness = false
+
+[[test]]
+name = "adjust"
+path = "tests/adjust.rs"
+
+[[test]]
+name = "blend"
+path = "tests/blend.rs"
+
+[[test]]
+name = "effects"
+path = "tests/effects.rs"
+
+[[test]]
+name = "glyphs"
+path = "tests/glyphs.rs"
+
+[[test]]
+name = "masks"
+path = "tests/masks.rs"
+
+[[test]]
+name = "matte"
+path = "tests/matte.rs"
+
+[[test]]
+name = "motion_blur"
+path = "tests/motion_blur.rs"
+
+[[test]]
+name = "render"
+path = "tests/render.rs"
+
+[[test]]
+name = "styles"
+path = "tests/styles.rs"
+
+[[test]]
+name = "transitions"
+path = "tests/transitions.rs"
+
+[lints]
+workspace = true

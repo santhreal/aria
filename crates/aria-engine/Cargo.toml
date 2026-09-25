@@ -1,0 +1,180 @@
+[package]
+name = "aria-engine"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Aria editing engine: structured commands with inverse undo/redo over the project timeline."
+# Test, benchmark, and example autodiscovery stay disabled so only the explicit
+# targets below enter workspace gates.
+# Test binaries are declared explicitly: oversized test files are split into
+# `<name>_<concern>.rs` siblings that are `#[path]` modules of their parent, not
+# standalone binaries. Autodiscovery would compile each sibling on its own.
+autotests = false
+autobenches = false
+autoexamples = false
+
+[dependencies]
+aria-core = { path = "../aria-core" }
+aria-commands = { path = "../aria-commands" }
+aria-decoder = { path = "../aria-decoder" }
+aria-models = { path = "../aria-models" }
+aria-render = { path = "../aria-render" }
+dunce = "1"
+serde.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+# Drift guard: model catalog vs compositor pass descriptors.
+aria-compositor = { path = "../aria-compositor" }
+# Apple-only: synthesize a real mp4 in tests so native import/probe is exercised
+# without a checked-in fixture.
+aria-encoder = { path = "../aria-encoder" }
+tempfile = "3"
+# Still-import tests write their own PNG fixture (same codec the decoder's
+# portable path reads).
+png = "0.17"
+# The registry conformance test retargets a census command onto real fixture
+# ids through its own wire form, so it needs no per-variant rewrite table.
+serde_json.workspace = true
+# What one command costs on a project of 480 clips.
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[package.metadata.cargo-machete]
+# Used by the explicitly declared benchmark targets below.
+ignored = ["criterion"]
+
+# Per-command cost: a parameter edit, an undo round trip, a split, a lane move.
+[[bench]]
+name = "command_apply"
+harness = false
+
+# Export and preview benches remain compile-checked even when not executed.
+[[bench]]
+name = "export"
+harness = false
+
+[[bench]]
+name = "preview"
+harness = false
+
+[[test]]
+name = "clip_beats"
+path = "tests/clip_beats.rs"
+
+[[test]]
+name = "command_registry"
+path = "tests/command_registry.rs"
+
+[[test]]
+name = "compound_undo"
+path = "tests/compound_undo.rs"
+
+[[test]]
+name = "duplicate_clip"
+path = "tests/duplicate_clip.rs"
+
+[[test]]
+name = "export"
+path = "tests/export.rs"
+
+[[test]]
+name = "effects_drift"
+path = "tests/effects_drift.rs"
+
+[[test]]
+name = "extract_audio"
+path = "tests/extract_audio.rs"
+
+[[test]]
+name = "frame_cancellation"
+path = "tests/frame_cancellation.rs"
+
+[[test]]
+name = "fit_to_fill"
+path = "tests/fit_to_fill.rs"
+
+[[test]]
+name = "freeze_frame"
+path = "tests/freeze_frame.rs"
+
+[[test]]
+name = "import_probe"
+path = "tests/import_probe.rs"
+
+[[test]]
+name = "import_still"
+path = "tests/import_still.rs"
+
+[[test]]
+name = "inverse_edits"
+path = "tests/inverse_edits.rs"
+
+[[test]]
+name = "inverse_undo"
+path = "tests/inverse_undo.rs"
+
+[[test]]
+name = "overwrite"
+path = "tests/overwrite.rs"
+
+[[test]]
+name = "preview"
+path = "tests/preview.rs"
+
+[[test]]
+name = "paste_retimed"
+path = "tests/paste_retimed.rs"
+
+[[test]]
+name = "project_file"
+path = "tests/project_file.rs"
+
+[[test]]
+name = "relink"
+path = "tests/relink.rs"
+
+[[test]]
+name = "ripple"
+path = "tests/ripple.rs"
+
+[[test]]
+name = "session_reload_undo"
+path = "tests/session_reload_undo.rs"
+
+[[test]]
+name = "set_sequence_rate"
+path = "tests/set_sequence_rate.rs"
+
+[[test]]
+name = "source_frame"
+path = "tests/source_frame.rs"
+
+[[test]]
+name = "sync_lock"
+path = "tests/sync_lock.rs"
+
+[[test]]
+name = "subclip"
+path = "tests/subclip.rs"
+
+[[test]]
+name = "template"
+path = "tests/template.rs"
+
+[[test]]
+name = "unlink_clips"
+path = "tests/unlink_clips.rs"
+
+[[test]]
+name = "workflow"
+path = "tests/workflow.rs"
+
+[[test]]
+name = "nested_sequence"
+path = "tests/nested_sequence.rs"
+
+[lints]
+workspace = true

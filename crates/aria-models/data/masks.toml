@@ -1,0 +1,31 @@
+# Mask shapes the renderer can draw.
+#
+# `kind` must be one of the shapes the mask renderer dispatches
+# (`MaskKind`); a kind it does not know cannot be drawn, so the loader
+# refuses a file that names one. `label` is what the UI shows.
+#
+# Copy this file to <data dir>/catalogs/masks.toml to change the set.
+
+[[entry]]
+kind = "linear"
+label = "Linear"
+
+[[entry]]
+kind = "mirror"
+label = "Mirror"
+
+[[entry]]
+kind = "circle"
+label = "Circle"
+
+[[entry]]
+kind = "rectangle"
+label = "Rectangle"
+
+[[entry]]
+kind = "heart"
+label = "Heart"
+
+[[entry]]
+kind = "star"
+label = "Star"

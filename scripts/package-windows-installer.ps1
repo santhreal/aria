@@ -1,11 +1,10 @@
-# Build a Windows Setup.exe installer for Cutlass (Inno Setup).
-#
-# DORMANT: see scripts/package-windows.ps1 — Windows media backends aren't
-# implemented in this line yet, so this stays a preview installer.
+# Build a Windows Setup.exe installer for Aria (Inno Setup).
 #
 # This reuses scripts/package-windows.ps1 to build + stage the payload
-# (cutlass-desktop.exe, licenses, README), then compiles it into a single
-# installer via the Inno Setup compiler (ISCC.exe).
+# (aria-desktop.exe, aria.ico, licenses, README), then compiles it into a
+# single Setup.exe via the Inno Setup compiler (ISCC.exe): Start-menu
+# shortcut, optional desktop icon, the .aria file association, and an
+# uninstaller that removes all three.
 #
 # Usage:
 #   .\scripts\package-windows-installer.ps1
@@ -13,7 +12,7 @@
 #   .\scripts\package-windows-installer.ps1 -IsccPath "C:\...\ISCC.exe"
 #
 # Output:
-#   dist\Cutlass-<version>-windows-<arch>-Setup.exe
+#   dist\Aria-<version>-windows-<arch>-Setup.exe
 #
 # Prerequisites:
 #   - Everything package-windows.ps1 needs (Rust stable)
@@ -35,10 +34,13 @@ Set-Location $Root
 Write-Host "==> staging Windows payload via package-windows.ps1 ($Arch)"
 & (Join-Path $Root "scripts\package-windows.ps1") -Arch $Arch
 
-$VersionLine = (Select-String -Path Cargo.toml -Pattern '^version' | Select-Object -First 1).Line
-$Version = $VersionLine -replace '.*"(.*)".*', '$1'
+$Metadata = cargo metadata --locked --no-deps --format-version 1 | ConvertFrom-Json
+$Version = ($Metadata.packages | Where-Object { $_.name -eq "aria-desktop" }).version
+if (-not $Version) {
+    throw "aria-desktop is missing from cargo metadata."
+}
 $Dist = Join-Path $Root "dist"
-$SourceDir = Join-Path $Dist "staging-windows-$Arch\cutlass-$Version-windows-$Arch"
+$SourceDir = Join-Path $Dist "staging-windows-$Arch\aria-$Version-windows-$Arch"
 
 if (-not (Test-Path $SourceDir)) {
     throw "staged payload not found: $SourceDir"
@@ -64,8 +66,8 @@ if (-not $Iscc -or -not (Test-Path $Iscc)) {
 }
 
 Write-Host "==> compiling installer with $Iscc"
-$Script = Join-Path $Root "packaging\windows\cutlass.iss"
-$OutputBase = "Cutlass-$Version-windows-$Arch-Setup"
+$Script = Join-Path $Root "packaging\windows\aria.iss"
+$OutputBase = "Aria-$Version-windows-$Arch-Setup"
 # Inno Setup architecture identifier for [Setup] ArchitecturesAllowed.
 $ArchAllowed = if ($Arch -eq "arm64") { "arm64" } else { "x64compatible" }
 

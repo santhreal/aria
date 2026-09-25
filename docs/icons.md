@@ -1,159 +1,122 @@
 # Icon registry
 
-The single place that tracks every icon the UI wants. The editor is
-CapCut-shaped and icon-heavy, but a lot of controls still ship a **text or
-single-character placeholder** (`"Split"`, `"B"`, `"✕"`, `"^"`, …) where a
-real glyph belongs. This file is the to-do list that turns those into art.
+The single place that tracks every icon the UI wants. Titlebar, transport,
+preview, and track headers use the shipped Lucide SVGs and the brand mark.
+Every entry below is wired; register a new placeholder here before shipping it.
 
 ## Workflow
 
 When you build UI and reach for an icon that doesn't exist yet, **don't
 block on it**:
 
-1. Ship the control now with a short text/char placeholder, matching the
-   existing pattern for that widget (`ToolButton { label: "Split" }`,
-   `HeadToggle { label: "L" }`, a `CutlassText { text: "✕" }`, …).
-2. **Register it here** under the right section, newest first, in the
-   registry format below.
-3. Later, someone fetches the SVG, drops it in the icon folder, and swaps
-   the placeholder for an `Image` — then flips the entry to `[x]`.
-
-This keeps features moving while leaving a precise, fetchable shopping list
-behind. The same loop is codified for the agent in
-`.cursor/rules/icons.mdc`.
+1. Ship the control now with a short text/char placeholder.
+2. **Register it here** under the right section, newest first.
+3. Later, someone fetches the SVG, drops it in `assets/icon/`, and swaps
+   the placeholder — then flips the entry to `[x]`.
 
 ### Registry format
 
 ```
-- [ ] `lucide-name` — placeholder `"X"` — `path/to/file.slint` — what it does.
+- [ ] `lucide-name` — placeholder `"X"` — `crates/aria-ui/src/panels/file.rs` — what it does.
 ```
 
 - `[ ]` = needed (placeholder live in the UI) · `[x]` = fetched + wired in.
-- `lucide-name` is the intended icon (see *Source* below). If unsure, give
-  the closest name and a note.
-- Always include the **placeholder string** and the **file** so it's
-  trivial to find and replace.
+- Always include the **placeholder string** and the **file**.
 
 ## Where icons live
 
-All UI icons live under the **single** tracked root
-`assets/icon/` (transport in `icon/`, library glyphs in
-`icon/library/`, and Lucide/Tabler fetches under `shell/`, `launch/`,
-`timeline/`, `text/`, `inspector/`, `ui/`). Reference them from Slint with
-`@image-url` paths relative to each `.slint` file (see `app.slint` and
-panel files). Media scratch files for local dev and tests live in
-gitignored `local-assets/assets/` (`frames/`, `proxy/` stay ignored too).
-The dock icon is also loaded from `assets/icon/` via `include_bytes!` in
-`src/main.rs`.
+All UI icons live under the **single** tracked root `assets/icon/`
+(transport and the brand mark in `icon/`, library glyphs in
+`icon/library/`, and Lucide/Tabler fetches under `shell/`, `timeline/`,
+`text/`, `inspector/`, `ui/`). Media scratch files for local dev and tests
+live in gitignored `local-assets/assets/`.
 
-Loaded via `@image-url(...)` relative to the `.slint` file, then tinted with
-`colorize:` so one SVG works across themes.
+`assets/icon/aria-icon.png` is the canonical mark. `icons::brand_mark`
+draws it in the window, Linux packages install it, `scripts/package-macos.sh`
+turns it into `AppIcon.icns`, and the Xcode asset catalog under
+`apps/aria-ios-macos` contains the resized copies.
+
+### Generated workflow set
+
+`assets/generated/` contains the hand-authored 32 px workflow icon set added
+in repository commit `9e55722`. The files use square line caps, a 2.5 px
+stroke, and `currentColor`; no external generator or upstream icon package
+produced them.
 
 ## Source
 
-Primary: **[Lucide](https://lucide.dev)** (MIT, single-stroke, matches the
-existing line look — keep the 2px default stroke). Fallback for the few it
-lacks cleanly (`letter-spacing`, `line-height`): **[Tabler](https://tabler.io/icons)** (MIT).
+Primary: **[Lucide](https://lucide.dev)** (MIT, single-stroke, 2 px default
+stroke). Fallback: **[Tabler](https://tabler.io/icons)** (MIT).
 
 ## Already shipped
 
-`play`, `pause`, `fullscreen` (preview transport) · library tabs/sections
-`media`, `audio`, `text`, `stickers`, `effects`, `transitions`, `stock`,
-`ai`, `sfx`, `filters`, `adjustment` · logo `cutlass.png` /
-`cutlass-in-app.png` · chat `send` / `circle-stop`.
+`play`, `pause`, `fullscreen` · library tabs `media`, `audio`, `text`,
+`stickers`, `effects`, `transitions`, `stock`, `ai`, `sfx`, `filters`,
+`adjustment` · brand mark `aria-icon.png` · chat `send` /
+`circle-stop`.
 
 ---
 
 ## Registry
 
-### Window controls — `shell/title-bar.slint`
+### Titlebar — `crates/aria-ui/src/chrome/tool_strip.rs`
 
-- [x] `minus` — `assets/icon/shell/minus.svg` — minimize.
-- [x] `square` — `assets/icon/shell/square.svg` — maximize.
-- [x] `copy` — `assets/icon/shell/copy.svg` — restore (when maximized).
-- [x] `x` — `assets/icon/shell/x.svg` — close.
-- [x] `sparkles` — `assets/icon/shell/sparkles.svg` — AI assistant dock toggle.
-- [x] `settings` — `assets/icon/shell/settings.svg` — settings gear.
-- [ ] `upload` — placeholder `"Export"` — `shell/title-bar.slint` — export action stays worded (`AccentButton`).
-- [x] (logo) — `assets/icon/cutlass-in-app.png` — brand mark.
+- [x] `upload` — `assets/icon/shell/upload.svg` — export.
+- [x] `settings` — `assets/icon/shell/settings.svg` — settings.
+- [x] `scissors` — `assets/icon/timeline/scissors.svg` — razor tool.
+- [x] `zoom-in` / `zoom-out` — `assets/icon/timeline/zoom-in.svg` — zoom tool and transport.
+- [x] `magnet` — `assets/icon/timeline/magnet.svg` — snap toggle.
+- [x] `aria-icon.png` — `assets/icon/aria-icon.png` — the titlebar mark, drawn by `icons::brand_mark`.
 
-### Start screen — `launch.slint`
+### Chat — `crates/aria-ui/src/panels/assistant.rs`
 
-- [x] `plus` — `assets/icon/launch/plus.svg` — New project tile mark.
-- [x] `folder-open` — `assets/icon/launch/folder-open.svg` — Open project tile mark.
-- [x] `clapperboard` — `assets/icon/launch/clapperboard.svg` — recent-project thumb chip.
-- [x] window controls — reuse `assets/icon/shell/{minus,square,copy,x}.svg`.
+- [x] `send` — `assets/icon/chat/send.svg` — submit a message.
+- [x] `circle-stop` — `assets/icon/chat/stop.svg` — stop generation.
 
-### Timeline toolbar — `panels/timeline/toolbar.slint`
+### Preview — `crates/aria-ui/src/panels/preview.rs`
 
-- [x] `undo-2` — `assets/icon/timeline/undo-2.svg`.
-- [x] `redo-2` — `assets/icon/timeline/redo-2.svg`.
-- [x] `scissors` — `assets/icon/timeline/scissors.svg` — split at playhead.
-- [x] `flag` — `assets/icon/timeline/flag.svg` — add marker.
-- [x] `trash-2` — `assets/icon/timeline/trash-2.svg`.
-- [x] `audio-lines` — `assets/icon/timeline/audio-lines.svg` — extract audio.
-- [x] `repeat` — `assets/icon/timeline/repeat.svg` — loop.
-- [x] `magnet` — `assets/icon/timeline/magnet.svg` — main-track gapless magnet.
-- [x] `grid-3x3` — `assets/icon/timeline/grid-3x3.svg` — auto-snap (distinct from Magnet).
-- [x] `link` — `assets/icon/timeline/link.svg`.
-- [x] `unlink` — `assets/icon/timeline/unlink.svg`.
-- [x] `scan` — `assets/icon/timeline/scan.svg` — zoom to fit.
-- [x] `zoom-out` — `assets/icon/timeline/zoom-out.svg`.
-- [x] `zoom-in` — `assets/icon/timeline/zoom-in.svg`.
-- [x] `spline` (reuse inspector) — `assets/icon/inspector/spline.svg` — keyframe graph drawer toggle.
+- [x] `play` / `pause` — `assets/icon/play.svg` — transport.
+- [x] `fullscreen` — `assets/icon/fullscreen.svg` — fit timeline.
+- [x] `zoom-in` / `zoom-out` — `assets/icon/timeline/zoom-in.svg` and `assets/icon/timeline/zoom-out.svg` — preview zoom step, replacing the `"+"` and `"−"` text glyphs.
 
-### Track headers — `panels/timeline/track-head.slint`
+### Home — `crates/aria-ui/src/panels/home/rail.rs` and `panes.rs`
 
-- [x] `eye` / `eye-off` — `assets/icon/timeline/eye.svg` · `eye-off.svg`.
-- [x] `volume-2` / `volume-x` — `assets/icon/timeline/volume-2.svg` · `volume-x.svg`.
-- [x] `mic` — `assets/icon/timeline/mic.svg` — voice / duck source.
-- [x] `lock` / `lock-open` — `assets/icon/timeline/lock.svg` · `lock-open.svg`.
+- [x] `plus` — `assets/icon/plus.svg` — New Project tile.
+- [x] `folder-open` — `assets/icon/folder-open.svg` — Open tile.
+- [x] `clapperboard` / `image` / `sparkles` — `assets/icon/clapperboard.svg`, `assets/icon/library/image.svg`, and `assets/icon/shell/sparkles.svg` — Recents, Samples, and Learn rail tabs.
 
-### Text inspector — `panels/inspector/text-inspector.slint`
+### Timeline — `crates/aria-ui/src/surfaces/lane_header.rs` and `panels/timeline/ruler.rs`
 
-- [x] `bold` — `assets/icon/text/bold.svg`.
-- [x] `underline` — `assets/icon/text/underline.svg`.
-- [x] `italic` — `assets/icon/text/italic.svg`.
-- [x] `case-upper` — `assets/icon/text/case-upper.svg`.
-- [x] `case-lower` — `assets/icon/text/case-lower.svg`.
-- [x] `case-sensitive` — `assets/icon/text/case-sensitive.svg`.
-- [x] `align-left` / `align-center` / `align-right` — `assets/icon/text/`.
-- [x] `align-start-vertical` / `align-center-vertical` / `align-end-vertical` — `assets/icon/text/`.
-- [x] `wrap-text` — `assets/icon/text/wrap-text.svg`.
-- [x] `letter-spacing` (Tabler) — `assets/icon/text/letter-spacing.svg`.
-- [x] `line-height` (Tabler) — `assets/icon/text/line-height.svg`.
-- [ ] keyframe in/out icons — placeholder `"|<" "+" ">|" "T" "B"` — disabled animation row (lower priority).
+- [x] `plus` — `assets/icon/plus.svg` — add video track.
+- [x] `eye` / `eye-off` — `assets/icon/timeline/eye.svg` — track enabled.
+- [x] `volume-2` / `volume-x` — `assets/icon/timeline/volume-2.svg` — track mute.
+- [x] `lock` / `lock-open` — `assets/icon/timeline/lock.svg` — track lock.
+- [x] `headphones` — `assets/icon/timeline/headphones.svg` — track solo.
+- [x] `chevron-down` — `assets/icon/ui/chevron-down.svg`, registered as `CHEVRON_DOWN`. One glyph for every disclosure: `components::chevron` turns it a quarter turn for a shut row — collapse and expand a lane.
+- [x] `crosshair` — `assets/icon/timeline/crosshair.svg` — lane target.
+- [x] `link` / `unlink` — `assets/icon/timeline/link.svg` and `assets/icon/timeline/unlink.svg` — lane sync lock.
 
-### Inspector (general)
+### Tool strip — `crates/aria-ui/src/chrome/tool_strip.rs`
 
-- [ ] `chevron-up` / `chevron-down` — placeholder `"^"` — section collapse caret (`inspector/inspector-widgets.slint`, `inspector/transform-inspector.slint`) — assets ready at `assets/icon/inspector/`.
-- [x] `spline` — `assets/icon/inspector/spline.svg` — keyframe easing.
-- [ ] `scan` + `expand` — placeholder `"Fit"` / `"Fill"` — transform fit/fill stays worded (`SubtleButton`); assets ready at `assets/icon/inspector/`.
-- [ ] `link-2` — placeholder CheckBox `"Link"` — `inspector/transform-inspector.slint` — link Scale X/Y axes (std-widgets CheckBox for now).
-- [ ] `trash-2` — placeholder `"Remove"` — remove effect stays worded; asset ready at `assets/icon/inspector/trash-2.svg`.
-- [x] `flip-horizontal` / `flip-vertical` — `assets/icon/inspector/`.
+- [x] `move-horizontal` — `assets/icon/timeline/move-horizontal.svg` — slip tool.
+- [x] `columns-3` — `assets/icon/timeline/columns-3.svg` — slide tool.
+- [x] `grip-vertical` — `assets/icon/timeline/grip-vertical.svg` — rolling edit tool.
+- [x] `gauge` — `assets/icon/timeline/gauge.svg` — rate stretch tool.
+- [x] `fold-horizontal` — `assets/icon/timeline/fold-horizontal.svg` — ripple trim tool.
 
-### Dropdowns & pickers
+### Media pool — `crates/aria-ui/src/panels/sidebar/bins.rs`
 
-- [x] `chevron-down` — `assets/icon/ui/chevron-down.svg` — dropdown / color-swatch / look / animation pickers.
+- [x] `folder` — a bin row draws `components::chevron` (`CHEVRON_DOWN`), which leans toward the click as the row lights.
+- [x] `chevron-left` — `assets/icon/chevron-left.svg` — `crates/aria-ui/src/panels/sidebar_multicam.rs` — move a multicam angle one frame earlier on the group's clock.
+- [x] `chevron-right` — `assets/icon/chevron-right.svg` — `crates/aria-ui/src/panels/sidebar_multicam.rs` — move a multicam angle one frame later.
+- [x] `audio-lines` — `assets/icon/timeline/audio-lines.svg` — `crates/aria-ui/src/panels/sidebar_multicam.rs` — place a group's cameras from their sound.
 
-### Library & tiles
+### Inspector — `crates/aria-ui/src/panels/inspector/tabs/effects.rs`
 
-- [x] `folder-plus` — `assets/icon/library/folder-plus.svg` — import button.
-- [x] `wand-sparkles` — `assets/icon/library/wand-sparkles.svg` — effect/transition tile glyph.
-- [x] `image` — `assets/icon/library/image.svg` — still-image badge.
-- [x] `triangle-alert` — `assets/icon/library/triangle-alert.svg` — missing-media badge.
-
-### Misc
-
-- [x] `x` — `assets/icon/ui/x.svg` — transition remove.
-- [x] `check` — `assets/icon/ui/check.svg` — agent dry-run checkbox; gallery dropdown selected row (`crates/cutlass-ui-gallery/ui/components/dropdown.slint`).
-- [x] `chevron-down` — `assets/icon/ui/chevron-down.svg` — gallery dropdown trigger.
-- [x] `send` — `assets/icon/chat/send.svg` — agent submit.
-- [x] `circle-stop` — `assets/icon/chat/stop.svg` — agent cancel.
+- [x] `trash-2` — `assets/icon/inspector/trash-2.svg` — remove effect.
+- [x] `rotate-ccw` — `assets/icon/inspector/rotate-ccw.svg` — reset the transform (`tabs/transform.rs`) and one colour wheel (`blocks/wheels.rs`).
 
 ### Fine as text (no icon needed)
 
-Timecode `/` separators, the zoom `%` readout, and word buttons in dialogs
-(Browse… / Cancel / Export / Done / OK / Locate… / New project / etc.).
-Preview / track-height cycle labels on the timeline toolbar stay worded.
+Timecode separators, the zoom readout, and word buttons in dialogs
+(Choose… / Cancel / Export / Done / New Project / Import).

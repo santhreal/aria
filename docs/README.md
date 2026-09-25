@@ -1,0 +1,37 @@
+# Documentation index
+
+Reference first, then design notes. A document owns one concern; if a claim
+appears twice, the document listed here for that concern is the one to edit.
+
+## Using Aria
+
+| Document | Concern |
+| --- | --- |
+| [install.md](install.md) | Per-platform install, codec support, build from source |
+| [features.md](features.md) | What the editor does, and what it does not |
+| [getting-started.md](getting-started.md) | Every surface, in the order an operator meets it |
+| [keyboard-shortcuts.md](keyboard-shortcuts.md) | Every registered chord |
+| [command-line.md](command-line.md) | The headless CLI |
+| [catalogs.md](catalogs.md) | Effect, transition, filter, and animation data files |
+
+## Extending Aria
+
+| Document | Concern |
+| --- | --- |
+| [architecture.md](architecture.md) | Crates, the UI boundary, decode and GPU paths |
+| [plugin-development.md](plugin-development.md) | Registries a plugin contributes to |
+| [theme-tokens.md](theme-tokens.md) | Colour and spacing tokens |
+| [animation-catalog.md](animation-catalog.md) | Motion specs and their call sites |
+| [icons.md](icons.md) | Icon names and text placeholders |
+
+## Design notes and roadmaps
+
+These describe intent, not shipped behaviour. A claim here is not a feature.
+
+| Document | Concern |
+| --- | --- |
+| [ai-agent-roadmap.md](ai-agent-roadmap.md) | Planned assistant capability |
+| [mcp-design.md](mcp-design.md) | Model Context Protocol surface, planned |
+| [cloud-roadmap.md](cloud-roadmap.md) | Planned cloud catalog work |
+| [lottie-design.md](lottie-design.md) | Planned Lottie import |
+| [deferred.md](deferred.md) | Items parked with the reason, and what would land them |

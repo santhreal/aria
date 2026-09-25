@@ -1,22 +1,22 @@
 /target
 /dist
-# cutlass-py is excluded from the workspace, so it gets its own target dir,
+# aria-py is excluded from the workspace, so it gets its own target dir,
 # development virtualenv, and local wheel output.
-/crates/cutlass-py/target/
-/crates/cutlass-py/.venv/
-/crates/cutlass-py/dist/
-/crates/cutlass-py/uv.lock
+/crates/aria-py/target/
+/crates/aria-py/.venv/
+/crates/aria-py/dist/
+/crates/aria-py/uv.lock
 __pycache__/
-# Demo outputs (cutlass-cli, cutlass-render's export_demo example).
-/cutlass-demo.png
-/cutlass-demo.mp4
+# Demo outputs (aria-cli, aria-render's export_demo example).
+/aria-demo.png
+/aria-demo.mp4
 # Xcode / Swift Package Manager user state and build output.
 xcuserdata/
 .build/
 # Prebuilt Rust FFI bundle for the Swift package (158MB of static libs);
 # rebuild with scripts/build-ios-xcframework.sh.
-apps/cutlass-ios-macos/CutlassMobile/CutlassMobileFFI.xcframework/
-apps/cutlass-android/app/src/main/jniLibs/
+apps/aria-ios-macos/AriaMobile/AriaMobileFFI.xcframework/
+apps/aria-android/app/src/main/jniLibs/
 # IDE metadata (Android Studio / IntelliJ).
 .idea/
 local-assets/
@@ -24,17 +24,33 @@ local-assets/
 .DS_Store
 frames/
 proxy/
-.cutlass/
-librry/
+.aria/
 run.sh
 venv/
-crates/cutlass-py/.venv/
-crates/cutlass-py/examples/trailer.mp4
-trailer.cutlass
+crates/aria-py/examples/trailer.mp4
+trailer.aria
 # Agent task scaffolding (local only; do not commit).
 AGENT_TASK.md
 AGENT-REPORT.md
 .cursor/plans/
 .cursor/skills/
-target/
 AGENT-PROVIDERS.md
+.internal/
+# Review-only audit backlog (never committed).
+/BACKLOG.md
+# Coverage and fuzzing output.
+*.profraw
+*.profdata
+lcov.info
+/fuzz/artifacts/
+/fuzz/corpus/
+# Inno Setup's default output when aria.iss runs without the packaging script.
+/packaging/windows/Output/
+# Where every test writes its temporary files: `.cargo/config.toml` points
+# TMPDIR here, so nothing this workspace runs lands in the system temp dir. The
+# directory itself is tracked (tempfile refuses a root that does not exist);
+# everything inside it is not.
+/scratch/*
+!/scratch/.gitkeep
+# Linked git worktrees of this repository.
+/worktrees/

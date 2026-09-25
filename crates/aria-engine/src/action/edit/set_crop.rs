@@ -1,0 +1,69 @@
+use aria_models::{ClipId, CropRect, ModelError, Param, RationalTime};
+
+use crate::action::{ApplyContext, EditAction};
+use crate::error::EngineError;
+
+/// Restore only the crop and flip framing of a clip.
+pub struct RestoreCropAction {
+    pub clip: ClipId,
+    pub crop: Param<CropRect>,
+    pub flip_h: bool,
+    pub flip_v: bool,
+}
+
+impl EditAction for RestoreCropAction {
+    fn apply(
+        self: Box<Self>,
+        ctx: &mut ApplyContext<'_>,
+    ) -> Result<Box<dyn EditAction>, EngineError> {
+        let clip_id = self.clip;
+        let clip = ctx
+            .project
+            .timeline_mut()
+            .clip_mut(clip_id)
+            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let current_crop = clip.crop.clone();
+        let current_flip_h = clip.flip_h;
+        let current_flip_v = clip.flip_v;
+
+        clip.crop = self.crop;
+        clip.flip_h = self.flip_h;
+        clip.flip_v = self.flip_v;
+
+        Ok(Box::new(RestoreCropAction {
+            clip: clip_id,
+            crop: current_crop,
+            flip_h: current_flip_h,
+            flip_v: current_flip_v,
+        }))
+    }
+}
+
+/// Set a clip's framing (CapCut crop + flips, M1). The model validates the
+/// rect and the visual-track requirement.
+///
+/// `at: Some(playhead)` keyframes an already-animated crop (M2 compose).
+pub fn set_crop(
+    ctx: &mut ApplyContext<'_>,
+    clip: ClipId,
+    crop: CropRect,
+    flip_h: bool,
+    flip_v: bool,
+    at: Option<RationalTime>,
+) -> Result<Box<dyn EditAction>, EngineError> {
+    let clip_obj = ctx
+        .project
+        .clip(clip)
+        .ok_or(ModelError::UnknownClip(clip))?;
+    let prev_crop = clip_obj.crop.clone();
+    let prev_flip_h = clip_obj.flip_h;
+    let prev_flip_v = clip_obj.flip_v;
+
+    ctx.project.set_clip_crop(clip, crop, flip_h, flip_v, at)?;
+    Ok(Box::new(RestoreCropAction {
+        clip,
+        crop: prev_crop,
+        flip_h: prev_flip_h,
+        flip_v: prev_flip_v,
+    }))
+}

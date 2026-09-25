@@ -1,18 +1,17 @@
 # Release packaging
 
-Cutlass alpha builds ship as prebuilt binaries. The desktop editor is
-`cutlass-desktop`; the iOS/macOS SwiftUI app ships through Xcode/TestFlight
+Aria alpha builds ship as prebuilt binaries. The desktop editor is
+`aria-desktop`; the iOS/macOS SwiftUI app ships through Xcode/TestFlight
 and is not covered here.
 
 **Agent / release checklist:** when cutting a public desktop alpha, follow
-[`.agents/skills/cutlass-release/SKILL.md`](../.agents/skills/cutlass-release/SKILL.md)
+[`.agents/skills/aria-release/SKILL.md`](../.agents/skills/aria-release/SKILL.md)
 (PR into `main`, green CI, tag from `main`). This file is the packaging
 reference for version strings and local package scripts.
 
-macOS (AVFoundation/VideoToolbox) and Windows (Media Foundation) have working
-media stacks. Linux packages are **dormant**: the app compiles and the UI
-runs there, but imported media cannot decode until the Linux backend lands.
-The Linux script is kept working so packaging is ready the day that happens.
+macOS (AVFoundation), Windows (Media Foundation), and Linux (host
+GStreamer plugins) have working media stacks. Linux packages need the
+distro GStreamer plugins listed in the tarball README.
 
 ## Versioning
 
@@ -25,20 +24,42 @@ The Linux script is kept working so packaging is ready the day that happens.
 
 ```bash
 # macOS .app: no bundled media libraries; AVFoundation is part of the OS
-cargo build --release -p cutlass-desktop
+cargo build --release -p aria-desktop
 ./scripts/package-macos.sh
-# → dist/Cutlass-0.7.0-alpha.0-macos-arm64.zip
+# → dist/Aria-0.7.0-alpha.0-macos-arm64.zip
 
-# Linux tarball (dormant preview: UI only, no media decode yet)
-cargo build --release -p cutlass-desktop
+# Linux tarball (needs host GStreamer plugins for video/audio)
+cargo build --release -p aria-desktop
 ./scripts/package-linux.sh
-# → dist/Cutlass-0.7.0-alpha.0-linux-x86_64.tar.gz
+# → dist/Aria-0.7.0-alpha.0-linux-x86_64.tar.gz
 
 # Windows zip: no bundled media libraries; Media Foundation is part of the OS
-cargo build --release -p cutlass-desktop
+cargo build --release -p aria-desktop
 .\scripts\package-windows.ps1
-# → dist/Cutlass-0.7.0-alpha.0-windows-x86_64.zip
+# → dist/Aria-0.7.0-alpha.0-windows-x86_64.zip
 ```
+
+### Linux desktop integration
+
+The tarball carries the desktop-integration files beside the binary, laid out
+the way they install:
+
+```text
+aria-<version>-linux-<arch>/
+  aria-desktop
+  install.sh
+  share/applications/aria.desktop
+  share/icons/hicolor/512x512/apps/aria.png
+  share/mime/packages/aria.xml
+```
+
+Sources live in `packaging/linux/`. `install.sh` copies them into a prefix
+(`~/.local` by default, `--prefix` for a system one, `--uninstall` to reverse
+it), rewrites `Exec=`/`TryExec=` to the absolute installed path, and refreshes
+the desktop, MIME, and icon caches when those tools exist. The `.aria` type is
+registered as `application/x-aria-project`, matched by both the `*.aria` glob
+and the schema string inside the file, so a project opens by double-click and
+media files list Aria under "Open With".
 
 ### Windows installer (Setup.exe)
 
@@ -51,14 +72,14 @@ choco install innosetup
 
 # stages the payload (reusing package-windows.ps1) and compiles the installer
 .\scripts\package-windows-installer.ps1
-# → dist/Cutlass-0.7.0-alpha.0-windows-x86_64-Setup.exe
+# → dist/Aria-0.7.0-alpha.0-windows-x86_64-Setup.exe
 
 # native ARM64 installer (run on an ARM64 Windows host):
 .\scripts\package-windows-installer.ps1 -Arch arm64
-# → dist/Cutlass-0.7.0-alpha.0-windows-arm64-Setup.exe
+# → dist/Aria-0.7.0-alpha.0-windows-arm64-Setup.exe
 ```
 
-The Inno Setup script lives at `packaging/windows/cutlass.iss`; the PowerShell
+The Inno Setup script lives at `packaging/windows/aria.iss`; the PowerShell
 wrapper passes the version, staged source dir, and output path as `/D` defines.
 The installer is unsigned for now. Windows SmartScreen will warn on first run
 until the `Setup.exe` is Authenticode-signed.
@@ -68,7 +89,7 @@ until the `Setup.exe` is Authenticode-signed.
 ### macOS Gatekeeper (alpha)
 
 Release zips are **adhoc-signed**, not notarized. Double-click may do nothing
-until the user right-clicks `Cutlass.app` → **Open** once. The zip includes
+until the user right-clicks `Aria.app` → **Open** once. The zip includes
 `INSTALL-macos.txt` with full steps. Proper fix for a stable channel is Apple
 Developer ID signing + notarization in CI.
 
@@ -76,4 +97,4 @@ Developer ID signing + notarization in CI.
 
 Bundles carry no third-party media libraries: decode/encode goes through the
 operating system's frameworks (AVFoundation/VideoToolbox on Apple platforms,
-Media Foundation on Windows). Cutlass itself is MIT OR Apache-2.0.
+Media Foundation on Windows). Aria itself is MIT OR Apache-2.0.

@@ -3,13 +3,13 @@
 **Status (macos-dev, Jul 2026):** v2. v1 (M3) shipped the closed-vocabulary
 timeline agent — wire format + validation, OpenAI-compatible provider,
 sandbox-rehearse-then-replay loop, chat panel, eval harness — end to end in
-`crates/cutlass-ai` and `apps/cutlass-desktop/src/agent.rs`; see
+`crates/aria-ai`; see
 [v1 foundation (shipped)](#v1-foundation-shipped) for the compressed record.
 v2 grows that agent into the app-wide agent that is the product's selling
 point: an assistant that can see the project, drive the app, understand the
 footage, and compute — not just edit the timeline.
 
-Policy: **the agent is the reason Cutlass exists**, and v1 proved the trust
+Policy: **the agent is the reason Aria exists**, and v1 proved the trust
 machinery on the highest-stakes surface (timeline mutation). v2 extends the
 same discipline — validated, observable, undoable-or-confirmed — to
 everything else the user can do, instead of inventing a second, looser
@@ -32,14 +32,15 @@ Compressed from the v1 doc (phases 0–5, all landed on this line):
       retrieved.
 - [x] **`ChatProvider` trait + OpenAI-compatible SSE provider** (Ollama,
       llama.cpp-server, LM Studio, OpenAI, gateways), config in
-      `~/.cutlass/config.toml` `[ai]`; `ScriptedProvider` test double; error
+      `~/.aria/config.toml` `[ai]`; `ScriptedProvider` test double; error
       taxonomy the UI can speak.
 - [x] **The loop**: per-call validate → apply → outcome-or-rejection fed
       back; caps (tool calls, turns); dry-run; human-readable action log.
-- [x] **Sandbox-rehearse-then-replay**: prompts rehearse against a
-      snapshot-seeded sandbox engine, then the validated plan replays
-      atomically on the live engine as **one undo group** with sandbox→live
-      id remapping. One prompt = one Cmd+Z.
+- [x] **Rehearse-then-replay**: a plan-only prompt applies each step into an
+      open history group so the next step is validated against the plan so
+      far, rolls that group back before it returns, and replays the validated
+      plan on the live engine as **one undo group**, mapping each rehearsal id
+      onto the entity the replay creates. One prompt = one Cmd+Z.
 - [x] **Chat panel**: streamed transcript, action lines, dry-run preview
       card (Apply/Discard), undo chip, not-configured setup state, Stop.
 - [x] **Eval harness**: scripted-provider prompts against fixture projects
@@ -66,7 +67,7 @@ The agent can do (almost) everything the user can — and things they can't:
   agent's edge over every prompt-box gimmick is that it can *watch the
   footage* and then execute frame-exact edits through the validated
   vocabulary.
-- **Open-ended computation.** A Python runtime (cutlass-py + analysis
+- **Open-ended computation.** A Python runtime (aria-py + analysis
   libraries) for the long tail no fixed toolset covers.
 
 Everything runs local-first (local models, local analysis, local Python) and
@@ -94,7 +95,7 @@ Every host tool then declares exactly one `ToolTier`:
    the embedding host authorizes the call. Desktop authorization follows the
    `[ai] autonomy` setting: `ask` (default) parks the call behind a per-call
    confirmation card; `full` runs without prompts. The card names the effect
-   precisely ("runs now; not undoable from Cutlass" — the MCP doc's phrasing,
+   precisely ("runs now; not undoable from Aria" — the MCP doc's phrasing,
    same posture).
 
 **Namespaced host tools.** Everything beyond the edit vocabulary is a host
@@ -125,7 +126,7 @@ land cleanly.
 - [x] **Multimodal messages**: `ImagePart` on the provider wire, a
       per-request image budget, text-only history (images are referenced,
       not resent — image tokens are the expensive kind).
-- [x] **`[ai] autonomy` setting** (`cutlass-settings`): `ask` default /
+- [x] **`[ai] autonomy` setting** (`aria-settings`): `ask` default /
       `full`, the System-tier gate above.
 - [x] **ToolHost registry + loop dispatch + phase commits**:
       host tools register exact `{namespace}_{tool}` specs; the loop dispatches
@@ -135,7 +136,7 @@ land cleanly.
 - [x] **Provider retries**: transient network/5xx failures retry
       with backoff instead of aborting the prompt and rolling back a
       half-built plan.
-- [x] **`cutlass-jobs` background-job registry**: std-only
+- [x] **`aria-jobs` background-job registry**: std-only
       `JobManager` — named worker threads, progress + detail snapshots,
       cooperative cancel, subscriber bridge for the UI, bounded finished
       history. Exports, analysis, transcription, and Python runs migrate to
@@ -170,7 +171,7 @@ model can check its own work.
       image server-side (tracks, clips with names/ids, markers, playhead,
       explicit time window) —
       cheaper, crisper, and more model-legible at small sizes than a raw UI
-      screenshot, and it works headless (no Slint in the loop). The UI
+      screenshot, and it works headless (no UI toolkit in the loop). The UI
       screenshot stays available for "what does the user actually see".
 - [ ] **Sandbox self-verify**: after rehearsing edits, the loop offers the
       model a render of the *sandbox* state (schematic map + composited
@@ -186,7 +187,7 @@ grab; an eval case locks the verify loop in with a scripted vision turn.
 
 ## Phase 2a — App control
 
-- [ ] **`app_*` tools** via winit + the existing Slint globals: window
+- [ ] **`app_*` tools** via the GPUI shell: window
       position/size, playback transport (play/pause/seek/loop selection),
       panel toggles (library/inspector/agent/timeline zoom), active
       selection, theme. Workspace tier — every one reversible by the next
@@ -218,7 +219,7 @@ the same registry the agent uses.
 ## Phase 2c — Project operations
 
 - [ ] **`project_*` tools**: import media, export (spawned as a
-      `cutlass-jobs` job with progress + cancel), save, open, new,
+      `aria-jobs` job with progress + cancel), save, open, new,
       list-drafts, relink missing media, apply/save templates.
 - [ ] **Tier mapping with teeth**: reads (list-drafts, relink candidates)
       are Workspace; mutations that can lose unsaved work (open, new) or
@@ -245,10 +246,10 @@ eval case).
       can do that the wire can't yet), bumping the schema version once per
       landed batch.
 
-Exit: the wire-vs-`EditCommand` coverage table in `cutlass-ai` docs reads
+Exit: the wire-vs-`EditCommand` coverage table in `aria-ai` docs reads
 complete; schema snapshot bumped; every added command has its eval.
 
-## Phase 3a — `cutlass-analysis`: deterministic senses
+## Phase 3a — `aria-analysis`: deterministic senses
 
 A new crate for local, model-free media analysis — the cheap-and-always-on
 layer under the VLM.
@@ -259,7 +260,7 @@ layer under the VLM.
       substrate for silence removal and beat-synced montages.
 - [ ] **Moments index (SQLite)**: a content-hash-keyed per-media cache of
       analysis results with time range + kind + confidence, written by
-      analysis jobs (`cutlass-jobs`), queried by `analysis_*` tools.
+      analysis jobs (`aria-jobs`), queried by `analysis_*` tools.
 
 Exit: importing gameplay footage and running analysis yields queryable
 shots/silences/beats with timestamps; `analysis_query` answers from the
@@ -269,7 +270,7 @@ index with zero model involvement.
 
 - [ ] **whisper.cpp via `whisper-rs`**: local transcription as a job, word
       + segment timestamps into the moments index. (A proven prototype
-      exists in the separate cutlass-playground repo — port, don't
+      exists in the separate aria-playground repo — port, don't
       research.)
 - [ ] **Model download manager**: on-demand whisper model fetch with
       size/license surfaced, stored under the cache registry (2b), never
@@ -303,11 +304,11 @@ of them" is then pure Phase-1-verified vocabulary work.
 ## Phase 4 — Python runtime
 
 - [ ] **uv-bootstrapped venv, optional**: first `python_run` offers to
-      provision an isolated environment (uv + pinned cutlass-py + analysis
+      provision an isolated environment (uv + pinned aria-py + analysis
       libs) under the app data dir; no system Python touched; fully
       removable via the cache registry.
 - [ ] **`python_run` tool**: System tier, always. Scripts get the project
-      handle through cutlass-py, run as a cancellable job, and return
+      handle through aria-py, run as a cancellable job, and return
       stdout + declared artifacts (files, images) with size caps — artifact
       images flow back through the multimodal wire.
 - [ ] **Import boundary**: artifacts never auto-enter the project; media an
@@ -348,14 +349,14 @@ stock machine with local models.
       stdio, secrets, server lifetime) must be resolved and its status line
       flipped before implementation starts; the fenced `mcp__` namespace
       slots into the Phase 0 dispatch rule unchanged.
-- [ ] **MCP server** (Cutlass tools for external agents): expose Workspace-
+- [ ] **MCP server** (Aria tools for external agents): expose Workspace-
       tier reads and validated-edit submission over MCP so external agents
-      script Cutlass with the same trust model — never a raw engine door.
+      script Aria with the same trust model — never a raw engine door.
 - [ ] **Push-to-talk voice input**: hold-to-talk in the agent panel,
       transcribed locally by the 3b whisper stack into the prompt box —
       dictation, not a wake word.
 
-Exit: an external MCP client lists and calls Cutlass tools under the tier
+Exit: an external MCP client lists and calls Aria tools under the tier
 rules; a held key turns speech into a prompt with no cloud round-trip.
 
 ---

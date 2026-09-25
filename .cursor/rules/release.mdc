@@ -1,12 +1,12 @@
 ---
-description: Public alpha desktop release gates — versioning, PR→main→tag flow, CHANGELOG as release body. Use when cutting or preparing a Cutlass GitHub Release.
+description: Public alpha desktop release gates — versioning, PR→main→tag flow, CHANGELOG as release body. Use when cutting or preparing a Aria GitHub Release.
 alwaysApply: false
 ---
 
 # Desktop alpha releases
 
 For the full checklist, read and follow
-[`.agents/skills/cutlass-release/SKILL.md`](../../.agents/skills/cutlass-release/SKILL.md).
+[`.agents/skills/aria-release/SKILL.md`](../../.agents/skills/aria-release/SKILL.md).
 Do **not** invent a different ship path.
 
 ## Hard gates
@@ -29,4 +29,4 @@ Do **not** invent a different ship path.
 
 ## Out of scope unless asked
 
-Notarization, DMG, Intel macOS, Authenticode, `cutlass-py` PyPI publish.
+Notarization, DMG, Intel macOS, Authenticode, `aria-py` PyPI publish.

@@ -1,0 +1,44 @@
+# Text effect presets: named combinations of the stroke, shadow, and background
+# a text style already stores.
+#
+# Applying a preset bakes these fields onto the clip's style, so a project stays
+# self-describing and a renderer never reads this file. Changing a preset here
+# does not change text that already used it.
+#
+# `rgba` is 0 … 255 per channel. `width` and `distance` are pixels; `blur` is
+# 0 … 1. Leave a section out for none.
+#
+# Copy this file to <data dir>/catalogs/text_effects.toml to change the set.
+
+[[entry]]
+id = "neon"
+label = "Neon"
+stroke = { rgba = [57, 255, 20, 255], width = 4.0 }
+shadow = { rgba = [57, 255, 20, 200], blur = 0.35, distance = 0.0 }
+
+[[entry]]
+id = "shadow"
+label = "Shadow"
+shadow = { rgba = [0, 0, 0, 230], blur = 0.15, distance = 8.0 }
+
+[[entry]]
+id = "outline"
+label = "Outline"
+stroke = { rgba = [0, 0, 0, 255], width = 8.0 }
+
+[[entry]]
+id = "glow"
+label = "Glow"
+shadow = { rgba = [255, 255, 255, 220], blur = 0.4, distance = 0.0 }
+
+[[entry]]
+id = "retro"
+label = "Retro"
+stroke = { rgba = [255, 140, 60, 255], width = 5.0 }
+shadow = { rgba = [120, 40, 160, 255], blur = 0.05, distance = 10.0 }
+
+[[entry]]
+id = "chrome"
+label = "Chrome"
+stroke = { rgba = [230, 230, 240, 255], width = 3.0 }
+shadow = { rgba = [40, 60, 90, 200], blur = 0.2, distance = 6.0 }

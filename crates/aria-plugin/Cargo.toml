@@ -1,0 +1,25 @@
+[package]
+name = "aria-plugin"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Plugin host framework for Aria: service registry, typed events, and plugin lifecycle."
+
+[dependencies]
+thiserror = { workspace = true }
+tracing = { workspace = true }
+parking_lot = { workspace = true }
+rustc-hash = { workspace = true }
+aria-core = { path = "../aria-core" }
+aria-compositor = { path = "../aria-compositor" }
+aria-commands = { path = "../aria-commands" }
+aria-models = { path = "../aria-models" }
+aria-render = { path = "../aria-render" }
+serde_json = { workspace = true }
+# Loading an external plugin means dlopen; there is no other mechanism.
+libloading = { workspace = true }
+
+[lints]
+workspace = true

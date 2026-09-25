@@ -1,0 +1,62 @@
+[package]
+name = "aria-encoder"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Platform-native video encoding behind the aria-core VideoEncoder trait. AVFoundation on Apple, Media Foundation on Windows, MediaCodec on Android, GStreamer on Linux."
+
+[dependencies]
+aria-core = { path = "../aria-core" }
+bytemuck = { workspace = true }
+
+# Apple backend: AVAssetWriter (VideoToolbox H.264 encode + mp4 mux). objc2
+# framework crates are pinned to the same line the decoder/compositor use so the
+# CVPixelBuffer / CoreMedia types unify across the encode handoff.
+[target.'cfg(target_vendor = "apple")'.dependencies]
+objc2 = { version = "0.6.4", features = ["exception"] }
+objc2-foundation = "0.3.2"
+objc2-av-foundation = { version = "0.3.2", features = [
+    "objc2-core-media",
+    "objc2-core-video",
+] }
+objc2-core-media = "0.3.2"
+objc2-core-video = "0.3.2"
+objc2-core-foundation = "0.3.2"
+block2 = "0.6"
+dispatch2 = { version = "0.3", features = ["block2", "objc2"] }
+
+# Windows backend: Media Foundation IMFSinkWriter (H.264 encode + mp4 mux,
+# AAC audio). Same `windows` crate line as the decoder so COM idioms match
+# across the decode→encode pair.
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.62", features = [
+    "Win32_Foundation",
+    "Win32_Media_MediaFoundation",
+    "Win32_System_Com",
+] }
+
+# Android backend: MediaCodec (H.264 + AAC encode) + AMediaMuxer (mp4 mux),
+# pinned to the same ndk-sys line the decoder uses so the MediaCodec/format
+# types unify across the decode→encode handoff.
+[target.'cfg(target_os = "android")'.dependencies]
+ndk-sys = { version = "0.6", features = ["media"] }
+
+# Linux backend: GStreamer H.264 + AAC + mp4mux. System plugins only.
+[target.'cfg(target_os = "linux")'.dependencies]
+gstreamer = "0.23"
+gstreamer-app = "0.23"
+gstreamer-video = "0.23"
+gstreamer-audio = "0.23"
+
+[dev-dependencies]
+aria-decoder = { path = "../aria-decoder" }
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "rgba_to_bgra"
+harness = false
+
+[lints]
+workspace = true

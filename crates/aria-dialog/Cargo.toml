@@ -1,0 +1,14 @@
+[package]
+name = "aria-dialog"
+description = "Native file and message dialogs, offered only as futures so no caller can block the thread that draws"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+rfd = "0.17"
+
+[lints]
+workspace = true

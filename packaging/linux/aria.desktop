@@ -1,0 +1,19 @@
+[Desktop Entry]
+Type=Application
+Name=Aria
+GenericName=Video Editor
+Comment=Edit video: timeline, effects, transitions, and export
+# Rewritten by install.sh to the absolute path the binary was installed at, so
+# the entry works whether Aria lives in ~/.local/bin or /usr/local/bin.
+Exec=aria-desktop %F
+TryExec=aria-desktop
+Icon=aria
+Terminal=false
+Categories=AudioVideo;Video;AudioVideoEditing;
+Keywords=video;editor;timeline;edit;export;
+# A project opens; anything else lands in a new session, which is what the
+# editor already does with a path on the command line or a file dropped on the
+# window. Only formats the decoder reads are claimed.
+MimeType=application/x-aria-project;video/mp4;video/quicktime;video/x-matroska;video/webm;video/x-msvideo;audio/mpeg;audio/x-wav;audio/flac;audio/ogg;image/png;image/jpeg;image/webp;
+StartupWMClass=aria-desktop
+StartupNotify=true

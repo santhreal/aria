@@ -1,0 +1,69 @@
+[graph]
+all-features = true
+
+[advisories]
+ignore = [
+    { id = "RUSTSEC-2026-0192", reason = "ttf-parser is transitive through fontdb, rustybuzz, and GPUI; the advisory reports no safe upgrade" },
+    { id = "RUSTSEC-2024-0375", reason = "atty is transitive through nnnoiseless and clap 3; no maintained nnnoiseless release is available" },
+    { id = "RUSTSEC-2024-0436", reason = "paste is transitive through GStreamer 0.23; removal requires the planned GStreamer API migration" },
+    { id = "RUSTSEC-2026-0173", reason = "proc-macro-error2 is transitive through stacksafe in pinned GPUI; the advisory reports no safe upgrade" },
+    { id = "RUSTSEC-2026-0206", reason = "rustybuzz is transitive through usvg in pinned GPUI; the advisory reports no safe upgrade" },
+]
+
+[licenses]
+allow = [
+    "0BSD",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BlueOak-1.0.0",
+    "BSL-1.0",
+    "CC0-1.0",
+    "CDLA-Permissive-2.0",
+    "ISC",
+    "MIT",
+    "MIT-0",
+    "Unicode-3.0",
+    "Unlicense",
+    "Zlib",
+    "bzip2-1.0.6",
+]
+confidence-threshold = 0.8
+
+[[licenses.exceptions]]
+allow = ["MPL-2.0"]
+crate = "cbindgen"
+
+[[licenses.exceptions]]
+allow = ["MPL-2.0"]
+crate = "dwrote"
+
+[[licenses.exceptions]]
+allow = ["MPL-2.0"]
+crate = "option-ext"
+
+[licenses.private]
+ignore = false
+
+[bans]
+multiple-versions = "warn"
+wildcards = "allow"
+highlight = "simplest-path"
+workspace-default-features = "allow"
+external-default-features = "allow"
+allow = []
+allow-workspace = true
+deny = []
+skip = []
+skip-tree = []
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-git = [
+    "https://github.com/proptest-rs/proptest",
+    "https://github.com/wingleeio/zed",
+    "https://github.com/zed-industries/font-kit",
+    "https://github.com/zed-industries/xim-rs.git",
+]

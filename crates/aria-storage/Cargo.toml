@@ -1,0 +1,19 @@
+[package]
+name = "aria-storage"
+description = "Stable cache metadata and safe filesystem primitives for Aria"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+# Test binaries are declared explicitly: oversized test files are split into
+# `<name>_partN.rs` siblings that are `#[path]` modules of their parent, not
+# standalone binaries. Autodiscovery would compile each sibling on its own.
+autotests = false
+
+[lints]
+workspace = true
+
+[[test]]
+name = "storage"
+path = "tests/storage.rs"

@@ -1,0 +1,48 @@
+//! Plain Rust replacements for the Slint-generated view-model types.
+
+use aria_models::{
+    AudioRole, BlendMode, ClipId, CropRect, MarkerColor, MaskKind, MatteSource, MediaId,
+    MotionBlur, Rational, SlotMedia, StabilizeLevel, TrackId,
+};
+use gpui::SharedString;
+use std::path::PathBuf;
+#[cfg(test)]
+mod clip_kind_tests {
+    use super::UiClipKind;
+
+    /// `ALL` and the exhaustive census come from one registry row per kind.
+    #[test]
+    fn the_kind_census_covers_every_variant() {
+        assert!(
+            !UiClipKind::ALL.is_empty(),
+            "the UI clip-kind registry is empty"
+        );
+        for kind in UiClipKind::ALL {
+            kind.census();
+        }
+    }
+}
+pub fn clip_id(id: ClipId) -> u64 {
+    id.raw()
+}
+pub fn track_id(id: TrackId) -> u64 {
+    id.raw()
+}
+pub fn media_id(id: MediaId) -> u64 {
+    id.raw()
+}
+
+// The view-model types live in sibling files, grouped by what they describe,
+// and are re-exported here so `crate::types::Name` keeps resolving.
+#[path = "types_clip.rs"]
+mod clip;
+pub use clip::*;
+#[path = "types_editor.rs"]
+mod editor;
+pub use editor::*;
+#[path = "types_pool.rs"]
+mod pool;
+pub use pool::*;
+#[path = "types_target.rs"]
+mod target;
+pub use target::*;

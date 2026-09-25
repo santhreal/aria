@@ -1,0 +1,93 @@
+# Speed-ramp presets.
+#
+# Each preset is a normalised curve of multipliers on the clip's base speed.
+# `at` is the position along the clip, 0 … 1, so a preset's shape survives trims
+# and base-speed changes. `value` is the multiplier; `easing` is the curve
+# leaving that point (`linear`, `ease_in`, `ease_out`, `ease_in_out`, `hold`).
+#
+# A preset needs at least two points, values within the clip speed limits, and
+# `at` in 0 … 1. A curve is written onto the clip when applied, so editing a
+# preset here does not change a clip that already used it.
+#
+# Copy this file to <data dir>/catalogs/speed_presets.toml to change the set.
+
+# Accelerate from slow-mo into fast (CapCut "speed up").
+[[entry]]
+id = "ramp_up"
+label = "Ramp up"
+points = [
+  { at = 0.0, value = 0.4, easing = "ease_in" },
+  { at = 1.0, value = 2.5 },
+]
+
+# Decelerate from fast into slow-mo (CapCut "slow down").
+[[entry]]
+id = "ramp_down"
+label = "Ramp down"
+points = [
+  { at = 0.0, value = 2.5, easing = "ease_out" },
+  { at = 1.0, value = 0.4 },
+]
+
+# Fast / slow / fast cuts — montage energy.
+[[entry]]
+id = "montage"
+label = "Montage"
+points = [
+  { at = 0.0, value = 2.0, easing = "ease_in_out" },
+  { at = 0.5, value = 0.5, easing = "ease_in_out" },
+  { at = 1.0, value = 2.0 },
+]
+
+# Normal, dip to slow-mo on the action, back to normal — "hero moment".
+[[entry]]
+id = "hero"
+label = "Hero"
+points = [
+  { at = 0.0, value = 1.5, easing = "ease_in_out" },
+  { at = 0.5, value = 0.3, easing = "ease_in_out" },
+  { at = 1.0, value = 1.5 },
+]
+
+# Punchy fast / hard slow / fast — "bullet time".
+[[entry]]
+id = "bullet"
+label = "Bullet"
+points = [
+  { at = 0.0, value = 3.0, easing = "ease_in_out" },
+  { at = 0.4, value = 0.25, easing = "ease_in_out" },
+  { at = 0.6, value = 0.25, easing = "ease_in_out" },
+  { at = 1.0, value = 3.0 },
+]
+
+# Alternating normal / triple-speed bursts — jump-cut energy.
+[[entry]]
+id = "jump_cut"
+label = "Jump cut"
+points = [
+  { at = 0.0, value = 1.0 },
+  { at = 0.25, value = 3.0 },
+  { at = 0.5, value = 1.0 },
+  { at = 0.75, value = 3.0 },
+  { at = 1.0, value = 1.0 },
+]
+
+# Blast in fast, settle to normal.
+[[entry]]
+id = "flash_in"
+label = "Flash in"
+points = [
+  { at = 0.0, value = 3.0, easing = "ease_out" },
+  { at = 0.3, value = 1.0 },
+  { at = 1.0, value = 1.0 },
+]
+
+# Hold normal, accelerate out.
+[[entry]]
+id = "flash_out"
+label = "Flash out"
+points = [
+  { at = 0.0, value = 1.0 },
+  { at = 0.7, value = 1.0, easing = "ease_in" },
+  { at = 1.0, value = 3.0 },
+]

@@ -1,6 +1,6 @@
 ---
-description: Icon placeholders for the Slint UI — never block on missing art; register it.
-globs: **/*.slint
+description: Icon placeholders for the GPUI shell — never block on missing art; register it.
+globs: crates/aria-ui/**/*.rs
 alwaysApply: false
 ---
 
@@ -14,12 +14,12 @@ where a glyph belongs. `docs/icons.md` is the registry that tracks every one.
 Never block a feature on missing art. Instead:
 
 1. **Ship the placeholder.** Use a short text/char matching the existing
-   widget pattern — `ToolButton { label: "Split" }`, `HeadToggle { label: "L" }`,
-   `CutlassText { text: "✕" }`. Don't invent a new control just for the glyph.
+   widget pattern — a labeled button, a one-letter toggle, or a caption
+   glyph. Don't invent a new control just for the glyph.
 2. **Register it in `docs/icons.md`** under the right section, one line:
 
    ```
-   - [ ] `lucide-name` — placeholder `"X"` — `path/to/file.slint` — what it does.
+   - [ ] `lucide-name` — placeholder `"X"` — `path/to/file.rs` — what it does.
    ```
 
    `[ ]` = needed · `[x]` = fetched + wired. Always include the placeholder
@@ -30,10 +30,9 @@ Never block a feature on missing art. Instead:
 
 ## When you wire a real icon in
 
-- Load via `@image-url(...)` relative to the `.slint` file and tint with
-  `colorize:` so one SVG serves all themes.
-- Put the SVG in repo-root `assets/icon/` (or `assets/icon/library/`).
-  Media scratch lives in gitignored `local-assets/` — see `docs/icons.md`.
+- Load the SVG from repo-root `assets/icon/` (or `assets/icon/library/`)
+  and tint it so one asset serves all themes.
+- Media scratch lives in gitignored `local-assets/` — see `docs/icons.md`.
 - Flip the registry entry to `[x]`.
 
 Don't silently leave a bare letter/word as if it were final, and don't fetch

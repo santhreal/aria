@@ -1,0 +1,194 @@
+//! The rows a lane header's menu draws.
+//!
+//! Split out of the parent by size. A lane height is a row here rather than a
+//! branch in the panel, so a fourth height is a fourth row.
+
+use aria_models::{TrackDisplay, TrackId, TrackKind};
+
+use crate::app::AppState;
+use crate::types::RenameTarget;
+
+use super::{MenuItem, MenuRow, always};
+
+/// The lane facts a track menu row reads.
+#[derive(Clone, Copy)]
+pub struct TrackMenu {
+    pub track: u64,
+    pub muted: bool,
+    /// The lane carries sound, which is the only kind a duck source can be.
+    pub audio: bool,
+    /// Where the lane sits in the drawn stack, and how tall the stack is, so the
+    /// rows that move it are offered only where there is somewhere to move.
+    pub row: usize,
+    pub lanes: usize,
+    /// How the lane is drawn: height, waveforms, filmstrips, collapsed.
+    pub lane: TrackDisplay,
+}
+
+impl TrackMenu {
+    /// Read the lane facts a menu would gather when it opens over `track`, or
+    /// `None` when that lane is no longer projected.
+    pub fn of(state: &AppState, track: u64) -> Option<Self> {
+        let lanes = &state.store.sequence.tracks;
+        let row = lanes.iter().position(|lane| lane.id == track)?;
+        let lane = &lanes[row];
+        Some(Self {
+            track,
+            muted: lane.muted,
+            audio: lane.kind == crate::types::UiTrackKind::Audio,
+            row,
+            lanes: lanes.len(),
+            lane: state.lane_display(track),
+        })
+    }
+}
+
+/// The lane heights the menu offers, in logical pixels.
+///
+/// A height is a row, so a fourth one is a row rather than a fourth branch.
+const LANE_HEIGHTS: [(&str, &str, f32); 3] = [
+    ("ctx-lane-small", "Lane Height: Small", 34.0),
+    ("ctx-lane-medium", "Lane Height: Medium", 48.0),
+    ("ctx-lane-large", "Lane Height: Large", 96.0),
+];
+
+/// A track menu, in the order it draws.
+pub const TRACK_ITEMS: &[MenuItem<TrackMenu>] = &[
+    MenuItem::Row(MenuRow {
+        id: "ctx-add-track",
+        label: |_| "Add Track",
+        when: always(),
+        run: |state, _| {
+            // Named after the lanes that exist, so a stack of three offers V4
+            // rather than a second V2.
+            let next = state
+                .store
+                .sequence
+                .tracks
+                .iter()
+                .filter(|lane| matches!(lane.kind, crate::types::UiTrackKind::Video))
+                .count()
+                + 1;
+            state
+                .add_track(TrackKind::Video, format!("V{next}"))
+                .map(|_| ())
+        },
+    }),
+    MenuItem::Row(MenuRow {
+        id: "ctx-rename-track",
+        label: |_| "Rename Track",
+        when: always(),
+        run: |state, lane| {
+            state.close_context();
+            state.begin_rename(RenameTarget::Track(lane.track));
+            Ok(())
+        },
+    }),
+    MenuItem::Row(MenuRow {
+        id: "ctx-delete-track",
+        label: |_| "Delete Track",
+        when: always(),
+        run: |state, lane| state.remove_track(TrackId::from_raw(lane.track)),
+    }),
+    MenuItem::Row(MenuRow {
+        id: "ctx-mute-track",
+        // The row names where the click lands, not where the lane is.
+        label: |lane| if lane.muted { "Unmute" } else { "Mute" },
+        when: always(),
+        run: |state, lane| state.set_track_muted(TrackId::from_raw(lane.track), !lane.muted),
+    }),
+    // Offered where there is somewhere to move: the top lane has no row above it,
+    // and a row that does nothing when clicked is worse than no row.
+    MenuItem::Row(MenuRow {
+        id: "ctx-track-up",
+        label: |_| "Move Track Up",
+        when: |lane| lane.row > 0,
+        run: |state, lane| state.move_track_up(TrackId::from_raw(lane.track)),
+    }),
+    MenuItem::Row(MenuRow {
+        id: "ctx-track-down",
+        label: |_| "Move Track Down",
+        when: |lane| lane.row + 1 < lane.lanes,
+        run: |state, lane| state.move_track_down(TrackId::from_raw(lane.track)),
+    }),
+    // Auto-duck listens to one voice, and a voice is sound.
+    MenuItem::Row(MenuRow {
+        id: "ctx-track-duck",
+        label: |_| "Duck Source",
+        when: |lane| lane.audio,
+        run: |state, lane| state.toggle_track_duck_source(TrackId::from_raw(lane.track)),
+    }),
+    MenuItem::Row(MenuRow {
+        id: "ctx-track-open-gap",
+        label: |_| "Open Gap at Playhead",
+        when: always(),
+        run: |state, lane| {
+            // One second of gap, so the amount reads the same at any frame rate.
+            let delta = state.store.sequence.frame_rate.num.max(1) as i64;
+            state.shift_clips_from_playhead(TrackId::from_raw(lane.track), delta)
+        },
+    }),
+    MenuItem::Row(MenuRow {
+        id: "ctx-track-close-gap",
+        label: |_| "Close Gap at Playhead",
+        when: always(),
+        run: |state, lane| {
+            let delta = state.store.sequence.frame_rate.num.max(1) as i64;
+            state.shift_clips_from_playhead(TrackId::from_raw(lane.track), -delta)
+        },
+    }),
+    MenuItem::Row(MenuRow {
+        id: "ctx-lane-collapse",
+        label: |lane| {
+            if lane.lane.collapsed {
+                "Expand Lane"
+            } else {
+                "Collapse Lane"
+            }
+        },
+        when: always(),
+        run: |state, lane| state.set_lane_collapsed(lane.track, !lane.lane.collapsed),
+    }),
+    MenuItem::Row(MenuRow {
+        id: "ctx-lane-waveform",
+        label: |lane| {
+            if lane.lane.waveform {
+                "Hide Waveforms"
+            } else {
+                "Show Waveforms"
+            }
+        },
+        when: always(),
+        run: |state, lane| state.set_lane_waveform(lane.track, !lane.lane.waveform),
+    }),
+    MenuItem::Row(MenuRow {
+        id: "ctx-lane-filmstrip",
+        label: |lane| {
+            if lane.lane.filmstrip {
+                "Hide Filmstrips"
+            } else {
+                "Show Filmstrips"
+            }
+        },
+        when: always(),
+        run: |state, lane| state.set_lane_filmstrip(lane.track, !lane.lane.filmstrip),
+    }),
+    MenuItem::Row(MenuRow {
+        id: LANE_HEIGHTS[0].0,
+        label: |_| LANE_HEIGHTS[0].1,
+        when: always(),
+        run: |state, lane| state.set_lane_height(lane.track, LANE_HEIGHTS[0].2),
+    }),
+    MenuItem::Row(MenuRow {
+        id: LANE_HEIGHTS[1].0,
+        label: |_| LANE_HEIGHTS[1].1,
+        when: always(),
+        run: |state, lane| state.set_lane_height(lane.track, LANE_HEIGHTS[1].2),
+    }),
+    MenuItem::Row(MenuRow {
+        id: LANE_HEIGHTS[2].0,
+        label: |_| LANE_HEIGHTS[2].1,
+        when: always(),
+        run: |state, lane| state.set_lane_height(lane.track, LANE_HEIGHTS[2].2),
+    }),
+];

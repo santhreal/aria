@@ -1,6 +1,6 @@
-# Contributing to Cutlass
+# Contributing to Aria
 
-Thanks for your interest in Cutlass. It is early alpha software and there is
+Thanks for your interest in Aria. It is early alpha software and there is
 plenty of room to help: fixing bugs, filling in editing features, improving
 docs, sharpening the AI assistant, or just reporting what breaks.
 
@@ -27,11 +27,11 @@ just gives reviewers helpful context.
 
 ## Before you start
 
-- Read the [README](README.md) to understand what Cutlass is and how to run it.
+- Read the [README](README.md) to understand what Aria is and how to run it.
 - Check [ROADMAP.md](ROADMAP.md) to see what is planned, in progress, or
   already done. Intentionally parked work lives in
   [docs/deferred.md](docs/deferred.md).
-- Search [open issues](https://github.com/1Mr-Newton/cutlass/issues) before
+- Search [open issues](https://github.com/1Mr-Newton/aria/issues) before
   filing a new one or starting work, so effort is not duplicated.
 - For anything larger than a small fix, open an issue first to discuss the
   approach. It saves everyone a wasted PR.
@@ -39,8 +39,8 @@ just gives reviewers helpful context.
 ## Ways to contribute
 
 - **Report bugs** using the [bug report template](.github/ISSUE_TEMPLATE/bug_report.md).
-  Include your OS, how you built or installed Cutlass, exact steps to reproduce,
-  what you expected, and what happened. Screenshots and a sample `.cutlass`
+  Include your OS, how you built or installed Aria, exact steps to reproduce,
+  what you expected, and what happened. Screenshots and a sample `.aria`
   project help a lot.
 - **Request features** using the [feature request template](.github/ISSUE_TEMPLATE/feature_request.md).
   Describe the problem first, then the change you have in mind.
@@ -49,28 +49,36 @@ just gives reviewers helpful context.
 
 ## Development setup
 
-Cutlass is a Rust workspace. You need a recent stable Rust toolchain (the repo
-pins `stable` via `rust-toolchain.toml`, edition 2024, MSRV 1.85). Media
-decode/encode is platform-native (AVFoundation/VideoToolbox on Apple
-platforms, Media Foundation on Windows), so there are no third-party media
-libraries to install. The desktop app compiles on Linux, but its media
-backend isn't implemented yet (the UI runs; media won't decode).
+Aria is a Rust workspace. Install Rust 1.92 or newer. `Cargo.toml` and CI
+enforce 1.92 as the minimum supported Rust version; `rust-toolchain.toml`
+tracks stable for normal development. Media decode and encode use AVFoundation
+on Apple, Media Foundation on Windows, MediaCodec on Android, and GStreamer
+1.24 on Linux. Linux builds require the GStreamer development packages.
+Runtime decode and encode require the base and good plugins plus ugly or libav.
 
 Build and test the whole workspace:
 
 ```bash
 cargo build --workspace
-cargo test --workspace
+./scripts/test.sh
 ```
+
+`scripts/test.sh` forwards its arguments to `cargo test`, so
+`./scripts/test.sh -p aria-ui --lib` works. Use it in preference to `cargo
+test`: tests write their fixtures under `scratch/` (`.cargo/config.toml` points
+`TMPDIR` there, so nothing lands in a shared `/tmp`), and the script empties
+that directory before and after the run, which is what collects the fixtures a
+run interrupted by Ctrl-C or by the OOM killer leaves behind. It also caps
+compiler parallelism at half the machine; set `JOBS` to override.
 
 Run the desktop editor (optionally with a media file):
 
 ```bash
-cargo run -p cutlass-desktop
-cargo run -p cutlass-desktop -- path/to/video.mp4
+cargo run -p aria-desktop
+cargo run -p aria-desktop -- path/to/video.mp4
 ```
 
-The iOS/macOS SwiftUI app (`apps/cutlass-ios-macos`) builds with Xcode on top
+The iOS/macOS SwiftUI app (`apps/aria-ios-macos`) builds with Xcode on top
 of the engine's C ABI; `./scripts/build-ios-xcframework.sh` produces the
 XCFramework it links.
 
@@ -78,41 +86,43 @@ XCFramework it links.
 
 The workspace is split into focused crates, layered from data up to the apps:
 
-- `cutlass-core`: shared primitives (rational time, colorimetry, pixel
+- `aria-core`: shared primitives (rational time, colorimetry, pixel
   formats, the GPU/CPU frame handoff, and the decode/encode contracts).
-- `cutlass-models`: project/timeline data model, media pool, templates, and
-  the `.cutlass` file schema. UI-, decode-, and render-agnostic.
-- `cutlass-commands`: the structured command vocabulary every edit goes through.
-- `cutlass-decoder`: platform-native video/image decode behind the core
+- `aria-models`: project/timeline data model, media pool, templates, and
+  the `.aria` file schema. UI-, decode-, and render-agnostic.
+- `aria-commands`: the structured command vocabulary every edit goes through.
+- `aria-decoder`: platform-native video/image decode behind the core
   `VideoDecoder` trait (AVFoundation/VideoToolbox on Apple), plus audio peaks.
-- `cutlass-encoder`: platform-native H.264/mp4 encode behind the core
+- `aria-encoder`: platform-native H.264/mp4 encode behind the core
   `VideoEncoder` trait (VideoToolbox on Apple).
-- `cutlass-compositor`: WGPU GPU compositor that combines layers into RGBA
+- `aria-compositor`: WGPU GPU compositor that combines layers into RGBA
   frames.
-- `cutlass-text` / `cutlass-shapes`: text and vector-shape generators the
+- `aria-text` / `aria-shapes`: text and vector-shape generators the
   compositor places as layers.
-- `cutlass-render`: resolves a project at an instant into a scene, renders
+- `aria-render`: resolves a project at an instant into a scene, renders
   frames, mixes audio, and exports timelines to video.
-- `cutlass-engine`: the headless editing engine. Applies commands, records
+- `aria-engine`: the headless editing engine. Applies commands, records
   undo/redo, produces preview frames. Main integration point for non-UI
   callers.
-- `cutlass-mobile`: C ABI + JNI bridge the iOS/Android apps link.
-- `cutlass-settings`: desktop user settings (`~/.cutlass/config.toml`).
-- `cutlass-cli`: command-line compositor demos (headless GPU to image file).
-- `cutlass-py`: MoviePy-style Python bindings (excluded from the default
+- `aria-mobile`: C ABI + JNI bridge the iOS/Android apps link.
+- `aria-settings`: desktop user settings (`~/.aria/config.toml`).
+- `aria-cli`: command-line compositor demos (headless GPU to image file).
+- `aria-py`: MoviePy-style Python bindings (excluded from the default
   workspace build; built with maturin).
-- `apps/cutlass-desktop`: the Slint desktop editor (timeline, preview,
-  inspector, library, export dialog).
-- `apps/cutlass-ios-macos`, `apps/cutlass-android`: the mobile apps.
+- `aria-plugin`: typed service registry and event bus every plugin mounts into.
+- `aria-ui`: GPUI shell, panels, theme, motion, and built-in plugins.
+- `apps/aria-desktop`: the headed editor binary. Mounts plugins and calls
+  `aria_ui::run_app`.
+- `apps/aria-ios-macos`, `apps/aria-android`: the mobile apps.
 
 Each crate has its own `README.md` describing its responsibilities and what
 does and does not belong there. Read the relevant one before adding code.
 
 Two boundaries matter:
 
-- **Keep the engine UI-agnostic.** Slint models, widgets, file dialogs, and
-  interaction state belong in `apps/cutlass-desktop`, not `cutlass-engine`.
-- **Keep `cutlass-models` pure data.** No file I/O, GPU work, Slint bindings,
+- **Keep the engine UI-agnostic.** GPUI views, widgets, file dialogs, and
+  interaction state belong in `aria-ui` / `apps/aria-desktop`, not `aria-engine`.
+- **Keep `aria-models` pure data.** No file I/O, GPU work, UI bindings,
   or undo/redo dispatch. Those live in higher crates.
 
 ## Coding conventions
@@ -124,11 +134,11 @@ Two boundaries matter:
   [`.cursor/rules/perf.mdc`](.cursor/rules/perf.mdc).
 - **Comments explain intent, not mechanics.** Skip comments that just narrate
   what the code does; document non-obvious trade-offs and constraints.
-- **Icons in the Slint UI**: never block a feature on missing art. Ship a short
+- **Icons**: never block a feature on missing art. Ship a short
   text/char placeholder, register it in [`docs/icons.md`](docs/icons.md), and
-  move on. See [`.cursor/rules/icons.mdc`](.cursor/rules/icons.mdc).
+  move on.
 - **Do not commit ignored paths**: build artifacts (`/target`, `/dist`), media
-  scratch dirs (`frames/`, `proxy/`, `local-assets/`), `.env`, or `.cutlass/`.
+  scratch dirs (`frames/`, `proxy/`, `local-assets/`), `.env`, or `.aria/`.
 
 ## Commits
 
@@ -184,4 +194,4 @@ the work, and help make this a welcoming project to contribute to.
 
 By contributing, you agree that your contributions are dual licensed under the
 [Apache License 2.0](LICENSE-APACHE) and the [MIT license](LICENSE-MIT),
-matching the rest of Cutlass, without additional terms or conditions.
+matching the rest of Aria, without additional terms or conditions.
