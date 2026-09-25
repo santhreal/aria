@@ -33,6 +33,36 @@ pub(crate) fn collect_rs(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
+/// A headless window with the real shell in it, over a state with the UI plugin
+/// mounted and an empty project open.
+///
+/// The theme is installed first because `Theme::of` panics without one. The
+/// project is open because Home opens no dialog but Settings.
+pub(crate) fn drawn_shell<'a>(
+    cx: &'a mut gpui::TestAppContext,
+    tag: &str,
+) -> (
+    gpui::Entity<crate::app::AppState>,
+    &'a mut gpui::VisualTestContext,
+) {
+    use gpui::AppContext as _;
+    let state = cx.update(|app| {
+        crate::theme::Theme::install(crate::theme::Appearance::Dark, Default::default(), app);
+        let ctx = aria_plugin::PluginContext::new();
+        ctx.mount(&crate::plugins::UiPlugin)
+            .unwrap_or_else(|err| panic!("the ui plugin needs nothing: {err:?}"));
+        let mut state = crate::app::AppState::new(ctx, crate::scratch_pool::scratch(tag))
+            .unwrap_or_else(|err| panic!("editor state: {err:?}"));
+        if let Err(err) = state.new_project() {
+            panic!("a project to edit: {err:?}");
+        }
+        app.new(|_| state)
+    });
+    let owned = state.clone();
+    let (_shell, visual) = cx.add_window_view(|_, cx| crate::shell::Shell::new(owned, cx));
+    (state, visual)
+}
+
 #[cfg(test)]
 mod error_writes;
 

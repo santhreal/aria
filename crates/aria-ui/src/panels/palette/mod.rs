@@ -12,9 +12,9 @@ use gpui::{
     ParentElement, StatefulInteractiveElement, Styled, div, px,
 };
 
-use crate::app::AppState;
 use crate::app::palette::PaletteOffer;
-use crate::components;
+use crate::app::{AppState, DialogKind};
+use crate::chrome::dialog::{DialogBody, dialog_surface};
 use crate::fluent::FluentBuilder;
 use crate::theme::Theme;
 
@@ -51,26 +51,31 @@ pub fn render(
     } else {
         theme.text
     };
-    let body = div()
+    let query_row = div()
+        .id("palette-query")
+        .px(px(Theme::SPACE_SM))
+        .py(px(Theme::SPACE_XS))
+        .rounded(px(Theme::CONTROL_RADIUS))
+        .bg(theme.input_bg)
+        .border_1()
+        .border_color(theme.accent)
+        .text_size(px(13.))
+        .text_color(query_color)
+        .cursor(CursorStyle::IBeam)
+        .child(query_label);
+    let list = div()
         .flex()
         .flex_col()
         .gap(px(Theme::SPACE_XS))
-        .child(
-            div()
-                .id("palette-query")
-                .px(px(Theme::SPACE_SM))
-                .py(px(Theme::SPACE_XS))
-                .rounded(px(Theme::CONTROL_RADIUS))
-                .bg(theme.input_bg)
-                .border_1()
-                .border_color(theme.accent)
-                .text_size(px(13.))
-                .text_color(query_color)
-                .cursor(CursorStyle::IBeam)
-                .child(query_label),
-        )
         .children(rows);
-    components::dialog_chrome(&theme, "Command palette", body)
+    dialog_surface(
+        "palette",
+        DialogKind::Palette,
+        "Command palette",
+        state,
+        cx,
+        DialogBody::new(list).header(query_row),
+    )
 }
 
 fn row(

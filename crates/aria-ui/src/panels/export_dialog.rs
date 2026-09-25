@@ -7,7 +7,7 @@ use gpui::{
 
 use crate::app::picker::{Ask, FileSpec};
 use crate::app::{AppState, DialogKind};
-use crate::chrome::dialog::dialog_surface;
+use crate::chrome::dialog::{DialogBody, dialog_surface};
 use crate::components;
 use crate::motion;
 use crate::theme::Theme;
@@ -215,18 +215,12 @@ pub fn render(
         .child(row(&theme, "Canvas", resolution))
         .children(picks)
         .child(row(&theme, "Destination", dest_label))
-        .children(in_flight)
-        .child(
-            div()
-                .flex()
-                .flex_row()
-                .justify_end()
-                .gap(px(Theme::SPACE_SM))
-                .child(cancel)
-                .child(choose)
-                .child(frames)
-                .child(go),
-        );
+        .children(in_flight);
+    let body = DialogBody::new(body)
+        .action(cancel)
+        .action(choose)
+        .action(frames)
+        .action(go);
     dialog_surface("export", DialogKind::Export, "Export", state, cx, body)
 }
 

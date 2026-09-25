@@ -12,7 +12,7 @@ use gpui::{
 
 use crate::app::unsaved::PendingIntent;
 use crate::app::{AppState, DialogKind};
-use crate::chrome::dialog::dialog_surface;
+use crate::chrome::dialog::{DialogBody, dialog_surface};
 use crate::components;
 use crate::theme::Theme;
 
@@ -77,17 +77,11 @@ pub fn render(
                     }
                     None => "Discard leaves them behind for good.".to_string(),
                 }),
-        )
-        .child(
-            div()
-                .flex()
-                .flex_row()
-                .justify_end()
-                .gap(px(Theme::SPACE_SM))
-                .child(stay)
-                .child(discard)
-                .child(save),
         );
+    let body = DialogBody::new(body)
+        .action(stay)
+        .action(discard)
+        .action(save);
     dialog_surface(
         "unsaved",
         DialogKind::UnsavedChanges,

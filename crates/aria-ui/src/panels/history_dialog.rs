@@ -16,7 +16,7 @@ use gpui::{
 };
 
 use crate::app::{AppState, DialogKind};
-use crate::chrome::dialog::dialog_surface;
+use crate::chrome::dialog::{DialogBody, dialog_surface};
 use crate::components;
 use crate::fluent::FluentBuilder;
 use crate::motion;
@@ -74,16 +74,15 @@ pub fn render(
         .flex_col()
         .gap(px(Theme::SPACE_XS))
         .children(pending)
-        .children(rows)
-        .child(
-            div()
-                .flex()
-                .flex_row()
-                .justify_end()
-                .pt(px(Theme::SPACE_SM))
-                .child(done),
-        );
-    dialog_surface("history", DialogKind::History, "History", state, cx, body)
+        .children(rows);
+    dialog_surface(
+        "history",
+        DialogKind::History,
+        "History",
+        state,
+        cx,
+        DialogBody::new(body).action(done),
+    )
 }
 
 /// One step. `applied` dims an undone step; `current` marks where the project

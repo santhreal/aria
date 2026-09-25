@@ -177,14 +177,8 @@ impl Element for Icon {
         window: &mut Window,
         cx: &mut App,
     ) -> Self::PrepaintState {
-        self.0.prepaint(
-            global_id,
-            inspector_id,
-            bounds,
-            request_layout,
-            window,
-            cx,
-        )
+        self.0
+            .prepaint(global_id, inspector_id, bounds, request_layout, window, cx)
     }
 
     fn paint(

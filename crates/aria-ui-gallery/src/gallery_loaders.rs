@@ -1,6 +1,7 @@
 //! Loaders and Surfaces: every `aria_ui::loaders` entry running, and every
 //! `aria_ui::frost` entry over something worth blurring.
 
+use aria_ui::chrome::dialog;
 use aria_ui::components;
 use aria_ui::frost;
 use aria_ui::loaders;
@@ -320,7 +321,7 @@ pub fn surfaces(theme: &Theme, state: GalleryState, cx: &mut Context<Gallery>) -
     .into_any_element()
 }
 
-/// The scrim and `dialog_chrome` both fill their parent, so both are staged in a
+/// The scrim and the dialog card fill their parent, so both are staged in a
 /// fixed box. The dialog is behind a toggle because `dialog_in` runs once per
 /// mount.
 fn scrim_and_dialog(theme: &Theme, state: GalleryState, cx: &mut Context<Gallery>) -> AnyElement {
@@ -348,7 +349,7 @@ fn scrim_and_dialog(theme: &Theme, state: GalleryState, cx: &mut Context<Gallery
         .child(backdrop(theme));
     group(
         theme,
-        "scrim + dialog_chrome(theme, title, body)",
+        "scrim + dialog_layer(id, title, exit, cx, body)",
         div()
             .flex()
             .flex_col()
@@ -367,15 +368,17 @@ fn scrim_and_dialog(theme: &Theme, state: GalleryState, cx: &mut Context<Gallery
                 specimen(
                     theme,
                     if state.show_dialog {
-                        "dialog_chrome (mounted)"
+                        "dialog_layer (mounted)"
                     } else {
-                        "dialog_chrome (unmounted)"
+                        "dialog_layer (unmounted)"
                     },
                     if state.show_dialog {
                         dialog_stage
-                            .child(components::dialog_chrome(
-                                theme,
+                            .child(dialog::dialog_layer(
+                                "gallery-dialog",
                                 "Delete 3 clips",
+                                None,
+                                cx,
                                 dialog_body(theme),
                             ))
                             .into_any_element()
@@ -387,7 +390,7 @@ fn scrim_and_dialog(theme: &Theme, state: GalleryState, cx: &mut Context<Gallery
             .child(caption(
                 theme,
                 format!(
-                    "dialog_chrome draws its own scrim and runs dialog_in ({}ms) on \
+                    "dialog_layer draws its own scrim and runs dialog_in ({}ms) on \
                      mount; toggle to replay it.",
                     motion::DIALOG_IN.duration_ms()
                 ),
@@ -395,26 +398,15 @@ fn scrim_and_dialog(theme: &Theme, state: GalleryState, cx: &mut Context<Gallery
     )
 }
 
-fn dialog_body(theme: &Theme) -> AnyElement {
-    div()
-        .flex()
-        .flex_col()
-        .gap(px(Theme::SPACE_MD))
-        .child(
-            div()
-                .text_size(px(12.))
-                .text_color(theme.text_muted)
-                .child("This cannot be undone."),
-        )
-        .child(
-            div()
-                .flex()
-                .flex_row()
-                .justify_between()
-                .child(components::ghost_button("dlg-cancel", "Cancel", theme))
-                .child(components::danger_button("dlg-delete", "Delete", theme)),
-        )
-        .into_any_element()
+fn dialog_body(theme: &Theme) -> dialog::DialogBody {
+    dialog::DialogBody::new(
+        div()
+            .text_size(px(12.))
+            .text_color(theme.text_muted)
+            .child("This cannot be undone."),
+    )
+    .action(components::ghost_button("dlg-cancel", "Cancel", theme))
+    .action(components::danger_button("dlg-delete", "Delete", theme))
 }
 
 /// A patterned box for a blur to have something to work on.

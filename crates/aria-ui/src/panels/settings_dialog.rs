@@ -30,7 +30,7 @@ use crate::fluent::FluentBuilder;
 use crate::app::settings_form::SettingsField;
 use crate::app::{AppState, DialogKind};
 use crate::appearance::{self, AppearanceMode};
-use crate::chrome::dialog::dialog_surface;
+use crate::chrome::dialog::{DialogBody, dialog_surface};
 use crate::components;
 use crate::theme::Theme;
 
@@ -113,33 +113,20 @@ pub fn render(
             cx.notify();
         }),
     );
-    let mut body = div()
-        .flex()
-        .flex_col()
-        .gap(px(Theme::SPACE_MD))
-        .child(filter);
+    let mut body = div().flex().flex_col().gap(px(Theme::SPACE_MD));
     for (title, rows) in visible {
         body = body.child(section(&theme, title, rows));
     }
-    let body = body
-        .when(!matched, |el| {
-            el.child(kv(&theme, "No section", "nothing matches that filter"))
-        })
-        .child(
-            div()
-                .flex()
-                .flex_row()
-                .justify_end()
-                .gap(px(Theme::SPACE_SM))
-                .child(done),
-        );
+    let body = body.when(!matched, |el| {
+        el.child(kv(&theme, "No section", "nothing matches that filter"))
+    });
     dialog_surface(
         "settings",
         DialogKind::Settings,
         "Settings",
         state,
         cx,
-        body,
+        DialogBody::new(body).header(filter).action(done),
     )
 }
 

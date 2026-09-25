@@ -19,7 +19,7 @@ use gpui::{
 
 use crate::app::jobs::UiJob;
 use crate::app::{AppState, DialogKind};
-use crate::chrome::dialog::dialog_surface;
+use crate::chrome::dialog::{DialogBody, dialog_surface};
 use crate::components;
 use crate::fluent::FluentBuilder;
 use crate::motion;
@@ -55,9 +55,15 @@ pub fn render(
                     .child("No background jobs."),
             )
         })
-        .children(list)
-        .child(div().flex().flex_row().justify_end().child(done));
-    dialog_surface("jobs", DialogKind::Jobs, "Jobs", state, cx, body)
+        .children(list);
+    dialog_surface(
+        "jobs",
+        DialogKind::Jobs,
+        "Jobs",
+        state,
+        cx,
+        DialogBody::new(body).action(done),
+    )
 }
 
 fn job_row(

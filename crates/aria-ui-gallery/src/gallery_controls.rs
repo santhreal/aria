@@ -74,10 +74,6 @@ pub fn controls(theme: &Theme, cx: &mut Context<Gallery>) -> AnyElement {
                 ),
             ))
             .child(chip_rows(theme))
-            .child(caption(
-                theme,
-                "dialog_chrome is an overlay and is shown in Surfaces.",
-            ))
             .child(disclosure_rows(theme, motion::reduced_motion(cx)))
             .child(icon_rows(theme))
             .into_any_element(),

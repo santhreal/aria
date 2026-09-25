@@ -37,9 +37,9 @@ fn drawn(needle: &str) -> bool {
 
 /// Every public entry of `aria_ui::components`, read from its declaration.
 ///
-/// Generics are cut with the arguments: `dialog_chrome<Title, Body>(…)` is the
-/// entry `dialog_chrome`, and a needle carrying its type parameters matched
-/// nothing, which is how a component with no specimen at all read as covered.
+/// Generics are cut with the arguments: `row<Label, Body>(…)` would be the entry
+/// `row`, and a needle carrying its type parameters matched nothing, which is
+/// how a component with no specimen at all read as covered.
 fn components() -> Vec<&'static str> {
     COMPONENTS
         .lines()
