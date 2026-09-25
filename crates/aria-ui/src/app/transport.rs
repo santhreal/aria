@@ -354,6 +354,11 @@ fn commit_preview(
 /// clock is already running: each call takes the transport's generation, so an
 /// earlier loop sees a generation that is no longer its own and exits on its
 /// next tick. One clock advances the playhead, never two.
+///
+/// The clock holds a weak state handle between ticks, like [`watch_picks`]: a
+/// tick still pending when the app shuts down retains no entity.
+///
+/// [`watch_picks`]: crate::app::picker::watch_picks
 pub fn start_playback(state: Entity<AppState>, cx: &mut App) {
     if !state.read(cx).playing {
         return;
@@ -363,24 +368,31 @@ pub fn start_playback(state: Entity<AppState>, cx: &mut App) {
         state.playback_generation
     });
     let period = state.read(cx).frame_period();
-    spawn_preview(state.clone(), cx);
+    let weak = state.downgrade();
+    spawn_preview(state, cx);
     cx.spawn(async move |cx| {
         loop {
             cx.background_executor().timer(period).await;
-            let keep = state.update(cx, |state, cx| {
-                if !state.playing || state.playback_generation != generation {
-                    return false;
-                }
-                let advanced = state.advance_playhead();
-                cx.notify();
-                advanced
-            });
+            // A released state is shutdown: stop rather than wait on it.
+            let keep = weak
+                .update(cx, |state, cx| {
+                    if !state.playing || state.playback_generation != generation {
+                        return false;
+                    }
+                    let advanced = state.advance_playhead();
+                    cx.notify();
+                    advanced
+                })
+                .unwrap_or(false);
             if !keep {
                 break;
             }
-            cx.update(|app| {
-                spawn_preview(state.clone(), app);
-            });
+            // The update above succeeded and nothing is awaited in between, so
+            // the state is still alive here.
+            let Some(state) = weak.upgrade() else {
+                break;
+            };
+            cx.update(|app| spawn_preview(state, app));
         }
     })
     .detach();

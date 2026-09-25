@@ -74,8 +74,8 @@ impl Shell {
         // One subscriber for the session's lifetime: job rows update on transitions,
         // never on a timer.
         state.update(cx, |state, cx| state.watch_jobs(cx));
-        spawn_status_ageing(state.clone(), cx);
-        spawn_meter(state.clone(), cx);
+        spawn_status_ageing(cx);
+        spawn_meter(cx);
         // A tooltip is handed an `&mut App` and an element id, so the registry
         // has to be reachable from one: without this a hover would keep naming
         // the shipped chord for a key the operator has rebound.

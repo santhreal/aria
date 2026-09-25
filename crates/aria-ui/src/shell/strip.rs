@@ -249,14 +249,19 @@ pub(super) fn split_row(cx: &mut Context<Shell>, kind: DragKind) -> impl IntoEle
 /// writer arming a timer, and repaints only when something actually cleared.
 /// Autosave rides the same half-second wake rather than arming a second timer:
 /// it decides for itself whether a copy is due.
-pub(super) fn spawn_status_ageing(state: Entity<AppState>, cx: &mut Context<Shell>) {
+///
+/// The task holds a weak shell handle and nothing else. The state is reached
+/// through the shell on each wake, so a timer still pending after
+/// `App::shutdown` retains no entity. A strong state handle in the task would
+/// outlive the app and fail gpui's leak detector when the app drops.
+pub(super) fn spawn_status_ageing(cx: &mut Context<Shell>) {
     cx.spawn(async move |this, cx| {
         loop {
             cx.background_executor().timer(STATUS_TICK).await;
             // A dropped shell is shutdown: stop rather than touch the state.
             let running = this
-                .update(cx, |_, cx| {
-                    state.update(cx, |state, cx| {
+                .update(cx, |shell, cx| {
+                    shell.state.update(cx, |state, cx| {
                         let now = Instant::now();
                         state.autosave_tick(now);
                         if state.age_status(now) {
@@ -277,14 +282,15 @@ pub(super) fn spawn_status_ageing(state: Entity<AppState>, cx: &mut Context<Shel
 ///
 /// A separate wake from the status ticker because the two clocks are different
 /// kinds: a status line is a receipt half a second either way, a meter is a
-/// picture of the sound happening now.
-pub(super) fn spawn_meter(state: Entity<AppState>, cx: &mut Context<Shell>) {
+/// picture of the sound happening now. Like the status ticker, the task holds a
+/// weak shell handle only.
+pub(super) fn spawn_meter(cx: &mut Context<Shell>) {
     cx.spawn(async move |this, cx| {
         loop {
             cx.background_executor().timer(METER_TICK).await;
             let running = this
-                .update(cx, |_, cx| {
-                    state.update(cx, |state, cx| {
+                .update(cx, |shell, cx| {
+                    shell.state.update(cx, |state, cx| {
                         if state.meter_tick(Instant::now()) {
                             cx.notify();
                         }
