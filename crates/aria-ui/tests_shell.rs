@@ -667,3 +667,95 @@ fn a_frame_draws_while_the_session_is_held(cx: &mut gpui::TestAppContext) {
     drop(finished);
     holder.join().expect("the helper thread finished");
 }
+
+/// Records every asset path read and serves the app's own icons.
+#[derive(Clone, Default)]
+struct Loads(Arc<parking_lot::Mutex<Vec<String>>>);
+
+impl gpui::AssetSource for Loads {
+    fn load(&self, path: &str) -> gpui::Result<Option<std::borrow::Cow<'static, [u8]>>> {
+        self.0.lock().push(path.to_owned());
+        gpui::AssetSource::load(&aria_ui::icons::Assets, path)
+    }
+
+    fn list(&self, path: &str) -> gpui::Result<Vec<gpui::SharedString>> {
+        gpui::AssetSource::list(&aria_ui::icons::Assets, path)
+    }
+}
+
+/// The Home rail and the editor tool strip paint their glyphs.
+///
+/// Closes the class of icon controls that draw a blank square: every icon in
+/// the shell sits inside a control that sets the text colour, and gpui paints
+/// an SVG only in a colour of its own. A glyph is read through the asset
+/// source only when it paints, so each path read is a glyph in the frame. Not
+/// covered: the colour value, and icons on surfaces this case does not open.
+#[test]
+fn home_and_editor_icon_controls_paint_their_glyphs() {
+    use aria_ui::icons;
+
+    let loads = Loads::default();
+    let mut app = gpui::TestApp::with_text_system_and_assets(
+        Arc::new(gpui::NoopTextSystem),
+        Arc::new(loads.clone()),
+    );
+    let state = app.update(|app| {
+        aria_ui::theme::Theme::install(aria_ui::theme::Appearance::Dark, Default::default(), app);
+        let ctx = PluginContext::new();
+        ctx.mount(&aria_ui::plugins::UiPlugin)
+            .expect("the ui plugin needs nothing");
+        app.new(|_| AppState::new(ctx, data_dir("icons")).expect("editor state"))
+    });
+    let owned = gpui::Entity::clone(&state);
+    let mut window = app.open_window(|_, cx| Shell::new(owned, cx));
+    let painted = |loads: &Loads, route: &str, paths: &[&str]| {
+        let read = loads.0.lock();
+        for path in paths {
+            assert!(
+                read.iter().any(|seen| seen == path),
+                "{route}: {path} was never painted"
+            );
+        }
+    };
+
+    window.draw();
+    painted(
+        &loads,
+        "home rail",
+        &[
+            icons::PLUS,
+            icons::FOLDER_OPEN,
+            icons::CLAPPERBOARD,
+            icons::IMAGE,
+            icons::SPARKLES,
+        ],
+    );
+
+    app.update(|app| {
+        state.update(app, |state, cx| {
+            state.new_project().expect("new project");
+            cx.notify();
+        });
+    });
+    window.draw();
+    painted(
+        &loads,
+        "editor tool strip",
+        &[
+            icons::SKIP_BACK,
+            icons::CHEVRON_LEFT,
+            icons::PLAY,
+            icons::CHEVRON_RIGHT,
+            icons::SKIP_FORWARD,
+            icons::MAGNET,
+            icons::UPLOAD,
+            icons::SETTINGS,
+        ],
+    );
+
+    // The app drops at the end of the case, and gpui's leak detector fails it
+    // for any entity handle still alive after `App::shutdown`.
+    drop(state);
+    drop(window);
+    app.update(|app| app.shutdown());
+}

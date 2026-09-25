@@ -1,14 +1,18 @@
 //! Embedded Lucide icons, the brand mark, and the gpui [`AssetSource`] that
 //! serves them.
 //!
-//! Art lives in repo-root `assets/icon/`. gpui tints SVGs with the element's
-//! text color, so one glyph serves both appearances; the brand mark is raster
-//! art with its own colours and is drawn through [`brand_mark`].
+//! Art lives in repo-root `assets/icon/`. An icon paints its glyph as a mask
+//! in the text colour of the control around it, so one glyph serves both
+//! appearances; the brand mark is raster art with its own colours and is drawn
+//! through [`brand_mark`].
 
 use std::borrow::Cow;
+use std::panic::Location;
 
 use gpui::{
-    AssetSource, ImageSource, Img, Resource, Result, SharedString, Styled as _, Svg, img, px, svg,
+    App, AssetSource, Bounds, Element, ElementId, GlobalElementId, ImageSource, Img,
+    InspectorElementId, IntoElement, LayoutId, Pixels, Resource, Result, SharedString,
+    StyleRefinement, Styled, Svg, Transformation, Window, img, px, svg,
 };
 
 macro_rules! icon_assets {
@@ -103,10 +107,110 @@ icon_assets![
     (CHEVRON_DOWN, "ui/chevron-down.svg", "icon/chevron-down.svg"),
 ];
 
-/// An icon element for an embedded asset path. Size and colour are set by
-/// the caller (`.size(..)`, `.text_color(..)`).
-pub fn icon(path: &'static str) -> Svg {
-    svg().path(path).flex_none().size(px(14.))
+/// An icon element for an embedded asset path, 14px unless the caller sets
+/// `.size(..)`.
+///
+/// The glyph paints in the colour set with `.text_color(..)` on the icon, and
+/// otherwise in the text colour inherited from its parent.
+pub fn icon(path: &'static str) -> Icon {
+    Icon(svg().path(path).flex_none().size(px(14.)))
+}
+
+/// An embedded glyph, painted in its own text colour or its parent's.
+///
+/// gpui's [`Svg`] paints only in a colour set on the SVG element itself and
+/// paints nothing without one. Every icon in the app sits inside a control
+/// that sets the text colour for its label and hover state, so [`Icon`] reads
+/// that inherited colour at paint time when the icon sets none.
+pub struct Icon(Svg);
+
+impl Icon {
+    /// Rotate or scale the glyph when painted. Layout and hit testing keep the
+    /// untransformed bounds.
+    pub fn with_transformation(self, transformation: Transformation) -> Self {
+        Self(self.0.with_transformation(transformation))
+    }
+}
+
+impl Styled for Icon {
+    fn style(&mut self) -> &mut StyleRefinement {
+        self.0.style()
+    }
+}
+
+impl IntoElement for Icon {
+    type Element = Self;
+
+    fn into_element(self) -> Self::Element {
+        self
+    }
+}
+
+impl Element for Icon {
+    type RequestLayoutState = <Svg as Element>::RequestLayoutState;
+    type PrepaintState = <Svg as Element>::PrepaintState;
+
+    fn id(&self) -> Option<ElementId> {
+        self.0.id()
+    }
+
+    fn source_location(&self) -> Option<&'static Location<'static>> {
+        self.0.source_location()
+    }
+
+    fn request_layout(
+        &mut self,
+        global_id: Option<&GlobalElementId>,
+        inspector_id: Option<&InspectorElementId>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> (LayoutId, Self::RequestLayoutState) {
+        self.0.request_layout(global_id, inspector_id, window, cx)
+    }
+
+    fn prepaint(
+        &mut self,
+        global_id: Option<&GlobalElementId>,
+        inspector_id: Option<&InspectorElementId>,
+        bounds: Bounds<Pixels>,
+        request_layout: &mut Self::RequestLayoutState,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Self::PrepaintState {
+        self.0.prepaint(
+            global_id,
+            inspector_id,
+            bounds,
+            request_layout,
+            window,
+            cx,
+        )
+    }
+
+    fn paint(
+        &mut self,
+        global_id: Option<&GlobalElementId>,
+        inspector_id: Option<&InspectorElementId>,
+        bounds: Bounds<Pixels>,
+        request_layout: &mut Self::RequestLayoutState,
+        prepaint: &mut Self::PrepaintState,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        let text = &mut self.0.style().text;
+        if text.color.is_none() {
+            text.color = Some(window.text_style().color);
+        }
+        self.0.paint(
+            global_id,
+            inspector_id,
+            bounds,
+            request_layout,
+            prepaint,
+            window,
+            cx,
+        );
+    }
 }
 
 /// The brand mark at a given height. Raster art, so the caller states the size
@@ -127,6 +231,53 @@ pub fn brand_mark(size_px: f32) -> Img {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Records every asset path read, in order, and serves [`Assets`].
+    #[derive(Clone, Default)]
+    struct Loads(std::sync::Arc<parking_lot::Mutex<Vec<String>>>);
+
+    impl AssetSource for Loads {
+        fn load(&self, path: &str) -> Result<Option<Cow<'static, [u8]>>> {
+            self.0.lock().push(path.to_owned());
+            Assets.load(path)
+        }
+
+        fn list(&self, path: &str) -> Result<Vec<SharedString>> {
+            Assets.list(path)
+        }
+    }
+
+    /// A control that sets the text colour and holds an icon that sets none,
+    /// which is the shape of every icon control in the app.
+    struct Tinted;
+
+    impl gpui::Render for Tinted {
+        fn render(&mut self, _: &mut Window, _: &mut gpui::Context<Self>) -> impl IntoElement {
+            use gpui::ParentElement as _;
+            gpui::div().text_color(gpui::red()).child(icon(PLAY))
+        }
+    }
+
+    /// An icon with no colour of its own paints in its parent's text colour.
+    ///
+    /// Closes the class of icons drawn with no colour: gpui's `Svg` rasterises
+    /// a glyph only when the SVG element has a colour of its own, so every
+    /// icon inside a control that coloured itself painted nothing. The
+    /// rasteriser reads the glyph through the asset source only when it
+    /// paints, so a read of the path is the observable proof the glyph reached
+    /// the scene. Does not check the colour value: the test platform keeps no
+    /// scene to read it from.
+    #[test]
+    fn an_icon_without_a_colour_paints_in_its_parents_text_colour() {
+        let loads = Loads::default();
+        let mut app = gpui::TestApp::with_text_system_and_assets(
+            std::sync::Arc::new(gpui::NoopTextSystem),
+            std::sync::Arc::new(loads.clone()),
+        );
+        let mut window = app.open_window(|_, _| Tinted);
+        window.draw();
+        assert_eq!(*loads.0.lock(), [PLAY]);
+    }
 
     /// Every registered path loads, and what loads is the format its extension
     /// promises. Driven off the registry rather than a list of names, so a row
