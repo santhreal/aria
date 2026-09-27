@@ -58,8 +58,10 @@ Per-platform steps, codec support, and the GStreamer packages Linux needs are in
 - Motion, theme, loaders, popover, frost, and edge-fade are adapted from
   [Comet](https://github.com/zeronsh/comet) (MIT). License:
   [`LICENSES/comet-MIT.txt`](LICENSES/comet-MIT.txt).
-- GPUI is pinned from the `wingleeio/zed` fork. Provenance:
-  [`vendor/README.md`](vendor/README.md).
+- GPUI comes from [santh-gpui](https://github.com/santhreal/santh-gpui), a
+  fork of the [Zed](https://github.com/zed-industries/zed) UI framework
+  (Apache-2.0). License:
+  [`LICENSES/zed-Apache-2.0.txt`](LICENSES/zed-Apache-2.0.txt).
 
 ## Docs
 

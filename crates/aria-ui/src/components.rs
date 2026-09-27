@@ -1,5 +1,6 @@
 //! Shared chrome widgets used by every panel.
 
+use gpui::motion::presets;
 use gpui::{
     CursorStyle, Div, InteractiveElement, IntoElement, ParentElement, SharedString, Stateful,
     StatefulInteractiveElement, Styled, div, px,
@@ -31,7 +32,7 @@ pub fn chevron(
     let turn = glide::glide(
         key,
         if open { 0.0 } else { -QUARTER },
-        motion::CHEVRON,
+        presets::CHEVRON,
         reduced,
     );
     crate::icons::icon(crate::icons::CHEVRON_DOWN)

@@ -2,19 +2,17 @@
 //! duration so two curves can be compared side by side.
 
 use aria_ui::components;
-use aria_ui::motion::{self, AnimationExt, CubicBezier, MotionSpec};
+use aria_ui::motion;
 use aria_ui::theme::Theme;
+use gpui::motion::{Easing, MotionSpec, loaders, presets};
 use gpui::{
-    AnyElement, Context, EntityId, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
-    ParentElement, StatefulInteractiveElement, Styled, div, px,
+    AnimationExt as _, AnyElement, Context, EntityId, InteractiveElement, IntoElement, MouseButton,
+    MouseDownEvent, ParentElement, StatefulInteractiveElement, Styled, div, px,
 };
 
 use crate::gallery_kit::{caption, group, meter, section, shelf, specimen};
 use crate::{Gallery, GalleryState};
 
-/// The hover-fade specimen's key. Built here rather than borrowed:
-/// `components::fade_key` is `pub(crate)`, so the `{kind}:{id}` shape is the
-/// only part of that contract a sibling crate can rely on.
 /// The one hover specimen's identity. A function rather than a const because
 /// [`motion::MotionKey`] is a hash of its parts, and hashing is not const.
 fn hover_demo_key() -> motion::MotionKey {
@@ -29,9 +27,9 @@ pub fn motion_section(
 ) -> AnyElement {
     // Two clocks: the 2.4s pulse and the 750ms gradient spin. Both are the
     // shipped specs, so what is on screen is what the app runs.
-    let pulse = motion::pulse_delta(&motion::ZERON_PULSE, view, cx);
-    let spin = motion::pulse_delta(&motion::GRADIENT_SPIN, view, cx);
-    let reduced = motion::reduced_motion(cx);
+    let pulse = motion::pulse_delta(&presets::ZERON_PULSE, view, cx);
+    let spin = motion::pulse_delta(&presets::GRADIENT_SPIN, view, cx);
+    let policy = cx.motion_policy();
     section(
         theme,
         "Motion",
@@ -50,9 +48,11 @@ pub fn motion_section(
             .child(caption(
                 theme,
                 format!(
-                    "speed_scale() = {:.2} (ARIA_MOTION_SCALE); reduce_motion = {reduced}. \
-                     Every primitive above already checks reduced motion itself.",
-                    motion::speed_scale()
+                    "duration scale = {:.2} ({}); reduced = {}. \
+                     Every primitive above reads the motion policy itself.",
+                    policy.duration_scale(),
+                    motion::SCALE_ENV,
+                    policy.reduced()
                 ),
             ))
             .into_any_element(),
@@ -86,32 +86,32 @@ fn entries(theme: &Theme, state: GalleryState, cx: &mut Context<Gallery>) -> Any
             .child(shelf(vec![
                 specimen(
                     theme,
-                    &spec_label("fade_in", motion::FADE_IN),
+                    &spec_label("fade_in", presets::FADE_IN),
                     motion::fade_in(replay_id("fade-in", n), plate(theme, "fade_in")),
                 ),
                 specimen(
                     theme,
-                    &spec_label("fade_quick", motion::FADE_QUICK),
+                    &spec_label("fade_quick", presets::FADE_QUICK),
                     motion::fade_quick(replay_id("fade-quick", n), plate(theme, "fade_quick")),
                 ),
                 specimen(
                     theme,
-                    &spec_label("menu_in", motion::MENU_IN),
+                    &spec_label("menu_in", presets::MENU_IN),
                     motion::menu_in(replay_id("menu-in", n), plate(theme, "menu_in")),
                 ),
                 specimen(
                     theme,
-                    &spec_label("menu_out", motion::MENU_OUT),
+                    &spec_label("menu_out", presets::MENU_OUT),
                     motion::menu_out(replay_id("menu-out", n), out_t, plate(theme, "menu_out")),
                 ),
                 specimen(
                     theme,
-                    &spec_label("dialog_in", motion::DIALOG_IN),
+                    &spec_label("dialog_in", presets::DIALOG_IN),
                     motion::dialog_in(replay_id("dialog-in", n), plate(theme, "dialog_in")),
                 ),
                 specimen(
                     theme,
-                    &spec_label("splash_out", motion::SPLASH_OUT),
+                    &spec_label("splash_out", presets::SPLASH_OUT),
                     motion::splash_out(replay_id("splash-out", n), plate(theme, "splash_out")),
                 ),
             ]))
@@ -133,10 +133,10 @@ fn replay_id(kind: &'static str, replay: usize) -> motion::ControlId {
 /// rides. Two specs with the same duration and different curves are not the
 /// same motion, which is what the plots below are for.
 fn spec_label(name: &str, spec: MotionSpec) -> String {
-    if spec.delay_ms() == 0 {
-        format!("{name} · {}ms", spec.duration_ms())
+    if spec.delay_ms == 0 {
+        format!("{name} · {}ms", spec.duration_ms)
     } else {
-        format!("{name} · {}ms +{}ms", spec.duration_ms(), spec.delay_ms())
+        format!("{name} · {}ms +{}ms", spec.duration_ms, spec.delay_ms)
     }
 }
 
@@ -151,8 +151,8 @@ fn plate(theme: &Theme, label: &str) -> gpui::Div {
         .child(label.to_string())
 }
 
-/// The app-open, as the shell runs it: three stages, one [`motion::OPEN_STAGE`]
-/// apart, in reading order.
+/// The app-open, as the shell runs it: three stages, one
+/// [`motion::OPEN_STAGE_MS`] apart, in reading order.
 ///
 /// The shell's own `opening` is private to `aria-ui`, so the two lines it applies
 /// are repeated here against the same spec and the same gap. What is on screen is
@@ -162,19 +162,19 @@ fn open_stages(theme: &Theme, state: GalleryState) -> AnyElement {
     group(
         theme,
         &format!(
-            "OPEN · {}ms — three stages {}ms apart",
-            motion::OPEN.duration_ms(),
-            motion::OPEN_STAGE.ms()
+            "OPEN · {}ms, three stages {}ms apart",
+            motion::OPEN.duration_ms,
+            motion::OPEN_STAGE_MS
         ),
         div().flex().flex_col().gap(px(Theme::SPACE_XS)).children(
             ["bar", "rails and picture", "timeline"]
                 .into_iter()
                 .enumerate()
                 .map(move |(stage, label)| {
-                    let spec = motion::OPEN.with_delay(motion::OPEN_STAGE.times(stage as u64));
+                    let spec = motion::OPEN.with_delay(motion::OPEN_STAGE_MS * stage as u64);
                     plate(theme, label).with_animation(
                         gpui::ElementId::from(format!("m-open-{stage}-{n}")),
-                        spec.animation(),
+                        motion::animation(spec),
                         |el, t| el.opacity(t).relative().top(px(6.0 * (1.0 - t))),
                     )
                 }),
@@ -182,30 +182,30 @@ fn open_stages(theme: &Theme, state: GalleryState) -> AnyElement {
     )
 }
 
-/// Every shipped easing curve, sampled and drawn. This is the only place the
-/// difference between `EASE` and `EASE_OUT_EXPO` is visible without a stopwatch.
+/// Every named easing curve, sampled and drawn. This is the only place the
+/// difference between `ease` and `ease_out_expo` is visible without a stopwatch.
 ///
-/// The list is [`motion::CURVES`], so a curve added to the catalog gets a
+/// The list is [`Easing::NAMED`], so a curve added to `gpui::motion` gets a
 /// specimen here without anyone remembering to add one.
 fn curves(theme: &Theme) -> AnyElement {
     group(
         theme,
-        "CubicBezier — 32 samples of eval(x), left to right",
+        "Easing: 32 samples of eval(x), left to right",
         shelf(
-            motion::CURVES
-                .iter()
-                .map(|(name, bezier)| curve(theme, name, *bezier))
+            Easing::NAMED
+                .into_iter()
+                .map(|easing| curve(theme, easing))
                 .collect(),
         ),
     )
 }
 
-fn curve(theme: &Theme, name: &str, curve: CubicBezier) -> AnyElement {
+fn curve(theme: &Theme, curve: Easing) -> AnyElement {
     let bar = theme.accent;
     let track = theme.border;
     specimen(
         theme,
-        name,
+        curve.name(),
         div()
             .flex()
             .flex_row()
@@ -229,14 +229,14 @@ fn curve(theme: &Theme, name: &str, curve: CubicBezier) -> AnyElement {
 /// The rows come from [`motion::catalog::CATALOG`], not from a list here: a spec
 /// added to `motion.rs` is on screen the moment it has a catalog row, and the
 /// gallery cannot fall one behind the design system the way it did with
-/// `CARET_BLINK`. Several of these have no helper of their own — nothing in
-/// `motion` animates with RESIZE, TAB_SLIDE, COLLAPSE, CHEVRON, SCROLL_GLIDE,
-/// FLING or OPEN, which are applied at their call sites — but a duration and a
-/// curve nobody can compare is a token nobody can review.
+/// `CARET_BLINK`. Several of these have no helper of their own: RESIZE,
+/// TAB_SLIDE, COLLAPSE, CHEVRON, SCROLL_GLIDE, FLING and OPEN are applied at
+/// their call sites. A duration and a curve nobody can compare is a token
+/// nobody can review.
 fn specs(theme: &Theme) -> AnyElement {
     group(
         theme,
-        "MotionSpec — 24 samples of progress(x), delay included, one per catalog row",
+        "MotionSpec: 24 samples of progress(x), delay included, one per catalog row",
         shelf(
             motion::catalog::CATALOG
                 .iter()
@@ -277,10 +277,10 @@ fn plot(theme: &Theme, spec: MotionSpec) -> AnyElement {
 
 /// The continuous primitives, all reading the same two clocks.
 fn continuous(theme: &Theme, pulse: f32, spin: f32) -> AnyElement {
-    let wave = motion::pulse_wave(pulse);
+    let wave = loaders::pulse_wave(pulse);
     group(
         theme,
-        "continuous — pulse_delta / pulse_wave / pulse_opacity / pulse_scale / \
+        "continuous: pulse_delta / pulse_wave / pulse_opacity / pulse_scale / \
          matrix_wave / gspin / mark_phase / lerp",
         div()
             .flex()
@@ -290,7 +290,7 @@ fn continuous(theme: &Theme, pulse: f32, spin: f32) -> AnyElement {
                 theme,
                 &format!(
                     "pulse_delta ZERON_PULSE {}ms",
-                    motion::ZERON_PULSE.duration_ms()
+                    presets::ZERON_PULSE.duration_ms
                 ),
                 pulse,
             ))
@@ -298,7 +298,7 @@ fn continuous(theme: &Theme, pulse: f32, spin: f32) -> AnyElement {
                 theme,
                 &format!(
                     "pulse_delta GRADIENT_SPIN {}ms",
-                    motion::GRADIENT_SPIN.duration_ms()
+                    presets::GRADIENT_SPIN.duration_ms
                 ),
                 spin,
             ))
@@ -306,22 +306,22 @@ fn continuous(theme: &Theme, pulse: f32, spin: f32) -> AnyElement {
             .child(meter(
                 theme,
                 "pulse_opacity(delta)",
-                motion::pulse_opacity(pulse),
+                loaders::pulse_opacity(pulse),
             ))
             .child(meter(
                 theme,
                 "pulse_scale(delta)",
-                motion::pulse_scale(pulse),
+                loaders::pulse_scale(pulse),
             ))
             .child(meter(
                 theme,
                 "lerp(0.2, 0.9, pulse_wave)",
-                motion::lerp(0.2, 0.9, wave),
+                gpui::motion::lerp(0.2, 0.9, wave),
             ))
             .child(meter(
                 theme,
                 "FADE_IN.progress(delta)",
-                motion::FADE_IN.progress(pulse),
+                presets::FADE_IN.progress(pulse),
             ))
             .child(shelf(vec![
                 specimen(theme, "matrix_wave(i, 5)", matrix_row(theme, pulse)),
@@ -348,13 +348,13 @@ fn matrix_row(theme: &Theme, delta: f32) -> AnyElement {
         .items_center()
         .gap(px(4.))
         .children((0..5).map(move |i| {
-            let w = motion::matrix_wave(delta, i, 5);
+            let w = loaders::matrix_wave(delta, i, 5);
             div()
                 .w(px(10.))
                 .h(px(24.))
                 .rounded(px(2.))
                 .bg(color)
-                .opacity(motion::lerp(0.1, 1.0, w))
+                .opacity(gpui::motion::lerp(0.1, 1.0, w))
         }))
         .into_any_element()
 }
@@ -365,19 +365,19 @@ fn gspin_grid(theme: &Theme, delta: f32) -> AnyElement {
         .flex()
         .flex_col()
         .gap(px(3.))
-        .children((0..motion::MATRIX_SIDE).map(move |row| {
+        .children((0..loaders::MATRIX_SIDE).map(move |row| {
             div()
                 .flex()
                 .flex_row()
                 .gap(px(3.))
-                .children((0..motion::MATRIX_SIDE).map(move |col| {
-                    let phase = motion::gspin_cell_phase(row, col);
+                .children((0..loaders::MATRIX_SIDE).map(move |col| {
+                    let phase = loaders::gspin_cell_phase(row, col);
                     div()
                         .w(px(8.))
                         .h(px(8.))
                         .rounded(px(4.))
                         .bg(color)
-                        .opacity(motion::gspin_opacity(delta + phase, motion::GSPIN_DIM))
+                        .opacity(loaders::gspin_opacity(delta + phase, loaders::GSPIN_DIM))
                 }))
         }))
         .into_any_element()
@@ -390,14 +390,14 @@ fn mark_row(theme: &Theme, delta: f32) -> AnyElement {
         .flex_row()
         .items_center()
         .gap(px(3.))
-        .children(motion::MARK_CELLS.iter().take(10).map(move |&(x, y)| {
-            let phase = motion::mark_phase(delta, x, y);
+        .children(loaders::MARK_CELLS.iter().take(10).map(move |&(x, y)| {
+            let phase = loaders::mark_phase(delta, x, y);
             div()
                 .w(px(8.))
                 .h(px(8.))
                 .rounded(px(2.))
                 .bg(color)
-                .opacity(motion::pulse_opacity(phase))
+                .opacity(loaders::pulse_opacity(phase))
         }))
         .into_any_element()
 }
@@ -408,7 +408,7 @@ fn stagger(theme: &Theme, delta: f32) -> AnyElement {
     let color = theme.accent;
     let cells: Vec<AnyElement> = (0..8usize)
         .map(|i| {
-            let phase = motion::staggered_phase(delta, i, motion::PULSE_STAGGER);
+            let phase = loaders::staggered_phase(delta, i, loaders::PULSE_STAGGER);
             specimen(
                 theme,
                 &format!("{i} · {phase:.2}"),
@@ -417,7 +417,7 @@ fn stagger(theme: &Theme, delta: f32) -> AnyElement {
                     .h(px(20.))
                     .rounded(px(4.))
                     .bg(color)
-                    .opacity(motion::pulse_opacity(phase)),
+                    .opacity(loaders::pulse_opacity(phase)),
             )
         })
         .collect();
@@ -425,7 +425,7 @@ fn stagger(theme: &Theme, delta: f32) -> AnyElement {
         theme,
         &format!(
             "staggered_phase(delta, index, PULSE_STAGGER = {:.4})",
-            motion::PULSE_STAGGER
+            loaders::PULSE_STAGGER
         ),
         shelf(cells),
     )
@@ -441,7 +441,7 @@ fn hover_fade(theme: &Theme) -> AnyElement {
         theme,
         &format!(
             "hover_listener / hover_t / hover_blend · HOVER_FADE {}ms",
-            motion::HOVER_FADE.duration_ms()
+            presets::HOVER_FADE.duration_ms
         ),
         div()
             .flex()
@@ -467,8 +467,8 @@ fn hover_fade(theme: &Theme) -> AnyElement {
             .child(meter(theme, "hover_t(key)", t))
             .child(caption(
                 theme,
-                "The fade only completes because Render asks for the next frame \
-                 while hover_fades_active() is true.",
+                "The fade completes because the gallery root ends each motion frame, \
+                 which requests the next frame while a hover is still moving.",
             )),
     )
 }

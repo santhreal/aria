@@ -102,7 +102,10 @@ impl Gallery {
 }
 
 impl Render for Gallery {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // Every hover blend and entrance this draw builds samples the frame
+        // opened here, so it comes before any section is built.
+        motion::begin_frame(cx);
         let theme = Theme::of(cx);
         let view = cx.entity_id();
         let state = self.state;
@@ -123,14 +126,6 @@ impl Render for Gallery {
             gallery_icons::theme_tokens(&theme),
         ];
         debug_assert_eq!(sections.len(), SECTIONS.len(), "nav row is index-aligned");
-
-        // The frame driver, and it has to run after every hover value this frame
-        // has been read. Hover fades are wall-clock interpolations rather than
-        // gpui animations, so nothing repaints them on its own: without this a
-        // fade freezes at whatever value the last mouse event left it on.
-        if motion::hover_fades_active() {
-            window.request_animation_frame();
-        }
 
         div()
             .id("gallery")
@@ -155,7 +150,28 @@ impl Render for Gallery {
                     .gap(px(Theme::SPACE_LG))
                     .children(sections),
             )
+            // Ends the motion frame after every element that read the stores,
+            // and requests the next frame while a value is still moving. Hover
+            // fades are functions of the clock, so nothing else repaints them:
+            // without this a fade freezes at whatever value the last mouse
+            // event left it on.
+            .child(motion_driver())
     }
+}
+
+/// A zero-size element that ends the motion frame during prepaint. Exactly one
+/// per window: a second would advance the stores' frame counter twice and drop
+/// the values the first had just drawn.
+fn motion_driver() -> impl IntoElement {
+    gpui::canvas(
+        |_, window, _| {
+            motion::end_frame(window);
+        },
+        |_, _, _, _| {},
+    )
+    .absolute()
+    .w(px(0.))
+    .h(px(0.))
 }
 
 /// Appearance switcher and the reduced-motion switch. Both are the real
@@ -163,7 +179,7 @@ impl Render for Gallery {
 /// state every primitive here has to survive.
 fn header(theme: &Theme, cx: &mut Context<Gallery>) -> AnyElement {
     let mode = appearance::mode(cx);
-    let reduced = motion::reduced_motion(cx);
+    let reduced = cx.reduce_motion();
     div()
         .h(px(Theme::HEADER_HEIGHT))
         .px(px(Theme::SPACE_LG))
@@ -195,7 +211,7 @@ fn header(theme: &Theme, cx: &mut Context<Gallery>) -> AnyElement {
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |_, _: &MouseDownEvent, _, cx| {
-                    motion::set_reduced_motion(cx, !reduced);
+                    cx.set_reduce_motion(!reduced);
                     cx.notify();
                 }),
             ),

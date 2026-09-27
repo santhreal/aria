@@ -5,8 +5,8 @@
 //! MIT License — see LICENSES/comet-MIT.txt
 
 use gpui::{
-    AnyElement, App, Bounds, EdgeFade, Element, GlobalElementId, InspectorElementId, IntoElement,
-    LayoutId, Pixels, ScrollHandle, Window, px,
+    AnyElement, App, Bounds, EdgeFade, Edges, Element, GlobalElementId, InspectorElementId,
+    IntoElement, LayoutId, Pixels, ScrollHandle, Window, px,
 };
 
 pub fn edge_faded(band: f32, top: bool, bottom: bool, child: impl IntoElement) -> EdgeFaded {
@@ -134,22 +134,20 @@ impl Element for EdgeFaded {
             left &= scrolled > 1.0;
             right &= scrolled < max_scroll - 1.0;
         }
-        let fade = (top || bottom || left || right).then(|| {
+        let band = |on: bool, width: f32| px(if on { width } else { 0.0 });
+        let bands = Edges {
+            top: band(top, self.band_top.unwrap_or(self.band)),
+            bottom: band(bottom, self.band_bottom.unwrap_or(self.band)),
+            left: band(left, self.band),
+            right: band(right, self.band),
+        };
+        let fade = {
             let mut bounds = bounds;
             bounds.origin.y += px(self.inset_top);
             bounds.size.height -= px(self.inset_top);
-            EdgeFade {
-                bounds,
-                band: px(self.band),
-                band_top: self.band_top.map(px),
-                band_bottom: self.band_bottom.map(px),
-                top,
-                bottom,
-                left,
-                right,
-            }
-        });
-        window.with_edge_fade(fade, |window| self.child.paint(window, cx));
+            EdgeFade { bounds, bands }
+        };
+        window.with_edge_fade(Some(fade), |window| self.child.paint(window, cx));
     }
 }
 

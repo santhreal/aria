@@ -19,6 +19,8 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::time::Instant;
 
+use gpui::motion::presets;
+
 use crate::motion;
 use crate::motion::ControlId;
 
@@ -52,7 +54,7 @@ pub(super) fn frame_id(key: &'static str, value: i64) -> ControlId {
         match runs.get_mut(key) {
             Some(run) => {
                 if run.value != value {
-                    run.in_run = now.duration_since(run.at) < motion::FADE_QUICK.total();
+                    run.in_run = now.duration_since(run.at) < presets::FADE_QUICK.total();
                     run.value = value;
                     run.at = now;
                 }

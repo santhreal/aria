@@ -1,6 +1,7 @@
 //! Ruler, playhead, snap guide, and the transition wedge at a cut.
 
 use crate::fluent::FluentBuilder;
+use gpui::motion::presets;
 use gpui::{
     CursorStyle, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, MouseMoveEvent,
     ParentElement, SharedString, StatefulInteractiveElement, Styled, div, px,
@@ -23,7 +24,7 @@ use super::{HEADER_W, RULER_H, ticks_to_px, ticks_to_px_f};
 /// snap is then a still line.
 pub(super) fn snap_glow(cx: &mut gpui::Context<crate::shell::Shell>) -> f32 {
     let view = cx.entity_id();
-    motion::pulse_wave(motion::pulse_delta(&motion::ZERON_PULSE, view, cx))
+    gpui::motion::loaders::pulse_wave(motion::pulse_delta(&presets::ZERON_PULSE, view, cx))
 }
 
 pub(super) fn ruler(

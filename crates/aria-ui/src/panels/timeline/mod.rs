@@ -22,7 +22,7 @@ use gpui::{
 };
 
 use crate::app::AppState;
-use crate::motion::{self, glide};
+use crate::motion::glide;
 use crate::theme::Theme;
 use crate::types::{ActivePanel, UiRulerTick};
 
@@ -60,7 +60,7 @@ pub fn render(
     // listeners it attaches below.
     let store = state.read(cx).store.clone();
     let playhead = store.playhead_ticks;
-    let reduced = motion::reduced_motion(cx);
+    let reduced = cx.reduce_motion();
     // A playhead is a whole tick in the model and a fraction of one on screen.
     // Stepping it frame to frame reads as a stutter, so it follows its target
     // instead — and a scrub stays continuous because the pointer never lands on

@@ -11,7 +11,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use aria_plugin::{PluginContext, Service};
 use parking_lot::RwLock;
 
-use super::menu_items::{MenuItem, MenuItems};
+use super::menu_items::MenuItems;
 use crate::app::AppState;
 use crate::types::AppMenu;
 
@@ -85,6 +85,7 @@ pub fn host_of(ctx: &PluginContext) -> Option<std::sync::Arc<MenuHost>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chrome::menu_items::MenuItem;
     use crate::types::AppMenu;
     use aria_plugin::PluginContext;
 

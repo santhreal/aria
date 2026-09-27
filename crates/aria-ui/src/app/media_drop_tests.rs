@@ -181,8 +181,8 @@ fn an_edge_drop_of_unknown_media_changes_nothing() {
 /// edit that created the clip, and only that clip.
 ///
 /// Not covered: expiry by wall clock, which would need the test to sleep for a
-/// catalog duration. The window is `RESIZE.duration_ms()`, asserted in the motion
-/// catalog tests.
+/// catalog duration. The window is `presets::RESIZE.duration_ms`, asserted in the
+/// motion catalog tests.
 #[test]
 fn only_the_clip_an_edit_just_created_is_landing() {
     let (mut state, media) = state();

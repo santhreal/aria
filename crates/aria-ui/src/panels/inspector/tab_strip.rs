@@ -11,16 +11,16 @@
 //! every tab is `flex_1`, so tab `i` of `n` starts at `i/n` and is `1/n` wide,
 //! whatever the strip's width turns out to be.
 
+use gpui::motion::presets;
 use gpui::{
     CursorStyle, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
     StatefulInteractiveElement, Styled, div, px, relative,
 };
 
-use crate::motion;
+use crate::motion::{self, glide};
 use crate::theme::Theme;
 use crate::types::UiClipKind;
 
-use super::blocks::slide;
 use super::tab_host::TabHost;
 
 /// Thickness of the underline.
@@ -38,8 +38,6 @@ pub(super) fn tab_row(
     active: gpui::SharedString,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
-    let view = cx.entity_id();
-    let reduced = motion::reduced_motion(cx);
     let text = theme.text;
     let muted = theme.text_muted;
     let accent = theme.accent;
@@ -89,10 +87,8 @@ pub(super) fn tab_row(
                         this.state.update(cx, |state, _| {
                             state.inspector_tab = pick.to_string();
                         });
-                        // The underline needs frames for as long as it slides.
-                        // The pulse clock is what hands them out, and its lease
-                        // outlasts TAB_SLIDE, so the slide always finishes.
-                        motion::pulse_delta(&motion::TAB_SLIDE, view, cx);
+                        // The redraw retargets the underline, and the glide
+                        // store requests frames until TAB_SLIDE is spent.
                         cx.notify();
                     }),
                 ),
@@ -101,11 +97,11 @@ pub(super) fn tab_row(
 
     if let Some(index) = target {
         let slot = 1.0 / count as f32;
-        let at = slide::toward(
+        let at = glide::glide(
             motion::MotionKey::new(SLIDE_KEY, ""),
             index as f32,
-            &motion::TAB_SLIDE,
-            reduced,
+            presets::TAB_SLIDE,
+            false,
         );
         row = row.child(
             div()

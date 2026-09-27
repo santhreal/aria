@@ -464,7 +464,7 @@ pub fn render(
         return card
             .with_animation(
                 motion::MotionKey::new("clip-land", id).element_id("clip-land"),
-                glide::EDIT.animation(),
+                motion::animation(glide::EDIT),
                 |el, t| el.opacity(0.35 + 0.65 * t).top(px(6.0 - 5.0 * (1.0 - t))),
             )
             .into_any_element();

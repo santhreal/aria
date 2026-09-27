@@ -1,43 +1,46 @@
-//! The motion catalog as a table: every spec, what it is for, where it is spent.
+//! The motion catalog as a table: every spec the editor spends, what it is for,
+//! and where it is spent.
 //!
-//! The specs themselves stay plain consts in [`super`] — a caller writes
-//! `motion::FADE_IN`, not a lookup. This table is what makes the catalog
-//! reviewable: a spec that nothing spends is dead timing, a spec whose duration
-//! moved is the whole app retimed, and a spec that no document mentions is a
-//! number nobody can look up. The tests below hold all three, and the row is the
-//! one place a new spec has to be declared.
+//! The specs are plain consts: the reference presets in
+//! [`gpui::motion::presets`], and the editor's own in [`super`]. A caller writes
+//! `presets::FADE_IN` or `motion::OPEN`, not a lookup. This table makes the
+//! catalog reviewable: a spec that nothing spends is dead timing, a spec whose
+//! duration moved retimes the whole app, and a spec that no document mentions
+//! is a number nobody can look up. The tests below hold all three, and the row
+//! is the one place a new spec has to be declared.
 
-use super::*;
+use gpui::motion::{Easing, MotionSpec, presets};
+
+use super::{CARET_BLINK, FLING, OPEN};
 
 /// One spec, and the claims made about it.
 pub struct SpecRow {
-    /// The const in `motion.rs`, exactly as it is written there.
+    /// The const, as it is written in `presets` or in `motion.rs`.
     pub name: &'static str,
     pub spec: MotionSpec,
     /// The timing this row promises. Kept beside the spec rather than read out
-    /// of it: that is what makes a retime a failing test instead of a silent
-    /// change to every transition in the app. Both are steps on the duration
-    /// scale, which the tests below also hold.
+    /// of it, so a retime is a failing test instead of a silent change to every
+    /// transition in the app.
     pub delay_ms: u64,
     pub duration_ms: u64,
+    /// The curve it rides. Two specs with the same duration and different
+    /// curves are not the same motion, so the feel is pinned here the way the
+    /// timing is.
+    pub easing: Easing,
     /// What the timing is for, in terms of what the operator sees.
     pub purpose: &'static str,
     /// The file that spends it, relative to the workspace root.
     pub file: &'static str,
     /// The item in that file which spends it.
     pub symbol: &'static str,
-    /// The curve it rides, by the name it has in [`CURVES`]. Two specs with the
-    /// same duration and different curves are not the same motion, so the feel
-    /// is pinned here the way the timing is.
-    pub curve: &'static str,
 }
 
 /// Every spec in the catalog. Order is the order the document lists them.
 pub const CATALOG: &[SpecRow] = &[
     SpecRow {
         name: "FADE_IN",
-        spec: FADE_IN,
-        curve: "EASE_OUT_EXPO",
+        spec: presets::FADE_IN,
+        easing: Easing::EaseOutExpo,
         delay_ms: 0,
         duration_ms: 500,
         purpose: "An element arriving for the first time: a launch card, a panel body.",
@@ -46,30 +49,30 @@ pub const CATALOG: &[SpecRow] = &[
     },
     SpecRow {
         name: "FADE_QUICK",
-        spec: FADE_QUICK,
-        curve: "EASE",
+        spec: presets::FADE_QUICK,
+        easing: Easing::Ease,
         delay_ms: 0,
-        duration_ms: 160,
+        duration_ms: 150,
         purpose: "A small change that must not read as a jump: a seek badge, a drop hint.",
         file: "crates/aria-ui/src/motion.rs",
         symbol: "fn fade_quick",
     },
     SpecRow {
         name: "MENU_IN",
-        spec: MENU_IN,
-        curve: "EASE",
+        spec: presets::MENU_IN,
+        easing: Easing::Ease,
         delay_ms: 0,
-        duration_ms: 160,
+        duration_ms: 140,
         purpose: "A menu or popover opening under the pointer.",
         file: "crates/aria-ui/src/motion.rs",
         symbol: "fn menu_in",
     },
     SpecRow {
         name: "MENU_OUT",
-        spec: MENU_OUT,
-        curve: "EASE",
+        spec: presets::MENU_OUT,
+        easing: Easing::Ease,
         delay_ms: 0,
-        duration_ms: 120,
+        duration_ms: 100,
         purpose: "Anything leaving: a menu, a dialog, a context menu, the rename bar. \
                   Also the window an overlay keeps drawing after its condition went false.",
         file: "crates/aria-ui/src/plugins/overlay_host.rs",
@@ -77,10 +80,10 @@ pub const CATALOG: &[SpecRow] = &[
     },
     SpecRow {
         name: "DIALOG_IN",
-        spec: DIALOG_IN,
-        curve: "EASE",
+        spec: presets::DIALOG_IN,
+        easing: Easing::Ease,
         delay_ms: 0,
-        duration_ms: 200,
+        duration_ms: 180,
         purpose: "A dialog surface arriving: slower than a menu because it takes the \
                   keyboard. Also a whole route arriving, which is the same size of \
                   change to the window.",
@@ -89,31 +92,30 @@ pub const CATALOG: &[SpecRow] = &[
     },
     SpecRow {
         name: "SPLASH_OUT",
-        spec: SPLASH_OUT,
-        curve: "EASE",
-        delay_ms: 160,
+        spec: presets::SPLASH_OUT,
+        easing: Easing::Ease,
+        delay_ms: 150,
         duration_ms: 500,
-        purpose: "The boot mark leaving. The delay is the beat that keeps a fast start \
-                  from flashing.",
-        file: "crates/aria-ui/src/loaders.rs",
-        symbol: "SPLASH_OUT",
+        purpose: "The boot mark leaving. The delay keeps a fast start from flashing.",
+        file: "crates/aria-ui/src/motion.rs",
+        symbol: "fn splash_out",
     },
     SpecRow {
         name: "OPEN",
         spec: OPEN,
-        curve: "EASE_OUT_EXPO",
+        easing: Easing::EaseOutExpo,
         delay_ms: 0,
         duration_ms: 320,
         purpose: "One stage of the editor opening: the bar, then the rails, then the timeline. \
-                  Staged by OPEN_STAGE so the layout resolves in reading order \
+                  Staged by OPEN_STAGE_MS so the layout resolves in reading order \
                   instead of all at once.",
         file: "crates/aria-ui/src/shell/mod.rs",
         symbol: "fn opening",
     },
     SpecRow {
         name: "RESIZE",
-        spec: RESIZE,
-        curve: "EASE_OUT",
+        spec: presets::RESIZE,
+        easing: Easing::EaseOut,
         delay_ms: 0,
         duration_ms: 200,
         purpose: "Geometry settling after the hand let go: a pane width, a released \
@@ -124,28 +126,28 @@ pub const CATALOG: &[SpecRow] = &[
     },
     SpecRow {
         name: "TAB_SLIDE",
-        spec: TAB_SLIDE,
-        curve: "EASE_OUT",
+        spec: presets::TAB_SLIDE,
+        easing: Easing::EaseOut,
         delay_ms: 0,
-        duration_ms: 160,
+        duration_ms: 150,
         purpose: "The inspector's tab indicator travelling to the tab that was clicked.",
         file: "crates/aria-ui/src/panels/inspector/tab_strip.rs",
         symbol: "TAB_SLIDE",
     },
     SpecRow {
         name: "COLLAPSE",
-        spec: COLLAPSE,
-        curve: "EASE_OUT",
+        spec: presets::COLLAPSE,
+        easing: Easing::EaseOut,
         delay_ms: 0,
-        duration_ms: 200,
+        duration_ms: 180,
         purpose: "A lane height opening or closing.",
         file: "crates/aria-ui/src/motion_glide.rs",
         symbol: "LANE",
     },
     SpecRow {
         name: "CHEVRON",
-        spec: CHEVRON,
-        curve: "EASE",
+        spec: presets::CHEVRON,
+        easing: Easing::Ease,
         delay_ms: 0,
         duration_ms: 200,
         purpose: "A disclosure arrow rotating, so the arrow and the section agree.",
@@ -154,8 +156,8 @@ pub const CATALOG: &[SpecRow] = &[
     },
     SpecRow {
         name: "SCROLL_GLIDE",
-        spec: SCROLL_GLIDE,
-        curve: "EASE_IN_OUT",
+        spec: presets::SCROLL_GLIDE,
+        easing: Easing::EaseInOut,
         delay_ms: 0,
         duration_ms: 500,
         purpose: "A view the editor moved: a fit, or playback the timeline had to follow. \
@@ -166,7 +168,7 @@ pub const CATALOG: &[SpecRow] = &[
     SpecRow {
         name: "FLING",
         spec: FLING,
-        curve: "SPRING",
+        easing: Easing::EaseOutBack,
         delay_ms: 0,
         duration_ms: 500,
         purpose: "The timeline offset after a pan is released, carrying the momentum of \
@@ -177,20 +179,20 @@ pub const CATALOG: &[SpecRow] = &[
     },
     SpecRow {
         name: "HOVER_FADE",
-        spec: HOVER_FADE,
-        curve: "EASE_STANDARD",
+        spec: presets::HOVER_FADE,
+        easing: Easing::Standard,
         delay_ms: 0,
-        duration_ms: 160,
+        duration_ms: 150,
         purpose: "Every hover blend in the app, over one store so a strip fades at one \
                   rate; and, at the same beat, the binary states a clip card can leave \
-                  again — selected and locked.",
-        file: "crates/aria-ui/src/motion.rs",
-        symbol: "fn duration",
+                  again: selected and locked.",
+        file: "crates/aria-ui/src/motion_hover.rs",
+        symbol: "fn set_hover",
     },
     SpecRow {
         name: "ZERON_PULSE",
-        spec: ZERON_PULSE,
-        curve: "EASE",
+        spec: presets::ZERON_PULSE,
+        easing: Easing::Ease,
         delay_ms: 0,
         duration_ms: 2400,
         purpose: "The loader's breathing cycle while work is in flight.",
@@ -199,8 +201,8 @@ pub const CATALOG: &[SpecRow] = &[
     },
     SpecRow {
         name: "GRADIENT_SPIN",
-        spec: GRADIENT_SPIN,
-        curve: "EASE",
+        spec: presets::GRADIENT_SPIN,
+        easing: Easing::Ease,
         delay_ms: 0,
         duration_ms: 750,
         purpose: "The loader's gradient sweep, faster than the pulse it runs inside.",
@@ -210,7 +212,7 @@ pub const CATALOG: &[SpecRow] = &[
     SpecRow {
         name: "CARET_BLINK",
         spec: CARET_BLINK,
-        curve: "EASE_STANDARD",
+        easing: Easing::Standard,
         delay_ms: 0,
         duration_ms: 1000,
         purpose: "The caret in a rename field, marking time for whoever is typing.",
@@ -234,19 +236,23 @@ mod tests {
             .join("..")
     }
 
-    /// Every `pub const` of type `MotionSpec` declared in `motion.rs`, read from
-    /// the source at build time so a spec added without a row here fails rather
-    /// than going undocumented.
+    /// Every spec the editor can spend: each entry of [`presets::PRESETS`], and
+    /// every `pub const` of type `MotionSpec` declared in `motion.rs`, read from
+    /// the source at build time. A preset added to the framework, or a spec
+    /// added to `motion.rs`, without a row here fails rather than going
+    /// undocumented.
     fn declared_specs() -> Vec<&'static str> {
-        include_str!("motion.rs")
-            .lines()
-            .filter_map(|line| {
-                let rest = line.trim().strip_prefix("pub const ")?;
-                let (name, tail) = rest.split_once(':')?;
-                tail.trim_start()
-                    .starts_with("MotionSpec")
-                    .then_some(name.trim())
-            })
+        let own = include_str!("motion.rs").lines().filter_map(|line| {
+            let rest = line.trim().strip_prefix("pub const ")?;
+            let (name, tail) = rest.split_once(':')?;
+            tail.trim_start()
+                .starts_with("MotionSpec")
+                .then_some(name.trim())
+        });
+        presets::PRESETS
+            .iter()
+            .map(|(name, _)| *name)
+            .chain(own)
             .collect()
     }
 
@@ -254,14 +260,14 @@ mod tests {
     fn every_declared_spec_has_a_catalog_row_and_every_row_is_declared() {
         let declared = declared_specs();
         assert!(
-            declared.len() >= 14,
-            "only {} specs parsed out of motion.rs; the scan is broken, not the catalog",
-            declared.len()
+            declared.len() > presets::PRESETS.len(),
+            "no spec parsed out of motion.rs; the scan is broken, not the catalog"
         );
         for name in &declared {
-            assert!(
-                CATALOG.iter().any(|row| row.name == *name),
-                "{name} is a spec with no catalog row: undocumented timing"
+            assert_eq!(
+                CATALOG.iter().filter(|row| row.name == *name).count(),
+                1,
+                "{name} needs exactly one catalog row"
             );
         }
         for row in CATALOG {
@@ -270,6 +276,19 @@ mod tests {
                 "{} is a catalog row for a spec that no longer exists",
                 row.name
             );
+        }
+    }
+
+    /// A row that names one preset and holds another compiles, and documents
+    /// the wrong timing under the right name.
+    #[test]
+    fn every_preset_row_holds_the_preset_it_names() {
+        for (name, spec) in presets::PRESETS {
+            let row = CATALOG
+                .iter()
+                .find(|row| row.name == name)
+                .unwrap_or_else(|| panic!("{name} has no catalog row"));
+            assert_eq!(row.spec, spec, "the {name} row holds a different spec");
         }
     }
 
@@ -294,38 +313,21 @@ mod tests {
                 "{} total does not add up",
                 row.name
             );
-            assert!(
-                on_scale(row.duration_ms),
-                "{} promises {} ms, which is not a step on the scale",
-                row.name,
-                row.duration_ms
-            );
-            assert!(
-                row.delay_ms == 0 || on_scale(row.delay_ms),
-                "{} delays by {} ms, which is not a step on the scale",
-                row.name,
-                row.delay_ms
-            );
         }
     }
 
     /// The feel, pinned the way the timing is. A curve swapped under a spec is a
     /// different animation at the same length, which no duration test can see.
     #[test]
-    fn every_row_names_the_curve_its_spec_actually_rides() {
+    fn every_row_names_the_curve_its_spec_rides() {
         for row in CATALOG {
-            let (_, curve) = CURVES
-                .iter()
-                .find(|(name, _)| *name == row.curve)
-                .unwrap_or_else(|| {
-                    panic!("{} names {}, which is not in CURVES", row.name, row.curve)
-                });
             assert_eq!(
-                row.spec.curve(),
-                *curve,
-                "{} rides a different curve than the {} it claims",
+                row.spec.easing,
+                row.easing,
+                "{} rides {} rather than the {} it claims",
                 row.name,
-                row.curve
+                row.spec.easing.name(),
+                row.easing.name()
             );
         }
     }
@@ -348,10 +350,11 @@ mod tests {
 
             // A spec on an overshooting curve is allowed past its target and
             // back, and only by the bound `eval` clamps to. Which rule applies
-            // is read off the curve, so the one spring spec is held to the
-            // spring rules and every other spec stays monotone.
-            let springy = spec.curve().overshoots();
-            let (_, ceiling) = spec.curve().bounds();
+            // is read off the curve, so the one overshooting spec is held to
+            // those rules and every other spec stays monotone.
+            let curve = spec.easing.bezier();
+            let springy = curve.is_some_and(|curve| curve.overshoots());
+            let ceiling = curve.map_or(1.0, |curve| curve.bounds().1);
             let mut last = 0.0;
             for i in 0..=64 {
                 let t = i as f32 / 64.0;
@@ -367,9 +370,9 @@ mod tests {
             let span = (spec.delay_ms + spec.duration_ms) as f32;
             let halfway = (spec.delay_ms as f32 + spec.duration_ms as f32 / 2.0) / span;
             let mid = spec.progress(halfway);
-            // Mid-flight means moving and not yet at rest. A springy spec is
-            // past its target at halfway — `FLING` reads 1.087 there — so the
-            // upper bound is the one its own curve earns, not 1.0.
+            // Mid-flight means moving and not yet at rest. An overshooting spec
+            // is past its target at halfway, so the upper bound is the one its
+            // own curve earns, not 1.0.
             assert!(
                 mid > 0.0 && mid < ceiling,
                 "{name} is not mid-flight halfway through its own run: {mid}"
@@ -425,45 +428,55 @@ mod tests {
     }
 
     /// The document is the operator-facing half of the catalog. A spec missing
-    /// from it, or a spec whose curve or duration is not written down, is a
-    /// timing nobody outside this file can look up.
+    /// from it, or a spec whose curve, duration, or delay is not written down,
+    /// is a timing nobody outside this file can look up.
     #[test]
     fn the_document_names_every_spec_its_timing_and_its_curve() {
         let doc = std::fs::read_to_string(workspace_root().join(DOC))
             .unwrap_or_else(|err| panic!("{DOC}: {err}"));
         for row in CATALOG {
-            assert!(doc.contains(row.name), "{DOC} does not name {}", row.name);
-            let ms = format!("{} ms", row.duration_ms);
+            let line = doc
+                .lines()
+                .find(|line| line.starts_with(&format!("| `{}` |", row.name)))
+                .unwrap_or_else(|| panic!("{DOC} has no table row for {}", row.name));
+            let ms = format!("| {} ms |", row.duration_ms);
             assert!(
-                doc.contains(&ms),
+                line.contains(&ms),
                 "{DOC} does not give {} its duration ({ms})",
                 row.name
             );
+            let delay = match row.delay_ms {
+                0 => "| 0 |".to_owned(),
+                ms => format!("| {ms} ms |"),
+            };
             assert!(
-                doc.contains(row.curve),
-                "{DOC} does not name {}'s curve ({})",
-                row.name,
-                row.curve
+                line.contains(&delay),
+                "{DOC} does not give {} its delay ({delay})",
+                row.name
+            );
+            let curve = format!("`{}`", row.easing.name());
+            assert!(
+                line.contains(&curve),
+                "{DOC} does not name {}'s curve ({curve})",
+                row.name
             );
         }
     }
 
-    /// The scale is the other half of a duration: a step the document does not
-    /// name is a length a reviewer cannot look up, and the gallery and this
-    /// table both read the same list.
+    /// Every curve a row rides is listed with its handles, so a reviewer can
+    /// read the feel of a spec without opening the framework.
     #[test]
-    fn the_document_names_every_step_on_the_scale() {
+    fn the_document_lists_every_curve_the_catalog_rides() {
         let doc = std::fs::read_to_string(workspace_root().join(DOC))
             .unwrap_or_else(|err| panic!("{DOC}: {err}"));
-        for (name, beat) in SCALE {
-            assert!(doc.contains(name), "{DOC} does not name the step {name}");
+        for row in CATALOG {
+            let name = row.easing.name();
             assert!(
-                doc.contains(&beat.to_string()),
-                "{DOC} does not give {name} its length ({beat})"
+                doc.lines()
+                    .any(|line| line.starts_with(&format!("| `{name}` |"))),
+                "{DOC} has no curve row for {name}, which {} rides",
+                row.name
             );
-        }
-        for (name, _) in CURVES {
-            assert!(doc.contains(name), "{DOC} does not name the curve {name}");
         }
     }
 }

@@ -121,7 +121,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: "1.92"
+          toolchain: "1.97"
 
       - name: Resolve the API baseline
         id: api-baseline
@@ -154,7 +154,7 @@ jobs:
           release-type: minor
 
   msrv:
-    name: rust 1.92 workspace check
+    name: rust 1.97 workspace check
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -170,12 +170,12 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: "1.92"
+          toolchain: "1.97"
 
       - uses: Swatinem/rust-cache@v2
 
       - name: Check every target at the minimum supported Rust version
-        run: cargo check --workspace --all-targets --locked
+        run: cargo +1.97 check --workspace --all-targets --locked
 
   mobile-targets:
     name: mobile / ${{ matrix.target }}

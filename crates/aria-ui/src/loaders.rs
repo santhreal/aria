@@ -9,10 +9,13 @@ use gpui::{
     Styled, div, px,
 };
 
-use crate::motion::{
-    self, GRADIENT_SPIN, GSPIN_DIM, GSPIN_ROW_TINTS, MARK_CELLS, MATRIX_SIDE, MINI_RING,
-    MINI_RING_LEN, PULSE_STAGGER, SPLASH_OUT, ZERON_CELLS, ZERON_PULSE, mark_cell_stagger,
+use gpui::motion::loaders::{
+    self, GSPIN_DIM, GSPIN_ROW_TINTS, MARK_CELLS, MATRIX_SIDE, MINI_RING, MINI_RING_LEN,
+    PULSE_STAGGER, ZERON_CELLS,
 };
+use gpui::motion::presets::{GRADIENT_SPIN, ZERON_PULSE};
+
+use crate::motion;
 use crate::theme::Theme;
 
 // The progress bar. A bar says how far, a loader says that something is
@@ -51,12 +54,12 @@ pub fn pulse_loader(
                 .items_center()
                 .justify_center()
                 .child({
-                    let phase = motion::staggered_phase(delta, i, PULSE_STAGGER);
+                    let phase = loaders::staggered_phase(delta, i, PULSE_STAGGER);
                     div()
                         .rounded(px(slot / 4.0))
                         .bg(color)
-                        .opacity(motion::pulse_opacity(phase))
-                        .size(px(slot * motion::pulse_scale(phase)))
+                        .opacity(loaders::pulse_opacity(phase))
+                        .size(px(slot * loaders::pulse_scale(phase)))
                 })
         }))
 }
@@ -71,8 +74,6 @@ pub fn gradient_spinner(
     view: EntityId,
     cx: &mut App,
 ) -> impl IntoElement {
-    let center = (MATRIX_SIDE as f32 - 1.0) / 2.0;
-    let max = MATRIX_SIDE as f32 - 1.0 + center;
     let delta = motion::pulse_delta(&GRADIENT_SPIN, view, cx) + motion::key_phase(id);
     div()
         .flex()
@@ -85,13 +86,12 @@ pub fn gradient_spinner(
                 .flex_row()
                 .gap(px(cell_px / 2.0))
                 .children((0..MATRIX_SIDE).map(move |col| {
-                    let d = MATRIX_SIDE as f32 - 1.0 - row as f32 + (col as f32 - center).abs();
-                    let phase = if max == 0.0 { 0.0 } else { d / (max + 1.0) };
+                    let phase = loaders::gspin_cell_phase(row, col);
                     div()
                         .size(px(cell_px))
                         .rounded(px(cell_px / 2.0))
                         .bg(tint)
-                        .opacity(motion::gspin_opacity(delta + phase, GSPIN_DIM))
+                        .opacity(loaders::gspin_opacity(delta + phase, GSPIN_DIM))
                 }))
         }))
 }
@@ -125,7 +125,7 @@ pub fn mini_gradient_spinner(
                         .size(px(cell_px))
                         .rounded(px(cell_px / 2.0))
                         .bg(tint)
-                        .opacity(motion::gspin_opacity(delta + phase, GSPIN_DIM))
+                        .opacity(loaders::gspin_opacity(delta + phase, GSPIN_DIM))
                 }))
         }))
 }
@@ -193,9 +193,8 @@ pub fn aria_mark_loader(
             let origin_x = f32::from(bounds.origin.x);
             let origin_y = f32::from(bounds.origin.y);
             for &(x, y) in &MARK_CELLS {
-                let stagger = mark_cell_stagger(x, y);
-                let phase = (delta + stagger).rem_euclid(1.0);
-                let side = cell * motion::pulse_scale(phase);
+                let phase = loaders::mark_phase(delta, x, y);
+                let side = cell * loaders::pulse_scale(phase);
                 let inset = (cell - side) * 0.5;
                 let bounds = gpui::Bounds {
                     origin: gpui::point(
@@ -207,7 +206,7 @@ pub fn aria_mark_loader(
                 window.paint_quad(gpui::quad(
                     bounds,
                     px(16.0 * scale),
-                    color.opacity(motion::pulse_opacity(phase)),
+                    color.opacity(loaders::pulse_opacity(phase)),
                     0.0,
                     color,
                     gpui::BorderStyle::default(),
@@ -269,31 +268,9 @@ pub fn loading_word(theme: &Theme) -> impl IntoElement {
         ))
 }
 
-// The three timings this file draws against, pinned so a retime in the catalog
-// fails here rather than quietly changing what a loader looks like.
-const _: () = {
-    assert!(SPLASH_OUT.delay_ms() == motion::QUICK.ms());
-    assert!(ZERON_PULSE.duration_ms() == motion::BREATH.ms());
-    assert!(GRADIENT_SPIN.duration_ms() == motion::CYCLE.ms());
-};
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::motion::MARK_SPREAD;
-
-    #[test]
-    fn mark_stagger_follows_flight_axis() {
-        let tail = mark_cell_stagger(720.0, 0.0);
-        let head = mark_cell_stagger(0.0, 840.0);
-        assert!(tail > head, "tail {tail} should lead head {head}");
-        assert!((head - 0.0).abs() < 1e-6, "head stagger ≈ 0, got {head}");
-        assert!(tail <= MARK_SPREAD + 1e-6, "stagger capped at SPREAD");
-        for &(x, y) in &MARK_CELLS {
-            let s = mark_cell_stagger(x, y);
-            assert!((0.0..=MARK_SPREAD).contains(&s), "({x},{y}) -> {s}");
-        }
-    }
 
     /// Two loaders on screen must not pulse as one, and one loader must not
     /// jump between frames. Both are properties of `key_phase` alone, so they

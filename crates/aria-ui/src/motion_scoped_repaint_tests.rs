@@ -31,7 +31,7 @@ fn a_tick_repaints_only_the_views_that_asked_for_it() {
     cx.update(|cx| {
         let animating = cx.new(|_| Marker);
         let still = cx.new(|_| Marker);
-        pulse_delta(&ZERON_PULSE, animating.entity_id(), cx);
+        pulse_delta(&presets::ZERON_PULSE, animating.entity_id(), cx);
 
         assert_eq!(
             pulse_tick(cx),
@@ -49,10 +49,10 @@ fn a_second_animation_joins_the_clock_instead_of_replacing_it() {
     cx.update(|cx| {
         let first = cx.new(|_| Marker);
         let second = cx.new(|_| Marker);
-        pulse_delta(&ZERON_PULSE, first.entity_id(), cx);
+        pulse_delta(&presets::ZERON_PULSE, first.entity_id(), cx);
         assert_eq!(pulse_tick(cx), Tick::Repainted(1));
 
-        pulse_delta(&ZERON_PULSE, second.entity_id(), cx);
+        pulse_delta(&presets::ZERON_PULSE, second.entity_id(), cx);
         assert_eq!(
             pulse_tick(cx),
             Tick::Repainted(2),
@@ -66,12 +66,13 @@ fn the_clock_parks_when_the_last_lease_expires() {
     let cx = TestAppContext::single();
     let view = cx.update(|cx| {
         let view = cx.new(|_| Marker);
-        pulse_delta(&ZERON_PULSE, view.entity_id(), cx);
+        pulse_delta(&presets::ZERON_PULSE, view.entity_id(), cx);
         view
     });
     // A lease is renewed by drawing. Stop drawing and the clock has to stop:
     // otherwise an idle window pays a repaint every 33 ms forever.
-    std::thread::sleep(PULSE_LEASE + Duration::from_millis(20));
+    cx.executor()
+        .advance_clock(PULSE_LEASE + Duration::from_millis(20));
     cx.update(|cx| {
         assert_eq!(
             pulse_tick(cx),
@@ -91,7 +92,7 @@ fn reduced_motion_takes_no_lease_at_all() {
         cx.set_reduce_motion(true);
         let view = cx.new(|_| Marker);
         assert_eq!(
-            pulse_delta(&ZERON_PULSE, view.entity_id(), cx),
+            pulse_delta(&presets::ZERON_PULSE, view.entity_id(), cx),
             0.0,
             "a pulse still moved under reduced motion"
         );

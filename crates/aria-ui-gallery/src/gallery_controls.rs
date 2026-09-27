@@ -6,7 +6,7 @@ use aria_ui::icons;
 use aria_ui::motion;
 use aria_ui::theme::Theme;
 use gpui::{
-    AnyElement, Context, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
+    AnyElement, App, Context, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
     ParentElement, Styled, div, px,
 };
 
@@ -15,9 +15,10 @@ use crate::{Gallery, GalleryState, NO_FIELD};
 
 /// One specimen per component, at rest. The catalogue, not the state matrix.
 ///
-/// Takes `cx` for one reason: the disclosure chevron below is drawn in whichever
-/// motion mode the header switch is in, because "reduced" is a state it has to
-/// survive rather than a state it skips.
+/// Takes `cx` for the motion frame: the disclosure chevron below is drawn in
+/// whichever motion mode the header switch is in, because "reduced" is a state
+/// it has to survive rather than a state it skips, and the pinned hovers are set
+/// at the frame's instant.
 pub fn controls(theme: &Theme, cx: &mut Context<Gallery>) -> AnyElement {
     section(
         theme,
@@ -73,9 +74,9 @@ pub fn controls(theme: &Theme, cx: &mut Context<Gallery>) -> AnyElement {
                     &[("Clip", true), ("Levels", false), ("Colour", false)],
                 ),
             ))
-            .child(chip_rows(theme))
-            .child(disclosure_rows(theme, motion::reduced_motion(cx)))
-            .child(icon_rows(theme))
+            .child(chip_rows(theme, cx))
+            .child(disclosure_rows(theme, cx.reduce_motion()))
+            .child(icon_rows(theme, cx))
             .into_any_element(),
     )
     .into_any_element()
@@ -88,9 +89,9 @@ pub fn controls(theme: &Theme, cx: &mut Context<Gallery>) -> AnyElement {
 /// force, one that is not, and one under the pointer — pinned, since a review
 /// copy has no hand on the mouse. The compact row recedes further by design, and
 /// that difference is the reason both rows are drawn.
-fn chip_rows(theme: &Theme) -> AnyElement {
+fn chip_rows(theme: &Theme, cx: &App) -> AnyElement {
     for size in components::ChipSize::ALL {
-        pin_hover("chip", &format!("ctl-chip-hover-{size:?}"));
+        pin_hover("chip", &format!("ctl-chip-hover-{size:?}"), cx);
     }
     group(
         theme,
@@ -180,7 +181,7 @@ fn disclosure_rows(theme: &Theme, reduced: bool) -> AnyElement {
 ///
 /// Row 2 is pinned open to prove the fades are keyed per index: if the key were
 /// shared, every row here would be bright.
-fn icon_rows(theme: &Theme) -> AnyElement {
+fn icon_rows(theme: &Theme, cx: &App) -> AnyElement {
     let paths = [
         icons::EYE,
         icons::LOCK,
@@ -189,7 +190,7 @@ fn icon_rows(theme: &Theme) -> AnyElement {
         icons::MAGNET,
         icons::TRASH,
     ];
-    pin_hover("icon", "gallery-row-2");
+    pin_hover("icon", "gallery-row-2", cx);
     group(
         theme,
         "icon_button((\"gallery-row\", index)) — one fade per row",
@@ -226,9 +227,9 @@ pub fn states(theme: &Theme, state: GalleryState, cx: &mut Context<Gallery>) -> 
             .flex()
             .flex_col()
             .gap(px(Theme::SPACE_MD))
-            .child(button_states(theme))
+            .child(button_states(theme, cx))
             .child(field_states(theme, state, cx))
-            .child(tab_states(theme))
+            .child(tab_states(theme, cx))
             .child(caption(
                 theme,
                 "No components:: entry takes an enabled flag, so `disabled` is \
@@ -240,11 +241,11 @@ pub fn states(theme: &Theme, state: GalleryState, cx: &mut Context<Gallery>) -> 
     .into_any_element()
 }
 
-fn button_states(theme: &Theme) -> AnyElement {
-    pin_hover("button", "st-button-hover");
-    pin_hover("ghost", "st-ghost-hover");
-    pin_hover("danger", "st-danger-hover");
-    pin_hover("icon", "st-icon-hover");
+fn button_states(theme: &Theme, cx: &App) -> AnyElement {
+    pin_hover("button", "st-button-hover", cx);
+    pin_hover("ghost", "st-ghost-hover", cx);
+    pin_hover("danger", "st-danger-hover", cx);
+    pin_hover("icon", "st-icon-hover", cx);
     group(
         theme,
         "button / ghost_button / danger_button / icon_button",
@@ -331,7 +332,7 @@ fn button_states(theme: &Theme) -> AnyElement {
 /// `text_box` takes `focused` from the caller, so the caller owns the click that
 /// takes focus. Both fields here are live: click one and the caret moves.
 fn field_states(theme: &Theme, state: GalleryState, cx: &mut Context<Gallery>) -> AnyElement {
-    pin_hover("field", "st-field-hover");
+    pin_hover("field", "st-field-hover", cx);
     let fields: Vec<AnyElement> = (0..2usize)
         .map(|index| {
             let focused = state.focused_field == index;
@@ -431,8 +432,8 @@ fn field_states(theme: &Theme, state: GalleryState, cx: &mut Context<Gallery>) -
 /// The keys are global to the process, though: nothing in them names the bar.
 /// Bars one and four below carry the same labels, so their tabs share a fade —
 /// that is the shipped behaviour, shown rather than hidden.
-fn tab_states(theme: &Theme) -> AnyElement {
-    pin_hover("tab", "Speed-1");
+fn tab_states(theme: &Theme, cx: &App) -> AnyElement {
+    pin_hover("tab", "Speed-1", cx);
     group(
         theme,
         "tab_bar — active / inactive / hover (pinned) / duplicate labels / shared keys",

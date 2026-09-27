@@ -9,30 +9,36 @@
 //! span by design, and the contract is documented rather than enforced, because
 //! every keyed value in the app is kept alive by being drawn.
 
+use std::time::Duration;
+
 use super::*;
 
 fn key(name: &str) -> motion::ControlId {
     motion::ControlId::Key(motion::MotionKey::new("delay-test", name))
 }
 
+/// The span of [`glide::WAIT`] and one frame more, on the test clock.
+fn past_the_wait() -> Duration {
+    glide::WAIT.total() + Duration::from_millis(30)
+}
+
 /// The first frame of a wait shows nothing. This is the whole feature: a fast
 /// load must leave no trace.
 #[test]
 fn a_wait_that_has_just_started_shows_no_loader() {
+    let _frames = motion::TestFrames::new();
     assert!(!worth_showing(key("fresh")));
 }
 
 /// A wait that outlasts the span gets its loader, and keeps it.
 #[test]
 fn a_wait_that_outlasts_the_span_shows_its_loader_and_keeps_it() {
+    let frames = motion::TestFrames::new();
     let wait = key("slow");
     assert!(!worth_showing(wait));
-    std::thread::sleep(
-        glide::WAIT
-            .total()
-            .mul_f32(motion::speed_scale())
-            .saturating_add(std::time::Duration::from_millis(30)),
-    );
+    frames.advance(glide::WAIT.total() - Duration::from_millis(30));
+    assert!(!worth_showing(wait), "the span is not up yet");
+    frames.advance(Duration::from_millis(60));
     assert!(
         worth_showing(wait),
         "the span is up, so the wait is visible"
@@ -45,14 +51,10 @@ fn a_wait_that_outlasts_the_span_shows_its_loader_and_keeps_it() {
 /// instantly — which is the flash, arriving by a different route.
 #[test]
 fn two_waits_age_separately() {
+    let frames = motion::TestFrames::new();
     let first = key("first");
     worth_showing(first);
-    std::thread::sleep(
-        glide::WAIT
-            .total()
-            .mul_f32(motion::speed_scale())
-            .saturating_add(std::time::Duration::from_millis(30)),
-    );
+    frames.advance(past_the_wait());
     let second = key("second");
     assert!(worth_showing(first));
     assert!(
@@ -61,8 +63,41 @@ fn two_waits_age_separately() {
     );
 }
 
-/// The span is a catalog span, not a number this file chose.
+/// The span is the duration scale's: a slower policy waits longer before a
+/// loader appears, so a loader never shows sooner than the motion around it.
 #[test]
-fn the_span_is_one_settle() {
-    assert_eq!(glide::WAIT.duration_ms(), motion::SETTLE.ms());
+fn the_span_follows_the_duration_scale() {
+    let frames = motion::TestFrames::new();
+    frames.update(|cx| cx.set_motion_policy(cx.motion_policy().with_duration_scale(2.0)));
+    let wait = key("scaled");
+    assert!(!worth_showing(wait));
+    frames.advance(past_the_wait());
+    assert!(
+        !worth_showing(wait),
+        "one authored span is half the scaled one"
+    );
+    frames.advance(glide::WAIT.total());
+    assert!(
+        worth_showing(wait),
+        "two authored spans cover the scaled one"
+    );
+}
+
+/// Reduced motion does not shorten a wait: a loader is information, and a
+/// wait that ends inside the span must still leave no trace.
+#[test]
+fn reduced_motion_does_not_shorten_the_wait() {
+    let frames = motion::TestFrames::new();
+    frames.update(|cx| cx.set_reduce_motion(true));
+    let wait = key("reduced");
+    assert!(!worth_showing(wait), "no loader on the first frame");
+    frames.advance(past_the_wait());
+    assert!(worth_showing(wait));
+}
+
+/// The span is one opening stage, not a number this file chose.
+#[test]
+fn the_span_is_one_opening_stage() {
+    assert_eq!(glide::WAIT, motion::OPEN);
+    assert_eq!(glide::WAIT.duration_ms, 320);
 }

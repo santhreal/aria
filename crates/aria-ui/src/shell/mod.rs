@@ -175,8 +175,8 @@ impl Shell {
 ///
 /// The window is on screen before any of this: what the operator watches is the
 /// layout resolving, so the order is the reading order — the bar, then the rails
-/// and the picture, then the timeline. Each stage waits one
-/// [`motion::OPEN_STAGE`] longer than the one before it, and the whole
+/// and the picture, then the timeline. Each stage waits
+/// [`motion::OPEN_STAGE_MS`] longer than the one before it, and the whole
 /// sequence fits inside the splash's own exit, so nothing is waited on.
 ///
 /// Reduced motion draws the stage plainly: not a faster open, no open.
@@ -192,23 +192,21 @@ where
     if reduced {
         return el.into_any_element();
     }
-    let spec = motion::OPEN.with_delay(motion::OPEN_STAGE.times(stage as u64));
-    el.with_animation(key.into().element("opening"), spec.animation(), |el, t| {
-        el.opacity(t).relative().top(px(6.0 * (1.0 - t)))
-    })
+    let spec = motion::OPEN.with_delay(motion::OPEN_STAGE_MS * stage as u64);
+    el.with_animation(
+        key.into().element("opening"),
+        motion::animation(spec),
+        |el, t| el.opacity(t).relative().top(px(6.0 * (1.0 - t))),
+    )
     .into_any_element()
 }
 
 impl Render for Shell {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(cx);
-        // Hover fades advance on the frame clock, so while one is in flight the
-        // window has to keep drawing or the blend freezes where the last mouse
-        // event left it. This is also the tick that retires entries nothing drew
-        // this frame, which is why it belongs here, once, and not in a child.
-        if motion::hover_fades_active() {
-            window.request_animation_frame();
-        }
+        // Every hover blend, glide and entrance this draw builds samples the
+        // frame opened here, so it comes before any child is built.
+        motion::begin_frame(cx);
         // The window's keyboard lives on one handle: `on_key_down` below and the
         // platform input handler both hang off it, so a keystroke and an IME
         // commit arrive at the same place. Nothing else in the app takes focus,
@@ -229,7 +227,7 @@ impl Render for Shell {
         // Five numbers, not the whole settings: the settings carry the key map,
         // and copying that to read a width is a copy per frame for nothing.
         let panes = self.state.read(cx).ui_settings.panes();
-        let reduced = motion::reduced_motion(cx);
+        let reduced = cx.reduce_motion();
         let dragging = self.drag.as_ref().map(|drag| drag.kind);
         // A pane's drawn size is a glide toward the committed one, so collapsing
         // a rail and releasing a splitter both settle instead of jumping. While
@@ -243,7 +241,7 @@ impl Render for Shell {
                 panes.sidebar_width
             },
             glide::PANE,
-            reduced || matches!(dragging, Some(DragKind::Sidebar)),
+            matches!(dragging, Some(DragKind::Sidebar)),
         );
         let inspector_w = glide::glide(
             motion::MotionKey::new("pane", "inspector"),
@@ -253,13 +251,13 @@ impl Render for Shell {
                 panes.inspector_width
             },
             glide::PANE,
-            reduced || matches!(dragging, Some(DragKind::Inspector)),
+            matches!(dragging, Some(DragKind::Inspector)),
         );
         let timeline_h = glide::glide(
             motion::MotionKey::new("pane", "timeline"),
             panes.timeline_height.max(TIMELINE_MIN_HEIGHT),
             glide::PANE,
-            reduced || matches!(dragging, Some(DragKind::Timeline)),
+            matches!(dragging, Some(DragKind::Timeline)),
         );
 
         let route = self.state.read(cx).route;
@@ -453,7 +451,7 @@ impl Render for Shell {
                     // exactly where the pointer left it, which is what a slow
                     // drag, a pause before the release, and reduced motion all
                     // ask for.
-                    let throw = drag.throw(motion::reduced_motion(cx));
+                    let throw = drag.throw(cx.reduce_motion());
                     if throw != 0.0 {
                         this.state.update(cx, |state, _| {
                             let from = state.scroll_x;
@@ -492,10 +490,11 @@ impl Render for Shell {
             }))
             .child(body)
             .child(ime)
-            // Nothing to paint: the frame that drew a value still travelling asks
-            // for the next one, so a collapse, a ripple or a follow runs to its
-            // end. Mounted here because the shell is the one element drawn in
-            // every route.
+            // Nothing to paint: ends the motion frame after every element that
+            // read the stores, and requests the next frame while a value is
+            // still travelling, so a hover, a collapse, a ripple or a follow
+            // runs to its end. Mounted here because the shell is the one element
+            // drawn in every route.
             .child(motion_driver())
             .children(splash)
             .children(dialog_overlay)
@@ -508,12 +507,12 @@ impl Render for Shell {
 ///
 /// A GPUI view repaints when something notifies it, and an eased value has
 /// nothing to notify it: the value is a function of the clock. So the frame that
-/// drew an unsettled value asks for the next one. Nothing is painted, and once
-/// every value has landed the requests stop.
+/// drew an unsettled value requests the next one through [`motion::end_frame`].
+/// Nothing is painted, and once every value has landed the requests stop.
 ///
-/// It lives with the shell rather than with the store because exactly one
-/// window drives the frames: a second driver would advance the store's frame
-/// counter twice and evict the values the first had just drawn.
+/// It is mounted by the shell rather than by the stores because exactly one
+/// element ends each frame: a second would advance the stores' frame counter
+/// twice and drop the values the first had just drawn.
 fn motion_driver() -> impl IntoElement {
     gpui::canvas(
         |_, window, cx| {
@@ -522,9 +521,7 @@ fn motion_driver() -> impl IntoElement {
             if !gpui::App::has_active_drag(cx) {
                 crate::drag_hint::clear();
             }
-            if glide::tick() {
-                window.request_animation_frame();
-            }
+            motion::end_frame(window);
         },
         |_, _, _, _| {},
     )

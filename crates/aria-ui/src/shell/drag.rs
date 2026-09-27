@@ -4,6 +4,8 @@
 //! Split out of `shell.rs` as a pure move, so the chrome file holds the window
 //! and this one holds the gesture.
 
+use gpui::motion::fling;
+
 use super::*;
 
 #[derive(Clone, Copy)]
@@ -30,7 +32,7 @@ pub(super) struct Drag {
     sample: f32,
     sampled_at: Instant,
     /// Pixels per millisecond, smoothed across samples by
-    /// [`motion::sample_velocity`], so one jittery frame cannot decide a throw.
+    /// [`fling::sample_velocity`], so one jittery frame cannot decide a throw.
     velocity: f32,
 }
 
@@ -54,7 +56,7 @@ impl Drag {
     pub(super) fn sample(&mut self, at: f32) {
         let now = Instant::now();
         let dt = now.saturating_duration_since(self.sampled_at).as_secs_f32() * 1000.0;
-        self.velocity = motion::sample_velocity(self.velocity, at - self.sample, dt);
+        self.velocity = fling::sample_velocity(self.velocity, at - self.sample, dt);
         self.sample = at;
         self.sampled_at = now;
     }
@@ -69,6 +71,6 @@ impl Drag {
             .saturating_duration_since(self.sampled_at)
             .as_secs_f32()
             * 1000.0;
-        motion::fling_distance(self.velocity, age, reduced)
+        fling::fling_distance(self.velocity, age, reduced)
     }
 }

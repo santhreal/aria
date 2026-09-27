@@ -170,7 +170,7 @@ pub(super) fn track_toggle(
         id.motion("toggle"),
         if active { 1.0 } else { 0.0 },
         glide::EDIT,
-        motion::reduced_motion(cx),
+        cx.reduce_motion(),
     );
     let key = id.motion("toggle-hover");
     div()
@@ -223,7 +223,7 @@ fn lane_toggle(
             motion::MotionKey::new("lane-chev", lane.id),
             lit,
             theme.text_muted,
-            motion::reduced_motion(cx),
+            cx.reduce_motion(),
         )
         .into_any_element(),
     };

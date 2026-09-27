@@ -101,7 +101,7 @@ impl AppState {
     /// Move the timeline's scroll the way a released pan does.
     ///
     /// The distance is the momentum the release was carrying
-    /// ([`crate::motion::fling_distance`]); the settle is the one spec that
+    /// ([`gpui::motion::fling::fling_distance`]); the settle is the one spec that
     /// overshoots, so the offset passes the target it was thrown at and comes
     /// back. Goes through [`Self::scroll_timeline_to`], so the clamp and the two
     /// copies are still that method's business and this adds only the feel.

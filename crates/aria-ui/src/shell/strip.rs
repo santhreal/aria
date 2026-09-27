@@ -67,8 +67,8 @@ pub(super) fn status_strip(
     // jobs panel says what the work is; this says only that there is some.
     let live_work = crate::pending::any_live(state, |_| true, cx);
     let dot = if live_work {
-        let phase = motion::pulse_delta(&motion::ZERON_PULSE, cx.entity_id(), cx);
-        motion::pulse_opacity(phase)
+        let phase = motion::pulse_delta(&gpui::motion::presets::ZERON_PULSE, cx.entity_id(), cx);
+        gpui::motion::loaders::pulse_opacity(phase)
     } else {
         0.0
     };

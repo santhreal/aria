@@ -14,19 +14,18 @@
 
 use aria_engine::EngineError;
 use aria_models::ClipParam;
+use gpui::motion::{lerp, presets};
 use gpui::{
-    CursorStyle, EntityId, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
-    ParentElement, SharedString, StatefulInteractiveElement, Styled, div, px, relative,
+    CursorStyle, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
+    SharedString, StatefulInteractiveElement, Styled, div, px, relative,
 };
 
 use crate::app::AppState;
-use crate::motion;
+use crate::motion::{self, glide};
 use crate::surfaces::keyframe_rows::{self, Row};
 use crate::surfaces::param_units;
 use crate::theme::Theme;
 use crate::types::UiClipKind;
-
-use super::slide;
 
 /// Thickness of a row's value track.
 const TRACK_H: f32 = 3.0;
@@ -83,15 +82,13 @@ pub fn stepper_row(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     let label = label.into();
-    let view = cx.entity_id();
-    let reduced = motion::reduced_motion(cx);
     let hovered = motion::hover_t(key);
 
     // One eased value feeds both the fill and the readout, so a bar that has
     // arrived cannot be drawn beside a number that says it has not.
     let (fill, lead) = match travel {
         Some(travel) => {
-            let eased = slide::toward(key, travel.value, &motion::RESIZE, reduced);
+            let eased = glide::glide(key, travel.value, presets::RESIZE, false);
             let remaining = if travel.step > 0.0 {
                 ((eased - travel.value).abs() / travel.step).clamp(0.0, 1.0)
             } else {
@@ -112,7 +109,7 @@ pub fn stepper_row(
         .items_center()
         .gap(px(Theme::SPACE_XS));
     if let Some(watch) = stopwatch {
-        head = head.child(stopwatch_dot(theme, key, watch, reduced, view, cx));
+        head = head.child(stopwatch_dot(theme, key, watch, cx));
     }
     let head = head
         .child(
@@ -157,27 +154,23 @@ pub fn stepper_row(
     row.on_mouse_down(
         MouseButton::Left,
         cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-            apply_nudge(this, nudge, step, view, cx);
+            apply_nudge(this, nudge, step, cx);
         }),
     )
     .on_mouse_down(
         MouseButton::Right,
         cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-            apply_nudge(this, nudge, -step, view, cx);
+            apply_nudge(this, nudge, -step, cx);
         }),
     )
 }
 
-/// Write the nudge, then lease the frames the row needs to be seen arriving.
-///
-/// Without the lease the travel would be computed once and never again: the
-/// fill would jump to the new value on the next repaint, which is the thing
-/// the track exists to avoid.
+/// Write the nudge and redraw. The redraw retargets the row's glide, and the
+/// glide store requests frames until the fill has arrived.
 fn apply_nudge(
     shell: &mut crate::shell::Shell,
     nudge: impl Fn(&mut AppState, f32) -> Result<(), EngineError>,
     delta: f32,
-    view: EntityId,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) {
     shell.state.update(cx, |state, _| {
@@ -185,7 +178,6 @@ fn apply_nudge(
             state.report_error(&err);
         }
     });
-    motion::pulse_delta(&motion::RESIZE, view, cx);
     cx.notify();
 }
 
@@ -244,8 +236,6 @@ fn stopwatch_dot(
     theme: &Theme,
     key: motion::MotionKey,
     watch: Stopwatch,
-    reduced: bool,
-    view: EntityId,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     let param = watch.param;
@@ -259,11 +249,11 @@ fn stopwatch_dot(
     } else {
         0.0
     };
-    let at = slide::toward(key.with("watch"), target, &motion::CHEVRON, reduced);
+    let at = glide::glide(key.with("watch"), target, presets::CHEVRON, false);
     let on = at.min(1.0);
     let pin = (at - 1.0).clamp(0.0, 1.0);
     let ring = motion::mix(theme.text_faint, theme.accent, on);
-    let core = px(motion::lerp(0.0, DOT - 3.0, on) + motion::lerp(0.0, 2.0, pin));
+    let core = px(lerp(0.0, DOT - 3.0, on) + lerp(0.0, 2.0, pin));
     div()
         .id(key.with("watch").element_id("insp-key"))
         .size(px(DOT + 4.0))
@@ -301,7 +291,6 @@ fn stopwatch_dot(
                         state.report_error(&err);
                     }
                 });
-                motion::pulse_delta(&motion::CHEVRON, view, cx);
                 cx.notify();
             }),
         )

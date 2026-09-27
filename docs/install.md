@@ -60,5 +60,6 @@ cargo run -p aria-desktop
 ```
 
 The workspace builds the whole editor, including the engine, the compositor, and
-the GPUI shell. GPUI is pinned from the `wingleeio/zed` fork; see
-[`vendor/README.md`](../vendor/README.md).
+the GPUI shell. GPUI comes from
+[santh-gpui](https://github.com/santhreal/santh-gpui), pinned by git revision
+in the workspace `Cargo.toml`.

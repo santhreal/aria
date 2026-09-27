@@ -299,12 +299,12 @@ fn row(
         .child(
             div()
                 .relative()
-                .left(px(motion::lerp(0.0, 3.0, lit)))
+                .left(px(gpui::motion::lerp(0.0, 3.0, lit)))
                 .child(crate::components::chevron(
                     motion::MotionKey::new("bin-chev", bin),
                     false,
                     motion::mix(theme.text_faint, theme.accent, lit),
-                    motion::reduced_motion(cx),
+                    cx.reduce_motion(),
                 )),
         )
         .child(div().text_size(px(12.)).text_color(theme.text).child(label));

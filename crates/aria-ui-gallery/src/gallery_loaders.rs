@@ -5,8 +5,8 @@ use aria_ui::chrome::dialog;
 use aria_ui::components;
 use aria_ui::frost;
 use aria_ui::loaders;
-use aria_ui::motion;
 use aria_ui::theme::Theme;
+use gpui::motion::presets;
 use gpui::{
     AnyElement, Context, EntityId, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
     ParentElement, Styled, div, px,
@@ -239,8 +239,8 @@ fn splash(
                 format!(
                     "splash_out is {}ms after a {}ms delay and runs once per mount; \
                      toggle to replay it.",
-                    motion::SPLASH_OUT.duration_ms(),
-                    motion::SPLASH_OUT.delay_ms()
+                    presets::SPLASH_OUT.duration_ms,
+                    presets::SPLASH_OUT.delay_ms
                 ),
             )),
     )
@@ -392,7 +392,7 @@ fn scrim_and_dialog(theme: &Theme, state: GalleryState, cx: &mut Context<Gallery
                 format!(
                     "dialog_layer draws its own scrim and runs dialog_in ({}ms) on \
                      mount; toggle to replay it.",
-                    motion::DIALOG_IN.duration_ms()
+                    presets::DIALOG_IN.duration_ms
                 ),
             )),
     )

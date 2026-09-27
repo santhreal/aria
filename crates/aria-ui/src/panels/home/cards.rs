@@ -7,6 +7,7 @@
 //! lift under the pointer instead of switching colour, and they sit on frosted
 //! glass instead of a flat fill.
 
+use gpui::motion::{loaders, presets};
 use gpui::{
     AnimationExt, CursorStyle, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
     ParentElement, SharedString, StatefulInteractiveElement, Styled, div, px,
@@ -31,21 +32,20 @@ pub(super) fn press(state: &mut AppState, pick: Pick) {
     }
 }
 
-/// A share of the entry, as [`motion::FADE_IN`] measures it.
+/// `ms` as a share of the entry, as [`presets::FADE_IN`] measures it.
 ///
 /// The grid's timings are fractions of one animation rather than durations of
 /// their own, because `with_animation` hands out a phase from 0 to 1. This is
-/// how a step on the scale becomes that fraction, so the cards are timed by the
-/// scale like everything else in the app.
-const fn share(beat: motion::Beat) -> f32 {
-    beat.ms() as f32 / motion::FADE_IN.total_ms() as f32
+/// how a length in milliseconds becomes that fraction.
+const fn share(ms: u64) -> f32 {
+    ms as f32 / (presets::FADE_IN.delay_ms + presets::FADE_IN.duration_ms) as f32
 }
 
 /// How much of the entry each card waits out before its own fade starts: two
-/// frames per card.
-const CARD_STAGGER: f32 = share(motion::ROW_STAGGER.times(2));
-/// The share of the entry one card's own fade takes.
-const CARD_FADE: f32 = share(motion::SNAP);
+/// row staggers per card.
+const CARD_STAGGER: f32 = share(2 * motion::ROW_STAGGER_MS);
+/// The share of the entry one card's own fade takes: 200 ms.
+const CARD_FADE: f32 = share(200);
 /// How far a card rises under the pointer.
 const HOVER_LIFT: f32 = 3.0;
 
@@ -59,7 +59,7 @@ fn last_slot() -> usize {
 /// Where card `index` is in the grid's entry: 0 before its turn, 1 once it has
 /// arrived.
 ///
-/// [`motion::staggered_phase`] is the offset-and-wrap the loaders run on. The
+/// [`loaders::staggered_phase`] is the offset-and-wrap the loaders run on. The
 /// clamps here are what turn a looping phase into a one-shot entry, because a
 /// card that has arrived has to stay arrived. `raw` is only ever handed to the
 /// helper strictly past this card's start, so the wrap cannot fire and the
@@ -70,7 +70,7 @@ pub(super) fn card_entry(raw: f32, index: usize) -> f32 {
     if raw <= start {
         return 0.0;
     }
-    (motion::staggered_phase(raw.min(start + CARD_FADE), slot, CARD_STAGGER) / CARD_FADE)
+    (loaders::staggered_phase(raw.min(start + CARD_FADE), slot, CARD_STAGGER) / CARD_FADE)
         .clamp(0.0, 1.0)
 }
 
@@ -90,7 +90,7 @@ where
     let lift = HOVER_LIFT * motion::hover_t(key);
     card.with_animation(
         id.into().element("card-in"),
-        motion::FADE_IN.animation(),
+        motion::animation(presets::FADE_IN),
         move |el, raw| {
             let t = card_entry(raw, index);
             el.relative().opacity(t).top(px(6.0 * (1.0 - t) - lift))

@@ -346,7 +346,7 @@ pub(super) fn catalog_row(
         // The row rises as it lights. In a list of forty rows that differ only
         // by their text, the lift is what says which one the click will hit.
         .relative()
-        .top(px(-motion::lerp(0.0, 2.0, lit)))
+        .top(px(-gpui::motion::lerp(0.0, 2.0, lit)))
         .child(div().text_size(px(13.)).text_color(text).child(if applied {
             gpui::SharedString::from(format!("• {}", choice.label))
         } else {
@@ -355,7 +355,7 @@ pub(super) fn catalog_row(
         .child(div().text_size(px(11.)).text_color(muted).child(caption))
         .on_hover(cx.listener(move |this, hovered: &bool, window, cx| {
             let hovered = *hovered;
-            motion::set_hover(hover_key, hovered, motion::reduced_motion(cx));
+            motion::set_hover(hover_key, hovered, cx.motion_policy(), cx.frame_instant());
             window.refresh();
             if !previews {
                 return;
@@ -421,7 +421,7 @@ pub(super) fn generator_tile(
         .active(|style| style.opacity(0.92))
         .bg(motion::hover_blend(key, theme.wash(0.0), theme.wash(0.06)))
         .relative()
-        .top(px(-motion::lerp(0.0, 2.0, lit)))
+        .top(px(-gpui::motion::lerp(0.0, 2.0, lit)))
         .on_hover(motion::hover_listener(key))
         .child(div().text_size(px(13.)).text_color(text).child(label))
         .child(

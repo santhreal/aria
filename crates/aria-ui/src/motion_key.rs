@@ -1,15 +1,14 @@
 //! The key every motion store uses to name one animated control.
-//!
-//! A pure move out of `motion.rs` to stay under the file ceiling; the parent
-//! re-exports it, so every existing path resolves.
 
-use super::*;
+use std::fmt::{self, Write as _};
+use std::hash::{Hash, Hasher};
+
+use gpui::ElementId;
 
 /// One animated thing's identity: which kind of control, and which instance.
 ///
-/// Shared by all three motion stores — the hover fades here, the timeline's
-/// glides, and the inspector's slides — so a control is named the same way
-/// wherever it moves.
+/// Shared by the hover store, the glide store, and every one-shot element id,
+/// so a control is named the same way wherever it moves.
 ///
 /// A key is built on every draw of every animated element, so it holds a hash
 /// rather than the text. The string form allocated twice per hovered
@@ -153,4 +152,18 @@ impl ControlId {
         };
         (bits % 1000) as f32 / 1000.0
     }
+}
+
+/// A phase offset in `[0, 1)` derived from a loader's key.
+///
+/// Two loaders on screen run off the same pulse clock, so without an offset
+/// they pulse in lockstep and read as one animation drawn twice. Hashing the
+/// key keeps the offset stable across frames: the same row lands on the same
+/// phase every frame.
+pub fn key_phase(key: &str) -> f32 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    key.hash(&mut hasher);
+    // The low 16 bits are enough resolution for a phase and keep the divide
+    // exact in f32.
+    (hasher.finish() & 0xFFFF) as f32 / 65_536.0
 }

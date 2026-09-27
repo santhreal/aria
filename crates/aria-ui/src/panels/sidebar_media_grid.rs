@@ -234,7 +234,7 @@ pub(super) fn media_tile(
         // thumbnails needs the one that is about to be placed to stand out
         // from the ones beside it, and colour alone does not do it.
         .relative()
-        .top(px(-motion::lerp(0.0, 2.0, lit)))
+        .top(px(-gpui::motion::lerp(0.0, 2.0, lit)))
         .on_hover(motion::hover_listener(key))
         // Drawing the picture is what asks for a decode, so a view that does not
         // show one costs nothing per item beyond its text.

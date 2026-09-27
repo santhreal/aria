@@ -7,7 +7,6 @@ pub mod grade;
 pub mod keyframes;
 pub mod mask;
 pub mod matte;
-pub mod slide;
 pub mod styles;
 pub mod template;
 pub mod transition;

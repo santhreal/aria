@@ -382,5 +382,9 @@ and is what refusal messages quote.
 Theme and motion are a near-verbatim port of
 [Comet](https://github.com/zeronsh/comet). See
 [theme-tokens.md](theme-tokens.md) and
-[animation-catalog.md](animation-catalog.md). GPUI is pinned to Comet's
-`wingleeio/zed` revision; provenance is in `vendor/README.md`.
+[animation-catalog.md](animation-catalog.md). GPUI comes from
+[santh-gpui](https://github.com/santhreal/santh-gpui), pinned by git revision
+in the workspace `Cargo.toml`. Curves, specs, presets, loader waveforms, and
+release velocity are `gpui::motion`; `aria_ui::motion` holds the editor's
+hover and glide stores, the entrances, the pulse clock, and the motion choice
+in Settings.

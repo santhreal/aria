@@ -5,7 +5,7 @@
 
 use gpui::{
     AnyElement, App, Bounds, Corners, Element, GlobalElementId, InspectorElementId, IntoElement,
-    LayoutId, Pixels, Window, px,
+    LayoutId, Pixels, Window, px, transparent_black,
 };
 
 use crate::theme::Theme;
@@ -80,6 +80,8 @@ impl Element for Frosted {
                     bounds,
                     Corners::all(px(self.corner_radius)),
                     px(self.blur_radius),
+                    1.0,
+                    transparent_black(),
                 );
                 self.child.paint(window, cx);
             });

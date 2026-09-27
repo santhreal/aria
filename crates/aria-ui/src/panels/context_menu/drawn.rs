@@ -24,7 +24,7 @@ pub(super) fn drawn_target(
     }
     // An exit needs frames to spend and reduced motion schedules none, so the
     // fade would hang on the screen at full opacity instead of finishing.
-    if exiting.is_none() || motion::reduced_motion(cx) {
+    if exiting.is_none() || cx.reduce_motion() {
         LAST_TARGET.with(|slot| slot.borrow_mut().take());
         return None;
     }

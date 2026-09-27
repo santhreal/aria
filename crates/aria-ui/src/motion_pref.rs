@@ -1,14 +1,13 @@
 //! How much motion the app is allowed: the operator's choice, persisted.
 //!
-//! Every duration in the catalog is multiplied by [`speed_scale`], and every
-//! primitive already asks [`reduced_motion`] whether to animate at all. So a
-//! preference is two numbers rather than a per-animation setting, and adding a
-//! speed is one variant here — the label, the multiplier, and whether it counts
-//! as reduced motion are all named in one place.
+//! A choice is a [`MotionPolicy`]: a duration scale that multiplies every
+//! motion duration, and whether motion is reduced. Adding a speed is one
+//! variant here, with its label, its multiplier, and whether it counts as
+//! reduced motion.
 
+use gpui::App;
+use gpui::motion::MotionPolicy;
 use serde::{Deserialize, Serialize};
-
-use super::*;
 
 /// The motion speeds offered in Settings.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -68,42 +67,37 @@ impl MotionPreference {
         matches!(self, Self::Off)
     }
 
-    /// Install the choice. Both halves are set together because a scale left
-    /// over from the previous choice would apply to the next transition that
-    /// ran, which is the one the operator is watching.
+    /// The motion policy this choice installs.
+    pub fn policy(self) -> MotionPolicy {
+        MotionPolicy::DEFAULT
+            .with_reduced(self.reduced())
+            .with_duration_scale(self.scale())
+    }
+
+    /// Installs the choice as the app's [`MotionPolicy`], which redraws every
+    /// window. The scale and the reduced flag are set together, so a scale left
+    /// over from the previous choice never applies to the next transition.
     pub fn apply(self, cx: &mut App) {
-        set_speed_scale(self.scale());
-        set_reduced_motion(cx, self.reduced());
+        cx.set_motion_policy(self.policy());
     }
 }
 
-/// The multiplier every catalog duration passes through.
-pub fn speed_scale() -> f32 {
-    f32::from_bits(MOTION_SCALE.load(Ordering::Relaxed))
-}
+/// The environment variable that sets the duration scale at startup.
+pub const SCALE_ENV: &str = "ARIA_MOTION_SCALE";
 
-/// Set the multiplier every catalog duration passes through.
-///
-/// A non-finite value is refused rather than stored: it would make every
-/// duration NaN, and a transition that never finishes is worse than a fast one.
-pub fn set_speed_scale(scale: f32) {
-    if !scale.is_finite() {
+/// Sets the duration scale of the app's [`MotionPolicy`] from [`SCALE_ENV`],
+/// clamped by [`MotionPolicy::parse_duration_scale`]. An unset variable leaves
+/// the policy unchanged; a value that is not a finite number is ignored with a
+/// warning. A later [`MotionPreference::apply`] replaces the scale.
+pub fn seed_scale_from_env(cx: &mut App) {
+    let Ok(text) = std::env::var(SCALE_ENV) else {
         return;
+    };
+    match MotionPolicy::parse_duration_scale(&text) {
+        Some(scale) => cx.set_motion_policy(cx.motion_policy().with_duration_scale(scale)),
+        None => tracing::warn!(
+            value = %text,
+            "{SCALE_ENV} is not a finite number; the duration scale is unchanged"
+        ),
     }
-    MOTION_SCALE.store(
-        scale.clamp(MIN_SCALE, MAX_SCALE).to_bits(),
-        Ordering::Relaxed,
-    );
-}
-
-/// Set the setting, and the mirror the context-free surfaces read. Both are
-/// written here because a mirror that lags the setting is a pane that keeps
-/// sliding after motion was turned off.
-pub fn set_reduced_motion(cx: &mut App, reduced: bool) {
-    set_reduced_mirror(reduced);
-    cx.set_reduce_motion(reduced);
-}
-
-pub fn reduced_motion(cx: &App) -> bool {
-    cx.reduce_motion()
 }

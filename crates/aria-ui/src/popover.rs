@@ -3,7 +3,9 @@
 //! Ported from Comet (<https://github.com/zeronsh/comet>)
 //! MIT License — see LICENSES/comet-MIT.txt
 
-use crate::motion;
+use std::time::Duration;
+
+use gpui::motion::presets;
 
 pub use crate::types::Loadable;
 
@@ -81,9 +83,11 @@ impl<T> Popup<T> {
         std::mem::take(&mut self.pressed_while_open)
     }
 
-    pub fn finish_close(&mut self) {
+    /// Drops a closing popup once `exit`, the length of its exit animation,
+    /// has passed since [`Self::begin_close`].
+    pub fn finish_close(&mut self, exit: Duration) {
         if let Some((_, Some(since))) = &self.inner
-            && since.elapsed() >= motion::MENU_OUT.total().mul_f32(motion::speed_scale())
+            && since.elapsed() >= exit
         {
             self.inner = None;
         }
@@ -94,17 +98,13 @@ pub fn reap_popup<V: 'static, T: 'static>(
     cx: &mut gpui::Context<V>,
     popup: impl Fn(&mut V) -> &mut Popup<T> + 'static,
 ) {
+    let exit = cx.motion_policy().scale(presets::MENU_OUT.total());
     cx.spawn(async move |view, cx| {
         cx.background_executor()
-            .timer(
-                motion::MENU_OUT
-                    .total()
-                    .mul_f32(motion::speed_scale())
-                    .saturating_add(std::time::Duration::from_millis(20)),
-            )
+            .timer(exit.saturating_add(Duration::from_millis(20)))
             .await;
         view.update(cx, |view, cx| {
-            popup(view).finish_close();
+            popup(view).finish_close(exit);
             cx.notify();
         })
         .ok();
@@ -230,15 +230,16 @@ mod tests {
 
     #[test]
     fn popup_finish_close_after_menu_out() {
+        let exit = presets::MENU_OUT.total();
         let mut popup = Popup::default();
         popup.open(1u8);
         popup.begin_close();
+        popup.finish_close(exit);
+        assert!(popup.get().is_some(), "the exit has not been spent yet");
         if let Some((_, Some(since))) = &mut popup.inner {
-            *since = std::time::Instant::now()
-                - motion::MENU_OUT.total().mul_f32(motion::speed_scale())
-                - std::time::Duration::from_millis(1);
+            *since = std::time::Instant::now() - exit - Duration::from_millis(1);
         }
-        popup.finish_close();
+        popup.finish_close(exit);
         assert!(popup.get().is_none());
     }
 

@@ -61,7 +61,7 @@ pub(super) fn step(
             }
         }
         Splash::Fading(since) => {
-            if now.saturating_duration_since(since) >= motion::SPLASH_OUT.total() {
+            if now.saturating_duration_since(since) >= gpui::motion::presets::SPLASH_OUT.total() {
                 (Splash::Done, None)
             } else {
                 (Splash::Fading(since), Some(true))
@@ -130,14 +130,14 @@ mod tests {
         );
         assert_eq!(draw, Some(true));
 
-        let mid = ready_at + motion::SPLASH_OUT.total() / 2;
+        let mid = ready_at + gpui::motion::presets::SPLASH_OUT.total() / 2;
         assert_eq!(
             step(fading, true, false, mid),
             (Splash::Fading(ready_at), Some(true)),
             "a fade in flight keeps its own start"
         );
 
-        let after = ready_at + motion::SPLASH_OUT.total();
+        let after = ready_at + gpui::motion::presets::SPLASH_OUT.total();
         assert_eq!(
             step(fading, true, false, after),
             (Splash::Done, None),

@@ -22,7 +22,7 @@ Notes for the latest release. For previous releases, see the
 - Assistant tools now derive their command variant, schema, decode, reverse name, and group from one registry row.
 - BT.2020 exports now use BT.2020 conversion coefficients instead of BT.709 coefficients.
 - Android and Windows decode now reject unknown pixel layouts instead of reading them as NV12.
-- Every workspace target now compiles on the declared Rust 1.92 minimum.
+- Every workspace target compiles on the declared Rust 1.97 minimum.
 - Scope refreshes reuse their pixel canvases, playback recycles mixed audio blocks, and filmstrip edits invalidate only affected timeline spans.
 - Built-in menus, panel-location resolution, inspector controls, clip timecodes, settings filtering, tooltips, shared control hover colors, the animated mark, sidebar catalogs, duck controls, toolbar clocks, status aging, bin navigation, selection fitting, and marquee gestures now avoid repeated repaint work.
 - Clipboard attribute paste is one atomic undoable edit that preserves transform keyframes, and palette, keyframe, media-caption, ducking, and export-range paths avoid repeated hot-path allocation or scans.
@@ -1177,6 +1177,15 @@ Notes for the latest release. For previous releases, see the
   originals, as it already did.
 
 ### Changed
+
+- **GPUI builds from santh-gpui, the framework shared with iris and Veyyon.**
+  The vendored copy of the `wingleeio/zed` fork is deleted, and building from
+  source requires Rust 1.97 or newer.
+
+- **Interface motion uses the `gpui::motion` presets of santh-gpui.** Menus open
+  in 140 ms and close in 100 ms, dialogs arrive in 180 ms, hover fades, quick
+  fades and the inspector tab indicator take 150 ms, lane heights settle in
+  180 ms, and the splash holds 150 ms before it fades.
 
 - **Headless renderers share one process GPU device.** Engine construction no
   longer opens another adapter and logical device for every background render or

@@ -151,6 +151,7 @@ pub fn run_app_with(config: UiConfig) {
         // themselves motion, so a reduced-motion choice has to be installed
         // before anything animates, not after the first frame.
         saved.motion.apply(cx);
+        motion::seed_scale_from_env(cx);
         appearance::init(saved.appearance, data_dir.clone(), cx);
         open_main_window(state, cx);
         cx.activate(true);

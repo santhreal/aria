@@ -1,12 +1,16 @@
-//! Tests for [`super`]: what a release is worth.
+//! Tests for [`gpui::motion::fling`] as the timeline pan spends it: what a
+//! release is worth.
 //!
 //! The class closed here is a throw that does not answer to the gesture that
-//! made it — one sample deciding the distance, a hand that stopped still
+//! made it: one sample deciding the distance, a hand that stopped still
 //! throwing, a placement drifting on, or a reduced-motion session moving on its
 //! own. Every rule is checked at its boundary, because every one of them is a
 //! threshold.
 
-use super::*;
+use gpui::motion::fling::{
+    FLING_COAST_MS as COAST_MS, FLING_MAX_RATE as MAX_RATE, FLING_MIN_RATE as MIN_RATE,
+    FLING_STALE_MS as STALE_MS, fling_distance, sample_velocity,
+};
 
 /// A steady drag converges on the rate it is actually moving at, and does not
 /// overshoot it: the blend is a weighted mean, so it approaches from below.

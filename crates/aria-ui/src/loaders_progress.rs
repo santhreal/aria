@@ -12,9 +12,7 @@
 
 use super::*;
 
-// The eased-geometry store, for the determinate fill. It lives under the
-// timeline because that is where it was first needed, not because it is a
-// timeline concern; see the ledger's dependency-direction row.
+// The glide store, for the determinate fill.
 use crate::motion::glide;
 
 /// The height of the bar. Thin enough to sit under a row of text without
@@ -137,7 +135,7 @@ fn indeterminate(
 /// `phase` is unbounded — a key offset is added to the clock — so the wave is
 /// what keeps this inside the track rather than a clamp.
 fn shuttle_left(phase: f32) -> f32 {
-    (1.0 - SHUTTLE) * motion::pulse_wave(phase)
+    (1.0 - SHUTTLE) * loaders::pulse_wave(phase)
 }
 
 #[cfg(test)]

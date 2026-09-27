@@ -5,7 +5,8 @@
 
 use aria_ui::motion;
 use aria_ui::theme::Theme;
-use gpui::{AnyElement, Hsla, IntoElement, ParentElement, Styled, div, px};
+use gpui::motion::MotionPolicy;
+use gpui::{AnyElement, App, Hsla, IntoElement, ParentElement, Styled, div, px};
 
 /// Section titles in scroll order.
 ///
@@ -200,11 +201,16 @@ pub fn meter(theme: &Theme, label: &str, t: f32) -> AnyElement {
 /// a pointer parked on it.
 ///
 /// The key is rebuilt here from the same two parts the components hash, so a
-/// specimen pins the same fade the real control drives. `reduced` is passed as
-/// `true` deliberately: the fade should land instantly rather than restart
+/// specimen pins the same fade the real control drives. The toggle is set under
+/// reduced motion, so the fade lands on the first frame rather than restarting
 /// every frame.
-pub fn pin_hover(kind: &str, id: &str) {
-    motion::set_hover(motion::MotionKey::new(kind, id), true, true);
+pub fn pin_hover(kind: &str, id: &str, cx: &App) {
+    motion::set_hover(
+        motion::MotionKey::new(kind, id),
+        true,
+        MotionPolicy::REDUCED,
+        cx.frame_instant(),
+    );
 }
 
 /// A checkerboard of theme tokens. A blur over a flat fill is invisible, so

@@ -49,8 +49,8 @@ just gives reviewers helpful context.
 
 ## Development setup
 
-Aria is a Rust workspace. Install Rust 1.92 or newer. `Cargo.toml` and CI
-enforce 1.92 as the minimum supported Rust version; `rust-toolchain.toml`
+Aria is a Rust workspace. Install Rust 1.97 or newer. `Cargo.toml` and CI
+enforce 1.97 as the minimum supported Rust version; `rust-toolchain.toml`
 tracks stable for normal development. Media decode and encode use AVFoundation
 on Apple, Media Foundation on Windows, MediaCodec on Android, and GStreamer
 1.24 on Linux. Linux builds require the GStreamer development packages.

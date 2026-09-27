@@ -8,6 +8,10 @@
 //! What these do not catch: the drawn colour, and whether the bar is mounted at
 //! all. The first is a theme token, and the second is the caller's condition.
 
+use std::time::Duration;
+
+use gpui::motion::presets;
+
 use super::*;
 
 /// A key nothing else uses, so the process-wide chased value cannot be carried
@@ -56,12 +60,14 @@ fn the_shuttle_reverses_instead_of_wrapping() {
 /// a negative fraction empties it. Neither draws outside the track.
 #[test]
 fn a_fraction_a_job_could_not_have_meant_still_draws_inside_the_track() {
+    let frames = motion::TestFrames::new();
     for reported in [-1.0, -0.0, 0.0, 0.5, 1.0, 2.0, f32::MAX] {
         let width = eased_width(key("clamp"), reported);
         assert!(
             (0.0..=1.0).contains(&width),
             "{reported} drew a fill {width} wide"
         );
+        frames.advance(Duration::from_millis(16));
     }
 }
 
@@ -70,6 +76,7 @@ fn a_fraction_a_job_could_not_have_meant_still_draws_inside_the_track() {
 /// large enough to read as a bar that had been stuck and then caught up.
 #[test]
 fn a_new_report_is_travelled_to_rather_than_jumped_to() {
+    let frames = motion::TestFrames::new();
     let bar = key("travel");
     assert_eq!(eased_width(bar, 0.0), 0.0, "a first report draws as it is");
     let jumped = eased_width(bar, 0.9);
@@ -78,12 +85,14 @@ fn a_new_report_is_travelled_to_rather_than_jumped_to() {
         "the frame the report arrived still draws the old width, not the new one: {jumped}"
     );
 
-    std::thread::sleep(
-        glide::PROGRESS
-            .total()
-            .mul_f32(motion::speed_scale())
-            .saturating_add(std::time::Duration::from_millis(30)),
+    frames.advance(glide::PROGRESS.total() / 2);
+    let halfway = eased_width(bar, 0.9);
+    assert!(
+        0.0 < halfway && halfway < 0.9,
+        "half the span in, the fill is between the two reports: {halfway}"
     );
+
+    frames.advance(glide::PROGRESS.total());
     assert_eq!(
         eased_width(bar, 0.9),
         0.9,
@@ -94,6 +103,7 @@ fn a_new_report_is_travelled_to_rather_than_jumped_to() {
 /// Two bars on screen at once are two values, not one drawn twice.
 #[test]
 fn two_bars_hold_their_own_width() {
+    let _frames = motion::TestFrames::new();
     let (a, b) = (key("own-a"), key("own-b"));
     eased_width(a, 0.0);
     eased_width(b, 0.0);
@@ -104,6 +114,6 @@ fn two_bars_hold_their_own_width() {
 /// Both fills run on timings the catalog owns.
 #[test]
 fn both_fills_run_on_catalog_timings() {
-    assert_eq!(glide::PROGRESS, motion::RESIZE);
-    assert_eq!(ZERON_PULSE.duration_ms(), motion::BREATH.ms());
+    assert_eq!(glide::PROGRESS, presets::RESIZE);
+    assert_eq!(ZERON_PULSE.duration_ms, 2_400);
 }

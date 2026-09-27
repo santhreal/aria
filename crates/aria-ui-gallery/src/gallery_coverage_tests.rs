@@ -2,17 +2,18 @@
 //!
 //! The class this closes: the gallery is the only place a person can look at
 //! every component and every motion spec at once, and it is a hand-written list
-//! of call sites. A component added to `aria_ui::components` or a spec added to
-//! `aria_ui::motion` is invisible here until somebody remembers it, which is how
-//! `chevron`, `band_fill` and `OPEN` came to be shipped and unreviewable.
+//! of call sites. A component added to `aria_ui::components`, a preset added to
+//! `gpui::motion::presets`, or a spec added to `aria_ui::motion` is invisible
+//! here until somebody remembers it, which is how `chevron`, `band_fill` and
+//! `OPEN` came to be shipped and unreviewable.
 //!
-//! Both surfaces are read out of the crate's own source at run time, so the list
-//! cannot go stale: a new `pub fn` in `components.rs` or a new `MotionSpec` in
-//! `motion.rs` turns this red until the gallery draws it.
+//! Every surface is read at run time, so the list cannot go stale: a new
+//! `pub fn` in `components.rs`, a new entry of `presets::PRESETS`, or a new
+//! `MotionSpec` in `motion.rs` turns this red until the gallery draws it.
 //!
 //! Not covered: whether the specimen is a good one. A call site proves the thing
-//! is on screen, not that its states are interesting — that is what a reviewer
-//! looking at the window is for.
+//! is on screen, not that its states are interesting. A reviewer looking at the
+//! window checks that.
 
 /// The three surfaces the gallery claims to cover, as source.
 const COMPONENTS: &str = include_str!("../../aria-ui/src/components.rs");
@@ -48,13 +49,19 @@ fn components() -> Vec<&'static str> {
         .collect()
 }
 
-/// Every `MotionSpec` the catalog declares, read from its declaration.
+/// Every `MotionSpec` the editor can spend: each entry of
+/// `gpui::motion::presets::PRESETS`, and every `pub const` of type `MotionSpec`
+/// declared in `motion.rs`, read from its declaration.
 fn specs() -> Vec<&'static str> {
-    MOTION
+    let own = MOTION
         .lines()
         .filter_map(|line| line.strip_prefix("pub const "))
         .filter(|rest| rest.contains(": MotionSpec"))
-        .filter_map(|rest| rest.split(':').next())
+        .filter_map(|rest| rest.split(':').next());
+    gpui::motion::presets::PRESETS
+        .iter()
+        .map(|(name, _)| *name)
+        .chain(own)
         .collect()
 }
 
@@ -63,15 +70,14 @@ fn the_source_the_check_reads_is_still_shaped_that_way() {
     // A parse that finds nothing would pass every assertion below.
     assert!(
         components().len() >= 8,
-        "only {} components parsed out of components.rs — the declaration shape \
+        "only {} components parsed out of components.rs: the declaration shape \
          changed and this check has stopped seeing them",
         components().len()
     );
     assert!(
-        specs().len() >= 12,
-        "only {} specs parsed out of motion.rs — the declaration shape changed \
-         and this check has stopped seeing them",
-        specs().len()
+        specs().len() > gpui::motion::presets::PRESETS.len(),
+        "no spec parsed out of motion.rs: the declaration shape changed and this \
+         check has stopped seeing them"
     );
 }
 
@@ -91,8 +97,8 @@ fn every_component_has_a_specimen() {
 ///
 /// Two halves, and both are needed: the section draws every
 /// `motion::catalog::CATALOG` row rather than a list of its own, and every spec
-/// declared in `motion.rs` has a row to be drawn from. `aria-ui` owns the second
-/// claim too — it is asserted here because the gallery's coverage rests on it,
+/// the editor can spend has a row to be drawn from. `aria-ui` holds the second
+/// claim too; it is asserted here because the gallery's coverage rests on it,
 /// and because a spec with no row used to mean a spec with no specimen
 /// (`CARET_BLINK` shipped that way).
 #[test]

@@ -632,7 +632,7 @@ impl AppState {
 
     /// How long a new clip counts as new: the catalog duration of the animation
     /// drawn on the strength of it, so the window and the motion cannot drift.
-    const LANDED_MS: u64 = crate::motion::RESIZE.duration_ms();
+    const LANDED_MS: u64 = gpui::motion::presets::RESIZE.duration_ms;
 
     /// The clip that has just been created, while it is still settling.
     ///

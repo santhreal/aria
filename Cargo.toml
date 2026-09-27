@@ -36,18 +36,13 @@ default-members = ["apps/aria-desktop"]
 exclude = [
     "crates/aria-py",
     "fuzz",
-    "vendor/gpui_shared_string",
-    "vendor/gpui_util",
-    "vendor/gpui",
-    "vendor/ztracing",
-    "vendor/ztracing_macro",
 ]
 resolver = "3"
 
 [workspace.package]
 version = "0.7.0-alpha.0"
 edition = "2024"
-rust-version = "1.92"
+rust-version = "1.97"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/santhreal/aria"
 
@@ -87,33 +82,15 @@ libloading = "0.8"
 wgpu = "29"
 bytemuck = { version = "1", features = ["derive"] }
 pollster = "0.4"
-# gpui — Comet's pin of the wingleeio/zed fork (rev 5d1f83d).
-# Provenance: https://github.com/zeronsh/comet Cargo.toml workspace.dependencies.
-# License: Apache-2.0 (gpui) / see vendor/README.md.
-gpui = { git = "https://github.com/wingleeio/zed", rev = "5d1f83d9f27a19bec1fb241dc33b42238af9cf8d" }
-gpui_platform = { git = "https://github.com/wingleeio/zed", rev = "5d1f83d9f27a19bec1fb241dc33b42238af9cf8d", features = [
+# GPUI from santhreal/santh-gpui, the framework shared with iris and Veyyon.
+# License: Apache-2.0; text in LICENSES/zed-Apache-2.0.txt.
+gpui = { git = "https://github.com/santhreal/santh-gpui", rev = "c15a7ff8ce40a7cecbfadc5be0679bd3739f7784" }
+gpui_platform = { git = "https://github.com/santhreal/santh-gpui", rev = "c15a7ff8ce40a7cecbfadc5be0679bd3739f7784", features = [
     "wayland",
     "x11",
     "font-kit",
     "runtime_shaders",
 ] }
-gpui_tokio = { git = "https://github.com/wingleeio/zed", rev = "5d1f83d9f27a19bec1fb241dc33b42238af9cf8d" }
-
-[patch."https://github.com/wingleeio/zed"]
-# The Zed tree also contains tooling/lints/test_fixture/gpui_shared_string
-# (version 0.0.0, no Debug/Eq/Hash). Cargo resolver 3 picks that fixture
-# over crates/gpui_shared_string. Force the real crate from this tree.
-gpui_shared_string = { path = "vendor/gpui_shared_string" }
-# Rust 1.92 also predates `std::hint::cold_path`; retain the pinned GPUI
-# implementation with a stable cold helper.
-gpui = { path = "vendor/gpui" }
-# Rust 1.92 predates `slice::as_array`; retain the pinned implementation with
-# that one call expressed through stable `TryInto`.
-gpui_util = { path = "vendor/gpui_util" }
-# `sum_tree` uses only ztracing's disabled no-op surface. Patch out the GPL
-# logger/profiler crates so the shipped dependency graph stays dual-licensed.
-ztracing = { path = "vendor/ztracing" }
-ztracing_macro = { path = "vendor/ztracing_macro" }
 
 # No profile was declared here, so every build ran stock: `dev` at opt-level 0
 # for the whole graph, `release` at codegen-units 16 with thin-local LTO. A video

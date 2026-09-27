@@ -46,7 +46,7 @@ fn follow_newest(
         crate::motion::MotionKey::new("ai-transcript", ""),
         if live { bottom } else { here },
         glide::SCROLL,
-        crate::motion::reduced_motion(cx) || !live,
+        cx.reduce_motion() || !live,
     );
     if live {
         scroll.set_offset(gpui::point(scroll.offset().x, px(eased)));

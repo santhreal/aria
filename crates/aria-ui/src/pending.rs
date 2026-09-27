@@ -270,12 +270,14 @@ pub fn arriving<E>(key: impl Into<motion::ControlId>, index: usize, element: E) 
 where
     E: Styled + IntoElement + 'static,
 {
-    let spec =
-        motion::FADE_IN.with_delay(motion::ROW_STAGGER.times((index as u64).min(STAGGER_DEPTH)));
+    let spec = gpui::motion::presets::FADE_IN
+        .with_delay(motion::ROW_STAGGER_MS * (index as u64).min(STAGGER_DEPTH));
     element
-        .with_animation(key.into().element("row-in"), spec.animation(), |el, t| {
-            el.relative().opacity(t).left(px(-8.0 * (1.0 - t)))
-        })
+        .with_animation(
+            key.into().element("row-in"),
+            motion::animation(spec),
+            |el, t| el.relative().opacity(t).left(px(-8.0 * (1.0 - t))),
+        )
         .into_any_element()
 }
 

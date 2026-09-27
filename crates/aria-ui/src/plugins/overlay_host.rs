@@ -10,9 +10,10 @@
 //! it registered, so opening one is the same `open_dialog` call a shipped dialog
 //! takes and only one dialog is ever on screen.
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use aria_plugin::{PluginContext, Service};
+use gpui::motion::{FrameInstant, MotionPolicy, Timestamp as _, presets};
 use gpui::{AnyElement, Entity};
 use parking_lot::RwLock;
 
@@ -53,19 +54,25 @@ pub struct OverlayHost {
 /// An overlay that vanished on the frame its condition cleared had no exit to
 /// play. The shell asks about every condition on every frame and says whether it
 /// holds, so the host can keep handing back a leaving overlay until
-/// [`crate::motion::MENU_OUT`] is spent — the shell knows nothing about
-/// animation, and the overlay's own render decides what leaving looks like.
+/// [`presets::MENU_OUT`] is spent. The shell has no animation state, and the
+/// overlay's own render draws what leaving looks like.
+///
+/// Time is the open motion frame's instant, so the exit agrees with every other
+/// value the frame draws.
 struct Presence {
     when: OverlayWhen,
-    /// `None` while the condition holds; the moment it went false otherwise.
-    leaving_since: Option<Instant>,
+    /// `None` while the condition holds; the frame it went false otherwise.
+    leaving_since: Option<FrameInstant>,
 }
 
-/// How long an overlay keeps drawing after its condition went false.
-fn exit_window() -> Duration {
-    crate::motion::MENU_OUT
-        .total()
-        .mul_f32(crate::motion::speed_scale())
+/// How long an overlay keeps drawing after its condition went false, under
+/// `policy`: [`presets::MENU_OUT`] at the policy's duration scale, and nothing
+/// under reduced motion, where the overlay leaves on the frame it closed.
+fn exit_window(policy: MotionPolicy) -> Duration {
+    if policy.reduced() {
+        return Duration::ZERO;
+    }
+    policy.scale(presets::MENU_OUT.total())
 }
 
 /// Whether two conditions occupy the same slot. Every `Dialog` shares one, so
@@ -143,10 +150,9 @@ impl OverlayHost {
         let index = presence
             .iter()
             .position(|held| same_slot(held.when, when))?;
-        let since = *presence[index]
-            .leaving_since
-            .get_or_insert_with(Instant::now);
-        if since.elapsed() >= exit_window() {
+        let frame = crate::motion::frame();
+        let since = *presence[index].leaving_since.get_or_insert(frame.now());
+        if frame.now().seconds_since(since) >= exit_window(frame.policy()).as_secs_f32() {
             presence.remove(index);
             return None;
         }
@@ -163,11 +169,12 @@ impl OverlayHost {
             .iter()
             .find(|held| same_slot(held.when, when))?
             .leaving_since?;
-        let window = exit_window().as_secs_f32();
+        let frame = crate::motion::frame();
+        let window = exit_window(frame.policy()).as_secs_f32();
         if window <= 0.0 {
             return Some(1.0);
         }
-        Some((since.elapsed().as_secs_f32() / window).clamp(0.0, 1.0))
+        Some((frame.now().seconds_since(since) / window).clamp(0.0, 1.0))
     }
 
     /// Every registered id, in order. For the Plugins list and the tests.
@@ -211,6 +218,7 @@ mod tests {
 
     #[test]
     fn a_dialog_resolves_by_kind_and_an_unregistered_kind_does_not() {
+        let _frames = crate::motion::TestFrames::new();
         let host = OverlayHost::default();
         host.add(OverlayEntry {
             id: "export",
@@ -259,6 +267,7 @@ mod tests {
     /// the render turns into a fade.
     #[test]
     fn a_closed_dialog_keeps_drawing_until_its_exit_is_spent() {
+        let frames = crate::motion::TestFrames::new();
         let host = OverlayHost::default();
         host.add(OverlayEntry {
             id: "export",
@@ -281,6 +290,17 @@ mod tests {
             "{progress} should be a fade"
         );
 
+        // Halfway through the exit the slot still answers, further along.
+        frames.advance(presets::MENU_OUT.total() / 2);
+        assert!(host.dialog(DialogKind::None, false).is_some());
+        let halfway = host
+            .exit_t(OverlayWhen::Dialog(DialogKind::None))
+            .expect("a leaving dialog reports progress");
+        assert!(
+            progress < halfway && halfway < 1.0,
+            "{halfway} should be further through the fade than {progress}"
+        );
+
         // A dialog arriving over the leaving one takes the slot outright.
         assert!(host.dialog(DialogKind::Export, true).is_some());
         assert!(
@@ -289,10 +309,45 @@ mod tests {
         );
     }
 
+    /// The exit ends: once `MENU_OUT` is spent, the closed dialog is dropped
+    /// and nothing is drawn for its slot.
+    #[test]
+    fn a_closed_dialog_stops_drawing_once_its_exit_is_spent() {
+        let frames = crate::motion::TestFrames::new();
+        let host = OverlayHost::default();
+        host.add(OverlayEntry {
+            id: "export",
+            when: OverlayWhen::Dialog(DialogKind::Export),
+            render: nothing,
+        });
+        assert!(host.dialog(DialogKind::Export, true).is_some());
+        assert!(host.dialog(DialogKind::None, false).is_some());
+        frames.advance(presets::MENU_OUT.total());
+        assert!(host.dialog(DialogKind::None, false).is_none());
+        assert!(host.exit_t(OverlayWhen::Dialog(DialogKind::None)).is_none());
+    }
+
+    /// Reduced motion draws the end state on the frame the change happened: a
+    /// closed dialog is gone on that frame, with no exit to play.
+    #[test]
+    fn under_reduced_motion_a_closed_dialog_is_gone_on_the_frame_it_closed() {
+        let frames = crate::motion::TestFrames::new();
+        frames.update(|cx| cx.set_reduce_motion(true));
+        let host = OverlayHost::default();
+        host.add(OverlayEntry {
+            id: "export",
+            when: OverlayWhen::Dialog(DialogKind::Export),
+            render: nothing,
+        });
+        assert!(host.dialog(DialogKind::Export, true).is_some());
+        assert!(host.dialog(DialogKind::None, false).is_none());
+    }
+
     /// A condition that was never on screen has nothing to animate out, so an
     /// inactive frame must not conjure one.
     #[test]
     fn a_condition_that_never_held_draws_nothing_when_it_goes_false() {
+        let _frames = crate::motion::TestFrames::new();
         let host = OverlayHost::default();
         host.add(OverlayEntry {
             id: "context",

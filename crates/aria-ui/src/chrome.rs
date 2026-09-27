@@ -103,7 +103,7 @@ fn menu_bar(
     let open = state.read(cx).open_menu;
     // Once per frame: the drop that is fading out is no longer in the state, so
     // the bar is what remembers it for the length of the exit.
-    let drop = menu_view::drop_phase(open, motion::reduced_motion(cx));
+    let drop = menu_view::drop_phase(open, cx.motion_policy());
     div()
         .id("menu-bar")
         .h(px(MENU_H))

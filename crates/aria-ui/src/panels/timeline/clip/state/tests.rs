@@ -9,17 +9,23 @@
 //! alpha in the builder chain, and it is asserted only in the sense that a value
 //! outside `0.0..=1.0` cannot leave here.
 
-use super::*;
+use std::time::Duration;
 
-/// Ids no other test uses, so the process-wide glide store cannot carry a value
-/// between them. The projection's ids are raw, and a real clip id is allocated
-/// from a process counter, so a fixed high offset cannot collide with one.
+use gpui::motion::presets;
+
+use super::*;
+use crate::motion::TestFrames;
+
+/// Ids no other test uses, so the glide store cannot carry a value between
+/// them. The projection's ids are raw, and a real clip id is allocated from a
+/// process counter, so a fixed high offset cannot collide with one.
 fn id(n: u64) -> u64 {
     n + 9_000
 }
 
 #[test]
 fn a_card_that_has_never_been_selected_draws_no_ring() {
+    let _frames = TestFrames::new();
     let t = selection_t(id(1), false, false);
     assert_eq!(t, 0.0, "a first sighting of `false` is at rest");
     assert!(!showing(t), "so the ring is not built at all");
@@ -27,13 +33,13 @@ fn a_card_that_has_never_been_selected_draws_no_ring() {
 
 #[test]
 fn a_locked_card_arrives_at_a_full_badge() {
+    let frames = TestFrames::new();
     let clip = id(2);
     // A first sighting is at rest, so the badge has to start from unlocked for
     // its arrival to be an arrival: set the target, then let its own span pass.
     lock_t(clip, false, false);
     lock_t(clip, true, false);
-    std::thread::sleep(motion::HOVER_FADE.total().mul_f32(motion::speed_scale()));
-    std::thread::sleep(std::time::Duration::from_millis(30));
+    frames.advance(presets::HOVER_FADE.total() + Duration::from_millis(30));
     let t = lock_t(clip, true, false);
     assert_eq!(t, 1.0, "past its own span the badge is fully there");
     assert!(showing(t));
@@ -45,10 +51,11 @@ fn a_locked_card_arrives_at_a_full_badge() {
 /// that as a flicker at full opacity.
 #[test]
 fn a_selection_reversed_mid_fade_continues_from_where_it_got_to() {
+    let frames = TestFrames::new();
     let clip = id(3);
     selection_t(clip, false, false);
     selection_t(clip, true, false);
-    std::thread::sleep(std::time::Duration::from_millis(40));
+    frames.advance(Duration::from_millis(40));
     let rising = selection_t(clip, true, false);
     assert!(
         rising > 0.0 && rising < 1.0,
@@ -71,6 +78,7 @@ fn a_selection_reversed_mid_fade_continues_from_where_it_got_to() {
 /// not a ring that is on its way.
 #[test]
 fn motion_off_puts_a_state_where_it_belongs_on_the_frame_it_changed() {
+    let _frames = TestFrames::new();
     let clip = id(4);
     assert_eq!(selection_t(clip, false, true), 0.0);
     assert_eq!(selection_t(clip, true, true), 1.0, "selection is immediate");
@@ -81,6 +89,7 @@ fn motion_off_puts_a_state_where_it_belongs_on_the_frame_it_changed() {
 /// moves the selection, so the keys have to be per clip.
 #[test]
 fn two_cards_hold_their_own_state() {
+    let _frames = TestFrames::new();
     let (a, b) = (id(5), id(6));
     selection_t(a, false, false);
     selection_t(b, false, false);

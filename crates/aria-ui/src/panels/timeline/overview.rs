@@ -4,8 +4,7 @@
 //! a draw cannot disagree about where a tick sits on the strip.
 
 use gpui::{
-    InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
-    StatefulInteractiveElement, Styled, div, px,
+    InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled, div, px,
 };
 
 use crate::app::AppState;

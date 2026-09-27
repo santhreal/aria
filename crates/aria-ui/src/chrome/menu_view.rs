@@ -6,6 +6,7 @@
 
 use std::cell::RefCell;
 
+use gpui::motion::{MotionPolicy, presets};
 use gpui::{
     AnyElement, Context, CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton,
     MouseDownEvent, ParentElement, StatefulInteractiveElement, Styled, div, px,
@@ -36,7 +37,7 @@ thread_local! {
     ///
     /// `AppState::open_menu` goes to `None` the instant a row is chosen, which
     /// leaves an exit animation nothing to animate. This keeps the menu that was
-    /// open alive for exactly one [`motion::MENU_OUT`], so the drop fades out
+    /// open alive for exactly one [`presets::MENU_OUT`], so the drop fades out
     /// instead of vanishing. Thread-local because it is frame state, like the
     /// hover fades: no part of the model wants to know.
     static DROP: RefCell<Popup<AppMenu>> = RefCell::new(Popup::default());
@@ -45,24 +46,24 @@ thread_local! {
 /// Reconcile the drawn drop with the state, and say which menu owns a drop this
 /// frame. Call once per frame, before the titles are built.
 ///
-/// `reduced` drops the exit rather than shortening it: under reduced motion the
-/// animation schedules no frames, so a drop left mid-exit would stay on screen
-/// until something else asked for a repaint.
-pub(super) fn drop_phase(open: Option<AppMenu>, reduced: bool) -> Option<(AppMenu, Phase)> {
-    let span = motion::MENU_OUT.total().mul_f32(motion::speed_scale());
+/// Reduced motion under `policy` drops the exit rather than shortening it: under
+/// reduced motion the animation schedules no frames, so a drop left mid-exit
+/// would stay on screen until something else asked for a repaint.
+pub(super) fn drop_phase(open: Option<AppMenu>, policy: MotionPolicy) -> Option<(AppMenu, Phase)> {
+    let span = policy.scale(presets::MENU_OUT.total());
     DROP.with_borrow_mut(|popup| {
         match open {
             Some(menu) if popup.as_open() != Some(&menu) => popup.open(menu),
             Some(_) => {}
             None => {
                 popup.begin_close();
-                popup.finish_close();
+                popup.finish_close(span);
             }
         }
         if let Some(menu) = popup.as_open() {
             return Some((*menu, Phase::Open));
         }
-        if reduced {
+        if policy.reduced() {
             return None;
         }
         let since = popup.closing_since()?;

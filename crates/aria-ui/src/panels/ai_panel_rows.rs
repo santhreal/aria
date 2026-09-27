@@ -31,8 +31,9 @@ pub(super) fn bubble(
     // blinking, on the same pulse the panel's loader uses, so one turn shows one
     // rhythm instead of two.
     let caret = if live {
-        let phase = crate::motion::pulse_delta(&crate::motion::ZERON_PULSE, cx.entity_id(), cx);
-        crate::motion::pulse_opacity(phase)
+        let phase =
+            crate::motion::pulse_delta(&gpui::motion::presets::ZERON_PULSE, cx.entity_id(), cx);
+        gpui::motion::loaders::pulse_opacity(phase)
     } else {
         0.0
     };

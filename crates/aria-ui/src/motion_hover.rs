@@ -1,54 +1,63 @@
-//! Hover fades: the store, its listener, and the colour blend it feeds.
+//! Hover fades: the toggle behind every hovered control, its listener, and the
+//! colour blend it feeds.
 //!
-//! A hover is not a one-shot transition — the pointer can leave halfway — so it
-//! is a value chased per control rather than a [`gpui::Animation`]. One store
-//! holds them all, keyed by [`MotionKey`], so every strip in the app fades at
-//! one rate and a control that stopped being drawn stops costing anything.
+//! A hover is not a one-shot transition: the pointer can leave halfway. So it
+//! is a toggle in the shared hover store rather than a [`gpui::Animation`],
+//! keyed by [`MotionKey`] and eased by [`presets::HOVER_FADE`], so every strip
+//! in the app fades at one rate and a control that stopped being drawn stops
+//! costing anything.
 
-use super::*;
+use gpui::motion::{FrameInstant, MotionPolicy, mix_premultiplied, presets};
+use gpui::{App, Hsla, Rgba, Window};
 
-pub fn set_hover(key: MotionKey, hovered: bool, reduced: bool) {
-    HOVER_FADES.with(|fades| {
-        fades
+use super::{CHROME, MotionKey, with_frame};
+
+/// Turns the hover toggle of `key` on or off at `now` under `policy`, fading
+/// from its current value.
+pub fn set_hover(key: MotionKey, hovered: bool, policy: MotionPolicy, now: FrameInstant) {
+    CHROME.with(|chrome| {
+        chrome
             .borrow_mut()
-            .set_at(key, hovered, reduced, Instant::now())
+            .hover
+            .set_toggle(key, hovered, presets::HOVER_FADE, policy, now)
     });
 }
 
+/// The hover listener of the control keyed by `key`: sets its toggle under the
+/// app's motion policy and redraws the window.
 pub fn hover_listener(key: MotionKey) -> impl Fn(&bool, &mut Window, &mut App) + 'static {
     move |hovered, window, cx| {
-        set_hover(key, *hovered, reduced_motion(cx));
+        set_hover(key, *hovered, cx.motion_policy(), cx.frame_instant());
         window.refresh();
     }
 }
 
-pub fn hover_fades_active() -> bool {
-    HOVER_FADES.with(|fades| fades.borrow_mut().tick_at(Instant::now()))
+/// How far the hover fade of `key` has come in the open frame: 0 at rest, 1
+/// fully hovered.
+pub fn hover_t(key: MotionKey) -> f32 {
+    with_frame(|chrome, frame| chrome.hover.toggle_value(&key, frame.policy(), frame.now()))
 }
 
-/// Blend two colours in premultiplied space, so a fade out of a transparent
-/// colour does not travel through that colour's hue on the way.
+/// Blends two colours through [`mix_premultiplied`], so a fade out of a
+/// transparent colour does not travel through that colour's hue. `t <= 0`
+/// returns `from` and `t >= 1` returns `to` unchanged.
 pub fn mix(from: Hsla, to: Hsla, t: f32) -> Hsla {
-    let t = t.clamp(0.0, 1.0);
     if t <= 0.0 {
         return from;
     }
     if t >= 1.0 {
         return to;
     }
-    let (f, g) = (Rgba::from(from), Rgba::from(to));
-    let a = lerp(f.a, g.a, t);
-    if a <= f32::EPSILON {
-        return Hsla::from(Rgba { a: 0.0, ..g });
-    }
-    Hsla::from(Rgba {
-        r: lerp(f.r * f.a, g.r * g.a, t) / a,
-        g: lerp(f.g * f.a, g.g * g.a, t) / a,
-        b: lerp(f.b * f.a, g.b * g.a, t) / a,
-        a,
-    })
+    let (start, end) = (Rgba::from(from), Rgba::from(to));
+    let [r, g, b, a] = mix_premultiplied(
+        [start.r, start.g, start.b, start.a],
+        [end.r, end.g, end.b, end.a],
+        t,
+    );
+    Hsla::from(Rgba { r, g, b, a })
 }
 
+/// `rest` blended toward `hover` by the hover fade of `key`.
 pub fn hover_blend(key: MotionKey, rest: Hsla, hover: Hsla) -> Hsla {
     mix(rest, hover, hover_t(key))
 }
