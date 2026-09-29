@@ -1186,6 +1186,10 @@ Notes for the latest release. For previous releases, see the
   thread.** On Wayland the device is created on a thread while the display
   connection starts, and on X11 a new window configures its surface on a thread.
 
+- **An image uploads to the GPU as it is first drawn.** The GPU renderer writes
+  a new image tile through the queue when the tile is allocated, with no copy of
+  the pixels held until the next frame.
+
 - **Interface motion uses the `gpui::motion` presets of santh-gpui.** Menus open
   in 140 ms and close in 100 ms, dialogs arrive in 180 ms, hover fades, quick
   fades and the inspector tab indicator take 150 ms, lane heights settle in
