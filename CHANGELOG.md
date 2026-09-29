@@ -1182,6 +1182,10 @@ Notes for the latest release. For previous releases, see the
   The vendored copy of the `wingleeio/zed` fork is deleted, and building from
   source requires Rust 1.97 or newer.
 
+- **Linux: the GPU device and a new window's surface are set up off the UI
+  thread.** On Wayland the device is created on a thread while the display
+  connection starts, and on X11 a new window configures its surface on a thread.
+
 - **Interface motion uses the `gpui::motion` presets of santh-gpui.** Menus open
   in 140 ms and close in 100 ms, dialogs arrive in 180 ms, hover fades, quick
   fades and the inspector tab indicator take 150 ms, lane heights settle in
