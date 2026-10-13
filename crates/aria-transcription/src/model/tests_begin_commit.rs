@@ -26,7 +26,11 @@ fn catalog_has_verified_base_en_constants() {
 fn validates_root_and_catalog_paths_without_traversal() {
     // `/` is the filesystem root on unix but root-relative (hence not even
     // absolute) on Windows; each platform spells its own roots here.
-    let fs_root: &Path = if cfg!(windows) { Path::new("C:/") } else { Path::new("/") };
+    let fs_root: &Path = if cfg!(windows) {
+        Path::new("C:/")
+    } else {
+        Path::new("/")
+    };
     let traversal: &Path = if cfg!(windows) {
         Path::new("C:/tmp/../escape")
     } else {

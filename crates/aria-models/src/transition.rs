@@ -33,9 +33,7 @@ static SHIPPED: LazyLock<Vec<Arc<TransitionSpec>>> = LazyLock::new(|| {
     crate::catalog::load(
         "transitions",
         include_str!("../data/transitions.toml"),
-        |entries: &[TransitionSpec]| {
-            crate::catalog::unique_ids(entries, |s| &s.id, |s| &s.label)
-        },
+        |entries: &[TransitionSpec]| crate::catalog::unique_ids(entries, |s| &s.id, |s| &s.label),
     )
     .into_iter()
     .map(Arc::new)

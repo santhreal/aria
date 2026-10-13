@@ -35,7 +35,10 @@ fn payloads() -> Vec<CatalogDrag> {
         },
         CatalogDrag {
             kind: CatalogDragKind::Transition,
-            id: aria_models::shipped_transition_catalog()[0].id.clone().into(),
+            id: aria_models::shipped_transition_catalog()[0]
+                .id
+                .clone()
+                .into(),
             label: "transition".into(),
         },
         // Only plugins register generators, and a lib test may not register, so

@@ -80,7 +80,6 @@ pub use effects::{
     EffectInstance, EffectParamKind, EffectParamSpec, EffectPreset, EffectSpec, effect_catalog,
     effect_spec, shipped_effect_catalog, validate_preset_list,
 };
-pub use registered::{Catalog, CatalogIter, Registered, register_effect, register_transition};
 pub use error::ModelError;
 pub use ids::{
     BinId, ClipId, LinkId, MarkerId, MediaId, MulticamGroupId, ProjectId, SequenceId, TemplateId,
@@ -106,6 +105,7 @@ pub use param::{
 };
 pub use persist::{PROJECT_FILE_EXTENSION, PROJECT_FILE_VERSION};
 pub use project::{LinkAssignment, Project};
+pub use registered::{Catalog, CatalogIter, Registered, register_effect, register_transition};
 pub use schema::{PROJECT_SCHEMA_KIND, PROJECT_SCHEMA_VERSION, ProjectSchema};
 pub use sequence::Sequence;
 pub use sticker::{ArtSource, StickerSpec, sticker_catalog, sticker_spec};

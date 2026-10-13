@@ -127,7 +127,10 @@ struct Announcements {
 impl Announcements {
     /// What was delivered, once everything posted so far has been.
     fn delivered(&self) -> Vec<(String, Origin, u64)> {
-        assert!(self.bus.flush(BOUND), "delivery must finish within the bound");
+        assert!(
+            self.bus.flush(BOUND),
+            "delivery must finish within the bound"
+        );
         self.entries.lock().clone()
     }
 }
@@ -169,7 +172,11 @@ fn step_label(origin: &Origin) -> &'static str {
 
 #[test]
 fn a_transaction_lands_as_one_undo_step_named_for_its_origin() {
-    for origin in [Origin::Editor, Origin::Assistant, Origin::plugin("acme.lanes")] {
+    for origin in [
+        Origin::Editor,
+        Origin::Assistant,
+        Origin::plugin("acme.lanes"),
+    ] {
         let (Fixture { host, ctx: _ctx }, _policy) = fixture();
         let receipt = host
             .transact(origin.clone(), "Make lanes", vec![add("a"), add("b")])
@@ -196,11 +203,18 @@ fn a_transaction_lands_as_one_undo_step_named_for_its_origin() {
                 other => panic!("{origin}: expected a created lane, got {other:?}"),
             })
             .collect();
-        assert_eq!(created, ["a", "b"], "{origin}: one outcome per command, in order");
+        assert_eq!(
+            created,
+            ["a", "b"],
+            "{origin}: one outcome per command, in order"
+        );
         drop(project);
 
         assert!(host.undo().expect("undo"), "{origin}");
-        assert!(lanes(&host).is_empty(), "{origin}: one undo reverts both lanes");
+        assert!(
+            lanes(&host).is_empty(),
+            "{origin}: one undo reverts both lanes"
+        );
         assert!(host.redo().expect("redo"), "{origin}");
         assert_eq!(lanes(&host), ["a", "b"], "{origin}");
         assert_idle(&host);
@@ -217,9 +231,15 @@ enum Abort {
 
 #[test]
 fn a_transaction_that_does_not_finish_leaves_nothing_behind() {
-    for abort in [Abort::Refused, Abort::Failed, Abort::Aborted, Abort::Panicked] {
+    for abort in [
+        Abort::Refused,
+        Abort::Failed,
+        Abort::Aborted,
+        Abort::Panicked,
+    ] {
         let (Fixture { host, ctx }, _policy) = fixture();
-        host.apply(&Origin::Editor, add("before")).expect("prior lane");
+        host.apply(&Origin::Editor, add("before"))
+            .expect("prior lane");
         let (log, _applied) = record_applied(&ctx);
 
         let result = host.transact_with(Origin::plugin("acme.atomic"), "Atomic", |tx| {
@@ -237,20 +257,31 @@ fn a_transaction_that_does_not_finish_leaves_nothing_behind() {
             (Abort::Refused, TransactError::Refused { label, reason }) => {
                 assert_eq!((*label, reason.as_str()), ("Add track", REFUSAL));
             }
-            (Abort::Failed, TransactError::Failed { label, .. }) => assert_eq!(*label, "Lock track"),
-            (Abort::Aborted, TransactError::Aborted(reason)) => assert_eq!(reason, "the body gave up"),
+            (Abort::Failed, TransactError::Failed { label, .. }) => {
+                assert_eq!(*label, "Lock track")
+            }
+            (Abort::Aborted, TransactError::Aborted(reason)) => {
+                assert_eq!(reason, "the body gave up")
+            }
             (Abort::Panicked, TransactError::Panicked(message)) => {
                 assert_eq!(message, "the body panicked");
             }
             _ => panic!("{abort:?}: wrong error {err:?}"),
         }
-        assert_eq!(lanes(&host), ["before"], "{abort:?}: no lane from the transaction remains");
+        assert_eq!(
+            lanes(&host),
+            ["before"],
+            "{abort:?}: no lane from the transaction remains"
+        );
         assert_eq!(
             history(&host),
             [("Add track".to_string(), true)],
             "{abort:?}: history holds only the prior step"
         );
-        assert!(announced(&log).is_empty(), "{abort:?}: nothing rolled back is announced");
+        assert!(
+            announced(&log).is_empty(),
+            "{abort:?}: nothing rolled back is announced"
+        );
         assert_idle(&host);
         host.apply(&Origin::Editor, add("after"))
             .unwrap_or_else(|err| panic!("{abort:?}: the next edit must apply, got {err}"));
@@ -274,7 +305,8 @@ fn a_failed_transaction_inside_a_group_rolls_back_only_its_own_commands() {
     let (Fixture { host, ctx }, _policy) = fixture();
     let (log, _applied) = record_applied(&ctx);
     let group = host.group(&Origin::Assistant).expect("open");
-    host.apply(&Origin::Assistant, add("outer")).expect("outer lane");
+    host.apply(&Origin::Assistant, add("outer"))
+        .expect("outer lane");
 
     let inner = host.transact(
         Origin::plugin("acme.inner"),
@@ -282,10 +314,20 @@ fn a_failed_transaction_inside_a_group_rolls_back_only_its_own_commands() {
         vec![add("inner"), missing_lane()],
     );
     assert!(
-        matches!(inner, Err(TransactError::Failed { label: "Lock track", .. })),
+        matches!(
+            inner,
+            Err(TransactError::Failed {
+                label: "Lock track",
+                ..
+            })
+        ),
         "got {inner:?}"
     );
-    assert_eq!(lanes(&host), ["outer"], "the savepoint keeps what came before it");
+    assert_eq!(
+        lanes(&host),
+        ["outer"],
+        "the savepoint keeps what came before it"
+    );
 
     group.commit();
     assert_eq!(history(&host), [("Add track".to_string(), true)]);
@@ -308,7 +350,8 @@ fn applied_commands_are_announced_once_nothing_can_roll_them_back() {
     let group = host.group(&Origin::Assistant).expect("open");
     host.apply(&Origin::Assistant, add("a")).expect("a");
     let dropped = host.group(&Origin::Assistant).expect("savepoint");
-    host.apply(&Origin::Assistant, add("dropped")).expect("dropped");
+    host.apply(&Origin::Assistant, add("dropped"))
+        .expect("dropped");
     dropped.rollback();
     let kept = host.group(&Origin::Assistant).expect("savepoint");
     host.apply(&Origin::Assistant, add("b")).expect("b");
@@ -343,7 +386,11 @@ fn applied_commands_are_announced_once_nothing_can_roll_them_back() {
     let rolled_back = host.group(&Origin::Editor).expect("open");
     host.apply(&Origin::Editor, add("gone")).expect("gone");
     rolled_back.rollback();
-    assert_eq!(announced(&log).len(), 3, "a rolled-back group announces nothing");
+    assert_eq!(
+        announced(&log).len(),
+        3,
+        "a rolled-back group announces nothing"
+    );
 
     assert_eq!(lanes(&host), ["a", "b", "lone"]);
     assert_eq!(
@@ -382,7 +429,8 @@ struct Seen {
 #[test]
 fn a_handler_reads_the_proposed_project_and_cannot_start_an_edit() {
     let (Fixture { host, ctx }, _policy) = fixture();
-    host.apply(&Origin::Editor, add("first")).expect("first lane");
+    host.apply(&Origin::Editor, add("first"))
+        .expect("first lane");
     let seen: Arc<Mutex<Vec<Seen>>> = Arc::default();
     let _probe = {
         let host = Arc::clone(&host);
@@ -395,7 +443,10 @@ fn a_handler_reads_the_proposed_project_and_cannot_start_an_edit() {
                     .transact(Origin::plugin("acme.nested"), "Nested", vec![add("nested")])
                     .err(),
                 panicked: vec![
-                    ("apply", panics(|| drop(host.apply(&Origin::Editor, add("nested"))))),
+                    (
+                        "apply",
+                        panics(|| drop(host.apply(&Origin::Editor, add("nested")))),
+                    ),
                     ("group", panics(|| drop(host.group(&Origin::Editor)))),
                     ("undo", panics(|| drop(host.undo()))),
                     ("redo", panics(|| drop(host.redo()))),
@@ -428,13 +479,26 @@ fn a_handler_reads_the_proposed_project_and_cannot_start_an_edit() {
     let [entry] = seen.as_slice() else {
         panic!("one proposal, one handler run: {seen:?}");
     };
-    assert!(entry.snapshot_is_proposal, "a handler's snapshot is the proposed project");
-    assert_eq!(entry.revision, revision, "a handler reads the revision being edited");
+    assert!(
+        entry.snapshot_is_proposal,
+        "a handler's snapshot is the proposed project"
+    );
+    assert_eq!(
+        entry.revision, revision,
+        "a handler reads the revision being edited"
+    );
     assert_eq!(entry.transact, Some(TransactError::Reentrant));
     for (call, panicked) in &entry.panicked {
-        assert!(panicked, "{call} from a handler must refuse, not lock the engine");
+        assert!(
+            panicked,
+            "{call} from a handler must refuse, not lock the engine"
+        );
     }
-    assert_eq!(lanes(&host), ["first", "second"], "nothing a handler started landed");
+    assert_eq!(
+        lanes(&host),
+        ["first", "second"],
+        "nothing a handler started landed"
+    );
 }
 
 #[test]
@@ -451,7 +515,8 @@ fn a_snapshot_does_not_change_when_the_project_does() {
 fn another_thread_is_refused_by_name_within_the_contended_wait() {
     let (Fixture { host, ctx: _ctx }, _policy) = fixture();
     let group = host.group(&Origin::Assistant).expect("open");
-    host.apply(&Origin::Assistant, add("turn")).expect("turn lane");
+    host.apply(&Origin::Assistant, add("turn"))
+        .expect("turn lane");
 
     let contender = Arc::clone(&host);
     let (sent, received) = mpsc::channel();
@@ -460,10 +525,20 @@ fn another_thread_is_refused_by_name_within_the_contended_wait() {
         let applied = contender.apply(&Origin::Editor, add("late"));
         let waited = started.elapsed();
         let transacted = contender.transact(Origin::plugin("acme.late"), "Late", vec![add("late")]);
-        let grouped = contender.group(&Origin::Editor).map(|group| group.rollback());
+        let grouped = contender
+            .group(&Origin::Editor)
+            .map(|group| group.rollback());
         let undone = contender.undo();
         let replaced = contender.replace_session(&Origin::Editor, Engine::new_session);
-        let _ = sent.send((applied, waited, transacted, grouped, undone, replaced, contender.holder()));
+        let _ = sent.send((
+            applied,
+            waited,
+            transacted,
+            grouped,
+            undone,
+            replaced,
+            contender.holder(),
+        ));
     });
     let (applied, waited, transacted, grouped, undone, replaced, holder) = received
         .recv_timeout(BOUND)
@@ -491,7 +566,11 @@ fn another_thread_is_refused_by_name_within_the_contended_wait() {
         waited >= ProjectHost::CONTENDED_WAIT && waited < Duration::from_secs(2),
         "refused after waiting {waited:?}"
     );
-    assert_eq!(holder, Some(Origin::Assistant), "another thread sees the holder");
+    assert_eq!(
+        holder,
+        Some(Origin::Assistant),
+        "another thread sees the holder"
+    );
     assert_eq!(host.holder(), None, "the holder is not busy to itself");
 
     group.commit();
@@ -519,7 +598,9 @@ fn a_contended_edit_proceeds_when_the_holder_finishes_within_the_wait() {
     started.recv_timeout(BOUND).expect("contender started");
     std::thread::sleep(Duration::from_millis(5));
     group.commit();
-    let applied = received.recv_timeout(BOUND).expect("the waiting edit must finish");
+    let applied = received
+        .recv_timeout(BOUND)
+        .expect("the waiting edit must finish");
     assert_eq!(applied, Ok(()));
     assert_eq!(lanes(&host), ["waited"]);
     assert_idle(&host);
@@ -564,10 +645,15 @@ fn a_session_replacing_command_is_refused_inside_a_group_or_transaction() {
     for command in every_project_command() {
         if matches!(
             command,
-            ProjectCommand::Open { .. } | ProjectCommand::Load { .. } | ProjectCommand::ApplyTemplate { .. }
+            ProjectCommand::Open { .. }
+                | ProjectCommand::Load { .. }
+                | ProjectCommand::ApplyTemplate { .. }
         ) {
             let label = Command::Project(command).label();
-            assert!(refused.contains(&label), "{label} must be refused: {refused:?}");
+            assert!(
+                refused.contains(&label),
+                "{label} must be refused: {refused:?}"
+            );
         }
     }
 }
@@ -576,7 +662,8 @@ fn a_session_replacing_command_is_refused_inside_a_group_or_transaction() {
 fn history_does_not_move_while_a_group_is_open() {
     let (Fixture { host, ctx: _ctx }, _policy) = fixture();
     // A committed step, so a stray undo would have something to take.
-    host.apply(&Origin::Editor, add("before")).expect("prior step");
+    host.apply(&Origin::Editor, add("before"))
+        .expect("prior step");
     let group = host.group(&Origin::Editor).expect("open");
     host.apply(&Origin::Editor, add("grouped")).expect("lane");
     assert!(!host.undo().expect("undo"));
@@ -673,7 +760,10 @@ impl Notes {
 
     /// Everything delivered since the last call.
     fn take(&self) -> Vec<Note> {
-        assert!(self.bus.flush(BOUND), "delivery must finish within the bound");
+        assert!(
+            self.bus.flush(BOUND),
+            "delivery must finish within the bound"
+        );
         std::mem::take(&mut *self.seen.lock())
     }
 }
@@ -717,7 +807,12 @@ fn run(host: &ProjectHost, command: ProjectCommand) -> Result<ApplyOutcome, Engi
 }
 
 fn imported(host: &ProjectHost, path: &Path) -> MediaId {
-    match run(host, ProjectCommand::Import { path: path.to_path_buf() }) {
+    match run(
+        host,
+        ProjectCommand::Import {
+            path: path.to_path_buf(),
+        },
+    ) {
         Ok(ApplyOutcome::Imported { media }) => media,
         other => panic!("importing {} gave {other:?}", path.display()),
     }
@@ -733,7 +828,13 @@ fn reopened(
     reopen: fn(PathBuf) -> ProjectCommand,
 ) -> Vec<Note> {
     host.apply(&Origin::Editor, add("saved")).expect("lane");
-    run(host, ProjectCommand::Save { path: files.project.clone() }).expect("save");
+    run(
+        host,
+        ProjectCommand::Save {
+            path: files.project.clone(),
+        },
+    )
+    .expect("save");
     host.replace_session(&Origin::Editor, Engine::new_session)
         .expect("new session");
     notes.take();
@@ -768,15 +869,21 @@ fn every_project_command_announces_what_its_outcome_implies() {
                 vec![Note::Applied(label)]
             }
             ProjectCommand::Save { .. } => {
-                run(&host, ProjectCommand::Save { path: files.project.clone() }).expect(label);
+                run(
+                    &host,
+                    ProjectCommand::Save {
+                        path: files.project.clone(),
+                    },
+                )
+                .expect(label);
                 vec![Note::Applied(label), Note::Saved(files.project.clone())]
             }
-            ProjectCommand::Open { .. } => {
-                reopened(&host, &notes, &files, label, |path| ProjectCommand::Open { path })
-            }
-            ProjectCommand::Load { .. } => {
-                reopened(&host, &notes, &files, label, |path| ProjectCommand::Load { path })
-            }
+            ProjectCommand::Open { .. } => reopened(&host, &notes, &files, label, |path| {
+                ProjectCommand::Open { path }
+            }),
+            ProjectCommand::Load { .. } => reopened(&host, &notes, &files, label, |path| {
+                ProjectCommand::Load { path }
+            }),
             ProjectCommand::RelinkMedia { .. } => {
                 let media = imported(&host, &files.a);
                 notes.take();
@@ -787,12 +894,25 @@ fn every_project_command_announces_what_its_outcome_implies() {
             ProjectCommand::SetMediaLabel { label: color, .. } => {
                 let media = imported(&host, &files.a);
                 notes.take();
-                run(&host, ProjectCommand::SetMediaLabel { media, label: color }).expect(label);
+                run(
+                    &host,
+                    ProjectCommand::SetMediaLabel {
+                        media,
+                        label: color,
+                    },
+                )
+                .expect(label);
                 vec![Note::Applied(label)]
             }
             ProjectCommand::Export { format, .. } => {
                 let path = files.export.clone();
-                let result = run(&host, ProjectCommand::Export { path: path.clone(), format });
+                let result = run(
+                    &host,
+                    ProjectCommand::Export {
+                        path: path.clone(),
+                        format,
+                    },
+                );
                 let finished = match &result {
                     Ok(_) => RenderResult::Written,
                     Err(err) => RenderResult::Failed(err.to_string()),
@@ -815,12 +935,31 @@ fn every_project_command_announces_what_its_outcome_implies() {
                 host.apply(&Origin::Editor, add("templated")).expect("lane");
                 let template = files.template.clone();
                 let meta = TemplateMeta::new("Intro");
-                run(&host, ProjectCommand::SaveTemplate { path: template.clone(), meta })
-                    .expect("template");
-                run(&host, ProjectCommand::Save { path: files.project.clone() }).expect("save");
+                run(
+                    &host,
+                    ProjectCommand::SaveTemplate {
+                        path: template.clone(),
+                        meta,
+                    },
+                )
+                .expect("template");
+                run(
+                    &host,
+                    ProjectCommand::Save {
+                        path: files.project.clone(),
+                    },
+                )
+                .expect("save");
                 notes.take();
                 let picks = Vec::new();
-                run(&host, ProjectCommand::ApplyTemplate { path: template, picks }).expect(label);
+                run(
+                    &host,
+                    ProjectCommand::ApplyTemplate {
+                        path: template,
+                        picks,
+                    },
+                )
+                .expect(label);
                 vec![
                     Note::Applied(label),
                     Note::Closed(Some(files.project.clone())),
@@ -842,21 +981,33 @@ fn media_imported_in_a_group_is_announced_only_by_the_outermost_commit() {
     let seen: Arc<Mutex<Vec<Note>>> = Arc::default();
     let _imported = note::<MediaImported>(&ctx, &seen, |e| Note::Imported(e.media, e.path.clone()));
     let delivered = || {
-        assert!(ctx.events().flush(BOUND), "delivery must finish within the bound");
+        assert!(
+            ctx.events().flush(BOUND),
+            "delivery must finish within the bound"
+        );
         std::mem::take(&mut *seen.lock())
     };
 
     let dropped = host.group(&Origin::Editor).expect("open");
     imported(&host, &files.a);
-    assert!(delivered().is_empty(), "nothing in an open group is announced");
+    assert!(
+        delivered().is_empty(),
+        "nothing in an open group is announced"
+    );
     dropped.rollback();
-    assert!(delivered().is_empty(), "a rolled-back import is never announced");
+    assert!(
+        delivered().is_empty(),
+        "a rolled-back import is never announced"
+    );
 
     let outer = host.group(&Origin::Editor).expect("open");
     let inner = host.group(&Origin::Editor).expect("savepoint");
     let media = imported(&host, &files.b);
     inner.commit();
-    assert!(delivered().is_empty(), "a savepoint commit announces nothing");
+    assert!(
+        delivered().is_empty(),
+        "a savepoint commit announces nothing"
+    );
     outer.commit();
     assert_eq!(delivered(), [Note::Imported(media, files.b.clone())]);
     assert_idle(&host);
@@ -870,7 +1021,13 @@ fn replacing_the_session_announces_the_closed_and_the_opened_project() {
     let (Fixture { host, ctx }, _policy) = fixture();
     let files = Files::new();
     host.apply(&Origin::Editor, add("old")).expect("lane");
-    run(&host, ProjectCommand::Save { path: files.project.clone() }).expect("save");
+    run(
+        &host,
+        ProjectCommand::Save {
+            path: files.project.clone(),
+        },
+    )
+    .expect("save");
     let notes = Notes::new(&ctx);
 
     host.replace_session(&Origin::Editor, Engine::new_session)

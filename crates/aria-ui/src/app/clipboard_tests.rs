@@ -220,8 +220,12 @@ fn paste_attributes_replaces_the_target_chain_rather_than_appending() {
         .map(|(spec, _)| spec.id.clone())
         .expect("the catalog ships an effect");
     state.select_clip(second);
-    state.add_effect_to_selected(&effect).expect("target effect");
-    state.add_effect_to_selected(&effect).expect("target effect");
+    state
+        .add_effect_to_selected(&effect)
+        .expect("target effect");
+    state
+        .add_effect_to_selected(&effect)
+        .expect("target effect");
     state.select_clip(first);
     state.copy_selected();
     state.select_clip(second);

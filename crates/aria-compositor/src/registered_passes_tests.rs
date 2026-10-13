@@ -46,7 +46,9 @@ fn check_effect(source: &str, params: &[EffectParamSpec]) -> Result<String, Refu
 }
 
 fn refusal(source: &str) -> String {
-    check_effect(source, &[]).expect_err("the pass is refused").1
+    check_effect(source, &[])
+        .expect_err("the pass is refused")
+        .1
 }
 
 #[test]
@@ -133,7 +135,10 @@ fn fs(in: VsOut) -> @location(0) vec4<i32> {
 ",
     ] {
         let message = refusal(source);
-        assert!(message.contains("must return `@location(0) vec4<f32>`"), "{message}");
+        assert!(
+            message.contains("must return `@location(0) vec4<f32>`"),
+            "{message}"
+        );
     }
 }
 
@@ -177,7 +182,10 @@ fn fs(in: VsOut) -> @location(0) vec4<f32> {
 }
 ",
     );
-    assert!(message.contains("`extra_tex` is bound at @group(0) @binding(4)"), "{message}");
+    assert!(
+        message.contains("`extra_tex` is bound at @group(0) @binding(4)"),
+        "{message}"
+    );
 }
 
 #[test]
@@ -254,11 +262,17 @@ fn an_effect_without_parameters_declares_one_vec4() {
 fn parameter_names_must_be_wgsl_identifiers() {
     for name in ["", "two words", "dash-ed", "ünicode", "semi;colon"] {
         let error = register_effect(EffectDefinition {
-            spec: effect("test.lib.badname", vec![param(name, EffectParamKind::Scalar)]),
+            spec: effect(
+                "test.lib.badname",
+                vec![param(name, EffectParamKind::Scalar)],
+            ),
             passes: vec![PASSTHROUGH.into()],
         })
         .expect_err("a non-identifier name is refused");
-        assert!(error.message.contains("not a WGSL identifier"), "{name:?}: {error}");
+        assert!(
+            error.message.contains("not a WGSL identifier"),
+            "{name:?}: {error}"
+        );
         assert_eq!(error.pass, None);
     }
     for name in ["amount", "_x", "r2", "9lives"] {
@@ -280,7 +294,11 @@ fn an_effect_needs_one_to_max_passes() {
         passes: vec![PASSTHROUGH.into(); MAX_EFFECT_PASSES + 1],
     })
     .expect_err("too many passes");
-    assert!(over.message.contains(&format!("at most {MAX_EFFECT_PASSES}")), "{over}");
+    assert!(
+        over.message
+            .contains(&format!("at most {MAX_EFFECT_PASSES}")),
+        "{over}"
+    );
 }
 
 #[test]
@@ -310,7 +328,10 @@ fn a_refused_pass_names_its_index_and_line() {
     assert_eq!(error.pass, Some(1));
     assert_eq!(error.location.map(|(line, _)| line), Some(2), "{error}");
     let shown = error.to_string();
-    assert!(shown.starts_with("test.lib.secondbad pass 1 at 2:"), "{shown}");
+    assert!(
+        shown.starts_with("test.lib.secondbad pass 1 at 2:"),
+        "{shown}"
+    );
     assert!(registered_effect("test.lib.secondbad").is_none());
 }
 
@@ -321,8 +342,7 @@ fn a_refused_transition_is_not_registered() {
             id: "test.lib.badtransition".into(),
             label: "Bad".into(),
         },
-        shader: "@fragment\nfn fs() -> @location(0) vec3<f32> { return vec3<f32>(0.0); }\n"
-            .into(),
+        shader: "@fragment\nfn fs() -> @location(0) vec3<f32> { return vec3<f32>(0.0); }\n".into(),
     })
     .expect_err("wrong return type");
     assert_eq!(error.pass, Some(0));

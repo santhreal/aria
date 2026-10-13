@@ -69,10 +69,7 @@ fn watch(manager: JobManager, runner: ExportRunner) -> Watched {
         })
     };
     let on_finish = bus.subscribe::<ExportFinished, _>(move |e| {
-        let _ = sent.send(Posted::Finished(
-            file_label(&e.path),
-            e.result.clone(),
-        ));
+        let _ = sent.send(Posted::Finished(file_label(&e.path), e.result.clone()));
     });
     Watched {
         queue: ExportQueue::new(manager, runner, Arc::clone(&bus)),
@@ -96,7 +93,10 @@ impl Watched {
 
     /// Whether nothing else was posted.
     fn quiet(&self) -> bool {
-        assert!(self.bus.flush(BOUND), "delivery must finish within the bound");
+        assert!(
+            self.bus.flush(BOUND),
+            "delivery must finish within the bound"
+        );
         self.posted.try_recv().is_err()
     }
 }
@@ -238,7 +238,10 @@ fn cancelling_a_queued_entry_leaves_the_running_one_alone() {
             finished("running.mp4", RenderResult::Written),
         ]
     );
-    assert!(watched.quiet(), "an entry cancelled while queued posts nothing");
+    assert!(
+        watched.quiet(),
+        "an entry cancelled while queued posts nothing"
+    );
 }
 
 #[test]

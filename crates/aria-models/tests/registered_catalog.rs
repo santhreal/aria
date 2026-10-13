@@ -11,8 +11,8 @@
 
 use aria_models::{
     EffectInstance, EffectParamKind, EffectParamSpec, EffectSpec, ParamValue, TransitionSpec,
-    effect_catalog, effect_spec, register_effect, register_transition,
-    shipped_effect_catalog, shipped_transition_catalog, transition_catalog, transition_spec,
+    effect_catalog, effect_spec, register_effect, register_transition, shipped_effect_catalog,
+    shipped_transition_catalog, transition_catalog, transition_spec,
 };
 
 fn scalar(name: &str, default: f32, min: f32, max: f32) -> EffectParamSpec {
@@ -64,11 +64,9 @@ fn ids<T>(catalog: &aria_models::Catalog<T>, id: impl Fn(&T) -> &str) -> Vec<Str
 #[test]
 fn a_registered_effect_is_listed_and_resolves_until_its_guard_drops() {
     let before = effect_catalog();
-    let (guard, held) = register_effect(effect(
-        "test.listed",
-        vec![scalar("amount", 0.5, 0.0, 1.0)],
-    ))
-    .expect("a namespaced effect registers");
+    let (guard, held) =
+        register_effect(effect("test.listed", vec![scalar("amount", 0.5, 0.0, 1.0)]))
+            .expect("a namespaced effect registers");
     assert_eq!(held.id, "test.listed");
 
     let during = effect_catalog();
@@ -93,11 +91,22 @@ fn a_registered_transition_is_listed_and_resolves_until_its_guard_drops() {
     let (guard, held) =
         register_transition(transition("test.wipe")).expect("a namespaced transition registers");
     assert_eq!(held.label, "test.wipe label");
-    assert!(transition_catalog().iter().any(|spec| spec.id == "test.wipe"));
-    assert_eq!(transition_spec("test.wipe").unwrap().label, "test.wipe label");
+    assert!(
+        transition_catalog()
+            .iter()
+            .any(|spec| spec.id == "test.wipe")
+    );
+    assert_eq!(
+        transition_spec("test.wipe").unwrap().label,
+        "test.wipe label"
+    );
     drop(guard);
     assert!(transition_spec("test.wipe").is_none());
-    assert!(!transition_catalog().iter().any(|spec| spec.id == "test.wipe"));
+    assert!(
+        !transition_catalog()
+            .iter()
+            .any(|spec| spec.id == "test.wipe")
+    );
 }
 
 #[test]
@@ -109,7 +118,11 @@ fn shipped_entries_come_first_then_registered_ones_in_registration_order() {
         .iter()
         .map(|spec| spec.id.clone())
         .collect();
-    assert_eq!(listed[..shipped.len()], shipped[..], "shipped prefix unchanged");
+    assert_eq!(
+        listed[..shipped.len()],
+        shipped[..],
+        "shipped prefix unchanged"
+    );
     let a = listed.iter().position(|id| id == "test.order_a").unwrap();
     let b = listed.iter().position(|id| id == "test.order_b").unwrap();
     assert!(shipped.len() <= a && a < b, "{listed:?}");
@@ -152,7 +165,11 @@ fn every_refusal_rule_rejects_and_leaves_the_catalog_unchanged() {
             // Shipped ids have no dot, so the namespace rule refuses them first.
             "namespace",
         ),
-        ("registered twice", effect("test.taken", Vec::new()), "already in the catalog"),
+        (
+            "registered twice",
+            effect("test.taken", Vec::new()),
+            "already in the catalog",
+        ),
         (
             "empty label",
             EffectSpec {
@@ -197,7 +214,11 @@ fn every_refusal_rule_rejects_and_leaves_the_catalog_unchanged() {
     let refused_transitions = [
         ("no namespace", transition("bare"), "namespace"),
         ("shipped id", transition(&shipped_transition), "namespace"),
-        ("registered twice", transition("test.taken_t"), "already in the catalog"),
+        (
+            "registered twice",
+            transition("test.taken_t"),
+            "already in the catalog",
+        ),
         (
             "empty label",
             TransitionSpec {
@@ -228,7 +249,10 @@ fn an_inverted_colour_range_is_not_a_refusal() {
 fn an_instance_of_a_registered_effect_samples_validates_and_writes() {
     let (_guard, _) = register_effect(effect(
         "test.instance",
-        vec![scalar("amount", 0.25, 0.0, 2.0), color("tint", [10, 20, 30, 255])],
+        vec![
+            scalar("amount", 0.25, 0.0, 2.0),
+            color("tint", [10, 20, 30, 255]),
+        ],
     ))
     .unwrap();
     let mut instance = EffectInstance::new("test.instance");
@@ -256,8 +280,11 @@ fn an_instance_of_a_registered_effect_samples_validates_and_writes() {
 
 #[test]
 fn an_instance_whose_effect_is_removed_resolves_to_nothing_and_keeps_its_values() {
-    let (guard, _) =
-        register_effect(effect("test.removed", vec![scalar("amount", 0.0, 0.0, 1.0)])).unwrap();
+    let (guard, _) = register_effect(effect(
+        "test.removed",
+        vec![scalar("amount", 0.0, 0.0, 1.0)],
+    ))
+    .unwrap();
     let mut instance = EffectInstance::new("test.removed");
     instance.set_param_constant(0, 0.75).unwrap();
     drop(guard);
@@ -272,8 +299,11 @@ fn an_instance_whose_effect_is_removed_resolves_to_nothing_and_keeps_its_values(
     );
 
     // Registering the id again resolves the same instance with its value.
-    let (_again, _) =
-        register_effect(effect("test.removed", vec![scalar("amount", 0.0, 0.0, 1.0)])).unwrap();
+    let (_again, _) = register_effect(effect(
+        "test.removed",
+        vec![scalar("amount", 0.0, 0.0, 1.0)],
+    ))
+    .unwrap();
     assert_eq!(instance.sample_param("amount", 0.0), Some(0.75));
 }
 

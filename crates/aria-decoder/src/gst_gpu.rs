@@ -96,15 +96,14 @@ fn try_open(uri: &glib::GString, dmabuf: bool) -> Result<OpenedPipeline, DecodeE
     // posts a bus error, and `bus_or` names it instead of this path; a retry
     // that still has not prerolled fails like the single wait did.
     let (state_res, ..) = pipeline.state(gst::ClockTime::from_seconds(8));
-    let state_res = if state_res == Ok(gst::StateChangeSuccess::Async)
-        && bus_error(&pipeline).is_none()
-    {
-        let _ = pipeline.set_state(gst::State::Paused);
-        let (retry, ..) = pipeline.state(gst::ClockTime::from_seconds(8));
-        retry
-    } else {
-        state_res
-    };
+    let state_res =
+        if state_res == Ok(gst::StateChangeSuccess::Async) && bus_error(&pipeline).is_none() {
+            let _ = pipeline.set_state(gst::State::Paused);
+            let (retry, ..) = pipeline.state(gst::ClockTime::from_seconds(8));
+            retry
+        } else {
+            state_res
+        };
     if !matches!(
         state_res,
         Ok(gst::StateChangeSuccess::Success) | Ok(gst::StateChangeSuccess::NoPreroll)

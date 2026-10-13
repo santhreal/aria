@@ -110,7 +110,10 @@ fn verbatim_prefixes_fold_to_paths_media_foundation_opens() {
     // `canonicalize` output: the DOS-device bypass must go.
     assert_eq!(mf_path(r"\\?\C:\media\clip.mp4"), r"C:\media\clip.mp4");
     // Verbatim UNC server form folds back to an ordinary UNC path.
-    assert_eq!(mf_path(r"\\?\UNC\host\share\clip.mp4"), r"\\host\share\clip.mp4");
+    assert_eq!(
+        mf_path(r"\\?\UNC\host\share\clip.mp4"),
+        r"\\host\share\clip.mp4"
+    );
     // Ordinary and relative paths pass through untouched.
     assert_eq!(mf_path(r"C:\media\clip.mp4"), r"C:\media\clip.mp4");
     assert_eq!(mf_path(r"relative\clip.mp4"), r"relative\clip.mp4");

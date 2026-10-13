@@ -144,10 +144,10 @@ pub use engine::{EnginePlugin, RenderPlugin};
 pub use gpu::{CompositorPlugin, EffectPlugin, TransitionPlugin};
 pub use host::{SettingsPlugin, StoragePlugin};
 pub use media::{DecoderPlugin, EncoderPlugin};
+pub(crate) use services::announce_jobs;
 pub use services::{
     AiHost, AiPlugin, AnalysisPlugin, CloudPlugin, DetectorTuning, JobsPlugin, TranscriptionPlugin,
 };
-pub(crate) use services::announce_jobs;
 pub use ui::UiPlugin;
 
 /// Ids every successful [`mount_all`] records, in order. Derived from

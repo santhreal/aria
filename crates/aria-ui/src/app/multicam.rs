@@ -202,9 +202,9 @@ impl AppState {
         // A group with some cameras moved and some not is out of sync in a way
         // the operator cannot see, so nothing lands.
         self.one_step(|this| {
-            moved
-                .iter()
-                .try_for_each(|(angle, offset)| this.set_multicam_angle_offset(group, *angle, *offset))
+            moved.iter().try_for_each(|(angle, offset)| {
+                this.set_multicam_angle_offset(group, *angle, *offset)
+            })
         })?;
         let placed = moved.len();
         self.status_message = Some(match measurement.refused {

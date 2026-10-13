@@ -235,7 +235,10 @@ fn mounting_and_unmounting_announce_the_plugin() {
     assert!(ctx.events().flush(std::time::Duration::from_secs(10)));
     assert_eq!(
         *seen.lock().expect("seen"),
-        [("activated", "test.consumer"), ("deactivated", "test.consumer")]
+        [
+            ("activated", "test.consumer"),
+            ("deactivated", "test.consumer")
+        ]
     );
 }
 
@@ -301,7 +304,10 @@ impl Plugin for Passes {
         ctx.register_effect(effect_definition(self.effect, EFFECT_FS))?;
         ctx.register_transition(transition_definition(self.transition))?;
         if self.fail {
-            return Err(PluginError::MountFailed(self.manifest.id, "asked to".into()));
+            return Err(PluginError::MountFailed(
+                self.manifest.id,
+                "asked to".into(),
+            ));
         }
         Ok(())
     }
@@ -367,7 +373,10 @@ fn a_failed_mount_removes_what_it_registered() {
     let err = ctx
         .mount(&passes("test.failing", effect, transition, true))
         .expect_err("asked to fail");
-    assert!(matches!(err, PluginError::MountFailed("test.failing", _)), "{err}");
+    assert!(
+        matches!(err, PluginError::MountFailed("test.failing", _)),
+        "{err}"
+    );
     assert!(!effect_listed(effect), "a failed mount left its effect");
     assert!(!transition_listed(transition));
 }
@@ -383,7 +392,10 @@ fn outside_a_mount_the_caller_holds_the_registration() {
         .expect("registers");
     assert!(effect_listed(id));
     drop(held);
-    assert!(!effect_listed(id), "dropping the registration kept the effect");
+    assert!(
+        !effect_listed(id),
+        "dropping the registration kept the effect"
+    );
 }
 
 /// A refused definition is reported as a refusal naming the pass and line, and

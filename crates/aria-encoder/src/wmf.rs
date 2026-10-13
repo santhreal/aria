@@ -26,9 +26,9 @@ use windows::Win32::Media::MediaFoundation::{
     MFAudioFormat_AAC, MFAudioFormat_PCM, MFCreateAttributes, MFCreateMediaType,
     MFCreateMemoryBuffer, MFCreateSample, MFCreateSinkWriterFromURL, MFMediaType_Audio,
     MFMediaType_Video, MFNominalRange_16_235, MFSTARTUP_FULL, MFStartup, MFVideoFormat_H264,
-    MFVideoFormat_NV12, MFVideoInterlace_Progressive, MFVideoPrimaries_BT2020,
-    MFVideoPrimaries_BT709, MFVideoPrimaries_SMPTE170M, MFVideoTransFunc_709,
-    MFVideoTransferMatrix_BT2020_10, MFVideoTransferMatrix_BT601, MFVideoTransferMatrix_BT709,
+    MFVideoFormat_NV12, MFVideoInterlace_Progressive, MFVideoPrimaries_BT709,
+    MFVideoPrimaries_BT2020, MFVideoPrimaries_SMPTE170M, MFVideoTransFunc_709,
+    MFVideoTransferMatrix_BT601, MFVideoTransferMatrix_BT709, MFVideoTransferMatrix_BT2020_10,
 };
 use windows::Win32::System::Com::{COINIT_MULTITHREADED, CoInitializeEx};
 use windows::core::HSTRING;
@@ -425,10 +425,7 @@ fn set_color_tags(media_type: &IMFMediaType, matrix: YuvMatrix) -> windows::core
     let (mf_matrix, mf_primaries) = match matrix {
         YuvMatrix::Bt709 => (MFVideoTransferMatrix_BT709, MFVideoPrimaries_BT709),
         YuvMatrix::Bt601 => (MFVideoTransferMatrix_BT601, MFVideoPrimaries_SMPTE170M),
-        YuvMatrix::Bt2020 => (
-            MFVideoTransferMatrix_BT2020_10,
-            MFVideoPrimaries_BT2020,
-        ),
+        YuvMatrix::Bt2020 => (MFVideoTransferMatrix_BT2020_10, MFVideoPrimaries_BT2020),
     };
     unsafe {
         media_type.SetUINT32(&MF_MT_YUV_MATRIX, mf_matrix.0 as u32)?;

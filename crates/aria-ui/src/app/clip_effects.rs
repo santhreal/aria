@@ -42,7 +42,10 @@ pub struct ParamSlots {
 
 impl ParamSlots {
     pub fn iter(&self) -> ParamSlotIter<'_> {
-        let params = self.spec.as_deref().map_or(&[][..], |spec| &spec.params[..]);
+        let params = self
+            .spec
+            .as_deref()
+            .map_or(&[][..], |spec| &spec.params[..]);
         ParamSlotIter {
             params: params.iter().enumerate(),
             kind: self.kind,

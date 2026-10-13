@@ -97,7 +97,10 @@ fn a_registered_transition_joins_and_leaves_the_transition_chips() {
         shader: TRANSITION_FS.into(),
     })
     .expect("the transition registers");
-    assert!(listed(), "the chips kept the share from before the registration");
+    assert!(
+        listed(),
+        "the chips kept the share from before the registration"
+    );
 
     drop(registration);
     assert!(!listed(), "the chips kept a transition that was removed");
@@ -152,7 +155,11 @@ fn assert_generator_clip(state: &AppState, id: &str, label: &str, start: i64) {
         ClipSource::Generated(Generator::SolidColor { rgba: [0; 4] })
     );
     assert_eq!(clip.name.as_deref(), Some(label));
-    let effects: Vec<&str> = clip.effects.iter().map(|fx| fx.effect_id.as_str()).collect();
+    let effects: Vec<&str> = clip
+        .effects
+        .iter()
+        .map(|fx| fx.effect_id.as_str())
+        .collect();
     assert_eq!(effects, [id]);
     assert_eq!(clip.timeline.start.value, start);
 }
@@ -174,16 +181,18 @@ fn a_registered_generator_is_offered_and_placed_as_one_clip_in_one_undo_step() {
         "the palette does not offer the generator as a clip"
     );
     assert!(
-        !aria_ui::catalog_text::generators()
-            .iter()
-            .any(|choice| aria_models::shipped_effect_catalog()
+        !aria_ui::catalog_text::generators().iter().any(|choice| {
+            aria_models::shipped_effect_catalog()
                 .iter()
-                .any(|spec| spec.id == choice.id.as_str())),
+                .any(|spec| spec.id == choice.id.as_str())
+        }),
         "a shipped effect that changes its input is listed as a generator"
     );
 
     state.playhead.value = 12;
-    state.add_effect_generator(id).expect("places the generator");
+    state
+        .add_effect_generator(id)
+        .expect("places the generator");
     assert_generator_clip(&state, id, "Bars", 12);
     assert!(state.undo(), "an undo step was recorded");
     assert_eq!(
@@ -209,6 +218,9 @@ fn a_registered_generator_is_offered_and_placed_as_one_clip_in_one_undo_step() {
     let err = state
         .add_effect_generator(id)
         .expect_err("no generator renders a removed id");
-    assert!(err.to_string().contains(&format!("no generator `{id}`")), "{err}");
+    assert!(
+        err.to_string().contains(&format!("no generator `{id}`")),
+        "{err}"
+    );
     assert_eq!(clip_count(&state), before);
 }

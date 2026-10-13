@@ -106,17 +106,27 @@ fn a_registered_effect_reads_its_parameter_and_clip_time() {
     project
         .add_effect(clip, "test.render.time_gain")
         .expect("a registered effect is in the catalog");
-    project.set_effect_param(clip, 0, 0, 0.25).expect("sets gain");
+    project
+        .set_effect_param(clip, 0, 0, 0.25)
+        .expect("sets gain");
 
     let Some(mut renderer) = renderer() else {
         return;
     };
     // 24 ticks at 24 fps, 12 after the clip starts: 0.5 seconds.
     let image = renderer.render_frame(&project, rt(24)).expect("render");
-    assert_near(image.pixel(960, 540), [128, 64, 0, 255], "time 0.5, gain 0.25");
+    assert_near(
+        image.pixel(960, 540),
+        [128, 64, 0, 255],
+        "time 0.5, gain 0.25",
+    );
     // 0.25 seconds into the clip.
     let image = renderer.render_frame(&project, rt(18)).expect("render");
-    assert_near(image.pixel(960, 540), [64, 64, 0, 255], "time 0.25, gain 0.25");
+    assert_near(
+        image.pixel(960, 540),
+        [64, 64, 0, 255],
+        "time 0.25, gain 0.25",
+    );
 
     drop(registration);
     let image = renderer.render_frame(&project, rt(24)).expect("render");
@@ -146,7 +156,9 @@ fn a_registered_transition_reads_its_progress() {
     project
         .add_transition(left, "test.render.progress")
         .expect("a registered transition is in the catalog");
-    project.set_transition_duration(left, 24).expect("sets duration");
+    project
+        .set_transition_duration(left, 24)
+        .expect("sets duration");
 
     let Some(mut renderer) = renderer() else {
         return;
@@ -196,7 +208,11 @@ fn a_generator_draws_over_the_transparent_solid_that_carries_it() {
         return;
     };
     let image = renderer.render_frame(&project, rt(12)).expect("render");
-    assert_near(image.pixel(960, 540), [0, 128, 0, 255], "the frame's centre");
+    assert_near(
+        image.pixel(960, 540),
+        [0, 128, 0, 255],
+        "the frame's centre",
+    );
     assert_near(image.pixel(480, 540), [0, 64, 0, 255], "a quarter across");
 
     drop(registration);

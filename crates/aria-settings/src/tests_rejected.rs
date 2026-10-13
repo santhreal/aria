@@ -50,7 +50,9 @@ fn a_relative_storage_root_is_rejected_and_the_rest_of_the_table_still_loads() {
 #[test]
 fn a_relative_override_under_storage_paths_is_rejected_by_its_dotted_key() {
     let analysis = crate::fixture_abs("mnt/a");
-    let s = loaded(&format!("[storage.paths]\nproxies = \"proxies\"\nanalysis = \"{analysis}\"\n"));
+    let s = loaded(&format!(
+        "[storage.paths]\nproxies = \"proxies\"\nanalysis = \"{analysis}\"\n"
+    ));
 
     assert_eq!(s.storage.paths.get("proxies"), None);
     assert_eq!(s.storage.paths.get("analysis"), Some(Path::new(&analysis)));

@@ -13,8 +13,8 @@
 use aria_compositor::{
     CompositeLayer, Compositor, CompositorConfig, CompositorError, CompositorLayer,
     EffectDefinition, GpuContext, LayerPlacement, PassId, PassInstance, PassRegistration,
-    RgbaImage, TransitionDefinition, effect_is_noop, pass_id, register_effect,
-    register_transition, renders_effect, renders_transition,
+    RgbaImage, TransitionDefinition, effect_is_noop, pass_id, register_effect, register_transition,
+    renders_effect, renders_transition,
 };
 use aria_models::{EffectParamKind, EffectParamSpec, EffectSpec, TransitionSpec};
 
@@ -99,7 +99,12 @@ fn instance(id: &str, params: Vec<f32>) -> PassInstance {
     PassInstance::new(id, params)
 }
 
-fn render(gpu: &GpuContext, comp: &mut Compositor, plate: [u8; 4], effects: &[PassInstance]) -> RgbaImage {
+fn render(
+    gpu: &GpuContext,
+    comp: &mut Compositor,
+    plate: [u8; 4],
+    effects: &[PassInstance],
+) -> RgbaImage {
     let config = CompositorConfig::new(W, H).with_background([0, 0, 0, 255]);
     let bmp = solid(plate);
     let layer =
@@ -125,9 +130,19 @@ fn a_single_pass_effect_draws_its_shader_with_its_parameter() {
     );
     assert!(renders_effect("test.gpu.invert"));
 
-    let full = render(&gpu, &mut comp, [200, 100, 50, 255], &[instance("test.gpu.invert", vec![1.0])]);
+    let full = render(
+        &gpu,
+        &mut comp,
+        [200, 100, 50, 255],
+        &[instance("test.gpu.invert", vec![1.0])],
+    );
     assert_px(&full, 32, 8, [55, 155, 205, 255], 2);
-    let none = render(&gpu, &mut comp, [200, 100, 50, 255], &[instance("test.gpu.invert", vec![0.0])]);
+    let none = render(
+        &gpu,
+        &mut comp,
+        [200, 100, 50, 255],
+        &[instance("test.gpu.invert", vec![0.0])],
+    );
     assert_px(&none, 32, 8, [200, 100, 50, 255], 2);
 }
 
@@ -151,7 +166,12 @@ fn fs(in: VsOut) -> @location(0) vec4<f32> {
     );
     // a, b.x b.y, c.r c.g c.b c.a, d
     let params = vec![0.2, 0.9, 0.4, 0.1, 0.2, 0.3, 0.6, 0.5];
-    let img = render(&gpu, &mut comp, [0, 0, 0, 255], &[instance("test.gpu.offsets", params)]);
+    let img = render(
+        &gpu,
+        &mut comp,
+        [0, 0, 0, 255],
+        &[instance("test.gpu.offsets", params)],
+    );
     assert_px(&img, 32, 8, [51, 102, 77, 255], 2);
 }
 
@@ -193,7 +213,12 @@ fn each_pass_reads_the_previous_output_and_the_effect_input() {
     // Red climbs a quarter per pass from 0; green stays the source's even
     // though two passes write between; blue is the last pass's index and the
     // pass count: 2 * 0.25 + 3 * 0.0625.
-    let img = render(&gpu, &mut comp, [0, 100, 0, 255], &[instance("test.gpu.threepass", Vec::new())]);
+    let img = render(
+        &gpu,
+        &mut comp,
+        [0, 100, 0, 255],
+        &[instance("test.gpu.threepass", Vec::new())],
+    );
     assert_px(&img, 32, 8, [191, 100, 175, 255], 2);
 }
 
@@ -229,7 +254,11 @@ fn fs(in: VsOut) -> @location(0) vec4<f32> {
 fn a_registered_effect_after_a_shipped_one_reads_its_output() {
     let gpu = gpu_or_skip!();
     let mut comp = Compositor::new(&gpu);
-    let _fx = effect("test.gpu.afterpixelate", Vec::new(), &[ADD_QUARTER_RED, ADD_QUARTER_RED]);
+    let _fx = effect(
+        "test.gpu.afterpixelate",
+        Vec::new(),
+        &[ADD_QUARTER_RED, ADD_QUARTER_RED],
+    );
     let chain = [
         PassInstance::new("pixelate", vec![4.0]),
         instance("test.gpu.afterpixelate", Vec::new()),
@@ -306,7 +335,12 @@ fn fs(in: VsOut) -> @location(0) vec4<f32> {{
 
     let first = effect("test.gpu.redo", Vec::new(), &[&red]);
     let stale = instance("test.gpu.redo", Vec::new());
-    let img = render(&gpu, &mut comp, [0, 0, 0, 255], std::slice::from_ref(&stale));
+    let img = render(
+        &gpu,
+        &mut comp,
+        [0, 0, 0, 255],
+        std::slice::from_ref(&stale),
+    );
     assert_px(&img, 32, 8, [255, 0, 0, 255], 1);
     drop(first);
 
@@ -336,12 +370,14 @@ fn a_refused_duplicate_leaves_the_first_registration_drawing() {
             params: Vec::new(),
             generator: false,
         },
-        passes: vec!["@fragment
+        passes: vec![
+            "@fragment
 fn fs(in: VsOut) -> @location(0) vec4<f32> {
     return vec4<f32>(0.0, 1.0, 0.0, 1.0);
 }
 "
-        .into()],
+            .into(),
+        ],
     })
     .expect_err("the id is taken");
     assert_eq!(error.id, "test.gpu.duplicate");
@@ -375,12 +411,22 @@ fn fs(in: VsOut) -> @location(0) vec4<f32> {
 "],
     );
     assert_eq!(fx.pass().failure(), None);
-    let img = render(&gpu, &mut comp, [9, 9, 9, 255], &[instance("test.gpu.refused", Vec::new())]);
+    let img = render(
+        &gpu,
+        &mut comp,
+        [9, 9, 9, 255],
+        &[instance("test.gpu.refused", Vec::new())],
+    );
     assert_px(&img, 32, 8, [9, 9, 9, 255], 1);
     let failure = fx.pass().failure().expect("the refusal is recorded");
     assert!(failure.starts_with("pass 0:"), "{failure}");
     // The refusal is cached: a second frame neither panics nor rebuilds.
-    let img = render(&gpu, &mut comp, [9, 9, 9, 255], &[instance("test.gpu.refused", Vec::new())]);
+    let img = render(
+        &gpu,
+        &mut comp,
+        [9, 9, 9, 255],
+        &[instance("test.gpu.refused", Vec::new())],
+    );
     assert_px(&img, 32, 8, [9, 9, 9, 255], 1);
 }
 
@@ -397,7 +443,8 @@ fn blend(gpu: &GpuContext, comp: &mut Compositor, id: &str, progress: f32) -> Rg
         transition_id: id,
         progress,
     }];
-    comp.render_compositor_layers(gpu, &config, &items).expect(id)
+    comp.render_compositor_layers(gpu, &config, &items)
+        .expect(id)
 }
 
 const SPLIT: &str = "@fragment

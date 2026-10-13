@@ -326,13 +326,12 @@ pub fn register_transition(
         },
     )?;
     let id = spec.id.clone();
-    let (catalog, _) =
-        aria_models::register_transition(spec).map_err(|message| RegisterError {
-            id: id.clone(),
-            pass: None,
-            location: None,
-            message,
-        })?;
+    let (catalog, _) = aria_models::register_transition(spec).map_err(|message| RegisterError {
+        id: id.clone(),
+        pass: None,
+        location: None,
+        message,
+    })?;
     Ok(insert(Kind::Transition, id, 0, Box::new([source]), catalog))
 }
 

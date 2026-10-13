@@ -83,7 +83,8 @@ fn an_unknown_effect_is_an_error() {
         .render_effect("test.gpu.nothing", &[], &solid([0, 0, 0, 255]))
         .expect_err("no pass renders it");
     assert!(
-        err.to_string().contains("no pass renders effect `test.gpu.nothing`"),
+        err.to_string()
+            .contains("no pass renders effect `test.gpu.nothing`"),
         "{err}"
     );
 }
@@ -135,7 +136,8 @@ fn an_unknown_transition_is_an_error() {
         .render_transition("test.gpu.nothing", &image, &image, 0.5)
         .expect_err("no pass renders it");
     assert!(
-        err.to_string().contains("no pass renders transition `test.gpu.nothing`"),
+        err.to_string()
+            .contains("no pass renders transition `test.gpu.nothing`"),
         "{err}"
     );
 }

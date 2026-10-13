@@ -103,7 +103,10 @@ fn a_panicking_handler_loses_only_its_own_call() {
     for _ in 0..3 {
         bus.post(Ping);
     }
-    assert!(bus.flush(BOUND), "a panic must not stop the delivery thread");
+    assert!(
+        bus.flush(BOUND),
+        "a panic must not stop the delivery thread"
+    );
     assert_eq!(count.load(Ordering::SeqCst), 3);
 }
 
@@ -177,7 +180,10 @@ fn delivery_runs_off_the_posting_thread_and_main_lane_handlers_wait_for_run_main
     }
     assert!(bus.flush(BOUND));
     assert!(
-        delivery_threads.lock().iter().all(|thread| *thread != poster),
+        delivery_threads
+            .lock()
+            .iter()
+            .all(|thread| *thread != poster),
         "a notification handler must not run on the posting thread"
     );
     assert!(
@@ -231,7 +237,10 @@ fn flush_on_the_delivery_thread_returns_instead_of_waiting_for_itself() {
     assert!(bus.flush(BOUND));
     let (flushed, took) = answer.lock().expect("the handler ran");
     assert!(!flushed, "the delivery thread cannot have delivered itself");
-    assert!(took < Duration::from_secs(1), "and must not wait trying, took {took:?}");
+    assert!(
+        took < Duration::from_secs(1),
+        "and must not wait trying, took {took:?}"
+    );
 }
 
 #[test]
@@ -310,7 +319,9 @@ fn subscribe_inside_handler_does_not_deadlock() {
     let _r1 = bus.subscribe::<Ping, _>(move |_| {
         counter_clone.fetch_add(1, Ordering::Relaxed);
         let inner_counter = counter_clone.clone();
-        let Some(bus) = bus_clone.upgrade() else { return };
+        let Some(bus) = bus_clone.upgrade() else {
+            return;
+        };
         let mut retained = retained_clone.lock();
         if retained.is_none() {
             *retained = Some(bus.subscribe::<Ping, _>(move |_| {

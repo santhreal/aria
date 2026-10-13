@@ -288,14 +288,25 @@ impl EditorView {
 /// What a context menu was opened on.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MenuTarget {
-    Clip { clip: ClipId, track: TrackId },
-    Track { track: TrackId },
+    Clip {
+        clip: ClipId,
+        track: TrackId,
+    },
+    Track {
+        track: TrackId,
+    },
     /// The junction at the right edge of `clip`.
-    Transition { clip: ClipId },
+    Transition {
+        clip: ClipId,
+    },
     Viewer,
-    Media { media: MediaId },
+    Media {
+        media: MediaId,
+    },
     /// A recent project on Home.
-    Recent { path: PathBuf },
+    Recent {
+        path: PathBuf,
+    },
 }
 
 /// A row a plugin adds to a context menu.

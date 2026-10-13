@@ -210,9 +210,9 @@ fn snapshot_under_a_lease_does_not_wait_behind_a_writer() {
 
 #[test]
 fn concurrent_lease_and_relocation_fairness_stress() {
-    use std::sync::mpsc;
     use std::sync::Arc;
     use std::sync::Barrier;
+    use std::sync::mpsc;
     use std::thread;
     use std::time::Duration;
 

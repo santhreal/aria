@@ -162,55 +162,60 @@ impl AppState {
         self.status_message = Some(format!("Rendering {name} · {written}"));
         let BakePass { project, .. } = pass;
         let kind = aria_plugin::RenderKind::Clip(clip);
-        let id = self.spawn_render(format!("Rendering {name}"), kind, dest.clone(), move |context| {
-            let mut guard = super::jobs::CommitGuard::new(context, "the render");
-            let mut observer = |done: u64, total: u64| {
-                let fraction = if total == 0 {
-                    0.0
-                } else {
-                    done as f32 / total as f32
+        let id = self.spawn_render(
+            format!("Rendering {name}"),
+            kind,
+            dest.clone(),
+            move |context| {
+                let mut guard = super::jobs::CommitGuard::new(context, "the render");
+                let mut observer = |done: u64, total: u64| {
+                    let fraction = if total == 0 {
+                        0.0
+                    } else {
+                        done as f32 / total as f32
+                    };
+                    context.set_progress(fraction, format!("frame {done}/{total}"));
+                    if done == total {
+                        return guard.begin().is_ok();
+                    }
+                    !context.cancelled()
                 };
-                context.set_progress(fraction, format!("frame {done}/{total}"));
-                if done == total {
-                    return guard.begin().is_ok();
-                }
-                !context.cancelled()
-            };
-            let frames = match gpu {
-                Some(gpu) => {
-                    let mut renderer = super::render_device::renderer_on(gpu, "the render")?;
-                    aria_render::export_to_file_observed(
-                        &mut renderer,
+                let frames = match gpu {
+                    Some(gpu) => {
+                        let mut renderer = super::render_device::renderer_on(gpu, "the render")?;
+                        aria_render::export_to_file_observed(
+                            &mut renderer,
+                            &project,
+                            &dest,
+                            settings,
+                            &mut observer,
+                        )
+                    }
+                    None => aria_render::export_audio_to_file_observed(
                         &project,
                         &dest,
                         settings,
                         &mut observer,
-                    )
+                    ),
                 }
-                None => aria_render::export_audio_to_file_observed(
-                    &project,
-                    &dest,
-                    settings,
-                    &mut observer,
-                ),
-            }
-            .map_err(|err| err.to_string())?;
-            // The last act, on the shared engine: the file exists, so the
-            // clip can decode it from here on. Swapping earlier would point
-            // the renderer at a file that is still being written. An assistant
-            // turn that queued this render holds the project until it ends, so
-            // the swap waits for it, one contended wait at a time, unless the
-            // job is cancelled first.
-            loop {
-                match adopt(&host, clip, dest.clone()) {
-                    Err(TransactError::Busy { .. }) if !context.cancelled() => {}
-                    result => break result.map_err(|err| err.to_string())?,
+                .map_err(|err| err.to_string())?;
+                // The last act, on the shared engine: the file exists, so the
+                // clip can decode it from here on. Swapping earlier would point
+                // the renderer at a file that is still being written. An assistant
+                // turn that queued this render holds the project until it ends, so
+                // the swap waits for it, one contended wait at a time, unless the
+                // job is cancelled first.
+                loop {
+                    match adopt(&host, clip, dest.clone()) {
+                        Err(TransactError::Busy { .. }) if !context.cancelled() => {}
+                        result => break result.map_err(|err| err.to_string())?,
+                    }
                 }
-            }
-            JobCompletion::new(format!("{label}: {frames} frame(s) at {written}"))
-                .with_output("path", published)
-                .map_err(String::from)
-        });
+                JobCompletion::new(format!("{label}: {frames} frame(s) at {written}"))
+                    .with_output("path", published)
+                    .map_err(String::from)
+            },
+        );
         Ok(id.raw())
     }
 }

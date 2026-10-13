@@ -61,12 +61,19 @@ impl OneShot {
     }
 
     /// A transparent canvas of one size, and the device to draw it on.
-    fn canvas(&self, width: u32, height: u32) -> Result<(&GpuContext, CompositorConfig), RenderError> {
+    fn canvas(
+        &self,
+        width: u32,
+        height: u32,
+    ) -> Result<(&GpuContext, CompositorConfig), RenderError> {
         let gpu = self
             .gpu
             .as_deref()
             .ok_or_else(|| RenderError::unsupported("no GPU device is available"))?;
-        Ok((gpu, CompositorConfig::new(width, height).with_background([0, 0, 0, 0])))
+        Ok((
+            gpu,
+            CompositorConfig::new(width, height).with_background([0, 0, 0, 0]),
+        ))
     }
 
     /// Draw `layers` and read the canvas back as straight alpha.

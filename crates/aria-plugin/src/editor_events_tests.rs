@@ -77,7 +77,10 @@ impl Recorder {
 
     /// Everything delivered since the last call.
     fn take(&self) -> Vec<Seen> {
-        assert!(self.bus.flush(BOUND), "delivery must finish within the bound");
+        assert!(
+            self.bus.flush(BOUND),
+            "delivery must finish within the bound"
+        );
         std::mem::take(&mut *self.seen.lock())
     }
 }
@@ -123,16 +126,27 @@ fn each_changed_part_of_the_view_posts_its_own_notification() {
     let bus = Arc::new(EventBus::new());
     let recorder = Recorder::new(&bus);
     let view = EditorView::new();
-    assert_eq!(view.current(), None, "nothing is recorded before the first frame");
+    assert_eq!(
+        view.current(),
+        None,
+        "nothing is recorded before the first frame"
+    );
 
     let mut current = stopped_at_zero(&[]);
     view.publish(frame(&current), &bus);
-    assert!(recorder.take().is_empty(), "the first frame is recorded, not announced");
+    assert!(
+        recorder.take().is_empty(),
+        "the first frame is recorded, not announced"
+    );
     assert_eq!(view.current().as_ref(), Some(&current));
 
     let steps = [
         step("unchanged", |_| {}, vec![]),
-        step("select", |s| s.selection = vec![A], vec![Seen::Selection(vec![A])]),
+        step(
+            "select",
+            |s| s.selection = vec![A],
+            vec![Seen::Selection(vec![A])],
+        ),
         step(
             "extend the selection",
             |s| s.selection.push(B),
@@ -143,7 +157,11 @@ fn each_changed_part_of_the_view_posts_its_own_notification() {
             |s| s.selection.reverse(),
             vec![Seen::Selection(vec![B, A])],
         ),
-        step("seek", |s| s.playhead = at(10), vec![Seen::Playhead(at(10))]),
+        step(
+            "seek",
+            |s| s.playhead = at(10),
+            vec![Seen::Playhead(at(10))],
+        ),
         step(
             "mark in",
             |s| s.mark_in = Some(at(5)),
@@ -271,15 +289,27 @@ fn a_context_menu_collects_rows_from_every_handler_in_registration_order() {
     let mut menu = ContextMenuRequested::new(target.clone(), project);
     bus.emit_waterfall(&mut menu);
 
-    let labels: Vec<&str> = menu.entries.iter().map(|entry| entry.label.as_str()).collect();
+    let labels: Vec<&str> = menu
+        .entries
+        .iter()
+        .map(|entry| entry.label.as_str())
+        .collect();
     assert_eq!(labels, ["First", "Second", "Third"]);
     assert_eq!(
         *seen_targets.lock(),
         [target.clone(), target],
         "every handler sees the target"
     );
-    assert_eq!(ran.load(Ordering::SeqCst), 0, "opening the menu runs no row");
+    assert_eq!(
+        ran.load(Ordering::SeqCst),
+        0,
+        "opening the menu runs no row"
+    );
     (menu.entries[2].run)();
     (menu.entries[0].run)();
-    assert_eq!(ran.load(Ordering::SeqCst), 11, "each row runs its own action");
+    assert_eq!(
+        ran.load(Ordering::SeqCst),
+        11,
+        "each row runs its own action"
+    );
 }

@@ -154,12 +154,14 @@ fn reordering_moves_one_effect_and_the_ends_refuse_to_leave_the_chain() {
 #[test]
 fn a_non_scalar_or_missing_slot_is_inert() {
     let (mut state, _) = with_clip();
-    let non_scalar = aria_models::shipped_effect_catalog().iter().find_map(|spec| {
-        spec.params
-            .iter()
-            .position(|param| param.kind != EffectParamKind::Scalar)
-            .map(|slot| (spec.id.as_str(), slot))
-    });
+    let non_scalar = aria_models::shipped_effect_catalog()
+        .iter()
+        .find_map(|spec| {
+            spec.params
+                .iter()
+                .position(|param| param.kind != EffectParamKind::Scalar)
+                .map(|slot| (spec.id.as_str(), slot))
+        });
 
     if let Some((id, slot)) = non_scalar {
         state.add_effect_to_selected(id).expect("add");
@@ -238,9 +240,7 @@ fn the_add_list_offers_every_model_effect_and_marks_the_unrenderable_ones() {
             label.starts_with(spec.label.as_str()),
             "{id} lost its display name"
         );
-        let renderable = service
-            .as_ref()
-            .is_some_and(|svc| svc.renders_effect(id));
+        let renderable = service.as_ref().is_some_and(|svc| svc.renders_effect(id));
         assert_eq!(
             label.contains("passthrough"),
             !renderable,

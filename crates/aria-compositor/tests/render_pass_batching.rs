@@ -253,9 +253,7 @@ fn pass_batching_keys_on_the_constants() {
     let strengths = [0.2f32, 0.4, 0.6, 0.8];
     let distinct: Vec<_> = strengths
         .iter()
-        .map(|s| {
-            [PassInstance::new("vignette", vec![*s])]
-        })
+        .map(|s| [PassInstance::new("vignette", vec![*s])])
         .collect();
     let layers: Vec<_> = distinct
         .iter()

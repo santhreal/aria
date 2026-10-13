@@ -287,10 +287,12 @@ enum Rejection {
 
 /// The refusal an edit gets while another thread holds the project.
 fn busy(holder: &Origin) -> EngineError {
-    EngineError::Refused(TransactError::Busy {
-        holder: holder.clone(),
-    }
-    .to_string())
+    EngineError::Refused(
+        TransactError::Busy {
+            holder: holder.clone(),
+        }
+        .to_string(),
+    )
 }
 
 /// How far an open group reaches back, to roll back to.
@@ -457,7 +459,12 @@ impl ProjectHost {
     }
 
     /// Propose `command` to every handler. The caller holds the engine lock.
-    fn propose(&self, engine: &Engine, command: Command, origin: &Origin) -> Result<Command, String> {
+    fn propose(
+        &self,
+        engine: &Engine,
+        command: Command,
+        origin: &Origin,
+    ) -> Result<Command, String> {
         let project = engine.snapshot();
         let _proposing = Proposing::enter(Arc::clone(&project), engine.revision());
         let mut proposed = CommandProposed::new(command, project, origin.clone());
@@ -703,9 +710,7 @@ impl ProjectHost {
 
     fn step_history(&self, step: impl FnOnce(&mut Engine) -> bool) -> Result<bool, EngineError> {
         assert!(!in_handler(), "{}", TransactError::Reentrant);
-        let hold = self
-            .hold(&Origin::Editor)
-            .map_err(|holder| busy(&holder))?;
+        let hold = self.hold(&Origin::Editor).map_err(|holder| busy(&holder))?;
         let grouped = self.sequence.lock().groups > 0;
         let stepped = !grouped && step(&mut self.engine.lock());
         self.announce(hold.release([]));

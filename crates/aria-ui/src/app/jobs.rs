@@ -196,8 +196,7 @@ impl AppState {
     ) -> JobId {
         let bus = std::sync::Arc::clone(self.ctx.event_bus());
         self.spawn_job(label, move |context| {
-            let outcome =
-                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| work(context)));
+            let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| work(context)));
             let result = match &outcome {
                 Err(payload) => aria_plugin::RenderResult::Failed(format!(
                     "panicked: {}",

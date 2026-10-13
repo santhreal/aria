@@ -59,7 +59,10 @@ impl<T: Send + 'static> Recorder<T> {
 
     /// Everything delivered so far.
     fn take(&self) -> Vec<T> {
-        assert!(self.bus.flush(BOUND), "delivery must finish within the bound");
+        assert!(
+            self.bus.flush(BOUND),
+            "delivery must finish within the bound"
+        );
         self.seen.try_iter().collect()
     }
 
@@ -99,10 +102,16 @@ fn a_drawn_frame_records_the_view_and_posts_each_changed_part() {
     let first = view.current().expect("the first frame is recorded");
     assert_eq!(first.selection, [clip]);
     assert_eq!(first.playhead, state.playhead);
-    assert!(selections.take().is_empty(), "the first frame posts nothing");
+    assert!(
+        selections.take().is_empty(),
+        "the first frame posts nothing"
+    );
 
     state.publish_view();
-    assert!(playheads.take().is_empty(), "an unchanged frame posts nothing");
+    assert!(
+        playheads.take().is_empty(),
+        "an unchanged frame posts nothing"
+    );
 
     state.clear_selection();
     state.playhead = RationalTime::new(state.playhead.value + 12, rate);
@@ -143,7 +152,9 @@ fn a_missing_file_is_posted_once_and_again_after_it_returns() {
     let bus = Arc::clone(state.ctx.event_bus());
     let offline = Recorder::new(&bus, |e: &MediaOffline| (e.media, name_of(&e.path)));
     let gone = stage(&dir, "gone.png");
-    let card = state.import_media(gone.clone()).expect("import the staged file");
+    let card = state
+        .import_media(gone.clone())
+        .expect("import the staged file");
     assert!(offline.take().is_empty(), "a file on disk is not offline");
 
     std::fs::remove_file(&gone).expect("lose the file");
@@ -151,11 +162,17 @@ fn a_missing_file_is_posted_once_and_again_after_it_returns() {
     assert_eq!(offline.take(), [(card, "gone.png".to_string())]);
 
     rebuild_pool(&mut state, &dir, "third.png");
-    assert!(offline.take().is_empty(), "a file still missing is not posted twice");
+    assert!(
+        offline.take().is_empty(),
+        "a file still missing is not posted twice"
+    );
 
     std::fs::copy(texture(), &gone).expect("restore the file");
     rebuild_pool(&mut state, &dir, "fourth.png");
-    assert!(offline.take().is_empty(), "a file that returned is not offline");
+    assert!(
+        offline.take().is_empty(),
+        "a file that returned is not offline"
+    );
 
     std::fs::remove_file(&gone).expect("lose the file again");
     rebuild_pool(&mut state, &dir, "fifth.png");
@@ -225,7 +242,9 @@ fn every_job_transition_reaches_the_bus() {
         };
         let mut seen = Vec::new();
         loop {
-            let next = board.recv_timeout(BOUND).expect("the job ends within the bound");
+            let next = board
+                .recv_timeout(BOUND)
+                .expect("the job ends within the bound");
             let ended = next == end;
             if ours(&next) {
                 seen.push(next);
@@ -235,12 +254,19 @@ fn every_job_transition_reaches_the_bus() {
             }
         }
         assert!(
-            seen.contains(&Board::Progress(id.raw(), Some(0.5), "half way".to_string())),
+            seen.contains(&Board::Progress(
+                id.raw(),
+                Some(0.5),
+                "half way".to_string()
+            )),
             "{label}: the progress report never reached the bus: {seen:?}"
         );
         assert!(bus.flush(BOUND), "delivery must finish within the bound");
         let late: Vec<Board> = board.try_iter().filter(|note| ours(note)).collect();
-        assert!(late.is_empty(), "{label}: posted after it finished: {late:?}");
+        assert!(
+            late.is_empty(),
+            "{label}: posted after it finished: {late:?}"
+        );
     }
     drop((progress, finished));
 }
@@ -267,8 +293,11 @@ fn render_job(
     });
     let (running, running_wait) = crossbeam_channel::bounded::<()>(1);
     let (release, release_wait) = crossbeam_channel::bounded::<()>(1);
-    let id = state.spawn_render("rendering", kind, path.to_path_buf(), move |context| {
-        match ending {
+    let id = state.spawn_render(
+        "rendering",
+        kind,
+        path.to_path_buf(),
+        move |context| match ending {
             Ending::Writes => Ok(JobCompletion::new("written")),
             Ending::Fails => Err("No space left on device".to_string()),
             Ending::IsCancelled => {
@@ -285,10 +314,15 @@ fn render_job(
                 Ok(JobCompletion::new("written"))
             }
             Ending::Panics => panic!("codec exploded"),
-        }
-    });
-    if matches!(ending, Ending::IsCancelled | Ending::IsCancelledAfterReturning) {
-        running_wait.recv_timeout(BOUND).expect("the render is running");
+        },
+    );
+    if matches!(
+        ending,
+        Ending::IsCancelled | Ending::IsCancelledAfterReturning
+    ) {
+        running_wait
+            .recv_timeout(BOUND)
+            .expect("the render is running");
         assert!(state.jobs.cancel(id), "a running render accepts a cancel");
         let _ = release.send(());
     }
@@ -321,7 +355,11 @@ fn a_render_posts_the_result_the_registry_records() {
             RenderResult::Failed("No space left on device".to_string()),
             JobState::Failed,
         ),
-        (Ending::IsCancelled, RenderResult::Cancelled, JobState::Cancelled),
+        (
+            Ending::IsCancelled,
+            RenderResult::Cancelled,
+            JobState::Cancelled,
+        ),
         (
             Ending::IsCancelledAfterReturning,
             RenderResult::Cancelled,
@@ -440,7 +478,10 @@ fn a_menu_collects_plugin_rows_in_mount_order_for_its_target() {
     );
     drop((first, second));
     state.open_context(ContextTarget::Preview, 10.0, 10.0);
-    assert!(row_labels(&state).is_empty(), "dropped handlers still added rows");
+    assert!(
+        row_labels(&state).is_empty(),
+        "dropped handlers still added rows"
+    );
 }
 
 #[test]
@@ -466,7 +507,9 @@ fn a_clicked_plugin_row_runs_off_the_window_thread() {
     state.run_plugin_row(Arc::new(move || {
         let _ = sent.send(std::thread::current().id());
     }));
-    let thread = ran.recv_timeout(BOUND).expect("the row ran within the bound");
+    let thread = ran
+        .recv_timeout(BOUND)
+        .expect("the row ran within the bound");
     assert_ne!(thread, std::thread::current().id());
     assert_eq!(state.last_error, None);
 }

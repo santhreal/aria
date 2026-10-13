@@ -17,7 +17,10 @@ fn import_registers_media_and_cache() {
 
     let media = engine.project().media(media_id).expect("media");
     // Import canonicalizes the source path (dedupe across spellings).
-    assert_eq!(media.path(), dunce::canonicalize(&path).expect("asset exists"));
+    assert_eq!(
+        media.path(),
+        dunce::canonicalize(&path).expect("asset exists")
+    );
     assert!(media.width > 0);
     assert!(media.height > 0);
     assert!(media.duration.value > 0);

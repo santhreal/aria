@@ -364,15 +364,16 @@ impl AppState {
                 // Two commands, one gesture: one undo puts the keyframe back
                 // where it was.
                 self.one_step(|this| {
-                    this.remove_keyframe_at(draft.param, origin_tick).and_then(|()| {
-                        this.set_keyframe_value_at(
-                            draft.param,
-                            draft.component,
-                            current_tick,
-                            current_val,
-                            easing,
-                        )
-                    })
+                    this.remove_keyframe_at(draft.param, origin_tick)
+                        .and_then(|()| {
+                            this.set_keyframe_value_at(
+                                draft.param,
+                                draft.component,
+                                current_tick,
+                                current_val,
+                                easing,
+                            )
+                        })
                 })
             }
             CurveDragTarget::BezierHandle {

@@ -297,7 +297,15 @@ mod tests {
     #[test]
     fn effect_uniform_words_follow_the_prelude_layout() {
         let mut words = [u32::MAX; MAX_EFFECT_WORDS];
-        let used = effect_uniform(&mut words, 200, 100, 1.5, 1, 3, &[0.25, 0.5, 0.75, 1.0, 2.0]);
+        let used = effect_uniform(
+            &mut words,
+            200,
+            100,
+            1.5,
+            1,
+            3,
+            &[0.25, 0.5, 0.75, 1.0, 2.0],
+        );
         assert_eq!(used, EFFECT_HEADER_WORDS + 8, "five floats take two vec4s");
         let floats = |range: std::ops::Range<usize>| {
             words[range]

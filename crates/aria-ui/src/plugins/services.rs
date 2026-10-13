@@ -8,8 +8,8 @@ use aria_analysis::{BeatConfig, LoudnessConfig, ShotDetectionConfig, SilenceConf
 use aria_cloud::{CloudClient, DEFAULT_BASE_URL};
 use aria_jobs::{JobManager, JobState};
 use aria_plugin::{
-    DropAction, EventBus, JobFinished, JobOutcome, JobProgress, Plugin, PluginContext,
-    PluginError, PluginManifest, ResolveDroppedPath, Service, SettingsService, StorageService,
+    DropAction, EventBus, JobFinished, JobOutcome, JobProgress, Plugin, PluginContext, PluginError,
+    PluginManifest, ResolveDroppedPath, Service, SettingsService, StorageService,
 };
 use aria_transcription::ModelManager;
 
