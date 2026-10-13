@@ -181,6 +181,41 @@ impl History {
             .collect()
     }
 
+    /// Steps collected by the open group so far; zero with none open.
+    pub fn group_len(&self) -> usize {
+        self.pending.as_ref().map_or(0, Vec::len)
+    }
+
+    /// Detach the open group's steps after the first `mark`, leaving the group
+    /// open with the earlier ones (for a savepoint rollback: the caller applies
+    /// them in reverse order).
+    pub fn take_group_from(&mut self, mark: usize) -> Vec<Box<dyn EditAction>> {
+        let Some(pending) = self.pending.as_mut() else {
+            return Vec::new();
+        };
+        if mark >= pending.len() {
+            return Vec::new();
+        }
+        pending.drain(mark..).map(|step| step.action).collect()
+    }
+
+    /// Close the open group and record it as one undo entry named `label`,
+    /// whatever its commands are called. No-op when the group is empty.
+    pub fn commit_group_as(&mut self, label: Cow<'static, str>) {
+        debug_assert!(self.pending.is_some(), "no history group open");
+        let Some(mut steps) = self.pending.take() else {
+            return;
+        };
+        let action: Box<dyn EditAction> = match steps.len() {
+            0 => return,
+            1 => steps.pop().expect("len checked").action,
+            _ => Box::new(CompoundAction {
+                actions: steps.into_iter().map(|step| step.action).collect(),
+            }),
+        };
+        self.record_step(HistoryStep { label, action });
+    }
+
     pub fn record_do(&mut self, label: &'static str, inverse: Box<dyn EditAction>) {
         self.record_step(HistoryStep {
             label: Cow::Borrowed(label),

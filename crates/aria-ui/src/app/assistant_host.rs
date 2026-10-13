@@ -124,10 +124,7 @@ impl ShellHost {
 
     /// Render the timeline at `seconds` and hand the model the picture.
     fn screenshot(&mut self, seconds: f64, cancel: &AtomicBool) -> Result<ToolOutput, String> {
-        let project = {
-            let engine = self.engine.lock();
-            engine.project().clone()
-        };
+        let project = self.engine.lock().snapshot();
         if cancel.load(Ordering::Relaxed) {
             return Err("the turn was stopped".to_string());
         }

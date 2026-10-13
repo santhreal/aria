@@ -22,6 +22,9 @@ pub const DEFAULT_INSPECTOR_TAB: &str = "transform";
 pub struct AppState {
     pub ctx: Arc<PluginContext>,
     pub(super) engine: Arc<Mutex<Engine>>,
+    /// The one edit path: every command, group, undo, and redo goes through it,
+    /// so plugins see the editor's edits and the editor sees theirs.
+    pub(super) host: Arc<ProjectHost>,
     pub revision: u64,
     pub playhead: RationalTime,
     pub selection: Vec<ClipId>,
@@ -311,6 +314,9 @@ pub struct AppState {
     /// Whether the job subscriber is installed. One per session: a second subscriber
     /// would wake the entity twice per transition.
     pub(crate) jobs_watched: bool,
+    /// The subscription that re-projects after edits from plugins and the
+    /// assistant. One per session, dropped with it.
+    pub(crate) edits_watch: Option<aria_plugin::Registration>,
     /// The board, as every surface that draws pending work reads it.
     ///
     /// A projection, like the sequence: rebuilt when the registry publishes a

@@ -340,10 +340,7 @@ impl AppState {
     /// honest — numbering restarts at zero, so a shorter second render into the
     /// same folder would leave the tail of the first behind.
     pub fn export_image_sequence_job(&mut self, dir: PathBuf) -> Result<u64, String> {
-        let project = {
-            let engine = self.engine().lock();
-            engine.project().clone()
-        };
+        let project = self.host().snapshot();
         let has_clips = project
             .timeline()
             .tracks_ordered()

@@ -405,6 +405,17 @@ impl AppState {
                 shared
             }
         };
+        // The engine plugin registers the host beside the engine; a session built
+        // on a bare context (tests, the headless check) makes its own over the
+        // same engine, so there is still exactly one edit path.
+        let host = match plugin_ctx.try_get::<ProjectHost>() {
+            Some(host) => host,
+            None => {
+                let host = Arc::new(ProjectHost::new(Arc::clone(&engine), &plugin_ctx));
+                plugin_ctx.register_arc(Arc::clone(&host));
+                host
+            }
+        };
         {
             let mut engine = engine.lock();
             if engine
@@ -447,6 +458,7 @@ impl AppState {
         let mut state = Self {
             ctx: Arc::new(plugin_ctx),
             engine,
+            host,
             revision: snapshot.revision,
             playhead: snapshot.playhead,
             selection: Vec::new(),
@@ -561,6 +573,7 @@ impl AppState {
             jobs,
             export_queue,
             jobs_watched: false,
+            edits_watch: None,
             job_view: Vec::new().into(),
             generate: generate::GenerateForm::default(),
             generation_seq: 0,
@@ -598,19 +611,38 @@ impl AppState {
         &self.engine
     }
 
-    pub fn apply_command(&mut self, command: Command) -> Result<ApplyOutcome, EngineError> {
-        let mut proposed = aria_plugin::CommandProposed::new(command);
-        self.ctx.events().emit_waterfall(&mut proposed);
-        if let Some(reason) = proposed.veto {
-            return Err(EngineError::Refused(reason));
+    /// The host every edit goes through, for gestures that group commands.
+    pub(crate) fn host(&self) -> &Arc<ProjectHost> {
+        &self.host
+    }
+
+    /// Run a multi-command gesture as one undo step: kept when `body` returns
+    /// `Ok`, reverted when it fails or panics. A gesture that half-lands is
+    /// worse than one that does not happen. The projection is refreshed either
+    /// way.
+    pub(crate) fn one_step<T>(
+        &mut self,
+        body: impl FnOnce(&mut Self) -> Result<T, EngineError>,
+    ) -> Result<T, EngineError> {
+        let group = self.host.group(&Origin::Editor)?;
+        let result = body(self);
+        match &result {
+            Ok(_) => {
+                group.commit();
+            }
+            Err(_) => group.rollback(),
         }
-        let (outcome, revision, invalidation) = {
-            let mut engine = self.engine.lock();
-            let impact = FilmstripImpact::capture(&proposed.command, engine.project());
-            let outcome = engine.apply(proposed.command)?;
-            let invalidation = impact.finish(&outcome, engine.project());
-            (outcome, engine.revision(), invalidation)
-        };
+        self.sync_from_engine();
+        result
+    }
+
+    pub fn apply_command(&mut self, command: Command) -> Result<ApplyOutcome, EngineError> {
+        let (outcome, (invalidation, revision)) = self.host.apply_observed(
+            &Origin::Editor,
+            command,
+            FilmstripImpact::capture,
+            |impact, outcome, engine| (impact.finish(outcome, engine.project()), engine.revision()),
+        )?;
         match invalidation {
             FilmstripInvalidation::Full => self.filmstrips.sync_revision(revision),
             FilmstripInvalidation::Spans(spans) => {
@@ -645,24 +677,37 @@ impl AppState {
             .map(|(clip, _)| clip.raw())
     }
 
+    /// Undo one step and report it, or report why nothing was undone.
     pub fn undo(&mut self) -> bool {
-        let changed = self.engine.lock().undo();
-        if changed {
-            self.sync_from_engine();
-            self.clear_error();
-            self.republish_audio();
-        }
-        changed
+        self.step_history(ProjectHost::undo, "Nothing to undo")
     }
 
+    /// Redo one step and report it, or report why nothing was redone.
     pub fn redo(&mut self) -> bool {
-        let changed = self.engine.lock().redo();
-        if changed {
-            self.sync_from_engine();
-            self.clear_error();
-            self.republish_audio();
+        self.step_history(ProjectHost::redo, "Nothing to redo")
+    }
+
+    fn step_history(
+        &mut self,
+        step: fn(&ProjectHost) -> Result<bool, EngineError>,
+        idle: &str,
+    ) -> bool {
+        match step(self.host.as_ref()) {
+            Ok(true) => {
+                self.sync_from_engine();
+                self.clear_error();
+                self.republish_audio();
+                true
+            }
+            Ok(false) => {
+                self.status_message = Some(idle.into());
+                false
+            }
+            Err(err) => {
+                self.report_error(&err);
+                false
+            }
         }
-        changed
     }
 
     pub fn add_track(

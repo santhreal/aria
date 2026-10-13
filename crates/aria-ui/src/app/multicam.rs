@@ -199,29 +199,19 @@ impl AppState {
             .iter()
             .map(|measured| (measured.angle, measured.offset))
             .collect();
-        self.engine.lock().begin_group();
-        let result = moved
-            .iter()
-            .try_for_each(|(angle, offset)| self.set_multicam_angle_offset(group, *angle, *offset));
-        match result {
-            Ok(()) => {
-                self.engine.lock().commit_group();
-                self.sync_from_engine();
-                let placed = moved.len();
-                self.status_message = Some(match measurement.refused {
-                    Some(why) => format!("Synced {placed} angle(s): {}", why.reason()),
-                    None => format!("Synced {placed} angle(s) by sound"),
-                });
-                Ok(())
-            }
-            Err(err) => {
-                // A group with some cameras moved and some not is out of sync in
-                // a way the operator cannot see, so nothing lands.
-                self.engine.lock().rollback_group();
-                self.sync_from_engine();
-                Err(err)
-            }
-        }
+        // A group with some cameras moved and some not is out of sync in a way
+        // the operator cannot see, so nothing lands.
+        self.one_step(|this| {
+            moved
+                .iter()
+                .try_for_each(|(angle, offset)| this.set_multicam_angle_offset(group, *angle, *offset))
+        })?;
+        let placed = moved.len();
+        self.status_message = Some(match measurement.refused {
+            Some(why) => format!("Synced {placed} angle(s): {}", why.reason()),
+            None => format!("Synced {placed} angle(s) by sound"),
+        });
+        Ok(())
     }
 }
 #[cfg(test)]

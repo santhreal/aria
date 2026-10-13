@@ -306,15 +306,14 @@ impl AppState {
     /// here, by name, before a job exists. Spawning first would report the same
     /// thing a minute into a render.
     pub fn enqueue_export(&mut self, request: ExportRequest) -> Result<u64, String> {
-        let project = {
-            let engine = self.engine.lock();
-            engine.project().clone()
-        };
+        // A snapshot, not a copy: the project is copied once, by the next edit,
+        // only if one lands while the export still reads it.
+        let project = self.host.snapshot();
         let settings = aria_render::ExportSettings::resolved(&project, request.format)
             .map_err(|err| err.to_string())?;
-        let entry_id =
-            self.export_queue
-                .enqueue(request.destination, settings, std::sync::Arc::new(project));
+        let entry_id = self
+            .export_queue
+            .enqueue(request.destination, settings, project);
         self.refresh_jobs();
         let (w, h) = request.size;
         self.status_message = Some(format!(

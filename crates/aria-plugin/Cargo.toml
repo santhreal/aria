@@ -15,6 +15,7 @@ rustc-hash = { workspace = true }
 aria-core = { path = "../aria-core" }
 aria-compositor = { path = "../aria-compositor" }
 aria-commands = { path = "../aria-commands" }
+aria-engine = { path = "../aria-engine" }
 aria-models = { path = "../aria-models" }
 aria-render = { path = "../aria-render" }
 serde_json = { workspace = true }

@@ -7,13 +7,15 @@
 //! - **A turn is a job.** The provider call and every edit it makes run on the
 //!   job thread, so a model that thinks for thirty seconds does not freeze a
 //!   frame of the editor, and the Jobs board can cancel it like any other work.
-//! - **The edits land in the session engine, not a copy.** The bridge holds the
-//!   same `Arc<Mutex<Engine>>` the timeline reads and locks it per call, so an
-//!   edit is undoable with `Ctrl+Z` the moment it lands. An agent that edited a
-//!   clone would produce a transcript describing a project nobody can see. A
-//!   plan-only turn edits it too, inside a group the loop rolls back, because a
-//!   step has to be validated against the plan so far and a second engine is not
-//!   what that costs.
+//! - **The edits land in the session project, not a copy.** The bridge edits
+//!   through the same [`ProjectHost`] as the timeline, so an edit is undoable
+//!   with `Ctrl+Z` the moment the turn ends and every `CommandProposed` handler
+//!   sees it. The turn holds the project for its whole reply: an edit from the
+//!   window meanwhile is refused with the reason rather than mixed into the
+//!   turn's undo step. An agent that edited a clone would produce a transcript
+//!   describing a project nobody can see. A plan-only turn edits it too, inside
+//!   a group the loop rolls back, because a step has to be validated against
+//!   the plan so far and a second engine is not what that costs.
 //! - **The stream is the surface.** Text, reasoning, and each applied edit
 //!   arrive as separate beats and are appended as they come, because a model
 //!   that answers in twenty seconds must not look like a hung panel for
@@ -36,12 +38,12 @@ use aria_ai::{
     AgentExtensions, EditorContext, Lowered, Message, ProjectSummary, QueuedWork, SummaryRequest,
     WireCommand, compose_rules, load_agent_dir, merge_skills, summarize_for, validate,
 };
-use aria_commands::EditOutcome;
-use aria_engine::{ApplyOutcome, Engine};
+use aria_commands::{Command, EditOutcome};
+use aria_engine::ApplyOutcome;
 use aria_jobs::JobCompletion;
+use aria_plugin::{EditGroup, Origin, ProjectHost};
 use aria_settings::Autonomy;
 use gpui::Context;
-use parking_lot::Mutex;
 
 use super::AppState;
 use super::assistant_host::{HostRequest, PendingAsk, ShellHost, on_ui_thread};
@@ -174,13 +176,18 @@ pub(crate) struct Finished {
     pub(crate) plan: Vec<PlanStep>,
 }
 
-/// The session engine behind `aria-ai`'s bridge.
+/// The session project behind `aria-ai`'s bridge.
 ///
-/// One lock per call rather than one for the whole turn: a model that thinks
-/// between edits would otherwise hold the engine for its whole reply and freeze
-/// every preview frame in the meantime.
+/// One engine lock per call rather than one for the whole turn: a model that
+/// thinks between edits would otherwise hold the engine for its whole reply and
+/// freeze every preview frame in the meantime. The turn's group holds the
+/// project instead, which stops other edits and nothing else.
 struct SessionBridge {
-    engine: Arc<Mutex<Engine>>,
+    host: Arc<ProjectHost>,
+    /// The turn's group while it is open.
+    group: Option<EditGroup>,
+    /// Why the group could not open; every edit of the turn fails with it.
+    unavailable: Option<String>,
     /// Where work the engine cannot do goes: a render is a job on the UI
     /// thread, and this bridge runs on the turn's thread.
     beats: crate::handoff::Wake<Beat>,
@@ -189,22 +196,48 @@ struct SessionBridge {
     cancel: Arc<AtomicBool>,
 }
 
+impl SessionBridge {
+    fn new(
+        host: Arc<ProjectHost>,
+        beats: crate::handoff::Wake<Beat>,
+        cancel: Arc<AtomicBool>,
+    ) -> Self {
+        Self {
+            host,
+            group: None,
+            unavailable: None,
+            beats,
+            cancel,
+        }
+    }
+
+    /// Validate one command against the project as the turn has left it.
+    fn lower(&self, command: &WireCommand) -> Result<Lowered, String> {
+        if let Some(reason) = &self.unavailable {
+            return Err(reason.clone());
+        }
+        // The snapshot drops before the edit that follows, so it costs no copy.
+        validate(command, &self.host.snapshot()).map_err(|refusal| refusal.message)
+    }
+
+    /// Apply one validated edit into the turn's group.
+    fn edit(&self, lowered: Command) -> Result<EditOutcome, String> {
+        match self.host.apply(&Origin::Assistant, lowered) {
+            Ok(ApplyOutcome::Edited(outcome)) => Ok(outcome),
+            Ok(other) => Err(format!("unexpected engine outcome: {other:?}")),
+            Err(err) => Err(err.to_string()),
+        }
+    }
+}
+
 impl EngineBridge for SessionBridge {
     fn summary(&mut self, request: SummaryRequest) -> ProjectSummary {
-        summarize_for(self.engine.lock().project(), request)
+        summarize_for(&self.host.snapshot(), request)
     }
 
     fn apply(&mut self, command: &WireCommand) -> Result<Applied, String> {
-        let lowered = {
-            let engine = self.engine.lock();
-            validate(command, engine.project()).map_err(|refusal| refusal.message)?
-        };
-        match lowered {
-            Lowered::Edit(lowered) => match self.engine.lock().apply(lowered) {
-                Ok(ApplyOutcome::Edited(outcome)) => Ok(Applied::Edited(outcome)),
-                Ok(other) => Err(format!("unexpected engine outcome: {other:?}")),
-                Err(err) => Err(err.to_string()),
-            },
+        match self.lower(command)? {
+            Lowered::Edit(lowered) => self.edit(lowered).map(Applied::Edited),
             // Started, not done: the answer is what the editor reports back
             // about the job it just spawned, so the transcript says a render
             // began rather than that a clip was replaced.
@@ -216,16 +249,11 @@ impl EngineBridge for SessionBridge {
     }
 
     fn rehearse(&mut self, command: &WireCommand) -> Result<Option<EditOutcome>, String> {
-        let mut engine = self.engine.lock();
-        match validate(command, engine.project()).map_err(|refusal| refusal.message)? {
+        match self.lower(command)? {
             // Applied into the turn's group, which the loop rolls back before it
             // returns: the next step is validated against this one, and the
             // operator's project is the one they left.
-            Lowered::Edit(lowered) => match engine.apply(lowered) {
-                Ok(ApplyOutcome::Edited(outcome)) => Ok(Some(outcome)),
-                Ok(other) => Err(format!("unexpected engine outcome: {other:?}")),
-                Err(err) => Err(err.to_string()),
-            },
+            Lowered::Edit(lowered) => self.edit(lowered).map(Some),
             // A render is host work, and a rehearsal starts none: validated, and
             // what it would have produced is not projected. Nothing in the wire
             // vocabulary names a render's output, so no later step needs it.
@@ -234,15 +262,33 @@ impl EngineBridge for SessionBridge {
     }
 
     fn begin_group(&mut self) {
-        self.engine.lock().begin_group();
+        // The turn runs on its own thread, so it can wait out a plugin's
+        // transaction or a gesture in flight; only Stop ends the wait.
+        loop {
+            match self.host.group(&Origin::Assistant) {
+                Ok(group) => {
+                    self.group = Some(group);
+                    return;
+                }
+                Err(err) if self.cancel.load(Ordering::Relaxed) => {
+                    self.unavailable = Some(err.to_string());
+                    return;
+                }
+                Err(_) => {}
+            }
+        }
     }
 
     fn end_group(&mut self) {
-        self.engine.lock().commit_group();
+        if let Some(group) = self.group.take() {
+            group.commit();
+        }
     }
 
     fn rollback_group(&mut self) {
-        self.engine.lock().rollback_group();
+        if let Some(group) = self.group.take() {
+            group.rollback();
+        }
     }
 }
 
@@ -309,13 +355,21 @@ impl AppState {
         if self.assistant.plan.is_empty() {
             return Err("There is no plan to apply".into());
         }
+        // A busy project keeps the plan: it still fits, and Apply works once
+        // the holder finishes.
+        let host = Arc::clone(&self.host);
+        let group = match host.group(&Origin::Assistant) {
+            Ok(group) => group,
+            Err(err) => {
+                let reason = err.to_string();
+                self.status_message = Some(reason.clone());
+                return Err(reason);
+            }
+        };
         let mut plan = std::mem::take(Arc::make_mut(&mut self.assistant.plan));
-        // The guard is released before anything is reported: `plan_failed` and
-        // `sync_from_engine` both want the engine, and holding it across them
-        // would deadlock the very report that explains the failure.
+        // The engine is locked per step and released before anything is
+        // reported: `plan_failed` and `sync_from_engine` both want it.
         let outcome = {
-            let mut engine = self.engine.lock();
-            engine.begin_group();
             let mut applied = 0_usize;
             let mut renders = Vec::new();
             let mut failure = None;
@@ -326,7 +380,11 @@ impl AppState {
             let mut ids = aria_ai::plan::Ids::default();
             for step in &mut plan {
                 ids.rewrite(&mut step.command);
-                let lowered = match validate(&step.command, engine.project()) {
+                let lowered = {
+                    let engine = host.engine().lock();
+                    validate(&step.command, engine.project())
+                };
+                let lowered = match lowered {
                     Ok(lowered) => lowered,
                     Err(refusal) => {
                         failure = Some((step.description.clone(), refusal.message));
@@ -335,7 +393,7 @@ impl AppState {
                 };
                 match lowered {
                     Lowered::Edit(lowered) => {
-                        match engine.apply(lowered) {
+                        match host.apply(&Origin::Assistant, lowered) {
                             Ok(ApplyOutcome::Edited(made)) => ids.note(step.outcome, made),
                             Ok(other) => {
                                 failure = Some((
@@ -360,11 +418,11 @@ impl AppState {
             }
             match failure {
                 Some(failure) => {
-                    engine.rollback_group();
+                    group.rollback();
                     Err(failure)
                 }
                 None => {
-                    engine.commit_group();
+                    group.commit();
                     Ok((applied, renders))
                 }
             }

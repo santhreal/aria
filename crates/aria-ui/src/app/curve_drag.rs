@@ -361,31 +361,19 @@ impl AppState {
                         easing,
                     );
                 }
-                // Two commands, one gesture: group them so one undo puts the
-                // keyframe back where it was.
-                self.engine().lock().begin_group();
-                let moved = self
-                    .remove_keyframe_at(draft.param, origin_tick)
-                    .and_then(|()| {
-                        self.set_keyframe_value_at(
+                // Two commands, one gesture: one undo puts the keyframe back
+                // where it was.
+                self.one_step(|this| {
+                    this.remove_keyframe_at(draft.param, origin_tick).and_then(|()| {
+                        this.set_keyframe_value_at(
                             draft.param,
                             draft.component,
                             current_tick,
                             current_val,
                             easing,
                         )
-                    });
-                match moved {
-                    Ok(()) => {
-                        self.engine().lock().commit_group();
-                        Ok(())
-                    }
-                    Err(err) => {
-                        self.engine().lock().rollback_group();
-                        self.sync_from_engine();
-                        Err(err)
-                    }
-                }
+                    })
+                })
             }
             CurveDragTarget::BezierHandle {
                 segment_tick,

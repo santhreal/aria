@@ -99,9 +99,7 @@ pub(super) const EDIT_ROWS: &[Binding] = &[
     }),
     // History and the project.
     bind!("key-undo", Chord::ctrl("z"), Editor, |state| {
-        if !state.undo() {
-            state.status_message = Some("Nothing to undo".into());
-        }
+        state.undo();
     }),
     bind!("key-redo", Chord::ctrl_shift("z"), Editor, redo),
     bind!("key-redo-y", Chord::ctrl("y"), Editor, redo),

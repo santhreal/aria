@@ -4,7 +4,7 @@
 //! pipeline and the native `aria-encoder`; this type owns the session
 //! [`Renderer`] and the undo [`History`].
 
-use std::{borrow::Cow, path::PathBuf};
+use std::{borrow::Cow, path::PathBuf, sync::Arc};
 
 use aria_commands::{Command, EditCommand, ProjectCommand};
 use aria_models::{
@@ -122,7 +122,9 @@ impl LivePreviews {
 /// Aria editing engine: project state, inverse undo/redo, and a session
 /// renderer for preview and export.
 pub struct Engine {
-    project: Project,
+    /// Shared with every outstanding [`snapshot`](Self::snapshot); a mutation
+    /// copies the project only while one is held.
+    project: Arc<Project>,
     config: EngineConfig,
     history: History,
     project_path: Option<PathBuf>,
@@ -172,7 +174,7 @@ impl Engine {
     pub fn with_renderer(config: EngineConfig, project: Project, renderer: Renderer) -> Self {
         let history = History::new(config.undo_limit);
         Self {
-            project,
+            project: Arc::new(project),
             config,
             history,
             project_path: None,
@@ -193,6 +195,25 @@ impl Engine {
     /// go through [`apply`](Self::apply) so undo/redo stays consistent.
     pub fn project(&self) -> &Project {
         &self.project
+    }
+
+    /// The project as it is now, as an immutable value that later edits do not
+    /// change. Costs a reference count; the next edit copies the project once if
+    /// the snapshot is still held.
+    pub fn snapshot(&self) -> Arc<Project> {
+        Arc::clone(&self.project)
+    }
+
+    /// Whether a command group is open: applied commands collect into one
+    /// history entry until it is committed or rolled back.
+    pub fn in_group(&self) -> bool {
+        self.history.in_group()
+    }
+
+    /// How many steps the open group holds, for
+    /// [`rollback_group_to`](Self::rollback_group_to). Zero with no group open.
+    pub fn group_len(&self) -> usize {
+        self.history.group_len()
     }
 
     /// The currently active sequence for editing (`None` ⇔ main root timeline).
@@ -221,7 +242,7 @@ impl Engine {
         if self.project.metadata().agent_rules == rules {
             return;
         }
-        self.project.metadata_mut().agent_rules = rules;
+        Arc::make_mut(&mut self.project).metadata_mut().agent_rules = rules;
         self.revision += 1;
     }
 
@@ -314,6 +335,11 @@ impl Engine {
         self.history.commit_group();
     }
 
+    /// Close the open group and record it as one undo entry named `label`.
+    pub fn commit_group_as(&mut self, label: impl Into<Cow<'static, str>>) {
+        self.history.commit_group_as(label.into());
+    }
+
     /// Abort the open group: revert its commands in reverse, restoring the
     /// pre-group state. History is left untouched, and so is the dirty flag: a
     /// group that changed nothing in the end cannot be what makes a saved
@@ -339,6 +365,26 @@ impl Engine {
         }
     }
 
+    /// Revert the open group's steps after the first `mark`, newest first,
+    /// and keep the group open with the first `mark` steps in it.
+    ///
+    /// A savepoint: a transaction that fails inside a larger group undoes its
+    /// own commands without discarding the ones before it. `mark` comes from
+    /// [`group_len`](Self::group_len) taken when the inner work began.
+    pub fn rollback_group_to(&mut self, mark: usize) {
+        let inverses = self.history.take_group_from(mark);
+        if inverses.is_empty() {
+            return;
+        }
+        self.revision += 1;
+        for inverse in inverses.into_iter().rev() {
+            if self.run_action(inverse).is_err() {
+                tracing::error!("history savepoint rollback failed; state may be partial");
+                return;
+            }
+        }
+    }
+
     /// Replace the session with a fresh, unsaved project (File → New).
     ///
     /// The project starts with the persistent main video track (CapCut's
@@ -353,7 +399,7 @@ impl Engine {
     /// Replace the session with `project` (e.g. the AI-agent sandbox replaying
     /// a validated plan). Clears history and the project path; rebaselines clean.
     pub fn reset_project(&mut self, project: Project) {
-        self.project = project;
+        self.project = Arc::new(project);
         self.history.clear();
         self.project_path = None;
         self.previews = LivePreviews::default();
@@ -390,7 +436,7 @@ impl Engine {
         // The command is consumed by dispatch, so its name is taken first.
         let label = command.label();
         let mut ctx = ApplyContext {
-            project: &mut self.project,
+            project: Arc::make_mut(&mut self.project),
             project_path: &mut self.project_path,
             history: &mut self.history,
         };
@@ -401,7 +447,7 @@ impl Engine {
                 // without any video track (audio-only cuts, old versions)
                 // gain an empty one on entry. Pre-history, not undoable.
                 if self.project.timeline().main_track().is_none() {
-                    self.project.add_track(TrackKind::Video, "Main");
+                    Arc::make_mut(&mut self.project).add_track(TrackKind::Video, "Main");
                 }
                 // Same media-id hazard as `reset_project`: the incoming
                 // file's ids owe nothing to the outgoing registry.
@@ -713,7 +759,7 @@ impl Engine {
         action: Box<dyn EditAction>,
     ) -> Result<Box<dyn EditAction>, EngineError> {
         let mut ctx = ApplyContext {
-            project: &mut self.project,
+            project: Arc::make_mut(&mut self.project),
             project_path: &mut self.project_path,
             history: &mut self.history,
         };

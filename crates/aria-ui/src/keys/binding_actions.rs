@@ -21,9 +21,7 @@ pub(super) fn delete_selected(state: &mut crate::app::AppState) {
 }
 
 pub(super) fn redo(state: &mut crate::app::AppState) {
-    if !state.redo() {
-        state.status_message = Some("Nothing to redo".into());
-    }
+    state.redo();
 }
 
 pub(super) fn new_project(state: &mut crate::app::AppState) {

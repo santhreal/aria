@@ -1,8 +1,10 @@
 //! Aria plugin framework: the host every plugin registers into.
 //!
-//! There is no privileged core. The "core" is a [`PluginContext`] — a typed
-//! service registry plus an event bus. Every capability is a plugin that
-//! registers services and event handlers into the context.
+//! A [`PluginContext`] is a typed service registry plus an event bus. Every
+//! capability is a plugin that registers services and event handlers into the
+//! context. The project is read and edited through one [`ProjectHost`], which
+//! the editor and every plugin share: built-in plugins hold no edit path that
+//! an external plugin lacks.
 
 mod context;
 mod error;
@@ -11,6 +13,7 @@ pub mod external;
 mod hooks;
 mod order;
 mod plugin;
+mod project_host;
 mod registration;
 mod service;
 pub mod settings_schema;
@@ -21,6 +24,9 @@ pub use context::{
 pub use error::PluginError;
 pub use events::{Event, EventBus, SerialEvent, WaterfallEvent, WaterfallResult};
 pub use hooks::{CommandProposed, DropAction, ResolveDroppedPath};
+pub use project_host::{
+    CommandApplied, EditGroup, Origin, ProjectHost, Receipt, TransactError, Transaction,
+};
 pub use order::load_order;
 pub use plugin::{Plugin, PluginManifest};
 pub use registration::Registration;
@@ -37,6 +43,8 @@ pub use aria_core::{
     SourceInfo, VideoDecoder, VideoEncoder,
 };
 
-/// The command types a `CommandProposed` handler inspects. Re-exported so an
-/// external plugin needs one dependency, not two.
+/// The command and project types a plugin inspects and proposes. Re-exported so
+/// an external plugin needs one dependency, not several.
 pub use aria_commands::{Command, EditCommand, EditTargets};
+pub use aria_engine::{ApplyOutcome, EngineError};
+pub use aria_models::Project;

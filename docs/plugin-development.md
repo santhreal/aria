@@ -105,13 +105,26 @@ Handlers run in registration order, which is mount order.
 
 ### Shipped events
 
-`CommandProposed` is a waterfall emitted before every command reaches the engine.
-`proposed.command` can be edited in place, and `proposed.refuse(reason)` stops the
-chain: the command is never applied, nothing enters history, and the reason is
-shown as written. `EditCommand::targets()` names the clips and tracks a command
-touches, so a policy handler does not match on variants; `ignores_track_lock()`
-marks the commands a lock must not block. The engine plugin uses both to refuse an
-edit on a locked lane.
+`CommandProposed` is a waterfall emitted before every command reaches the engine:
+
+| Field | Contents |
+| --- | --- |
+| `command` | The command; a handler can edit it in place |
+| `project` | The project the command applies to, as an `Arc<Project>` |
+| `origin` | `Origin::Editor`, `Origin::Assistant`, or `Origin::Plugin(id)` |
+
+`proposed.refuse(reason)` stops the chain: the command is never applied, nothing
+enters history, and the reason is shown as written. `EditCommand::targets()`
+names the clips and tracks a command touches, so a policy handler does not match
+on variants; `ignores_track_lock()` marks the commands a lock must not block. The
+engine plugin uses both, with `proposed.project`, to refuse an edit on a locked
+lane.
+
+The engine is locked while the chain runs. A handler reads `proposed.project`,
+or `ProjectHost::snapshot()`, which returns the same value there; a handler that
+locks the engine deadlocks the edit. An edit cannot start inside a handler:
+`transact` returns `TransactError::Reentrant`, and `apply`, `group`, `undo`,
+`redo`, `history_jump`, and `exclusive` panic.
 
 ```rust
 ctx.on_waterfall::<CommandProposed, _>(|proposed| {
@@ -122,6 +135,13 @@ ctx.on_waterfall::<CommandProposed, _>(|proposed| {
     }
 });
 ```
+
+`CommandApplied` is emitted once a command can no longer be rolled back: when a
+lone command applies, or when the outermost group that contains it commits. It
+holds the command, its `ApplyOutcome`, the engine revision right after it, and
+its origin. A group that rolls back emits nothing. Handlers run with no lock
+held. The editor redraws on a `CommandApplied` whose origin is not
+`Origin::Editor`.
 
 `ResolveDroppedPath` is a serial event asking which plugin owns a dropped file.
 Return `Some(DropAction)` to claim it — `OpenProject`, `ImportMedia`, `ApplyLut`,
@@ -140,6 +160,58 @@ ctx.on_serial::<ResolveDroppedPath, DropAction, _>(|event| {
         .then_some(DropAction::ImportMedia)
 });
 ```
+
+## Project
+
+`ProjectHost` is the one path that reads and edits the project. The editor,
+the assistant, and render jobs edit through it too. The engine plugin registers
+it; a plugin declares `uses: &["ProjectHost"]` and takes it with
+`ctx.try_get::<ProjectHost>()`.
+
+| Call | Result |
+| --- | --- |
+| `snapshot()` | The project as an immutable `Arc<Project>`. A snapshot held across an edit costs one copy of the project |
+| `revision()` | The engine revision, bumped by every change |
+| `apply(&origin, command)` | Proposes and applies one command as its own undo step, or as part of this thread's open group |
+| `transact(origin, label, commands)` | Applies the commands as one undo step named `label`, or none of them |
+| `transact_with(origin, label, body)` | Runs `body` with a `Transaction`: `tx.apply(command)` and `tx.project()`. An `Err` or a panic from `body` reverts it |
+| `group(&origin)` | Opens an `EditGroup`: every command this thread applies until `commit` is one undo step. Dropping it rolls it back |
+| `undo()`, `redo()`, `history_jump(depth)` | Step history. `Ok(false)` while this thread has a group open |
+| `exclusive(&origin, f)` | Runs `f` on the engine with no edit in flight, for a session replacement that is not a command |
+| `holder()` | The origin holding the project from another thread, if any |
+
+```rust
+// `get` panics unless the manifest lists "ProjectHost" in `uses`.
+let host = ctx.get::<ProjectHost>();
+let result: Result<Receipt, TransactError> = host.transact(
+    Origin::plugin("example.review"),
+    "Add review lane",
+    vec![Command::Edit(EditCommand::AddTrack {
+        kind: TrackKind::Video,
+        name: "Review".into(),
+        index: None,
+        pinned: true,
+    })],
+);
+```
+
+A plugin's transaction is named `<plugin id>: <label>` in History. When a command
+is refused or fails, or the body returns an error or panics, every command the
+transaction applied is reverted, and `TransactError` states which: `Refused`,
+`Failed`, `Aborted`, or `Panicked`. A group or transaction opened inside another
+is a savepoint: rolling it back keeps the commands before it.
+
+`Save`, `Open`, `Load`, `RelinkMedia`, `Export`, `SaveTemplate`, and
+`ApplyTemplate` write or replace the session and cannot be undone. Inside a group
+or transaction they fail with `TransactError::NotUndoable`.
+
+One thread edits at a time. A thread holds the project from its first command
+or group until that command lands or the outermost group closes, and its own
+later edits join in. An edit from another thread waits up to
+`ProjectHost::CONTENDED_WAIT` (100 ms) and then fails with
+`TransactError::Busy`, or `EngineError::Refused` from `apply`, naming the holder:
+"the assistant is editing the project; try again when it finishes". A background
+job retries until it gets the project or is cancelled.
 
 ## Panels
 
@@ -429,6 +501,8 @@ Rust has no stable ABI, so `export_plugin!` also exports the loader version and
 the compiler that built the library. A plugin built by a different `rustc`, or
 against a different `aria-plugin`, is refused before its code runs and appears in
 the Plugins list with the reason. Rebuild it against the same toolchain.
+The loader version is 2, so a library built against an `aria-plugin` before
+`CommandProposed` held the project and the origin is refused.
 
 A loaded library stays mapped until the process exits, because a manifest borrows
 its strings out of the library. Disabling an external plugin is therefore not

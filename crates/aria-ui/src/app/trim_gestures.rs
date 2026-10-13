@@ -95,22 +95,9 @@ impl AppState {
         }
         self.snap_guide = None;
         let rate = self.playhead.rate;
-        self.engine.lock().begin_group();
-        let result = self.slide_steps(clip, start, end, delta, before, after, rate);
-        match result {
-            Ok(()) => {
-                self.engine.lock().commit_group();
-                self.sync_from_engine();
-                Ok(())
-            }
-            Err(err) => {
-                // The first command already landed; a group left half-applied is
-                // worse than the gesture not happening.
-                self.engine.lock().rollback_group();
-                self.sync_from_engine();
-                Err(err)
-            }
-        }
+        // The first command lands before the second; a gesture left half-applied
+        // is worse than the gesture not happening.
+        self.one_step(|this| this.slide_steps(clip, start, end, delta, before, after, rate))
     }
 
     // The neighbour on the giving side is trimmed before the clip moves, so the
@@ -162,28 +149,17 @@ impl AppState {
         }
         self.snap_guide = None;
         let rate = self.playhead.rate;
-        self.engine.lock().begin_group();
         // Shrink first: growing into ticks the other clip still holds would be
         // refused as an overlap.
-        let result = if delta > 0 {
-            self.trim_to(right.clip, right.start + delta, right.end, rate)
-                .and_then(|()| self.trim_to(left.clip, left.start, left.end + delta, rate))
-        } else {
-            self.trim_to(left.clip, left.start, left.end + delta, rate)
-                .and_then(|()| self.trim_to(right.clip, right.start + delta, right.end, rate))
-        };
-        match result {
-            Ok(()) => {
-                self.engine.lock().commit_group();
-                self.sync_from_engine();
-                Ok(())
+        self.one_step(|this| {
+            if delta > 0 {
+                this.trim_to(right.clip, right.start + delta, right.end, rate)
+                    .and_then(|()| this.trim_to(left.clip, left.start, left.end + delta, rate))
+            } else {
+                this.trim_to(left.clip, left.start, left.end + delta, rate)
+                    .and_then(|()| this.trim_to(right.clip, right.start + delta, right.end, rate))
             }
-            Err(err) => {
-                self.engine.lock().rollback_group();
-                self.sync_from_engine();
-                Err(err)
-            }
-        }
+        })
     }
 
     /// Retime a clip so it occupies `new_duration` ticks while keeping its
@@ -245,36 +221,25 @@ impl AppState {
             return Ok(());
         }
         let rate = self.playhead.rate;
-        self.engine.lock().begin_group();
-        let result = if left {
-            if delta > 0 {
-                // The head moves right, then the clip and everything after it
-                // slides back to where the head used to be.
-                self.trim_to(clip, start + delta, end, rate)
-                    .and_then(|()| self.shift_after(track, start + delta, -delta, rate))
+        self.one_step(|this| {
+            if left {
+                if delta > 0 {
+                    // The head moves right, then the clip and everything after it
+                    // slides back to where the head used to be.
+                    this.trim_to(clip, start + delta, end, rate)
+                        .and_then(|()| this.shift_after(track, start + delta, -delta, rate))
+                } else {
+                    this.shift_after(track, start, -delta, rate)
+                        .and_then(|()| this.trim_to(clip, start, end - delta, rate))
+                }
+            } else if delta > 0 {
+                this.shift_after(track, end, delta, rate)
+                    .and_then(|()| this.trim_to(clip, start, end + delta, rate))
             } else {
-                self.shift_after(track, start, -delta, rate)
-                    .and_then(|()| self.trim_to(clip, start, end - delta, rate))
+                this.trim_to(clip, start, end + delta, rate)
+                    .and_then(|()| this.shift_after(track, end, delta, rate))
             }
-        } else if delta > 0 {
-            self.shift_after(track, end, delta, rate)
-                .and_then(|()| self.trim_to(clip, start, end + delta, rate))
-        } else {
-            self.trim_to(clip, start, end + delta, rate)
-                .and_then(|()| self.shift_after(track, end, delta, rate))
-        };
-        match result {
-            Ok(()) => {
-                self.engine.lock().commit_group();
-                self.sync_from_engine();
-                Ok(())
-            }
-            Err(err) => {
-                self.engine.lock().rollback_group();
-                self.sync_from_engine();
-                Err(err)
-            }
-        }
+        })
     }
 
     fn shift_after(

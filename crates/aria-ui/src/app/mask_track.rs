@@ -114,7 +114,7 @@ impl MaskFrames for EngineFrames<'_> {
 /// own, which is what an export, a proxy build and a PNG sequence each use.
 struct RenderedFrames {
     renderer: aria_render::Renderer,
-    project: Project,
+    project: std::sync::Arc<Project>,
 }
 
 impl MaskFrames for RenderedFrames {
@@ -273,7 +273,7 @@ impl AppState {
             .selected_ui_clip()
             .map(|ui| ui.name)
             .unwrap_or_else(|| "the clip".into());
-        let project = self.engine().lock().project().clone();
+        let project = self.host().snapshot();
         let gpu = super::render_device::shared_device(&self.ctx);
         let (wake, wakes) = crate::handoff::wakes::<
             Result<(Vec<(RationalTime, [f32; 2])>, MaskTrackReport), String>,
@@ -440,11 +440,13 @@ impl AppState {
         let param = ClipParam::Look {
             param: LookParam::MaskCenter,
         };
-        self.engine().lock().begin_group();
+        let group = self.host().group(&aria_plugin::Origin::Editor)?;
         let outcome = keys
             .iter()
             .try_for_each(|(at, center)| self.write_center(clip, param, *at, *center));
-        self.engine().lock().commit_group();
+        // The keys written before a failure are a usable track up to that frame,
+        // so they are kept as the one entry.
+        group.commit();
         outcome
     }
 

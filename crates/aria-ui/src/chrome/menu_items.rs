@@ -178,18 +178,14 @@ static EDIT_ITEMS: &[MenuItem] = &[
         id: "edit-undo",
         label: "Undo",
         run: |_, s, _| {
-            if !s.undo() {
-                s.status_message = Some("Nothing to undo".into());
-            }
+            s.undo();
         },
     },
     MenuItem {
         id: "edit-redo",
         label: "Redo",
         run: |_, s, _| {
-            if !s.redo() {
-                s.status_message = Some("Nothing to redo".into());
-            }
+            s.redo();
         },
     },
     MenuItem {

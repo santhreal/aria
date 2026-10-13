@@ -212,6 +212,15 @@ See [plugin-development.md](plugin-development.md). `aria-plugin` already
 depends on compositor and render, so plugin impls that touch GPU live in
 `aria-ui/src/plugins/` rather than in those crates.
 
+Every edit goes through `aria_plugin::ProjectHost`: the editor's gestures, the
+assistant's turns, render-and-replace jobs, and plugins. The host proposes each
+command to `CommandProposed` handlers, applies it, and announces it as
+`CommandApplied` once no open group can roll it back. Groups and transactions
+make one undo step; one thread holds the project at a time, and an edit from
+another thread is refused after `ProjectHost::CONTENDED_WAIT` instead of
+blocking the window. The project is an `Arc<Project>` replaced copy-on-write, so
+a snapshot is a reference count.
+
 Everything the shell draws comes from a registry the shipped code registers into
 like any plugin: panels (`PanelHost`), dialogs and overlays (`OverlayHost`),
 palette commands (`CommandHost`), app-bar menu items (`MenuHost`), key bindings

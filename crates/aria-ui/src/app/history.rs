@@ -17,7 +17,13 @@ impl AppState {
         if depth == self.history_depth() {
             return false;
         }
-        let reached = self.engine.lock().history_jump(depth);
+        let reached = match self.host.history_jump(depth) {
+            Ok(reached) => reached,
+            Err(err) => {
+                self.report_error(&err);
+                return false;
+            }
+        };
         self.sync_from_engine();
         self.republish_audio();
         if !reached {

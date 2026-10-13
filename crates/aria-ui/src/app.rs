@@ -8,7 +8,7 @@ use aria_commands::{Command, EditCommand};
 use aria_core::RgbaImage;
 use aria_engine::{ApplyOutcome, Engine, EngineConfig, EngineError};
 use aria_models::{ClipId, RationalTime, TimeRange, TrackId, TrackKind};
-use aria_plugin::PluginContext;
+use aria_plugin::{Origin, PluginContext, ProjectHost};
 use gpui::{Context, EventEmitter, RenderImage};
 use parking_lot::Mutex;
 
@@ -103,6 +103,8 @@ pub mod export_options;
 pub mod export_queue;
 #[path = "app/export_request.rs"]
 pub mod export_request;
+#[path = "app/foreign_edits.rs"]
+mod foreign_edits;
 #[path = "app/generate.rs"]
 pub mod generate;
 #[path = "app/history.rs"]

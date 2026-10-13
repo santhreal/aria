@@ -55,6 +55,15 @@ impl EventBus {
         id
     }
 
+    /// Whether any handler of any kind is registered for `E`. Lets an emitter
+    /// skip building an event nobody reads.
+    pub fn has_handlers<E: 'static>(&self) -> bool {
+        self.handlers
+            .read()
+            .get(&TypeId::of::<E>())
+            .is_some_and(|entries| !entries.is_empty())
+    }
+
     /// Subscribe to an emit event. Returns a Drop guard.
     pub fn subscribe<E, F>(self: &Arc<Self>, handler: F) -> Registration
     where

@@ -14,13 +14,19 @@ use std::path::{Path, PathBuf};
 use aria_commands::{Command, EditCommand};
 use aria_engine::EngineError;
 use aria_models::{ClipId, RationalTime, TrackId};
-use aria_plugin::{CommandProposed, DropAction, PluginContext, ResolveDroppedPath};
+use aria_plugin::{CommandProposed, DropAction, Origin, PluginContext, ResolveDroppedPath};
 
 use super::AppState;
 use crate::plugins::mount_all;
 
 fn fixture() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/texture.png")
+}
+
+/// A proposal outside any host, for exercising the chain alone.
+fn proposal(command: Command) -> CommandProposed {
+    let project = aria_models::Project::new("hooks", aria_core::Rational::FPS_24);
+    CommandProposed::new(command, std::sync::Arc::new(project), Origin::Editor)
 }
 
 /// The shipped configuration: every built-in plugin mounted, one clip placed.
@@ -125,6 +131,51 @@ fn unlocking_a_locked_lane_is_the_one_command_the_guard_lets_through() {
     assert_eq!(clip_start(&state, clip), 96);
 }
 
+/// `CommandProposed` runs with the engine locked, so a shipped handler that
+/// locks the engine itself hangs every edit; render-and-replace did that once,
+/// emitting the event under its own lock while the lane policy locked again.
+/// Every edit path goes through the host now, and every mounted handler runs
+/// on each proposal, so one bounded proposal per path covers the class: a
+/// handler that blocks fails here instead of hanging the suite.
+///
+/// Not caught: a handler that deadlocks only for a command kind other than
+/// the ones proposed here.
+#[test]
+fn every_mounted_handler_answers_a_proposal_without_locking_the_engine() {
+    let (mut state, clip, track) = mounted_state_with_clip();
+    state.set_track_locked(track, true).expect("lock the lane");
+    let host = std::sync::Arc::clone(state.host());
+    let (sent, answers) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let single = host.apply(
+            &Origin::Editor,
+            Command::Edit(EditCommand::RippleDelete { clip }),
+        );
+        let transacted = host.transact(
+            Origin::plugin("test.hooks"),
+            "Delete",
+            vec![Command::Edit(EditCommand::RippleDelete { clip })],
+        );
+        let _ = sent.send((
+            single.map(|_| ()).map_err(|err| err.to_string()),
+            transacted.map(|_| ()).map_err(|err| err.to_string()),
+        ));
+    });
+    let Ok((single, transacted)) = answers.recv_timeout(std::time::Duration::from_secs(20)) else {
+        // The engine is still locked by the stuck thread; dropping the state
+        // would wait on it forever.
+        std::mem::forget(state);
+        panic!("a CommandProposed handler blocked on the engine it runs under");
+    };
+    for (path, answer) in [("apply", single), ("transact", transacted)] {
+        let reason = answer.expect_err("the lane is locked");
+        assert!(
+            reason.contains("is locked"),
+            "{path}: the lane policy must answer from the proposal, got {reason:?}"
+        );
+    }
+}
+
 #[test]
 fn every_dropped_file_type_goes_to_the_plugin_that_owns_it() {
     let (state, _, _) = mounted_state_with_clip();
@@ -222,7 +273,7 @@ fn the_first_refusal_wins_and_the_rest_of_the_chain_does_not_run() {
         proposed.refuse("c said no");
     });
 
-    let mut proposed = CommandProposed::new(Command::Edit(EditCommand::SetTrackLocked {
+    let mut proposed = proposal(Command::Edit(EditCommand::SetTrackLocked {
         track: TrackId::from_raw(1),
         locked: true,
     }));
@@ -243,7 +294,7 @@ fn a_handler_may_rewrite_the_command_instead_of_refusing_it() {
             *locked = false;
         }
     });
-    let mut proposed = CommandProposed::new(Command::Edit(EditCommand::SetTrackLocked {
+    let mut proposed = proposal(Command::Edit(EditCommand::SetTrackLocked {
         track: TrackId::from_raw(1),
         locked: true,
     }));

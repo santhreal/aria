@@ -69,11 +69,7 @@ fn text_turn(text: &str) -> ChatTurn {
 fn rehearse(state: &AppState, provider: &ScriptedProvider) -> PromptOutcome {
     let (beats, _wakes) = crate::handoff::wakes::<Beat>();
     let cancel = Arc::new(AtomicBool::new(false));
-    let mut bridge = SessionBridge {
-        engine: Arc::clone(state.engine()),
-        beats,
-        cancel: Arc::clone(&cancel),
-    };
+    let mut bridge = SessionBridge::new(Arc::clone(state.host()), beats, Arc::clone(&cancel));
     let config = AgentConfig {
         dry_run: true,
         ..AgentConfig::default()

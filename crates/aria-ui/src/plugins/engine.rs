@@ -9,8 +9,8 @@ use aria_core::{Rational, RgbaImage};
 use aria_engine::{Engine, EngineConfig};
 use aria_models::Project;
 use aria_plugin::{
-    CommandProposed, Plugin, PluginContext, PluginError, PluginManifest, RenderInterceptorService,
-    Service,
+    CommandProposed, Plugin, PluginContext, PluginError, PluginManifest, ProjectHost,
+    RenderInterceptorService, Service,
 };
 use aria_render::Renderer;
 use parking_lot::Mutex;
@@ -62,7 +62,7 @@ pub struct EnginePlugin;
 /// policy lives here rather than in the model because it is a host policy over
 /// whole commands, and it reads the ids from [`EditCommand::targets`], which is
 /// exhaustive — a new command variant cannot slip past it.
-fn locked_lane_veto(engine: &Mutex<Engine>, command: &Command) -> Option<String> {
+fn locked_lane_veto(project: &Project, command: &Command) -> Option<String> {
     let Command::Edit(edit) = command else {
         return None;
     };
@@ -70,8 +70,7 @@ fn locked_lane_veto(engine: &Mutex<Engine>, command: &Command) -> Option<String>
         return None;
     }
     let targets = edit.targets();
-    let engine = engine.lock();
-    let timeline = engine.project().timeline();
+    let timeline = project.timeline();
     let mut lanes: Vec<_> = targets.tracks.clone();
     for clip in targets.clips {
         if let Some(track) = timeline.track_of(clip) {
@@ -129,10 +128,14 @@ impl Plugin for EnginePlugin {
                 engine.new_session();
                 let shared = Arc::new(Mutex::new(engine));
                 ctx.register_arc(Arc::clone(&shared));
-                // The lock guard is a waterfall handler, not a service: the host
-                // asks every plugin in mount order and the first refusal wins.
-                ctx.on_waterfall::<CommandProposed, _>(move |proposed| {
-                    if let Some(reason) = locked_lane_veto(&shared, &proposed.command) {
+                ctx.register(ProjectHost::new(shared, ctx));
+                // The lock policy is a waterfall handler, not a service: the host
+                // asks every plugin in mount order and the first refusal wins. It
+                // reads the project the event carries; the engine is locked while
+                // the event runs.
+                ctx.on_waterfall::<CommandProposed, _>(|proposed| {
+                    if let Some(reason) = locked_lane_veto(&proposed.project, &proposed.command)
+                    {
                         proposed.refuse(reason);
                     }
                 });

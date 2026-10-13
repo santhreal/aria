@@ -11,27 +11,41 @@
 //!   instead of being imported as media by whichever plugin looked first.
 
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use aria_commands::Command;
+use aria_models::Project;
 
 use crate::events::{SerialEvent, WaterfallEvent};
+use crate::project_host::Origin;
 
 /// A command about to be applied.
 ///
 /// A handler may edit `command` in place, or set `veto` to refuse it. The reason
 /// is shown to the user, so it names the lane, clip, or setting that caused the
 /// refusal rather than the plugin that noticed.
+///
+/// `project` is the state the command will apply to. A handler reads it here
+/// instead of locking the engine: the host emits this event with the engine
+/// locked, so the project a handler sees cannot change before the command
+/// lands, and locking the engine from a handler would deadlock.
 pub struct CommandProposed {
     pub command: Command,
+    /// The project the command applies to.
+    pub project: Arc<Project>,
+    /// Who proposed the command.
+    pub origin: Origin,
     /// Why this command must not be applied. The first handler to set it ends the
     /// chain.
     pub veto: Option<String>,
 }
 
 impl CommandProposed {
-    pub fn new(command: Command) -> Self {
+    pub fn new(command: Command, project: Arc<Project>, origin: Origin) -> Self {
         Self {
             command,
+            project,
+            origin,
             veto: None,
         }
     }

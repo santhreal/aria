@@ -305,24 +305,16 @@ impl AppState {
 
         let clips = plans.len();
         let written: usize = plans.iter().map(|(_, _, _, points)| points.len()).sum();
-        self.engine.lock().begin_group();
-        let result = self.duck_steps(plans, rate);
-        match result {
+        // A half-written envelope is worse than no duck: the clip would dip and
+        // never come back up.
+        match self.one_step(|this| this.duck_steps(plans, rate)) {
             Ok(()) => {
-                self.engine.lock().commit_group();
-                self.sync_from_engine();
                 self.status_message = Some(format!(
                     "Ducked {clips} clip(s) with {written} keyframe(s) under {} voice span(s)",
                     spans.len()
                 ));
             }
-            Err(err) => {
-                // A half-written envelope is worse than no duck: the clip would
-                // dip and never come back up.
-                self.engine.lock().rollback_group();
-                self.sync_from_engine();
-                self.report_error(&err);
-            }
+            Err(err) => self.report_error(&err),
         }
     }
 

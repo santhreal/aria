@@ -526,6 +526,7 @@ dependencies = [
  "aria-commands",
  "aria-compositor",
  "aria-core",
+ "aria-engine",
  "aria-models",
  "aria-render",
  "libloading",

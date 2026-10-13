@@ -29,7 +29,7 @@ use aria_commands::{Command, EditCommand, ProjectCommand};
 use aria_engine::{ApplyOutcome, BakeMedium, BakePass, bake_project};
 use aria_jobs::JobCompletion;
 use aria_models::ClipId;
-use aria_plugin::{CommandProposed, PluginContext};
+use aria_plugin::{Origin, ProjectHost, TransactError};
 use aria_render::ExportSettings;
 use sha2::{Digest, Sha256};
 
@@ -118,8 +118,7 @@ impl AppState {
 
     /// Import `dest` and swap it in for `clip`, as one history entry.
     fn adopt_bake(&mut self, clip: ClipId, dest: PathBuf) -> Result<(), String> {
-        let engine = Arc::clone(&self.engine);
-        adopt(&engine, &self.ctx, clip, dest)?;
+        adopt(&self.host, clip, dest).map_err(|err| err.to_string())?;
         self.sync_from_engine();
         Ok(())
     }
@@ -151,8 +150,7 @@ impl AppState {
             std::fs::create_dir_all(parent)
                 .map_err(|err| format!("creating {}: {err}", parent.display()))?;
         }
-        let engine = Arc::clone(&self.engine);
-        let ctx = Arc::clone(&self.ctx);
+        let host = Arc::clone(&self.host);
         // Only a picture is composited, so only a picture claims a device: a
         // sound bake that opened one would hold GPU memory to write samples.
         let gpu = match medium {
@@ -198,8 +196,16 @@ impl AppState {
             .map_err(|err| err.to_string())?;
             // The last act, on the shared engine: the file exists, so the
             // clip can decode it from here on. Swapping earlier would point
-            // the renderer at a file that is still being written.
-            adopt(&engine, &ctx, clip, dest)?;
+            // the renderer at a file that is still being written. An assistant
+            // turn that queued this render holds the project until it ends, so
+            // the swap waits for it, one contended wait at a time, unless the
+            // job is cancelled first.
+            loop {
+                match adopt(&host, clip, dest.clone()) {
+                    Err(TransactError::Busy { .. }) if !context.cancelled() => {}
+                    result => break result.map_err(|err| err.to_string())?,
+                }
+            }
             JobCompletion::new(format!("{label}: {frames} frame(s) at {written}"))
                 .with_output("path", published)
                 .map_err(String::from)
@@ -221,56 +227,22 @@ fn bake_extension(medium: BakeMedium) -> &'static str {
 
 /// Import the rendered file and swap it in, as one undo entry.
 ///
-/// Free function rather than a method because the job owns the shared engine and
-/// nothing else: the state it was spawned from may be rendering a frame. The
-/// plugin context comes along because the two commands are still commands: a
-/// plugin that rewrites or refuses an edit has to see the swap the same way it
-/// sees a razor, and a surface census that watches proposals cannot see an edit
-/// applied behind them.
-fn adopt(
-    engine: &Arc<parking_lot::Mutex<aria_engine::Engine>>,
-    ctx: &PluginContext,
-    clip: ClipId,
-    dest: PathBuf,
-) -> Result<(), String> {
-    let import = proposed(ctx, Command::Project(ProjectCommand::Import { path: dest }))?;
-    let mut engine = engine.lock();
-    engine.begin_group();
-    let outcome = match engine.apply(import) {
-        Ok(outcome) => outcome,
-        Err(err) => {
-            engine.rollback_group();
-            return Err(err.to_string());
-        }
-    };
-    let ApplyOutcome::Imported { media } = outcome else {
-        engine.rollback_group();
-        return Err("importing the rendered file reported no pool item".into());
-    };
-    let swap = match proposed(ctx, Command::Edit(EditCommand::BakeClip { clip, media })) {
-        Ok(swap) => swap,
-        Err(err) => {
-            engine.rollback_group();
-            return Err(err);
-        }
-    };
-    if let Err(err) = engine.apply(swap) {
-        engine.rollback_group();
-        return Err(err.to_string());
-    }
-    engine.commit_group();
-    Ok(())
-}
-
-/// Put one command past the plugin boundary and report what the handlers left of
-/// it, or why it must not be applied.
-fn proposed(ctx: &PluginContext, command: Command) -> Result<Command, String> {
-    let mut proposed = CommandProposed::new(command);
-    ctx.events().emit_waterfall(&mut proposed);
-    match proposed.veto {
-        Some(reason) => Err(reason),
-        None => Ok(proposed.command),
-    }
+/// Free function rather than a method because the job holds the host and
+/// nothing else: the state it was spawned from may be rendering a frame. The two
+/// commands go through the host like any edit, so a plugin that rewrites or
+/// refuses an edit sees the swap the same way it sees a razor.
+fn adopt(host: &ProjectHost, clip: ClipId, dest: PathBuf) -> Result<(), TransactError> {
+    host.transact_with(Origin::Editor, "Render and replace", |tx| {
+        let import = Command::Project(ProjectCommand::Import { path: dest });
+        let ApplyOutcome::Imported { media } = tx.apply(import)? else {
+            return Err(TransactError::Aborted(
+                "importing the rendered file reported no pool item".into(),
+            ));
+        };
+        tx.apply(Command::Edit(EditCommand::BakeClip { clip, media }))?;
+        Ok(())
+    })
+    .map(|((), _)| ())
 }
 
 #[cfg(test)]

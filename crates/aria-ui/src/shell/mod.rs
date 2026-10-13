@@ -71,9 +71,13 @@ impl Shell {
         })
         .detach();
         spawn_preview(state.clone(), cx);
-        // One subscriber for the session's lifetime: job rows update on transitions,
-        // never on a timer.
-        state.update(cx, |state, cx| state.watch_jobs(cx));
+        // One subscriber each for the session's lifetime: job rows update on
+        // transitions, and edits from plugins and the assistant re-project when
+        // they commit, never on a timer.
+        state.update(cx, |state, cx| {
+            state.watch_jobs(cx);
+            state.watch_edits(cx);
+        });
         spawn_status_ageing(cx);
         spawn_meter(cx);
         // A tooltip is handed an `&mut App` and an element id, so the registry

@@ -37,18 +37,14 @@ pub(super) const SESSION_ROWS: &[CommandEntry] = &[
         id: "pal-undo",
         label: "Undo",
         run: |state| {
-            if !state.undo() {
-                state.status_message = Some("Nothing to undo".into());
-            }
+            state.undo();
         },
     },
     CommandEntry {
         id: "pal-redo",
         label: "Redo",
         run: |state| {
-            if !state.redo() {
-                state.status_message = Some("Nothing to redo".into());
-            }
+            state.redo();
         },
     },
     CommandEntry {

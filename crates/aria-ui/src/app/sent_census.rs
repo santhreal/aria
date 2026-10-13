@@ -5,7 +5,7 @@
 //! an operator asks for that write no history, so a surface census built on
 //! history alone reports every one of them as unreached.
 //!
-//! `AppState::apply_command` emits `CommandProposed` before the engine sees the
+//! The project host emits `CommandProposed` before the engine sees the
 //! command, so one subscription observes every command any surface dispatches,
 //! including the ones that are refused. That is the right signal for "does a
 //! control exist that asks for this": the ask is the command, not its outcome.

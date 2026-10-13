@@ -8,6 +8,11 @@ Notes for the latest release. For previous releases, see the
 
 ### Added
 
+- Plugins read and edit the project through `ProjectHost`: immutable snapshots, single commands, and named transactions that land as one undo step or not at all.
+- Plugins receive `CommandApplied` after each command can no longer be rolled back, and the editor redraws when a plugin or the assistant edits.
+- `CommandProposed` carries the project the command applies to and its origin, and external plugins must be rebuilt for loader version 2.
+- An edit made during an assistant turn is refused with a message naming the assistant, instead of joining the turn's undo step.
+- Render and replace no longer hangs the editor when it swaps the rendered file in.
 - Every button, icon, card, and menu row dims while pressed, so clicks read on every control.
 - Shift-dragging a clip ripple-moves every sync-locked lane: the sound under the picture moves with it instead of staying behind.
 - Opening a video file on a busy machine retries once before reporting a decode failure, so a slow preroll no longer reads as a broken file.

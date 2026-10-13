@@ -130,6 +130,7 @@ impl AppState {
         let cancel = Arc::new(AtomicBool::new(false));
         self.assistant.cancel = Some(Arc::clone(&cancel));
         let engine = Arc::clone(&self.engine);
+        let project_host = Arc::clone(&self.host);
         let (wake, wakes) = crate::handoff::wakes::<Beat>();
         let label = ready.label.clone();
         // Taken on this thread: a screenshot renders on the process's device, not
@@ -150,12 +151,12 @@ impl AppState {
                 dry_run,
                 ..AgentConfig::default()
             };
-            let mut bridge = SessionBridge {
-                engine: Arc::clone(&engine),
-                beats: crate::handoff::Wake::clone(&wake),
-                cancel: Arc::clone(&cancel),
-            };
-            // The host and the bridge share the session engine on purpose: a
+            let mut bridge = SessionBridge::new(
+                project_host,
+                crate::handoff::Wake::clone(&wake),
+                Arc::clone(&cancel),
+            );
+            // The tool host reads the same session engine the bridge edits: a
             // screenshot taken after two edits must show those edits.
             let mut host =
                 ShellHost::new(engine, crate::handoff::Wake::clone(&wake), autonomy, gpu);
