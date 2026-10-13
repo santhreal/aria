@@ -141,7 +141,9 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             pkg-config \
             fontconfig libfontconfig1-dev \
-            libasound2-dev
+            libasound2-dev \
+            libxkbcommon-dev libxkbcommon-x11-dev \
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
 
       - uses: dtolnay/rust-toolchain@stable
 

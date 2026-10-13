@@ -227,12 +227,14 @@ pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_audioRead<
     }
     // SAFETY: reader handle per caller contract; `ptr` points to at least `frames * 2` floats.
     let written = unsafe { aria_audio_read(handle as *mut AriaAudioReader, ptr, frames) };
+    // SAFETY: releases the region taken above; mode 0 copies back and frees it.
     unsafe {
         let rel_fn = (**raw_env)
             .ReleasePrimitiveArrayCritical
             .expect("ReleasePrimitiveArrayCritical");
         rel_fn(raw_env, array_raw, ptr as *mut std::ffi::c_void, 0);
     }
+    jint::try_from(written).unwrap_or(-1)
 }
 
 /// `AriaNative.audioClose(handle)`.

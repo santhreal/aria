@@ -11,7 +11,6 @@ description = "Platform-native video decoding behind the aria-core VideoDecoder 
 aria-core = { path = "../aria-core" }
 thiserror = { workspace = true }
 tracing = { workspace = true }
-bytemuck = { workspace = true, features = ["extern_crate_alloc"] }
 # Portable still-image decode (PNG/JPEG), pure Rust. Compiled on every
 # platform: it is the primary path where no native image codec is wired
 # (Windows/Android/Linux hosts) and the fallback behind ImageIO on Apple.

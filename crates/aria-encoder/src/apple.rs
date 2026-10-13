@@ -262,7 +262,7 @@ impl AvfEncoder {
             let status = unsafe {
                 CVPixelBufferPoolCreatePixelBuffer(
                     std::ptr::null(),
-                    pool.as_ptr() as *mut c_void,
+                    Retained::as_ptr(&pool) as *mut c_void,
                     &mut out,
                 )
             };

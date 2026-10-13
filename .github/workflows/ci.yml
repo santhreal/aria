@@ -19,19 +19,23 @@ jobs:
   check:
     name: build / test / clippy
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
 
-      # Linux media uses GStreamer. fontconfig and ALSA support GPUI text and
-      # cpal audio; Vulkan gives wgpu a headless adapter for compositor tests.
+      # Linux media uses GStreamer, and the export tests encode through x264enc
+      # (plugins-ugly). fontconfig, xkbcommon and ALSA support GPUI text, keys
+      # and cpal audio; Vulkan gives wgpu a headless adapter for compositor tests.
       - name: Install system development libraries
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             pkg-config \
             libfontconfig1-dev libasound2-dev \
+            libxkbcommon-dev libxkbcommon-x11-dev \
             libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+            gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+            gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav \
             mesa-vulkan-drivers libvulkan1
 
       - name: Install Rust toolchain
@@ -104,7 +108,9 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@nightly
 
-      - uses: taiki-e/install-action@cargo-fuzz
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-fuzz
 
       - name: Compile every fuzz target
         run: cargo +nightly --locked fuzz build --fuzz-dir fuzz
@@ -265,6 +271,7 @@ jobs:
             pkg-config \
             fontconfig libfontconfig1-dev \
             libasound2-dev \
+            libxkbcommon-dev libxkbcommon-x11-dev \
             libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
 
       - uses: dtolnay/rust-toolchain@stable
