@@ -14,6 +14,12 @@ env:
   # unaffected (release profile).
   CARGO_PROFILE_DEV_DEBUG: "0"
   CARGO_PROFILE_TEST_DEBUG: "0"
+  # The bench profile inherits release: fat LTO, one codegen unit, and debug
+  # info for profilers. Linking every bench that way exceeds the runner's
+  # memory. The benchmark step checks that benches compile; it runs none.
+  CARGO_PROFILE_BENCH_DEBUG: "0"
+  CARGO_PROFILE_BENCH_LTO: "off"
+  CARGO_PROFILE_BENCH_CODEGEN_UNITS: "16"
 
 jobs:
   check:
@@ -67,8 +73,9 @@ jobs:
       - name: Build
         run: cargo build --workspace --all-targets --locked
 
+      # Bench targets only: a library or a binary is not a benchmark.
       - name: Compile benchmarks
-        run: cargo bench --workspace --no-run --locked
+        run: cargo bench --workspace --no-run --locked --bench '*'
 
       - name: Test
         run: cargo test --workspace --locked
