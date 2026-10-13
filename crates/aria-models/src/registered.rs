@@ -1,9 +1,10 @@
 //! Catalog entries added while the process runs.
 //!
 //! The shipped effect and transition catalogs are read once from data files. A
-//! plugin adds an effect or a transition here, and the live catalogs
-//! ([`crate::effect_catalog`], [`crate::transition_catalog`]) list the shipped
-//! entries first, then the registered ones in registration order.
+//! plugin adds an effect, a transition or an audio effect here, and the live
+//! catalogs ([`crate::effect_catalog`], [`crate::transition_catalog`],
+//! [`crate::audio_effect_catalog`]) list the shipped entries first, then the
+//! registered ones in registration order.
 //!
 //! Entries are shared, not borrowed: a lookup returns an `Arc`, so a caller that
 //! keeps a spec keeps it alive after the entry is removed, and nothing outlives
@@ -15,6 +16,7 @@
 
 use std::sync::{Arc, LazyLock, PoisonError, RwLock};
 
+use crate::audio_effects::{AudioEffectSpec, check_audio_effect};
 use crate::effects::{EffectSpec, check_effect_params};
 use crate::transition::TransitionSpec;
 
@@ -144,6 +146,20 @@ impl Entry for TransitionSpec {
     }
 }
 
+impl Entry for AudioEffectSpec {
+    fn id(&self) -> &str {
+        &self.id
+    }
+
+    fn label(&self) -> &str {
+        &self.label
+    }
+
+    fn check(&self) -> Result<(), String> {
+        check_audio_effect(self)
+    }
+}
+
 struct Live<T: 'static> {
     shipped: &'static [Arc<T>],
     registered: Vec<(u64, Arc<T>)>,
@@ -224,6 +240,12 @@ static EFFECTS: LazyLock<RwLock<Live<EffectSpec>>> =
 static TRANSITIONS: LazyLock<RwLock<Live<TransitionSpec>>> =
     LazyLock::new(|| RwLock::new(Live::new(crate::transition::shipped_transition_catalog())));
 
+static AUDIO_EFFECTS: LazyLock<RwLock<Live<AudioEffectSpec>>> = LazyLock::new(|| {
+    RwLock::new(Live::new(
+        crate::audio_effects::shipped_audio_effect_catalog(),
+    ))
+});
+
 // A writer holds the lock only to push, remove, or rebuild a snapshot, none of
 // which leaves the table half-written, so a poisoned lock still holds a whole
 // table.
@@ -252,10 +274,19 @@ pub(crate) fn transition_spec(id: &str) -> Option<Arc<TransitionSpec>> {
     read(&TRANSITIONS, |live| live.find(id))
 }
 
+pub(crate) fn audio_effect_catalog() -> Catalog<AudioEffectSpec> {
+    read(&AUDIO_EFFECTS, Live::catalog)
+}
+
+pub(crate) fn audio_effect_spec(id: &str) -> Option<Arc<AudioEffectSpec>> {
+    read(&AUDIO_EFFECTS, |live| live.find(id))
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Which {
     Effect,
     Transition,
+    AudioEffect,
 }
 
 /// A registered catalog entry. Dropping it removes the entry from its catalog.
@@ -271,6 +302,7 @@ impl Drop for Registered {
         match self.which {
             Which::Effect => write(&EFFECTS, |live| live.remove(self.token)),
             Which::Transition => write(&TRANSITIONS, |live| live.remove(self.token)),
+            Which::AudioEffect => write(&AUDIO_EFFECTS, |live| live.remove(self.token)),
         }
     }
 }
@@ -301,6 +333,23 @@ pub fn register_transition(
     Ok((
         Registered {
             which: Which::Transition,
+            token,
+        },
+        entry,
+    ))
+}
+
+/// Add `spec` to the audio effect catalog until the returned guard drops.
+/// Refused by the same id, label and parameter rules as [`register_effect`],
+/// and when a parameter is not scalar, a default lies outside its range, or
+/// the latency exceeds [`crate::MAX_AUDIO_LATENCY`].
+pub fn register_audio_effect(
+    spec: AudioEffectSpec,
+) -> Result<(Registered, Arc<AudioEffectSpec>), String> {
+    let (token, entry) = write(&AUDIO_EFFECTS, |live| live.register(spec))?;
+    Ok((
+        Registered {
+            which: Which::AudioEffect,
             token,
         },
         entry,

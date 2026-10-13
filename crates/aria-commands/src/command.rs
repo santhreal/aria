@@ -24,11 +24,12 @@ use std::path::PathBuf;
 
 use aria_core::ExportFormat;
 use aria_models::{
-    AnimationRef, AnimationSlot, AudioLayout, AudioRole, BinId, BlendMode, CanvasAspect, ChromaKey,
-    ClipId, ClipParam, ClipTransform, ColorAdjustments, CropRect, Easing, EffectPreset, Filter,
-    Generator, LayerStyles, Lut, MarkerColor, MarkerId, Mask, MediaId, MotionBlur, MulticamAngle,
-    MulticamGroupId, Param, ParamValue, PiecewiseEasingPreset, Rational, RationalTime, Replaceable,
-    SequenceId, StabilizeLevel, TemplateMeta, TimeRange, TrackId, TrackKind, TrackMatte,
+    AnimationRef, AnimationSlot, AudioInsertTarget, AudioLayout, AudioRole, BinId, BlendMode,
+    CanvasAspect, ChromaKey, ClipId, ClipParam, ClipTransform, ColorAdjustments, CropRect, Easing,
+    EffectPreset, Filter, Generator, LayerStyles, Lut, MarkerColor, MarkerId, Mask, MediaId,
+    MotionBlur, MulticamAngle, MulticamGroupId, Param, ParamValue, PiecewiseEasingPreset, Rational,
+    RationalTime, Replaceable, SequenceId, StabilizeLevel, TemplateMeta, TimeRange, TrackId,
+    TrackKind, TrackMatte,
 };
 use serde::{Deserialize, Serialize};
 
@@ -562,6 +563,52 @@ pub enum EditCommand {
     /// Drop a send from a lane. The inverse restores the lane's previous
     /// routing, so the send comes back at the same index and level.
     RemoveSend { track: TrackId, index: usize },
+    /// Append a registered audio effect to an insert chain: a clip's, a
+    /// lane's, or the master's. A lane or the master holds at most five. The
+    /// inverse restores the chain as it was.
+    AddAudioEffect {
+        target: AudioInsertTarget,
+        effect_id: String,
+    },
+    /// Take the insert at `index` out of its chain. The inverse restores the
+    /// chain, so the insert comes back at the same index with its values.
+    RemoveAudioEffect {
+        target: AudioInsertTarget,
+        index: usize,
+    },
+    /// Move one insert within its chain. Both indices address the chain before
+    /// the move; `to_index` is the insert's index afterwards. The inverse
+    /// restores the chain's previous order.
+    MoveAudioEffect {
+        target: AudioInsertTarget,
+        from_index: usize,
+        to_index: usize,
+    },
+    /// Set parameter slot `param` of an insert, constant or keyframed.
+    /// Keyframes on a clip insert are clip-relative ticks; on a lane or master
+    /// insert they are sequence ticks. The inverse restores the chain.
+    SetAudioEffectParam {
+        target: AudioInsertTarget,
+        index: usize,
+        param: usize,
+        value: Param<f32>,
+    },
+    /// Bypass an insert, or bring it back. A bypassed insert passes its input
+    /// through and adds no latency. The inverse restores the chain.
+    SetAudioEffectBypass {
+        target: AudioInsertTarget,
+        index: usize,
+        bypass: bool,
+    },
+    /// Key an insert from another lane's sound, or stop keying it (`None`).
+    /// Refused on a clip insert, for an effect that reads no key, and for a
+    /// key that would feed a lane back into itself. The inverse restores the
+    /// chain.
+    SetAudioEffectSidechain {
+        target: AudioInsertTarget,
+        index: usize,
+        key: Option<TrackId>,
+    },
     /// Remove a clip and slide later clips on its track left to close the gap.
     RippleDelete { clip: ClipId },
     /// Shift every clip on `track` whose start is ≥ `from` by `delta` ticks
@@ -816,6 +863,8 @@ pub enum EditOutcome {
     UpdatedSequenceRate,
     /// The sequence audio layout was changed.
     UpdatedAudioLayout,
+    /// The master insert chain changed.
+    UpdatedMaster,
     /// A project-level property (its display name) changed.
     UpdatedProject,
     /// A pool folder was created; the id is what a surface selects or renames.

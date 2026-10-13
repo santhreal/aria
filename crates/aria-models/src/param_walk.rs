@@ -165,6 +165,15 @@ impl ParamWalk for crate::effects::EffectInstance {
     }
 }
 
+impl ParamWalk for crate::audio_effects::AudioEffectInstance {
+    fn walk_params(&mut self, visit: Visit<'_>) -> Result<(), ModelError> {
+        for param in self.params.values_mut() {
+            visit(param)?;
+        }
+        Ok(())
+    }
+}
+
 impl ParamWalk for crate::clip::TextStyle {
     fn walk_params(&mut self, visit: Visit<'_>) -> Result<(), ModelError> {
         visit(&mut self.size)?;
@@ -267,6 +276,9 @@ impl ParamWalk for crate::clip::Clip {
         visit(&mut self.crop)?;
         for effect in &mut self.effects {
             effect.walk_params(visit)?;
+        }
+        for insert in &mut self.audio_effects {
+            insert.walk_params(visit)?;
         }
         self.styles.walk_params(visit)?;
         self.adjust.walk_params(visit)?;

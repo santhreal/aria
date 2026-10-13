@@ -31,6 +31,8 @@ pub mod assistant;
 pub mod assistant_host;
 #[path = "app/assistant_store.rs"]
 pub mod assistant_store;
+#[path = "app/audio_inserts.rs"]
+pub mod audio_inserts;
 #[path = "app/bake.rs"]
 pub(crate) mod bake;
 #[path = "app/bins.rs"]

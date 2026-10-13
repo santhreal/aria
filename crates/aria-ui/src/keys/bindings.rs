@@ -58,7 +58,7 @@ pub const SHIPPED_BINDINGS: &[Binding] = &joined::<TOTAL>(GROUPS);
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::keys::{After, KeyHost, KeyRoute};
+    use crate::keys::{After, Chord, KeyHost, KeyRoute};
     use std::collections::BTreeSet;
 
     /// The table is enumerated at run time, so a binding added without a unique id
@@ -200,6 +200,75 @@ mod tests {
                 id
             );
         }
+    }
+
+    /// The shifted row of a US layout, and the keys under it, as two strings
+    /// read off the keyboard rather than out of the vocabulary's table.
+    const US_SHIFTED: &str = "!@#$%^&*()_+{}|:\"<>?~";
+    const US_UNDER: &str = "1234567890-=[]\\;',./`";
+
+    /// What GPUI on Linux reports for a chord typed on a US layout: Shift and a
+    /// digit or punctuation key arrive as the shifted symbol with shift
+    /// cleared, the way text arrives. Nothing when no key produces the chord.
+    fn reported(chord: Chord) -> Option<(String, bool)> {
+        let mut chars = chord.key.chars();
+        let (Some(under), None) = (chars.next(), chars.next()) else {
+            return Some((chord.key.to_string(), chord.shift));
+        };
+        if !chord.shift || under.is_alphabetic() {
+            return Some((chord.key.to_string(), chord.shift));
+        }
+        let at = US_UNDER.chars().position(|key| key == under)?;
+        let symbol = US_SHIFTED.chars().nth(at)?;
+        Some((symbol.to_string(), false))
+    }
+
+    /// The class closed here: a shipped chord the platform never reports. GPUI
+    /// on Linux sends Shift+6 as `^` and Shift+, as `<`, both with shift
+    /// cleared, so the mixer and ripple-insert keys never fired. Enumerated
+    /// from the table, so a new Shift chord on a key no US keystroke produces,
+    /// such as Shift+=, fails here. Layouts other than US are not modelled.
+    #[test]
+    fn every_shipped_chord_fires_from_the_keystroke_linux_reports() {
+        let host = KeyHost::default();
+        for binding in SHIPPED_BINDINGS {
+            host.add(*binding);
+        }
+        for binding in SHIPPED_BINDINGS {
+            let chord = binding.chord;
+            let (key, shift) = reported(chord).unwrap_or_else(|| {
+                panic!(
+                    "{} is on {}, which no key produces",
+                    binding.id,
+                    chord.label()
+                )
+            });
+            assert_eq!(
+                host.resolve(binding.route, &key, chord.ctrl, shift, chord.alt)
+                    .map(|fired| fired.id),
+                Some(binding.id),
+                "{} is on {}, which arrives as {key:?} and fires nothing",
+                binding.id,
+                chord.label()
+            );
+        }
+    }
+
+    /// The two keys the defect was found on, pinned, and the plus key, which
+    /// is a shifted symbol and a binding of its own.
+    #[test]
+    fn the_shifted_symbols_fire_their_chords() {
+        let host = KeyHost::default();
+        for binding in SHIPPED_BINDINGS {
+            host.add(*binding);
+        }
+        let fired = |key: &str| {
+            host.resolve(KeyRoute::Editor, key, false, false, false)
+                .map(|binding| binding.id)
+        };
+        assert_eq!(fired("^"), Some("key-mixer"));
+        assert_eq!(fired("<"), Some("key-ripple-insert"));
+        assert_eq!(fired("+"), Some("key-zoom-in-plus"));
     }
 
     /// Only the keys that need the window context carry an `After`, and the ones

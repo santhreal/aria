@@ -21,6 +21,7 @@
 //! swaps the media while the slot's duration, transform, effects, transitions,
 //! and animations stay locked.
 
+mod audio_effects;
 mod audit;
 mod bin;
 mod capabilities;
@@ -55,6 +56,10 @@ mod transition;
 /// for an in-process editing model, but much faster than SipHash for `u64`).
 pub type Map<K, V> = rustc_hash::FxHashMap<K, V>;
 
+pub use audio_effects::{
+    AudioEffectInstance, AudioEffectSpec, AudioInsertTarget, MAX_AUDIO_LATENCY, STRIP_INSERTS,
+    audio_effect_catalog, audio_effect_spec, shipped_audio_effect_catalog,
+};
 pub use audit::{
     ClipFact, ClipFactSpec, ProjectFact, ProjectFactSpec, clip_fact_by_id, clip_facts,
     clips_with_fact, project_facts,
@@ -105,7 +110,9 @@ pub use param::{
 };
 pub use persist::{PROJECT_FILE_EXTENSION, PROJECT_FILE_VERSION};
 pub use project::{LinkAssignment, Project};
-pub use registered::{Catalog, CatalogIter, Registered, register_effect, register_transition};
+pub use registered::{
+    Catalog, CatalogIter, Registered, register_audio_effect, register_effect, register_transition,
+};
 pub use schema::{PROJECT_SCHEMA_KIND, PROJECT_SCHEMA_VERSION, ProjectSchema};
 pub use sequence::Sequence;
 pub use sticker::{ArtSource, StickerSpec, sticker_catalog, sticker_spec};

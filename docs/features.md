@@ -129,6 +129,11 @@ Anything not listed here is not in the build.
 - Duck measurement writes editable volume keyframes rather than a hidden
   automation pass.
 - Extract audio from a clip onto its own lane.
+- Audio effect chains on clips, lanes, and the master: Gain, an eight-band
+  Parametric EQ, Compressor with a sidechain key, Limiter, De-esser, Noise
+  Reduction, Reverb, Delay, Pitch Shifter, four channel tools, and a Loudness
+  Normalizer. Parameters take keyframes, the mixer compensates each effect's
+  latency, and a plugin adds effects of its own.
 - A mixer, one strip per lane and per submix bus, on Shift+6. Each strip carries
   the lane's fader in decibels, the bus or master it outputs to, and a chip per
   bus that cycles the send off, post-fader, and pre-fader. Strips are drawn in

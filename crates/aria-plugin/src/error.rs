@@ -20,4 +20,8 @@ pub enum PluginError {
     /// did not check, or its catalog spec was refused.
     #[error("registration refused: {0}")]
     RegisterRefused(#[from] aria_compositor::RegisterError),
+    /// An audio effect the host did not register: the catalog refused its
+    /// spec, or a processor is already registered under its id.
+    #[error("audio effect refused: {0}")]
+    AudioEffectRefused(String),
 }

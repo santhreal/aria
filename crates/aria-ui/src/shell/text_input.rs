@@ -1,11 +1,12 @@
 //! The platform text-input handler.
 //!
-//! Every text box in the app is key-routed data (`keys::fields`), which covers a
-//! keystroke and nothing else. A platform IME does not send keystrokes: it sends
-//! a run of text to replace a range, after showing the operator a preedit run it
-//! marked earlier. That is what this handler answers, so a Japanese or Korean
-//! commit lands in whichever box holds focus without any box knowing an IME
-//! exists.
+//! Every text box in the app is key-routed data (`keys::fields`): the key
+//! handler takes its Backspace, Enter, Esc, arrows and paste, and this handler
+//! takes its text. A plain keystroke arrives here as the character the layout
+//! produced, so Shift+F is `F`, and a platform IME sends a run of text to
+//! replace a range, after showing a preedit run it marked earlier. A Japanese or
+//! Korean commit lands in whichever box holds focus without any box knowing an
+//! IME exists.
 //!
 //! The boxes append and pop, so a range is expressible only as a tail: the caret
 //! is always at the end of the draft and nothing selects text with the pointer.

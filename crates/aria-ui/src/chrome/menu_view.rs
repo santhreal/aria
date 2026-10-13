@@ -9,7 +9,7 @@ use std::cell::RefCell;
 use gpui::motion::{MotionPolicy, presets};
 use gpui::{
     AnyElement, Context, CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton,
-    MouseDownEvent, ParentElement, StatefulInteractiveElement, Styled, div, px,
+    MouseDownEvent, ParentElement, StatefulInteractiveElement, Styled, deferred, div, px,
 };
 
 use super::MENU_H;
@@ -156,17 +156,22 @@ fn drop_panel(
         .p(px(Theme::SPACE_XS))
         .flex()
         .flex_col()
-        .on_mouse_down(MouseButton::Left, |_: &MouseDownEvent, _, _| {})
+        // A press on the drop is the drop's, not the panel's drawn under it.
+        .occlude()
         .children(rows);
     let animated = match phase {
         Phase::Open => motion::menu_in(motion::MotionKey::new("menu", label), panel),
         Phase::Closing(t) => motion::menu_out(motion::MotionKey::new("menu", label), t, panel),
     };
-    div()
-        .absolute()
-        .top(px(MENU_H))
-        .left(px(0.))
-        .child(crate::frost::frost(animated))
+    // Deferred so the drop paints over the tool strip and the panels drawn after
+    // the bar, at the place the title lays it out.
+    deferred(
+        div()
+            .absolute()
+            .top(px(MENU_H))
+            .left(px(0.))
+            .child(crate::frost::frost(animated)),
+    )
 }
 
 /// One row. `live` is false while the drop fades out: a click landing inside the

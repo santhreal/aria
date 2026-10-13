@@ -186,6 +186,41 @@ impl UiEffectInstance {
     }
 }
 
+/// One parameter of an audio insert, as drawn.
+#[derive(Debug, Clone, PartialEq)]
+pub struct UiInsertParam {
+    pub label: SharedString,
+    /// The value at the chain's first tick.
+    pub value: f32,
+    pub min: f32,
+    pub max: f32,
+    /// Whether the parameter is keyframed.
+    pub automated: bool,
+}
+
+/// One audio insert in a chain, as drawn.
+#[derive(Debug, Clone, PartialEq)]
+pub struct UiInsert {
+    pub effect_id: SharedString,
+    /// The catalog's label, or the id marked as not installed.
+    pub label: SharedString,
+    pub installed: bool,
+    pub bypass: bool,
+    /// One per catalog slot, in slot order. Empty when not installed.
+    pub params: Vec<UiInsertParam>,
+    /// Whether the effect reads a key signal from another lane.
+    pub reads_key: bool,
+    /// The lane keying it, if any.
+    pub key: Option<u64>,
+}
+
+/// A lane that can key an insert on one chain.
+#[derive(Debug, Clone, PartialEq)]
+pub struct UiKeyChoice {
+    pub track: u64,
+    pub name: SharedString,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct UiGenerator {
     pub kind: SharedString,
@@ -224,6 +259,10 @@ pub struct UiClip {
     pub transform: UiClipTransform,
     pub filter: Option<UiFilter>,
     pub effects: Vec<UiEffectInstance>,
+    /// The clip's audio insert chain, in signal order.
+    pub audio_inserts: Vec<UiInsert>,
+    /// Whether the clip carries sound, so an insert chain on it is accepted.
+    pub can_hold_inserts: bool,
     pub generator: Option<UiGenerator>,
     pub kind: UiClipKind,
     pub locked: bool,
@@ -439,8 +478,12 @@ pub struct UiPluginRow {
     /// that is not mounted. A start is the sum of these, so the list that names
     /// the plugins is where the cost of having them belongs.
     pub mount_ms: Option<f32>,
-    /// The reason the last mount attempt failed, when it did.
+    /// The reason the last mount attempt failed, or the plugin failed after
+    /// it, when it did.
     pub error: Option<SharedString>,
+    /// The latest fault the host recovered from while the plugin stays
+    /// mounted, such as an audio effect bypassed for missing its deadlines.
+    pub fault: Option<SharedString>,
 }
 
 /// One catalog as the Catalogs list shows it: how many entries are in effect,
@@ -472,7 +515,12 @@ pub struct UiMediaItem {
     pub height: u32,
     /// The source's own frame rate, which need not be the sequence's.
     pub frame_rate: Rational,
+    /// Length in the source's own ticks, at [`Self::frame_rate`].
     pub duration_ticks: i64,
+    /// The length a placement of the whole source takes in the open sequence,
+    /// as its timecode. Formatted once with the projection. An audio-only
+    /// source counts milliseconds, so its own ticks are never read as frames.
+    pub duration_label: SharedString,
     pub has_audio: bool,
     pub kind: UiClipKind,
     pub missing: bool,

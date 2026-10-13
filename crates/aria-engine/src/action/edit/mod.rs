@@ -3,6 +3,7 @@
 pub mod add_clip;
 pub mod add_generated;
 pub mod add_track;
+pub mod audio_effects;
 pub mod bake;
 pub mod bin;
 pub mod clip_beats;

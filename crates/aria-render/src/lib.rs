@@ -16,6 +16,8 @@
 
 mod animation;
 mod audio_dsp;
+mod audio_fx;
+mod audio_processor;
 mod error;
 mod export;
 mod export_audio;
@@ -33,6 +35,10 @@ mod transactional_file;
 pub use animation::renders_animation;
 pub use aria_compositor::FrameSink;
 pub use aria_core::RgbaImage;
+pub use audio_processor::{
+    AudioBlock, AudioProcessor, AudioProcessorFactory, FaultKind, FaultSink, ParamSignal,
+    ProcessorFault, ProcessorRegistration, audio_processor_registered, register_audio_processor,
+};
 pub use error::{EmptyExport, ExportFormatError, MIN_EXPORT_DIM, RenderError};
 pub use export::{
     ExportObserver, ExportSettings, PngSequenceEncoder, decode_png, encode_png, even_export_size,
@@ -41,7 +47,9 @@ pub use export::{
 };
 #[doc(hidden)]
 pub use export_audio::export_audio_bench;
-pub use export_audio::{EXPORT_AUDIO_CHANNELS, EXPORT_AUDIO_RATE, ExportAudioMixer};
+pub use export_audio::{
+    EXPORT_AUDIO_CHANNELS, EXPORT_AUDIO_RATE, ExportAudioMixer, sample_boundary,
+};
 pub use export_sound::{export_audio_config, export_audio_to_file_observed};
 pub use lut_pack::{
     STARTER_LUT_SIZE, SWATCH_REFERENCE, StarterLut, StarterLutEntry, bake_starter_lut,

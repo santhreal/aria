@@ -281,7 +281,10 @@ fn clip_alone(layer: SceneLayer, clip: ClipId) -> Option<SceneLayer> {
 
 /// The sequence whose timeline holds `clip`: the open one first, then the
 /// root, then every nested one.
-fn sequence_holding(project: &Project, clip: ClipId) -> Result<Option<SequenceId>, ModelError> {
+pub(crate) fn sequence_holding(
+    project: &Project,
+    clip: ClipId,
+) -> Result<Option<SequenceId>, ModelError> {
     if project.timeline().track_of(clip).is_some() {
         return Ok(project.active_sequence());
     }

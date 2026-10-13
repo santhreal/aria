@@ -482,6 +482,9 @@ fn feed_mixer(
     stop: Arc<AtomicBool>,
     meters: Arc<LaneMeters>,
 ) {
+    // Playback: an insert that overruns the real time of its blocks three
+    // times in a row is bypassed rather than starving the device.
+    mixer.set_realtime(true);
     let mut pool: Vec<Vec<f32>> = (0..MIX_BLOCK_POOL)
         .map(|_| vec![0.0; MIX_FRAMES * usize::from(EXPORT_AUDIO_CHANNELS)])
         .collect();

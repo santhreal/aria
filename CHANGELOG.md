@@ -19,6 +19,8 @@ Notes for the latest release. For previous releases, see the
 - Plugins register effects and transitions written in WGSL, which render on clips, in previews, and in exports like shipped ones, and `render_effect` and `render_transition` now draw images; external plugins must be rebuilt for loader version 4.
 - Plugins add generators, effects marked `generator: true` that the Generators tab and the palette place as clips in one undo step; external plugins must be rebuilt for loader version 5.
 - Plugins render frames through `RenderHost`: the open sequence, any sequence, or one clip, at canvas, fitted, or exact size, as an image, per tick of a range, or into a GPU texture; external plugins must be rebuilt for loader version 6.
+- Clips, lanes, and the master carry audio effect chains, edited in the inspector's Audio tab and the mixer's Inserts rows, with fourteen shipped effects, keyframed parameters, sidechain keys, and latency compensation in preview and export.
+- Plugins add audio effects with `register_audio_effect` and mix project sound through `AudioHost`; a processor that panics or misses three playback deadlines is bypassed, and external plugins must be rebuilt for loader version 7.
 - The engine, project host, and jobs services registered by a session started without the engine plugin stay registered for the session instead of being dropped at once.
 - Render and replace no longer hangs the editor when it swaps the rendered file in.
 - Every button, icon, card, and menu row dims while pressed, so clicks read on every control.
@@ -2027,6 +2029,12 @@ Notes for the latest release. For previous releases, see the
 
 ### Fixed
 
+- A pool row and the properties block state a source's length in the sequence timecode, so a 2 s WAV reads 00:00:02:00 instead of 00:01:23:08, and the Duration sort orders by time across frame rates.
+- The properties block no longer states a frame rate for an audio-only source.
+- A parameter row in a mixer strip moves its value under the label when both do not fit, instead of pushing the value past the strip edge.
+- Shift+6 opens the mixer and Shift+, ripple-inserts on Linux, where the keystroke arrives as `^` or `<`, and a Shift chord on a digit or punctuation key can be captured in Settings.
+- A menu drop draws over the tool strip and the panels, and a press outside the menu bar closes it.
+- A text box types each character once, and the command palette types the character a key produces, so Shift+F types `F`.
 - Ripple delete now closes the deleted span on every sync-locked lane instead of failing, so sound under the removed shot goes with it and the rest of the lane moves up.
 - Undoing a combo animation now restores the entrance and exit animations it replaced instead of discarding them.
 - Changing a sequence frame rate now resamples clip keyframe ticks, so an animation keeps its wall-clock timing instead of sliding by the ratio of the old and new rates.

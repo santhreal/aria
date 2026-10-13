@@ -73,7 +73,8 @@ impl AppState {
             self.cancel_rebind();
             return;
         }
-        let Some(chord) = Chord::parse(&Self::chord_text(key, ctrl, shift, alt)) else {
+        let (chord_key, shift) = keys::chord_key(key, shift);
+        let Some(chord) = Chord::parse(&Self::chord_text(chord_key, ctrl, shift, alt)) else {
             self.status_message = Some(format!("{key} cannot carry a binding"));
             return;
         };

@@ -26,6 +26,7 @@ pub mod clip_pick;
 pub mod context_menu;
 pub mod effects_rack;
 pub mod home_pick;
+pub mod insert_rack;
 pub mod inspector_pick;
 pub mod keyframe_rows;
 pub mod labels;

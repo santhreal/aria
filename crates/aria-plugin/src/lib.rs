@@ -6,6 +6,7 @@
 //! the editor and every plugin share: built-in plugins hold no edit path that
 //! an external plugin lacks.
 
+mod audio_host;
 mod context;
 mod editor_events;
 mod error;
@@ -20,8 +21,10 @@ mod render_host;
 mod service;
 pub mod settings_schema;
 
+pub use audio_host::{AUDIO_HOST_BLOCK, AudioHost, AudioSource};
 pub use context::{
-    CapabilityDenial, MountFailure, MountedPluginInfo, PluginContext, short_service_name,
+    CapabilityDenial, MountFailure, MountedPluginInfo, PluginContext, PluginFault,
+    short_service_name,
 };
 pub use editor_events::{
     ContextMenuRequested, EditorView, ExportFinished, ExportStarted, InOutChanged, JobFinished,
@@ -69,3 +72,11 @@ pub use aria_compositor::{
     EffectDefinition, MAX_EFFECT_FLOATS, MAX_EFFECT_PASSES, RegisterError, TransitionDefinition,
 };
 pub use aria_models::{EffectParamKind, EffectParamSpec, EffectSpec, TransitionSpec};
+
+/// What a plugin registers to add an audio effect: a model spec for the
+/// inspector and the mixer, and the processor factory that runs it.
+pub use aria_models::{AudioEffectSpec, MAX_AUDIO_LATENCY};
+pub use aria_render::{
+    AudioBlock, AudioProcessor, AudioProcessorFactory, EXPORT_AUDIO_CHANNELS, EXPORT_AUDIO_RATE,
+    FaultKind, ParamSignal, ProcessorFault,
+};

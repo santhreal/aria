@@ -121,6 +121,14 @@ edit_ops! { ctx;
     RemoveSend { track, index } => updated_track(track, edit::set_track_routing::execute(ctx, track, RouteEdit::RemoveSend { index })?),
     ShiftClips { track, from, delta } => shifted(track, edit::shift_clips::execute(ctx, track, from, delta)?),
 
+    // Insert chains. Every gesture is one handler that snapshots the chain.
+    AddAudioEffect { target, effect_id } => updated_inserts(target, edit::audio_effects::execute(ctx, target, InsertEdit::Add { effect_id })?),
+    RemoveAudioEffect { target, index } => updated_inserts(target, edit::audio_effects::execute(ctx, target, InsertEdit::Remove { index })?),
+    MoveAudioEffect { target, from_index, to_index } => updated_inserts(target, edit::audio_effects::execute(ctx, target, InsertEdit::Move { from_index, to_index })?),
+    SetAudioEffectParam { target, index, param, value } => updated_inserts(target, edit::audio_effects::execute(ctx, target, InsertEdit::Param { index, param, value })?),
+    SetAudioEffectBypass { target, index, bypass } => updated_inserts(target, edit::audio_effects::execute(ctx, target, InsertEdit::Bypass { index, bypass })?),
+    SetAudioEffectSidechain { target, index, key } => updated_inserts(target, edit::audio_effects::execute(ctx, target, InsertEdit::Sidechain { index, key })?),
+
     // Ruler markers.
     AddMarker { at, name, color } => created_marker(edit::marker::add(ctx, at, name, color)?),
     RemoveMarker { marker } => removed_marker(marker, Box::new(edit::marker::RemoveMarkerAction { marker }).apply(ctx)?),

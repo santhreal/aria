@@ -5,7 +5,8 @@ use aria_core::{AudioReader, DecodeError};
 use aria_models::{Param, speed_curve_integral};
 use nnnoiseless::DenoiseState;
 
-const I16_SCALE: f32 = 32768.0;
+/// RNNoise works on floats at 16-bit sample scale.
+pub(crate) const I16_SCALE: f32 = 32768.0;
 
 fn to_rnnoise(sample: f32) -> f32 {
     (sample * I16_SCALE).clamp(-32768.0, 32767.0)

@@ -22,8 +22,6 @@ pub(super) fn bin(
     state: &Entity<AppState>,
     tab: SidebarTab,
     rows: &PoolRows,
-    rate_num: i32,
-    rate_den: i32,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
     let query = state.read(cx).media_query.clone();
@@ -129,9 +127,7 @@ pub(super) fn bin(
                 .children(sorts)
                 .children(views),
         )
-        .child(grid::media_grid(
-            theme, state, tab, rows, rate_num, rate_den, view, cx,
-        ))
+        .child(grid::media_grid(theme, state, tab, rows, view, cx))
         .when(!properties.is_empty(), |el| {
             el.child(properties_block(theme, &properties))
         })

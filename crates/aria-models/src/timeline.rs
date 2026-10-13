@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::Map;
+use crate::audio_effects::AudioEffectInstance;
 use crate::clip::Clip;
 use crate::error::ModelError;
 use crate::ids::{ClipId, MarkerId, TrackId};
@@ -70,6 +71,11 @@ pub struct Timeline {
     /// saves stay byte-identical.
     #[serde(default, skip_serializing_if = "AudioLayout::is_default")]
     audio_layout: AudioLayout,
+    /// The master insert chain: audio effects run over the programme mix, in
+    /// order, before the output clamp. Keyframes are sequence ticks. Absent
+    /// from saves while empty.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    master_audio_effects: Vec<AudioEffectInstance>,
 }
 
 impl Timeline {
@@ -82,6 +88,7 @@ impl Timeline {
             markers: Vec::new(),
             canvas: CanvasSettings::default(),
             audio_layout: AudioLayout::default(),
+            master_audio_effects: Vec::new(),
         }
     }
 
@@ -105,6 +112,15 @@ impl Timeline {
 
     pub fn set_audio_layout(&mut self, layout: AudioLayout) {
         self.audio_layout = layout;
+    }
+
+    /// The master insert chain, in signal order.
+    pub fn master_audio_effects(&self) -> &[AudioEffectInstance] {
+        &self.master_audio_effects
+    }
+
+    pub(crate) fn master_audio_effects_mut(&mut self) -> &mut Vec<AudioEffectInstance> {
+        &mut self.master_audio_effects
     }
 
     // --- frame rate & resampling --------------------------------------------
@@ -132,8 +148,11 @@ impl Timeline {
             marker.tick = resample(marker.tick, new_rate);
         }
 
-        // 2. Resample tracks (clips, transitions)
+        // 2. Resample tracks (clips, transitions, insert keyframes)
         for track in self.tracks.values_mut() {
+            for insert in &mut track.audio_effects {
+                resample_insert(insert, old_rate, new_rate);
+            }
             for transition in track.transitions_mut() {
                 transition.duration =
                     resample(RationalTime::new(transition.duration, old_rate), new_rate)
@@ -169,6 +188,9 @@ impl Timeline {
                 // the sequence slides when the rate changes.
                 clip.resample_timeline_params(old_rate, new_rate);
             });
+        }
+        for insert in &mut self.master_audio_effects {
+            resample_insert(insert, old_rate, new_rate);
         }
 
         self.frame_rate = new_rate;
@@ -623,6 +645,16 @@ impl Timeline {
             .unwrap_or(0);
         RationalTime::new(tick, self.frame_rate)
     }
+}
+
+/// Move a lane or master insert's sequence-tick keyframes onto `new_rate`.
+fn resample_insert(insert: &mut AudioEffectInstance, old_rate: Rational, new_rate: Rational) {
+    use crate::param_walk::ParamWalk;
+    let walked = insert.walk_params(&mut |curve| {
+        curve.resample(old_rate, new_rate);
+        Ok(())
+    });
+    debug_assert!(walked.is_ok(), "a resample cannot refuse a curve");
 }
 
 #[cfg(test)]

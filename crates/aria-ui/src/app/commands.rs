@@ -155,6 +155,7 @@ impl FilmstripImpact {
                 | aria_commands::EditOutcome::UpdatedMarker(_)
                 | aria_commands::EditOutcome::RemovedMarker(_)
                 | aria_commands::EditOutcome::UpdatedAudioLayout
+                | aria_commands::EditOutcome::UpdatedMaster
                 | aria_commands::EditOutcome::UpdatedProject
                 | aria_commands::EditOutcome::CreatedBin(_)
                 | aria_commands::EditOutcome::UpdatedPool,
@@ -536,6 +537,8 @@ impl AppState {
             ramp_frame: None,
             curve_drag: None,
             fader_drag: None,
+            insert_picker: None,
+            open_insert: None,
             curve_frame: None,
             curve_param: None,
             curve_axis: 0,

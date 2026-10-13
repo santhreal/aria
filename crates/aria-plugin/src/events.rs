@@ -273,6 +273,13 @@ impl EventBus {
         }));
     }
 
+    /// Run `job` on the delivery thread, after every notification posted
+    /// before it. For host work that must leave the calling thread, such as
+    /// failing a plugin from the audio thread.
+    pub(crate) fn defer(&self, job: impl FnOnce() + Send + 'static) {
+        self.enqueue(Box::new(job));
+    }
+
     fn enqueue(&self, delivery: Delivery) {
         let mut dispatcher = self.dispatcher.lock();
         let running = match dispatcher.as_mut() {

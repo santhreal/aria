@@ -11,8 +11,10 @@
 //! engine, so riding a fader from silence to unity costs one undo entry — the
 //! same rule the speed ramp and the curve editor follow.
 
+use super::audio_inserts;
 use super::*;
-use aria_models::{AudioSend, TrackOutput};
+use crate::types::{UiInsert, UiKeyChoice};
+use aria_models::{AudioInsertTarget, AudioSend, TrackOutput};
 
 /// The bottom of the fader's travel, in decibels. Below this a fader reads as
 /// silence: a mixer that offered -80 dB would be offering arithmetic, not a
@@ -91,6 +93,10 @@ pub struct MixerStrip {
     pub send_targets: Vec<SendTarget>,
     /// The outputs this lane could have, the master first.
     pub output_targets: Vec<OutputTarget>,
+    /// The lane's insert chain, in signal order.
+    pub inserts: Vec<UiInsert>,
+    /// The lanes that may key an insert on this strip.
+    pub keys: Vec<UiKeyChoice>,
 }
 
 /// Where a send on this strip could go, and what a click on it does.
@@ -125,16 +131,30 @@ pub struct MixerFacts {
     /// frame with one refcount bump, rather than copying every strip's strings
     /// per repaint to get out of the borrow that drawing needs.
     pub strips: Result<std::sync::Arc<[MixerStrip]>, String>,
+    /// The master's insert chain, and the lanes that may key it.
+    pub master: std::sync::Arc<MasterChain>,
+}
+
+/// The master strip's inserts.
+#[derive(Debug, Default)]
+pub struct MasterChain {
+    pub inserts: Vec<UiInsert>,
+    pub keys: Vec<UiKeyChoice>,
 }
 
 impl MixerFacts {
     pub fn of(engine: &aria_engine::Engine) -> Self {
         let timeline = engine.project().timeline();
+        let master = std::sync::Arc::new(MasterChain {
+            inserts: audio_inserts::rows(timeline.master_audio_effects()),
+            keys: audio_inserts::key_choices(timeline, AudioInsertTarget::Master),
+        });
         let buses = match timeline.audio_buses() {
             Ok(buses) => buses,
             Err(err) => {
                 return Self {
                     strips: Err(format!("this project's audio routing has no mix: {err}")),
+                    master,
                 };
             }
         };
@@ -148,6 +168,7 @@ impl MixerFacts {
             .map(|bus| {
                 let track = timeline.track(bus.track);
                 let sends: &[AudioSend] = track.map_or(&[], |lane| lane.sends.as_slice());
+                let chain = track.map_or(&[][..], |lane| lane.audio_effects.as_slice());
                 MixerStrip {
                     track: bus.track.raw(),
                     name: name_of(bus.track),
@@ -206,10 +227,15 @@ impl MixerFacts {
                             }),
                     )
                     .collect(),
+                    inserts: audio_inserts::rows(chain),
+                    keys: audio_inserts::key_choices(timeline, AudioInsertTarget::Track(bus.track)),
                 }
             })
             .collect();
-        Self { strips: Ok(strips) }
+        Self {
+            strips: Ok(strips),
+            master,
+        }
     }
 }
 
@@ -263,6 +289,11 @@ pub fn gain_label(gain: f32) -> String {
 }
 
 impl AppState {
+    /// The master's insert chain and the lanes that may key it, as projected.
+    pub fn master_chain(&self) -> std::sync::Arc<MasterChain> {
+        std::sync::Arc::clone(&self.facts.mixer.master)
+    }
+
     /// Every strip, in the order the mix folds them: a lane before the bus it
     /// feeds. `Err` when the project's routing has a cycle — a hand-edited file
     /// can hold one, and the mixer says so rather than drawing a graph it would

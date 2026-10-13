@@ -1,14 +1,13 @@
 //! Key-routed text fields, as data.
 //!
-//! Every text box in the app is typed into through the key handler rather than a
-//! GPUI text field, so each one used to be its own block in the shell: five
-//! near-identical `match`es that differed only in which four functions they
-//! called. Adding a sixth box meant editing the shell, and the precedence
-//! between boxes lived in a `&& rename.is_none()` repeated in every block.
+//! Every text box in the app is a row here rather than a GPUI text field. The
+//! key handler routes a box's editing keys (Backspace, Enter, Esc, the arrows,
+//! paste) through its row, and the platform input handler in
+//! `shell/text_input.rs` routes its typed text through the row's `push`.
 //!
-//! A field is a row here instead. The list is precedence order: the first field
-//! whose `focused` holds takes the keystroke, so rename outranking a search box
-//! is a position in a table rather than a guard in four places.
+//! The list is precedence order: the first field whose `focused` holds takes
+//! the keystroke, so rename outranking a search box is a position in a table
+//! rather than a guard in every box.
 
 use crate::app::AppState;
 

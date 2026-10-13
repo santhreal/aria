@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::Map;
+use crate::audio_effects::AudioEffectInstance;
 use crate::clip::generator_catalog::generator_spec;
 use crate::clip::{Clip, ClipSource, Generator};
 use crate::error::ModelError;
@@ -282,6 +283,10 @@ pub struct Track {
     /// Copies of this lane taken for other buses, each at its own level.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sends: Vec<AudioSend>,
+    /// The lane's insert chain: audio effects run over the lane's sum, in
+    /// order, before its fader and its sends. Keyframes are sequence ticks.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub audio_effects: Vec<AudioEffectInstance>,
     #[serde(with = "crate::serde_map")]
     clips: Map<ClipId, Clip>,
     #[serde(skip)]
@@ -322,6 +327,8 @@ struct TrackData {
     pub output: TrackOutput,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sends: Vec<AudioSend>,
+    #[serde(default)]
+    pub audio_effects: Vec<AudioEffectInstance>,
     #[serde(with = "crate::serde_map")]
     pub clips: Map<ClipId, Clip>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -351,6 +358,7 @@ impl<'de> Deserialize<'de> for Track {
             gain: data.gain,
             output: data.output,
             sends: data.sends,
+            audio_effects: data.audio_effects,
             clips: data.clips,
             order: Vec::new(),
             transitions: data.transitions,
@@ -379,6 +387,7 @@ impl Track {
             gain: 1.0,
             output: TrackOutput::default(),
             sends: Vec::new(),
+            audio_effects: Vec::new(),
             clips: Map::default(),
             order: Vec::new(),
             transitions: Vec::new(),

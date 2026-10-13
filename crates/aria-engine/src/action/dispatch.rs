@@ -30,6 +30,7 @@
 use aria_commands::{Command, EditCommand, EditOutcome, Inverse, ProjectCommand};
 
 use super::edit::add_track::RemoveTrackAction;
+use super::edit::audio_effects::InsertEdit;
 use super::edit::remove_media::RemoveMediaAction;
 use super::edit::restore_transitions::RestoreTransitionsAction;
 use super::edit::set_track_flags::FlagPatch;
@@ -38,7 +39,10 @@ use super::edit::{self, remove_clip::RemoveClipAction};
 use super::project;
 use super::{ApplyContext, CompoundAction, EditAction};
 use crate::error::EngineError;
-use aria_models::{BinId, ClipId, MarkerId, MediaId, ModelError, TrackId, TrackOutput, Transition};
+use aria_models::{
+    AudioInsertTarget, BinId, ClipId, MarkerId, MediaId, ModelError, TrackId, TrackOutput,
+    Transition,
+};
 
 /// Capture transitions only on tracks the structural edit can touch.
 ///
@@ -268,6 +272,17 @@ fn updated_audio_layout(inverse: Box<dyn EditAction>) -> Applied {
         outcome: EditOutcome::UpdatedAudioLayout,
         inverse,
     }
+}
+
+/// What an insert chain edit reports: the clip or lane it sits on, or the
+/// master.
+fn updated_inserts(target: AudioInsertTarget, inverse: Box<dyn EditAction>) -> Applied {
+    let outcome = match target {
+        AudioInsertTarget::Clip(clip) => EditOutcome::Updated(clip),
+        AudioInsertTarget::Track(track) => EditOutcome::UpdatedTrack(track),
+        AudioInsertTarget::Master => EditOutcome::UpdatedMaster,
+    };
+    Applied { outcome, inverse }
 }
 
 fn updated_project(inverse: Box<dyn EditAction>) -> Applied {

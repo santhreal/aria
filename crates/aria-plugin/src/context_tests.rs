@@ -415,3 +415,43 @@ fn a_refused_shader_is_a_register_refusal() {
     assert_eq!(refusal.location.map(|(line, _)| line), Some(3));
     assert!(!effect_listed(id));
 }
+
+/// A recovered fault is kept per mounted plugin, newest only, and goes with
+/// the plugin. Failing a plugin drops its registrations, states the reason in
+/// the failure ledger, and a later mount clears it.
+#[test]
+fn faults_and_failures_follow_the_plugin() {
+    let ctx = PluginContext::new();
+    let _a = ctx.register(TestService { value: 3 });
+    let plugin = consumer(&["TestService"]);
+    ctx.mount(&plugin).expect("mounts");
+    ctx.report_fault("test.consumer", "first");
+    ctx.report_fault("test.consumer", "second");
+    ctx.report_fault("test.elsewhere", "not mounted");
+    assert_eq!(
+        ctx.faults(),
+        vec![PluginFault {
+            plugin: "test.consumer",
+            message: "second".into(),
+        }]
+    );
+
+    assert!(ctx.fail("test.consumer", "it broke"));
+    assert!(ctx.plugins().is_empty());
+    assert!(ctx.faults().is_empty());
+    let failures = ctx.failures();
+    assert_eq!(failures.len(), 1, "{failures:?}");
+    assert_eq!(
+        (failures[0].id.as_str(), failures[0].name.as_str()),
+        ("test.consumer", "Consumer")
+    );
+    assert_eq!(failures[0].reason, "it broke");
+    assert!(
+        !ctx.fail("test.consumer", "again"),
+        "it is no longer mounted"
+    );
+    assert_eq!(ctx.failures().len(), 1);
+
+    ctx.mount(&plugin).expect("mounts again");
+    assert!(ctx.failures().is_empty());
+}

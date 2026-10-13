@@ -1,0 +1,142 @@
+# Audio effects: what each one is called and what it can be tuned by.
+#
+# `id` must be an effect the mixer has a processor for; an id with no processor
+# behind it passes its input through. A processor reads parameters by slot, so
+# a shipped effect keeps its parameter names, their order, its `latency`, and
+# its `sidechain`: a file that changes any of them is refused. Labels, ranges,
+# defaults, and the order of entries may change.
+#
+# Every parameter is a scalar with `default`, `min`, and `max`. `latency` is in
+# sample frames at 48 kHz. `sidechain = true` lets the mixer key the effect
+# from another lane.
+#
+# Copy this file to <data dir>/catalogs/audio_effects.toml to change the set.
+
+[[entry]]
+id = "gain"
+label = "Gain"
+params = [{ name = "gain", label = "Gain (dB)", default = 0.0, min = -60.0, max = 24.0 }]
+
+[[entry]]
+id = "parametric_eq"
+label = "Parametric EQ"
+params = [
+  { name = "band1_freq", label = "Low Shelf (Hz)", default = 80.0, min = 20.0, max = 20000.0 },
+  { name = "band1_gain", label = "Low Shelf Gain (dB)", default = 0.0, min = -24.0, max = 24.0 },
+  { name = "band1_q", label = "Low Shelf Q", default = 0.71, min = 0.1, max = 18.0 },
+  { name = "band2_freq", label = "Band 2 (Hz)", default = 160.0, min = 20.0, max = 20000.0 },
+  { name = "band2_gain", label = "Band 2 Gain (dB)", default = 0.0, min = -24.0, max = 24.0 },
+  { name = "band2_q", label = "Band 2 Q", default = 1.0, min = 0.1, max = 18.0 },
+  { name = "band3_freq", label = "Band 3 (Hz)", default = 320.0, min = 20.0, max = 20000.0 },
+  { name = "band3_gain", label = "Band 3 Gain (dB)", default = 0.0, min = -24.0, max = 24.0 },
+  { name = "band3_q", label = "Band 3 Q", default = 1.0, min = 0.1, max = 18.0 },
+  { name = "band4_freq", label = "Band 4 (Hz)", default = 640.0, min = 20.0, max = 20000.0 },
+  { name = "band4_gain", label = "Band 4 Gain (dB)", default = 0.0, min = -24.0, max = 24.0 },
+  { name = "band4_q", label = "Band 4 Q", default = 1.0, min = 0.1, max = 18.0 },
+  { name = "band5_freq", label = "Band 5 (Hz)", default = 1280.0, min = 20.0, max = 20000.0 },
+  { name = "band5_gain", label = "Band 5 Gain (dB)", default = 0.0, min = -24.0, max = 24.0 },
+  { name = "band5_q", label = "Band 5 Q", default = 1.0, min = 0.1, max = 18.0 },
+  { name = "band6_freq", label = "Band 6 (Hz)", default = 2560.0, min = 20.0, max = 20000.0 },
+  { name = "band6_gain", label = "Band 6 Gain (dB)", default = 0.0, min = -24.0, max = 24.0 },
+  { name = "band6_q", label = "Band 6 Q", default = 1.0, min = 0.1, max = 18.0 },
+  { name = "band7_freq", label = "Band 7 (Hz)", default = 5120.0, min = 20.0, max = 20000.0 },
+  { name = "band7_gain", label = "Band 7 Gain (dB)", default = 0.0, min = -24.0, max = 24.0 },
+  { name = "band7_q", label = "Band 7 Q", default = 1.0, min = 0.1, max = 18.0 },
+  { name = "band8_freq", label = "High Shelf (Hz)", default = 10000.0, min = 20.0, max = 20000.0 },
+  { name = "band8_gain", label = "High Shelf Gain (dB)", default = 0.0, min = -24.0, max = 24.0 },
+  { name = "band8_q", label = "High Shelf Q", default = 0.71, min = 0.1, max = 18.0 },
+  { name = "low_cut", label = "Low Cut (Hz, 0 is off)", default = 0.0, min = 0.0, max = 1000.0 },
+  { name = "high_cut", label = "High Cut (Hz, 24000 is off)", default = 24000.0, min = 1000.0, max = 24000.0 },
+  { name = "output", label = "Output (dB)", default = 0.0, min = -24.0, max = 24.0 },
+]
+
+[[entry]]
+id = "compressor"
+label = "Compressor"
+sidechain = true
+params = [
+  { name = "threshold", label = "Threshold (dB)", default = -18.0, min = -60.0, max = 0.0 },
+  { name = "ratio", label = "Ratio", default = 4.0, min = 1.0, max = 20.0 },
+  { name = "attack", label = "Attack (ms)", default = 10.0, min = 0.1, max = 200.0 },
+  { name = "release", label = "Release (ms)", default = 100.0, min = 5.0, max = 2000.0 },
+  { name = "knee", label = "Knee (dB)", default = 6.0, min = 0.0, max = 24.0 },
+  { name = "makeup", label = "Makeup (dB)", default = 0.0, min = 0.0, max = 24.0 },
+]
+
+[[entry]]
+id = "limiter"
+label = "Limiter"
+latency = 240
+params = [
+  { name = "ceiling", label = "Ceiling (dB)", default = -1.0, min = -24.0, max = 0.0 },
+  { name = "release", label = "Release (ms)", default = 50.0, min = 1.0, max = 1000.0 },
+  { name = "input", label = "Input Gain (dB)", default = 0.0, min = 0.0, max = 24.0 },
+]
+
+[[entry]]
+id = "deesser"
+label = "De-esser"
+params = [
+  { name = "frequency", label = "Frequency (Hz)", default = 6000.0, min = 2000.0, max = 12000.0 },
+  { name = "threshold", label = "Threshold (dB)", default = -30.0, min = -60.0, max = 0.0 },
+  { name = "range", label = "Range (dB)", default = 12.0, min = 0.0, max = 24.0 },
+]
+
+[[entry]]
+id = "noise_reduction"
+label = "Noise Reduction"
+latency = 960
+params = [{ name = "amount", label = "Amount", default = 1.0, min = 0.0, max = 1.0 }]
+
+[[entry]]
+id = "reverb"
+label = "Reverb"
+params = [
+  { name = "size", label = "Room Size", default = 0.5, min = 0.0, max = 1.0 },
+  { name = "damping", label = "Damping", default = 0.5, min = 0.0, max = 1.0 },
+  { name = "width", label = "Width", default = 1.0, min = 0.0, max = 1.0 },
+  { name = "mix", label = "Mix", default = 0.25, min = 0.0, max = 1.0 },
+  { name = "predelay", label = "Pre-delay (ms)", default = 0.0, min = 0.0, max = 200.0 },
+]
+
+[[entry]]
+id = "delay"
+label = "Delay"
+params = [
+  { name = "time", label = "Time (ms)", default = 250.0, min = 1.0, max = 2000.0 },
+  { name = "feedback", label = "Feedback", default = 0.35, min = 0.0, max = 0.95 },
+  { name = "mix", label = "Mix", default = 0.35, min = 0.0, max = 1.0 },
+]
+
+[[entry]]
+id = "pitch_shifter"
+label = "Pitch Shifter"
+latency = 1024
+params = [
+  { name = "semitones", label = "Semitones", default = 0.0, min = -12.0, max = 12.0 },
+  { name = "cents", label = "Cents", default = 0.0, min = -100.0, max = 100.0 },
+]
+
+[[entry]]
+id = "swap_channels"
+label = "Swap Channels"
+
+[[entry]]
+id = "fill_left"
+label = "Fill Left with Right"
+
+[[entry]]
+id = "fill_right"
+label = "Fill Right with Left"
+
+[[entry]]
+id = "mono"
+label = "Mono"
+
+[[entry]]
+id = "loudness_normalizer"
+label = "Loudness Normalizer"
+params = [
+  { name = "target", label = "Target (LUFS)", default = -16.0, min = -36.0, max = -6.0 },
+  { name = "max_gain", label = "Max Gain (dB)", default = 12.0, min = 0.0, max = 24.0 },
+]

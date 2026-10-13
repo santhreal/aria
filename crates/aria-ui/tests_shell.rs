@@ -572,6 +572,59 @@ fn interaction_keys_select_trim_mark_and_snap(cx: &mut gpui::TestAppContext) {
     );
 }
 
+/// Typed text lands in a focused box once, as the character the keystroke
+/// produced, and a keystroke the shell consumes lands nowhere else.
+///
+/// The class this closes: a keystroke reaches the shell down two paths, the
+/// key-down handler and the window's text-input handler, and a box that took
+/// text from both typed every character twice, the key name first: Shift+F as
+/// `fF`. The other way round, a keystroke the shell spends on a rebind capture
+/// or the palette must not reach a box as text as well. The window runs both
+/// paths as the Linux backends do: the key-down first, then the input handler
+/// with the keystroke's text, unless the key-down stopped it. A key name that
+/// is a shifted symbol, `^` or `<`, is what Linux reports for Shift+6 and
+/// Shift+comma.
+///
+/// Not covered: an IME preedit run, which the test platform does not produce.
+#[gpui::test]
+fn interaction_typed_text_lands_once_and_a_consumed_key_lands_nowhere(
+    cx: &mut gpui::TestAppContext,
+) {
+    let (state, visual) = editing!(cx, "typing");
+    let query = |visual: &mut gpui::VisualTestContext| {
+        visual.read(|app| state.read(app).media_query.clone())
+    };
+
+    edit(&state, visual, |state| state.focus_media_search(true));
+    visual.simulate_keystrokes("shift-f i x space shift-^ shift-<");
+    assert_eq!(
+        query(visual),
+        "Fix ^<",
+        "each keystroke types its text once"
+    );
+    visual.simulate_keystrokes("backspace");
+    assert_eq!(query(visual), "Fix ^", "Backspace takes one character");
+
+    // A capture in flight takes the keystroke from the box that holds focus.
+    edit(&state, visual, |state| state.begin_rebind("key-mixer"));
+    visual.simulate_keystrokes("shift-#");
+    edit(&state, visual, AppState::cancel_rebind);
+    assert_eq!(query(visual), "Fix ^", "a captured chord is not typed");
+
+    // The palette types the keystroke's text, not its key name.
+    edit(&state, visual, |state| {
+        state.focus_media_search(false);
+        state.open_dialog(DialogKind::Palette);
+    });
+    visual.simulate_keystrokes("shift-f i x");
+    assert_eq!(
+        visual.read(|app| state.read(app).palette_query.clone()),
+        "Fix",
+        "the palette query takes the typed case"
+    );
+    assert_eq!(query(visual), "Fix ^", "palette keys reach no box");
+}
+
 /// The first clip's edges, as the timeline projects them.
 fn clip_edges(state: &gpui::Entity<AppState>, visual: &mut gpui::VisualTestContext) -> (i64, i64) {
     visual.read(|app| {

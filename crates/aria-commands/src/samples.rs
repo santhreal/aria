@@ -14,13 +14,13 @@
 use std::path::PathBuf;
 
 use crate::{
-    AnimationRef, AnimationSlot, AudioLayout, AudioRole, BlendMode, CanvasAspect, ChromaKey,
-    ClipId, ClipParam, ClipTransform, ColorAdjustments, CropRect, Easing, EditCommand,
-    EffectInstance, EffectPreset, ExportFormat, Filter, Generator, LayerShadow, LayerStyles, Lut,
-    MarkerColor, MarkerId, Mask, MaskKind, MediaId, MotionBlur, MulticamAngle, MulticamGroupId,
-    Param, ParamValue, PiecewiseEasingPreset, ProjectCommand, Rational, RationalTime, Replaceable,
-    SequenceId, SpatialTangents, StabilizeLevel, TemplateMeta, TemplatePick, TimeRange, TrackId,
-    TrackKind, TrackMatte, VideoCodec,
+    AnimationRef, AnimationSlot, AudioInsertTarget, AudioLayout, AudioRole, BlendMode,
+    CanvasAspect, ChromaKey, ClipId, ClipParam, ClipTransform, ColorAdjustments, CropRect, Easing,
+    EditCommand, EffectInstance, EffectPreset, ExportFormat, Filter, Generator, LayerShadow,
+    LayerStyles, Lut, MarkerColor, MarkerId, Mask, MaskKind, MediaId, MotionBlur, MulticamAngle,
+    MulticamGroupId, Param, ParamValue, PiecewiseEasingPreset, ProjectCommand, Rational,
+    RationalTime, Replaceable, SequenceId, SpatialTangents, StabilizeLevel, TemplateMeta,
+    TemplatePick, TimeRange, TrackId, TrackKind, TrackMatte, VideoCodec,
 };
 
 const FPS: Rational = Rational::FPS_30;
@@ -512,6 +512,42 @@ pub fn every_edit_command() -> Vec<EditCommand> {
         EditCommand::RemoveSend {
             track: track(2),
             index: 0,
+        },
+        // One sample per chain kind across the group, so each reader branch is
+        // read against the wire.
+        EditCommand::AddAudioEffect {
+            target: AudioInsertTarget::Clip(clip(4)),
+            effect_id: "example.compressor".into(),
+        },
+        EditCommand::RemoveAudioEffect {
+            target: AudioInsertTarget::Track(track(2)),
+            index: 0,
+        },
+        EditCommand::MoveAudioEffect {
+            target: AudioInsertTarget::Master,
+            from_index: 0,
+            to_index: 1,
+        },
+        EditCommand::SetAudioEffectParam {
+            target: AudioInsertTarget::Clip(clip(4)),
+            index: 0,
+            param: 1,
+            value: Param::Keyframed {
+                keyframes: vec![
+                    aria_models::Keyframe::new(0, -24.0, Easing::Linear),
+                    aria_models::Keyframe::new(30, -12.0, Easing::Linear),
+                ],
+            },
+        },
+        EditCommand::SetAudioEffectBypass {
+            target: AudioInsertTarget::Track(track(2)),
+            index: 0,
+            bypass: true,
+        },
+        EditCommand::SetAudioEffectSidechain {
+            target: AudioInsertTarget::Master,
+            index: 0,
+            key: Some(track(3)),
         },
         EditCommand::RippleDelete { clip: clip(4) },
         EditCommand::ShiftClips {

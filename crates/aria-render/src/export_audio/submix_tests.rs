@@ -60,11 +60,7 @@ fn flat_span(value: f32, bus: usize) -> Span {
 }
 
 fn lane(gain: f32, output: Option<usize>, sends: Vec<(usize, f32, bool)>) -> BusNode {
-    BusNode {
-        gain,
-        output,
-        sends,
-    }
+    BusNode::new(gain, output, sends)
 }
 
 /// Every sample of the block, so a fold that only lands on the first frame or
@@ -333,4 +329,45 @@ fn a_meter_is_keyed_by_the_lane_it_belongs_to() {
         .collect();
     assert_eq!(keyed, folded);
     assert!(keyed.contains(&a1) && keyed.contains(&bus));
+}
+
+/// A key keeps a lane in the mix while its output runs into a muted bus. The
+/// lane is mixed for the key's sake, but nothing it routes into the dead bus
+/// may arrive at the master: the fold skips every bus that reaches nothing.
+///
+/// The insert has no processor, so this is the plain path; the insert path
+/// skips dead buses the same way and is proved in `tests/audio_inserts.rs`.
+#[test]
+fn a_lane_kept_in_the_mix_by_a_key_does_not_leak_through_the_muted_bus_it_feeds() {
+    let (mut project, a1, bus) = audible_project();
+    project
+        .timeline_mut()
+        .set_track_output(a1, aria_models::TrackOutput::Bus(bus))
+        .unwrap();
+    project.timeline_mut().track_mut(bus).unwrap().muted = true;
+    let mut keyed = aria_models::AudioEffectInstance::new("example.duck");
+    keyed.sidechain = Some(a1);
+    project
+        .set_audio_inserts(aria_models::AudioInsertTarget::Master, vec![keyed])
+        .unwrap();
+    let mut mixer = ExportAudioMixer::for_project(&project)
+        .unwrap()
+        .expect("the key keeps the lane in the mix");
+    assert!(
+        mixer.inserts.is_none(),
+        "an insert with no processor builds no graph"
+    );
+    assert_eq!(mixer.spans.len(), 1);
+    for span in &mut mixer.spans {
+        span.reader = Some(Box::new(FlatReader {
+            pos: 0,
+            value: 0.25,
+        }));
+    }
+    assert_eq!(mixed(&mut mixer), 0.0);
+    let bus_peak = mixer
+        .lane_peaks()
+        .find(|(track, _)| *track == bus)
+        .map(|(_, peak)| peak);
+    assert_eq!(bus_peak, Some([0.0; 2]), "a dead bus meters silence");
 }

@@ -36,7 +36,7 @@ use std::f32::consts::{FRAC_PI_4, SQRT_2};
 use std::path::PathBuf;
 
 use aria_core::{AudioReader, DecodeError};
-use aria_models::{ModelError, Param, Project, TrackId, audio_gain_at};
+use aria_models::{AudioEffectInstance, ModelError, Param, Project, TrackId, audio_gain_at};
 
 use crate::error::RenderError;
 
@@ -183,6 +183,10 @@ pub struct BusNode {
     pub output: Option<usize>,
     /// `(bus, level, pre_fader)` for each copy of this lane.
     pub sends: Vec<(usize, f32, bool)>,
+    /// Whether anything this lane carries reaches the programme mix. A lane
+    /// that does not, such as one behind a muted bus, is skipped by the fold
+    /// and meters silence.
+    pub live: bool,
 }
 
 impl BusNode {
@@ -191,6 +195,7 @@ impl BusNode {
             gain,
             output,
             sends,
+            live: true,
         }
     }
 }
@@ -216,6 +221,9 @@ pub struct ExportAudioMixer {
     /// Sized once; the fold overwrites it in place, so metering costs no
     /// allocation per block.
     peaks: Vec<[f32; 2]>,
+    /// The insert chains and their alignment, when any insert in the project
+    /// processes. `None` mixes on the plain path.
+    inserts: Option<Box<inserts::InsertGraph>>,
 }
 
 impl std::fmt::Debug for ExportAudioMixer {
@@ -267,9 +275,12 @@ impl ExportAudioMixer {
                 gain: node.gain,
                 output: node.output.bus().map(forward).transpose()?,
                 sends,
+                live: node.reaches_master,
             });
         }
         let mut spans = Vec::new();
+        // Each span's clip chain, by span.
+        let mut clip_inserts: Vec<&[AudioEffectInstance]> = Vec::new();
         for track in timeline.tracks_ordered() {
             let Some(bus) = index_of(track.id) else {
                 continue;
@@ -344,22 +355,31 @@ impl ExportAudioMixer {
                     exhausted: false,
                     bus,
                 });
+                clip_inserts.push(&clip.audio_effects);
             }
         }
         if spans.is_empty() {
-            Ok(None)
-        } else {
-            Ok(Some(Self {
-                bus_buffers: vec![Vec::new(); buses.len()],
-                lanes: graph.iter().map(|node| node.track).collect(),
-                peaks: vec![[0.0; 2]; buses.len()],
-                buses,
-                spans,
-                scratch: Vec::new(),
-                warp_scratch: Vec::new(),
-                weight_scratch: Vec::new(),
-            }))
+            return Ok(None);
         }
+        let inserts = inserts::InsertGraph::build(
+            &graph,
+            &buses,
+            timeline.master_audio_effects(),
+            &clip_inserts,
+            fps,
+        )
+        .map(Box::new);
+        Ok(Some(Self {
+            bus_buffers: vec![Vec::new(); buses.len()],
+            lanes: graph.iter().map(|node| node.track).collect(),
+            peaks: vec![[0.0; 2]; buses.len()],
+            buses,
+            spans,
+            scratch: Vec::new(),
+            warp_scratch: Vec::new(),
+            weight_scratch: Vec::new(),
+            inserts,
+        }))
     }
 
     /// A mixer over hand-built spans, all summing straight to the master at
@@ -368,17 +388,14 @@ impl ExportAudioMixer {
     pub fn of_spans(spans: Vec<Span>) -> Self {
         Self {
             spans,
-            buses: vec![BusNode {
-                gain: 1.0,
-                output: None,
-                sends: Vec::new(),
-            }],
+            buses: vec![BusNode::new(1.0, None, Vec::new())],
             bus_buffers: vec![Vec::new()],
             lanes: vec![TrackId::from_raw(0)],
             peaks: vec![[0.0; 2]],
             scratch: Vec::new(),
             warp_scratch: Vec::new(),
             weight_scratch: Vec::new(),
+            inserts: None,
         }
     }
 
@@ -396,6 +413,7 @@ impl ExportAudioMixer {
             scratch: Vec::new(),
             warp_scratch: Vec::new(),
             weight_scratch: Vec::new(),
+            inserts: None,
         }
     }
 
@@ -407,44 +425,31 @@ impl ExportAudioMixer {
     /// fader, then post-fader sends, then the output — so a bus carries
     /// everything routed into it before it is itself faded and passed on. Only
     /// what reaches the master lands in `out`.
+    ///
+    /// A project with inserts that process mixes through its insert graph
+    /// instead: see the `inserts` module for the signal order and latency.
     pub fn mix_into(&mut self, pos: i64, out: &mut [f32]) -> Result<(), DecodeError> {
+        if self.inserts.is_some() {
+            return self.mix_inserted(pos, out);
+        }
         out.fill(0.0);
-        let block_frames = (out.len() / CHANNELS) as i64;
-        let block_end = pos + block_frames;
+        let block_end = pos + (out.len() / CHANNELS) as i64;
         for buffer in self.bus_buffers.iter_mut() {
             buffer.clear();
             buffer.resize(out.len(), 0.0);
         }
 
-        for i in 0..self.spans.len() {
-            let span = &self.spans[i];
-            if span.start >= block_end || span.end <= pos || span.exhausted {
-                continue;
-            }
-            let s = span.start.max(pos);
-            let e = span.end.min(block_end);
+        for span in &mut self.spans {
             let bus = span.bus;
-            if matches!(span.warp, SpanWarp::Linear) && !span.reversed {
-                Self::mix_linear_span(
-                    &mut self.spans[i],
-                    &mut self.scratch,
-                    s,
-                    e,
-                    pos,
-                    &mut self.bus_buffers[bus],
-                )?;
-            } else {
-                Self::mix_warped_span(
-                    &mut self.spans[i],
-                    &mut self.scratch,
-                    &mut self.warp_scratch,
-                    &mut self.weight_scratch,
-                    s,
-                    e,
-                    pos,
-                    &mut self.bus_buffers[bus],
-                )?;
-            }
+            Self::mix_span_range(
+                span,
+                &mut self.scratch,
+                &mut self.warp_scratch,
+                &mut self.weight_scratch,
+                pos,
+                block_end,
+                &mut self.bus_buffers[bus],
+            )?;
         }
 
         self.fold_buses(out);
@@ -452,6 +457,38 @@ impl ExportAudioMixer {
             *sample = sample.clamp(-1.0, 1.0);
         }
         Ok(())
+    }
+
+    /// Hold insert processors to playback deadlines: a block that takes longer
+    /// than the real time it covers counts as a miss. Off for export.
+    pub fn set_realtime(&mut self, realtime: bool) {
+        if let Some(graph) = &mut self.inserts {
+            graph.set_realtime(realtime);
+        }
+    }
+
+    /// Add the part of `span` inside `[from, to)` into `out`, whose first
+    /// frame is `from`. A span outside the range, or whose source ran out,
+    /// adds nothing.
+    fn mix_span_range(
+        span: &mut Span,
+        scratch: &mut Vec<f32>,
+        warp_scratch: &mut Vec<f32>,
+        weight_scratch: &mut Vec<f32>,
+        from: i64,
+        to: i64,
+        out: &mut [f32],
+    ) -> Result<(), DecodeError> {
+        if span.start >= to || span.end <= from || span.exhausted {
+            return Ok(());
+        }
+        let s = span.start.max(from);
+        let e = span.end.min(to);
+        if matches!(span.warp, SpanWarp::Linear) && !span.reversed {
+            Self::mix_linear_span(span, scratch, s, e, from, out)
+        } else {
+            Self::mix_warped_span(span, scratch, warp_scratch, weight_scratch, s, e, from, out)
+        }
     }
 
     /// Fold every lane into its destination, in feed order.
@@ -462,6 +499,12 @@ impl ExportAudioMixer {
     /// through `downstream`.
     fn fold_buses(&mut self, out: &mut [f32]) {
         for i in 0..self.buses.len() {
+            // Nothing a dead lane carries reaches the programme mix, including
+            // what a live lane routed into it.
+            if !self.buses[i].live {
+                self.peaks[i] = [0.0; 2];
+                continue;
+            }
             // Pre-fader copies are taken before the lane's own fader, so riding
             // the lane down does not thin them.
             let (upstream, downstream) = self.bus_buffers.split_at_mut(i + 1);
@@ -746,6 +789,9 @@ fn stereo_peak(block: &[f32]) -> [f32; 2] {
 #[path = "export_audio_mix.rs"]
 mod mix;
 pub use mix::*;
+
+#[path = "export_audio_inserts.rs"]
+mod inserts;
 
 #[doc(hidden)]
 pub mod export_audio_bench {

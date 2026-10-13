@@ -110,6 +110,46 @@ pub(super) fn bindable(name: &str) -> Option<&'static str> {
     BINDABLE_KEYS.iter().copied().find(|key| *key == name)
 }
 
+/// Each shifted symbol on a US layout and the key under it.
+///
+/// GPUI on Linux reports Shift+6 as `^` with shift cleared, the way it reports
+/// text, so a chord on Shift and a digit or punctuation key would never match.
+/// `+` is listed for completeness and stays itself: it is bindable on its own.
+pub(super) const SHIFTED_SYMBOLS: &[(&str, &str)] = &[
+    ("!", "1"),
+    ("@", "2"),
+    ("#", "3"),
+    ("$", "4"),
+    ("%", "5"),
+    ("^", "6"),
+    ("&", "7"),
+    ("*", "8"),
+    ("(", "9"),
+    (")", "0"),
+    ("_", "-"),
+    ("+", "="),
+    ("{", "["),
+    ("}", "]"),
+    ("|", "\\"),
+    (":", ";"),
+    ("\"", "'"),
+    ("<", ","),
+    (">", "."),
+    ("?", "/"),
+    ("~", "`"),
+];
+
+/// The key under `name` when `name` is a shifted symbol no binding can name.
+pub(super) fn unshifted(name: &str) -> Option<&'static str> {
+    if bindable(name).is_some() {
+        return None;
+    }
+    SHIFTED_SYMBOLS
+        .iter()
+        .find(|(symbol, _)| *symbol == name)
+        .map(|(_, base)| *base)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -206,5 +246,33 @@ mod tests {
             assert_eq!(Chord::parse(text), Some(Chord::ctrl("s")), "{text}");
         }
         assert_eq!(Chord::parse("Option+m"), Some(Chord::alt("m")));
+    }
+
+    /// Every shifted symbol reads as Shift and a key the table can bind, and a
+    /// bindable key is never rewritten. A symbol made bindable would stop
+    /// reading as its Shift chord, so the only one allowed is `+`, which is a
+    /// binding of its own.
+    #[test]
+    fn every_shifted_symbol_reads_as_a_bindable_shift_chord() {
+        let symbols: BTreeSet<&str> = SHIFTED_SYMBOLS.iter().map(|(symbol, _)| *symbol).collect();
+        assert_eq!(
+            symbols.len(),
+            SHIFTED_SYMBOLS.len(),
+            "a symbol is listed twice"
+        );
+        for (symbol, under) in SHIFTED_SYMBOLS {
+            assert!(bindable(under).is_some(), "{under} cannot carry a binding");
+            if bindable(symbol).is_some() {
+                assert_eq!(
+                    *symbol, "+",
+                    "{symbol} is bindable, so Shift+{under} is unreachable"
+                );
+            } else {
+                assert_eq!(unshifted(symbol), Some(*under), "{symbol}");
+            }
+        }
+        for key in BINDABLE_KEYS {
+            assert_eq!(unshifted(key), None, "{key} is rewritten");
+        }
     }
 }

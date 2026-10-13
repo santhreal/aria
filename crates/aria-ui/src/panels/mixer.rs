@@ -1,16 +1,17 @@
 //! The audio mixer: one strip per lane and per bus, in the order the mix folds
 //! them.
 //!
-//! Everything a lane has in the mix is on its strip and nowhere else: the
-//! fader, where the lane goes, and which buses get a copy of it. There is no
-//! dialog and no dropdown — a send is a chip that cycles off → post → pre, and
-//! a level is a drag on the fader whose level it is.
+//! Everything a lane has in the mix is on its strip and nowhere else: its
+//! insert chain, the fader, where the lane goes, and which buses get a copy of
+//! it. There is no dialog and no dropdown — a send is a chip that cycles off →
+//! post → pre, and a level is a drag on the fader whose level it is.
 //!
 //! The strips are drawn left to right in feed order, which the model hands over
 //! ([`aria_models::Timeline::audio_buses`]), so a bus is always to the right of
-//! everything that feeds it and the picture reads the way the mixdown runs. A
-//! lane that cannot reach the master is bordered and says so: it is in the
-//! project, and it is not in the mix.
+//! everything that feeds it and the picture reads the way the mixdown runs. The
+//! master strip, last, holds the programme mix's inserts. A lane that cannot
+//! reach the master is bordered and says so: it is in the project, and it is
+//! not in the mix.
 //!
 //! Motion is the shared vocabulary. The panel fades in on the pane switch and
 //! every chip's background is `motion::hover_blend` on its own key, so the fade
@@ -27,9 +28,10 @@ use crate::app::AppState;
 use crate::app::mixer::{FaderTarget, MixerStrip, gain_label, gain_to_frac};
 use crate::fluent::FluentBuilder;
 use crate::motion;
+use crate::panels::insert_chain::{self, Chain};
 use crate::surfaces::mixer_strip::{self, Gesture};
 use crate::theme::Theme;
-use aria_models::TrackId;
+use aria_models::{AudioInsertTarget, TrackId};
 
 /// How tall a fader's travel is, in pixels. Also the distance the pointer moves
 /// to cross the whole range, since the drag is relative to where it was grabbed.
@@ -67,10 +69,11 @@ pub(crate) fn render(
             .child("No audio lanes yet. Add one, or add a submix bus, to mix.")
             .into_any_element(),
         Ok(strips) => {
-            let drawn: Vec<gpui::AnyElement> = strips
+            let mut drawn: Vec<gpui::AnyElement> = strips
                 .iter()
                 .map(|strip| channel(state, &theme, strip, cx))
                 .collect();
+            drawn.push(master(state, &theme, cx));
             div()
                 .id("mixer-strips")
                 .flex()
@@ -147,7 +150,7 @@ fn header(theme: &Theme, cx: &mut gpui::Context<crate::shell::Shell>) -> gpui::A
         .into_any_element()
 }
 
-/// One channel strip: name, routing, sends, fader.
+/// One channel strip: name, inserts, routing, sends, fader.
 fn channel(
     state: &Entity<AppState>,
     theme: &Theme,
@@ -197,9 +200,61 @@ fn channel(
                     .child("not in the mix"),
             )
         })
+        .child(label_row(theme, "Inserts"))
+        .child(insert_chain::render(
+            theme,
+            Chain {
+                target: AudioInsertTarget::Track(track),
+                inserts: &strip.inserts,
+                keys: &strip.keys,
+                expanded: false,
+            },
+            state,
+            cx,
+        ))
         .child(outputs(theme, strip, track, cx))
         .child(sends(state, theme, strip, track, cx))
         .child(fader(state, theme, strip, track, cx))
+        .into_any_element()
+}
+
+/// The master strip: the programme mix's insert chain, which runs after every
+/// lane and bus has been summed.
+fn master(
+    state: &Entity<AppState>,
+    theme: &Theme,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> gpui::AnyElement {
+    let chain = state.read(cx).master_chain();
+    div()
+        .id("mixer-master")
+        .flex()
+        .flex_col()
+        .gap(px(Theme::SPACE_XS))
+        .w(px(STRIP_WIDTH))
+        .p(px(Theme::SPACE_SM))
+        .rounded(px(Theme::CONTROL_RADIUS))
+        .bg(theme.band)
+        .border_1()
+        .border_color(theme.border)
+        .child(
+            div()
+                .text_size(px(12.))
+                .text_color(theme.text)
+                .child("Master"),
+        )
+        .child(label_row(theme, "Inserts"))
+        .child(insert_chain::render(
+            theme,
+            Chain {
+                target: AudioInsertTarget::Master,
+                inserts: &chain.inserts,
+                keys: &chain.keys,
+                expanded: false,
+            },
+            state,
+            cx,
+        ))
         .into_any_element()
 }
 

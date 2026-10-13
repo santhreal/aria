@@ -102,6 +102,13 @@ fn everything_animated() -> Clip {
         .params
         .insert("radius".to_string(), animated_f32(4.0));
     clip.effects = vec![effect];
+    // Unregistered on purpose: an insert keeps its curves whether or not its
+    // processor is loaded, so the walk has to move them either way.
+    let mut insert = crate::AudioEffectInstance::new("example.compressor");
+    insert
+        .params
+        .insert("threshold".to_string(), animated_f32(-12.0));
+    clip.audio_effects = vec![insert];
     clip.styles = LayerStyles {
         shadow: Some(LayerShadow {
             rgba: animated_rgba(),

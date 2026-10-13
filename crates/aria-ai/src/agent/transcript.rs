@@ -693,6 +693,7 @@ pub fn describe_action(command: &WireCommand, outcome: Option<&EditOutcome>) -> 
             | EditOutcome::UpdatedPool
             | EditOutcome::UpdatedSequenceRate
             | EditOutcome::UpdatedAudioLayout
+            | EditOutcome::UpdatedMaster
             // Navigation, not creation: the sequence already had a name before
             // it was opened, so there is no new id to hand back.
             | EditOutcome::OpenedSequence,

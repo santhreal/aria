@@ -35,6 +35,7 @@ aria-models = { path = "../aria-models" }
 # The zero-copy parity test inspects the adapter backend to skip on non-Metal
 # (software) hosts where the Apple import path doesn't apply.
 wgpu = { workspace = true }
+parking_lot = { workspace = true }
 
 [[bench]]
 name = "resolve"
@@ -47,6 +48,10 @@ harness = false
 [[bench]]
 name = "text_anim"
 harness = false
+
+[[test]]
+name = "audio_inserts"
+path = "tests/audio_inserts.rs"
 
 [[test]]
 name = "export_mp4"

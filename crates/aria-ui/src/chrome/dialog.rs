@@ -6,7 +6,7 @@
 //! [`dialog_surface`], so "a dialog is leaving" is decided once rather than once
 //! per dialog.
 //!
-//! A card is never larger than the window less [`EDGE_CLEARANCE`] on each side.
+//! A card is never larger than the window less `EDGE_CLEARANCE` on each side.
 //! The title row and the header controls stay at the top of the card, the action
 //! row stays at the bottom, and the content between them scrolls when it does
 //! not fit.

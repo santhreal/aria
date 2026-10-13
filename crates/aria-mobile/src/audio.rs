@@ -65,7 +65,7 @@ pub unsafe extern "C" fn aria_session_audio_open(
         return std::ptr::null_mut();
     };
     let project = session.engine().project().clone();
-    let mixer = match ExportAudioMixer::for_project(&project) {
+    let mut mixer = match ExportAudioMixer::for_project(&project) {
         Ok(Some(mixer)) => mixer,
         Ok(None) => return std::ptr::null_mut(),
         Err(err) => {
@@ -73,6 +73,9 @@ pub unsafe extern "C" fn aria_session_audio_open(
             return std::ptr::null_mut();
         }
     };
+    // Playback: an insert that overruns its blocks three times in a row is
+    // bypassed rather than starving the ring.
+    mixer.set_realtime(true);
     let end = (project.timeline().duration().seconds() * f64::from(EXPORT_AUDIO_RATE)) as i64;
     let position = ((start_seconds.max(0.0) * f64::from(EXPORT_AUDIO_RATE)) as i64).min(end);
     Box::into_raw(Box::new(AriaAudioReader {

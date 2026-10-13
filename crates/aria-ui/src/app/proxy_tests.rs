@@ -108,7 +108,7 @@ fn a_proxy_already_on_disk_is_adopted_without_a_job_and_the_pool_row_says_so() {
         state.store.media[0].proxied,
         "the pool row does not state the substitution"
     );
-    let caption = crate::app::media::media_caption(&state.store.media[0], "00:00:05:00");
+    let caption = crate::app::media::media_caption(&state.store.media[0]);
     assert!(
         caption.ends_with("proxy"),
         "the caption does not name the proxy: {caption}"
@@ -125,7 +125,7 @@ fn a_proxy_already_on_disk_is_adopted_without_a_job_and_the_pool_row_says_so() {
     state.clear_media_proxy(media);
     assert!(!state.media_has_proxy(media));
     assert!(!state.store.media[0].proxied);
-    let caption = crate::app::media::media_caption(&state.store.media[0], "00:00:05:00");
+    let caption = crate::app::media::media_caption(&state.store.media[0]);
     assert!(!caption.contains("proxy"), "a cleared row still claims one");
 }
 

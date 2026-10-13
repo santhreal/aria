@@ -13,7 +13,7 @@
 //!
 //! A drag is one edit: pointer moves update a draft on `AppState`, the release
 //! commits, Esc abandons. What each pointer event means is a row of
-//! [`ramp_gesture`](crate::surfaces::ramp_gesture) rather than a rule inside a
+//! [`ramp_gesture`] rather than a rule inside a
 //! listener, so the graph's behaviour can be enumerated and pressed.
 
 use gpui::{

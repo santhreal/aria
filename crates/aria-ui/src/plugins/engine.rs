@@ -9,7 +9,8 @@ use aria_core::Rational;
 use aria_engine::{Engine, EngineConfig};
 use aria_models::Project;
 use aria_plugin::{
-    CommandProposed, Plugin, PluginContext, PluginError, PluginManifest, ProjectHost, RenderHost,
+    AudioHost, CommandProposed, Plugin, PluginContext, PluginError, PluginManifest, ProjectHost,
+    RenderHost,
 };
 use aria_render::Renderer;
 use parking_lot::Mutex;
@@ -28,6 +29,9 @@ impl Plugin for RenderPlugin {
     }
 
     fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
+        // The sound of a project for analyzers, mixed as export mixes it. No
+        // device: it is there with or without a GPU.
+        ctx.register(AudioHost::new());
         // The process's one GPU device. Registered rather than rendered with:
         // this plugin owns the device, `aria.engine` owns the renderer, and both
         // used to bring up a device of their own — as did `aria.compositor` —

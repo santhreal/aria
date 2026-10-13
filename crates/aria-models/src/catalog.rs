@@ -78,6 +78,7 @@ pub fn problems() -> Vec<String> {
 pub fn preload() {
     let _ = crate::shipped_transition_catalog().len();
     let _ = crate::shipped_effect_catalog().len();
+    let _ = crate::shipped_audio_effect_catalog().len();
     let _ = crate::filter_catalog().len();
     let _ = crate::animation_catalog().len();
     let _ = crate::text_effect_catalog().len();

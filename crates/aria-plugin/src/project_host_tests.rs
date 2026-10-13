@@ -1009,7 +1009,7 @@ fn media_imported_in_a_group_is_announced_only_by_the_outermost_commit() {
         "a savepoint commit announces nothing"
     );
     outer.commit();
-    assert_eq!(delivered(), [Note::Imported(media, files.b.clone())]);
+    assert_eq!(delivered(), [Note::Imported(media, files.b)]);
     assert_idle(&host);
 }
 

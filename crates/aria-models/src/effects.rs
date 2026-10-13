@@ -106,15 +106,20 @@ static SHIPPED: LazyLock<Vec<Arc<EffectSpec>>> = LazyLock::new(|| {
 /// The parameter rules every effect follows, shipped or registered: each
 /// parameter is named, no name repeats, and no range is inverted.
 pub(crate) fn check_effect_params(spec: &EffectSpec) -> Result<(), String> {
-    for (index, param) in spec.params.iter().enumerate() {
+    check_params(&spec.id, &spec.params)
+}
+
+/// The parameter rules shared by video and audio effects, for the effect `id`.
+pub(crate) fn check_params(id: &str, params: &[EffectParamSpec]) -> Result<(), String> {
+    for (index, param) in params.iter().enumerate() {
         if param.name.is_empty() {
-            return Err(format!("{} parameter {index} has no name", spec.id));
+            return Err(format!("{id} parameter {index} has no name"));
         }
-        if spec.params[..index].iter().any(|p| p.name == param.name) {
-            return Err(format!("{} repeats parameter {}", spec.id, param.name));
+        if params[..index].iter().any(|p| p.name == param.name) {
+            return Err(format!("{id} repeats parameter {}", param.name));
         }
         if param.kind != EffectParamKind::Color && param.min > param.max {
-            return Err(format!("{}.{} has an inverted range", spec.id, param.name));
+            return Err(format!("{id}.{} has an inverted range", param.name));
         }
     }
     Ok(())
@@ -486,7 +491,7 @@ impl EffectInstance {
     }
 }
 
-fn range_check(pspec: &EffectParamSpec, value: f32) -> Result<(), ModelError> {
+pub(crate) fn range_check(pspec: &EffectParamSpec, value: f32) -> Result<(), ModelError> {
     if !value.is_finite() || value < pspec.min || value > pspec.max {
         return Err(ModelError::InvalidParam(format!(
             "{} = {value} out of range [{}, {}]",

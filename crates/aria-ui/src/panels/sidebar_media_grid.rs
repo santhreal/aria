@@ -8,14 +8,11 @@ use super::*;
 use crate::app::pool_rows::PoolRows;
 use crate::surfaces::pool_pick;
 
-#[allow(clippy::too_many_arguments)]
 pub(super) fn media_grid(
     theme: &Theme,
     state: &Entity<AppState>,
     tab: SidebarTab,
     rows: &PoolRows,
-    rate_num: i32,
-    rate_den: i32,
     view: PoolView,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
@@ -38,7 +35,7 @@ pub(super) fn media_grid(
                     .unwrap_or_else(|| freeform_default_position(index));
                 max_x = max_x.max(x + POOL_CELL_WIDTH + 24.0);
                 max_y = max_y.max(y + 90.0 + 24.0);
-                let tile = media_tile(theme, state, tab, item, index, rate_num, rate_den, view, cx);
+                let tile = media_tile(theme, state, tab, item, index, view, cx);
                 tiles.push(
                     div()
                         .absolute()
@@ -99,9 +96,7 @@ pub(super) fn media_grid(
         PoolView::Icons => {
             let mut tiles: Vec<gpui::AnyElement> = Vec::with_capacity(rows.len());
             for (index, item) in rows.iter().enumerate() {
-                tiles.push(media_tile(
-                    theme, state, tab, item, index, rate_num, rate_den, view, cx,
-                ));
+                tiles.push(media_tile(theme, state, tab, item, index, view, cx));
             }
             div()
                 .flex()
@@ -114,9 +109,7 @@ pub(super) fn media_grid(
         PoolView::Tiles | PoolView::List => {
             let mut tiles: Vec<gpui::AnyElement> = Vec::with_capacity(rows.len());
             for (index, item) in rows.iter().enumerate() {
-                tiles.push(media_tile(
-                    theme, state, tab, item, index, rate_num, rate_den, view, cx,
-                ));
+                tiles.push(media_tile(theme, state, tab, item, index, view, cx));
             }
             div()
                 .flex()
@@ -145,25 +138,21 @@ pub(super) fn media_grid(
         .into_any_element()
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(super) fn media_tile(
     theme: &Theme,
     state: &Entity<AppState>,
     tab: SidebarTab,
     item: &UiMediaItem,
     index: usize,
-    rate_num: i32,
-    rate_den: i32,
     view: PoolView,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
     let id = item.id;
     let missing = item.missing;
     let picked = state.read(cx).pool_selection.contains(id);
-    let duration = timecode::format_ticks(item.duration_ticks, rate_num, rate_den);
     let key = motion::MotionKey::new("sidebar.media", id);
     let lit = motion::hover_t(key);
-    let caption = crate::app::media::media_caption(item, &duration);
+    let caption = crate::app::media::media_caption(item);
     let caption_color = if missing {
         theme.warning
     } else {

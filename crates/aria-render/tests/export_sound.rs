@@ -14,46 +14,20 @@
 
 use std::path::Path;
 
-use aria_core::{AudioEncoderConfig, RationalTime};
+use aria_core::RationalTime;
 use aria_models::{MediaSource, Project, Rational, TimeRange, TrackKind};
 use aria_render::{EmptyExport, ExportSettings, RenderError, export_audio_to_file_observed};
 
+#[path = "support/tone.rs"]
+mod tone;
+use tone::{CHANNELS, RATE, write_tone};
+
 /// Audio-only media counts milliseconds, the same convention the probe reports.
 const MS: Rational = Rational::new(1000, 1);
-const RATE: u32 = 48_000;
-const CHANNELS: usize = 2;
 
-/// Write `millis` of a loud 440 Hz tone, in the container the export writes.
-fn write_tone(path: &Path, millis: i64) {
-    let mut sink = aria_encoder::open_audio_encoder(path, AudioEncoderConfig::new(RATE, 2))
-        .expect("a sound sink");
-    let frames = millis * RATE as i64 / 1000;
-    let mut block = vec![0.0f32; CHANNELS * RATE as usize / 100];
-    let per_block = (block.len() / CHANNELS) as i64;
-    let mut written = 0;
-    while written < frames {
-        let count = (frames - written).min(per_block);
-        block.truncate(count as usize * CHANNELS);
-        for frame in 0..count {
-            let t = (written + frame) as f32 / RATE as f32;
-            let sample = (std::f32::consts::TAU * 440.0 * t).sin() * 0.8;
-            for channel in 0..CHANNELS {
-                block[frame as usize * CHANNELS + channel] = sample;
-            }
-        }
-        sink.push_audio(
-            &block,
-            RationalTime::new(written, Rational::new(RATE as i32, 1)),
-        )
-        .expect("a block");
-        written += count;
-    }
-    sink.finish().expect("finish the source");
-}
-
-/// A project holding one second of that tone on an audio lane.
+/// A project holding one second of a loud 440 Hz tone on an audio lane.
 fn project_with_tone(path: &Path) -> Project {
-    write_tone(path, 1000);
+    write_tone(path, 1000, 440.0);
     let mut project = Project::new("sound", Rational::FPS_24);
     let media = project.add_media(MediaSource::new(path, 0, 0, MS, 1000, true));
     let lane = project.add_track(TrackKind::Audio, "A1");

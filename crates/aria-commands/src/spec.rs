@@ -34,6 +34,7 @@ use crate::command::{EditCommand, EditTargets, ProjectCommand};
 use crate::reach::Reach;
 
 mod clip;
+mod insert;
 mod project;
 mod track;
 
@@ -41,6 +42,7 @@ mod track;
 mod tests;
 
 use clip::clip_rows;
+use insert::insert_rows;
 use project::{project_command_rows, project_edit_rows};
 use track::track_rows;
 /// What stepping back over an applied command puts back.
@@ -220,6 +222,7 @@ macro_rules! edit_registry {
     (@reader_name clip_and_optional_lane) => { read_clip_and_optional_lane };
     (@reader_name lane) => { read_lane };
     (@reader_name clips) => { read_clips };
+    (@reader_name insert) => { read_insert };
 
     // A shape reader answers for the variants of its own group. The fallback
     // arm keeps it total; it is unreachable, because a row hands out only the
@@ -292,6 +295,19 @@ macro_rules! edit_registry {
             }
         }
     };
+    (@reader insert, $($variant:ident),+) => {
+        /// One insert chain: a clip's, a lane's, or the master's, which names
+        /// neither.
+        fn read_insert(command: &EditCommand) -> EditTargets {
+            match command {
+                $(EditCommand::$variant { target, .. })|+ => EditTargets {
+                    clips: target.clip().into_iter().collect(),
+                    tracks: target.track().into_iter().collect(),
+                },
+                _ => EditTargets::default(),
+            }
+        }
+    };
 }
 
 /// Declare the project table.
@@ -337,7 +353,7 @@ macro_rules! project_registry {
 }
 
 #[rustfmt::skip]
-clip_rows!(track_rows, project_edit_rows, edit_registry,);
+clip_rows!(track_rows, insert_rows, project_edit_rows, edit_registry,);
 
 #[rustfmt::skip]
 project_command_rows!(project_registry);

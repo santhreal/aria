@@ -240,6 +240,10 @@ pub(super) fn clip_to_ui(
         },
         filter: clip.filter.as_ref().map(filter_to_ui),
         effects: clip.effects.iter().map(effect_to_ui).collect(),
+        audio_inserts: crate::app::audio_inserts::rows(&clip.audio_effects),
+        can_hold_inserts: project
+            .insert_target_refusal(aria_models::AudioInsertTarget::Clip(clip.id))
+            .is_ok(),
         generator,
         kind,
         locked: track.locked,
@@ -409,6 +413,10 @@ pub(super) fn media_to_ui(media: &MediaSource, project: &Project) -> UiMediaItem
     let position = project
         .pool_item_position(media.bin, media.id)
         .map(|pos| (pos.x, pos.y));
+    // The length placement gives the whole source, so the pool and the clip it
+    // drops read the same timecode whatever rate the file was probed at.
+    let rate = project.timeline().frame_rate;
+    let placed = aria_models::resample(media.duration, rate).value;
     UiMediaItem {
         id: media_id(media.id),
         name,
@@ -417,6 +425,7 @@ pub(super) fn media_to_ui(media: &MediaSource, project: &Project) -> UiMediaItem
         height: media.height,
         frame_rate: media.frame_rate,
         duration_ticks: media.duration.value,
+        duration_label: crate::timecode::format_ticks(placed, rate.num, rate.den).into(),
         has_audio: media.has_audio,
         kind: match media.kind() {
             MediaKind::Audio => UiClipKind::Audio,

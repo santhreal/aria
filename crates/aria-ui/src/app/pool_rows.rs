@@ -103,9 +103,14 @@ impl AppState {
                     .to_lowercase()
                     .cmp(&media[*b].name.to_lowercase())
             }),
-            MediaSort::Duration => {
-                order.sort_by(|a, b| media[*b].duration_ticks.cmp(&media[*a].duration_ticks))
-            }
+            // Longest first, compared in time rather than ticks: a WAV counts
+            // milliseconds and a clip counts frames.
+            MediaSort::Duration => order.sort_by(|a, b| {
+                let length = |item: &crate::types::UiMediaItem| {
+                    aria_core::RationalTime::new(item.duration_ticks, item.frame_rate)
+                };
+                length(&media[*b]).compare(length(&media[*a]))
+            }),
             MediaSort::Resolution => order.sort_by(|a, b| {
                 (u64::from(media[*b].width) * u64::from(media[*b].height))
                     .cmp(&(u64::from(media[*a].width) * u64::from(media[*a].height)))

@@ -100,6 +100,17 @@ pub fn generators() -> Arc<[Choice]> {
     })
 }
 
+/// The audio effect catalog, shipped and registered, for an insert chain's Add
+/// list. Plugins register audio effects, so the share follows the catalog's
+/// revision.
+pub fn audio_effects() -> Arc<[Choice]> {
+    static ROWS: Revisioned = Revisioned::new();
+    let catalog = aria_models::audio_effect_catalog();
+    ROWS.at(catalog.revision(), || {
+        shared(&catalog, |spec| &spec.id, |spec| &spec.label)
+    })
+}
+
 /// The text-effect catalog, for the Text tab's chips.
 pub fn text_effects() -> &'static [Choice] {
     static ROWS: LazyLock<Vec<Choice>> = LazyLock::new(|| {
@@ -196,6 +207,11 @@ mod tests {
                         .filter(|spec| spec.generator),
                     |spec| &spec.id,
                 ),
+            ),
+            (
+                "audio_effects",
+                rows(super::audio_effects()),
+                ids(&aria_models::audio_effect_catalog(), |spec| &spec.id),
             ),
             (
                 "text_effects",

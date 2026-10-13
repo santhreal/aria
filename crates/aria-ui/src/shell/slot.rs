@@ -132,6 +132,8 @@ impl Shell {
             self.state.update(cx, |state, _| {
                 state.capture_rebind(key, ctrl, mods.shift, mods.alt);
             });
+            // A captured chord is not text for a box that holds focus.
+            cx.stop_propagation();
             cx.notify();
             return;
         }
@@ -147,35 +149,43 @@ impl Shell {
                     self.state
                         .update(cx, |state, _| crate::keys::fields::insert(state, &text));
                 }
+                cx.stop_propagation();
                 cx.notify();
                 return;
             }
-            match crate::popover::classify_key(key, mods.platform, ctrl) {
+            let handled = match crate::popover::classify_key(key, mods.platform, ctrl) {
                 crate::popover::MenuKey::Escape => {
                     self.state.update(cx, |state, _| (field.escape)(state));
+                    true
                 }
                 crate::popover::MenuKey::Backspace => {
                     self.state.update(cx, |state, _| (field.backspace)(state));
+                    true
                 }
                 crate::popover::MenuKey::Enter => {
                     self.state.update(cx, |state, cx| (field.submit)(state, cx));
+                    true
                 }
                 crate::popover::MenuKey::Up if field.history.is_some() => {
                     let walk = field.history.expect("checked");
                     self.state.update(cx, |state, _| walk(state, -1));
+                    true
                 }
                 crate::popover::MenuKey::Down if field.history.is_some() => {
                     let walk = field.history.expect("checked");
                     self.state.update(cx, |state, _| walk(state, 1));
+                    true
                 }
-                crate::popover::MenuKey::Other if !ctrl && key == "space" => {
-                    self.state.update(cx, |state, _| (field.push)(state, ' '));
-                }
-                crate::popover::MenuKey::Other if !ctrl && key.chars().count() == 1 => {
-                    let ch = key.chars().next().unwrap();
-                    self.state.update(cx, |state, _| (field.push)(state, ch));
-                }
-                _ => {}
+                // Printable text is not handled here: the key-down propagates,
+                // and the platform commits its `key_char` through the input
+                // handler in `text_input.rs`, case and layout intact. Taking the
+                // key name here as well would type each character twice.
+                _ => false,
+            };
+            // A key handled here is not text as well: Enter's `key_char` is a
+            // newline.
+            if handled {
+                cx.stop_propagation();
             }
             cx.notify();
             return;
@@ -190,6 +200,7 @@ impl Shell {
                         }
                     });
                 }
+                cx.stop_propagation();
                 cx.notify();
                 return;
             }
@@ -210,15 +221,21 @@ impl Shell {
                 crate::popover::MenuKey::Enter => {
                     crate::commands::dispatch(self, None, cx);
                 }
-                crate::popover::MenuKey::Other if !ctrl && key == "space" => {
-                    self.state.update(cx, |state, _| state.palette_push(' '));
-                }
-                crate::popover::MenuKey::Other if !ctrl && key.chars().count() == 1 => {
-                    let ch = key.chars().next().unwrap();
-                    self.state.update(cx, |state, _| state.palette_push(ch));
+                // The input handler writes only to a field, so the palette
+                // takes the keystroke's own text: `F` for Shift+F, where the key
+                // name is `f`.
+                crate::popover::MenuKey::Other if !ctrl => {
+                    if let Some(text) = event.keystroke.key_char.as_deref() {
+                        self.state.update(cx, |state, _| {
+                            for ch in text.chars().filter(|ch| !ch.is_control()) {
+                                state.palette_push(ch);
+                            }
+                        });
+                    }
                 }
                 _ => {}
             }
+            cx.stop_propagation();
             cx.notify();
             return;
         }
@@ -236,6 +253,7 @@ impl Shell {
             )
         {
             self.state.update(cx, |state, _| state.run_dialog_primary());
+            cx.stop_propagation();
             cx.notify();
             return;
         }
@@ -331,6 +349,9 @@ impl Shell {
             After::Preview => spawn_preview(self.state.clone(), cx),
             After::Nothing => {}
         }
+        // A keystroke that ran a binding is not text, even for a box the
+        // binding focused.
+        cx.stop_propagation();
         cx.notify();
     }
 }

@@ -175,6 +175,37 @@ fn a_failed_mount_is_named_with_its_reason_and_the_app_still_runs() {
     );
 }
 
+/// A fault the host recovered from shows on the plugin's row while it stays
+/// mounted. Failing the plugin after mount turns the row into a failure with
+/// the reason, and the fault goes with it.
+#[test]
+fn a_recovered_fault_and_a_failure_after_mount_show_on_the_row() {
+    let state = state();
+    let id = "aria.storage";
+    let row = |state: &AppState| {
+        state
+            .plugin_rows()
+            .into_iter()
+            .find(|row| row.id == id)
+            .expect("a row")
+    };
+    state
+        .ctx
+        .report_fault(id, "an audio effect missed its deadlines");
+    let mounted = row(&state);
+    assert!(mounted.enabled && mounted.error.is_none());
+    assert_eq!(
+        mounted.fault.as_deref(),
+        Some("an audio effect missed its deadlines")
+    );
+
+    assert!(state.ctx.fail(id, "a callback panicked"));
+    let failed = row(&state);
+    assert!(!failed.enabled);
+    assert_eq!(failed.error.as_deref(), Some("a callback panicked"));
+    assert_eq!(failed.fault, None);
+}
+
 /// A plugin that registers a value nobody reads is a plugin that does not own it.
 /// These two services were exactly that, so the tests pin the consumer, not the
 /// registration.

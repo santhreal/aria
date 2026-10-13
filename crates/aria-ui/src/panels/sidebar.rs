@@ -9,7 +9,6 @@ use crate::components;
 use crate::fluent::FluentBuilder;
 use crate::motion;
 use crate::theme::Theme;
-use crate::timecode;
 use crate::types::{
     ActivePanel, CatalogDrag, CatalogDragKind, MediaSort, POOL_CELL_WIDTH, PoolView, SidebarTab,
     UiClipKind, UiMediaItem, freeform_default_position, freeform_drop_to_position,
@@ -27,13 +26,10 @@ pub fn render(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     let theme = Theme::of(cx);
-    // A handle on the projection, not a copy of it.
-    let store = state.read(cx).store.clone();
     let selected = state.read(cx).active_panel == ActivePanel::Media;
     let tab = state.read(cx).sidebar_tab;
-    let rate = store.sequence.frame_rate;
-    // The rows the pool tabs draw: a view over the projection above, computed
-    // only for the two tabs that draw one.
+    // The rows the pool tabs draw: a view over the projection, computed only
+    // for the two tabs that draw one.
     let rows =
         matches!(tab, SidebarTab::Media | SidebarTab::Audio).then(|| state.read(cx).pool_rows(tab));
     // What the selection already carries, so the browsable catalogs can say so.
@@ -174,7 +170,7 @@ pub fn render(
                     }
                     SidebarTab::Media | SidebarTab::Audio => {
                         let rows = rows.as_ref().expect("the pool tabs read their rows above");
-                        bin(&theme, state, tab, rows, rate.num, rate.den, cx)
+                        bin(&theme, state, tab, rows, cx)
                     }
                 }),
         )

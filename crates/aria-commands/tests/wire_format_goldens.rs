@@ -196,6 +196,49 @@ fn golden_move_effect() {
     );
 }
 
+/// The chain is one field for all three kinds: a clip and a lane by id, the
+/// master by name.
+#[test]
+fn golden_audio_insert_targets() {
+    let cases = [
+        (
+            EditCommand::AddAudioEffect {
+                target: aria_commands::AudioInsertTarget::Clip(clip(4)),
+                effect_id: "example.compressor".into(),
+            },
+            json!({"type": "AddAudioEffect", "target": {"Clip": 4}, "effect_id": "example.compressor"}),
+        ),
+        (
+            EditCommand::SetAudioEffectBypass {
+                target: aria_commands::AudioInsertTarget::Track(track(2)),
+                index: 1,
+                bypass: true,
+            },
+            json!({"type": "SetAudioEffectBypass", "target": {"Track": 2}, "index": 1, "bypass": true}),
+        ),
+        (
+            EditCommand::SetAudioEffectSidechain {
+                target: aria_commands::AudioInsertTarget::Master,
+                index: 0,
+                key: Some(track(3)),
+            },
+            json!({"type": "SetAudioEffectSidechain", "target": "Master", "index": 0, "key": 3}),
+        ),
+        (
+            EditCommand::SetAudioEffectParam {
+                target: aria_commands::AudioInsertTarget::Master,
+                index: 0,
+                param: 2,
+                value: Param::Constant(-18.0),
+            },
+            json!({"type": "SetAudioEffectParam", "target": "Master", "index": 0, "param": 2, "value": -18.0}),
+        ),
+    ];
+    for (command, wire) in cases {
+        assert_eq!(serde_json::to_value(Command::Edit(command)).unwrap(), wire);
+    }
+}
+
 #[test]
 fn golden_set_param_keyframe() {
     let cmd = Command::Edit(EditCommand::SetParamKeyframe {

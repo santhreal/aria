@@ -41,7 +41,9 @@ use aria_commands::{
     Command, EditCommand, EditOutcome, Inverse, every_edit_command, every_project_command,
 };
 use aria_engine::{ApplyOutcome, Engine, EngineConfig};
-use aria_models::{ClipId, Generator, Project, Rational, TimeRange, TrackId, TrackKind};
+use aria_models::{
+    AudioInsertTarget, ClipId, Generator, Project, Rational, TimeRange, TrackId, TrackKind,
+};
 
 /// The census builds its samples at this rate, so the fixture has to use it:
 /// an edit whose time is on another timebase is refused before it reaches its
@@ -103,9 +105,10 @@ fn generated(engine: &mut Engine, track: TrackId, start: i64) -> ClipId {
 /// The census fabricates ids so it can name every command without a session.
 /// Dispatched as-is, every id-bearing command takes the unknown-entity path and
 /// no row's behaviour is ever reached. The clip and lane fields are named the
-/// same way on the wire by every command that has them, so the rewrite is one
-/// rule rather than a per-variant table: a new command is retargeted by the
-/// same rule, with no row to add here.
+/// same way on the wire by every command that has them, and an insert chain's
+/// `target` holds its clip or lane under one key, so the rewrite is one rule
+/// rather than a per-variant table: a new command is retargeted by the same
+/// rule, with no row to add here.
 fn retarget(command: &EditCommand, clip: ClipId, track: TrackId) -> EditCommand {
     let mut wire = serde_json::to_value(command).expect("a command serializes");
     let fields = wire
@@ -116,6 +119,13 @@ fn retarget(command: &EditCommand, clip: ClipId, track: TrackId) -> EditCommand 
             "clip" => serde_json::to_value(clip),
             "clips" => serde_json::to_value([clip]),
             "track" | "to_track" => serde_json::to_value(track),
+            "target" => match value.as_object().and_then(|chain| chain.keys().next()) {
+                Some(kind) if kind == "Clip" => serde_json::to_value(AudioInsertTarget::Clip(clip)),
+                Some(kind) if kind == "Track" => {
+                    serde_json::to_value(AudioInsertTarget::Track(track))
+                }
+                _ => continue,
+            },
             _ => continue,
         }
         .expect("an id serializes");
@@ -173,7 +183,8 @@ fn names_the_entity_it_claims(engine: &Engine, outcome: EditOutcome) -> bool {
         | EditOutcome::UpdatedProject
         | EditOutcome::UpdatedPool
         | EditOutcome::UpdatedSequenceRate
-        | EditOutcome::UpdatedAudioLayout => true,
+        | EditOutcome::UpdatedAudioLayout
+        | EditOutcome::UpdatedMaster => true,
         // Navigation: whichever timeline the command opened is the one the
         // session now edits, and the root is a legitimate destination, so the
         // claim is that the active sequence (if any) exists.

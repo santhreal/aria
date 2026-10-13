@@ -249,6 +249,22 @@ pub const CONTROL_TIPS: &[ControlTip] = &[
         name: "Remove this effect",
         binding: None,
     },
+    // Audio insert rows, in the inspector's Audio block and on a mixer strip.
+    ControlTip {
+        control: "insert-up",
+        name: "Move this audio effect earlier",
+        binding: None,
+    },
+    ControlTip {
+        control: "insert-down",
+        name: "Move this audio effect later",
+        binding: None,
+    },
+    ControlTip {
+        control: "insert-remove",
+        name: "Remove this audio effect",
+        binding: None,
+    },
     // The bar's own controls: the two rails, the settings dialog, and the three
     // window buttons. Each is a glyph with no word beside it.
     ControlTip {

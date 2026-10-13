@@ -150,6 +150,37 @@ fn a_key_that_cannot_be_bound_leaves_the_capture_waiting() {
     assert_eq!(state.chord_label(id), was, "the chord changed anyway");
 }
 
+/// GPUI on Linux reports Shift+2 as `@` with shift cleared. A capture that
+/// took the symbol as the key would refuse it, since `@` cannot carry a
+/// binding, and a Shift+digit chord could never be chosen from the keyboard.
+#[test]
+fn a_shifted_symbol_is_captured_as_shift_and_the_key_under_it() {
+    let mut state = state("rebind-shifted");
+    let id = plain_binding();
+    let (symbol, under) = [("@", "2"), ("#", "3"), ("%", "5"), ("&", "7")]
+        .into_iter()
+        .find(|&(_, under)| {
+            !SHIPPED_BINDINGS.iter().any(|binding| {
+                binding.route == KeyRoute::Editor && binding.chord == Chord::shift(under)
+            })
+        })
+        .expect("a Shift+digit chord is free");
+    state.begin_rebind(id);
+    state.capture_rebind(symbol, false, false, false);
+    assert_eq!(state.rebinding(), None, "{symbol} was refused");
+    assert_eq!(
+        state.chord_label(id).as_deref(),
+        Some(&*format!("Shift+{under}"))
+    );
+    let host = keys::host_of(&state.ctx).expect("the registry is mounted");
+    assert_eq!(
+        host.resolve(KeyRoute::Editor, symbol, false, false, false)
+            .map(|binding| binding.id),
+        Some(id),
+        "the captured chord does not fire from the keystroke that captured it"
+    );
+}
+
 #[test]
 fn escape_leaves_the_binding_alone() {
     let mut state = state("rebind-escape");

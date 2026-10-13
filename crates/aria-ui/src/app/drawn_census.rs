@@ -42,6 +42,7 @@ pub(super) fn dispatched() -> &'static BTreeSet<&'static str> {
         out.extend(ramp::dispatched());
         out.extend(inspector::dispatched());
         out.extend(mixer::dispatched());
+        out.extend(inserts::dispatched());
         out.extend(picks::dispatched());
         out.extend(rack::dispatched());
         out.extend(keys::dispatched());
@@ -202,6 +203,8 @@ mod bins;
 mod blocks;
 #[path = "drawn_census_home.rs"]
 mod home;
+#[path = "drawn_census_inserts.rs"]
+mod inserts;
 #[path = "drawn_census_inspector.rs"]
 mod inspector;
 #[path = "drawn_census_keys.rs"]

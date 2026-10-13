@@ -38,6 +38,13 @@ impl AppState {
         let mounted = self.ctx.mounted();
         let failures = self.ctx.failures();
         let denials = self.ctx.denials();
+        let faults = self.ctx.faults();
+        let fault_of = |id: &str| -> Option<SharedString> {
+            faults
+                .iter()
+                .find(|fault| fault.plugin == id)
+                .map(|fault| fault.message.clone().into())
+        };
         let denied_by = |id: &str| -> Vec<SharedString> {
             denials
                 .iter()
@@ -70,6 +77,7 @@ impl AppState {
                         .iter()
                         .find(|failure| failure.id == manifest.id)
                         .map(|failure| failure.reason.clone().into()),
+                    fault: fault_of(manifest.id),
                 }
             })
             .chain(aria_plugin::external::loaded().into_iter().map(|manifest| {
@@ -94,6 +102,7 @@ impl AppState {
                         .iter()
                         .find(|failure| failure.id == manifest.id)
                         .map(|failure| failure.reason.clone().into()),
+                    fault: fault_of(manifest.id),
                 }
             }))
             .chain(
@@ -118,6 +127,7 @@ impl AppState {
                         enabled: false,
                         mount_ms: None,
                         error: Some(failure.reason.clone().into()),
+                        fault: None,
                     })
                     .collect::<Vec<_>>(),
             )

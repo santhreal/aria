@@ -41,6 +41,9 @@ fn describe(row: &UiPluginRow) -> String {
     if !row.denied.is_empty() {
         parts.push(format!("refused {}", row.denied.join(", ")));
     }
+    if let Some(fault) = &row.fault {
+        parts.push(format!("fault: {fault}"));
+    }
     // What it cost to start: a start is the sum of these, and the list that names
     // the plugins is the only place an operator can see which one is expensive.
     // Sub-millisecond mounts are the majority and read as "0.0 ms" rather than

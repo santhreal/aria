@@ -34,6 +34,7 @@ fn bus_of(buses: &[AudioBus<'_>], track: TrackId) -> AudioBus<'static> {
         // The borrow is what makes the graph allocation-free; a test only needs
         // the shape, so the copy carries an empty slice rather than a lifetime.
         sends: &[],
+        inserts: &[],
         audible: found.audible,
         reaches_master: found.reaches_master,
     }
@@ -432,5 +433,182 @@ fn routing_is_additive_on_disk() {
             level: 0.5,
             pre_fader: true
         }]
+    );
+}
+
+/// An insert on `holder` keyed from `key`, bypassed or not. Written straight
+/// to the lane: the graph reads the field, and the setter is proved apart.
+fn keyed(timeline: &mut Timeline, holder: Option<TrackId>, key: TrackId, bypass: bool) {
+    let mut insert = AudioEffectInstance::new("example.ducker");
+    insert.sidechain = Some(key);
+    insert.bypass = bypass;
+    match holder {
+        Some(lane) => timeline.track_mut(lane).unwrap().audio_effects.push(insert),
+        None => timeline.master_audio_effects_mut().push(insert),
+    }
+}
+
+/// A key is read after the key lane's inserts, so the key lane is mixed first
+/// whichever way the two lanes are stacked.
+#[test]
+fn a_key_lane_is_mixed_before_the_lane_it_keys() {
+    for flip in [false, true] {
+        let mut timeline = timeline();
+        let first = lane(&mut timeline, TrackKind::Audio, "A1");
+        let second = lane(&mut timeline, TrackKind::Audio, "A2");
+        let (key, holder) = if flip {
+            (first, second)
+        } else {
+            (second, first)
+        };
+        keyed(&mut timeline, Some(holder), key, false);
+        let buses = timeline.audio_buses().unwrap();
+        assert!(
+            position(&buses, key) < position(&buses, holder),
+            "flip {flip}: key at {}, holder at {}",
+            position(&buses, key),
+            position(&buses, holder)
+        );
+        let node = buses.iter().find(|bus| bus.track == holder).unwrap();
+        assert_eq!(node.keys().collect::<Vec<_>>(), [key]);
+    }
+}
+
+#[test]
+fn a_key_that_would_close_a_loop_is_refused_and_a_filed_one_is_reported() {
+    let mut timeline = timeline();
+    let voice = lane(&mut timeline, TrackKind::Audio, "Voice");
+    let bus = lane(&mut timeline, TrackKind::Submix, "Mix");
+    timeline
+        .set_track_output(voice, TrackOutput::Bus(bus))
+        .unwrap();
+
+    // The bus is downstream of the voice, so it cannot key the voice.
+    assert_eq!(
+        timeline.sidechain_refusal(bus, AudioInsertTarget::Track(voice)),
+        Err(ModelError::RoutingCycle(bus))
+    );
+    // A lane does not key itself.
+    assert_eq!(
+        timeline.sidechain_refusal(voice, AudioInsertTarget::Track(voice)),
+        Err(ModelError::RoutingCycle(voice))
+    );
+    // The other way round is a sidechain like any other.
+    assert_eq!(
+        timeline.sidechain_refusal(voice, AudioInsertTarget::Track(bus)),
+        Ok(())
+    );
+
+    // A key already in place is an edge a route has to respect: with the bus
+    // keyed from a lane, that lane cannot be routed out of the bus.
+    let music = lane(&mut timeline, TrackKind::Audio, "Music");
+    let room = lane(&mut timeline, TrackKind::Submix, "Room");
+    keyed(&mut timeline, Some(music), room, false);
+    assert_eq!(
+        timeline.set_track_output(music, TrackOutput::Bus(room)),
+        Err(ModelError::RoutingCycle(music))
+    );
+    assert_eq!(
+        timeline.add_send(music, room, 1.0, true),
+        Err(ModelError::RoutingCycle(music))
+    );
+
+    // A file can hold a lane keyed by itself; the graph reports it.
+    keyed(&mut timeline, Some(voice), voice, false);
+    assert!(matches!(
+        timeline.audio_buses(),
+        Err(ModelError::RoutingCycle(_))
+    ));
+}
+
+#[test]
+fn a_key_comes_from_a_lane_with_sound_and_lands_on_a_lane_or_the_master() {
+    let mut timeline = timeline();
+    let voice = lane(&mut timeline, TrackKind::Audio, "Voice");
+    let text = lane(&mut timeline, TrackKind::Text, "T1");
+    let gone = TrackId::next();
+    assert_eq!(
+        timeline.sidechain_refusal(text, AudioInsertTarget::Master),
+        Err(ModelError::LaneCarriesNoSound(text))
+    );
+    assert_eq!(
+        timeline.sidechain_refusal(gone, AudioInsertTarget::Master),
+        Err(ModelError::UnknownTrack(gone))
+    );
+    assert!(matches!(
+        timeline.sidechain_refusal(voice, AudioInsertTarget::Clip(crate::ClipId::from_raw(1))),
+        Err(ModelError::InvalidParam(_))
+    ));
+    assert_eq!(
+        timeline.sidechain_refusal(voice, AudioInsertTarget::Master),
+        Ok(())
+    );
+}
+
+/// A key naming a lane that is gone reads silence: it adds no edge and no
+/// error, and the insert keeps it for an undo to bring the lane back to.
+#[test]
+fn a_key_to_a_lane_that_is_gone_leaves_the_graph_whole() {
+    let mut timeline = timeline();
+    let music = lane(&mut timeline, TrackKind::Audio, "Music");
+    let gone = TrackId::next();
+    keyed(&mut timeline, Some(music), gone, false);
+    keyed(&mut timeline, None, gone, false);
+    let buses = timeline.audio_buses().unwrap();
+    assert_eq!(buses.len(), 1);
+    assert!(buses[0].reaches_master);
+    assert_eq!(
+        timeline.track(music).unwrap().audio_effects[0].sidechain,
+        Some(gone)
+    );
+}
+
+/// A lane whose only path to the master is as a key is still decoded, unless
+/// the insert that reads it is bypassed or the lane is muted.
+#[test]
+fn a_lane_heard_only_as_a_key_still_reaches_the_master() {
+    for (case, holder_is_master, bypass, mute_voice, reaches) in [
+        ("keys a master insert", true, false, false, true),
+        ("keys an insert on a lane", false, false, false, true),
+        ("keys a bypassed master insert", true, true, false, false),
+        ("keys a bypassed lane insert", false, true, false, false),
+        ("is muted", true, false, true, false),
+    ] {
+        let mut timeline = timeline();
+        let voice = lane(&mut timeline, TrackKind::Audio, "Voice");
+        let music = lane(&mut timeline, TrackKind::Audio, "Music");
+        let dead = lane(&mut timeline, TrackKind::Submix, "Dead");
+        timeline
+            .set_track_output(voice, TrackOutput::Bus(dead))
+            .unwrap();
+        timeline.track_mut(dead).unwrap().muted = true;
+        timeline.track_mut(voice).unwrap().muted = mute_voice;
+        let holder = (!holder_is_master).then_some(music);
+        keyed(&mut timeline, holder, voice, bypass);
+        let buses = timeline.audio_buses().unwrap();
+        assert_eq!(bus_of(&buses, voice).reaches_master, reaches, "{case}");
+        assert!(bus_of(&buses, music).reaches_master, "{case}");
+    }
+}
+
+#[test]
+fn insert_chains_are_additive_on_disk_and_round_trip() {
+    let mut timeline = timeline();
+    let voice = lane(&mut timeline, TrackKind::Audio, "Voice");
+    let music = lane(&mut timeline, TrackKind::Audio, "Music");
+    let json = serde_json::to_string(&timeline).unwrap();
+    assert!(!json.contains("audio_effects"), "{json}");
+
+    keyed(&mut timeline, Some(music), voice, false);
+    keyed(&mut timeline, None, voice, true);
+    let json = serde_json::to_string(&timeline).unwrap();
+    let loaded: Timeline = serde_json::from_str(&json).unwrap();
+    assert_eq!(
+        loaded.track(music).unwrap().audio_effects,
+        timeline.track(music).unwrap().audio_effects
+    );
+    assert_eq!(
+        loaded.master_audio_effects(),
+        timeline.master_audio_effects()
     );
 }

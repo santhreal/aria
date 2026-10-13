@@ -63,15 +63,13 @@ pub fn home_bar(theme: &Theme, window: &mut Window, cx: &mut Context<Shell>) -> 
 }
 
 /// A concrete element rather than `impl IntoElement`: the shell stages this in
-/// on open, and an animation needs an element it can restyle. Stateful because
-/// the bar carries an id — the menu scrim inside it is hit-tested against it.
+/// on open, and an animation needs an element it can restyle.
 pub fn editor_bar(
     theme: &Theme,
     state: &Entity<AppState>,
     window: &mut Window,
     cx: &mut Context<Shell>,
 ) -> gpui::Stateful<gpui::Div> {
-    let open = state.read(cx).open_menu;
     div()
         .id("app-bar")
         .w_full()
@@ -81,15 +79,6 @@ pub fn editor_bar(
         .bg(theme.glass())
         .border_b_1()
         .border_color(theme.border)
-        .when(open.is_some(), |el| {
-            el.child(div().id("menu-scrim").absolute().inset_0().on_mouse_down(
-                MouseButton::Left,
-                cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                    this.state.update(cx, |state, _| state.close_menu());
-                    cx.notify();
-                }),
-            ))
-        })
         .child(menu_bar(theme, state, window, cx))
         .child(tool_strip::tool_bar(theme, state, cx))
 }
@@ -113,6 +102,15 @@ fn menu_bar(
         .items_center()
         .px(px(Theme::SPACE_MD))
         .gap(px(Theme::SPACE_XS))
+        // A press anywhere outside the bar closes an open drop and still lands
+        // where it was aimed, as outside a context menu. A press on a title
+        // stays inside, so the title toggles or switches the drop itself.
+        .when(open.is_some(), |el| {
+            el.on_mouse_down_out(cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                this.state.update(cx, |state, _| state.close_menu());
+                cx.notify();
+            }))
+        })
         // The shipped mark, the same art the packagers turn into the app icon.
         // 18px sits on the cap height of the menu words beside it in a 32px bar.
         .child(crate::icons::brand_mark(18.))

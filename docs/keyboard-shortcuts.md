@@ -2,6 +2,10 @@
 
 Modifiers: Ctrl on Linux and Windows, Cmd on macOS (`platform` in GPUI).
 
+A Shift chord on a digit or punctuation key also fires when the platform
+reports the shifted symbol in its place, as GPUI on Linux does: Shift+6 arrives
+as `^` and Shift+, as `<`. Symbols are read by their position on a US layout.
+
 Every shortcut below is a registered binding, not a hardcoded key. The shipped
 table is `keys::bindings::SHIPPED_BINDINGS`; a plugin registers its own through
 `KeyHost::add`, and a chord that is already taken is refused rather than
@@ -30,9 +34,10 @@ A paste is held to the same rules as typing: the timecode box takes digits and
 separators only, a name stops at its length cap, and control characters are
 dropped, so a path pasted with a trailing newline arrives as a path.
 
-An IME commit lands the same way. The app registers a platform input handler on
-the window, so a preedit run is marked and then replaced by the finished text
-rather than appended to it.
+Typed text and an IME commit land the same way. The app registers a platform
+input handler on the window, so a character arrives as the layout produces it,
+capitals and shifted symbols included, and a preedit run is marked and then
+replaced by the finished text rather than appended to it.
 
 ## Playback and playhead
 

@@ -90,6 +90,7 @@ pub struct Project {
     largest_used_video: std::sync::OnceLock<Option<(u32, u32)>>,
 }
 
+mod audio_inserts;
 mod bake;
 mod edit;
 mod helpers;

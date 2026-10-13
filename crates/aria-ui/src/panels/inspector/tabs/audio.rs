@@ -7,6 +7,8 @@ use gpui::{
 
 use crate::app::AppState;
 use crate::components;
+use crate::fluent::FluentBuilder;
+use crate::panels::insert_chain::{self, Chain};
 use crate::surfaces::clip_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::timecode::format_ticks;
@@ -71,6 +73,23 @@ pub fn audio_tab(
                 cx.notify();
             }),
         );
+    // The clip's insert chain is drawn only where the model accepts one: a clip
+    // with sound.
+    let inserts = clip.can_hold_inserts.then(|| {
+        insert_chain::render(
+            theme,
+            Chain {
+                target: aria_models::AudioInsertTarget::Clip(aria_models::ClipId::from_raw(
+                    clip.id,
+                )),
+                inserts: &clip.audio_inserts,
+                keys: &[],
+                expanded: true,
+            },
+            state,
+            cx,
+        )
+    });
     div()
         .flex()
         .flex_col()
@@ -126,6 +145,9 @@ pub fn audio_tab(
                     ),
                 ),
         )
+        .when_some(inserts, |el, chain| {
+            el.child(section_label(theme, "Audio effects")).child(chain)
+        })
         .child(section_label(theme, "Role"))
         .child(
             div()

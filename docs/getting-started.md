@@ -353,11 +353,14 @@ of them enters the undo history or changes what an export produces.
 
 Shift+6, or **View > Mixer**, replaces the preview with the mixer. It carries one
 strip per lane that has sound, plus one per submix bus, drawn in the order the
-mixdown folds them: a bus sits after everything that feeds it.
+mixdown folds them: a bus sits after everything that feeds it. The Master strip
+comes last and carries the master's **Inserts**.
 
 Each strip carries:
 
 - The lane's name. A bus is marked `· bus`.
+- **Inserts**: the lane's audio effects, applied to its sum before the fader
+  and the sends ([Audio effects](#audio-effects)).
 - **Out**: one chip per destination. `Master` is the default; the others are the
   buses. Click a chip to route the lane there. A route that would loop back into
   the lane is refused and the routing is left as it was.
@@ -498,6 +501,39 @@ launch.
 
 **Add** lists every effect the compositor can render. Clicking one appends it
 to the end of the chain.
+
+## Audio effects
+
+An audio effect processes sound in a chain: on one clip, on a lane, or on the
+master after every lane and bus is summed. Effects in a chain run top to
+bottom. Aria ships Gain, Parametric EQ (eight bands with low and high cuts),
+Compressor, Limiter, De-esser, Noise Reduction, Reverb, Delay, Pitch Shifter,
+Swap Channels, Fill Left with Right, Fill Right with Left, Mono, and Loudness
+Normalizer; a plugin adds more.
+
+A clip's chain is the **Audio effects** section of the Audio tab, shown for a
+clip with sound. A lane's chain and the master's are the **Inserts** row of each
+mixer strip and of the Master strip. A lane and the master hold five effects
+each; a clip holds any number.
+
+- **+ Audio effect** opens the list of effects; clicking one appends it and
+  closes the list.
+- Each effect row carries its name, a chip that reads **On** or **Bypassed**
+  (click it to switch), ↑ and ↓ to move it one step, hidden at the ends of the
+  chain, and a bin to remove it.
+- Parameters step within their range: left click raises a value, right click
+  lowers it. In the Audio tab every effect shows its parameters; on a mixer
+  strip, click an effect's name to show or hide them. A keyframed parameter
+  reads `keyed`, and a step writes a keyframe at the playhead instead of
+  replacing the curve.
+- An effect that reads a key, such as the Compressor, shows **Key from** on a
+  mixer strip: **No key** or one chip per lane that may key it.
+- An effect whose plugin is not installed reads `(not installed)`. Its values
+  stay in the project and the sound passes through it unchanged.
+
+Every change is one undo step. Preview and export run the same chain; the
+mixer delays every other path by the latency of the Limiter, Noise Reduction,
+and Pitch Shifter so lanes stay in time.
 
 ## Transitions
 

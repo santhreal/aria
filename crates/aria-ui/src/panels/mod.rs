@@ -11,6 +11,7 @@ pub mod export_dialog;
 pub mod generate;
 pub mod history_dialog;
 pub mod home;
+pub mod insert_chain;
 pub mod inspector;
 pub mod jobs_dialog;
 pub mod look_picker;

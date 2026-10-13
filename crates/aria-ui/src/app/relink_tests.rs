@@ -26,6 +26,7 @@ fn entry(id: u64, path: &str) -> UiMediaItem {
         height: 1080,
         frame_rate: aria_core::Rational { num: 30, den: 1 },
         duration_ticks: 240,
+        duration_label: "00:00:08:00".into(),
         has_audio: false,
         kind: UiClipKind::Media,
         missing: true,

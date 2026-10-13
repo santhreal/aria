@@ -103,9 +103,12 @@ pub fn stepper_row(
         None => (None, 0.0),
     };
 
+    // A row too narrow for both, a mixer strip's, moves the readout under the
+    // label rather than breaking the label mid-word.
     let mut head = div()
         .flex()
         .flex_row()
+        .flex_wrap()
         .items_center()
         .gap(px(Theme::SPACE_XS));
     if let Some(watch) = stopwatch {
@@ -113,14 +116,20 @@ pub fn stepper_row(
     }
     let head = head
         .child(
+            // An automatic basis is the label's unwrapped width, so the line
+            // breaks before the label is squeezed. At zero minimum a label
+            // wider than the row wraps at the width it is given.
             div()
-                .flex_1()
+                .flex_auto()
+                .min_w_0()
                 .text_size(px(13.))
                 .text_color(motion::mix(theme.text_muted, theme.text, hovered))
                 .child(label),
         )
         .child(
             div()
+                .flex_none()
+                .ml_auto()
                 .font_family(theme.font_mono.clone())
                 .text_size(px(13.))
                 // Leading while the value is still travelling is what makes a
@@ -362,7 +371,7 @@ pub fn param_rows(
                     None,
                     Some(stopwatch),
                     units.step,
-                    move |state, delta| write(state, delta),
+                    write,
                     cx,
                 )
                 .into_any_element(),

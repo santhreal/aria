@@ -124,6 +124,19 @@ pub enum ModelError {
 
     #[error("track {track} has no send {index}")]
     UnknownSend { track: TrackId, index: usize },
+
+    // --- audio inserts ----------------------------------------------------
+    #[error("unknown audio effect: {0}")]
+    UnknownAudioEffect(String),
+
+    #[error("clip {0} carries no sound, so it has nothing to process")]
+    ClipCarriesNoSound(ClipId),
+
+    #[error("insert {index} is past the end of a chain of {len}")]
+    UnknownInsert { index: usize, len: usize },
+
+    #[error("a lane or the master holds at most {0} inserts")]
+    InsertsFull(usize),
 }
 
 /// Bridge the shared `aria-core` time errors into [`ModelError`] so model

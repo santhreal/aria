@@ -29,10 +29,19 @@
 //! because a project file is a file: a hand-edited cycle is reported rather
 //! than silently broken somewhere in the fold.
 //!
+//! # Sidechain keys
+//!
+//! An insert on a lane may read another lane's sound as a key: that lane's sum
+//! after its own inserts and before its fader. The key lane is mixed first, so
+//! a key is an edge of the graph like a send, and [`Timeline::sidechain_refusal`]
+//! refuses a key that would close a cycle. A key naming a lane that is gone
+//! reads silence and adds no edge, so undoing the removal brings it back.
+//!
 //! [`TrackKindSpec::is_bus`]: crate::track_catalog::TrackKindSpec::is_bus
 
 use serde::{Deserialize, Serialize};
 
+use crate::audio_effects::{AudioEffectInstance, AudioInsertTarget};
 use crate::error::ModelError;
 use crate::ids::TrackId;
 use crate::timeline::Timeline;
@@ -143,12 +152,15 @@ pub struct AudioBus<'a> {
     pub output: TrackOutput,
     /// Copies of the lane taken for other buses.
     pub sends: &'a [AudioSend],
+    /// The lane's insert chain, run over its sum before its fader and its
+    /// sends.
+    pub inserts: &'a [AudioEffectInstance],
     /// Whether the lane itself is heard: unmuted, and not dropped by another
     /// lane of its kind being soloed.
     pub audible: bool,
-    /// Whether anything this lane produces still arrives at the master, through
-    /// its output or through a send. A lane that fails this is not worth
-    /// decoding.
+    /// Whether anything this lane produces still arrives at the master: through
+    /// its output, through a send, or as the key of an insert on a lane that
+    /// does or on the master. A lane that fails this is not worth decoding.
     pub reaches_master: bool,
 }
 
@@ -159,7 +171,7 @@ impl Timeline {
     /// row, so a new lane kind decides it by filling its row in.
     ///
     /// [`TrackKindSpec::in_mixer`]: crate::track_catalog::TrackKindSpec::in_mixer
-    fn lane_mixes_audio(&self, track: TrackId) -> Result<bool, ModelError> {
+    pub(crate) fn lane_mixes_audio(&self, track: TrackId) -> Result<bool, ModelError> {
         let track = self.track(track).ok_or(ModelError::UnknownTrack(track))?;
         Ok(track.kind.spec().in_mixer())
     }
@@ -433,6 +445,7 @@ impl Timeline {
                 gain: lane.gain,
                 output: lane.output,
                 sends: lane.sends.as_slice(),
+                inserts: lane.audio_effects.as_slice(),
                 audible: self.track_is_audible(lane),
                 reaches_master: false,
             });
@@ -457,8 +470,14 @@ impl Timeline {
         let ordered = feed_order(&nodes)?;
         let mut buses: Vec<AudioBus<'_>> = ordered.into_iter().map(|i| nodes[i]).collect();
 
-        // Back to front: a bus is known before anything that feeds it, so one
-        // reverse pass answers "does this still arrive at the master".
+        // Back to front: a bus is known before anything that feeds it, and a
+        // lane before any lane it keys, so one reverse pass answers "does this
+        // still arrive at the master".
+        let master_keys = |id: TrackId| {
+            self.master_audio_effects()
+                .iter()
+                .any(|fx| !fx.bypass && fx.sidechain == Some(id))
+        };
         for i in (0..buses.len()).rev() {
             let reaches = |target: Option<TrackId>, buses: &[AudioBus<'_>]| match target {
                 None => true,
@@ -468,12 +487,21 @@ impl Timeline {
                     .find(|bus| bus.track == id)
                     .is_some_and(|bus| bus.reaches_master),
             };
+            let id = buses[i].track;
             let out = reaches(buses[i].output.bus(), &buses);
             let sent = buses[i]
                 .sends
                 .iter()
                 .any(|send| reaches(Some(send.to), &buses));
-            buses[i].reaches_master = buses[i].audible && (out || sent);
+            let keyed = master_keys(id)
+                || buses[i + 1..].iter().any(|bus| {
+                    bus.reaches_master
+                        && bus
+                            .inserts
+                            .iter()
+                            .any(|fx| !fx.bypass && fx.sidechain == Some(id))
+                });
+            buses[i].reaches_master = buses[i].audible && (out || sent || keyed);
         }
         Ok(buses)
     }
@@ -500,6 +528,28 @@ impl Timeline {
         self.check_no_cycle(track, to)
     }
 
+    /// Why keying an insert at `holder` from lane `key` would be refused, if it
+    /// would be: the key lane exists and carries sound, a clip insert takes no
+    /// key, and a lane is not keyed by itself or by a lane it feeds. The master
+    /// may be keyed by any lane that carries sound.
+    pub fn sidechain_refusal(
+        &self,
+        key: TrackId,
+        holder: AudioInsertTarget,
+    ) -> Result<(), ModelError> {
+        if !self.lane_mixes_audio(key)? {
+            return Err(ModelError::LaneCarriesNoSound(key));
+        }
+        match holder {
+            AudioInsertTarget::Master => Ok(()),
+            AudioInsertTarget::Track(lane) if lane == key => Err(ModelError::RoutingCycle(key)),
+            AudioInsertTarget::Track(lane) => self.check_no_cycle(key, lane),
+            AudioInsertTarget::Clip(_) => Err(ModelError::InvalidParam(
+                "a clip insert takes no sidechain key; key an insert on its lane".into(),
+            )),
+        }
+    }
+
     /// A destination has to exist here, be a bus lane, and not be the lane
     /// itself.
     fn check_bus_destination(&self, track: TrackId, to: TrackId) -> Result<(), ModelError> {
@@ -514,7 +564,8 @@ impl Timeline {
     }
 
     /// Whether routing `track` into `to` would close a cycle: walk out of `to`
-    /// along outputs and sends and see whether `track` is reached.
+    /// along outputs, sends and sidechain keys and see whether `track` is
+    /// reached.
     fn check_no_cycle(&self, track: TrackId, to: TrackId) -> Result<(), ModelError> {
         let mut seen: Vec<TrackId> = Vec::new();
         let mut frontier = vec![to];
@@ -533,6 +584,16 @@ impl Timeline {
                 frontier.push(next);
             }
             frontier.extend(lane.sends.iter().map(|send| send.to));
+            frontier.extend(
+                self.tracks_ordered()
+                    .filter(|holder| {
+                        holder
+                            .audio_effects
+                            .iter()
+                            .any(|fx| fx.sidechain == Some(id))
+                    })
+                    .map(|holder| holder.id),
+            );
         }
         Ok(())
     }
@@ -544,34 +605,37 @@ fn check_send_level(level: f32) -> Result<f32, ModelError> {
 
 /// Indices of `nodes` in feed order, or the lane a cycle runs through.
 ///
-/// Kahn's algorithm over the graph "lane → everything it feeds". A project file
-/// can hold a cycle the setters would have refused, so this is the second place
-/// the check lives, and the one that keeps a mixdown from being defined by
-/// whichever edge happened to be folded first.
+/// Kahn's algorithm over the graph "lane → everything it feeds, and every lane
+/// whose inserts it keys". A project file can hold a cycle the setters would
+/// have refused, so this is the second place the check lives, and the one that
+/// keeps a mixdown from being defined by whichever edge happened to be folded
+/// first.
 ///
 /// The ready set is a queue rather than a stack, so lanes that feed nothing in
 /// common keep the order they sit in on the timeline. A mixer draws its strips
 /// in this order, and a stack would draw them upside down.
 fn feed_order(nodes: &[AudioBus<'_>]) -> Result<Vec<usize>, ModelError> {
     let index_of = |id: TrackId| nodes.iter().position(|node| node.track == id);
+    // `(from, to)`: `from` is mixed before `to`.
+    let mut edges: Vec<(usize, usize)> = Vec::new();
+    for (i, node) in nodes.iter().enumerate() {
+        edges.extend(node.targets().filter_map(index_of).map(|to| (i, to)));
+        edges.extend(node.keys().filter_map(index_of).map(|from| (from, i)));
+    }
     let mut fed_by = vec![0usize; nodes.len()];
-    for node in nodes {
-        for target in node.targets() {
-            if let Some(i) = index_of(target) {
-                fed_by[i] += 1;
-            }
-        }
+    for &(_, to) in &edges {
+        fed_by[to] += 1;
     }
     let mut ready: std::collections::VecDeque<usize> =
         (0..nodes.len()).filter(|i| fed_by[*i] == 0).collect();
     let mut order = Vec::with_capacity(nodes.len());
     while let Some(i) = ready.pop_front() {
         order.push(i);
-        for target in nodes[i].targets() {
-            if let Some(j) = index_of(target) {
-                fed_by[j] -= 1;
-                if fed_by[j] == 0 {
-                    ready.push_back(j);
+        for &(from, to) in &edges {
+            if from == i {
+                fed_by[to] -= 1;
+                if fed_by[to] == 0 {
+                    ready.push_back(to);
                 }
             }
         }
@@ -595,6 +659,11 @@ impl AudioBus<'_> {
             .bus()
             .into_iter()
             .chain(self.sends.iter().map(|send| send.to))
+    }
+
+    /// Every lane keying an insert on this lane, in insert order.
+    pub fn keys(&self) -> impl Iterator<Item = TrackId> + '_ {
+        self.inserts.iter().filter_map(|fx| fx.sidechain)
     }
 }
 

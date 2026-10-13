@@ -212,6 +212,11 @@ pub struct Clip {
     /// unchanged.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub effects: Vec<EffectInstance>,
+    /// Audio insert chain: effects run over the clip's own sound, in order,
+    /// before its volume, fades and pan. Keyframes are clip-relative ticks.
+    /// Meaningful on clips with sound; absent from saves while empty.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub audio_effects: Vec<crate::audio_effects::AudioEffectInstance>,
     /// Detected beat positions (CapCut "Beat" markers, M8 Phase 6): source
     /// ticks at the media frame rate, sorted ascending. `DetectBeats` fills
     /// them from onset analysis; the timeline magnet snaps clip edges to them.
@@ -478,6 +483,7 @@ impl Clip {
             flip_h: false,
             flip_v: false,
             effects: Vec::new(),
+            audio_effects: Vec::new(),
             beats: Vec::new(),
             mask: None,
             chroma_key: None,

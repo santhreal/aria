@@ -189,6 +189,10 @@ pub struct AppState {
     /// the same reason as the two drags above: riding a fader is a draft until
     /// the release, so one gesture is one undo entry.
     pub fader_drag: Option<mixer::FaderDrag>,
+    /// The insert chain whose Add list is open, if any.
+    pub insert_picker: Option<aria_models::AudioInsertTarget>,
+    /// The insert whose parameters are open, and the chain it is in.
+    pub open_insert: Option<(aria_models::AudioInsertTarget, usize)>,
     /// The property the curve editor graphs, and which axis of it when the
     /// property has two. `None` graphs the first animatable property the
     /// selection offers, so the block is never empty while something is

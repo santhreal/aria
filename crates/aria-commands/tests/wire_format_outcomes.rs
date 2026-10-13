@@ -55,6 +55,7 @@ fn edit_outcome_wire_format() {
             EditOutcome::UpdatedAudioLayout,
             json!({"type": "UpdatedAudioLayout"}),
         ),
+        (EditOutcome::UpdatedMaster, json!({"type": "UpdatedMaster"})),
         (
             EditOutcome::CreatedBin(aria_models::BinId::from_raw(5)),
             json!({"type": "CreatedBin", "id": 5}),

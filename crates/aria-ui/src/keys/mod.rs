@@ -355,7 +355,8 @@ impl KeyHost {
     /// The binding for one keystroke, or nothing when the chord is unbound.
     ///
     /// Reads the effective chord, so a rebinding takes effect at the next
-    /// keystroke and a cleared binding answers nothing at all.
+    /// keystroke and a cleared binding answers nothing at all. The keystroke is
+    /// read through [`chord_key`], so Shift+6 reported as `^` finds Shift+6.
     pub fn resolve(
         &self,
         route: KeyRoute,
@@ -364,6 +365,7 @@ impl KeyHost {
         shift: bool,
         alt: bool,
     ) -> Option<Binding> {
+        let (key, shift) = chord_key(key, shift);
         let overrides = self.overrides.read();
         self.bindings
             .read()
@@ -384,6 +386,18 @@ impl KeyHost {
     /// Bindings that were refused, in the order they were refused.
     pub fn conflicts(&self) -> Vec<KeyConflict> {
         self.conflicts.read().clone()
+    }
+}
+
+/// A reported keystroke as a chord names it: `(key, shift)`.
+///
+/// A shifted symbol no binding can name, such as `^` from Shift+6 on Linux,
+/// reads as Shift and the key under it on a US layout. Any other keystroke is
+/// unchanged. Text input does not pass through here: a text box wants the `^`.
+pub fn chord_key(key: &str, shift: bool) -> (&str, bool) {
+    match vocabulary::unshifted(key) {
+        Some(base) => (base, true),
+        None => (key, shift),
     }
 }
 

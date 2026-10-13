@@ -244,7 +244,6 @@ impl AppState {
         else {
             return Vec::new();
         };
-        let rate = item.frame_rate;
         let container = std::path::Path::new(&*item.path)
             .extension()
             .and_then(|ext| ext.to_str())
@@ -258,19 +257,19 @@ impl AppState {
                 "Frame size",
                 format!("{}×{}", item.width, item.height).into(),
             ));
+            // An audio-only source is probed in millisecond ticks, which are
+            // not frames; only a picture has a frame rate to state.
+            let rate = item.frame_rate;
+            rows.push((
+                "Frame rate",
+                format!(
+                    "{:.3} fps",
+                    f64::from(rate.num) / f64::from(rate.den.max(1))
+                )
+                .into(),
+            ));
         }
-        rows.push((
-            "Frame rate",
-            format!(
-                "{:.3} fps",
-                f64::from(rate.num) / f64::from(rate.den.max(1))
-            )
-            .into(),
-        ));
-        rows.push((
-            "Duration",
-            crate::timecode::format_ticks(item.duration_ticks, rate.num, rate.den).into(),
-        ));
+        rows.push(("Duration", item.duration_label.clone()));
         if item.kind != crate::types::UiClipKind::Audio {
             rows.push((
                 "Video codec",
@@ -324,7 +323,7 @@ pub fn codec_label(codec: Option<&str>) -> String {
 /// decodes while every number above it still describes the original, so a row
 /// that did not name it would be a row where "1920×1080" and the picture on
 /// screen disagree about what is being played.
-pub fn media_caption(item: &crate::types::UiMediaItem, duration: &str) -> String {
+pub fn media_caption(item: &crate::types::UiMediaItem) -> String {
     use std::fmt::Write as _;
 
     if item.missing {
@@ -342,7 +341,7 @@ pub fn media_caption(item: &crate::types::UiMediaItem, duration: &str) -> String
         caption.push_str("  ·  ");
         caption.push_str(part);
     };
-    append(duration);
+    append(&item.duration_label);
 
     if audio_only {
         if let Some(codec) = item.audio_codec.as_deref() {

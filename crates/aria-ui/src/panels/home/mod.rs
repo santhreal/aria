@@ -1,9 +1,9 @@
 //! Home route: New, Open, Recents, Samples, Learn. Owns the window.
 //!
 //! The route is composed of domain-named children:
-//! - [`rail`]: The sidebar navigation rail, brand mark, and route switching.
-//! - [`panes`]: The individual route panes (New, Open, Recents, Samples, Learn) and recovery banner.
-//! - [`cards`]: The action hero tiles, recents grid, card animations, and interaction dispatch.
+//! - `rail`: The sidebar navigation rail, brand mark, and route switching.
+//! - `panes`: The individual route panes (New, Open, Recents, Samples, Learn) and recovery banner.
+//! - `cards`: The action hero tiles, recents grid, card animations, and interaction dispatch.
 //!
 //! The recents list itself is not Home's: it outlives the route, is seeded before
 //! any panel is drawn, and is written from the menu bar, so it lives in

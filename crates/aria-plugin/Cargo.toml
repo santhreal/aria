@@ -24,6 +24,8 @@ libloading = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3"
+# Writes the tones the audio effect tests mix, through the export's own sink.
+aria-encoder = { path = "../aria-encoder" }
 
 [lints]
 workspace = true

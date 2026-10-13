@@ -15,7 +15,7 @@ change.
 | Events | Every event in the chapter's table is dispatched (`docs/plugin-development.md#events`). `CommandApplied` holds the command, its `ApplyOutcome`, the engine revision, and the origin, with no undo step and no list of changed ids. `ResolveDroppedPath` claims paths, not URLs. |
 | Project access | `aria_plugin::ProjectHost`: immutable snapshots, single commands, named transactions that return each command's outcome, nested groups with savepoints, and undo, for native plugins. The selection, playhead, and In/Out are read from the `EditorView` service as of the last drawn frame, not from the snapshot. No query by time range or selection. |
 | UI contributions | Panels, overlays, commands, menus, keys, and settings exist through hosts in `crates/aria-ui/src/plugins/`, which requires linking `aria-ui`. |
-| External plugins | `cdylib` loaded from `<data dir>/plugins`, refused unless built by the same `rustc` and `aria-plugin` (`crates/aria-plugin/src/external.rs`, `ABI_VERSION = 6`). Libraries are never unloaded. No WASM tier, packages, permissions, activation events, or hot reload. |
+| External plugins | `cdylib` loaded from `<data dir>/plugins`, refused unless built by the same `rustc` and `aria-plugin` (`crates/aria-plugin/src/external.rs`, `ABI_VERSION = 7`). Libraries are never unloaded. No WASM tier, packages, permissions, activation events, or hot reload. |
 
 ## Layout ([layout.md](layout.md))
 
@@ -67,9 +67,14 @@ parenting, drivers, or presets.
 
 ## Audio ([audio.md](audio.md))
 
-Waveforms, clip volume, a mixer with faders, output routing, and sends,
-ducking, beat and silence detection, and RNNoise denoise exist. Audio effects
-are not a plugin contribution point.
+Waveforms, clip volume, a mixer with faders and peak meters, output routing,
+sends, ducking, beat and silence detection, and the shipped audio effects
+exist. Insert chains sit on clips (the inspector's Audio block), lanes, and the
+master (the mixer's strips); a plugin adds an audio effect with
+`PluginContext::register_audio_effect` (`crates/aria-render/src/audio_processor.rs`).
+Every processor is stereo in and stereo out, with no declared channel layout.
+Mixer strips have no pan, mute, or solo controls and no fader automation modes.
+Analyzers are jobs, not a contribution point.
 
 ## Panels ([panels.md](panels.md))
 

@@ -46,6 +46,7 @@ impl Made {
             | EditOutcome::UpdatedCanvas
             | EditOutcome::UpdatedSequenceRate
             | EditOutcome::UpdatedAudioLayout
+            | EditOutcome::UpdatedMaster
             | EditOutcome::UpdatedProject
             | EditOutcome::CreatedBin(_)
             | EditOutcome::UpdatedPool
