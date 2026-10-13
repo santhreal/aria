@@ -10,6 +10,7 @@ use rustc_hash::FxHashMap;
 use crate::editor_events::{PluginActivated, PluginDeactivated};
 use crate::error::PluginError;
 use crate::events::EventBus;
+use crate::interchange::Interchange;
 use crate::plugin::{Plugin, PluginManifest};
 use crate::registration::Registration;
 
@@ -43,6 +44,8 @@ struct Shared {
     denials: RwLock<Vec<CapabilityDenial>>,
     /// The latest recovered fault of each mounted plugin.
     faults: RwLock<Vec<PluginFault>>,
+    /// The importers and exporters plugins registered.
+    interchange: Arc<Interchange>,
 }
 
 /// A service a plugin asked for and was refused, because its manifest does not
@@ -137,6 +140,7 @@ impl PluginContext {
                 failures: RwLock::new(Vec::new()),
                 denials: RwLock::new(Vec::new()),
                 faults: RwLock::new(Vec::new()),
+                interchange: Arc::default(),
             }),
             scope: None,
         }
@@ -153,6 +157,16 @@ impl PluginContext {
             shared: Arc::clone(&self.shared),
             scope: Some((plugin, uses)),
         }
+    }
+
+    /// The plugin this view belongs to, or `None` on the host's context.
+    pub(crate) fn plugin_scope(&self) -> Option<&'static str> {
+        self.scope.map(|(id, _)| id)
+    }
+
+    /// The importers and exporters registered on this context.
+    pub(crate) fn interchange(&self) -> &Arc<Interchange> {
+        &self.shared.interchange
     }
 
     /// Services a plugin asked for and did not declare, in ask order.
@@ -263,7 +277,7 @@ impl PluginContext {
     /// context weakly: the processor registry is process-wide, and a strong
     /// hold would keep a dropped context's plugins registered.
     fn fault_sink(&self) -> aria_render::FaultSink {
-        let plugin = self.scope.map(|(id, _)| id);
+        let plugin = self.plugin_scope();
         let shared = Arc::downgrade(&self.shared);
         Arc::new(move |fault: &aria_render::ProcessorFault| {
             let Some(shared) = shared.upgrade() else {
@@ -300,7 +314,7 @@ impl PluginContext {
         })
     }
 
-    fn retain_if_mounting(&self, registration: Registration) -> Registration {
+    pub(crate) fn retain_if_mounting(&self, registration: Registration) -> Registration {
         let mut pending = self.shared.pending.lock();
         if let Some(list) = pending.as_mut() {
             list.push(registration);

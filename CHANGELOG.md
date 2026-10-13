@@ -21,6 +21,7 @@ Notes for the latest release. For previous releases, see the
 - Plugins render frames through `RenderHost`: the open sequence, any sequence, or one clip, at canvas, fitted, or exact size, as an image, per tick of a range, or into a GPU texture; external plugins must be rebuilt for loader version 6.
 - Clips, lanes, and the master carry audio effect chains, edited in the inspector's Audio tab and the mixer's Inserts rows, with fourteen shipped effects, keyframed parameters, sidechain keys, and latency compensation in preview and export.
 - Plugins add audio effects with `register_audio_effect` and mix project sound through `AudioHost`; a processor that panics or misses three playback deadlines is bypassed, and external plugins must be rebuilt for loader version 7.
+- Plugins add timeline importers and exporters with `register_importer` and `register_exporter`; an import is one undo step, an export never leaves a partial destination, and external plugins must be rebuilt for loader version 8.
 - The engine, project host, and jobs services registered by a session started without the engine plugin stay registered for the session instead of being dropped at once.
 - Render and replace no longer hangs the editor when it swaps the rendered file in.
 - Every button, icon, card, and menu row dims while pressed, so clicks read on every control.

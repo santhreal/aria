@@ -325,6 +325,115 @@ Registration returns `PluginError::AudioEffectRefused(message)` when:
   its range;
 - the latency exceeds `MAX_AUDIO_LATENCY`.
 
+## Importers and exporters
+
+A plugin adds a timeline interchange format with an importer, an exporter, or
+both. An importer reads a file into the open project through a
+[`Transaction`](#project); an exporter writes the open timeline.
+
+```rust
+use std::io::Write;
+use std::path::Path;
+
+use aria_models::TrackKind;
+use aria_plugin::{
+    Command, EditCommand, Exporter, ExporterSpec, Importer, ImporterSpec,
+    InterchangeReport, Project, TransactError, Transaction,
+};
+
+struct LaneList;
+
+impl Importer for LaneList {
+    fn import(
+        &self,
+        file: &Path,
+        tx: &mut Transaction<'_>,
+    ) -> Result<InterchangeReport, TransactError> {
+        let text = std::fs::read_to_string(file)
+            .map_err(|err| TransactError::Aborted(err.to_string()))?;
+        for name in text.lines() {
+            tx.apply(Command::Edit(EditCommand::AddTrack {
+                kind: TrackKind::Video,
+                name: name.to_owned(),
+                index: None,
+                pinned: true,
+            }))?;
+        }
+        Ok(InterchangeReport::default())
+    }
+}
+
+impl Exporter for LaneList {
+    fn export(
+        &self,
+        project: &Project,
+        out: &mut dyn Write,
+    ) -> std::io::Result<InterchangeReport> {
+        for track in project.timeline().tracks_ordered() {
+            writeln!(out, "{}", track.name)?;
+        }
+        Ok(InterchangeReport::default())
+    }
+}
+
+fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
+    ctx.register_importer(
+        ImporterSpec {
+            id: "example.lanes".into(),
+            name: "Lane list".into(),
+            extensions: vec!["lanes".into()],
+        },
+        LaneList,
+    )?;
+    ctx.register_exporter(
+        ExporterSpec {
+            id: "example.lanes".into(),
+            name: "Lane list".into(),
+            extension: "lanes".into(),
+        },
+        LaneList,
+    )?;
+    Ok(())
+}
+```
+
+Both returned `Registration`s are held on the terms of `register_effect`.
+
+| Call | Result |
+| --- | --- |
+| `ctx.importers()`, `ctx.exporters()` | Every registered spec, in registration order |
+| `ctx.importer_for(path)` | The importer for the extension of `path` |
+| `ctx.import_file(&host, path)` | Runs that importer and returns its report and the transaction's `Receipt` |
+| `ctx.export_file(id, &project, path)` | Runs the exporter registered as `id` and returns its report |
+
+Extensions match without regard to case and are stored lowercase. When two
+importers list one extension, the one registered first reads it. Built-in
+plugins mount before external ones.
+
+An import is one transaction named `Import <file name>`, or
+`<plugin id>: Import <file name>` for a plugin's importer: one undo step. When
+the importer returns an error or panics, nothing of the import remains and
+`import_file` returns `InterchangeError::Import`.
+
+An export writes to `.<file name>.partial` beside the destination, syncs it,
+and renames it over the destination after the exporter returns. When the
+exporter returns an error or panics, the destination is unchanged, the partial
+file is removed, and `export_file` returns `InterchangeError::Export` or
+`InterchangeError::ExportPanicked`. An exporter refuses a timeline its format
+cannot hold with `std::io::Error::other(reason)`.
+
+`InterchangeReport::skipped` lists, one line each, what the file held or the
+project holds that the format could not carry.
+
+A panic in `import` or `export` fails the plugin for the session.
+
+Registration returns `PluginError::InterchangeRefused(message)` when:
+
+- the id is empty, or another importer or exporter holds it;
+- an importer lists no extension;
+- an extension is empty or holds anything but ASCII letters and digits,
+  such as a leading dot.
+
 ## Events
 
 `ctx.events()` is an `EventBus`. It dispatches three kinds of event:

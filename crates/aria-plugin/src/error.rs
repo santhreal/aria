@@ -24,4 +24,8 @@ pub enum PluginError {
     /// spec, or a processor is already registered under its id.
     #[error("audio effect refused: {0}")]
     AudioEffectRefused(String),
+    /// An importer or exporter the host did not register: its id is empty or
+    /// taken, or an extension is malformed.
+    #[error("importer or exporter refused: {0}")]
+    InterchangeRefused(String),
 }

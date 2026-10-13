@@ -13,6 +13,7 @@ mod error;
 mod events;
 pub mod external;
 mod hooks;
+mod interchange;
 mod order;
 mod plugin;
 mod project_host;
@@ -36,6 +37,9 @@ pub use editor_events::{
 pub use error::PluginError;
 pub use events::{Event, EventBus, SerialEvent, WaterfallEvent, WaterfallResult};
 pub use hooks::{CommandProposed, DropAction, ResolveDroppedPath};
+pub use interchange::{
+    Exporter, ExporterSpec, Importer, ImporterSpec, InterchangeError, InterchangeReport,
+};
 pub use order::load_order;
 pub use plugin::{Plugin, PluginManifest};
 pub use project_host::{
