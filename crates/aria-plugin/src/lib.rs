@@ -39,9 +39,8 @@ pub use order::load_order;
 pub use plugin::{Plugin, PluginManifest};
 pub use registration::Registration;
 pub use service::{
-    DecoderService, EffectService, EncoderService, GeneratorService, PanelLocation,
-    RenderInterceptorService, Service, SettingsService, StorageService, TransitionService,
-    UiPanelService,
+    DecoderService, EffectService, EncoderService, PanelLocation, RenderInterceptorService,
+    Service, SettingsService, StorageService, TransitionService, UiPanelService,
 };
 pub use settings_schema::{SettingSpec, SettingsSchema, SettingsSection};
 

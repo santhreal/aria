@@ -75,6 +75,7 @@ fn effect(id: &str, params: Vec<EffectParamSpec>, passes: &[&str]) -> PassRegist
             id: id.into(),
             label: format!("{id} label"),
             params,
+            generator: false,
         },
         passes: passes.iter().map(|pass| (*pass).to_owned()).collect(),
     })
@@ -333,6 +334,7 @@ fn a_refused_duplicate_leaves_the_first_registration_drawing() {
             id: "test.gpu.duplicate".into(),
             label: "Again".into(),
             params: Vec::new(),
+            generator: false,
         },
         passes: vec!["@fragment
 fn fs(in: VsOut) -> @location(0) vec4<f32> {

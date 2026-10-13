@@ -38,6 +38,13 @@ fn payloads() -> Vec<CatalogDrag> {
             id: aria_models::shipped_transition_catalog()[0].id.clone().into(),
             label: "transition".into(),
         },
+        // Only plugins register generators, and a lib test may not register, so
+        // this id resolves to nothing; the landing is in `tests/registered_catalog.rs`.
+        CatalogDrag {
+            kind: CatalogDragKind::Generator,
+            id: "test.unregistered_generator".into(),
+            label: "generator".into(),
+        },
     ]
 }
 
@@ -124,6 +131,33 @@ fn a_sticker_dropped_on_a_lane_that_cannot_hold_it_still_lands_at_that_tick() {
 }
 
 #[test]
+fn a_generator_drop_with_no_generator_behind_the_id_is_refused_and_places_nothing() {
+    // An id nothing registers, and a shipped effect that changes its input
+    // rather than drawing a picture of its own.
+    let ids = [
+        "test.unregistered_generator".to_owned(),
+        aria_models::shipped_effect_catalog()[0].id.clone(),
+    ];
+    for id in ids {
+        let (mut state, _) = with_clip();
+        let before = clip_count(&state);
+        let drag = CatalogDrag {
+            kind: CatalogDragKind::Generator,
+            id: id.clone().into(),
+            label: "generator".into(),
+        };
+        let err = state
+            .drop_catalog_on_track(&drag, None, 1_000)
+            .expect_err("no generator renders this id");
+        assert!(
+            err.to_string().contains(&format!("no generator `{id}`")),
+            "{id}: {err}"
+        );
+        assert_eq!(clip_count(&state), before, "{id} placed a clip");
+    }
+}
+
+#[test]
 fn every_clip_payload_lands_on_the_dropped_clip_and_selects_it() {
     for drag in payloads().into_iter().filter(CatalogDrag::targets_a_clip) {
         let (mut state, _) = with_clip();
@@ -168,7 +202,7 @@ fn every_clip_payload_lands_on_the_dropped_clip_and_selects_it() {
                     );
                 }
             }
-            CatalogDragKind::Sticker => unreachable!("filtered out"),
+            CatalogDragKind::Sticker | CatalogDragKind::Generator => unreachable!("filtered out"),
         }
     }
 }

@@ -9,8 +9,6 @@ use std::sync::Arc;
 
 use aria_plugin::{MountFailure, Plugin, PluginContext};
 
-const GENERATOR_KINDS: &[&str] = &["text", "shape", "solid"];
-
 /// File types the decoder plugin claims when they are dropped. Reuses the
 /// importer's list rather than keeping a second one, so a format the picker
 /// offers and a format a drop accepts can never disagree.
@@ -44,8 +42,6 @@ pub fn builtin(data_dir: &Path) -> Vec<Box<dyn Plugin>> {
         Box::new(DecoderPlugin),
         Box::new(EncoderPlugin),
         Box::new(CompositorPlugin),
-        Box::new(TextPlugin),
-        Box::new(ShapePlugin),
         Box::new(RenderPlugin),
         // After `aria.render`, which registers the device they render on.
         Box::new(EffectPlugin),
@@ -145,7 +141,7 @@ mod services;
 mod ui;
 
 pub use engine::{EnginePlugin, RenderPlugin};
-pub use gpu::{CompositorPlugin, EffectPlugin, ShapePlugin, TextPlugin, TransitionPlugin};
+pub use gpu::{CompositorPlugin, EffectPlugin, TransitionPlugin};
 pub use host::{SettingsPlugin, StoragePlugin};
 pub use media::{DecoderPlugin, EncoderPlugin};
 pub use services::{

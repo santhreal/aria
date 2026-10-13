@@ -63,12 +63,6 @@ pub trait TransitionService: Service {
     ) -> Result<RgbaImage, RenderError>;
 }
 
-/// Content generators: text, shapes, stickers, solids.
-pub trait GeneratorService: Service {
-    fn generator_kinds(&self) -> &[&str];
-    fn render(&self, kind: &str, params: &[(String, String)]) -> Result<RgbaImage, RenderError>;
-}
-
 // Command interception is an event, not a service: the registry holds one value
 // per type, so a service could only ever have one interceptor. See
 // `hooks::CommandProposed`.

@@ -65,6 +65,51 @@ impl AppState {
         track: Option<TrackId>,
         at: i64,
     ) -> Result<(), EngineError> {
+        self.place_generated(generator, track, at).map(|_| ())
+    }
+
+    /// Place the plugin generator `effect_id` at the playhead.
+    pub fn add_effect_generator(&mut self, effect_id: &str) -> Result<(), EngineError> {
+        self.drop_effect_generator_on_timeline(effect_id, None, self.playhead.value.max(0))
+    }
+
+    /// Place the plugin generator `effect_id` on `track` at `at`: a transparent
+    /// solid named after the effect, with the effect first in its chain, as one
+    /// undo step. Refused when no registered effect with that id is a
+    /// generator.
+    pub fn drop_effect_generator_on_timeline(
+        &mut self,
+        effect_id: &str,
+        track: Option<TrackId>,
+        at: i64,
+    ) -> Result<(), EngineError> {
+        let spec = aria_models::effect_spec(effect_id)
+            .filter(|spec| spec.generator)
+            .ok_or_else(|| {
+                aria_models::ModelError::InvalidParam(format!("no generator `{effect_id}`"))
+            })?;
+        self.one_step(|state| {
+            let clip = state.place_generated(Generator::SolidColor { rgba: [0; 4] }, track, at)?;
+            state.apply_command(Command::Edit(EditCommand::AddEffect {
+                clip,
+                effect_id: spec.id.clone(),
+            }))?;
+            state.apply_command(Command::Edit(EditCommand::SetClipName {
+                clip,
+                name: Some(spec.label.clone()),
+            }))?;
+            Ok(())
+        })
+    }
+
+    /// Place `generator` on `track`, or on the first lane of its kind, at `at`,
+    /// and return the new clip.
+    fn place_generated(
+        &mut self,
+        generator: Generator,
+        track: Option<TrackId>,
+        at: i64,
+    ) -> Result<aria_models::ClipId, EngineError> {
         // The generator's own row names the one lane that accepts it. A match
         // here defaulted every non-title generator to the sticker lane, so a new
         // generator landed there whatever its row said.
@@ -82,12 +127,16 @@ impl AppState {
         };
         let rate = self.playhead.rate;
         let duration = (5 * i64::from(rate.num.max(1))) / i64::from(rate.den.max(1));
-        self.apply_command(Command::Edit(EditCommand::AddGenerated {
+        match self.apply_command(Command::Edit(EditCommand::AddGenerated {
             track,
             generator,
             timeline: TimeRange::at_rate(at.max(0), duration.max(1), rate),
-        }))?;
-        Ok(())
+        }))? {
+            ApplyOutcome::Edited(aria_commands::EditOutcome::Created(clip)) => Ok(clip),
+            other => Err(EngineError::Refused(format!(
+                "placing a generated clip produced {other:?}, not a clip"
+            ))),
+        }
     }
 
     pub(super) fn place_chain(

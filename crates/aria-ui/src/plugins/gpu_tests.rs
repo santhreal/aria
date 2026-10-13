@@ -20,11 +20,9 @@ fn solid(rgba: [u8; 4]) -> RgbaImage {
 /// them, or `None` on a host with no GPU.
 fn mounted() -> Option<PluginContext> {
     let ctx = PluginContext::new();
-    let plugins: [&dyn Plugin; 7] = [
+    let plugins: [&dyn Plugin; 5] = [
         &crate::plugins::DecoderPlugin,
         &CompositorPlugin,
-        &TextPlugin,
-        &ShapePlugin,
         &crate::plugins::RenderPlugin,
         &EffectPlugin,
         &TransitionPlugin,

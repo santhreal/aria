@@ -17,6 +17,7 @@ Notes for the latest release. For previous releases, see the
 - Plugins read the selection, playhead, In/Out, and transport through the `EditorView` service.
 - Plugins add rows to every context menu through `ContextMenuRequested`; a clicked row runs off the UI thread.
 - Plugins register effects and transitions written in WGSL, which render on clips, in previews, and in exports like shipped ones, and `render_effect` and `render_transition` now draw images; external plugins must be rebuilt for loader version 4.
+- Plugins add generators, effects marked `generator: true` that the Generators tab and the palette place as clips in one undo step; external plugins must be rebuilt for loader version 5.
 - The engine, project host, and jobs services registered by a session started without the engine plugin stay registered for the session instead of being dropped at once.
 - Render and replace no longer hangs the editor when it swaps the rendered file in.
 - Every button, icon, card, and menu row dims while pressed, so clicks read on every control.
@@ -1188,6 +1189,8 @@ Notes for the latest release. For previous releases, see the
   originals, as it already did.
 
 ### Changed
+
+- The `GeneratorService` trait and the `aria.text` and `aria.shapes` plugins that registered it are deleted; text and shape clips render as before, and startup no longer builds a text renderer that nothing read.
 
 - **GPUI builds from santh-gpui, the framework shared with iris and Veyyon.**
   The vendored copy of the `wingleeio/zed` fork is deleted, and building from

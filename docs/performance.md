@@ -105,8 +105,10 @@ is microseconds because the engine is mounted, not built here; the mount is the
 start.
 
 The test prints the dearest mounts, which is what makes the number actionable:
-`aria.render` 176 ms (bringing up the GPU device), `aria.engine` 30 ms (the
-pipelines built on it), `aria.text` 14 ms, and nothing else above a millisecond.
+`aria.render` (bringing up the GPU device), `aria.engine` (the pipelines built on
+it, and the first parse of the installed fonts), and nothing else above a few
+milliseconds. On `santhserver` (RTX 3080 Ti) a cold mount spends 112–126 ms in
+`aria.render`, 114–119 ms in `aria.engine`, and about 2 ms in `aria.storage`.
 Every plugin's own mount cost is also in Settings, next to the plugin.
 
 Before this breakdown the process created three GPU devices (one in the

@@ -76,9 +76,8 @@ Service traits in `aria_plugin::service`:
 | --- | --- |
 | `DecoderService` | Open a `VideoDecoder` for a path |
 | `EncoderService` | Create a `VideoEncoder` from `EncoderConfig` |
-| `EffectService` | Effect catalog. `render_effect` returns an error: effects render only through the compositor's static pass table |
-| `TransitionService` | Transition catalog. `render_transition` returns an error, as above |
-| `GeneratorService` | Text, shapes, solids. No caller reads it |
+| `EffectService` | Effect catalog. `render_effect` draws one catalog effect over an image on the GPU; see [Effects and transitions](#effects-and-transitions) |
+| `TransitionService` | Transition catalog. `render_transition` blends two images of one size at a progress in 0..1 |
 | `RenderInterceptorService` | Registered with a pass-through value. No caller reads it |
 | `StorageService` | Cache and project directories |
 | `SettingsService` | `~/.aria/config.toml` get / set / save |
@@ -86,6 +85,131 @@ Service traits in `aria_plugin::service`:
 
 A service holds one value per type. Anything several plugins must see in order is
 an event instead.
+
+## Effects and transitions
+
+A plugin adds an effect or a transition by supplying a catalog spec and WGSL.
+The compositor draws it like a shipped one: on clips, in the effect rack, in
+the browser and the palette, in previews and in exports.
+
+```rust
+use aria_plugin::{EffectDefinition, EffectParamKind, EffectParamSpec, EffectSpec};
+
+const TINT: &str = "@fragment
+fn fs(in: VsOut) -> @location(0) vec4<f32> {
+    let px = textureSample(input_tex, aria_sampler, in.uv);
+    let wave = 0.5 + 0.5 * sin(aria.time * param_speed());
+    return vec4<f32>(mix(px.rgb, param_tint().rgb * px.a, wave), px.a);
+}";
+
+fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
+    ctx.register_effect(EffectDefinition {
+        spec: EffectSpec {
+            id: "example.pulse_tint".into(),
+            label: "Pulse Tint".into(),
+            params: vec![
+                EffectParamSpec {
+                    name: "speed".into(),
+                    label: "Speed".into(),
+                    kind: EffectParamKind::Scalar,
+                    default: 2.0,
+                    min: 0.0,
+                    max: 20.0,
+                    default_color: [0; 4],
+                    default_vec2: [0.0; 2],
+                },
+                EffectParamSpec {
+                    name: "tint".into(),
+                    label: "Tint".into(),
+                    kind: EffectParamKind::Color,
+                    default: 0.0,
+                    min: 0.0,
+                    max: 0.0,
+                    default_color: [255, 120, 0, 255],
+                    default_vec2: [0.0; 2],
+                },
+            ],
+            generator: false,
+        },
+        passes: vec![TINT.into()],
+    })?;
+    Ok(())
+}
+```
+
+`register_effect` and `register_transition` return a `Registration`. During
+`mount` the context keeps it: the entry stays until the plugin unmounts, and a
+failed mount removes it. Outside a mount the caller keeps it, and dropping it
+removes the entry. Clips that use a removed effect draw their input unchanged;
+a removed transition draws a crossfade.
+
+### Generators
+
+An effect whose spec sets `generator: true` draws a picture of its own. The
+sidebar's Generators tab and the command palette list it. Picking it places a
+clip at the playhead; dragging it from the sidebar places the clip on the lane
+and at the time it lands on. The clip is a transparent solid the size of the
+frame, named after the effect, with the effect first in its chain. Placing it
+is one undo step.
+
+The generator's `input_tex` holds the transparent solid, so `fs` draws from
+`aria.size`, `aria.time`, `in.uv`, and its parameters. The clip's transform,
+opacity, mask, blend mode, and the effects after the generator apply to the
+generated picture as to any layer. The effect lists also offer a generator, and
+on another clip it draws over that clip's picture.
+
+A clip whose generator is no longer registered keeps the effect and its
+parameters and draws nothing.
+
+### Shader source
+
+Each pass is the plugin's WGSL followed by a host prelude. The prelude declares
+`struct VsOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32> }`
+and the vertex stage `vs`. The plugin writes `@fragment fn fs` returning
+`@location(0) vec4<f32>`, and declares no bindings of its own. Line numbers in
+a refusal are lines of the plugin's source.
+
+Textures hold premultiplied RGBA, and `fs` returns premultiplied RGBA.
+
+Effect bindings, group 0:
+
+| Binding | Name | Content |
+| --- | --- | --- |
+| 0 | `input_tex` | The previous pass's output, or the effect's input for pass 0 |
+| 1 | `source_tex` | The effect's input |
+| 2 | `aria_sampler` | Linear sampler, clamped to edge |
+| 3 | `aria` | Uniform `AriaPass` |
+
+`AriaPass` fields: `size` (output size in pixels), `texel` (`1 / size`), `time`
+(seconds since the clip started), `pass_index`, `pass_count`, and `params`.
+
+Each parameter gets an accessor `param_<name>()`: `f32` for a scalar,
+`vec2<f32>` for a vec2, `vec4<f32>` RGBA in 0..1 for a colour. Parameters are
+keyframeable like those of shipped effects.
+
+Transition bindings, group 0: `outgoing_tex` (0), `incoming_tex` (1),
+`aria_sampler` (2), and the uniform `aria: AriaTransition` (3), whose fields
+are `size`, `texel`, and `progress` in 0..1. A transition takes no parameters.
+
+### Limits and refusals
+
+Registration parses and validates every pass with naga and returns
+`PluginError::RegisterRefused(RegisterError)` when:
+
+- the id has no `.` namespace, or is already in the catalog;
+- the label is empty, a parameter name repeats or is not a WGSL identifier, or
+  a range is inverted;
+- an effect has no passes, or more than `MAX_EFFECT_PASSES` (8);
+- the parameters flatten to more than `MAX_EFFECT_FLOATS` (256) floats: 1 per
+  scalar, 2 per vec2, 4 per colour;
+- the WGSL does not parse or validate, has no `fs` fragment entry point, or
+  declares a binding.
+
+`RegisterError` holds the `id`, the `pass` index, the `location` as
+`(line, column)` in the pass source, and the `message`.
+
+A device that rejects a validated pipeline logs the error once; the effect
+then draws its input unchanged.
 
 ## Events
 
@@ -535,9 +659,9 @@ registry, and it mounts before every plugin but `aria.storage`.
 `aria_ui::plugins::builtin(data_dir)` is the built-in list, in mount order:
 
 `aria.storage`, `aria.settings`, `aria.decoder`, `aria.encoder`,
-`aria.compositor`, `aria.effects`, `aria.transitions`, `aria.text`,
-`aria.shapes`, `aria.render`, `aria.engine`, `aria.cloud`,
-`aria.analysis`, `aria.jobs`, `aria.transcription`, `aria.ai`, `aria.ui`.
+`aria.compositor`, `aria.render`, `aria.effects`, `aria.transitions`,
+`aria.engine`, `aria.cloud`, `aria.analysis`, `aria.jobs`,
+`aria.transcription`, `aria.ai`, `aria.ui`.
 
 `mount_all` mounts every one of them and returns the failures instead of stopping
 at the first, so a host without a GPU still starts. `builtin_by_id` returns one

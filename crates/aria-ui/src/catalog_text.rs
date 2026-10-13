@@ -6,9 +6,10 @@
 //! filter list alone is a dozen, and gpui takes a `SharedString` to draw text.
 //!
 //! These are the same rows with their text shared. A catalog read once from a
-//! data file is shared for the life of the process. The transition catalog also
-//! lists what plugins register, so its share is rebuilt when the catalog's
-//! revision moves and handed out as a refcount until it moves again.
+//! data file is shared for the life of the process. The transition and
+//! generator catalogs also list what plugins register, so their shares are
+//! rebuilt when the catalog's revision moves and handed out as a refcount until
+//! it moves again.
 
 use std::sync::{Arc, LazyLock};
 
@@ -81,6 +82,21 @@ pub fn transitions() -> Arc<[Choice]> {
     let catalog = aria_models::transition_catalog();
     ROWS.at(catalog.revision(), || {
         shared(&catalog, |spec| &spec.id, |spec| &spec.label)
+    })
+}
+
+/// The effects that draw a picture of their own, for the sidebar's Generators
+/// grid. Plugins register generators, so the share follows the effect
+/// catalog's revision.
+pub fn generators() -> Arc<[Choice]> {
+    static ROWS: Revisioned = Revisioned::new();
+    let catalog = aria_models::effect_catalog();
+    ROWS.at(catalog.revision(), || {
+        shared(
+            catalog.iter().filter(|spec| spec.generator),
+            |spec| &spec.id,
+            |spec| &spec.label,
+        )
     })
 }
 
@@ -172,6 +188,16 @@ mod tests {
                 ids(&aria_models::transition_catalog(), |spec| &spec.id),
             ),
             (
+                "generators",
+                rows(super::generators()),
+                ids(
+                    aria_models::effect_catalog()
+                        .iter()
+                        .filter(|spec| spec.generator),
+                    |spec| &spec.id,
+                ),
+            ),
+            (
                 "text_effects",
                 rows(super::text_effects()),
                 ids(aria_models::text_effect_catalog(), |spec| &spec.id),
@@ -197,8 +223,8 @@ mod tests {
     /// **A new accessor is covered before it ships.**
     ///
     /// The accessor list is read out of this file rather than kept by hand, so
-    /// sharing a seventh catalog is red until it is paired with the catalog it
-    /// shares. Without this, the rules below would silently keep testing six.
+    /// sharing another catalog is red until it is paired with the catalog it
+    /// shares. Without this, the rules below would silently keep testing the old set.
     #[test]
     fn every_accessor_this_module_offers_is_covered() {
         let source = include_str!("catalog_text.rs");
@@ -218,13 +244,21 @@ mod tests {
         );
     }
 
+    /// Accessors whose catalog holds only what plugins register. No shipped
+    /// generator exists and these tests register none, so the share is empty
+    /// here; `tests/registered_catalog.rs` checks it with a generator in it.
+    const REGISTERED_ONLY: &[&str] = &["generators"];
+
     /// The cache is the catalog, row for row and in order. A cache that dropped
     /// or reordered a row would hide a shipped filter behind a chip that sends
     /// the wrong id.
     #[test]
     fn every_catalog_row_is_offered_in_the_catalogs_own_order() {
         for (name, offered, ids) in covered() {
-            assert!(!ids.is_empty(), "the catalog behind {name} is empty");
+            assert!(
+                REGISTERED_ONLY.contains(&name) || !ids.is_empty(),
+                "the catalog behind {name} is empty"
+            );
             assert_eq!(
                 offered
                     .iter()

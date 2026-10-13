@@ -3,8 +3,9 @@
 //!
 //! Closes the class "a registered pass compiles but the frame path drops what
 //! it needs": the parameter value, the clip-relative time, and the transition
-//! progress each reach the shader, and a dropped registration falls back to
-//! the documented passthrough and crossfade. Does not cover device-specific
+//! progress each reach the shader, a generator draws over the transparent
+//! solid that carries it, and a dropped registration falls back to the
+//! documented passthrough and crossfade. Does not cover device-specific
 //! pipeline refusals, which `aria-compositor`'s tests exercise.
 //!
 //! A separate test binary, so the registrations never reach a test that reads
@@ -60,6 +61,7 @@ fn register_time_gain(id: &str) -> PassRegistration {
                 default_color: [0; 4],
                 default_vec2: [0.0; 2],
             }],
+            generator: false,
         },
         passes: vec![TIME_GAIN_FS.into()],
     })
@@ -159,5 +161,49 @@ fn a_registered_transition_reads_its_progress() {
         image.pixel(960, 540),
         [0, 128, 128, 255],
         "a removed transition crossfades",
+    );
+}
+
+/// Green is the horizontal position in the frame.
+const RAMP_FS: &str = "@fragment
+fn fs(in: VsOut) -> @location(0) vec4<f32> {
+    return vec4<f32>(0.0, in.uv.x, 0.0, 1.0);
+}";
+
+/// A generator clip is a transparent solid carrying the effect: the effect
+/// draws over the whole frame, and with the registration dropped the clip
+/// draws nothing.
+#[test]
+fn a_generator_draws_over_the_transparent_solid_that_carries_it() {
+    let registration = aria_compositor::register_effect(EffectDefinition {
+        spec: EffectSpec {
+            id: "test.render.ramp".into(),
+            label: "Ramp".into(),
+            params: Vec::new(),
+            generator: true,
+        },
+        passes: vec![RAMP_FS.into()],
+    })
+    .expect("the generator registers");
+    let mut project = Project::new("p", FPS_24);
+    let track = project.add_track(TrackKind::Sticker, "S1");
+    let clip = solid(&mut project, track, [0, 0, 0, 0], 0, 24);
+    project
+        .add_effect(clip, "test.render.ramp")
+        .expect("a registered generator is in the catalog");
+
+    let Some(mut renderer) = renderer() else {
+        return;
+    };
+    let image = renderer.render_frame(&project, rt(12)).expect("render");
+    assert_near(image.pixel(960, 540), [0, 128, 0, 255], "the frame's centre");
+    assert_near(image.pixel(480, 540), [0, 64, 0, 255], "a quarter across");
+
+    drop(registration);
+    let image = renderer.render_frame(&project, rt(12)).expect("render");
+    assert_near(
+        image.pixel(960, 540),
+        [0, 0, 0, 255],
+        "a removed generator draws nothing",
     );
 }

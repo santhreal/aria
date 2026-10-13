@@ -275,6 +275,7 @@ fn effect_definition(id: &str, fs: &str) -> aria_compositor::EffectDefinition {
                 default_color: [0; 4],
                 default_vec2: [0.0; 2],
             }],
+            generator: false,
         },
         passes: vec![fs.into()],
     }

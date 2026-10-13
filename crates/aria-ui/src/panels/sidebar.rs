@@ -106,6 +106,27 @@ pub fn render(
                         cx,
                     )
                     .into_any_element(),
+                    SidebarTab::Generators => {
+                        let generators = crate::catalog_text::generators();
+                        if generators.is_empty() {
+                            div()
+                                .text_size(px(13.))
+                                .text_color(theme.text_faint)
+                                .child("No generators. Plugins add them.")
+                                .into_any_element()
+                        } else {
+                            catalog_grid(
+                                &theme,
+                                &generators,
+                                CatalogDragKind::Generator,
+                                "Click to place at the playhead, or drag onto a lane",
+                                |state, id| state.add_effect_generator(id),
+                                |_| false,
+                                cx,
+                            )
+                            .into_any_element()
+                        }
+                    }
                     SidebarTab::Animations => catalog_grid(
                         &theme,
                         crate::catalog_text::animations(),

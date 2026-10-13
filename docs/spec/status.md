@@ -9,13 +9,13 @@ change.
 | Area | Current build |
 | --- | --- |
 | Host | `aria_plugin::PluginContext`: a typed service registry (one value per type) and an event bus. Manifests are `&'static` Rust structs. |
-| Effects and transitions | `EffectService::render_effect` and `TransitionService::render_transition` return an error stating no compositor dispatch exists (`crates/aria-ui/src/plugins/gpu.rs`). The effect set is the static `EFFECTS` table in `crates/aria-compositor/src/passes.rs`, with ids as `&'static str` and parameters capped at 16 floats (`EFFECT_PARAM_FLOATS`). A plugin cannot add an effect. |
+| Effects and transitions | A plugin registers an effect or transition as a catalog spec plus WGSL fragment passes (`PluginContext::register_effect`, `register_transition`; `crates/aria-compositor/src/registered_passes.rs`). Parameters are scalar, vec2, and colour, and reach the shader through a uniform capped at 256 floats. An effect runs at most 8 passes, each reading the previous pass and the effect's input at the frame size. No compute passes, layer references, plugin textures, output sizes, bounds changes, CPU path, parameter groups, or transition parameters. The `stateful` flag and frame cache keys wait for a frame cache. `EffectService::render_effect` and `TransitionService::render_transition` render on the device registered by `aria.render` (`crates/aria-ui/src/plugins/gpu.rs`). |
 | Render interception | `RenderInterceptorService` is registered with a pass-through value and has no caller (`crates/aria-ui/src/plugins/engine.rs`). |
-| Generators | `GeneratorService` has no caller. |
+| Generators | A plugin generator is a registered effect whose spec sets `generator: true`. It is placed as a transparent solid clip with the effect first in its chain (`crates/aria-ui/src/app/media_import.rs`). A clip whose generator is no longer registered draws nothing rather than a slate, and shows no missing-plugin badge. |
 | Events | Every event in the chapter's table is dispatched (`docs/plugin-development.md#events`). `CommandApplied` holds the command, its `ApplyOutcome`, the engine revision, and the origin, with no undo step and no list of changed ids. `ResolveDroppedPath` claims paths, not URLs. |
 | Project access | `aria_plugin::ProjectHost`: immutable snapshots, single commands, named transactions that return each command's outcome, nested groups with savepoints, and undo, for native plugins. The selection, playhead, and In/Out are read from the `EditorView` service as of the last drawn frame, not from the snapshot. No query by time range or selection. |
 | UI contributions | Panels, overlays, commands, menus, keys, and settings exist through hosts in `crates/aria-ui/src/plugins/`, which requires linking `aria-ui`. |
-| External plugins | `cdylib` loaded from `<data dir>/plugins`, refused unless built by the same `rustc` and `aria-plugin` (`crates/aria-plugin/src/external.rs`, `ABI_VERSION = 3`). Libraries are never unloaded. No WASM tier, packages, permissions, activation events, or hot reload. |
+| External plugins | `cdylib` loaded from `<data dir>/plugins`, refused unless built by the same `rustc` and `aria-plugin` (`crates/aria-plugin/src/external.rs`, `ABI_VERSION = 5`). Libraries are never unloaded. No WASM tier, packages, permissions, activation events, or hot reload. |
 
 ## Layout ([layout.md](layout.md))
 

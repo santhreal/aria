@@ -1,5 +1,4 @@
-//! GPU work: the compositor, the effect and transition catalogs, and the
-//! text and shape generators.
+//! GPU work: the compositor, and the effect and transition catalogs.
 
 use std::sync::Arc;
 
@@ -9,15 +8,13 @@ use aria_compositor::{
 };
 use aria_core::RgbaImage;
 use aria_plugin::{
-    DropAction, EffectService, GeneratorService, Plugin, PluginContext, PluginError,
-    PluginManifest, ResolveDroppedPath, Service, TransitionService,
+    DropAction, EffectService, Plugin, PluginContext, PluginError, PluginManifest,
+    ResolveDroppedPath, Service, TransitionService,
 };
 use aria_render::RenderError;
-use aria_shapes::{SdfParams, ShapeStyle, raster};
-use aria_text::{TextRenderer, TextStyle};
 use parking_lot::Mutex;
 
-use super::{GENERATOR_KINDS, has_extension, register_dyn};
+use super::{has_extension, register_dyn};
 
 pub struct CompositorPlugin;
 
@@ -37,12 +34,12 @@ impl Plugin for CompositorPlugin {
     }
 
     fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
-        // The effect and transition catalogs, the text and shape generators: what
-        // this plugin registers is a description of what can be composited, not a
-        // device. `aria.render` brings the device up, once, and the engine renders
-        // on it. A second `GpuContext` and a second `Compositor` were built here
-        // and never read — 288 ms of a 583 ms start, and a whole driver instance
-        // and pipeline set held in video memory for the life of the process.
+        // The effect and transition catalogs: what this plugin registers is a
+        // description of what can be composited, not a device. `aria.render`
+        // brings the device up, once, and the engine renders on it. A second
+        // `GpuContext` and a second `Compositor` were built here and never read
+        // — 288 ms of a 583 ms start, and a whole driver instance and pipeline
+        // set held in video memory for the life of the process.
         ctx.register(CompositorHost);
         Ok(())
     }
@@ -193,104 +190,6 @@ impl Plugin for TransitionPlugin {
 
     fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
         register_dyn::<dyn TransitionService>(ctx, Arc::new(TransitionCatalog(OneShot::new(ctx))));
-        Ok(())
-    }
-}
-
-struct CombinedGenerators {
-    text: Mutex<TextRenderer>,
-}
-
-impl CombinedGenerators {
-    fn new() -> Self {
-        Self {
-            text: Mutex::new(TextRenderer::new()),
-        }
-    }
-}
-
-impl Service for CombinedGenerators {}
-
-impl GeneratorService for CombinedGenerators {
-    fn generator_kinds(&self) -> &[&str] {
-        GENERATOR_KINDS
-    }
-
-    fn render(&self, kind: &str, params: &[(String, String)]) -> Result<RgbaImage, RenderError> {
-        match kind {
-            "text" => {
-                let content = params
-                    .iter()
-                    .find(|(k, _)| k == "content")
-                    .map(|(_, v)| v.as_str())
-                    .unwrap_or("Aria");
-                let size = params
-                    .iter()
-                    .find(|(k, _)| k == "size")
-                    .and_then(|(_, v)| v.parse().ok())
-                    .unwrap_or(48.0);
-                let style = TextStyle::new(size);
-                Ok(self.text.lock().rasterize(content, &style))
-            }
-            "shape" => {
-                let half = 64.0;
-                let shape = SdfParams::RoundedRect { radius: 8.0 }.with_half([half, half]);
-                let style = ShapeStyle {
-                    fill: Some([255, 255, 255, 255]),
-                    stroke: None,
-                };
-                Ok(raster(&shape, &style))
-            }
-            "solid" => Ok(RgbaImage::transparent(8, 8)),
-            other => Err(RenderError::unsupported(format!(
-                "unknown generator '{other}'"
-            ))),
-        }
-    }
-}
-
-fn ensure_generators(ctx: &PluginContext) {
-    if ctx.has::<dyn GeneratorService>() {
-        return;
-    }
-    register_dyn::<dyn GeneratorService>(ctx, Arc::new(CombinedGenerators::new()));
-}
-
-pub struct TextPlugin;
-
-impl Plugin for TextPlugin {
-    fn manifest(&self) -> &PluginManifest {
-        &PluginManifest {
-            id: "aria.text",
-            name: "Text",
-            version: "0.1.0",
-            requires: &["aria.compositor"],
-            // Registers the combined generator catalog only if nothing did yet.
-            uses: &["GeneratorService"],
-        }
-    }
-
-    fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
-        ensure_generators(ctx);
-        Ok(())
-    }
-}
-
-pub struct ShapePlugin;
-
-impl Plugin for ShapePlugin {
-    fn manifest(&self) -> &PluginManifest {
-        &PluginManifest {
-            id: "aria.shapes",
-            name: "Shapes",
-            version: "0.1.0",
-            requires: &["aria.compositor"],
-            uses: &["GeneratorService"],
-        }
-    }
-
-    fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
-        ensure_generators(ctx);
         Ok(())
     }
 }

@@ -46,6 +46,7 @@ fn effect(id: &str, params: Vec<EffectParamSpec>) -> EffectSpec {
         id: id.into(),
         label: format!("{id} label"),
         params,
+        generator: false,
     }
 }
 
@@ -158,6 +159,7 @@ fn every_refusal_rule_rejects_and_leaves_the_catalog_unchanged() {
                 id: "test.unlabelled".into(),
                 label: String::new(),
                 params: Vec::new(),
+                generator: false,
             },
             "no label",
         ),

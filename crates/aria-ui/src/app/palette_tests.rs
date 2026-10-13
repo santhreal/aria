@@ -233,7 +233,10 @@ fn a_menu_row_reports_itself_back_for_the_context_to_run() {
         .enumerate()
         .find_map(|(at, offer)| match offer.action {
             Offered::Menu(menu, id) => Some((at, Pending::Menu(menu, id))),
-            Offered::Command(_) | Offered::Windowed(_) | Offered::Effect(_) => None,
+            Offered::Command(_)
+            | Offered::Windowed(_)
+            | Offered::Effect(_)
+            | Offered::Generator(_) => None,
         })
         .expect("a menu-only row is on offer");
     assert_eq!(

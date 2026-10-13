@@ -30,6 +30,7 @@ fn effect(id: &str, params: Vec<EffectParamSpec>) -> EffectSpec {
         id: id.into(),
         label: format!("{id} label"),
         params,
+        generator: false,
     }
 }
 

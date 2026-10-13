@@ -40,7 +40,7 @@ impl AppState {
                 None => Ok(()),
             },
             CatalogDragKind::Transition => self.set_selected_transition(&drag.id),
-            CatalogDragKind::Sticker => Ok(()),
+            CatalogDragKind::Sticker | CatalogDragKind::Generator => Ok(()),
         }
     }
 
@@ -55,9 +55,16 @@ impl AppState {
         track: Option<TrackId>,
         at: i64,
     ) -> Result<(), EngineError> {
-        if drag.targets_a_clip() {
-            return Ok(());
+        match drag.kind {
+            CatalogDragKind::Sticker => {
+                self.drop_generated_on_timeline(Generator::sticker(drag.id.as_str()), track, at)
+            }
+            CatalogDragKind::Generator => {
+                self.drop_effect_generator_on_timeline(&drag.id, track, at)
+            }
+            CatalogDragKind::Animation | CatalogDragKind::Mask | CatalogDragKind::Transition => {
+                Ok(())
+            }
         }
-        self.drop_generated_on_timeline(Generator::sticker(drag.id.as_str()), track, at)
     }
 }

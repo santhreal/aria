@@ -25,12 +25,7 @@ impl Plugin for RenderPlugin {
             id: "aria.render",
             name: "Render",
             version: "0.1.0",
-            requires: &[
-                "aria.decoder",
-                "aria.compositor",
-                "aria.text",
-                "aria.shapes",
-            ],
+            requires: &["aria.decoder", "aria.compositor"],
             uses: &[],
         }
     }

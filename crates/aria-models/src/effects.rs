@@ -66,6 +66,11 @@ pub struct EffectSpec {
     pub label: String,
     #[serde(default)]
     pub params: Vec<EffectParamSpec>,
+    /// Whether the effect draws a picture of its own rather than changing its
+    /// input. A generator is placed as a transparent solid clip that carries
+    /// it, like a generator layer.
+    #[serde(default)]
+    pub generator: bool,
 }
 
 impl EffectSpec {

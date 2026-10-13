@@ -43,6 +43,9 @@ pub enum Offered {
     /// Its own kind rather than a `Command`, because the row carries the id and
     /// a `fn` pointer cannot.
     Effect(SharedString),
+    /// A generator in the effect catalog, by its id: the row places it as a
+    /// clip at the playhead.
+    Generator(SharedString),
 }
 
 /// What the caller must still run, because it needs the entity context.
@@ -177,7 +180,11 @@ impl AppState {
                 id: id.clone(),
                 label: SharedString::from(label),
                 source: None,
-                action: Offered::Effect(id),
+                action: if spec.generator {
+                    Offered::Generator(id)
+                } else {
+                    Offered::Effect(id)
+                },
             });
         }
 
@@ -278,6 +285,12 @@ impl AppState {
             // reads the selection with.
             Offered::Effect(id) => {
                 if let Err(err) = self.add_effect_to_selected(id.as_str()) {
+                    self.report_error(&err);
+                }
+                None
+            }
+            Offered::Generator(id) => {
+                if let Err(err) = self.add_effect_generator(id.as_str()) {
                     self.report_error(&err);
                 }
                 None

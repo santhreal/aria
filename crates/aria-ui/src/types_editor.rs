@@ -413,6 +413,8 @@ pub enum SidebarTab {
     Titles,
     Shapes,
     Stickers,
+    /// Effects that draw a picture of their own, placed as clips.
+    Generators,
     Animations,
     Masks,
     Transitions,
@@ -440,6 +442,7 @@ impl SidebarTab {
         Self::Titles,
         Self::Shapes,
         Self::Stickers,
+        Self::Generators,
         Self::Animations,
         Self::Masks,
         Self::Transitions,
@@ -458,6 +461,7 @@ impl SidebarTab {
             Self::Titles => "Titles",
             Self::Shapes => "Shapes",
             Self::Stickers => "Stickers",
+            Self::Generators => "Generators",
             Self::Animations => "Animations",
             Self::Masks => "Masks",
             Self::Transitions => "Transitions",
@@ -514,6 +518,8 @@ impl MediaSort {
 pub enum CatalogDragKind {
     /// Places a sticker clip on the lane and tick it lands on.
     Sticker,
+    /// Places a generator clip on the lane and tick it lands on.
+    Generator,
     /// Applies an animation preset to the clip it lands on.
     Animation,
     /// Applies a mask shape to the clip it lands on.
@@ -533,7 +539,10 @@ pub struct CatalogDrag {
 impl CatalogDrag {
     /// Whether this payload applies to a clip rather than to empty lane space.
     pub fn targets_a_clip(&self) -> bool {
-        !matches!(self.kind, CatalogDragKind::Sticker)
+        !matches!(
+            self.kind,
+            CatalogDragKind::Sticker | CatalogDragKind::Generator
+        )
     }
 }
 
