@@ -41,6 +41,20 @@ pub enum CompositorError {
         expected: usize,
         actual: usize,
     },
+
+    /// A caller texture cannot receive a composited frame.
+    #[error(
+        "a frame target must be an Rgba8Unorm texture with COPY_DST usage and size \
+         {width}x{height}; this one is {format:?} with {usage:?} at {target_width}x{target_height}"
+    )]
+    FrameTarget {
+        width: u32,
+        height: u32,
+        format: wgpu::TextureFormat,
+        usage: wgpu::TextureUsages,
+        target_width: u32,
+        target_height: u32,
+    },
 }
 
 impl From<wgpu::BufferAsyncError> for CompositorError {

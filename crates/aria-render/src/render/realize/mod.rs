@@ -15,7 +15,7 @@ use layers::{Realized, fixed_size};
 
 use aria_compositor::{
     ColorGrade, CompositeLayer, CompositorConfig, CompositorLayer, FrameSink, ImageSink,
-    LayerPlacement, MatteRead, PassInstance, SdfLayer,
+    LayerPlacement, MatteRead, PassInstance, SdfLayer, wgpu,
 };
 use aria_core::Cancel;
 use aria_models::{MatteSource, MediaId, Project};
@@ -31,6 +31,15 @@ use crate::scene::{LayerSource, Scene, SceneLayer, SceneLut, SizeSpec};
 use super::effects::{blend_mode, layer_effects, layer_styles};
 use super::media_cache::layer_lut;
 use super::{FrameStats, PendingFrame, Renderer, SLOW_FRAME_LOG_MS, SeekPolicy};
+
+/// Where a submitted frame's canvas goes.
+#[derive(Clone, Copy)]
+pub(in crate::render) enum Output<'t> {
+    /// A readback buffer the CPU maps when the frame finishes.
+    Readback,
+    /// A caller texture, written on the GPU.
+    Texture(&'t wgpu::Texture),
+}
 
 /// Which channel of the stencil the compositor reads. The compositor does not
 /// depend on `aria-models`, so the model enum is mapped here at the boundary.
@@ -85,9 +94,10 @@ impl Renderer {
         project: &Project,
         scene: &Scene,
         policy: SeekPolicy,
+        output: Output<'_>,
     ) -> Result<PendingFrame, RenderError> {
         let mut scratch = std::mem::take(&mut self.realize_scratch);
-        match self.submit_scene_once_with_scratch(project, scene, policy, &mut scratch) {
+        match self.submit_scene_once_with_scratch(project, scene, policy, output, &mut scratch) {
             Ok(mut pending) => {
                 pending.scratch = Some(scratch);
                 Ok(pending)
@@ -104,6 +114,7 @@ impl Renderer {
         project: &Project,
         scene: &Scene,
         policy: SeekPolicy,
+        output: Output<'_>,
         scratch: &mut RealizeScratch,
     ) -> Result<PendingFrame, RenderError> {
         let realize_started = Instant::now();
@@ -363,12 +374,25 @@ impl Renderer {
             CompositorConfig::new(scene.width, scene.height).with_background(scene.background);
         let realize_ms = realize_started.elapsed().as_secs_f64() * 1000.0;
         let submitted_at = Instant::now();
-        let readback =
-            self.compositor
-                .submit_compositor_layers(&self.gpu, &config, &compositor_layers)?;
+        let readback = match output {
+            Output::Readback => Some(self.compositor.submit_compositor_layers(
+                &self.gpu,
+                &config,
+                &compositor_layers,
+            )?),
+            Output::Texture(texture) => {
+                self.compositor.submit_compositor_layers_to_texture(
+                    &self.gpu,
+                    &config,
+                    &compositor_layers,
+                    texture,
+                )?;
+                None
+            }
+        };
         let passes = self.compositor.pass_stats();
         Ok(PendingFrame {
-            readback: Some(readback),
+            readback,
             scratch: None,
             decode_ms,
             raster_ms: (realize_ms - decode_ms).max(0.0),
@@ -389,7 +413,7 @@ impl Renderer {
         let result = pending
             .readback
             .take()
-            .expect("pending frame retains its readback")
+            .expect("a frame submitted for readback retains its readback")
             .read_into(sink);
         if let Some(scratch) = pending.scratch.take() {
             self.realize_scratch = scratch;
@@ -398,6 +422,16 @@ impl Renderer {
         let composite_ms = pending.submitted_at.elapsed().as_secs_f64() * 1000.0;
         self.record_pending_stats(&pending, composite_ms);
         Ok(())
+    }
+
+    /// Finish a frame written to a texture: nothing maps, so the scratch
+    /// returns and the stats record the submission.
+    pub(super) fn finish_pending_on_gpu(&mut self, mut pending: PendingFrame) {
+        if let Some(scratch) = pending.scratch.take() {
+            self.realize_scratch = scratch;
+        }
+        let composite_ms = pending.submitted_at.elapsed().as_secs_f64() * 1000.0;
+        self.record_pending_stats(&pending, composite_ms);
     }
 
     pub(crate) fn finish_pending(

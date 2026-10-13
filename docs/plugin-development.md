@@ -78,7 +78,6 @@ Service traits in `aria_plugin::service`:
 | `EncoderService` | Create a `VideoEncoder` from `EncoderConfig` |
 | `EffectService` | Effect catalog. `render_effect` draws one catalog effect over an image on the GPU; see [Effects and transitions](#effects-and-transitions) |
 | `TransitionService` | Transition catalog. `render_transition` blends two images of one size at a progress in 0..1 |
-| `RenderInterceptorService` | Registered with a pass-through value. No caller reads it |
 | `StorageService` | Cache and project directories |
 | `SettingsService` | `~/.aria/config.toml` get / set / save |
 | `UiPanelService` | Panel metadata; see [Panels](#panels) for the host that draws it |
@@ -425,6 +424,72 @@ later edits join in. An edit from another thread waits up to
 "the assistant is editing the project; try again when it finishes". A background
 job retries until it gets the project or is cancelled.
 
+## Frames
+
+`RenderHost` renders frames of a project. The render plugin registers it on the
+process's GPU device; a plugin declares `uses: &["RenderHost"]`. The host renders
+with a renderer of its own, built on the first request, so a plugin render does
+not wait on the preview.
+
+| Call | Result |
+| --- | --- |
+| `frame(&project, time, &request)` | The frame at `time` as a straight-alpha `RgbaImage` |
+| `frames(&project, range, &request, each)` | One frame per tick of `range` at the range's rate, passed to `each` until it returns `ControlFlow::Break` |
+| `frame_to_texture(&project, time, &request, &texture)` | The frame written premultiplied into an `Rgba8Unorm` texture with `COPY_DST` usage, with no copy to the CPU |
+| `frame_size(&project, &request)` | The width and height of a frame of `request` |
+| `gpu()` | The `GpuContext` the host renders on, for creating a target texture |
+
+A `FrameRequest` sets the source, the size, and motion blur. The constructors
+`FrameRequest::open()`, `sequence(id)`, and `clip(id)` take canvas size without
+motion blur; `.size(size)` and `.motion_blur(on)` change one field.
+
+| Field | Values |
+| --- | --- |
+| `source` | `FrameSource::Open`: the sequence open for editing. `FrameSource::Sequence(None)`: the root sequence; `Sequence(Some(id))`: a nested one, whichever is open. `FrameSource::Clip(id)`: one clip of any sequence as placed on its canvas, with its effects, over transparency |
+| `size` | `FrameSize::Canvas`; `Fit { max_width, max_height }`, scaled down only; `Exact { width, height }`, scaled to fit and centred over the background |
+| `motion_blur` | Supersample moving transforms as an export does |
+
+```rust
+let project = ctx.get::<ProjectHost>().snapshot();
+let frames = ctx.get::<RenderHost>();
+let request = FrameRequest::open().size(FrameSize::Fit {
+    max_width: 320,
+    max_height: 180,
+});
+let range = TimeRange::at_rate(0, 48, project.timeline().frame_rate);
+frames.frames(&project, range, &request, |time, image| {
+    thumbnails.push((time, image));
+    ControlFlow::Continue(())
+})?;
+```
+
+A texture target is created on `frames.gpu().device`, with the size
+`frame_size` reports:
+
+```rust
+let (width, height) = frames.frame_size(&project, &request)?;
+let texture = frames.gpu().device.create_texture(&wgpu::TextureDescriptor {
+    label: Some("thumbnail"),
+    size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+    mip_level_count: 1,
+    sample_count: 1,
+    dimension: wgpu::TextureDimension::D2,
+    format: wgpu::TextureFormat::Rgba8Unorm,
+    usage: wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::TEXTURE_BINDING,
+    view_formats: &[],
+});
+frames.frame_to_texture(&project, time, &request, &texture)?;
+```
+
+`aria_plugin::wgpu` is the `wgpu` the device belongs to. Any other texture
+fails with `CompositorError::FrameTarget`, which states the size, format, and
+usage required, before anything is drawn.
+
+A clip in a transition or a track matte at `time` draws without the other clip.
+A clip that is not visible at `time` renders as a transparent frame. A clip id
+that is not in the project fails with `ModelError::UnknownClip`, and a sequence
+id with `ModelError::UnknownSequence`.
+
 ## Panels
 
 Every panel the editor draws is registered, including the shipped ones.
@@ -713,8 +778,8 @@ Rust has no stable ABI, so `export_plugin!` also exports the loader version and
 the compiler that built the library. A plugin built by a different `rustc`, or
 against a different `aria-plugin`, is refused before its code runs and appears in
 the Plugins list with the reason. Rebuild it against the same toolchain.
-The loader version is 2, so a library built against an `aria-plugin` before
-`CommandProposed` held the project and the origin is refused.
+The loader version is 6, so a library built against an `aria-plugin` from before
+`RenderHost` replaced `RenderInterceptorService` is refused.
 
 A loaded library stays mapped until the process exits, because a manifest borrows
 its strings out of the library. Disabling an external plugin is therefore not

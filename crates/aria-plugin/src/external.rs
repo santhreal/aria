@@ -38,9 +38,9 @@ use crate::plugin::{Plugin, PluginManifest};
 
 /// The loader contract's version. Bumped when the symbols, the `Plugin` trait,
 /// the event bus, or a shipped event type change shape; a library built against
-/// another one is refused. Version 5: an effect spec marks a generator, and the
-/// `GeneratorService` trait is gone.
-pub const ABI_VERSION: u32 = 5;
+/// another one is refused. Version 6: `RenderHost` renders frames for plugins,
+/// and the `RenderInterceptorService` trait is gone.
+pub const ABI_VERSION: u32 = 6;
 
 /// Identifies the compiler and crate version the host was built with. Two
 /// libraries agree on the `dyn Plugin` vtable only if this string matches.

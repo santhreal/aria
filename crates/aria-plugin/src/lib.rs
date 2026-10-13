@@ -16,6 +16,7 @@ mod order;
 mod plugin;
 mod project_host;
 mod registration;
+mod render_host;
 mod service;
 pub mod settings_schema;
 
@@ -32,29 +33,35 @@ pub use editor_events::{
 pub use error::PluginError;
 pub use events::{Event, EventBus, SerialEvent, WaterfallEvent, WaterfallResult};
 pub use hooks::{CommandProposed, DropAction, ResolveDroppedPath};
+pub use order::load_order;
+pub use plugin::{Plugin, PluginManifest};
 pub use project_host::{
     CommandApplied, EditGroup, Origin, ProjectHost, Receipt, TransactError, Transaction,
 };
-pub use order::load_order;
-pub use plugin::{Plugin, PluginManifest};
 pub use registration::Registration;
+pub use render_host::{FrameRequest, FrameSize, FrameSource, RenderHost};
 pub use service::{
-    DecoderService, EffectService, EncoderService, PanelLocation, RenderInterceptorService,
-    Service, SettingsService, StorageService, TransitionService, UiPanelService,
+    DecoderService, EffectService, EncoderService, PanelLocation, Service, SettingsService,
+    StorageService, TransitionService, UiPanelService,
 };
 pub use settings_schema::{SettingSpec, SettingsSchema, SettingsSection};
 
 /// Re-export core types plugins commonly need.
 pub use aria_core::{
     ColorSpace, DecodeError, EncodeError, EncoderConfig, PixelFormat, RationalTime, RgbaImage,
-    SourceInfo, VideoDecoder, VideoEncoder,
+    SourceInfo, TimeRange, VideoDecoder, VideoEncoder,
 };
 
 /// The command and project types a plugin inspects and proposes. Re-exported so
 /// an external plugin needs one dependency, not several.
 pub use aria_commands::{Command, EditCommand, EditTargets};
 pub use aria_engine::{ApplyOutcome, EngineError};
-pub use aria_models::Project;
+pub use aria_models::{ClipId, Project, SequenceId};
+
+/// What the render host takes and returns: the device a frame texture is
+/// created on, the `wgpu` it belongs to, and the render failure.
+pub use aria_compositor::{CompositorError, GpuContext, wgpu};
+pub use aria_render::RenderError;
 
 /// What a plugin registers to add an effect or a transition: a model spec for
 /// the inspector and the timeline, and the WGSL the compositor draws it with.

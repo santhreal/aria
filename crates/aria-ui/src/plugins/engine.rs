@@ -5,17 +5,14 @@ use std::sync::Arc;
 
 use aria_commands::Command;
 use aria_compositor::GpuContext;
-use aria_core::{Rational, RgbaImage};
+use aria_core::Rational;
 use aria_engine::{Engine, EngineConfig};
 use aria_models::Project;
 use aria_plugin::{
-    CommandProposed, Plugin, PluginContext, PluginError, PluginManifest, ProjectHost,
-    RenderInterceptorService, Service,
+    CommandProposed, Plugin, PluginContext, PluginError, PluginManifest, ProjectHost, RenderHost,
 };
 use aria_render::Renderer;
 use parking_lot::Mutex;
-
-use super::register_dyn;
 
 pub struct RenderPlugin;
 
@@ -38,6 +35,9 @@ impl Plugin for RenderPlugin {
         // caller ever read.
         match GpuContext::new_headless_blocking() {
             Ok(gpu) => {
+                // Plugin frames render on the same device with a renderer of
+                // their own, built on the first request.
+                ctx.register(RenderHost::new(gpu.share()));
                 ctx.register(gpu);
             }
             Err(err) => {
@@ -80,18 +80,6 @@ fn locked_lane_veto(project: &Project, command: &Command) -> Option<String> {
     })
 }
 
-struct FrameGate;
-
-impl Service for FrameGate {}
-
-impl RenderInterceptorService for FrameGate {
-    fn before_frame(&self, _time: aria_core::RationalTime, _project: &Project) -> bool {
-        true
-    }
-
-    fn after_frame(&self, _frame: &mut RgbaImage) {}
-}
-
 impl Plugin for EnginePlugin {
     fn manifest(&self) -> &PluginManifest {
         &PluginManifest {
@@ -132,8 +120,7 @@ impl Plugin for EnginePlugin {
                 // reads the project the event carries; the engine is locked while
                 // the event runs.
                 ctx.on_waterfall::<CommandProposed, _>(|proposed| {
-                    if let Some(reason) = locked_lane_veto(&proposed.project, &proposed.command)
-                    {
+                    if let Some(reason) = locked_lane_veto(&proposed.project, &proposed.command) {
                         proposed.refuse(reason);
                     }
                 });
@@ -142,7 +129,6 @@ impl Plugin for EnginePlugin {
                 tracing::warn!(error = %err, "engine gpu session unavailable");
             }
         }
-        register_dyn::<dyn RenderInterceptorService>(ctx, Arc::new(FrameGate));
         // The project extension is not claimed here on purpose: the host decides it,
         // so a dropped project still opens on a machine where this plugin failed to
         // mount.

@@ -210,13 +210,59 @@ impl Compositor {
         self.submit_scene(gpu, config, Scene::Full(layers))
     }
 
-    /// The one submission body both layer-list shapes share.
+    /// The one submission body both layer-list shapes share: the canvas copied
+    /// into a readback buffer.
     fn submit_scene(
         &mut self,
         gpu: &GpuContext,
         config: &CompositorConfig,
         scene: Scene<'_>,
     ) -> Result<PendingReadback, CompositorError> {
+        let mut encoder = self.encode_scene(gpu, config, scene)?;
+        let target = self
+            .target
+            .as_ref()
+            .expect("encode_scene populates the target");
+        let lease = target.readbacks.borrow_mut().acquire()?;
+        encoder.copy_texture_to_buffer(
+            wgpu::TexelCopyTextureInfo {
+                texture: &target.texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::TexelCopyBufferInfo {
+                buffer: &lease.buffer,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(target.padded_bytes_per_row),
+                    rows_per_image: Some(config.height),
+                },
+            },
+            wgpu::Extent3d {
+                width: config.width,
+                height: config.height,
+                depth_or_array_layers: 1,
+            },
+        );
+        gpu.queue.submit(std::iter::once(encoder.finish()));
+        Ok(PendingReadback::begin(
+            &gpu.device,
+            lease,
+            target.padded_bytes_per_row,
+            config.width,
+            config.height,
+        ))
+    }
+
+    /// Draw `scene` onto the cached canvas and return the unsubmitted encoder,
+    /// so the caller appends the copy out of the canvas.
+    pub(super) fn encode_scene(
+        &mut self,
+        gpu: &GpuContext,
+        config: &CompositorConfig,
+        scene: Scene<'_>,
+    ) -> Result<wgpu::CommandEncoder, CompositorError> {
         if config.width == 0 || config.height == 0 {
             return Err(CompositorError::InvalidDimensions {
                 width: config.width,
@@ -713,36 +759,7 @@ impl Compositor {
             }
         }
 
-        let lease = target.readbacks.borrow_mut().acquire()?;
-        encoder.copy_texture_to_buffer(
-            wgpu::TexelCopyTextureInfo {
-                texture: &target.texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            wgpu::TexelCopyBufferInfo {
-                buffer: &lease.buffer,
-                layout: wgpu::TexelCopyBufferLayout {
-                    offset: 0,
-                    bytes_per_row: Some(target.padded_bytes_per_row),
-                    rows_per_image: Some(config.height),
-                },
-            },
-            wgpu::Extent3d {
-                width: config.width,
-                height: config.height,
-                depth_or_array_layers: 1,
-            },
-        );
-        gpu.queue.submit(std::iter::once(encoder.finish()));
-        Ok(PendingReadback::begin(
-            &gpu.device,
-            lease,
-            target.padded_bytes_per_row,
-            config.width,
-            config.height,
-        ))
+        Ok(encoder)
     }
 }
 

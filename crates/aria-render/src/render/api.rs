@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use aria_compositor::{Compositor, CompositorError, FrameSink, GpuContext, ImageSink, RgbaImage};
+use aria_compositor::{
+    Compositor, CompositorError, FrameSink, GpuContext, ImageSink, RgbaImage, wgpu,
+};
 use aria_core::{Cancel, RationalTime};
 use aria_decoder::OutputMode;
 use aria_models::{ClipId, MediaId, Project};
@@ -14,6 +16,7 @@ use crate::resolve::{ResolveOverrides, resolve, resolve_gesture_partitions, reso
 use crate::scene::{CpuRaster, LayerSource, Scene, SceneLayer, SizeSpec, layer_source_spec};
 
 use super::media_cache::default_decode_mode;
+use super::realize::Output;
 use super::{FrameStats, GestureFrames, PendingFrame, Renderer, SeekPolicy};
 
 pub(super) fn media_scene(
@@ -217,9 +220,18 @@ impl Renderer {
         project: &Project,
         t: RationalTime,
     ) -> Result<RgbaImage, RenderError> {
+        let scene = self.resolve_frame(project, t)?;
+        self.render_scene(project, &scene)
+    }
+
+    /// The scene `project` draws at `t`, with motion-blur samples attached when
+    /// [`set_apply_motion_blur`](Self::set_apply_motion_blur) is on. Narrow or
+    /// size it, then draw it with [`render_scene`](Self::render_scene) or
+    /// [`render_scene_to_texture`](Self::render_scene_to_texture).
+    pub fn resolve_frame(&self, project: &Project, t: RationalTime) -> Result<Scene, RenderError> {
         let mut scene = resolve(project, t)?;
         self.prepare_motion_blur(project, &mut scene);
-        self.render_scene(project, &scene)
+        Ok(scene)
     }
 
     /// [`render_frame`](Self::render_frame) with live-preview
@@ -381,8 +393,7 @@ impl Renderer {
         width: u32,
         height: u32,
     ) -> Result<RgbaImage, RenderError> {
-        let mut scene = resolve(project, t)?;
-        self.prepare_motion_blur(project, &mut scene);
+        let mut scene = self.resolve_frame(project, t)?;
         scene.fit_into(width, height);
         self.render_scene(project, &scene)
     }
@@ -393,12 +404,11 @@ impl Renderer {
         t: RationalTime,
         output_size: Option<(u32, u32)>,
     ) -> Result<PendingFrame, RenderError> {
-        let mut scene = resolve(project, t)?;
-        self.prepare_motion_blur(project, &mut scene);
+        let mut scene = self.resolve_frame(project, t)?;
         if let Some((width, height)) = output_size {
             scene.fit_into(width, height);
         }
-        self.submit_scene_policy(project, &scene, SeekPolicy::Exact)
+        self.submit_scene_policy(project, &scene, SeekPolicy::Exact, Output::Readback)
     }
 
     /// When [`Self::apply_motion_blur`] is on, attach sub-frame transform
@@ -440,6 +450,22 @@ impl Renderer {
         self.render_scene_into_policy(project, scene, sink, SeekPolicy::Exact)
     }
 
+    /// [`render_scene`](Self::render_scene) into `texture`, premultiplied, with
+    /// no copy to the CPU. `texture` is on this renderer's device and passes
+    /// [`aria_compositor::check_frame_target`] for the scene's size; any other
+    /// texture is refused before anything is drawn.
+    pub fn render_scene_to_texture(
+        &mut self,
+        project: &Project,
+        scene: &Scene,
+        texture: &wgpu::Texture,
+    ) -> Result<(), RenderError> {
+        let pending =
+            self.submit_scene_policy(project, scene, SeekPolicy::Exact, Output::Texture(texture))?;
+        self.finish_pending_on_gpu(pending);
+        Ok(())
+    }
+
     fn render_scene_into_policy(
         &mut self,
         project: &Project,
@@ -447,7 +473,7 @@ impl Renderer {
         sink: &mut dyn FrameSink,
         policy: SeekPolicy,
     ) -> Result<(), RenderError> {
-        let pending = self.submit_scene_policy(project, scene, policy)?;
+        let pending = self.submit_scene_policy(project, scene, policy, Output::Readback)?;
         self.finish_pending_into(pending, sink)
     }
 
@@ -456,14 +482,15 @@ impl Renderer {
         project: &Project,
         scene: &Scene,
         policy: SeekPolicy,
+        output: Output<'_>,
     ) -> Result<PendingFrame, RenderError> {
-        match self.submit_scene_once(project, scene, policy) {
+        match self.submit_scene_once(project, scene, policy, output) {
             Err(RenderError::Compositor(CompositorError::UnsupportedFormat(_)))
                 if self.decode_mode == OutputMode::Gpu =>
             {
                 self.decode_mode = OutputMode::Cpu;
                 self.decoders.clear();
-                self.submit_scene_once(project, scene, policy)
+                self.submit_scene_once(project, scene, policy, output)
             }
             other => other,
         }

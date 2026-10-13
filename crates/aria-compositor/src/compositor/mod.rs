@@ -11,6 +11,7 @@
 //!   anti-aliased edges stay clean.
 //! - **solid fills** — a fast no-texture path; straight-alpha src-over.
 
+mod frame_target;
 mod glyphs;
 mod layers;
 mod lru;
@@ -30,6 +31,7 @@ use crate::effect_render::{Bound, OffscreenPool, PassCache, PassRegistry, PassSt
 use crate::grade::ColorGrade;
 use crate::planes::PlaneSet;
 
+pub use frame_target::check_frame_target;
 use glyphs::{CachedAtlas, GlyphInstanceGpu};
 use lru::FrameLru;
 pub use readback::PendingReadback;

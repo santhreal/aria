@@ -2,10 +2,7 @@
 
 use std::path::Path;
 
-use aria_core::{
-    DecodeError, EncodeError, EncoderConfig, RationalTime, RgbaImage, VideoDecoder, VideoEncoder,
-};
-use aria_models::Project;
+use aria_core::{DecodeError, EncodeError, EncoderConfig, RgbaImage, VideoDecoder, VideoEncoder};
 use aria_render::RenderError;
 
 use crate::error::PluginError;
@@ -66,12 +63,6 @@ pub trait TransitionService: Service {
 // Command interception is an event, not a service: the registry holds one value
 // per type, so a service could only ever have one interceptor. See
 // `hooks::CommandProposed`.
-
-/// Intercept frames during rendering.
-pub trait RenderInterceptorService: Service {
-    fn before_frame(&self, time: RationalTime, project: &Project) -> bool;
-    fn after_frame(&self, frame: &mut RgbaImage);
-}
 
 /// Project and cache directories.
 pub trait StorageService: Service {

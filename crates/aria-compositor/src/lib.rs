@@ -50,7 +50,8 @@ mod vulkan_import;
 pub use aria_core::RgbaImage;
 pub use aria_shapes::{SdfParams, SdfShape, Stroke};
 pub use compositor::{
-    Compositor, FrameSink, ImageSink, PendingReadback, TexturePoolStats, identity_instances,
+    Compositor, FrameSink, ImageSink, PendingReadback, TexturePoolStats, check_frame_target,
+    identity_instances,
 };
 pub use effect_render::PassStats;
 pub use error::CompositorError;
@@ -74,3 +75,6 @@ pub use registered_passes::{
     RegisteredPass, TransitionDefinition, register_effect, register_transition,
 };
 pub use track_feature::{Match as TrackMatch, Patch as TrackPatch, track_patch};
+/// The `wgpu` the compositor's device and textures belong to, for a caller that
+/// creates a texture on [`GpuContext`].
+pub use wgpu;
