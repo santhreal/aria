@@ -7,6 +7,7 @@
 //! an external plugin lacks.
 
 mod context;
+mod editor_events;
 mod error;
 mod events;
 pub mod external;
@@ -20,6 +21,13 @@ pub mod settings_schema;
 
 pub use context::{
     CapabilityDenial, MountFailure, MountedPluginInfo, PluginContext, short_service_name,
+};
+pub use editor_events::{
+    ContextMenuRequested, EditorView, ExportFinished, ExportStarted, InOutChanged, JobFinished,
+    JobOutcome, JobProgress, MediaImported, MediaOffline, MediaRelinked, MenuEntry, MenuTarget,
+    PlaybackStarted, PlaybackStopped, PlayheadMoved, PluginActivated, PluginDeactivated,
+    ProjectClosed, ProjectOpened, ProjectSaved, RenderFinished, RenderKind, RenderResult,
+    SelectionChanged, ViewFrame, ViewState,
 };
 pub use error::PluginError;
 pub use events::{Event, EventBus, SerialEvent, WaterfallEvent, WaterfallResult};

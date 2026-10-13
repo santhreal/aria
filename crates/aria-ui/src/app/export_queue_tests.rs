@@ -16,6 +16,9 @@
 //!   not stall subsequent jobs in the queue.
 //! - Bounded termination: the queue reaches idle within a measured deadline.
 //! - Scripted doubles: tests run without requiring a physical GPU encoder.
+//! - Notifications: each entry that starts posts `ExportStarted`, then
+//!   `ExportFinished` with how it ended, before the next entry starts; an entry
+//!   cancelled while queued posts neither.
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -24,11 +27,79 @@ use std::time::{Duration, Instant};
 
 use aria_jobs::{JobCompletion, JobManager};
 use aria_models::{Project, Rational};
+use aria_plugin::{EventBus, ExportFinished, ExportStarted, Registration, RenderResult};
 use aria_render::ExportSettings;
 
 use super::export_queue::{ExportEntryState, ExportQueue, ExportRunner};
 use super::jobs::file_label;
 use super::premiere_tests::with_clip;
+
+const BOUND: Duration = Duration::from_secs(10);
+
+/// A notification the queue posted, by file name.
+#[derive(Debug, Clone, PartialEq)]
+enum Posted {
+    Started(String),
+    Finished(String, RenderResult),
+}
+
+fn started(name: &str) -> Posted {
+    Posted::Started(name.to_string())
+}
+
+fn finished(name: &str, result: RenderResult) -> Posted {
+    Posted::Finished(name.to_string(), result)
+}
+
+/// A queue over `runner`, and what it posts.
+struct Watched {
+    queue: ExportQueue,
+    bus: Arc<EventBus>,
+    posted: crossbeam_channel::Receiver<Posted>,
+    _registrations: [Registration; 2],
+}
+
+fn watch(manager: JobManager, runner: ExportRunner) -> Watched {
+    let bus = Arc::new(EventBus::new());
+    let (sent, posted) = crossbeam_channel::unbounded();
+    let on_start = {
+        let sent = sent.clone();
+        bus.subscribe::<ExportStarted, _>(move |e| {
+            let _ = sent.send(Posted::Started(file_label(&e.path)));
+        })
+    };
+    let on_finish = bus.subscribe::<ExportFinished, _>(move |e| {
+        let _ = sent.send(Posted::Finished(
+            file_label(&e.path),
+            e.result.clone(),
+        ));
+    });
+    Watched {
+        queue: ExportQueue::new(manager, runner, Arc::clone(&bus)),
+        bus,
+        posted,
+        _registrations: [on_start, on_finish],
+    }
+}
+
+impl Watched {
+    /// The next `count` notifications, each arriving within the bound.
+    fn next(&self, count: usize) -> Vec<Posted> {
+        (0..count)
+            .map(|_| {
+                self.posted
+                    .recv_timeout(BOUND)
+                    .expect("a notification within the bound")
+            })
+            .collect()
+    }
+
+    /// Whether nothing else was posted.
+    fn quiet(&self) -> bool {
+        assert!(self.bus.flush(BOUND), "delivery must finish within the bound");
+        self.posted.try_recv().is_err()
+    }
+}
 
 /// A project and the settings its own export path derives.
 ///
@@ -70,7 +141,8 @@ fn two_enqueued_jobs_run_in_order_and_both_report_done() {
             .map_err(String::from)
     });
 
-    let queue = ExportQueue::new(manager, runner);
+    let watched = watch(manager, runner);
+    let queue = &watched.queue;
     let (project, settings) = queued_project();
 
     let id1 = queue.enqueue(PathBuf::from("first.mp4"), settings, Arc::clone(&project));
@@ -100,17 +172,26 @@ fn two_enqueued_jobs_run_in_order_and_both_report_done() {
             "end:second.mp4"
         ]
     );
+    assert_eq!(
+        watched.next(4),
+        [
+            started("first.mp4"),
+            finished("first.mp4", RenderResult::Written),
+            started("second.mp4"),
+            finished("second.mp4", RenderResult::Written),
+        ]
+    );
 }
 
 #[test]
 fn cancelling_a_queued_entry_leaves_the_running_one_alone() {
     let manager = JobManager::new();
-    let started = Arc::new(AtomicBool::new(false));
-    let started_clone = Arc::clone(&started);
+    let running = Arc::new(AtomicBool::new(false));
+    let running_clone = Arc::clone(&running);
     let (release_tx, release_rx) = crossbeam_channel::bounded::<()>(1);
 
     let runner: ExportRunner = Arc::new(move |context, _project, dest, _settings| {
-        started_clone.store(true, Ordering::SeqCst);
+        running_clone.store(true, Ordering::SeqCst);
         let _ = release_rx.recv_timeout(Duration::from_secs(5));
         if context.cancelled() {
             return Err("cancelled".to_string());
@@ -121,7 +202,8 @@ fn cancelling_a_queued_entry_leaves_the_running_one_alone() {
             .map_err(String::from)
     });
 
-    let queue = ExportQueue::new(manager, runner);
+    let watched = watch(manager, runner);
+    let queue = &watched.queue;
     let (project, settings) = queued_project();
 
     let id1 = queue.enqueue(PathBuf::from("running.mp4"), settings, Arc::clone(&project));
@@ -129,7 +211,7 @@ fn cancelling_a_queued_entry_leaves_the_running_one_alone() {
 
     // Wait until job 1 is running
     let deadline = Instant::now() + Duration::from_secs(5);
-    while !started.load(Ordering::SeqCst) {
+    while !running.load(Ordering::SeqCst) {
         assert!(Instant::now() < deadline, "job 1 never started");
         std::thread::sleep(Duration::from_millis(5));
     }
@@ -149,6 +231,14 @@ fn cancelling_a_queued_entry_leaves_the_running_one_alone() {
         entries.iter().all(|e| e.id != id2),
         "cancelled queued entry was not removed from queue"
     );
+    assert_eq!(
+        watched.next(2),
+        [
+            started("running.mp4"),
+            finished("running.mp4", RenderResult::Written),
+        ]
+    );
+    assert!(watched.quiet(), "an entry cancelled while queued posts nothing");
 }
 
 #[test]
@@ -171,7 +261,8 @@ fn cancelling_the_running_entry_marks_it_cancelled_and_starts_the_next() {
             .map_err(String::from)
     });
 
-    let queue = ExportQueue::new(manager, runner);
+    let watched = watch(manager, runner);
+    let queue = &watched.queue;
     let (project, settings) = queued_project();
 
     let id1 = queue.enqueue(PathBuf::from("first.mp4"), settings, Arc::clone(&project));
@@ -199,6 +290,15 @@ fn cancelling_the_running_entry_marks_it_cancelled_and_starts_the_next() {
 
     assert_eq!(e1.state, ExportEntryState::Cancelled);
     assert_eq!(e2.state, ExportEntryState::Done);
+    assert_eq!(
+        watched.next(4),
+        [
+            started("first.mp4"),
+            finished("first.mp4", RenderResult::Cancelled),
+            started("second.mp4"),
+            finished("second.mp4", RenderResult::Written),
+        ]
+    );
 }
 
 #[test]
@@ -216,7 +316,8 @@ fn a_failed_export_reports_its_message_and_does_not_stall_the_queue() {
             .map_err(String::from)
     });
 
-    let queue = ExportQueue::new(manager, runner);
+    let watched = watch(manager, runner);
+    let queue = &watched.queue;
     let (project, settings) = queued_project();
 
     let id1 = queue.enqueue(PathBuf::from("failing.mp4"), settings, Arc::clone(&project));
@@ -236,6 +337,18 @@ fn a_failed_export_reports_its_message_and_does_not_stall_the_queue() {
     assert_eq!(e1.error.as_deref(), Some("No space left on device"));
     assert_eq!(e2.state, ExportEntryState::Done);
     assert_eq!(e2.error, None);
+    assert_eq!(
+        watched.next(4),
+        [
+            started("failing.mp4"),
+            finished(
+                "failing.mp4",
+                RenderResult::Failed("No space left on device".to_string())
+            ),
+            started("succeeding.mp4"),
+            finished("succeeding.mp4", RenderResult::Written),
+        ]
+    );
 }
 
 #[test]
@@ -248,7 +361,7 @@ fn the_queue_reports_bounded_termination() {
             .map_err(String::from)
     });
 
-    let queue = ExportQueue::new(manager, runner);
+    let queue = ExportQueue::new(manager, runner, Arc::new(EventBus::new()));
     let (project, settings) = queued_project();
 
     for i in 0..5 {
@@ -289,7 +402,8 @@ fn a_panicking_runner_fails_honestly_and_advances_queue() {
             .map_err(String::from)
     });
 
-    let queue = ExportQueue::new(manager, runner);
+    let watched = watch(manager, runner);
+    let queue = &watched.queue;
     let (project, settings) = queued_project();
 
     let id1 = queue.enqueue(
@@ -311,6 +425,18 @@ fn a_panicking_runner_fails_honestly_and_advances_queue() {
 
     assert_eq!(e1.state, ExportEntryState::Failed);
     assert_eq!(e2.state, ExportEntryState::Done);
+    assert_eq!(
+        watched.next(4),
+        [
+            started("panicking.mp4"),
+            finished(
+                "panicking.mp4",
+                RenderResult::Failed("export runner panicked or exited early".to_string())
+            ),
+            started("recovered.mp4"),
+            finished("recovered.mp4", RenderResult::Written),
+        ]
+    );
 }
 
 #[test]

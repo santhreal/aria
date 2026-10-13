@@ -150,6 +150,7 @@ pub use media::{DecoderPlugin, EncoderPlugin};
 pub use services::{
     AiHost, AiPlugin, AnalysisPlugin, CloudPlugin, DetectorTuning, JobsPlugin, TranscriptionPlugin,
 };
+pub(crate) use services::announce_jobs;
 pub use ui::UiPlugin;
 
 /// Ids every successful [`mount_all`] records, in order. Derived from

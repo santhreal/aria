@@ -198,3 +198,43 @@ fn unmount_prunes_denials_and_failures() {
     assert!(ctx.denials().is_empty());
     assert!(ctx.failures().is_empty());
 }
+
+/// A mount that took posts `PluginActivated` and an unmount posts
+/// `PluginDeactivated`; a mount that failed posts neither.
+#[test]
+fn mounting_and_unmounting_announce_the_plugin() {
+    let ctx = PluginContext::new();
+    let seen: std::sync::Arc<std::sync::Mutex<Vec<(&str, &str)>>> = Default::default();
+    let _activated = {
+        let seen = std::sync::Arc::clone(&seen);
+        ctx.on_event::<PluginActivated, _>(move |e| {
+            seen.lock().expect("seen").push(("activated", e.id));
+        })
+    };
+    let _deactivated = {
+        let seen = std::sync::Arc::clone(&seen);
+        ctx.on_event::<PluginDeactivated, _>(move |e| {
+            seen.lock().expect("seen").push(("deactivated", e.id));
+        })
+    };
+
+    let bad = PanickingPlugin {
+        manifest: PluginManifest {
+            id: "test.panic",
+            name: "Panicker",
+            version: "0.1.0",
+            requires: &[],
+            uses: &[],
+        },
+    };
+    assert!(ctx.mount(&bad).is_err());
+    let good = consumer(&[]);
+    ctx.mount(&good).expect("mounts");
+    ctx.unmount("test.consumer").expect("unmounts");
+
+    assert!(ctx.events().flush(std::time::Duration::from_secs(10)));
+    assert_eq!(
+        *seen.lock().expect("seen"),
+        [("activated", "test.consumer"), ("deactivated", "test.consumer")]
+    );
+}

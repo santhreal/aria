@@ -1,14 +1,15 @@
 //! Cloud, analysis, jobs, transcription, and the assistant.
 
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use aria_ai::AgentConfig;
 use aria_analysis::{BeatConfig, LoudnessConfig, ShotDetectionConfig, SilenceConfig};
 use aria_cloud::{CloudClient, DEFAULT_BASE_URL};
-use aria_jobs::JobManager;
+use aria_jobs::{JobManager, JobState};
 use aria_plugin::{
-    DropAction, Plugin, PluginContext, PluginError, PluginManifest, ResolveDroppedPath, Service,
-    SettingsService, StorageService,
+    DropAction, EventBus, JobFinished, JobOutcome, JobProgress, Plugin, PluginContext,
+    PluginError, PluginManifest, ResolveDroppedPath, Service, SettingsService, StorageService,
 };
 use aria_transcription::ModelManager;
 
@@ -105,9 +106,44 @@ impl Plugin for JobsPlugin {
     }
 
     fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
-        ctx.register(JobManager::new());
+        let manager = JobManager::new();
+        announce_jobs(&manager, ctx.event_bus());
+        ctx.register(manager);
         Ok(())
     }
+}
+
+/// Post the board's transitions on `bus`: `JobProgress` while a job is queued
+/// or running, `JobFinished` when it ends. The subscription lasts as long as
+/// the registry and holds the bus weakly.
+pub(crate) fn announce_jobs(manager: &JobManager, bus: &Arc<EventBus>) {
+    let bus = Arc::downgrade(bus);
+    manager.subscribe(move |snapshot| {
+        let Some(bus) = bus.upgrade() else {
+            return;
+        };
+        let job = snapshot.id.raw();
+        let outcome = match snapshot.state {
+            JobState::Queued | JobState::Running => {
+                bus.post(JobProgress {
+                    job,
+                    label: snapshot.label,
+                    progress: snapshot.progress,
+                    detail: snapshot.detail,
+                });
+                return;
+            }
+            JobState::Done => JobOutcome::Done,
+            JobState::Failed => JobOutcome::Failed,
+            JobState::Cancelled => JobOutcome::Cancelled,
+        };
+        bus.post(JobFinished {
+            job,
+            label: snapshot.label,
+            outcome,
+            detail: snapshot.detail,
+        });
+    });
 }
 
 /// Speech models, kept under the session's own root.

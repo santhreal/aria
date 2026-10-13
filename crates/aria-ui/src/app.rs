@@ -205,6 +205,8 @@ mod transport;
 pub mod trim_gestures;
 #[path = "app/unsaved.rs"]
 pub mod unsaved;
+#[path = "app/view_events.rs"]
+mod view_events;
 #[path = "app/zoom.rs"]
 mod zoom;
 
@@ -466,6 +468,10 @@ mod cloud_tests;
 #[cfg(test)]
 #[path = "app/jobs_tests.rs"]
 mod jobs_tests;
+
+#[cfg(test)]
+#[path = "app/plugin_events_tests.rs"]
+mod plugin_events_tests;
 
 #[cfg(test)]
 #[path = "app/captions_tests.rs"]

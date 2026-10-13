@@ -238,6 +238,7 @@ impl AppState {
     }
 
     pub fn open_context(&mut self, target: ContextTarget, x: f32, y: f32) {
+        self.context_plugin_rows = self.plugin_menu_rows(&target);
         self.context_menu = Some(target);
         let max_x = (self.last_window_w - 180.0).max(8.0);
         let max_y = (self.last_window_h - 240.0).max(8.0);
@@ -340,6 +341,7 @@ impl AppState {
         self.selected = snapshot.selected;
         self.facts = snapshot.facts;
         self.reconcile_bins();
+        self.announce_offline_media();
         self.reconcile_source_view();
         // The magnets are a fact about the sequence, so this is the one moment
         // they can have changed. A drag frame reads the index and never builds

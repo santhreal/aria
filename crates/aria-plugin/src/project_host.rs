@@ -3,9 +3,10 @@
 //! Every edit, from the editor, the assistant, or a plugin, goes through
 //! [`ProjectHost`]. A command is proposed to every [`CommandProposed`] handler
 //! with the engine locked, applied, and announced as a [`CommandApplied`] once
-//! nothing can roll it back. A group ([`ProjectHost::group`]) or a transaction
-//! ([`ProjectHost::transact_with`]) applies any number of commands as one undo
-//! step.
+//! nothing can roll it back, together with the editor event its outcome
+//! implies: [`MediaImported`], [`ProjectSaved`], and the rest. A group
+//! ([`ProjectHost::group`]) or a transaction ([`ProjectHost::transact_with`])
+//! applies any number of commands as one undo step.
 //!
 //! One thread edits at a time. A thread that applies a command or opens a group
 //! holds the project until the command lands or the outermost group closes;
@@ -30,7 +31,11 @@ use aria_models::Project;
 use parking_lot::{Condvar, Mutex};
 
 use crate::context::PluginContext;
-use crate::events::{Event, EventBus};
+use crate::editor_events::{
+    ExportFinished, ExportStarted, MediaImported, MediaRelinked, ProjectClosed, ProjectOpened,
+    ProjectSaved, RenderResult,
+};
+use crate::events::{Event, EventBus, panic_message};
 use crate::hooks::CommandProposed;
 
 /// Who proposed a command.
@@ -61,8 +66,7 @@ impl fmt::Display for Origin {
 }
 
 /// A command that was applied and can no longer be rolled back by the group
-/// it was part of. Emitted after the outermost group commits, outside every
-/// lock.
+/// it was part of. Posted after the outermost group commits.
 pub struct CommandApplied {
     pub command: Command,
     pub outcome: ApplyOutcome,
@@ -72,6 +76,35 @@ pub struct CommandApplied {
 }
 
 impl Event for CommandApplied {}
+
+/// A notification held with the open group and posted once nothing can roll it
+/// back. A rolled-back group posts none of its own.
+enum Announcement {
+    Applied(CommandApplied),
+    Imported(MediaImported),
+    Relinked(MediaRelinked),
+    Saved(ProjectSaved),
+    Replaced(ProjectClosed, ProjectOpened),
+}
+
+impl Announcement {
+    fn post(self, bus: &EventBus) {
+        match self {
+            Self::Applied(event) => bus.post(event),
+            Self::Imported(event) => bus.post(event),
+            Self::Relinked(event) => bus.post(event),
+            Self::Saved(event) => bus.post(event),
+            Self::Replaced(closed, opened) => {
+                bus.post(closed);
+                bus.post(opened);
+            }
+        }
+    }
+}
+
+/// What one applied command announces: `CommandApplied` when anything reads
+/// it, and the editor event its outcome implies, if any.
+type Announced = [Option<Announcement>; 2];
 
 /// Why a transaction did not apply. Nothing it applied remains.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -122,9 +155,10 @@ struct Sequence {
     holds: usize,
     /// Open groups, savepoints included.
     groups: usize,
-    /// Commands applied inside the open groups, announced when the outermost
-    /// one commits and dropped when the group they belong to rolls back.
-    announced: Vec<CommandApplied>,
+    /// Announcements from commands applied inside the open groups, posted when
+    /// the outermost one commits and dropped when the group they belong to
+    /// rolls back.
+    announced: Vec<Announcement>,
 }
 
 thread_local! {
@@ -183,6 +217,68 @@ fn transactional(command: &Command) -> Result<(), TransactError> {
     }
 }
 
+/// Whether `command` replaces the session, so its outcome closes one project
+/// and opens another.
+fn replaces_session(command: &Command) -> bool {
+    matches!(
+        command,
+        Command::Project(
+            ProjectCommand::Open { .. }
+                | ProjectCommand::Load { .. }
+                | ProjectCommand::ApplyTemplate { .. }
+        )
+    )
+}
+
+/// The editor event `outcome` implies, read from the engine right after it.
+/// `closed` is the session the command replaced, when it replaced one.
+///
+/// Exhaustive over outcomes, so a new one does not compile until it is
+/// classified.
+fn derived(
+    outcome: &ApplyOutcome,
+    engine: &Engine,
+    closed: Option<ProjectClosed>,
+) -> Option<Announcement> {
+    let media_path = |media| {
+        engine
+            .project()
+            .media(media)
+            .map(|source| source.path.clone())
+    };
+    match outcome {
+        ApplyOutcome::Imported { media } => media_path(*media).map(|path| {
+            Announcement::Imported(MediaImported {
+                media: *media,
+                path,
+            })
+        }),
+        ApplyOutcome::Relinked { media } => media_path(*media).map(|path| {
+            Announcement::Relinked(MediaRelinked {
+                media: *media,
+                path,
+            })
+        }),
+        ApplyOutcome::Saved => engine
+            .project_path()
+            .map(|path| Announcement::Saved(ProjectSaved { path: path.clone() })),
+        ApplyOutcome::Opened | ApplyOutcome::Loaded | ApplyOutcome::AppliedTemplate => {
+            Some(Announcement::Replaced(
+                closed.unwrap_or(ProjectClosed { path: None }),
+                ProjectOpened {
+                    path: engine.project_path().cloned(),
+                    project: engine.snapshot(),
+                },
+            ))
+        }
+        ApplyOutcome::RemovedMedia { .. }
+        | ApplyOutcome::LabeledMedia { .. }
+        | ApplyOutcome::Exported { .. }
+        | ApplyOutcome::SavedTemplate
+        | ApplyOutcome::Edited(_) => None,
+    }
+}
+
 /// Why one proposed-and-applied command did not land.
 enum Rejection {
     Refused(String),
@@ -228,11 +324,11 @@ struct Hold<'a> {
 }
 
 impl Hold<'_> {
-    /// Release the hold, queueing `event` with the open group or returning it
-    /// with everything else now ready to announce.
-    fn release(mut self, event: Option<CommandApplied>) -> Vec<CommandApplied> {
+    /// Release the hold, queueing `announced` with the open group or returning
+    /// it with everything else now ready to post.
+    fn release(mut self, announced: impl IntoIterator<Item = Announcement>) -> Vec<Announcement> {
         self.released = true;
-        self.host.leave(event)
+        self.host.leave(announced)
     }
 }
 
@@ -241,7 +337,7 @@ impl Drop for Hold<'_> {
         if !self.released {
             // Only an error or a panic gets here, and neither applied anything
             // to announce.
-            let _ = self.host.leave(None);
+            let _ = self.host.leave([]);
         }
     }
 }
@@ -327,11 +423,11 @@ impl ProjectHost {
         Ok(())
     }
 
-    /// Give back one hold. Queues `event` while a group is open; otherwise
-    /// returns it, with any announcements the closing group left, to emit.
-    fn leave(&self, event: Option<CommandApplied>) -> Vec<CommandApplied> {
+    /// Give back one hold. Queues `announced` while a group is open; otherwise
+    /// returns it, with any announcements the closing group left, to post.
+    fn leave(&self, announced: impl IntoIterator<Item = Announcement>) -> Vec<Announcement> {
         let mut sequence = self.sequence.lock();
-        sequence.announced.extend(event);
+        sequence.announced.extend(announced);
         sequence.holds -= 1;
         let ready = if sequence.groups == 0 {
             std::mem::take(&mut sequence.announced)
@@ -354,9 +450,9 @@ impl ProjectHost {
         })
     }
 
-    fn announce(&self, events: Vec<CommandApplied>) {
-        for event in events {
-            self.events.emit(event);
+    fn announce(&self, announced: Vec<Announcement>) {
+        for announcement in announced {
+            announcement.post(&self.events);
         }
     }
 
@@ -382,24 +478,47 @@ impl ProjectHost {
         command: Command,
         before: impl FnOnce(&Command, &Project) -> B,
         after: impl FnOnce(B, &ApplyOutcome, &Engine) -> R,
-    ) -> Result<(ApplyOutcome, R, Option<CommandApplied>), Rejection> {
+    ) -> Result<(ApplyOutcome, R, Announced), Rejection> {
         let command = self
             .propose(engine, command, origin)
             .map_err(Rejection::Refused)?;
-        let announced = self
+        let applied = self
             .events
             .has_handlers::<CommandApplied>()
             .then(|| command.clone());
-        let observed = before(&command, engine.project());
-        let outcome = engine.apply(command).map_err(Rejection::Engine)?;
-        let result = after(observed, &outcome, engine);
-        let event = announced.map(|command| CommandApplied {
-            command,
-            outcome: outcome.clone(),
-            revision: engine.revision(),
-            origin: origin.clone(),
+        let closed = replaces_session(&command).then(|| ProjectClosed {
+            path: engine.project_path().cloned(),
         });
-        Ok((outcome, result, event))
+        // An export cannot be part of a group, so nothing can roll it back and
+        // its events are posted as it runs.
+        let export = match &command {
+            Command::Project(ProjectCommand::Export { path, .. }) => Some(path.clone()),
+            _ => None,
+        };
+        if let Some(path) = &export {
+            self.events.post(ExportStarted { path: path.clone() });
+        }
+        let observed = before(&command, engine.project());
+        let outcome = engine.apply(command);
+        if let Some(path) = export {
+            let result = match &outcome {
+                Ok(_) => RenderResult::Written,
+                Err(err) => RenderResult::Failed(err.to_string()),
+            };
+            self.events.post(ExportFinished { path, result });
+        }
+        let outcome = outcome.map_err(Rejection::Engine)?;
+        let result = after(observed, &outcome, engine);
+        let applied = applied.map(|command| {
+            Announcement::Applied(CommandApplied {
+                command,
+                outcome: outcome.clone(),
+                revision: engine.revision(),
+                origin: origin.clone(),
+            })
+        });
+        let derived = derived(&outcome, engine, closed);
+        Ok((outcome, result, [applied, derived]))
     }
 
     /// Apply one command as its own undo step, or as part of this thread's
@@ -433,12 +552,12 @@ impl ProjectHost {
             let mut engine = self.engine.lock();
             self.apply_locked(&mut engine, origin, command, before, after)
         };
-        let (outcome, result, event) = match applied {
+        let (outcome, result, announced) = match applied {
             Ok(applied) => applied,
             Err(Rejection::Refused(reason)) => return Err(EngineError::Refused(reason)),
             Err(Rejection::Engine(err)) => return Err(err),
         };
-        self.announce(hold.release(event));
+        self.announce(hold.release(announced.into_iter().flatten()));
         Ok((outcome, result))
     }
 
@@ -498,7 +617,7 @@ impl ProjectHost {
             sequence.groups -= 1;
             engine.revision()
         };
-        self.announce(self.leave(None));
+        self.announce(self.leave([]));
         revision
     }
 
@@ -589,18 +708,19 @@ impl ProjectHost {
             .map_err(|holder| busy(&holder))?;
         let grouped = self.sequence.lock().groups > 0;
         let stepped = !grouped && step(&mut self.engine.lock());
-        self.announce(hold.release(None));
+        self.announce(hold.release([]));
         Ok(stepped)
     }
 
-    /// Run `f` on the engine while no edit or group is in flight on any
-    /// thread: for changes that are not commands and replace or reset the
-    /// session, such as starting a new project.
+    /// Replace the session by running `f` on the engine while no edit or group
+    /// is in flight on any thread, for a replacement that is not a command,
+    /// such as starting a new project. Posts [`ProjectClosed`] for the session
+    /// `f` replaced and [`ProjectOpened`] for the one it left.
     ///
     /// # Panics
     ///
     /// When called from a `CommandProposed` handler.
-    pub fn exclusive<R>(
+    pub fn replace_session<R>(
         &self,
         origin: &Origin,
         f: impl FnOnce(&mut Engine) -> R,
@@ -612,8 +732,19 @@ impl ProjectHost {
                 "an edit group is still open; close it before replacing the session".into(),
             ));
         }
-        let result = f(&mut self.engine.lock());
-        self.announce(hold.release(None));
+        let (result, replaced) = {
+            let mut engine = self.engine.lock();
+            let closed = ProjectClosed {
+                path: engine.project_path().cloned(),
+            };
+            let result = f(&mut engine);
+            let opened = ProjectOpened {
+                path: engine.project_path().cloned(),
+                project: engine.snapshot(),
+            };
+            (result, Announcement::Replaced(closed, opened))
+        };
+        self.announce(hold.release([replaced]));
         Ok(result)
     }
 }
@@ -695,27 +826,17 @@ impl Transaction<'_> {
             self.host
                 .apply_locked(&mut engine, &self.origin, command, |_, _| (), |(), _, _| ())
         };
-        let (outcome, (), event) = applied.map_err(|rejection| match rejection {
+        let (outcome, (), announced) = applied.map_err(|rejection| match rejection {
             Rejection::Refused(reason) => TransactError::Refused { label, reason },
             Rejection::Engine(err) => TransactError::Failed {
                 label,
                 reason: err.to_string(),
             },
         })?;
-        self.host.announce(hold.release(event));
+        self.host
+            .announce(hold.release(announced.into_iter().flatten()));
         self.outcomes.push(outcome.clone());
         Ok(outcome)
-    }
-}
-
-/// The text of a panic payload.
-fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
-    if let Some(text) = payload.downcast_ref::<&str>() {
-        (*text).to_string()
-    } else if let Some(text) = payload.downcast_ref::<String>() {
-        text.clone()
-    } else {
-        "a panic with no message".to_string()
     }
 }
 

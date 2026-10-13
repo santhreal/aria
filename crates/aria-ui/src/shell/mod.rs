@@ -72,11 +72,13 @@ impl Shell {
         .detach();
         spawn_preview(state.clone(), cx);
         // One subscriber each for the session's lifetime: job rows update on
-        // transitions, and edits from plugins and the assistant re-project when
-        // they commit, never on a timer.
+        // transitions, edits from plugins and the assistant re-project when
+        // they commit, and main-lane plugin handlers run when they are queued,
+        // never on a timer.
         state.update(cx, |state, cx| {
             state.watch_jobs(cx);
             state.watch_edits(cx);
+            state.watch_main_lane(cx);
         });
         spawn_status_ageing(cx);
         spawn_meter(cx);
@@ -228,6 +230,9 @@ impl Render for Shell {
             self.state
                 .update(cx, |state, _| state.last_window_h = window_h);
         }
+        // Plugins read the view a frame was drawn from, and are told what
+        // changed since the last one.
+        self.state.read(cx).publish_view();
         // Five numbers, not the whole settings: the settings carry the key map,
         // and copying that to read a width is a copy per frame for nothing.
         let panes = self.state.read(cx).ui_settings.panes();

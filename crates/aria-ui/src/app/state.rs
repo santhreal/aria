@@ -128,6 +128,9 @@ pub struct AppState {
     pub sidebar_tab: SidebarTab,
     pub context_menu: Option<ContextTarget>,
     pub context_at: (f32, f32),
+    /// The rows plugins added to the menu last opened, in mount order. Kept
+    /// after the menu closes so its fade out draws the same rows.
+    pub(crate) context_plugin_rows: Arc<[aria_plugin::MenuEntry]>,
     pub palette_query: String,
     pub(crate) palette_cache: std::cell::RefCell<crate::app::palette::PaletteCache>,
     /// Which of the palette's current hits is highlighted. Clamped on read, so a
@@ -317,6 +320,14 @@ pub struct AppState {
     /// The subscription that re-projects after edits from plugins and the
     /// assistant. One per session, dropped with it.
     pub(crate) edits_watch: Option<aria_plugin::Registration>,
+    /// The view plugins read through `EditorView`, recorded once per drawn
+    /// frame by [`Self::publish_view`].
+    pub(crate) editor_view: Arc<aria_plugin::EditorView>,
+    /// Pool items already announced as `MediaOffline`, so an item that stays
+    /// missing is announced once and one that returns can be again.
+    pub(crate) offline_announced: std::collections::HashSet<u64>,
+    /// Services this session registered on a bare context, for its lifetime.
+    pub(crate) services: Vec<aria_plugin::Registration>,
     /// The board, as every surface that draws pending work reads it.
     ///
     /// A projection, like the sequence: rebuilt when the registry publishes a

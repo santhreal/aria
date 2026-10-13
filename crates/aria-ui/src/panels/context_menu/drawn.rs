@@ -188,3 +188,34 @@ pub(super) fn items(
         ContextTarget::Recent { path } => drawn(RECENT_ITEMS, path, None, None, theme, cx),
     }
 }
+
+/// The rows plugins added, below a rule, in mount order. A click runs the
+/// row's action on a thread of its own.
+pub(super) fn plugin_items(
+    entries: &[aria_plugin::MenuEntry],
+    theme: &Theme,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> Vec<gpui::AnyElement> {
+    if entries.is_empty() {
+        return Vec::new();
+    }
+    let mut out = Vec::with_capacity(entries.len() + 1);
+    out.push(
+        div()
+            .h(px(1.))
+            .my(px(Theme::SPACE_XS))
+            .bg(theme.border)
+            .into_any_element(),
+    );
+    for (index, entry) in entries.iter().enumerate() {
+        let run = std::sync::Arc::clone(&entry.run);
+        out.push(item(
+            crate::motion::MotionKey::new("ctx-plugin", index),
+            entry.label.clone(),
+            theme,
+            cx,
+            move |state: &mut AppState| state.run_plugin_row(std::sync::Arc::clone(&run)),
+        ));
+    }
+    out
+}

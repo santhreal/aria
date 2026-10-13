@@ -37,9 +37,10 @@ use crate::context::{MountFailure, PluginContext};
 use crate::plugin::{Plugin, PluginManifest};
 
 /// The loader contract's version. Bumped when the symbols, the `Plugin` trait,
-/// or a shipped event type change shape; a library built against another one is
-/// refused. Version 2: `CommandProposed` carries the project and the origin.
-pub const ABI_VERSION: u32 = 2;
+/// the event bus, or a shipped event type change shape; a library built against
+/// another one is refused. Version 3: notifications are posted to a delivery
+/// thread, and the editor events ship.
+pub const ABI_VERSION: u32 = 3;
 
 /// Identifies the compiler and crate version the host was built with. Two
 /// libraries agree on the `dyn Plugin` vtable only if this string matches.

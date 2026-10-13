@@ -161,7 +161,8 @@ impl AppState {
         let published = dest.display().to_string();
         self.status_message = Some(format!("Rendering {name} · {written}"));
         let BakePass { project, .. } = pass;
-        let id = self.spawn_job(format!("Rendering {name}"), move |context| {
+        let kind = aria_plugin::RenderKind::Clip(clip);
+        let id = self.spawn_render(format!("Rendering {name}"), kind, dest.clone(), move |context| {
             let mut guard = super::jobs::CommitGuard::new(context, "the render");
             let mut observer = |done: u64, total: u64| {
                 let fraction = if total == 0 {

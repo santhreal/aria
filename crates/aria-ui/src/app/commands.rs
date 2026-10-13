@@ -395,13 +395,17 @@ impl AppState {
         // and a relative override is resolved here rather than asserted there.
         let data_dir =
             crate::settings::absolute_data_dir(&data_dir).map_err(EngineError::Refused)?;
+        // A session built on a bare context (tests, the headless check)
+        // registers what the plugins would have, and keeps the registrations
+        // for its own lifetime.
+        let mut services = Vec::new();
         let engine = match plugin_ctx.try_get::<Mutex<Engine>>() {
             Some(shared) => shared,
             None => {
                 let mut engine = Engine::new(EngineConfig::default())?;
                 engine.new_session();
                 let shared = Arc::new(Mutex::new(engine));
-                plugin_ctx.register_arc(shared.clone());
+                services.push(plugin_ctx.register_arc(shared.clone()));
                 shared
             }
         };
@@ -412,8 +416,16 @@ impl AppState {
             Some(host) => host,
             None => {
                 let host = Arc::new(ProjectHost::new(Arc::clone(&engine), &plugin_ctx));
-                plugin_ctx.register_arc(Arc::clone(&host));
+                services.push(plugin_ctx.register_arc(Arc::clone(&host)));
                 host
+            }
+        };
+        let editor_view = match plugin_ctx.try_get::<aria_plugin::EditorView>() {
+            Some(view) => view,
+            None => {
+                let view = Arc::new(aria_plugin::EditorView::new());
+                services.push(plugin_ctx.register_arc(Arc::clone(&view)));
+                view
             }
         };
         {
@@ -443,13 +455,15 @@ impl AppState {
             Some(shared) => (*shared).clone(),
             None => {
                 let manager = aria_jobs::JobManager::new();
-                plugin_ctx.register(manager.clone());
+                crate::plugins::announce_jobs(&manager, plugin_ctx.event_bus());
+                services.push(plugin_ctx.register(manager.clone()));
                 manager
             }
         };
         let export_queue = Arc::new(crate::app::export_queue::ExportQueue::new_with_device(
             jobs.clone(),
             super::render_device::shared_device(&plugin_ctx),
+            Arc::clone(plugin_ctx.event_bus()),
         ));
         // Home is the first route, so the list it draws is read once here rather
         // than on the first frame that draws it.
@@ -501,6 +515,7 @@ impl AppState {
             sidebar_tab: SidebarTab::Media,
             context_menu: None,
             context_at: (240.0, 96.0),
+            context_plugin_rows: Arc::from([]),
             palette_query: String::new(),
             palette_cache: Default::default(),
             palette_index: 0,
@@ -574,6 +589,9 @@ impl AppState {
             export_queue,
             jobs_watched: false,
             edits_watch: None,
+            editor_view,
+            offline_announced: std::collections::HashSet::new(),
+            services,
             job_view: Vec::new().into(),
             generate: generate::GenerateForm::default(),
             generation_seq: 0,

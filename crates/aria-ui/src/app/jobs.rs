@@ -178,6 +178,40 @@ impl AppState {
         id
     }
 
+    /// Register a render job that posts [`aria_plugin::RenderFinished`] for
+    /// `kind` and `path` when it ends.
+    ///
+    /// The result is read after closing cancellation, so it agrees with the
+    /// registry's terminal state: a cancel accepted before that point reads as
+    /// cancelled, and none is accepted after it. A panic posts its failure and
+    /// then unwinds into the registry, which records it the same way.
+    pub(crate) fn spawn_render(
+        &mut self,
+        label: impl Into<String>,
+        kind: aria_plugin::RenderKind,
+        path: PathBuf,
+        work: impl FnOnce(&aria_jobs::JobContext) -> Result<aria_jobs::JobCompletion, String>
+        + Send
+        + 'static,
+    ) -> JobId {
+        let bus = std::sync::Arc::clone(self.ctx.event_bus());
+        self.spawn_job(label, move |context| {
+            let outcome =
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| work(context)));
+            let result = match &outcome {
+                Err(payload) => aria_plugin::RenderResult::Failed(format!(
+                    "panicked: {}",
+                    aria_jobs::panic_message(&**payload)
+                )),
+                Ok(_) if !context.try_begin_commit() => aria_plugin::RenderResult::Cancelled,
+                Ok(Ok(_)) => aria_plugin::RenderResult::Written,
+                Ok(Err(reason)) => aria_plugin::RenderResult::Failed(reason.clone()),
+            };
+            bus.post(aria_plugin::RenderFinished { kind, path, result });
+            outcome.unwrap_or_else(|payload| std::panic::resume_unwind(payload))
+        })
+    }
+
     /// Rebuild the board's projection from the registry and the export queue.
     ///
     /// Called wherever the list can change and nowhere else: the subscriber's

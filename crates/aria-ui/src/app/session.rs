@@ -85,8 +85,10 @@ impl AppState {
     }
 
     pub fn new_project(&mut self) -> Result<(), EngineError> {
-        self.host
-            .exclusive(&aria_plugin::Origin::Editor, aria_engine::Engine::new_session)?;
+        self.host.replace_session(
+            &aria_plugin::Origin::Editor,
+            aria_engine::Engine::new_session,
+        )?;
         self.project_path = None;
         self.waveforms.clear();
         self.clear_recovery();

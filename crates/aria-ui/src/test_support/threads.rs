@@ -154,6 +154,12 @@ const THREAD_OWNERS: &[(&str, &str)] = &[
         "the pool's own rules: a thread that finds every slot held, and a \
          holder that panics while it has one",
     ),
+    (
+        "crates/aria-ui/src/app/view_events.rs",
+        "a plugin's context menu row: plugin code that may edit through the \
+         project host or block, started off the window's thread and never \
+         waited for",
+    ),
 ];
 
 /// **Handing work to a thread belongs to one module.**

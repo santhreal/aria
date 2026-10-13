@@ -73,6 +73,7 @@ pub fn render(
         }
         _ => None,
     };
+    let plugin_rows = std::sync::Arc::clone(&rows.context_plugin_rows);
 
     let card = div()
         .id("context-menu-card")
@@ -98,7 +99,8 @@ pub fn render(
             },
             &theme,
             cx,
-        ));
+        ))
+        .children(plugin_items(&plugin_rows, &theme, cx));
     // Entry and exit take different element ids. GPUI keys animation state by
     // id, so a shared one would hand the exit the finished entry's clock and the
     // exit would never draw a frame.
@@ -164,4 +166,4 @@ struct MenuFacts {
 mod drawn;
 mod label;
 mod row;
-use drawn::{drawn_target, items};
+use drawn::{drawn_target, items, plugin_items};

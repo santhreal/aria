@@ -12,6 +12,11 @@ Notes for the latest release. For previous releases, see the
 - Plugins receive `CommandApplied` after each command can no longer be rolled back, and the editor redraws when a plugin or the assistant edits.
 - `CommandProposed` carries the project the command applies to and its origin, and external plugins must be rebuilt for loader version 2.
 - An edit made during an assistant turn is refused with a message naming the assistant, instead of joining the turn's undo step.
+- Plugin notifications are posted to a delivery thread in post order, so a slow handler no longer stalls the editor, and `on_event_main` runs a handler on the UI thread; external plugins must be rebuilt for loader version 3.
+- Plugins receive project open, close, and save, media import, relink, and offline, selection, playhead, In/Out, playback, export, render, job, and plugin activation events.
+- Plugins read the selection, playhead, In/Out, and transport through the `EditorView` service.
+- Plugins add rows to every context menu through `ContextMenuRequested`; a clicked row runs off the UI thread.
+- The engine, project host, and jobs services registered by a session started without the engine plugin stay registered for the session instead of being dropped at once.
 - Render and replace no longer hangs the editor when it swaps the rendered file in.
 - Every button, icon, card, and menu row dims while pressed, so clicks read on every control.
 - Shift-dragging a clip ripple-moves every sync-locked lane: the sound under the picture moves with it instead of staying behind.

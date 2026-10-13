@@ -362,7 +362,8 @@ impl AppState {
         let label = format!("Rendering frames to {}", folder_label(&dir));
         let dest = dir;
         let gpu = super::render_device::shared_device(&self.ctx);
-        let id = self.spawn_job(label, move |context| {
+        let kind = aria_plugin::RenderKind::ImageSequence;
+        let id = self.spawn_render(label, kind, dest.clone(), move |context| {
             let mut renderer = super::render_device::renderer_on(gpu, "the render")?;
             let mut encoder = aria_render::PngSequenceEncoder::new(&dest)
                 .map_err(|err| format!("opening {}: {err}", dest.display()))?;

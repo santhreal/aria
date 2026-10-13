@@ -129,6 +129,9 @@ impl Plugin for EnginePlugin {
                 let shared = Arc::new(Mutex::new(engine));
                 ctx.register_arc(Arc::clone(&shared));
                 ctx.register(ProjectHost::new(shared, ctx));
+                // What the window shows besides the project, recorded per drawn
+                // frame; a plugin reads it by declaring `EditorView`.
+                ctx.register(aria_plugin::EditorView::new());
                 // The lock policy is a waterfall handler, not a service: the host
                 // asks every plugin in mount order and the first refusal wins. It
                 // reads the project the event carries; the engine is locked while

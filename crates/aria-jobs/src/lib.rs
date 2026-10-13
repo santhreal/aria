@@ -922,9 +922,9 @@ fn thread_name(label: &str) -> String {
     name
 }
 
-/// Best-effort extraction of a panic payload: `panic!` with a literal
-/// carries `&str`, with formatting `String`; anything else is opaque.
-fn panic_message(payload: &(dyn Any + Send)) -> &str {
+/// A panic payload's message: `panic!` with a literal carries `&str`, with
+/// formatting `String`; anything else reads as "opaque panic payload".
+pub fn panic_message(payload: &(dyn Any + Send)) -> &str {
     if let Some(message) = payload.downcast_ref::<&str>() {
         message
     } else if let Some(message) = payload.downcast_ref::<String>() {

@@ -12,10 +12,10 @@ change.
 | Effects and transitions | `EffectService::render_effect` and `TransitionService::render_transition` return an error stating no compositor dispatch exists (`crates/aria-ui/src/plugins/gpu.rs`). The effect set is the static `EFFECTS` table in `crates/aria-compositor/src/passes.rs`, with ids as `&'static str` and parameters capped at 16 floats (`EFFECT_PARAM_FLOATS`). A plugin cannot add an effect. |
 | Render interception | `RenderInterceptorService` is registered with a pass-through value and has no caller (`crates/aria-ui/src/plugins/engine.rs`). |
 | Generators | `GeneratorService` has no caller. |
-| Events | Three shipped events: `CommandProposed` (waterfall, with the project and the origin), `CommandApplied` (notification), and `ResolveDroppedPath` (serial, closed `DropAction` enum). No project lifecycle, selection, playback, media, render, or job events. |
-| Project access | `aria_plugin::ProjectHost`: immutable snapshots, single commands, named transactions that return each command's outcome, nested groups with savepoints, and undo, for native plugins. The snapshot holds no selection, playhead, or In/Out, and has no query by time range or selection. |
+| Events | Every event in the chapter's table is dispatched (`docs/plugin-development.md#events`). `CommandApplied` holds the command, its `ApplyOutcome`, the engine revision, and the origin, with no undo step and no list of changed ids. `ResolveDroppedPath` claims paths, not URLs. |
+| Project access | `aria_plugin::ProjectHost`: immutable snapshots, single commands, named transactions that return each command's outcome, nested groups with savepoints, and undo, for native plugins. The selection, playhead, and In/Out are read from the `EditorView` service as of the last drawn frame, not from the snapshot. No query by time range or selection. |
 | UI contributions | Panels, overlays, commands, menus, keys, and settings exist through hosts in `crates/aria-ui/src/plugins/`, which requires linking `aria-ui`. |
-| External plugins | `cdylib` loaded from `<data dir>/plugins`, refused unless built by the same `rustc` and `aria-plugin` (`crates/aria-plugin/src/external.rs`, `ABI_VERSION = 2`). Libraries are never unloaded. No WASM tier, packages, permissions, activation events, or hot reload. |
+| External plugins | `cdylib` loaded from `<data dir>/plugins`, refused unless built by the same `rustc` and `aria-plugin` (`crates/aria-plugin/src/external.rs`, `ABI_VERSION = 3`). Libraries are never unloaded. No WASM tier, packages, permissions, activation events, or hot reload. |
 
 ## Layout ([layout.md](layout.md))
 

@@ -25,6 +25,7 @@ use std::time::{Duration, Instant};
 
 use aria_jobs::{JobCompletion, JobId, JobManager};
 use aria_models::Project;
+use aria_plugin::{EventBus, ExportFinished, ExportStarted, RenderResult};
 use aria_render::ExportSettings;
 
 use super::jobs::{CommitGuard, file_label};
@@ -142,6 +143,12 @@ struct SharedQueue {
     job_manager: JobManager,
     runner: Mutex<ExportRunner>,
     inner: Mutex<QueueInner>,
+    /// Where `ExportStarted` and `ExportFinished` are posted.
+    events: Arc<EventBus>,
+    /// Held across a state transition and its notification, so an entry's
+    /// `ExportFinished` is posted before the next entry's `ExportStarted`.
+    /// Taken before `inner`.
+    announcing: Mutex<()>,
 }
 
 impl SharedQueue {
@@ -153,24 +160,48 @@ impl SharedQueue {
         state: ExportEntryState,
         error: Option<String>,
     ) {
-        {
+        let announcing = self.announcing.lock().expect("announce lock");
+        let finished = {
             let mut inner = self.inner.lock().expect("queue lock");
-            if let Some(entry) = inner.entries.iter_mut().find(|e| e.id == entry_id) {
-                entry.state = state;
-                entry.error = error;
-                entry.finished = Some(Instant::now());
-                if state == ExportEntryState::Done {
-                    entry.progress = Some(1.0);
-                }
-            }
+            let finished = inner
+                .entries
+                .iter_mut()
+                .find(|e| e.id == entry_id)
+                .map(|entry| {
+                    let result = match state {
+                        ExportEntryState::Done => RenderResult::Written,
+                        ExportEntryState::Cancelled => RenderResult::Cancelled,
+                        ExportEntryState::Failed
+                        | ExportEntryState::Queued
+                        | ExportEntryState::Running => {
+                            RenderResult::Failed(error.clone().unwrap_or_default())
+                        }
+                    };
+                    entry.state = state;
+                    entry.error = error;
+                    entry.finished = Some(Instant::now());
+                    if state == ExportEntryState::Done {
+                        entry.progress = Some(1.0);
+                    }
+                    ExportFinished {
+                        path: entry.dest.clone(),
+                        result,
+                    }
+                });
             if inner.running_id == Some(entry_id) {
                 inner.running_id = None;
             }
+            finished
+        };
+        if let Some(finished) = finished {
+            self.events.post(finished);
         }
+        drop(announcing);
         self.pump_internal();
     }
 
     fn pump_internal(self: &Arc<Self>) {
+        let announcing = self.announcing.lock().expect("announce lock");
         let to_spawn = {
             let mut inner = self.inner.lock().expect("queue lock");
             if let Some(running_id) = inner.running_id {
@@ -207,6 +238,8 @@ impl SharedQueue {
         };
 
         let (entry_id, label, dest, settings, project, cancel_early) = to_spawn;
+        self.events.post(ExportStarted { path: dest.clone() });
+        drop(announcing);
         let runner = {
             let r = self.runner.lock().expect("runner lock");
             Arc::clone(&*r)
@@ -285,8 +318,9 @@ pub struct ExportQueue {
 }
 
 impl ExportQueue {
-    /// Create a new queue backed by `job_manager` and `runner`.
-    pub fn new(job_manager: JobManager, runner: ExportRunner) -> Self {
+    /// Create a new queue backed by `job_manager` and `runner`, posting
+    /// `ExportStarted` and `ExportFinished` on `events`.
+    pub fn new(job_manager: JobManager, runner: ExportRunner, events: Arc<EventBus>) -> Self {
         Self {
             shared: Arc::new(SharedQueue {
                 job_manager,
@@ -296,6 +330,8 @@ impl ExportQueue {
                     entries: Vec::new(),
                     running_id: None,
                 }),
+                events,
+                announcing: Mutex::new(()),
             }),
         }
     }
@@ -304,8 +340,9 @@ impl ExportQueue {
     pub fn new_with_device(
         job_manager: JobManager,
         gpu: Option<aria_compositor::GpuContext>,
+        events: Arc<EventBus>,
     ) -> Self {
-        Self::new(job_manager, default_export_runner(gpu))
+        Self::new(job_manager, default_export_runner(gpu), events)
     }
 
     /// Replace the export runner (useful for tests and scripted doubles).

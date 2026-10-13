@@ -7,6 +7,7 @@ use std::time::{Duration, Instant};
 use parking_lot::{Mutex, RwLock};
 use rustc_hash::FxHashMap;
 
+use crate::editor_events::{PluginActivated, PluginDeactivated};
 use crate::error::PluginError;
 use crate::events::EventBus;
 use crate::plugin::{Plugin, PluginManifest};
@@ -256,13 +257,25 @@ impl PluginContext {
         self.retain_if_mounting(registration)
     }
 
-    /// Subscribe an emit handler, retained the same way.
+    /// Subscribe a notification handler on the bus's delivery thread, retained
+    /// the same way.
     pub fn on_event<E, F>(&self, handler: F) -> Registration
     where
-        E: crate::events::Event + Send + Sync,
+        E: crate::events::Event,
         F: Fn(&E) + Send + Sync + 'static,
     {
         let registration = self.events.subscribe::<E, F>(handler);
+        self.retain_if_mounting(registration)
+    }
+
+    /// Subscribe a notification handler on the host's main thread, retained the
+    /// same way. In the editor that is the UI thread.
+    pub fn on_event_main<E, F>(&self, handler: F) -> Registration
+    where
+        E: crate::events::Event,
+        F: Fn(&E) + Send + Sync + 'static,
+    {
+        let registration = self.events.subscribe_main::<E, F>(handler);
         self.retain_if_mounting(registration)
     }
 
@@ -370,6 +383,7 @@ impl PluginContext {
             registrations,
             mount: elapsed,
         });
+        self.events.post(PluginActivated { id: manifest.id });
         Ok(())
     }
 
@@ -383,10 +397,14 @@ impl PluginContext {
                 PluginError::UnmountFailed("unknown", format!("plugin not found: {plugin_id}"))
             })?;
         let removed = plugins.remove(idx);
+        drop(plugins);
         drop(removed.registrations);
         self.denials.write().retain(|d| d.plugin != plugin_id);
         self.failures.write().retain(|f| f.id != plugin_id);
         tracing::info!(plugin = %removed.manifest.id, "unmounted plugin");
+        self.events.post(PluginDeactivated {
+            id: removed.manifest.id,
+        });
         Ok(())
     }
 
