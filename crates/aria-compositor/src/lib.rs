@@ -41,6 +41,7 @@ mod metal_import;
 mod passes;
 mod passes_uniform;
 mod planes;
+mod registered_passes;
 #[path = "track_feature.rs"]
 mod track_feature;
 #[cfg(target_os = "linux")]
@@ -63,7 +64,13 @@ pub use layer::{
 };
 pub use lut::{CubeLut, LutError, MAX_CUBE_SIZE};
 pub use passes::{
-    PassDescriptor, PassInstance, PassParam, TransitionPass, WipeDirection, effect_descriptor,
-    effect_descriptors, effect_is_noop, transition_descriptors, transition_ids, transition_pass,
+    PassDescriptor, PassId, PassInstance, PassParam, TransitionPass, WipeDirection,
+    effect_descriptor, effect_is_noop, pass_id, renders_effect, renders_transition,
+    shipped_effect_descriptors, shipped_transition_descriptors, shipped_transition_ids,
+    transition_pass,
+};
+pub use registered_passes::{
+    EffectDefinition, MAX_EFFECT_FLOATS, MAX_EFFECT_PASSES, PassRegistration, RegisterError,
+    RegisteredPass, TransitionDefinition, register_effect, register_transition,
 };
 pub use track_feature::{Match as TrackMatch, Patch as TrackPatch, track_patch};

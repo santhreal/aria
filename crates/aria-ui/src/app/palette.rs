@@ -22,12 +22,14 @@
 //! `AppState` does not, and keeping it that way is what lets a headless state
 //! still run every other row.
 
+use gpui::SharedString;
+
 use super::AppState;
 use crate::commands::host::{CommandBody, CommandRun, WindowedRun, host_of};
 use crate::types::AppMenu;
 
 /// How an offered row is invoked.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub enum Offered {
     /// A registered command. Runs against the state alone.
     Command(CommandRun),
@@ -40,7 +42,7 @@ pub enum Offered {
     /// An effect in the catalog, by its id: the row adds it to the selection.
     /// Its own kind rather than a `Command`, because the row carries the id and
     /// a `fn` pointer cannot.
-    Effect(&'static str),
+    Effect(SharedString),
 }
 
 /// What the caller must still run, because it needs the entity context.
@@ -72,12 +74,12 @@ impl PartialEq for Pending {
 }
 
 /// One row the palette can offer.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct PaletteOffer {
     /// Element id, and the identity the offer de-duplicates on.
-    pub id: &'static str,
+    pub id: SharedString,
     /// What the palette shows and filters on.
-    pub label: &'static str,
+    pub label: SharedString,
     /// Where the row came from: `None` for a command, the menu for a menu row.
     pub source: Option<AppMenu>,
     pub action: Offered,
@@ -89,8 +91,8 @@ struct PaletteKey {
     custom_workspace: bool,
     command_revision: Option<u64>,
     menu_revision: Option<u64>,
-    effects_at: usize,
-    effects_len: usize,
+    /// The effect catalog's revision: a plugin can add or remove an effect.
+    effects_revision: u64,
 }
 
 #[derive(Default)]
@@ -121,8 +123,7 @@ impl AppState {
             custom_workspace: self.ui_settings.workspace.is_some(),
             command_revision: commands.as_ref().map(|host| host.revision()),
             menu_revision: menus.as_ref().map(|host| host.revision()),
-            effects_at: effects.as_ptr() as usize,
-            effects_len: effects.len(),
+            effects_revision: effects.revision(),
         };
         {
             let cache = self.palette_cache.borrow();
@@ -135,8 +136,8 @@ impl AppState {
         if let Some(host) = commands {
             for entry in host.all() {
                 offers.push(PaletteOffer {
-                    id: entry.id,
-                    label: entry.label,
+                    id: SharedString::new_static(entry.id),
+                    label: SharedString::new_static(entry.label),
                     source: None,
                     action: match entry.body {
                         CommandBody::Plain(run) => Offered::Command(run),
@@ -155,26 +156,26 @@ impl AppState {
                         continue;
                     }
                     offers.push(PaletteOffer {
-                        id: item.id,
-                        label: item.label,
+                        id: SharedString::new_static(item.id),
+                        label: SharedString::new_static(item.label),
                         source: Some(menu),
                         action: Offered::Menu(menu, item.id),
                     });
                 }
             }
         }
-        for spec in effects {
-            let id = spec.id.as_str();
-            let label = spec.label.as_str();
+        for spec in &effects {
+            let (id, label) = (spec.id.as_str(), spec.label.as_str());
             if offers
                 .iter()
                 .any(|offer| offer.label == label || offer.id == id)
             {
                 continue;
             }
+            let id = SharedString::from(id);
             offers.push(PaletteOffer {
-                id,
-                label,
+                id: id.clone(),
+                label: SharedString::from(label),
                 source: None,
                 action: Offered::Effect(id),
             });
@@ -198,11 +199,11 @@ impl AppState {
                 return std::sync::Arc::clone(&cache.hits);
             }
         }
-        let labels: Vec<&str> = catalog.iter().map(|offer| offer.label).collect();
+        let labels: Vec<&str> = catalog.iter().map(|offer| offer.label.as_str()).collect();
         let hits: std::sync::Arc<[PaletteOffer]> =
             crate::popover::filter_indices(&self.palette_query, &labels)
                 .into_iter()
-                .filter_map(|ix| catalog.get(ix).copied())
+                .filter_map(|ix| catalog.get(ix).cloned())
                 .collect();
         let mut cache = self.palette_cache.borrow_mut();
         cache.query = Some(self.palette_query.clone());
@@ -264,7 +265,7 @@ impl AppState {
     /// Returns the work the caller must run with the entity context, or `None`
     /// when the row ran here or there was no such row.
     pub fn run_palette_offer(&mut self, index: usize) -> Option<Pending> {
-        let offer = self.palette_hits().get(index).copied()?;
+        let offer = self.palette_hits().get(index).cloned()?;
         match offer.action {
             Offered::Command(run) => {
                 run(self);
@@ -276,7 +277,7 @@ impl AppState {
             // selection says so through the same reader every other command
             // reads the selection with.
             Offered::Effect(id) => {
-                if let Err(err) = self.add_effect_to_selected(id) {
+                if let Err(err) = self.add_effect_to_selected(id.as_str()) {
                     self.report_error(&err);
                 }
                 None

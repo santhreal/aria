@@ -199,30 +199,9 @@ impl LottieAnimation {
             self.render_height as u16,
             RenderMode::OptimizeSpeed,
         );
-        unpremultiply_in_place(&mut pixels);
-
-        Ok(RgbaImage::new(
-            self.render_width,
-            self.render_height,
-            pixels,
-        ))
-    }
-}
-
-/// Convert a packed premultiplied RGBA8 buffer to straight alpha without
-/// allocating or copying it.
-fn unpremultiply_in_place(pixels: &mut [u8]) {
-    debug_assert_eq!(pixels.len() % 4, 0);
-    for pixel in pixels.chunks_exact_mut(4) {
-        let [r, g, b, a] = [pixel[0], pixel[1], pixel[2], pixel[3]];
-        if a == 0 {
-            continue;
-        }
-        let alpha = 255.0 / f32::from(a);
-        let unpremultiply = |component| (f32::from(component) * alpha + 0.5) as u8;
-        pixel[0] = unpremultiply(r);
-        pixel[1] = unpremultiply(g);
-        pixel[2] = unpremultiply(b);
+        let mut image = RgbaImage::new(self.render_width, self.render_height, pixels);
+        image.unpremultiply();
+        Ok(image)
     }
 }
 
@@ -369,24 +348,6 @@ mod tests {
         let second = anim.render_frame_reusing(1, first.pixels).unwrap();
         assert_eq!(second.pixels.as_ptr(), pointer);
         assert_eq!(second.pixels.capacity(), capacity);
-    }
-
-    #[test]
-    fn in_place_unpremultiply_matches_straight_alpha_edges() {
-        let mut pixels = vec![
-            0, 0, 0, 0, // transparent
-            64, 32, 16, 128, // half-alpha
-            255, 128, 0, 255, // opaque
-        ];
-        unpremultiply_in_place(&mut pixels);
-        assert_eq!(
-            pixels,
-            [
-                0, 0, 0, 0, //
-                128, 64, 32, 128, //
-                255, 128, 0, 255,
-            ]
-        );
     }
 
     #[test]

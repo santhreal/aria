@@ -11,10 +11,7 @@ fn vignette_darkens_corners_vs_center() {
     let white = CompositeLayer::solid([255, 255, 255, 255], LayerPlacement::full_canvas(&config));
     let baseline = comp.render(&gpu, &config, &[white]).expect("baseline");
 
-    let vignette = PassInstance {
-        id: "vignette",
-        params: vec![0.8],
-    };
+    let vignette = PassInstance::new("vignette", vec![0.8]);
     let effects = [vignette];
     let effected =
         CompositeLayer::solid([255, 255, 255, 255], LayerPlacement::full_canvas(&config))
@@ -46,10 +43,7 @@ fn gaussian_blur_radius_softens_a_hard_edge() {
     let sharp = CompositeLayer::rgba(&bmp, LayerPlacement::full_canvas(&config));
     let sharp_img = comp.render(&gpu, &config, &[sharp]).expect("sharp");
 
-    let blur = PassInstance {
-        id: "gaussian_blur",
-        params: vec![8.0],
-    };
+    let blur = PassInstance::new("gaussian_blur", vec![8.0]);
     let effects = [blur];
     let soft =
         CompositeLayer::rgba(&bmp, LayerPlacement::full_canvas(&config)).with_effects(&effects);
@@ -80,10 +74,7 @@ fn pixelate_produces_uniform_blocks() {
     let smooth = CompositeLayer::rgba(&bmp, LayerPlacement::full_canvas(&config));
     let smooth_img = comp.render(&gpu, &config, &[smooth]).expect("smooth");
 
-    let pixelate = PassInstance {
-        id: "pixelate",
-        params: vec![8.0],
-    };
+    let pixelate = PassInstance::new("pixelate", vec![8.0]);
     let effects = [pixelate];
     let blocky_layer =
         CompositeLayer::rgba(&bmp, LayerPlacement::full_canvas(&config)).with_effects(&effects);
@@ -128,10 +119,7 @@ fn canvas_pass_pixelates_the_composited_stack() {
         )
         .expect("baseline");
 
-    let pixelate = PassInstance {
-        id: "pixelate",
-        params: vec![8.0],
-    };
+    let pixelate = PassInstance::new("pixelate", vec![8.0]);
     let effects = [pixelate];
     let blocky = comp
         .render_compositor_layers(
@@ -163,10 +151,8 @@ fn production_render_rejects_effect_parameter_count_mismatch() {
     let mut comp = Compositor::new(&gpu);
     let config = CompositorConfig::new(64, 64);
 
-    let bad_effect = PassInstance {
-        id: "vignette",
-        params: vec![0.5, 1.0], // vignette expects 1 float
-    };
+    // vignette expects 1 float
+    let bad_effect = PassInstance::new("vignette", vec![0.5, 1.0]);
     let effects = [bad_effect];
     let layer = CompositeLayer::solid([255, 0, 0, 255], LayerPlacement::full_canvas(&config))
         .with_effects(&effects);
@@ -194,10 +180,8 @@ fn production_render_rejects_effect_parameter_overflow() {
     let mut comp = Compositor::new(&gpu);
     let config = CompositorConfig::new(64, 64);
 
-    let bad_effect = PassInstance {
-        id: "gaussian_blur",
-        params: vec![1.0; 17], // exceeds 16 uniform floats
-    };
+    // exceeds 16 uniform floats
+    let bad_effect = PassInstance::new("gaussian_blur", vec![1.0; 17]);
     let effects = [bad_effect];
     let layer = CompositeLayer::solid([255, 0, 0, 255], LayerPlacement::full_canvas(&config))
         .with_effects(&effects);
@@ -225,7 +209,7 @@ fn production_render_rejects_every_catalog_effect_variant_on_short_or_long_param
     let mut comp = Compositor::new(&gpu);
     let config = CompositorConfig::new(64, 64);
 
-    let descriptors = aria_compositor::effect_descriptors();
+    let descriptors = aria_compositor::shipped_effect_descriptors();
     assert!(
         !descriptors.is_empty(),
         "effect descriptors must not be empty"
@@ -235,10 +219,7 @@ fn production_render_rejects_every_catalog_effect_variant_on_short_or_long_param
         let expected = desc.float_count();
 
         // Long parameters rejected through production render
-        let bad_long = PassInstance {
-            id: desc.id,
-            params: vec![0.5; expected + 1],
-        };
+        let bad_long = PassInstance::new(desc.id, vec![0.5; expected + 1]);
         let layer_long =
             CompositeLayer::solid([255, 0, 0, 255], LayerPlacement::full_canvas(&config))
                 .with_effects(std::slice::from_ref(&bad_long));
@@ -263,10 +244,7 @@ fn production_render_rejects_every_catalog_effect_variant_on_short_or_long_param
 
         // Short parameters (empty) rejected through production render when expected > 0
         if expected > 0 {
-            let bad_short = PassInstance {
-                id: desc.id,
-                params: Vec::new(),
-            };
+            let bad_short = PassInstance::new(desc.id, Vec::new());
             let layer_short =
                 CompositeLayer::solid([255, 0, 0, 255], LayerPlacement::full_canvas(&config))
                     .with_effects(std::slice::from_ref(&bad_short));

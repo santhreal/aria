@@ -137,7 +137,7 @@ fn transitions_on_track(state: &AppState) -> usize {
 #[test]
 fn the_window_length_clamps_and_keeps_the_blend() {
     let (mut state, left, right) = with_cut();
-    let id = transition_catalog()[0].id.as_str();
+    let id = aria_models::shipped_transition_catalog()[0].id.as_str();
     state.set_selected_transition(id).expect("apply");
     let left_span = bounds(&state, left);
     let right_span = bounds(&state, right);
@@ -239,7 +239,7 @@ fn a_refused_transition_is_inert_and_names_the_reason() {
 #[test]
 fn breaking_the_abutment_drops_the_dead_junction() {
     let (mut state, left, right) = with_cut();
-    let id = transition_catalog()[0].id.as_str();
+    let id = aria_models::shipped_transition_catalog()[0].id.as_str();
     state.set_selected_transition(id).expect("apply");
     assert_eq!(transitions_on_track(&state), 1);
 
@@ -322,7 +322,7 @@ fn dragging_either_wedge_edge_sets_the_window_symmetrically() {
 #[test]
 fn a_wedge_edits_its_own_junction_without_taking_the_selection() {
     let (mut state, left, right) = with_cut();
-    let id = transition_catalog()[0].id.as_str();
+    let id = aria_models::shipped_transition_catalog()[0].id.as_str();
 
     state.select_clip(right);
     assert!(

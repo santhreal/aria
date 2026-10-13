@@ -26,7 +26,8 @@ use crate::passes_uniform::{Read, declared_param_slots, param_reads, reads_of, s
 
 use super::{
     EFFECTS, INERT_PARAM_OFFSET_BY_ID, PassParam, TRANSITIONS, TransitionPass, effect_descriptor,
-    effect_descriptors, effect_is_noop, slots_agree, transition_ids, transition_pass,
+    effect_is_noop, shipped_effect_descriptors, shipped_transition_ids, slots_agree,
+    transition_pass,
 };
 
 /// Every row of the registry renders a shipped catalog effect, and every shipped
@@ -49,7 +50,7 @@ fn every_shipped_effect_is_renderable() {
             spec.params.len()
         );
     }
-    for desc in effect_descriptors() {
+    for desc in shipped_effect_descriptors() {
         assert!(
             EFFECTS.iter().any(|row| row.id == desc.id),
             "'{}' is renderable with no registry row behind it",
@@ -66,7 +67,7 @@ fn every_shipped_effect_is_renderable() {
 /// derivation itself.
 #[test]
 fn effect_descriptor_has_one_owner() {
-    for desc in effect_descriptors() {
+    for desc in shipped_effect_descriptors() {
         let spec =
             aria_models::effect_spec(desc.id).expect("a renderable effect is in the catalog");
         let names: Vec<&str> = desc.params.iter().map(|param| param.name).collect();
@@ -100,7 +101,7 @@ fn effect_descriptor_has_one_owner() {
 
 #[test]
 fn every_effect_reads_exactly_the_floats_its_catalog_declares() {
-    for desc in effect_descriptors() {
+    for desc in shipped_effect_descriptors() {
         let row = EFFECTS
             .iter()
             .find(|row| row.id == desc.id)
@@ -141,7 +142,7 @@ fn every_effect_reads_exactly_the_floats_its_catalog_declares() {
 /// the catalog is read once per process and cannot be swapped mid-run.
 #[test]
 fn a_catalog_the_shader_disagrees_with_is_refused() {
-    for desc in effect_descriptors() {
+    for desc in shipped_effect_descriptors() {
         let row = EFFECTS
             .iter()
             .find(|row| row.id == desc.id)
@@ -199,7 +200,7 @@ fn a_catalog_the_shader_disagrees_with_is_refused() {
 
 #[test]
 fn no_effect_overflows_the_uniform_its_shader_declares() {
-    for desc in effect_descriptors() {
+    for desc in shipped_effect_descriptors() {
         let row = EFFECTS
             .iter()
             .find(|row| row.id == desc.id)
@@ -334,8 +335,8 @@ fn every_transition_shader_reads_the_progress_it_is_handed() {
 #[test]
 fn the_public_catalogs_are_projections_of_the_rows() {
     // Catalog order, because that is where an effect's parameters come from.
-    let effect_ids: Vec<&str> = effect_descriptors().iter().map(|d| d.id).collect();
-    let catalog_ids: Vec<&str> = aria_models::effect_catalog()
+    let effect_ids: Vec<&str> = shipped_effect_descriptors().iter().map(|d| d.id).collect();
+    let catalog_ids: Vec<&str> = aria_models::shipped_effect_catalog()
         .iter()
         .map(|spec| spec.id.as_str())
         .filter(|id| EFFECTS.iter().any(|row| row.id == *id))
@@ -343,7 +344,7 @@ fn the_public_catalogs_are_projections_of_the_rows() {
     assert_eq!(effect_ids, catalog_ids);
 
     let transition_row_ids: Vec<&str> = TRANSITIONS.iter().map(|r| r.id).collect();
-    assert_eq!(transition_ids().to_vec(), transition_row_ids);
+    assert_eq!(shipped_transition_ids().to_vec(), transition_row_ids);
     for row in TRANSITIONS {
         assert_eq!(
             transition_pass(row.id),
@@ -361,7 +362,7 @@ fn the_public_catalogs_are_projections_of_the_rows() {
 
 #[test]
 fn pass_descriptors_have_exact_precomputed_float_counts_and_offsets() {
-    for desc in effect_descriptors() {
+    for desc in shipped_effect_descriptors() {
         let mut expected_offset = 0usize;
         for param in desc.params {
             assert_eq!(
@@ -386,7 +387,7 @@ fn pass_descriptors_have_exact_precomputed_float_counts_and_offsets() {
         );
     }
 
-    for desc in super::transition_descriptors() {
+    for desc in super::shipped_transition_descriptors() {
         assert_eq!(desc.float_count(), 1);
         assert_eq!(desc.param_offset("progress"), Some(0));
         assert_eq!(desc.param_offset("nonexistent"), None);

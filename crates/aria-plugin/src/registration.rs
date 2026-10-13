@@ -6,7 +6,8 @@ use std::sync::{Arc, Weak};
 use crate::context::ServiceMap;
 use crate::events::EventBus;
 
-/// A guard that unregisters a service or event handler when dropped.
+/// A guard that unregisters a service, an event handler, or a registered effect
+/// or transition when dropped.
 pub struct Registration {
     kind: RegistrationKind,
 }
@@ -23,6 +24,11 @@ enum RegistrationKind {
         type_id: TypeId,
         handler_id: usize,
         bus: Weak<EventBus>,
+    },
+    /// A guard whose own drop removes what it registered: a runtime effect or
+    /// transition.
+    Held {
+        _guard: Box<dyn std::any::Any + Send + Sync>,
     },
     None,
 }
@@ -42,7 +48,9 @@ impl Registration {
     pub fn service_name(&self) -> Option<&'static str> {
         match &self.kind {
             RegistrationKind::Service { name, .. } => Some(name),
-            RegistrationKind::Handler { .. } | RegistrationKind::None => None,
+            RegistrationKind::Handler { .. }
+            | RegistrationKind::Held { .. }
+            | RegistrationKind::None => None,
         }
     }
 
@@ -52,6 +60,15 @@ impl Registration {
                 type_id,
                 handler_id,
                 bus: Arc::downgrade(bus),
+            },
+        }
+    }
+
+    /// Hold `guard` until this registration drops, which drops it.
+    pub(crate) fn holding(guard: impl Send + Sync + 'static) -> Self {
+        Self {
+            kind: RegistrationKind::Held {
+                _guard: Box::new(guard),
             },
         }
     }
@@ -86,7 +103,7 @@ impl Drop for Registration {
                     bus.remove_handler(*type_id, *handler_id);
                 }
             }
-            RegistrationKind::None => {}
+            RegistrationKind::Held { .. } | RegistrationKind::None => {}
         }
     }
 }

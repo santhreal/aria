@@ -23,8 +23,8 @@ fn row(state: &crate::app::AppState, id: &str) -> Option<PaletteOffer> {
     state
         .palette_catalog()
         .iter()
-        .copied()
-        .find(|offer| matches!(offer.action, Offered::Effect(at) if at == id))
+        .find(|offer| matches!(&offer.action, Offered::Effect(at) if at == id))
+        .cloned()
 }
 
 #[test]
@@ -49,11 +49,12 @@ fn running_an_effect_row_adds_it_to_the_selection() {
     state.select_clip(clip);
     let spec = aria_models::effect_catalog()
         .first()
+        .cloned()
         .expect("the model ships an effect");
     let index = state
         .palette_catalog()
         .into_iter()
-        .position(|offer| matches!(offer.action, Offered::Effect(at) if at == spec.id))
+        .position(|offer| matches!(&offer.action, Offered::Effect(at) if *at == spec.id))
         .expect("the effect is offered");
 
     assert!(
@@ -89,11 +90,12 @@ fn an_effect_row_with_no_selection_says_so_and_adds_nothing() {
     state.status_message = None;
     let spec = aria_models::effect_catalog()
         .first()
+        .cloned()
         .expect("the model ships an effect");
     let index = state
         .palette_catalog()
         .into_iter()
-        .position(|offer| matches!(offer.action, Offered::Effect(at) if at == spec.id))
+        .position(|offer| matches!(&offer.action, Offered::Effect(at) if *at == spec.id))
         .expect("the effect is offered");
 
     state.run_palette_offer(index);

@@ -74,11 +74,8 @@ fn menu_rows(state: &crate::app::AppState) -> Vec<(AppMenu, &'static str)> {
 fn every_menu_row_is_offered_by_name() {
     let mut state = state();
     state.open_dialog(DialogKind::Palette);
-    let offered: Vec<&str> = state
-        .palette_catalog()
-        .into_iter()
-        .map(|offer| offer.label)
-        .collect();
+    let catalog = state.palette_catalog();
+    let offered: Vec<&str> = catalog.iter().map(|offer| offer.label.as_str()).collect();
     for (menu, label) in menu_rows(&state) {
         assert!(
             offered.contains(&label),
@@ -97,7 +94,7 @@ fn a_menu_row_the_commands_already_name_is_offered_once() {
         let same: Vec<&str> = catalog
             .iter()
             .filter(|other| other.label == offer.label)
-            .map(|other| other.id)
+            .map(|other| other.id.as_str())
             .collect();
         assert_eq!(same.len(), 1, "{} is offered twice: {same:?}", offer.label);
     }
@@ -110,7 +107,7 @@ fn a_command_outranks_the_menu_row_that_shares_its_label() {
     let jobs = state
         .palette_catalog()
         .iter()
-        .copied()
+        .cloned()
         .find(|offer| offer.label == "Jobs")
         .expect("Jobs is offered");
     assert!(
@@ -127,7 +124,7 @@ fn a_menu_only_row_names_the_menu_it_came_from() {
     let derived: Vec<_> = state
         .palette_catalog()
         .iter()
-        .copied()
+        .cloned()
         .filter(|offer| offer.source.is_some())
         .collect();
     assert!(
@@ -156,10 +153,10 @@ fn the_query_narrows_and_ranks_the_hits() {
     let hits = state.palette_hits();
     assert!(hits.len() < all, "a query must narrow the offer");
     assert_eq!(
-        hits.first().map(|offer| offer.label),
+        hits.first().map(|offer| offer.label.as_str()),
         Some("Settings"),
         "the row that starts with the query comes first, got {:?}",
-        hits.iter().map(|o| o.label).collect::<Vec<_>>()
+        hits.iter().map(|o| o.label.as_str()).collect::<Vec<_>>()
     );
 }
 

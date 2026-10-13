@@ -523,11 +523,11 @@ pub enum CatalogDragKind {
 }
 
 /// A catalog entry in flight from the sidebar.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CatalogDrag {
     pub kind: CatalogDragKind,
-    pub id: &'static str,
-    pub label: &'static str,
+    pub id: SharedString,
+    pub label: SharedString,
 }
 
 impl CatalogDrag {

@@ -233,7 +233,6 @@ pub(super) fn lane(
                     let tick = target
                         .filter(|(id, _)| *id == track_id)
                         .map_or(0, |(_, tick)| tick);
-                    let drag = *drag;
                     this.state.update(cx, |state, _| {
                         if let Err(err) = state.drop_catalog_on_track(
                             drag,

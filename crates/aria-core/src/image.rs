@@ -93,6 +93,23 @@ impl RgbaImage {
             self.pixels[i + 3],
         ]
     }
+
+    /// Convert premultiplied pixels to the straight alpha this type holds.
+    ///
+    /// Each colour channel becomes `c * 255 / a`, rounded to nearest and
+    /// capped at 255. Transparent and opaque pixels are unchanged.
+    pub fn unpremultiply(&mut self) {
+        for px in self.pixels.chunks_exact_mut(4) {
+            let a = px[3];
+            if a == 0 || a == 255 {
+                continue;
+            }
+            let a16 = u16::from(a);
+            for c in &mut px[..3] {
+                *c = ((u16::from(*c) * 255 + a16 / 2) / a16).min(255) as u8;
+            }
+        }
+    }
 }
 
 impl std::fmt::Debug for RgbaImage {
@@ -161,6 +178,32 @@ mod tests {
                 width: u32::MAX,
                 height: u32::MAX,
             }
+        );
+    }
+
+    #[test]
+    fn unpremultiply_divides_colour_by_alpha_and_keeps_the_ends() {
+        let mut img = RgbaImage::new(
+            5,
+            1,
+            vec![
+                9, 9, 9, 0, // transparent: unchanged
+                64, 32, 16, 128, // half alpha: doubled, rounded
+                255, 128, 0, 255, // opaque: unchanged
+                1, 2, 3, 3, // rounding: 85, 170, 255
+                200, 200, 200, 100, // over-range premultiplied input: capped
+            ],
+        );
+        img.unpremultiply();
+        assert_eq!(
+            img.pixels,
+            [
+                9, 9, 9, 0, //
+                128, 64, 32, 128, //
+                255, 128, 0, 255, //
+                85, 170, 255, 3, //
+                255, 255, 255, 100,
+            ]
         );
     }
 }

@@ -347,6 +347,7 @@ dependencies = [
  "bytemuck",
  "criterion",
  "image",
+ "naga",
  "objc2 0.6.4",
  "objc2-metal 0.3.2",
  "pollster 0.4.0",

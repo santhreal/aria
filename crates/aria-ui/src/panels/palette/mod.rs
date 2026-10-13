@@ -33,7 +33,7 @@ pub fn render(
     let scroll = state.read(cx).palette_scroll.clone();
     let mut rows = Vec::with_capacity(hits.len());
     for (at, offer) in hits.iter().enumerate() {
-        rows.push(row(&theme, *offer, at, highlight == Some(at), cx).into_any_element());
+        rows.push(row(&theme, offer.clone(), at, highlight == Some(at), cx).into_any_element());
     }
     if rows.is_empty() {
         rows.push(

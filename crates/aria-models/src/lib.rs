@@ -37,6 +37,7 @@ mod param;
 mod param_walk;
 mod persist;
 mod project;
+mod registered;
 mod schema;
 mod sequence;
 mod serde_map;
@@ -77,8 +78,9 @@ pub use clip::{
 pub use clip::{GeneratorSpec, generator_spec, generator_spec_by_id, generator_specs};
 pub use effects::{
     EffectInstance, EffectParamKind, EffectParamSpec, EffectPreset, EffectSpec, effect_catalog,
-    effect_spec, validate_preset_list,
+    effect_spec, shipped_effect_catalog, validate_preset_list,
 };
+pub use registered::{Catalog, CatalogIter, Registered, register_effect, register_transition};
 pub use error::ModelError;
 pub use ids::{
     BinId, ClipId, LinkId, MarkerId, MediaId, MulticamGroupId, ProjectId, SequenceId, TemplateId,
@@ -123,5 +125,6 @@ pub use track_catalog::{
 };
 pub use track_routing::{AudioBus, AudioSend, TrackOutput};
 pub use transition::{
-    DEFAULT_TRANSITION_TICKS, Transition, TransitionSpec, transition_catalog, transition_spec,
+    DEFAULT_TRANSITION_TICKS, Transition, TransitionSpec, shipped_transition_catalog,
+    transition_catalog, transition_spec,
 };

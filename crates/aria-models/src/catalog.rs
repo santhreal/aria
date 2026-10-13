@@ -76,8 +76,8 @@ pub fn problems() -> Vec<String> {
 /// ones a surface has touched. Cheap after the first call: each catalog is a
 /// `LazyLock` that stays loaded.
 pub fn preload() {
-    let _ = crate::transition_catalog().len();
-    let _ = crate::effect_catalog().len();
+    let _ = crate::shipped_transition_catalog().len();
+    let _ = crate::shipped_effect_catalog().len();
     let _ = crate::filter_catalog().len();
     let _ = crate::animation_catalog().len();
     let _ = crate::text_effect_catalog().len();
@@ -352,6 +352,11 @@ mod tests {
             "src/param/preset_catalog.rs",
             "every row carries the waypoint geometry the sampler expands, keyed by \
              a variant of a closed enum",
+        ),
+        (
+            "src/registered.rs",
+            "the entries arrive from plugins while the process runs, and the shipped \
+             ones it lists first are the data files",
         ),
         (
             "src/track_catalog.rs",

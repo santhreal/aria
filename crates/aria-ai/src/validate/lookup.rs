@@ -108,13 +108,14 @@ pub(super) fn effect_index(clip: &Clip, index: u32, raw_clip: u64) -> Result<usi
     Ok(index)
 }
 
-/// Resolve `(effect index, param name)` to the catalog slot and its spec.
+/// Resolve `(effect index, param name)` to the chain index, the catalog slot,
+/// and the effect's spec (the slot's spec is `spec.params[slot]`).
 pub(super) fn effect_param_slot(
     clip: &Clip,
     index: u32,
     param: &str,
     raw_clip: u64,
-) -> Result<(usize, usize, &'static aria_models::EffectParamSpec), Rejection> {
+) -> Result<(usize, usize, std::sync::Arc<aria_models::EffectSpec>), Rejection> {
     let effect = effect_index(clip, index, raw_clip)?;
     let instance = &clip.effects[effect];
     let spec = aria_models::effect_spec(&instance.effect_id).ok_or_else(|| {
@@ -136,7 +137,7 @@ pub(super) fn effect_param_slot(
                 names.join(", ")
             ))
         })?;
-    Ok((effect, slot, &spec.params[slot]))
+    Ok((effect, slot, spec))
 }
 
 /// Reject clips on an audio lane, which have no frame to operate on.

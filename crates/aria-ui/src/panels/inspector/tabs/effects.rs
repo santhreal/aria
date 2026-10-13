@@ -35,7 +35,7 @@ pub fn effects_tab(
             // Built in three passes rather than one chained iterator: every row
             // needs `cx`, and chained closures would each want it at once.
             let mut params: Vec<gpui::AnyElement> = Vec::new();
-            for (slot, spec) in crate::app::clip_effects::scalar_params(&effect.id) {
+            for (slot, spec) in &crate::app::clip_effects::scalar_params(&effect.id) {
                 let value = effect.scalar(slot).unwrap_or(spec.default);
                 let step = ((spec.max - spec.min) / 20.0).max(0.01);
                 params.push(
@@ -53,7 +53,7 @@ pub fn effects_tab(
                     .into_any_element(),
                 );
             }
-            for (slot, spec) in crate::app::clip_effects::vec2_params(&effect.id) {
+            for (slot, spec) in &crate::app::clip_effects::vec2_params(&effect.id) {
                 let value = effect.vec2(slot).unwrap_or(spec.default_vec2);
                 let step = ((spec.max - spec.min) / 20.0).max(0.01);
                 for (axis, name) in [(0usize, "x"), (1usize, "y")] {
@@ -81,7 +81,7 @@ pub fn effects_tab(
                     );
                 }
             }
-            for (slot, spec) in crate::app::clip_effects::color_params(&effect.id) {
+            for (slot, spec) in &crate::app::clip_effects::color_params(&effect.id) {
                 let value = effect.color(slot).unwrap_or(spec.default_color);
                 params.push(
                     color_row(theme, index, slot, spec.label.as_str(), value, cx)
@@ -198,22 +198,25 @@ pub fn effects_tab(
         .read(cx)
         .effect_browse_list()
         .into_iter()
-        .map(|(id, label)| {
-            components::ghost_button(id, label, theme)
-                .on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                        this.state.update(cx, |state, _| {
-                            if let Err(err) =
-                                effects_rack::apply(state, Gesture::Add(id.to_string()))
-                            {
-                                state.report_error(&err);
-                            }
-                        });
-                        cx.notify();
-                    }),
-                )
-                .into_any_element()
+        .map(|(spec, label)| {
+            components::ghost_button(
+                crate::motion::MotionKey::new("fx-add", spec.id.as_str()),
+                label,
+                theme,
+            )
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                    this.state.update(cx, |state, _| {
+                        if let Err(err) = effects_rack::apply(state, Gesture::Add(spec.id.clone()))
+                        {
+                            state.report_error(&err);
+                        }
+                    });
+                    cx.notify();
+                }),
+            )
+            .into_any_element()
         })
         .collect();
     let presets: Vec<_> = state

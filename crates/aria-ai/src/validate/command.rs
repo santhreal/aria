@@ -220,7 +220,9 @@ pub fn validate(command: &WireCommand, project: &Project) -> Result<Lowered, Rej
         }
         WireCommand::SetEffectParam(args) => {
             let clip = clip_ref(project, args.clip)?;
-            let (index, slot, p) = effect_param_slot(clip, args.index, &args.param, args.clip)?;
+            let (index, slot, spec) =
+                effect_param_slot(clip, args.index, &args.param, args.clip)?;
+            let p = &spec.params[slot];
             match p.kind {
                 aria_models::EffectParamKind::Scalar => {
                     let v = args.value.ok_or_else(|| {

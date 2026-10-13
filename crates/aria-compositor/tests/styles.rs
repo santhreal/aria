@@ -269,18 +269,9 @@ fn nested_effect_style_and_blend_chain_runs_without_collision() {
 
     // Nested chain: vignette + gaussian_blur + sharpen + shadow + glow + outline + Multiply blend
     let effects = [
-        PassInstance {
-            id: "vignette",
-            params: vec![0.5],
-        },
-        PassInstance {
-            id: "gaussian_blur",
-            params: vec![4.0],
-        },
-        PassInstance {
-            id: "sharpen",
-            params: vec![0.5],
-        },
+        PassInstance::new("vignette", vec![0.5]),
+        PassInstance::new("gaussian_blur", vec![4.0]),
+        PassInstance::new("sharpen", vec![0.5]),
     ];
 
     let layer = centered_red_layer(&config)

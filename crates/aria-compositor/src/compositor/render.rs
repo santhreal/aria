@@ -11,6 +11,7 @@ use crate::layer::{
     LayerPlacement,
 };
 use crate::lut::CubeLut;
+use crate::passes::PassInstance;
 
 use super::scene::Scene;
 use super::{
@@ -764,13 +765,8 @@ fn required_slots_for_scene(scene: &Scene<'_>) -> usize {
                 if !layer.blur_passes.is_empty() {
                     layer_slots = layer_slots.max(3);
                 }
-                if layer
-                    .effects
-                    .iter()
-                    .any(|e| e.id == crate::passes::GAUSSIAN_BLUR)
-                {
-                    layer_slots = layer_slots.max(3);
-                }
+                let chain = layer.effects.iter().map(PassInstance::slot_demand).max();
+                layer_slots = layer_slots.max(chain.unwrap_or(0));
                 if layer.styles.shadow.is_some()
                     || layer.styles.glow.is_some()
                     || layer.styles.outline.is_some()
@@ -793,9 +789,8 @@ fn required_slots_for_scene(scene: &Scene<'_>) -> usize {
             }
             CompositorLayer::CanvasPass { effects, lut, .. } => {
                 let mut pass_slots = 2usize;
-                if effects.iter().any(|e| e.id == crate::passes::GAUSSIAN_BLUR) {
-                    pass_slots = pass_slots.max(3);
-                }
+                let chain = effects.iter().map(PassInstance::slot_demand).max();
+                pass_slots = pass_slots.max(chain.unwrap_or(0));
                 if lut.is_some() {
                     pass_slots = pass_slots.max(3);
                 }

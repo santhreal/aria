@@ -13,6 +13,7 @@ use crate::types::UiEffectValue;
 pub(super) fn effect_to_ui(effect: &EffectInstance) -> UiEffectInstance {
     let spec = effect.spec().ok();
     let values = spec
+        .as_ref()
         .map(|spec| {
             spec.params
                 .iter()
@@ -41,7 +42,7 @@ pub(super) fn effect_to_ui(effect: &EffectInstance) -> UiEffectInstance {
     UiEffectInstance {
         id: effect.effect_id.clone().into(),
         name: spec
-            .map(|s| SharedString::from(s.label.to_string()))
+            .map(|s| SharedString::from(s.label.clone()))
             .unwrap_or_else(|| effect.effect_id.clone().into()),
         enabled: true,
         values,

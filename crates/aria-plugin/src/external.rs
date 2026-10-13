@@ -38,9 +38,9 @@ use crate::plugin::{Plugin, PluginManifest};
 
 /// The loader contract's version. Bumped when the symbols, the `Plugin` trait,
 /// the event bus, or a shipped event type change shape; a library built against
-/// another one is refused. Version 3: notifications are posted to a delivery
-/// thread, and the editor events ship.
-pub const ABI_VERSION: u32 = 3;
+/// another one is refused. Version 4: a plugin registers WGSL effects and
+/// transitions, and the effect and transition services render images.
+pub const ABI_VERSION: u32 = 4;
 
 /// Identifies the compiler and crate version the host was built with. Two
 /// libraries agree on the `dyn Plugin` vtable only if this string matches.

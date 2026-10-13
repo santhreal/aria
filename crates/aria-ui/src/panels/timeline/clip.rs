@@ -305,7 +305,6 @@ pub fn render(
         // inspector.
         .drag_over::<CatalogDrag>(move |style, _, _, _| style.border_color(drop_accent))
         .on_drop(cx.listener(move |this, drag: &CatalogDrag, _, cx| {
-            let drag = *drag;
             this.state.update(cx, |state, _| {
                 if let Err(err) = state.drop_catalog_on_clip(drag, ClipId::from_raw(id)) {
                     state.report_error(&err);

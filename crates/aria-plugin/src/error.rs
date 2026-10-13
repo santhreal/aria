@@ -16,4 +16,8 @@ pub enum PluginError {
     /// names the loop rather than a single arbitrary member of it.
     #[error("dependency cycle: {0}")]
     DependencyCycle(String),
+    /// An effect or transition definition the host did not register: its WGSL
+    /// did not check, or its catalog spec was refused.
+    #[error("registration refused: {0}")]
+    RegisterRefused(#[from] aria_compositor::RegisterError),
 }

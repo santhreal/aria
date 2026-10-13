@@ -7,7 +7,8 @@
 //! the compositor's renderable descriptors from `aria-engine`, so the two
 //! crates can never disagree on which ids and parameter names exist.
 
-use std::sync::LazyLock;
+use std::ops::Deref;
+use std::sync::{Arc, LazyLock};
 
 use serde::{Deserialize, Serialize};
 
@@ -79,42 +80,69 @@ impl EffectSpec {
     }
 }
 
-/// Every effect, read once. Shipped set at `data/effects.toml`.
+/// The shipped effects, read once. Shipped set at `data/effects.toml`.
 ///
 /// A parameter with an inverted range would let a command validate against
 /// nothing, so the range is checked here rather than at every use.
-static CATALOG: LazyLock<Vec<EffectSpec>> = LazyLock::new(|| {
+static SHIPPED: LazyLock<Vec<Arc<EffectSpec>>> = LazyLock::new(|| {
     crate::catalog::load(
         "effects",
         include_str!("../data/effects.toml"),
         |entries: &[EffectSpec]| {
             crate::catalog::unique_ids(entries, |s| &s.id, |s| &s.label)?;
-            for spec in entries {
-                for (index, param) in spec.params.iter().enumerate() {
-                    if param.name.is_empty() {
-                        return Err(format!("{} parameter {index} has no name", spec.id));
-                    }
-                    if spec.params[..index].iter().any(|p| p.name == param.name) {
-                        return Err(format!("{} repeats parameter {}", spec.id, param.name));
-                    }
-                    if param.kind != EffectParamKind::Color && param.min > param.max {
-                        return Err(format!("{}.{} has an inverted range", spec.id, param.name));
-                    }
-                }
-            }
-            Ok(())
+            entries.iter().try_for_each(check_effect_params)
         },
     )
+    .into_iter()
+    .map(Arc::new)
+    .collect()
 });
 
-/// Every effect the model knows about (validation + UI browsing).
-pub fn effect_catalog() -> &'static [EffectSpec] {
-    &CATALOG
+/// The parameter rules every effect follows, shipped or registered: each
+/// parameter is named, no name repeats, and no range is inverted.
+pub(crate) fn check_effect_params(spec: &EffectSpec) -> Result<(), String> {
+    for (index, param) in spec.params.iter().enumerate() {
+        if param.name.is_empty() {
+            return Err(format!("{} parameter {index} has no name", spec.id));
+        }
+        if spec.params[..index].iter().any(|p| p.name == param.name) {
+            return Err(format!("{} repeats parameter {}", spec.id, param.name));
+        }
+        if param.kind != EffectParamKind::Color && param.min > param.max {
+            return Err(format!("{}.{} has an inverted range", spec.id, param.name));
+        }
+    }
+    Ok(())
 }
 
-/// The catalog entry for `id`, or `None`.
-pub fn effect_spec(id: &str) -> Option<&'static EffectSpec> {
-    CATALOG.iter().find(|s| s.id == id)
+/// The effects that ship with the app, without registered ones.
+pub fn shipped_effect_catalog() -> &'static [Arc<EffectSpec>] {
+    &SHIPPED
+}
+
+/// Every effect the model knows about now (validation + UI browsing): the
+/// shipped set, then effects registered by plugins.
+pub fn effect_catalog() -> crate::Catalog<EffectSpec> {
+    crate::registered::effect_catalog()
+}
+
+/// The catalog entry for `id`, shipped or registered, or `None`.
+pub fn effect_spec(id: &str) -> Option<Arc<EffectSpec>> {
+    crate::registered::effect_spec(id)
+}
+
+/// One parameter of a held spec.
+struct ParamRef {
+    spec: Arc<EffectSpec>,
+    index: usize,
+}
+
+impl Deref for ParamRef {
+    type Target = EffectParamSpec;
+
+    fn deref(&self) -> &EffectParamSpec {
+        &self.spec.params[self.index]
+    }
 }
 
 /// An effect placed on a clip. Only parameters that differ from their catalog
@@ -163,18 +191,20 @@ impl EffectInstance {
     }
 
     /// The catalog entry for this instance, or an error if the id is unknown.
-    pub fn spec(&self) -> Result<&'static EffectSpec, ModelError> {
+    pub fn spec(&self) -> Result<Arc<EffectSpec>, ModelError> {
         effect_spec(&self.effect_id)
             .ok_or_else(|| ModelError::InvalidParam(format!("unknown effect '{}'", self.effect_id)))
     }
 
-    fn param_spec(&self, index: usize) -> Result<&'static EffectParamSpec, ModelError> {
-        self.spec()?.param_at(index).ok_or_else(|| {
-            ModelError::InvalidParam(format!(
+    fn param_spec(&self, index: usize) -> Result<ParamRef, ModelError> {
+        let spec = self.spec()?;
+        if index >= spec.params.len() {
+            return Err(ModelError::InvalidParam(format!(
                 "effect '{}' has no parameter at index {index}",
                 self.effect_id
-            ))
-        })
+            )));
+        }
+        Ok(ParamRef { spec, index })
     }
 
     fn expect_kind(
@@ -197,7 +227,8 @@ impl EffectInstance {
     /// `None` when the effect id or parameter name is unknown, or the slot is
     /// not a scalar.
     pub fn sample_param(&self, param: &str, tick: f64) -> Option<f32> {
-        let pspec = self.spec().ok()?.param(param)?;
+        let spec = self.spec().ok()?;
+        let pspec = spec.param(param)?;
         if pspec.kind != EffectParamKind::Scalar {
             return None;
         }
@@ -209,7 +240,8 @@ impl EffectInstance {
 
     /// Sampled color value of `param` at clip-relative fractional `tick`.
     pub fn sample_color_param(&self, param: &str, tick: f64) -> Option<[u8; 4]> {
-        let pspec = self.spec().ok()?.param(param)?;
+        let spec = self.spec().ok()?;
+        let pspec = spec.param(param)?;
         if pspec.kind != EffectParamKind::Color {
             return None;
         }
@@ -221,7 +253,8 @@ impl EffectInstance {
 
     /// Sampled vec2 value of `param` at clip-relative fractional `tick`.
     pub fn sample_vec2_param(&self, param: &str, tick: f64) -> Option<[f32; 2]> {
-        let pspec = self.spec().ok()?.param(param)?;
+        let spec = self.spec().ok()?;
+        let pspec = spec.param(param)?;
         if pspec.kind != EffectParamKind::Vec2 {
             return None;
         }
@@ -240,8 +273,8 @@ impl EffectInstance {
         easing: Easing,
     ) -> Result<(), ModelError> {
         let pspec = self.param_spec(index)?;
-        self.expect_kind(pspec, EffectParamKind::Scalar)?;
-        range_check(pspec, value)?;
+        self.expect_kind(&pspec, EffectParamKind::Scalar)?;
+        range_check(&pspec, value)?;
         easing.validate()?;
         let (name, default) = (pspec.name.clone(), pspec.default);
         self.params
@@ -260,7 +293,7 @@ impl EffectInstance {
         easing: Easing,
     ) -> Result<(), ModelError> {
         let pspec = self.param_spec(index)?;
-        self.expect_kind(pspec, EffectParamKind::Color)?;
+        self.expect_kind(&pspec, EffectParamKind::Color)?;
         easing.validate()?;
         let (name, default) = (pspec.name.clone(), pspec.default_color);
         self.color_params
@@ -279,8 +312,8 @@ impl EffectInstance {
         easing: Easing,
     ) -> Result<(), ModelError> {
         let pspec = self.param_spec(index)?;
-        self.expect_kind(pspec, EffectParamKind::Vec2)?;
-        vec2_range_check(pspec, value)?;
+        self.expect_kind(&pspec, EffectParamKind::Vec2)?;
+        vec2_range_check(&pspec, value)?;
         easing.validate()?;
         let (name, default) = (pspec.name.clone(), pspec.default_vec2);
         self.vec2_params
@@ -321,8 +354,8 @@ impl EffectInstance {
     /// Replace a scalar parameter slot with a constant, dropping keyframes.
     pub fn set_param_constant(&mut self, index: usize, value: f32) -> Result<(), ModelError> {
         let pspec = self.param_spec(index)?;
-        self.expect_kind(pspec, EffectParamKind::Scalar)?;
-        range_check(pspec, value)?;
+        self.expect_kind(&pspec, EffectParamKind::Scalar)?;
+        range_check(&pspec, value)?;
         self.params
             .insert(pspec.name.to_string(), Param::Constant(value));
         Ok(())
@@ -335,7 +368,7 @@ impl EffectInstance {
         value: [u8; 4],
     ) -> Result<(), ModelError> {
         let pspec = self.param_spec(index)?;
-        self.expect_kind(pspec, EffectParamKind::Color)?;
+        self.expect_kind(&pspec, EffectParamKind::Color)?;
         self.color_params
             .insert(pspec.name.to_string(), Param::Constant(value));
         Ok(())
@@ -348,8 +381,8 @@ impl EffectInstance {
         value: [f32; 2],
     ) -> Result<(), ModelError> {
         let pspec = self.param_spec(index)?;
-        self.expect_kind(pspec, EffectParamKind::Vec2)?;
-        vec2_range_check(pspec, value)?;
+        self.expect_kind(&pspec, EffectParamKind::Vec2)?;
+        vec2_range_check(&pspec, value)?;
         self.vec2_params
             .insert(pspec.name.to_string(), Param::Constant(value));
         Ok(())
@@ -503,10 +536,11 @@ mod tests {
 
     #[test]
     fn catalog_ids_are_unique() {
-        let mut ids: Vec<&str> = effect_catalog().iter().map(|s| s.id.as_str()).collect();
+        let catalog = effect_catalog();
+        let mut ids: Vec<&str> = catalog.iter().map(|s| s.id.as_str()).collect();
         ids.sort_unstable();
         ids.dedup();
-        assert_eq!(ids.len(), effect_catalog().len());
+        assert_eq!(ids.len(), catalog.len());
     }
 
     #[test]

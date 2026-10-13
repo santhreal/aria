@@ -50,10 +50,7 @@ fn pass_batching_shares_one_bind_group_across_identical_passes() {
     let gpu = gpu_or_skip!();
     let mut comp = Compositor::new(&gpu);
     let config = CompositorConfig::new(64, 64).with_background([0, 0, 0, 255]);
-    let effects = [PassInstance {
-        id: "vignette",
-        params: vec![0.8],
-    }];
+    let effects = [PassInstance::new("vignette", vec![0.8])];
     let layers = same_effect_plates(&config, &effects, 8);
 
     comp.render(&gpu, &config, &layers).expect("first frame");
@@ -234,10 +231,7 @@ fn two_readbacks_pipeline_in_order_and_bound_in_flight_work() {
 fn pass_batching_builds_no_more_for_more_layers() {
     let gpu = gpu_or_skip!();
     let config = CompositorConfig::new(64, 64).with_background([0, 0, 0, 255]);
-    let effects = [PassInstance {
-        id: "vignette",
-        params: vec![0.8],
-    }];
+    let effects = [PassInstance::new("vignette", vec![0.8])];
 
     let few = cold_frame(&gpu, &config, &same_effect_plates(&config, &effects, 2));
     let many = cold_frame(&gpu, &config, &same_effect_plates(&config, &effects, 12));
@@ -260,10 +254,7 @@ fn pass_batching_keys_on_the_constants() {
     let distinct: Vec<_> = strengths
         .iter()
         .map(|s| {
-            [PassInstance {
-                id: "vignette",
-                params: vec![*s],
-            }]
+            [PassInstance::new("vignette", vec![*s])]
         })
         .collect();
     let layers: Vec<_> = distinct
@@ -275,10 +266,7 @@ fn pass_batching_keys_on_the_constants() {
         .collect();
     let varied = cold_frame(&gpu, &config, &layers);
 
-    let same = [PassInstance {
-        id: "vignette",
-        params: vec![0.2],
-    }];
+    let same = [PassInstance::new("vignette", vec![0.2])];
     let flat = cold_frame(&gpu, &config, &same_effect_plates(&config, &same, 4));
 
     assert_eq!(
@@ -298,10 +286,7 @@ fn animated_uniforms_rewrite_persistent_storage_without_reallocation() {
     let config = CompositorConfig::new(64, 64).with_background([0, 0, 0, 255]);
     let mut comp = Compositor::new(&gpu);
 
-    let first_effect = [PassInstance {
-        id: "vignette",
-        params: vec![0.2],
-    }];
+    let first_effect = [PassInstance::new("vignette", vec![0.2])];
     let first = [
         CompositeLayer::solid([200, 200, 200, 255], LayerPlacement::full_canvas(&config))
             .with_effects(&first_effect),
@@ -313,10 +298,7 @@ fn animated_uniforms_rewrite_persistent_storage_without_reallocation() {
         "the first uniform pass allocated no persistent slot: {warm:?}"
     );
 
-    let changed_effect = [PassInstance {
-        id: "vignette",
-        params: vec![0.8],
-    }];
+    let changed_effect = [PassInstance::new("vignette", vec![0.8])];
     let changed =
         [
             CompositeLayer::solid([200, 200, 200, 255], LayerPlacement::full_canvas(&config))
@@ -347,10 +329,7 @@ fn pass_batching_draws_each_layer_from_its_own_pixels() {
     // Two plates, same effect and params, different colors, side by side. A
     // shared bind group must not make the second read the first's texels.
     let config = CompositorConfig::new(64, 64).with_background([0, 0, 0, 255]);
-    let effects = [PassInstance {
-        id: "sharpen",
-        params: vec![0.5],
-    }];
+    let effects = [PassInstance::new("sharpen", vec![0.5])];
     let half = [32.0, 64.0];
     let left = CompositeLayer::solid(
         [200, 0, 0, 255],
@@ -405,10 +384,7 @@ fn pass_batching_covers_every_family_of_pass() {
     let gpu = gpu_or_skip!();
     let config = CompositorConfig::new(64, 64).with_background([0, 0, 0, 255]);
     let plate = || CompositeLayer::solid([180, 120, 60, 255], LayerPlacement::full_canvas(&config));
-    let effects = [PassInstance {
-        id: "vignette",
-        params: vec![0.5],
-    }];
+    let effects = [PassInstance::new("vignette", vec![0.5])];
 
     // Effect chain, blit and canvas grade.
     let graded = plate();
@@ -502,14 +478,8 @@ fn pass_batching_avoids_a_bind_group_build_per_pass_over_many_frames() {
     let mut comp = Compositor::new(&gpu);
     let config = CompositorConfig::new(512, 288).with_background([0, 0, 0, 255]);
     let effects = [
-        PassInstance {
-            id: "vignette",
-            params: vec![0.6],
-        },
-        PassInstance {
-            id: "sharpen",
-            params: vec![0.5],
-        },
+        PassInstance::new("vignette", vec![0.6]),
+        PassInstance::new("sharpen", vec![0.5]),
     ];
     let layers = same_effect_plates(&config, &effects, 12);
 

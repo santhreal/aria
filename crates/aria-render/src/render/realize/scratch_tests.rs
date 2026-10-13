@@ -36,10 +36,7 @@ fn layer(source: LayerSource, effect: f32) -> SceneLayer {
         rotation: 0.0,
         opacity: 1.0,
         uv: [0.0, 0.0, 1.0, 1.0],
-        effects: vec![crate::scene::ResolvedPass {
-            id: "gaussian_blur",
-            params: vec![effect],
-        }],
+        effects: vec![crate::scene::ResolvedPass::new("gaussian_blur", vec![effect])],
         mask: None,
         chroma_key: None,
         color_grade: None,

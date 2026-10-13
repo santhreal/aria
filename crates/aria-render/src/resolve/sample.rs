@@ -178,13 +178,19 @@ pub(super) fn sample_text_animation(
 }
 
 /// Sample `clip.effects` at clip-local `tick` into compositor-ready passes.
-pub(super) fn resolve_effects(clip: &aria_models::Clip, tick: i64) -> Vec<ResolvedPass> {
+/// `seconds` is the time since the clip started, which a registered pass
+/// reads as `aria.time`. An effect no pass renders is dropped.
+pub(super) fn resolve_effects(
+    clip: &aria_models::Clip,
+    tick: i64,
+    seconds: f32,
+) -> Vec<ResolvedPass> {
     let tick_f = tick as f64;
     clip.effects
         .iter()
         .filter_map(|fx| {
-            let id = aria_compositor::effect_descriptor(&fx.effect_id)?.id;
-            pack_effect(fx, tick_f, id).ok()
+            let id = aria_compositor::pass_id(&fx.effect_id)?;
+            pack_effect(fx, tick_f, id, seconds).ok()
         })
         .collect()
 }
@@ -192,7 +198,8 @@ pub(super) fn resolve_effects(clip: &aria_models::Clip, tick: i64) -> Vec<Resolv
 fn pack_effect(
     fx: &EffectInstance,
     tick: f64,
-    id: &'static str,
+    id: aria_compositor::PassId,
+    seconds: f32,
 ) -> Result<ResolvedPass, aria_models::ModelError> {
     use aria_models::EffectParamKind;
 
@@ -222,7 +229,13 @@ fn pack_effect(
             }
         }
     }
-    Ok(ResolvedPass { id, params })
+    let pass = ResolvedPass::new(id, params);
+    // Shipped passes do not read the time; leaving it 0 keeps equal frames
+    // equal so the scene cache holds across them.
+    Ok(match pass.id {
+        aria_compositor::PassId::Registered(_) => pass.with_time(seconds),
+        aria_compositor::PassId::Shipped(_) => pass,
+    })
 }
 
 /// UV rect from a clip's crop sampled at a clip-relative tick, with axes

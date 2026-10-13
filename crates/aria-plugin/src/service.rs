@@ -2,10 +2,8 @@
 
 use std::path::Path;
 
-use aria_compositor::{GpuContext, PassDescriptor};
 use aria_core::{
-    DecodeError, EncodeError, EncoderConfig, GpuSurface, RationalTime, RgbaImage, VideoDecoder,
-    VideoEncoder,
+    DecodeError, EncodeError, EncoderConfig, RationalTime, RgbaImage, VideoDecoder, VideoEncoder,
 };
 use aria_models::Project;
 use aria_render::RenderError;
@@ -27,30 +25,42 @@ pub trait EncoderService: Service {
     fn create(&self, config: EncoderConfig) -> Result<Box<dyn VideoEncoder>, EncodeError>;
 }
 
-/// GPU effect catalog.
+/// Effects drawn on the GPU: the shipped passes and every effect registered
+/// with [`PluginContext::register_effect`](crate::PluginContext::register_effect).
 pub trait EffectService: Service {
-    fn effect_descriptors(&self) -> &[PassDescriptor];
+    /// Whether a pass renders the effect `id`. A catalog effect no pass renders
+    /// is listed and drawn as passthrough.
+    fn renders_effect(&self, id: &str) -> bool;
+
+    /// Draw the effect `id` on `input`, a straight-alpha image, and return the
+    /// result at the same size. `params` are the effect's parameters flattened
+    /// in catalog order: a colour as four floats in 0..1, a vec2 as two. An id
+    /// no pass renders is an error.
     fn render_effect(
         &self,
         id: &str,
         params: &[f32],
-        input: &GpuSurface,
-        gpu: &GpuContext,
-    ) -> Result<GpuSurface, RenderError>;
+        input: &RgbaImage,
+    ) -> Result<RgbaImage, RenderError>;
 }
 
-/// GPU transition catalog.
+/// Transitions drawn on the GPU: the shipped passes and every transition
+/// registered with
+/// [`PluginContext::register_transition`](crate::PluginContext::register_transition).
 pub trait TransitionService: Service {
-    fn transition_descriptors(&self) -> &[PassDescriptor];
+    /// Whether a pass renders the transition `id`. Any other id crossfades.
+    fn renders_transition(&self, id: &str) -> bool;
+
+    /// Blend `outgoing` into `incoming`, straight-alpha images of one size,
+    /// through the transition `id` at `progress` in 0..1. An id no pass
+    /// renders is an error, not a crossfade.
     fn render_transition(
         &self,
         id: &str,
-        params: &[f32],
-        a: &GpuSurface,
-        b: &GpuSurface,
-        t: f32,
-        gpu: &GpuContext,
-    ) -> Result<GpuSurface, RenderError>;
+        outgoing: &RgbaImage,
+        incoming: &RgbaImage,
+        progress: f32,
+    ) -> Result<RgbaImage, RenderError>;
 }
 
 /// Content generators: text, shapes, stickers, solids.

@@ -10,7 +10,7 @@ use aria_models::{EffectParamKind, effect_spec};
 /// The catalog id of an effect with at least one scalar parameter, so the test
 /// exercises a real slot rather than a hand-picked constant.
 fn effect_with_scalar() -> &'static str {
-    aria_models::effect_catalog()
+    aria_models::shipped_effect_catalog()
         .iter()
         .find(|spec| {
             spec.params

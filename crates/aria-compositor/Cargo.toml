@@ -18,6 +18,7 @@ aria-core = { path = "../aria-core" }
 aria-models = { path = "../aria-models" }
 aria-shapes = { path = "../aria-shapes" }
 image = { version = "0.25", default-features = false }
+naga = { workspace = true }
 rustc-hash = { workspace = true }
 sha2 = "0.10"
 wgpu = { workspace = true }
@@ -91,6 +92,10 @@ path = "tests/motion_blur.rs"
 [[test]]
 name = "render"
 path = "tests/render.rs"
+
+[[test]]
+name = "registered_passes"
+path = "tests/registered_passes.rs"
 
 [[test]]
 name = "styles"

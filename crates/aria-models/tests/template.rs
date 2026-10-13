@@ -73,7 +73,7 @@ fn intro_template() -> Intro {
         None,
     )
     .unwrap();
-    let effect_id = aria_models::effect_catalog()[0].id.as_str();
+    let effect_id = aria_models::shipped_effect_catalog()[0].id.as_str();
     p.add_effect(slot1, effect_id).unwrap();
 
     // Mark the fillable surface (slots authored out of order on purpose).

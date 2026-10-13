@@ -370,9 +370,13 @@ and is what refusal messages quote.
 ## GPU bridge
 
 - Compositor owns wgpu. Preview currently readbacks into a CPU frame.
-- Effect and transition catalogs come from `aria_compositor::effect_descriptors`.
-- Missing GPU is not fatal: compositor/effect/transition plugins log and
-  continue.
+- Shipped effect and transition passes are listed by
+  `aria_compositor::shipped_effect_descriptors` and
+  `shipped_transition_descriptors`. A plugin adds a WGSL pass with
+  `PluginContext::register_effect` or `register_transition`; the compositor
+  resolves both through `aria_compositor::pass_id`.
+- Missing GPU is not fatal: the render plugin logs and continues, and the
+  effect and transition services report that no device is available.
 - An effect pass is (pipeline, input view, constants). The offscreen pool holds
   the bind group and uniform buffer for each distinct one, so layers sharing an
   effect share one binding and a repeated frame allocates nothing. The table is

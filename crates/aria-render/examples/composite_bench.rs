@@ -310,14 +310,8 @@ fn bench_effect_overhead(
         .render(gpu, &config, &[baseline_layer])
         .expect("prime baseline");
 
-    let sharpen = [PassInstance {
-        id: "sharpen",
-        params: vec![0.5],
-    }];
-    let blur = [PassInstance {
-        id: "gaussian_blur",
-        params: vec![8.0],
-    }];
+    let sharpen = [PassInstance::new("sharpen", vec![0.5])];
+    let blur = [PassInstance::new("gaussian_blur", vec![8.0])];
 
     let cases: [(&str, &[PassInstance]); 3] = [
         ("effect_free", &[]),

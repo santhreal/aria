@@ -40,8 +40,8 @@ fn staged() -> Vec<Staged> {
     let mut out = Vec::new();
     let mut push = |gesture: Gesture, dress: fn() -> AppState| out.push(Staged { gesture, dress });
 
-    for (id, _) in a_clip().effect_browse_list() {
-        push(Gesture::Add(id.to_string()), a_clip);
+    for (spec, _) in a_clip().effect_browse_list() {
+        push(Gesture::Add(spec.id.clone()), a_clip);
     }
     push(Gesture::Remove(0), one_effect);
     push(Gesture::MoveUp(1), two_effects);
@@ -300,7 +300,7 @@ fn one_effect() -> AppState {
     let mut state = a_clip();
     let id = first_effect();
     state
-        .add_effect_to_selected(id)
+        .add_effect_to_selected(id.as_str())
         .unwrap_or_else(|err| panic!("adding {id}: {err}"));
     state
 }
@@ -309,7 +309,7 @@ fn two_effects() -> AppState {
     let mut state = one_effect();
     let id = first_effect();
     state
-        .add_effect_to_selected(id)
+        .add_effect_to_selected(id.as_str())
         .unwrap_or_else(|err| panic!("adding a second {id}: {err}"));
     state
 }
@@ -356,24 +356,21 @@ fn a_named_draft() -> AppState {
 /// Read out of the model rather than named, so an effect losing its colour or a
 /// new one gaining a second colour changes what is pressed without an edit here.
 fn a_color_slot() -> (fn() -> AppState, usize) {
-    let slot = effect_with(|id| color_params(id).first().map(|(slot, _)| *slot))
+    let slot = effect_with(|id| color_params(id).first().map(|(slot, _)| slot))
         .expect("some effect in the catalog has a colour slot")
         .1;
     (a_color_effect, slot)
 }
 
 fn scalar_slots() -> Vec<usize> {
-    let (id, _) = effect_with(|id| scalar_params(id).first().map(|(slot, _)| *slot))
+    let (id, _) = effect_with(|id| scalar_params(id).first().map(|(slot, _)| slot))
         .expect("some effect in the catalog has a number");
-    scalar_params(&id)
-        .into_iter()
-        .map(|(slot, _)| slot)
-        .collect()
+    scalar_params(&id).slots().collect()
 }
 
 fn vec2_slots() -> Vec<usize> {
-    match effect_with(|id| vec2_params(id).first().map(|(slot, _)| *slot)) {
-        Some((id, _)) => vec2_params(&id).into_iter().map(|(slot, _)| slot).collect(),
+    match effect_with(|id| vec2_params(id).first().map(|(slot, _)| slot)) {
+        Some((id, _)) => vec2_params(&id).slots().collect(),
         None => Vec::new(),
     }
 }
@@ -384,15 +381,17 @@ fn effect_with(pick: impl Fn(&str) -> Option<usize>) -> Option<(String, usize)> 
     a_clip()
         .effect_browse_list()
         .into_iter()
-        .find_map(|(id, _)| pick(id).map(|found| (id.to_string(), found)))
+        .find_map(|(spec, _)| pick(&spec.id).map(|found| (spec.id.clone(), found)))
 }
 
-fn first_effect() -> &'static str {
+fn first_effect() -> String {
     a_clip()
         .effect_browse_list()
         .first()
         .expect("the effect catalog ships an effect")
         .0
+        .id
+        .clone()
 }
 
 fn a_color_effect() -> AppState {
@@ -413,11 +412,11 @@ fn with_effect(wanted: impl Fn(&str) -> bool) -> AppState {
     let id = state
         .effect_browse_list()
         .into_iter()
-        .find(|(id, _)| wanted(id))
-        .map(|(id, _)| id)
+        .find(|(spec, _)| wanted(&spec.id))
+        .map(|(spec, _)| spec.id.clone())
         .expect("the effect catalog holds an effect with the slot kind wanted");
     state
-        .add_effect_to_selected(id)
+        .add_effect_to_selected(id.as_str())
         .unwrap_or_else(|err| panic!("adding {id}: {err}"));
     state
 }

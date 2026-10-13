@@ -149,9 +149,9 @@ fn paste_attributes_copies_the_look_and_leaves_timing_alone() {
     let effect = state
         .effect_browse_list()
         .first()
-        .map(|(id, _)| *id)
+        .map(|(spec, _)| spec.id.clone())
         .expect("the catalog ships an effect");
-    state.add_effect_to_selected(effect).expect("effect");
+    state.add_effect_to_selected(&effect).expect("effect");
     state.copy_selected();
 
     let (start, end) = span(&state, second);
@@ -176,7 +176,7 @@ fn paste_attributes_copies_the_look_and_leaves_timing_alone() {
             .iter()
             .map(|e| e.id.as_str())
             .collect::<Vec<_>>(),
-        vec![effect],
+        vec![effect.as_str()],
         "the chain came across"
     );
     assert_eq!(
@@ -217,11 +217,11 @@ fn paste_attributes_replaces_the_target_chain_rather_than_appending() {
     let effect = state
         .effect_browse_list()
         .first()
-        .map(|(id, _)| *id)
+        .map(|(spec, _)| spec.id.clone())
         .expect("the catalog ships an effect");
     state.select_clip(second);
-    state.add_effect_to_selected(effect).expect("target effect");
-    state.add_effect_to_selected(effect).expect("target effect");
+    state.add_effect_to_selected(&effect).expect("target effect");
+    state.add_effect_to_selected(&effect).expect("target effect");
     state.select_clip(first);
     state.copy_selected();
     state.select_clip(second);

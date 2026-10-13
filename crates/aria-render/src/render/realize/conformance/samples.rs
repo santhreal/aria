@@ -302,11 +302,11 @@ pub(super) fn topologies(fx: &Fixtures, renderer: &mut Renderer) -> Vec<Topology
         // canvas that already has pixels on it.
         Topology {
             layer: SceneLayer {
-                effects: vec![ResolvedPass {
-                    id: "color_overlay",
+                effects: vec![ResolvedPass::new(
+                    "color_overlay",
                     // Catalog order: colour rgba, offset xy, amount.
-                    params: vec![0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0],
-                }],
+                    vec![0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0],
+                )],
                 ..full_canvas(LayerSource::CanvasPass)
             },
             under: vec![full_canvas(LayerSource::Solid([255, 0, 0, 255]))],

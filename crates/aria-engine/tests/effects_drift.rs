@@ -14,7 +14,7 @@
 
 #[test]
 fn every_catalog_effect_is_renderable() {
-    let descriptors = aria_compositor::effect_descriptors();
+    let descriptors = aria_compositor::shipped_effect_descriptors();
 
     for spec in aria_models::effect_catalog() {
         assert!(
@@ -36,7 +36,7 @@ fn every_catalog_effect_is_renderable() {
 
 #[test]
 fn model_transition_catalog_matches_compositor_set() {
-    let renderable = aria_compositor::transition_ids();
+    let renderable = aria_compositor::shipped_transition_ids();
 
     for spec in aria_models::transition_catalog() {
         assert!(

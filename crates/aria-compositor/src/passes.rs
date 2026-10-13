@@ -9,7 +9,7 @@
 //!
 //! # Who owns a parameter
 //!
-//! `aria_models::effect_catalog()` does, and this crate holds no second copy.
+//! `aria_models::shipped_effect_catalog()` does, and this crate holds no second copy.
 //! Names, order and value kinds come from that catalog — a data file a user can
 //! replace — and the uniform slots are derived from it: scalar one float, vec2
 //! two, colour four, in catalog order. There is therefore no list of slots here
@@ -29,11 +29,12 @@
 //! which is what [`effect_is_noop`] reports for an unknown effect.
 
 use std::collections::HashMap;
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock};
 
 use aria_models::EffectParamKind;
 
 use crate::passes_uniform as uniform;
+use crate::registered_passes::{RegisteredPass, registered_effect, registered_transition};
 
 /// One parameter slot of a pass: the name the catalog knows it by, and how many
 /// floats it occupies once the instance's values are flattened into the uniform.
@@ -114,14 +115,97 @@ impl PassDescriptor {
     }
 }
 
+/// What renders one effect instance: a shipped pass by catalog id, or a pass
+/// registered while the process runs.
+#[derive(Debug, Clone)]
+pub enum PassId {
+    Shipped(&'static str),
+    Registered(Arc<RegisteredPass>),
+}
+
+impl PassId {
+    /// The catalog id.
+    pub fn as_str(&self) -> &str {
+        match self {
+            PassId::Shipped(id) => id,
+            PassId::Registered(pass) => pass.id(),
+        }
+    }
+}
+
+impl From<&'static str> for PassId {
+    fn from(id: &'static str) -> Self {
+        PassId::Shipped(id)
+    }
+}
+
+/// Two registered ids are equal when they name one registration: an id that was
+/// dropped and registered again is a different pass.
+impl PartialEq for PassId {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (PassId::Shipped(a), PassId::Shipped(b)) => a == b,
+            (PassId::Registered(a), PassId::Registered(b)) => a.serial() == b.serial(),
+            _ => false,
+        }
+    }
+}
+
+impl PartialEq<&str> for PassId {
+    fn eq(&self, other: &&str) -> bool {
+        self.as_str() == *other
+    }
+}
+
 /// One effect instance sampled while the render scene is resolved.
 ///
 /// The scene retains this owned row and the compositor borrows it directly for
 /// every frame that uses the scene.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PassInstance {
-    pub id: &'static str,
+    pub id: PassId,
     pub params: Vec<f32>,
+    /// Seconds since the clip started, read by a registered pass as
+    /// `aria.time`. Shipped passes do not read it, and scene resolution leaves
+    /// it 0 for them so equal frames compare equal.
+    pub time: f32,
+}
+
+impl PassInstance {
+    pub fn new(id: impl Into<PassId>, params: Vec<f32>) -> Self {
+        Self {
+            id: id.into(),
+            params,
+            time: 0.0,
+        }
+    }
+
+    /// This instance at `seconds` since the clip started.
+    #[must_use]
+    pub fn with_time(mut self, seconds: f32) -> Self {
+        self.time = seconds;
+        self
+    }
+
+    /// Whether drawing this instance changes nothing; see [`effect_is_noop`].
+    /// A registration that was dropped draws nothing.
+    pub fn is_noop(&self) -> bool {
+        match &self.id {
+            PassId::Shipped(id) => effect_is_noop(id, &self.params),
+            PassId::Registered(pass) => pass.is_removed(),
+        }
+    }
+
+    /// Offscreen slots the chain needs to draw this instance without writing
+    /// the texture it reads: three for a pass chain that keeps its input
+    /// readable across passes, two otherwise.
+    pub(crate) fn slot_demand(&self) -> usize {
+        let multi_pass = match &self.id {
+            PassId::Shipped(id) => *id == GAUSSIAN_BLUR,
+            PassId::Registered(pass) => pass.pass_count() > 1,
+        };
+        if multi_pass { 3 } else { 2 }
+    }
 }
 
 /// The value at or below which a pass changes nothing, and the parameter it
@@ -397,7 +481,7 @@ fn slots_agree(params: &[PassParam], shaders: &[&'static str]) -> bool {
 /// array the shader declares would all feed a pass the wrong floats, so the
 /// effect stops being renderable instead.
 fn derive_slots() -> Vec<(&'static str, Vec<PassParam>, usize)> {
-    aria_models::effect_catalog()
+    aria_models::shipped_effect_catalog()
         .iter()
         .filter_map(|spec| {
             let pass = EFFECTS.iter().find(|row| row.id == spec.id)?;
@@ -465,7 +549,7 @@ static EFFECT_DESCRIPTORS: LazyLock<Vec<PassDescriptor>> = LazyLock::new(|| {
 
 static EFFECT_DESCRIPTOR_BY_ID: LazyLock<HashMap<&'static str, &'static PassDescriptor>> =
     LazyLock::new(|| {
-        effect_descriptors()
+        shipped_effect_descriptors()
             .iter()
             .map(|descriptor| (descriptor.id, descriptor))
             .collect()
@@ -477,7 +561,7 @@ static EFFECT_DESCRIPTOR_BY_ID: LazyLock<HashMap<&'static str, &'static PassDesc
 /// layer and frame. A catalog override receives a newly derived table when the
 /// process initializes.
 static INERT_PARAM_OFFSET_BY_ID: LazyLock<HashMap<&'static str, usize>> = LazyLock::new(|| {
-    effect_descriptors()
+    shipped_effect_descriptors()
         .iter()
         .filter_map(|descriptor| {
             let inert = EFFECTS
@@ -545,26 +629,47 @@ static TRANSITION_DESCRIPTORS: &[PassDescriptor] = TRANSITION_DESCRIPTORS_TABLE;
 static TRANSITION_IDS: LazyLock<Vec<&'static str>> =
     LazyLock::new(|| TRANSITIONS.iter().map(|row| row.id).collect());
 
-/// Every effect the compositor can dispatch: the catalog entries that have a row
-/// here and whose parameters their shader reads exactly.
-pub fn effect_descriptors() -> &'static [PassDescriptor] {
+/// Every shipped effect the compositor can dispatch: the catalog entries that
+/// have a row here and whose parameters their shader reads exactly. Registered
+/// effects are not listed; [`renders_effect`] answers for both.
+pub fn shipped_effect_descriptors() -> &'static [PassDescriptor] {
     &EFFECT_DESCRIPTORS
 }
 
-/// The derived descriptor for `id`, or `None` when nothing renders it.
+/// The derived descriptor of the shipped effect `id`, or `None` when no shipped
+/// pass renders it.
 pub fn effect_descriptor(id: &str) -> Option<&'static PassDescriptor> {
     EFFECT_DESCRIPTOR_BY_ID.get(id).copied()
 }
 
-/// Every transition the compositor can dispatch, as pass descriptors (matches
-/// `aria_models::transition_catalog`).
-pub fn transition_descriptors() -> &'static [PassDescriptor] {
-    &TRANSITION_DESCRIPTORS
+/// Every shipped transition the compositor can dispatch, as pass descriptors.
+pub fn shipped_transition_descriptors() -> &'static [PassDescriptor] {
+    TRANSITION_DESCRIPTORS
 }
 
-/// Every transition id the compositor can dispatch.
-pub fn transition_ids() -> &'static [&'static str] {
+/// Every shipped transition id the compositor can dispatch.
+pub fn shipped_transition_ids() -> &'static [&'static str] {
     &TRANSITION_IDS
+}
+
+/// What renders the catalog effect `effect_id`: a shipped pass, a registered
+/// one, or `None` when nothing does.
+pub fn pass_id(effect_id: &str) -> Option<PassId> {
+    if let Some(descriptor) = effect_descriptor(effect_id) {
+        return Some(PassId::Shipped(descriptor.id));
+    }
+    registered_effect(effect_id).map(PassId::Registered)
+}
+
+/// Whether a shipped or registered pass renders the effect `id`.
+pub fn renders_effect(id: &str) -> bool {
+    effect_descriptor(id).is_some() || registered_effect(id).is_some()
+}
+
+/// Whether a shipped or registered pass renders the transition `id`. Any other
+/// id crossfades.
+pub fn renders_transition(id: &str) -> bool {
+    TRANSITION_PASS_BY_ID.contains_key(id) || registered_transition(id).is_some()
 }
 
 /// The registry rows, for the pipeline builder and dispatch.
@@ -586,8 +691,14 @@ pub(crate) fn effect_pass(id: &str) -> Option<&'static EffectPass> {
     EFFECT_PASS_BY_ID.get(id).copied()
 }
 
-/// Which shader renders a transition id. An unknown id crossfades, which is the
-/// only variant that needs nothing from the catalog.
+/// Whether a shipped pass renders the transition `id`.
+pub(crate) fn is_shipped_transition(id: &str) -> bool {
+    TRANSITION_PASS_BY_ID.contains_key(id)
+}
+
+/// Which shipped shader renders a transition id. Any other id crossfades,
+/// which is the only variant that needs nothing from the catalog; a registered
+/// transition is drawn by its own pass before this is asked.
 pub fn transition_pass(id: &str) -> TransitionPass {
     TRANSITION_PASS_BY_ID
         .get(id)
@@ -604,7 +715,8 @@ pub fn transition_pass(id: &str) -> TransitionPass {
 /// instance into a silently missing effect instead of an error.
 pub fn effect_is_noop(id: &str, params: &[f32]) -> bool {
     let Some(desc) = effect_descriptor(id) else {
-        return true;
+        // A registered effect has no inert setting, so it always draws.
+        return registered_effect(id).is_none();
     };
     let Some(pass) = EFFECT_PASS_BY_ID.get(id).copied() else {
         return true;

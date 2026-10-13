@@ -19,7 +19,7 @@ impl AppState {
     /// this build does not know, so a stale drag cannot half-apply.
     pub fn drop_catalog_on_clip(
         &mut self,
-        drag: CatalogDrag,
+        drag: &CatalogDrag,
         clip: ClipId,
     ) -> Result<(), EngineError> {
         if !drag.targets_a_clip() {
@@ -34,12 +34,12 @@ impl AppState {
         }
         self.select_clip(clip);
         match drag.kind {
-            CatalogDragKind::Animation => self.set_selected_animation(drag.id),
-            CatalogDragKind::Mask => match MaskKind::from_id(drag.id) {
+            CatalogDragKind::Animation => self.set_selected_animation(&drag.id),
+            CatalogDragKind::Mask => match MaskKind::from_id(&drag.id) {
                 Some(kind) => self.set_selected_mask_kind(kind),
                 None => Ok(()),
             },
-            CatalogDragKind::Transition => self.set_selected_transition(drag.id),
+            CatalogDragKind::Transition => self.set_selected_transition(&drag.id),
             CatalogDragKind::Sticker => Ok(()),
         }
     }
@@ -51,13 +51,13 @@ impl AppState {
     /// edit the operator did not ask for.
     pub fn drop_catalog_on_track(
         &mut self,
-        drag: CatalogDrag,
+        drag: &CatalogDrag,
         track: Option<TrackId>,
         at: i64,
     ) -> Result<(), EngineError> {
         if drag.targets_a_clip() {
             return Ok(());
         }
-        self.drop_generated_on_timeline(Generator::sticker(drag.id), track, at)
+        self.drop_generated_on_timeline(Generator::sticker(drag.id.as_str()), track, at)
     }
 }

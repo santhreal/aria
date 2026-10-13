@@ -185,6 +185,31 @@ impl PluginContext {
         ))
     }
 
+    /// Add an effect drawn by the definition's WGSL to the effect catalog.
+    ///
+    /// The entry is listed, applied, resolved and rendered like a shipped one
+    /// until the returned guard drops; during [`mount`](Self::mount) the context
+    /// retains the guard for the plugin's lifetime. Refused when a pass does not
+    /// check against the host prelude or the spec breaks a catalog rule; see
+    /// [`aria_compositor::register_effect`].
+    pub fn register_effect(
+        &self,
+        definition: aria_compositor::EffectDefinition,
+    ) -> Result<Registration, PluginError> {
+        let guard = aria_compositor::register_effect(definition)?;
+        Ok(self.retain_if_mounting(Registration::holding(guard)))
+    }
+
+    /// Add a transition drawn by the definition's WGSL to the transition
+    /// catalog, on the terms of [`register_effect`](Self::register_effect).
+    pub fn register_transition(
+        &self,
+        definition: aria_compositor::TransitionDefinition,
+    ) -> Result<Registration, PluginError> {
+        let guard = aria_compositor::register_transition(definition)?;
+        Ok(self.retain_if_mounting(Registration::holding(guard)))
+    }
+
     fn retain_if_mounting(&self, registration: Registration) -> Registration {
         let mut pending = self.pending.lock();
         if let Some(list) = pending.as_mut() {

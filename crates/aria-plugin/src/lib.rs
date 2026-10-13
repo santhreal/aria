@@ -56,3 +56,10 @@ pub use aria_core::{
 pub use aria_commands::{Command, EditCommand, EditTargets};
 pub use aria_engine::{ApplyOutcome, EngineError};
 pub use aria_models::Project;
+
+/// What a plugin registers to add an effect or a transition: a model spec for
+/// the inspector and the timeline, and the WGSL the compositor draws it with.
+pub use aria_compositor::{
+    EffectDefinition, MAX_EFFECT_FLOATS, MAX_EFFECT_PASSES, RegisterError, TransitionDefinition,
+};
+pub use aria_models::{EffectParamKind, EffectParamSpec, EffectSpec, TransitionSpec};

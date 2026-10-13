@@ -1,6 +1,6 @@
 //! GPU readback checks for catalog effect passes.
 //!
-//! Every id in `effect_descriptors()` has a WGSL pass, so each one is checked
+//! Every id in `shipped_effect_descriptors()` has a WGSL pass, so each one is checked
 //! here by what it does to a known plate rather than by whether it dispatches.
 
 use aria_compositor::{
@@ -75,10 +75,7 @@ fn duotone_maps_black_and_white_to_shadow_and_highlight() {
         1.0,
         1.0,
     ];
-    let effects = [PassInstance {
-        id: "duotone",
-        params: params.to_vec(),
-    }];
+    let effects = [PassInstance::new("duotone", params.to_vec())];
     let layer =
         CompositeLayer::rgba(&bmp, LayerPlacement::full_canvas(&config)).with_effects(&effects);
     let img = comp.render(&gpu, &config, &[layer]).expect("duotone");
@@ -95,10 +92,7 @@ fn color_overlay_amount_one_tints_gray_red() {
 
     // color=red opaque, offset=0, amount=1 → full red overlay
     let params = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0];
-    let effects = [PassInstance {
-        id: "color_overlay",
-        params: params.to_vec(),
-    }];
+    let effects = [PassInstance::new("color_overlay", params.to_vec())];
     let layer = CompositeLayer::solid([128, 128, 128, 255], LayerPlacement::full_canvas(&config))
         .with_effects(&effects);
     let img = comp.render(&gpu, &config, &[layer]).expect("overlay");
@@ -114,10 +108,7 @@ fn color_overlay_amount_zero_leaves_gray_unchanged() {
 
     // amount=0 → noop (skipped by effect_is_noop)
     let params = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0];
-    let effects = [PassInstance {
-        id: "color_overlay",
-        params: params.to_vec(),
-    }];
+    let effects = [PassInstance::new("color_overlay", params.to_vec())];
     let layer = CompositeLayer::solid([128, 128, 128, 255], LayerPlacement::full_canvas(&config))
         .with_effects(&effects);
     let img = comp.render(&gpu, &config, &[layer]).expect("overlay zero");
@@ -161,10 +152,7 @@ fn render_effect(
     id: &'static str,
     params: &[f32],
 ) -> RgbaImage {
-    let effects = [PassInstance {
-        id,
-        params: params.to_vec(),
-    }];
+    let effects = [PassInstance::new(id, params.to_vec())];
     let layer =
         CompositeLayer::rgba(bmp, LayerPlacement::full_canvas(config)).with_effects(&effects);
     comp.render(gpu, config, &[layer]).expect(id)

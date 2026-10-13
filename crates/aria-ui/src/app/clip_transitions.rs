@@ -7,7 +7,7 @@
 
 use aria_commands::{Command, EditCommand};
 use aria_engine::EngineError;
-use aria_models::{ClipId, TransitionSpec, transition_catalog};
+use aria_models::{Catalog, ClipId, TransitionSpec, transition_catalog};
 
 use super::AppState;
 use super::decline::Decline;
@@ -21,8 +21,9 @@ pub const MAX_TRANSITION_TICKS: i64 = 600;
 /// The step one nudge of the duration control takes, in ticks.
 pub const TRANSITION_STEP_TICKS: i64 = 6;
 
-/// Every transition the model can render, for a catalog list.
-pub fn transition_choices() -> &'static [TransitionSpec] {
+/// Every transition the model can render, shipped and registered, for a
+/// catalog list.
+pub fn transition_choices() -> Catalog<TransitionSpec> {
     transition_catalog()
 }
 

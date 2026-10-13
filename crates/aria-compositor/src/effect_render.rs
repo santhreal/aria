@@ -6,7 +6,8 @@ use bytemuck::{Pod, Zeroable};
 use crate::error::CompositorError;
 use crate::grade::ColorGrade;
 use crate::layer::MatteRead;
-use crate::passes::{GAUSSIAN_BLUR, PassInstance, effect_is_noop, transition_pass};
+use crate::passes::{GAUSSIAN_BLUR, PassId, PassInstance, transition_pass};
+use crate::registered_passes::registered_transition;
 
 mod blend;
 mod blit;
@@ -16,6 +17,7 @@ mod pass_cache;
 mod pass_census;
 mod pipelines;
 mod pool;
+mod registered;
 mod styles;
 
 pub(crate) use blend::run_blend_composite;
@@ -111,13 +113,45 @@ pub(crate) fn run_effect_chain<'a>(
 
     let cache = pool.passes();
     for effect in effects {
-        validate_and_pack_effect_params(effect.id, &effect.params)?;
-        if effect_is_noop(effect.id, &effect.params) {
+        let shipped = match &effect.id {
+            PassId::Shipped(id) => *id,
+            PassId::Registered(pass) => {
+                if pass.float_count() != effect.params.len() {
+                    return Err(CompositorError::InvalidEffectParams {
+                        effect: pass.id().to_string(),
+                        expected: pass.float_count(),
+                        actual: effect.params.len(),
+                    });
+                }
+                if effect.is_noop() {
+                    continue;
+                }
+                let in_idx = pool.index_of(current_input).unwrap_or(read_idx);
+                if let Some((written, view)) = registered::run_registered_effect(
+                    device,
+                    encoder,
+                    registry,
+                    pool,
+                    current_input,
+                    in_idx,
+                    effect,
+                    pass,
+                    width,
+                    height,
+                ) {
+                    read_idx = written;
+                    current_input = view;
+                }
+                continue;
+            }
+        };
+        validate_and_pack_effect_params(shipped, &effect.params)?;
+        if effect.is_noop() {
             continue;
         }
         let in_idx = pool.index_of(current_input).unwrap_or(read_idx);
 
-        match effect.id {
+        match shipped {
             GAUSSIAN_BLUR => {
                 let radius = effect.params[0];
                 let blur_params = [radius];
@@ -159,7 +193,7 @@ pub(crate) fn run_effect_chain<'a>(
             _ => {
                 let write_idx = (in_idx + 1) % pool.slots();
                 let write_view = pool.view(write_idx);
-                let pipeline = registry.effect_pipeline(effect.id);
+                let pipeline = registry.effect_pipeline(shipped);
                 draw_effect_pass(
                     device,
                     encoder,
@@ -170,7 +204,7 @@ pub(crate) fn run_effect_chain<'a>(
                     write_view,
                     width,
                     height,
-                    effect.id,
+                    shipped,
                     &effect.params,
                 )?;
                 read_idx = write_idx;
@@ -196,6 +230,15 @@ pub(crate) fn run_transition_pass(
     width: u32,
     height: u32,
 ) {
+    if !crate::passes::is_shipped_transition(transition_id)
+        && let Some(pass) = registered_transition(transition_id)
+        && registered::run_registered_transition(
+            device, encoder, registry, cache, &pass, outgoing, incoming, output, progress, width,
+            height,
+        )
+    {
+        return;
+    }
     let pipeline = registry.transition_pipeline(transition_id);
     let uniforms = TransitionUniforms {
         texel_size: texel_size(width, height),
@@ -418,7 +461,7 @@ pub(crate) fn draw_layer_to_offscreen(
 
 /// Returns `true` when the effect chain is empty or all passes are no-ops.
 pub(crate) fn effects_need_offscreen(effects: &[PassInstance]) -> bool {
-    !effects.is_empty() && effects.iter().any(|e| !effect_is_noop(e.id, &e.params))
+    !effects.is_empty() && effects.iter().any(|e| !e.is_noop())
 }
 
 #[allow(dead_code)]
@@ -483,7 +526,7 @@ mod tests {
     /// is a separate number and would not catch a shader that declared more.
     #[test]
     fn no_catalog_effect_declares_more_floats_than_the_pack_buffer_holds() {
-        let descriptors = crate::passes::effect_descriptors();
+        let descriptors = crate::passes::shipped_effect_descriptors();
         assert!(!descriptors.is_empty(), "descriptors must be populated");
         for desc in descriptors {
             assert!(
@@ -508,7 +551,7 @@ mod tests {
 
     #[test]
     fn every_catalog_effect_accepts_exact_arity_and_rejects_short_and_long() {
-        let descriptors = crate::passes::effect_descriptors();
+        let descriptors = crate::passes::shipped_effect_descriptors();
         assert!(!descriptors.is_empty(), "descriptors must be populated");
         for desc in descriptors {
             let expected = desc.float_count();

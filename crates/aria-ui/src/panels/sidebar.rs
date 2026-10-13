@@ -131,7 +131,7 @@ pub fn render(
                     .into_any_element(),
                     SidebarTab::Transitions => catalog_grid(
                         &theme,
-                        crate::catalog_text::transitions(),
+                        &crate::catalog_text::transitions(),
                         CatalogDragKind::Transition,
                         "Drag onto a cut, or click for the selected clip's right cut",
                         |state, id| state.set_selected_transition(id),

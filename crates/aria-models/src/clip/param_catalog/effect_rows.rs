@@ -107,7 +107,7 @@ fn rows_for(index: u32, instance: &EffectInstance) -> Vec<ParamSpec> {
     spec.params
         .iter()
         .enumerate()
-        .map(|(slot, pspec)| row(index, spec, slot as u32, pspec))
+        .map(|(slot, pspec)| row(index, &spec, slot as u32, pspec))
         .collect()
 }
 
@@ -128,7 +128,7 @@ pub fn visit_clip_params(clip: &Clip, mut visit: impl FnMut(&ParamSpec)) {
             continue;
         };
         for (slot, pspec) in spec.params.iter().enumerate() {
-            let dynamic = row(index as u32, spec, slot as u32, pspec);
+            let dynamic = row(index as u32, &spec, slot as u32, pspec);
             visit(&dynamic);
         }
     }
@@ -175,14 +175,14 @@ mod tests {
     }
 
     /// The first shipped effect that declares at least one scalar parameter.
-    fn scalar_effect() -> (&'static EffectSpec, usize) {
-        crate::effect_catalog()
+    fn scalar_effect() -> (std::sync::Arc<EffectSpec>, usize) {
+        crate::shipped_effect_catalog()
             .iter()
             .find_map(|spec| {
                 spec.params
                     .iter()
                     .position(|p| p.kind == EffectParamKind::Scalar)
-                    .map(|slot| (spec, slot))
+                    .map(|slot| (spec.clone(), slot))
             })
             .expect("the shipped catalog must declare a scalar effect parameter")
     }

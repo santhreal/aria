@@ -69,6 +69,10 @@ name = "lut_render"
 path = "tests/lut_render.rs"
 
 [[test]]
+name = "registered_render"
+path = "tests/registered_render.rs"
+
+[[test]]
 name = "render_frame"
 path = "tests/render_frame.rs"
 

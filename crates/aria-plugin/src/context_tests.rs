@@ -238,3 +238,167 @@ fn mounting_and_unmounting_announce_the_plugin() {
         [("activated", "test.consumer"), ("deactivated", "test.consumer")]
     );
 }
+
+/// A plugin that adds one effect and one transition while it mounts, and fails
+/// the mount after adding them when `fail` is set.
+struct Passes {
+    manifest: PluginManifest,
+    effect: &'static str,
+    transition: &'static str,
+    fail: bool,
+}
+
+const EFFECT_FS: &str = "@fragment
+fn fs(in: VsOut) -> @location(0) vec4<f32> {
+    return textureSample(input_tex, aria_sampler, in.uv) * param_gain();
+}";
+
+const TRANSITION_FS: &str = "@fragment
+fn fs(in: VsOut) -> @location(0) vec4<f32> {
+    let a = textureSample(outgoing_tex, aria_sampler, in.uv);
+    let b = textureSample(incoming_tex, aria_sampler, in.uv);
+    return mix(a, b, aria.progress);
+}";
+
+fn effect_definition(id: &str, fs: &str) -> aria_compositor::EffectDefinition {
+    aria_compositor::EffectDefinition {
+        spec: aria_models::EffectSpec {
+            id: id.into(),
+            label: "Gain".into(),
+            params: vec![aria_models::EffectParamSpec {
+                name: "gain".into(),
+                label: "Gain".into(),
+                kind: aria_models::EffectParamKind::Scalar,
+                default: 1.0,
+                min: 0.0,
+                max: 2.0,
+                default_color: [0; 4],
+                default_vec2: [0.0; 2],
+            }],
+        },
+        passes: vec![fs.into()],
+    }
+}
+
+fn transition_definition(id: &str) -> aria_compositor::TransitionDefinition {
+    aria_compositor::TransitionDefinition {
+        spec: aria_models::TransitionSpec {
+            id: id.into(),
+            label: "Mix".into(),
+        },
+        shader: TRANSITION_FS.into(),
+    }
+}
+
+impl Plugin for Passes {
+    fn manifest(&self) -> &PluginManifest {
+        &self.manifest
+    }
+
+    fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
+        // Retained by the context, so the returned guards are empty.
+        ctx.register_effect(effect_definition(self.effect, EFFECT_FS))?;
+        ctx.register_transition(transition_definition(self.transition))?;
+        if self.fail {
+            return Err(PluginError::MountFailed(self.manifest.id, "asked to".into()));
+        }
+        Ok(())
+    }
+}
+
+fn passes(id: &'static str, effect: &'static str, transition: &'static str, fail: bool) -> Passes {
+    Passes {
+        manifest: PluginManifest {
+            id,
+            name: "Passes",
+            version: "0.1.0",
+            requires: &[],
+            uses: &[],
+        },
+        effect,
+        transition,
+        fail,
+    }
+}
+
+/// Whether the catalog lists `id` and the compositor draws it.
+fn effect_listed(id: &str) -> bool {
+    let listed = aria_models::effect_spec(id).is_some();
+    assert_eq!(
+        listed,
+        aria_compositor::renders_effect(id),
+        "the catalog and the compositor disagree about {id}"
+    );
+    listed
+}
+
+fn transition_listed(id: &str) -> bool {
+    let listed = aria_models::transition_spec(id).is_some();
+    assert_eq!(
+        listed,
+        aria_compositor::renders_transition(id),
+        "the catalog and the compositor disagree about {id}"
+    );
+    listed
+}
+
+/// What a plugin registers while it mounts lives as long as the plugin: listed
+/// and drawn after the mount, gone after the unmount.
+#[test]
+fn a_mounted_plugins_effect_and_transition_last_until_it_unmounts() {
+    let ctx = PluginContext::new();
+    let (effect, transition) = ("test.ctx.mounted_gain", "test.ctx.mounted_mix");
+    ctx.mount(&passes("test.passes", effect, transition, false))
+        .expect("mounts");
+    assert!(effect_listed(effect), "the effect left with the mount call");
+    assert!(transition_listed(transition));
+
+    ctx.unmount("test.passes").expect("unmounts");
+    assert!(!effect_listed(effect), "the effect outlived its plugin");
+    assert!(!transition_listed(transition));
+}
+
+/// A mount that fails after registering leaves nothing behind.
+#[test]
+fn a_failed_mount_removes_what_it_registered() {
+    let ctx = PluginContext::new();
+    let (effect, transition) = ("test.ctx.failed_gain", "test.ctx.failed_mix");
+    let err = ctx
+        .mount(&passes("test.failing", effect, transition, true))
+        .expect_err("asked to fail");
+    assert!(matches!(err, PluginError::MountFailed("test.failing", _)), "{err}");
+    assert!(!effect_listed(effect), "a failed mount left its effect");
+    assert!(!transition_listed(transition));
+}
+
+/// Outside a mount the caller holds the guard, and dropping it removes the
+/// entry.
+#[test]
+fn outside_a_mount_the_caller_holds_the_registration() {
+    let ctx = PluginContext::new();
+    let id = "test.ctx.held_gain";
+    let held = ctx
+        .register_effect(effect_definition(id, EFFECT_FS))
+        .expect("registers");
+    assert!(effect_listed(id));
+    drop(held);
+    assert!(!effect_listed(id), "dropping the registration kept the effect");
+}
+
+/// A refused definition is reported as a refusal naming the pass and line, and
+/// registers nothing.
+#[test]
+fn a_refused_shader_is_a_register_refusal() {
+    let ctx = PluginContext::new();
+    let id = "test.ctx.broken_gain";
+    let broken = "@fragment\nfn fs(in: VsOut) -> @location(0) vec4<f32> {\n    return nope;\n}";
+    let Err(PluginError::RegisterRefused(refusal)) =
+        ctx.register_effect(effect_definition(id, broken))
+    else {
+        panic!("a shader naming an unknown identifier registered");
+    };
+    assert_eq!(refusal.id, id);
+    assert_eq!(refusal.pass, Some(0));
+    assert_eq!(refusal.location.map(|(line, _)| line), Some(3));
+    assert!(!effect_listed(id));
+}

@@ -161,8 +161,9 @@ fn decode_frame(
     CGContext::flush(Some(&ctx));
     drop(ctx);
 
-    unpremultiply(&mut pixels);
-    Ok(RgbaImage::new(width as u32, height as u32, pixels))
+    let mut frame = RgbaImage::new(width as u32, height as u32, pixels);
+    frame.unpremultiply();
+    Ok(frame)
 }
 
 /// Read frame `index`'s display delay in milliseconds from the container's
@@ -259,20 +260,4 @@ fn dict_dict<'a>(dict: &'a CFDictionary, key: &CFString) -> Option<&'a CFDiction
 
 fn clamp_dim(v: i64) -> u32 {
     u32::try_from(v.max(0)).unwrap_or(u32::MAX)
-}
-
-/// Convert premultiplied RGBA (CG's only draw format) back to the straight
-/// alpha the compositor expects on upload. Opaque pixels pass through.
-fn unpremultiply(pixels: &mut [u8]) {
-    for px in pixels.chunks_exact_mut(4) {
-        let a = px[3];
-        if a == 0 || a == 255 {
-            continue;
-        }
-        let a16 = u16::from(a);
-        for c in &mut px[..3] {
-            // Round-to-nearest un-premultiply: c * 255 / a.
-            *c = ((u16::from(*c) * 255 + a16 / 2) / a16).min(255) as u8;
-        }
-    }
 }

@@ -15,14 +15,10 @@ fn a_non_scalar_write_that_changes_nothing_writes_no_edit() {
 
     let (mut state, _) = with_clip();
     state.add_effect_to_selected("color_overlay").expect("add");
-    let (color_slot, color_spec) = color_params("color_overlay")
-        .first()
-        .copied()
-        .expect("a colour slot");
-    let (vec_slot, vec_spec) = vec2_params("color_overlay")
-        .first()
-        .copied()
-        .expect("a vec2 slot");
+    let colors = color_params("color_overlay");
+    let (color_slot, color_spec) = colors.first().expect("a colour slot");
+    let points = vec2_params("color_overlay");
+    let (vec_slot, vec_spec) = points.first().expect("a vec2 slot");
 
     let before = state.engine().lock().revision();
     state

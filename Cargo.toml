@@ -80,6 +80,9 @@ libloading = "0.8"
 # GPU compositor. Preview currently CPU-readbacks into GPUI textures;
 # wgpu stays pinned so the engine compositor does not drift.
 wgpu = "29"
+# WGSL front end and validator, the same release wgpu 29 links. Checks plugin
+# shaders at registration so errors carry the plugin's own line numbers.
+naga = { version = "29", features = ["wgsl-in"] }
 bytemuck = { version = "1", features = ["derive"] }
 pollster = "0.4"
 # GPUI from santhreal/santh-gpui, the framework shared with iris and Veyyon.

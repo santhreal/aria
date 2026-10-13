@@ -45,6 +45,7 @@ dependencies = [
  "ash",
  "bytemuck",
  "image",
+ "naga",
  "objc2",
  "objc2-metal",
  "pollster",

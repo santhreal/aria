@@ -1,6 +1,6 @@
 //! GPU readback checks for the transition passes.
 //!
-//! Every id in `transition_ids()` renders its own way — a dip passes through a
+//! Every id in `shipped_transition_ids()` renders its own way — a dip passes through a
 //! solid frame, a wipe has a hard edge, a slide moves both frames — so each one
 //! is checked by where its pixels land at a known progress.
 

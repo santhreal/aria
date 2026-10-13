@@ -136,7 +136,8 @@ pub(super) fn param_value(
 ) -> Result<ParamValue, Rejection> {
     match param {
         WireClipParam::Effect { index, param: name } => {
-            let (_, _, pspec) = effect_param_slot(clip, *index, name, wire_clip)?;
+            let (_, slot, spec) = effect_param_slot(clip, *index, name, wire_clip)?;
+            let pspec = &spec.params[slot];
             match pspec.kind {
                 aria_models::EffectParamKind::Scalar => value
                     .map(|v| finite_scalar(v, name).map(ParamValue::Scalar))

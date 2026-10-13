@@ -1,19 +1,19 @@
 //! The catalogs' text, shared once instead of copied per frame.
 //!
-//! A catalog is a data file `aria_models` reads on first use and never changes
-//! afterwards, and its rows hold `String`, because the model crate has no idea a
-//! UI exists. A panel draws those ids and labels as chips every frame, so reading
+//! A catalog's rows hold `String`, because the model crate has no idea a UI
+//! exists. A panel draws those ids and labels as chips every frame, so reading
 //! them straight out of the catalog means one heap copy per chip per frame: the
 //! filter list alone is a dozen, and gpui takes a `SharedString` to draw text.
 //!
-//! These are the same rows with their text shared. Built on first draw, handed
-//! out as refcounts after that. A catalog cannot change during a run, so a
-//! process-lifetime cache is the whole story: nothing invalidates, and nothing
-//! is rebuilt.
+//! These are the same rows with their text shared. A catalog read once from a
+//! data file is shared for the life of the process. The transition catalog also
+//! lists what plugins register, so its share is rebuilt when the catalog's
+//! revision moves and handed out as a refcount until it moves again.
 
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock};
 
 use gpui::SharedString;
+use parking_lot::Mutex;
 
 /// One catalog row as a panel draws it: what to send, and what to show.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -25,13 +25,41 @@ pub struct Choice {
 }
 
 /// Share every row of a catalog, in the catalog's own order.
-fn shared<T>(rows: &[T], id: fn(&T) -> &str, label: fn(&T) -> &str) -> Vec<Choice> {
-    rows.iter()
+fn shared<'a, T: 'a, C: FromIterator<Choice>>(
+    rows: impl IntoIterator<Item = &'a T>,
+    id: fn(&T) -> &str,
+    label: fn(&T) -> &str,
+) -> C {
+    rows.into_iter()
         .map(|row| Choice {
-            id: id(row).to_string().into(),
-            label: label(row).to_string().into(),
+            id: SharedString::from(id(row)),
+            label: SharedString::from(label(row)),
         })
         .collect()
+}
+
+/// The share of a catalog plugins can extend, kept with the revision it was
+/// built from.
+struct Revisioned(Mutex<Option<(u64, Arc<[Choice]>)>>);
+
+impl Revisioned {
+    const fn new() -> Self {
+        Self(parking_lot::const_mutex(None))
+    }
+
+    /// The share built at `revision`, building it with `build` when the held one
+    /// is from another revision or there is none.
+    fn at(&self, revision: u64, build: impl FnOnce() -> Arc<[Choice]>) -> Arc<[Choice]> {
+        let mut held = self.0.lock();
+        if let Some((at, rows)) = held.as_ref()
+            && *at == revision
+        {
+            return Arc::clone(rows);
+        }
+        let rows = build();
+        *held = Some((revision, Arc::clone(&rows)));
+        rows
+    }
 }
 
 /// The filter catalog, for the Look tab's chips.
@@ -46,16 +74,14 @@ pub fn filters() -> &'static [Choice] {
     &ROWS
 }
 
-/// The transition catalog, for the cut's blend chips and the clip menu.
-pub fn transitions() -> &'static [Choice] {
-    static ROWS: LazyLock<Vec<Choice>> = LazyLock::new(|| {
-        shared(
-            aria_models::transition_catalog(),
-            |spec| &spec.id,
-            |spec| &spec.label,
-        )
-    });
-    &ROWS
+/// The transition catalog, shipped and registered, for the cut's blend chips,
+/// the sidebar, and the clip menu.
+pub fn transitions() -> Arc<[Choice]> {
+    static ROWS: Revisioned = Revisioned::new();
+    let catalog = aria_models::transition_catalog();
+    ROWS.at(catalog.revision(), || {
+        shared(&catalog, |spec| &spec.id, |spec| &spec.label)
+    })
 }
 
 /// The text-effect catalog, for the Text tab's chips.
@@ -112,62 +138,58 @@ pub fn masks() -> &'static [Choice] {
 
 #[cfg(test)]
 mod tests {
-    use super::Choice;
+    use std::ops::Deref;
+    use std::sync::Arc;
 
-    /// Every accessor, paired with the ids the model catalog behind it ships.
+    use super::{Choice, Revisioned};
+
+    /// One accessor's rows, whether shared for the process or per revision.
+    type Rows = Box<dyn Deref<Target = [Choice]>>;
+
+    fn rows(rows: impl Deref<Target = [Choice]> + 'static) -> Rows {
+        Box::new(rows)
+    }
+
+    fn ids<'a, T: 'a>(rows: impl IntoIterator<Item = &'a T>, id: fn(&T) -> &str) -> Vec<String> {
+        rows.into_iter().map(|row| id(row).to_string()).collect()
+    }
+
+    /// Every accessor, paired with the ids of the model catalog behind it.
     ///
     /// The pairing is written out because each catalog has its own spec type and
     /// no two of them can be read through one generic; what is *not* written out
     /// is which accessors exist, which the next rule reads out of this file.
-    fn covered() -> Vec<(&'static str, &'static [Choice], Vec<&'static str>)> {
+    fn covered() -> Vec<(&'static str, Rows, Vec<String>)> {
         vec![
             (
                 "filters",
-                super::filters(),
-                aria_models::filter_catalog()
-                    .iter()
-                    .map(|spec| spec.id.as_str())
-                    .collect(),
+                rows(super::filters()),
+                ids(aria_models::filter_catalog(), |spec| &spec.id),
             ),
             (
                 "transitions",
-                super::transitions(),
-                aria_models::transition_catalog()
-                    .iter()
-                    .map(|spec| spec.id.as_str())
-                    .collect(),
+                rows(super::transitions()),
+                ids(&aria_models::transition_catalog(), |spec| &spec.id),
             ),
             (
                 "text_effects",
-                super::text_effects(),
-                aria_models::text_effect_catalog()
-                    .iter()
-                    .map(|spec| spec.id.as_str())
-                    .collect(),
+                rows(super::text_effects()),
+                ids(aria_models::text_effect_catalog(), |spec| &spec.id),
             ),
             (
                 "stickers",
-                super::stickers(),
-                aria_models::sticker_catalog()
-                    .iter()
-                    .map(|spec| spec.id.as_str())
-                    .collect(),
+                rows(super::stickers()),
+                ids(aria_models::sticker_catalog(), |spec| &spec.id),
             ),
             (
                 "animations",
-                super::animations(),
-                aria_models::animation_catalog()
-                    .iter()
-                    .map(|spec| spec.id.as_str())
-                    .collect(),
+                rows(super::animations()),
+                ids(aria_models::animation_catalog(), |spec| &spec.id),
             ),
             (
                 "masks",
-                super::masks(),
-                aria_models::mask_catalog()
-                    .iter()
-                    .map(|spec| spec.kind.id())
-                    .collect(),
+                rows(super::masks()),
+                ids(aria_models::mask_catalog(), |spec| spec.kind.id()),
             ),
         ]
     }
@@ -185,7 +207,8 @@ mod tests {
             .filter_map(|line| {
                 let name = line.trim().strip_prefix("pub fn ")?;
                 let (name, rest) = name.split_once('(')?;
-                rest.contains("-> &'static [Choice]").then_some(name)
+                (rest.contains("-> &'static [Choice]") || rest.contains("-> Arc<[Choice]>"))
+                    .then_some(name)
             })
             .collect();
         let tested: Vec<&str> = covered().iter().map(|(name, _, _)| *name).collect();
@@ -236,7 +259,7 @@ mod tests {
     #[test]
     fn every_offered_row_carries_both_halves() {
         for (name, offered, _) in covered() {
-            for choice in offered {
+            for choice in offered.iter() {
                 assert!(!choice.id.is_empty(), "a {name} row has no id");
                 assert!(
                     !choice.label.is_empty(),
@@ -245,6 +268,46 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// **A registered transition reaches the chips.**
+    ///
+    /// A plugin registering or dropping a transition moves the catalog's
+    /// revision. The share follows the revision it was built from: at one
+    /// revision it is built once, a new revision rebuilds it, and a revision
+    /// coming back is rebuilt rather than served the rows of another.
+    #[test]
+    fn a_revisioned_share_is_built_once_per_revision() {
+        let share = Revisioned::new();
+        let row = |id: &'static str| -> Arc<[Choice]> {
+            Arc::from([Choice {
+                id: id.into(),
+                label: id.into(),
+            }])
+        };
+        let mut builds = 0;
+        let first = share.at(1, || {
+            builds += 1;
+            row("first")
+        });
+        let again = share.at(1, || {
+            builds += 1;
+            row("again")
+        });
+        assert!(Arc::ptr_eq(&first, &again), "one revision built twice");
+        assert_eq!(builds, 1);
+
+        let moved = share.at(2, || {
+            builds += 1;
+            row("moved")
+        });
+        assert_eq!(moved[0].id, "moved", "a new revision served the old rows");
+        let back = share.at(1, || {
+            builds += 1;
+            row("back")
+        });
+        assert_eq!(back[0].id, "back", "revision 1 served revision 2's rows");
+        assert_eq!(builds, 3);
     }
 
     /// **A mask row names a shape.**

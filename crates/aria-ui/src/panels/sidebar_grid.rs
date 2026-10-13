@@ -120,10 +120,10 @@ pub(super) fn generator_grid(
 /// predicate avoids rebuilding a parallel string vector on every repaint.
 pub(super) fn catalog_grid(
     theme: &Theme,
-    entries: &'static [crate::catalog_text::Choice],
+    entries: &[crate::catalog_text::Choice],
     kind: CatalogDragKind,
     caption: &'static str,
-    apply: fn(&mut AppState, &'static str) -> Result<(), aria_engine::EngineError>,
+    apply: fn(&mut AppState, &str) -> Result<(), aria_engine::EngineError>,
     is_applied: impl Fn(&str) -> bool,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
@@ -299,19 +299,18 @@ pub(super) fn cloud_grid(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn catalog_row(
     theme: &Theme,
-    choice: &'static crate::catalog_text::Choice,
+    choice: &crate::catalog_text::Choice,
     kind: CatalogDragKind,
     caption: &'static str,
-    apply: fn(&mut AppState, &'static str) -> Result<(), aria_engine::EngineError>,
+    apply: fn(&mut AppState, &str) -> Result<(), aria_engine::EngineError>,
     applied: bool,
     index: usize,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
-    // The rows live in a process-lifetime catalog, so the id borrowed out of one
-    // is `'static`: a drag payload and an apply function can hold it without a
-    // copy, and the label is shared rather than rebuilt per frame.
-    let id = choice.id.as_str();
-    let key = motion::MotionKey::new("sidebar.catalog", id);
+    // The row's id and label are shared text, so the drag payload, the hover
+    // preview, and the click each hold a refcount rather than a copy.
+    let id = choice.id.clone();
+    let key = motion::MotionKey::new("sidebar.catalog", &id);
     let lit = motion::hover_t(key);
     // The applied entry reads as chosen without a hover: full-strength text and a
     // standing wash, so the list says what the clip carries.
@@ -333,8 +332,10 @@ pub(super) fn catalog_row(
     // element is a panic rather than a second handler.
     let previews = kind == CatalogDragKind::Animation;
     let hover_key = key;
+    let hover_id = id.clone();
+    let click_id = id.clone();
     let row = div()
-        .id(id)
+        .id(id.clone())
         .flex()
         .flex_col()
         .gap(px(Theme::SPACE_XS))
@@ -362,7 +363,7 @@ pub(super) fn catalog_row(
             }
             let changed = this.state.update(cx, |state, _| {
                 if hovered {
-                    state.preview_animation(id)
+                    state.preview_animation(&hover_id)
                 } else {
                     state.clear_animation_preview()
                 }
@@ -375,11 +376,11 @@ pub(super) fn catalog_row(
         .on_drag(
             CatalogDrag {
                 kind,
-                id,
-                label: choice.label.as_str(),
+                id: id.clone(),
+                label: choice.label.clone(),
             },
             move |drag, _offset, _window, cx| {
-                let label = gpui::SharedString::from(drag.label);
+                let label = drag.label.clone();
                 cx.new(|_| DragGhost { label })
             },
         )
@@ -387,7 +388,7 @@ pub(super) fn catalog_row(
             MouseButton::Left,
             cx.listener(move |this, _: &MouseDownEvent, _, cx| {
                 this.state.update(cx, |state, _| {
-                    if let Err(err) = apply(state, id) {
+                    if let Err(err) = apply(state, &click_id) {
                         state.report_error(&err);
                     }
                 });
@@ -395,7 +396,7 @@ pub(super) fn catalog_row(
                 cx.notify();
             }),
         );
-    crate::pending::arriving(motion::MotionKey::new("catalog-in", id), index, row)
+    crate::pending::arriving(motion::MotionKey::new("catalog-in", &id), index, row)
 }
 
 pub(super) fn generator_tile(

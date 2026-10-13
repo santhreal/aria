@@ -58,6 +58,9 @@ pub(crate) struct PassRegistry {
     /// Harden blurred silhouette into an outside stroke (outline).
     pub harden_pipeline: wgpu::RenderPipeline,
     pub harden_layout: wgpu::BindGroupLayout,
+    /// Pipelines for passes registered while the process runs, built on first
+    /// draw against [`Self::transition_layout`].
+    pub(super) runtime: super::registered::RuntimePipelines,
 }
 
 /// The bindings every effect pass reads: the input texture, the shared
@@ -262,6 +265,7 @@ impl PassRegistry {
             accumulate_blit_layout,
             harden_pipeline,
             harden_layout,
+            runtime: super::registered::RuntimePipelines::default(),
         }
     }
 

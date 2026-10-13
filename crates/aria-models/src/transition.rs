@@ -11,7 +11,7 @@
 //! tick equals right's start tick). Structural edits that break the abutment
 //! prune the dead junction; undo restores it.
 
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock};
 
 use serde::{Deserialize, Serialize};
 
@@ -27,27 +27,38 @@ pub struct TransitionSpec {
     pub label: String,
 }
 
-/// Every transition, read once. Shipped set at `data/transitions.toml`, replaced
-/// by a file of that name under the host's catalog root.
-static CATALOG: LazyLock<Vec<TransitionSpec>> = LazyLock::new(|| {
+/// The shipped transitions, read once. Shipped set at `data/transitions.toml`,
+/// replaced by a file of that name under the host's catalog root.
+static SHIPPED: LazyLock<Vec<Arc<TransitionSpec>>> = LazyLock::new(|| {
     crate::catalog::load(
         "transitions",
         include_str!("../data/transitions.toml"),
-        |entries| crate::catalog::unique_ids(entries, |s| &s.id, |s| &s.label),
+        |entries: &[TransitionSpec]| {
+            crate::catalog::unique_ids(entries, |s| &s.id, |s| &s.label)
+        },
     )
+    .into_iter()
+    .map(Arc::new)
+    .collect()
 });
 
 /// Default transition window length, in timeline ticks (centered on the cut).
 pub const DEFAULT_TRANSITION_TICKS: i64 = 24;
 
-/// Every transition the model knows about (validation + UI browsing).
-pub fn transition_catalog() -> &'static [TransitionSpec] {
-    &CATALOG
+/// The transitions that ship with the app, without registered ones.
+pub fn shipped_transition_catalog() -> &'static [Arc<TransitionSpec>] {
+    &SHIPPED
 }
 
-/// The catalog entry for `id`, or `None`.
-pub fn transition_spec(id: &str) -> Option<&'static TransitionSpec> {
-    CATALOG.iter().find(|s| s.id == id)
+/// Every transition the model knows about now (validation + UI browsing): the
+/// shipped set, then transitions registered by plugins.
+pub fn transition_catalog() -> crate::Catalog<TransitionSpec> {
+    crate::registered::transition_catalog()
+}
+
+/// The catalog entry for `id`, shipped or registered, or `None`.
+pub fn transition_spec(id: &str) -> Option<Arc<TransitionSpec>> {
+    crate::registered::transition_spec(id)
 }
 
 /// A transition at the junction between `left` and the clip immediately to its
@@ -89,13 +100,13 @@ mod tests {
     /// unique — a duplicate would shadow a transition the compositor can render.
     #[test]
     fn catalog_ids_are_unique() {
-        let mut ids: Vec<&str> = CATALOG.iter().map(|s| s.id.as_str()).collect();
+        let mut ids: Vec<&str> = SHIPPED.iter().map(|s| s.id.as_str()).collect();
         let count = ids.len();
         ids.sort_unstable();
         ids.dedup();
         assert_eq!(ids.len(), count, "transition ids are unique");
         assert_eq!(count, 8, "the M4 starter set is eight transitions");
-        assert!(CATALOG.iter().all(|spec| !spec.label.is_empty()));
+        assert!(SHIPPED.iter().all(|spec| !spec.label.is_empty()));
     }
 
     #[test]

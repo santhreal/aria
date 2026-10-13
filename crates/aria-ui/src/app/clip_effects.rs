@@ -5,10 +5,13 @@
 //! model reaches those through `SetParamKeyframe` with `ClipParam::Effect`, so a
 //! single keyframe is what "the value" means for them.
 
+use std::sync::Arc;
+
 use aria_commands::{Command, EditCommand};
 use aria_engine::EngineError;
 use aria_models::{
-    ClipParam, Easing, EffectParamKind, EffectParamSpec, ParamValue, RationalTime, effect_spec,
+    ClipParam, Easing, EffectParamKind, EffectParamSpec, EffectSpec, ParamValue, RationalTime,
+    effect_spec,
 };
 
 use super::AppState;
@@ -26,34 +29,79 @@ pub const PARAM_COLORS: [(&str, &str, [u8; 4]); 8] = [
     ("clear", "Clear", [0, 0, 0, 0]),
 ];
 
-/// The parameter slots of one effect of a given kind, as (catalog index, spec).
+/// The parameter slots of one effect that carry one kind, as (catalog index,
+/// spec).
 ///
-/// Derived from the catalog at call time, so a new parameter appears in the
-/// inspector without a second list to update.
-pub fn params_of_kind(
-    effect_id: &str,
+/// Read from the catalog when built, so a new parameter appears in the
+/// inspector without a second list to update. Holds the spec rather than a
+/// copy of its rows, so listing slots allocates nothing.
+pub struct ParamSlots {
+    spec: Option<Arc<EffectSpec>>,
     kind: EffectParamKind,
-) -> Vec<(usize, &'static EffectParamSpec)> {
-    effect_spec(effect_id)
-        .map(|spec| {
-            spec.params
-                .iter()
-                .enumerate()
-                .filter(|(_, param)| param.kind == kind)
-                .collect()
-        })
-        .unwrap_or_default()
 }
 
-pub fn scalar_params(effect_id: &str) -> Vec<(usize, &'static EffectParamSpec)> {
+impl ParamSlots {
+    pub fn iter(&self) -> ParamSlotIter<'_> {
+        let params = self.spec.as_deref().map_or(&[][..], |spec| &spec.params[..]);
+        ParamSlotIter {
+            params: params.iter().enumerate(),
+            kind: self.kind,
+        }
+    }
+
+    pub fn first(&self) -> Option<(usize, &EffectParamSpec)> {
+        self.iter().next()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.first().is_none()
+    }
+
+    /// The catalog indices alone.
+    pub fn slots(&self) -> impl Iterator<Item = usize> + '_ {
+        self.iter().map(|(slot, _)| slot)
+    }
+}
+
+impl<'a> IntoIterator for &'a ParamSlots {
+    type Item = (usize, &'a EffectParamSpec);
+    type IntoIter = ParamSlotIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+pub struct ParamSlotIter<'a> {
+    params: std::iter::Enumerate<std::slice::Iter<'a, EffectParamSpec>>,
+    kind: EffectParamKind,
+}
+
+impl<'a> Iterator for ParamSlotIter<'a> {
+    type Item = (usize, &'a EffectParamSpec);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let kind = self.kind;
+        self.params.find(|(_, param)| param.kind == kind)
+    }
+}
+
+pub fn params_of_kind(effect_id: &str, kind: EffectParamKind) -> ParamSlots {
+    ParamSlots {
+        spec: effect_spec(effect_id),
+        kind,
+    }
+}
+
+pub fn scalar_params(effect_id: &str) -> ParamSlots {
     params_of_kind(effect_id, EffectParamKind::Scalar)
 }
 
-pub fn color_params(effect_id: &str) -> Vec<(usize, &'static EffectParamSpec)> {
+pub fn color_params(effect_id: &str) -> ParamSlots {
     params_of_kind(effect_id, EffectParamKind::Color)
 }
 
-pub fn vec2_params(effect_id: &str) -> Vec<(usize, &'static EffectParamSpec)> {
+pub fn vec2_params(effect_id: &str) -> ParamSlots {
     params_of_kind(effect_id, EffectParamKind::Vec2)
 }
 
@@ -71,22 +119,18 @@ impl AppState {
     /// replaces the GPU catalog changes which entries are marked, and a session
     /// with no GPU plugin mounted marks all of them instead of claiming passes that
     /// nothing can dispatch.
-    pub fn effect_browse_list(&self) -> Vec<(&'static str, String)> {
+    pub fn effect_browse_list(&self) -> Vec<(Arc<EffectSpec>, String)> {
         let service = self.ctx.try_get::<dyn aria_plugin::EffectService>();
-        let renderable = |id: &str| {
-            service
-                .as_ref()
-                .is_some_and(|svc| svc.effect_descriptors().iter().any(|desc| desc.id == id))
-        };
+        let renderable = |id: &str| service.as_ref().is_some_and(|svc| svc.renders_effect(id));
         aria_models::effect_catalog()
-            .iter()
+            .into_iter()
             .map(|spec| {
                 let label = if renderable(&spec.id) {
                     spec.label.clone()
                 } else {
                     format!("{} — passthrough", spec.label)
                 };
-                (spec.id.as_str(), label)
+                (spec, label)
             })
             .collect()
     }
@@ -120,18 +164,20 @@ impl AppState {
         Some(if inside { self.playhead } else { start })
     }
 
-    /// The catalog spec of one slot on one effect of the selected clip, when the
-    /// slot exists and carries `kind`.
-    fn effect_slot(
+    /// Read one slot on one effect of the selected clip, when the slot exists
+    /// and carries `kind`.
+    fn with_effect_slot<R>(
         &self,
         index: usize,
         param: usize,
         kind: EffectParamKind,
-    ) -> Option<&'static EffectParamSpec> {
+        read: impl FnOnce(&EffectParamSpec) -> R,
+    ) -> Option<R> {
         let ui = self.selected_ui_clip()?;
         let effect = ui.effects.get(index)?;
-        let spec = effect_spec(&effect.id)?.param_at(param)?;
-        (spec.kind == kind).then_some(spec)
+        let spec = effect_spec(&effect.id)?;
+        let slot = spec.param_at(param)?;
+        (slot.kind == kind).then(|| read(slot))
     }
 
     /// Set one colour effect parameter. Inert on a missing effect, a missing slot,
@@ -146,7 +192,7 @@ impl AppState {
             return Ok(());
         };
         if self
-            .effect_slot(index, param, EffectParamKind::Color)
+            .with_effect_slot(index, param, EffectParamKind::Color, |_| ())
             .is_none()
         {
             return Ok(());
@@ -181,16 +227,15 @@ impl AppState {
         let Some(clip) = self.selected_clip() else {
             return Ok(());
         };
-        let Some(spec) = self.effect_slot(index, param, EffectParamKind::Vec2) else {
+        let Some((min, max)) =
+            self.with_effect_slot(index, param, EffectParamKind::Vec2, |s| (s.min, s.max))
+        else {
             return Ok(());
         };
         if !value.iter().all(|v| v.is_finite()) {
             return Ok(());
         }
-        let clamped = [
-            value[0].clamp(spec.min, spec.max),
-            value[1].clamp(spec.min, spec.max),
-        ];
+        let clamped = [value[0].clamp(min, max), value[1].clamp(min, max)];
         let Some(at) = self.effect_param_tick() else {
             return Ok(());
         };
@@ -235,12 +280,12 @@ impl AppState {
         index: usize,
         param: usize,
     ) -> Result<(), EngineError> {
-        if let Some(spec) = self.effect_slot(index, param, EffectParamKind::Color) {
-            let default = spec.default_color;
+        let color = |s: &EffectParamSpec| s.default_color;
+        if let Some(default) = self.with_effect_slot(index, param, EffectParamKind::Color, color) {
             return self.set_selected_effect_color(index, param, default);
         }
-        if let Some(spec) = self.effect_slot(index, param, EffectParamKind::Vec2) {
-            let default = spec.default_vec2;
+        let vec2 = |s: &EffectParamSpec| s.default_vec2;
+        if let Some(default) = self.with_effect_slot(index, param, EffectParamKind::Vec2, vec2) {
             return self.set_selected_effect_vec2(index, param, default);
         }
         Ok(())
@@ -257,23 +302,19 @@ impl AppState {
         let Some(clip) = self.selected_clip() else {
             return Ok(());
         };
-        let Some(ui) = self.selected_ui_clip() else {
+        let Some((min, max)) =
+            self.with_effect_slot(index, param, EffectParamKind::Scalar, |s| (s.min, s.max))
+        else {
             return Ok(());
         };
-        let Some(effect) = ui.effects.get(index) else {
-            return Ok(());
-        };
-        let Some(spec) = effect_spec(&effect.id).and_then(|spec| spec.param_at(param)) else {
-            return Ok(());
-        };
-        if spec.kind != EffectParamKind::Scalar || !value.is_finite() {
+        if !value.is_finite() {
             return Ok(());
         }
         self.apply_command(Command::Edit(EditCommand::SetEffectParam {
             clip,
             index,
             param,
-            value: value.clamp(spec.min, spec.max),
+            value: value.clamp(min, max),
         }))?;
         Ok(())
     }
@@ -302,10 +343,12 @@ impl AppState {
         let Some(effect) = ui.effects.get(index) else {
             return Ok(());
         };
-        let Some(spec) = effect_spec(&effect.id).and_then(|spec| spec.param_at(param)) else {
+        let Some(default) =
+            effect_spec(&effect.id).and_then(|spec| spec.param_at(param).map(|p| p.default))
+        else {
             return Ok(());
         };
-        self.set_selected_effect_param(index, param, spec.default)
+        self.set_selected_effect_param(index, param, default)
     }
 
     /// Move an effect within the chain. Both indices address the pre-move chain;

@@ -17,7 +17,7 @@ fn every_scalar_parameter_of_every_catalog_effect_sets_and_clamps() {
             .unwrap_or_else(|err| panic!("add {}: {err:?}", spec.id));
         let index = state.selected_ui_clip().expect("clip").effects.len() - 1;
 
-        for (slot, param) in scalar_params(&spec.id) {
+        for (slot, param) in &scalar_params(&spec.id) {
             state
                 .set_selected_effect_param(index, slot, param.max + 100.0)
                 .unwrap_or_else(|err| panic!("high {}/{}: {err:?}", spec.id, param.name));
@@ -78,7 +78,7 @@ fn a_parameter_edit_touches_only_its_own_slot_and_its_own_effect() {
     state.add_effect_to_selected(id).expect("second");
 
     let slots = scalar_params(id);
-    let (slot, param) = slots.first().copied().expect("a scalar slot");
+    let (slot, param) = slots.first().expect("a scalar slot");
     let target = (param.min + param.max) / 2.0;
 
     state
@@ -96,7 +96,7 @@ fn a_parameter_edit_touches_only_its_own_slot_and_its_own_effect() {
     // Every other slot of the edited effect must still hold its default.
     for (other, other_spec) in slots.iter().skip(1) {
         assert!(
-            (state.selected_effect_param(0, *other).expect("value") - other_spec.default).abs()
+            (state.selected_effect_param(0, other).expect("value") - other_spec.default).abs()
                 < 1e-3,
             "{} was reset by a sibling slot edit",
             other_spec.name
@@ -106,7 +106,7 @@ fn a_parameter_edit_touches_only_its_own_slot_and_its_own_effect() {
 #[test]
 fn reordering_moves_one_effect_and_the_ends_refuse_to_leave_the_chain() {
     let (mut state, _) = with_clip();
-    let ids: Vec<&'static str> = aria_models::effect_catalog()
+    let ids: Vec<&'static str> = aria_models::shipped_effect_catalog()
         .iter()
         .take(3)
         .map(|spec| spec.id.as_str())
@@ -154,7 +154,7 @@ fn reordering_moves_one_effect_and_the_ends_refuse_to_leave_the_chain() {
 #[test]
 fn a_non_scalar_or_missing_slot_is_inert() {
     let (mut state, _) = with_clip();
-    let non_scalar = aria_models::effect_catalog().iter().find_map(|spec| {
+    let non_scalar = aria_models::shipped_effect_catalog().iter().find_map(|spec| {
         spec.params
             .iter()
             .position(|param| param.kind != EffectParamKind::Scalar)
@@ -171,7 +171,7 @@ fn a_non_scalar_or_missing_slot_is_inert() {
             .expect("inert");
         assert_eq!(state.selected_effect_param(0, slot), before);
         assert!(
-            !scalar_params(id).iter().any(|(s, _)| *s == slot),
+            !scalar_params(id).iter().any(|(s, _)| s == slot),
             "a non-scalar slot must not be offered as a stepper"
         );
     }
@@ -231,15 +231,16 @@ fn the_add_list_offers_every_model_effect_and_marks_the_unrenderable_ones() {
     );
 
     let service = state.ctx.try_get::<dyn aria_plugin::EffectService>();
-    for (spec, (id, label)) in catalog.iter().zip(&list) {
-        assert_eq!(*id, spec.id, "the Add list reordered the catalog");
+    for (spec, (offered, label)) in catalog.iter().zip(&list) {
+        let id = offered.id.as_str();
+        assert_eq!(id, spec.id, "the Add list reordered the catalog");
         assert!(
             label.starts_with(spec.label.as_str()),
             "{id} lost its display name"
         );
         let renderable = service
             .as_ref()
-            .is_some_and(|svc| svc.effect_descriptors().iter().any(|desc| desc.id == *id));
+            .is_some_and(|svc| svc.renders_effect(id));
         assert_eq!(
             label.contains("passthrough"),
             !renderable,
@@ -267,10 +268,11 @@ fn with_no_effect_service_every_entry_is_marked_passthrough() {
     );
     let list = state.effect_browse_list();
     assert_eq!(list.len(), aria_models::effect_catalog().len());
-    for (id, label) in list {
+    for (spec, label) in list {
         assert!(
             label.contains("passthrough"),
-            "{id} claims a pass with no service to dispatch it"
+            "{} claims a pass with no service to dispatch it",
+            spec.id
         );
     }
 }
@@ -294,7 +296,7 @@ fn every_colour_and_vec2_slot_sets_clamps_resets_and_undoes() {
             .unwrap_or_else(|err| panic!("add {}: {err:?}", spec.id));
         let index = state.selected_ui_clip().expect("clip").effects.len() - 1;
 
-        for (slot, param) in color_params(&spec.id) {
+        for (slot, param) in &color_params(&spec.id) {
             exercised += 1;
             for (_, _, rgba) in PARAM_COLORS {
                 state
@@ -331,7 +333,7 @@ fn every_colour_and_vec2_slot_sets_clamps_resets_and_undoes() {
             }
         }
 
-        for (slot, param) in vec2_params(&spec.id) {
+        for (slot, param) in &vec2_params(&spec.id) {
             exercised += 1;
             state
                 .set_selected_effect_vec2(index, slot, [param.max + 100.0, param.min - 100.0])
@@ -395,7 +397,6 @@ fn a_non_scalar_write_lands_at_the_playhead_or_at_the_clip_start() {
     state.add_effect_to_selected("color_overlay").expect("add");
     let (slot, _) = color_params("color_overlay")
         .first()
-        .copied()
         .expect("color_overlay has a colour slot");
 
     let (start, end) = state

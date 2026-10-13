@@ -90,7 +90,8 @@ pub(super) fn resolve_clip(
     let rotation = xf.rotation.to_radians();
     let opacity = xf.opacity.clamp(0.0, 1.0);
     let uv = crop_flip_uv(clip, local_tick, overrides);
-    let effects = resolve_effects(clip, local_tick);
+    let seconds = RationalTime::new(clip.animation_tick(t.value), t.rate).seconds() as f32;
+    let effects = resolve_effects(clip, local_tick, seconds);
     let (filter, adjust) = match overrides.look {
         Some((id, filter, adjust)) if id == clip.id => (filter, adjust),
         _ => (clip.filter.as_ref(), &clip.adjust),

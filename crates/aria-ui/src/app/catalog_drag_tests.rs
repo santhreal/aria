@@ -20,23 +20,23 @@ fn payloads() -> Vec<CatalogDrag> {
     vec![
         CatalogDrag {
             kind: CatalogDragKind::Sticker,
-            id: aria_models::sticker_catalog()[0].id.as_str(),
-            label: "sticker",
+            id: aria_models::sticker_catalog()[0].id.clone().into(),
+            label: "sticker".into(),
         },
         CatalogDrag {
             kind: CatalogDragKind::Animation,
-            id: aria_models::animation_catalog()[0].id.as_str(),
-            label: "animation",
+            id: aria_models::animation_catalog()[0].id.clone().into(),
+            label: "animation".into(),
         },
         CatalogDrag {
             kind: CatalogDragKind::Mask,
-            id: mask_catalog()[0].kind.id(),
-            label: "mask",
+            id: mask_catalog()[0].kind.id().into(),
+            label: "mask".into(),
         },
         CatalogDrag {
             kind: CatalogDragKind::Transition,
-            id: aria_models::transition_catalog()[0].id.as_str(),
-            label: "transition",
+            id: aria_models::shipped_transition_catalog()[0].id.clone().into(),
+            label: "transition".into(),
         },
     ]
 }
@@ -55,7 +55,7 @@ fn clip_count(state: &AppState) -> usize {
 fn a_sticker_lands_on_the_lane_and_tick_it_was_dropped_at() {
     let (mut state, _) = with_clip();
     let before = clip_count(&state);
-    let drag = payloads()[0];
+    let drag = &payloads()[0];
 
     // A tick well past the existing clip, so placement cannot be confused with the
     // playhead's own position.
@@ -83,7 +83,7 @@ fn a_sticker_lands_on_the_lane_and_tick_it_was_dropped_at() {
 fn a_negative_drop_tick_lands_at_zero_rather_than_being_refused() {
     let (mut state, _) = with_clip();
     state
-        .drop_catalog_on_track(payloads()[0], None, -500)
+        .drop_catalog_on_track(&payloads()[0], None, -500)
         .expect("clamped, not refused");
     let placed = state
         .store
@@ -110,7 +110,7 @@ fn a_sticker_dropped_on_a_lane_that_cannot_hold_it_still_lands_at_that_tick() {
         .expect("the fixture has a lane");
     let at = 3_000;
     state
-        .drop_catalog_on_track(payloads()[0], Some(video_lane), at)
+        .drop_catalog_on_track(&payloads()[0], Some(video_lane), at)
         .expect("placed");
     let placed = state
         .store
@@ -133,7 +133,7 @@ fn every_clip_payload_lands_on_the_dropped_clip_and_selects_it() {
         state.rebuild_store();
 
         state
-            .drop_catalog_on_clip(drag, target)
+            .drop_catalog_on_clip(&drag, target)
             .unwrap_or_else(|err| panic!("{:?} {}: {err:?}", drag.kind, drag.id));
 
         assert_eq!(
@@ -153,7 +153,7 @@ fn every_clip_payload_lands_on_the_dropped_clip_and_selects_it() {
             ),
             CatalogDragKind::Mask => assert_eq!(
                 ui.mask.map(|mask| mask.kind.id()),
-                Some(drag.id),
+                Some(drag.id.as_str()),
                 "{} left no mask on the clip",
                 drag.id
             ),
@@ -184,7 +184,7 @@ fn each_payload_is_inert_on_the_target_class_it_does_not_belong_to() {
             // A preset has nothing to change on empty lane space, and must not invent
             // a clip to hold it.
             state
-                .drop_catalog_on_track(drag, None, 2_000)
+                .drop_catalog_on_track(&drag, None, 2_000)
                 .expect("inert");
             assert_eq!(
                 clip_count(&state),
@@ -193,7 +193,7 @@ fn each_payload_is_inert_on_the_target_class_it_does_not_belong_to() {
                 drag.kind
             );
         } else {
-            state.drop_catalog_on_clip(drag, target).expect("inert");
+            state.drop_catalog_on_clip(&drag, target).expect("inert");
             assert_eq!(
                 clip_count(&state),
                 before,
@@ -210,10 +210,10 @@ fn an_unknown_mask_id_is_inert_rather_than_applying_a_default_shape() {
     let target = state.selected_clip().expect("clip");
     let stale = CatalogDrag {
         kind: CatalogDragKind::Mask,
-        id: "not_a_shape",
-        label: "stale",
+        id: "not_a_shape".into(),
+        label: "stale".into(),
     };
-    state.drop_catalog_on_clip(stale, target).expect("inert");
+    state.drop_catalog_on_clip(&stale, target).expect("inert");
     assert!(state.selected_ui_clip().expect("clip").mask.is_none());
     // The catalog is the only source of legal ids, so the guard is the resolver.
     assert_eq!(MaskKind::from_id("not_a_shape"), None);
@@ -227,7 +227,7 @@ fn a_drop_on_a_clip_that_no_longer_exists_changes_nothing() {
     let held = state.selected_clip().expect("clip");
     let ghost = ClipId::from_raw(u64::MAX);
     state
-        .drop_catalog_on_clip(payloads()[1], ghost)
+        .drop_catalog_on_clip(&payloads()[1], ghost)
         .expect("a stale target is a no-op");
     assert_eq!(state.selected_clip(), Some(held), "the selection moved");
     let ui = state.selected_ui_clip().expect("clip");

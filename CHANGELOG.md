@@ -16,6 +16,7 @@ Notes for the latest release. For previous releases, see the
 - Plugins receive project open, close, and save, media import, relink, and offline, selection, playhead, In/Out, playback, export, render, job, and plugin activation events.
 - Plugins read the selection, playhead, In/Out, and transport through the `EditorView` service.
 - Plugins add rows to every context menu through `ContextMenuRequested`; a clicked row runs off the UI thread.
+- Plugins register effects and transitions written in WGSL, which render on clips, in previews, and in exports like shipped ones, and `render_effect` and `render_transition` now draw images; external plugins must be rebuilt for loader version 4.
 - The engine, project host, and jobs services registered by a session started without the engine plugin stay registered for the session instead of being dropped at once.
 - Render and replace no longer hangs the editor when it swaps the rendered file in.
 - Every button, icon, card, and menu row dims while pressed, so clicks read on every control.
