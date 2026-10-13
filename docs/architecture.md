@@ -379,8 +379,7 @@ and is what refusal messages quote.
 
 ## Motion and theme
 
-Theme and motion are a near-verbatim port of
-[Comet](https://github.com/zeronsh/comet). See
+The theme is adapted from [Comet](https://github.com/zeronsh/comet); see
 [theme-tokens.md](theme-tokens.md) and
 [animation-catalog.md](animation-catalog.md). GPUI comes from
 [santh-gpui](https://github.com/santhreal/santh-gpui), pinned by git revision

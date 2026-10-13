@@ -5,8 +5,9 @@ either an **Acceptance** line — the observable result that closes it, so the w
 can be picked up without re-deciding what it means — or an **Out of scope** line
 naming why it will not be done. Nothing here is parked without one.
 
-When something here ships, move it to [ROADMAP.md](../ROADMAP.md) as done or
-delete the entry, and fix any README or overview claim that still oversells it.
+When something here ships, delete the entry, update
+[spec/status.md](spec/status.md), and fix any README or overview claim that
+still oversells it.
 
 ## Platform / media backends
 

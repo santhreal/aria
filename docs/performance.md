@@ -1,7 +1,8 @@
 # Performance
 
 Measured numbers and the commands that produce them. Every figure here comes
-from a bench in the repository, so it can be re-measured rather than believed.
+from a bench or test in the repository. Release targets are in
+[spec/performance.md](spec/performance.md).
 
 ## Benches
 
@@ -75,10 +76,9 @@ scrub makes, over `tests/fixtures/fixture-640x360-24fps-3s.mp4`:
 | `cold_open_and_seek` | 151 ms | Opening the file and landing on a mid-clip frame |
 | `warm_scrub` | 2.53 ms | Three seeks through an already open decoder |
 
-Recorded on a Ryzen 9 9950X, Linux, release profile. The ratio is the number
-that matters: a warm seek is around 0.8 ms, so keeping a decoder open is worth
-roughly 180 cold opens' work per scrub, which is why the preview holds one per
-clip instead of opening per frame.
+Recorded on a Ryzen 9 9950X, Linux, release profile. A warm seek is around
+0.8 ms, about 1/180 of a cold open, so the preview holds one decoder per clip
+instead of opening per frame.
 
 A host with no native decoder prints why and measures nothing.
 
@@ -109,11 +109,10 @@ The test prints the dearest mounts, which is what makes the number actionable:
 pipelines built on it), `aria.text` 14 ms, and nothing else above a millisecond.
 Every plugin's own mount cost is also in Settings, next to the plugin.
 
-That breakdown found a defect worth 2.6x: the process used to bring up **three**
-GPU devices — one in the compositor plugin, one in the render plugin, one in the
-engine — each with its own driver instance, adapter and full pipeline set, of
-which exactly one was ever rendered with. The other two were registered and no
-caller ever read them. One device is created now and shared with
+Before this breakdown the process created three GPU devices (one in the
+compositor plugin, one in the render plugin, one in the engine), each with its
+own driver instance, adapter, and pipeline set; one was rendered with and the
+other two had no reader. One device is created now and shared with
 `GpuContext::share`, so a cold start fell from **583 ms to 222 ms** and the
 process holds a third of the video memory it used to.
 

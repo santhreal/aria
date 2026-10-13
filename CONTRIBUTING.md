@@ -28,8 +28,8 @@ just gives reviewers helpful context.
 ## Before you start
 
 - Read the [README](README.md) to understand what Aria is and how to run it.
-- Check [ROADMAP.md](ROADMAP.md) to see what is planned, in progress, or
-  already done. Intentionally parked work lives in
+- Read the [specification](docs/spec/README.md) and [ROADMAP.md](ROADMAP.md)
+  for the target editor and the delivery order. Parked work is in
   [docs/deferred.md](docs/deferred.md).
 - Search [open issues](https://github.com/santhreal/aria/issues) before
   filing a new one or starting work, so effort is not duplicated.

@@ -24,6 +24,19 @@ appears twice, the document listed here for that concern is the one to edit.
 | [animation-catalog.md](animation-catalog.md) | Motion specs and their call sites |
 | [icons.md](icons.md) | Icon names and text placeholders |
 
+## Specification
+
+The target editor, chapter by chapter. [spec/status.md](spec/status.md)
+compares the current build with it.
+
+| Document | Concern |
+| --- | --- |
+| [spec/README.md](spec/README.md) | Index, terms, and every chapter |
+| [spec/plugins.md](spec/plugins.md) | Plugin tiers, host API, contribution points |
+| [spec/playback.md](spec/playback.md) | Playback engine and caching |
+| [spec/performance.md](spec/performance.md) | Targets and measurement scenarios |
+| [spec/keyboard.md](spec/keyboard.md) | Target key map |
+
 ## Design notes and roadmaps
 
 These describe intent, not shipped behaviour. A claim here is not a feature.

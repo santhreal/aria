@@ -1,154 +1,67 @@
 # Aria Roadmap
 
-Ordered list of upcoming work. Each item should be small enough to land as one
-reviewable change (or a short series). Update this file as items complete.
+Delivery order for the editor defined in [docs/spec](docs/spec/README.md). Each
+milestone lists the spec chapters it delivers. A milestone is done when its
+chapters' rows are gone from [docs/spec/status.md](docs/spec/status.md) and the
+named [performance](docs/spec/performance.md) scenarios pass. Parked work is in
+[docs/deferred.md](docs/deferred.md).
 
-## Already landed (context, not work)
+## 1. Plugin host
 
-- Timeline → MP4 export, end to end: per-frame GPU composite + H.264/AAC mux
-  (`crates/aria-render/src/export.rs`), wired into the engine
-  (`Command::Project(Export)`), the desktop export job
-  (`apps/aria-desktop/src/preview_worker.rs`), and mobile
-  (`crates/aria-mobile/src/export_job.rs`). Apple, Windows, and Linux
-  encoders ship. Linux wraps host GStreamer plugins.
-- `aria-py`: v2 track-first API (`Project`, `Track`, `Clip`, still import,
-  `Sticker` / `stickers()`, look `animations()` / `set_animation`, `get_frame()
-  -> numpy`, `export()`), PyPI wheels via maturin, passing integration suite.
-- Param/keyframe system (`crates/aria-models/src/param.rs`) including speed
-  curves; look data model (`crates/aria-models/src/look.rs`) drives clip
-  grades, masks/chroma, effects/transitions, lane passes, stickers, and
-  entrance/exit/combo animations at resolve time.
-- Export audio: shared `ExportAudioMixer` varispeed-resamples retimed clips,
-  holds the pitch of a stretched clip unless the lock is cleared, walks a
-  reversed clip's source window backward, and RNNoise-denoises flagged clips in
-  preview and export.
-- Compositor pipeline benchmark over real media
-  (`crates/aria-render/examples/composite_bench.rs`) — use it to guard GPU
-  cost regressions for render work.
+[plugins.md](docs/spec/plugins.md)
 
-## 1. Render clip color adjustments and filter presets — DONE
+- `plugin.toml` manifests with owned data, activation events, permissions, and
+  `.ariaplugin` packages.
+- Host API: project snapshot, `transact` as one undo step, the full event set,
+  render, media, gpu, storage, settings, ui, and jobs.
+- Runtime effects and transitions: WGSL render graphs dispatched by the
+  compositor, parameters through a storage buffer, CPU fallback.
+- Generators, clip types, property drivers, audio processors, decoders,
+  importers, exporters, scopes, AI tools, and drop handlers as contribution
+  points.
+- Stable C ABI under `aria-sdk`; WASM component tier on Wasmtime; unload, hot
+  reload, fault isolation, missing-plugin passthrough.
+- Every shipped capability moved onto the public API.
+- Plugins panel and the `aria plugin` developer commands.
 
-Per-clip `clip.adjust` (`ColorAdjustments`) and `clip.filter` (preset id ×
-intensity) now grade pixels in preview and export.
+## 2. Playback engine
 
-- `ColorGrade` on `CompositeLayer` (`crates/aria-compositor/src/layer.rs`),
-  applied in all four fragment shaders via the shared
-  `crates/aria-compositor/shaders/grade.wgsl`.
-- Preset id → recipe table and `effective_grade()` in
-  `crates/aria-render/src/grade.rs`; threaded through
-  `resolve_clip` → `SceneLayer.grade` → `Realized` → `with_grade()`.
-- Lane-level `Generator::Filter`/`Adjustment` bars now apply as canvas passes
-  (item 4).
-- Benchmarked with `composite_bench`: compositor timings within run noise.
+[playback.md](docs/spec/playback.md), [performance.md](docs/spec/performance.md)
 
-## 2. Render masks and chroma key — DONE
+- Zero-copy present: the Viewer draws the rendered texture.
+- Persistent decode pool with decode-ahead, GPU frame cache with system memory
+  spill, render-ahead, audio master clock.
+- Playback and paused resolution, proxies, render ranges, dropped-frame
+  counters, shuttle audio with pitch held.
+- `aria-bench` scenarios and fixtures.
 
-Per-clip masks and chroma key now affect preview and export.
+## 3. Timeline and editing
 
-- `LayerEffects` on `CompositeLayer` carries mask/chroma state into the
-  compositor, with `rgba_fx`/`yuv_fx` shader paths for media and RGBA layers.
-- Mask shapes (linear/mirror/circle/rectangle/heart/star) and chroma key
-  strength/shadow are sampled from persisted clip look data.
+[timeline.md](docs/spec/timeline.md), [editing.md](docs/spec/editing.md)
 
-## 3. Clip effects and transitions (M4 GPU passes) — DONE
+- Timeline drawn from a clip index with culling, holding refresh rate at
+  10,000 clips.
+- Track headers, clip bars, property rows, render bar.
+- Tools, edge selection, keyboard trim, gaps, source patching, three-point and
+  four-point edits.
 
-Clip effects and transitions now flow from the model into preview/export.
+## 4. Animation
 
-- `ResolvedPass` samples `clip.effects`; the renderer packs them into
-  compositor `PassInstance`s and runs effect chains through offscreen passes.
-- `crossfade`, `wipe_left`, `gaussian_blur`, `vignette`, and `pixelate` have
-  WGSL coverage. Other catalog effects are safe passthroughs for now; remaining
-  transition ids fall back to crossfade.
-- Drift tests keep model and compositor catalogs aligned.
+[animation.md](docs/spec/animation.md)
 
-## 4. Lane-level generators: Effect / Filter / Adjustment — DONE
+- Keyframe model with per-side speed and influence, spatial tangents, roving,
+  and hold; project schema bump with conversion on load.
+- Graph editor, motion paths, parenting, drivers with `aria.expressions`,
+  presets, time remap.
 
-Effect/filter/adjustment generator bars now apply to everything already
-composited beneath their track.
+## 5. Workspace and panels
 
-- `LayerSource::CanvasPass` represents a geometry-free scene layer carrying a
-  sampled effect chain and/or `ColorGrade`.
-- `CompositorLayer::CanvasPass` snapshots the current canvas, runs the existing
-  offscreen effect chain plus a full-canvas grade pass, and replaces the canvas.
-- Resolver, compositor, and render smoke tests cover lane pass ordering,
-  no-op elision, gesture fallback, grade, and effect execution.
+[layout.md](docs/spec/layout.md), [look.md](docs/spec/look.md),
+[viewer.md](docs/spec/viewer.md), [panels.md](docs/spec/panels.md),
+[audio.md](docs/spec/audio.md), [keyboard.md](docs/spec/keyboard.md)
 
-## 5. Stickers — DONE
-
-Stickers are first-class generated content end to end.
-
-- `Generator::Sticker { asset }` references a bundled catalog
-  (`aria-models/src/sticker.rs`, bytes embedded from `assets/stickers/`);
-  legacy payload-less `"Sticker"` documents still deserialize.
-- `aria-decoder` decodes animations from bytes (GIF/APNG portable via
-  `gif`/`png`, plus animated WebP through ImageIO on Apple).
-- Resolve emits `LayerSource::Sticker` (intrinsic pixels as reference pixels,
-  the shape convention); the renderer caches decoded frame sequences and
-  composites the looping frame as an `Rgba` layer in preview and export.
-- Desktop Library tiles (with real thumbnails), mobile `AddSticker { asset }`,
-  and Python `Sticker(asset)` / `aria.stickers()` are wired up.
-- The starter pack is placeholder art; swapping in real artwork only touches
-  `assets/stickers/` and the catalog table (a drift test pins them together).
-
-## 6. Look animations (entrance / exit / combo) — DONE
-
-Drive the persisted animation catalogs from `look.rs` through the param system
-at resolve time (transform/opacity over the clip's local timeline).
-
-- `aria-render/src/animation.rs` maps every catalog id to transform/opacity
-  deltas; sampled in `resolve_clip` after the clip's keyframed transform.
-- Combo presets loop over a fixed period; in/out windows default to ~0.5 s
-  (clamped to half the clip length). A catalog drift test pins coverage.
-- Desktop inspector Animation tab wires In/Out/Combo pickers to
-  `SetClipAnimation`; aria-py exposes `animations()` and
-  `clip.set_animation(slot, id)`.
-
-## 7. Export audio: retimed and denoised clips — DONE
-
-Retimed clips (speed / speed-curve ramps) and denoise-flagged clips now mix in
-preview and export via the shared [`ExportAudioMixer`](crates/aria-render/src/export_audio.rs).
-
-- [`audio_dsp.rs`](crates/aria-render/src/audio_dsp.rs): `DenoiseReader` wraps
-  each channel through RNNoise (`nnnoiseless`); varispeed source-frame mapping
-  reuses `speed_curve_integral` / `speed_curve_source_fraction` from the model.
-- Warped spans linearly interpolate decoded source PCM; unity-speed forward
-  spans keep the fast seek-and-stream path. Reversed clips resample the
-  source window backward. Pitch-preserving time-stretch is still deferred.
-
-## 8. aria-py polish — DONE
-
-Still-image import, docs, and PyPI packaging are aligned with the engine.
-
-- `import_media` already probed stills (`MediaSource::image` → `LayerSource::Still`);
-  this pass added positive PNG import/placement/`get_frame` tests and renamed the
-  negative test to cover missing/corrupt files only.
-- README and `api-design.md` now document still images (`kind == "image"`, 5 s
-  default duration, any placement length on `video` tracks).
-- PyPI wheels ship via maturin (`pyproject.toml`, `pywheels.yml` CI).
-
-## 9. Linux export / decode — DONE
-
-Linux decode, probe, audio, and H.264/AAC encode wrap host GStreamer
-plugins behind the existing traits. Missing plugins fail with the
-package to install. Preview prefers LINEAR NV12 DMABuf import into
-Vulkan; tiled modifiers fall back to CPU NV12.
-
-## 11. AI assistant (aria-ai + desktop wiring) — DONE
-
-Restored the `aria-ai` crate from pre-mobile-pivot history and wired the
-desktop assistant panel end to end.
-
-- `crates/aria-ai`: wire format, validation, OpenAI-compatible provider,
-  agent loop, eval harness, tool schema v20 (look commands; `duck` /
-  `detect_beats` removed — engine returns `Unsupported` on this line).
-- Assistant panel and provider settings live in `aria-ui`.
-- `docs/ai-agent-roadmap.md` is the phase-by-phase reference.
-
-## 10. Docs debt — DONE
-
-- `.cursor/rules/overview.mdc` and this file now reflect stickers, look
-  animations, export audio, and aria-py (still import, PyPI wheels).
-- [CONTRIBUTING.md](CONTRIBUTING.md) points at this roadmap (replacing stale
-  `docs/v1-roadmap.md` references).
-- `crates/aria-py/api-design.md` intro updated from a v2 proposal to the
-  shipped API reference.
+- Frames with tab docking, splitting, floating windows, and workspaces.
+- Program and Source tabs, on-canvas controls, rulers and guides.
+- Project, Effect Controls, Effects & Presets, Info, Markers, Align, Text,
+  Jobs, and Plugins panels; Audio Track Mixer inserts and automation.
+- The key map in keyboard.md with the keyboard editor; light theme.

@@ -1,11 +1,12 @@
 # Aria
 
-Aria is a free, open-source video editor. Edit on a four-panel timeline, or
+Aria is a free, open-source video editor. Edit on a multi-track timeline, or
 describe the change and the assistant applies it as regular undoable
 commands.
 
-The desktop UI is GPUI. Motion, theme, and loaders come from
-[Comet](https://github.com/zeronsh/comet).
+The desktop UI is built on [santh-gpui](https://github.com/santhreal/santh-gpui);
+motion curves and loaders are `gpui::motion`. The target editor is defined in
+the [specification](docs/spec/README.md).
 
 It's early alpha. The core editing loop works. Expect rough edges and a
 project format that hasn't settled.
@@ -55,8 +56,9 @@ Per-platform steps, codec support, and the GStreamer packages Linux needs are in
 - Aria is derived from [cutlass](https://github.com/1mrnewton/cutlass) by
   Emmanuel Aidoo and contributors, used under the MIT and Apache-2.0
   licenses. [`NOTICE`](NOTICE) lists every source and its license.
-- Motion, theme, loaders, popover, frost, and edge-fade are adapted from
-  [Comet](https://github.com/zeronsh/comet) (MIT). License:
+- Theme, popover, frost, and edge-fade are adapted from
+  [Comet](https://github.com/zeronsh/comet) (MIT), as were the motion curves
+  and loaders now in santh-gpui. License:
   [`LICENSES/comet-MIT.txt`](LICENSES/comet-MIT.txt).
 - GPUI comes from [santh-gpui](https://github.com/santhreal/santh-gpui), a
   fork of the [Zed](https://github.com/zed-industries/zed) UI framework
@@ -67,6 +69,7 @@ Per-platform steps, codec support, and the GStreamer packages Linux needs are in
 
 [Documentation index](docs/README.md) lists every document and what it owns.
 
+- [Specification](docs/spec/README.md)
 - [Install](docs/install.md)
 - [Features](docs/features.md)
 - [Getting started](docs/getting-started.md)

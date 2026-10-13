@@ -1,7 +1,9 @@
 # Plugin development
 
-Every capability in Aria is a plugin. The host is a [`PluginContext`]: a
-typed service registry plus an event bus. There is no privileged core.
+Aria's capabilities are mounted as plugins on a [`PluginContext`]: a typed
+service registry plus an event bus. This guide describes the current host; the
+target host is specified in [spec/plugins.md](spec/plugins.md), and
+[spec/status.md](spec/status.md#plugins-pluginsmd) lists the differences.
 
 Plugins live in `crates/aria-plugin`. Built-in plugins that need GPU types
 are mounted from `crates/aria-ui/src/plugins/` so engine crates stay
@@ -74,10 +76,10 @@ Service traits in `aria_plugin::service`:
 | --- | --- |
 | `DecoderService` | Open a `VideoDecoder` for a path |
 | `EncoderService` | Create a `VideoEncoder` from `EncoderConfig` |
-| `EffectService` | GPU effect catalog and `render_effect` |
-| `TransitionService` | GPU transition catalog and `render_transition` |
-| `GeneratorService` | Text, shapes, solids |
-| `RenderInterceptorService` | Gate or mutate frames |
+| `EffectService` | Effect catalog. `render_effect` returns an error: effects render only through the compositor's static pass table |
+| `TransitionService` | Transition catalog. `render_transition` returns an error, as above |
+| `GeneratorService` | Text, shapes, solids. No caller reads it |
+| `RenderInterceptorService` | Registered with a pass-through value. No caller reads it |
 | `StorageService` | Cache and project directories |
 | `SettingsService` | `~/.aria/config.toml` get / set / save |
 | `UiPanelService` | Panel metadata; see [Panels](#panels) for the host that draws it |
