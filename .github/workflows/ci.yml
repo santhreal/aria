@@ -29,6 +29,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Clippy, doc, build, bench and test artifacts for the whole workspace,
+      # plus the rust-cache tarball written after the job, exceed the free space
+      # on a hosted runner image. The preinstalled .NET, Android, GHC and CodeQL
+      # toolchains are unused here.
+      - name: Free runner disk
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
       # Linux media uses GStreamer, and the export tests encode through x264enc
       # (plugins-ugly). fontconfig, xkbcommon and ALSA support GPUI text, keys
       # and cpal audio; Vulkan gives wgpu a headless adapter for compositor tests.
