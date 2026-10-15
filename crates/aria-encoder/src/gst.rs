@@ -73,7 +73,7 @@ impl GstEncoder {
                 "encoder size must be greater than zero.",
             ));
         }
-        let enc_name = pick_encoder(config.video_codec)?;
+        let (enc_name, encoder) = pick_encoder(config.video_codec)?;
         let location = path.to_string_lossy().into_owned();
 
         let pipeline = gst::Pipeline::new();
@@ -85,14 +85,7 @@ impl GstEncoder {
             .block(true)
             .build();
         let convert = make("videoconvert")?;
-        let encoder = gst::ElementFactory::make(enc_name.as_str())
-            .build()
-            .map_err(|e| {
-                EncodeError::unsupported(format!(
-                    "couldn't create {enc_name} ({e}). Install gstreamer1.0-plugins-ugly or a VAAPI/NVENC plugin."
-                ))
-            })?;
-        configure_encoder(&encoder, &config, &enc_name);
+        configure_encoder(&encoder, &config, enc_name);
         let parse = make(match config.video_codec {
             VideoCodec::H264 => "h264parse",
             VideoCodec::H265 => "h265parse",
@@ -249,9 +242,17 @@ impl Drop for GstEncoder {
     }
 }
 
-/// The encoder element for `codec`: hardware first, software last.
-fn pick_encoder(codec: VideoCodec) -> Result<String, EncodeError> {
-    let (candidates, hint): (&[&str], &str) = match codec {
+/// The encoder element for `codec`, built and opened: hardware first, software
+/// last.
+///
+/// A registered factory is not a working encoder. NVENC stays in the registry
+/// cache when the driver and its library disagree, and VAAPI registers without
+/// a device to open, so each candidate is built and moved to `READY` (where a
+/// video encoder opens its device). The first one that opens is returned, ready
+/// to be added to a pipeline; when none does, the error lists every
+/// candidate's reason.
+fn pick_encoder(codec: VideoCodec) -> Result<(&'static str, gst::Element), EncodeError> {
+    let (candidates, hint): (&[&'static str], &str) = match codec {
         VideoCodec::H264 => (
             &["vaapih264enc", "nvh264enc", "nvcudah264enc", "x264enc"],
             "Install gstreamer1.0-plugins-ugly (x264enc) or a VAAPI/NVENC plugin.",
@@ -261,18 +262,48 @@ fn pick_encoder(codec: VideoCodec) -> Result<String, EncodeError> {
             "Install gstreamer1.0-plugins-bad (x265enc) or a VAAPI/NVENC plugin.",
         ),
     };
-    for name in candidates {
-        if gst::ElementFactory::find(name).is_some() {
-            return Ok((*name).to_string());
-        }
-    }
-    Err(EncodeError::unsupported(format!(
-        "no {} encoder plugin found. {hint}",
-        codec.label()
-    )))
+    first_opened(candidates, open_encoder_element).map_err(|reasons| {
+        EncodeError::unsupported(format!(
+            "no {} encoder opens here: {}. {hint}",
+            codec.label(),
+            reasons.join("; ")
+        ))
+    })
 }
 
-/// Whether this host can encode `codec` at all — one of its elements exists.
+/// The first candidate `open` succeeds on, in order, or every reason it gave.
+///
+/// Candidates after the first success are not tried, so a working hardware
+/// encoder never pays for probing the software one.
+fn first_opened<T>(
+    candidates: &[&'static str],
+    mut open: impl FnMut(&'static str) -> Result<T, String>,
+) -> Result<(&'static str, T), Vec<String>> {
+    let mut reasons = Vec::with_capacity(candidates.len());
+    for &name in candidates {
+        match open(name) {
+            Ok(opened) => return Ok((name, opened)),
+            Err(reason) => reasons.push(reason),
+        }
+    }
+    Err(reasons)
+}
+
+/// Build `name` and open it, returning it in `NULL` state.
+fn open_encoder_element(name: &'static str) -> Result<gst::Element, String> {
+    if gst::ElementFactory::find(name).is_none() {
+        return Err(format!("{name} is not installed"));
+    }
+    let element = gst::ElementFactory::make(name)
+        .build()
+        .map_err(|e| format!("{name} failed to load ({e})"))?;
+    let opened = element.set_state(gst::State::Ready);
+    let _ = element.set_state(gst::State::Null);
+    opened.map_err(|_| format!("{name} could not open its device"))?;
+    Ok(element)
+}
+
+/// Whether this host can encode `codec` at all: one of its elements opens.
 ///
 /// The one owner of that answer: a picker offering a codec the pipeline would
 /// then refuse is worse than a picker with one entry.
@@ -516,5 +547,51 @@ mod tests {
 
         let t_48k = RationalTime::new(3_600 * 48_000, Rational::new(48_000, 1));
         assert_eq!(rational_to_ns(t_48k), one_hour_ns);
+    }
+
+    /// The walk returns the first candidate that opens and stops there; a
+    /// candidate that fails (a registered NVENC whose driver does not answer)
+    /// is passed over rather than returned for the pipeline to fail on.
+    #[test]
+    fn the_first_candidate_that_opens_is_picked_and_later_ones_are_not_tried() {
+        let mut tried = Vec::new();
+        let picked = first_opened(&["hw-a", "hw-b", "sw", "never"], |name| {
+            tried.push(name);
+            if name == "sw" {
+                Ok(7)
+            } else {
+                Err(format!("{name} could not open its device"))
+            }
+        });
+        assert_eq!(picked, Ok(("sw", 7)));
+        assert_eq!(tried, ["hw-a", "hw-b", "sw"]);
+    }
+
+    #[test]
+    fn when_nothing_opens_every_reason_is_kept_in_order() {
+        let picked = first_opened::<()>(&["hw", "sw"], |name| Err(format!("{name} failed")));
+        assert_eq!(
+            picked,
+            Err(vec!["hw failed".to_string(), "sw failed".to_string()])
+        );
+    }
+
+    /// Whatever the picker hands to the pipeline opens on this machine, for
+    /// every codec. Before the picker opened its candidates it returned the
+    /// first registered name, which on a host with a stale NVENC registration
+    /// could not even be built.
+    #[test]
+    fn the_picked_encoder_opens_on_this_machine() {
+        ensure_init().expect("GStreamer initialises");
+        for codec in [VideoCodec::H264, VideoCodec::H265] {
+            let Ok((name, element)) = pick_encoder(codec) else {
+                continue;
+            };
+            assert!(
+                element.set_state(gst::State::Ready).is_ok(),
+                "{name} was picked for {codec:?} but does not open"
+            );
+            let _ = element.set_state(gst::State::Null);
+        }
     }
 }

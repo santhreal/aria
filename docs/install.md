@@ -32,9 +32,11 @@ sudo apt install gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
     gstreamer1.0-plugins-ugly gstreamer1.0-libav
 ```
 
-Add a VAAPI or NVENC plugin for hardware encode. A missing plugin returns an
-error that names the package to install. Still images always work, with no
-plugin at all.
+Add a VAAPI or NVENC plugin for hardware encode. Export uses the first encoder
+that opens, in the order VAAPI, NVENC, then `x264enc` or `x265enc`, so a
+hardware plugin whose driver does not load falls through to the next one. When
+none opens, the error lists each encoder's reason and the package to install.
+Still images always work, with no plugin at all.
 
 The tarball runs in place with `./aria-desktop`. To put Aria in the desktop's
 menus, run the installer inside it:
