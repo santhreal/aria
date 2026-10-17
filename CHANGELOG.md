@@ -2608,6 +2608,7 @@ Notes for the latest release. For previous releases, see the
   reach a blocking dialog. Every command and menu row that asks for a path is
   now driven in tests with a supplied answer, including the nine that were
   excluded from the reach census for opening a dialog.
+- A failed plugin build in `aria plugin dev` and `aria plugin pack` reports the compiler error and its `note:` and `help:` lines, including under `CARGO_TERM_COLOR=always`, instead of only cargo's exit status.
 
 ## [alpha-0.7.0] — 2026-07-22
 

@@ -112,7 +112,7 @@ pub(crate) fn build_and_stage(dir: &Path, profile: BuildProfile) -> Result<PathB
 
     let output = process::cargo_build(&manifest_path, release, target).map_err(Failure::Failed)?;
     if !output.success {
-        let detail = first_error_line(&output.stderr).unwrap_or_else(|| {
+        let detail = first_error(&output.stderr).unwrap_or_else(|| {
             format!(
                 "cargo build exited with status {}",
                 output.code.unwrap_or(1)
@@ -128,12 +128,56 @@ pub(crate) fn build_and_stage(dir: &Path, profile: BuildProfile) -> Result<PathB
     stage_artifact(dir, &artifact, tier)
 }
 
-fn first_error_line(stderr: &str) -> Option<String> {
-    stderr
-        .lines()
-        .map(str::trim)
-        .find(|line| line.starts_with("error"))
-        .map(str::to_owned)
+/// The first compiler error in cargo's `stderr`, followed by the `note:` and
+/// `help:` lines of that diagnostic, which state the fix (a missing
+/// `wasm32-unknown-unknown` target prints the `rustup target add` line
+/// there). Terminal escape sequences are removed first:
+/// `CARGO_TERM_COLOR=always` colours the diagnostics of a piped cargo.
+fn first_error(stderr: &str) -> Option<String> {
+    let plain = strip_escapes(stderr);
+    let mut lines = plain.lines().map(str::trim);
+    let head = lines.find(|line| line.starts_with("error"))?;
+    let advice: Vec<&str> = lines
+        .take_while(|line| !line.starts_with("error") && !line.starts_with("warning"))
+        .filter_map(|line| line.strip_prefix("= "))
+        .collect();
+    Some(if advice.is_empty() {
+        head.to_owned()
+    } else {
+        format!("{head} ({})", advice.join("; "))
+    })
+}
+
+/// `text` without ANSI control sequences: CSI (`ESC [` ... final byte) and OSC
+/// (`ESC ]` ... `BEL` or `ESC \`) sequences, and any other `ESC` with the
+/// byte after it.
+fn strip_escapes(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut chars = text.chars();
+    while let Some(ch) = chars.next() {
+        if ch != '\u{1b}' {
+            out.push(ch);
+            continue;
+        }
+        match chars.next() {
+            Some('[') => {
+                for byte in chars.by_ref() {
+                    if ('\u{40}'..='\u{7e}').contains(&byte) {
+                        break;
+                    }
+                }
+            }
+            Some(']') => {
+                while let Some(byte) = chars.next() {
+                    if byte == '\u{7}' || (byte == '\u{1b}' && chars.next() == Some('\\')) {
+                        break;
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    out
 }
 
 /// Locate the compiled `cdylib` output path from `cargo build --message-format=json-render-diagnostics`.
@@ -271,3 +315,7 @@ fn write_and_sync(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     file.write_all(bytes)?;
     file.sync_all()
 }
+
+#[cfg(test)]
+#[path = "build_tests.rs"]
+mod tests;

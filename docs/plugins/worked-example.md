@@ -401,6 +401,13 @@ aria_sdk::export!(ColorToolsPlugin);
 
 ## 4. Run, validate, pack, and install
 
+A WASM-tier package builds for `wasm32-unknown-unknown`. Install the target
+once:
+
+```text
+rustup target add wasm32-unknown-unknown
+```
+
 Start the live development loop against an isolated profile directory:
 
 ```text

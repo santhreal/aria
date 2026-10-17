@@ -53,10 +53,12 @@ jobs:
             gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav \
             mesa-vulkan-drivers libvulkan1
 
+      # The plugin CLI tests build a WebAssembly plugin crate end to end.
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
+          targets: wasm32-unknown-unknown
 
       - uses: Swatinem/rust-cache@v2
       - name: Dependency policy
