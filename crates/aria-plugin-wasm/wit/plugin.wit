@@ -1,0 +1,1139 @@
+package aria:plugin@1.0.0;
+
+/// WebAssembly component world for Aria plugins (API major 1).
+world plugin {
+    /// Severity level for plugin log messages.
+    enum log-level {
+        trace,
+        debug,
+        info,
+        warn,
+        error,
+    }
+
+    /// Timeline importer registration metadata.
+    record importer-spec {
+        id: string,
+        name: string,
+        extensions: list<string>,
+    }
+
+    /// Timeline exporter registration metadata.
+    record exporter-spec {
+        id: string,
+        name: string,
+        extension: string,
+    }
+
+    /// Media encoder registration metadata.
+    record encoder-spec {
+        id: string,
+        name: string,
+        extension: string,
+        audio: bool,
+    }
+
+    /// Configuration passed to `encoder-open`.
+    record encoder-config {
+        width: u32,
+        height: u32,
+        fps-num: s64,
+        fps-den: s32,
+        video-bitrate-kbps: u32,
+        audio-bitrate-kbps: u32,
+    }
+
+    /// One RGBA video frame passed to `encoder-push-frame`.
+    record encoder-frame {
+        rgba: list<u8>,
+        width: u32,
+        height: u32,
+        stride: u32,
+        pts-value: s64,
+        pts-rate: s32,
+    }
+
+    /// One interleaved `f32` audio block passed to `encoder-push-audio`.
+    record encoder-audio {
+        samples: list<f32>,
+        sample-rate: u32,
+        channels: u32,
+        pts-value: s64,
+        pts-rate: s32,
+    }
+
+    /// Result returned from a timeline import operation.
+    record import-result {
+        /// Serde JSON of `Vec<aria_commands::Command>`, applied as one transaction.
+        commands-json: string,
+        /// Source items skipped by the importer.
+        skipped: list<string>,
+    }
+
+    /// Report returned from a timeline export operation.
+    record report {
+        /// Project items that the target format could not represent.
+        skipped: list<string>,
+    }
+
+    /// Scalar parameter definition for an audio effect.
+    record audio-param-spec {
+        name: string,
+        label: string,
+        default-value: f32,
+        min: f32,
+        max: f32,
+    }
+
+    /// Audio effect registration metadata.
+    record audio-effect-spec {
+        id: string,
+        label: string,
+        params: list<audio-param-spec>,
+        latency: u32,
+        sidechain: bool,
+    }
+
+    /// Handle to a live audio processor instance owned by the plugin.
+    type instance = u64;
+
+    /// Parameter signal for one parameter across an audio block.
+    record audio-param {
+        constant: f32,
+        per-frame: list<f32>,
+    }
+
+    /// Planar stereo audio block passed to `audio-process`.
+    record audio-block {
+        left: list<f32>,
+        right: list<f32>,
+        position: s64,
+        sample-rate: u32,
+        sidechain-left: list<f32>,
+        sidechain-right: list<f32>,
+    }
+
+    /// Processed planar stereo output buffers returned from `audio-process`.
+    record stereo-buffers {
+        left: list<f32>,
+        right: list<f32>,
+    }
+
+    /// Docked location for a declared plugin panel.
+    enum panel-location {
+        sidebar,
+        inspector,
+        timeline,
+    }
+
+    /// Registration metadata for a docked plugin panel.
+    record panel-spec {
+        id: string,
+        title: string,
+        location: panel-location,
+    }
+
+    /// Text colour tone for `ui-node::text`.
+    enum tone {
+        normal,
+        muted,
+        success,
+        warning,
+        danger,
+    }
+
+    /// Paragraph text node with tone.
+    record ui-text {
+        text: string,
+        tone: tone,
+    }
+
+    /// Key-value field row.
+    record ui-field {
+        label: string,
+        value: string,
+    }
+
+    /// Push button control.
+    record ui-button {
+        id: string,
+        label: string,
+        disabled: bool,
+    }
+
+    /// Boolean toggle control.
+    record ui-toggle {
+        id: string,
+        label: string,
+        on: bool,
+    }
+
+    /// Numeric slider control.
+    record ui-slider {
+        id: string,
+        label: string,
+        value: f64,
+        min: f64,
+        max: f64,
+        step: f64,
+    }
+
+    /// Single-line text input control.
+    record ui-input {
+        id: string,
+        value: string,
+        placeholder: string,
+    }
+
+    /// Multi-option chip selector control.
+    record ui-choice {
+        id: string,
+        label: string,
+        options: list<string>,
+        selected: u32,
+    }
+
+    /// Progress bar indicator.
+    record ui-progress {
+        label: string,
+        fraction: f32,
+    }
+
+    /// Straight-alpha RGBA8 image node (`width * height * 4` bytes).
+    record ui-image {
+        width: u32,
+        height: u32,
+        rgba: list<u8>,
+    }
+
+    /// One node in a flattened panel tree (`root = index 0`).
+    /// Container nodes (`column`, `row`) hold indices into the flat `list<ui-node>`.
+    variant ui-node {
+        column(list<u32>),
+        row(list<u32>),
+        heading(string),
+        text(ui-text),
+        field(ui-field),
+        separator,
+        button(ui-button),
+        toggle(ui-toggle),
+        slider(ui-slider),
+        input(ui-input),
+        choice(ui-choice),
+        progress(ui-progress),
+        image(ui-image),
+    }
+
+    /// Payload for `panel-event::toggled`.
+    record panel-toggled {
+        id: string,
+        on: bool,
+    }
+
+    /// Payload for `panel-event::slid`.
+    record panel-slid {
+        id: string,
+        value: f64,
+    }
+
+    /// Payload for `panel-event::submitted`.
+    record panel-submitted {
+        id: string,
+        text: string,
+    }
+
+    /// Payload for `panel-event::chose`.
+    record panel-chose {
+        id: string,
+        index: u32,
+    }
+
+    /// Interaction event delivered from a panel control to the plugin.
+    variant panel-event {
+        pressed(string),
+        toggled(panel-toggled),
+        slid(panel-slid),
+        submitted(panel-submitted),
+        chose(panel-chose),
+    }
+
+    /// 2D coordinate or size in sequence frame pixels.
+    record point {
+        x: f32,
+        y: f32,
+    }
+
+    /// Stroke or fill color for a viewer overlay shape.
+    variant overlay-color {
+        accent,
+        text,
+        muted,
+        success,
+        warning,
+        danger,
+        rgba(tuple<u8, u8, u8, u8>),
+    }
+
+    /// Visual glyph drawn for a draggable viewer overlay handle.
+    enum handle-look {
+        dot,
+        square,
+        cross,
+    }
+
+    /// Straight line segment in a viewer overlay scene.
+    record overlay-line {
+        %from: point,
+        to: point,
+        color: overlay-color,
+        width: f32,
+    }
+
+    /// Axis-aligned rectangle in a viewer overlay scene.
+    record overlay-rect {
+        origin: point,
+        size: point,
+        color: overlay-color,
+        width: f32,
+        fill: option<overlay-color>,
+    }
+
+    /// Axis-aligned ellipse in a viewer overlay scene.
+    record overlay-ellipse {
+        center: point,
+        radii: point,
+        color: overlay-color,
+        width: f32,
+        fill: option<overlay-color>,
+    }
+
+    /// Polyline or closed polygon in a viewer overlay scene.
+    record overlay-path {
+        points: list<point>,
+        closed: bool,
+        color: overlay-color,
+        width: f32,
+    }
+
+    /// Text label in a viewer overlay scene.
+    record overlay-text {
+        at: point,
+        text: string,
+        color: overlay-color,
+        size: f32,
+    }
+
+    /// Draggable handle in a viewer overlay scene.
+    record overlay-handle {
+        id: string,
+        at: point,
+        color: overlay-color,
+        look: handle-look,
+    }
+
+    /// One vector primitive or handle in a viewer overlay scene.
+    variant overlay-shape {
+        line(overlay-line),
+        rect(overlay-rect),
+        ellipse(overlay-ellipse),
+        path(overlay-path),
+        text(overlay-text),
+        handle(overlay-handle),
+    }
+
+    /// Phase of a pointer drag on an `overlay-handle`.
+    enum drag-phase {
+        start,
+        move,
+        end,
+    }
+
+    /// Payload for `overlay-event::drag`.
+    record overlay-drag {
+        handle: string,
+        phase: drag-phase,
+        at: point,
+    }
+
+    /// Interaction event delivered from a viewer overlay handle to the plugin.
+    variant overlay-event {
+        drag(overlay-drag),
+    }
+
+    /// Viewer overlay registration metadata.
+    record overlay-spec {
+        id: string,
+        title: string,
+    }
+
+    /// One step of a background job, returned by `job-step`.
+    record job-step {
+        /// Fraction done, 0.0 to 1.0, or none while it is unknown.
+        progress: option<f32>,
+        /// The line the jobs board shows.
+        detail: string,
+        /// The job is finished, and `detail` is its last line.
+        done: bool,
+        /// The next step cannot be undone: Cancel is refused from here on.
+        commit: bool,
+    }
+
+    /// The trust an AI tool needs before the assistant runs it.
+    enum ai-tool-tier {
+        /// Reads state and changes nothing. Runs without asking.
+        read-only,
+        /// Changes the project or the editor in a way an undo reverses.
+        workspace,
+        /// Deletes data, writes outside the project, or reaches another
+        /// system. Runs after the operator allows the call.
+        system,
+    }
+
+    /// An AI tool the assistant lists.
+    record ai-tool-spec {
+        /// 1 to 56 bytes of lowercase ASCII letters, digits, and `_`. The
+        /// assistant calls the tool `plugin_<name>`.
+        name: string,
+        /// What the tool does, for the model.
+        description: string,
+        /// A JSON Schema object describing the arguments, as JSON text.
+        parameters-json: string,
+        tier: ai-tool-tier,
+    }
+
+    /// A PNG image an AI tool returns, at most 2048 pixels on a side.
+    record ai-tool-image {
+        label: string,
+        png: list<u8>,
+    }
+
+    /// What an AI tool returns to the model.
+    record ai-tool-output {
+        text: string,
+        images: list<ai-tool-image>,
+    }
+
+    /// A scope the scope strip shows.
+    record scope-spec {
+        /// ASCII letters, digits, `.`, `-` and `_`, unique among every
+        /// plugin's scopes.
+        id: string,
+        /// The caption above the image.
+        name: string,
+        /// Width of the image the scope draws, 1 to 512.
+        width: u32,
+        /// Height of the image the scope draws, 1 to 512.
+        height: u32,
+    }
+
+    /// The frame a scope reads: `width * height` RGBA8 pixels, sRGB, straight
+    /// alpha, top row first.
+    record scope-frame {
+        width: u32,
+        height: u32,
+        pixels: list<u8>,
+    }
+
+    /// What a scope draws: RGBA8 pixels at the size its spec declares, or an
+    /// empty list for a transparent image, and one readout line of at most
+    /// 160 bytes.
+    record scope-drawing {
+        pixels: list<u8>,
+        readout: string,
+    }
+
+    /// Media decoder registration metadata.
+    record decoder-spec {
+        id: string,
+        name: string,
+        /// File extensions without the dot: ASCII letters and digits.
+        extensions: list<string>,
+        /// Among decoders claiming one extension, a higher priority is tried first.
+        priority: s32,
+    }
+
+    /// What `decoder-probe` reports about a file.
+    record media-probe {
+        width: u32,
+        height: u32,
+        frame-rate-num: s32,
+        frame-rate-den: s32,
+        /// Length in whole frames at the frame rate, 0 when unknown.
+        frame-count: s64,
+        has-audio: bool,
+        /// The file is a still image: one frame, no time base.
+        is-image: bool,
+        video-codec: option<string>,
+        audio-codec: option<string>,
+    }
+
+    /// Pixel layout of decoded frames.
+    enum frame-format {
+        /// A full-size Y plane, then interleaved U and V at half width and half height.
+        nv12,
+        /// Y, U, and V planes; U and V at half width and half height.
+        yuv420p,
+    }
+
+    /// Color space of decoded frames.
+    enum frame-color {
+        bt709,
+        bt601,
+        bt2020-pq,
+        srgb,
+    }
+
+    /// What `decoder-open-video` reports about the stream it opened.
+    record video-info {
+        /// Even, at most 16384.
+        width: u32,
+        /// Even, at most 16384.
+        height: u32,
+        format: frame-format,
+        color: frame-color,
+        frame-rate-num: s32,
+        frame-rate-den: s32,
+        /// Every pts counts ticks at `time-base-num / time-base-den` ticks per second.
+        time-base-num: s32,
+        time-base-den: s32,
+        /// Length in time-base ticks, when known.
+        duration: option<s64>,
+    }
+
+    /// A video stream `decoder-open-video` opened.
+    record opened-video {
+        instance: instance,
+        info: video-info,
+    }
+
+    /// One decoded frame: its pts and its planes in plane order, each row
+    /// packed at the plane's row width with no padding.
+    record decoded-frame {
+        pts: s64,
+        planes: list<list<u8>>,
+    }
+
+    /// Why a decoder open or probe failed.
+    variant decode-error {
+        /// The decoder does not read this file; the host tries the next decoder.
+        unsupported(string),
+        /// The decoder reads this file and failed.
+        failed(string),
+    }
+
+    /// Value kind of a visual effect or transition parameter.
+    enum effect-param-kind {
+        scalar,
+        int,
+        boolean,
+        choice,
+        color,
+        vec2,
+        point3,
+        size,
+        angle,
+        curve,
+        gradient,
+        text,
+        font,
+        file,
+        layer,
+    }
+
+    /// Inspector control presentation for a scalar parameter.
+    enum effect-param-display {
+        slider,
+        angle-dial,
+        percentage,
+    }
+
+    /// One option of an `effect-param-kind::choice` parameter.
+    record effect-choice-option {
+        id: string,
+        label: string,
+    }
+
+    /// One control point on an `effect-param-kind::curve` parameter (`x, y` in `0.0..=1.0`).
+    record effect-curve-point {
+        x: f32,
+        y: f32,
+    }
+
+    /// One colour stop on an `effect-param-kind::gradient` parameter.
+    record effect-gradient-stop {
+        position: f32,
+        color: tuple<f32, f32, f32, f32>,
+    }
+
+    /// Condition under which a parameter row is shown in the inspector.
+    record effect-visibility-condition {
+        param: string,
+        equals-bool: option<bool>,
+        equals-int: option<s32>,
+        equals-choice: option<string>,
+    }
+
+    /// Named collapsible parameter group in an effect or transition inspector.
+    record effect-group-spec {
+        id: string,
+        label: string,
+        collapsed: bool,
+    }
+
+    /// Parameter definition for a visual effect, generator, or transition.
+    record effect-param-spec {
+        name: string,
+        label: string,
+        kind: effect-param-kind,
+        default-value: f32,
+        min: f32,
+        max: f32,
+        default-color: tuple<u8, u8, u8, u8>,
+        default-vec2: tuple<f32, f32>,
+        display: effect-param-display,
+        soft-min: option<f32>,
+        soft-max: option<f32>,
+        unit: option<string>,
+        tooltip: option<string>,
+        group: option<string>,
+        visible-when: option<effect-visibility-condition>,
+        choices: list<effect-choice-option>,
+        default-int: s32,
+        default-bool: bool,
+        default-choice: string,
+        default-vec3: tuple<f32, f32, f32>,
+        default-curve: list<effect-curve-point>,
+        default-gradient: list<effect-gradient-stop>,
+        default-text: string,
+    }
+
+    /// Visual effect or generator registration metadata.
+    record effect-spec {
+        id: string,
+        label: string,
+        category: string,
+        params: list<effect-param-spec>,
+        groups: list<effect-group-spec>,
+        generator: bool,
+        stateful: bool,
+    }
+
+    /// Transition registration metadata.
+    record transition-spec {
+        id: string,
+        label: string,
+        params: list<effect-param-spec>,
+    }
+
+    /// How an effect graph pass runs.
+    variant pass-stage {
+        /// `@fragment fn fs`, drawn over the whole output.
+        fragment,
+        /// `@compute @workgroup_size(x, y, 1) fn cs` dispatched over the
+        /// output in tiles of this width and height, writing `output_tex`.
+        compute(tuple<u32, u32>),
+    }
+
+    /// One texture an effect graph pass reads.
+    variant pass-input {
+        /// The effect's input frame, bound as `source_tex`.
+        source,
+        /// The output of the named pass, bound as `pass_<name>`.
+        pass(string),
+        /// The frame of the clip the named layer parameter references,
+        /// bound as `layer_<param>`.
+        layer(string),
+        /// The plugin texture registered under this id, bound as
+        /// `texture_<id>` with every character other than an ASCII letter,
+        /// digit, or `_` replaced by `_`.
+        texture(string),
+    }
+
+    /// The size an effect graph pass writes.
+    variant output-size {
+        /// The effect's input size.
+        same,
+        /// The input size times this width and height factor, rounded, at
+        /// least one pixel.
+        scale(tuple<f32, f32>),
+        /// This width and height in pixels.
+        fixed(tuple<u32, u32>),
+    }
+
+    /// One pass of an effect graph.
+    record graph-pass {
+        /// The name other passes read this one by. Empty names it `pass<index>`.
+        name: string,
+        stage: pass-stage,
+        /// What the pass reads, in binding order; the first is also bound as
+        /// `input_tex`. Empty reads the pass before it, or the source frame
+        /// for the first pass.
+        inputs: list<pass-input>,
+        /// The last pass writes the effect's frame and uses `same`.
+        output: output-size,
+        wgsl: string,
+    }
+
+    /// What an effect graph states about its frame beyond its spec.
+    record effect-traits {
+        /// Pixels drawn beyond the layer's left, top, right, and bottom edges.
+        bounds: tuple<f32, f32, f32, f32>,
+        /// The effect samples its source outside `0.0..=1.0`.
+        reads-outside: bool,
+        /// The frame changes with time when the parameters do not. A pass of
+        /// an effect that is not reads `aria.time` as zero.
+        time-dependent: bool,
+    }
+
+    /// Flattened `f32` parameter value passed to `cpu-effect-process`.
+    type effect-param = f32;
+
+    /// One premultiplied RGBA16F video frame passed to and returned from
+    /// `cpu-effect-process`: `width * height * 4` IEEE-754 binary16 bit
+    /// patterns (`[R, G, B, A]` per pixel), top row first, with no row padding.
+    record video-frame {
+        width: u32,
+        height: u32,
+        time: f32,
+        pixels: list<u16>,
+    }
+
+    /// Timeline tint colour for a registered clip type.
+    enum marker-color {
+        teal,
+        blue,
+        purple,
+        pink,
+        red,
+        orange,
+        yellow,
+        green,
+    }
+
+    /// Generator-backed clip type registration metadata.
+    record clip-type-spec {
+        id: string,
+        label: string,
+        generator: string,
+        colour: marker-color,
+        icon-svg: option<string>,
+        handles: list<string>,
+    }
+
+    /// The fields each clip of a type that draws itself stores: effect
+    /// parameters of any kind, saved with the clip, keyframed where the kind
+    /// is, and drawn as the clip's rows in the inspector and on the timeline.
+    record clip-type-schema {
+        /// The fields, in row order. A handle names a `vec2` field.
+        fields: list<effect-param-spec>,
+        /// Collapsible groups that fields name in `group`.
+        groups: list<effect-group-spec>,
+        /// The picture changes with time when the fields do not. A type that
+        /// does not is drawn at time 0.
+        time-dependent: bool,
+    }
+
+    /// What draws a clip type that declares its fields.
+    variant clip-type-render {
+        /// `cpu-effect-process`, called with the type's id on a transparent
+        /// frame of the clip's size and the field values.
+        cpu,
+        /// WGSL passes reading the fields as `aria.params`.
+        passes(list<graph-pass>),
+    }
+
+    /// Property driver language registration metadata.
+    record driver-language-spec {
+        id: string,
+        name: string,
+    }
+
+    /// Property value passed to and returned from `driver-evaluate`.
+    variant param-value {
+        scalar(f32),
+        vec2(tuple<f32, f32>),
+        vec3(tuple<f32, f32, f32>),
+        color(tuple<u8, u8, u8, u8>),
+        rect(tuple<f32, f32, f32, f32>),
+    }
+
+    /// Scope variables passed to `driver-evaluate`.
+    record driver-vars {
+        time: f64,
+        clip-time: f64,
+        frame-rate: f64,
+        duration: f64,
+        canvas-width: u32,
+        canvas-height: u32,
+        value: param-value,
+        seed: u64,
+    }
+
+    /// Keyboard focus target for a registered workspace.
+    enum workspace-focus {
+        media,
+        preview,
+        timeline,
+        inspector,
+        assistant,
+        mixer,
+    }
+
+    /// Pane arrangement restored when a workspace is applied.
+    record workspace-panes {
+        sidebar-width: option<f32>,
+        sidebar-collapsed: option<bool>,
+        inspector-width: option<f32>,
+        inspector-collapsed: option<bool>,
+        timeline-height: option<f32>,
+        scopes: option<bool>,
+        focus: option<workspace-focus>,
+    }
+
+    /// Workspace registration metadata.
+    record workspace-spec {
+        id: string,
+        name: string,
+        panes: workspace-panes,
+    }
+
+    /// What target an audio analyzer operates on.
+    enum analyzer-scope {
+        clip,
+        sequence,
+        in-out,
+    }
+
+    /// Audio analyzer registration metadata.
+    record analyzer-spec {
+        id: string,
+        label: string,
+        category: option<string>,
+        scope: analyzer-scope,
+    }
+
+    /// Exact timestamp `value / (rate-num / rate-den)` seconds.
+    record rational-time {
+        value: s64,
+        rate-num: s32,
+        rate-den: s32,
+    }
+
+    /// Half-open time interval `[start, start + duration)`.
+    record time-range {
+        start: rational-time,
+        duration: rational-time,
+    }
+
+    /// Summary of a timeline clip returned by project queries.
+    record clip-ref {
+        id: u64,
+        track: u64,
+        start: rational-time,
+        end: rational-time,
+        kind: string,
+        name: string,
+    }
+
+    /// Sequence In and Out points from the editor view.
+    record in-out-marks {
+        mark-in: option<rational-time>,
+        mark-out: option<rational-time>,
+    }
+
+    /// Category of a ruler marker.
+    enum marker-kind {
+        comment,
+        chapter,
+        segmentation,
+    }
+
+    /// Ruler marker on a sequence timeline.
+    record marker {
+        id: u64,
+        tick: rational-time,
+        duration: rational-time,
+        name: string,
+        color: marker-color,
+        comment: string,
+        kind: marker-kind,
+    }
+
+    /// Emit a log line at `level`.
+    import log: func(level: log-level, text: string);
+
+    /// Read a key from the package's `data_dir`.
+    import storage-get: func(key: string) -> result<option<list<u8>>, string>;
+
+    /// Write `value` under `key` in the package's `data_dir`.
+    import storage-set: func(key: string, value: list<u8>) -> result<_, string>;
+
+    /// Delete `key` from the package's `data_dir`.
+    import storage-delete: func(key: string) -> result<_, string>;
+
+    /// List all keys in the package's `data_dir` in sorted order.
+    import storage-keys: func() -> result<list<string>, string>;
+
+    /// Read a setting value as JSON text, or `none` if unset.
+    import setting-get: func(key: string) -> result<option<string>, string>;
+
+    /// Register a palette command during `mount`.
+    import register-command: func(id: string, title: string) -> result<_, string>;
+
+    /// Subscribe to an event kind during `mount`.
+    import subscribe: func(event-kind: string) -> result<_, string>;
+
+    /// Register a timeline importer during `mount`.
+    import register-importer: func(spec: importer-spec) -> result<_, string>;
+
+    /// Register a timeline exporter during `mount`.
+    import register-exporter: func(spec: exporter-spec) -> result<_, string>;
+
+    /// Register a media format encoder during `mount`.
+    import register-encoder: func(spec: encoder-spec) -> result<_, string>;
+
+    /// Register an audio effect during `mount`.
+    import register-audio-effect: func(spec: audio-effect-spec) -> result<_, string>;
+
+    /// Register a docked declarative UI panel during `mount`.
+    import register-panel: func(spec: panel-spec) -> result<_, string>;
+
+    /// Queue a rebuild of a panel owned by this plugin.
+    import refresh-panel: func(id: string) -> result<_, string>;
+
+    /// Register a viewer overlay during `mount`.
+    import register-viewer-overlay: func(spec: overlay-spec) -> result<_, string>;
+
+    /// Queue a scene rebuild of a viewer overlay owned by this plugin.
+    import refresh-viewer-overlay: func(id: string) -> result<_, string>;
+
+    /// Serialize the open project as serde JSON (`aria_models::Project`).
+    /// Requires permission `project = "read"` or `"read-write"`.
+    import project-snapshot: func() -> result<string, string>;
+
+    /// Serialize the editor view (selection, playhead, in/out) as JSON.
+    /// Requires permission `project = "read"` or `"read-write"`.
+    import editor-view: func() -> result<string, string>;
+
+    /// Look up clip `id` across the project's sequences.
+    /// Requires permission `project = "read"` or `"read-write"`.
+    import clip: func(id: u64) -> result<option<clip-ref>, string>;
+
+    /// Clips on `sequence` (`none` for the open sequence) overlapping the half-open `range`,
+    /// in track order then timeline start order.
+    /// Requires permission `project = "read"` or `"read-write"`.
+    import clips-in-range: func(sequence: option<u64>, range: time-range) -> result<list<clip-ref>, string>;
+
+    /// Clips on `sequence` (`none` for the open sequence) covering `tick`,
+    /// in track order then timeline start order.
+    /// Requires permission `project = "read"` or `"read-write"`.
+    import clips-at: func(sequence: option<u64>, tick: rational-time) -> result<list<clip-ref>, string>;
+
+    /// Selected clips from `EditorView` resolved to `clip-ref`, dropping deleted ids.
+    /// Requires permission `project = "read"` or `"read-write"`.
+    import selected-clips: func() -> result<list<clip-ref>, string>;
+
+    /// Ruler markers on `sequence` (`none` for the open sequence) overlapping the half-open `range`,
+    /// in timeline order.
+    /// Requires permission `project = "read"` or `"read-write"`.
+    import markers-in-range: func(sequence: option<u64>, range: time-range) -> result<list<marker>, string>;
+
+    /// Sequence In and Out points from `EditorView`.
+    /// Requires permission `project = "read"` or `"read-write"`.
+    import in-out: func() -> result<in-out-marks, string>;
+
+    /// Apply a command list (`Vec<aria_commands::Command>` JSON) as one undo step.
+    /// Requires permission `project = "read-write"`.
+    import project-transact: func(label: string, commands-json: string) -> result<string, string>;
+
+    /// Undo the latest step on the project host.
+    /// Requires permission `project = "read-write"`.
+    import project-undo: func() -> result<bool, string>;
+
+    /// Read bytes from a permitted filesystem path or active import target.
+    import fs-read: func(path: string) -> result<list<u8>, string>;
+
+    /// Write bytes to a permitted filesystem path or active export target.
+    import fs-write: func(path: string, bytes: list<u8>) -> result<_, string>;
+
+    /// Start a background job on the jobs board, labelled with the plugin's
+    /// name and `label`. The host calls `job-step` with the returned id until
+    /// a step is done, Cancel is pressed, or a step fails, then `job-end`.
+    import start-job: func(label: string) -> result<u64, string>;
+
+    /// Register a media decoder during `mount`.
+    import register-decoder: func(spec: decoder-spec) -> result<_, string>;
+
+    /// Read up to `len` bytes from byte `offset` of a permitted path or the
+    /// file being decoded: fewer only at end of file. At most 64 MiB per call.
+    import fs-read-at: func(path: string, offset: u64, len: u32) -> result<list<u8>, string>;
+
+    /// Length in bytes of a permitted path or the file being decoded.
+    import fs-len: func(path: string) -> result<u64, string>;
+
+    /// Offer the assistant an AI tool during `mount`. `ai-tool-call` runs it.
+    import register-ai-tool: func(spec: ai-tool-spec) -> result<_, string>;
+
+    /// Add a scope to the scope strip during `mount`. `scope-measure` draws it.
+    import register-scope: func(spec: scope-spec) -> result<_, string>;
+
+    /// Set the category of an audio or video effect registered by this plugin.
+    import set-effect-category: func(id: string, category: string) -> result<_, string>;
+
+    /// Register a WGSL visual effect during `mount`.
+    import register-effect: func(spec: effect-spec, passes: list<string>) -> result<_, string>;
+
+    /// Register a CPU visual effect or generator during `mount`. `cpu-effect-process` renders it.
+    import register-cpu-effect: func(spec: effect-spec) -> result<_, string>;
+
+    /// Register a WGSL transition during `mount`.
+    import register-transition: func(spec: transition-spec, wgsl: string) -> result<_, string>;
+
+    /// Register a WGSL generator during `mount`.
+    import register-generator: func(spec: effect-spec, passes: list<string>) -> result<_, string>;
+
+    /// Register a WGSL effect graph during `mount`: an effect, or a generator
+    /// when `spec.generator` is set.
+    import register-effect-graph: func(spec: effect-spec, traits: effect-traits, passes: list<graph-pass>) -> result<_, string>;
+
+    /// Register straight-alpha RGBA8 `pixels`, `width * height * 4` bytes
+    /// with the top row first, as the plugin texture `id` during `mount`.
+    import register-texture: func(id: string, width: u32, height: u32, pixels: list<u8>) -> result<_, string>;
+
+    /// Register a generator-backed clip type during `mount`.
+    import register-clip-type: func(spec: clip-type-spec) -> result<_, string>;
+
+    /// Register during `mount` a clip type whose clips store `schema.fields`
+    /// and that `render` draws. The host registers a generator under the
+    /// type's id; `spec.generator` is empty or that id.
+    import define-clip-type: func(spec: clip-type-spec, schema: clip-type-schema, render: clip-type-render) -> result<_, string>;
+
+    /// Register a property driver language during `mount`. `driver-evaluate` evaluates it.
+    import register-driver-language: func(spec: driver-language-spec) -> result<_, string>;
+
+    /// Register an animation and effect preset JSON during `mount`.
+    import register-preset: func(preset-json: string) -> result<_, string>;
+
+    /// Register a theme TOML under `id` during `mount`.
+    import register-theme: func(id: string, toml: string) -> result<_, string>;
+
+    /// Register a workspace arrangement during `mount`.
+    import register-workspace: func(spec: workspace-spec) -> result<_, string>;
+
+    /// Register an audio analyzer during `mount`.
+    import register-analyzer: func(spec: analyzer-spec) -> result<_, string>;
+
+    /// Mount the plugin. Registration calls are permitted only during `mount`.
+    export mount: func() -> result<_, string>;
+
+    /// Unmount the plugin before unload or reload.
+    export unmount: func() -> result<_, string>;
+
+    /// Run a command previously registered by this plugin.
+    export command-run: func(id: string, args-json: string) -> result<_, string>;
+
+    /// Handle an event of a subscribed kind. Returns optional response JSON.
+    export event: func(kind: string, event-json: string) -> result<option<string>, string>;
+
+    /// Import a timeline file at `path` using `importer-id`.
+    export %import: func(importer-id: string, path: string) -> result<import-result, string>;
+
+    /// Export `project-json` to `path` using `exporter-id`.
+    export %export: func(exporter-id: string, project-json: string, path: string) -> result<report, string>;
+
+    /// Create an audio processor instance for `effect-id` at `sample-rate`.
+    export audio-create: func(effect-id: string, sample-rate: u32) -> result<instance, string>;
+
+    /// Process one stereo planar audio block on `instance`.
+    export audio-process: func(instance: instance, params: list<audio-param>, block: audio-block) -> result<stereo-buffers, string>;
+
+    /// Reset internal DSP state on `instance` after a transport seek.
+    export audio-reset: func(instance: instance) -> result<_, string>;
+
+    /// Drop an audio processor instance created by `audio-create`.
+    export audio-drop: func(instance: instance) -> result<_, string>;
+
+    /// Build the flattened `ui-node` tree (`root = index 0`) for panel `id`.
+    export panel-view: func(id: string) -> list<ui-node>;
+
+    /// Handle a user control interaction on panel `id`.
+    export panel-event: func(id: string, event: panel-event) -> result<_, string>;
+
+    /// Build the shape list for viewer overlay `id`.
+    export overlay-scene: func(id: string) -> list<overlay-shape>;
+
+    /// Handle a user handle drag interaction on viewer overlay `id`.
+    export overlay-event: func(id: string, event: overlay-event) -> result<_, string>;
+
+    /// Open an encoder session for `encoder-id` writing `config` to `path`.
+    export encoder-open: func(encoder-id: string, path: string, config: encoder-config) -> result<instance, string>;
+
+    /// Push one RGBA video frame to an open encoder session.
+    export encoder-push-frame: func(instance: instance, frame: encoder-frame) -> result<_, string>;
+
+    /// Push one interleaved `f32` audio block to an open encoder session.
+    export encoder-push-audio: func(instance: instance, audio: encoder-audio) -> result<_, string>;
+
+    /// Finalize an open encoder session and flush its output via `fs-write`.
+    export encoder-finish: func(instance: instance) -> result<_, string>;
+
+    /// Drop an open encoder session without finalizing it.
+    export encoder-drop: func(instance: instance) -> result<_, string>;
+
+    /// Run one step of job `job`, started by `start-job`.
+    export job-step: func(job: u64) -> result<job-step, string>;
+
+    /// Job `job` ended: done, failed, or cancelled when `cancelled` is true.
+    export job-end: func(job: u64, cancelled: bool);
+
+    /// Describe `path` with decoder `decoder-id`.
+    export decoder-probe: func(decoder-id: string, path: string) -> result<media-probe, decode-error>;
+
+    /// Open the video stream of `path` with decoder `decoder-id`.
+    export decoder-open-video: func(decoder-id: string, path: string) -> result<opened-video, decode-error>;
+
+    /// Seek video stream `instance` to the sync frame at or before `pts`, in time-base ticks.
+    export decoder-seek: func(instance: instance, pts: s64) -> result<_, string>;
+
+    /// The next frame of video stream `instance`, or none at end of stream.
+    export decoder-next-frame: func(instance: instance) -> result<option<decoded-frame>, string>;
+
+    /// Open the audio of `path` with decoder `decoder-id`, resampled to `sample-rate` and `channels`.
+    export decoder-open-audio: func(decoder-id: string, path: string, sample-rate: u32, channels: u16) -> result<instance, decode-error>;
+
+    /// Up to `max-samples` interleaved samples of audio stream `instance`: whole frames,
+    /// fewer only at end of stream.
+    export decoder-read-audio: func(instance: instance, max-samples: u32) -> result<list<f32>, string>;
+
+    /// Position the next read of audio stream `instance` at sample frame `frame`.
+    export decoder-seek-audio: func(instance: instance, frame: s64) -> result<_, string>;
+
+    /// Drop the video or audio stream `instance`.
+    export decoder-close: func(instance: instance);
+
+    /// Run the AI tool registered as `name` with `arguments-json`, an object
+    /// matching its schema, on the assistant's turn thread.
+    export ai-tool-call: func(name: string, arguments-json: string) -> result<ai-tool-output, string>;
+
+    /// Measure `frame` with the scope registered as `id`, on the preview
+    /// worker's thread while the scope strip is open.
+    export scope-measure: func(id: string, frame: scope-frame) -> result<scope-drawing, string>;
+
+    /// Render one premultiplied RGBA16F video frame for a CPU effect or generator registered as `id`.
+    export cpu-effect-process: func(id: string, params: list<effect-param>, frame: video-frame) -> result<video-frame, string>;
+
+    /// Evaluate driver expression `expr` for the driver language registered as `id`.
+    export driver-evaluate: func(id: string, expr: string, vars: driver-vars) -> result<param-value, string>;
+
+    /// Open an audio analyzer session for `id` at `sample-rate` Hz and `channels` channels.
+    export analyzer-open: func(id: string, sample-rate: u32, channels: u16) -> result<instance, string>;
+
+    /// Feed interleaved `f32` audio samples (`frames * channels`) into analyzer `instance`.
+    export analyzer-push: func(instance: instance, samples: list<f32>) -> result<_, string>;
+
+    /// Finish analyzer `instance` and return its `AnalyzerResult` JSON.
+    export analyzer-finish: func(instance: instance) -> result<string, string>;
+
+    /// Drop analyzer `instance` without finishing.
+    export analyzer-drop: func(instance: instance);
+}

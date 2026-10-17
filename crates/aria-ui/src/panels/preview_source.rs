@@ -1,11 +1,12 @@
-//! Source: 7 helpers from [`super`].
+//! The Source tab's stage and bar, the Program frame, and the safe-margin
+//! guides.
 //!
-//! Split out of `preview.rs` to stay under the file ceiling. A pure
-//! move. Each item is `pub(super)` so the parent and its other children can
-//! reach it by name; nothing else changed.
+//! Each item is `pub(super)` so the parent and its other children reach it by
+//! name.
 
 use super::*;
 use crate::surfaces::source_pick::{self, Pick};
+use gpui::AppContext as _;
 
 /// Press one row of the registry, reporting a refusal where the operator is
 /// looking rather than swallowing it.
@@ -22,47 +23,92 @@ pub(super) fn frame_view(
 ) -> impl IntoElement {
     let view = state.read(cx).preview_view;
     let ticks = state.read(cx).store.playhead_ticks;
-    match state.read(cx).last_render.clone() {
-        Some(image) => {
-            let scale = view.scale();
-            let (dx, dy) = view.pan;
-            div()
-                .id("preview-stage")
-                .size_full()
-                .overflow_hidden()
-                .relative()
-                .child(motion::fade_quick(
-                    // A discrete seek cross-fades; a drag-scrub and playback
-                    // do not, because a fade restarted every frame never
-                    // finishes and would leave the picture permanently dim.
-                    seek::frame_id("preview-frame-fade", ticks),
-                    // A zoomed frame is drawn larger than the pane and offset by
-                    // the pan; a fitted one is exactly the pane and `Contain`
-                    // does the rest.
-                    img(image)
-                        .id("preview-frame")
-                        .object_fit(ObjectFit::Contain)
-                        .absolute()
-                        .left(px(dx))
-                        .top(px(dy))
-                        .w(gpui::relative(scale))
-                        .h(gpui::relative(scale)),
-                ))
-                .into_any_element()
-        }
-        None => div()
+    let texture = state.read(cx).preview_worker.shown_texture();
+    let image = state.read(cx).last_render.clone();
+    let gpu_probe = gpui::canvas(
+        {
+            let state = state.clone();
+            move |_, window, cx| {
+                if state
+                    .read(cx)
+                    .preview_worker
+                    .set_gpu_device(window.gpu_device())
+                {
+                    cx.defer(move |app| {
+                        state.update(app, |state, _| {
+                            state.picture_changed();
+                        });
+                        crate::app::spawn_preview(state, app);
+                    });
+                }
+            }
+        },
+        |_, _, _, _| {},
+    )
+    .size_0();
+    let scale = view.scale();
+    let (dx, dy) = view.pan;
+    if let Some(texture) = texture {
+        div()
+            .id("preview-stage")
+            .size_full()
+            .overflow_hidden()
+            .relative()
+            .child(gpu_probe)
+            .child(motion::fade_quick(
+                seek::frame_id("preview-frame-fade", ticks),
+                gpui::surface(texture)
+                    .object_fit(ObjectFit::Contain)
+                    .absolute()
+                    .left(px(dx))
+                    .top(px(dy))
+                    .w(gpui::relative(scale))
+                    .h(gpui::relative(scale)),
+            ))
+            .into_any_element()
+    } else if let Some(image) = image {
+        div()
+            .id("preview-stage")
+            .size_full()
+            .overflow_hidden()
+            .relative()
+            .child(gpu_probe)
+            .child(motion::fade_quick(
+                // A discrete seek cross-fades; a drag-scrub and playback
+                // do not, because a fade restarted every frame never
+                // finishes and would leave the picture permanently dim.
+                seek::frame_id("preview-frame-fade", ticks),
+                // A zoomed frame is drawn larger than the pane and offset by
+                // the pan; a fitted one is exactly the pane and `Contain`
+                // does the rest.
+                img(image)
+                    .id("preview-frame")
+                    .object_fit(ObjectFit::Contain)
+                    .absolute()
+                    .left(px(dx))
+                    .top(px(dy))
+                    .w(gpui::relative(scale))
+                    .h(gpui::relative(scale)),
+            ))
+            .into_any_element()
+    } else {
+        div()
             .flex()
             .items_center()
             .justify_center()
             .size_full()
-            .child(div().text_size(px(13.)).text_color(theme.text_faint).child(
-                if state.read(cx).last_frame.is_some() {
-                    "Couldn't convert this frame for display. Try scrubbing again."
-                } else {
-                    "Import media, then click a tile to place it on the timeline."
-                },
-            ))
-            .into_any_element(),
+            .child(gpu_probe)
+            .child(
+                div()
+                    .text_size(Theme::TEXT_UI)
+                    .text_color(theme.text_faint)
+                    .child(if state.read(cx).last_frame.is_some() {
+                        "Couldn't convert this frame for display. Try scrubbing again."
+                    } else {
+                        "Import media, then click a tile to place it on the timeline."
+                    }),
+            )
+            .into_any_element()
     }
 }
 
@@ -86,7 +132,13 @@ pub(super) fn source_stage(
         .or_else(|| state.read(cx).pool_preview.source_stale(view.media))
         .cloned();
     let frames = view.duration_ticks.max(1);
-    let position = format!("{} · frame {} of {}", view.name, view.tick + 1, frames);
+    let mut position = format!("{} · frame {} of {}", view.name, view.tick + 1, frames);
+    // A shuttle speed is the one thing about the source clock the frame number
+    // does not show.
+    let rate = state.read(cx).sources.play_rate().filter(|rate| *rate != 1);
+    if let Some(rate) = rate {
+        position.push_str(&format!(" · {rate}x"));
+    }
     div()
         .id("source-stage")
         .size_full()
@@ -105,13 +157,34 @@ pub(super) fn source_stage(
             ))
         })
         .when_some(image, |el, image| {
-            el.child(motion::fade_quick(
-                seek::frame_id("source-frame-fade", view.tick),
-                img(image)
-                    .id("source-frame")
-                    .object_fit(ObjectFit::Contain)
-                    .size_full(),
-            ))
+            // The frame is the handle for a drag onto the timeline, which
+            // drops the marked range with the same patching as the buttons.
+            el.child(
+                div()
+                    .id("source-frame-drag")
+                    .size_full()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(motion::fade_quick(
+                        seek::frame_id("source-frame-fade", view.tick),
+                        img(image)
+                            .id("source-frame")
+                            .object_fit(ObjectFit::Contain)
+                            .size_full(),
+                    ))
+                    .on_drag(
+                        crate::types::MediaDrag {
+                            media: view.media,
+                            label: view.name.clone(),
+                            from_source: true,
+                        },
+                        |drag, _offset, _window, cx| {
+                            let label = drag.label.clone();
+                            cx.new(|_| crate::panels::sidebar::DragGhost { label })
+                        },
+                    ),
+            )
         })
         .child(
             div()
@@ -127,60 +200,40 @@ pub(super) fn source_stage(
                 .bg(theme.surface_overlay)
                 .child(
                     div()
-                        .text_size(px(11.))
+                        .text_size(Theme::TEXT_UI)
                         .text_color(theme.text_muted)
                         .child(gpui::SharedString::from(position)),
                 )
                 .child(
                     crate::components::ghost_button("source-close", "Sequence", theme)
                         .when_some(crate::tooltip::builder("source-close"), |el, tip| {
-                            el.tooltip(tip)
+                            el.with_tip(tip)
                         })
                         .on_mouse_down(
                             MouseButton::Left,
                             cx.listener(|this, _: &MouseDownEvent, _, cx| {
                                 cx.stop_propagation();
-                                this.state
-                                    .update(cx, |state, _| state.close_source_monitor());
+                                this.state.update(cx, |state, _| state.show_program());
                                 cx.notify();
                             }),
                         ),
                 ),
         )
-        .child(source_bar(&view, state, theme, cx))
+        .child(source_bar(&view, theme, cx))
         .into_any_element()
 }
 
-/// The monitor's scrub bar and cut-in controls: where the marked range is, which
-/// frame is on screen, and the two edits that put that range in the sequence.
-///
-/// The bar is where the marks live because that is where they mean something —
-/// a number in the corner does not tell you how much of a take you have kept.
+/// The Source tab's marks and cut-in controls under the picture: the marked
+/// range, and the two edits that put that range in the sequence. The mini
+/// ruler under the control row shows the range across the take and scrubs it.
 pub(super) fn source_bar(
     view: &SourceView,
-    state: &Entity<AppState>,
     theme: &Theme,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
     let frames = view.duration_ticks.max(1);
-    let span = frames as f32;
     let start = view.mark_in.unwrap_or(0);
     let end = view.mark_out.unwrap_or(frames);
-    let measure = {
-        let state = state.clone();
-        canvas(
-            move |bounds, _, cx| {
-                let left = f32::from(bounds.origin.x);
-                let width = f32::from(bounds.size.width);
-                state.update(cx, |state, _| {
-                    state.pool_preview.record_source_bar(left, width)
-                });
-            },
-            |_, _, _, _| {},
-        )
-        .absolute()
-        .size_full()
-    };
     let marked = format!(
         "In {} · Out {} · {} of {} frames",
         view.mark_in
@@ -202,57 +255,12 @@ pub(super) fn source_bar(
         .gap(px(Theme::SPACE_XS))
         .child(
             div()
-                .id("source-scrub")
-                .relative()
-                .w_full()
-                .h(px(10.))
-                .rounded(px(Theme::CONTROL_RADIUS))
-                .bg(theme.element_active)
-                .child(measure)
-                .child(
-                    div()
-                        .absolute()
-                        .top_0()
-                        .bottom_0()
-                        .left(relative(start as f32 / span))
-                        .w(relative(((end - start).max(0) as f32 / span).min(1.0)))
-                        .bg(theme.accent.opacity(0.35)),
-                )
-                .child(
-                    div()
-                        .absolute()
-                        .top_0()
-                        .bottom_0()
-                        .left(relative(view.tick as f32 / span))
-                        .w(px(2.))
-                        .bg(theme.playhead),
-                )
-                .on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(|this, event: &MouseDownEvent, _, cx| {
-                        cx.stop_propagation();
-                        let x = f32::from(event.position.x);
-                        this.state.update(cx, |state, _| state.scrub_source(x));
-                        cx.notify();
-                    }),
-                )
-                .on_mouse_move(cx.listener(|this, event: &gpui::MouseMoveEvent, _, cx| {
-                    if !event.dragging() {
-                        return;
-                    }
-                    let x = f32::from(event.position.x);
-                    this.state.update(cx, |state, _| state.scrub_source(x));
-                    cx.notify();
-                })),
-        )
-        .child(
-            div()
                 .flex()
                 .items_center()
                 .gap(px(Theme::SPACE_SM))
                 .child(
                     div()
-                        .text_size(px(11.))
+                        .text_size(Theme::TEXT_UI)
                         .text_color(theme.text_muted)
                         .child(gpui::SharedString::from(marked)),
                 )
@@ -260,7 +268,7 @@ pub(super) fn source_bar(
                 .child(
                     crate::components::ghost_button("source-mark-in", "In", theme)
                         .when_some(crate::tooltip::builder("source-mark-in"), |el, tip| {
-                            el.tooltip(tip)
+                            el.with_tip(tip)
                         })
                         .on_mouse_down(
                             MouseButton::Left,
@@ -274,7 +282,7 @@ pub(super) fn source_bar(
                 .child(
                     crate::components::ghost_button("source-mark-out", "Out", theme)
                         .when_some(crate::tooltip::builder("source-mark-out"), |el, tip| {
-                            el.tooltip(tip)
+                            el.with_tip(tip)
                         })
                         .on_mouse_down(
                             MouseButton::Left,
@@ -289,7 +297,7 @@ pub(super) fn source_bar(
                 .child(
                     crate::components::ghost_button("source-mark-clear", "Clear", theme)
                         .when_some(crate::tooltip::builder("source-mark-clear"), |el, tip| {
-                            el.tooltip(tip)
+                            el.with_tip(tip)
                         })
                         .on_mouse_down(
                             MouseButton::Left,
@@ -304,7 +312,7 @@ pub(super) fn source_bar(
                 .child(
                     crate::components::button("source-insert", "Insert", theme)
                         .when_some(crate::tooltip::builder("source-insert"), |el, tip| {
-                            el.tooltip(tip)
+                            el.with_tip(tip)
                         })
                         .on_mouse_down(
                             MouseButton::Left,
@@ -318,7 +326,7 @@ pub(super) fn source_bar(
                 .child(
                     crate::components::button("source-overwrite", "Overwrite", theme)
                         .when_some(crate::tooltip::builder("source-overwrite"), |el, tip| {
-                            el.tooltip(tip)
+                            el.with_tip(tip)
                         })
                         .on_mouse_down(
                             MouseButton::Left,
@@ -336,8 +344,8 @@ pub(super) fn source_bar(
 
 /// Title-safe, action-safe, and the thirds grid.
 ///
-/// The percentages are the SMPTE ones: action safe is the inner 90% of the
-/// frame and title safe the inner 80%. Drawn as insets of the pane rather than
+/// The percentages are SMPTE ST 2046-1's: action safe is the inner 93% of the
+/// frame and title safe the inner 90%. Drawn as insets of the pane rather than
 /// of the picture, which is what a fitted preview makes them.
 pub(super) fn guides(
     view: crate::app::preview_view::PreviewView,
@@ -345,10 +353,10 @@ pub(super) fn guides(
 ) -> Vec<gpui::AnyElement> {
     let mut out: Vec<gpui::AnyElement> = Vec::new();
     if view.action_safe {
-        out.push(safe_box(theme, 5.0).into_any_element());
+        out.push(safe_box(theme, 3.5).into_any_element());
     }
     if view.title_safe {
-        out.push(safe_box(theme, 10.0).into_any_element());
+        out.push(safe_box(theme, 5.0).into_any_element());
     }
     if view.grid {
         for at in [33.333_f32, 66.667] {
@@ -388,69 +396,4 @@ pub(super) fn safe_box(theme: &Theme, percent: f32) -> impl IntoElement {
         .bottom(inset)
         .border_1()
         .border_color(theme.border_strong)
-}
-
-pub(super) fn transport_btn(
-    path: &'static str,
-    id: &'static str,
-    cx: &mut gpui::Context<crate::shell::Shell>,
-) -> impl IntoElement {
-    let theme = Theme::of(cx);
-    // The solid fill overwrites the base style `icon_button` set, so its fade
-    // has to be read back and re-applied rather than silently dropped.
-    let key = motion::MotionKey::new("icon", id);
-    crate::components::icon_button(id, path, &theme)
-        .bg(motion::hover_blend(key, theme.solid, theme.accent_strong))
-        // The glyph travels with the fill under it: neutral on the solid plate,
-        // accent-safe once the plate is accent.
-        .text_color(motion::hover_blend(key, theme.on_solid, theme.on_accent))
-        .on_mouse_down(
-            MouseButton::Left,
-            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                this.state.update(cx, |state, _| state.toggle_playback());
-                start_playback(this.state.clone(), cx);
-                spawn_preview(this.state.clone(), cx);
-                cx.notify();
-            }),
-        )
-}
-
-/// A preview zoom step, drawn with the shipped zoom glyph.
-pub(super) fn zoom_btn(
-    id: impl Into<motion::ControlId>,
-    icon: &'static str,
-    cx: &mut gpui::Context<crate::shell::Shell>,
-    step: fn(&mut AppState),
-) -> impl IntoElement {
-    let theme = Theme::of(cx);
-    let id = id.into();
-    let tip = id.fixed_name().and_then(crate::tooltip::builder);
-    let key = id.motion("zoom");
-    div()
-        .id(id.element("zoom-button"))
-        .w(px(Theme::SPACE_LG))
-        .h(px(Theme::SPACE_LG))
-        .flex()
-        .items_center()
-        .justify_center()
-        .rounded(px(Theme::CONTROL_RADIUS))
-        .text_size(px(13.))
-        .text_color(motion::hover_blend(key, theme.text_muted, theme.text))
-        .cursor(gpui::CursorStyle::PointingHand)
-        .active(|style| style.opacity(0.92))
-        .bg(motion::hover_blend(
-            key,
-            theme.wash(0.0),
-            theme.element_hover,
-        ))
-        .on_hover(motion::hover_listener(key))
-        .when_some(tip, |el, tip| el.tooltip(tip))
-        .on_mouse_down(
-            MouseButton::Left,
-            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                this.state.update(cx, |state, _| step(state));
-                cx.notify();
-            }),
-        )
-        .child(crate::icons::icon(icon))
 }

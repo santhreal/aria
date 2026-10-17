@@ -5,10 +5,11 @@ media onto the window.
 
 ## New project
 
-1. Click **New Project**, or press Ctrl+N (Cmd+N on macOS).
+1. Click **New Project**, or press Ctrl+Alt+N (Cmd+Option+N on macOS).
 2. The editor opens with an empty timeline.
-3. Click **Import** in the Media sidebar, or drag files onto the window.
-4. Click a media tile to place it on the timeline at the playhead.
+3. Click **Import** in the Project panel, or drag files onto the window.
+4. Drag a media tile onto a lane, or select it and press `,` to insert it at
+   the playhead.
 5. Titles, Shapes, and Stickers tabs place a generator at the playhead.
 
 Supported import types: `mp4`, `mov`, `mkv`, `webm`, `wav`, `mp3`, `png`,
@@ -22,13 +23,63 @@ What a dropped file becomes follows its type, on Home and in the editor alike:
 | File | Result |
 | --- | --- |
 | `.aria` | Opens as a project, replacing the session |
+| `.edl`, `.fcpxml`, `.otio`, `.srt`, `.vtt`, or another extension a timeline plugin reads | Read into the open timeline, one undo step per file |
 | Media (see the list above) | Imported into the media pool |
-| `.cube` | Loaded as the selected clip's LUT |
+| `.cube` | Applied to the selected clip; with no clip selected, read as a LUT filter over the sequence |
 | `SKILL.md` | Installed as an assistant skill |
 | Anything else | Imported as media, which reports why it cannot be |
 
 A project file dropped alongside other files wins: opening one replaces the
 session, so the rest would be discarded.
+
+## Timeline files
+
+**File > Import Timeline…** reads another editor's cut into the open project,
+and **File > Export Timeline…** writes the open timeline as one. The shipped
+Timeline interchange plugin reads and writes these formats:
+
+| Format | Extension |
+| --- | --- |
+| CMX 3600 EDL | `.edl` |
+| Final Cut Pro XML | `.fcpxml` |
+| OpenTimelineIO | `.otio` |
+| SubRip subtitles | `.srt` |
+| WebVTT subtitles | `.vtt` |
+
+A plugin can add more. The dialogs list every format a mounted plugin reads or
+writes. **File > Import…** and a drop onto the window also read a timeline file
+into the timeline rather than the media pool.
+
+**File > Import Recent** lists the last ten files imported through
+**File > Import…**, newest first, and imports the chosen one again. A file that
+no longer exists is listed disabled. **Clear Recent Imports** empties the list.
+The list is saved as `import-recents.json` in the data folder.
+
+An import adds lanes and clips to the open project as one undo step, and
+imports the media the file names. The export format follows the extension of the
+name you give; a name with no extension takes the first format listed. An
+export that fails leaves an existing file at that path as it was.
+
+A format holds less than an Aria timeline. An EDL holds one picture track and
+four sound channels, for example, and no format holds a generated clip. What a
+run places or writes the nearest way, or leaves out, is listed in the
+**Timeline file** panel in Effect Controls, one line per item. The panel stays
+until you click **Dismiss**, and the next import or export replaces it.
+
+A subtitle file adds a text track named after the file, with one text clip per
+cue on the nearest frame. Cues that overlap go to further text tracks, numbered
+`(2)`, `(3)`, and so on. Styling tags and WebVTT cue settings are dropped.
+Exporting subtitles writes the text clips of every shown text track as cues in
+start order; hidden text tracks and clip styling are left out and listed.
+
+**File > Import Timeline…** also lists **Cube LUT** (`.cube`), read by the
+Effects plugin. It adds a filter track named after the file with one LUT
+filter bar across the sequence, or five seconds long on an empty sequence. A
+file that is not a 3D Cube LUT is refused and the project is unchanged.
+
+With the Timeline interchange plugin turned off in **Settings > Plugins** and no
+other timeline plugin installed, both rows report that no importer or exporter
+is mounted.
 
 ## Missing media
 
@@ -49,34 +100,116 @@ states why on it:
 | the file there has a different frame size / duration / audio | The name matched, the file is another source |
 | could not read the file there | The file exists and did not open |
 
-## Sidebar tabs
+## Project panel tabs
 
-The sidebar filters what you browse:
+The Project panel's top row holds five groups: **Media**, **Graphics**, **Effects**,
+**Library**, and **Analyze**. Choosing a group opens its first tab, and a group
+with more than one tab lists its tabs in a smaller row underneath:
 
-- **Media** — every imported file. **Audio** — the audio files only.
-- **Titles**, **Shapes**, **Stickers** — click to place a generated clip at the
-  playhead.
-- **Animations**, **Masks**, **Transitions** — click to apply the entry to the
-  selected clip. A transition lands at the selected clip's right cut. With no
-  clip selected, or on a clip that refuses the entry, the click reports why.
-- **Stock**, **SFX** — the cloud libraries. See
-  [Stock and sound effects](#stock-and-sound-effects).
-- **Generate** — a prompt to fal.ai. See [Generate](#generate).
-- **Captions** — offline transcription of the selected clip. See
-  [Captions](#captions).
-- **Analysis** — shot, silence, and beat detection on the selected clip. See
-  [Analysis](#analysis).
-- **Markers** — every marker on the ruler. See [Markers](#markers).
+- **Media**: **Media**, every imported file, and **Audio**, the audio files
+  only.
+- **Graphics**: **Titles**, **Shapes**, and **Stickers** place a generated
+  clip at the playhead on a click. **Masks** applies a mask to the selected
+  clip.
+- **Effects**: **Effects** is every effect, transition, generator, clip type,
+  and animation preset as one tree; see [Effects & Presets](#effects--presets).
+  **Transitions** applies a transition at the selected clip's right cut,
+  **Generators** places a generator or plugin clip type at the playhead, and
+  **Animations** applies an animation preset to the selected clip.
+- **Library**: **Stock** and **SFX** are the cloud libraries; see
+  [Stock and sound effects](#stock-and-sound-effects). **Generate** sends a
+  prompt to fal.ai; see [Generate](#generate).
+- **Analyze**: **Captions** transcribes the selected clip offline; see
+  [Captions](#captions). **Analysis** detects shots, silences, and beats on the
+  selected clip; see [Analysis](#analysis).
+
+With no clip selected, or on a clip that refuses the entry, a click that
+applies an entry reports why. Markers are listed in the Markers panel; see
+[Markers](#markers).
 
 Drag instead of clicking to choose the target. Drag a sticker onto a lane to place
 it at that lane and time. Drag an animation, mask, or transition onto a clip to
-apply it there; the clip becomes selected, so the inspector shows what landed. A
+apply it there; the clip becomes selected, so Effect Controls shows what landed. A
 sticker dropped on a lane that cannot hold it keeps the time and moves to the
 sticker lane.
 
 Hover an **Animations** entry to see it on the selected clip before you choose it.
 The preview is not an edit: it makes no undo step, and moving the pointer off the
 row restores the clip. With no clip selected there is nothing to preview.
+
+## Effects & Presets
+
+Window > Effects & Presets, or Shift+5, brings the Effects & Presets panel
+forward, opening it in the right column when it is closed, with its search box
+taking keys. The Project panel's **Effects** tab shows the same tree and search.
+The tree has one folder per group:
+
+- **Video Effects** and **Audio Effects**, each with one folder per category
+  and the Other folder last.
+- **Transitions**.
+- **Generators**: generators and plugin clip types. The editor ships Color
+  Matte, Linear Gradient, Radial Gradient, Checkerboard, Grid, Fractal Noise,
+  and Color Bars; see [Generators](#generators).
+- **Animation Presets**: saved presets and plugin presets. A saved preset hides
+  a plugin preset of the same name.
+
+Click a folder to open or close it. Click an entry to pick it. Double-click an
+entry to apply it to the selection:
+
+| Entry | Double-click |
+|---|---|
+| Video effect | Appends it to the selected clip's chain |
+| Audio effect | Appends it to the chain of every selected clip with sound |
+| Transition | Sets it at the selected clip's right cut |
+| Generator, clip type | Places a clip at the playhead |
+| Animation preset | Applies it across the selected clips, anchored at the playhead |
+
+Drag an entry onto a clip to apply it to that clip, a transition onto a cut, and
+a generator or clip type onto a lane to place it there. Hover an entry to show
+where it comes from: Built in, Saved preset, or the plugin's name.
+
+Drag a video effect onto the Effects tab of Effect Controls to add it to the selected
+clip's chain: dropped on an effect, it goes above that effect; dropped anywhere
+else in the tab, it goes at the end. The drop is one undo step. Any other entry
+that applies to a clip applies to the selected clip. A generator, clip type or
+sticker dropped there is refused, with a message to drop it on a lane.
+
+Click the star on an entry to list it under **Favourites**, the first folder.
+Click it again to remove it. Favourites are saved with the settings.
+
+Type in the search box to filter the tree. The search ignores case and matches
+the name, the id, and the category. Every folder holding a match opens, and a
+group with no match is hidden. **Clear** empties the search. Esc returns keys to
+the editor.
+
+**Failed to Load**, the last folder, lists each plugin that did not mount and
+each preset file that did not read, with the reason.
+
+A workspace can list one group alone, as the Audio workspace lists Audio
+Effects. A caption over the tree states the group. Favourites from that group
+and Failed to Load stay listed. **Show All** lists every group again.
+
+### Generators
+
+A generator draws a picture from its parameters alone. Placing one adds a
+transparent solid the size of the frame, named after the generator, with the
+generator first in its effect chain. The Effects tab of Effect Controls edits and
+keyframes its parameters, and effects added below it process its picture.
+
+| Generator | Draws |
+|---|---|
+| Color Matte | One colour over the frame |
+| Linear Gradient | A ramp between two colours from a start point to an end point |
+| Radial Gradient | A ramp from an inner colour at the centre to an outer colour at the radius |
+| Checkerboard | Square cells of two colours, anchored at a point |
+| Grid | Lines of one colour at an even spacing, anchored at a point |
+| Fractal Noise | Value noise between a dark and a light colour; keyframe Evolution to animate it |
+| Color Bars | SMPTE bars: seven bars at the bar level, the reversed blue row, and a strip of -I, white, +Q, black, and a pluge step |
+
+Points and anchors are fractions of the frame from its top-left corner. The
+radius and the noise offset are fractions of the frame height. Cell size,
+spacing, line width, and noise scale are pixels of a 1080-pixel-high frame, so a
+proxy or a reduced preview draws the same picture.
 
 ## Text
 
@@ -85,20 +218,49 @@ the text in place. Below it, the Effect chips are the text presets: neon, shadow
 outline, glow, retro, and chrome. Click a chip to apply it, click the active chip
 to clear it. A preset writes stroke, shadow, and background onto the style, so
 clearing the chip stops marking the preset but leaves what it wrote; edit those
-rows to change them.
+rows to change them. A preset writes only when chosen: an edited stroke stays
+when the title is retyped or the same preset is sent again.
+
+Under **Font**, click a family to set it; **Next font** and **Previous font**
+step through the installed families. **Style** holds Bold, Italic, Underline,
+and Kerning, then the case: Normal, Upper, Lower, Title. **Treatments** switches
+the stroke, the shadow, and the card on and off; switching one clears the
+preset mark. **Size and spacing** holds size, tracking, leading, and the
+treatment sizes, and **Colour** holds a swatch row per colour: fill, then the
+stroke, shadow, and card colours while those are on. A colour keyframed at the
+playhead takes a new keyframe; any other colour is set for the whole clip.
+**Alignment** sets the lines Left, Center, Right, or Justify across the frame
+and the block Top, Middle, or Bottom down it; **Wrap** breaks long lines at the
+frame edge.
+
+**Window > Character** and **Window > Paragraph** dock the same controls as
+panels, Character in the right frame beside Effects & Presets in the Editing
+workspace. They edit whichever title is selected.
+
+With the Type tool (T), click empty picture to place a new title; its
+placeholder text is selected, so typing replaces it. Click a title to place the
+caret between two characters, drag across it to select, and Shift+click to
+extend the selection. The arrow keys, Home, and End move the caret, Shift
+extends the selection, Enter starts a new line, and Esc stops typing. Each
+burst of typing is one undo step. With characters selected, Bold, Italic,
+Underline, the font, size, tracking, and fill colour apply to those characters
+only, and the controls show their values; with no characters selected they
+apply to the whole title. Leading, case, alignment, and the treatments always
+apply to the whole title.
 
 Retyping a title keeps its font, size, colour, alignment, and effect.
 
 ## Edit
 
 - Space plays and pauses.
-- S splits the selected clip at the playhead.
+- Ctrl+K splits the selected clip at the playhead; Ctrl+Shift+K splits every
+  track.
 - Drag a clip to move it. Drag a clip edge to trim. Nearby clips magnet
   at 8 px. The magnet also takes the playhead, the sequence start and end, the
   In and Out points, markers, and detected beats. While a drag is in flight the
   guide line names what it locked onto, so a snap onto the wrong edge is
-  visible. Hold Alt to suspend the magnet for that one drag; the toolbar magnet
-  stays on.
+  visible. Hold Alt to suspend the magnet for that one drag; the tool bar's
+  magnet stays on.
 - Drag on empty timeline space to rubber-band: every unlocked clip the band
   touches is selected, in either direction, across every lane between the two
   corners. A press with no drag clears the selection. Esc abandons the band and
@@ -106,24 +268,63 @@ Retyping a title keeps its font, size, colour, alignment, and effect.
 - Arrow keys nudge one frame. Shift+Arrow nudges ten.
 - Delete or Backspace ripple-deletes the selection.
 - Ctrl+Z / Ctrl+Y undo and redo.
-- Double-click a clip to expand its keyframe strip.
-- Double-click a clip's name to rename it. The name is stored on the clip, so it
-  survives a relink or a media swap; committing an empty name gives the card the
-  source's own name back.
-- F fits the timeline to the sequence, Shift+F to the selection. + / - zoom.
+- Double-click a media clip to open its take in a Source tab linked to the
+  clip (see [Previewing a source](#previewing-a-source)). Double-click a nested
+  sequence to open it, and a title, shape, or other generated clip to open its
+  property rows.
+- A clip with no name of its own shows its source's: a media clip the file name
+  the pool lists, a multicam clip its group's name, a title its text, and a
+  placed generator its generator's name. Double-click a clip's name to rename
+  it. The name is stored on the clip, so it survives a relink or a media swap;
+  committing an empty name gives the card the source's own name back.
+- Renaming a clip, track, marker, effect, or the project opens a name field in
+  the middle of the window with the whole name selected: typing replaces it,
+  and an arrow key keeps it and moves the caret to that end. Shift with an
+  arrow, Home, or End selects; Ctrl with an arrow moves by word; Ctrl+Z puts
+  back the name the field opened with. Enter applies the name and Esc cancels.
+- `\` fits the timeline to the sequence, Shift+F to the selection. + / - zoom.
 - Right-click a clip, track, or the preview for a context menu.
-- Alt+F is Match Frame: it opens the source of the clip under the playhead in the
+- **Clip > Enable** enables or disables the selected clips. A disabled clip
+  draws at 40 per cent opacity on its lane and produces no picture or sound in
+  preview or export.
+- **Clip > Group** joins two or more selected clips into a clip group, marked
+  with `[G]` on each card. Clicking or moving one member selects or moves the
+  group, while trimming an edge trims only that clip (or its linked A/V pair).
+  Hold Alt while clicking to select one member alone. **Clip > Ungroup**
+  dissolves the group.
+- **Sequence > Linked Selection**, or the chain button in the tool bar, turns
+  linked selection on or off. On, a click selects a clip with the clips linked
+  to it, and a move or a trim carries them. Off, a click, a move, a nudge, and an
+  edge trim apply to the one clip; grouped clips still move together.
+- **Clip > Audio Gain…** opens Audio Gain for the selected audio-bearing clips.
+  It reports the measured peak in dBFS across the selection and offers four
+  modes: **Set Gain to** sets clip volume in dB (`-60` to `+12` dB), **Adjust
+  Gain by** adds a dB offset (`-60` to `+60` dB), **Normalize Max Peak to**
+  shifts every selected clip by the same offset so the loudest clip reaches the
+  target (`-60` to `0` dBFS), and **Normalize All Peaks to** scales each
+  selected clip to the target (`-60` to `0` dBFS) individually. Applying the
+  dialog is one undo step.
+- **Clip > Audio Channels** sets how the selected clips' left and right channels
+  play: **Stereo**, **Swap Channels**, **Left to Both**, **Right to Both**, or
+  **Mono**. A choice other than Stereo places the matching channel tool first in
+  each clip's audio effects, replacing any channel tool already there; Stereo
+  removes it. The check mark shows the choice every selected clip shares. Each
+  choice is one undo step.
+- F is Match Frame: it opens the source of the clip under the playhead in the
   monitor, on the same frame, with that clip's take marked. The selection wins
   when it is under the playhead; otherwise the topmost clip does.
 - With a source loaded in the monitor, `,` inserts its marked range and `.`
   overwrites with it. The sequence's own In point is where the clip lands, and
-  the playhead stands in when there is none. Mark the sequence at both ends and
-  the edit becomes four-point: the marked span decides the length and the take is
-  retimed to fill it, rather than trimmed to fit.
+  the playhead stands in when there is none; a sequence Out alone backtimes the
+  take to end there. With In and Out on the sequence and only an In or an Out on
+  the source, the sequence span decides how much of the source is taken. With
+  all four points set and the two lengths different, the edit is Fit to Fill:
+  the take is retimed to the sequence span and the status line shows the new
+  speed. A still takes the sequence span without a retime.
 
 ### Trim tools
 
-The tool strip picks what a drag means. Five tools trim without moving a clip's
+The tool bar picks what a drag means. Five tools trim without moving a clip's
 edges the way a plain drag does. Each keeps something fixed:
 
 - **Slip (Y)** keeps the clip where it is and moves the take inside it. Drag the
@@ -139,7 +340,7 @@ edges the way a plain drag does. Each keeps something fixed:
 - **Rate stretch (R)** changes how long a clip plays without dropping any of its
   source. Drag an edge: the speed follows from the new length. A clip already
   retimed is stretched from where it is, so two drags compose.
-- **Ripple trim (P)** trims an edge and moves the rest of the lane by the same
+- **Ripple trim (B)** trims an edge and moves the rest of the lane by the same
   amount, so the trim leaves no gap. Drag either edge: every clip later on that
   lane follows. Trimming the head slides the clip back to where it started, so
   the lane keeps its own start.
@@ -166,7 +367,7 @@ Ctrl+C copies the selected clip, and there are four pastes:
 The clipboard holds a reference, not a copy: deleting the copied clip makes the
 pastes do nothing rather than paste a stale version of it.
 
-The inspector on the right shows transform, look, effects, audio, text, and
+The Effect Controls panel shows transform, look, effects, audio, text, and
 info for the selected clip. Tabs hide when they do not apply.
 
 The strip along the bottom shows the timecode, the frame rate, the track count,
@@ -174,18 +375,74 @@ and the last message. A status is a receipt for what just happened and clears
 after four seconds. An error stays until an action succeeds: an edit, an undo, or
 a redo replaces it.
 
-The timecode in the tool strip is a field. Click it to type a position: a bare
-number is a frame count, and one to four colon-separated fields fill from the
-right, so `12` is twelve frames, `5:12` is five seconds and twelve frames, and
-`01:00:05:12` is the full clock. `;` works where `:` does. Enter seeks. Anything
-that is not a timecode is refused by name and the playhead stays where it was.
-Esc leaves the field without seeking. A position past the end of the sequence
-lands on the end.
+The playhead timecode at the left of the Viewer's control row is a field, and so
+is the timecode at the top left of the timeline. Each reads in the sequence's
+time display (see [Canvas](#canvas)): timecode, a frame count, or feet and
+frames.
+Drag across it to scrub the playhead: two pixels move one frame, Shift moves ten
+frames, Ctrl a tenth of one, and Esc during the drag puts the playhead back.
+Click it to type a position: a bare number is a frame count, and one to four
+colon-separated fields fill from the right, so `12` is twelve frames, `5:12` is
+five seconds and twelve frames, and `01:00:05:12` is the full clock. `;` and `.`
+work where `:` does, so `1.00` is one second. `feet+frames` reads 35 mm feet of
+sixteen frames, so `12+08` is frame 200. Enter seeks. Anything that is not a
+time is refused by name and the playhead stays where it was. Esc leaves the
+field without seeking. A position past the end of the sequence lands on the end.
+
+A timecode second holds the rate rounded up: 24 frames at 23.976 and 30 at
+29.97.
+
+The field opens without a click: a digit typed over the Timeline starts the
+timeline's timecode with that digit, and one typed over the Program view starts
+the Viewer's. A leading `+` or `-` (the keypad keys open the
+field with the sign) makes the typed value a duration. With clips selected,
+`+12` Enter moves them twelve frames later as one undo step, together with
+their grouped clips and, with linked selection on, their linked clips, and stops
+at the sequence start. With an edge
+selected it trims the edge. With nothing selected it moves the playhead.
+
+## Timeline header
+
+The header over the track headers holds, top to bottom:
+
+- The sequence timecode, a playhead field like the Viewer's (see above), with
+  the property search to its right. Typing in the search narrows the property
+  rows of every opened clip to the properties whose names contain the text,
+  ignoring case, and opens the groups that hold them; a group with no match is
+  hidden. Enter, Esc, or a press anywhere else leaves the field and keeps the
+  filter; the **×** button clears it, and each clip shows the groups it had open
+  before.
+- The playhead's frame number, then five buttons: snapping (`S`), linked
+  selection, add a marker at the playhead or edit the one there (`M`), timeline
+  display settings (see [Timeline display settings](#timeline-display-settings)),
+  and the graph editor (Shift+F3). Snapping, linked selection, and display
+  settings are the same as the tool bar's buttons.
+
+The ruler to the right labels its ticks in the sequence's time display. The
+spacing follows the zoom: labels sit as close as their width allows and never
+overlap, on whole frames that divide a second, whole seconds, minutes, or hours
+for timecode, and on round counts for frames or feet. Click or drag in the ruler
+to move the playhead; it stays under the pointer with no easing, and stops at
+the end of the sequence when the pointer passes it.
+
+Under the ticks, the work area bar spans `In` to `Out`. It draws in the accent
+color when either point is set and faint when the work area is the whole
+sequence. Drag the bar to move both points, drag either end to move that point,
+and double-click the bar to set the work area to the whole sequence. An end
+stops one frame short of the other, and the bar stops at the sequence ends. Esc
+during the drag puts both points back. The render bar runs along the bottom of
+the ruler (see [Render files](#render-files)).
+
+The zoom bar along the bottom of the timeline maps the whole sequence. Drag the
+window to scroll, drag either of its handles to zoom, and click outside the
+window to centre the view there. At its left, **+** adds a video track and the
+zoom readout fits the sequence on a click.
 
 ## Tracks
 
 Each track header carries a collapse chevron and six toggles: mute, solo (`S`),
-lock, visibility, target (`T`), and sync lock (`⇄`).
+lock, visibility, target (`T`), and sync lock (`⇄`). Drag the right border of
+the header column to widen or narrow it.
 
 Solo is per kind. While any audio track is soloed, the other audio tracks are
 silent in both preview and export; the video tracks are unaffected. While any
@@ -205,15 +462,17 @@ Right-click a track header for the rest:
 - **Collapse Lane** / **Expand Lane** does what the chevron does.
 - **Hide Waveforms** / **Show Waveforms** and **Hide Filmstrips** / **Show
   Filmstrips** turn that lane's strips on or off.
-- **Lane Height: Small**, **Medium**, and **Large** set the lane to 34, 48, and
-  96 pixels.
+- **Lane Height: Mini**, **Small**, **Medium**, and **Large** set the lane to
+  20, 32, 48, and 72 pixels.
 
 Drag a track header onto another header to move that lane to the row you release
 over. The target row is marked while the pointer is over it, Escape abandons the
 drag, and a drop is one edit. The main track stays at the bottom of the stack.
 
-Drag a lane's lower border to resize it. Heights below 28 or above 200 pixels are
-clamped. The drag is one edit, so one Undo restores the previous height, and
+Drag a lane's lower border to resize it, or Shift+scroll over its header to step
+through the Mini, Small, Medium, and Large presets. Heights below 20 or above
+200 pixels are clamped. The drag is one edit, so one Undo restores the previous
+height, and
 Escape abandons it. Lane height, the collapse state, and the two strip options
 are stored with the sequence: reopening the project gives back the layout you
 left.
@@ -230,16 +489,60 @@ of the sequence is refused whole, and anything that is not a whole number of
 frames is reported rather than guessed at.
 
 Dropping media on the timeline follows the edit mode. In Ripple mode the drop
-opens a hole first and pushes the clips at or after that point right, so nothing
-is covered. Otherwise the clip lands where it was dropped.
+opens a hole first and pushes the clips at or after that point right on the
+patched and sync-locked lanes, so nothing is covered. Otherwise the clip lands
+where it was dropped. See [Routing](#routing) for the lanes the picture and the
+sound land on.
+
+### Clip bars
+
+A clip bar has a 14-pixel name strip at the top, the content strip under it,
+and a line across the bar.
+
+The name strip holds the clip's name, its speed when it is not 100 % (`120%`,
+`-100%` for a reversed clip; a speed ramp prints none), and its badges. The fx
+badge is grey on a clip with no changes, purple when a clip property such as
+Opacity, Position, Crop, Time Remapping, Volume, or Pan differs from a new
+clip, yellow when an effect, a grade, a mask, or a key is applied, and yellow
+with a purple underline when both hold. Linked clips whose sources have drifted
+apart print the offset in frames, such as `+3`, on both bars.
+
+The content strip draws thumbnails on a video clip, as the timeline display
+settings choose, and a rectified waveform on an audio clip. A generated clip
+draws its name and, for a colour generator, a swatch of its colour. A clip whose
+media file is missing fills red and reads **Media Offline** with the file name.
+A disabled clip is drawn at 40 % opacity.
+
+The line draws one property of the clip over time: Opacity on a picture lane
+and Volume on an audio lane, until another property is chosen. Click the fx
+badge to choose: the menu lists every property of the clip by block
+(`Transform: Rotation`, `Gaussian Blur: Radius`, `Mask 1: Feather`), with the
+drawn one marked, and **Show in Effect Controls** selects the clip and opens
+that panel. Choosing the lane's default property clears the choice, so a clip
+moved to the other kind of lane draws that lane's default.
+
+Drag the line up or down to set a property that is one number. The value reads
+out as it moves, Escape puts it back, and the drag is one undo step. A drag
+between two keyframes moves both; a drag on a keyframe dot moves that keyframe.
+Ctrl+click on the line adds a keyframe at that time. On Medium and taller lanes
+the bar draws a dot at each keyframe of the property. A vector property draws
+its first axis, and a colour or a rectangle draws a level line; neither is
+dragged.
 
 ### Routing
 
-Target picks which lane an edit lands on when you did not aim at one: Insert,
-Overwrite, and Fit to Fill from the source monitor, and a media drop with no
-lane under the pointer. The topmost targeted lane of the media's kind takes it.
-Aiming at a lane still wins over the flag. With no lane of that kind targeted,
-the kind's first lane takes it, and one is created if the sequence has none.
+Source patching picks which lanes a source's picture and sound land on: Insert
+and Overwrite from a Source tab or for the selected pool items, a drag from a
+Source tab, and a media drop. Each video and audio lane header has a source indicator, V or A. The lit
+one is where that channel lands; click a dark one to move the channel there, and
+click the lit one to leave the channel out. A channel nobody patched goes to the
+topmost targeted lane of its kind, else the kind's first lane, and a video lane
+is created if the sequence has none. The sound lands as a clip of its own on the
+patched audio lane, linked to the picture, so the two move and trim together.
+With no audio lane in the sequence, the sound stays in the picture clip. A
+picture placed with its sound patched off is silent. A drop aims at the lane
+under the pointer: that lane takes the channel of its kind, whatever the patch,
+and the other channel follows the patching.
 
 Sync lock decides which other lanes follow a ripple edit. A lane with sync lock
 set moves by the same amount as the lane being edited, so picture and sound stay
@@ -279,6 +582,18 @@ leaves it, as does **Sequence > Leave Nested Sequence**.
 at the playhead, on the lane a media drop would land on. Editing inside the
 nest changes both clips, because both play the one sequence.
 
+A nest clip draws the whole frame of its sequence: every visible lane, with
+its transitions, mattes, adjustment layers, and nests, over a transparent
+background. That frame is fitted into the canvas the clip is placed on, as
+footage is, and then takes the clip's transform, crop, effects, mask, color,
+LUT, layer styles, blend mode, and motion blur as one picture. A sequence of
+another shape fills the middle of the canvas; a larger one draws at the
+canvas size.
+
+A sequence that shows itself, directly or through another nest, cannot be
+placed. A project edited outside Aria that holds one fails the frame with a
+sequence cycle error naming the sequence.
+
 Nesting nothing, opening a clip that is not a nest, and leaving when the root
 timeline is already open are each refused with what is missing.
 
@@ -299,7 +614,7 @@ a fade in or out ramps it. A muted clip draws a flat line.
 
 Each clip card carries a small square in its top left and top right corner. The
 square sits where the fade currently ends, so its position is the fade length.
-Drag it along the card to set the fade in or the fade out; the inspector shows
+Drag it along the card to set the fade in or the fade out; Effect Controls shows
 the same numbers. A drag past either end of the card stops at zero or at the
 whole clip. One drag is one undo entry, and a drag that ends where it started
 changes nothing. A locked clip draws no handles.
@@ -316,31 +631,145 @@ other picture-neutral edits retain them. Work started before an edit is rejected
 when it finishes. A cell that is not ready leaves its space empty rather than
 borrowing a neighbouring frame.
 
+## Timeline display settings
+
+**View > Timeline Display Settings**, or the wrench button in the tool bar or
+the timeline header, sets how the timeline draws clips and follows the
+playhead. A wrench opens the choices under itself, and a second press closes
+them. The choices are saved with the app settings, apply to every project, and
+are not edits.
+
+- **Head Thumbnails** draws the first frame of each video clip at its left edge.
+- **Head and Tail Thumbnails** adds the last frame at the right edge. A clip
+  narrower than two cells draws its head only.
+- **Continuous Thumbnails**, the default, draws the filmstrip described above.
+- **Logarithmic Waveforms**, the default, draws bar height in decibels down to
+  -48 dB, so quiet passages stay visible.
+- **Linear Waveforms** draws bar height proportional to the sample peak.
+- **Hide Waveforms** draws no waveform and decodes no peaks.
+- **Page Scroll**, the default, moves the view a page when the playhead nears
+  an edge during playback, leaving the playhead near the left.
+- **Smooth Scroll** scrolls the view with the playhead held at its centre.
+
+A scroll by hand during playback stops the follow until the playhead leaves the
+view.
+
 ## Viewing the preview
 
-The preview pane fits the frame to the pane by default. The transport row
-carries `−`, the zoom readout, and `+`. The readout shows `Fit` or a whole
-percentage; clicking it returns to fit. The buttons walk a fixed ladder: 25, 50,
-75, 100, 150, 200, 400 per cent, and stop at either end.
+The control row under the Viewer holds, left to right: the playhead timecode
+field, the zoom controls, the resolution and **Proxy** chips, the transport (go
+to start, step back, play, step forward, go to end), **Loop**, the shuttle
+readout, **In** and **Out** while Program is in front, the **Handles** picker,
+**Scopes**, and the peak meter. The transport acts on the tab in front of the
+Viewer: with a Source tab in front, the buttons move its take and the sequence
+playhead stays where it was. **In** and **Out** mark the sequence at the
+playhead; a Source tab marks its take from its own bar. In a narrow Viewer the
+row wraps onto a second line before the transport or before **Handles**.
+
+The Viewer fits the frame to the panel by default. The control row carries
+`−`, the zoom readout, and `+`. The readout shows `Fit` or a whole percentage;
+clicking it returns to fit. The buttons walk a fixed ladder: 25, 50, 75, 100,
+150, 200, 400 per cent, and stop at either end.
 
 Above 100 per cent the frame can be panned: the cursor becomes an open hand and
 dragging moves the picture. Returning to fit, or zooming back to 100 per cent or
 below, re-centres it.
 
-**View** carries the overlays, each independent of the others:
+**Scopes** opens a strip beside the Viewer with the waveform, the vectorscope,
+and the histogram of the frame on screen; the Scopes panel lays the same
+readings across its frame. The chips over the waveform choose what it counts:
+**Luma**, **RGB** for a red, green, and blue parade, or **YCbCr** for a luma,
+Cb, and Cr parade. **View > Scope Waveform** makes the same choice, and the
+choice is saved. The vectorscope draws a skin tone line and a target box for
+each primary and secondary at 75 and 100 per cent.
 
-- **Title safe** insets 10 per cent on every side.
-- **Action safe** insets 5 per cent.
+**View** carries the overlays, each independent of the others. The chips at the
+right of the Viewer's tab row toggle them too: **Safe** turns both safe margins
+on, or off while either is drawn, **Guides** shows or hides the guides, and
+**Alpha** toggles the transparency grid.
+
+- **Title safe** marks the inner 90 per cent of the frame.
+- **Action safe** marks the inner 93 per cent.
 - **Grid** draws thirds.
+- **Transparency Grid** draws a grid of two greys, in 8-pixel squares of the
+  rendered frame, where no layer covers the canvas, in place of the sequence's
+  background colour. A partly transparent layer shows the grid through it.
+  Export, Export Frame, and timeline thumbnails keep the background colour.
+  While the grid is on, each Viewer frame is read back from the GPU, as with
+  Scopes open. The setting is saved.
+
+**Rulers** at the right of the Viewer's tab row, **View > Rulers**, or
+Ctrl+Shift+R draws rulers along the top and left of the Program view, numbered in
+canvas pixels and following the zoom and pan. Drag from the top ruler for a
+horizontal guide and from the left ruler for a vertical one; drag a guide to move
+it, and drop it back on its ruler or off the frame to delete it. With **View >
+Snap to Guides** on, a layer moved by its transform handle snaps its edges or its
+centre onto a guide within 6 pixels. **View > Show Guides** off hides the guides
+and stops snapping to them without deleting them; pulling a new guide shows them
+again. **View > Clear Guides** deletes every guide. Guides are not saved with the
+project and are not edits.
+
+**View > Compare** holds a reference beside the Program frame. **Current
+Frame** holds the sequence frame at the playhead; move the playhead to compare
+another frame with it. **Still…** asks for an image file. **Source Tab** shows
+the Source monitor's frame at its own playhead, and is disabled with no source
+open. **Vertical Wipe** draws the reference left of a divider and Program right
+of it, **Horizontal Wipe** draws the reference above and Program below, and
+**Side by Side** draws the reference in a pane of its own left of Program. Drag
+the divider to move it. The reference keeps the Program view's zoom and pan, and
+a caption names it. **Stop Comparing** returns to Program alone. A still that
+cannot be read stops the comparison with an error that names the file.
 
 **View > Fullscreen Preview** fills the window with the viewer, hiding the
-sidebar, inspector, and timeline. Escape gives them back. A dialog opened by a
+other panels. Escape gives them back. A dialog opened by a
 shortcut still appears over the picture, and the status line stays visible so a
 refusal remains readable.
 
+### Resolution
+
+The resolution chip in the control row lists two settings. **Playback** is
+the size frames render at during playback: **Full**, **1/2**, **1/4**, **1/8**,
+or **Auto**. Auto starts at Full, drops one level after three dropped frames
+within a second, and rises one level after five seconds of playback with no
+drop. **Paused** is the size a stopped or scrubbed frame renders at: **Full** or
+**1/2**. A reduced frame is rendered small and scaled up to the pane, so it
+costs less to render and shows softer.
+
+The chip and the status line show the playback setting, and under Auto the
+level it is at, such as `Auto 1/2`. **View > Playback Resolution** steps through
+the playback choices and **View > Paused Resolution** switches between Full and
+1/2. Both settings are saved with the other UI settings. Export always renders
+at the sequence size.
+
+### Proxies
+
+Right-click a pool item and choose **Decode through a proxy** to render a
+smaller intra-frame copy as a background job; the command palette's **Proxy
+every pool item** does the same for the whole pool. The **Proxy** chip in the
+control row, and **View > Proxies**, switch the viewer between proxies and the
+original files. The chip shows in the accent color while proxies are on. The
+choice is saved with the other UI settings. Export always reads the original
+files, and a proxy missing from disk reads the original.
+
+### Render files
+
+**Sequence > Render In to Out** (`Enter`) renders every uncached frame in the
+work area (`In` to `Out`, or the whole sequence when unset) at full sequence
+resolution with motion blur enabled and writes each frame as a content-addressed
+QOI file in the `render-files` cache. Preview reads a matching render file from
+disk and scales it to the preview size instead of running the compositor; export
+renders directly from the timeline and ignores render files. **Sequence > Delete
+Render Files** removes the cached render files for the open sequence.
+
+A `3px` render bar along the bottom of the timeline ruler colors frame runs
+green when a matching render file is on disk, red when unrendered and the frame
+holds a CPU or stateful effect, a nested sequence, motion blur, or more than
+four picture layers, and yellow otherwise. Editing a clip changes its frame keys
+and turns its span back to yellow or red until rendered again.
+
 ### Output meter
 
-Two bars at the right of the transport row show the peak level of what the
+Two bars at the right of the control row show the peak level of what the
 device is playing, left above right. A full bar is 0 dBFS. The bars turn red and
 stay red once a sample reaches full scale; click them to clear that. The meter
 shows output, not the selected clip, so soloing or muting a track is visible in
@@ -349,12 +778,24 @@ it. Stopping playback drops the bars to silence.
 Zoom, pan, the overlays, and fullscreen are viewing positions, not edits: none
 of them enters the undo history or changes what an export produces.
 
-## Mixer
+### Info
 
-Shift+6, or **View > Mixer**, replaces the preview with the mixer. It carries one
-strip per lane that has sound, plus one per submix bus, drawn in the order the
-mixdown folds them: a bus sits after everything that feeds it. The Master strip
-comes last and carries the master's **Inserts**.
+**Window > Info** or Shift+8 docks the Info panel. Over the Viewer it shows the
+canvas pixel under the pointer and the colour of the frame on screen there: a
+swatch, the hex value, the RGB channels, and alpha. The colour is read from the
+picture as displayed, at the preview resolution, so a reduced resolution reads
+the pixel that covers the canvas point. Below that it shows the selected clip's
+name, In, Out, Duration, source, and Source In and Out; during a trim, the tool,
+the clip, and the change; during a drag in the Viewer, the move, scale, crop,
+mask, or tangent being dragged. The Errors section lists driver faults with
+their clip and property, plugins that failed to mount, and plugin faults.
+
+## Audio Track Mixer
+
+Shift+6, or **Window > Audio Track Mixer**, shows the Audio Track Mixer in place
+of the Viewer. It carries one strip per lane that has sound, plus one per submix
+bus, drawn in the order the mixdown folds them: a bus sits after everything that
+feeds it. The Master strip comes last and carries the master's **Inserts**.
 
 Each strip carries:
 
@@ -391,17 +832,35 @@ bus are refused with what to send instead.
 
 The Look tab carries the filter catalog and, below it, the grade:
 
-- The colour wheels: lift, gamma and gain, each with a red, green, blue and
-  master control.
-- One row per grade slider the catalog carries — brightness, contrast,
-  saturation, exposure, temperature, tint, hue, highlights, shadows, sharpness
-  and vignette, then the twelve wheel values as numbers. Left click a row
-  raises the value, right click lowers it. **Reset grade** returns every
-  adjustment to neutral.
-- A blend mode for the layer. Normal composites source-over.
+- The colour wheels: Lift, Gamma and Gain. Press anywhere on a wheel to put
+  its puck under the pointer, then drag. The drag follows the pointer off the
+  wheel and stops at the rim. A wheel moves the balance between its red, green
+  and blue channels and leaves their level where the press found it; the
+  **Master** value under the wheel sets the level and drags or types like any
+  other value. The rim moves a channel a quarter for Lift and a half for Gamma
+  and Gain. Releasing keeps the drag as one undo step, and Escape during the
+  drag returns the wheel to where the press found it. The reset button beside
+  the wheel's name returns its channels and master to neutral as one undo
+  step.
+- One row per grade property the catalog carries: the basic correction
+  (temperature, tint, exposure, contrast, highlights, shadows, whites, blacks,
+  brightness, saturation), the creative values (faded film, vibrance,
+  sharpness, hue), the RGB curves, the hue curves, the twelve wheel values as
+  numbers, the HSL secondary, and the vignette. Drag a row's value to change
+  it, or click it to type one. **Reset grade** returns every adjustment to
+  neutral.
+- A blend mode for the layer. Normal composites source-over. In a matte the
+  pair composites with the content clip's mode, and each side of a transition
+  composites with its own clip's mode.
 - Stabilize, offering the three smoothing levels and Off. The section is
   absent on a clip with no motion to smooth, such as a still.
 - Denoise, which runs RNNoise over the clip's audio on export.
+
+**Window > Color** opens the Color panel, which lays the same grade out in
+sections: Basic Correction, Creative, RGB Curves, Hue Curves, Color Wheels, HSL
+Secondary, and Vignette. Click a section's title to open or close it. Basic
+Correction opens first and the rest start closed. **Reset grade** heads the
+panel.
 
 The Audio tab toggles pitch lock. Locked (the default), a retimed clip keeps its
 original pitch: the sound is stretched in time and the pitch stays put. Unlocked,
@@ -418,9 +877,9 @@ The Transform tab carries the framing block below the transform rows:
   restores the whole frame and clears both mirrors.
 - Motion blur, with a shutter angle in degrees and a sub-frame sample count.
 
-The preview transport carries a **Handles** control naming which set of on-canvas
+The Viewer's control row carries a **Handles** control naming which set of on-canvas
 handles is live: Transform, Crop, or Mask. Click it to step to the next set, or
-use **View > Cycle Canvas Handles**. Only one set is drawn at a time, because a
+choose one under **View > Canvas Handles**. Only one set is drawn at a time, because a
 crop corner and a scale corner sit on the same pixel when the crop is full.
 
 In Transform mode, dragging the picture moves it and dragging a corner scales it.
@@ -438,25 +897,93 @@ undo restores the frame you started from.
 A generated clip whose size follows the canvas gets no handles; crop it with the
 inset rows.
 
+### Align and distribute
+
+**Window > Align** docks the Align panel. **Align to** selects what the selected
+clips line up against: the box around the selection, the frame, or the first
+selected clip. **Left**, **Centre**, and **Right** move each clip horizontally;
+**Top**, **Middle**, and **Bottom** move it vertically. A single selected clip
+aligns to the frame. **Across** and **Down** under **Distribute** keep the two
+outermost of three or more clips in place and space the centres evenly between
+them.
+
+Bounds are what the compositor draws at the playhead: a rotated clip aligns by
+the box around its turned corners, a title by the box its text renders into,
+and a parented clip where its parents place it. A clip whose Position is
+keyframed gets a keyframe at the playhead, keeping the curve and handles of a
+keyframe already there; an unkeyed clip gets a new constant Position. Clips on locked lanes, clips with a
+Position driver, and clips not drawn at the playhead stay where they are. One
+press is one undo step. A press that would move nothing writes nothing and
+reports why on the status line.
+
 ## Mask and chroma key
 
-Below the grade, the Look tab carries:
+Below the grade, the Look tab shows the masks of every visual clip: footage,
+stills, titles, shapes, stickers, animations, and adjustment layers. The masks
+cut what the clip draws before its effects, LUT, and layer styles, so a shadow
+or glow follows the masked edge. On an adjustment layer the masks limit the
+layer's look to the masked area. The Look tab holds:
 
-- The six mask shapes — linear, mirror, circle, rectangle, heart, star. The
-  applied shape is marked. Feather, roundness, rotation, width, height, and
-  the two offsets appear once a shape is applied, along with Invert and
-  Remove mask. Changing the shape keeps the shaping.
-- Mask handles on the preview, once a shape is applied: a dot at the centre moves
-  the mask, one on its right edge resizes it, and one above it rotates it. The
-  outline follows the pointer; the composite catches up on release, which commits
-  centre, size, and rotation as one edit. Escape abandons the drag.
+- A stack of up to 32 masks. The seven shape buttons under **Add a mask**
+  (linear, mirror, circle, rectangle, heart, star, path) each add a mask at the
+  bottom of the stack and make it the active mask. The palette's **Add <shape>
+  mask** rows do the same.
+- One header per mask: its number, its shape, and **(inverted)** when it keeps
+  the outside. Click the header to make that mask the active one. The active
+  mask is marked with a dot and shows its rows: feather, roundness on a
+  rectangle, rotation, width and height (not on a path), the two offsets,
+  opacity, and expansion. The Viewer handles, the Pen, and mask tracking act on
+  the active mask.
+- A mode per mask: None, Add, Subtract, Intersect, Lighten, Darken, or
+  Difference. Masks apply top to bottom. The stack starts empty, or full when
+  the first mask with a mode other than None subtracts, intersects, or darkens;
+  each mask then replaces the coverage with its mode's result, mixed by its
+  opacity. Expansion grows the mask outward by that many pixels, or shrinks it
+  when negative, and scales with the clip.
+- Invert, Move up, Move down, and Remove on each header. Each press is one undo
+  step. The palette's **Invert mask** and **Remove mask** rows and the Effect
+  menu's **Remove Mask** row act on the active mask; removing a mask makes the
+  one above it active.
+- Mask handles on the preview for the active mask: a dot at the centre moves the
+  mask, one on its right edge resizes it, and one above it rotates it. The
+  handles sit where the mask is at the playhead. The outline follows the
+  pointer; the composite catches up on release, which commits centre, size, and
+  rotation as one edit. A keyframed centre, size, or rotation that the drag
+  changed gains a keyframe at the playhead and keeps its other keyframes; one
+  the drag left alone keeps its curve. Escape abandons the drag.
+- Path masks, drawn with the Pen tool (P) on the selected clip in the preview. A
+  Pen press off the active path starts a new path mask; closing it adds the mask
+  to the bottom of the stack. Each click adds a corner vertex, and a click-drag
+  pulls a smooth one with mirrored tangents. Click the first vertex or press
+  Enter to close the path; Escape drops it. A path needs three vertices and
+  holds at most 1024. On an existing path the Pen inserts a vertex where it
+  clicks a segment, Ctrl+click deletes a vertex, and Alt+click turns one between
+  corner and smooth; an Alt+drag pulls new tangents. The Pen's Add Vertex,
+  Delete Vertex, and Convert Vertex variants do the same without the modifiers.
+  Any tool drags a vertex or a tangent handle. Each gesture is one undo step.
+- Path keyframes. A path mask has a **Mask N Path** row at the head of its
+  mask's timeline rows: a stopwatch, the vertex count at the playhead, and the
+  keyframe navigator. A Path keyframe holds the whole path. The stopwatch keys
+  the path at the playhead; pressed again it deletes every Path keyframe and
+  keeps the path shown at the playhead. While the path is keyframed, a vertex
+  or tangent drag in the Viewer keys the path at the playhead and leaves the
+  other keyframes alone, and inserting or deleting a vertex changes every
+  keyframe so the shape keeps moving between them. Between two keyframes with
+  different vertex counts the earlier path holds. Drag a Path keyframe to move
+  it in time; it snaps to the playhead and the path's other keyframes, and Alt
+  moves it freely. Click one to bring the playhead to it. Right-click one for
+  Linear, Ease In and Out, Ease In, Ease Out, Hold or Continuous, and Delete
+  Keyframe. Each press is one undo step.
 - Mask tracking from the command palette: **Track mask forward from the
-  playhead**. It follows the picture under the mask through the rest of the clip
-  and keyframes the mask centre for every frame it followed. The pass is a job,
-  so the editor keeps drawing while it runs; the jobs board counts the frames it
-  has read against the frames it will read, and Cancel stops it and keeps what it
-  tracked. A pass that loses the feature stops there and names the frame. Undo
-  removes the whole track in one step.
+  playhead**. It follows the picture under the active mask through the rest of
+  the clip and keyframes that mask's centre for every frame it followed. The
+  pass is a job, so the editor keeps drawing while it runs; the jobs board
+  counts the frames it has read against the frames it will read, and Cancel
+  stops it and keeps what it tracked. A pass that loses the feature stops there
+  and names the frame. Undo removes the whole track in one step. Masks added,
+  removed, or reordered while it runs do not move the keyframes off the tracked
+  mask; if the tracked mask is removed, dragged, or reshaped meanwhile, nothing
+  is written and the editor reports it.
 - A chroma key. Pick Green, Blue, or Cyan to key on that colour at a
   starting tolerance, then adjust Strength and Shadow. Re-keying keeps the
   tolerance. Remove key clears it.
@@ -476,18 +1003,45 @@ The Audio tab tags a clip as Music, Sound FX, Voiceover, or Extracted.
 
 ## Effects
 
-The Effects tab lists the effect chain in render order. Each row carries ↑ and
-↓ to move that effect one step, hidden at the ends of the chain, and a bin to
-remove it. Parameters of the applied effect appear under its row:
+The Effects tab of Effect Controls lists the effect chain in render order. Each effect
+has a header: **fx**, the effect's name, ↑ and ↓ to move it one step (hidden
+at the ends of the chain), a reset button, a menu button, and a bin to remove
+it.
 
-- A numeric parameter steps within the range the effect declares. Left click
-  raises it, right click lowers it.
-- A point parameter is two rows, x and y, stepping the same way.
-- A colour parameter is a row of swatches with the current value named beside
-  the label. A colour has no plain value in the project format, so a click
-  writes a keyframe: at the playhead when the playhead is over the clip, and at
-  the clip's first frame otherwise. Setting a colour at two playhead positions
-  animates it.
+- **fx** switches the effect off and back on, one undo step per press. A
+  switched-off effect keeps its parameters and its place in the chain, renders
+  nothing, and draws its name dimmed.
+- Drag a header onto another effect to move it above that effect, or onto the
+  rest of the tab to move it to the end of the chain. The move is one undo
+  step.
+- The reset button puts every parameter back at its default, in one undo step.
+  The effect keeps its name and its **fx** state.
+- The menu button, or a right click on the header, opens the effect menu:
+  - **Reset** does what the reset button does.
+  - **Rename Effect** opens the name field on the effect's name. Enter keeps
+    the name; an empty name puts the catalog name back.
+  - **Duplicate** places a copy with every value and keyframe below the effect,
+    named with the next free number.
+  - **Copy** holds the effect. **Paste Below** places the copy below the effect
+    the menu was opened on; Effect > **Paste Effect** places it at the end of
+    the chain of every selected clip that draws a picture.
+  - **Save as Preset…** opens the preset name field over that effect alone.
+  - **Remove Effect** takes the effect out of the chain.
+
+  Rows a plugin adds follow, below a rule.
+
+Parameters of the applied effect appear under its header. Each row reads its
+value at the playhead.
+
+- A numeric parameter is a value: drag it left or right to scrub it, or click it
+  to type one. A point parameter is two rows, x and y, and a 3D point is three.
+- A colour parameter names its value beside the label, a preset's name or a
+  hex such as `#ff0000`, with its swatches on the line under it. Click a
+  swatch to set the colour.
+- A parameter that can be animated has the stopwatch, the keyframe navigator,
+  the reset button, and the time area described in
+  [Property controls](#property-controls). Editing an animated parameter writes
+  a keyframe at the playhead; editing a constant one changes the constant.
 
 **Presets** holds the chains you saved. Click a preset to apply it to the
 selected clip, replacing that clip's chain in one undo entry. **Delete** beside
@@ -501,6 +1055,14 @@ launch.
 
 **Add** lists every effect the compositor can render. Clicking one appends it
 to the end of the chain.
+
+The **Effect** menu lists every video effect and every audio effect, one
+submenu per category: Blur & Sharpen, Color, Distort, Noise & Grain, and
+Stylize for video; Amplitude & Compression, Channels, Delay & Echo, Filter & EQ,
+Noise Reduction, Reverb, and Time & Pitch for audio. A plugin effect is listed
+under the category its plugin names, or under Other or Other Audio. A video
+effect row appends the effect to the selected clip's chain. An audio effect row
+appends it to the chain of every selected clip with sound, as one undo step.
 
 ## Audio effects
 
@@ -538,22 +1100,51 @@ and Pitch Shifter so lanes stay in time.
 ## Transitions
 
 A transition is a blend at the cut between two clips that touch. Select the
-clip on the left of the cut; the Look tab then shows the Transition block. It
-is absent when the clip has no clip abutting it on the right, and on lanes that
-cannot carry a transition.
+clip on the left of the cut; the Look tab, or the Audio tab on an audio lane,
+then shows the Transition block. It is absent when the clip has no clip
+abutting it on the right, and on lanes that cannot carry a transition.
 
-- The catalog lists cross fade, dip to black, dip to white, the four wipes, and
-  slide. The applied blend is marked. Picking another replaces it.
-- Duration sets the window length in ticks, centered on the cut.
+- On a picture lane the catalog lists cross fade, dip to black, dip to white,
+  the four wipes, and slide. On an audio lane it lists the audio crossfades.
+  The applied blend is marked. Picking another replaces it.
+- Duration sets the window length in ticks.
+- **Center at Cut**, **Start at Cut**, and **End at Cut** position the window across the cut, after the cut, or before the cut.
 - **Remove transition** clears it.
 
-The timeline draws the window as a band across the cut. Drag either edge of the
-band to set the length; both edges move the same amount, since the window is
-centered on the cut. Right-click the band for **Remove transition** and the
-blend catalog. Both act on that cut whatever is selected.
+Ctrl+T puts the default picture transition, the first in the catalog, at the
+selected edge or at the cut nearest the playhead on the targeted picture lanes.
+**Sequence > Apply Default Transitions** runs the same command. Ctrl+Shift+T
+puts Constant Power at the selected edge or at the cut nearest the playhead on
+the targeted audio lanes. A selected edge on the other kind of lane is refused
+with a status line naming the other chord. The Effects panel lists both sets,
+under **Video Transitions** and **Audio Transitions**.
+
+The timeline draws the window as a band at the cut according to its alignment.
+Drag either edge of the band to set the length: a centered band moves both
+edges symmetrically around the cut, and a start-aligned or end-aligned band
+changes length 1:1 with the dragged edge. Right-click the band for **Remove
+transition**, **Center at Cut**, **Start at Cut**, **End at Cut**, and the
+blend catalog. All act on that cut whatever is selected.
 
 Deleting or moving either clip so the two no longer touch drops the transition;
 undo restores it.
+
+### Audio crossfades
+
+- **Constant Power** fades by `sin` and `cos`. The summed power stays constant,
+  so two unrelated sounds keep their loudness through the cut. Ctrl+Shift+T
+  applies it.
+- **Constant Gain** fades linearly in amplitude. The two gains sum to one, so a
+  sound continued across the cut keeps its level.
+- **Exponential Fade** moves each level linearly in decibels between -60 dB
+  and 0 dB.
+
+The outgoing clip plays past the cut into its unused source media and fades
+out across the window; the incoming clip starts early from its unused source
+media and fades in. A clip with less unused media than half the window fades
+over the part of the window it covers, reaching silence where its media ends. A
+retimed clip fades inside its own extent. The crossfade replaces the clip's own
+fade on that side, in playback and in export.
 
 ## Templates
 
@@ -589,6 +1180,138 @@ tab clears the animation.
 
 An expanded clip draws its keyframe ticks as marks in the strip.
 
+### Property controls
+
+A property that can be animated has these controls, in Effect Controls and on a
+timeline property row:
+
+- The stopwatch, left of the name, turns animation on and off. A click on a
+  constant property writes a keyframe at the playhead. A click on an animated
+  property deletes every keyframe and keeps the value at the playhead, as one
+  undo step. Alt+click adds a driver, or removes the one the property has; see
+  [Drivers](plugins/drivers.md).
+- Editing an animated value writes a keyframe at the playhead. With the
+  playhead off the clip, the keyframe lands on the clip's nearest frame.
+- ‹ and › move the playhead to the previous and next keyframe. ◆ marks a
+  keyframe under the playhead, and a click deletes it. ◇ writes a keyframe
+  there holding the value the property has.
+- The reset button returns the property to its default. On an animated
+  property it writes the default as a keyframe at the playhead and keeps the
+  rest of the curve. It is dimmed when the property holds its default there.
+
+In Effect Controls, a time area follows the reset button. It spans the selected
+clip and draws the playhead and the property's keyframes. In a narrow Effect
+Controls panel the time area narrows, and is left blank below 32 px, before the
+property's name is shortened; hover a shortened name to read it in full.
+
+- Click a keyframe to select it; Shift+click adds it to the selection. Drag to
+  move every selected keyframe. The drag snaps to the playhead and to the
+  clip's other keyframes; hold Alt to move freely. The move is one undo step,
+  and the timeline's property row draws it while it is in flight.
+- Press anywhere else to move the playhead to that frame, and drag to scrub.
+- Escape drops a keyframe drag unwritten, and returns a scrubbed playhead to
+  where the press found it.
+
+### Several selected clips
+
+With several clips selected, Effect Controls draws the rows of the first selected
+clip. An edit there reaches every other selected clip that has the property, as
+one undo step:
+
+- A step, a scrub, or a typed value gives every clip the value the first clip
+  lands on. On a point row it gives only that axis; each clip keeps its own
+  value on the other axes.
+- The reset button returns each clip to its own default.
+- The stopwatch, the keyframe navigator's diamond, **Flatten**, and the easing
+  chips act on every clip as the first clip's row drew them: a diamond drawn ◆
+  deletes the keyframe at the playhead on every clip, and one drawn ◇ writes
+  one on every clip. Alt+click on the stopwatch adds a driver to the clips that
+  have none when the first clip has none, and removes it from the clips that
+  have one when the first clip has one.
+- A chip or a switch reaches the clips of the first clip's kind that read what
+  the first clip reads there.
+- The colour wheels' drag and reset reach every clip that grades.
+- An effect added with **Add**, or dragged onto the Effects tab, lands on every
+  clip on the same kind of lane; a shorter chain takes it at its end. A
+  parameter edit, **fx**, a move, the reset button, and the effect menu's
+  **Reset**, **Rename Effect**, **Duplicate**, **Paste Below**, and **Remove
+  Effect** reach every clip holding the same effect at the same place in its
+  chain. A menu opened on an effect of another clip acts on that clip alone.
+
+A dash replaces a value the selected clips read differently at the playhead.
+On a point row, a dash on one axis means the clips differ on that axis.
+
+The time area, ‹, and › act on the first selected clip, and a timeline property
+row acts on its own clip. While a title is being typed into in the Viewer, an
+edit reaches that title alone.
+
+### Property rows
+
+The arrow at the left of a clip bar opens the clip into property rows under its
+track, grouped under Transform, Effects, Masks, and Audio headers. A header
+arrow opens or closes its group; a clip on an audio lane shows only Effects and
+Audio. Each row shows the property's value at the playhead and the clip's
+keyframes on that property.
+
+- Drag a row's value left or right to scrub it. On an animated property the
+  scrub writes the keyframe under the playhead.
+- A keyframe's icon shows its interpolation: a diamond for linear, an hourglass
+  for Easy Ease, a half-hourglass for an ease on one side, a square for Hold,
+  and a circle for a roving keyframe.
+- Click a keyframe to select it; Shift+click adds or removes it. Drag across an
+  empty part of a row to select every keyframe inside the band.
+- Drag a selected keyframe to move every selected keyframe in time. The drag
+  snaps to the playhead and to the clip's other keyframes; hold Alt to move
+  freely. The move is one undo step.
+- Right-click a keyframe for Linear, Easy Ease, Easy Ease In, Easy Ease Out,
+  Toggle Hold, Rove Across Time (on a keyframe between two others), Copy,
+  Paste at Playhead, and Delete.
+
+The reveal chords open rows without the arrow: Alt+P, Alt+S, Alt+R, Alt+T, and
+Alt+A show only Position, Scale, Rotation, Opacity, or Anchor Point; Alt+E,
+Alt+M, and Alt+L show the effect, mask, or audio rows; Alt+M includes each path
+mask's Path row. Alt+U shows every animated or driven property and every
+keyframed path, and a second Alt+U also shows every property whose value
+differs from its default and every Path row. Adding Shift adds the property to
+the rows already open instead of replacing them. Alt+` closes every row.
+
+### Graph editor
+
+Shift+F3 opens the graph editor under the timeline. It draws the curves of the
+properties chosen by clicking a row's name (Shift+click adds a property).
+
+- **Value** plots the property's value; **Speed** plots its rate of change.
+- Each keyframe has incoming and outgoing influence handles labelled with their
+  influence. Dragging a handle sets the ease speed and influence of that side.
+- On Position, the Value graph also draws the spatial tangent handles that bend
+  the motion path.
+- **Easy Ease** and **Hold** apply to the selected keyframes, or to the keyframe
+  under the playhead when none is selected.
+
+### Animation menu
+
+- **Add Keyframe** writes a keyframe at the playhead on every selected property
+  row, holding the value the property has there.
+- **Add Expression** adds a driver to the selected property row and opens it.
+  A row that already has a driver opens that driver.
+- **Keyframe Velocity…**, or a double-click on a keyframe, sets the incoming and
+  outgoing speed (property units per second) and influence (per cent of the
+  segment) of the selected keyframes, or of the keyframes under the playhead.
+  **Continuous** keeps both sides at one speed. A Hold keyframe stays Hold.
+- **Keyframe Assistant > Time-Reverse Keyframes** mirrors two or more selected
+  keyframes of one property across their span, so the animation between the
+  first and the last plays backwards.
+- **Reveal Modified Properties** opens every property row of the selected clip
+  whose value differs from its default, as the second Alt+U does.
+
+Each edit is one undo step.
+
+Edit > **Remove Attributes…** lists the attribute groups the selected clips
+hold, each ticked: Motion, Opacity, Crop, Time Remapping, Volume, Pan, Effects,
+Audio Effects, Grade, Mask, and Chroma Key. Remove resets the ticked groups to a
+new clip's values as one undo step. Clearing Time Remapping re-derives the
+clip's duration; clearing Volume keeps the fades.
+
 ## Speed
 
 The Speed tab retimes a media clip. It is absent on generated clips, which have
@@ -614,6 +1337,17 @@ nothing to retime.
 A ramp changes the clip's timeline length: the engine re-derives it from the
 curve. A ramp that would push the clip into its neighbour is refused.
 
+**Clip > Speed/Duration…** sets constant speed (`5%` to `10000%`), duration,
+**Reverse Speed**, and **Maintain Audio Pitch** across the selected clips as one
+undo step. Editing speed updates the resulting duration; editing duration
+updates the speed. Values outside the supported range are rejected with the
+reason shown in the dialog.
+
+**Clip > Time Remap** toggles keyframed speed mapping (`Clip::speed_curve`) on
+the selected media clip and opens the Speed tab. While Time Remap is active, the
+curve maps sequence time to source time by integrating the keyframed speed
+multipliers across the clip.
+
 ## Canvas
 
 Settings carries a Canvas section while a project is open. Pick an aspect:
@@ -638,8 +1372,13 @@ timeline so each clip keeps the time it occupied, along with fades, transitions,
 markers, and keyframes, so an animation runs over the same seconds it did
 before. It is one undo step.
 
-Last is the audio layout: Mono, Stereo, or 5.1 Surround. The layout sets how many
+Then the audio layout: Mono, Stereo, or 5.1 Surround. The layout sets how many
 channels the sequence mixes to and what export writes.
+
+Last is the time display: **Timecode** (`00:00:12:04`), **Frames** (`292`), or
+**Feet + Frames 35mm** (`0018+04`, sixteen frames to the foot). The timeline
+ruler, the timecode over the track headers, the Viewer's playhead field, and the
+trim readout all read in it. It is saved with the sequence and is one undo step.
 
 ## Provider keys
 
@@ -686,8 +1425,9 @@ succeeded or failed.
 ## Caches
 
 Settings carries a Caches section listing every cache the app keeps: preview frames,
-library thumbnails, timeline filmstrips and waveforms, proxies, analysis state, AI
-model weights, downloads, catalog data, LUTs, Lottie assets, and templates.
+library thumbnails, timeline filmstrips and waveforms, proxies, render files,
+analysis state, AI model weights, downloads, catalog data, LUTs, Lottie assets,
+and templates.
 
 Each row names where the bytes live (Memory or Disk), what is lost by clearing it
 (regenerated locally, downloaded again, or your own data), when it is evicted
@@ -738,6 +1478,13 @@ and the capability is absent, not broken.
 them disappear. **Enable** mounts it again. Storage, settings, and the engine have
 no toggle: the editor cannot run without them.
 
+The first two rows of the section are the limits a WASM plugin runs under, each
+with **Halve** and **Double** steppers: `WASM fuel per call` (500,000,000
+instructions) and `WASM memory` (64 MiB). They persist to the `[plugin_limits]`
+table in `config.toml` and are clamped to 1,000,000 to 100,000,000,000
+instructions and 16 to 4,096 MiB. A change remounts every mounted WASM plugin
+under the new limits; one that does not mount under them is listed as failed.
+
 ## AI
 
 Settings carries an AI section.
@@ -772,37 +1519,51 @@ Settings carries an AI section.
 
 ## Workspaces
 
-A workspace is a named arrangement of the editor. Four ship:
+The editor area is a tree of splits and tabbed frames. Each frame has a 24 px
+tab bar at the top. Click a tab to activate it, click `×` or middle-click to
+close it, drag a tab within its bar to reorder it, drag a tab onto another
+frame's centre or edge (`Left`, `Right`, `Top`, `Bottom`) to dock or split it,
+or drag a tab outside the main window (or choose **Undock Panel** from the frame
+menu `≡`) to float it in a separate window. Double-click a tab bar or press
+`` ` `` to maximize the focused frame, and repeat to restore the split tree.
+
+A workspace is a named arrangement of frames, tabs, and pane sizes. Five ship:
 
 | Workspace | What it arranges |
 | --- | --- |
-| Editing | The default. Rail and inspector at their normal widths, timeline 280 px. |
-| Colour | Rail hidden, wide inspector, scope strip open, preview focused. |
-| Audio | Tall timeline, narrower inspector, timeline focused. |
-| Effects | Rail hidden, widest inspector, inspector focused. |
+| Editing | The default. Upper row: `Project \| Effect Controls` (320 px) on the left, `Viewer \| Audio Track Mixer \| Assistant` in the centre, `Info \| Effects & Presets \| Character` (300 px) on the right. Lower row: `Timeline` and `Audio Meters` (64 px). |
+| Animation | `Effect Controls \| Effects & Presets` on the left, `Viewer` in the centre, `Info \| Scopes` on the right, and `Timeline` at 50% height with the graph editor open. |
+| Color | `Viewer` at 55% width, `Color \| Scopes \| Effect Controls` at 45% width, and a compact `Timeline` below. |
+| Audio | `Viewer` at 30% width, `Audio Track Mixer` at 45% width, `Effects & Presets` (filtered to Audio Effects) and `Audio Meters` at 25% width, with `Project` and `Timeline` below. |
+| Effects | `Project \| Effects & Presets` (320 px) on the left, `Viewer` in the centre, `Effect Controls \| Info` (300 px) on the right, and `Timeline` plus `Audio Meters` (64 px) below. |
 
-Pick one from **Window**, from Settings > Workspaces, or from the command palette
-by name. Applying a workspace sets the sidebar and inspector widths, whether
-either is collapsed, the timeline height, the scope strip, the focused pane, and
-the route.
+Pick one from **Window**, from Settings > Workspaces, by Shift+Alt+1 through
+Shift+Alt+9, or from the command palette by name. Edits made to a workspace's
+frames and splits are remembered for that workspace; **Window > Reset to Saved
+Layout** restores the workspace's default arrangement. Double-clicking a splitter
+restores that split's saved workspace ratio.
 
-**Window > Save Workspace** keeps the arrangement on screen as **Custom**. There is
-one such slot: saving again replaces it. The Custom row appears on the Window menu
-only once something is saved in it, and **Forget** in Settings > Workspaces removes
-it again. The slot is written to `ui-settings.json`, so it survives a restart.
-
+**Window > Save Workspace** saves the current arrangement to the **Custom** slot
+and opens the inline **Save workspace as** prompt; committing a name writes
+`<data dir>/workspaces/<name>.json`. The Custom row appears on the Window menu
+once saved, and **Forget** in Settings > Workspaces removes it again.
 Settings > Workspaces lists every workspace with its measurements, and marks the
-one the panes are arranged like now. Drag a divider and no workspace is marked:
-the mark is measured, not remembered.
+workspace last chosen, as the tool bar's workspace switcher and the Window menu
+do. A fresh session marks Editing. The workspace keeps the dividers you drag and
+the panels you move, so it stays marked through them and through a click on
+another panel.
 
 ## Finding a setting
 
 The box at the top of Settings filters the sections by name. It narrows as you type,
 Escape clears it, and it is never written to the config file.
 
-The Appearance section carries two rows: **System**, **Light**, and **Dark** choose
-the appearance, and **Accent** chooses the hue used for the accent, the playhead, and
-the caret. The accent choice persists in `[appearance]` and applies immediately.
+In the Appearance section, **System**, **Light**, and **Dark** choose the
+appearance, **Accent** chooses the hue used for the accent, the playhead, and the
+caret, and **Theme** chooses a theme file from `~/.aria/themes`, a theme a
+plugin installed, or the shipped palette (see [Theme files](theme-tokens.md#theme-files)). The accent choice
+persists in `[appearance]`, the theme in `ui-settings.json`, and both apply
+immediately.
 
 The Cloud section carries the backend base URL. Left empty it uses the shipped
 default.
@@ -816,7 +1577,7 @@ installed version.
 
 ## Stock and sound effects
 
-The media sidebar carries a **Stock** tab and an **SFX** tab.
+The Project panel carries a **Stock** tab and an **SFX** tab.
 
 Stock searches video, photo, and audio libraries. Click the query box, type, and
 press Enter or click **Search**. Escape leaves the box. The **Video**, **Photo**,
@@ -850,7 +1611,7 @@ Stock results and SFX import into the media pool instead.
 
 ## Generate
 
-The sidebar's **Generate** tab sends a prompt to fal.ai with your own key.
+The Project panel's **Generate** tab sends a prompt to fal.ai with your own key.
 
 Click the prompt box, type what you want, and press Enter or click **Generate**.
 The **Image**, **Video**, and **Voice** chips choose what to produce; switching
@@ -880,7 +1641,7 @@ refuses. A slow link needs a larger `Read`; a large model on a slow link needs a
 larger `Total`.
 
 With a model installed, select a clip whose media has an audio track and open
-the sidebar's **Captions** tab. Set a language code such as `en` in the box, or
+the Project panel's **Captions** tab. Set a language code such as `en` in the box, or
 leave it empty to detect one. The thread chips choose how many CPU threads the
 decoder uses. Press Enter or click **Transcribe**.
 
@@ -901,7 +1662,7 @@ app.
 
 ## Analysis
 
-The sidebar's **Analysis** tab runs three detectors on the selected clip and keeps
+The Project panel's **Analysis** tab runs three detectors on the selected clip and keeps
 their results in a moments index under `analysis/` in the data directory.
 
 - **Shots** samples the video at 2 frames per second and finds the cuts.
@@ -937,8 +1698,8 @@ Two rows turn a detection into an edit:
   closes the gaps. Each span is its own undo entry.
 
 **Measure loudness** measures the clip's loudness contour and draws it in the
-Inspector's Audio tab, one column per window, with the peak level and a clipping
-flag. The contour is measured on demand, not per frame.
+Effect Controls panel's Audio tab, one column per window, with the peak level and
+a clipping flag. The contour is measured on demand, not per frame.
 
 Results are keyed on the media file, identified by its path, length, and
 modification time rather than a digest of its bytes: hashing a multi-gigabyte file
@@ -960,7 +1721,7 @@ the result is ordinary volume keyframes you can drag, retime, or undo.
 1. Right-click the voice lane's header and pick **Duck Source**, or run `Toggle
    track as duck source` in the palette. Only an audio lane can be the source.
 2. Select the music clip or clips.
-3. Open the Inspector's **Audio** tab and use **Duck under voice**.
+3. Open the Effect Controls panel's **Audio** tab and use **Duck under voice**.
 
 Three rows above the button shape the dip. **Dip to** is the level the music
 holds while the voice plays, as a share of that clip's own volume, so ducking a
@@ -1003,7 +1764,8 @@ wraps the pictures into a 96px grid with the name underneath and no facts. The
 view is saved with your settings, not with the project, so it is the same in the
 next project you open.
 
-Click an item to place it at the playhead and to select it. Each row states the
+Click an item to select it; double-click it to open it in a Source tab (see
+[Previewing a source](#previewing-a-source)). Each row states the
 frame size, the length, the video codec, and either the audio codec or that the
 file is silent, so a silent video is visible before it is cut in. The block under
 the list reports what the pool knows about the selected item: container, frame
@@ -1013,8 +1775,8 @@ whether it is still linked, and its path.
 Ctrl+click (Cmd+click on macOS) adds an item to the selection, or drops it if it
 is already in. Shift+click picks every item drawn between the last one you
 clicked outright and the one you shift-click, in the order the list is showing.
-Neither places a clip: a modified click only changes the selection. Selected
-items are bordered, and the properties block describes the last one clicked.
+No click places a clip. Selected items are bordered, and the properties block
+describes the last one clicked.
 
 The order of the selection is the order you clicked, which is the angle order of
 a multicam group built from it. Opening another folder drops the selection.
@@ -1035,7 +1797,10 @@ Drag an item onto the timeline to place it where you drop it:
   creates a lane of its own kind and lands there. This is the only drop that
   adds a lane.
 
-Clicking still places at the playhead.
+With Program focused in the Viewer, `,` inserts the selected items at the
+playhead, end to end in the order you clicked them, and `.` overwrites with them.
+Both go through the patched lanes, and the placement is one undo step. An item
+whose file is missing is skipped.
 
 Right-click a pool item for **Remove from project** and for the label swatches.
 An item is removable only
@@ -1073,29 +1838,70 @@ its last. Nothing is placed and nothing is edited; a still shows its one frame.
 A row shows a glyph until its first frame is decoded, and an audio-only file has
 no picture.
 
-With the pool focused, `Space` loads the selected item into the preview pane as a
-source. The pane names the file and the frame it is showing, and scrubbing that
-item's row moves it. `Space` again, **Sequence** in the corner, or `Space` over
-any other panel returns the pane to the sequence. Loading a source stops
-playback: the pane shows one thing at a time. Safe areas and the transform
-handles belong to the sequence and are not drawn over a source.
+Double-click a pool item, or press `Space` with the pool focused, to open it in a
+Source tab of the Viewer. The tab row above the picture holds **Program** first
+and one **Source:** tab per open item; click a tab to show it, and close a Source
+tab with its close button, a middle click, or Ctrl+W with the Viewer focused.
+Opening an item that already has a tab shows that tab. A tab keeps its frame and
+its marks while it stays open. `Shift+2` with the Viewer focused switches between
+Program and the Source tab shown last. `Space` with the pool focused shows Program
+again when the item's tab is in front, **Sequence** in the corner shows Program,
+and `Space` over any other panel, including Effects and the Project panel tabs that do
+not list the pool, or over a pool with nothing selected, shows Program and plays
+the sequence. Opening a source stops playback. Safe areas and the transform
+handles belong to the sequence and are not drawn over a source. An audio-only
+item has no picture and opens no tab.
 
-The bar under a loaded source is its own scrub bar: drag it to move the frame on
-screen, which moves the row's picture with it. `I` marks the source in point and
+**Split** at the right of the tab row shows the Source tab shown last on the left
+and Program on the right. The keys reach whichever tab is focused.
+
+Double-click a media clip on the timeline to open its take in a Source tab linked
+to that clip. The tab opens at the frame the sequence shows under the playhead,
+or at the clip's first frame when the playhead is elsewhere, and its In and Out
+are the clip's. Marking In or Out in that tab trims the clip: a new In trims the
+head, a new Out the tail, and every frame that stays keeps its place on the
+timeline. Clearing a mark extends the clip to that end of the take. A reversed
+clip trims the opposite end, a retimed clip trims at its speed, and its linked
+sound trims with it. A trim that would overlap a neighbour, start before the
+sequence, or put Out before In is refused and changes nothing. Clips with a speed
+ramp and freeze frames trim on the timeline only. Undo puts the clip and the
+tab's marks back together. Deleting the clip leaves a plain Source tab with its
+last In and Out. The same take opened from the pool, or from another clip, opens
+in its own tab. `F` (Match Frame) opens the pool's tab for the take under the
+playhead instead, with the clip's In and Out as plain marks.
+
+The mini ruler under the Viewer's control row spans the tab in front: the whole
+sequence on Program, with its In and Out range and its markers, and the whole
+take on a Source tab, with the tab's marks. Press it to put that tab on the frame
+under the pointer, and drag to scrub; the drag continues when the pointer leaves
+the ruler, and Esc puts the frame back. On a Source tab the pool row's picture
+follows the ruler. `I` marks the source in point and
 `O` the out point while a source is loaded, so those keys mark the take you are
-looking at rather than the sequence; `Alt+I` and `Alt+O` clear them, and
+looking at rather than the sequence; `Ctrl+Shift+I` and `Ctrl+Shift+O` clear them, and
 **Clear** clears both. An out point is exclusive, so the frame you marked is
-included. The bar shades the marked range and the line beside it counts the
-frames kept.
+included. The ruler shades the marked range, and the line under the picture
+counts the frames kept.
 
-**Insert** (`,`) puts the marked range into the sequence at the playhead and
-pushes the rest of the lane right. **Overwrite** (`.`) puts it there without
-moving anything: material inside the span is dropped, material reaching into the
-span is trimmed to the edge it crosses, and a clip that spans the whole window
-survives on both sides of it. Mark the sequence at both ends first and either
-button becomes a four-point edit: the sequence's span decides the length and the
-take is retimed to fill it. Each is one undo entry. The monitor stays open, so
-takes can be cut in one after another.
+A focused Source tab has its own transport. With the Viewer focused, `Space`
+plays or stops the take, `Shift+Space` plays its In to Out, `J` and `L` shuttle
+it at 1x, 2x, 4x, and 8x, `K` stops it, and `K` held with `J` or `L` steps one
+frame. `Left` and `Right` step a frame, `Shift+Left` and `Shift+Right` five,
+`Home` and `End` go to either end of the take, and `Shift+I` and `Shift+O` go to
+its In and Out. The play button under the Viewer plays the tab in front of it.
+Source playback has no sound. Starting the sequence stops the source, starting
+the source stops the sequence, and showing another tab stops the source. Over any
+other panel the same keys move the sequence.
+
+**Insert** (`,`) puts the marked range into the sequence at the playhead on the
+patched lanes and pushes the rest of every sync-locked lane right. **Overwrite**
+(`.`) puts it there without moving anything: material inside the span is
+dropped, material reaching into the span is trimmed to the edge it crosses, and a
+clip that spans the whole window survives on both sides of it. Mark the sequence
+at both ends as well as the source and either button becomes a four-point edit:
+the sequence's span decides the length and the take is retimed to fill it. Drag
+the frame onto the timeline to drop the marked range where you let go, covering
+what is there; hold Ctrl to insert instead. Each is one undo entry. The tab stays
+open, so takes can be cut in one after another.
 
 ### Multicam
 
@@ -1147,34 +1953,51 @@ that was already in sync, and nothing on screen would tell you it had.
 
 ## Markers
 
-`M` drops a marker at the playhead, `Shift+M` removes the one under it, and the
-sidebar's **Markers** tab lists them all in time order.
+`M` adds a marker at the playhead: on the selected clip in clip-source time when
+a selected clip spans the playhead, or on the sequence ruler otherwise. Pressing
+`M` when a marker is already at the playhead, or choosing **Markers > Edit
+Marker…**, opens the Edit Marker dialog to set its name, comment, colour
+swatch, duration timecode, and kind (`Comment`, `Chapter`, or `Segmentation`) as
+one undo step. Negative durations and durations that run past the sequence end
+or the clip's source range are rejected with a reason. `Shift+M` removes the
+marker at the playhead, and `Ctrl+Shift+M` / `Ctrl+Shift+Alt+M` step to the
+previous marker or clear all sequence markers.
 
-Each row shows the marker's colour, its timecode, its label, and its note.
-Clicking the row seeks to it. The colour chip advances the eight-colour palette.
-**Rename** edits the label, **Note** edits the comment, and **Remove** deletes
-the marker. Every one of those is a single undo entry.
-
-A note is free text kept with the marker. An empty note draft clears the note,
-where an empty name draft cancels instead: a marker is allowed to have no note
-and is not allowed to have no name. A project saved with no notes is byte-for-byte
-what an older version of the app wrote, so a note costs nothing until you write
-one.
+The **Markers** panel (Window > Markers) lists sequence and clip markers in time order with
+colour filter chips (`All` plus the eight palette colours). Each row shows the
+marker's colour, timecode, duration when positive, clip badge for clip markers,
+kind badge when not `Comment`, name, and note. Clicking a row moves the playhead
+to the marker. Clicking the colour swatch cycles the eight-colour palette,
+**Edit…** opens the Edit Marker dialog, **Rename** edits the name inline,
+**Note** edits the comment inline (an empty note clears the comment), and
+**Remove** deletes the marker. Every edit is one undo step. A marker with a
+positive duration draws as a range bar on the timeline ruler or on its clip
+card, and snapping targets both ends of a range marker.
 
 ## Label colours
 
-A label colour groups clips that belong together. Right-click a clip: the menu
-carries a row of eight swatches and an `×`. Clicking a swatch labels every
-selected clip, `×` clears the label, and each is one undo entry per clip.
+A label colour groups clips that belong together. The sixteen labels are
+Violet, Iris, Caribbean, Lavender, Cerulean, Forest, Rose, Mango, Purple, Blue,
+Teal, Magenta, Tan, Green, Brown, and Yellow. Right-click a clip: the menu
+carries their swatches and an `×`. **Edit > Label** lists the same sixteen and
+**None**. Clicking a swatch labels every selected clip, `×` clears the label,
+and each is one undo entry per clip.
 
-A labelled clip is drawn in its label colour instead of its kind colour, so the
-grouping is what you see on the timeline. **Select same label** selects every
-clip carrying the label of the clip you clicked, in timeline order, and the
-status line reports how many it found.
+A clip bar is filled with its label colour. A clip with no label takes its
+kind's label: Violet for video, Forest for audio, Mango for generators, titles
+and shapes, Tan for nested sequences, and Lavender for clips on adjustment,
+effect, and filter tracks. A selected clip is drawn in a lighter fill of its
+label with a 1 px white border.
 
-The eight colours are the marker palette, so the teal group and a teal marker
-are the same hue. A project saved with no labels is byte-for-byte what an older
-version of the app wrote.
+The **Select** chips under the swatches list every label in use with its clip
+count; a clip with no label counts under its kind's label. Clicking a chip
+selects every clip drawn in that colour, in timeline order, and the status line
+reports how many it found.
+
+Labels are saved by name. A project saved when labels used the eight marker
+colours opens with `pink` as Magenta, `red` as Rose, and `orange` as Mango. A
+project saved with no labels is byte-for-byte what an older version of the app
+wrote.
 
 A media-pool row takes a label the same way: right-click the row and pick a
 swatch. The row draws a dot in its colour, and the pool filter matches the
@@ -1199,8 +2022,8 @@ See [Templates](#templates) for the marks.
 - Ctrl+S saves to `~/.aria/untitled.aria` the first time, or to the last
   project path.
 - Ctrl+Shift+S saves to a new path.
-- Ctrl+O opens a project. Ctrl+W returns to Home.
-- Ctrl+E opens Export. Choose a destination or accept the default `.mp4`.
+- Ctrl+O opens a project. Ctrl+Shift+W returns to Home.
+- Ctrl+M opens Export. Choose a destination or accept the default `.mp4`.
 - Export writes what this platform's encoder supports. The sheet's **Format**
   and **Encoder** rows name the container, the codec of the file about to be
   written, and the backend (GStreamer on Linux, VideoToolbox on macOS, Media
@@ -1231,6 +2054,9 @@ clicked, and none of them is an edit or is saved with the project:
 - **Audio** includes the mix or writes a video-only file.
 - **Range** is the whole timeline or the marked range. Marking is required
   first: with no In and Out set, the row refuses and says so.
+
+The **Destination** row shows the file the export writes. A path wider than the
+sheet loses its start to an ellipsis, and the file name stays in view.
 
 The status line names the size, whether audio is included, and the span when the
 export starts.
@@ -1309,14 +2135,15 @@ reads correctly rather than repeating a stale letter.
 
 ## History
 
-**Window > History**, `History` in the command palette, or Ctrl+Shift+H lists
-every step this session took, oldest first, starting with **Project opened**.
+**Window > History**, `History` in the command palette, or Ctrl+Shift+H brings
+the History panel forward. It lists every step this session took, oldest first,
+starting with **Project opened**.
 
 Each row is one undo step, named after the command that made it: `Split clip`,
 `Move clip`, `Add effect`. A gesture that ran several commands is one row named
 after its first, with the count of the rest: `Move clip +2` undoes all three.
 
-The row the project is at is marked **current**. **Go** on any other row moves
+The row the project is at is marked **current**. Clicking any other row moves
 the project to the state after that step, in either direction; it is undo and
 redo without counting keystrokes. A step that has been undone stays in the list,
 dimmed, because redo can still reach it. Making a new edit while dimmed rows are
@@ -1327,11 +2154,15 @@ does.
 
 ## Jobs
 
-**Window > Jobs**, or `Jobs` in the command palette, lists background work:
-exports, cloud downloads, transcription, and analysis.
+**Window > Jobs** docks the Jobs panel, which lists background work: exports,
+cloud downloads, transcription, and analysis. `Jobs` in the command palette
+opens the same list as a dialog. While work runs, the centre of the status bar
+shows the first running job, its progress, and how many others are running;
+click it to bring the Jobs panel forward.
 
 Each row shows the label, the state, a detail line such as `frame 240/1800`,
-and the elapsed time. A job that reports a fraction draws a filled bar; one
+and the elapsed time. A running job that reports a fraction also shows the time
+left at its rate so far: `Running · 12.4s · 38s left`. A job that reports a fraction draws a filled bar; one
 that cannot measure its total draws a moving bar and reports what it has done
 so far.
 
@@ -1410,7 +2241,7 @@ available to the next prompt, and editing a rule file takes effect on the next
 prompt without a restart.
 
 The ✓ beside each skill switches it off for this conversation. It stays
-installed; the next prompt simply does not carry it. Clearing the conversation
+installed; the next prompt does not carry it. Clearing the conversation
 switches them all back on.
 
 Rules are read from `~/.aria/agent/` at send time. The rule text is capped, and a
@@ -1423,7 +2254,7 @@ Timeline edits go through the validated vocabulary and land in the undo history.
 Alongside them the assistant has app tools:
 
 - **Look at a frame.** It renders the timeline at a time and looks at the picture,
-  so it can check what a shot actually shows before changing it. The row in the
+  so it can check what a shot shows before changing it. The row in the
   transcript names the moment it looked at.
 - **Read a media file.** Size, frame rate, length, and codecs come from the file
   itself, not from its name.
@@ -1431,7 +2262,7 @@ Alongside them the assistant has app tools:
 - **Empty a cache.** Destructive, so it goes through **Autonomy**.
 
 With **Autonomy** set to `ask`, a destructive call stops and the transcript shows
-what it would do with **Allow** and **Deny**. The turn is genuinely waiting: it
+what it would do with **Allow** and **Deny**. The turn waits for the answer: it
 continues on Allow, and on Deny the assistant is told it was refused and carries
 on. **Stop** while a question is open denies it. With `full` there is no question.
 

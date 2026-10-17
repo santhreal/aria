@@ -26,6 +26,7 @@ edit_ops! { ctx;
     DuplicateClip { clip, to_track, start } => created(edit::duplicate_clip::execute(ctx, clip, to_track, start)?),
     PasteRetimed { clip, to_track, start, target_duration, target_speed } => created(edit::paste_retimed::execute(ctx, clip, to_track, start, target_duration, target_speed)?),
     PasteAttributes { source, clip } => updated(clip, edit::paste_attributes::execute(ctx, source, clip)?),
+    RemoveAttributes { clip, attributes } => updated(clip, edit::remove_attributes::execute(ctx, clip, &attributes)?),
     FreezeFrame { clip, at, duration } => created(edit::freeze_frame::execute(ctx, clip, at, duration)?),
     BakeClip { clip, media } => updated(clip, edit::bake::bake_clip(ctx, clip, media)?),
     RestoreBakedClip { clip } => updated(clip, edit::bake::restore_baked_clip(ctx, clip)?),
@@ -42,8 +43,10 @@ edit_ops! { ctx;
 
     // Geometry and parameters.
     SetClipTransform { clip, transform, at } => updated(clip, edit::set_transform::execute(ctx, clip, transform, at)?),
+    SetClipParent { clip, parent, at, keep } => updated(clip, edit::set_parent::execute(ctx, clip, parent, at, keep)?),
     SetParamKeyframe { clip, param, at, value, easing, tangents } => updated(clip, edit::set_param::set_keyframe(ctx, clip, param, at, value, easing, tangents)?),
     RemoveParamKeyframe { clip, param, at } => updated(clip, edit::set_param::remove_keyframe(ctx, clip, param, at)?),
+    SetParamDriver { clip, param, code } => updated(clip, edit::set_driver::set_driver(ctx, clip, param, code)?),
     SetParamConstant { clip, param, value } => updated(clip, edit::set_param::set_constant(ctx, clip, param, value)?),
     ApplyEasingPreset { clip, param, at, preset } => updated(clip, edit::set_param::apply_easing_preset(ctx, clip, param, at, preset)?),
     SetClipCrop { clip, crop, flip_h, flip_v, at } => updated(clip, edit::set_crop::set_crop(ctx, clip, crop, flip_h, flip_v, at)?),
@@ -57,7 +60,9 @@ edit_ops! { ctx;
     // junction can appear or disappear: its row keeps them.
     SlipClip { clip, by } => updated(clip, edit::slip_clip::execute(ctx, clip, by)?),
     TrimClip { clip, timeline } => updated(clip, edit::trim_clip::execute(ctx, clip, timeline)?),
+    TrimClipUnlinked { clip, timeline } => updated(clip, edit::trim_clip::trim_one(ctx, clip, timeline)?),
     MoveClip { clip, to_track, start } => updated(clip, edit::move_clip::execute(ctx, clip, to_track, start)?),
+    MoveClipUnlinked { clip, to_track, start } => updated(clip, edit::move_clip::execute_unlinked(ctx, clip, to_track, start)?),
     RippleMoveClip { clip, to_track, start } => updated(clip, edit::ripple_move::execute(ctx, clip, to_track, start)?),
 
     // Audio.
@@ -69,9 +74,14 @@ edit_ops! { ctx;
     // Identity.
     SetClipLabel { clip, label } => updated(clip, edit::set_label::set_label(ctx, clip, label)?),
     SetClipName { clip, name } => updated(clip, edit::set_clip_name::set_clip_name(ctx, clip, name)?),
+    SetClipType { clip, clip_type } => updated(clip, edit::set_clip_name::set_clip_type(ctx, clip, clip_type)?),
+    SetClipLineParam { clip, param } => updated(clip, edit::set_clip_name::set_clip_line_param(ctx, clip, param)?),
 
     // Look: one handler module, one function per property.
-    SetClipMask { clip, mask } => updated(clip, edit::set_look::set_mask(ctx, clip, mask)?),
+    AddClipMask { clip, mask } => updated(clip, edit::set_mask::add_mask(ctx, clip, mask)?),
+    SetClipMask { clip, index, mask } => updated(clip, edit::set_mask::set_mask(ctx, clip, index, mask)?),
+    RemoveClipMask { clip, index } => updated(clip, edit::set_mask::remove_mask(ctx, clip, index)?),
+    MoveClipMask { clip, from_index, to_index } => updated(clip, edit::set_mask::move_mask(ctx, clip, from_index, to_index)?),
     SetClipBlendMode { clip, mode } => updated(clip, edit::set_look::set_blend_mode(ctx, clip, mode)?),
     SetClipMotionBlur { clip, motion_blur } => updated(clip, edit::set_look::set_motion_blur(ctx, clip, motion_blur)?),
     SetClipLayerStyles { clip, styles } => updated(clip, edit::set_look::set_layer_styles(ctx, clip, styles)?),
@@ -88,15 +98,22 @@ edit_ops! { ctx;
     RemoveEffect { clip, index } => updated(clip, edit::set_effect::remove_effect(ctx, clip, index)?),
     MoveEffect { clip, from_index, to_index } => updated(clip, edit::set_effect::move_effect(ctx, clip, from_index, to_index)?),
     SetEffectParam { clip, index, param, value } => updated(clip, edit::set_effect::set_effect_param(ctx, clip, index, param, value)?),
-    ApplyEffectPreset { clip, preset } => updated(clip, edit::set_effect::apply_effect_preset(ctx, clip, &preset)?),
+    SetEffectInstance { clip, index, effect } => updated(clip, edit::set_effect::set_effect_instance(ctx, clip, index, effect)?),
+    SetEffectBypass { clip, index, bypass } => updated(clip, edit::set_effect::set_effect_bypass(ctx, clip, index, bypass)?),
+    ApplyPreset { clip, preset, at } => updated(clip, edit::set_effect::apply_preset(ctx, clip, &preset, at)?),
     AddTransition { clip, transition_id } => updated(clip, edit::set_transition::add_transition(ctx, clip, &transition_id)?),
     RemoveTransition { clip } => updated(clip, edit::set_transition::remove_transition(ctx, clip)?),
     SetTransition { clip, duration } => updated(clip, edit::set_transition::set_transition(ctx, clip, duration)?),
+    SetTransitionAlignment { clip, alignment } => updated(clip, edit::set_transition::set_transition_alignment(ctx, clip, alignment)?),
+    SetTransitionState { clip, transition } => updated(clip, edit::set_transition::set_transition_state(ctx, clip, transition)?),
 
     // Linking. The outcome names the selection's first clip; an empty
     // selection is refused by `first_of`.
     LinkClips { clips } => updated(first_of(&clips)?, edit::link_clips::execute(ctx, &clips)?),
     UnlinkClips { clips } => updated(first_of(&clips)?, edit::link_clips::unlink(ctx, &clips)?),
+    SetClipsEnabled { clips, enabled } => updated(first_of(&clips)?, edit::link_clips::set_enabled(ctx, &clips, enabled)?),
+    GroupClips { clips } => updated(first_of(&clips)?, edit::link_clips::group(ctx, &clips)?),
+    UngroupClips { clips } => updated(first_of(&clips)?, edit::link_clips::ungroup(ctx, &clips)?),
 
     // Removals.
     RemoveClip { clip } => removed(clip, Box::new(RemoveClipAction { clip }).apply(ctx)?),
@@ -115,6 +132,8 @@ edit_ops! { ctx;
     SetTrackSyncLock { track, sync_lock } => updated_track(track, edit::set_track_flags::execute(ctx, track, FlagPatch::sync_lock(sync_lock))?),
     SetTrackDisplay { track, height, waveform, filmstrip, collapsed } => updated_track(track, edit::set_track_display::execute(ctx, track, height, waveform, filmstrip, collapsed)?),
     SetTrackGain { track, gain } => updated_track(track, edit::set_track_routing::execute(ctx, track, RouteEdit::Gain(gain))?),
+    SetTrackPan { track, pan } => updated_track(track, edit::set_track_routing::execute(ctx, track, RouteEdit::Pan(pan))?),
+    SetTrackAutomation { track, mode, volume, pan } => updated_track(track, edit::set_track_routing::execute(ctx, track, RouteEdit::Automation { mode, volume, pan })?),
     SetTrackOutput { track, to } => updated_track(track, edit::set_track_routing::execute(ctx, track, RouteEdit::Output(to.map_or(TrackOutput::Master, TrackOutput::Bus)))?),
     AddSend { track, to, level, pre_fader } => updated_track(track, edit::set_track_routing::execute(ctx, track, RouteEdit::AddSend { to, level, pre_fader })?),
     SetSend { track, index, level, pre_fader } => updated_track(track, edit::set_track_routing::execute(ctx, track, RouteEdit::SetSend { index, level, pre_fader })?),
@@ -138,6 +157,8 @@ edit_ops! { ctx;
     SetCanvas { aspect, background, resolution } => updated_canvas(edit::set_canvas::set_canvas(ctx, aspect, background, resolution)?),
     SetSequenceRate { frame_rate } => updated_sequence_rate(edit::set_sequence_rate::set_sequence_rate(ctx, frame_rate)?),
     SetAudioLayout { layout } => updated_audio_layout(edit::set_audio_layout::set_audio_layout(ctx, layout)?),
+    SetTimeDisplay { display } => updated_time_display(edit::set_time_display::set_time_display(ctx, display)?),
+    SetMasterMix { gain, pan, muted, automation, volume, pan_envelope } => updated_master(edit::set_track_routing::execute_master(ctx, gain, pan, muted, automation, volume, pan_envelope)?),
     SetProjectName { name } => updated_project(edit::set_project_name::set_project_name(ctx, name)?),
     CreateBin { name, parent } => created_bin(edit::bin::create_bin(ctx, name, parent)?),
     RenameBin { bin, name } => updated_pool(edit::bin::rename_bin(ctx, bin, name)?),
@@ -150,6 +171,11 @@ edit_ops! { ctx;
     SwitchMulticamAngle { group, at, angle } => updated_pool(edit::multicam::switch_angle(ctx, group, at, angle)?),
     SetMulticamSync { group, angle, offset } => updated_pool(edit::multicam::set_angle_offset(ctx, group, angle, offset)?),
     OpenSequence { sequence } => opened_sequence(edit::nested_sequence::open_sequence(ctx, sequence)?),
+    CreateSequence { name } => opened_sequence(edit::nested_sequence::create_sequence(ctx, name)?),
+    SetKeyframeEase { clip, param, at, in_ease, out_ease, hold } => updated(clip, edit::set_param::set_keyframe_ease(ctx, clip, param, at, in_ease, out_ease, hold)?),
+    SetKeyframeRoving { clip, param, at, roving } => updated(clip, edit::set_param::set_keyframe_roving(ctx, clip, param, at, roving)?),
+    SetSourcePatch { channel, patch } => updated_source_patch(edit::source_patch::execute(ctx, channel, patch)?),
+    SourceEdit { media, source, at, fill, ripple, track, sound } => created(edit::source_edit::execute(ctx, media, source, at, fill, ripple, track, sound)?),
 }
 
 #[rustfmt::skip]

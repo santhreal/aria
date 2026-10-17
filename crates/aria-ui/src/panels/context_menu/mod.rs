@@ -4,7 +4,7 @@ use crate::app::AppState;
 use crate::fluent::FluentBuilder;
 use crate::motion;
 use crate::plugins::overlay_host::{self as overlays, OverlayWhen};
-use crate::surfaces::context_menu::{ClipMenu, PoolMenu, TrackMenu};
+use crate::surfaces::context_menu::{BadgeMenu, ClipMenu, EffectMenu, PoolMenu, TrackMenu};
 use crate::surfaces::labels::LabelTarget;
 use crate::theme::Theme;
 use crate::types::ContextTarget;
@@ -53,6 +53,14 @@ pub fn render(
         ContextTarget::PoolItem { media } => Some(PoolMenu::of(rows, media)),
         _ => None,
     };
+    let effect = match target {
+        ContextTarget::Effect { clip, index } => Some(EffectMenu::of(rows, clip, index)),
+        _ => None,
+    };
+    let badge = match target {
+        ContextTarget::ClipBadge { clip, .. } => BadgeMenu::of(rows, clip),
+        _ => None,
+    };
     let selected_label = rows.selected_label();
     // Only a clip menu draws the groups, so an unrelated menu never walks the
     // sequence to count labels it will not show.
@@ -66,18 +74,29 @@ pub fn render(
         _ => None,
     };
     // Which blend the junction already carries, so the catalog rows can mark it
-    // rather than offering fifteen that all look unapplied.
-    let transition_id = match target {
+    // rather than offering fifteen that all look unapplied, and which kind it
+    // takes, so a cut between sounds lists the crossfades.
+    let (transition_id, transition_media) = match target {
         ContextTarget::Transition { clip } => {
-            rows.clip_transition_id(aria_models::ClipId::from_raw(clip))
+            let clip = aria_models::ClipId::from_raw(clip);
+            (
+                rows.clip_transition_id(clip),
+                rows.clip_transition_media(clip),
+            )
         }
-        _ => None,
+        _ => (None, None),
     };
     let plugin_rows = std::sync::Arc::clone(&rows.context_plugin_rows);
+    let (at_x, at_y) = rows.context_at;
+    // A menu generated from data (a clip's properties, every blend) can be
+    // longer than the window below the pointer, so the card scrolls past that.
+    let room = (rows.last_window_h - at_y - Theme::SPACE_SM).max(Theme::ROW_HEIGHT * 4.0);
 
     let card = div()
         .id("context-menu-card")
         .min_w(px(180.))
+        .max_h(px(room))
+        .overflow_y_scroll()
         .rounded(px(Theme::PANEL_RADIUS))
         .bg(theme.surface_overlay)
         .border_1()
@@ -92,10 +111,13 @@ pub fn render(
                 clip,
                 track,
                 pool,
+                effect,
+                badge,
                 label: selected_label,
                 label_groups: labels_in_use,
                 pool_label,
                 transition_id,
+                transition_media,
             },
             &theme,
             cx,
@@ -109,7 +131,6 @@ pub fn render(
         None => motion::menu_in("context-menu", card).into_any_element(),
     };
 
-    let (at_x, at_y) = state.read(cx).context_at;
     div()
         .id("context-menu-scrim")
         .absolute()
@@ -150,16 +171,22 @@ struct MenuFacts {
     track: Option<TrackMenu>,
     /// The pool row the menu was opened on.
     pool: Option<PoolMenu>,
+    /// The effect header the menu was opened on.
+    effect: Option<EffectMenu>,
+    /// The clip whose fx badge the menu was opened on.
+    badge: Option<BadgeMenu>,
     /// The label on the selection, for the swatch row.
-    label: Option<aria_models::MarkerColor>,
+    label: Option<aria_models::LabelColor>,
     /// Every label colour in use with its clip count, so the menu can offer any
     /// group rather than only the one the clip under the pointer carries.
-    label_groups: Vec<(aria_models::MarkerColor, usize)>,
+    label_groups: Vec<(aria_models::LabelColor, usize)>,
     /// The label on the pool row the menu was opened on, when it was one.
-    pool_label: Option<aria_models::MarkerColor>,
+    pool_label: Option<aria_models::LabelColor>,
     /// The catalog id of the blend already at the junction the menu was opened
     /// on, so the catalog rows can mark it.
     transition_id: Option<String>,
+    /// Which kind of transition that junction takes.
+    transition_media: Option<aria_models::TransitionMedia>,
 }
 // Helpers live in sibling files, declared here. Each is `pub(super)`, so the
 // parent and the siblings reach it by name and nothing is left unreachable.

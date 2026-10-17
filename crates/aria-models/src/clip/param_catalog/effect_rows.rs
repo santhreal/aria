@@ -40,27 +40,57 @@ pub(crate) fn effect_route(clip: &Clip, effect: u32, param: u32) -> ParamRoute<'
     let Some(pspec) = spec.param_at(param as usize) else {
         return ParamRoute::Absent;
     };
-    match pspec.kind {
-        EffectParamKind::Scalar => match instance.params.get(&pspec.name) {
-            Some(p) => ParamRoute::Scalar(p),
-            None => ParamRoute::Const(ParamValue::Scalar(pspec.default)),
-        },
-        EffectParamKind::Vec2 => match instance.vec2_params.get(&pspec.name) {
-            Some(p) => ParamRoute::Vec2(p),
-            None => ParamRoute::Const(ParamValue::Vec2(pspec.default_vec2)),
-        },
-        EffectParamKind::Color => match instance.color_params.get(&pspec.name) {
-            Some(p) => ParamRoute::Color(p),
-            None => ParamRoute::Const(ParamValue::Color(pspec.default_color)),
-        },
-    }
+    let Some(default) = pspec.default_param_value() else {
+        return ParamRoute::Absent;
+    };
+    let name = &pspec.name;
+    let stored = match pspec.kind {
+        EffectParamKind::Scalar | EffectParamKind::Angle | EffectParamKind::Int => {
+            instance.params.get(name).map(ParamRoute::Scalar)
+        }
+        EffectParamKind::Vec2 | EffectParamKind::Size => {
+            instance.vec2_params.get(name).map(ParamRoute::Vec2)
+        }
+        EffectParamKind::Point3 => instance.vec3_params.get(name).map(ParamRoute::Vec3),
+        EffectParamKind::Color => instance.color_params.get(name).map(ParamRoute::Color),
+        EffectParamKind::Bool
+        | EffectParamKind::Choice
+        | EffectParamKind::Curve
+        | EffectParamKind::Gradient
+        | EffectParamKind::Text
+        | EffectParamKind::Font
+        | EffectParamKind::File
+        | EffectParamKind::Layer => None,
+    };
+    stored.unwrap_or(ParamRoute::Const(default))
 }
 
-fn kind_of(kind: EffectParamKind) -> ParamKind {
+/// The value a reset returns one effect parameter to: its catalog default.
+/// `None` when the effect index or the slot does not exist, and on a kind no
+/// curve carries.
+pub(crate) fn effect_default(clip: &Clip, effect: u32, param: u32) -> Option<ParamValue> {
+    let instance = clip.effects.get(effect as usize)?;
+    crate::effect_spec(&instance.effect_id)?
+        .param_at(param as usize)?
+        .default_param_value()
+}
+
+fn kind_of(kind: EffectParamKind) -> Option<ParamKind> {
     match kind {
-        EffectParamKind::Scalar => ParamKind::Scalar,
-        EffectParamKind::Vec2 => ParamKind::Vec2,
-        EffectParamKind::Color => ParamKind::Color,
+        EffectParamKind::Scalar | EffectParamKind::Angle | EffectParamKind::Int => {
+            Some(ParamKind::Scalar)
+        }
+        EffectParamKind::Vec2 | EffectParamKind::Size => Some(ParamKind::Vec2),
+        EffectParamKind::Point3 => Some(ParamKind::Vec3),
+        EffectParamKind::Color => Some(ParamKind::Color),
+        EffectParamKind::Bool
+        | EffectParamKind::Choice
+        | EffectParamKind::Curve
+        | EffectParamKind::Gradient
+        | EffectParamKind::Text
+        | EffectParamKind::Font
+        | EffectParamKind::File
+        | EffectParamKind::Layer => None,
     }
 }
 
@@ -69,12 +99,24 @@ fn kind_of(kind: EffectParamKind) -> ParamKind {
 fn range_of(pspec: &EffectParamSpec) -> ParamRange {
     match pspec.kind {
         EffectParamKind::Color => ParamRange::ANY,
+        EffectParamKind::Int => ParamRange::between(pspec.int_min as f32, pspec.int_max as f32),
         _ => ParamRange::between(pspec.min, pspec.max),
     }
 }
 
-fn row(index: u32, spec: &EffectSpec, slot: u32, pspec: &EffectParamSpec) -> ParamSpec {
-    ParamSpec {
+/// The bounds of one effect parameter on `clip`, or none when the effect index
+/// or the parameter slot does not exist.
+pub(crate) fn effect_range(clip: &Clip, effect: u32, param: u32) -> ParamRange {
+    clip.effects
+        .get(effect as usize)
+        .and_then(|instance| crate::effect_spec(&instance.effect_id))
+        .and_then(|spec| spec.param_at(param as usize).map(range_of))
+        .unwrap_or(ParamRange::ANY)
+}
+
+fn row(index: u32, spec: &EffectSpec, slot: u32, pspec: &EffectParamSpec) -> Option<ParamSpec> {
+    let kind = kind_of(pspec.kind)?;
+    Some(ParamSpec {
         // The index is part of the id: two instances of the same effect on one
         // clip are two rows, and a surface addresses them apart.
         id: format!("effect-{index}-{}", pspec.name).into(),
@@ -86,20 +128,18 @@ fn row(index: u32, spec: &EffectSpec, slot: u32, pspec: &EffectParamSpec) -> Par
             effect: index,
             param: slot,
         },
-        kind: kind_of(pspec.kind),
+        kind,
         scope: ParamScope::Visual,
         range: range_of(pspec),
         route: Route::Effect {
             effect: index,
             param: slot,
         },
-    }
+    })
 }
 
-/// One row per parameter of one effect instance, in the order the effect
-/// declares them. Empty when the effect id is not in any catalog, which is what
-/// an unmounted plugin's effect looks like: the clip keeps the instance, and
-/// nothing offers keyframes on parameters no one can describe.
+/// One row per keyframeable parameter of one effect instance, in the order the
+/// effect declares them. Empty when the effect id is not in any catalog.
 fn rows_for(index: u32, instance: &EffectInstance) -> Vec<ParamSpec> {
     let Some(spec) = crate::effect_spec(&instance.effect_id) else {
         return Vec::new();
@@ -107,15 +147,16 @@ fn rows_for(index: u32, instance: &EffectInstance) -> Vec<ParamSpec> {
     spec.params
         .iter()
         .enumerate()
-        .map(|(slot, pspec)| row(index, &spec, slot as u32, pspec))
+        .filter(|(_, pspec)| instance.is_param_visible(pspec, &spec, 0.0))
+        .filter_map(|(slot, pspec)| row(index, &spec, slot as u32, pspec))
         .collect()
 }
 
 /// Call `visit` for every animatable property of `clip` without collecting a
 /// catalog vector.
 ///
-/// Static rows are borrowed from the process catalog. Dynamic effect rows are
-/// built one at a time and remain valid for the duration of the call.
+/// Static rows are borrowed from the process catalog. Dynamic mask and effect
+/// rows are built one at a time and remain valid for the duration of the call.
 pub fn visit_clip_params(clip: &Clip, mut visit: impl FnMut(&ParamSpec)) {
     for spec in super::clip_param_catalog()
         .iter()
@@ -123,19 +164,28 @@ pub fn visit_clip_params(clip: &Clip, mut visit: impl FnMut(&ParamSpec)) {
     {
         visit(spec);
     }
+    for (index, mask) in clip.masks.iter().enumerate() {
+        for dynamic in super::mask_rows::rows_of(index as u32, mask) {
+            visit(&dynamic);
+        }
+    }
     for (index, instance) in clip.effects.iter().enumerate() {
         let Some(spec) = crate::effect_spec(&instance.effect_id) else {
             continue;
         };
         for (slot, pspec) in spec.params.iter().enumerate() {
-            let dynamic = row(index as u32, &spec, slot as u32, pspec);
-            visit(&dynamic);
+            if !instance.is_param_visible(pspec, &spec, 0.0) {
+                continue;
+            }
+            if let Some(dynamic) = row(index as u32, &spec, slot as u32, pspec) {
+                visit(&dynamic);
+            }
         }
     }
 }
 
-/// Every animatable property of `clip`: the shipped rows it can reach, then one
-/// row per effect parameter.
+/// Every animatable property of `clip`: the shipped rows it can reach, then the
+/// rows of each mask in stack order, then one row per effect parameter.
 ///
 /// This is what a surface enumerates. `clip_param_catalog()` remains the list of
 /// properties every clip declares, for callers that describe the model rather
@@ -146,6 +196,9 @@ pub fn clip_params_for(clip: &Clip) -> Vec<ParamSpec> {
         .filter(|spec| spec.available(clip))
         .cloned()
         .collect();
+    for (index, mask) in clip.masks.iter().enumerate() {
+        rows.extend(super::mask_rows::rows_of(index as u32, mask));
+    }
     for (index, instance) in clip.effects.iter().enumerate() {
         rows.extend(rows_for(index as u32, instance));
     }
@@ -216,7 +269,7 @@ mod tests {
                 })
                 .unwrap_or_else(|| panic!("slot {slot} is missing"));
             assert_eq!(row.id.as_ref(), format!("effect-0-{}", pspec.name));
-            assert_eq!(row.kind, kind_of(pspec.kind));
+            assert_eq!(row.kind, kind_of(pspec.kind).expect("keyframeable kind"));
             assert_eq!(row.range, range_of(pspec));
         }
     }

@@ -22,6 +22,15 @@ pub struct ChromaKey {
 }
 
 impl ChromaKey {
+    /// A key on `rgb` as it is first made: half strength, no shadow kept.
+    pub fn new(rgb: [u8; 3]) -> Self {
+        Self {
+            rgb,
+            strength: Param::Constant(0.5),
+            shadow: Param::Constant(0.0),
+        }
+    }
+
     pub fn validate(&self) -> Result<(), ModelError> {
         validate_unit_param("chroma strength", &self.strength)?;
         validate_unit_param("chroma shadow", &self.shadow)

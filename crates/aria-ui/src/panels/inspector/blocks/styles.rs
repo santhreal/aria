@@ -127,7 +127,7 @@ pub fn styles_block(
         .child(section_label(theme, "LUT"))
         .child(
             div()
-                .text_size(px(11.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_faint)
                 .child(match &lut {
                     Some(lut) => lut.name().to_string(),

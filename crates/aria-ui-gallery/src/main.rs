@@ -50,7 +50,12 @@ fn main() {
     let app = gpui_platform::application().with_assets(icons::Assets);
     app.run(|cx: &mut App| {
         aria_ui::register_fonts(cx);
-        appearance::init(AppearanceMode::System, settings::default_data_dir(), cx);
+        appearance::init(
+            AppearanceMode::System,
+            None,
+            settings::default_data_dir(),
+            cx,
+        );
         let bounds = gpui::Bounds::centered(None, size(px(1100.), px(760.)), cx);
         cx.open_window(
             WindowOptions {

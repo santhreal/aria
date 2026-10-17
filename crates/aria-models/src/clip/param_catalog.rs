@@ -24,15 +24,16 @@ use std::sync::LazyLock;
 
 use crate::clip::{
     Clip, ClipParam, ClipSource, CropRect, Generator, LookParam, MAX_SHAPE_DIM, MAX_STROKE_WIDTH,
-    ParamValue, Scale2, Shape, ShapeParam, StyleParam, TextParam,
+    MaskParam, ParamValue, Scale2, Shape, ShapeParam, StyleParam, TextParam,
 };
-use crate::param::{Easing, Param};
+use crate::param::{Easing, Keyframe, Param};
 
 /// The value kind a property's keyframes carry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ParamKind {
     Scalar,
     Vec2,
+    Vec3,
     Color,
     Rect,
 }
@@ -56,6 +57,7 @@ pub enum ParamScope {
 pub(crate) enum ParamRoute<'a> {
     Scalar(&'a Param<f32>),
     Vec2(&'a Param<[f32; 2]>),
+    Vec3(&'a Param<[f32; 3]>),
     Scale(&'a Param<Scale2>),
     Color(&'a Param<[u8; 4]>),
     Rect(&'a Param<CropRect>),
@@ -79,6 +81,12 @@ enum Route {
     Effect {
         effect: u32,
         param: u32,
+    },
+    /// A mask property is addressed by the mask's index in the stack, for the
+    /// same reason.
+    Mask {
+        mask: u32,
+        param: MaskParam,
     },
     /// Read the route off the row `ClipParam` itself declares. Only the
     /// directly addressed properties use this: a delegated wrapper's route
@@ -112,11 +120,11 @@ pub struct ParamSpec {
     pub label: std::borrow::Cow<'static, str>,
     /// The block a row belongs to, so a panel draws its rows together without
     /// keeping its own list of which properties it owns. Shipped groups:
-    /// `transform`, `framing`, `audio`, `filter`, `lut`, `grade`, `mask`,
-    /// `chroma`, `matte`,
-    /// `shadow`, `glow`, `outline`, `background`, `text`, `shape`. An effect
-    /// parameter's group is `effect-<index>`, so two instances of one effect are
-    /// two groups.
+    /// `transform`, `framing`, `audio`, `filter`, `lut`, `grade`, `chroma`,
+    /// `matte`, `shadow`, `glow`, `outline`, `background`, `text`, `shape`. A
+    /// mask property's group is `mask-<index>` and an effect parameter's is
+    /// `effect-<index>`, so two masks, or two instances of one effect, are two
+    /// groups.
     pub group: std::borrow::Cow<'static, str>,
     pub param: ClipParam,
     pub kind: ParamKind,
@@ -165,6 +173,7 @@ impl ParamSpec {
         match self.route {
             Route::Fixed(route) => route(clip),
             Route::Effect { effect, param } => effect_rows::effect_route(clip, effect, param),
+            Route::Mask { mask, param } => mask_rows::mask_route(clip, mask, param),
             Route::Axis => self.param.route(clip),
         }
     }
@@ -196,6 +205,7 @@ impl ParamSpec {
         Some(match self.resolve(clip) {
             ParamRoute::Scalar(p) => ParamValue::Scalar(p.sample(local)),
             ParamRoute::Vec2(p) => ParamValue::Vec2(p.sample(local)),
+            ParamRoute::Vec3(p) => ParamValue::Vec3(p.sample(local)),
             ParamRoute::Scale(p) => {
                 let scale = p.sample(local);
                 ParamValue::Vec2([scale.x, scale.y])
@@ -208,6 +218,18 @@ impl ParamSpec {
             ParamRoute::Const(value) => value,
             ParamRoute::Absent => return None,
         })
+    }
+
+    /// The value a reset returns this property to on `clip`, or `None` when the
+    /// property is not reachable on this clip or nothing resets it.
+    ///
+    /// Gated on [`ParamSpec::available`] for the reason [`ParamSpec::sample`]
+    /// is: a row that is not offered does not answer.
+    pub fn default_value(&self, clip: &Clip) -> Option<ParamValue> {
+        if !self.available(clip) {
+            return None;
+        }
+        self.param.default_value(clip)
     }
 
     /// Every keyframe on this property as `(clip-local tick, easing)`.
@@ -225,6 +247,7 @@ impl ParamSpec {
         match self.resolve(clip) {
             ParamRoute::Scalar(p) => marks(p),
             ParamRoute::Vec2(p) => marks(p),
+            ParamRoute::Vec3(p) => marks(p),
             ParamRoute::Scale(p) => marks(p),
             ParamRoute::Color(p) => marks(p),
             ParamRoute::Rect(p) => marks(p),
@@ -241,6 +264,65 @@ impl ParamSpec {
             .into_iter()
             .find(|(tick, _)| *tick == local)
             .map(|(_, easing)| easing)
+    }
+
+    /// Effective `(incoming, outgoing)` temporal ease of the keyframe at
+    /// `local`, derived from the adjacent segments when the keyframe stores no
+    /// explicit handle. `None` when no keyframe sits at `local`.
+    pub fn temporal_ease_at(
+        &self,
+        clip: &Clip,
+        local: i64,
+    ) -> Option<(crate::TemporalEase, crate::TemporalEase)> {
+        if !self.available(clip) {
+            return None;
+        }
+        match self.resolve(clip) {
+            ParamRoute::Scalar(p) => p.keyframe_temporal_ease(local),
+            ParamRoute::Vec2(p) => p.keyframe_temporal_ease(local),
+            ParamRoute::Vec3(p) => p.keyframe_temporal_ease(local),
+            ParamRoute::Scale(p) => p.keyframe_temporal_ease(local),
+            ParamRoute::Color(p) => p.keyframe_temporal_ease(local),
+            ParamRoute::Rect(p) => p.keyframe_temporal_ease(local),
+            ParamRoute::Const(_) | ParamRoute::Absent => None,
+        }
+    }
+
+    /// This property's curve on `clip` as a [`Param<ParamValue>`], or `None`
+    /// when the property is not available on `clip`.
+    pub fn curve(&self, clip: &Clip) -> Option<Param<ParamValue>> {
+        if !self.available(clip) {
+            return None;
+        }
+        fn map_param<T: Copy>(
+            param: &Param<T>,
+            mut f: impl FnMut(T) -> ParamValue,
+        ) -> Param<ParamValue> {
+            match param {
+                Param::Constant(v) => Param::Constant(f(*v)),
+                Param::Keyframed { keyframes } => Param::Keyframed {
+                    keyframes: keyframes
+                        .iter()
+                        .map(|kf| Keyframe {
+                            tick: kf.tick,
+                            value: f(kf.value),
+                            easing: kf.easing,
+                            tangents: kf.tangents,
+                        })
+                        .collect(),
+                },
+            }
+        }
+        Some(match self.resolve(clip) {
+            ParamRoute::Scalar(p) => map_param(p, ParamValue::Scalar),
+            ParamRoute::Vec2(p) => map_param(p, ParamValue::Vec2),
+            ParamRoute::Vec3(p) => map_param(p, ParamValue::Vec3),
+            ParamRoute::Scale(p) => map_param(p, |s| ParamValue::Vec2([s.x, s.y])),
+            ParamRoute::Color(p) => map_param(p, ParamValue::Color),
+            ParamRoute::Rect(p) => map_param(p, |r| ParamValue::Rect([r.x, r.y, r.w, r.h])),
+            ParamRoute::Const(value) => Param::Constant(value),
+            ParamRoute::Absent => return None,
+        })
     }
 }
 
@@ -441,72 +523,6 @@ static CATALOG: LazyLock<Vec<ParamSpec>> = LazyLock::new(|| {
     // axis by existing rather than by being repeated here.
     rows.extend(grade_specs());
     rows.extend([
-        // --- look: mask -----------------------------------------------------
-        spec(
-            "mask-feather",
-            "Mask feather",
-            "mask",
-            look(LookParam::MaskFeather),
-            Scalar,
-            Visual,
-            UNIT,
-            |c| match &c.mask {
-                Some(m) => ParamRoute::Scalar(&m.feather),
-                None => ParamRoute::Absent,
-            },
-        ),
-        spec(
-            "mask-center",
-            "Mask centre",
-            "mask",
-            look(LookParam::MaskCenter),
-            Vec2,
-            Visual,
-            ParamRange::between(-10.0, 10.0),
-            |c| match &c.mask {
-                Some(m) => ParamRoute::Vec2(&m.center),
-                None => ParamRoute::Absent,
-            },
-        ),
-        spec(
-            "mask-size",
-            "Mask size",
-            "mask",
-            look(LookParam::MaskSize),
-            Vec2,
-            Visual,
-            ParamRange::above(f32::EPSILON),
-            |c| match &c.mask {
-                Some(m) => ParamRoute::Vec2(&m.size),
-                None => ParamRoute::Absent,
-            },
-        ),
-        spec(
-            "mask-rotation",
-            "Mask rotation",
-            "mask",
-            look(LookParam::MaskRotation),
-            Scalar,
-            Visual,
-            ParamRange::between(-3600.0, 3600.0),
-            |c| match &c.mask {
-                Some(m) => ParamRoute::Scalar(&m.rotation),
-                None => ParamRoute::Absent,
-            },
-        ),
-        spec(
-            "mask-roundness",
-            "Mask roundness",
-            "mask",
-            look(LookParam::MaskRoundness),
-            Scalar,
-            Visual,
-            UNIT,
-            |c| match &c.mask {
-                Some(m) => ParamRoute::Scalar(&m.roundness),
-                None => ParamRoute::Absent,
-            },
-        ),
         // --- look: chroma key -----------------------------------------------
         spec(
             "chroma-strength",
@@ -943,17 +959,42 @@ pub fn clip_param_catalog() -> &'static [ParamSpec] {
 /// The static row describing `param`, or `None` for a property that is not one
 /// of the rows every clip declares.
 ///
-/// An effect parameter has no static row: it exists once per effect on one clip,
-/// so it comes from [`clip_params_for`] instead.
+/// An effect parameter or a mask property has no static row: it exists once per
+/// effect or mask on one clip, so it comes from [`clip_params_for`] instead.
 pub fn param_spec(param: ClipParam) -> Option<&'static ParamSpec> {
     CATALOG.iter().find(|spec| spec.param == param)
 }
 
+/// The row an id names without a clip at hand: a row every clip declares, or a
+/// mask row (`mask-<index>-<property>`) for the mask at that index on whichever
+/// clip it is read on. `None` for an effect parameter, which is addressed
+/// through its effect, and for any other string.
+///
+/// A preset and a script hold property ids apart from any clip, so this is
+/// what they resolve through.
+pub fn property_row(id: &str) -> Option<std::borrow::Cow<'static, ParamSpec>> {
+    if let Some(spec) = CATALOG.iter().find(|spec| spec.id == id) {
+        return Some(std::borrow::Cow::Borrowed(spec));
+    }
+    let ClipParam::Mask { mask, param } = mask_row_param(id)? else {
+        return None;
+    };
+    Some(std::borrow::Cow::Owned(mask_rows::row(mask, param)))
+}
+
 mod effect_rows;
-/// The `ClipParam::Effect` row reads its route here: an effect slot is
-/// addressed by position, so the route needs the clip's chain.
-pub(crate) use effect_rows::effect_route;
+mod mask_rows;
 pub use effect_rows::{clip_params_for, visit_clip_params};
+/// The `ClipParam::Effect` row reads its route and its reset value here: an
+/// effect slot is addressed by position, so both need the clip's chain.
+pub(crate) use effect_rows::{effect_default, effect_range, effect_route};
+pub use mask_rows::mask_param_group;
+/// The `ClipParam::Mask` row reads its route here: a mask is addressed by its
+/// index in the stack.
+pub(crate) use mask_rows::mask_route;
+/// A mask row id parsed back to its property; [`property_row`] is the public
+/// face of it.
+pub(crate) use mask_rows::mask_row_param;
 
 #[cfg(test)]
 mod tests;

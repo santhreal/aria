@@ -70,7 +70,6 @@ name = "aria-decoder"
 version = "0.7.0-alpha.0"
 dependencies = [
  "aria-core",
- "bytemuck",
  "gif",
  "glib",
  "gstreamer",
@@ -158,7 +157,9 @@ dependencies = [
  "aria-text",
  "nnnoiseless",
  "png 0.17.16",
+ "qoi",
  "serde_json",
+ "sha2",
  "tempfile",
  "thiserror",
  "tracing",
@@ -2100,6 +2101,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "qoi"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f6d64c71eb498fe9eae14ce4ec935c555749aef511cca85b5568910d6e48001"
+dependencies = [
+ "bytemuck",
 ]
 
 [[package]]

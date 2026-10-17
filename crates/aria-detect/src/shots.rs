@@ -317,15 +317,6 @@ fn convert_rgb_packed(
     }
 }
 
-fn write_pixel(buffer: &mut [u8], offset: usize, rgb: [u8; 3]) {
-    if let Some(slot) = buffer.get_mut(offset..offset + 4) {
-        slot[0] = rgb[0];
-        slot[1] = rgb[1];
-        slot[2] = rgb[2];
-        slot[3] = 255;
-    }
-}
-
 /// BT.601 limited-range YUV to RGB.
 ///
 /// The detector only compares frames against each other, so the exact matrix matters

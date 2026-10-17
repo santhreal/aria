@@ -67,7 +67,215 @@ fn apply_color_grade(rgb: vec3<f32>, a: array<vec4<f32>, GRADE_LANES>) -> vec3<f
     let w_sh = 1.0 - smoothstep(0.0, 0.5, luma);
     let lift_sh = select(c, vec3(1.0) - c, sh >= 0.0);
     c += vec3(sh * w_sh * 0.35) * lift_sh;
-    return clamp(c, vec3(0.0), vec3(1.0));
+    return clamp(apply_grade_secondary(c, a), vec3(0.0), vec3(1.0));
+}
+
+/// The stages after highlights and shadows, unclamped: whites and blacks,
+/// faded film, vibrance, the RGB curves, the hue curves and the HSL
+/// secondary. `ColorGrade::apply_secondary` is the CPU mirror. A stage whose
+/// sliders sit at neutral is skipped, so a grade that leaves them alone reads
+/// as it did before they existed.
+fn apply_grade_secondary(rgb: vec3<f32>, a: array<vec4<f32>, GRADE_LANES>) -> vec3<f32> {
+    var c = rgb;
+
+    // Whites and blacks: a levels remap of the black and white points.
+    let whites = grade_whites(a);
+    let blacks = grade_blacks(a);
+    if (whites != 0.0 || blacks != 0.0) {
+        let black_point = -0.25 * blacks;
+        let white_point = 1.0 - 0.25 * whites;
+        c = (c - vec3(black_point)) / max(white_point - black_point, 1e-3);
+    }
+
+    // Faded film: lifts the floor and leaves white where it was.
+    let faded = grade_faded_film(a);
+    if (faded != 0.0) {
+        let lifted = max(vec3(1.0) - c, vec3(0.0));
+        c += faded * 0.3 * lifted * lifted;
+    }
+
+    // Vibrance: saturation weighted toward the colours that have little.
+    let vibrance = grade_vibrance(a);
+    if (vibrance != 0.0) {
+        let luma = dot(c, vec3(0.2126, 0.7152, 0.0722));
+        let hi = max(max(c.r, c.g), c.b);
+        let held = clamp((hi - min(min(c.r, c.g), c.b)) / max(hi, 1e-4), 0.0, 1.0);
+        c = vec3(luma) + (c - vec3(luma)) * (1.0 + vibrance * (1.0 - held));
+    }
+
+    // RGB curves: the master curve, then each channel's own.
+    let master = vec3(
+        grade_curve_master_shadows(a),
+        grade_curve_master_midtones(a),
+        grade_curve_master_highlights(a),
+    );
+    let red = vec3(
+        grade_curve_red_shadows(a),
+        grade_curve_red_midtones(a),
+        grade_curve_red_highlights(a),
+    );
+    let green = vec3(
+        grade_curve_green_shadows(a),
+        grade_curve_green_midtones(a),
+        grade_curve_green_highlights(a),
+    );
+    let blue = vec3(
+        grade_curve_blue_shadows(a),
+        grade_curve_blue_midtones(a),
+        grade_curve_blue_highlights(a),
+    );
+    c = vec3(
+        grade_curve(grade_curve(c.r, master), red),
+        grade_curve(grade_curve(c.g, master), green),
+        grade_curve(grade_curve(c.b, master), blue),
+    );
+
+    // The hue curves and the secondary read the hue once, and only when one
+    // of them is off neutral.
+    let sat_knots = array<f32, 6>(
+        grade_hue_sat_red(a),
+        grade_hue_sat_yellow(a),
+        grade_hue_sat_green(a),
+        grade_hue_sat_cyan(a),
+        grade_hue_sat_blue(a),
+        grade_hue_sat_magenta(a),
+    );
+    let turn_knots = array<f32, 6>(
+        grade_hue_hue_red(a),
+        grade_hue_hue_yellow(a),
+        grade_hue_hue_green(a),
+        grade_hue_hue_cyan(a),
+        grade_hue_hue_blue(a),
+        grade_hue_hue_magenta(a),
+    );
+    let luma_knots = array<f32, 6>(
+        grade_hue_luma_red(a),
+        grade_hue_luma_yellow(a),
+        grade_hue_luma_green(a),
+        grade_hue_luma_cyan(a),
+        grade_hue_luma_blue(a),
+        grade_hue_luma_magenta(a),
+    );
+    let secondary = vec3(grade_hsl_hue(a), grade_hsl_saturation(a), grade_hsl_luma(a));
+    if (grade_flat(sat_knots) && grade_flat(turn_knots) && grade_flat(luma_knots)
+        && all(secondary == vec3(0.0))) {
+        return c;
+    }
+    let hue_chroma = grade_hue_chroma(c);
+    let hue = hue_chroma.x;
+    let colour = smoothstep(0.0, 0.1, hue_chroma.y);
+    let sat = grade_hue_knots(hue, sat_knots);
+    let turn = grade_hue_knots(hue, turn_knots);
+    let luma = grade_hue_knots(hue, luma_knots);
+
+    // The secondary's key: a hue window around the key centre, soft at its
+    // edge, and nothing without colour.
+    let centre = 0.5 * grade_hsl_key_hue(a);
+    let reach = (1.0 + grade_hsl_key_width(a)) * (30.0 / 360.0);
+    let around = abs(fract(hue - centre + 0.5) - 0.5);
+    let keyed = (1.0 - smoothstep(reach, reach + 0.04, around)) * colour;
+
+    return grade_hue_correction(
+        c,
+        sat * colour + secondary.y * keyed,
+        turn * colour + secondary.x * keyed,
+        luma * colour + secondary.z * keyed,
+    );
+}
+
+/// One RGB curve: knots at 0, 1/4, 1/2, 3/4 and 1, the inner three moved by
+/// up to a quarter each, through a Catmull-Rom spline. The ends stay put, so
+/// a value outside `[0, 1]` passes through.
+fn grade_curve(x: f32, knots: vec3<f32>) -> f32 {
+    if (all(knots == vec3(0.0)) || x <= 0.0 || x >= 1.0) {
+        return x;
+    }
+    // Phantom knots past each end mirror the first inner knot through the end
+    // it sits beside, so the spline leaves 0 and 1 along the curve's slope.
+    var y = array<f32, 7>(
+        -0.25 - 0.25 * knots.x,
+        0.0,
+        0.25 + 0.25 * knots.x,
+        0.5 + 0.25 * knots.y,
+        0.75 + 0.25 * knots.z,
+        1.0,
+        1.25 - 0.25 * knots.z,
+    );
+    let scaled = x * 4.0;
+    let seg = min(i32(floor(scaled)), 3);
+    let t = scaled - f32(seg);
+    return grade_catmull(y[seg], y[seg + 1], y[seg + 2], y[seg + 3], t);
+}
+
+/// Six hue knots (red, yellow, green, cyan, blue, magenta) on a closed
+/// Catmull-Rom loop, read at hue `h` in turns.
+fn grade_hue_knots(h: f32, knots: array<f32, 6>) -> f32 {
+    if (grade_flat(knots)) {
+        return 0.0;
+    }
+    var k = knots;
+    let scaled = fract(h) * 6.0;
+    let seg = min(i32(floor(scaled)), 5);
+    let t = scaled - f32(seg);
+    return grade_catmull(k[(seg + 5) % 6], k[seg], k[(seg + 1) % 6], k[(seg + 2) % 6], t);
+}
+
+/// True when all six knots sit at zero.
+fn grade_flat(k: array<f32, 6>) -> bool {
+    return k[0] == 0.0 && k[1] == 0.0 && k[2] == 0.0 && k[3] == 0.0 && k[4] == 0.0
+        && k[5] == 0.0;
+}
+
+/// The Catmull-Rom spline through `p1` and `p2`, at `t` between them.
+fn grade_catmull(p0: f32, p1: f32, p2: f32, p3: f32, t: f32) -> f32 {
+    let t2 = t * t;
+    let t3 = t2 * t;
+    return 0.5 * (2.0 * p1
+        + (p2 - p0) * t
+        + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2
+        + (3.0 * p1 - p0 - 3.0 * p2 + p3) * t3);
+}
+
+/// Hue in turns and chroma (max minus min) of `c`.
+fn grade_hue_chroma(c: vec3<f32>) -> vec2<f32> {
+    let hi = max(max(c.r, c.g), c.b);
+    let lo = min(min(c.r, c.g), c.b);
+    let d = hi - lo;
+    if (d <= 1e-6) {
+        return vec2(0.0, 0.0);
+    }
+    var h: f32;
+    if (hi == c.r) {
+        h = (c.g - c.b) / d;
+    } else if (hi == c.g) {
+        h = (c.b - c.r) / d + 2.0;
+    } else {
+        h = (c.r - c.g) / d + 4.0;
+    }
+    return vec2(fract(h / 6.0), d);
+}
+
+/// Saturation scale, hue rotation (one unit is 60 degrees) and luma offset,
+/// each already weighted by the pixel's hue.
+fn grade_hue_correction(rgb: vec3<f32>, sat: f32, hue: f32, luma: f32) -> vec3<f32> {
+    if (sat == 0.0 && hue == 0.0 && luma == 0.0) {
+        return rgb;
+    }
+    let l = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
+    let c = vec3(l) + (rgb - vec3(l)) * max(1.0 + sat, 0.0);
+    let y = dot(c, vec3(0.299, 0.587, 0.114));
+    let i = dot(c, vec3(0.596, -0.274, -0.322));
+    let q = dot(c, vec3(0.211, -0.523, 0.312));
+    let angle = -hue * 1.0471975511965976; // -pi/3 per unit
+    let cos_a = cos(angle);
+    let sin_a = sin(angle);
+    let i2 = i * cos_a - q * sin_a;
+    let q2 = i * sin_a + q * cos_a;
+    return vec3(
+        y + 0.956 * i2 + 0.621 * q2,
+        y - 0.272 * i2 - 0.647 * q2,
+        y - 1.106 * i2 + 1.703 * q2,
+    ) + vec3(0.25 * luma);
 }
 
 /// 4-tap unsharp mask on a straight-alpha RGBA texture. `amount` is

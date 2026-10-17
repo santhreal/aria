@@ -10,14 +10,33 @@ use super::*;
 
 #[derive(Clone, Copy)]
 pub(super) enum DragKind {
-    Sidebar,
-    Inspector,
     Timeline,
     Pan,
     /// Resizing one timeline lane by its lower border. The height is previewed
     /// on the state and committed as a single edit on mouse-up, so a drag over
     /// forty pixels is one undo entry rather than forty.
     Lane(u64),
+    /// Resizing the timeline's outline column by its right border. `start` is
+    /// the width when the pointer went down.
+    Outline,
+    /// Resizing an arbitrary split in `dock_tree`.
+    DockSplit {
+        path: [usize; 4],
+        depth: u8,
+        index: usize,
+        axis: crate::dock::Axis,
+        span_px: f32,
+        w0: f32,
+        w1: f32,
+    },
+    /// Dragging a panel tab to reorder, dock into a zone, or float.
+    DockTab {
+        panel: crate::dock::PanelId,
+        source_frame: crate::dock::FrameId,
+        from_index: usize,
+        origin_y: f32,
+        moved: bool,
+    },
 }
 /// Copy, so a handler can sample the live drag and then read a snapshot of it
 /// without holding a borrow of the shell across the state it has to update.

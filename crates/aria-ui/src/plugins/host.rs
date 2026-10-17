@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use aria_plugin::{
     Plugin, PluginContext, PluginError, PluginManifest, Service, SettingsService, StorageService,
+    WeakContext,
 };
 use aria_settings::{Settings, default_config_path};
 use aria_storage::StorageLayout;
@@ -40,13 +41,9 @@ impl StorageService for StoragePaths {
 
 impl Plugin for StoragePlugin {
     fn manifest(&self) -> &PluginManifest {
-        &PluginManifest {
-            id: "aria.storage",
-            name: "Storage",
-            version: "0.1.0",
-            requires: &[],
-            uses: &[],
-        }
+        static MANIFEST: PluginManifest =
+            PluginManifest::new("aria.storage", "Storage", "0.1.0", &[], &[]);
+        &MANIFEST
     }
 
     fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
@@ -59,7 +56,7 @@ impl Plugin for StoragePlugin {
         };
         let _ = std::fs::create_dir_all(&root);
         let layout = StorageLayout::new(&root)
-            .map_err(|err| PluginError::MountFailed("aria.storage", err.to_string()))?;
+            .map_err(|err| PluginError::MountFailed("aria.storage".into(), err.to_string()))?;
         let cache = layout.root().join("cache");
         let project = layout.root().join("projects");
         let _ = std::fs::create_dir_all(&cache);
@@ -85,12 +82,23 @@ impl Default for SettingsPlugin {
 struct SettingsStore {
     path: PathBuf,
     inner: Mutex<Settings>,
+    /// The fields plugins declared, for the default an unset key reads as.
+    schema: Arc<aria_plugin::SettingsSchema>,
+    /// The context whose waiting packages a read or write of their key loads.
+    /// Weak, because the context holds this store.
+    ctx: WeakContext,
 }
 
-impl Service for SettingsStore {}
+impl SettingsStore {
+    /// Load the packages waiting for `key`, before the lock is taken: a mount
+    /// reads and writes settings.
+    fn activate(&self, key: &str) {
+        if let Some(ctx) = self.ctx.upgrade() {
+            ctx.activate_setting(key);
+        }
+    }
 
-impl SettingsService for SettingsStore {
-    fn get(&self, key: &str) -> Option<serde_json::Value> {
+    fn read(&self, key: &str) -> Option<serde_json::Value> {
         let settings = self.inner.lock();
         match key {
             "ai.source" => Some(serde_json::Value::String(settings.ai.source.key().into())),
@@ -109,15 +117,35 @@ impl SettingsService for SettingsStore {
                 }
                 // A key this crate does not own belongs to the plugin that declared
                 // it. Unknown keys used to be dropped on write and absent on read,
-                // so a plugin's own setting could not be stored at all.
-                settings
-                    .plugin_value(other)
-                    .map(|value| serde_json::Value::String(value.to_string()))
+                // so a plugin's own setting could not be stored at all. An unset
+                // key reads as the default its field declares.
+                match settings.plugin_value(other) {
+                    Some(value) => Some(serde_json::Value::String(value.to_string())),
+                    None => self
+                        .schema
+                        .field(other)
+                        .and_then(|(_, spec)| spec.default)
+                        .map(serde_json::Value::String),
+                }
             }
         }
     }
+}
+
+impl Service for SettingsStore {}
+
+impl SettingsService for SettingsStore {
+    fn get(&self, key: &str) -> Option<serde_json::Value> {
+        self.activate(key);
+        self.read(key)
+    }
+
+    fn peek(&self, key: &str) -> Option<serde_json::Value> {
+        self.read(key)
+    }
 
     fn set(&self, key: &str, value: serde_json::Value) {
+        self.activate(key);
         let mut settings = self.inner.lock();
         match key {
             "ai.source" => {
@@ -158,36 +186,35 @@ impl SettingsService for SettingsStore {
     fn save(&self) -> Result<(), PluginError> {
         let settings = self.inner.lock().clone();
         aria_settings::save(&self.path, &settings)
-            .map_err(|err| PluginError::MountFailed("aria.settings", err))
+            .map_err(|err| PluginError::MountFailed("aria.settings".into(), err))
     }
 }
 
 impl Plugin for SettingsPlugin {
     fn manifest(&self) -> &PluginManifest {
-        &PluginManifest {
-            id: "aria.settings",
-            name: "Settings",
-            version: "0.1.0",
-            requires: &[],
-            uses: &[],
-        }
+        static MANIFEST: PluginManifest =
+            PluginManifest::new("aria.settings", "Settings", "0.1.0", &[], &[]);
+        &MANIFEST
     }
 
     fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
         let settings = aria_settings::load(&self.path)
-            .map_err(|err| PluginError::MountFailed("aria.settings", err))?;
+            .map_err(|err| PluginError::MountFailed("aria.settings".into(), err))?;
         ctx.register(settings.clone());
+        // The registry a plugin declares its own settings into. Registered here
+        // because this plugin owns the file those settings land in, and it mounts
+        // early enough for every later plugin to declare against it.
+        let schema = Arc::new(aria_plugin::SettingsSchema::default());
+        register_dyn(ctx, Arc::clone(&schema));
         register_dyn::<dyn SettingsService>(
             ctx,
             Arc::new(SettingsStore {
                 path: self.path.clone(),
                 inner: Mutex::new(settings),
+                schema,
+                ctx: ctx.downgrade(),
             }),
         );
-        // The registry a plugin declares its own settings into. Registered here
-        // because this plugin owns the file those settings land in, and it mounts
-        // early enough for every later plugin to declare against it.
-        register_dyn(ctx, Arc::new(aria_plugin::SettingsSchema::default()));
         Ok(())
     }
 }

@@ -31,6 +31,10 @@ pub enum Decline {
     UnknownTransition,
     /// The junction carries no transition, so there is none to change or remove.
     NoTransitionAtCut,
+    /// An audio crossfade sent to a cut between pictures.
+    PictureCut,
+    /// A picture transition sent to a cut between sounds.
+    SoundCut,
     /// A group with one camera has nothing to sync against.
     OneAngleOnly,
     /// The angles' peaks are still being decoded, so there is nothing to
@@ -48,11 +52,13 @@ pub enum Decline {
 
 impl Decline {
     /// Every reason, for a census over the wording.
-    pub const ALL: [Decline; 9] = [
+    pub const ALL: [Decline; 11] = [
         Decline::NoSelection,
         Decline::NoAbuttingCut,
         Decline::UnknownTransition,
         Decline::NoTransitionAtCut,
+        Decline::PictureCut,
+        Decline::SoundCut,
         Decline::OneAngleOnly,
         Decline::AnglesStillDecoding,
         Decline::NoAngleSound,
@@ -68,6 +74,8 @@ impl Decline {
             Decline::NoAbuttingCut => "No clip on the other side of that cut",
             Decline::UnknownTransition => "No such transition",
             Decline::NoTransitionAtCut => "No transition at that cut",
+            Decline::PictureCut => "That cut is between pictures: Ctrl+T puts a transition on it",
+            Decline::SoundCut => "That cut is between sounds: Ctrl+Shift+T crossfades it",
             Decline::OneAngleOnly => "A group needs a second camera to sync against",
             Decline::AnglesStillDecoding => "The angles' sound is still being read",
             Decline::NoAngleSound => "An angle has no sound to sync by",

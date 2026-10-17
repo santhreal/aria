@@ -1,95 +1,178 @@
-//! A complete external plugin, built as a `cdylib` and loaded from disk.
+//! A complete external plugin, built as a `cdylib` over `aria-sdk` and loaded from
+//! a package directory (`plugin.toml` + `lib/<os>-<arch>.<ext>`).
 //!
-//! Build it and drop the library in `<data dir>/plugins`:
+//! Build it and place the package in `<data dir>/plugins/example.notes`:
 //!
 //! ```text
 //! cargo build -p aria-notes-plugin --release
-//! cp target/release/libaria_notes_plugin.so ~/.aria/plugins/
+//! mkdir -p ~/.aria/plugins/example.notes/lib
+//! cp examples/notes-plugin/plugin.toml ~/.aria/plugins/example.notes/
+//! cp target/release/libaria_notes_plugin.so ~/.aria/plugins/example.notes/lib/linux-x86_64.so
 //! ```
-//!
-//! It does the two things an external plugin can do without the UI crate: it
-//! claims a file type, and it sits in front of every command. A plugin that also
-//! draws a panel depends on `aria-ui` and adds a `PanelEntry`; see
-//! `docs/plugin-development.md`.
 
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::path::Path;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
-use aria_plugin::{
-    Command, CommandProposed, DropAction, Plugin, PluginContext, PluginError, PluginManifest,
-    ResolveDroppedPath, SettingSpec, SettingsSection,
+use aria_sdk::{
+    DropAction, EventResponse, Host, LogLevel, Panel, PanelEvent, PanelLocation, PanelSpec, Plugin,
+    UiNode,
 };
+use serde_json::Value;
 
-/// Counts the commands this plugin saw. A plugin's own state lives in the plugin,
-/// not in the host.
+/// Identifier of the sidebar panel registered by [`NotesPlugin`].
+pub const NOTES_PANEL_ID: &str = "notes.panel";
+/// Counts the commands this plugin saw.
 static SEEN: AtomicUsize = AtomicUsize::new(0);
 
-/// What this plugin lets a user configure. Declared, not stored: the host owns
-/// the file, and each key is read back through `SettingsService`.
-const SETTINGS: &[SettingSpec] = &[
-    SettingSpec {
-        key: "notes.directory",
-        label: "Notes directory",
-        placeholder: "the project directory",
-        secret: false,
-    },
-    SettingSpec {
-        key: "notes.token",
-        label: "Sync token",
-        placeholder: "no token stored",
-        secret: true,
-    },
-];
+/// Number of `command-proposed` events observed by this plugin in this process.
+pub fn seen_commands() -> usize {
+    SEEN.load(Ordering::Relaxed)
+}
 
-pub struct NotesPlugin;
+struct NotesPanel {
+    count: AtomicUsize,
+    claim_srt: AtomicBool,
+    mode: AtomicUsize,
+}
 
-impl Plugin for NotesPlugin {
-    fn manifest(&self) -> &PluginManifest {
-        &PluginManifest {
-            id: "example.notes",
-            name: "Notes",
-            version: "0.1.0",
-            requires: &[],
-            // Declares its own settings, so it reads the schema registry.
-            uses: &["SettingsSchema"],
+impl NotesPanel {
+    const fn new() -> Self {
+        Self {
+            count: AtomicUsize::new(0),
+            claim_srt: AtomicBool::new(true),
+            mode: AtomicUsize::new(0),
         }
-    }
-
-    fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
-        // Claim a file type. The first plugin to claim one wins, in mount order,
-        // and an external plugin is mounted after the built-ins.
-        ctx.on_serial::<ResolveDroppedPath, DropAction, _>(|event| {
-            event
-                .path
-                .extension()
-                .is_some_and(|ext| ext.eq_ignore_ascii_case("srt"))
-                .then_some(DropAction::ImportMedia)
-        });
-
-        // Sit in front of every command. Refusing here stops the edit before the
-        // engine sees it, and the reason is shown to the user as written.
-        ctx.on_waterfall::<CommandProposed, _>(|event| {
-            SEEN.fetch_add(1, Ordering::Relaxed);
-            let Command::Edit(edit) = &event.command else {
-                return;
-            };
-            if edit.targets().tracks.len() > 8 {
-                event.refuse("Notes will not touch more than eight tracks at once.");
-            }
-        });
-
-        // Declare the settings this plugin reads. The host draws them in its own
-        // Settings surface and stores them in the same config file; a value is read
-        // back through `SettingsService` under the declared key.
-        if let Some(schema) = aria_plugin::settings_schema::schema_of(ctx) {
-            schema.declare(SettingsSection {
-                plugin: "example.notes",
-                title: "Notes",
-                fields: SETTINGS,
-            });
-        }
-
-        Ok(())
     }
 }
 
-aria_plugin::export_plugin!(NotesPlugin);
+impl Panel for NotesPanel {
+    fn view(&self, host: &Host) -> UiNode {
+        match self.mode.swap(0, Ordering::AcqRel) {
+            1 => panic!("notes panel view panic"),
+            2 => {
+                return UiNode::column([
+                    UiNode::button("dup", "First"),
+                    UiNode::button("dup", "Second"),
+                ]);
+            }
+            _ => {}
+        }
+        let count = self.count.load(Ordering::Acquire);
+        let claim_srt = self.claim_srt.load(Ordering::Acquire);
+        let draft = host
+            .storage_get("draft")
+            .ok()
+            .flatten()
+            .and_then(|bytes| String::from_utf8(bytes).ok())
+            .unwrap_or_else(|| "ready".to_owned());
+        UiNode::column([
+            UiNode::heading(format!("Notes ({count})")),
+            UiNode::button("add", format!("Add note ({count})")),
+            UiNode::toggle("claim_srt", "Claim .srt files", claim_srt),
+            UiNode::input("draft", draft, "Write a note"),
+        ])
+    }
+
+    fn event(&self, host: &Host, event: &PanelEvent) -> Result<(), String> {
+        match event {
+            PanelEvent::Pressed { id } if id.as_ref() == "add" => {
+                self.count.fetch_add(1, Ordering::AcqRel);
+                Ok(())
+            }
+            PanelEvent::Toggled { id, on } if id.as_ref() == "claim_srt" => {
+                self.claim_srt.store(*on, Ordering::Release);
+                Ok(())
+            }
+            PanelEvent::Submitted { id, text } if id.as_ref() == "draft" => match text.as_ref() {
+                "PANIC_VIEW" => {
+                    self.mode.store(1, Ordering::Release);
+                    Ok(())
+                }
+                "REFUSE_VIEW" => {
+                    self.mode.store(2, Ordering::Release);
+                    Ok(())
+                }
+                "PANIC_EVENT" => panic!("notes panel event panic"),
+                "ERROR_EVENT" => Err("note rejected".to_owned()),
+                _ => host.storage_set("draft", text.as_bytes()),
+            },
+            other => Err(format!("unexpected control event on {}", other.id())),
+        }
+    }
+}
+
+/// External plugin that claims `.srt` dropped paths and refuses edits touching
+/// more than eight tracks at once.
+#[derive(Debug, Default)]
+pub struct NotesPlugin;
+
+impl Plugin for NotesPlugin {
+    fn mount(&self, host: &Host) -> Result<(), String> {
+        host.subscribe("resolve-dropped")?;
+        host.subscribe("command-proposed")?;
+        host.register_command("notes.count", "Record seen command count")?;
+        host.register_panel(
+            PanelSpec::new(NOTES_PANEL_ID, "Notes", PanelLocation::Sidebar),
+            NotesPanel::new(),
+        )?;
+        let _ = host.setting_get("notes.directory")?;
+        host.log(LogLevel::Info, "mounted example.notes");
+        Ok(())
+    }
+
+    fn command_run(&self, host: &Host, id: &str, _args_json: &str) -> Result<(), String> {
+        match id {
+            "notes.count" => {
+                let seen = SEEN.load(Ordering::Relaxed).to_string();
+                host.storage_set("seen_commands", seen.as_bytes())?;
+                let _ = host.refresh_panel(NOTES_PANEL_ID);
+                Ok(())
+            }
+            other => Err(format!("unknown command: {other}")),
+        }
+    }
+
+    fn event(&self, _host: &Host, kind: &str, event_json: &str) -> Result<EventResponse, String> {
+        match kind {
+            "resolve-dropped"
+            | "resolve-dropped-path"
+            | "ResolveDropped"
+            | "ResolveDroppedPath" => {
+                let parsed: Value =
+                    serde_json::from_str(event_json).map_err(|err| err.to_string())?;
+                let path_str = parsed
+                    .get("path")
+                    .and_then(Value::as_str)
+                    .or_else(|| parsed.pointer("/item/path").and_then(Value::as_str));
+                let is_srt = path_str
+                    .and_then(|path| Path::new(path).extension())
+                    .is_some_and(|ext| ext.eq_ignore_ascii_case("srt"));
+                if is_srt {
+                    Ok(EventResponse::ClaimDrop(DropAction::ImportMedia))
+                } else {
+                    Ok(EventResponse::Pass)
+                }
+            }
+            "command-proposed" | "CommandProposed" => {
+                SEEN.fetch_add(1, Ordering::Relaxed);
+                let parsed: Value =
+                    serde_json::from_str(event_json).map_err(|err| err.to_string())?;
+                let track_count = parsed
+                    .get("target_tracks")
+                    .or_else(|| parsed.get("tracks"))
+                    .and_then(Value::as_array)
+                    .map_or(0, Vec::len);
+                if track_count > 8 {
+                    Ok(EventResponse::Refuse(
+                        "Notes will not touch more than eight tracks at once.".to_owned(),
+                    ))
+                } else {
+                    Ok(EventResponse::Pass)
+                }
+            }
+            _ => Ok(EventResponse::Pass),
+        }
+    }
+}
+
+aria_sdk::export!(NotesPlugin);

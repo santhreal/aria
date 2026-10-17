@@ -14,13 +14,15 @@
 use std::path::PathBuf;
 
 use crate::{
-    AnimationRef, AnimationSlot, AudioInsertTarget, AudioLayout, AudioRole, BlendMode,
-    CanvasAspect, ChromaKey, ClipId, ClipParam, ClipTransform, ColorAdjustments, CropRect, Easing,
-    EditCommand, EffectInstance, EffectPreset, ExportFormat, Filter, Generator, LayerShadow,
-    LayerStyles, Lut, MarkerColor, MarkerId, Mask, MaskKind, MediaId, MotionBlur, MulticamAngle,
-    MulticamGroupId, Param, ParamValue, PiecewiseEasingPreset, ProjectCommand, Rational,
-    RationalTime, Replaceable, SequenceId, SpatialTangents, StabilizeLevel, TemplateMeta,
-    TemplatePick, TimeRange, TrackId, TrackKind, TrackMatte, VideoCodec,
+    AnimationRef, AnimationSlot, AudioInsertTarget, AudioLayout, AudioRole, AutomationMode,
+    BlendMode, CanvasAspect, ChromaKey, ClipId, ClipParam, ClipTransform, ColorAdjustments,
+    CropRect, DriverCode, Easing, EditCommand, EffectInstance, ExportFormat, Filter, Generator,
+    LabelColor, LayerShadow, LayerStyles, Lut, MarkerColor, MarkerId, Mask, MaskKind, MaskMode,
+    MediaId, MotionBlur, MulticamAngle, MulticamGroupId, Param, ParamValue, ParentKeep, Patch,
+    PiecewiseEasingPreset, Preset, ProjectCommand, Rational, RationalTime, Replaceable, SequenceId,
+    SoundPlacement, SourceChannel, SpatialTangents, StabilizeLevel, TemplateMeta, TemplatePick,
+    TemporalEase, TimeDisplay, TimeRange, TrackId, TrackKind, TrackMatte, Transition,
+    TransitionAlignment, VideoCodec,
 };
 
 const FPS: Rational = Rational::FPS_30;
@@ -67,7 +69,7 @@ pub fn every_project_command() -> Vec<ProjectCommand> {
         },
         ProjectCommand::SetMediaLabel {
             media: media(3),
-            label: Some(MarkerColor::Green),
+            label: Some(LabelColor::Green),
         },
         ProjectCommand::Export {
             path: PathBuf::from("/out/final.mp4"),
@@ -132,6 +134,13 @@ pub fn every_edit_command() -> Vec<EditCommand> {
             source: clip(4),
             clip: clip(5),
         },
+        EditCommand::RemoveAttributes {
+            clip: clip(4),
+            attributes: vec![
+                aria_models::ClipAttribute::Motion,
+                aria_models::ClipAttribute::TimeRemapping,
+            ],
+        },
         EditCommand::FreezeFrame {
             clip: clip(4),
             at: t(45),
@@ -180,6 +189,12 @@ pub fn every_edit_command() -> Vec<EditCommand> {
             },
             at: Some(t(45)),
         },
+        EditCommand::SetClipParent {
+            clip: clip(4),
+            parent: Some(clip(5)),
+            at: t(45),
+            keep: ParentKeep::Snap,
+        },
         EditCommand::SetParamKeyframe {
             clip: clip(4),
             param: ClipParam::Position,
@@ -206,6 +221,11 @@ pub fn every_edit_command() -> Vec<EditCommand> {
             clip: clip(4),
             param: ClipParam::Opacity,
             value: ParamValue::Scalar(0.5),
+        },
+        EditCommand::SetParamDriver {
+            clip: clip(4),
+            param: ClipParam::Rotation,
+            code: Some(DriverCode::new("aria.expressions", "wiggle(2, 15)")),
         },
         EditCommand::SetClipSpeed {
             clip: clip(4),
@@ -244,20 +264,46 @@ pub fn every_edit_command() -> Vec<EditCommand> {
         },
         EditCommand::SetClipLabel {
             clip: clip(4),
-            label: Some(MarkerColor::Teal),
+            label: Some(LabelColor::Teal),
         },
         EditCommand::SetClipName {
             clip: clip(4),
             name: Some("Interview take 3".into()),
         },
-        EditCommand::SetClipMask {
+        EditCommand::SetClipType {
             clip: clip(4),
-            mask: Some(Mask {
-                kind: MaskKind::Circle,
+            clip_type: Some("com.example.lower-third".into()),
+        },
+        EditCommand::SetClipLineParam {
+            clip: clip(4),
+            param: Some(ClipParam::Scale),
+        },
+        EditCommand::AddClipMask {
+            clip: clip(4),
+            mask: Mask {
                 feather: 0.5.into(),
                 invert: true,
                 ..Mask::new(MaskKind::Circle)
-            }),
+            },
+        },
+        EditCommand::SetClipMask {
+            clip: clip(4),
+            index: 1,
+            mask: Mask {
+                mode: MaskMode::Subtract,
+                opacity: 0.5.into(),
+                expansion: (-12.0).into(),
+                ..Mask::new(MaskKind::Rectangle)
+            },
+        },
+        EditCommand::RemoveClipMask {
+            clip: clip(4),
+            index: 0,
+        },
+        EditCommand::MoveClipMask {
+            clip: clip(4),
+            from_index: 0,
+            to_index: 2,
         },
         EditCommand::SetClipBlendMode {
             clip: clip(4),
@@ -355,9 +401,25 @@ pub fn every_edit_command() -> Vec<EditCommand> {
             param: 0,
             value: 8.0,
         },
-        EditCommand::ApplyEffectPreset {
+        EditCommand::SetEffectInstance {
             clip: clip(4),
-            preset: EffectPreset::new("sample_blur", vec![EffectInstance::new("gaussian_blur")]),
+            index: 0,
+            effect: EffectInstance::new("gaussian_blur"),
+        },
+        EditCommand::SetEffectBypass {
+            clip: clip(4),
+            index: 0,
+            bypass: true,
+        },
+        EditCommand::ApplyPreset {
+            clip: clip(4),
+            preset: Preset::new(
+                "sample_blur",
+                vec![EffectInstance::new("gaussian_blur")],
+                Vec::new(),
+                Vec::new(),
+            ),
+            at: t(0),
         },
         EditCommand::AddTransition {
             clip: clip(4),
@@ -368,11 +430,23 @@ pub fn every_edit_command() -> Vec<EditCommand> {
             clip: clip(4),
             duration: 15,
         },
+        EditCommand::SetTransitionAlignment {
+            clip: clip(4),
+            alignment: TransitionAlignment::Start,
+        },
+        EditCommand::SetTransitionState {
+            clip: clip(4),
+            transition: Transition::new(clip(4), clip(5), "dip_to_black", 15),
+        },
         EditCommand::SplitClip {
             clip: clip(4),
             at: t(45),
         },
         EditCommand::TrimClip {
+            clip: clip(4),
+            timeline: tr(30, 60),
+        },
+        EditCommand::TrimClipUnlinked {
             clip: clip(4),
             timeline: tr(30, 60),
         },
@@ -439,6 +513,11 @@ pub fn every_edit_command() -> Vec<EditCommand> {
             to_track: track(2),
             start: t(90),
         },
+        EditCommand::MoveClipUnlinked {
+            clip: clip(4),
+            to_track: track(2),
+            start: t(90),
+        },
         EditCommand::RippleMoveClip {
             clip: clip(4),
             to_track: track(2),
@@ -492,6 +571,16 @@ pub fn every_edit_command() -> Vec<EditCommand> {
         EditCommand::SetTrackGain {
             track: track(2),
             gain: 0.75,
+        },
+        EditCommand::SetTrackPan {
+            track: track(2),
+            pan: -0.25,
+        },
+        EditCommand::SetTrackAutomation {
+            track: track(2),
+            mode: AutomationMode::Read,
+            volume: Param::Constant(0.8),
+            pan: Param::Constant(-0.25),
         },
         EditCommand::SetTrackOutput {
             track: track(2),
@@ -581,6 +670,16 @@ pub fn every_edit_command() -> Vec<EditCommand> {
         EditCommand::UnlinkClips {
             clips: vec![clip(4), clip(5)],
         },
+        EditCommand::SetClipsEnabled {
+            clips: vec![clip(4), clip(5)],
+            enabled: false,
+        },
+        EditCommand::GroupClips {
+            clips: vec![clip(4), clip(5)],
+        },
+        EditCommand::UngroupClips {
+            clips: vec![clip(4), clip(5)],
+        },
         EditCommand::SetClipBeats {
             clip: clip(4),
             beats: vec![12, 24, 36],
@@ -612,6 +711,17 @@ pub fn every_edit_command() -> Vec<EditCommand> {
         EditCommand::SetAudioLayout {
             layout: AudioLayout::Stereo,
         },
+        EditCommand::SetTimeDisplay {
+            display: TimeDisplay::Frames,
+        },
+        EditCommand::SetMasterMix {
+            gain: 0.9,
+            pan: 0.0,
+            muted: false,
+            automation: AutomationMode::Read,
+            volume: Param::Constant(0.9),
+            pan_envelope: Param::Constant(0.0),
+        },
         EditCommand::SetProjectName {
             name: "Sunday cut".into(),
         },
@@ -627,6 +737,36 @@ pub fn every_edit_command() -> Vec<EditCommand> {
         },
         EditCommand::OpenSequence {
             sequence: Some(SequenceId::from_raw(10)),
+        },
+        EditCommand::CreateSequence {
+            name: "Sequence 2".into(),
+        },
+        EditCommand::SetKeyframeEase {
+            clip: clip(4),
+            param: ClipParam::Opacity,
+            at: t(45),
+            in_ease: Some(TemporalEase::EASY_EASE),
+            out_ease: Some(TemporalEase::EASY_EASE),
+            hold: false,
+        },
+        EditCommand::SetKeyframeRoving {
+            clip: clip(4),
+            param: ClipParam::Position,
+            at: t(45),
+            roving: true,
+        },
+        EditCommand::SetSourcePatch {
+            channel: SourceChannel::Audio,
+            patch: Patch::Track(track(2)),
+        },
+        EditCommand::SourceEdit {
+            media: media(2),
+            source: tr(0, 90),
+            at: t(60),
+            fill: Some(t(45)),
+            ripple: false,
+            track: Some(track(1)),
+            sound: SoundPlacement::Lane(track(2)),
         },
     ]
 }

@@ -8,10 +8,10 @@
 //! retimed to fill it. The rows are declared here, the bar is built from them,
 //! and the census presses each one with and without that range.
 //!
-//! The scrub bar is not a row: dragging it moves the monitor's own playhead
-//! through [`AppState::scrub_source`], which is a pointer gesture over a painted
-//! rectangle rather than a control with a label. Nothing in the project changes,
-//! so there is no command to reach.
+//! The Viewer's mini ruler is not a row: dragging it moves the monitor's own
+//! playhead through [`AppState::press_viewer_ruler`], which is a pointer gesture
+//! over a painted rectangle rather than a control with a label. Nothing in the
+//! project changes, so there is no command to reach.
 
 use aria_engine::EngineError;
 

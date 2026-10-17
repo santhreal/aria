@@ -256,6 +256,9 @@ impl AppState {
             super::storage::format_bytes(report.removed_bytes),
             id.descriptor().label
         ));
+        if id == CacheId::RenderFiles {
+            self.refresh_render_files();
+        }
         Ok(())
     }
 
@@ -309,6 +312,9 @@ impl AppState {
             id.descriptor().label,
             destination.display()
         ));
+        if id == CacheId::RenderFiles {
+            self.refresh_render_files();
+        }
         Ok(())
     }
 
@@ -331,6 +337,9 @@ impl AppState {
             id.descriptor().label,
             destination.display()
         ));
+        if id == CacheId::RenderFiles {
+            self.refresh_render_files();
+        }
         Ok(())
     }
 
@@ -378,6 +387,9 @@ impl AppState {
             ),
             None => format!("{} follows the storage root again", id.descriptor().label),
         });
+        if id == CacheId::RenderFiles {
+            self.refresh_render_files();
+        }
         Ok(())
     }
 

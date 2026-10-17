@@ -156,10 +156,10 @@ impl AppState {
             return;
         };
         self.request_pick(
-            Ask::OpenFile(
-                FileSpec::new(format!("Media for {label}"))
-                    .filter("Media", crate::app::media::import::MEDIA_IMPORT_EXTENSIONS),
-            ),
+            Ask::OpenFile(FileSpec::new(format!("Media for {label}")).filter(
+                "Media",
+                &crate::app::media::import::media_import_extensions(),
+            )),
             move |state, answer| {
                 let mut picks = picks;
                 let Some(file) = answer.one() else {

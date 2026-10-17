@@ -167,6 +167,8 @@ impl Default for UiEditorStore {
                 duration_ticks: 0,
                 markers: Vec::new().into(),
                 frame_rate: Rational { num: 24, den: 1 },
+                source_patching: aria_models::SourcePatching::default(),
+                time_display: aria_models::TimeDisplay::default(),
             },
             media: Vec::new(),
             bins: Vec::new(),
@@ -286,16 +288,38 @@ impl ActivePanel {
         Self::Mixer,
     ];
 
-    /// Whether this pane draws itself over the viewer instead of beside it.
-    ///
-    /// The viewer is one rectangle and three things want it: the program
-    /// monitor, the assistant and the mixer. An exhaustive match rather than a
-    /// predicate per panel row, so a pane added to the enum does not compile
-    /// until it has answered this.
-    pub fn takes_over_viewer(self) -> bool {
+    /// The primary dock panel id associated with this keyboard focus route.
+    pub const fn panel_id(self) -> crate::dock::PanelId {
         match self {
-            Self::Ai | Self::Mixer => true,
-            Self::Media | Self::Preview | Self::Timeline | Self::Inspector => false,
+            Self::Media => crate::dock::PANEL_PROJECT,
+            Self::Preview => crate::dock::PANEL_VIEWER,
+            Self::Timeline => crate::dock::PANEL_TIMELINE,
+            Self::Inspector => crate::dock::PANEL_INSPECTOR,
+            Self::Ai => crate::dock::PANEL_ASSISTANT,
+            Self::Mixer => crate::dock::PANEL_MIXER,
+        }
+    }
+
+    /// Map a built-in dock panel id back to its keyboard focus route.
+    pub fn from_panel_id(id: &str) -> Option<Self> {
+        match id {
+            crate::dock::PANEL_PROJECT | crate::dock::PANEL_EFFECTS => Some(Self::Media),
+            crate::dock::PANEL_VIEWER | crate::dock::PANEL_SCOPES => Some(Self::Preview),
+            crate::dock::PANEL_TIMELINE
+            | crate::dock::PANEL_JOBS
+            | crate::dock::PANEL_HISTORY
+            | crate::dock::PANEL_MARKERS => Some(Self::Timeline),
+            crate::dock::PANEL_INSPECTOR
+            | crate::dock::PANEL_COLOR
+            | crate::dock::PANEL_INFO
+            | crate::dock::PANEL_ALIGN
+            | crate::dock::PANEL_CHARACTER
+            | crate::dock::PANEL_PARAGRAPH => Some(Self::Inspector),
+            crate::dock::PANEL_ASSISTANT => Some(Self::Ai),
+            crate::dock::PANEL_MIXER
+            | crate::dock::PANEL_AUDIO_METERS
+            | "aria.panel.audio-meters" => Some(Self::Mixer),
+            _ => None,
         }
     }
 
@@ -327,6 +351,10 @@ pub enum UiRoute {
 pub enum EditorTool {
     #[default]
     Pointer,
+    /// Select a clip and every later clip on its lane or all unlocked lanes.
+    TrackSelectForward,
+    /// Select a clip and every earlier clip on its lane or all unlocked lanes.
+    TrackSelectBackward,
     Razor,
     Hand,
     Zoom,
@@ -340,6 +368,98 @@ pub enum EditorTool {
     Rate,
     /// Trim an edge and move the rest of the lane so no gap is left.
     Ripple,
+    /// Add volume or opacity keyframes on a clip's line; in the Viewer, draw or
+    /// edit masks and motion-path keyframes.
+    Pen,
+    /// In the Viewer, create a text clip at the click or edit an existing one.
+    Type,
+}
+
+/// Sub-tool variants of [`EditorTool::Pen`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PenVariant {
+    #[default]
+    Standard,
+    AddVertex,
+    DeleteVertex,
+    ConvertVertex,
+}
+
+impl PenVariant {
+    pub const ALL: [Self; 4] = [
+        Self::Standard,
+        Self::AddVertex,
+        Self::DeleteVertex,
+        Self::ConvertVertex,
+    ];
+
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Standard => "Pen Tool",
+            Self::AddVertex => "Add Vertex Tool",
+            Self::DeleteVertex => "Delete Vertex Tool",
+            Self::ConvertVertex => "Convert Vertex Tool",
+        }
+    }
+}
+
+/// Which side of a cut an edge selection points at.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TrimSide {
+    /// The incoming head (start) edge of the clip.
+    In,
+    /// The outgoing tail (end) edge of the clip.
+    Out,
+}
+
+/// A selected edit point on a timeline clip edge.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SelectedEdge {
+    pub clip: u64,
+    pub side: TrimSide,
+}
+
+/// A selected empty span between clips on a track.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SelectedGap {
+    pub track: u64,
+    pub start_ticks: i64,
+    pub end_ticks: i64,
+}
+
+impl SelectedGap {
+    pub const fn duration_ticks(self) -> i64 {
+        self.end_ticks - self.start_ticks
+    }
+}
+
+/// Live on-screen trim feedback shown while a trim, roll, slip, slide, or rate
+/// stretch gesture is active.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TrimFeedback {
+    pub tool_label: SharedString,
+    pub clip_name: SharedString,
+    pub delta_ticks: i64,
+    pub delta_label: SharedString,
+    pub detail_label: SharedString,
+}
+
+/// Per-frame virtualization and paint counters recorded by the timeline time
+/// area elements.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct TimelinePaintStats {
+    /// Number of lane-group canvas elements painted in the last frame.
+    pub canvas_elements: usize,
+    /// Total tracks in the sequence.
+    pub total_lanes: usize,
+    /// Tracks intersecting the vertical viewport that were visited during paint.
+    pub visible_lanes: usize,
+    /// Total clips across all tracks in the sequence.
+    pub total_clips: usize,
+    /// Clips intersecting `[scroll_x, scroll_x + viewport_w]` visited during paint.
+    pub visible_clips: usize,
+    /// Total quad/text/image primitive calls issued by the lane-group paint pass.
+    pub paint_calls: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -353,17 +473,25 @@ pub enum EditMode {
 pub enum AppMenu {
     File,
     Edit,
+    Clip,
     Sequence,
+    Markers,
+    Effect,
+    Animation,
     View,
     Window,
     Help,
 }
 
 impl AppMenu {
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 10] = [
         Self::File,
         Self::Edit,
+        Self::Clip,
         Self::Sequence,
+        Self::Markers,
+        Self::Effect,
+        Self::Animation,
         Self::View,
         Self::Window,
         Self::Help,
@@ -375,7 +503,11 @@ impl AppMenu {
         match self {
             Self::File => "File",
             Self::Edit => "Edit",
+            Self::Clip => "Clip",
             Self::Sequence => "Sequence",
+            Self::Markers => "Markers",
+            Self::Effect => "Effect",
+            Self::Animation => "Animation",
             Self::View => "View",
             Self::Window => "Window",
             Self::Help => "Help",
@@ -402,76 +534,6 @@ impl HomeRail {
             Self::Recents => "Recents",
             Self::Samples => "Samples",
             Self::Learn => "Learn",
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum SidebarTab {
-    #[default]
-    Media,
-    Titles,
-    Shapes,
-    Stickers,
-    /// Effects that draw a picture of their own, placed as clips.
-    Generators,
-    Animations,
-    Masks,
-    Transitions,
-    /// Cloud stock search.
-    Stock,
-    /// The cloud sound-effect catalog.
-    CloudSfx,
-    /// AI generation: prompt in, media out.
-    Generate,
-    /// Offline transcription: captions from the selected clip's audio.
-    Captions,
-    /// Shots, silence, beats, and loudness over the selected clip's media.
-    Analysis,
-    Audio,
-    /// Every ruler marker, with its time, name, colour, and note.
-    Markers,
-}
-
-impl SidebarTab {
-    /// Every tab, in the order the chip row shows them. The chips are generated
-    /// from this, so a new tab appears in the sidebar instead of existing as a
-    /// variant nothing can reach.
-    pub const ALL: &'static [Self] = &[
-        Self::Media,
-        Self::Titles,
-        Self::Shapes,
-        Self::Stickers,
-        Self::Generators,
-        Self::Animations,
-        Self::Masks,
-        Self::Transitions,
-        Self::Stock,
-        Self::CloudSfx,
-        Self::Generate,
-        Self::Captions,
-        Self::Analysis,
-        Self::Audio,
-        Self::Markers,
-    ];
-
-    pub fn label(self) -> &'static str {
-        match self {
-            Self::Media => "Media",
-            Self::Titles => "Titles",
-            Self::Shapes => "Shapes",
-            Self::Stickers => "Stickers",
-            Self::Generators => "Generators",
-            Self::Animations => "Animations",
-            Self::Masks => "Masks",
-            Self::Transitions => "Transitions",
-            Self::Stock => "Stock",
-            Self::CloudSfx => "SFX",
-            Self::Generate => "Generate",
-            Self::Captions => "Captions",
-            Self::Analysis => "Analysis",
-            Self::Audio => "Audio",
-            Self::Markers => "Markers",
         }
     }
 }
@@ -520,12 +582,21 @@ pub enum CatalogDragKind {
     Sticker,
     /// Places a generator clip on the lane and tick it lands on.
     Generator,
+    /// Places a plugin clip type on the lane and tick it lands on.
+    ClipType,
     /// Applies an animation preset to the clip it lands on.
     Animation,
     /// Applies a mask shape to the clip it lands on.
     Mask,
     /// Applies a blend at the right cut of the clip it lands on.
     Transition,
+    /// Adds a video effect to the clip it lands on.
+    Effect,
+    /// Adds an audio effect to the insert chain of the clip it lands on.
+    AudioEffect,
+    /// Applies an animation preset to the clip it lands on, anchored at the
+    /// playhead.
+    Preset,
 }
 
 /// A catalog entry in flight from the sidebar.
@@ -541,12 +612,13 @@ impl CatalogDrag {
     pub fn targets_a_clip(&self) -> bool {
         !matches!(
             self.kind,
-            CatalogDragKind::Sticker | CatalogDragKind::Generator
+            CatalogDragKind::Sticker | CatalogDragKind::Generator | CatalogDragKind::ClipType
         )
     }
 }
 
-/// A pool entry in flight from the media sidebar.
+/// A pool entry in flight from the media sidebar, or the open Source tab's
+/// frame.
 ///
 /// Carries the name as well as the id so the drag ghost can be drawn without
 /// reading the pool back out of the state mid-gesture.
@@ -554,6 +626,9 @@ impl CatalogDrag {
 pub struct MediaDrag {
     pub media: u64,
     pub label: SharedString,
+    /// Dragged from the Source tab: the drop takes its marked range and
+    /// covers, or inserts with Ctrl.
+    pub from_source: bool,
 }
 
 /// A pool folder in flight, for a drop that re-parents it.

@@ -55,7 +55,7 @@ fn a_loaded_source_keeps_its_tick_on_the_tile_after_the_pointer_leaves() {
     state.clear_pool_hover();
 
     assert_eq!(
-        state.source_view.as_ref().map(|view| view.tick),
+        state.sources.focused().map(|view| view.tick),
         Some(7),
         "a mouse-out must not rewind the monitor"
     );
@@ -70,14 +70,14 @@ fn a_hover_past_the_end_of_the_source_clamps_the_monitor() {
     let (mut state, media) = with_selection();
     assert!(state.toggle_source_monitor());
     let last = state
-        .source_view
-        .as_ref()
+        .sources
+        .focused()
         .map(|view| view.duration_ticks - 1)
         .expect("a monitor is open");
 
     state.hover_pool_item(media, last + 500);
 
-    assert_eq!(state.source_view.as_ref().map(|view| view.tick), Some(last));
+    assert_eq!(state.sources.focused().map(|view| view.tick), Some(last));
 }
 // --- the monitor -------------------------------------------------------------
 
@@ -86,26 +86,23 @@ fn space_over_the_pool_loads_the_selection_and_puts_it_away_again() {
     let (mut state, media) = with_selection();
 
     state.space();
-    assert_eq!(
-        state.source_view.as_ref().map(|view| view.media),
-        Some(media)
-    );
+    assert_eq!(state.sources.focused().map(|view| view.media), Some(media));
 
     state.space();
-    assert!(state.source_view.is_none(), "the same key closes it");
+    assert!(state.sources.focused().is_none(), "the same key closes it");
     assert!(!state.playing, "closing the monitor is not a play command");
 }
 #[test]
 fn space_elsewhere_is_transport_and_returns_the_pane_to_the_sequence() {
     let (mut state, _media) = with_selection();
     state.space();
-    assert!(state.source_view.is_some());
+    assert!(state.sources.focused().is_some());
 
     state.active_panel = ActivePanel::Timeline;
     state.space();
 
     assert!(
-        state.source_view.is_none(),
+        state.sources.focused().is_none(),
         "the sequence cannot play behind a source frame"
     );
     assert!(state.playing, "space is still transport");
@@ -120,7 +117,7 @@ fn opening_the_monitor_stops_playback() {
     state.active_panel = ActivePanel::Media;
     state.space();
 
-    assert!(state.source_view.is_some());
+    assert!(state.sources.focused().is_some());
     assert!(!state.playing, "two monitors must not run at once");
 }
 #[test]
@@ -142,10 +139,10 @@ fn the_monitor_refuses_what_it_cannot_show() {
         state.status_message.as_deref(),
         Some("that source cannot be previewed")
     );
-    assert!(state.source_view.is_none());
+    assert!(state.sources.focused().is_none());
 }
 #[test]
-fn a_second_source_replaces_the_first_rather_than_stacking() {
+fn a_second_source_opens_its_own_tab_beside_the_first() {
     let (mut state, first) = with_selection();
     assert!(state.toggle_source_monitor());
     // A pool dedupes by path, so a second entry needs a second file.
@@ -157,9 +154,12 @@ fn a_second_source_replaces_the_first_rather_than_stacking() {
 
     assert!(state.toggle_source_monitor(), "a different source opens");
 
+    assert_eq!(state.sources.focused().map(|view| view.media), Some(second));
+    let open: Vec<u64> = state.sources.tabs().iter().map(|view| view.media).collect();
     assert_eq!(
-        state.source_view.as_ref().map(|view| view.media),
-        Some(second)
+        open,
+        vec![first, second],
+        "the first source's tab stays open"
     );
 }
 #[test]
@@ -170,7 +170,7 @@ fn undoing_the_import_puts_the_monitor_away() {
     assert!(state.undo(), "the import is undone");
 
     assert!(
-        state.source_view.is_none(),
+        state.sources.focused().is_none(),
         "the pane cannot show a source the project no longer has"
     );
 }
@@ -278,7 +278,7 @@ fn an_out_point_includes_the_frame_on_screen() {
     state.hover_pool_item(media, 2);
     state.set_source_out();
 
-    assert_eq!(state.source_view.as_ref().unwrap().mark_out, Some(3));
+    assert_eq!(state.sources.focused().unwrap().mark_out, Some(3));
     assert_eq!(
         state.source_range(),
         Some((0, 3)),
@@ -294,7 +294,7 @@ fn a_mark_that_would_invert_the_range_drops_the_other_one() {
     state.set_source_out();
     state.hover_pool_item(media, 5);
     state.set_source_in();
-    let view = state.source_view.as_ref().unwrap();
+    let view = state.sources.focused().unwrap();
     assert_eq!(view.mark_in, Some(5));
     assert_eq!(
         view.mark_out, None,
@@ -304,7 +304,7 @@ fn a_mark_that_would_invert_the_range_drops_the_other_one() {
     // And the other way round.
     state.hover_pool_item(media, 1);
     state.set_source_out();
-    let view = state.source_view.as_ref().unwrap();
+    let view = state.sources.focused().unwrap();
     assert_eq!(view.mark_out, Some(2));
     assert_eq!(view.mark_in, None);
 }
@@ -323,14 +323,14 @@ fn marks_belong_to_the_monitor_in_front_of_them() {
     let (mut state, media, _frames) = with_monitor();
     state.hover_pool_item(media, 2);
     state.mark_in_here();
-    assert_eq!(state.source_view.as_ref().unwrap().mark_in, Some(2));
+    assert_eq!(state.sources.focused().unwrap().mark_in, Some(2));
     assert_eq!(state.mark_in, None, "the sequence is not marked from here");
 
     state.clear_mark_in_here();
-    assert_eq!(state.source_view.as_ref().unwrap().mark_in, None);
+    assert_eq!(state.sources.focused().unwrap().mark_in, None);
 
     // With the monitor away, the same keys are the sequence's again.
-    state.close_source_monitor();
+    state.show_program();
     state.mark_in_here();
     assert_eq!(state.mark_in, Some(state.playhead.value));
     state.mark_out_here();
@@ -342,12 +342,12 @@ fn marks_belong_to_the_monitor_in_front_of_them() {
 fn the_bar_and_the_tile_share_one_tick() {
     let (mut state, media, frames) = with_monitor();
     assert!(frames > 1);
-    state.pool_preview.record_source_bar(40.0, 200.0);
+    state.record_viewer_ruler(40.0, 200.0);
 
-    state.scrub_source(240.0);
+    state.press_viewer_ruler(240.0);
 
     let tick = frames - 1;
-    assert_eq!(state.source_view.as_ref().unwrap().tick, tick);
+    assert_eq!(state.sources.focused().unwrap().tick, tick);
     assert_eq!(
         state.pool_tile_tick(media),
         tick,
@@ -359,10 +359,10 @@ fn an_unmeasured_bar_does_not_move_the_monitor() {
     let (mut state, media, _frames) = with_monitor();
     state.hover_pool_item(media, 1);
 
-    state.scrub_source(500.0);
+    state.press_viewer_ruler(500.0);
 
     assert_eq!(
-        state.source_view.as_ref().unwrap().tick,
+        state.sources.focused().unwrap().tick,
         1,
         "a pointer position means nothing without a painted rectangle"
     );
@@ -390,7 +390,7 @@ fn cutting_in_places_the_marked_range_at_the_playhead() {
     assert_eq!(clips.len(), 1, "one clip for one cut-in");
     assert_eq!(clips[0].timeline_start_ticks, state.playhead.value);
     assert!(
-        state.source_view.is_some(),
+        state.sources.focused().is_some(),
         "the monitor stays open, so takes can be cut in one after another"
     );
     let _ = media;
@@ -437,7 +437,7 @@ fn an_empty_range_is_refused_rather_than_cut_in() {
     // degenerate case the engine must never be handed.
     state.hover_pool_item(media, 0);
     state.set_source_out();
-    if let Some(view) = state.source_view.as_mut() {
+    if let Some(view) = state.sources.focused_mut() {
         view.mark_in = Some(view.mark_out.expect("out"));
     }
 
@@ -447,7 +447,7 @@ fn an_empty_range_is_refused_rather_than_cut_in() {
         .expect("refused, not failed");
     assert_eq!(
         state.status_message.as_deref(),
-        Some("the marked range is empty")
+        Some("the source's marked range is empty")
     );
     assert!(
         state

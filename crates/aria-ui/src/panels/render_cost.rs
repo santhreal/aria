@@ -49,7 +49,7 @@ pub(crate) fn render(
         .border_color(theme.border)
         .child(
             div()
-                .text_size(px(12.))
+                .text_size(Theme::TEXT_TITLE)
                 .text_color(theme.text_muted)
                 .child("Last frame"),
         )
@@ -79,7 +79,7 @@ fn passes(
     Some(
         div()
             .pt(px(Theme::SPACE_XS))
-            .text_size(px(11.))
+            .text_size(Theme::TEXT_UI)
             .text_color(theme.text_muted)
             .child(SharedString::from(line))
             .into_any_element(),
@@ -116,7 +116,7 @@ fn playback(theme: &Theme, report: aria_render::PlaybackReport) -> Option<gpui::
                     .items_center()
                     .justify_between()
                     .gap(px(Theme::SPACE_SM))
-                    .text_size(px(13.))
+                    .text_size(Theme::TEXT_UI)
                     .child(div().text_color(theme.text_muted).child("Playback"))
                     .child(
                         div()
@@ -133,7 +133,7 @@ fn playback(theme: &Theme, report: aria_render::PlaybackReport) -> Option<gpui::
             )
             .child(
                 div()
-                    .text_size(px(12.))
+                    .text_size(Theme::TEXT_TITLE)
                     .text_color(theme.text_muted)
                     .child(SharedString::from(format!(
                         "{} of {} frames late, worst {:.1} ms",
@@ -155,7 +155,7 @@ fn row(theme: &Theme, name: &'static str, ms: f64, share: f64) -> gpui::AnyEleme
                 .items_center()
                 .justify_between()
                 .gap(px(Theme::SPACE_SM))
-                .text_size(px(13.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text)
                 .child(div().text_color(theme.text_muted).child(name))
                 .child(SharedString::from(format!("{ms:.1} ms"))),

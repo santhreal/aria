@@ -18,9 +18,11 @@
 //! that blocked on a network round trip would be worse than one that says "not
 //! configured".
 
+use aria_plugin::{SettingKind, SettingSpec};
 use aria_settings::{
     AiApiProtocol, AiSource, Autonomy, ReasoningSummary, Settings, ThemeChoice, load, save,
 };
+use gpui::SharedString;
 
 use super::AppState;
 
@@ -40,19 +42,35 @@ pub enum SettingsField {
     /// The dialog's own filter. It is a field so it shares the key routing, but it
     /// never touches the config file.
     Filter,
-    /// A field a plugin declared. Carries its own spec, so nothing here needs a
-    /// second table of plugin settings.
-    Plugin(aria_plugin::SettingSpec),
+    /// The name the Keys section saves the keys in force under. Not part of the
+    /// config file: Enter writes `<data dir>/keymaps/<name>.toml`, and the field
+    /// shows the name of the set in force.
+    KeymapName,
+    /// A field a plugin declared, by its settings key. Its label, placeholder
+    /// and kind are read from the schema, so nothing here needs a second table
+    /// of plugin settings.
+    Plugin(&'static str),
+}
+
+/// How one field reads in the dialog.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SettingLook {
+    pub label: SharedString,
+    /// What an empty value means.
+    pub placeholder: SharedString,
+    /// Which row draws it. A shipped field is text, or a secret for a key.
+    pub kind: SettingKind,
 }
 
 impl SettingsField {
     /// Every shipped field, in dialog order. Plugin fields come from the schema.
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::AiBaseUrl,
         Self::AiModel,
         Self::AiKey,
         Self::AiKeyEnv,
         Self::CloudBaseUrl,
+        Self::KeymapName,
         Self::Filter,
     ];
 
@@ -65,42 +83,29 @@ impl SettingsField {
             Self::AiKeyEnv => "ai-key-env",
             Self::CloudBaseUrl => "cloud-base-url",
             Self::Filter => "settings-filter",
-            Self::Plugin(spec) => spec.key,
+            Self::KeymapName => "keymap-name",
+            Self::Plugin(key) => key,
         }
     }
 
-    pub fn label(self) -> &'static str {
-        match self {
-            Self::AiBaseUrl => "AI base URL",
-            Self::AiModel => "AI model",
-            Self::AiKey => "AI key",
-            Self::AiKeyEnv => "AI key variable",
-            Self::CloudBaseUrl => "Cloud base URL",
-            Self::Filter => "Filter",
-            Self::Plugin(spec) => spec.label,
-        }
+    /// How a shipped field reads: its label and what an empty value means.
+    /// `None` for a plugin's field, which [`AppState::setting_look`] reads from
+    /// the schema.
+    fn shipped(self) -> Option<(&'static str, &'static str)> {
+        Some(match self {
+            Self::AiBaseUrl => ("AI base URL", "not set — e.g. http://localhost:11434/v1"),
+            Self::AiModel => ("AI model", "not set"),
+            Self::AiKey => ("AI key", "no key stored"),
+            Self::AiKeyEnv => ("AI key variable", "no variable named"),
+            Self::CloudBaseUrl => ("Cloud base URL", "the shipped default"),
+            Self::Filter => ("Filter", "type to narrow the sections"),
+            Self::KeymapName => ("Save keys as", "a name, then Enter"),
+            Self::Plugin(_) => return None,
+        })
     }
 
-    /// What an empty value means, so a blank row is not a mystery.
-    pub fn placeholder(self) -> &'static str {
-        match self {
-            Self::AiBaseUrl => "not set — e.g. http://localhost:11434/v1",
-            Self::AiModel => "not set",
-            Self::AiKey => "no key stored",
-            Self::AiKeyEnv => "no variable named",
-            Self::CloudBaseUrl => "the shipped default",
-            Self::Filter => "type to narrow the sections",
-            Self::Plugin(spec) => spec.placeholder,
-        }
-    }
-
-    /// Whether the value is a secret, so the row shows its length and not its text.
-    pub fn secret(self) -> bool {
-        match self {
-            Self::AiKey => true,
-            Self::Plugin(spec) => spec.secret,
-            _ => false,
-        }
+    fn label(self) -> &'static str {
+        self.shipped().map_or(self.id(), |(label, _)| label)
     }
 
     /// The saved value, as the row should read it.
@@ -111,7 +116,9 @@ impl SettingsField {
             Self::AiKey => settings.ai.api_key.clone().unwrap_or_default(),
             Self::AiKeyEnv => settings.ai.api_key_env.clone().unwrap_or_default(),
             Self::CloudBaseUrl => settings.cloud.base_url.clone(),
-            Self::Filter => String::new(),
+            // The set in force is not in this struct either:
+            // `AppState::setting_draft` reads it.
+            Self::Filter | Self::KeymapName => String::new(),
             // A plugin's value is not in this struct: it lives under its own key,
             // and `AppState::plugin_setting` is the one reader.
             Self::Plugin(_) => String::new(),
@@ -150,7 +157,8 @@ impl SettingsField {
                 validate_url(value, self.label())?;
                 settings.cloud.base_url = value.to_string();
             }
-            Self::Filter => {}
+            // `commit_setting` writes a named set and never reaches here.
+            Self::Filter | Self::KeymapName => {}
             // Not a member of this struct: `commit_setting` writes a plugin field
             // through `SettingsService` and never reaches here.
             Self::Plugin(_) => {}
@@ -199,22 +207,100 @@ impl AppState {
         self.settings_form.focused = field;
         self.settings_form.draft = match field {
             Some(SettingsField::Filter) => self.settings_form.filter.clone(),
-            Some(SettingsField::Plugin(spec)) => self.plugin_setting(spec.key),
+            Some(SettingsField::KeymapName) => self.active_keymap().unwrap_or_default().to_owned(),
+            Some(SettingsField::Plugin(key)) => self.plugin_setting(key),
             Some(field) => field.value(&self.cloud_settings()),
             None => String::new(),
         };
     }
 
-    /// The value stored under one plugin settings key, as text.
+    /// How `field` reads in the dialog, or nothing for a plugin field no
+    /// mounted plugin declares any more.
+    pub fn setting_look(&self, field: SettingsField) -> Option<SettingLook> {
+        if let Some((label, placeholder)) = field.shipped() {
+            let kind = if field == SettingsField::AiKey {
+                SettingKind::Secret
+            } else {
+                SettingKind::Text
+            };
+            return Some(SettingLook {
+                label: SharedString::new_static(label),
+                placeholder: SharedString::new_static(placeholder),
+                kind,
+            });
+        }
+        let spec = self.plugin_setting_spec(field.id())?;
+        let placeholder = match (&spec.kind, spec.placeholder.is_empty()) {
+            (_, false) => spec.placeholder,
+            // A manifest number with no `min` or `max` is bounded at the f64
+            // extremes, which are not worth reading.
+            (SettingKind::Number { min, max, .. }, true) => {
+                match (*min > f64::MIN, *max < f64::MAX) {
+                    (true, true) => format!("{min} to {max}"),
+                    (true, false) => format!("{min} or more"),
+                    (false, true) => format!("{max} or less"),
+                    (false, false) => "a number".to_owned(),
+                }
+            }
+            (_, true) => "not set".to_owned(),
+        };
+        Some(SettingLook {
+            label: spec.label.into(),
+            placeholder: placeholder.into(),
+            kind: spec.kind,
+        })
+    }
+
+    /// The declared field that owns one plugin settings key.
+    pub fn plugin_setting_spec(&self, key: &str) -> Option<SettingSpec> {
+        aria_plugin::settings_schema::schema_of(&self.ctx)?
+            .field(key)
+            .map(|(_, spec)| spec)
+    }
+
+    /// Check `text` against the field that owns `key` and save it, or clear the
+    /// key when `text` is empty so it reads as its default. Returns the field's
+    /// label.
+    pub fn set_plugin_setting(&mut self, key: &str, text: &str) -> Result<SharedString, String> {
+        let spec = self
+            .plugin_setting_spec(key)
+            .ok_or_else(|| format!("{key}: no mounted plugin declares this setting"))?;
+        let stored = spec
+            .kind
+            .check(text)
+            .map_err(|reason| format!("{}: {reason}", spec.label))?;
+        let settings = self
+            .ctx
+            .try_get::<dyn aria_plugin::SettingsService>()
+            .ok_or_else(|| {
+                "settings are not available: the settings plugin is not mounted".to_string()
+            })?;
+        settings.set(
+            key,
+            if stored.is_empty() {
+                serde_json::Value::Null
+            } else {
+                serde_json::Value::String(stored)
+            },
+        );
+        settings.save().map_err(|err| format!("{key}: {err}"))?;
+        let label = SharedString::from(spec.label);
+        self.status_message = Some(format!("{label} saved"));
+        Ok(label)
+    }
+
+    /// The value `SettingsService` reads for one plugin settings key, as text:
+    /// the stored value, or the declared default when nothing is stored.
     ///
     /// Through `SettingsService`, because that is the owner of the file. A string is
     /// shown as itself rather than as a quoted JSON string, which is what a row of
-    /// text should read as; anything else is rendered as it is stored.
+    /// text should read as; anything else is rendered as it is stored. Showing a
+    /// value does not load a package waiting for its key; saving one does.
     pub fn plugin_setting(&self, key: &str) -> String {
         let Some(settings) = self.ctx.try_get::<dyn aria_plugin::SettingsService>() else {
             return String::new();
         };
-        match settings.get(key) {
+        match settings.peek(key) {
             Some(serde_json::Value::String(text)) => text,
             Some(serde_json::Value::Null) | None => String::new(),
             Some(other) => other.to_string(),
@@ -225,7 +311,7 @@ impl AppState {
     ///
     /// Empty when no schema is mounted: a host with no plugin settings shows no
     /// section rather than an empty one.
-    pub fn plugin_settings_sections(&self) -> Vec<aria_plugin::SettingsSection> {
+    pub fn plugin_settings_sections(&self) -> Vec<std::sync::Arc<aria_plugin::SettingsSection>> {
         aria_plugin::settings_schema::schema_of(&self.ctx)
             .map(|schema| schema.sections())
             .unwrap_or_default()
@@ -277,31 +363,16 @@ impl AppState {
         let draft = self.settings_form.draft.clone();
         // A plugin's value is not in `Settings`: it is a key in the service that owns
         // the file, so the write goes there and the same save path persists it.
-        if let SettingsField::Plugin(spec) = field {
-            let settings = self
-                .ctx
-                .try_get::<dyn aria_plugin::SettingsService>()
-                .ok_or_else(|| {
-                    "settings are not available: the settings plugin is not mounted".to_string()
-                })?;
-            let value = draft.trim();
-            settings.set(
-                spec.key,
-                if value.is_empty() {
-                    serde_json::Value::Null
-                } else {
-                    serde_json::Value::String(value.to_string())
-                },
-            );
-            settings
-                .save()
-                .map_err(|err| format!("{}: {err}", spec.key))?;
+        if let SettingsField::Plugin(key) = field {
+            self.set_plugin_setting(key, &draft)?;
+        } else if field == SettingsField::KeymapName {
+            self.save_keymap_as(&draft)?;
         } else {
             self.edit_settings(|settings| field.apply(settings, &draft))?;
+            self.status_message = Some(format!("{} saved", field.label()));
         }
         self.settings_form.focused = None;
         self.settings_form.draft.clear();
-        self.status_message = Some(format!("{} saved", field.label()));
         Ok(())
     }
 
@@ -449,8 +520,10 @@ impl AppState {
             .iter()
             .filter(|spec| spec.tier == aria_ai::ToolTier::System)
             .count();
+        let plugins = crate::app::assistant_host::plugin_tool_specs(&self.ctx).len();
         format!(
-            "{edits} edit(s), {} app tool(s) of which {senses} look and {confirms} ask first",
+            "{edits} edit(s), {} app tool(s) of which {senses} look and {confirms} ask first, \
+             {plugins} plugin tool(s)",
             host.len()
         )
     }
@@ -483,9 +556,14 @@ impl AppState {
         }
         let saved = match field {
             SettingsField::Filter => self.settings_form.filter.clone(),
-            SettingsField::Plugin(spec) => self.plugin_setting(spec.key),
+            SettingsField::KeymapName => self.active_keymap().unwrap_or_default().to_owned(),
+            SettingsField::Plugin(key) => self.plugin_setting(key),
             field => field.value(&self.cloud_settings()),
         };
         (saved, false)
     }
 }
+
+#[cfg(test)]
+#[path = "plugin_settings_tests.rs"]
+mod plugin_settings_tests;

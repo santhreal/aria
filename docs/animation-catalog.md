@@ -66,12 +66,12 @@ that hull, so the overshoot is bounded by construction. `ease_out_back` peaks
 | `MENU_OUT` | `presets` | 100 ms | 0 | `ease` | `plugins::overlay_host::exit_window`: every overlay leaving, and `motion::glide::PLAYHEAD` |
 | `DIALOG_IN` | `presets` | 180 ms | 0 | `ease` | `motion::dialog_in`: dialog surfaces; and `motion::glide::ROUTE`, the route the shell is drawing |
 | `SPLASH_OUT` | `presets` | 500 ms | 150 ms | `ease` | `motion::splash_out`: the boot mark |
-| `OPEN` | `motion` | 320 ms | 0 | `ease_out_expo` | `shell::opening`: the editor arriving in three stages, `OPEN_STAGE_MS` (80 ms) apart; and `motion::glide::WAIT`, the span a wait must outlast before a loader appears |
-| `RESIZE` | `presets` | 200 ms | 0 | `ease_out` | `motion::glide::PANE`, `EDIT`, `ZOOM`, and `PROGRESS`: pane widths, released splitters, rippled clips, the horizontal scale when the editor chose it, and a progress fill catching up with a report |
+| `OPEN` | `motion` | 320 ms | 0 | `ease_out_expo` | `shell::opening`: the editor arriving in two stages, the bar and then the docked panels, `OPEN_STAGE_MS` (80 ms) apart; and `motion::glide::WAIT`, the span a wait must outlast before a loader appears |
+| `RESIZE` | `presets` | 200 ms | 0 | `ease_out` | `motion::glide::EDIT`, `ZOOM`, and `PROGRESS`: rippled clips, the horizontal scale and scroll offset when the editor chose them, and a progress fill catching up with a report |
 | `TAB_SLIDE` | `presets` | 150 ms | 0 | `ease_out` | `inspector::tab_strip`: the tab indicator |
-| `COLLAPSE` | `presets` | 180 ms | 0 | `ease_out` | `motion::glide::LANE`: lane heights |
+| `COLLAPSE` | `presets` | 180 ms | 0 | `ease_out` | `motion::glide::LANE`: lane heights and the property rows a twirl opens |
 | `CHEVRON` | `presets` | 200 ms | 0 | `ease` | `components::chevron`: every disclosure arrow, and `panels/inspector/blocks/widgets.rs`' stopwatch |
-| `SCROLL_GLIDE` | `presets` | 500 ms | 0 | `ease_in_out` | `motion::glide::SCROLL`: a fit, playhead follow, and the assistant transcript reaching its newest row |
+| `SCROLL_GLIDE` | `presets` | 500 ms | 0 | `ease_in_out` | `motion::glide::SCROLL`: the assistant transcript reaching its newest row |
 | `FLING` | `motion` | 500 ms | 0 | `ease_out_back` | `motion::glide::FLING`: the timeline offset after a pan is released |
 | `HOVER_FADE` | `presets` | 150 ms | 0 | `standard` | `motion::hover_blend` on interactive chrome, and `motion::glide::STATE`: a clip card's selection ring and lock badge |
 | `CARET_BLINK` | `motion` | 1000 ms | 0 | `standard` | `panels::rename_bar`: the caret in a rename field |
@@ -111,6 +111,15 @@ its wait has lasted one `OPEN`, and a wait that ends sooner leaves no entry
 behind.
 
 `PulseClock` parks when no spinner is mounted.
+
+## Playback
+
+While playback runs, the shell calls `motion::hold_for_playback` after
+`motion::begin_frame`, and both stores draw every value at its target: hover
+fades, glides, and the timeline playhead show their end state, so a frame of
+playback is spent on the picture and the playhead stands on the frame shown.
+One-shot entrances still play. The hold lifts on the first frame after playback
+stops.
 
 ## Interruption
 

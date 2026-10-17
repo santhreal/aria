@@ -12,13 +12,15 @@ pub(super) struct MatteRequest {
     softness: f32,
 }
 
-/// The matte a resolved layer asks for, if its clip carries one.
-pub(super) fn matte_request(
-    project: &Project,
+/// The matte a resolved layer asks for, if its clip carries one, after the
+/// clip's drivers.
+pub(super) fn matte_request<'p>(
+    project: &'p Project,
     layer: &SceneLayer,
     t: RationalTime,
+    drivers: &mut DriverFrame<'p>,
 ) -> Option<MatteRequest> {
-    let clip = project.clip(layer.clip?)?;
+    let clip = drivers.apply(project.clip(layer.clip?)?, t.value as f64);
     let matte = clip.matte.as_ref()?;
     let local = t.value - clip.timeline.start.value;
     Some(MatteRequest {
@@ -78,7 +80,7 @@ pub(super) fn fold_mattes(
             opacity: 1.0,
             uv: [0.0, 0.0, 1.0, 1.0],
             effects: Vec::new(),
-            mask: None,
+            masks: Vec::new(),
             chroma_key: None,
             color_grade: None,
             lut: None,

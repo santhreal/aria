@@ -12,28 +12,32 @@
 //!   the test scheduler refuses outright, so a raw thread must never be the
 //!   thing that wakes a task.
 //!
-//! Two shapes satisfy both, and this module is the only place either is
+//! Three shapes satisfy both, and this module is the only place any is
 //! written:
 //!
 //! * [`on_a_thread`] runs work that **finishes** on a thread of its own and
 //!   waits for that thread from a background task. The wait is as long as the
 //!   work and no longer, and the thread means a codec that panics costs the
 //!   frame rather than the window.
+//! * [`reply`] waits for the answer to a job handed to a long-lived worker
+//!   thread, such as the preview worker. The worker answers every job it takes
+//!   or drops the reply, so the wait is as long as the queue ahead of it.
 //! * [`wakes`] is a queue for an event that **may never come** — a job that is
 //!   cancelled, a dialog nobody opens. Writing to it never blocks, from any
-//!   thread. A reader on the window's thread awaits it directly; a reader
-//!   waiting on another thread's writer checks it on the scheduler's own timer,
-//!   so no foreign thread ever wakes a task.
+//!   thread. A reader on the window's thread awaits it directly. A reader
+//!   waiting on another thread's writer sleeps until that writer sends in the
+//!   shipped editor, and checks the queue on the scheduler's own timer under
+//!   test, so no foreign thread ever wakes a test task.
 
 use std::time::Duration;
 
 use gpui::{BackgroundExecutor, Task};
 
-/// How often a wake from another thread is checked for.
+/// How often the test scheduler checks for a wake from another thread.
 ///
 /// A frame at 60 fps, so a job's progress and an assistant's next word land in
-/// the frame after they were produced. The check is one atomic read of an empty
-/// queue, which is why it can afford to be this frequent.
+/// the frame after they were produced. The shipped editor does not check: its
+/// reader sleeps until a writer sends.
 pub const CHECK: Duration = Duration::from_millis(16);
 
 /// Run `work` on its own thread and await what it returns.
@@ -59,6 +63,19 @@ pub fn on_a_thread<T: Send + 'static>(
         // the same answer: there is no result.
         started.ok()?.join().ok()
     })
+}
+
+/// Await the answer a worker thread sends on `answer`.
+///
+/// For a job handed to a thread that outlives it. The worker sends one value
+/// or drops the sender; a dropped sender, from a job that panicked or a worker
+/// that stopped, resolves to `None`. The wait blocks the pool thread it runs
+/// on, for the same reason [`on_a_thread`] does: the worker never wakes a task.
+pub fn reply<T: Send + 'static>(
+    executor: &BackgroundExecutor,
+    answer: async_channel::Receiver<T>,
+) -> Task<Option<T>> {
+    executor.spawn(async move { answer.recv_blocking().ok() })
 }
 
 /// A queue of wakes from any thread to the one that draws.
@@ -106,15 +123,21 @@ impl<T> Wakes<T> {
         self.0.recv().await.ok()
     }
 
-    /// The next wake from a writer on another thread, checked on the
-    /// scheduler's own timer.
+    /// The next wake from a writer on another thread, or `None` once every
+    /// writer is gone.
     ///
-    /// The timer is what keeps the wait deterministic: the writer only drops a
-    /// value into the queue, and the scheduler finds it. Nothing blocks and no
-    /// foreign thread ever wakes a task, so a job that is never started, or
-    /// cancelled before it reports, costs one empty check per frame instead of
-    /// a thread.
+    /// On the platform executor the reader sleeps until a writer sends or the
+    /// last writer is dropped, so a job that never reports and a window at rest
+    /// cost no wakes at all.
+    ///
+    /// The test scheduler rejects a task woken from a thread it does not own,
+    /// so under test the queue is checked on the scheduler's own timer every
+    /// [`CHECK`] instead: the writer only drops a value into the queue, and the
+    /// scheduler finds it.
     pub async fn next_from_a_thread(&self, executor: &BackgroundExecutor) -> Option<T> {
+        if executor.dispatcher().as_test().is_none() {
+            return self.0.recv().await.ok();
+        }
         loop {
             if let Some(value) = self.try_next() {
                 return Some(value);
@@ -148,6 +171,9 @@ impl<T> std::fmt::Debug for Wakes<T> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{Arc, mpsc};
+
     use super::*;
 
     #[gpui::test]
@@ -169,6 +195,27 @@ mod tests {
         // The caller is still running, which is the point of the thread.
         let after = on_a_thread(&executor, "test-after", || 1);
         assert_eq!(after.await, Some(1));
+    }
+
+    #[gpui::test]
+    async fn a_worker_reply_reaches_the_waiter(cx: &mut gpui::TestAppContext) {
+        let executor = cx.executor();
+        executor.allow_parking();
+        let (send, answer) = async_channel::bounded(1);
+        let worker = std::thread::spawn(move || send.try_send(5).is_ok());
+        assert_eq!(reply(&executor, answer).await, Some(5));
+        assert!(worker.join().is_ok_and(|sent| sent));
+    }
+
+    /// A worker that drops a job without answering, because it panicked or
+    /// stopped, ends the wait instead of holding the pool thread forever.
+    #[gpui::test]
+    async fn a_dropped_reply_ends_the_wait(cx: &mut gpui::TestAppContext) {
+        let executor = cx.executor();
+        executor.allow_parking();
+        let (send, answer) = async_channel::bounded::<u8>(1);
+        std::thread::spawn(move || drop(send));
+        assert_eq!(reply(&executor, answer).await, None);
     }
 
     #[gpui::test]
@@ -232,5 +279,100 @@ mod tests {
             drop(wake);
         });
         assert_eq!(wakes.next_from_a_thread(&executor).await, None);
+    }
+
+    /// A platform dispatcher that runs each runnable on a thread of its own
+    /// and counts the timers it is asked to arm.
+    #[derive(Default)]
+    struct Threads {
+        timers: AtomicUsize,
+    }
+
+    impl gpui::PlatformDispatcher for Threads {
+        fn is_main_thread(&self) -> bool {
+            false
+        }
+
+        fn dispatch(&self, runnable: gpui::RunnableVariant, _: gpui::Priority) {
+            std::thread::spawn(move || runnable.run());
+        }
+
+        fn dispatch_on_main_thread(
+            &self,
+            runnable: gpui::RunnableVariant,
+            priority: gpui::Priority,
+        ) {
+            self.dispatch(runnable, priority);
+        }
+
+        fn dispatch_after(&self, duration: Duration, runnable: gpui::RunnableVariant) {
+            self.timers.fetch_add(1, Ordering::SeqCst);
+            std::thread::spawn(move || {
+                std::thread::sleep(duration);
+                runnable.run()
+            });
+        }
+
+        fn spawn_realtime(&self, work: Box<dyn FnOnce() + Send>) {
+            std::thread::spawn(work);
+        }
+    }
+
+    /// What a reader on the platform executor returned, and how many timers
+    /// the executor armed while it waited for `writer`.
+    fn platform_wait(
+        writer: impl FnOnce(Wake<u8>) + Send + 'static,
+    ) -> (Result<Option<u8>, mpsc::RecvTimeoutError>, usize) {
+        let threads = Arc::new(Threads::default());
+        let executor = BackgroundExecutor::new(threads.clone());
+        let (wake, wakes) = wakes::<u8>();
+        let (done, result) = mpsc::channel();
+        let reader = executor.clone();
+        executor
+            .spawn(async move {
+                let _ = done.send(wakes.next_from_a_thread(&reader).await);
+            })
+            .detach();
+        std::thread::spawn(move || {
+            // Long enough for a reader that checked on a timer to arm several.
+            std::thread::sleep(CHECK * 6);
+            writer(wake);
+        });
+        let returned = result.recv_timeout(Duration::from_secs(10));
+        (returned, threads.timers.load(Ordering::SeqCst))
+    }
+
+    /// The shipped editor's reader sleeps until the writer sends. A timer
+    /// armed per check is what kept an idle window busy sixty times a second
+    /// for every job, plugin and transport watcher.
+    ///
+    /// Not covered: the test scheduler's own path, which keeps its timer and
+    /// is covered by `a_wake_from_a_thread_is_found_on_the_timer`.
+    #[test]
+    fn a_platform_reader_sleeps_until_the_writer_sends() {
+        let (returned, timers) = platform_wait(|wake| {
+            wake.wake(7);
+        });
+        assert_eq!(
+            returned,
+            Ok(Some(7)),
+            "the reader missed the wake or never returned"
+        );
+        assert_eq!(
+            timers, 0,
+            "the reader armed {timers} timers while it waited"
+        );
+    }
+
+    /// A writer that goes away ends a platform wait at once, without a timer
+    /// finding the closed queue.
+    #[test]
+    fn a_platform_reader_ends_when_every_writer_is_gone() {
+        let (returned, timers) = platform_wait(drop::<Wake<u8>>);
+        assert_eq!(returned, Ok(None), "the reader outlived its last writer");
+        assert_eq!(
+            timers, 0,
+            "the reader armed {timers} timers while it waited"
+        );
     }
 }

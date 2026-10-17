@@ -4,21 +4,21 @@
 //! and render, so every `Plugin` impl lives here and wraps the public crate
 //! APIs. Mount order matches PLAN.md Phase 2.2.
 
+use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use aria_plugin::{MountFailure, Plugin, PluginContext};
 
-/// File types the decoder plugin claims when they are dropped. Reuses the
-/// importer's list rather than keeping a second one, so a format the picker
-/// offers and a format a drop accepts can never disagree.
-const MEDIA_EXTENSIONS: &[&str] = crate::app::media::import::MEDIA_IMPORT_EXTENSIONS;
-
 /// Case-insensitive extension test, for the drop claims below.
-fn has_extension(path: &Path, extensions: &[&str]) -> bool {
+fn has_extension<S: AsRef<str>>(path: &Path, extensions: &[S]) -> bool {
     path.extension()
         .and_then(|ext| ext.to_str())
-        .is_some_and(|ext| extensions.iter().any(|want| ext.eq_ignore_ascii_case(want)))
+        .is_some_and(|ext| {
+            extensions
+                .iter()
+                .any(|want| ext.eq_ignore_ascii_case(want.as_ref()))
+        })
 }
 
 /// Every built-in plugin, for a session on `data_dir`.
@@ -47,6 +47,8 @@ pub fn builtin(data_dir: &Path) -> Vec<Box<dyn Plugin>> {
         Box::new(EffectPlugin),
         Box::new(TransitionPlugin),
         Box::new(EnginePlugin),
+        Box::new(aria_plugin::ExpressionsPlugin),
+        Box::new(aria_interchange::InterchangePlugin),
         Box::new(CloudPlugin::default()),
         Box::new(AnalysisPlugin),
         Box::new(JobsPlugin),
@@ -94,7 +96,7 @@ pub fn mount_all(ctx: &PluginContext, data_dir: &Path) -> Vec<MountFailure> {
     // a plugin listed before the one it requires used to fail with a message that
     // read like a missing plugin.
     let plugins = builtin(data_dir);
-    let manifests: Vec<_> = plugins.iter().map(|p| *p.manifest()).collect();
+    let manifests: Vec<_> = plugins.iter().map(|p| p.manifest().clone()).collect();
     match aria_plugin::load_order(&manifests) {
         Ok(order) => {
             for id in order {
@@ -113,11 +115,11 @@ pub fn mount_all(ctx: &PluginContext, data_dir: &Path) -> Vec<MountFailure> {
             }
         }
     }
-    aria_plugin::external::mount_dir(ctx, &external_plugin_dir(data_dir));
+    installed::InstalledPlugins::open(data_dir).mount_enabled(ctx);
     ctx.failures()
 }
 
-/// Where an external plugin library is looked for: `<data dir>/plugins`.
+/// Where installed plugin packages are: `<data dir>/plugins`.
 pub fn external_plugin_dir(data_dir: &Path) -> PathBuf {
     data_dir.join("plugins")
 }
@@ -134,6 +136,7 @@ fn register_dyn<T: ?Sized + Send + Sync + 'static>(ctx: &PluginContext, service:
 mod engine;
 mod gpu;
 mod host;
+pub mod installed;
 mod media;
 pub mod overlay_host;
 pub mod panel_host;
@@ -149,6 +152,7 @@ pub use services::{
     AiHost, AiPlugin, AnalysisPlugin, CloudPlugin, DetectorTuning, JobsPlugin, TranscriptionPlugin,
 };
 pub use ui::UiPlugin;
+pub(crate) use ui::{builtin_dock_panel_ids, builtin_panel_title};
 
 /// Ids every successful [`mount_all`] records, in order. Derived from
 /// [`builtin`], so there is nothing to keep in step.
@@ -156,10 +160,10 @@ pub use ui::UiPlugin;
 /// An id belongs to the plugin set, not to a profile, so the list is built
 /// against no directory at all. Nothing here is mounted: a plugin object is a
 /// manifest and a `mount` that has not been called.
-pub fn builtin_plugin_ids() -> Vec<&'static str> {
+pub fn builtin_plugin_ids() -> Vec<Cow<'static, str>> {
     builtin(Path::new(""))
         .iter()
-        .map(|plugin| plugin.manifest().id)
+        .map(|plugin| plugin.manifest().id.clone())
         .collect()
 }
 
@@ -222,7 +226,7 @@ mod tests {
                 .iter()
                 .position(|id| *id == manifest.id)
                 .expect("id comes from the same list");
-            for dep in manifest.requires {
+            for dep in manifest.requires.iter() {
                 let at = ids
                     .iter()
                     .position(|id| id == dep)
@@ -247,18 +251,21 @@ mod tests {
             }
 
             fn mount(&self, _: &PluginContext) -> Result<(), PluginError> {
-                Err(PluginError::MountFailed("test.broken", "no device".into()))
+                Err(PluginError::MountFailed(
+                    "test.broken".into(),
+                    "no device".into(),
+                ))
             }
         }
 
         let ctx = PluginContext::new();
-        let broken = Broken(PluginManifest {
-            id: "test.broken",
-            name: "Broken",
-            version: "0.1.0",
-            requires: &[],
-            uses: &[],
-        });
+        let broken = Broken(PluginManifest::new(
+            "test.broken",
+            "Broken",
+            "0.1.0",
+            &[],
+            &[],
+        ));
         assert!(ctx.mount(&broken).is_err());
         let failures = ctx.failures();
         assert_eq!(failures.len(), 1);
@@ -268,7 +275,7 @@ mod tests {
             "the reason was lost: {}",
             failures[0].reason
         );
-        assert!(!ctx.plugins().contains(&"test.broken"));
+        assert!(!ctx.is_mounted("test.broken"));
 
         // A dependent of the failed plugin fails too, and says what is missing.
         struct Dependent(PluginManifest);
@@ -283,13 +290,13 @@ mod tests {
             }
         }
 
-        let dependent = Dependent(PluginManifest {
-            id: "test.dependent",
-            name: "Dependent",
-            version: "0.1.0",
-            requires: &["test.broken"],
-            uses: &[],
-        });
+        let dependent = Dependent(PluginManifest::new(
+            "test.dependent",
+            "Dependent",
+            "0.1.0",
+            &["test.broken"],
+            &[],
+        ));
         assert!(ctx.mount(&dependent).is_err());
         assert_eq!(ctx.failures().len(), 2);
 

@@ -26,7 +26,7 @@
 
 use std::cell::Cell;
 
-use aria_models::RationalTime;
+use aria_models::{MaskKind, MaskMode, Param, RationalTime, ShapePathPoint};
 
 use super::tests::{Scripted, flat_frame, keyframes, square_frame, tracked};
 use super::*;
@@ -57,6 +57,78 @@ impl Reported {
     fn last(&self) -> (i64, i64) {
         *self.0.last().expect("a walk reported no progress at all")
     }
+}
+
+/// The mask the fixture's track writes to.
+fn tracked_target(state: &AppState) -> MaskTarget {
+    state
+        .mask_walk(1, CONFIDENCE_FLOOR)
+        .expect("the fixture has a mask to track")
+        .0
+}
+
+/// Each mask of the selected clip in stack order: its kind and how many centre
+/// keyframes it holds.
+fn centre_keys(state: &AppState) -> Vec<(MaskKind, usize)> {
+    let clip = state
+        .selected_model()
+        .expect("the fixture selects its clip");
+    clip.masks
+        .iter()
+        .map(|mask| {
+            let keys = match &mask.center {
+                Param::Keyframed { keyframes } => keyframes.len(),
+                Param::Constant(_) => 0,
+            };
+            (mask.kind, keys)
+        })
+        .collect()
+}
+
+/// Send the tracked mask, index 1 of the fixture, back with `edit` applied.
+fn edit_tracked(state: &mut AppState, edit: impl FnOnce(&mut Mask)) {
+    let clip = state.selected_clip().expect("the fixture selects its clip");
+    let mut mask = state
+        .active_model_mask()
+        .cloned()
+        .expect("the fixture tracks a mask");
+    edit(&mut mask);
+    state
+        .apply_command(Command::Edit(EditCommand::SetClipMask {
+            clip,
+            index: 1,
+            mask,
+        }))
+        .expect("the mask edit lands");
+}
+
+/// The tracked mask redrawn as a closed path through `corners`, which keeps its
+/// centre.
+fn as_path(state: &mut AppState, corners: &[[f32; 2]], closed: bool) {
+    let points = corners
+        .iter()
+        .copied()
+        .map(ShapePathPoint::corner)
+        .collect();
+    state
+        .set_selected_mask_path(points, closed)
+        .expect("the path lands");
+}
+
+const SQUARE: [[f32; 2]; 4] = [[0.4, 0.4], [0.6, 0.4], [0.6, 0.6], [0.4, 0.6]];
+
+/// Track the fixture's mask over five frames, run `edit` while the walk's
+/// keyframes are in flight, then adopt them, the order a job runs in.
+fn adopted_after(prepare: fn(&mut AppState), edit: fn(&mut AppState)) -> (AppState, usize) {
+    let mut state = tracked();
+    prepare(&mut state);
+    let mut source = Scripted::walking(5, 4, 0);
+    let (keys, report, _) = Reported::walk(&state, &mut source, 4, &|| false);
+    let target = tracked_target(&state);
+    edit(&mut state);
+    let depth = state.engine().lock().history_depth();
+    state.adopt_track(&target, &keys, report);
+    (state, depth)
 }
 
 /// A cancel that answers false for the first `frames` questions and true after.
@@ -175,8 +247,10 @@ fn the_walk_writes_nothing_of_its_own() {
         "the walk left a history entry behind"
     );
 
-    let clip = state.selected_clip().expect("the fixture selects a clip");
-    state.write_track(clip, &keys).expect("the write lands");
+    let target = tracked_target(&state);
+    state
+        .write_track(target.clip, target.index, &keys)
+        .expect("the write lands");
     assert_eq!(
         keyframes(&state).len(),
         keys.len(),
@@ -189,10 +263,10 @@ fn a_track_written_from_a_job_is_one_undo_entry() {
     let mut state = tracked();
     let mut source = Scripted::walking(5, 4, 0);
     let (keys, report, _) = Reported::walk(&state, &mut source, 4, &|| false);
-    let clip = state.selected_clip().expect("the fixture selects a clip");
+    let target = tracked_target(&state);
     let depth = state.engine().lock().history_depth();
 
-    state.adopt_track(clip, &keys, report);
+    state.adopt_track(&target, &keys, report);
 
     assert_eq!(
         state.engine().lock().history_depth(),
@@ -223,9 +297,9 @@ fn an_adopted_track_says_it_was_stopped_rather_than_finished() {
     let mut state = tracked();
     let mut source = Scripted::walking(8, 4, 0);
     let (keys, report, _) = Reported::walk(&state, &mut source, 7, &stop_after(2));
-    let clip = state.selected_clip().expect("the fixture selects a clip");
+    let target = tracked_target(&state);
 
-    state.adopt_track(clip, &keys, report);
+    state.adopt_track(&target, &keys, report);
 
     let message = state
         .status_message
@@ -239,6 +313,118 @@ fn an_adopted_track_says_it_was_stopped_rather_than_finished() {
 }
 
 #[test]
+fn a_track_lands_on_its_mask_when_the_stack_shifts_while_it_runs() {
+    // A job walks for as long as the shot lasts and the stack stays editable
+    // the whole time. A target held as an index alone sent the keyframes to
+    // whichever mask took that index: the one below a removed mask, or the one
+    // a move put there. Edits that leave the index alone are the controls.
+    use MaskKind::{Circle, Rectangle, Star};
+    let cases: [(&str, fn(&mut AppState), Vec<(MaskKind, usize)>); 6] = [
+        (
+            "remove the mask above it",
+            |state| state.remove_selected_mask(0).expect("remove"),
+            vec![(Rectangle, 5), (Star, 0)],
+        ),
+        (
+            "move it to the bottom",
+            |state| state.move_selected_mask(1, 2).expect("move"),
+            vec![(Circle, 0), (Star, 0), (Rectangle, 5)],
+        ),
+        (
+            "move the bottom mask to the top",
+            |state| state.move_selected_mask(2, 0).expect("move"),
+            vec![(Star, 0), (Circle, 0), (Rectangle, 5)],
+        ),
+        (
+            "remove the mask below it",
+            |state| state.remove_selected_mask(2).expect("remove"),
+            vec![(Circle, 0), (Rectangle, 5)],
+        ),
+        (
+            "add a mask",
+            |state| state.add_selected_mask(Circle).expect("add"),
+            vec![(Circle, 0), (Rectangle, 5), (Star, 0), (Circle, 0)],
+        ),
+        (
+            "change its mode and feather",
+            |state| {
+                edit_tracked(state, |mask| {
+                    mask.mode = MaskMode::Subtract;
+                    mask.feather = Param::Constant(0.4);
+                })
+            },
+            vec![(Circle, 0), (Rectangle, 5), (Star, 0)],
+        ),
+    ];
+    for (edit, run, expected) in cases {
+        let (state, depth) = adopted_after(|_| {}, run);
+        assert_eq!(centre_keys(&state), expected, "{edit}");
+        assert_eq!(state.last_error, None, "{edit}");
+        assert_eq!(
+            state.engine().lock().history_depth(),
+            depth + 1,
+            "{edit}: the track is not one entry"
+        );
+    }
+}
+
+#[test]
+fn a_track_whose_mask_is_gone_or_reshaped_writes_nothing_and_says_so() {
+    // Writing to whatever sits nearest would put a moving centre on a mask the
+    // operator drew elsewhere or redrew; a refusal costs one more pass.
+    let path: fn(&mut AppState) = |state| as_path(state, &SQUARE, true);
+    let cases: [(&str, fn(&mut AppState), fn(&mut AppState)); 6] = [
+        (
+            "remove it",
+            |_| {},
+            |state| state.remove_selected_mask(1).expect("remove"),
+        ),
+        (
+            "drag it",
+            |_| {},
+            |state| edit_tracked(state, |mask| mask.center = Param::Constant([0.3, 0.2])),
+        ),
+        (
+            "change its shape",
+            |_| {},
+            |state| edit_tracked(state, |mask| mask.kind = MaskKind::Heart),
+        ),
+        ("redraw its path", path, |state| {
+            as_path(state, &SQUARE[..3], true)
+        }),
+        ("open its path", path, |state| {
+            as_path(state, &SQUARE, false)
+        }),
+        (
+            "remove it after a mask above it moves",
+            |_| {},
+            |state| {
+                state.move_selected_mask(0, 2).expect("move");
+                state.remove_selected_mask(0).expect("remove");
+            },
+        ),
+    ];
+    for (edit, prepare, run) in cases {
+        let (state, depth) = adopted_after(prepare, run);
+        assert!(
+            centre_keys(&state).iter().all(|&(_, keys)| keys == 0),
+            "{edit}: keyframes landed on {:?}",
+            centre_keys(&state)
+        );
+        assert_eq!(
+            state.engine().lock().history_depth(),
+            depth,
+            "{edit}: a refused track left a history entry"
+        );
+        let error = state.last_error.as_deref().unwrap_or_default();
+        assert!(
+            error.contains("Track it again"),
+            "{edit}: the refusal is not reported: {error:?}"
+        );
+    }
+}
+
+#[test]
 fn a_lost_track_says_where_it_stopped() {
     let mut state = tracked();
     let mut source = Scripted {
@@ -246,9 +432,9 @@ fn a_lost_track_says_where_it_stopped() {
         asked: Vec::new(),
     };
     let (keys, report, _) = Reported::walk(&state, &mut source, 2, &|| false);
-    let clip = state.selected_clip().expect("the fixture selects a clip");
+    let target = tracked_target(&state);
 
-    state.adopt_track(clip, &keys, report);
+    state.adopt_track(&target, &keys, report);
 
     let message = state
         .status_message

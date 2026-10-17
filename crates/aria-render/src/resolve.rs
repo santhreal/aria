@@ -22,43 +22,48 @@
 //! - **Stickers & Lottie**: bundled stickers and Lottie compositions resolve
 //!   to placed layers, sized by their intrinsic reference-pixel dimensions.
 
+use aria_compositor::MaskOp;
 use aria_core::{RationalTime, resample};
 use aria_models::{
-    AnimationSlot, ClipId, ClipSource, ClipTransform, ColorAdjustments, CropRect, Easing,
-    EffectInstance, Filter, Generator, LayerStyles, LookAnimations, MatteSource, MediaKind,
-    Project, look_animation_window_ticks,
+    AnimationSlot, CanvasSettings, ClipId, ClipSource, ClipTransform, ColorAdjustments, CropRect,
+    Easing, EffectInstance, Filter, Generator, LayerStyles, LookAnimations, MaskMode, MatteSource,
+    MediaKind, Project, Timeline, look_animation_window_ticks,
 };
 
 use crate::animation::{apply_look_animations, is_per_character, scaled_ticks, text_knobs};
+use crate::driver::DriverFrame;
 use crate::grade::resolve_color_grade_at;
 use crate::scene::{
     LayerSource, ResolvedPass, Scene, SceneBackground, SceneChromaKey, SceneGlow, SceneLayer,
     SceneLut, SceneMask, SceneOutline, SceneShadow, SceneStyles, SizeSpec, TextAnimation,
 };
 
+mod canvas;
 mod clip;
 mod generator;
 mod matte;
+mod nest;
+mod reference;
 // Two more pure moves out of this file: the matte fold and the per-tick
 // samplers. Both start `use super::*`, so the imports above still own what the
 // resolver names.
 mod sample;
 mod shape;
 
+use canvas::timeline_canvas;
+pub use canvas::{canvas_size, derived_canvas_size};
 use clip::resolve_clip;
 #[cfg(test)]
 use generator::map_text_style;
 pub(crate) use generator::resolve_generator;
 use matte::{MatteRequest, fold_mattes, matte_request};
+use nest::Nesting;
 use sample::{crop_flip_uv, fit_scale, resolve_effects, resolve_styles, sample_text_animation};
 
 /// Vertical reference height that a generator's reference-pixel sizes (text
 /// `size`, shape `width`/`height`) are authored against. Matches the model's
 /// `canvas_height / 1080` convention.
 const REFERENCE_HEIGHT: f32 = 1080.0;
-
-/// Fallback canvas size when `Auto` aspect can't find any video media.
-const DEFAULT_CANVAS: (u32, u32) = (1920, 1080);
 
 /// Live-preview substitutions resolved in place of committed clip state.
 ///
@@ -82,6 +87,30 @@ pub struct ResolveOverrides<'a> {
     /// frame for the duration of the drag, and the handles are then drawn over
     /// the frame they are cutting into.
     pub crop: Option<(ClipId, CropRect, bool, bool)>,
+    /// One vec2 effect parameter on one clip: the clip, the effect's index in
+    /// its chain, the parameter's slot in the effect's catalog row, and the
+    /// value. A handle drag on the Viewer shows the point it is placing before
+    /// the release commits it.
+    pub effect_vec2: Option<(ClipId, usize, usize, [f32; 2])>,
+    /// Clear the canvas to transparent black instead of the sequence's
+    /// background colour, so whatever is drawn behind the frame shows where
+    /// no layer covers the canvas. The frame stays premultiplied. The
+    /// Viewer's transparency grid sets it; export never does.
+    pub transparent: bool,
+}
+
+impl ResolveOverrides<'_> {
+    /// Whether no live-preview substitution is active.
+    pub const fn is_empty(&self) -> bool {
+        self.transform.is_none()
+            && self.generator.is_none()
+            && self.look.is_none()
+            && self.styles.is_none()
+            && self.animation.is_none()
+            && self.crop.is_none()
+            && self.effect_vec2.is_none()
+            && !self.transparent
+    }
 }
 
 /// Identity transform used when rasterizing the gesture sprite: the clip's
@@ -115,6 +144,11 @@ pub fn resolve_gesture_partitions(
     t: RationalTime,
     clip_id: ClipId,
 ) -> Result<Option<GestureScenePartition>, aria_models::ModelError> {
+    // A clip placed in a parent's frame, or one that places others, moves more
+    // than its own sprite: the caller renders each move whole.
+    if parenting_involves(project, clip_id) {
+        return Ok(None);
+    }
     let overrides = ResolveOverrides {
         transform: Some((clip_id, GESTURE_IDENTITY_TRANSFORM)),
         generator: None,
@@ -122,6 +156,8 @@ pub fn resolve_gesture_partitions(
         styles: None,
         animation: None,
         crop: None,
+        effect_vec2: None,
+        transparent: false,
     };
     Ok(partition_gesture_scene(
         resolve_with(project, t, overrides)?,
@@ -129,7 +165,25 @@ pub fn resolve_gesture_partitions(
     ))
 }
 
+/// Whether `clip_id` has a parent or is the parent of a clip on the open
+/// timeline.
+fn parenting_involves(project: &Project, clip_id: ClipId) -> bool {
+    project
+        .clip(clip_id)
+        .is_some_and(|clip| clip.parent.is_some())
+        || project
+            .timeline()
+            .tracks_ordered()
+            .flat_map(|track| track.clips())
+            .any(|clip| clip.parent == Some(clip_id))
+}
+
 fn partition_gesture_scene(mut scene: Scene, clip_id: ClipId) -> Option<GestureScenePartition> {
+    // A reference draws a clip into what an effect reads: moving the sprite
+    // alone would leave the effects reading it, or read by it, stale.
+    if !scene.references.is_empty() {
+        return None;
+    }
     let index = scene
         .layers
         .iter()
@@ -154,6 +208,7 @@ fn partition_gesture_scene(mut scene: Scene, clip_id: ClipId) -> Option<GestureS
             background: scene.background,
             tick: scene.tick,
             layers: scene.layers,
+            references: Vec::new(),
         },
         sprite: Scene {
             width: scene.width,
@@ -161,6 +216,7 @@ fn partition_gesture_scene(mut scene: Scene, clip_id: ClipId) -> Option<GestureS
             background: [0, 0, 0, 0],
             tick: scene.tick,
             layers: vec![sprite],
+            references: Vec::new(),
         },
         above: Scene {
             width: scene.width,
@@ -168,6 +224,7 @@ fn partition_gesture_scene(mut scene: Scene, clip_id: ClipId) -> Option<GestureS
             background: [0, 0, 0, 0],
             tick: scene.tick,
             layers: above,
+            references: Vec::new(),
         },
     })
 }
@@ -187,43 +244,92 @@ pub fn resolve_with(
     overrides: ResolveOverrides<'_>,
 ) -> Result<Scene, aria_models::ModelError> {
     let timeline = project.timeline();
-    let rate = timeline.frame_rate;
-    let t = resample(t, rate);
-
     let (width, height) = canvas_size(project);
     let bg = timeline.canvas().background;
-    let mut scene = Scene::empty(width, height, [bg[0], bg[1], bg[2], 255]);
+    let background = if overrides.transparent {
+        [0, 0, 0, 0]
+    } else {
+        [bg[0], bg[1], bg[2], 255]
+    };
+    resolve_timeline(
+        project,
+        timeline,
+        t,
+        [width, height],
+        background,
+        overrides,
+        &Nesting::root(project),
+    )
+}
+
+/// The scene of `timeline` at `t`, resampled to its rate, on a
+/// `width`×`height` canvas over `background`. `nesting` holds the sequences
+/// this resolve is inside, so a nest that would show itself is a cycle.
+fn resolve_timeline<'p>(
+    project: &'p Project,
+    timeline: &'p Timeline,
+    t: RationalTime,
+    [width, height]: [u32; 2],
+    background: [u8; 4],
+    overrides: ResolveOverrides<'_>,
+    nesting: &Nesting<'_>,
+) -> Result<Scene, aria_models::ModelError> {
+    let t = resample(t, timeline.frame_rate);
+    let mut scene = Scene::empty(width, height, background);
     scene.tick = t;
 
     let cw = width as f32;
     let ch = height as f32;
 
     let mut requests: Vec<Option<MatteRequest>> = Vec::new();
+    let mut drivers = DriverFrame::in_timeline(project, timeline);
     for track in timeline.tracks_ordered() {
         if !track.kind.is_visual() || !timeline.track_is_visible(track) {
             continue;
         }
-        if let Some(layer) = resolve_track_at(project, track, t, cw, ch, overrides)? {
-            requests.push(matte_request(project, &layer, t));
+        if let Some(layer) =
+            resolve_track_at(project, track, t, cw, ch, overrides, nesting, &mut drivers)?
+        {
+            requests.push(matte_request(project, &layer, t, &mut drivers));
             scene.layers.push(layer);
         }
     }
     scene.layers = fold_mattes(std::mem::take(&mut scene.layers), requests, cw, ch);
+    scene.references = reference::resolve_references(
+        project,
+        timeline,
+        &scene.layers,
+        t,
+        [cw, ch],
+        overrides,
+        nesting,
+        &mut drivers,
+    )?;
 
     Ok(scene)
 }
 
-/// Resolve one visual track at timeline instant `t`.
-fn resolve_track_at(
-    project: &Project,
-    track: &aria_models::Track,
+/// Resolve one visual track at timeline instant `t`, its clips after their
+/// drivers.
+#[allow(clippy::too_many_arguments)]
+fn resolve_track_at<'p>(
+    project: &'p Project,
+    track: &'p aria_models::Track,
     t: RationalTime,
     cw: f32,
     ch: f32,
     overrides: ResolveOverrides<'_>,
+    nesting: &Nesting<'_>,
+    drivers: &mut DriverFrame<'p>,
 ) -> Result<Option<SceneLayer>, aria_models::ModelError> {
     // Transition window takes precedence over single-clip resolve.
     for transition in track.transitions() {
+        // A transition whose plugin is missing, failed, or disabled is a cut:
+        // the clip under the playhead draws alone, and the saved id stays on
+        // the junction for when the plugin returns.
+        if aria_models::transition_spec(&transition.transition_id).is_none() {
+            continue;
+        }
         let left = track
             .clip(transition.left)
             .ok_or(aria_models::ModelError::UnknownClip(transition.left))?;
@@ -234,9 +340,7 @@ fn resolve_track_at(
             continue;
         }
         let cut = left.timeline.end_tick();
-        let half = transition.duration / 2;
-        let window_start = cut - half;
-        let window_end = window_start + transition.duration;
+        let (window_start, window_end) = transition.window(cut);
         if t.value >= window_start && t.value < window_end {
             let progress = (t.value - window_start) as f32 / transition.duration as f32;
             // Each side plays live wherever it has material and holds its
@@ -261,8 +365,10 @@ fn resolve_track_at(
             // a transition frame — the renderer rejects nested canvas passes.
             // Skip the transition and resolve the track normally so the
             // preview keeps updating instead of erroring every frame.
-            let outgoing = resolve_clip(project, left, outgoing_t, cw, ch, overrides)?;
-            let incoming = resolve_clip(project, right, incoming_t, cw, ch, overrides)?;
+            let left = drivers.apply(left, outgoing_t.value as f64);
+            let right = drivers.apply(right, incoming_t.value as f64);
+            let outgoing = resolve_clip(project, &left, outgoing_t, cw, ch, overrides, nesting)?;
+            let incoming = resolve_clip(project, &right, incoming_t, cw, ch, overrides, nesting)?;
             let (Some(outgoing), Some(incoming)) = (outgoing, incoming) else {
                 break;
             };
@@ -271,6 +377,16 @@ fn resolve_track_at(
             }
             let outgoing = Box::new(outgoing);
             let incoming = Box::new(incoming);
+            let transition_params = transition
+                .sample_flattened_floats((t.value - window_start) as f64)
+                .unwrap_or_default();
+            let effects = if transition_params.is_empty() {
+                Vec::new()
+            } else {
+                let id = aria_compositor::pass_id(&transition.transition_id)
+                    .unwrap_or_else(|| aria_compositor::PassId::from("crossfade"));
+                vec![ResolvedPass::new(id, transition_params)]
+            };
             return Ok(Some(SceneLayer {
                 clip: None,
                 source: LayerSource::Transition {
@@ -285,8 +401,8 @@ fn resolve_track_at(
                 rotation: 0.0,
                 opacity: 1.0,
                 uv: [0.0, 0.0, 1.0, 1.0],
-                effects: Vec::new(),
-                mask: None,
+                effects,
+                masks: Vec::new(),
                 chroma_key: None,
                 color_grade: None,
                 lut: None,
@@ -300,49 +416,8 @@ fn resolve_track_at(
     let Some(clip) = track.clip_at(t)? else {
         return Ok(None);
     };
-    resolve_clip(project, clip, t, cw, ch, overrides)
-}
-
-/// Canvas pixel size for `project`: an explicit size wins; otherwise fixed
-/// presets resolve to a 1080-baseline box on the shorter side, and `Auto`
-/// follows the largest video media (falling back to 1920×1080 when there is
-/// none).
-pub fn canvas_size(project: &Project) -> (u32, u32) {
-    let canvas = project.timeline().canvas();
-    if let Some([w, h]) = canvas.resolution {
-        return (even(w), even(h));
-    }
-    derived_canvas_size(project)
-}
-
-/// [`canvas_size`] as if no explicit size were set: the shape the aspect preset
-/// or the footage implies.
-///
-/// The delivery-size chooser scales this rather than the current size, so a
-/// project that already carries an explicit size still offers the shape its
-/// footage produced instead of scaling the size it was handed. Asking for it
-/// directly is also the difference between a read and a copy of the whole
-/// project: the caller used to clear the resolution on a clone.
-pub fn derived_canvas_size(project: &Project) -> (u32, u32) {
-    let canvas = project.timeline().canvas();
-    match canvas.aspect.pixels_for_baseline(REFERENCE_HEIGHT as u32) {
-        Some([w, h]) => (w, h),
-        None => auto_canvas_size(project),
-    }
-}
-
-/// The largest video media used anywhere on the timeline, or the default.
-fn auto_canvas_size(project: &Project) -> (u32, u32) {
-    project
-        .largest_used_video_dimensions()
-        .map_or(DEFAULT_CANVAS, |(width, height)| {
-            (even(width), even(height))
-        })
-}
-
-/// Round `v` down to the nearest even value (≥ 2): H.264 needs even dimensions.
-fn even(v: u32) -> u32 {
-    (v & !1).max(2)
+    let clip = drivers.apply(clip, t.value as f64);
+    resolve_clip(project, &clip, t, cw, ch, overrides, nesting)
 }
 
 #[cfg(test)]

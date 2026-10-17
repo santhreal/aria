@@ -18,7 +18,7 @@ pub(super) fn media_grid(
 ) -> impl IntoElement {
     if rows.is_empty() {
         return div()
-            .text_size(px(13.))
+            .text_size(Theme::TEXT_UI)
             .text_color(theme.text_faint)
             .child("Import files or drag from your file manager.")
             .into_any_element();
@@ -174,7 +174,8 @@ pub(super) fn media_tile(
                 this.state.update(cx, |state, _| {
                     state.request_pick(
                         Ask::OpenFile(
-                            FileSpec::new("Relink media").filter("Media", MEDIA_IMPORT_EXTENSIONS),
+                            FileSpec::new("Relink media")
+                                .filter("Media", &media_import_extensions()),
                         ),
                         move |state, answer| {
                             let Some(path) = answer.one() else {
@@ -243,12 +244,12 @@ pub(super) fn media_tile(
                             .w(px(8.))
                             .h(px(8.))
                             .rounded(px(4.))
-                            .bg(theme.marker(label)),
+                            .bg(theme.label(label, false)),
                     )
                 })
                 .child(
                     div()
-                        .text_size(px(13.))
+                        .text_size(Theme::TEXT_UI)
                         .text_color(theme.text)
                         .child(item.name.clone()),
                 ),
@@ -256,7 +257,7 @@ pub(super) fn media_tile(
         .when(view.facts(), |el| {
             el.child(
                 div()
-                    .text_size(px(11.))
+                    .text_size(Theme::TEXT_UI)
                     .text_color(caption_color)
                     .child(caption),
             )
@@ -264,7 +265,7 @@ pub(super) fn media_tile(
         .when_some(note, |el, note| {
             el.child(
                 div()
-                    .text_size(px(11.))
+                    .text_size(Theme::TEXT_UI)
                     .text_color(theme.warning)
                     .child(note),
             )
@@ -273,7 +274,11 @@ pub(super) fn media_tile(
         .when(!missing, |el| {
             let label = item.name.clone();
             el.on_drag(
-                crate::types::MediaDrag { media: id, label },
+                crate::types::MediaDrag {
+                    media: id,
+                    label,
+                    from_source: false,
+                },
                 move |drag, _offset, _window, cx| {
                     let label = drag.label.clone();
                     cx.new(|_| DragGhost { label })
@@ -286,18 +291,13 @@ pub(super) fn media_tile(
                 // Which physical key is the platform's multi-select modifier is
                 // the panel's business; what the two of them mean is the
                 // registry's.
-                let reach =
-                    pool_pick::Reach::of(event.modifiers.secondary(), event.modifiers.shift);
-                let mut placed = false;
-                this.state.update(cx, |state, _| {
-                    match pool_pick::apply(state, reach, id, tab) {
-                        Ok(landed) => placed = landed,
-                        Err(err) => state.report_error(&err),
-                    }
-                });
-                if placed {
-                    spawn_preview(this.state.clone(), cx);
-                }
+                let reach = pool_pick::Reach::of(
+                    event.modifiers.secondary(),
+                    event.modifiers.shift,
+                    event.click_count,
+                );
+                this.state
+                    .update(cx, |state, _| pool_pick::apply(state, reach, id, tab));
                 cx.notify();
             }),
         )
@@ -366,7 +366,7 @@ pub(super) fn thumbnail(
         .when(image.is_none(), |el| {
             el.child(
                 div()
-                    .text_size(px(13.))
+                    .text_size(Theme::TEXT_UI)
                     .text_color(theme.text_faint)
                     .child("▣"),
             )

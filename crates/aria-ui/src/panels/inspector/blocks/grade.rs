@@ -91,7 +91,7 @@ pub fn grade_block(
         .flex()
         .flex_col()
         .gap(px(Theme::SPACE_XS))
-        .child(wheels::wheels_block(theme, clip, state, cx))
+        .child(wheels::wheels_block(theme, "inspector", state, cx))
         .child(section_label(theme, "Grade"))
         .children(rows)
         .child(
@@ -110,19 +110,22 @@ pub fn grade_block(
         .child(section_label(theme, "Blend"))
         .child(
             div()
-                .text_size(px(11.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_faint)
                 .child(clip.blend_mode.label()),
         )
         .children(blends)
         .when(clip.can_stabilize, |this| {
             this.child(section_label(theme, "Stabilize"))
-                .child(div().text_size(px(11.)).text_color(theme.text_faint).child(
-                    match clip.stabilize {
-                        Some(level) => level.label(),
-                        None => "Off",
-                    },
-                ))
+                .child(
+                    div()
+                        .text_size(Theme::TEXT_UI)
+                        .text_color(theme.text_faint)
+                        .child(match clip.stabilize {
+                            Some(level) => level.label(),
+                            None => "Off",
+                        }),
+                )
                 .children(stabilizers)
         })
         .child(section_label(theme, "Denoise"))

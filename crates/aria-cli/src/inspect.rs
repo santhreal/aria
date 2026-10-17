@@ -189,7 +189,6 @@ fn generator_detail(generator: &Generator) -> Option<String> {
 }
 #[cfg(test)]
 mod tests {
-    use super::*;
     use aria_models::Project;
 
     #[test]

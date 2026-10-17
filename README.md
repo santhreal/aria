@@ -75,7 +75,7 @@ Per-platform steps, codec support, and the GStreamer packages Linux needs are in
 - [Getting started](docs/getting-started.md)
 - [Keyboard shortcuts](docs/keyboard-shortcuts.md)
 - [Command line](docs/command-line.md)
-- [Plugin development](docs/plugin-development.md)
+- [Plugin development](docs/plugins/README.md)
 - [Architecture](docs/architecture.md)
 
 ## License

@@ -15,7 +15,7 @@ impl AppState {
     /// instead of every frame.
     pub fn record_overlay_frame(&mut self, container: Rect) -> bool {
         let canvas_size = self.canvas_size();
-        let canvas = fit_frame(container, canvas_size);
+        let canvas = view_frame(container, self.preview_view, canvas_size);
         let layer = self
             .overlay_quad()
             .map(|(center, size)| layer_rect(canvas, canvas_size, center, size));
@@ -43,7 +43,7 @@ impl AppState {
     /// in), so it converts to the quad's canvas pixels by the canvas size.
     fn overlay_quad(&self) -> Option<([f32; 2], [f32; 2])> {
         let (center, size) = self.selected_layer_quad()?;
-        let committed = self.selected_ui_clip_ref()?.transform;
+        let committed = self.selected_pose()?;
         let shown = self.overlay_transform()?;
         let canvas = self.canvas_size();
         // A committed scale of zero draws nothing to compare against, so the
@@ -55,10 +55,17 @@ impl AppState {
                 drafted / base
             }
         };
+        // A child's position is held in its parent's frame, so the drafted
+        // move is placed through that frame before it is read on the canvas.
+        let [dx, dy] = on_canvas(
+            self.selected_parent_frame(),
+            [committed.position_x, committed.position_y],
+            [shown.position_x, shown.position_y],
+        );
         Some((
             [
-                center[0] + (shown.position_x - committed.position_x) * canvas[0] as f32,
-                center[1] + (shown.position_y - committed.position_y) * canvas[1] as f32,
+                center[0] + dx * canvas[0] as f32,
+                center[1] + dy * canvas[1] as f32,
             ],
             [
                 size[0] * ratio(shown.scale_x, committed.scale_x),
@@ -68,7 +75,7 @@ impl AppState {
     }
 
     pub fn overlay_dragging(&self) -> bool {
-        self.overlay_drag.is_some()
+        self.overlay_drag.is_some() || self.mask_path_holding()
     }
 
     pub fn overlay_crop(&self) -> Option<CropRect> {
@@ -86,10 +93,7 @@ impl AppState {
                 rotation,
                 ..
             }) => Some((center, size, rotation)),
-            _ => self
-                .selected_ui_clip()
-                .and_then(|clip| clip.mask)
-                .map(|mask| (mask.center, mask.size, mask.rotation)),
+            _ => self.active_mask_pose(),
         }
     }
 
@@ -111,30 +115,36 @@ impl AppState {
     }
 
     pub fn begin_mask_drag(&mut self, handle: MaskHandle) {
-        let Some(mask) = self.selected_ui_clip().and_then(|clip| clip.mask) else {
+        // The mask at the playhead, not the projected row: the row holds the
+        // clip's first frame, and a tracked mask drawn elsewhere would jump
+        // there on the first move.
+        let Some((center, size, rotation)) = self.active_mask_pose() else {
             return;
         };
         self.overlay_drag = Some(OverlayDrag::Mask {
             handle,
-            center: mask.center,
-            size: mask.size,
-            rotation: mask.rotation,
+            center,
+            size,
+            rotation,
         });
     }
 
     pub fn begin_transform_drag(&mut self, handle: Option<TransformHandle>, at: [f32; 2]) {
-        let Some(ui) = self.selected_ui_clip() else {
+        // The pose at the playhead, not the projected row: the row holds the
+        // clip's first frame, and a keyframed clip drawn elsewhere would jump
+        // there on the first move.
+        let Some(pose) = self.selected_pose() else {
             return;
         };
         self.overlay_drag = Some(OverlayDrag::Transform {
             handle,
-            start: ui.transform,
+            start: pose,
             grab: at,
-            draft: ui.transform,
+            draft: pose,
         });
         // The picture is drafted from the first move, not the first commit: see
         // `preview_transform_draft`.
-        self.preview_transform_draft(ui.transform);
+        self.preview_transform_draft(pose);
     }
 
     /// Show `draft` in the preview without editing the project.
@@ -157,7 +167,11 @@ impl AppState {
     pub fn overlay_transform(&self) -> Option<crate::types::UiClipTransform> {
         match self.overlay_drag {
             Some(OverlayDrag::Transform { draft, .. }) => Some(draft),
-            _ => self.selected_ui_clip().map(|clip| clip.transform),
+            // A motion path drag moves the picture through the curve it drafts.
+            Some(OverlayDrag::PathKey { .. } | OverlayDrag::PathTangent { .. }) => self
+                .path_drafted_transform()
+                .or_else(|| self.selected_pose()),
+            _ => self.selected_pose(),
         }
     }
 
@@ -175,6 +189,15 @@ impl AppState {
     }
 
     pub fn drag_overlay_to(&mut self, point: [f32; 2]) {
+        // A mask path holds its own draft, in path space.
+        if self.carry_mask_path(point) {
+            return;
+        }
+        // A motion path is drawn on the canvas as well as on the layer, so its
+        // drag needs no quad.
+        if self.drag_path_to(point) {
+            return;
+        }
         let Some(layer) = self.overlay_frame.layer else {
             return;
         };
@@ -222,14 +245,12 @@ impl AppState {
                         draft.scale_y = sy;
                     }
                     None => {
-                        let [px, py] = drag_position(
-                            [start.position_x, start.position_y],
-                            grab,
-                            point,
-                            canvas,
-                        );
-                        draft.position_x = px;
-                        draft.position_y = py;
+                        // The pointer moves the clip on the canvas; a child's
+                        // position is written back into its parent's frame.
+                        let frame = self.selected_parent_frame();
+                        let own = [start.position_x, start.position_y];
+                        let moved = drag_position(placed(frame, own), grab, point, canvas);
+                        [draft.position_x, draft.position_y] = unplaced(frame, moved, own);
                     }
                 }
                 self.overlay_drag = Some(OverlayDrag::Transform {
@@ -238,13 +259,63 @@ impl AppState {
                     grab,
                     draft,
                 });
-                self.preview_transform_draft(draft);
+                if handle.is_none() {
+                    self.snap_overlay_move(canvas);
+                }
+                if let Some(OverlayDrag::Transform { draft, .. }) = self.overlay_drag {
+                    self.preview_transform_draft(draft);
+                }
             }
-            None => {}
+            Some(OverlayDrag::TypeHandle {
+                index,
+                handle,
+                start,
+                ..
+            }) => self.draft_type_handle(index, handle, start, handle.value_at(to)),
+            Some(OverlayDrag::PathKey { .. } | OverlayDrag::PathTangent { .. }) | None => {}
+        }
+    }
+
+    /// Move the drafted position so the drafted quad's edges or center land on
+    /// a guide within [`crate::app::viewer_guides::SNAP_PX`]. The quad is derived
+    /// from the draft, not read back from the last paint, so the snap holds on
+    /// the frame the pointer moves rather than one frame later.
+    fn snap_overlay_move(&mut self, canvas: Rect) {
+        if canvas.w <= 0.0 || canvas.h <= 0.0 {
+            return;
+        }
+        let size = self.canvas_size();
+        let Some(layer) = self
+            .overlay_quad()
+            .map(|(center, quad)| layer_rect(canvas, size, center, quad))
+        else {
+            return;
+        };
+        let [dx, dy] = self.guide_snap_shift(layer);
+        let frame = self.selected_parent_frame();
+        if let Some(OverlayDrag::Transform {
+            handle: None,
+            draft,
+            ..
+        }) = self.overlay_drag.as_mut()
+        {
+            [draft.position_x, draft.position_y] = moved_on_canvas(
+                frame,
+                [draft.position_x, draft.position_y],
+                [dx / canvas.w, dy / canvas.h],
+            );
         }
     }
 
     pub fn end_overlay_drag(&mut self) -> Result<(), EngineError> {
+        if self
+            .tool_session
+            .mask_path
+            .as_ref()
+            .is_some_and(|edit| edit.hold.is_some())
+        {
+            return self.release_mask_path();
+        }
         let drag = self.overlay_drag.take();
         self.clear_overlay_previews();
         match drag {
@@ -263,12 +334,35 @@ impl AppState {
                 }
                 self.set_selected_transform(draft)
             }
+            Some(OverlayDrag::TypeHandle {
+                handle,
+                start,
+                draft,
+                ..
+            }) => {
+                if draft == start {
+                    return Ok(());
+                }
+                if let Some([_, _, z]) = self.selected_effect_point3(handle.effect, handle.param) {
+                    self.set_selected_effect_point3(
+                        handle.effect,
+                        handle.param,
+                        [draft[0], draft[1], z],
+                    )
+                } else {
+                    self.set_selected_effect_vec2(handle.effect, handle.param, draft)
+                }
+            }
+            Some(drag @ (OverlayDrag::PathKey { .. } | OverlayDrag::PathTangent { .. })) => {
+                self.commit_path_drag(drag)
+            }
             None => Ok(()),
         }
     }
 
     pub fn cancel_overlay_drag(&mut self) {
         self.overlay_drag = None;
+        self.cancel_mask_path();
         self.clear_overlay_previews();
     }
 
@@ -281,7 +375,49 @@ impl AppState {
         let mut engine = self.engine.lock();
         engine.set_crop_override(None);
         engine.set_transform_override(None);
+        engine.set_effect_vec2_override(None);
     }
+}
+
+/// Where a clip at its own position `own` sits on the canvas: through its
+/// parents' frame when one covers the playhead, else `own` itself. Both in
+/// canvas fractions from the canvas center.
+fn placed(frame: Option<aria_models::ParentFrame>, own: [f32; 2]) -> [f32; 2] {
+    frame.map_or(own, |frame| frame.place(own))
+}
+
+/// The own position that places a clip at canvas position `world`. A flattened
+/// parent places every child on one point, so no position moves it and the
+/// clip keeps `fallback`.
+fn unplaced(
+    frame: Option<aria_models::ParentFrame>,
+    world: [f32; 2],
+    fallback: [f32; 2],
+) -> [f32; 2] {
+    match frame {
+        Some(frame) => frame.unplace(world).unwrap_or(fallback),
+        None => world,
+    }
+}
+
+/// The own position that moves a clip at own position `own` by `by` on the
+/// canvas, through its parents' frame when one covers the playhead. Canvas
+/// fractions from the canvas center. A flattened parent moves nothing, so the
+/// clip keeps `own`.
+pub(crate) fn moved_on_canvas(
+    frame: Option<aria_models::ParentFrame>,
+    own: [f32; 2],
+    by: [f32; 2],
+) -> [f32; 2] {
+    let [x, y] = placed(frame, own);
+    unplaced(frame, [x + by[0], y + by[1]], own)
+}
+
+/// How far the canvas position moves when a clip's own position goes from
+/// `from` to `to`.
+fn on_canvas(frame: Option<aria_models::ParentFrame>, from: [f32; 2], to: [f32; 2]) -> [f32; 2] {
+    let (a, b) = (placed(frame, from), placed(frame, to));
+    [b[0] - a[0], b[1] - a[1]]
 }
 
 // The tests live in this module rather than in a `_tests.rs` child because the
@@ -383,4 +519,85 @@ fn no_ending_leaves_a_preview_behind() {
             "{label}: left a preview override behind"
         );
     }
+}
+
+/// A moved layer lands on a guide within reach, only with snapping on, and
+/// the committed position is the snapped one.
+///
+/// The class this closes: guides that are drawn and snap in a unit test of
+/// [`crate::app::viewer_guides::snap_shift`] but never reach the drag, so a layer
+/// slides past every guide. Driven through `drag_overlay_to` and
+/// `end_overlay_drag`, the path the pointer takes. Not covered: snapping a
+/// corner (scale) drag, which is not snapped.
+#[cfg(test)]
+#[test]
+fn a_moved_layer_snaps_to_a_guide_in_reach() {
+    use crate::app::viewer_guides::{Guide, GuideAxis, SNAP_PX};
+    let quad = |state: &AppState| {
+        let canvas = state.overlay_frame.canvas.expect("a drawn canvas");
+        let size = state.canvas_size();
+        state
+            .overlay_quad()
+            .map(|(center, quad)| layer_rect(canvas, size, center, quad))
+            .expect("the selected clip draws a quad")
+    };
+    let drag_by = |snap: bool, dx: f32| {
+        let mut state = selected();
+        framed(&mut state);
+        let canvas = state.overlay_frame.canvas.expect("a drawn canvas");
+        let size = state.canvas_size();
+        let start = quad(&state);
+        assert!(
+            // The center and right edge must stay out of reach of the guide
+            // in every case below, so only the left edge can snap.
+            start.w > 10.0 * SNAP_PX,
+            "the layer is too narrow to tell its edges apart"
+        );
+        // A vertical guide 4 screen px right of where a 30 px move leaves the
+        // layer's left edge.
+        let line = start.x + 34.0;
+        state.viewer_guides.guides.push(Guide {
+            axis: GuideAxis::Vertical,
+            at: (line - canvas.x) * size[0] as f32 / canvas.w,
+        });
+        state.viewer_guides.snap = snap;
+        state.begin_transform_drag(None, [200.0, 100.0]);
+        state.drag_overlay_to([200.0 + dx, 100.0]);
+        let drafted = quad(&state);
+        state.end_overlay_drag().expect("commit the move");
+        (start, line, drafted, quad(&state))
+    };
+    let close = |a: f32, b: f32| (a - b).abs() < 1e-2;
+
+    let (start, line, drafted, committed) = drag_by(true, 30.0);
+    assert!(
+        close(drafted.x, line),
+        "mid-drag left edge {} is not on the guide at {line}",
+        drafted.x
+    );
+    assert!(
+        close(committed.x, line),
+        "committed left edge {} is not on the guide at {line}",
+        committed.x
+    );
+    assert!(
+        close(committed.y, start.y),
+        "a vertical guide moved the layer vertically"
+    );
+
+    let (start, _, drafted, committed) = drag_by(false, 30.0);
+    assert!(
+        close(drafted.x, start.x + 30.0),
+        "snap off still moved the layer to {}",
+        drafted.x
+    );
+    assert!(close(committed.x, start.x + 30.0));
+
+    // 14 px short of the guide: out of reach, so the layer follows the pointer.
+    let (start, _, drafted, _) = drag_by(true, 20.0);
+    assert!(
+        close(drafted.x, start.x + 20.0),
+        "a guide out of reach pulled the layer to {}",
+        drafted.x
+    );
 }

@@ -617,7 +617,7 @@ fn migration_chain_covers_every_supported_version() {
     for from in 1..=PROJECT_SCHEMA_VERSION {
         let mut doc = serde_json::json!({});
         migrate_document(&mut doc, from);
-        // No current step rewrites anything (v1 shapes are valid v2).
+        // An empty document holds nothing for any step to rewrite.
         assert_eq!(doc, serde_json::json!({}));
     }
 }

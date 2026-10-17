@@ -3,7 +3,7 @@
 
 tool_group! {
     "add_transition" => AddTransition(AddTransition),
-        "Add a transition at the cut where a clip meets the next clip on its track. Available transitions: crossfade, dip_to_black, dip_to_white, wipe_left, wipe_right, wipe_up, wipe_down, slide. The clip must butt directly against a following clip. Not valid on audio tracks.";
+        "Add a transition at the cut where a clip meets the next clip on its track. A video, text or sticker lane takes: crossfade, dip_to_black, dip_to_white, wipe_left, wipe_right, wipe_up, wipe_down, slide. An audio lane takes: constant_power, constant_gain, exponential_fade. The clip must butt directly against a following clip. Not valid on effect, filter or adjustment lanes.";
     "remove_transition" => RemoveTransition(RemoveTransition),
         "Remove the transition at a clip's right cut. See describe_project for which clips carry one.";
     "set_transition" => SetTransition(SetTransition),

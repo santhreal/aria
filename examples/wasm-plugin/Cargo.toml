@@ -1,0 +1,30 @@
+[package]
+name = "aria-example-wasm-plugin"
+description = "Reference WebAssembly component guest plugin for Aria"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "Apache-2.0"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[[bin]]
+name = "bundle-component"
+path = "src/bin/bundle_component.rs"
+
+[dependencies]
+serde_json = "1.0"
+wit-bindgen = "0.51"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+wit-component = "0.244"
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true
+codegen-units = 1
+panic = "abort"
+[workspace]

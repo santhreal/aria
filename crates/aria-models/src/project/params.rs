@@ -10,12 +10,15 @@
 //! is why a new property needs no arm in it.
 
 use crate::clip::{
-    AnimatedTransform, ClipParam, ClipTransform, ParamScope, ParamValue, effect_mut,
+    AnimatedTransform, Clip, ClipParam, ClipSource, ClipTransform, DriverCode, Generator,
+    ParamScope, ParamValue, effect_mut, index_after_move, index_after_remove,
 };
-use crate::effects::{EffectInstance, EffectPreset};
+use crate::effects::EffectInstance;
 use crate::error::ModelError;
 use crate::ids::ClipId;
-use crate::param::{Easing, PiecewiseEasingPreset, SpatialTangents};
+use crate::param::{Easing, PiecewiseEasingPreset, SpatialTangents, TemporalEase};
+use crate::param_walk::ParamWalk;
+use crate::preset::Preset;
 use crate::time::{RationalTime, check_same_rate};
 
 use super::Project;
@@ -179,13 +182,17 @@ impl Project {
             .timeline_mut()
             .clip_mut(clip_id)
             .ok_or(ModelError::UnknownClip(clip_id))?;
-        param.set_keyframe(clip, tick, value, easing)?;
         if param == ClipParam::Position {
-            // Always write the tangents slot so a None command clears a
-            // previous curve (EditCommand redo / AI wire).
-            clip.transform
-                .position
-                .set_keyframe_tangents(tick, tangents)?;
+            // Write value, easing, and tangents together before solving roving
+            // ticks and temporal control points.
+            clip.transform.position.set_keyframe_with_tangents(
+                tick,
+                value.vec2()?,
+                easing,
+                tangents,
+            );
+        } else {
+            param.set_keyframe(clip, tick, value, easing)?;
         }
         Ok(())
     }
@@ -216,6 +223,54 @@ impl Project {
         clip.transform
             .position
             .set_keyframe_tangents(tick, tangents)
+    }
+
+    /// Set incoming/outgoing temporal ease and/or hold state on the keyframe at
+    /// `at` (absolute timeline position). Errors when no keyframe sits there.
+    pub fn set_param_keyframe_ease(
+        &mut self,
+        clip_id: ClipId,
+        param: ClipParam,
+        at: RationalTime,
+        in_ease: Option<TemporalEase>,
+        out_ease: Option<TemporalEase>,
+        hold: bool,
+    ) -> Result<(), ModelError> {
+        if let Some(inp) = in_ease {
+            inp.validate()?;
+        }
+        if let Some(out) = out_ease {
+            out.validate()?;
+        }
+        self.check_param_target(clip_id, param)?;
+        let tick = self.keyframe_tick(clip_id, at)?;
+        let clip = self
+            .timeline_mut()
+            .clip_mut(clip_id)
+            .ok_or(ModelError::UnknownClip(clip_id))?;
+        param.set_keyframe_temporal_ease(clip, tick, in_ease, out_ease, hold)
+    }
+
+    /// Set or clear roving on the keyframe at `at` (absolute timeline position)
+    /// and return its solved absolute timeline position. Roving is ignored on
+    /// the first and last keyframe of a property.
+    pub fn set_param_keyframe_roving(
+        &mut self,
+        clip_id: ClipId,
+        param: ClipParam,
+        at: RationalTime,
+        roving: bool,
+    ) -> Result<RationalTime, ModelError> {
+        self.check_param_target(clip_id, param)?;
+        let rate = self.timeline().frame_rate;
+        let tick = self.keyframe_tick(clip_id, at)?;
+        let clip = self
+            .timeline_mut()
+            .clip_mut(clip_id)
+            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let start_tick = clip.timeline.start.value;
+        let solved_local = param.set_keyframe_roving(clip, tick, roving)?;
+        Ok(RationalTime::new(start_tick + solved_local, rate))
     }
 
     /// Remove the keyframe at exactly `at` (absolute timeline position) on
@@ -249,6 +304,68 @@ impl Project {
             .clip_mut(clip_id)
             .ok_or(ModelError::UnknownClip(clip_id))?;
         param.set_constant(clip, value)
+    }
+
+    /// The name a driver addresses `clip` by: the clip's own name when it has
+    /// one, else its source's: the media's display name, the nested
+    /// sequence's or multicam group's name, a text clip's words, or the
+    /// generator's catalog label.
+    pub fn clip_title<'a>(&'a self, clip: &'a Clip) -> std::borrow::Cow<'a, str> {
+        use std::borrow::Cow;
+        if let Some(name) = &clip.name {
+            return Cow::Borrowed(name);
+        }
+        match &clip.content {
+            ClipSource::Media { media, .. } => self
+                .media(*media)
+                .map_or(Cow::Borrowed("Untitled"), |source| {
+                    Cow::Borrowed(source.display_name())
+                }),
+            ClipSource::Sequence { sequence, .. } => self.sequence(*sequence).map_or_else(
+                || Cow::Owned(format!("Sequence {}", sequence.raw())),
+                |found| Cow::Borrowed(found.name.as_str()),
+            ),
+            ClipSource::Multicam { group, .. } => self.multicam_group(*group).map_or_else(
+                || Cow::Owned(format!("Multicam {}", group.raw())),
+                |found| Cow::Borrowed(found.name.as_str()),
+            ),
+            ClipSource::Generated(Generator::Text { content, .. }) => Cow::Borrowed(content),
+            ClipSource::Generated(generator) => Cow::Borrowed(generator.spec().label),
+        }
+    }
+
+    /// Attach `code` as the driver of one property, or detach the driver with
+    /// `None`. Returns the code attached before.
+    ///
+    /// The property must be reachable on the clip. Compiling the code and
+    /// checking its inputs for cycles is the caller's: the model stores code
+    /// in any language, installed or not.
+    pub fn set_param_driver(
+        &mut self,
+        clip_id: ClipId,
+        param: ClipParam,
+        code: Option<DriverCode>,
+    ) -> Result<Option<DriverCode>, ModelError> {
+        if let Some(code) = &code {
+            code.validate()?;
+            if param == ClipParam::Speed {
+                return Err(ModelError::InvalidParam(
+                    "a speed ramp is drawn with the speed curve and cannot take a driver".into(),
+                ));
+            }
+            self.check_param_target(clip_id, param)?;
+            let clip = self.clip(clip_id).ok_or(ModelError::UnknownClip(clip_id))?;
+            if param.sample_at(clip, 0.0).is_none() {
+                return Err(ModelError::InvalidParam(format!(
+                    "{param:?} is not a property of that clip, so it cannot take a driver"
+                )));
+            }
+        }
+        let clip = self
+            .timeline_mut()
+            .clip_mut(clip_id)
+            .ok_or(ModelError::UnknownClip(clip_id))?;
+        Ok(clip.put_driver(param, code))
     }
 
     /// Expand the outgoing keyframe segment at `at` with a piecewise easing
@@ -298,16 +415,21 @@ impl Project {
             )));
         }
         clip.effects.remove(index);
+        clip.remap_effect_refs(index_after_remove(index as u32));
         Ok(())
     }
-    /// Replace a visual clip's entire effect chain with `effects`.
+
+    /// Replace a visual clip's entire effect chain with `effects`. Drivers on
+    /// the old chain's parameters are dropped: an index into the new chain
+    /// addresses a different effect.
     pub fn set_clip_effects(
         &mut self,
         clip_id: ClipId,
-        effects: Vec<EffectInstance>,
+        mut effects: Vec<EffectInstance>,
     ) -> Result<(), ModelError> {
-        for effect in &effects {
+        for effect in &mut effects {
             effect.validate()?;
+            effect.mark_from_catalog();
         }
         self.check_visual_target(clip_id)?;
         let clip = self
@@ -315,17 +437,105 @@ impl Project {
             .clip_mut(clip_id)
             .ok_or(ModelError::UnknownClip(clip_id))?;
         clip.effects = effects;
+        clip.remap_effect_refs(|_| None);
         Ok(())
     }
 
-    /// Apply an effect preset to `clip_id`, replacing its effect chain.
-    pub fn apply_effect_preset(
+    /// Apply an animation preset to `clip_id` anchored at `at`.
+    pub fn apply_preset(
         &mut self,
         clip_id: ClipId,
-        preset: &EffectPreset,
+        preset: &Preset,
+        at: RationalTime,
     ) -> Result<(), ModelError> {
         preset.validate()?;
-        self.set_clip_effects(clip_id, preset.effects.clone())
+        let anchor_local = self.keyframe_tick(clip_id, at)?;
+        let mut shifted = preset.clone();
+        shifted.walk_params(&mut |curve| curve.shift_fits(anchor_local))?;
+        shifted.walk_params(&mut |curve| curve.shift(anchor_local))?;
+
+        let mut resolved_props = Vec::with_capacity(shifted.properties.len());
+        for prop in &shifted.properties {
+            let spec = crate::clip::property_row(&prop.id).ok_or_else(|| {
+                ModelError::InvalidParam(format!("property `{}`: unknown property id", prop.id))
+            })?;
+            resolved_props.push((prop.id.as_str(), spec, &prop.curve));
+        }
+
+        let needs_visual = !shifted.effects.is_empty()
+            || resolved_props
+                .iter()
+                .any(|(_, spec, _)| spec.scope == ParamScope::Visual);
+        if needs_visual {
+            self.check_visual_target(clip_id)?;
+        }
+        if !shifted.audio_effects.is_empty() {
+            self.insert_target_refusal(crate::AudioInsertTarget::Clip(clip_id))?;
+        }
+        if resolved_props
+            .iter()
+            .any(|(_, spec, _)| spec.scope == ParamScope::Audio)
+        {
+            self.check_audio_target(clip_id)?;
+        }
+
+        let clip = self
+            .timeline()
+            .clip(clip_id)
+            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let mut staged = clip.clone();
+
+        for (id, spec, curve) in resolved_props {
+            if !spec.available(&staged) {
+                return Err(ModelError::InvalidParam(format!(
+                    "property `{id}` is not available on clip {clip_id}; enable its block or select a compatible clip"
+                )));
+            }
+            match curve {
+                crate::param::Param::Constant(value) => {
+                    if !spec.keyframes(&staged).is_empty() {
+                        spec.param
+                            .set_keyframe(&mut staged, anchor_local, *value, Easing::Linear)
+                            .map_err(|err| {
+                                ModelError::InvalidParam(format!("property `{id}`: {err}"))
+                            })?;
+                    } else {
+                        spec.param
+                            .set_constant(&mut staged, *value)
+                            .map_err(|err| {
+                                ModelError::InvalidParam(format!("property `{id}`: {err}"))
+                            })?;
+                    }
+                }
+                crate::param::Param::Keyframed { keyframes } => {
+                    for kf in keyframes {
+                        spec.param
+                            .set_keyframe(&mut staged, kf.tick, kf.value, kf.easing)
+                            .map_err(|err| {
+                                ModelError::InvalidParam(format!("property `{id}`: {err}"))
+                            })?;
+                        if spec.param == ClipParam::Position {
+                            staged
+                                .transform
+                                .position
+                                .set_keyframe_tangents(kf.tick, kf.tangents)?;
+                        }
+                    }
+                }
+            }
+        }
+
+        for effect in &mut shifted.effects {
+            effect.mark_from_catalog();
+        }
+        staged.effects.extend(shifted.effects);
+        staged.audio_effects.extend(shifted.audio_effects);
+
+        *self
+            .timeline_mut()
+            .clip_mut(clip_id)
+            .ok_or(ModelError::UnknownClip(clip_id))? = staged;
+        Ok(())
     }
 
     /// Move one effect within a clip's chain. Both indices address the chain
@@ -358,6 +568,7 @@ impl Project {
 
         let effect = clip.effects.remove(from_index);
         clip.effects.insert(to_index, effect);
+        clip.remap_effect_refs(index_after_move(from_index as u32, to_index as u32));
         Ok(())
     }
 
@@ -376,5 +587,122 @@ impl Project {
             .clip_mut(clip_id)
             .ok_or(ModelError::UnknownClip(clip_id))?;
         effect_mut(clip, index as u32)?.set_param_constant(param, value)
+    }
+
+    /// Switch the effect at `index` on `clip_id` off, or back on. A bypassed
+    /// effect keeps its parameters and its place in the chain.
+    pub fn set_effect_bypass(
+        &mut self,
+        clip_id: ClipId,
+        index: usize,
+        bypass: bool,
+    ) -> Result<(), ModelError> {
+        self.effect_instance_mut(clip_id, index)?.bypass = bypass;
+        Ok(())
+    }
+
+    /// Borrow an effect instance on `clip_id` at `index`.
+    pub fn effect_instance(
+        &self,
+        clip_id: ClipId,
+        index: usize,
+    ) -> Result<&EffectInstance, ModelError> {
+        let clip = self
+            .timeline()
+            .clip(clip_id)
+            .ok_or(ModelError::UnknownClip(clip_id))?;
+        clip.effects
+            .get(index)
+            .ok_or_else(|| ModelError::InvalidParam(format!("effect index {index} out of range")))
+    }
+
+    /// Mutably borrow an effect instance on `clip_id` at `index`.
+    pub fn effect_instance_mut(
+        &mut self,
+        clip_id: ClipId,
+        index: usize,
+    ) -> Result<&mut EffectInstance, ModelError> {
+        let clip = self
+            .timeline_mut()
+            .clip_mut(clip_id)
+            .ok_or(ModelError::UnknownClip(clip_id))?;
+        effect_mut(clip, index as u32)
+    }
+
+    /// Validate layer-reference parameters on `effect` attached to `clip_id`.
+    ///
+    /// Returns `Some(reason)` when `effect` references `clip_id` itself, a
+    /// clip missing from the active sequence, or forms a cycle across clips'
+    /// layer-reference parameters.
+    pub fn effect_layer_ref_error(
+        &self,
+        clip_id: ClipId,
+        effect: &EffectInstance,
+    ) -> Option<String> {
+        for (param_name, &target_raw) in &effect.layer_params {
+            let target_id = ClipId::from_raw(target_raw);
+            if target_id == clip_id {
+                return Some(format!(
+                    "effect `{}` parameter `{param_name}` on clip {} cannot reference itself",
+                    effect.effect_id,
+                    clip_id.raw()
+                ));
+            }
+            if self.timeline().clip(target_id).is_none() {
+                return Some(format!(
+                    "effect `{}` parameter `{param_name}` references missing clip {}",
+                    effect.effect_id, target_raw
+                ));
+            }
+            // The new reference closes a cycle when `target_id` reaches
+            // `clip_id` through existing layer-reference parameters. A clip
+            // reached twice is a diamond, not a cycle, and is walked once.
+            let mut stack = vec![target_id];
+            let mut visited = std::collections::BTreeSet::new();
+            while let Some(curr) = stack.pop() {
+                if !visited.insert(curr) {
+                    continue;
+                }
+                if let Some(curr_clip) = self.timeline().clip(curr) {
+                    for fx in &curr_clip.effects {
+                        for &next_raw in fx.layer_params.values() {
+                            let next_id = ClipId::from_raw(next_raw);
+                            if next_id == clip_id {
+                                return Some(format!(
+                                    "effect `{}` parameter `{param_name}` on clip {} forms a layer-reference cycle with clip {}",
+                                    effect.effect_id,
+                                    clip_id.raw(),
+                                    target_raw
+                                ));
+                            }
+                            stack.push(next_id);
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// Replace one effect instance at `index` on `clip_id` after validating it.
+    pub fn set_effect_instance(
+        &mut self,
+        clip_id: ClipId,
+        index: usize,
+        mut effect: EffectInstance,
+    ) -> Result<(), ModelError> {
+        effect.validate()?;
+        effect.mark_from_catalog();
+        self.check_visual_target(clip_id)?;
+        if let Some(err) = self.effect_layer_ref_error(clip_id, &effect) {
+            return Err(ModelError::InvalidParam(err));
+        }
+        let clip = self
+            .timeline_mut()
+            .clip_mut(clip_id)
+            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let slot = effect_mut(clip, index as u32)?;
+        *slot = effect;
+        Ok(())
     }
 }

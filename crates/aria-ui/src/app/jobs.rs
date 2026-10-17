@@ -110,6 +110,32 @@ impl UiJob {
         self.cancellable && !self.terminal
     }
 
+    /// Seconds left at the rate the job has run so far, or `None` when there is
+    /// no rate to project: the job is not running, reports no progress, or has
+    /// reported too little of it for the projection to mean anything.
+    pub fn remaining(&self) -> Option<f32> {
+        let progress = self.progress?;
+        let projectable = self.status == "Running"
+            && !self.terminal
+            && (0.01..1.0).contains(&progress)
+            && self.elapsed > 0.0;
+        projectable.then(|| self.elapsed * (1.0 - progress) / progress)
+    }
+
+    /// The status, the time spent, and the time left when there is an estimate:
+    /// `Running · 12.4s · 38s left`.
+    pub fn status_line(&self) -> String {
+        match self.remaining() {
+            Some(left) => format!(
+                "{} · {:.1}s · {:.0}s left",
+                self.status,
+                self.elapsed,
+                left.ceil()
+            ),
+            None => format!("{} · {:.1}s", self.status, self.elapsed),
+        }
+    }
+
     pub(crate) fn from_snapshot(snapshot: &JobSnapshot) -> Self {
         // "Cancelling…" is a distinct status: a cancel that has been accepted but whose
         // thread has not exited yet looks stuck otherwise.
@@ -308,6 +334,7 @@ impl AppState {
                 let updated = this.update(cx, |state, cx| {
                     if finished {
                         state.sync_from_engine();
+                        state.poll_render_bar();
                     }
                     state.refresh_jobs();
                     cx.notify();
@@ -342,11 +369,29 @@ impl AppState {
         // A snapshot, not a copy: the project is copied once, by the next edit,
         // only if one lands while the export still reads it.
         let project = self.host.snapshot();
-        let settings = aria_render::ExportSettings::resolved(&project, request.format)
-            .map_err(|err| err.to_string())?;
-        let entry_id = self
-            .export_queue
-            .enqueue(request.destination, settings, project);
+        let settings = match request.plugin_encoder.as_deref() {
+            Some(encoder_id) => {
+                let Some(spec) = self.ctx.encoder(encoder_id) else {
+                    return Err(format!(
+                        "no encoder is registered as {encoder_id}; enable or reinstall the plugin that provides it"
+                    ));
+                };
+                aria_render::ExportSettings::resolved_for_encoder(
+                    &project,
+                    request.format,
+                    spec.audio,
+                )
+                .map_err(|err| err.to_string())?
+            }
+            None => aria_render::ExportSettings::resolved(&project, request.format)
+                .map_err(|err| err.to_string())?,
+        };
+        let entry_id = self.export_queue.enqueue_with_encoder(
+            request.destination,
+            settings,
+            project,
+            request.plugin_encoder,
+        );
         self.refresh_jobs();
         let (w, h) = request.size;
         self.status_message = Some(format!(

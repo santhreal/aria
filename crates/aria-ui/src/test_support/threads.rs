@@ -160,6 +160,11 @@ const THREAD_OWNERS: &[(&str, &str)] = &[
          project host or block, started off the window's thread and never \
          waited for",
     ),
+    (
+        "crates/aria-ui/src/preview_worker.rs",
+        "the preview worker: one render thread per session, fed by a job queue \
+         and stopped when the session drops its handle",
+    ),
 ];
 
 /// **Handing work to a thread belongs to one module.**

@@ -4,8 +4,9 @@
 //! `sync_from_engine` runs on every gesture frame, so it compares the inputs
 //! before projecting; the risk that buys is a stale store nobody can see is
 //! stale. One test proves the memo exists, and one test per key field proves
-//! that field still invalidates it — including the two that move without the
-//! project moving at all: a proxy substitution and a save. The playhead is the
+//! that field still invalidates it — including the three that move without the
+//! project moving at all: a proxy substitution, a save, and a plugin changing a
+//! catalog the project reads. The playhead is the
 //! exception and has its own contract: it invalidates nothing, because the
 //! projection carries it as a value.
 //!
@@ -16,8 +17,13 @@
 use std::sync::Arc;
 
 use aria_commands::{Command, EditCommand, ProjectCommand};
-use aria_models::{MediaId, RationalTime, TrackKind};
+use aria_models::{
+    ClipTypeSpec, MarkerColor, MediaId, RationalTime, TrackKind, register_clip_type,
+};
 
+use gpui::SharedString;
+
+use crate::app::AppState;
 use crate::app::premiere_tests::with_clip;
 
 #[test]
@@ -225,6 +231,84 @@ fn the_first_poll_projects() {
         "a poll with no memo served the old projection"
     );
 }
+
+/// The clip type name the store shows on `clip`.
+fn type_label(state: &AppState, clip: aria_models::ClipId) -> Option<SharedString> {
+    state
+        .store
+        .sequence
+        .tracks
+        .iter()
+        .flat_map(|track| &track.clips)
+        .find(|ui| ui.id == clip.raw())
+        .and_then(|ui| ui.clip_type.as_ref())
+        .map(|clip_type| clip_type.label.clone())
+}
+
+#[test]
+fn a_plugin_changing_a_catalog_the_project_uses_reprojects() {
+    let (mut state, clip) = with_clip();
+    let id = "test.memo.used";
+    state
+        .engine
+        .lock()
+        .apply(Command::Edit(EditCommand::SetClipType {
+            clip,
+            clip_type: Some(id.into()),
+        }))
+        .expect("a clip type");
+    state.sync_from_engine();
+    let drawn = Arc::clone(&state.store);
+    assert_eq!(
+        type_label(&state, clip).as_deref(),
+        Some(id),
+        "a type no plugin lists is shown by its id"
+    );
+
+    // Listing the type moves no project revision.
+    let held = register_clip_type(ClipTypeSpec::new(
+        id,
+        "Memo type",
+        "color_overlay",
+        MarkerColor::Blue,
+    ))
+    .expect("the type registers")
+    .0;
+    state.sync_from_engine();
+    assert!(
+        !Arc::ptr_eq(&drawn, &state.store),
+        "a registration the clip reads did not reach the projection"
+    );
+    assert_eq!(type_label(&state, clip).as_deref(), Some("Memo type"));
+
+    drop(held);
+    state.sync_from_engine();
+    assert_eq!(
+        type_label(&state, clip).as_deref(),
+        Some(id),
+        "a dropped type is still shown by its name"
+    );
+}
+
+#[test]
+fn a_catalog_the_project_does_not_use_keeps_the_projection() {
+    let (mut state, _) = with_clip();
+    state.sync_from_engine();
+    let drawn = Arc::clone(&state.store);
+    let _held = register_clip_type(ClipTypeSpec::new(
+        "test.memo.unused",
+        "Unused memo type",
+        "color_overlay",
+        MarkerColor::Green,
+    ))
+    .expect("the type registers");
+    state.sync_from_engine();
+    assert!(
+        Arc::ptr_eq(&drawn, &state.store),
+        "a registration the project reads nothing of rebuilt the projection"
+    );
+}
+
 #[test]
 fn report_error_formats_various_error_types() {
     let (mut state, _) = with_clip();

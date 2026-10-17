@@ -9,12 +9,12 @@ use std::{borrow::Cow, path::PathBuf, sync::Arc};
 use aria_commands::{Command, EditCommand, ProjectCommand};
 use aria_models::{
     AnimationRef, AnimationSlot, ClipId, ClipTransform, ColorAdjustments, CropRect, Filter,
-    Generator, LayerStyles, LookAnimations, MediaId, Project, Rational, RationalTime, SequenceId,
-    TrackKind,
+    Generator, LayerStyles, LookAnimations, MarkerColor, MarkerId, MarkerKind, MediaId, Project,
+    Rational, RationalTime, SequenceId, TrackKind,
 };
 use aria_render::{
-    ExportSettings, FrameSink, Renderer, ResolveOverrides, RgbaImage, Scene, SeekPolicy,
-    export_to_file_observed, resolve_with,
+    ExportSettings, FrameSink, RenderFiles, Renderer, ResolveOverrides, RgbaImage, Scene,
+    SceneLayer, SeekPolicy, export_to_file_observed, resolve_with,
 };
 
 use crate::action::{ApplyContext, ApplyOutcome, EditAction, History, HistoryStep, dispatch};
@@ -89,6 +89,9 @@ struct LivePreviews {
     /// the uncropped frame while the handles move, so the operator cuts into the
     /// picture they can see instead of one the crop already hid.
     crop: Option<(ClipId, CropRect, bool, bool)>,
+    /// One live vec2 effect parameter on one clip: a Viewer handle drag shows
+    /// the point it is placing before the release commits it.
+    effect_vec2: Option<(ClipId, usize, usize, [f32; 2])>,
 }
 
 impl LivePreviews {
@@ -105,6 +108,8 @@ impl LivePreviews {
             styles: self.styles.as_ref().map(|(id, s)| (*id, s)),
             animation: animation_override_view(project, &self.animation),
             crop: self.crop,
+            effect_vec2: self.effect_vec2,
+            transparent: false,
         }
     }
 
@@ -116,6 +121,7 @@ impl LivePreviews {
             || self.styles.is_some()
             || self.animation.is_some()
             || self.crop.is_some()
+            || self.effect_vec2.is_some()
     }
 }
 
@@ -145,6 +151,12 @@ pub struct Engine {
     /// or stops decoding through a proxy. Renderer state, so it must not move
     /// `revision` (see [`proxy_revision`](Self::proxy_revision)).
     proxy_revision: u64,
+    /// Whether previews decode through registered proxies. Export reads the
+    /// originals either way (see [`set_preview_proxies`](Self::set_preview_proxies)).
+    preview_proxies: bool,
+    /// Whether the Viewer's frames leave the canvas background transparent
+    /// (see [`set_preview_transparency`](Self::set_preview_transparency)).
+    preview_transparency: bool,
     /// Live preview overrides: session-only state that no project revision
     /// describes (see [`LivePreviews`]).
     previews: LivePreviews,
@@ -183,6 +195,8 @@ impl Engine {
             saved_revision: 0,
             group_started_clean: true,
             proxy_revision: 0,
+            preview_proxies: true,
+            preview_transparency: false,
             previews: LivePreviews::default(),
         }
     }
@@ -302,6 +316,14 @@ impl Engine {
         self.history.undo_labels().len()
     }
 
+    /// Changes whenever [`history_entries`](Self::history_entries) would list
+    /// different steps. A committed group or a merged pair changes the list
+    /// and not [`revision`](Self::revision), so a cached copy of the list keys
+    /// on this.
+    pub fn history_generation(&self) -> u64 {
+        self.history.generation()
+    }
+
     /// Undo or redo until exactly `depth` steps are applied, and report whether
     /// that point was reached.
     ///
@@ -338,6 +360,10 @@ impl Engine {
     /// Close the open group and record it as one undo entry named `label`.
     pub fn commit_group_as(&mut self, label: impl Into<Cow<'static, str>>) {
         self.history.commit_group_as(label.into());
+    }
+    /// Merge the two newest undo steps into one history entry.
+    pub fn coalesce_last_two_undo_steps(&mut self) {
+        self.history.coalesce_top_two();
     }
 
     /// Abort the open group: revert its commands in reverse, restoring the
@@ -429,7 +455,7 @@ impl Engine {
                 settings,
                 &mut |_, _| true,
             );
-            self.renderer.set_use_proxies(true);
+            self.renderer.set_use_proxies(self.preview_proxies);
             return Ok(ApplyOutcome::Exported { frames: result? });
         }
 
@@ -485,6 +511,71 @@ impl Engine {
         Ok(outcome)
     }
 
+    /// Add a clip marker on `clip` at `at` (in clip source time), recording one
+    /// undo step (`"Add marker"`).
+    pub fn add_clip_marker(
+        &mut self,
+        clip: ClipId,
+        at: RationalTime,
+        name: String,
+        color: Option<MarkerColor>,
+    ) -> Result<MarkerId, EngineError> {
+        let mut ctx = ApplyContext {
+            project: Arc::make_mut(&mut self.project),
+            project_path: &mut self.project_path,
+            history: &mut self.history,
+        };
+        let (id, inverse) =
+            crate::action::edit::marker::add_on_clip(&mut ctx, clip, at, name, color)?;
+        self.revision += 1;
+        self.history.record_do("Add marker", inverse);
+        Ok(id)
+    }
+
+    /// Attach an existing sequence marker to `clip` in clip source time.
+    ///
+    /// Used right after `AddMarker` when the playhead sits over a selected
+    /// clip: the existing `RemoveMarkerAction` on top of the undo stack
+    /// inspects `marker_clip` when undone, so the single `"Add marker"` step
+    /// undoes and redoes the clip marker directly.
+    pub fn attach_marker_to_clip(
+        &mut self,
+        marker: MarkerId,
+        clip: ClipId,
+    ) -> Result<(), EngineError> {
+        Arc::make_mut(&mut self.project)
+            .timeline_mut()
+            .attach_marker_to_clip(marker, clip)?;
+        self.revision += 1;
+        Ok(())
+    }
+
+    /// Edit all fields (`at`, `duration`, `name`, `color`, `comment`, `kind`)
+    /// of a sequence or clip marker as a single undo step (`"Edit marker"`).
+    #[allow(clippy::too_many_arguments)]
+    pub fn edit_marker(
+        &mut self,
+        marker: MarkerId,
+        at: RationalTime,
+        duration: RationalTime,
+        name: String,
+        color: MarkerColor,
+        comment: String,
+        kind: MarkerKind,
+    ) -> Result<(), EngineError> {
+        let mut ctx = ApplyContext {
+            project: Arc::make_mut(&mut self.project),
+            project_path: &mut self.project_path,
+            history: &mut self.history,
+        };
+        let inverse = crate::action::edit::marker::edit(
+            &mut ctx, marker, at, duration, name, color, comment, kind,
+        )?;
+        self.revision += 1;
+        self.history.record_do("Edit marker", inverse);
+        Ok(())
+    }
+
     /// Set (or clear with `None`) the live gesture transform for one clip.
     ///
     /// While set, preview frames render this transform in place of the clip's
@@ -520,6 +611,14 @@ impl Engine {
     /// [`set_transform_override`](Self::set_transform_override).
     pub fn set_crop_override(&mut self, value: Option<(ClipId, CropRect, bool, bool)>) {
         self.previews.crop = value;
+    }
+
+    /// Set (or clear with `None`) one live vec2 effect parameter: the clip, the
+    /// effect's index in its chain, the parameter's catalog slot, and the value.
+    /// The Viewer handle-drag analogue of
+    /// [`set_transform_override`](Self::set_transform_override).
+    pub fn set_effect_vec2_override(&mut self, value: Option<(ClipId, usize, usize, [f32; 2])>) {
+        self.previews.effect_vec2 = value;
     }
 
     /// Set (or clear with `None`) the previewed animation slot for one clip — the
@@ -573,7 +672,25 @@ impl Engine {
         self.renderer.proxy_for(media)
     }
 
-    /// Monotonic counter over proxy substitutions.
+    /// Whether previews decode through registered proxies.
+    pub fn preview_proxies(&self) -> bool {
+        self.preview_proxies
+    }
+
+    /// Switch previews between registered proxies and the original files. The
+    /// setting holds across sessions and export; export reads the originals
+    /// whatever it is. A change moves [`proxy_revision`](Self::proxy_revision).
+    pub fn set_preview_proxies(&mut self, on: bool) {
+        if self.preview_proxies == on {
+            return;
+        }
+        self.preview_proxies = on;
+        self.renderer.set_use_proxies(on);
+        self.proxy_revision += 1;
+    }
+
+    /// Monotonic counter over proxy substitutions and the
+    /// [`preview_transparency`](Self::preview_transparency) switch.
     ///
     /// Which media decode through a proxy is renderer state, so it changes
     /// without touching the project and cannot move
@@ -582,6 +699,37 @@ impl Engine {
     /// derived from proxy state watches this instead.
     pub fn proxy_revision(&self) -> u64 {
         self.proxy_revision
+    }
+
+    /// Whether the Viewer's frames leave the canvas background transparent.
+    pub fn preview_transparency(&self) -> bool {
+        self.preview_transparency
+    }
+
+    /// Leave the canvas background transparent in the frames the Viewer
+    /// renders through [`get_frame_into`](Self::get_frame_into) and
+    /// [`get_frame_fit_into`](Self::get_frame_fit_into), so a transparency
+    /// grid drawn under the frame shows where no layer covers the canvas.
+    /// Those frames are premultiplied. Thumbnails, tracking, and export keep
+    /// the sequence background. A change moves
+    /// [`proxy_revision`](Self::proxy_revision).
+    pub fn set_preview_transparency(&mut self, on: bool) {
+        if self.preview_transparency == on {
+            return;
+        }
+        self.preview_transparency = on;
+        self.proxy_revision += 1;
+    }
+
+    /// Attach or detach the content-addressed [`RenderFiles`] store consulted by
+    /// preview frame entry points.
+    pub fn set_render_files(&mut self, files: Option<Arc<RenderFiles>>) {
+        self.renderer.set_render_files(files);
+    }
+
+    /// The attached [`RenderFiles`] store, if any.
+    pub fn render_files(&self) -> Option<&Arc<RenderFiles>> {
+        self.renderer.render_files()
     }
 
     /// Tight size (canvas px, at transform scale 1.0) of the content
@@ -598,6 +746,31 @@ impl Engine {
         let (width, height) = aria_render::canvas_size(&self.project);
         self.renderer
             .generator_content_size(generator, width, height, tick)
+    }
+
+    /// The quad a resolved `layer` is drawn on in a `canvas`-sized scene,
+    /// `(center, size)` in canvas pixels before rotation. See
+    /// [`Renderer::layer_quad`]. `&mut self`: a title or pen path is sized from
+    /// the renderer's raster memos, so a miss rasterizes once and the next
+    /// preview frame reuses it.
+    pub fn layer_quad(
+        &mut self,
+        layer: &SceneLayer,
+        canvas: [f32; 2],
+    ) -> Option<([f32; 2], [f32; 2])> {
+        self.renderer.layer_quad(layer, canvas)
+    }
+
+    /// The carets of a title `layer` in a `canvas`-sized scene, in canvas
+    /// pixels. See [`Renderer::layer_carets`]. `&mut self` for the same
+    /// reason as [`layer_quad`](Self::layer_quad): the stops come from the
+    /// renderer's shaping memo.
+    pub fn layer_carets(
+        &mut self,
+        layer: &SceneLayer,
+        canvas: [f32; 2],
+    ) -> Option<Vec<aria_render::LayerCaret>> {
+        self.renderer.layer_carets(layer, canvas)
     }
 
     /// Let the next frame this engine renders be abandoned when `cancel` fires.
@@ -666,7 +839,8 @@ impl Engine {
         policy: SeekPolicy,
         sink: &mut dyn FrameSink,
     ) -> Result<(), EngineError> {
-        let overrides = self.previews.view(&self.project);
+        let mut overrides = self.previews.view(&self.project);
+        overrides.transparent = self.preview_transparency;
         Ok(self
             .renderer
             .render_frame_into_with(&self.project, time, overrides, policy, sink)?)
@@ -681,7 +855,8 @@ impl Engine {
         policy: SeekPolicy,
         sink: &mut dyn FrameSink,
     ) -> Result<(), EngineError> {
-        let overrides = self.previews.view(&self.project);
+        let mut overrides = self.previews.view(&self.project);
+        overrides.transparent = self.preview_transparency;
         Ok(self.renderer.render_frame_fit_into_with(
             &self.project,
             time,

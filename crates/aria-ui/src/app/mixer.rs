@@ -14,7 +14,11 @@
 use super::audio_inserts;
 use super::*;
 use crate::types::{UiInsert, UiKeyChoice};
-use aria_models::{AudioInsertTarget, AudioSend, TrackOutput};
+use aria_models::{AudioInsertTarget, AudioSend, AutomationMode, Param, TrackOutput};
+
+#[path = "mixer_automation.rs"]
+mod mixer_automation;
+pub use mixer_automation::{AutomationPassState, frac_to_pan, pan_label, pan_to_frac};
 
 /// The bottom of the fader's travel, in decibels. Below this a fader reads as
 /// silence: a mixer that offered -80 dB would be offering arithmetic, not a
@@ -40,8 +44,14 @@ const UNITY_DETENT_DB: f32 = 0.75;
 pub enum FaderTarget {
     /// A lane's own fader.
     Lane(TrackId),
+    /// A lane's stereo pan knob (`-1.0..=1.0`).
+    LanePan(TrackId),
     /// The level of one send on a lane, addressed by its index.
     Send { track: TrackId, index: usize },
+    /// The master strip's fader.
+    Master,
+    /// The master strip's stereo pan knob (`-1.0..=1.0`).
+    MasterPan,
 }
 
 /// A fader being ridden.
@@ -79,6 +89,10 @@ pub struct MixerStrip {
     pub is_bus: bool,
     /// The stored fader value; see [`MixerSend::level`].
     pub gain: f32,
+    pub pan: f32,
+    pub automation: AutomationMode,
+    pub volume_envelope: Param<f32>,
+    pub pan_envelope: Param<f32>,
     /// `None` is the master.
     pub output: Option<u64>,
     pub output_name: String,
@@ -136,16 +150,43 @@ pub struct MixerFacts {
 }
 
 /// The master strip's inserts.
-#[derive(Debug, Default)]
+#[derive(Debug, Clone)]
 pub struct MasterChain {
+    pub gain: f32,
+    pub pan: f32,
+    pub muted: bool,
+    pub automation: AutomationMode,
+    pub volume_envelope: Param<f32>,
+    pub pan_envelope: Param<f32>,
     pub inserts: Vec<UiInsert>,
     pub keys: Vec<UiKeyChoice>,
+}
+
+impl Default for MasterChain {
+    fn default() -> Self {
+        Self {
+            gain: 1.0,
+            pan: 0.0,
+            muted: false,
+            automation: AutomationMode::Off,
+            volume_envelope: Param::Constant(1.0),
+            pan_envelope: Param::Constant(0.0),
+            inserts: Vec::new(),
+            keys: Vec::new(),
+        }
+    }
 }
 
 impl MixerFacts {
     pub fn of(engine: &aria_engine::Engine) -> Self {
         let timeline = engine.project().timeline();
         let master = std::sync::Arc::new(MasterChain {
+            gain: timeline.master_gain(),
+            pan: timeline.master_pan(),
+            muted: timeline.master_muted(),
+            automation: timeline.master_automation(),
+            volume_envelope: timeline.master_volume_envelope().clone(),
+            pan_envelope: timeline.master_pan_envelope().clone(),
             inserts: audio_inserts::rows(timeline.master_audio_effects()),
             keys: audio_inserts::key_choices(timeline, AudioInsertTarget::Master),
         });
@@ -174,6 +215,10 @@ impl MixerFacts {
                     name: name_of(bus.track),
                     is_bus: bus.is_bus,
                     gain: bus.gain,
+                    pan: bus.pan,
+                    automation: bus.automation,
+                    volume_envelope: bus.volume_envelope.clone(),
+                    pan_envelope: bus.pan_envelope.clone(),
                     output: bus.output.bus().map(TrackId::raw),
                     output_name: bus
                         .output
@@ -331,7 +376,7 @@ impl AppState {
     pub fn fader_value(&self, target: FaderTarget, stored: f32) -> f32 {
         match self.fader_drag {
             Some(drag) if drag.target == target => drag.gain,
-            _ => stored,
+            _ => self.effective_target_value(target, stored),
         }
     }
 
@@ -340,44 +385,59 @@ impl AppState {
         self.fader_drag
     }
 
-    /// Grab a fader at its current value, at window y `grabbed_at`, on a strip
-    /// whose travel is `travel` pixels tall.
+    /// Grab a fader at its current value, at window coordinate `grabbed_at`, on
+    /// a strip whose travel is `travel` pixels.
     pub fn begin_fader_drag(&mut self, target: FaderTarget, grabbed_at: f32, travel: f32) {
-        let gain = self.stored_gain(target).unwrap_or(1.0);
+        let stored = self
+            .stored_gain(target)
+            .unwrap_or(if target.is_pan() { 0.0 } else { 1.0 });
+        let gain = self.effective_target_value(target, stored);
+        if self.playing && self.target_automation_mode(target).writes_envelope() {
+            self.mixer_automation.pre_touch_envelope = self.target_envelope(target);
+            self.mixer_automation.last_drag_tick = Some(self.playhead.value);
+            self.mixer_automation
+                .latched
+                .retain(|(latched_target, _, _)| *latched_target != target);
+        }
         self.fader_drag = Some(FaderDrag {
             target,
             gain,
             grabbed_at,
-            grabbed_frac: gain_to_frac(gain),
+            grabbed_frac: target.value_to_frac(gain),
             travel: if travel > 0.0 { travel } else { 1.0 },
         });
     }
 
-    /// The stored value behind `target`, or `None` when it names no lane or no
-    /// send. The projection holds it, so a grab and a release read the same
-    /// value the strip drew.
     fn stored_gain(&self, target: FaderTarget) -> Option<f32> {
         match target {
             FaderTarget::Lane(track) => self.strip_of(track).map(|strip| strip.gain),
+            FaderTarget::LanePan(track) => self.strip_of(track).map(|strip| strip.pan),
             FaderTarget::Send { track, index } => self
                 .strip_of(track)
                 .and_then(|strip| strip.sends.get(index))
                 .map(|send| send.level),
+            FaderTarget::Master => Some(self.facts.mixer.master.gain),
+            FaderTarget::MasterPan => Some(self.facts.mixer.master.pan),
         }
     }
 
-    /// Move the dragged fader to a position on its travel. True when the picture
-    /// changed, so a mouse move that lands on the same gain costs no repaint.
+    /// Move the dragged fader or pan knob to a position on its travel.
     pub fn drag_fader_to(&mut self, frac: f32) -> bool {
         let Some(mut drag) = self.fader_drag else {
             return false;
         };
-        let gain = frac_to_gain(frac);
+        let gain = drag.target.frac_to_value(frac);
         if gain == drag.gain {
             return false;
         }
         drag.gain = gain;
         self.fader_drag = Some(drag);
+        if self.playing && self.target_automation_mode(drag.target).writes_envelope() {
+            let tick = self.playhead.value;
+            let from = self.mixer_automation.last_drag_tick.unwrap_or(tick);
+            let _ = self.write_automation_span(drag.target, gain, from, tick, None);
+            self.mixer_automation.last_drag_tick = Some(tick);
+        }
         true
     }
 
@@ -391,33 +451,13 @@ impl AppState {
         if !at.is_finite() {
             return false;
         }
-        let frac = drag.grabbed_frac + (drag.grabbed_at - at) / drag.travel;
+        let delta = if drag.target.is_pan() {
+            at - drag.grabbed_at
+        } else {
+            drag.grabbed_at - at
+        };
+        let frac = drag.grabbed_frac + delta / drag.travel;
         self.drag_fader_to(frac)
-    }
-
-    /// Release the fader, writing one command. A release that moved nothing
-    /// writes nothing, so a click on a fader is not an undo entry.
-    pub fn commit_fader_drag(&mut self) -> Result<(), EngineError> {
-        let Some(drag) = self.fader_drag.take() else {
-            return Ok(());
-        };
-        if self.stored_gain(drag.target) == Some(drag.gain) {
-            return Ok(());
-        }
-        let command = match drag.target {
-            FaderTarget::Lane(track) => EditCommand::SetTrackGain {
-                track,
-                gain: drag.gain,
-            },
-            FaderTarget::Send { track, index } => EditCommand::SetSend {
-                track,
-                index,
-                level: Some(drag.gain),
-                pre_fader: None,
-            },
-        };
-        self.apply_command(Command::Edit(command))?;
-        Ok(())
     }
 
     /// Abandon the drag; the stored value is what stays.

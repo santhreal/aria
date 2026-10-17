@@ -41,16 +41,16 @@ fn shared<'a, T: 'a, C: FromIterator<Choice>>(
 
 /// The share of a catalog plugins can extend, kept with the revision it was
 /// built from.
-struct Revisioned(Mutex<Option<(u64, Arc<[Choice]>)>>);
+struct Revisioned<T = Choice, K = u64>(Mutex<Option<(K, Arc<[T]>)>>);
 
-impl Revisioned {
+impl<T, K: PartialEq> Revisioned<T, K> {
     const fn new() -> Self {
         Self(parking_lot::const_mutex(None))
     }
 
     /// The share built at `revision`, building it with `build` when the held one
     /// is from another revision or there is none.
-    fn at(&self, revision: u64, build: impl FnOnce() -> Arc<[Choice]>) -> Arc<[Choice]> {
+    fn at(&self, revision: K, build: impl FnOnce() -> Arc<[T]>) -> Arc<[T]> {
         let mut held = self.0.lock();
         if let Some((at, rows)) = held.as_ref()
             && *at == revision
@@ -85,18 +85,82 @@ pub fn transitions() -> Arc<[Choice]> {
     })
 }
 
-/// The effects that draw a picture of their own, for the sidebar's Generators
-/// grid. Plugins register generators, so the share follows the effect
-/// catalog's revision.
-pub fn generators() -> Arc<[Choice]> {
-    static ROWS: Revisioned = Revisioned::new();
-    let catalog = aria_models::effect_catalog();
-    ROWS.at(catalog.revision(), || {
+/// The audio crossfades, for the blend chips and the clip menu at a cut between
+/// sounds. The set is closed, so the share lasts the process.
+pub fn audio_transitions() -> &'static [Choice] {
+    static ROWS: LazyLock<Vec<Choice>> = LazyLock::new(|| {
         shared(
-            catalog.iter().filter(|spec| spec.generator),
+            &aria_models::AudioTransition::ALL,
+            |transition| transition.id(),
+            |transition| transition.label(),
+        )
+    });
+    &ROWS
+}
+
+/// Whether the generator `id` is a clip type's own, registered under the type's
+/// id by a type that draws itself. Such a generator is listed through its type
+/// only, so the grid and the Effects panel show one row for it.
+fn drawn_by_its_type(
+    id: &str,
+    clip_types: &aria_models::Catalog<aria_models::ClipTypeSpec>,
+) -> bool {
+    clip_types
+        .iter()
+        .any(|ty| ty.id == id && ty.generator == id)
+}
+
+/// The effects that draw a picture of their own, for the sidebar's Generators
+/// grid. Plugins register generators and clip types, so the share follows both
+/// catalogs' revisions.
+pub fn generators() -> Arc<[Choice]> {
+    static ROWS: Revisioned<Choice, (u64, u64)> = Revisioned::new();
+    let catalog = aria_models::effect_catalog();
+    let clip_types = aria_models::clip_type_catalog();
+    ROWS.at((catalog.revision(), clip_types.revision()), || {
+        shared(
+            catalog
+                .iter()
+                .filter(|spec| spec.generator && !drawn_by_its_type(&spec.id, &clip_types)),
             |spec| &spec.id,
             |spec| &spec.label,
         )
+    })
+}
+
+/// One clip type as the Generators grid draws it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClipTypeChoice {
+    /// The catalog id, which placing the type sends.
+    pub id: SharedString,
+    /// The type's name.
+    pub label: SharedString,
+    /// The timeline colour, which the grid's swatch shows.
+    pub colour: aria_models::MarkerColor,
+    /// The icon's asset path.
+    pub icon: Option<&'static str>,
+    /// Why the type cannot be placed now, or `None` when it can.
+    pub unavailable: Option<SharedString>,
+}
+
+/// The clip types plugins list, for the sidebar's Generators grid. Whether a
+/// type can be placed depends on its generator, so the share follows the
+/// effect catalog's revision as well as the clip type catalog's.
+pub fn clip_types() -> Arc<[ClipTypeChoice]> {
+    static ROWS: Revisioned<ClipTypeChoice, (u64, u64)> = Revisioned::new();
+    let catalog = aria_models::clip_type_catalog();
+    let effects = aria_models::effect_catalog().revision();
+    ROWS.at((catalog.revision(), effects), || {
+        catalog
+            .iter()
+            .map(|spec| ClipTypeChoice {
+                id: SharedString::from(spec.id.as_str()),
+                label: SharedString::from(spec.label.as_str()),
+                colour: spec.colour,
+                icon: spec.icon.as_ref().map(crate::icons::clip_type_icon_path),
+                unavailable: spec.unavailable().map(SharedString::from),
+            })
+            .collect()
     })
 }
 
@@ -108,6 +172,79 @@ pub fn audio_effects() -> Arc<[Choice]> {
     let catalog = aria_models::audio_effect_catalog();
     ROWS.at(catalog.revision(), || {
         shared(&catalog, |spec| &spec.id, |spec| &spec.label)
+    })
+}
+
+/// Every effect, transition, generator and clip type, as the Effects panel and
+/// the Effect menu list them: by group, then by folder with the catalog's Other
+/// folder last, then by label. Plugins register into all four catalogs, so the
+/// share follows each one's revision.
+pub fn effect_entries() -> Arc<[crate::app::effects_browser::Entry]> {
+    use crate::app::effects_browser::{Entry, EntryKind, sort_for_tree};
+    static ROWS: Revisioned<Entry, [u64; 4]> = Revisioned::new();
+    let effects = aria_models::effect_catalog();
+    let audio = aria_models::audio_effect_catalog();
+    let transitions = aria_models::transition_catalog();
+    let clip_types = aria_models::clip_type_catalog();
+    let revision = [
+        effects.revision(),
+        audio.revision(),
+        transitions.revision(),
+        clip_types.revision(),
+    ];
+    ROWS.at(revision, || {
+        let mut rows = Vec::with_capacity(
+            effects.len()
+                + audio.len()
+                + transitions.len()
+                + aria_models::AudioTransition::ALL.len()
+                + clip_types.len(),
+        );
+        rows.extend(
+            effects
+                .iter()
+                .filter(|spec| !(spec.generator && drawn_by_its_type(&spec.id, &clip_types)))
+                .map(|spec| {
+                    if spec.generator {
+                        Entry::new(EntryKind::Generator, &spec.id, &spec.label, "")
+                    } else {
+                        Entry::new(
+                            EntryKind::VideoEffect,
+                            &spec.id,
+                            &spec.label,
+                            spec.category(),
+                        )
+                    }
+                }),
+        );
+        rows.extend(audio.iter().map(|spec| {
+            Entry::new(
+                EntryKind::AudioEffect,
+                &spec.id,
+                &spec.label,
+                spec.category(),
+            )
+        }));
+        rows.extend(
+            transitions
+                .iter()
+                .map(|spec| Entry::new(EntryKind::Transition, &spec.id, &spec.label, "")),
+        );
+        rows.extend(aria_models::AudioTransition::ALL.iter().map(|transition| {
+            Entry::new(
+                EntryKind::AudioTransition,
+                transition.id(),
+                transition.label(),
+                "",
+            )
+        }));
+        rows.extend(
+            clip_types
+                .iter()
+                .map(|spec| Entry::new(EntryKind::ClipType, &spec.id, &spec.label, "")),
+        );
+        sort_for_tree(&mut rows);
+        rows.into()
     })
 }
 
@@ -197,6 +334,13 @@ mod tests {
                 "transitions",
                 rows(super::transitions()),
                 ids(&aria_models::transition_catalog(), |spec| &spec.id),
+            ),
+            (
+                "audio_transitions",
+                rows(super::audio_transitions()),
+                ids(&aria_models::AudioTransition::ALL, |transition| {
+                    transition.id()
+                }),
             ),
             (
                 "generators",

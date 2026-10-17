@@ -130,10 +130,14 @@ adds its effects and keyframes relative to the playhead. Presets live in
 
 ## Time
 
-- Time Remap (Ctrl+Alt+T) adds a property that maps sequence time to source
-  time with keyframes; its graph is the speed ramp editor.
-- Speed/Duration (Ctrl+R) sets a constant speed, reverse, and whether audio
-  pitch is held.
+- Time Remap (Ctrl+Alt+T) toggles the clip's keyframed speed curve
+  (`Clip::speed_curve` via `EditCommand::SetSpeedCurve`), which maps sequence
+  time to source time (`Clip::source_time_at`); its graph is the speed ramp
+  editor in the Effect Controls panel's Speed tab.
+- Speed/Duration (Ctrl+R) opens the Speed/Duration dialog
+  (`DialogKind::SpeedDuration`), setting constant speed, resulting duration,
+  reverse, and whether audio pitch is held across the selected clips in one undo
+  step.
 - Frame blending: off, frame mix, or optical flow, per clip.
 - Motion blur: a per-clip switch and a sequence master switch, with shutter
   angle and samples in Sequence Settings.

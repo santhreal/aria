@@ -93,3 +93,6 @@ mod effects_and_transitions;
 
 #[path = "render_frame_composites.rs"]
 mod composites;
+
+#[path = "render_frame_nests.rs"]
+mod nests;

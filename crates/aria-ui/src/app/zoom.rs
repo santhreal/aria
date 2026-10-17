@@ -21,16 +21,6 @@ use crate::transport;
 /// clip does not sit flush against both edges with no context around it.
 const SELECTION_MARGIN: f32 = 0.12;
 
-/// Where a followed playhead comes to rest: a fraction of the viewport in from
-/// the left edge, so the frames about to play are already on screen instead of
-/// arriving at the moment they are needed.
-const FOLLOW_REST: f32 = 0.15;
-
-/// How near an edge the playhead may travel before the view moves. Without a
-/// margin the view would move on the frame the playhead touches the exact edge,
-/// which is a pixel of travel every frame instead of one deliberate jump.
-const FOLLOW_MARGIN: f32 = 0.06;
-
 impl AppState {
     /// The timeline's drawable width, in pixels. The panel reads it too: what
     /// is on screen decides what a fit shows and what a draw has to build.
@@ -49,7 +39,7 @@ impl AppState {
             self.last_window_w,
             sidebar,
             inspector,
-            transport::TIMELINE_HEADER_W,
+            self.ui_settings.outline_width,
         )
     }
 
@@ -68,7 +58,7 @@ impl AppState {
     }
 
     /// The window x of the timeline's first tick: the panel's left edge plus the
-    /// track-header column that sits before the scrolling content.
+    /// outline column that sits before the scrolling content.
     ///
     /// `None` before the panel has been drawn. Every pointer-to-tick conversion
     /// goes through here, so a click on the ruler and a rubber band on a lane
@@ -77,7 +67,7 @@ impl AppState {
     /// frame landed three seconds in.
     pub(crate) fn timeline_content_left(&self) -> Option<f32> {
         self.timeline_frame
-            .map(|[x, _, _, _]| x + transport::TIMELINE_HEADER_W)
+            .map(|[x, _, _, _]| x + self.ui_settings.outline_width)
     }
 
     /// Move the timeline's horizontal scroll, and record whether the drawn
@@ -129,35 +119,107 @@ impl AppState {
         self.zoom_eased = eased;
     }
 
+    /// Zoom by `factor` anchored around the playhead (`=` / `-`).
+    ///
+    /// When the playhead is inside the visible viewport, its pixel offset from
+    /// the left edge of the viewport stays fixed across the scale change.
+    pub fn zoom_around_playhead(&mut self, factor: f32) {
+        let old_zoom = self.zoom;
+        let new_zoom = transport::clamp_zoom(old_zoom * factor);
+        let fps = self.store.sequence.ticks_per_second();
+        let old_pps = transport::TIMELINE_BASE_PPS * old_zoom;
+        let new_pps = transport::TIMELINE_BASE_PPS * new_zoom;
+        let playhead_sec = self.playhead.value.max(0) as f32 / fps;
+        let old_px = playhead_sec * old_pps;
+        let new_px = playhead_sec * new_pps;
+        let view_w = self.timeline_viewport_px();
+        let screen_x = old_px - self.scroll_x;
+        self.set_zoom(new_zoom, true);
+        if self.playhead.value > 0 && screen_x >= 0.0 && screen_x <= view_w {
+            self.scroll_timeline_to((new_px - screen_x).max(0.0), true);
+        }
+    }
+
+    /// Pan the timeline via the zoom scroll bar thumb by `delta_fraction` of
+    /// the sequence's navigable pixel span.
+    pub fn zoom_bar_pan(&mut self, delta_fraction: f32) {
+        let fps = self.store.sequence.ticks_per_second();
+        let pps = transport::TIMELINE_BASE_PPS * self.zoom;
+        let total_ticks = self.store.sequence.duration_ticks.max((fps * 10.0) as i64);
+        let view_w = self.timeline_viewport_px().max(1.0);
+        let full_px = ((total_ticks as f32 / fps) * pps).max(view_w);
+        let next =
+            (self.scroll_x + delta_fraction * full_px).clamp(0.0, (full_px - view_w).max(0.0));
+        self.scroll_timeline_to(next, false);
+    }
+
+    /// Drag the left or right handle of the zoom scroll bar by `delta_fraction`
+    /// of the bar's width, zooming in or out while keeping the opposite edge
+    /// of the visible window anchored.
+    pub fn zoom_bar_drag_handle(&mut self, left_handle: bool, delta_fraction: f32) {
+        if delta_fraction.abs() < 1e-5 {
+            return;
+        }
+        let fps = self.store.sequence.ticks_per_second();
+        let old_pps = transport::TIMELINE_BASE_PPS * self.zoom;
+        let total_ticks = self.store.sequence.duration_ticks.max((fps * 10.0) as i64);
+        let view_w = self.timeline_viewport_px().max(1.0);
+        let full_px = ((total_ticks as f32 / fps) * old_pps).max(view_w);
+        let old_span_frac = (view_w / full_px).clamp(0.02, 1.0);
+        let new_span_frac = if left_handle {
+            (old_span_frac - delta_fraction).clamp(0.02, 1.0)
+        } else {
+            (old_span_frac + delta_fraction).clamp(0.02, 1.0)
+        };
+        let ratio = old_span_frac / new_span_frac;
+        let right_edge_sec = (self.scroll_x + view_w) / old_pps.max(1.0);
+        let left_edge_sec = self.scroll_x / old_pps.max(1.0);
+        let new_zoom = transport::clamp_zoom(self.zoom * ratio);
+        let new_pps = transport::TIMELINE_BASE_PPS * new_zoom;
+        self.set_zoom(new_zoom, false);
+        if left_handle {
+            let new_scroll = (right_edge_sec * new_pps - view_w).max(0.0);
+            self.scroll_timeline_to(new_scroll, false);
+        } else {
+            let new_scroll = (left_edge_sec * new_pps).max(0.0);
+            self.scroll_timeline_to(new_scroll, false);
+        }
+    }
+
     /// Keep the playhead on screen while it moves, reporting whether the view
     /// followed it.
     ///
     /// This belongs to the transport tick rather than the draw: the drawn offset
     /// is a glide toward the committed one, and a draw that moved its own input
-    /// would chase itself for as long as the glide lasted. Inert while the
-    /// playhead is inside the margins, so a view the operator scrolled to on
-    /// purpose survives until playback actually needs the room.
+    /// would chase itself for as long as the glide lasted. How the view moves is
+    /// the Timeline Display Settings follow: a page jump near an edge, or a
+    /// scroll that holds the playhead centred. A view moved by any other writer
+    /// since the last follow holds still until the playhead leaves it.
     ///
-    /// Position is computed the way the lanes draw it — ticks over the frame
-    /// rate's numerator, times pixels per second — so the decision is about the
+    /// Position is computed the way the lanes draw it — ticks over the ticks
+    /// in a second, times pixels per second — so the decision is about the
     /// pixels on screen rather than a second opinion about where the playhead is.
     pub(crate) fn follow_playhead(&mut self) -> bool {
         let width = self.timeline_viewport_px();
         if width <= 0.0 {
             return false;
         }
-        let fps = self.store.sequence.frame_rate.num.max(1) as f32;
+        let fps = self.store.sequence.ticks_per_second();
         let pps = transport::TIMELINE_BASE_PPS * transport::clamp_zoom(self.zoom);
         let at = (self.playhead.value.max(0) as f32 / fps) * pps;
-        let margin = width * FOLLOW_MARGIN;
-        if at >= self.scroll_x + margin && at <= self.scroll_x + width - margin {
+        let moved_by_hand = self
+            .follow_scroll
+            .is_some_and(|followed| (followed - self.scroll_x).abs() >= 0.5);
+        if moved_by_hand && at >= self.scroll_x && at <= self.scroll_x + width {
             return false;
         }
-        let target = (at - width * FOLLOW_REST).max(0.0);
-        if (target - self.scroll_x).abs() < 1.0 {
+        let follow = self.ui_settings.timeline_display.follow;
+        let Some(target) = follow.target(at, self.scroll_x, width) else {
+            self.follow_scroll = Some(self.scroll_x);
             return false;
-        }
-        self.scroll_timeline_to(target, true);
+        };
+        self.scroll_timeline_to(target, follow.glides());
+        self.follow_scroll = Some(self.scroll_x);
         true
     }
 
@@ -167,12 +229,7 @@ impl AppState {
         if duration_ticks <= 0 {
             return false;
         }
-        let rate = self.store.sequence.frame_rate;
-        let fps = if rate.den == 0 {
-            24.0
-        } else {
-            rate.num as f32 / rate.den as f32
-        };
+        let fps = self.store.sequence.ticks_per_second();
         let zoom = transport::fit_zoom(
             duration_ticks,
             fps,

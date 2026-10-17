@@ -1,0 +1,35 @@
+[package]
+name = "aria-bench"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors = ["Santh <64453045+santhreal@users.noreply.github.com>"]
+description = "Performance benchmark harness for Aria release targets."
+
+[lib]
+name = "aria_bench"
+path = "src/lib.rs"
+
+[[bin]]
+name = "aria-bench"
+path = "src/main.rs"
+
+[dependencies]
+aria-commands = { path = "../aria-commands" }
+aria-compositor = { path = "../aria-compositor" }
+aria-decoder = { path = "../aria-decoder" }
+aria-engine = { path = "../aria-engine" }
+aria-models = { path = "../aria-models" }
+aria-plugin = { path = "../aria-plugin" }
+aria-plugin-wasm = { path = "../aria-plugin-wasm" }
+aria-render = { path = "../aria-render" }
+aria-ui = { path = "../aria-ui" }
+gpui = { workspace = true, features = ["test-support"] }
+parking_lot = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

@@ -183,7 +183,7 @@ fn look_setters_persist_on_a_media_clip() {
     let clip = project.add_clip(track, media_id, tr(0, 50), rt(0)).unwrap();
 
     project
-        .set_clip_mask(clip, Some(Mask::new(MaskKind::Circle)))
+        .add_clip_mask(clip, Mask::new(MaskKind::Circle))
         .unwrap();
     project
         .set_clip_chroma_key(
@@ -232,7 +232,7 @@ fn look_setters_persist_on_a_media_clip() {
         .unwrap();
 
     let c = project.clip(clip).unwrap();
-    assert_eq!(c.mask.as_ref().unwrap().kind, MaskKind::Circle);
+    assert_eq!(c.masks[0].kind, MaskKind::Circle);
     assert_eq!(c.chroma_key.as_ref().unwrap().strength, 0.7.into());
     assert_eq!(c.stabilize, Some(StabilizeLevel::Smooth));
     assert_eq!(c.filter.as_ref().unwrap().id, "vivid");
@@ -242,8 +242,8 @@ fn look_setters_persist_on_a_media_clip() {
     assert!(c.styles.shadow.is_some());
 
     // Clearing works and the fields vanish from saves again.
-    project.set_clip_mask(clip, None).unwrap();
-    assert!(project.clip(clip).unwrap().mask.is_none());
+    project.remove_clip_mask(clip, 0).unwrap();
+    assert!(project.clip(clip).unwrap().masks.is_empty());
     project
         .set_layer_styles(clip, LayerStyles::default())
         .unwrap();
@@ -349,11 +349,12 @@ fn mask_geometry_keyframes_through_project_api() {
         .add_clip(track, media_id, tr(0, 48), rt(100))
         .unwrap();
     project
-        .set_clip_mask(clip, Some(Mask::new(MaskKind::Rectangle)))
+        .add_clip_mask(clip, Mask::new(MaskKind::Rectangle))
         .unwrap();
 
-    let rotation = ClipParam::Look {
-        param: crate::LookParam::MaskRotation,
+    let rotation = ClipParam::Mask {
+        mask: 0,
+        param: crate::MaskParam::Rotation,
     };
     project
         .set_param_keyframe(
@@ -375,22 +376,11 @@ fn mask_geometry_keyframes_through_project_api() {
             None,
         )
         .unwrap();
-    assert!(
-        (project
-            .clip(clip)
-            .unwrap()
-            .mask
-            .as_ref()
-            .unwrap()
-            .rotation
-            .sample(20)
-            - 45.0)
-            .abs()
-            < f32::EPSILON
-    );
+    assert!((project.clip(clip).unwrap().masks[0].rotation.sample(20) - 45.0).abs() < f32::EPSILON);
 
-    let center = ClipParam::Look {
-        param: crate::LookParam::MaskCenter,
+    let center = ClipParam::Mask {
+        mask: 0,
+        param: crate::MaskParam::Center,
     };
     assert!(
         project

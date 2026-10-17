@@ -1,4 +1,4 @@
-use aria_models::{ClipId, EffectPreset, ModelError};
+use aria_models::{ClipId, EffectInstance, ModelError, Preset, RationalTime};
 
 use crate::action::edit::restore_clip::RestoreClipAction;
 use crate::action::{ApplyContext, EditAction};
@@ -50,13 +50,37 @@ pub fn set_effect_param(
     ctx.project.set_effect_param(clip, index, param, value)?;
     Ok(Box::new(RestoreClipAction { clip: before }))
 }
-pub fn apply_effect_preset(
+
+pub fn set_effect_instance(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
-    preset: &EffectPreset,
+    index: usize,
+    effect: EffectInstance,
 ) -> Result<Box<dyn EditAction>, EngineError> {
     let before = snapshot(ctx, clip)?;
-    ctx.project.apply_effect_preset(clip, preset)?;
+    ctx.project.set_effect_instance(clip, index, effect)?;
+    Ok(Box::new(RestoreClipAction { clip: before }))
+}
+
+pub fn set_effect_bypass(
+    ctx: &mut ApplyContext<'_>,
+    clip: ClipId,
+    index: usize,
+    bypass: bool,
+) -> Result<Box<dyn EditAction>, EngineError> {
+    let before = snapshot(ctx, clip)?;
+    ctx.project.set_effect_bypass(clip, index, bypass)?;
+    Ok(Box::new(RestoreClipAction { clip: before }))
+}
+
+pub fn apply_preset(
+    ctx: &mut ApplyContext<'_>,
+    clip: ClipId,
+    preset: &Preset,
+    at: RationalTime,
+) -> Result<Box<dyn EditAction>, EngineError> {
+    let before = snapshot(ctx, clip)?;
+    ctx.project.apply_preset(clip, preset, at)?;
     Ok(Box::new(RestoreClipAction { clip: before }))
 }
 

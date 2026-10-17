@@ -42,6 +42,23 @@ pub enum CompositorError {
         actual: usize,
     },
 
+    /// A layer shows a nested sequence that no
+    /// [`CompositorLayer::Nest`](crate::CompositorLayer::Nest) of the frame
+    /// draws.
+    #[error(
+        "a layer shows nest {0}, which no nest item of this frame draws; submit the nest \
+         in the same frame, before the layers that show it"
+    )]
+    UndrawnNest(u64),
+
+    /// A [`StencilMask`](crate::StencilMask) reads a coverage image its
+    /// [`LayerStencil`](crate::LayerStencil) does not hold.
+    #[error(
+        "a stencil mask reads coverage image {index}, but its stencil holds {images}; \
+         add the image to `LayerStencil::images` or fix the mask's index"
+    )]
+    StencilImage { index: usize, images: usize },
+
     /// A caller texture cannot receive a composited frame.
     #[error(
         "a frame target must be an Rgba8Unorm texture with COPY_DST usage and size \
@@ -54,6 +71,29 @@ pub enum CompositorError {
         usage: wgpu::TextureUsages,
         target_width: u32,
         target_height: u32,
+    },
+
+    /// A scope pass was handed a frame it cannot read.
+    #[error(
+        "a scope pass reads an Rgba8Unorm texture with TEXTURE_BINDING usage; this one is \
+         {format:?} with {usage:?}"
+    )]
+    ScopeSource {
+        format: wgpu::TextureFormat,
+        usage: wgpu::TextureUsages,
+    },
+
+    /// A scope pass was asked for a grid outside its bounds.
+    #[error(
+        "a scope grid needs 1 to 1024 waveform columns, a vectorscope edge of 1 to 512, a \
+         stride of at least 1, and 1 to 3 waveform channels; got {columns} columns, edge \
+         {size}, stride {stride}, {channels} channels"
+    )]
+    ScopeGrid {
+        columns: u32,
+        size: u32,
+        stride: u32,
+        channels: usize,
     },
 }
 

@@ -7,6 +7,8 @@
 
 mod api;
 mod effects;
+mod look_ahead;
+mod measure;
 mod media_cache;
 mod realize;
 pub(crate) mod text_anim;
@@ -24,14 +26,18 @@ mod tests;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use aria_compositor::{Compositor, GpuContext, PendingReadback, RgbaImage};
-use aria_core::VideoDecoder;
+use aria_core::RationalTime;
 use aria_decoder::OutputMode;
 use aria_models::MediaId;
 use aria_shapes::PathRaster;
 use aria_text::TextRenderer;
 
+use crate::render_files::RenderFiles;
+use look_ahead::{DecoderKey, DecoderSlot};
+pub use measure::{LayerCaret, drawn_bounds, path_style};
 use media_cache::{CubeLutState, LottieState, StickerSequence};
 
 /// A composited frame slower than this logs its stage breakdown at `info`
@@ -114,16 +120,10 @@ pub struct Renderer {
     /// Pen-path rasterizer (memoized, like `text`). Parametric shapes never
     /// touch it — they realize as GPU SDF layers.
     paths: PathRaster,
-    /// One open decoder per **on-screen use** of a media source, reused
-    /// across frames. Decoders are stateful (seek + walk), so keeping them
-    /// warm makes sequential export and nearby scrubbing cheap. Keyed by
-    /// `(media, occurrence slot)` — the per-scene index of that media in the
-    /// layer walk — because two simultaneously visible clips of the same
-    /// file sit at *different* source times: sharing one decoder cursor
-    /// would ping-pong it between them, paying a seek plus GOP-prefix
-    /// re-decode per layer per frame. Slots are stable while the stack is
-    /// (same walk order), so each clip keeps its warm decoder.
-    decoders: HashMap<(MediaId, u32), Box<dyn VideoDecoder>>,
+    /// One decode-ahead decoder per use of a media source on screen, keyed by
+    /// the media and the clip showing it (see `look_ahead`). Two clips of one
+    /// file sit at different source times, so each keeps its own cursor.
+    decoders: HashMap<DecoderKey, DecoderSlot>,
     /// Decode-once cache for still images: one straight-alpha RGBA bitmap per
     /// media source, reused for every frame the still is on screen. Bounded by
     /// the project's still count, with each entry capped at
@@ -140,10 +140,17 @@ pub struct Renderer {
     /// `docs/lottie-design.md`). Failed loads are remembered so a missing
     /// file logs once and draws nothing instead of re-probing every frame.
     lottie: HashMap<String, LottieState>,
-    /// Monotonic per-scene stamp for the Lottie frame LRU: frames touched
-    /// by the scene currently being composed are never evicted, so two
-    /// clips of one asset can't alias mid-frame.
-    lottie_stamp: u64,
+    /// Monotonic per-scene stamp. The Lottie frame LRU never evicts a frame
+    /// the scene being composed touched, so two clips of one asset cannot
+    /// alias mid-frame, and a decoder no recent scene used drops its held
+    /// frames.
+    scene_stamp: u64,
+    /// The tick of the last timeline frame rendered, which the next one's
+    /// look-ahead reads its playback step from.
+    last_tick: Option<RationalTime>,
+    /// Reusable look-ahead storage: media uses and entrance ticks.
+    look_uses: Vec<(DecoderKey, RationalTime)>,
+    look_ticks: Vec<i64>,
     /// Parsed `.cube` LUTs, keyed by path. The GPU texture lives in the
     /// compositor's own cache (same key); this holds the CPU parse so a
     /// re-render never re-reads the file. Failed loads are remembered so a
@@ -184,6 +191,13 @@ pub struct Renderer {
     cancel: aria_core::Cancel,
     /// Stage timings of the last successful render (see [`FrameStats`]).
     last_stats: FrameStats,
+    /// Optional content-addressed render-files store consulted on preview
+    /// entry points when no [`crate::ResolveOverrides`] are active.
+    render_files: Option<Arc<RenderFiles>>,
+    /// Reusable buffer for raw QOI bytes read from `render_files`.
+    render_file_bytes: Vec<u8>,
+    /// Reusable buffer for decoded RGBA8 pixels read from `render_files`.
+    render_file_image: RgbaImage,
 }
 
 impl std::fmt::Debug for Renderer {

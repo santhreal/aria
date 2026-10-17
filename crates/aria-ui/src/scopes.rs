@@ -1,5 +1,5 @@
-//! Scope bitmaps: the measured frame drawn as a waveform monitor, a
-//! vectorscope, and an RGB histogram.
+//! Scope bitmaps: the measured frame drawn as a waveform monitor (luma, or an
+//! RGB or YCbCr parade), a vectorscope, and an RGB histogram.
 //!
 //! The measurement lives in `aria-analysis`; this module only turns counts
 //! into pixels. Each scope is painted into an [`RgbaImage`] and handed to GPUI
@@ -11,8 +11,12 @@
 //! ramp hides everything but the brightest trace, which is why hardware scopes
 //! are gamma-lifted too.
 
-use aria_analysis::{FrameScopes, Histogram, SCOPE_BINS, Vectorscope, Waveform};
+use aria_analysis::{
+    FrameScopes, Histogram, SCOPE_BINS, Vectorscope, Waveform, WaveformChannel, WaveformTrace,
+    vectorscope_cell,
+};
 use aria_core::RgbaImage;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, LazyLock, Mutex};
 
@@ -32,6 +36,110 @@ const BACKDROP: [u8; 4] = [12, 14, 18, 255];
 
 /// Luma trace colour for the waveform monitor.
 const TRACE: [u8; 4] = [120, 235, 170, 255];
+
+/// Red trace colour, in the waveform parade and the histogram.
+const RED: [u8; 3] = [235, 80, 80];
+/// Green trace colour, in the waveform parade and the histogram.
+const GREEN: [u8; 3] = [80, 235, 110];
+/// Blue trace colour, in the waveform parade and the histogram.
+const BLUE: [u8; 3] = [90, 130, 245];
+
+/// The vectorscope's skin tone line, in degrees counter-clockwise from the Cb
+/// axis: the hue most skin falls on, whatever its tone.
+pub const SKIN_TONE_DEGREES: f32 = 123.0;
+
+/// The vectorscope targets: the primaries and secondaries, each at 75 % and
+/// 100 % of full code value.
+pub const TARGET_COLOURS: [[u8; 3]; 6] = [
+    [255, 0, 0],
+    [255, 255, 0],
+    [0, 255, 0],
+    [0, 255, 255],
+    [0, 0, 255],
+    [255, 0, 255],
+];
+
+/// The levels of [`TARGET_COLOURS`] a target marks: 75 % and 100 %.
+pub const TARGET_LEVELS: [u8; 2] = [191, 255];
+
+/// Half the edge of a target box, in pixels: a 75 % box is drawn larger than
+/// a 100 % one, so the two read apart.
+const TARGET_HALF: [u32; 2] = [4, 2];
+
+/// What the waveform monitor shows. Saved with the UI settings, so a colourist
+/// finds the parade they left.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum WaveformMode {
+    /// Luma per column.
+    #[default]
+    Luma,
+    /// Red, green, and blue side by side.
+    RgbParade,
+    /// Luma, Cb, and Cr side by side.
+    YcbcrParade,
+}
+
+impl WaveformMode {
+    /// Every mode, in the order the chips and the View menu offer them.
+    pub const ALL: [Self; 3] = [Self::Luma, Self::RgbParade, Self::YcbcrParade];
+
+    /// What the chips and the View menu call the mode.
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Luma => "Luma",
+            Self::RgbParade => "RGB Parade",
+            Self::YcbcrParade => "YCbCr Parade",
+        }
+    }
+
+    /// What the scope's own chips call the mode, where the caption already says
+    /// it is the waveform.
+    pub const fn short_label(self) -> &'static str {
+        match self {
+            Self::Luma => "Luma",
+            Self::RgbParade => "RGB",
+            Self::YcbcrParade => "YCbCr",
+        }
+    }
+
+    /// The mode's chip id.
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::Luma => "waveform-luma",
+            Self::RgbParade => "waveform-rgb",
+            Self::YcbcrParade => "waveform-ycbcr",
+        }
+    }
+
+    /// The mode's View menu row id.
+    pub const fn menu_id(self) -> &'static str {
+        match self {
+            Self::Luma => "view-waveform-luma",
+            Self::RgbParade => "view-waveform-rgb",
+            Self::YcbcrParade => "view-waveform-ycbcr",
+        }
+    }
+
+    /// What the measurement counts for the mode.
+    pub const fn trace(self) -> WaveformTrace {
+        match self {
+            Self::Luma => WaveformTrace::Luma,
+            Self::RgbParade => WaveformTrace::RgbParade,
+            Self::YcbcrParade => WaveformTrace::YcbcrParade,
+        }
+    }
+}
+
+/// The trace colour of one waveform channel.
+const fn channel_colour(channel: WaveformChannel) -> [u8; 3] {
+    match channel {
+        WaveformChannel::Luma => [TRACE[0], TRACE[1], TRACE[2]],
+        WaveformChannel::Red | WaveformChannel::Cr => RED,
+        WaveformChannel::Green => GREEN,
+        WaveformChannel::Blue | WaveformChannel::Cb => BLUE,
+    }
+}
 
 /// The three scopes as textures, in the order they are shown.
 pub struct ScopeImages {
@@ -133,29 +241,67 @@ fn draw_levels(image: &mut RgbaImage) {
     }
 }
 
-static VECTORSCOPE_GRATICULES: LazyLock<Mutex<HashMap<u32, Arc<[usize]>>>> =
+static VECTORSCOPE_GRATICULES: LazyLock<Mutex<HashMap<usize, Arc<[usize]>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
-/// Pixel offsets for one vectorscope centre. A size is rendered once, then each
-/// frame copies its static cross and saturation ring into the reused canvas.
-fn vectorscope_graticule(centre: u32) -> Arc<[usize]> {
+/// The drawn pixel of vectorscope grid cell `cell` on a grid `size` cells
+/// wide. The graticule is placed through the same mapping as the trace, so
+/// neutral chroma lands on the cross and a primary on its target rather than a
+/// pixel beside them.
+fn cell_pixel(cell: usize, size: usize) -> u32 {
+    let last = SCOPE_PX - 1;
+    match size {
+        0 | 1 => last / 2,
+        _ => ((cell as u32 * last) / (size as u32 - 1)).min(last),
+    }
+}
+
+/// Pixel offsets of the graticule for a grid `size` cells wide: the neutral
+/// cross, the 75 % saturation ring, the skin tone line, and a target box for
+/// each primary and secondary at 75 % and 100 %. A size is rendered once, then
+/// each frame copies the offsets into the reused canvas.
+fn vectorscope_graticule(size: usize) -> Arc<[usize]> {
     let mut cached = VECTORSCOPE_GRATICULES
         .lock()
         .expect("vectorscope graticule cache");
-    Arc::clone(cached.entry(centre).or_insert_with(|| {
-        let mut pixels = Vec::with_capacity(SCOPE_PX as usize * 2 + 360);
+    Arc::clone(cached.entry(size).or_insert_with(|| {
+        let centre = cell_pixel(size / 2, size);
+        let mut pixels = Vec::with_capacity(SCOPE_PX as usize * 3 + 360 + 12 * 32);
+        let mut mark = |x: f32, y: f32| {
+            let (x, y) = (x.round(), y.round());
+            if (0.0..SCOPE_PX as f32).contains(&x) && (0.0..SCOPE_PX as f32).contains(&y) {
+                pixels.push(((y as u32 * SCOPE_PX + x as u32) * 4) as usize);
+            }
+        };
+        let middle = centre as f32;
         for i in 0..SCOPE_PX {
-            pixels.push(((centre * SCOPE_PX + i) * 4) as usize);
-            pixels.push(((i * SCOPE_PX + centre) * 4) as usize);
+            mark(middle, i as f32);
+            mark(i as f32, middle);
         }
-        let radius = centre as f32 * 0.75;
+        let radius = middle * 0.75;
         for degrees in 0..360 {
-            let angle = degrees as f32 * std::f32::consts::PI / 180.0;
-            let x = centre as f32 + radius * angle.cos();
-            let y = centre as f32 + radius * angle.sin();
-            let (x, y) = (x.round() as u32, y.round() as u32);
-            if x < SCOPE_PX && y < SCOPE_PX {
-                pixels.push(((y * SCOPE_PX + x) * 4) as usize);
+            let angle = (degrees as f32).to_radians();
+            mark(middle + radius * angle.cos(), middle + radius * angle.sin());
+        }
+        // Cr is up, so a counter-clockwise angle climbs the canvas.
+        let (sin, cos) = SKIN_TONE_DEGREES.to_radians().sin_cos();
+        for step in 0..=centre {
+            let t = step as f32;
+            mark(middle + t * cos, middle - t * sin);
+        }
+        for (level, half) in TARGET_LEVELS.into_iter().zip(TARGET_HALF) {
+            for [red, green, blue] in TARGET_COLOURS {
+                let scale = |code: u8| if code == 0 { 0 } else { level };
+                let (x, y) = vectorscope_cell(scale(red), scale(green), scale(blue), size);
+                let (x, y) = (cell_pixel(x, size) as f32, cell_pixel(y, size) as f32);
+                let edge = half as f32;
+                for step in 0..=2 * half {
+                    let offset = step as f32 - edge;
+                    mark(x + offset, y - edge);
+                    mark(x + offset, y + edge);
+                    mark(x - edge, y + offset);
+                    mark(x + edge, y + offset);
+                }
             }
         }
         pixels.sort_unstable();
@@ -164,7 +310,8 @@ fn vectorscope_graticule(centre: u32) -> Arc<[usize]> {
     }))
 }
 
-/// Luma per horizontal position: columns across, code value up.
+/// Code value per horizontal position: columns across, code value up. A
+/// parade lays its channels left to right, a graticule column between each.
 pub fn waveform_image(waveform: &Waveform) -> RgbaImage {
     let mut image = canvas(1, SCOPE_PX);
     paint_waveform(&mut image, waveform);
@@ -172,32 +319,48 @@ pub fn waveform_image(waveform: &Waveform) -> RgbaImage {
 }
 
 fn paint_waveform(target: &mut RgbaImage, waveform: &Waveform) {
-    let width = u32::try_from(waveform.columns()).unwrap_or(SCOPE_PX).max(1);
-    reset_canvas(target, width, SCOPE_PX);
+    let channels = waveform.trace().channels();
+    let columns = u32::try_from(waveform.columns()).unwrap_or(SCOPE_PX).max(1);
+    let count = channels.len() as u32;
+    // Each channel after the first starts one graticule column further on.
+    let pitch = columns + 1;
+    reset_canvas(target, pitch * count - 1, SCOPE_PX);
     let mut image = target;
     draw_levels(&mut image);
+    for gap in 1..count {
+        for y in 0..SCOPE_PX {
+            put(&mut image, gap * pitch - 1, y, GRATICULE);
+        }
+    }
     let peak = waveform.peak();
     let last = SCOPE_PX - 1;
-    for column in 0..waveform.columns() {
-        for bin in 0..SCOPE_BINS {
-            let hits = waveform.cell(column, bin);
-            if hits == 0 {
-                continue;
+    for (index, channel) in channels.iter().enumerate() {
+        let Some(counts) = waveform.channel_counts(*channel) else {
+            continue;
+        };
+        let left = index as u32 * pitch;
+        let colour = channel_colour(*channel);
+        for (column, bins) in counts.chunks_exact(SCOPE_BINS).enumerate() {
+            for (bin, hits) in bins.iter().enumerate() {
+                if *hits == 0 {
+                    continue;
+                }
+                // Code 255 is the top of the display, code 0 the bottom.
+                let y = last - (bin as u32 * last / (SCOPE_BINS as u32 - 1));
+                add(
+                    &mut image,
+                    left + column as u32,
+                    y,
+                    colour,
+                    intensity(*hits, peak),
+                );
             }
-            // Code 255 is the top of the display, code 0 the bottom.
-            let y = last - (bin as u32 * last / (SCOPE_BINS as u32 - 1));
-            add(
-                &mut image,
-                column as u32,
-                y,
-                [TRACE[0], TRACE[1], TRACE[2]],
-                intensity(hits, peak),
-            );
         }
     }
 }
 
-/// Chroma on the Cb/Cr plane, with a centre cross and a saturation ring.
+/// Chroma on the Cb/Cr plane, with a centre cross, a saturation ring, the skin
+/// tone line, and the 75 % and 100 % colour targets.
 pub fn vectorscope_image(vectorscope: &Vectorscope) -> RgbaImage {
     let mut image = canvas(SCOPE_PX, SCOPE_PX);
     paint_vectorscope(&mut image, vectorscope);
@@ -207,20 +370,8 @@ pub fn vectorscope_image(vectorscope: &Vectorscope) -> RgbaImage {
 fn paint_vectorscope(target: &mut RgbaImage, vectorscope: &Vectorscope) {
     reset_canvas(target, SCOPE_PX, SCOPE_PX);
     let mut image = target;
-    let last = SCOPE_PX - 1;
     let size = vectorscope.size();
-    // Grid cell to pixel. The graticule is placed through the same mapping as
-    // the trace, so neutral chroma lands on the cross rather than a pixel
-    // beside it.
-    let map = |cell: usize| -> u32 {
-        match size {
-            0 | 1 => last / 2,
-            _ => ((cell as u32 * last) / (size as u32 - 1)).min(last),
-        }
-    };
-    let centre = map(vectorscope.centre());
-    // Neutral cross and 75% saturation ring.
-    for at in vectorscope_graticule(centre).iter().copied() {
+    for at in vectorscope_graticule(size).iter().copied() {
         image.pixels[at..at + 4].copy_from_slice(&GRATICULE);
     }
 
@@ -233,8 +384,8 @@ fn paint_vectorscope(target: &mut RgbaImage, vectorscope: &Vectorscope) {
             }
             add(
                 &mut image,
-                map(x),
-                map(y),
+                cell_pixel(x, size),
+                cell_pixel(y, size),
                 [235, 235, 120],
                 intensity(hits, peak),
             );
@@ -262,9 +413,9 @@ fn paint_histogram(target: &mut RgbaImage, histogram: &Histogram) {
     }
     let peak = histogram.peak();
     let channels: [(&Vec<u32>, [u8; 3]); 3] = [
-        (&histogram.red, [235, 80, 80]),
-        (&histogram.green, [80, 235, 110]),
-        (&histogram.blue, [90, 130, 245]),
+        (&histogram.red, RED),
+        (&histogram.green, GREEN),
+        (&histogram.blue, BLUE),
     ];
     for (bins, colour) in channels {
         for (bin, count) in bins.iter().enumerate() {

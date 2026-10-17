@@ -168,7 +168,12 @@ pub fn pending_row(
         .items_center()
         .gap(px(Theme::SPACE_SM))
         .child(leader)
-        .child(div().text_size(px(12.0)).text_color(color).child(text))
+        .child(
+            div()
+                .text_size(Theme::TEXT_TITLE)
+                .text_color(color)
+                .child(text),
+        )
 }
 
 /// The cell-grid pulse, at whatever height the caller has room for.
@@ -251,7 +256,7 @@ fn hero_wordmark(theme: &Theme) -> AnyElement {
         .child(crate::icons::brand_mark(72.0))
         .child(
             div()
-                .text_size(px(28.0))
+                .text_size(Theme::TEXT_DISPLAY)
                 .font_weight(gpui::FontWeight::SEMIBOLD)
                 .text_color(theme.text)
                 .child(SharedString::from("Aria")),
@@ -261,7 +266,7 @@ fn hero_wordmark(theme: &Theme) -> AnyElement {
 
 pub fn loading_word(theme: &Theme) -> impl IntoElement {
     div()
-        .text_size(px(11.0))
+        .text_size(Theme::TEXT_UI)
         .text_color(theme.text_muted.opacity(0.7))
         .child(SharedString::from(
             "L\u{2009}O\u{2009}A\u{2009}D\u{2009}I\u{2009}N\u{2009}G",

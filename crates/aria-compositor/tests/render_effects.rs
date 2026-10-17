@@ -132,6 +132,7 @@ fn canvas_pass_pixelates_the_composited_stack() {
                     effects: &effects,
                     grade: None,
                     lut: None,
+                    stencil: None,
                 },
             ],
         )

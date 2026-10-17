@@ -486,3 +486,123 @@ fn non_advancing_corrupt_stream_terminates_promptly() {
     assert!(dec.frames_yielded > 0);
     assert!(dec.frames_yielded <= 650, "walk must be strictly bounded");
 }
+
+/// A stream with a sync sample every `gop` frames whose `open` sync samples
+/// cannot start a decode: a seek onto one emits nothing until the next sync
+/// sample, the way a decoder skips the corrupt frames of an open GOP. Decoding
+/// through an open sync sample from an earlier one is exact. `first` is the
+/// first frame's pts, for a stream that starts after zero.
+struct OpenGopDecoder {
+    info: SourceInfo,
+    gop: i64,
+    open: Vec<i64>,
+    first: i64,
+    cursor: i64,
+    count: i64,
+    last_pts: Option<RationalTime>,
+    seeks: Vec<i64>,
+}
+
+impl OpenGopDecoder {
+    fn new(count: i64, gop: i64, open: &[i64]) -> Self {
+        let mut info = MockDecoder::new(count).info;
+        info.frame_rate = R30;
+        Self {
+            info,
+            gop,
+            open: open.to_vec(),
+            first: 0,
+            cursor: 0,
+            count,
+            last_pts: None,
+            seeks: Vec::new(),
+        }
+    }
+}
+
+impl VideoDecoder for OpenGopDecoder {
+    fn info(&self) -> &SourceInfo {
+        &self.info
+    }
+
+    fn seek(&mut self, target: RationalTime) -> Result<(), DecodeError> {
+        let target = resample(target, R30).value.max(0);
+        self.seeks.push(target);
+        let mut sync = target - target % self.gop;
+        while self.open.contains(&sync) {
+            sync += self.gop;
+        }
+        self.cursor = sync.max(self.first);
+        self.last_pts = None;
+        Ok(())
+    }
+
+    fn next_frame(&mut self) -> Result<Option<VideoFrame>, DecodeError> {
+        let mut frame = MockDecoder::new(self.count);
+        frame.cursor = self.cursor.max(self.first);
+        let out = frame.next_frame()?;
+        self.cursor = frame.cursor;
+        self.last_pts = out.as_ref().map(|frame| frame.pts);
+        Ok(out)
+    }
+
+    fn frame_at(&mut self, target: RationalTime) -> Result<Option<VideoFrame>, DecodeError> {
+        let mut stats = SeekStats::default();
+        frame_at_rolling(self, self.last_pts, &mut stats, target)
+    }
+
+    fn frame_at_nearest(
+        &mut self,
+        target: RationalTime,
+    ) -> Result<Option<VideoFrame>, DecodeError> {
+        let mut stats = SeekStats::default();
+        frame_at_nearest_rolling(self, self.last_pts, &mut stats, target)
+    }
+}
+
+/// A seek that lands past its target backs off to an earlier sync sample and
+/// walks forward to the exact frame. Closes the class "an open-GOP seek point
+/// returns a later frame for a cold or backward request": before the back-off
+/// the first frame at or after the target, the next sync sample, was returned.
+/// Does not cover a decoder that emits corrupt frames instead of skipping
+/// them; `GstDecoder::next_frame` skips those after a seek.
+#[test]
+fn a_seek_that_lands_past_its_target_backs_off_to_the_exact_frame() {
+    // Sync samples every 60 frames; 120 and 240 cannot start a decode.
+    for (target, seeks) in [
+        (130, vec![130, 100]),
+        (179, vec![179, 149, 119]),
+        (120, vec![120, 90]),
+        // Lands at the end of the stream: the last GOP is open.
+        (250, vec![250, 220]),
+        (61, vec![61]),
+    ] {
+        let mut dec = OpenGopDecoder::new(300, 60, &[120, 240]);
+        let frame = dec
+            .frame_at(rt(target, R30))
+            .unwrap()
+            .unwrap_or_else(|| panic!("target {target}: no frame"));
+        assert_eq!(frame.pts.value, target, "target {target}");
+        assert_eq!(dec.seeks, seeks, "target {target}: seek points");
+    }
+}
+
+/// Back-off ends: at the start of the stream it accepts the first frame, and
+/// a stream where no sync sample before the target can start a decode stops
+/// after the longest back-off rather than seeking forever.
+#[test]
+fn the_back_off_stops_at_the_stream_start_and_at_its_longest_step() {
+    let mut late = OpenGopDecoder::new(90, 30, &[]);
+    late.first = 2;
+    let frame = late.frame_at(rt(0, R30)).unwrap().unwrap();
+    assert_eq!(frame.pts.value, 2, "the stream's first frame");
+    assert_eq!(late.seeks, vec![0], "nothing earlier to seek to");
+
+    let every: Vec<i64> = (1..200).map(|n| n * 30).collect();
+    let mut hopeless = OpenGopDecoder::new(7000, 30, &every);
+    let frame = hopeless.frame_at(rt(5000, R30)).unwrap().unwrap();
+    // 1, 2, 4, ... 64 seconds back: seven back-offs after the first seek.
+    assert_eq!(hopeless.seeks.len(), 8, "{:?}", hopeless.seeks);
+    assert_eq!(*hopeless.seeks.last().unwrap(), 5000 - 64 * 30);
+    assert!(frame.pts.value > 5000, "nothing exact exists to return");
+}

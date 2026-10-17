@@ -1,4 +1,4 @@
-use aria_models::{ClipId, LinkAssignment};
+use aria_models::{ClipId, EnableAssignment, GroupAssignment, LinkAssignment};
 
 use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
@@ -41,5 +41,68 @@ impl EditAction for SetClipLinksAction {
     ) -> Result<Box<dyn EditAction>, EngineError> {
         let previous = ctx.project.set_clip_links(&self.links)?;
         Ok(Box::new(SetClipLinksAction { links: previous }))
+    }
+}
+
+/// The undoable unit for clip groups (`Clip` > `Group` / `Ungroup`).
+pub struct SetClipGroupsAction {
+    pub groups: Vec<GroupAssignment>,
+}
+
+/// Put `clips` (2+ clips) into one freshly allocated clip group.
+pub fn group(
+    ctx: &mut ApplyContext<'_>,
+    clips: &[ClipId],
+) -> Result<Box<dyn EditAction>, EngineError> {
+    if clips.len() < 2 {
+        return Err(EngineError::Model(aria_models::ModelError::InvalidParam(
+            "group requires at least 2 clips".into(),
+        )));
+    }
+    let groups = ctx.project.group_plan(clips)?;
+    Box::new(SetClipGroupsAction { groups }).apply(ctx)
+}
+
+/// Dissolve every clip group touched by `clips`.
+pub fn ungroup(
+    ctx: &mut ApplyContext<'_>,
+    clips: &[ClipId],
+) -> Result<Box<dyn EditAction>, EngineError> {
+    let groups = ctx.project.ungroup_plan(clips)?;
+    Box::new(SetClipGroupsAction { groups }).apply(ctx)
+}
+
+impl EditAction for SetClipGroupsAction {
+    fn apply(
+        self: Box<Self>,
+        ctx: &mut ApplyContext<'_>,
+    ) -> Result<Box<dyn EditAction>, EngineError> {
+        let previous = ctx.project.set_clip_groups(&self.groups)?;
+        Ok(Box::new(SetClipGroupsAction { groups: previous }))
+    }
+}
+
+/// The undoable unit for enabling or disabling a set of clips (`Clip` > `Enable`).
+pub struct SetClipsEnabledAction {
+    pub plan: Vec<EnableAssignment>,
+}
+
+/// Set `enabled` on `clips` as one undo step.
+pub fn set_enabled(
+    ctx: &mut ApplyContext<'_>,
+    clips: &[ClipId],
+    enabled: bool,
+) -> Result<Box<dyn EditAction>, EngineError> {
+    let plan = ctx.project.enable_plan(clips, enabled)?;
+    Box::new(SetClipsEnabledAction { plan }).apply(ctx)
+}
+
+impl EditAction for SetClipsEnabledAction {
+    fn apply(
+        self: Box<Self>,
+        ctx: &mut ApplyContext<'_>,
+    ) -> Result<Box<dyn EditAction>, EngineError> {
+        let previous = ctx.project.set_clips_enabled(&self.plan)?;
+        Ok(Box::new(SetClipsEnabledAction { plan: previous }))
     }
 }

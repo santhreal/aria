@@ -1,19 +1,23 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::time::Instant;
 
 use aria_compositor::{
-    Compositor, CompositorError, FrameSink, GpuContext, ImageSink, RgbaImage, wgpu,
+    CompositeLayer, Compositor, CompositorConfig, CompositorError, CompositorLayer, FrameSink,
+    GpuContext, ImageSink, LayerPlacement, RgbaImage, wgpu,
 };
 use aria_core::{Cancel, RationalTime};
 use aria_decoder::OutputMode;
 use aria_models::{ClipId, MediaId, Project};
-use aria_shapes::{PathRaster, ShapeStyle};
+use aria_shapes::PathRaster;
 use aria_text::TextRenderer;
 
 use crate::error::RenderError;
 use crate::motion_blur::attach_motion_blur_passes;
+use crate::render_files::RenderFiles;
 use crate::resolve::{ResolveOverrides, resolve, resolve_gesture_partitions, resolve_with};
-use crate::scene::{CpuRaster, LayerSource, Scene, SceneLayer, SizeSpec, layer_source_spec};
+use crate::scene::{LayerSource, Scene, SceneLayer, SizeSpec};
 
 use super::media_cache::default_decode_mode;
 use super::realize::Output;
@@ -57,7 +61,7 @@ pub(super) fn media_scene(
         opacity: 1.0,
         uv: [0.0, 0.0, 1.0, 1.0],
         effects: Vec::new(),
-        mask: None,
+        masks: Vec::new(),
         chroma_key: None,
         color_grade: None,
         lut: None,
@@ -94,7 +98,10 @@ impl Renderer {
             stills: HashMap::new(),
             stickers: HashMap::new(),
             lottie: HashMap::new(),
-            lottie_stamp: 0,
+            scene_stamp: 0,
+            last_tick: None,
+            look_uses: Vec::new(),
+            look_ticks: Vec::new(),
             luts: HashMap::new(),
             decode_mode: default_decode_mode(),
             proxies: HashMap::new(),
@@ -103,13 +110,45 @@ impl Renderer {
             realize_scratch: super::realize::RealizeScratch::default(),
             cancel: Cancel::never(),
             last_stats: FrameStats::default(),
+            render_files: None,
+            render_file_bytes: Vec::new(),
+            render_file_image: RgbaImage::new(0, 0, Vec::new()),
         }
+    }
+
+    /// Shared handle to this renderer's [`GpuContext`].
+    pub fn gpu(&self) -> &GpuContext {
+        &self.gpu
+    }
+
+    /// Replace this renderer's [`GpuContext`] and rebuild device-bound GPU
+    /// pipelines and texture caches on the new device.
+    pub fn set_gpu(&mut self, gpu: GpuContext) {
+        self.compositor.reset_gpu(&gpu);
+        self.gpu = gpu;
+    }
+
+    /// Cumulative number of GPU-to-CPU frame readbacks submitted by this
+    /// renderer's compositor.
+    pub const fn readback_count(&self) -> u64 {
+        self.compositor.readback_count()
     }
 
     /// Enable or disable transform motion-blur supersampling on subsequent
     /// frames. Export turns this on; interactive preview leaves it off.
     pub fn set_apply_motion_blur(&mut self, on: bool) {
         self.apply_motion_blur = on;
+    }
+
+    /// Attach or detach the content-addressed [`RenderFiles`] store consulted by
+    /// preview frame entry points.
+    pub fn set_render_files(&mut self, files: Option<Arc<RenderFiles>>) {
+        self.render_files = files;
+    }
+
+    /// The attached [`RenderFiles`] store, if any.
+    pub fn render_files(&self) -> Option<&Arc<RenderFiles>> {
+        self.render_files.as_ref()
     }
 
     /// Let the next frame be abandoned when `cancel` fires.
@@ -202,10 +241,10 @@ impl Renderer {
         }
     }
 
-    /// Drop every open decoder slot for `media` (see `decoders` — one entry
-    /// per on-screen occurrence).
+    /// Drop every open decoder for `media` (see `decoders`: one entry per
+    /// clip showing it).
     fn drop_decoders_for(&mut self, media: MediaId) {
-        self.decoders.retain(|(id, _), _| *id != media);
+        self.decoders.retain(|key, _| key.media != media);
     }
 
     /// Add a font face (TTF/OTF bytes) for deterministic text rendering. Without
@@ -220,8 +259,7 @@ impl Renderer {
         project: &Project,
         t: RationalTime,
     ) -> Result<RgbaImage, RenderError> {
-        let scene = self.resolve_frame(project, t)?;
-        self.render_scene(project, &scene)
+        self.render_frame_with(project, t, ResolveOverrides::default())
     }
 
     /// The scene `project` draws at `t`, with motion-blur samples attached when
@@ -242,9 +280,11 @@ impl Renderer {
         t: RationalTime,
         overrides: ResolveOverrides<'_>,
     ) -> Result<RgbaImage, RenderError> {
-        let mut scene = resolve_with(project, t, overrides)?;
-        self.prepare_motion_blur(project, &mut scene);
-        self.render_scene(project, &scene)
+        let mut sink = ImageSink::default();
+        self.render_frame_into_with(project, t, overrides, SeekPolicy::Exact, &mut sink)?;
+        Ok(sink
+            .into_image()
+            .expect("render_frame_into_with fills the sink on success"))
     }
 
     /// [`render_frame`](Self::render_frame) scaled to fit within
@@ -277,10 +317,19 @@ impl Renderer {
         max_height: u32,
         overrides: ResolveOverrides<'_>,
     ) -> Result<RgbaImage, RenderError> {
-        let mut scene = resolve_with(project, t, overrides)?;
-        self.prepare_motion_blur(project, &mut scene);
-        scene.fit_within(max_width, max_height);
-        self.render_scene(project, &scene)
+        let mut sink = ImageSink::default();
+        self.render_frame_fit_into_with(
+            project,
+            t,
+            max_width,
+            max_height,
+            overrides,
+            SeekPolicy::Exact,
+            &mut sink,
+        )?;
+        Ok(sink
+            .into_image()
+            .expect("render_frame_fit_into_with fills the sink on success"))
     }
 
     /// Decode and composite one pool source directly, without constructing a
@@ -356,8 +405,15 @@ impl Renderer {
         sink: &mut dyn FrameSink,
     ) -> Result<(), RenderError> {
         let mut scene = resolve_with(project, t, overrides)?;
+        if overrides.is_empty()
+            && let Some(decode_ms) = self.try_load_render_file(project, &scene)
+        {
+            return self.composite_render_file_into(scene.width, scene.height, decode_ms, sink);
+        }
         self.prepare_motion_blur(project, &mut scene);
-        self.render_scene_into_policy(project, &scene, sink, policy)
+        self.render_scene_into_policy(project, &scene, sink, policy)?;
+        self.look_ahead(project, scene.tick, policy);
+        Ok(())
     }
 
     /// [`render_frame_fit_with`](Self::render_frame_fit_with) writing the
@@ -377,9 +433,85 @@ impl Renderer {
         sink: &mut dyn FrameSink,
     ) -> Result<(), RenderError> {
         let mut scene = resolve_with(project, t, overrides)?;
+        if overrides.is_empty()
+            && let Some(decode_ms) = self.try_load_render_file(project, &scene)
+        {
+            scene.fit_within(max_width, max_height);
+            return self.composite_render_file_into(scene.width, scene.height, decode_ms, sink);
+        }
         self.prepare_motion_blur(project, &mut scene);
         scene.fit_within(max_width, max_height);
-        self.render_scene_into_policy(project, &scene, sink, policy)
+        self.render_scene_into_policy(project, &scene, sink, policy)?;
+        self.look_ahead(project, scene.tick, policy);
+        Ok(())
+    }
+
+    /// [`render_frame_with`](Self::render_frame_with) composited into a
+    /// caller-supplied GPU texture (`target(width, height)`) with no GPU-to-CPU
+    /// readback.
+    pub fn render_frame_to_texture_with<F>(
+        &mut self,
+        project: &Project,
+        t: RationalTime,
+        overrides: ResolveOverrides<'_>,
+        policy: SeekPolicy,
+        target: F,
+    ) -> Result<wgpu::Texture, RenderError>
+    where
+        F: FnOnce(u32, u32) -> wgpu::Texture,
+    {
+        let mut scene = resolve_with(project, t, overrides)?;
+        if overrides.is_empty()
+            && let Some(decode_ms) = self.try_load_render_file(project, &scene)
+        {
+            let texture = target(scene.width, scene.height);
+            self.composite_render_file_to_texture(scene.width, scene.height, decode_ms, &texture)?;
+            return Ok(texture);
+        }
+        self.prepare_motion_blur(project, &mut scene);
+        let texture = target(scene.width, scene.height);
+        let pending =
+            self.submit_scene_policy(project, &scene, policy, Output::Texture(&texture))?;
+        self.finish_pending_on_gpu(pending);
+        self.look_ahead(project, scene.tick, policy);
+        Ok(texture)
+    }
+
+    /// [`render_frame_fit_with`](Self::render_frame_fit_with) composited into a
+    /// caller-supplied GPU texture (`target(width, height)`) with no GPU-to-CPU
+    /// readback. `target` receives the fitted `(width, height)` after
+    /// [`Scene::fit_within`].
+    #[allow(clippy::too_many_arguments)]
+    pub fn render_frame_fit_to_texture_with<F>(
+        &mut self,
+        project: &Project,
+        t: RationalTime,
+        max_width: u32,
+        max_height: u32,
+        overrides: ResolveOverrides<'_>,
+        policy: SeekPolicy,
+        target: F,
+    ) -> Result<wgpu::Texture, RenderError>
+    where
+        F: FnOnce(u32, u32) -> wgpu::Texture,
+    {
+        let mut scene = resolve_with(project, t, overrides)?;
+        if overrides.is_empty()
+            && let Some(decode_ms) = self.try_load_render_file(project, &scene)
+        {
+            scene.fit_within(max_width, max_height);
+            let texture = target(scene.width, scene.height);
+            self.composite_render_file_to_texture(scene.width, scene.height, decode_ms, &texture)?;
+            return Ok(texture);
+        }
+        self.prepare_motion_blur(project, &mut scene);
+        scene.fit_within(max_width, max_height);
+        let texture = target(scene.width, scene.height);
+        let pending =
+            self.submit_scene_policy(project, &scene, policy, Output::Texture(&texture))?;
+        self.finish_pending_on_gpu(pending);
+        self.look_ahead(project, scene.tick, policy);
+        Ok(texture)
     }
 
     /// [`render_frame`](Self::render_frame) at an exact output size: content
@@ -395,7 +527,9 @@ impl Renderer {
     ) -> Result<RgbaImage, RenderError> {
         let mut scene = self.resolve_frame(project, t)?;
         scene.fit_into(width, height);
-        self.render_scene(project, &scene)
+        let image = self.render_scene(project, &scene)?;
+        self.look_ahead(project, scene.tick, SeekPolicy::Exact);
+        Ok(image)
     }
 
     pub(crate) fn submit_export_frame(
@@ -408,7 +542,11 @@ impl Renderer {
         if let Some((width, height)) = output_size {
             scene.fit_into(width, height);
         }
-        self.submit_scene_policy(project, &scene, SeekPolicy::Exact, Output::Readback)
+        let pending =
+            self.submit_scene_policy(project, &scene, SeekPolicy::Exact, Output::Readback)?;
+        // Export overlaps the next frames' decode with this frame's GPU work.
+        self.look_ahead(project, scene.tick, SeekPolicy::Exact);
+        Ok(pending)
     }
 
     /// When [`Self::apply_motion_blur`] is on, attach sub-frame transform
@@ -417,6 +555,108 @@ impl Renderer {
         if self.apply_motion_blur {
             attach_motion_blur_passes(project, scene);
         }
+    }
+
+    fn try_load_render_file(&mut self, project: &Project, unscaled_scene: &Scene) -> Option<f64> {
+        let files = self.render_files.as_ref()?;
+        let key = files.key(project, unscaled_scene)?;
+        let started = Instant::now();
+        files
+            .load_into(
+                &key,
+                (unscaled_scene.width, unscaled_scene.height),
+                &mut self.render_file_bytes,
+                &mut self.render_file_image,
+            )
+            .then(|| started.elapsed().as_secs_f64() * 1000.0)
+    }
+
+    fn composite_render_file_into(
+        &mut self,
+        width: u32,
+        height: u32,
+        decode_ms: f64,
+        sink: &mut dyn FrameSink,
+    ) -> Result<(), RenderError> {
+        if let Some(gpu) = sink.adopt_gpu() {
+            self.set_gpu(gpu);
+        }
+        let config = CompositorConfig::new(width, height).with_background([0, 0, 0, 0]);
+        let layer = CompositeLayer::rgba(
+            &self.render_file_image,
+            LayerPlacement::full_canvas(&config),
+        );
+        let layers = [CompositorLayer::layer(&layer)];
+        let submitted_at = Instant::now();
+        let res = if let Some(texture) = sink.texture(width, height) {
+            self.compositor
+                .submit_compositor_layers_to_texture(&self.gpu, &config, &layers, texture)?;
+            let pending = PendingFrame {
+                readback: None,
+                scratch: None,
+                decode_ms,
+                raster_ms: 0.0,
+                submitted_at,
+                effect_passes: 0,
+                effect_pass_bind_groups: 0,
+                layers: 1,
+                width,
+                height,
+            };
+            self.finish_pending_on_gpu(pending);
+            Ok(())
+        } else {
+            let readback = self
+                .compositor
+                .submit_compositor_layers(&self.gpu, &config, &layers)?;
+            let pending = PendingFrame {
+                readback: Some(readback),
+                scratch: None,
+                decode_ms,
+                raster_ms: 0.0,
+                submitted_at,
+                effect_passes: 0,
+                effect_pass_bind_groups: 0,
+                layers: 1,
+                width,
+                height,
+            };
+            self.finish_pending_into(pending, sink)
+        };
+        sink.record_readbacks(self.readback_count());
+        res
+    }
+
+    fn composite_render_file_to_texture(
+        &mut self,
+        width: u32,
+        height: u32,
+        decode_ms: f64,
+        texture: &wgpu::Texture,
+    ) -> Result<(), RenderError> {
+        let config = CompositorConfig::new(width, height).with_background([0, 0, 0, 0]);
+        let layer = CompositeLayer::rgba(
+            &self.render_file_image,
+            LayerPlacement::full_canvas(&config),
+        );
+        let layers = [CompositorLayer::layer(&layer)];
+        let submitted_at = Instant::now();
+        self.compositor
+            .submit_compositor_layers_to_texture(&self.gpu, &config, &layers, texture)?;
+        let pending = PendingFrame {
+            readback: None,
+            scratch: None,
+            decode_ms,
+            raster_ms: 0.0,
+            submitted_at,
+            effect_passes: 0,
+            effect_pass_bind_groups: 0,
+            layers: 1,
+            width,
+            height,
+        };
+        self.finish_pending_on_gpu(pending);
+        Ok(())
     }
 
     /// Composite an already-resolved [`Scene`]. `project` supplies media file
@@ -473,8 +713,20 @@ impl Renderer {
         sink: &mut dyn FrameSink,
         policy: SeekPolicy,
     ) -> Result<(), RenderError> {
-        let pending = self.submit_scene_policy(project, scene, policy, Output::Readback)?;
-        self.finish_pending_into(pending, sink)
+        if let Some(gpu) = sink.adopt_gpu() {
+            self.set_gpu(gpu);
+        }
+        let res = if let Some(texture) = sink.texture(scene.width, scene.height) {
+            let pending =
+                self.submit_scene_policy(project, scene, policy, Output::Texture(texture))?;
+            self.finish_pending_on_gpu(pending);
+            Ok(())
+        } else {
+            let pending = self.submit_scene_policy(project, scene, policy, Output::Readback)?;
+            self.finish_pending_into(pending, sink)
+        };
+        sink.record_readbacks(self.readback_count());
+        res
     }
 
     fn submit_scene_policy(
@@ -503,7 +755,8 @@ impl Renderer {
     /// shapes, kinds the compositor doesn't draw yet).
     ///
     /// `&mut self`: text and pen-path sizes come from the memoized
-    /// rasterizers, so a miss here warms the composite path too.
+    /// rasterizers, so a miss here warms the composite path too. Animated
+    /// text measures as its shaped extent, the quad its glyphs are placed on.
     pub fn generator_content_size(
         &mut self,
         generator: &aria_models::Generator,
@@ -530,40 +783,9 @@ impl Renderer {
         )?;
         match layer.size {
             SizeSpec::Fixed(size) => Some((size[0].round() as u32, size[1].round() as u32)),
-            // Bitmap layers size to their raster. Which rasterizer to ask is the
-            // topology's own column, so a topology added without one does not
-            // compile, and one that grows a new raster kind turns this match red
-            // rather than measuring as nothing.
-            SizeSpec::BitmapScaled(_) => {
-                let image = match layer_source_spec(&layer.source).cpu_raster {
-                    CpuRaster::None => return None,
-                    CpuRaster::Text => {
-                        // The column already named this variant; the pattern only
-                        // lifts its payload out.
-                        let LayerSource::Text { content, style, .. } = &layer.source else {
-                            return None;
-                        };
-                        self.text.rasterize(content, style)
-                    }
-                    CpuRaster::Path => {
-                        let LayerSource::PathShape {
-                            path,
-                            fill,
-                            stroke,
-                            raster_scale,
-                        } = &layer.source
-                        else {
-                            return None;
-                        };
-                        let style = ShapeStyle {
-                            fill: Some(*fill).filter(|c| c[3] > 0),
-                            stroke: *stroke,
-                        };
-                        self.paths.rasterize(path, &style, *raster_scale)
-                    }
-                };
-                (image.width > 0 && image.height > 0).then_some((image.width, image.height))
-            }
+            // Bitmap layers size to their raster, read from the memo the
+            // composite draws from rather than copied out of it.
+            SizeSpec::BitmapScaled(_) => self.raster_size(&layer.source),
         }
     }
 }

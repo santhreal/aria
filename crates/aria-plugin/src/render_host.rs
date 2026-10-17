@@ -259,7 +259,9 @@ impl<'p> Target<'p> {
 }
 
 /// The layer that draws `clip` and nothing else: `layer` itself, or the side of
-/// a transition or a track matte that is `clip`, without the other side.
+/// a transition or a track matte that is `clip`, without the other side. A
+/// nested sequence's clip is on the sequence's own timeline, which
+/// [`Target::of`] opens, so a nest is kept or dropped whole.
 fn clip_alone(layer: SceneLayer, clip: ClipId) -> Option<SceneLayer> {
     let sides = match layer.source {
         LayerSource::Transition {
@@ -274,7 +276,8 @@ fn clip_alone(layer: SceneLayer, clip: ClipId) -> Option<SceneLayer> {
         | LayerSource::Solid(_)
         | LayerSource::CanvasPass
         | LayerSource::Shape { .. }
-        | LayerSource::PathShape { .. } => return (layer.clip == Some(clip)).then_some(layer),
+        | LayerSource::PathShape { .. }
+        | LayerSource::Nest { .. } => return (layer.clip == Some(clip)).then_some(layer),
     };
     sides.into_iter().find_map(|side| clip_alone(side, clip))
 }

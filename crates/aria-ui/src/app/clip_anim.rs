@@ -89,12 +89,13 @@ pub fn anim_knob_available(animation: &UiAnimation, id: &str) -> bool {
 impl AppState {
     /// Read the animation in one slot of the selection.
     pub fn selected_animation(&self, slot: AnimationSlot) -> Option<&UiAnimation> {
-        let clip = self.selected_ui_clip_ref()?;
-        match slot {
-            AnimationSlot::In => clip.animation_in.as_ref(),
-            AnimationSlot::Out => clip.animation_out.as_ref(),
-            AnimationSlot::Combo => clip.animation_combo.as_ref(),
-        }
+        self.selected_ui_clip_ref()?.animation(slot)
+    }
+
+    /// Where one knob of the animation in `slot` stands, `None` with no
+    /// animation there.
+    pub(crate) fn selected_animation_knob(&self, slot: AnimationSlot, id: &str) -> Option<f32> {
+        self.selected_animation(slot).map(|now| anim_knob(now, id))
     }
 
     fn send_animation(

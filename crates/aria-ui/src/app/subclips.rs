@@ -15,7 +15,7 @@ impl AppState {
         &mut self,
         name: Option<String>,
     ) -> Result<Option<MediaId>, EngineError> {
-        let Some(view) = &self.source_view else {
+        let Some(view) = self.sources.focused() else {
             return Ok(None);
         };
         let media_id = MediaId::from_raw(view.media);

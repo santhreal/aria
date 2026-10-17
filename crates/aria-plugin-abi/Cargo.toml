@@ -1,0 +1,11 @@
+[package]
+name = "aria-plugin-abi"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Stable C ABI types and versioned function tables for Aria native plugins."
+
+[lints]
+workspace = true

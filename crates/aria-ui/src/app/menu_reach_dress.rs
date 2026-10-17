@@ -20,7 +20,7 @@ use aria_models::ClipId;
 
 use super::{Answer, AppState, own_scratch, saved};
 use crate::app::fixtures;
-use crate::app::premiere_tests::with_clip;
+use crate::app::premiere_tests::{with_clip, with_media};
 
 /// The state one menu row is driven against.
 ///
@@ -43,6 +43,8 @@ pub(super) enum Dress {
     Pair,
     /// Two clips linked as one group.
     Linked,
+    /// Two clips grouped as one clip group.
+    Grouped,
     /// Two clips abutting on one lane, the left one selected, with no blend on
     /// the junction between them.
     Cut,
@@ -62,6 +64,32 @@ pub(super) enum Dress {
     /// The same, with the render already swapped in, so restoring the clip has
     /// something to put back.
     Baked,
+    /// The clip with a keyframe under the playhead.
+    Keyed,
+    /// The clip with two masks, so a row acting on the active mask has one to
+    /// act on.
+    Masked,
+    /// The clip with its first property row selected in the timeline outline,
+    /// and a driver language installed.
+    Picked,
+    /// The clip with two keyframes on one property, both selected.
+    Spanned,
+    /// The clip with an effect applied, which is the effect applied last.
+    Effected,
+    /// That clip with its effect copied, for a paste to add.
+    EffectCopied,
+    /// The clip with a label colour.
+    Labelled,
+    /// The clip, and an empty video lane above it.
+    Lanes,
+    /// The clip with its Out point selected for trimming, and the playhead
+    /// inside it.
+    Edged,
+    /// The clip with an In point at its start and an Out point inside it.
+    Ranged,
+    /// A source loaded in the monitor, and the clip selected with the playhead
+    /// inside it, so the clip has a source to be repointed at.
+    Sourced,
 }
 
 impl Dress {
@@ -133,6 +161,12 @@ impl Dress {
                 inside_the_clip(&mut state);
                 state
             }
+            Self::Grouped => {
+                let mut state = Self::Pair.state();
+                state.group_selected().expect("the pair forms a group");
+                inside_the_clip(&mut state);
+                state
+            }
             Self::Cut => {
                 let (mut state, clip) = fixtures::blended_junction();
                 state.select_clip(clip);
@@ -199,6 +233,130 @@ impl Dress {
                 state
                     .render_and_replace()
                     .expect("adopt the render standing on disk");
+                inside_the_clip(&mut state);
+                state
+            }
+            Self::Keyed => {
+                let mut state = Self::Clip.state();
+                let param = state
+                    .key_params()
+                    .first()
+                    .expect("the clip can animate something")
+                    .param();
+                state
+                    .add_keyframe_at_playhead(param)
+                    .expect("a keyframe lands at the playhead");
+                state
+            }
+            Self::Masked => {
+                let mut state = Self::Clip.state();
+                for kind in [aria_models::MaskKind::Circle, aria_models::MaskKind::Star] {
+                    state.add_selected_mask(kind).expect("the mask lands");
+                }
+                state
+            }
+            Self::Picked => {
+                let mut state = Self::Clip.state();
+                state
+                    .ctx
+                    .mount(&aria_plugin::ExpressionsPlugin)
+                    .expect("mount Expressions");
+                let clip = state.selected_clip().expect("the clip is selected");
+                let param = state
+                    .key_params()
+                    .first()
+                    .expect("the clip can animate something")
+                    .param();
+                state.select_timeline_property(clip, param, false);
+                state
+            }
+            Self::Spanned => {
+                let mut state = Self::Clip.state();
+                let clip = state.selected_clip().expect("the clip is selected");
+                let param = state
+                    .key_params()
+                    .first()
+                    .expect("the clip can animate something")
+                    .param();
+                let ui = state.selected_ui_clip().expect("the clip is drawn");
+                let (start, end) = (ui.timeline_start_ticks, ui.timeline_end_ticks);
+                for at in [start, start + (end - start) / 2] {
+                    state.set_playhead(at);
+                    state
+                        .add_keyframe_at_playhead(param)
+                        .expect("a keyframe lands at the playhead");
+                }
+                state.marquee_select_keyframes(clip, param, start, end, false);
+                state
+            }
+            Self::Effected => {
+                let mut state = Self::Clip.state();
+                let effect = aria_models::effect_catalog()
+                    .iter()
+                    .next()
+                    .map(|spec| spec.id.clone())
+                    .expect("an effect is registered");
+                state
+                    .add_effect_to_selected(effect)
+                    .expect("the effect lands on the clip");
+                state
+            }
+            Self::EffectCopied => {
+                let mut state = Self::Effected.state();
+                let clip = state.selected_clip().expect("the clip is selected");
+                state.copy_effect(clip, 0);
+                state
+            }
+            Self::Labelled => {
+                let mut state = Self::Clip.state();
+                state
+                    .set_selection_label(Some(aria_models::LabelColor::ALL[0]))
+                    .expect("the clip takes a label");
+                state
+            }
+            Self::Lanes => {
+                let mut state = Self::Clip.state();
+                state
+                    .add_track(aria_models::TrackKind::Video, "V2")
+                    .expect("an empty lane");
+                state.sync_from_engine();
+                state
+            }
+            Self::Edged => {
+                let mut state = Self::Clip.state();
+                let clip = state.selected_clip().expect("the fixture selects its clip");
+                state.select_edge(clip, crate::types::TrimSide::Out);
+                state
+            }
+            Self::Ranged => {
+                let mut state = Self::Clip.state();
+                let ui = state
+                    .selected_ui_clip()
+                    .expect("the fixture selects its clip");
+                let (start, mid) = (
+                    ui.timeline_start_ticks,
+                    ui.timeline_start_ticks + (ui.timeline_end_ticks - ui.timeline_start_ticks) / 2,
+                );
+                state.set_playhead(start);
+                state.set_mark_in();
+                state.set_playhead(mid);
+                state.set_mark_out();
+                state
+            }
+            Self::Sourced => {
+                let (mut state, clip) = with_clip();
+                let media = state
+                    .store
+                    .media
+                    .first()
+                    .map(|item| item.id)
+                    .expect("the fixture imported one pool item");
+                state.select_pool_item(media);
+                assert!(
+                    state.toggle_source_monitor(),
+                    "the fixture's pool item cannot be previewed"
+                );
+                state.select_clip(clip);
                 inside_the_clip(&mut state);
                 state
             }
@@ -297,6 +455,8 @@ pub(super) enum Answered {
     Open,
     /// A saved session, answered with a name it has not been written under.
     SaveAs,
+    /// A saved session, answered with a second path the copy is written to.
+    SaveCopy,
     /// The fixture, answered with a bundle path.
     SaveTemplate,
     /// An empty session with a bundle already on disk, answered with it.
@@ -306,6 +466,20 @@ pub(super) enum Answered {
     /// The fixture with its media moved out from under it, answered with the
     /// folder it moved to.
     RelinkAll,
+    /// An empty session with the timeline plugin mounted and a timeline file
+    /// of one clip on disk, answered with it.
+    ImportTimeline,
+    /// A clip of picture with the timeline plugin mounted, answered with a
+    /// name in the first exporter's format.
+    ExportTimeline,
+    /// The fixture, answered with a PNG path the frame under the playhead is
+    /// exported to.
+    ExportFrame,
+    /// The fixture, answered with a plugin archive of a data package.
+    InstallPlugin,
+    /// The fixture, answered with a still the Viewer compares the Program
+    /// frame with.
+    CompareStill,
 }
 
 impl Answered {
@@ -321,6 +495,12 @@ impl Answered {
             }
             Self::SaveAs => {
                 let path = own_scratch("save-as").join("renamed.aria");
+                let mut state = saved();
+                state.supply_pick(Answer::file(&path));
+                (state, path)
+            }
+            Self::SaveCopy => {
+                let path = own_scratch("save-copy").join("copy.aria");
                 let mut state = saved();
                 state.supply_pick(Answer::file(&path));
                 (state, path)
@@ -361,8 +541,74 @@ impl Answered {
                 state.supply_pick(Answer::file(&moved));
                 (state, moved)
             }
+            Self::ImportTimeline => {
+                let (mut state, path) = with_timeline_plugin("import-timeline");
+                assert!(
+                    state.export_timeline(&path),
+                    "write a timeline to import: {:?}",
+                    state.last_error
+                );
+                state.new_project().expect("empty the session");
+                state.supply_pick(Answer::file(&path));
+                (state, path)
+            }
+            Self::ExportTimeline => {
+                let (mut state, path) = with_timeline_plugin("export-timeline");
+                state.supply_pick(Answer::file(&path));
+                (state, path)
+            }
+            Self::ExportFrame => {
+                let path = own_scratch("export-frame").join("frame.png");
+                let (mut state, _) = with_clip();
+                state.supply_pick(Answer::file(&path));
+                (state, path)
+            }
+            Self::InstallPlugin => {
+                use aria_plugin::package::{ARCHIVE_EXTENSION, MANIFEST_FILE, pack};
+                let source = own_scratch("plugin-source");
+                std::fs::write(
+                    source.join(MANIFEST_FILE),
+                    "[plugin]\nid = \"com.example.menu\"\nname = \"Menu\"\n\
+                     version = \"1.0.0\"\napi = 1\npublisher = \"Example\"\n",
+                )
+                .expect("write a manifest");
+                let path = own_scratch("plugin-archive").join(format!("menu.{ARCHIVE_EXTENSION}"));
+                pack(&source, &path).expect("pack a plugin");
+                let (mut state, _) = with_clip();
+                state.supply_pick(Answer::file(&path));
+                (state, path)
+            }
+            Self::CompareStill => {
+                let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                    .join("../../tests/fixtures/texture.png");
+                let (mut state, _) = with_clip();
+                state.supply_pick(Answer::file(&path));
+                (state, path)
+            }
         }
     }
+}
+
+/// A clip of 24 fps picture, the timeline interchange plugin mounted, and a
+/// path in a dir of `name`'s own in the first exporter's format.
+pub(super) fn with_timeline_plugin(name: &str) -> (AppState, PathBuf) {
+    let picture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/fixture-640x360-24fps-3s.mp4")
+        .canonicalize()
+        .expect("the fixture exists");
+    let (state, _) = with_media(picture);
+    state
+        .ctx
+        .mount(&aria_interchange::InterchangePlugin)
+        .expect("mount the timeline interchange plugin");
+    let extension = state
+        .ctx
+        .exporters()
+        .first()
+        .map(|exporter| exporter.extension.clone())
+        .expect("the plugin registers an exporter");
+    let path = own_scratch(name).join(format!("menu.{extension}"));
+    (state, path)
 }
 
 /// A second project written to disk, told apart from the fixture by its clip

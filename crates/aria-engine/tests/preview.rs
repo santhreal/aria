@@ -4,7 +4,7 @@
 
 mod common;
 
-use aria_commands::{Command, EditCommand};
+use aria_commands::{Command, EditCommand, ProjectCommand};
 use aria_models::{ClipSource, ClipTransform, Generator, TrackKind};
 use aria_render::RgbaImage;
 use common::{import_asset, rt, small_video_asset, temp_engine, tr};
@@ -340,4 +340,172 @@ fn media_proxy_registry_sets_clears_and_dies_with_the_session() {
     engine.set_media_proxy(media, PathBuf::from("proxy.mp4"));
     engine.new_session();
     assert_eq!(engine.media_proxy(media), None);
+}
+
+/// Previews read a registered proxy while proxies are on and the original
+/// while they are off; an export, which always reads the originals, leaves the
+/// switch where it was; a proxy missing from disk reads the original.
+///
+/// Defends the Viewer's Toggle Proxies button against an export turning
+/// proxies back on, and against a deleted proxy file failing every frame.
+/// The export step runs only where the build has an encoder.
+#[test]
+fn the_preview_proxy_switch_holds_across_export_and_a_missing_proxy_reads_the_original() {
+    use std::path::PathBuf;
+
+    let Some(path) = small_video_asset() else {
+        return;
+    };
+    let proxy = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../aria-decoder/tests/fixtures/opengop_h264.mp4");
+    let (dir, mut engine) = temp_engine();
+    let media = import_asset(&mut engine, &path);
+    let track = common::add_track(&mut engine, TrackKind::Video, "V1");
+    engine
+        .apply(Command::Edit(EditCommand::AddClip {
+            track,
+            media,
+            source: tr(0, 48),
+            start: rt(0),
+        }))
+        .expect("add clip");
+    let original = engine.get_frame(rt(0)).expect("original frame");
+    assert!(engine.preview_proxies(), "previews use proxies by default");
+
+    engine.set_media_proxy(media, proxy);
+    let proxied = engine.get_frame(rt(0)).expect("proxy frame");
+    assert_ne!(proxied.pixels, original.pixels, "the proxy was not read");
+
+    let revision = engine.proxy_revision();
+    engine.set_preview_proxies(false);
+    assert!(!engine.preview_proxies());
+    assert_eq!(engine.proxy_revision(), revision + 1);
+    engine.set_preview_proxies(false);
+    assert_eq!(engine.proxy_revision(), revision + 1, "no change, no bump");
+    assert_eq!(
+        engine.get_frame(rt(0)).expect("off").pixels,
+        original.pixels
+    );
+
+    let _ = engine.apply(Command::Project(ProjectCommand::Export {
+        path: dir.path().join("out.mp4"),
+        format: aria_commands::ExportFormat::PROJECT,
+    }));
+    assert!(!engine.preview_proxies());
+    assert_eq!(
+        engine.get_frame(rt(0)).expect("after export").pixels,
+        original.pixels,
+        "the export turned proxies back on"
+    );
+
+    engine.set_preview_proxies(true);
+    assert_eq!(engine.get_frame(rt(0)).expect("on").pixels, proxied.pixels);
+
+    engine.set_media_proxy(media, dir.path().join("deleted-proxy.mp4"));
+    assert_eq!(
+        engine
+            .get_frame(rt(0))
+            .expect("a missing proxy reads the original")
+            .pixels,
+        original.pixels
+    );
+}
+
+/// Rows the compositor writes, kept as an image: what a Viewer sink receives.
+#[derive(Default)]
+struct Rows(Option<RgbaImage>);
+
+impl aria_render::FrameSink for Rows {
+    fn pixels(&mut self, width: u32, height: u32) -> &mut [u8] {
+        let len = (width * height * 4) as usize;
+        &mut self
+            .0
+            .insert(RgbaImage::new(width, height, vec![0; len]))
+            .pixels
+    }
+}
+
+/// The Viewer's transparency grid: with preview transparency on, the two
+/// entries the Viewer renders through clear the uncovered canvas to alpha 0
+/// and keep covered pixels opaque; `get_frame`, which thumbnails and mask
+/// tracking read, keeps the background; and the switch moves
+/// `proxy_revision`, so a Viewer cache keyed on it drops frames from the other
+/// mode.
+#[test]
+fn preview_transparency_clears_the_background_only_in_the_viewer_entries() {
+    use aria_render::SeekPolicy;
+
+    let (_dir, mut engine) = temp_engine();
+    let track = common::add_track(&mut engine, TrackKind::Sticker, "T1");
+    let clip_id = common::add_generated(
+        &mut engine,
+        track,
+        Generator::SolidColor {
+            rgba: [200, 40, 10, 255],
+        },
+        tr(0, 48),
+    );
+    // The solid covers the top-left quarter of the canvas.
+    engine
+        .apply(Command::Edit(EditCommand::SetClipTransform {
+            clip: clip_id,
+            transform: ClipTransform {
+                position: [-0.25, -0.25],
+                scale: 0.5.into(),
+                ..ClipTransform::IDENTITY
+            },
+            at: None,
+        }))
+        .expect("set transform");
+    let fit = |engine: &mut aria_engine::Engine| {
+        let mut rows = Rows::default();
+        engine
+            .get_frame_fit_into(rt(0), 960, 540, SeekPolicy::Exact, &mut rows)
+            .expect("fit frame");
+        rows.0.expect("the fit entry wrote no rows")
+    };
+    let full = |engine: &mut aria_engine::Engine| {
+        let mut rows = Rows::default();
+        engine
+            .get_frame_into(rt(0), SeekPolicy::Exact, &mut rows)
+            .expect("full frame");
+        rows.0.expect("the full entry wrote no rows")
+    };
+
+    assert!(!engine.preview_transparency(), "the grid is off by default");
+    let opaque = fit(&mut engine);
+    assert_eq!(
+        pixel(&opaque, opaque.width - 10, opaque.height - 10),
+        [0, 0, 0, 255]
+    );
+
+    let revision = engine.proxy_revision();
+    engine.set_preview_transparency(true);
+    assert!(engine.preview_transparency());
+    assert_eq!(engine.proxy_revision(), revision + 1);
+    engine.set_preview_transparency(true);
+    assert_eq!(engine.proxy_revision(), revision + 1, "no change, no bump");
+
+    for (entry, frame) in [("fit", fit(&mut engine)), ("full", full(&mut engine))] {
+        let (w, h) = (frame.width, frame.height);
+        assert_eq!(
+            pixel(&frame, w - 10, h - 10),
+            [0, 0, 0, 0],
+            "{entry}: the uncovered canvas kept the background"
+        );
+        assert_eq!(
+            pixel(&frame, w / 4, h / 4),
+            [200, 40, 10, 255],
+            "{entry}: a covered pixel lost its colour"
+        );
+    }
+    let thumbnail = engine.get_frame(rt(0)).expect("thumbnail frame");
+    assert_eq!(
+        pixel(&thumbnail, thumbnail.width - 10, thumbnail.height - 10),
+        [0, 0, 0, 255],
+        "get_frame is not a Viewer entry and keeps the background"
+    );
+
+    engine.set_preview_transparency(false);
+    assert_eq!(fit(&mut engine).pixels, opaque.pixels);
 }

@@ -14,11 +14,12 @@ use crate::surfaces::inspector_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::UiClip;
 
-use super::widgets::{audio_row, section_label};
+use super::widgets::{Readout, audio_row, section_label};
 
 pub fn framing_block(
     theme: &Theme,
     clip: &UiClip,
+    state: &gpui::Entity<crate::app::AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     let crops: Vec<_> = CROP_EDGES
@@ -26,13 +27,14 @@ pub fn framing_block(
         .map(|(id, label, ..)| {
             let edge = *id;
             let current = crop_inset(&clip.crop, edge);
+            let percent = current * 100.0;
             audio_row(
                 theme,
+                state,
                 crate::motion::MotionKey::new("insp.row", edge),
                 *label,
-                format!("{:.0}%", current * 100.0),
-                0.02,
-                move |state, step| state.nudge_selected_crop_inset(edge, step),
+                Readout::printed(format!("{percent:.0}%"), percent, 0, 1.0),
+                move |state, by| state.nudge_selected_crop_inset(edge, by / 100.0),
                 cx,
             )
             .into_any_element()
@@ -124,20 +126,25 @@ pub fn framing_block(
         )
         .child(audio_row(
             theme,
+            state,
             crate::motion::MotionKey::new("insp.row", "blur-shutter"),
             "Shutter",
-            format!("{:.0}°", blur.shutter_deg),
-            15.0,
-            |state, step| state.nudge_selected_shutter(step),
+            Readout::printed(
+                format!("{:.0}°", blur.shutter_deg),
+                blur.shutter_deg,
+                0,
+                1.0,
+            ),
+            |state, by| state.nudge_selected_shutter(by),
             cx,
         ))
         .child(audio_row(
             theme,
+            state,
             crate::motion::MotionKey::new("insp.row", "blur-samples"),
             "Samples",
-            blur.samples.to_string(),
-            1.0,
-            |state, step| state.nudge_selected_blur_samples(step as i32),
+            Readout::number(blur.samples as f32, 0, 1.0),
+            |state, by| state.nudge_selected_blur_samples(by.round() as i32),
             cx,
         ))
 }

@@ -10,7 +10,7 @@
 
 use std::collections::BTreeSet;
 
-use aria_models::TrackId;
+use aria_models::{AutomationMode, TrackId};
 
 use crate::app::AppState;
 use crate::app::mixer::FaderTarget;
@@ -92,6 +92,36 @@ fn gestures(mix: &Mix) -> Vec<Gesture> {
         },
         Gesture::RideFader { at: 140.0 },
         Gesture::ReleaseFader,
+        Gesture::GrabFader {
+            target: FaderTarget::LanePan(mix.lane),
+            at: 50.0,
+            travel: TRAVEL,
+        },
+        Gesture::RideFader { at: 75.0 },
+        Gesture::ReleaseFader,
+        Gesture::GrabFader {
+            target: FaderTarget::Master,
+            at: 100.0,
+            travel: TRAVEL,
+        },
+        Gesture::RideFader { at: 130.0 },
+        Gesture::ReleaseFader,
+        Gesture::ToggleMute {
+            track: Some(mix.lane),
+        },
+        Gesture::ToggleMute {
+            track: Some(mix.lane),
+        },
+        Gesture::ToggleSolo { track: mix.lane },
+        Gesture::ToggleSolo { track: mix.lane },
+        Gesture::SetAutomation {
+            track: Some(mix.lane),
+            mode: AutomationMode::Read,
+        },
+        Gesture::SetAutomation {
+            track: Some(mix.lane),
+            mode: AutomationMode::Off,
+        },
     ]
 }
 
@@ -166,6 +196,11 @@ fn the_census_reaches_every_routing_command() {
         "Set send",
         "Remove send",
         "Lane fader",
+        "Lane pan",
+        "Lane automation",
+        "Master mix",
+        "Mute track",
+        "Solo track",
     ] {
         assert!(
             sent.contains(label),
@@ -330,11 +365,11 @@ fn the_panel_files_every_gesture_through_the_registry() {
     .expect("the mixer panel is readable");
     let filed = source.matches("mixer_strip::apply").count();
     assert_eq!(
-        filed, 6,
-        "the mixer draws six controls and files {filed} of them through the \
-         registry: the bus button, the output chip, the send chip, and the \
-         fader's press, move and release. A control that calls `AppState` \
-         directly is one the census cannot press"
+        filed, 9,
+        "the mixer draws nine gesture sites and files {filed} of them through \
+         the registry: the bus button, mute, solo, automation mode, the output \
+         chip, the send chip, and the fader/pan press, move and release. A \
+         control that calls `AppState` directly is one the census cannot press"
     );
 }
 
@@ -347,4 +382,121 @@ fn sends(mix: &Mix) -> Vec<bool> {
         .find(|strip| strip.track == mix.lane.raw())
         .map(|strip| strip.sends.iter().map(|send| send.pre_fader).collect())
         .unwrap_or_default()
+}
+#[test]
+fn touch_latch_and_write_record_envelopes_during_playback_as_one_undo_step() {
+    let mut mix = dressed();
+    let lane = mix.lane;
+    mixer_strip::apply(
+        &mut mix.state,
+        Gesture::SetAutomation {
+            track: Some(lane),
+            mode: AutomationMode::Touch,
+        },
+    )
+    .unwrap();
+    let before_pass = mix.state.engine.lock().history_depth();
+
+    // Start a playback pass in Touch mode: drag fader at tick 10..20 and pan at
+    // tick 20, then release at tick 20 and advance to tick 40.
+    mix.state.playing = true;
+    mix.state.playback_generation = 1;
+    mix.state.clear_mixer_automation_pass();
+    mix.state.set_playhead(10);
+    mixer_strip::apply(
+        &mut mix.state,
+        Gesture::GrabFader {
+            target: FaderTarget::Lane(lane),
+            at: 100.0,
+            travel: TRAVEL,
+        },
+    )
+    .unwrap();
+    mixer_strip::apply(&mut mix.state, Gesture::RideFader { at: 140.0 }).unwrap();
+    let touched_gain = mix.state.fader_value(FaderTarget::Lane(lane), 1.0);
+    assert!(touched_gain < 1.0);
+    mix.state.set_playhead(20);
+    mixer_strip::apply(&mut mix.state, Gesture::ReleaseFader).unwrap();
+
+    mixer_strip::apply(
+        &mut mix.state,
+        Gesture::GrabFader {
+            target: FaderTarget::LanePan(lane),
+            at: 50.0,
+            travel: TRAVEL,
+        },
+    )
+    .unwrap();
+    mixer_strip::apply(&mut mix.state, Gesture::RideFader { at: 80.0 }).unwrap();
+    mixer_strip::apply(&mut mix.state, Gesture::ReleaseFader).unwrap();
+    mix.state.set_playhead(40);
+    mix.state.playing = false;
+    mix.state.clear_mixer_automation_pass();
+
+    // Touch wrote the dip across 10..=20 and returned to 1.0 after release;
+    // the whole playback pass (multiple fader + pan moves) is one undo step.
+    {
+        let engine = mix.state.engine.lock();
+        let track = engine.project().timeline().track(lane).unwrap();
+        assert!((track.gain_at(15) - touched_gain).abs() < 1e-5);
+        assert!(
+            (track.gain_at(40) - 1.0).abs() < 1e-5,
+            "Touch returns to curve"
+        );
+        assert_eq!(
+            engine.history_depth(),
+            before_pass + 1,
+            "all automation writes in one playback pass coalesce into one undo step"
+        );
+    }
+    assert!(mix.state.undo());
+    assert_eq!(
+        mix.state
+            .engine
+            .lock()
+            .project()
+            .timeline()
+            .track(lane)
+            .unwrap()
+            .gain_at(15),
+        1.0
+    );
+
+    // Latch holds the last value after release.
+    mixer_strip::apply(
+        &mut mix.state,
+        Gesture::SetAutomation {
+            track: Some(lane),
+            mode: AutomationMode::Latch,
+        },
+    )
+    .unwrap();
+    mix.state.playing = true;
+    mix.state.playback_generation = 2;
+    mix.state.clear_mixer_automation_pass();
+    mix.state.set_playhead(10);
+    mixer_strip::apply(
+        &mut mix.state,
+        Gesture::GrabFader {
+            target: FaderTarget::Lane(lane),
+            at: 100.0,
+            travel: TRAVEL,
+        },
+    )
+    .unwrap();
+    mixer_strip::apply(&mut mix.state, Gesture::RideFader { at: 140.0 }).unwrap();
+    let latched_gain = mix.state.fader_value(FaderTarget::Lane(lane), 1.0);
+    mix.state.set_playhead(20);
+    mixer_strip::apply(&mut mix.state, Gesture::ReleaseFader).unwrap();
+    mix.state.set_playhead(40);
+    mix.state.playing = false;
+    mix.state.clear_mixer_automation_pass();
+    {
+        let engine = mix.state.engine.lock();
+        let track = engine.project().timeline().track(lane).unwrap();
+        assert!(
+            (track.gain_at(40) - latched_gain).abs() < 1e-5,
+            "Latch holds last value"
+        );
+    }
 }

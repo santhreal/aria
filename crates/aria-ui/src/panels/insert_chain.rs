@@ -7,9 +7,10 @@
 //! it: under every insert in the inspector, and under the open one on a strip.
 //! An insert whose effect reads a key lists the lanes that may key it.
 
+use crate::tooltip::WithTip as _;
 use gpui::{
     Div, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
-    Stateful, StatefulInteractiveElement, Styled, div, px,
+    Stateful, Styled, div, px,
 };
 
 use aria_models::{AudioInsertTarget, TrackId};
@@ -18,7 +19,7 @@ use crate::app::AppState;
 use crate::components::{self, ChipSize};
 use crate::fluent::FluentBuilder;
 use crate::motion::MotionKey;
-use crate::panels::inspector::blocks::widgets::audio_row;
+use crate::panels::inspector::blocks::widgets::{Readout, audio_row};
 use crate::surfaces::insert_rack::{self, Gesture};
 use crate::theme::Theme;
 use crate::types::{UiInsert, UiInsertParam, UiKeyChoice};
@@ -70,10 +71,10 @@ pub fn render(
             rows.push(
                 audio_row(
                     theme,
+                    state,
                     at.key.with("param").with(slot),
                     param.label.clone(),
-                    reading(param),
-                    step(param),
+                    Readout::printed(reading(param), param.value, digits(param), unit(param)),
                     move |state, by| {
                         insert_rack::apply(
                             state,
@@ -157,7 +158,7 @@ fn header(
     } = at;
     let name = div()
         .id(key.element_id("insert-name"))
-        .text_size(px(12.))
+        .text_size(Theme::TEXT_TITLE)
         .text_color(if insert.bypass {
             theme.text_faint
         } else {
@@ -184,7 +185,7 @@ fn header(
         pressed(
             components::ghost_button(key.with("up"), "↑", theme)
                 .when_some(crate::tooltip::builder("insert-up"), |el, tip| {
-                    el.tooltip(tip)
+                    el.with_tip(tip)
                 }),
             move || Gesture::MoveUp { target, index },
             cx,
@@ -194,7 +195,7 @@ fn header(
         pressed(
             components::ghost_button(key.with("down"), "↓", theme)
                 .when_some(crate::tooltip::builder("insert-down"), |el, tip| {
-                    el.tooltip(tip)
+                    el.with_tip(tip)
                 }),
             move || Gesture::MoveDown { target, index },
             cx,
@@ -289,7 +290,7 @@ fn keys(
         .px(px(Theme::SPACE_XS))
         .child(
             div()
-                .text_size(px(10.))
+                .text_size(Theme::TEXT_SMALL)
                 .text_color(theme.text_muted)
                 .child("Key from"),
         )
@@ -347,22 +348,27 @@ fn add_list(
 fn note(theme: &Theme, text: &'static str) -> gpui::AnyElement {
     div()
         .px(px(Theme::SPACE_XS))
-        .text_size(px(10.))
+        .text_size(Theme::TEXT_SMALL)
         .text_color(theme.text_faint)
         .child(text)
         .into_any_element()
 }
 
-/// A parameter's value at the chain's first tick, marked when it is keyed.
-fn reading(param: &UiInsertParam) -> String {
+/// Digits a parameter prints: fewer the wider its range.
+fn digits(param: &UiInsertParam) -> u8 {
     let span = param.max - param.min;
-    let digits = if span >= 1000.0 {
+    if span >= 1000.0 {
         0
     } else if span >= 10.0 {
         1
     } else {
         2
-    };
+    }
+}
+
+/// A parameter's value at the chain's first tick, marked when it is keyed.
+fn reading(param: &UiInsertParam) -> String {
+    let digits = usize::from(digits(param));
     if param.automated {
         format!("{:.digits$} keyed", param.value)
     } else {
@@ -370,8 +376,8 @@ fn reading(param: &UiInsertParam) -> String {
     }
 }
 
-/// One stepper press: a hundredth of the parameter's range.
-fn step(param: &UiInsertParam) -> f32 {
+/// One unit of drag: a hundredth of the parameter's range.
+fn unit(param: &UiInsertParam) -> f32 {
     ((param.max - param.min) / 100.0).max(0.01)
 }
 

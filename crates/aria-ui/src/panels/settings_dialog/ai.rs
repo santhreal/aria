@@ -48,7 +48,7 @@ fn choice_row<T: Copy + PartialEq + 'static>(
         .child(
             div()
                 .w(px(140.0))
-                .text_size(px(13.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_muted)
                 .child(label.to_string()),
         );
@@ -78,17 +78,21 @@ fn choice_row<T: Copy + PartialEq + 'static>(
 }
 
 /// One typed value. Clicking focuses it; the shell routes the keys, Enter saves, Esc
-/// leaves the saved value alone. A secret shows its length, never its text.
+/// leaves the saved value alone. A secret shows its length, never its text. A
+/// plugin field no plugin declares any more draws nothing.
 pub(super) fn field_row(
     theme: &Theme,
     state: &Entity<AppState>,
     field: SettingsField,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
+    let Some(look) = state.read(cx).setting_look(field) else {
+        return div().into_any_element();
+    };
     let (value, focused) = state.read(cx).setting_draft(field);
     let shown = if value.is_empty() {
-        field.placeholder().to_string()
-    } else if field.secret() && !focused {
+        look.placeholder.to_string()
+    } else if look.kind == aria_plugin::SettingKind::Secret && !focused {
         format!("stored, {} character(s)", value.chars().count())
     } else {
         value
@@ -104,9 +108,9 @@ pub(super) fn field_row(
         .child(
             div()
                 .w(px(140.0))
-                .text_size(px(13.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_muted)
-                .child(field.label().to_string()),
+                .child(look.label),
         )
         .child(
             div()
@@ -116,7 +120,7 @@ pub(super) fn field_row(
                 .border_1()
                 .border_color(border)
                 .rounded(px(Theme::CONTROL_RADIUS))
-                .text_size(px(13.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text)
                 .child(text),
         )

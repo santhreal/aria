@@ -7,7 +7,7 @@
 
 use aria_commands::{Command, EditCommand, ProjectCommand};
 use aria_engine::EngineError;
-use aria_models::{AudioLayout, CanvasAspect, CanvasSettings, MediaId, Rational};
+use aria_models::{AudioLayout, CanvasAspect, CanvasSettings, MediaId, Rational, TimeDisplay};
 
 /// The delivery sizes the Canvas section offers, as the shorter edge in pixels.
 /// A baseline is what "1080p" names in both framings, so one table serves a wide
@@ -93,6 +93,16 @@ impl AppState {
             return Ok(());
         }
         self.apply_command(Command::Edit(EditCommand::SetAudioLayout { layout }))?;
+        Ok(())
+    }
+
+    /// Set how the ruler, the timeline timecode and the Viewer's clock count
+    /// time. Picking the display already in use records no undo step.
+    pub fn set_time_display(&mut self, display: TimeDisplay) -> Result<(), EngineError> {
+        if self.store.sequence.time_display == display {
+            return Ok(());
+        }
+        self.apply_command(Command::Edit(EditCommand::SetTimeDisplay { display }))?;
         Ok(())
     }
 

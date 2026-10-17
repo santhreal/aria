@@ -16,8 +16,9 @@ use super::{CHROME, MotionKey, with_frame};
 /// from its current value.
 pub fn set_hover(key: MotionKey, hovered: bool, policy: MotionPolicy, now: FrameInstant) {
     CHROME.with(|chrome| {
+        let chrome = &mut *chrome.borrow_mut();
+        let policy = chrome.policy(policy);
         chrome
-            .borrow_mut()
             .hover
             .set_toggle(key, hovered, presets::HOVER_FADE, policy, now)
     });
@@ -35,7 +36,10 @@ pub fn hover_listener(key: MotionKey) -> impl Fn(&bool, &mut Window, &mut App) +
 /// How far the hover fade of `key` has come in the open frame: 0 at rest, 1
 /// fully hovered.
 pub fn hover_t(key: MotionKey) -> f32 {
-    with_frame(|chrome, frame| chrome.hover.toggle_value(&key, frame.policy(), frame.now()))
+    with_frame(|chrome, frame| {
+        let policy = chrome.policy(frame.policy());
+        chrome.hover.toggle_value(&key, policy, frame.now())
+    })
 }
 
 /// Blends two colours through [`mix_premultiplied`], so a fade out of a

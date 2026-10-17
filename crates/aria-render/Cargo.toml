@@ -24,6 +24,8 @@ tracing.workspace = true
 png = "0.17"
 nnnoiseless = "0.5"
 tempfile = "3"
+qoi = "0.4.1"
+sha2 = "0.10.9"
 # The `lut-pack` baker bin writes the starter-pack `luts.json` catalog.
 serde_json.workspace = true
 
@@ -54,6 +56,10 @@ name = "audio_inserts"
 path = "tests/audio_inserts.rs"
 
 [[test]]
+name = "export_frame"
+path = "tests/export_frame.rs"
+
+[[test]]
 name = "export_mp4"
 path = "tests/export_mp4.rs"
 
@@ -78,6 +84,10 @@ name = "registered_render"
 path = "tests/registered_render.rs"
 
 [[test]]
+name = "render_files"
+path = "tests/render_files.rs"
+
+[[test]]
 name = "render_frame"
 path = "tests/render_frame.rs"
 
@@ -96,6 +106,10 @@ path = "tests/text_glyph_smoke.rs"
 [[test]]
 name = "text_composite"
 path = "tests/text_composite.rs"
+
+[[test]]
+name = "text_caret_placement"
+path = "tests/text_caret_placement.rs"
 
 [[test]]
 name = "text_keyframe_smoke"

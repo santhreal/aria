@@ -15,6 +15,9 @@
 //!   `AppState`, which lives on the UI thread. Those send a `HostRequest` up
 //!   the beat channel and block on the answer, so the work happens where the
 //!   state is and the model still sees one synchronous tool result.
+//! - **Plugin tools** run on the job thread through
+//!   [`PluginContext::call_ai_tool`], listed and authorized by the tier the
+//!   plugin registered.
 //! - **Destructive tools** additionally ask the operator. With
 //!   [`Autonomy::Ask`] the panel shows the call and the job thread waits for
 //!   Approve or Deny; with [`Autonomy::Full`] it does not ask. A cancelled turn
@@ -27,6 +30,7 @@ use std::time::Duration;
 use aria_ai::tools::{HostToolSpec, ToolHost, ToolOutput, ToolTier};
 use aria_engine::Engine;
 use aria_models::RationalTime;
+use aria_plugin::{AI_TOOL_PREFIX, AiToolTier, PluginContext};
 use aria_settings::Autonomy;
 use crossbeam_channel::Sender;
 use parking_lot::Mutex;
@@ -99,6 +103,12 @@ pub(crate) struct ShellHost {
     /// of milliseconds, and a model that looks three times would otherwise pay
     /// for three.
     renderer: Option<aria_render::Renderer>,
+    /// The context whose plugins' AI tools are offered beside this host's own.
+    plugins: PluginContext,
+    /// The plugin tool the last [`authorize`](ToolHost::authorize) allowed,
+    /// and at which tier. [`call`](ToolHost::call) runs it at no more trust
+    /// than that.
+    granted: Option<(String, AiToolTier)>,
 }
 
 impl ShellHost {
@@ -107,6 +117,7 @@ impl ShellHost {
         beats: crate::handoff::Wake<Beat>,
         autonomy: Autonomy,
         gpu: Option<aria_compositor::GpuContext>,
+        plugins: PluginContext,
     ) -> Self {
         Self {
             engine,
@@ -114,7 +125,35 @@ impl ShellHost {
             autonomy,
             gpu,
             renderer: None,
+            plugins,
+            granted: None,
         }
+    }
+
+    /// Run the plugin tool `name` at the tier the last authorization allowed
+    /// it, and hand the model its text and pictures.
+    fn plugin_tool(
+        &mut self,
+        name: &str,
+        arguments: &serde_json::Value,
+        cancel: &AtomicBool,
+    ) -> Result<ToolOutput, String> {
+        let granted = match self.granted.take() {
+            Some((allowed, tier)) if allowed == name => tier,
+            _ => AiToolTier::ReadOnly,
+        };
+        let output = self
+            .plugins
+            .call_ai_tool(name, arguments, granted, cancel)
+            .map_err(|error| error.to_string())?;
+        Ok(ToolOutput {
+            text: output.text,
+            images: output
+                .images
+                .into_iter()
+                .map(|image| aria_ai::ImagePart::png(image.png, image.label))
+                .collect(),
+        })
     }
 
     /// Hand one request to the UI thread and wait for its answer.
@@ -281,9 +320,44 @@ pub fn host_tool_specs() -> Vec<HostToolSpec> {
     ]
 }
 
+/// The AI tools the plugins mounted on `plugins` offer, in registration order.
+pub fn plugin_tool_specs(plugins: &PluginContext) -> Vec<HostToolSpec> {
+    plugins
+        .ai_tools()
+        .into_iter()
+        .map(|tool| HostToolSpec {
+            description: format!(
+                "{} (from the {} plugin)",
+                tool.spec.description, tool.plugin_name
+            ),
+            parameters: tool.spec.parameters.clone(),
+            tier: tool_tier(tool.spec.tier),
+            name: tool.call_name,
+        })
+        .collect()
+}
+
+fn tool_tier(tier: AiToolTier) -> ToolTier {
+    match tier {
+        AiToolTier::ReadOnly => ToolTier::ReadOnly,
+        AiToolTier::Workspace => ToolTier::Workspace,
+        AiToolTier::System => ToolTier::System,
+    }
+}
+
+fn plugin_tier(tier: ToolTier) -> AiToolTier {
+    match tier {
+        ToolTier::ReadOnly => AiToolTier::ReadOnly,
+        ToolTier::Workspace => AiToolTier::Workspace,
+        ToolTier::System => AiToolTier::System,
+    }
+}
+
 impl ToolHost for ShellHost {
     fn tools(&self) -> Vec<HostToolSpec> {
-        host_tool_specs()
+        let mut specs = host_tool_specs();
+        specs.extend(plugin_tool_specs(&self.plugins));
+        specs
     }
 
     fn authorize(
@@ -293,41 +367,28 @@ impl ToolHost for ShellHost {
         tier: ToolTier,
         cancel: &AtomicBool,
     ) -> Result<(), String> {
-        match tier {
-            ToolTier::ReadOnly | ToolTier::Workspace => Ok(()),
-            ToolTier::System => match self.autonomy {
-                Autonomy::Full => Ok(()),
-                Autonomy::Ask => {
-                    let summary = match Self::string_arg(arguments, "cache") {
-                        Ok(cache) => format!("empty the {cache} cache"),
-                        Err(_) => arguments.to_string(),
-                    };
-                    let (tx, rx) = crossbeam_channel::bounded(1);
-                    if !self.beats.wake(Beat::Ask(PendingAsk {
-                        name: name.to_string(),
-                        summary,
-                        reply: tx,
-                    })) {
-                        return Err("the editor is gone".to_string());
-                    }
-                    loop {
-                        if cancel.load(Ordering::Relaxed) {
-                            return Err("the turn was stopped before you answered".to_string());
-                        }
-                        match rx.recv_timeout(WAIT_TICK) {
-                            Ok(true) => return Ok(()),
-                            Ok(false) => return Err("you did not allow this".to_string()),
-                            Err(crossbeam_channel::RecvTimeoutError::Timeout) => continue,
-                            // The question went away unanswered. Unanswered is
-                            // not approved.
-                            Err(crossbeam_channel::RecvTimeoutError::Disconnected) => {
-                                return Err("the question was dismissed".to_string());
-                            }
-                        }
-                    }
-                }
-            },
+        self.granted = None;
+        // A plugin tool is authorized at the tier its plugin registers now,
+        // not the one listed when the turn began: a reload may have raised it.
+        let plugin = if name.starts_with(AI_TOOL_PREFIX) {
+            let tool = self
+                .plugins
+                .ai_tool(name)
+                .ok_or_else(|| format!("no plugin offers {name} any more"))?;
+            Some((tool.spec.tier.max(plugin_tier(tier)), tool.plugin_name))
+        } else {
+            None
+        };
+        let tier = plugin
+            .as_ref()
+            .map_or(tier, |(current, _)| tool_tier(*current));
+        let allowed = self.allow(name, arguments, tier, plugin.as_ref(), cancel);
+        if allowed.is_ok()
+            && let Some((current, _)) = plugin
+        {
+            self.granted = Some((name.to_owned(), current));
         }
+        allowed
     }
 
     fn call(
@@ -361,7 +422,63 @@ impl ToolHost for ShellHost {
                 self.on_ui_thread(HostRequest::ClearCache { key }, cancel)
                     .map(ToolOutput::text)
             }
+            plugin if plugin.starts_with(AI_TOOL_PREFIX) => {
+                self.plugin_tool(plugin, arguments, cancel)
+            }
             other => Err(format!("unknown tool '{other}'")),
+        }
+    }
+}
+
+impl ShellHost {
+    /// Allow one call at `tier`, asking the operator first for a System call
+    /// under [`Autonomy::Ask`]. `plugin` is the current tier and plugin name
+    /// of a plugin tool.
+    fn allow(
+        &self,
+        name: &str,
+        arguments: &serde_json::Value,
+        tier: ToolTier,
+        plugin: Option<&(AiToolTier, Arc<str>)>,
+        cancel: &AtomicBool,
+    ) -> Result<(), String> {
+        match tier {
+            ToolTier::ReadOnly | ToolTier::Workspace => Ok(()),
+            ToolTier::System => match self.autonomy {
+                Autonomy::Full => Ok(()),
+                Autonomy::Ask => {
+                    let summary = match (plugin, Self::string_arg(arguments, "cache")) {
+                        (Some((_, plugin)), _) => {
+                            format!("run the {plugin} plugin's tool with {arguments}")
+                        }
+                        (None, Ok(cache)) => format!("empty the {cache} cache"),
+                        (None, Err(_)) => arguments.to_string(),
+                    };
+                    let (tx, rx) = crossbeam_channel::bounded(1);
+                    if !self.beats.wake(Beat::Ask(PendingAsk {
+                        name: name.to_string(),
+                        summary,
+                        reply: tx,
+                    })) {
+                        return Err("the editor is gone".to_string());
+                    }
+                    loop {
+                        if cancel.load(Ordering::Relaxed) {
+                            return Err("the turn was stopped before you answered".to_string());
+                        }
+                        match rx.recv_timeout(WAIT_TICK) {
+                            Ok(true) => return Ok(()),
+                            Ok(false) => return Err("you did not allow this".to_string()),
+                            Err(crossbeam_channel::RecvTimeoutError::Timeout) => continue,
+                            // The question went away unanswered. Unanswered is
+                            // not approved.
+                            Err(crossbeam_channel::RecvTimeoutError::Disconnected) => {
+                                return Err("the question was dismissed".to_string());
+                            }
+                        }
+                    }
+                }
+            },
         }
     }
 }

@@ -5,7 +5,7 @@ use aria_commands::{Command, EditCommand, EditOutcome};
 use aria_engine::{ApplyOutcome, Engine, EngineConfig, EngineError};
 use aria_models::{
     AnimationRef, ChromaKey, ClipId, CropRect, EffectInstance, Filter, Generator, Lut, Mask,
-    MaskKind, MediaId, MediaSource, ModelError, Param, Project, Rational, RationalTime,
+    MaskKind, MaskMode, MediaId, MediaSource, ModelError, Param, Project, Rational, RationalTime,
     Replaceable, StabilizeLevel, TimeRange, TrackKind,
 };
 
@@ -66,12 +66,18 @@ fn clear_beats_undo_redo_only_swaps_the_normalized_grid() {
         .into();
         clip.flip_h = true;
         clip.effects.push(EffectInstance::new("gaussian_blur"));
-        clip.mask = Some(Mask {
-            kind: MaskKind::Circle,
-            feather: 0.2.into(),
-            invert: true,
-            ..Mask::new(MaskKind::Circle)
-        });
+        clip.masks = vec![
+            Mask {
+                feather: 0.2.into(),
+                invert: true,
+                ..Mask::new(MaskKind::Circle)
+            },
+            Mask {
+                mode: MaskMode::Subtract,
+                opacity: 0.4.into(),
+                ..Mask::new(MaskKind::Star)
+            },
+        ];
         clip.chroma_key = Some(ChromaKey {
             rgb: [0, 255, 0],
             strength: 0.6.into(),

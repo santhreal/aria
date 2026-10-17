@@ -9,7 +9,7 @@ use super::*;
 /// because the assistant answers about this one and not in general.
 pub(super) fn empty(theme: &Theme, project: &str) -> impl IntoElement {
     div()
-        .text_size(px(13.))
+        .text_size(Theme::TEXT_UI)
         .text_color(theme.text_faint)
         .child(format!("Ask Aria about {project}"))
 }
@@ -59,7 +59,7 @@ pub(super) fn bubble(
                     .justify_between()
                     .child(
                         div()
-                            .text_size(px(11.))
+                            .text_size(Theme::TEXT_UI)
                             .text_color(theme.text_faint)
                             .child(entry.kind.label()),
                     )
@@ -89,7 +89,7 @@ pub(super) fn bubble(
                     .flex_row()
                     .items_end()
                     .gap(px(3.))
-                    .text_size(px(13.))
+                    .text_size(Theme::TEXT_UI)
                     .text_color(text)
                     .child(entry.content.clone())
                     .when(live, |el| {

@@ -15,7 +15,7 @@ pub(super) const MIXER_ROWS: &[CommandEntry] = &[
         id: "pal-mixer-open",
         label: "Mixer: open the mixer",
         run: |state| {
-            state.active_panel = ActivePanel::Mixer;
+            state.focus_pane(ActivePanel::Mixer);
             state.status_message = Some("Faders, outputs and sends, one strip per lane".into());
         },
     },
@@ -27,7 +27,7 @@ pub(super) const MIXER_ROWS: &[CommandEntry] = &[
                 state.report_error(&err);
                 return;
             }
-            state.active_panel = ActivePanel::Mixer;
+            state.focus_pane(ActivePanel::Mixer);
         },
     },
 ];

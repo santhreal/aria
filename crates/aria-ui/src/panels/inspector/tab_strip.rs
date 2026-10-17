@@ -19,6 +19,7 @@ use gpui::{
 
 use crate::motion::{self, glide};
 use crate::theme::Theme;
+use crate::tooltip::WithTip as _;
 use crate::types::UiClipKind;
 
 use super::tab_host::TabHost;
@@ -60,13 +61,21 @@ pub(super) fn tab_row(
         row = row.child(
             div()
                 .id(motion::MotionKey::new("insp-tab", &tab.id).element_id("insp-tab"))
+                .debug_selector({
+                    let id = tab.id.clone();
+                    move || format!("insp-tab-{id}")
+                })
+                // No minimum from the label: every tab keeps its equal share,
+                // which is where the underline is drawn, and a label longer
+                // than the share ends in an ellipsis.
                 .flex_1()
+                .min_w_0()
                 .flex()
                 .items_center()
                 .justify_center()
                 .py(px(Theme::SPACE_XS))
                 .rounded(px(Theme::CONTROL_RADIUS))
-                .text_size(px(11.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(if selected {
                     text
                 } else {
@@ -80,7 +89,8 @@ pub(super) fn tab_row(
                 .cursor(CursorStyle::PointingHand)
                 .active(|style| style.opacity(0.92))
                 .on_hover(motion::hover_listener(key))
-                .child(tab.label.clone())
+                .with_tip(crate::tooltip::text_builder(tab.label.clone()))
+                .child(div().min_w_0().truncate().child(tab.label.clone()))
                 .on_mouse_down(
                     MouseButton::Left,
                     cx.listener(move |this, _: &MouseDownEvent, _, cx| {
@@ -105,6 +115,7 @@ pub(super) fn tab_row(
         );
         row = row.child(
             div()
+                .debug_selector(|| "insp-tab-underline".to_owned())
                 .absolute()
                 .bottom_0()
                 .left(relative(at * slot))
@@ -120,5 +131,6 @@ pub(super) fn tab_row(
         .py(px(Theme::SPACE_XS))
         .border_b_1()
         .border_color(theme.border)
+        .bg(theme.surface_header)
         .child(row)
 }

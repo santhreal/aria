@@ -148,12 +148,12 @@ pub struct JobFinished {
 
 /// A plugin finished mounting.
 pub struct PluginActivated {
-    pub id: &'static str,
+    pub id: std::borrow::Cow<'static, str>,
 }
 
 /// A plugin was unmounted; its handlers and services are gone.
 pub struct PluginDeactivated {
-    pub id: &'static str,
+    pub id: std::borrow::Cow<'static, str>,
 }
 
 impl Event for ProjectOpened {}
@@ -306,6 +306,18 @@ pub enum MenuTarget {
     /// A recent project on Home.
     Recent {
         path: PathBuf,
+    },
+    /// The effect at `index` in `clip`'s chain, from its header in the
+    /// Inspector's Effects tab.
+    Effect {
+        clip: ClipId,
+        index: usize,
+    },
+    /// The fx badge on `clip`'s timeline bar, which lists the properties the
+    /// bar can draw as its line.
+    ClipBadge {
+        clip: ClipId,
+        track: TrackId,
     },
 }
 

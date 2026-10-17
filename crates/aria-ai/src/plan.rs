@@ -46,11 +46,13 @@ impl Made {
             | EditOutcome::UpdatedCanvas
             | EditOutcome::UpdatedSequenceRate
             | EditOutcome::UpdatedAudioLayout
+            | EditOutcome::UpdatedTimeDisplay
             | EditOutcome::UpdatedMaster
             | EditOutcome::UpdatedProject
             | EditOutcome::CreatedBin(_)
             | EditOutcome::UpdatedPool
-            | EditOutcome::OpenedSequence => Self::Nothing,
+            | EditOutcome::OpenedSequence
+            | EditOutcome::UpdatedSourcePatch => Self::Nothing,
         }
     }
 }

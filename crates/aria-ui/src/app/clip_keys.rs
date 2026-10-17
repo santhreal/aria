@@ -25,6 +25,7 @@ use aria_models::{
 };
 
 use super::AppState;
+use super::property_rows::KeyframeIconShape;
 use gpui::SharedString;
 
 /// The multi-keyframe easing presets, with a label each. These expand one
@@ -42,6 +43,9 @@ pub struct KeyMark {
     /// The named bezier preset on the segment leaving this keyframe, if the
     /// easing matches one.
     pub preset: Option<&'static str>,
+    /// The icon the keyframe is drawn as, from its easing and whether it is
+    /// first, last, or between two others.
+    pub shape: KeyframeIconShape,
 }
 
 /// The id and the label of one component row of a vector property.
@@ -58,7 +62,7 @@ pub struct AxisText {
 
 /// The component suffix and label suffix of each axis, in component order.
 const AXES: [(&str, &str); 2] = [("x", "X"), ("y", "Y")];
-
+const AXES_3: [(&str, &str); 3] = [("x", "X"), ("y", "Y"), ("z", "Z")];
 /// One animatable property of a clip, as every surface reads it.
 ///
 /// Built once per change by [`crate::app::selected_detail`], not once per
@@ -86,6 +90,15 @@ impl KeyParam {
     /// Which property this row addresses.
     pub fn param(&self) -> ClipParam {
         self.spec.param
+    }
+
+    /// Whether a keyframe sits before absolute `tick`, and whether one sits
+    /// after it: where a navigator's arrows can go.
+    pub fn keys_around(&self, tick: i64) -> (bool, bool) {
+        (
+            self.marks.first().is_some_and(|mark| mark.tick < tick),
+            self.marks.last().is_some_and(|mark| mark.tick > tick),
+        )
     }
 
     /// Whether a keyframe sits exactly on absolute `tick`.
@@ -140,18 +153,28 @@ pub(crate) fn key_params_of(clip: &Clip, audio_lane: bool) -> std::sync::Arc<[Ke
         .into_iter()
         .filter(|spec| !(audio_lane && matches!(spec.scope, ParamScope::Visual)))
         .map(|spec| {
-            let marks: std::sync::Arc<[KeyMark]> = spec
-                .keyframes(clip)
+            let keys = spec.keyframes(clip);
+            let total = keys.len();
+            let marks: std::sync::Arc<[KeyMark]> = keys
                 .into_iter()
-                .map(|(tick, easing)| KeyMark {
+                .enumerate()
+                .map(|(index, (tick, easing))| KeyMark {
                     tick: clip.param_timeline_tick(tick),
                     preset: easing.preset_id(),
+                    shape: KeyframeIconShape::classify(index, total, easing),
                 })
                 .collect();
             let id = shared(spec.id.clone());
             let label = shared(spec.label.clone());
             let axes: std::sync::Arc<[AxisText]> = match spec.kind {
                 ParamKind::Vec2 => AXES
+                    .iter()
+                    .map(|(suffix, axis)| AxisText {
+                        id: format!("{id}-{suffix}").into(),
+                        label: format!("{label} {axis}").into(),
+                    })
+                    .collect(),
+                ParamKind::Vec3 => AXES_3
                     .iter()
                     .map(|(suffix, axis)| AxisText {
                         id: format!("{id}-{suffix}").into(),

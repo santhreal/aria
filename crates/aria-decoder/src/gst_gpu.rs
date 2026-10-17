@@ -37,7 +37,6 @@ pub(crate) struct OpenedPipeline {
     pub pipeline: gst::Pipeline,
     pub sink: gst_app::AppSink,
     pub info: SourceInfo,
-    pub preroll: gst::Sample,
     pub mode: OutputMode,
 }
 
@@ -146,7 +145,6 @@ fn try_open(uri: &glib::GString, dmabuf: bool) -> Result<OpenedPipeline, DecodeE
         pipeline,
         sink,
         info,
-        preroll,
         mode: if dmabuf {
             OutputMode::Gpu
         } else {
@@ -173,14 +171,8 @@ fn sample_to_gpu_frame(sample: &gst::Sample, info: &SourceInfo) -> Option<VideoF
     let (width, height) = sample_size(sample)?;
     let payload = sample_to_dmabuf(sample)?;
     let buffer = sample.buffer()?;
-    let pts = buffer
-        .pts()
-        .map(|t| {
-            RationalTime::new(
-                t.nseconds() as i64,
-                Rational::new(crate::gst::NS_PER_SEC as i32, 1),
-            )
-        })
+    let pts = crate::gst::stream_time_ns(sample, buffer)
+        .map(|ns| RationalTime::new(ns, Rational::new(crate::gst::NS_PER_SEC as i32, 1)))
         .unwrap_or_else(|| RationalTime::new(0, info.time_base));
     let duration = buffer.duration().map(|t| {
         RationalTime::new(

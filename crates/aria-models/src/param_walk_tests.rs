@@ -22,8 +22,8 @@ use crate::{
     ChromaKey, Clip, ColorAdjustments, CropRect, Easing, EffectInstance, Filter, Generator,
     Keyframe, LayerBackground, LayerGlow, LayerOutline, LayerShadow, LayerStyles, Lut, Mask,
     MaskKind, MatteSource, MediaId, ModelError, Param, Project, Rational, RationalTime,
-    SPEED_CURVE_SCALE, Shape, ShapeStroke, TextBackground, TextShadow, TextStroke, TextStyle,
-    TimeRange, TrackKind, TrackMatte,
+    SPEED_CURVE_SCALE, Shape, ShapePathPoint, ShapeStroke, TextBackground, TextShadow, TextStroke,
+    TextStyle, TimeRange, TrackKind, TrackMatte,
 };
 use serde_json::Value;
 
@@ -135,15 +135,33 @@ fn everything_animated() -> Clip {
         *(slider.get_mut)(&mut adjust) = animated_f32(slider.neutral + 0.1);
     }
     clip.adjust = adjust;
-    clip.mask = Some(Mask {
+    clip.masks = vec![Mask {
         kind: MaskKind::Rectangle,
         feather: animated_f32(0.2),
         center: animated_vec2([0.0, 0.1]),
         size: animated_vec2([0.9, 0.8]),
         rotation: animated_f32(10.0),
         roundness: animated_f32(0.3),
+        opacity: animated_f32(0.6),
+        expansion: animated_f32(-4.0),
         invert: false,
-    });
+        ..Mask::new(MaskKind::Rectangle)
+    }];
+    let triangle = |x: f32| {
+        vec![
+            ShapePathPoint::corner([x, 0.1]),
+            ShapePathPoint::corner([0.9, 0.5]),
+            ShapePathPoint::corner([x, 0.9]),
+        ]
+    };
+    let mut drawn = Mask::from_path(triangle(0.1), true);
+    drawn.path = Param::Keyframed {
+        keyframes: vec![
+            Keyframe::new(4, triangle(0.1), Easing::Linear),
+            Keyframe::new(16, triangle(0.4), Easing::Linear),
+        ],
+    };
+    clip.masks.push(drawn);
     clip.chroma_key = Some(ChromaKey {
         rgb: [0, 255, 0],
         strength: animated_f32(0.4),

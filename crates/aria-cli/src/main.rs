@@ -22,6 +22,7 @@ mod fail;
 mod frame;
 mod inspect;
 mod new;
+mod plugin;
 mod project;
 
 use args::{Args, ArgsError, Verb};
@@ -44,6 +45,12 @@ fn main() -> std::process::ExitCode {
 }
 
 fn run(args: &Args) -> Result<(), Failure> {
+    // The built-in driver language, so a driven property renders here as it
+    // does in the editor. Held until the command ends.
+    let builtin = aria_plugin::PluginContext::new();
+    builtin
+        .mount(&aria_plugin::ExpressionsPlugin)
+        .map_err(|err| Failure::Failed(err.to_string()))?;
     match args.verb {
         Verb::Demo => {
             args.reject_unknown(&[])?;
@@ -69,6 +76,7 @@ fn run(args: &Args) -> Result<(), Failure> {
             args.reject_unknown(analyze::FLAGS)?;
             analyze::run(args)
         }
+        Verb::Plugin => plugin::run(args),
     }
 }
 

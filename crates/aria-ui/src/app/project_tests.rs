@@ -193,7 +193,7 @@ fn a_referenced_pool_item_is_refused_and_an_unused_one_is_removed() {
 
     // Drop the clip and the item becomes removable.
     state.select_clip(clip);
-    state.delete_selected().unwrap();
+    state.clear_selected().unwrap();
     assert!(!state.media_is_in_use(MediaId::from_raw(media)));
     state.remove_media(MediaId::from_raw(media)).unwrap();
     assert!(
@@ -207,7 +207,7 @@ fn removing_a_pool_item_is_undoable() {
     let (mut state, clip) = with_clip();
     let media = state.store.media[0].id;
     state.select_clip(clip);
-    state.delete_selected().unwrap();
+    state.clear_selected().unwrap();
     state.remove_media(MediaId::from_raw(media)).unwrap();
     assert!(pool_ids(&state).is_empty());
 

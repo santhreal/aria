@@ -24,12 +24,14 @@ use std::path::PathBuf;
 
 use aria_core::ExportFormat;
 use aria_models::{
-    AnimationRef, AnimationSlot, AudioInsertTarget, AudioLayout, AudioRole, BinId, BlendMode,
-    CanvasAspect, ChromaKey, ClipId, ClipParam, ClipTransform, ColorAdjustments, CropRect, Easing,
-    EffectPreset, Filter, Generator, LayerStyles, Lut, MarkerColor, MarkerId, Mask, MediaId,
-    MotionBlur, MulticamAngle, MulticamGroupId, Param, ParamValue, PiecewiseEasingPreset, Rational,
-    RationalTime, Replaceable, SequenceId, StabilizeLevel, TemplateMeta, TimeRange, TrackId,
-    TrackKind, TrackMatte,
+    AnimationRef, AnimationSlot, AudioInsertTarget, AudioLayout, AudioRole, AutomationMode, BinId,
+    BlendMode, CanvasAspect, ChromaKey, ClipAttribute, ClipId, ClipParam, ClipTransform,
+    ColorAdjustments, CropRect, DriverCode, Easing, EffectInstance, Filter, Generator, LabelColor,
+    LayerStyles, Lut, MarkerColor, MarkerId, Mask, MediaId, MotionBlur, MulticamAngle,
+    MulticamGroupId, Param, ParamValue, ParentKeep, Patch, PiecewiseEasingPreset, Preset, Rational,
+    RationalTime, Replaceable, SequenceId, SoundPlacement, SourceChannel, StabilizeLevel,
+    TemplateMeta, TemporalEase, TimeDisplay, TimeRange, TrackId, TrackKind, TrackMatte, Transition,
+    TransitionAlignment,
 };
 use serde::{Deserialize, Serialize};
 
@@ -74,7 +76,7 @@ pub enum ProjectCommand {
     SetMediaLabel {
         media: MediaId,
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        label: Option<MarkerColor>,
+        label: Option<LabelColor>,
     },
     /// Render the timeline to a video file.
     ///
@@ -168,6 +170,14 @@ pub enum EditCommand {
     /// the target as one atomic edit. Timing, content, and audio properties are
     /// unchanged. The target must be visual.
     PasteAttributes { source: ClipId, clip: ClipId },
+    /// Return each group in `attributes` to the values a new clip starts with,
+    /// keyframes and drivers included, as one atomic edit. Clearing the speed
+    /// ramp re-derives the clip's duration and is refused when the longer clip
+    /// would overlap a neighbour.
+    RemoveAttributes {
+        clip: ClipId,
+        attributes: Vec<ClipAttribute>,
+    },
     /// Hold one resolved frame from a video clip for `duration`, opening a
     /// same-track hole at `at`. `at` may be either edge or an interior tick;
     /// interior insertion splits the source first. The created clip remains
@@ -238,6 +248,23 @@ pub enum EditCommand {
         transform: ClipTransform,
         at: Option<RationalTime>,
     },
+    /// Parent a clip to another clip on its sequence, or with `None` release
+    /// it. Refused when the parent does not overlap the clip in time, is on
+    /// another sequence, sits under the clip, or would make the chain deeper
+    /// than [`aria_models::MAX_PARENT_DEPTH`].
+    ///
+    /// `keep` selects whether the clip keeps its place on the canvas at
+    /// timeline time `at` (its transform, keyframes included, is rewritten into
+    /// the new frame) or snaps to the parent's anchor, scale, and rotation.
+    /// The inverse restores the previous parent and transform.
+    SetClipParent {
+        clip: ClipId,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        parent: Option<ClipId>,
+        at: RationalTime,
+        #[serde(default)]
+        keep: ParentKeep,
+    },
     /// Insert or replace a keyframe on one animatable clip property at an
     /// absolute timeline position (must fall inside the clip). A constant
     /// property becomes a single-keyframe curve. Optional spatial `tangents`
@@ -261,6 +288,16 @@ pub enum EditCommand {
         clip: ClipId,
         param: ClipParam,
         at: RationalTime,
+    },
+    /// Attach (or with `None` remove) a driver: code that replaces one
+    /// property's keyframed value per frame. Refused when the driver would read
+    /// its own value back through other drivers; code that does not compile is
+    /// kept and reported at render. The inverse restores the previous driver.
+    SetParamDriver {
+        clip: ClipId,
+        param: ClipParam,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        code: Option<DriverCode>,
     },
     /// Replace one animatable property with a constant, dropping all its
     /// keyframes.
@@ -348,7 +385,7 @@ pub enum EditCommand {
     SetClipLabel {
         clip: ClipId,
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        label: Option<MarkerColor>,
+        label: Option<LabelColor>,
     },
     /// Set (or with `None` clear) a clip's operator-given name. Clearing it
     /// gives the card back the name its source provides. Accepted on every clip
@@ -358,11 +395,47 @@ pub enum EditCommand {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         name: Option<String>,
     },
-    /// Set (or with `None` clear) a clip's shaped alpha mask (CapCut mask,
-    /// Phase I). Persisted + validated now, rendered later (documented render
-    /// gap, like stickers). Media-backed visual clips only. The inverse
-    /// restores the previous clip state.
-    SetClipMask { clip: ClipId, mask: Option<Mask> },
+    /// Set (or with `None` clear) the registered clip type a clip is
+    /// (`aria_models::ClipTypeSpec`). The type need not be registered, so a
+    /// project keeps the type of a plugin that is not installed. Accepted on
+    /// every clip kind; the inverse restores the previous type.
+    SetClipType {
+        clip: ClipId,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        clip_type: Option<String>,
+    },
+    /// Set (or with `None` clear) the property a clip's bar on the timeline
+    /// draws as its line and keyframe dots: `None` draws Volume on an audio
+    /// lane and Opacity on any other. Refused for a property the clip does not
+    /// have, and for a picture property on an audio lane. The inverse restores
+    /// the previous property.
+    SetClipLineParam {
+        clip: ClipId,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        param: Option<ClipParam>,
+    },
+    /// Append a mask to the bottom of a visual clip's mask stack, which holds
+    /// at most `aria_models::MAX_CLIP_MASKS`. The inverse restores the
+    /// previous clip state.
+    AddClipMask { clip: ClipId, mask: Mask },
+    /// Replace the mask at `index` in a clip's mask stack. Drivers on its
+    /// properties stay attached. The inverse restores the previous clip state.
+    SetClipMask {
+        clip: ClipId,
+        index: u32,
+        mask: Mask,
+    },
+    /// Remove the mask at `index` from a clip's mask stack, with the drivers
+    /// on its properties. The inverse restores the previous clip state.
+    RemoveClipMask { clip: ClipId, index: u32 },
+    /// Move the mask at `from_index` to `to_index` in a clip's mask stack.
+    /// Both index the stack before the move, and drivers follow their masks.
+    /// The inverse restores the previous clip state.
+    MoveClipMask {
+        clip: ClipId,
+        from_index: u32,
+        to_index: u32,
+    },
     /// Set how a clip composites over the stack below (visual clips only).
     SetClipBlendMode { clip: ClipId, mode: BlendMode },
     /// Set per-clip motion blur (temporal supersampling of the animated
@@ -458,9 +531,28 @@ pub enum EditCommand {
         param: usize,
         value: f32,
     },
-    /// Apply an effect preset to a clip, replacing its entire effect chain.
+    /// Replace the effect instance at `index` in `clip`'s effect chain after
+    /// validating its parameter state.
+    SetEffectInstance {
+        clip: ClipId,
+        index: usize,
+        effect: EffectInstance,
+    },
+    /// Switch the effect at `index` in `clip`'s chain off (`bypass: true`) or
+    /// back on. A bypassed effect keeps its parameters and its place in the
+    /// chain and renders nothing. The inverse restores the previous clip state.
+    SetEffectBypass {
+        clip: ClipId,
+        index: usize,
+        bypass: bool,
+    },
+    /// Apply an animation preset to a clip anchored at `at`.
     /// The inverse restores the previous clip state.
-    ApplyEffectPreset { clip: ClipId, preset: EffectPreset },
+    ApplyPreset {
+        clip: ClipId,
+        preset: Preset,
+        at: RationalTime,
+    },
     /// Add a transition (M4) at the junction where `clip` abuts the next clip
     /// on its track. `transition_id` must exist in the transition catalog. The
     /// inverse removes it (track-transitions snapshot).
@@ -471,16 +563,41 @@ pub enum EditCommand {
     /// Set the window length (timeline ticks) of the transition at `clip`'s
     /// right junction. The inverse restores the previous length.
     SetTransition { clip: ClipId, duration: i64 },
+    /// Set how the transition window at `clip`'s right junction sits relative
+    /// to the cut. The inverse restores the previous alignment.
+    SetTransitionAlignment {
+        clip: ClipId,
+        alignment: TransitionAlignment,
+    },
+    /// Replace the transition at `clip`'s right junction after validating its
+    /// duration and parameter state.
+    SetTransitionState {
+        clip: ClipId,
+        transition: Transition,
+    },
     /// Split a clip at a timeline position into two abutting clips.
     SplitClip { clip: ClipId, at: RationalTime },
-    /// Re-place / trim a clip to occupy `timeline`.
+    /// Re-place / trim a clip to occupy `timeline`. Linked companions take the
+    /// same start and end deltas.
     TrimClip { clip: ClipId, timeline: TimeRange },
+    /// Re-place / trim one clip to occupy `timeline`, leaving its linked
+    /// companions where they are: the trim sent with linked selection off.
+    TrimClipUnlinked { clip: ClipId, timeline: TimeRange },
     /// Move a media clip's source window by `by` source ticks, keeping its
     /// timeline placement. Clamped at the ends of the take; refused on a
     /// generated clip, a freeze frame, or a still.
     SlipClip { clip: ClipId, by: i64 },
     /// Move a clip to `to_track` starting at `start`, keeping its duration.
+    /// Linked companions take the same time delta on their own lanes.
     MoveClip {
+        clip: ClipId,
+        to_track: TrackId,
+        start: RationalTime,
+    },
+    /// Move a clip to `to_track` starting at `start`, leaving its linked
+    /// companions where they are: the move sent with linked selection off.
+    /// Clips grouped with it still take the same time delta on their lanes.
+    MoveClipUnlinked {
         clip: ClipId,
         to_track: TrackId,
         start: RationalTime,
@@ -537,6 +654,18 @@ pub enum EditCommand {
     /// `0..=4` rather than clamped, so the number in the mix is the number the
     /// caller asked for. The inverse restores the lane's previous routing.
     SetTrackGain { track: TrackId, gain: f32 },
+    /// Move a lane's stereo pan (`-1.0` full left, `0.0` center, `+1.0` full
+    /// right). Refused outside `-1..=1`. The inverse restores the lane's
+    /// previous routing.
+    SetTrackPan { track: TrackId, pan: f32 },
+    /// Set a lane's automation mode and its volume and pan envelopes. The
+    /// inverse restores the lane's previous mode and envelopes.
+    SetTrackAutomation {
+        track: TrackId,
+        mode: AutomationMode,
+        volume: Param<f32>,
+        pan: Param<f32>,
+    },
     /// Point a lane's output at a bus lane, or at the master (`None`). Refused
     /// when the destination is not a bus, or when the route would feed the lane
     /// back into itself. The inverse restores the lane's previous routing.
@@ -661,6 +790,15 @@ pub enum EditCommand {
     /// Dissolve every link group touched by `clips`. Passing any member clears
     /// the link from the complete group; the inverse restores every group.
     UnlinkClips { clips: Vec<ClipId> },
+    /// Enable or disable `clips` as one undo step (`Clip` > `Enable`).
+    /// Disabled clips stay on the timeline at reduced opacity and are excluded
+    /// from preview/export rendering and audio mixing.
+    SetClipsEnabled { clips: Vec<ClipId>, enabled: bool },
+    /// Put `clips` (2+ clips) into one fresh clip group (`Clip` > `Group`):
+    /// grouped clips select and move together while trims stay per-clip.
+    GroupClips { clips: Vec<ClipId> },
+    /// Dissolve every clip group touched by `clips` (`Clip` > `Ungroup`).
+    UngroupClips { clips: Vec<ClipId> },
     /// Replace a media clip's beat grid with `beats` (CapCut "Beat", M8 Phase
     /// 6): source ticks at the media frame rate, which the model sorts, dedupes,
     /// and clamps to the clip's source window. Rejected on generated clips. The
@@ -721,6 +859,19 @@ pub enum EditCommand {
     /// Set the sequence audio channel layout (mono, stereo, 5.1 surround).
     /// The inverse restores the previous layout.
     SetAudioLayout { layout: AudioLayout },
+    /// Set how the sequence's ruler and timecode count time: timecode, frames,
+    /// or feet and frames. The inverse restores the previous display.
+    SetTimeDisplay { display: TimeDisplay },
+    /// Set the master bus's fader, pan, mute, automation mode, and volume/pan
+    /// envelopes. The inverse restores the previous master mix state.
+    SetMasterMix {
+        gain: f32,
+        pan: f32,
+        muted: bool,
+        automation: AutomationMode,
+        volume: Param<f32>,
+        pan_envelope: Param<f32>,
+    },
     /// Create a pool folder, optionally inside `parent`. The inverse deletes it.
     CreateBin {
         name: String,
@@ -806,6 +957,62 @@ pub enum EditCommand {
     },
     /// Open a secondary sequence for editing (`None` opens the main root timeline).
     OpenSequence { sequence: Option<SequenceId> },
+    /// Create an empty secondary sequence with one video and one audio lane,
+    /// at the open timeline's frame rate, canvas, and audio layout, and open
+    /// it. The inverse removes it and reopens the sequence that was open.
+    CreateSequence { name: String },
+    /// Set incoming/outgoing temporal ease (`0.1%..=100%` influence and speed)
+    /// and/or hold state on the keyframe at `at`. The inverse restores the
+    /// clip's previous parameter state.
+    SetKeyframeEase {
+        clip: ClipId,
+        param: ClipParam,
+        at: RationalTime,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        in_ease: Option<TemporalEase>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        out_ease: Option<TemporalEase>,
+        #[serde(default)]
+        hold: bool,
+    },
+    /// Set or clear roving across time on an interior keyframe at `at`. The
+    /// inverse restores the clip's previous parameter state, including the
+    /// keyframe's anchored tick.
+    SetKeyframeRoving {
+        clip: ClipId,
+        param: ClipParam,
+        at: RationalTime,
+        roving: bool,
+    },
+    /// Patch one source channel of the open sequence: the lane a Source tab's
+    /// picture or sound lands on in a three- or four-point edit, `Auto`, or off.
+    /// The inverse restores the channel's previous patch.
+    SetSourcePatch {
+        channel: SourceChannel,
+        patch: Patch,
+    },
+    /// A three- or four-point edit from a Source tab or a media drop, placed
+    /// through source patching. The picture lands on `track`; `None` leaves
+    /// it out. `sound` puts the sound on a lane of its own as a clip linked to
+    /// the picture, keeps it in the picture clip, or leaves it out, which
+    /// places a picture with sound silent. `fill` retimes the source
+    /// to that span, the way [`Self::FitToFill`] does; `None` places it at its
+    /// own length. `ripple` opens the span on both lanes and on every
+    /// sync-locked lane, otherwise both lanes are covered the way
+    /// [`Self::OverwriteClip`] covers one. Atomic: a rejected step restores
+    /// everything already applied. The outcome names the clip on the first
+    /// patched lane.
+    SourceEdit {
+        media: MediaId,
+        source: TimeRange,
+        at: RationalTime,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        fill: Option<RationalTime>,
+        ripple: bool,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        track: Option<TrackId>,
+        sound: SoundPlacement,
+    },
 }
 
 /// Top-level command surface: media registration or a timeline edit.
@@ -863,6 +1070,8 @@ pub enum EditOutcome {
     UpdatedSequenceRate,
     /// The sequence audio layout was changed.
     UpdatedAudioLayout,
+    /// The sequence time display was changed.
+    UpdatedTimeDisplay,
     /// The master insert chain changed.
     UpdatedMaster,
     /// A project-level property (its display name) changed.
@@ -874,6 +1083,8 @@ pub enum EditOutcome {
     UpdatedPool,
     /// A secondary sequence was opened for editing (or returned to root).
     OpenedSequence,
+    /// A source channel of the open sequence was patched.
+    UpdatedSourcePatch,
 }
 /// The clips and lanes a command addresses.
 ///

@@ -30,7 +30,7 @@
 pub mod path;
 pub mod sdf;
 
-pub use path::{PathRaster, path_bounds, path_hit_test};
+pub use path::{PathRaster, path_bounds, path_hit_test, path_raster_hit, path_raster_size};
 pub use sdf::{MAX_STAR_POINTS, SDF_AA, eval, raster};
 
 /// A parametric shape, fully resolved to output pixels — every animatable

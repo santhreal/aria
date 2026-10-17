@@ -14,8 +14,8 @@ use toml_edit::DocumentMut;
 
 use super::*;
 use crate::{
-    AiSource, Autonomy, DEFAULT_DOWNLOAD_QUOTA_MIB, Settings, ThemeChoice, TranscriptionSettings,
-    load, save,
+    AiSource, Autonomy, DEFAULT_DOWNLOAD_QUOTA_MIB, PluginLimitSettings, Settings, ThemeChoice,
+    TranscriptionSettings, load, save,
 };
 
 /// One shape's stale-format case: the file a build at the shape's oldest
@@ -56,6 +56,14 @@ fn stale_case(shape: PersistedShape) -> StaleCase {
                    auth_base_url = \"https://aria.sh\"\n"
                 .into(),
             expect: |s| assert_eq!(s.cloud.base_url, "https://legacy.api.aria.sh"),
+        },
+        PersistedShape::PluginLimits => StaleCase {
+            file: "[plugin_limits]\nwasm_fuel_per_call = 2000000000\nwasm_memory_mib = 256\n"
+                .into(),
+            expect: |s| {
+                assert_eq!(s.plugin_limits.wasm_fuel_per_call, 2_000_000_000);
+                assert_eq!(s.plugin_limits.wasm_memory_mib, 256);
+            },
         },
         PersistedShape::Plugins => StaleCase {
             file: "[plugins]\n\"notes.directory\" = \"/srv/notes\"\n".into(),
@@ -135,6 +143,10 @@ fn populated() -> Settings {
         connect_timeout_secs: 5,
         read_timeout_secs: 120,
         total_timeout_secs: 3_600,
+    };
+    s.plugin_limits = PluginLimitSettings {
+        wasm_fuel_per_call: 2_000_000_000,
+        wasm_memory_mib: 256,
     };
     s.set_plugin_value("notes.directory", Some("/srv/notes"));
     s
@@ -233,7 +245,14 @@ fn absent_tables_are_not_recorded() {
         })
         .collect();
     assert_eq!(recorded, ["ai", "appearance"]);
-    for absent in ["cloud", "plugins", "providers", "storage", "transcription"] {
+    for absent in [
+        "cloud",
+        "plugin_limits",
+        "plugins",
+        "providers",
+        "storage",
+        "transcription",
+    ] {
         assert!(
             !std::fs::read_to_string(&path).unwrap().contains(absent),
             "an absent shape was recorded: {absent}"

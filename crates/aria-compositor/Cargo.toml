@@ -53,6 +53,8 @@ windows = { version = "0.62", features = [
 ash = "0.38"
 
 [dev-dependencies]
+# The CPU scope counts the GPU scope pass is checked against.
+aria-analysis = { path = "../aria-analysis" }
 criterion = { version = "0.5", features = ["html_reports"] }
 pollster = { workspace = true }
 aria-text = { path = "../aria-text" }
@@ -74,8 +76,20 @@ name = "effects"
 path = "tests/effects.rs"
 
 [[test]]
+name = "effect_graph"
+path = "tests/effect_graph.rs"
+
+[[test]]
+name = "generators"
+path = "tests/generators.rs"
+
+[[test]]
 name = "glyphs"
 path = "tests/glyphs.rs"
+
+[[test]]
+name = "mask_stacks"
+path = "tests/mask_stacks.rs"
 
 [[test]]
 name = "masks"
@@ -90,12 +104,28 @@ name = "motion_blur"
 path = "tests/motion_blur.rs"
 
 [[test]]
+name = "nests"
+path = "tests/nests.rs"
+
+[[test]]
+name = "pair_sides"
+path = "tests/pair_sides.rs"
+
+[[test]]
 name = "render"
 path = "tests/render.rs"
 
 [[test]]
 name = "registered_passes"
 path = "tests/registered_passes.rs"
+
+[[test]]
+name = "scopes"
+path = "tests/scopes.rs"
+
+[[test]]
+name = "stencils"
+path = "tests/stencils.rs"
 
 [[test]]
 name = "styles"

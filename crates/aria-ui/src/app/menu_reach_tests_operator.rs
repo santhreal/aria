@@ -1,4 +1,4 @@
-//! Operator: 5 of the cases in [`super`].
+//! Operator: the File rows that ask for a path, from the cases in [`super`].
 //!
 //! Split out of `menu_reach_tests.rs` to stay under the file ceiling. A pure
 //! move: only `#[test]` fns live here. Every fixture and helper stays in the
@@ -23,6 +23,58 @@ fn save_as_writes_the_project_where_the_operator_said() {
         assert_eq!(state.project_path.as_deref(), Some(path.as_path()));
     });
     assert!(path.exists(), "the project was not written");
+}
+/// Save a Copy writes the chosen file and leaves the open project on its own
+/// path, so the next Ctrl+S still writes where it did before.
+#[test]
+fn save_a_copy_writes_the_copy_and_keeps_the_open_path() {
+    let (state, path) = Answered::SaveCopy.state();
+    let open = state.project_path.clone();
+    let cx = gpui::TestAppContext::single();
+    let entity = entity_of(state, &cx);
+
+    run_row(&entity, &cx, AppMenu::File, "file-save-copy");
+
+    cx.update(|app| {
+        let state = entity.read(app);
+        assert_eq!(state.picks_asked(), 1);
+        assert_eq!(
+            state.project_path, open,
+            "the copy took over the project path"
+        );
+    });
+    assert!(path.exists(), "the copy was not written");
+}
+/// Export Frame asks for a file and starts a job that writes the frame there.
+/// The render itself is covered by `aria-render`'s `export_frame` tests.
+#[test]
+fn export_frame_starts_a_job_for_the_chosen_file() {
+    let (state, path) = Answered::ExportFrame.state();
+    let cx = gpui::TestAppContext::single();
+    let entity = entity_of(state, &cx);
+
+    run_row(&entity, &cx, AppMenu::File, "file-export-frame");
+
+    cx.update(|app| {
+        let state = entity.read(app);
+        assert_eq!(state.picks_asked(), 1, "the row did not ask for a file");
+        let name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .expect("a name");
+        let labels: Vec<String> = state
+            .jobs
+            .snapshot()
+            .into_iter()
+            .map(|job| job.label)
+            .collect();
+        assert!(
+            labels
+                .iter()
+                .any(|label| *label == format!("Exporting frame to {name}")),
+            "no job exports to {name}: {labels:?}"
+        );
+    });
 }
 #[test]
 fn import_adds_the_files_the_operator_chose() {
@@ -99,6 +151,112 @@ fn relink_all_repairs_the_media_from_the_chosen_folder() {
             "the media was not relinked from the chosen folder"
         );
         assert_eq!(state.status_message.as_deref(), Some("Relinked 1"));
+    });
+}
+#[test]
+fn import_timeline_reads_the_chosen_file_as_one_step() {
+    let (state, path) = Answered::ImportTimeline.state();
+    assert_eq!(clip_count(&state), 0, "the dressing left the session full");
+    let cx = gpui::TestAppContext::single();
+    let entity = entity_of(state, &cx);
+
+    run_row(&entity, &cx, AppMenu::File, "file-import-timeline");
+
+    let file = path.file_name().expect("a file").to_string_lossy();
+    cx.update(|app| {
+        let state = entity.read(app);
+        assert_eq!(state.picks_asked(), 1);
+        assert_eq!(state.last_error, None);
+        assert_eq!(clip_count(state), 1, "the timeline did not land");
+        // A plugin's transaction is named after the plugin that ran it.
+        assert_eq!(
+            state.next_undo_label().as_deref(),
+            Some(format!("aria.interchange: Import {file}").as_str())
+        );
+    });
+}
+#[test]
+fn export_timeline_writes_the_file_the_operator_named() {
+    let (state, path) = Answered::ExportTimeline.state();
+    let cx = gpui::TestAppContext::single();
+    let entity = entity_of(state, &cx);
+
+    run_row(&entity, &cx, AppMenu::File, "file-export-timeline");
+
+    cx.update(|app| {
+        let state = entity.read(app);
+        assert_eq!(state.picks_asked(), 1);
+        assert_eq!(state.last_error, None);
+    });
+    assert!(path.exists(), "the timeline was not written");
+}
+#[test]
+fn import_reads_a_chosen_timeline_file_into_the_timeline_not_the_pool() {
+    // The dressing answers the next pick with the timeline file, so the
+    // general Import row is handed it in place of the timeline row.
+    let (state, path) = Answered::ImportTimeline.state();
+    let cx = gpui::TestAppContext::single();
+    let entity = entity_of(state, &cx);
+
+    run_row(&entity, &cx, AppMenu::File, "file-import");
+
+    cx.update(|app| {
+        let state = entity.read(app);
+        assert_eq!(state.last_error, None);
+        assert_eq!(clip_count(state), 1, "the timeline file did not land");
+        assert!(
+            state
+                .store
+                .media
+                .iter()
+                .all(|item| std::path::Path::new(&*item.path) != path),
+            "the timeline file went to the media pool"
+        );
+    });
+}
+#[test]
+fn install_plugin_shows_the_prompt_for_the_chosen_archive_and_runs_nothing() {
+    let (state, _) = Answered::InstallPlugin.state();
+    let cx = gpui::TestAppContext::single();
+    let entity = entity_of(state, &cx);
+
+    run_row(&entity, &cx, AppMenu::File, "file-install-plugin");
+
+    cx.update(|app| {
+        let state = entity.read(app);
+        assert_eq!(state.picks_asked(), 1);
+        assert_eq!(state.dialog, crate::app::DialogKind::InstallPlugin);
+        assert_eq!(
+            state.install_prompt().map(|prompt| prompt.id),
+            Some("com.example.menu".to_owned())
+        );
+        assert!(!state.ctx.is_mounted("com.example.menu"));
+    });
+}
+
+/// View > Compare > Still asks for an image and compares the Program frame
+/// with the one chosen, once it is read.
+#[test]
+fn compare_with_still_reads_the_chosen_file() {
+    let (state, path) = Answered::CompareStill.state();
+    let cx = gpui::TestAppContext::single();
+    let entity = entity_of(state, &cx);
+
+    run_row(&entity, &cx, AppMenu::View, "view-compare-still");
+    cx.run_until_parked();
+
+    cx.update(|app| {
+        let state = entity.read(app);
+        assert_eq!(state.picks_asked(), 1, "the row did not ask for a file");
+        assert_eq!(state.last_error, None);
+        assert_eq!(
+            state.viewer_compare.reference(),
+            Some(&crate::app::viewer_compare::Reference::Still { path })
+        );
+        assert!(
+            state.viewer_compare.picture().is_some(),
+            "the still was never read"
+        );
     });
 }
 

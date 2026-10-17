@@ -276,9 +276,8 @@ fn with_no_effect_service_every_entry_is_marked_passthrough() {
         );
     }
 }
-/// The class closed below is "a slot the inspector cannot reach". Colour and vec2
-/// slots have no constant command, so they were unreachable while every other slot
-/// was a stepper. The slot list is read from the catalog at run time, so a new
+/// The class closed below is "a slot the inspector cannot reach": colour and vec2
+/// slots were once unreachable while every other slot was a stepper. The slot list is read from the catalog at run time, so a new
 /// colour or vec2 parameter is covered here without a second list, and a new
 /// parameter kind turns the projection test red.
 
@@ -386,19 +385,25 @@ fn every_colour_and_vec2_slot_sets_clamps_resets_and_undoes() {
         "the catalog has no colour or vec2 slot: this test proves nothing"
     );
 }
-/// A colour write lands at the playhead when it is over the clip, and at the clip
-/// start otherwise, so setting a colour from elsewhere in the sequence means the
-/// clip's colour rather than a keyframe on a tick the clip does not own.
+/// A write keeps a constant slot constant and keys an animated one where the
+/// row reads: the playhead, held inside the clip. Before, every colour write was
+/// a keyframe, so picking a swatch grew a curve on a slot that had none; and an
+/// off-clip edit of an animated property was written as a constant, which
+/// flattened its curve. Each kind of keyframeable slot is driven through its
+/// own setter, so a setter that bypasses the shared landing turns this red.
 #[test]
-fn a_non_scalar_write_lands_at_the_playhead_or_at_the_clip_start() {
-    use crate::app::clip_effects::color_params;
+fn an_effect_write_keeps_a_constant_slot_constant_and_keys_an_animated_one() {
+    use crate::app::clip_effects::{color_params, vec2_params};
+    use aria_models::{ClipParam, RationalTime};
 
     let (mut state, clip) = with_clip();
     state.add_effect_to_selected("color_overlay").expect("add");
-    let (slot, _) = color_params("color_overlay")
+    let (color, _) = color_params("color_overlay")
         .first()
         .expect("color_overlay has a colour slot");
-
+    let points = vec2_params("color_overlay");
+    let (vec, vec_spec) = points.first().expect("color_overlay has a vec2 slot");
+    let rate = state.store.sequence.frame_rate;
     let (start, end) = state
         .store
         .sequence
@@ -409,26 +414,77 @@ fn a_non_scalar_write_lands_at_the_playhead_or_at_the_clip_start() {
         .map(|c| (c.timeline_start_ticks, c.timeline_end_ticks))
         .expect("clip bounds");
     assert!(end - start > 4, "the fixture clip must span several ticks");
+    let slot = |slot: usize| ClipParam::Effect {
+        effect: 0,
+        param: slot as u32,
+    };
+    let keys = |state: &crate::app::AppState, slot: ClipParam| -> Vec<i64> {
+        state
+            .keyframes_of(slot)
+            .iter()
+            .map(|mark| mark.tick)
+            .collect()
+    };
 
-    // Playhead off the clip: the write must still be the clip's colour, which the
-    // projection reads at the clip's first tick.
-    state.playhead = aria_models::RationalTime::new(end + 10, state.store.sequence.frame_rate);
+    // Constant: a write anywhere, on or off the clip, is the slot's value and
+    // grows no curve.
+    state.playhead = RationalTime::new(end + 10, rate);
     let far = [220, 60, 60, 255];
     state
-        .set_selected_effect_color(0, slot, far)
-        .expect("off-clip write");
-    assert_eq!(state.selected_effect_color(0, slot), Some(far));
-
-    // Playhead inside the clip: the write is a keyframe there, so the value at the
-    // clip's first tick is unchanged.
-    state.playhead = aria_models::RationalTime::new(end - 1, state.store.sequence.frame_rate);
+        .set_selected_effect_color(0, color, far)
+        .expect("off-clip");
+    state.playhead = RationalTime::new(start + 1, rate);
+    assert_eq!(state.selected_effect_color(0, color), Some(far));
     let near = [60, 120, 230, 255];
     state
-        .set_selected_effect_color(0, slot, near)
-        .expect("on-clip write");
+        .set_selected_effect_color(0, color, near)
+        .expect("on-clip");
+    assert_eq!(state.selected_effect_color(0, color), Some(near));
     assert_eq!(
-        state.selected_effect_color(0, slot),
+        keys(&state, slot(color)),
+        Vec::<i64>::new(),
+        "a constant colour grew keys"
+    );
+    let point = [vec_spec.min, vec_spec.max];
+    state.set_selected_effect_vec2(0, vec, point).expect("vec2");
+    assert_eq!(
+        keys(&state, slot(vec)),
+        Vec::<i64>::new(),
+        "a constant vec2 grew keys"
+    );
+
+    // Animated: the stopwatch pins the current value at the clip start, and an
+    // edit from past the clip's end keys its last frame, leaving the start alone.
+    state.playhead = RationalTime::new(start, rate);
+    state
+        .add_keyframe_at_playhead(slot(color))
+        .expect("animate");
+    state.add_keyframe_at_playhead(slot(vec)).expect("animate");
+    state.playhead = RationalTime::new(end + 10, rate);
+    state
+        .set_selected_effect_color(0, color, far)
+        .expect("off-clip key");
+    let moved = [vec_spec.max, vec_spec.min];
+    state
+        .set_selected_effect_vec2(0, vec, moved)
+        .expect("off-clip key");
+    assert_eq!(keys(&state, slot(color)), vec![start, end - 1]);
+    assert_eq!(keys(&state, slot(vec)), vec![start, end - 1]);
+    assert_eq!(
+        state.selected_effect_color(0, color),
         Some(far),
-        "a keyframe at the end of the clip must not move the clip's first tick"
+        "reads the held last frame"
+    );
+    assert_eq!(state.selected_effect_vec2(0, vec), Some(moved));
+    state.playhead = RationalTime::new(start, rate);
+    assert_eq!(
+        state.selected_effect_color(0, color),
+        Some(near),
+        "the start moved"
+    );
+    assert_eq!(
+        state.selected_effect_vec2(0, vec),
+        Some(point),
+        "the start moved"
     );
 }

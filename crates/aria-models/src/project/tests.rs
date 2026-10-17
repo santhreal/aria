@@ -115,6 +115,9 @@ mod style_params;
 #[path = "tests_add_transition.rs"]
 mod add_transition;
 
+#[path = "tests_missing_plugin.rs"]
+mod missing_plugin;
+
 #[path = "tests_add_clip.rs"]
 mod add_clip;
 
@@ -133,6 +136,9 @@ mod shift_clips;
 #[path = "tests_look_setters.rs"]
 mod look_setters;
 
+#[path = "tests_mask_stack.rs"]
+mod mask_stack;
+
 #[path = "tests_pool_position.rs"]
 mod pool_position;
 
@@ -144,3 +150,21 @@ mod pool_cadence;
 
 #[path = "tests_bake.rs"]
 mod bake;
+
+#[path = "tests_drivers.rs"]
+mod drivers;
+
+#[path = "tests_line_param.rs"]
+mod line_param;
+
+#[path = "tests_link_drift.rs"]
+mod link_drift;
+
+#[path = "tests_attributes.rs"]
+mod attributes;
+
+#[path = "tests_parent.rs"]
+mod parent;
+
+#[path = "tests_layer_refs.rs"]
+mod layer_refs;

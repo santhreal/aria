@@ -97,28 +97,40 @@ use serde::{Deserialize, Serialize};
 ///     stretch, because a project longer than one description is now
 ///     described around the playhead and says how many clips it left out
 ///     rather than serializing every clip on every turn.
-pub const TOOL_SCHEMA_VERSION: u32 = 48;
+/// 49: `set_param_driver` attaches an `aria.expressions` driver to any
+///     animatable property, or removes one.
+/// 50: the grade gains whites, blacks, vibrance, faded film, the RGB curves,
+///     the hue curves and the HSL secondary, as `set_clip_adjustments`
+///     arguments and as animatable look properties.
+/// 51: mask stacks — a clip holds up to 32 masks, each with a `mode`,
+///     `opacity` and `expansion`. `add_clip_mask`, `set_clip_mask` (by
+///     `index`), `remove_clip_mask` and `move_clip_mask` edit the stack, and
+///     the `mask` keyframe param (`index` plus `param`) replaces the look's
+///     `mask_*` params.
+pub const TOOL_SCHEMA_VERSION: u32 = 51;
 
 mod dtos;
 mod tools;
 
 pub(crate) use dtos::MAX_MULTI_CLIP_REFS;
 pub use dtos::{
-    AddClip, AddEffect, AddGenerated, AddMarker, AddSend, AddTrack, AddTransition,
-    ApplyEasingPreset, DuplicateClip, ExtractAudio, FitToFill, LinkClips, MoveClip, MoveEffect,
-    OverwriteClip, RemoveClip, RemoveEffect, RemoveMarker, RemoveParamKeyframe, RemoveSend,
-    RemoveTrack, RemoveTransition, RenderAndReplace, RestoreUnrendered, RippleDelete, RippleInsert,
-    SetAudioRole, SetCanvas, SetClipAdjustments, SetClipAnimation, SetClipAudio, SetClipBlendMode,
-    SetClipChroma, SetClipCrop, SetClipFilter, SetClipLayerStyles, SetClipMask, SetClipMatte,
-    SetClipPitch, SetClipSpeed, SetClipStabilize, SetClipTransform, SetDenoise, SetEffectParam,
-    SetGenerator, SetMarker, SetMotionBlur, SetParamConstant, SetParamKeyframe, SetSend,
-    SetSpeedCurve, SetTrackEnabled, SetTrackGain, SetTrackLocked, SetTrackMuted, SetTrackOutput,
-    SetTrackSyncLock, SetTrackTargeted, SetTransition, ShiftClips, SplitClip, TrimClip,
-    UnlinkClips, WireAnimationSlot, WireAudioRole, WireBlendMode, WireCanvasAspect, WireChromaKey,
+    AddClip, AddClipMask, AddEffect, AddGenerated, AddMarker, AddSend, AddTrack, AddTransition,
+    ApplyEasingPreset, DuplicateClip, ExtractAudio, FitToFill, LinkClips, MoveClip, MoveClipMask,
+    MoveEffect, OverwriteClip, RemoveClip, RemoveClipMask, RemoveEffect, RemoveMarker,
+    RemoveParamKeyframe, RemoveSend, RemoveTrack, RemoveTransition, RenderAndReplace,
+    RestoreUnrendered, RippleDelete, RippleInsert, SetAudioRole, SetCanvas, SetClipAdjustments,
+    SetClipAnimation, SetClipAudio, SetClipBlendMode, SetClipChroma, SetClipCrop, SetClipFilter,
+    SetClipLayerStyles, SetClipMask, SetClipMatte, SetClipPitch, SetClipSpeed, SetClipStabilize,
+    SetClipTransform, SetDenoise, SetEffectParam, SetGenerator, SetMarker, SetMotionBlur,
+    SetParamConstant, SetParamDriver, SetParamKeyframe, SetSend, SetSpeedCurve, SetTrackEnabled,
+    SetTrackGain, SetTrackLocked, SetTrackMuted, SetTrackOutput, SetTrackSyncLock,
+    SetTrackTargeted, SetTransition, ShiftClips, SplitClip, TrimClip, UnlinkClips,
+    WireAnimationSlot, WireAudioRole, WireBlendMode, WireCanvasAspect, WireChromaKey,
     WireClipParam, WireEasing, WireEasingPreset, WireFilter, WireGenerator, WireLayerBackground,
     WireLayerGlow, WireLayerOutline, WireLayerShadow, WireLayerStyles, WireLookParam,
-    WireMarkerColor, WireMask, WireMaskKind, WireMatteSource, WireScale, WireShape, WireShapeParam,
-    WireStabilizeLevel, WireStyleParam, WireTextParam, WireTrackKind, WireTrackMatte,
+    WireMarkerColor, WireMask, WireMaskKind, WireMaskMode, WireMaskParam, WireMatteSource,
+    WireScale, WireShape, WireShapeParam, WireStabilizeLevel, WireStyleParam, WireTextParam,
+    WireTrackKind, WireTrackMatte,
 };
 pub use tools::{ToolGroup, ToolSpec, describe_project_spec};
 
@@ -284,6 +296,7 @@ wire_tool_registry! {
         "set_param_keyframe" => SetParamKeyframe(SetParamKeyframe);
         "remove_param_keyframe" => RemoveParamKeyframe(RemoveParamKeyframe);
         "set_param_constant" => SetParamConstant(SetParamConstant);
+        "set_param_driver" => SetParamDriver(SetParamDriver);
         "apply_easing_preset" => ApplyEasingPreset(ApplyEasingPreset);
     }
     retime {
@@ -306,7 +319,10 @@ wire_tool_registry! {
     look {
         "set_clip_transform" => SetClipTransform(SetClipTransform);
         "set_clip_crop" => SetClipCrop(SetClipCrop);
+        "add_clip_mask" => AddClipMask(AddClipMask);
         "set_clip_mask" => SetClipMask(SetClipMask);
+        "remove_clip_mask" => RemoveClipMask(RemoveClipMask);
+        "move_clip_mask" => MoveClipMask(MoveClipMask);
         "set_clip_chroma" => SetClipChroma(SetClipChroma);
         "set_clip_matte" => SetClipMatte(SetClipMatte);
         "set_clip_stabilize" => SetClipStabilize(SetClipStabilize);
@@ -386,13 +402,17 @@ impl WireCommand {
             WireCommand::SetParamKeyframe(a) => clip(&mut a.clip),
             WireCommand::RemoveParamKeyframe(a) => clip(&mut a.clip),
             WireCommand::SetParamConstant(a) => clip(&mut a.clip),
+            WireCommand::SetParamDriver(a) => clip(&mut a.clip),
             WireCommand::ApplyEasingPreset(a) => clip(&mut a.clip),
             WireCommand::SetClipSpeed(a) => clip(&mut a.clip),
             WireCommand::SetSpeedCurve(a) => clip(&mut a.clip),
             WireCommand::SetClipPitch(a) => clip(&mut a.clip),
             WireCommand::SetClipAudio(a) => clip(&mut a.clip),
             WireCommand::SetDenoise(a) => clip(&mut a.clip),
+            WireCommand::AddClipMask(a) => clip(&mut a.clip),
             WireCommand::SetClipMask(a) => clip(&mut a.clip),
+            WireCommand::RemoveClipMask(a) => clip(&mut a.clip),
+            WireCommand::MoveClipMask(a) => clip(&mut a.clip),
             WireCommand::SetClipChroma(a) => clip(&mut a.clip),
             WireCommand::SetClipMatte(a) => clip(&mut a.clip),
             WireCommand::SetClipStabilize(a) => clip(&mut a.clip),

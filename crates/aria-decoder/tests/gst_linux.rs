@@ -5,10 +5,10 @@
 
 #![cfg(target_os = "linux")]
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-use aria_core::{RationalTime, VideoDecoder};
-use aria_decoder::{GstDecoder, OutputMode, open_audio_reader, probe};
+use aria_core::{PixelFormat, RationalTime, VideoDecoder, VideoFrame};
+use aria_decoder::{AheadDecoder, GstDecoder, OutputMode, open_audio_reader, probe};
 
 fn fixture() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/opengop_h264.mp4")
@@ -99,4 +99,201 @@ fn audio_reader_opens_or_names_missing_track() {
             );
         }
     }
+}
+
+/// The 30 fps fixture the render and engine tests use: an IDR every 30
+/// frames, with B-frames.
+fn gop_fixture() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/fixture-640x360-30fps-3s.mp4")
+}
+
+/// A frame's time in nanoseconds and an FNV-1a hash of its visible pixel
+/// bytes. Row padding past the visible width is left out: a decoder's buffer
+/// pool does not clear it, so it differs between two decodes of one frame.
+fn identity(frame: &VideoFrame) -> (i64, u64) {
+    let ns = i128::from(frame.pts.value) * 1_000_000_000 * i128::from(frame.pts.rate.den)
+        / i128::from(frame.pts.rate.num);
+    let mut hash = 0xcbf2_9ce4_8422_2325u64;
+    let image = frame.cpu().expect("Cpu mode yields CPU frames");
+    let width = frame.visible.width as usize;
+    let sample = frame.format.bytes_per_sample();
+    for (index, plane) in image.planes.iter().enumerate() {
+        let row = match frame.format {
+            PixelFormat::Rgba8 | PixelFormat::Bgra8 => width * 4,
+            PixelFormat::Yuv420p if index > 0 => width.div_ceil(2),
+            _ if index > 0 => width.next_multiple_of(2) * sample,
+            _ => width * sample,
+        }
+        .min(plane.stride);
+        for line in plane.data.chunks(plane.stride.max(1)).take(plane.rows) {
+            for byte in &line[..row.min(line.len())] {
+                hash ^= u64::from(*byte);
+                hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+            }
+        }
+    }
+    (
+        i64::try_from(ns).expect("fixture times fit in i64 ns"),
+        hash,
+    )
+}
+
+fn open(path: &Path) -> GstDecoder {
+    GstDecoder::open(path, OutputMode::Cpu).expect("open decoder")
+}
+
+/// Sequential decode presents the first frame at zero and each later frame
+/// one frame period after the one before, once.
+///
+/// Closes two defects of H.264 files with B-frames, whose MP4 edit list
+/// starts buffer timestamps two frames in: frames were labeled with the raw
+/// buffer time, so every frame showed two frames late against seek targets,
+/// and the preroll sample was returned twice, so frame 0 decoded twice. Does
+/// not cover variable-frame-rate files.
+#[test]
+fn sequential_frames_start_at_zero_one_per_frame_period() {
+    for (path, frames) in [(fixture(), 240), (gop_fixture(), 90)] {
+        let mut decoder = open(&path);
+        let rate = decoder.info().frame_rate;
+        let mut ticks = Vec::new();
+        while let Some(frame) = decoder.next_frame().expect("decode") {
+            ticks.push(aria_core::resample(frame.pts, rate).value);
+        }
+        let expected: Vec<i64> = (0..frames).collect();
+        assert_eq!(ticks, expected, "{}", path.display());
+    }
+}
+
+/// Every way a caller reaches a frame returns the frame sequential decode
+/// returns at that time: `frame_at` stepping forward (rolling), stepping
+/// backward (a seek per call), on a fresh decoder, and the decode-ahead
+/// wrapper in both directions.
+///
+/// Defends playback and export against showing a different frame than a
+/// paused seek shows at the same time, which reads as a flash at a GOP
+/// boundary. Does not cover GPU frames or files with variable frame rates.
+#[test]
+fn every_access_path_returns_the_sequential_frame() {
+    let mut wrong = Vec::new();
+    for path in [fixture(), gop_fixture()] {
+        let mut decoder = open(&path);
+        let mut sequential = Vec::new();
+        let mut times = Vec::new();
+        while let Some(frame) = decoder.next_frame().expect("decode") {
+            sequential.push(identity(&frame));
+            times.push(frame.pts);
+        }
+        assert!(
+            sequential.len() > 30,
+            "{} decoded too few frames",
+            path.display()
+        );
+        let at = |tick: usize| times[tick];
+        let first_pts = sequential[0].0;
+        let name = path
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned());
+        let mut check = |how: &str, tick: usize, frame: Option<VideoFrame>| {
+            let got = frame.as_ref().map(identity);
+            if got != Some(sequential[tick]) {
+                wrong.push(format!(
+                    "{name:?} {how} tick {tick}: got {:?}, sequential {:?}",
+                    got.map(|(ns, _)| ns - first_pts),
+                    sequential[tick].0 - first_pts
+                ));
+            }
+        };
+        let ticks = 0..sequential.len();
+        let mut forward = open(&path);
+        for tick in ticks.clone() {
+            check("forward", tick, forward.frame_at(at(tick)).expect("decode"));
+        }
+        let mut backward = open(&path);
+        for tick in ticks.clone().rev() {
+            check(
+                "backward",
+                tick,
+                backward.frame_at(at(tick)).expect("decode"),
+            );
+        }
+        for tick in ticks.clone().step_by(7) {
+            check(
+                "cold",
+                tick,
+                open(&path).frame_at(at(tick)).expect("decode"),
+            );
+        }
+        let mut ahead = AheadDecoder::new(Box::new(open(&path)));
+        for tick in ticks.clone() {
+            check(
+                "ahead forward",
+                tick,
+                ahead.frame_at(at(tick)).expect("decode"),
+            );
+        }
+        for tick in ticks.clone().rev() {
+            check(
+                "ahead backward",
+                tick,
+                ahead.frame_at(at(tick)).expect("decode"),
+            );
+        }
+    }
+    assert!(
+        wrong.is_empty(),
+        "{} frames differ from sequential decode:\n{}",
+        wrong.len(),
+        wrong.join("\n")
+    );
+}
+
+/// A seek lands on a frame sequential decode returns, at or before its
+/// target, for every target in the file.
+///
+/// Defends against a seek onto an open-GOP sync sample that is not an IDR:
+/// the decoder flags the frames after it corrupt, and the ones it returns
+/// after them differ from sequential decode. Does not cover GPU frames.
+#[test]
+fn every_seek_lands_on_a_sequential_frame_at_or_before_its_target() {
+    let mut wrong = Vec::new();
+    for path in [fixture(), gop_fixture()] {
+        let mut decoder = open(&path);
+        let rate = decoder.info().frame_rate;
+        // The frame tick and pixels: a leading frame returned after a seek can
+        // have a time that differs from its sequential one inside its tick.
+        let id = |frame: &VideoFrame| {
+            (
+                aria_core::resample(frame.pts, rate).value,
+                identity(frame).1,
+            )
+        };
+        let mut sequential = Vec::new();
+        let mut times = Vec::new();
+        while let Some(frame) = decoder.next_frame().expect("decode") {
+            sequential.push(id(&frame));
+            times.push(frame.pts);
+        }
+        let name = path
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned());
+        let mut seeking = open(&path);
+        for (tick, &at) in times.iter().enumerate().rev() {
+            seeking.seek(at).expect("seek");
+            let landed = seeking.next_frame().expect("decode").map(|f| id(&f));
+            match landed.and_then(|id| sequential.iter().position(|seq| *seq == id)) {
+                Some(index) if index <= tick => {}
+                Some(index) => wrong.push(format!("{name:?} seek {tick}: landed on {index}")),
+                None => wrong.push(format!(
+                    "{name:?} seek {tick}: landed on a frame sequential decode never returns"
+                )),
+            }
+        }
+    }
+    assert!(
+        wrong.is_empty(),
+        "{} seeks landed wrong:\n{}",
+        wrong.len(),
+        wrong.join("\n")
+    );
 }

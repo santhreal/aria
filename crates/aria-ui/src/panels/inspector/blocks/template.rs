@@ -19,7 +19,7 @@ use crate::surfaces::clip_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::{UiClip, UiClipKind};
 
-use super::widgets::{audio_row, section_label};
+use super::widgets::{Readout, audio_row, section_label};
 
 pub fn template_block(
     theme: &Theme,
@@ -102,7 +102,7 @@ pub fn template_block(
         .when(clip.media_id.is_some() && !replace_rows.is_empty(), |el| {
             el.child(
                 div()
-                    .text_size(px(11.))
+                    .text_size(Theme::TEXT_UI)
                     .text_color(theme.text_faint)
                     .child("Replace media"),
             )
@@ -133,7 +133,7 @@ pub fn template_block(
         .when_some(slot, |el, slot| {
             el.child(
                 div()
-                    .text_size(px(11.))
+                    .text_size(Theme::TEXT_UI)
                     .text_color(theme.text_faint)
                     .child(format!(
                         "Slot {} — {} — {}",
@@ -144,13 +144,11 @@ pub fn template_block(
             )
             .child(audio_row(
                 theme,
+                &state,
                 crate::motion::MotionKey::new("insp.row", "inspector-slot-order"),
                 "Fill order",
-                format!("{}", slot.order),
-                1.0,
-                |state, step| {
-                    clip_pick::apply(state, Pick::SlotOrder(if step >= 0.0 { 1 } else { -1 }))
-                },
+                Readout::number(slot.order as f32, 0, 1.0),
+                |state, by| clip_pick::apply(state, Pick::SlotOrder(by.round() as i32)),
                 cx,
             ))
             .children(accepts_chips)

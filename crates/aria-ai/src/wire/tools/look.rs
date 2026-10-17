@@ -2,14 +2,19 @@
 //! constants behind the inspector, each animatable through the keyframe
 //! tools.
 
-
 tool_group! {
     "set_clip_transform" => SetClipTransform(SetClipTransform),
         "Change a clip's placement on the canvas: position, scale (number for uniform or [x, y] for per-axis), rotation, opacity. Omitted fields keep their current value. Not valid on audio tracks.";
     "set_clip_crop" => SetClipCrop(SetClipCrop),
         "Crop a clip to a sub-region of its frame (fractions trimmed off each edge; 0 restores an edge) and/or mirror it with flip_h / flip_v. Omitted fields keep their current value. Not valid on audio tracks.";
+    "add_clip_mask" => AddClipMask(AddClipMask),
+        "Append a shaped alpha mask to the bottom of a visual clip's mask stack: footage, a still, a title, a shape, a sticker, an animation or an adjustment layer. A clip holds up to 32 masks. Mask kinds: linear, mirror, circle, rectangle, heart, star. Modes: add (default), subtract, intersect, lighten, darken, difference, none (kept but switched off); the stack applies top to bottom and each mask combines with the coverage above it. Optional constants: feather (0..1), invert, opacity (0..1, default 1), expansion in reference pixels (negative shrinks), center/size as fractions of the layer, rotation in degrees clockwise, roundness (0..1, rectangle only). Animate with set_param_keyframe using the mask param ({index, param}: feather, center, size, rotation, roundness, opacity, expansion).";
     "set_clip_mask" => SetClipMask(SetClipMask),
-        "Set or clear a shaped alpha mask on a media-backed visual clip. Mask kinds: linear, mirror, circle, rectangle, heart, star. Optional constants: feather (0..1), invert, center/size as fractions of the layer, rotation in degrees clockwise, roundness (0..1, rectangle only). Omitted geometry uses defaults. Constants only — animate with set_param_keyframe using look params (mask_feather, mask_center, mask_size, mask_rotation, mask_roundness). Pass null for mask to clear.";
+        "Replace the mask at index (0 = top) in a visual clip's mask stack. Takes the same mask object as add_clip_mask; omitted fields use their defaults, and the new constants replace any keyframes on that mask.";
+    "remove_clip_mask" => RemoveClipMask(RemoveClipMask),
+        "Remove the mask at index (0 = top) from a clip's mask stack. The masks below it move up one place.";
+    "move_clip_mask" => MoveClipMask(MoveClipMask),
+        "Move one mask within a clip's mask stack, which changes how the stack combines. Both indices address the stack before the move; to_index is the mask's final position (0 = top).";
     "set_clip_chroma" => SetClipChroma(SetClipChroma),
         "Set or clear chroma keying (green screen) on a media-backed visual clip. Pass null for chroma to clear.";
     "set_clip_matte" => SetClipMatte(SetClipMatte),
@@ -73,28 +78,85 @@ pub(super) const CASES: &[ToolCase] = &[
         refusal: "left must be a fraction between 0 and 1",
     },
     ToolCase {
-        tool: "set_clip_mask",
+        tool: "add_clip_mask",
         args: |f| {
             serde_json::json!({
                 "clip": f.clip,
-                "mask": { "kind": "circle", "feather": 0.25 },
+                "mask": {
+                    "kind": "circle",
+                    "feather": 0.25,
+                    "mode": "subtract",
+                    "opacity": 0.5,
+                    "expansion": -8.0,
+                },
             })
         },
         expect: Expect::Edit(|f| {
             let mut mask = aria_models::Mask::new(aria_models::MaskKind::Circle);
             mask.feather = aria_models::Param::Constant(0.25);
-            aria_commands::EditCommand::SetClipMask {
+            mask.mode = aria_models::MaskMode::Subtract;
+            mask.opacity = aria_models::Param::Constant(0.5);
+            mask.expansion = aria_models::Param::Constant(-8.0);
+            aria_commands::EditCommand::AddClipMask {
                 clip: f.clip_id(f.clip),
-                mask: Some(mask),
+                mask,
             }
         }),
         invalid: |f| {
             serde_json::json!({
                 "clip": f.clip,
+                "mask": { "kind": "circle", "opacity": 1.5 },
+            })
+        },
+        refusal: "mask opacity must be between 0 and 1",
+    },
+    ToolCase {
+        tool: "set_clip_mask",
+        args: |f| {
+            serde_json::json!({
+                "clip": f.next,
+                "index": 1,
+                "mask": { "kind": "star", "invert": true },
+            })
+        },
+        expect: Expect::Edit(|f| {
+            let mut mask = aria_models::Mask::new(aria_models::MaskKind::Star);
+            mask.invert = true;
+            aria_commands::EditCommand::SetClipMask {
+                clip: f.clip_id(f.next),
+                index: 1,
+                mask,
+            }
+        }),
+        invalid: |f| {
+            serde_json::json!({
+                "clip": f.next,
+                "index": 1,
                 "mask": { "kind": "circle", "feather": 4.0 },
             })
         },
         refusal: "mask feather must be between 0 and 1",
+    },
+    ToolCase {
+        tool: "remove_clip_mask",
+        args: |f| serde_json::json!({ "clip": f.next, "index": 0 }),
+        expect: Expect::Edit(|f| aria_commands::EditCommand::RemoveClipMask {
+            clip: f.clip_id(f.next),
+            index: 0,
+        }),
+        invalid: |f| serde_json::json!({ "clip": f.next, "index": 2 }),
+        refusal: "has no mask at index 2 (stack length 2)",
+    },
+    ToolCase {
+        tool: "move_clip_mask",
+        args: |f| serde_json::json!({ "clip": f.next, "from_index": 0, "to_index": 1 }),
+        expect: Expect::Edit(|f| aria_commands::EditCommand::MoveClipMask {
+            clip: f.clip_id(f.next),
+            from_index: 0,
+            to_index: 1,
+        }),
+        invalid: |f| serde_json::json!({ "clip": f.next, "from_index": 1, "to_index": 1 }),
+        refusal: "move_clip_mask would make no change",
     },
     ToolCase {
         tool: "set_clip_chroma",
@@ -263,9 +325,7 @@ pub(super) const CASES: &[ToolCase] = &[
                 stagger: aria_models::ANIMATION_PARAM_DEFAULT,
             }),
         }),
-        invalid: |f| {
-            serde_json::json!({ "clip": f.clip, "slot": "in", "animation": "warp_drive" })
-        },
+        invalid: |f| serde_json::json!({ "clip": f.clip, "slot": "in", "animation": "warp_drive" }),
         refusal: "unknown animation 'warp_drive'",
     },
 ];

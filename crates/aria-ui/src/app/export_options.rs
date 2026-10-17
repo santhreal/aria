@@ -165,7 +165,7 @@ impl ExportBitrate {
 }
 
 /// Every choice the export sheet offers.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExportOptions {
     pub scale: ExportScale,
     pub rate: ExportRate,
@@ -179,6 +179,8 @@ pub struct ExportOptions {
     pub codec: VideoCodec,
     /// Target video bitrate. Only selectable where the encoder honours one.
     pub bitrate: ExportBitrate,
+    /// Registered plugin encoder id, or `None` for the platform encoder.
+    pub plugin_encoder: Option<String>,
 }
 
 impl Default for ExportOptions {
@@ -191,6 +193,7 @@ impl Default for ExportOptions {
             marked_range: false,
             codec: VideoCodec::default(),
             bitrate: ExportBitrate::Encoder,
+            plugin_encoder: None,
         }
     }
 }
@@ -216,6 +219,81 @@ impl AppState {
 
     pub fn toggle_export_audio(&mut self) {
         self.export_options.audio = !self.export_options.audio;
+    }
+
+    /// Select a registered plugin encoder by id, or `None` for the platform
+    /// encoder.
+    pub fn select_export_plugin_encoder(&mut self, encoder_id: Option<String>) {
+        self.export_options.plugin_encoder = encoder_id;
+    }
+
+    /// Cycle the export format across the platform encoder (`None`) and all
+    /// currently registered plugin encoders in registration order.
+    pub fn cycle_export_format(&mut self) {
+        let encoders = self.ctx.encoders();
+        if encoders.is_empty() {
+            self.export_options.plugin_encoder = None;
+            return;
+        }
+        let mut choices: Vec<Option<String>> = Vec::with_capacity(1 + encoders.len());
+        choices.push(None);
+        for spec in encoders {
+            choices.push(Some(spec.id.clone()));
+        }
+        let at = choices
+            .iter()
+            .position(|item| *item == self.export_options.plugin_encoder)
+            .unwrap_or(0);
+        self.export_options.plugin_encoder = choices[(at + 1) % choices.len()].clone();
+    }
+
+    /// The active plugin encoder spec when `plugin_encoder` names a mounted
+    /// encoder. Reads `self.ctx` directly without locking `self.engine`.
+    pub fn active_plugin_encoder(&self) -> Option<std::sync::Arc<aria_plugin::EncoderSpec>> {
+        self.export_options
+            .plugin_encoder
+            .as_deref()
+            .and_then(|id| self.ctx.encoder(id))
+    }
+
+    /// File extension (without leading dot) for the active export format.
+    pub fn export_extension(&self) -> String {
+        self.active_plugin_encoder()
+            .map_or_else(|| "mp4".to_string(), |spec| spec.extension.clone())
+    }
+
+    /// Label for the Format row in the Export dialog.
+    pub fn export_format_label(&self) -> String {
+        if let Some(spec) = self.active_plugin_encoder() {
+            return format!("{} (.{})", spec.name, spec.extension);
+        }
+        if let Some(id) = self.export_options.plugin_encoder.as_deref() {
+            return format!("{id} (unmounted)");
+        }
+        format_label(self.export_options.codec)
+    }
+
+    /// Label for the Encoder row in the Export dialog.
+    pub fn export_encoder_label(&self) -> String {
+        if let Some(spec) = self.active_plugin_encoder() {
+            return spec.id.clone();
+        }
+        if let Some(id) = self.export_options.plugin_encoder.as_deref() {
+            return id.to_string();
+        }
+        aria_encoder::capability().backend.to_string()
+    }
+
+    /// Whether the Export dialog should show the Codec and Bitrate rows.
+    /// Hidden when a plugin encoder is selected.
+    pub fn export_shows_codec_and_bitrate(&self) -> bool {
+        self.export_options.plugin_encoder.is_none()
+    }
+
+    /// Whether the Export dialog should show the Audio toggle row.
+    /// Hidden when a selected plugin encoder does not support audio.
+    pub fn export_shows_audio_toggle(&self) -> bool {
+        self.active_plugin_encoder().is_none_or(|spec| spec.audio)
     }
 
     /// Step to the next codec this build's encoder can write.
@@ -286,7 +364,7 @@ impl AppState {
             size: Some(self.export_options.scale.apply(native)),
             frame_rate: Some(self.export_options.rate.resolve(project_rate)),
             keyframe_interval: self.export_options.gop.frames(),
-            audio: Some(self.export_options.audio),
+            audio: Some(self.export_shows_audio_toggle() && self.export_options.audio),
             range: self
                 .export_options
                 .marked_range
@@ -311,9 +389,15 @@ impl AppState {
     /// starts the export, which reports it by name.
     pub fn export_settings(&self) -> ExportSettings {
         let format = self.export_format();
+        let plugin_audio = self.active_plugin_encoder().map(|spec| spec.audio);
         let engine = self.engine().lock();
-        ExportSettings::resolved(engine.project(), format)
-            .unwrap_or_else(|_| ExportSettings::for_project(engine.project()))
+        let resolved = match plugin_audio {
+            Some(supports_audio) => {
+                ExportSettings::resolved_for_encoder(engine.project(), format, supports_audio)
+            }
+            None => ExportSettings::resolved(engine.project(), format),
+        };
+        resolved.unwrap_or_else(|_| ExportSettings::for_project(engine.project()))
     }
 
     /// How the sheet and the status line describe the span being rendered.

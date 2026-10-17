@@ -8,7 +8,7 @@
 //! z-order, transforms, crop) deterministic and unit-testable without a device,
 //! while [`Renderer`](crate::Renderer) does the decode + rasterize + composite.
 
-use aria_compositor::ColorGrade;
+use aria_compositor::{ColorGrade, MaskOp};
 use aria_core::Rational;
 use aria_models::{AnimationSlot, BlendMode, ClipId, MaskKind};
 use aria_text::{TextAlign, TextStyle, TextVerticalAlign};
@@ -69,6 +69,10 @@ pub struct Scene {
     pub tick: RationalTime,
     /// Layers in bottom-to-top stacking order (index 0 draws first).
     pub layers: Vec<SceneLayer>,
+    /// Clips that effects of `layers` read through layer parameters, resolved
+    /// at the same instant. Each draws into the target an effect reads, never
+    /// onto the canvas. A reference read by another reference comes before it.
+    pub references: Vec<SceneLayer>,
 }
 
 impl Scene {
@@ -80,6 +84,20 @@ impl Scene {
             background,
             tick: RationalTime::new(0, Rational::FPS_30),
             layers: Vec::new(),
+            references: Vec::new(),
+        }
+    }
+
+    /// The references, then the layers: the order a frame draws them in.
+    pub fn draw_order(&self) -> impl Iterator<Item = &SceneLayer> {
+        self.references.iter().chain(&self.layers)
+    }
+
+    /// The layer at `index` of [`draw_order`](Self::draw_order).
+    pub fn drawn(&self, index: usize) -> &SceneLayer {
+        match index.checked_sub(self.references.len()) {
+            Some(layer) => &self.layers[layer],
+            None => &self.references[index],
         }
     }
 
@@ -96,7 +114,7 @@ impl Scene {
         }
         self.width = scaled_dim(self.width, factor);
         self.height = scaled_dim(self.height, factor);
-        for layer in &mut self.layers {
+        for layer in self.references.iter_mut().chain(&mut self.layers) {
             scale_layer(layer, factor);
         }
     }
@@ -127,13 +145,12 @@ impl Scene {
         let (cw, ch) = (self.width as f32, self.height as f32);
         let factor = (width as f32 / cw).min(height as f32 / ch);
         self.scale(factor);
-        let dx = (width as f32 - cw * factor) * 0.5;
-        let dy = (height as f32 - ch * factor) * 0.5;
-        for layer in &mut self.layers {
-            layer.center = [layer.center[0] + dx, layer.center[1] + dy];
-            for pass in &mut layer.blur_passes {
-                pass.center = [pass.center[0] + dx, pass.center[1] + dy];
-            }
+        let shift = [
+            (width as f32 - cw * factor) * 0.5,
+            (height as f32 - ch * factor) * 0.5,
+        ];
+        for layer in self.references.iter_mut().chain(&mut self.layers) {
+            translate_layer(layer, shift);
         }
         self.width = width;
         self.height = height;
@@ -157,12 +174,49 @@ fn scaled_dim(dim: u32, factor: f32) -> u32 {
     ((dim as f32 * factor).round() as u32).max(1)
 }
 
+/// Move one layer by `shift` canvas pixels, and any layer that draws on the
+/// canvas in its place.
+///
+/// A transition wrapper and a matte wrapper hold whole layers placed on the
+/// same canvas, so a letterbox shift that moved only the wrapper left the
+/// sides at the unshifted position. A nest is moved as one picture: its
+/// layers are placed on the nest's own canvas, which the shift does not move.
+fn translate_layer(layer: &mut SceneLayer, [dx, dy]: [f32; 2]) {
+    layer.center = [layer.center[0] + dx, layer.center[1] + dy];
+    for pass in &mut layer.blur_passes {
+        pass.center = [pass.center[0] + dx, pass.center[1] + dy];
+    }
+    match &mut layer.source {
+        LayerSource::Transition {
+            outgoing, incoming, ..
+        } => {
+            translate_layer(outgoing, [dx, dy]);
+            translate_layer(incoming, [dx, dy]);
+        }
+        LayerSource::Matte { layers, .. } => {
+            translate_layer(&mut layers[0], [dx, dy]);
+            translate_layer(&mut layers[1], [dx, dy]);
+        }
+        LayerSource::Nest { .. }
+        | LayerSource::CanvasPass
+        | LayerSource::Media { .. }
+        | LayerSource::Still { .. }
+        | LayerSource::Sticker { .. }
+        | LayerSource::Lottie { .. }
+        | LayerSource::Text { .. }
+        | LayerSource::Shape { .. }
+        | LayerSource::PathShape { .. }
+        | LayerSource::Solid(_) => {}
+    }
+}
+
 /// Scale one layer's geometry, and any layer nested inside it.
 ///
 /// A transition wrapper and a matte wrapper both hold whole layers, and those
 /// carry their own canvas placement. Scaling only the wrapper left the content
 /// inside it at the unscaled size, so a preview at fit-to-view drew a
-/// transition or a matte at the export geometry.
+/// transition or a matte at the export geometry. A nest scales its own scene,
+/// so the picture it places keeps the pixel density of the canvas.
 fn scale_layer(layer: &mut SceneLayer, factor: f32) {
     layer.center = [layer.center[0] * factor, layer.center[1] * factor];
     layer.size = match layer.size {
@@ -174,6 +228,12 @@ fn scale_layer(layer: &mut SceneLayer, factor: f32) {
     for pass in &mut layer.blur_passes {
         pass.center = [pass.center[0] * factor, pass.center[1] * factor];
         pass.size = [pass.size[0] * factor, pass.size[1] * factor];
+    }
+    for mask in &mut layer.masks {
+        mask.expansion *= factor;
+    }
+    if let Some(styles) = &mut layer.styles {
+        styles.scale(factor);
     }
     match &mut layer.source {
         // SDF stroke width and AA pad are in canvas pixels.
@@ -196,6 +256,7 @@ fn scale_layer(layer: &mut SceneLayer, factor: f32) {
             scale_layer(&mut layers[0], factor);
             scale_layer(&mut layers[1], factor);
         }
+        LayerSource::Nest { scene, .. } => scene.scale(factor),
         LayerSource::CanvasPass
         | LayerSource::Media { .. }
         | LayerSource::Still { .. }
@@ -235,8 +296,10 @@ pub struct SceneLayer {
     pub uv: [f32; 4],
     /// GPU effect chain sampled at clip-local tick (empty when none).
     pub effects: Vec<ResolvedPass>,
-    /// Shaped alpha mask (media clips only).
-    pub mask: Option<SceneMask>,
+    /// The clip's mask stack, top first, cut out of what the layer draws.
+    /// Empty when the layer has no mask; a mask whose mode is `None` is not
+    /// resolved.
+    pub masks: Vec<SceneMask>,
     /// Green-screen keying (media clips only).
     pub chroma_key: Option<SceneChromaKey>,
     /// Resolved color grade (filter preset + manual adjustments); `None` when
@@ -265,11 +328,18 @@ pub struct SceneLayer {
 ///
 /// Geometry (`center`, `size`, `rotation_rad`, `roundness`) stays in the same
 /// fraction-of-layer units as the model — the compositor consumes those
-/// fractions directly; no canvas-pixel conversion happens here.
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// fractions directly; no canvas-pixel conversion happens here. `expansion`
+/// is in canvas pixels, like a style's width.
+#[derive(Debug, Clone, PartialEq)]
 pub struct SceneMask {
     pub kind: MaskKind,
     pub feather: f32,
+    /// How the mask combines with the masks above it.
+    pub op: MaskOp,
+    /// How much of the combined result replaces the stack above, `0` … `1`.
+    pub opacity: f32,
+    /// Edge offset in canvas pixels, outward when positive.
+    pub expansion: f32,
     /// Mask center offset from the layer center, as a fraction of layer size.
     pub center: [f32; 2],
     /// Mask size as a fraction of layer size (`[1,1]` = cover the layer).
@@ -279,6 +349,10 @@ pub struct SceneMask {
     /// Rectangle corner rounding, `0` … `1`.
     pub roundness: f32,
     pub invert: bool,
+    /// Bezier path vertices in normalized layer fractions (`0..1`) when `kind == MaskKind::Path`.
+    pub path: Vec<aria_shapes::PathPoint>,
+    /// Whether `path` is closed.
+    pub path_closed: bool,
 }
 
 /// Chroma-key values sampled at a clip-local tick.
@@ -346,6 +420,25 @@ impl SceneStyles {
             && self.outline.is_none()
             && self.background.is_none()
     }
+
+    /// Scale every canvas-pixel length by `factor`, as [`Scene::scale`]
+    /// scales the canvas.
+    fn scale(&mut self, factor: f32) {
+        if let Some(shadow) = &mut self.shadow {
+            shadow.offset = [shadow.offset[0] * factor, shadow.offset[1] * factor];
+            shadow.blur *= factor;
+        }
+        if let Some(glow) = &mut self.glow {
+            glow.radius *= factor;
+        }
+        if let Some(outline) = &mut self.outline {
+            outline.width *= factor;
+        }
+        if let Some(background) = &mut self.background {
+            background.padding *= factor;
+            background.radius *= factor;
+        }
+    }
 }
 
 impl SceneLayer {
@@ -376,7 +469,7 @@ impl SceneLayer {
     ) -> [f32; 2] {
         let mut center = self.quad_center(size);
         center[0] += match style.align {
-            TextAlign::Left => (size[0] - canvas[0]) * 0.5,
+            TextAlign::Left | TextAlign::Justify => (size[0] - canvas[0]) * 0.5,
             TextAlign::Center => 0.0,
             TextAlign::Right => (canvas[0] - size[0]) * 0.5,
         };

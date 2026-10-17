@@ -10,10 +10,11 @@ publish = false
 
 [lib]
 # The host loads a shared library, so this is the only crate type that matters.
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-aria-plugin = { path = "../../crates/aria-plugin" }
+aria-sdk = { path = "../../crates/aria-sdk" }
+serde_json = { workspace = true }
 
 [lints]
 workspace = true

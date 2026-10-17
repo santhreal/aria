@@ -10,6 +10,26 @@
 
 use super::host::{CommandEntry, WindowedEntry};
 
+/// A row that adds one mask shape to the selected clip's stack.
+///
+/// A macro rather than a loop over `MaskKind::ALL`: a row's body is a function
+/// pointer, and a const table cannot build one per shape at run time.
+/// `every_mask_shape_has_a_palette_row` reads the enum, so a shape added there
+/// without a row here is red.
+macro_rules! add_mask_row {
+    ($id:literal, $label:literal, $kind:ident) => {
+        CommandEntry {
+            id: $id,
+            label: $label,
+            run: |state| {
+                if let Err(err) = state.add_selected_mask(aria_models::MaskKind::$kind) {
+                    state.report_error(&err);
+                }
+            },
+        }
+    };
+}
+
 /// Rows that act on the selected clip, its lane, or a marker.
 pub(super) const CLIP_ROWS: &[CommandEntry] = &[
     CommandEntry {
@@ -115,7 +135,7 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
         id: "pal-mask-invert",
         label: "Invert mask",
         run: |state| {
-            if let Err(err) = state.toggle_selected_mask_invert() {
+            if let Err(err) = state.toggle_active_mask_invert() {
                 state.report_error(&err);
             }
         },
@@ -129,6 +149,13 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
             }
         },
     },
+    add_mask_row!("pal-mask-add-linear", "Add linear mask", Linear),
+    add_mask_row!("pal-mask-add-mirror", "Add mirror mask", Mirror),
+    add_mask_row!("pal-mask-add-circle", "Add circle mask", Circle),
+    add_mask_row!("pal-mask-add-rectangle", "Add rectangle mask", Rectangle),
+    add_mask_row!("pal-mask-add-heart", "Add heart mask", Heart),
+    add_mask_row!("pal-mask-add-star", "Add star mask", Star),
+    add_mask_row!("pal-mask-add-path", "Add path mask", Path),
     CommandEntry {
         id: "pal-chroma-green",
         label: "Key green screen",
@@ -302,7 +329,7 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
         label: "Open one-second gap at playhead",
         run: |state| {
             if let Some(track) = state.selected_track() {
-                let delta = state.store.sequence.frame_rate.num.max(1) as i64;
+                let delta = state.store.sequence.frame_rate.nominal_fps();
                 if let Err(err) = state.shift_clips_from_playhead(track, delta) {
                     state.report_error(&err);
                 }
@@ -314,7 +341,7 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
         label: "Close one-second gap at playhead",
         run: |state| {
             if let Some(track) = state.selected_track() {
-                let delta = state.store.sequence.frame_rate.num.max(1) as i64;
+                let delta = state.store.sequence.frame_rate.nominal_fps();
                 if let Err(err) = state.shift_clips_from_playhead(track, -delta) {
                     state.report_error(&err);
                 }
@@ -349,6 +376,52 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
         id: "pal-marker-prev",
         label: "Previous marker",
         run: |state| state.go_to_prev_marker(),
+    },
+    CommandEntry {
+        id: "pal-clip-enable",
+        label: "Enable",
+        run: |state| {
+            if let Err(err) = state.toggle_enabled_selected() {
+                state.report_error(&err);
+            }
+        },
+    },
+    CommandEntry {
+        id: "pal-group",
+        label: "Group",
+        run: |state| {
+            if let Err(err) = state.group_selected() {
+                state.report_error(&err);
+            }
+        },
+    },
+    CommandEntry {
+        id: "pal-ungroup",
+        label: "Ungroup",
+        run: |state| {
+            if let Err(err) = state.ungroup_selected() {
+                state.report_error(&err);
+            }
+        },
+    },
+    CommandEntry {
+        id: "pal-speed-duration",
+        label: "Speed/Duration…",
+        run: |state| state.open_speed_duration(),
+    },
+    CommandEntry {
+        id: "pal-time-remap",
+        label: "Time Remapping",
+        run: |state| {
+            if let Err(err) = state.toggle_time_remap() {
+                state.report_error(&err);
+            }
+        },
+    },
+    CommandEntry {
+        id: "pal-audio-gain",
+        label: "Audio Gain…",
+        run: |state| state.open_audio_gain(),
     },
 ];
 

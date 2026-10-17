@@ -220,8 +220,8 @@ pub fn backdrop(theme: &Theme) -> AnyElement {
         theme.track_video,
         theme.track_audio,
         theme.track_text,
-        theme.track_shape,
         theme.track_generator,
+        theme.value,
         theme.accent,
     ];
     div()

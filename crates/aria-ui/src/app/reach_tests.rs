@@ -55,6 +55,7 @@ const ROWS: &[(&str, Kind)] = &[
     // Sends a command against one selected clip with the playhead inside it.
     ("pal-split", Edits),
     ("pal-delete", Edits),
+    ("pal-ripple-delete", Edits),
     ("pal-bin-new", Edits),
     ("pal-marker", Edits),
     ("pal-adjustment-layer", Edits),
@@ -65,7 +66,13 @@ const ROWS: &[(&str, Kind)] = &[
     ("pal-grade-reset", Edits),
     ("pal-denoise", Edits),
     ("pal-pitch-lock", Edits),
-    ("pal-mask-clear", Edits),
+    ("pal-mask-add-linear", Edits),
+    ("pal-mask-add-mirror", Edits),
+    ("pal-mask-add-circle", Edits),
+    ("pal-mask-add-rectangle", Edits),
+    ("pal-mask-add-heart", Edits),
+    ("pal-mask-add-star", Edits),
+    ("pal-mask-add-path", Edits),
     ("pal-chroma-green", Edits),
     ("pal-chroma-clear", Edits),
     ("pal-matte-luma", Edits),
@@ -78,6 +85,8 @@ const ROWS: &[(&str, Kind)] = &[
     ("pal-track-solo", Edits),
     ("pal-track-open-gap", Edits),
     ("pal-track-close-gap", Edits),
+    ("pal-clip-enable", Edits),
+    ("pal-time-remap", Edits),
     // Moves the view, opens a route or a dialog, or writes to disk. Undo and
     // redo belong here too: they move the history pointer rather than adding
     // to it.
@@ -88,6 +97,7 @@ const ROWS: &[(&str, Kind)] = &[
     ("pal-open", NoEdit),
     ("pal-new", NoEdit),
     ("pal-export", NoEdit),
+    ("pal-export-frame", NoEdit),
     ("pal-settings", NoEdit),
     ("pal-jobs", NoEdit),
     ("pal-history", NoEdit),
@@ -111,6 +121,8 @@ const ROWS: &[(&str, Kind)] = &[
     ("pal-marker-next", NoEdit),
     ("pal-marker-prev", NoEdit),
     ("pal-shift-selection", NoEdit),
+    ("pal-speed-duration", NoEdit),
+    ("pal-audio-gain", NoEdit),
     // Inert against the fixture rather than broken: it holds one silent 1x1
     // still on one track, with no cut under the playhead, nothing on the
     // clipboard, no marker, no mask, and no keyframe to remove. A row here is
@@ -122,7 +134,10 @@ const ROWS: &[(&str, Kind)] = &[
     ("pal-freeze", NoEdit),
     ("pal-link", NoEdit),
     ("pal-unlink", NoEdit),
+    ("pal-group", NoEdit),
+    ("pal-ungroup", NoEdit),
     ("pal-mask-invert", NoEdit),
+    ("pal-mask-clear", NoEdit),
     ("pal-transition-crossfade", NoEdit),
     ("pal-transition-clear", NoEdit),
     ("pal-text-editable", NoEdit),
@@ -208,6 +223,9 @@ const ROWS: &[(&str, Kind)] = &[
     // other two write a file or a status line.
     ("pal-look-install", NoEdit),
     ("pal-render-cost", NoEdit),
+    ("pal-render-in-to-out", NoEdit),
+    ("pal-render-selection", NoEdit),
+    ("pal-delete-render-files", NoEdit),
     ("pal-media-reload", NoEdit),
     ("pal-media-reload-all", NoEdit),
     // Text and models: a font preflight, an ink report, and a digest sweep.
@@ -219,6 +237,7 @@ const ROWS: &[(&str, Kind)] = &[
     // the fixture. The other three need a nest to point at and the fixture has
     // none, so under this harness they refuse and write nothing; what they do
     // when there *is* one is driven in `app::nested::tests`.
+    ("pal-new-sequence", Edits),
     ("pal-nest-selection", Edits),
     ("pal-nest-open", NoEdit),
     ("pal-nest-leave", NoEdit),
@@ -338,6 +357,7 @@ fn the_commands_the_palette_sends_only_grow() {
     const FLOOR: &[&str] = &[
         "Add generated clip",
         "Add marker",
+        "Add mask",
         "Add track",
         "Crop",
         "Grade",
@@ -347,7 +367,6 @@ fn the_commands_the_palette_sends_only_grow() {
         "Set chroma key",
         "Set denoise",
         "Set keyframe",
-        "Set mask",
         "Set motion blur",
         "Set pitch lock",
         "Set track matte",
@@ -390,11 +409,17 @@ fn every_command_the_palette_sends_is_declared_reachable() {
 fn an_internal_command_carries_its_reason_into_the_editor() {
     // The editor is the crate that would have to build the surface, so the
     // reason has to survive the crate boundary rather than living in a comment.
-    let internal: Vec<(&str, &str)> = every_edit_command()
+    let edit = every_edit_command()
         .into_iter()
-        .filter_map(|cmd| match cmd.reach() {
+        .map(|cmd| (cmd.label(), cmd.reach()));
+    let project = every_project_command()
+        .into_iter()
+        .map(|cmd| (cmd.label(), cmd.reach()));
+    let internal: Vec<(&str, &str)> = edit
+        .chain(project)
+        .filter_map(|(label, reach)| match reach {
             Reach::Operator(_) => None,
-            Reach::Planned(reason) | Reach::Internal(reason) => Some((cmd.label(), reason)),
+            Reach::Planned(reason) | Reach::Internal(reason) => Some((label, reason)),
         })
         .collect();
     assert!(
@@ -416,6 +441,7 @@ const PICK_ROWS: &[&str] = &[
     "pal-relink",
     "pal-save-template",
     "pal-use-template",
+    "pal-export-frame",
     // Driven in `project_reach_tests.rs`, which supplies an answer to each.
     "pal-project-reveal-media",
     "pal-project-describe-template",
@@ -523,6 +549,30 @@ fn saving_a_template_writes_the_bundle_the_operator_named() {
     assert!(
         path.exists(),
         "the bundle was not written where the operator said"
+    );
+}
+
+/// A path typed with no extension still names a PNG: the job writes
+/// `still.png`, not an extensionless file no viewer opens.
+#[test]
+fn exporting_a_frame_to_a_bare_name_writes_a_png() {
+    let (mut state, _) = with_clip();
+    state.supply_pick(Answer::file(scratch("frame").join("still")));
+
+    run_row("pal-export-frame", &mut state);
+
+    assert_eq!(state.picks_asked(), 1, "the row did not ask for a path");
+    let labels: Vec<String> = state
+        .jobs
+        .snapshot()
+        .into_iter()
+        .map(|job| job.label)
+        .collect();
+    assert!(
+        labels
+            .iter()
+            .any(|label| label == "Exporting frame to still.png"),
+        "the job does not write still.png: {labels:?}"
     );
 }
 

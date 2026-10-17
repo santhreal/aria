@@ -2,8 +2,9 @@
 //! instance.
 //!
 //! A wrapper variant addresses a group, not a property: `Look { param }` names
-//! one of twenty-one look properties, `Effect { effect, param }` names a slot
-//! on one of the clip's effects. So a row here carries no label, no group and
+//! one of the look properties, `Effect { effect, param }` names a slot on one
+//! of the clip's effects, `Mask { mask, param }` names a property of one of its
+//! masks. So a row here carries no label, no group and
 //! no `slot` of its own — the members declare those in
 //! [`crate::clip_param_catalog`], which is also where the row reads its kind,
 //! its range and its read route from. What the row does own is the four write
@@ -17,14 +18,18 @@
 
 use super::*;
 
-use crate::clip::{LookParam, ParamAxis, ShapeParam, StyleParam, TextParam};
-use crate::look::mask::{
-    is_mask_param, mask_scalar_mut, mask_vec2_mut, remove_mask_param_keyframe,
-    set_mask_param_constant, set_mask_param_keyframe,
+use crate::clip::{
+    LookParam, MaskParam, ParamAxis, SHAPE_DROP_HEIGHT, SHAPE_DROP_WIDTH, ShapeParam, ShapeStroke,
+    StyleParam, TextBackground, TextParam, TextShadow, TextStroke, TextStyle,
 };
+use crate::look::mask::{mask_mut, validate_mask_value};
 use crate::look::styles::{
     remove_style_param_keyframe, set_style_param_constant, set_style_param_keyframe,
     style_scalar_mut, style_vec2_mut,
+};
+use crate::look::{
+    ChromaKey, ColorAdjustments, Filter, LayerBackground, LayerGlow, LayerOutline, LayerShadow,
+    Lut, Mask, MaskKind, TrackMatte,
 };
 
 pub(super) static LOOK: ClipParamSpec = ClipParamSpec {
@@ -40,6 +45,11 @@ pub(super) static LOOK: ClipParamSpec = ClipParamSpec {
     constant: look_constant,
     erase: look_erase,
     ease: Some(look_ease),
+    default: |_, param| {
+        look_of(param)
+            .ok()
+            .map(|param| ParamValue::Scalar(look_default(param)))
+    },
 };
 
 pub(super) static STYLE: ClipParamSpec = ClipParamSpec {
@@ -61,6 +71,7 @@ pub(super) static STYLE: ClipParamSpec = ClipParamSpec {
         remove_style_param_keyframe(&mut clip.styles, style_of(param)?, tick)
     },
     ease: Some(style_ease),
+    default: |_, param| style_of(param).ok().map(style_default),
 };
 
 pub(super) static TEXT: ClipParamSpec = ClipParamSpec {
@@ -85,6 +96,7 @@ pub(super) static TEXT: ClipParamSpec = ClipParamSpec {
         generator_mut(clip)?.remove_text_param_keyframe(param, tick)
     },
     ease: None,
+    default: |_, param| text_of(param).ok().map(text_default),
 };
 
 pub(super) static SHAPE: ClipParamSpec = ClipParamSpec {
@@ -109,6 +121,7 @@ pub(super) static SHAPE: ClipParamSpec = ClipParamSpec {
         generator_mut(clip)?.remove_shape_param_keyframe(param, tick)
     },
     ease: None,
+    default: |_, param| shape_of(param).ok().map(shape_default),
 };
 
 /// An effect slot exists once per effect on one clip, so the static catalog
@@ -140,10 +153,63 @@ pub(super) static EFFECT: ClipParamSpec = ClipParamSpec {
         effect_mut(clip, effect)?.remove_param_keyframe(slot as usize, tick)
     },
     ease: None,
+    default: |clip, param| {
+        let (effect, slot) = effect_of(param).ok()?;
+        crate::clip::param_catalog::effect_default(clip, effect, slot)
+    },
 };
 
-/// The look properties on [`crate::Mask`] route through the mask helpers; the
-/// rest are one scalar `Param` each, reached by name.
+/// A mask property exists once per mask on one clip, so the static catalog
+/// holds no row for it: [`crate::clip_params_for`] builds one per property of
+/// each mask. The kind and range come off [`MaskParam`], and the stored
+/// `Param` is reached through the mask's index.
+pub(super) static MASK: ClipParamSpec = ClipParamSpec {
+    class: ClipParamClass::Excluded(ParamExclusion::MaskSlot),
+    scope: ParamScope::Visual,
+    browse: None,
+    kind: |param| mask_of(param).ok().map(|(_, param)| param.kind()),
+    range: |param| mask_of(param).map_or(ParamRange::ANY, |(_, param)| param.range()),
+    read: |clip, param| match mask_of(param) {
+        Ok((mask, param)) => crate::clip::param_catalog::mask_route(clip, mask, param),
+        Err(_) => ParamRoute::Absent,
+    },
+    slot: None,
+    validate: |param, value| validate_mask_value(mask_of(param)?.1, value),
+    keyframe: |clip, param, tick, value, easing| {
+        mask_slot(clip, param)?.set_keyframe(tick, value, easing)
+    },
+    constant: |clip, param, value| mask_slot(clip, param)?.set_constant(value),
+    erase: |clip, param, tick| {
+        if mask_slot(clip, param)?.remove_keyframe(tick) {
+            Ok(())
+        } else {
+            Err(ModelError::InvalidParam(format!(
+                "no {param:?} keyframe at tick {tick}"
+            )))
+        }
+    },
+    ease: Some(|clip, param, tick, preset| {
+        mask_slot(clip, param)?.apply_easing_preset(tick, preset)
+    }),
+    default: |_, param| mask_of(param).ok().map(|(_, param)| mask_default(param)),
+};
+
+/// The stored `Param` a mask property names.
+fn mask_slot(clip: &mut Clip, param: ClipParam) -> Result<ParamSlot<'_>, ModelError> {
+    let (index, param) = mask_of(param)?;
+    let mask = mask_mut(&mut clip.masks, index)?;
+    Ok(match param {
+        MaskParam::Feather => ParamSlot::Scalar(&mut mask.feather),
+        MaskParam::Center => ParamSlot::Vec2(&mut mask.center),
+        MaskParam::Size => ParamSlot::Vec2(&mut mask.size),
+        MaskParam::Rotation => ParamSlot::Scalar(&mut mask.rotation),
+        MaskParam::Roundness => ParamSlot::Scalar(&mut mask.roundness),
+        MaskParam::Opacity => ParamSlot::Scalar(&mut mask.opacity),
+        MaskParam::Expansion => ParamSlot::Scalar(&mut mask.expansion),
+    })
+}
+
+/// Each look property is one scalar `Param`, reached by name.
 fn look_keyframe(
     clip: &mut Clip,
     param: ClipParam,
@@ -152,9 +218,6 @@ fn look_keyframe(
     easing: Easing,
 ) -> Result<(), ModelError> {
     let look = look_of(param)?;
-    if is_mask_param(look) {
-        return set_mask_param_keyframe(&mut clip.mask, look, tick, value, easing);
-    }
     let v = value.scalar()?;
     validate_look_value(look, v)?;
     look_param_mut(clip, look)?.set_keyframe(tick, v, easing);
@@ -163,9 +226,6 @@ fn look_keyframe(
 
 fn look_constant(clip: &mut Clip, param: ClipParam, value: ParamValue) -> Result<(), ModelError> {
     let look = look_of(param)?;
-    if is_mask_param(look) {
-        return set_mask_param_constant(&mut clip.mask, look, value);
-    }
     let v = value.scalar()?;
     validate_look_value(look, v)?;
     look_param_mut(clip, look)?.set_constant(v);
@@ -174,9 +234,6 @@ fn look_constant(clip: &mut Clip, param: ClipParam, value: ParamValue) -> Result
 
 fn look_erase(clip: &mut Clip, param: ClipParam, tick: i64) -> Result<(), ModelError> {
     let look = look_of(param)?;
-    if is_mask_param(look) {
-        return remove_mask_param_keyframe(&mut clip.mask, look, tick);
-    }
     if look_param_mut(clip, look)?.remove_keyframe(tick) {
         Ok(())
     } else {
@@ -193,17 +250,7 @@ fn look_ease(
     preset: PiecewiseEasingPreset,
 ) -> Result<(), ModelError> {
     let look = look_of(param)?;
-    if !is_mask_param(look) {
-        return look_param_mut(clip, look)?.apply_easing_preset(tick, preset);
-    }
-    // Mask centre and size are vec2, the rest scalar. The kind comes off the
-    // catalog row, so a new mask property picks the right helper by declaring
-    // its kind rather than by being added to a list here.
-    if param.kind() == Some(ParamKind::Vec2) {
-        mask_vec2_mut(&mut clip.mask, look)?.apply_easing_preset(tick, preset)
-    } else {
-        mask_scalar_mut(&mut clip.mask, look)?.apply_easing_preset(tick, preset)
-    }
+    look_param_mut(clip, look)?.apply_easing_preset(tick, preset)
 }
 
 fn style_ease(
@@ -266,21 +313,127 @@ fn effect_of(param: ClipParam) -> Result<(u32, u32), ModelError> {
     }
 }
 
+fn mask_of(param: ClipParam) -> Result<(u32, MaskParam), ModelError> {
+    if let ClipParam::Mask { mask, param } = param {
+        Ok((mask, param))
+    } else {
+        Err(wrong_row(param))
+    }
+}
+
 /// A row reached with a payload it does not describe. Unreachable through
 /// [`super::ClipParam::spec`]; stated as an error so no path panics.
 fn wrong_row(param: ClipParam) -> ModelError {
     ModelError::InvalidParam(format!("{param:?} does not belong to this parameter axis"))
 }
 
-/// Resolve a non-mask look [`LookParam`] to the scalar [`Param`] it names.
+/// What a reset puts a style property back to: the block as it is first
+/// made.
+fn style_default(param: StyleParam) -> ParamValue {
+    match param {
+        StyleParam::ShadowColor => ParamValue::Color(LayerShadow::default().rgba.sample(0)),
+        StyleParam::ShadowOffset => ParamValue::Vec2(LayerShadow::default().offset.sample(0)),
+        StyleParam::ShadowBlur => ParamValue::Scalar(LayerShadow::default().blur.sample(0)),
+        StyleParam::GlowColor => ParamValue::Color(LayerGlow::default().rgba.sample(0)),
+        StyleParam::GlowRadius => ParamValue::Scalar(LayerGlow::default().radius.sample(0)),
+        StyleParam::GlowIntensity => ParamValue::Scalar(LayerGlow::default().intensity.sample(0)),
+        StyleParam::OutlineColor => ParamValue::Color(LayerOutline::default().rgba.sample(0)),
+        StyleParam::OutlineWidth => ParamValue::Scalar(LayerOutline::default().width.sample(0)),
+        StyleParam::BackgroundColor => ParamValue::Color(LayerBackground::default().rgba.sample(0)),
+        StyleParam::BackgroundPadding => {
+            ParamValue::Scalar(LayerBackground::default().padding.sample(0))
+        }
+        StyleParam::BackgroundRadius => {
+            ParamValue::Scalar(LayerBackground::default().radius.sample(0))
+        }
+    }
+}
+
+/// What a reset puts a title's property back to: a new title's style, and a
+/// stroke, shadow or card as each is first added.
+fn text_default(param: TextParam) -> ParamValue {
+    match param {
+        TextParam::Size => ParamValue::Scalar(TextStyle::default().size.sample(0)),
+        TextParam::Fill => ParamValue::Color(TextStyle::default().fill.sample(0)),
+        TextParam::LetterSpacing => {
+            ParamValue::Scalar(TextStyle::default().letter_spacing.sample(0))
+        }
+        TextParam::LineSpacing => ParamValue::Scalar(TextStyle::default().line_spacing.sample(0)),
+        TextParam::StrokeWidth => ParamValue::Scalar(TextStroke::default().width.sample(0)),
+        TextParam::StrokeColor => ParamValue::Color(TextStroke::default().rgba.sample(0)),
+        TextParam::ShadowBlur => ParamValue::Scalar(TextShadow::default().blur.sample(0)),
+        TextParam::ShadowDistance => ParamValue::Scalar(TextShadow::default().distance.sample(0)),
+        TextParam::ShadowColor => ParamValue::Color(TextShadow::default().rgba.sample(0)),
+        TextParam::BackgroundColor => ParamValue::Color(TextBackground::default().rgba.sample(0)),
+        TextParam::BackgroundRadius => {
+            ParamValue::Scalar(TextBackground::default().radius.sample(0))
+        }
+    }
+}
+
+/// What a reset puts a shape's property back to: a freshly dropped shape,
+/// and a stroke as it is first added.
+fn shape_default(param: ShapeParam) -> ParamValue {
+    match param {
+        ShapeParam::Width => ParamValue::Scalar(SHAPE_DROP_WIDTH),
+        ShapeParam::Height => ParamValue::Scalar(SHAPE_DROP_HEIGHT),
+        ShapeParam::CornerRadius => {
+            ParamValue::Scalar(crate::clip::generator::zero_param().sample(0))
+        }
+        ShapeParam::InnerRatio => {
+            ParamValue::Scalar(crate::clip::generator::default_star_inner().sample(0))
+        }
+        ShapeParam::Fill => {
+            ParamValue::Color(crate::clip::generator::default_shape_rgba().sample(0))
+        }
+        ShapeParam::StrokeColor => ParamValue::Color(ShapeStroke::default().rgba.sample(0)),
+        ShapeParam::StrokeWidth => ParamValue::Scalar(ShapeStroke::default().width.sample(0)),
+    }
+}
+
+/// What a reset puts a mask's property back to: a mask as it is first drawn.
+fn mask_default(param: MaskParam) -> ParamValue {
+    let fresh = Mask::new(MaskKind::Rectangle);
+    match param {
+        MaskParam::Feather => ParamValue::Scalar(fresh.feather.sample(0)),
+        MaskParam::Center => ParamValue::Vec2(fresh.center.sample(0)),
+        MaskParam::Size => ParamValue::Vec2(fresh.size.sample(0)),
+        MaskParam::Rotation => ParamValue::Scalar(fresh.rotation.sample(0)),
+        MaskParam::Roundness => ParamValue::Scalar(fresh.roundness.sample(0)),
+        MaskParam::Opacity => ParamValue::Scalar(fresh.opacity.sample(0)),
+        MaskParam::Expansion => ParamValue::Scalar(fresh.expansion.sample(0)),
+    }
+}
+
+/// What a reset puts a look property back to: a grade slider at its neutral,
+/// a filter or LUT at the strength it is applied at, and a key or matte as it
+/// is first made.
+///
+/// The grade arms come from the adjustment row list, so a slider cannot be
+/// added without a value to reset to.
+macro_rules! define_look_default {
+    ($($field:ident => $variant:ident, $shape:ident, $id:literal, $label:literal,
+       $doc:literal,)*) => {
+        fn look_default(param: LookParam) -> f32 {
+            match param {
+                LookParam::FilterIntensity => Filter::new(String::new()).intensity.sample(0),
+                LookParam::LutIntensity => Lut::new(String::new()).intensity.sample(0),
+                $(LookParam::$variant => ColorAdjustments::default().$field.sample(0),)*
+                LookParam::ChromaStrength => ChromaKey::new([0, 0, 0]).strength.sample(0),
+                LookParam::ChromaShadow => ChromaKey::new([0, 0, 0]).shadow.sample(0),
+                LookParam::MatteSoftness => TrackMatte::alpha().softness.sample(0),
+            }
+        }
+    };
+}
+
+crate::adjust_slider_rows!(define_look_default);
+
+/// Resolve a look [`LookParam`] to the scalar [`Param`] it names.
 ///
 /// The grade arms come from the adjustment row list, so an axis a row does not
 /// declare — and a row no axis declares — fails to compile here rather than
 /// routing to the wrong field.
-///
-/// The mask geometry properties are excluded on purpose: they live on an
-/// optional [`crate::Mask`] and two of them are vec2, so they route through the
-/// mask helpers instead.
 macro_rules! define_look_param_mut {
     ($($field:ident => $variant:ident, $shape:ident, $id:literal, $label:literal,
        $doc:literal,)*) => {
@@ -317,13 +470,6 @@ macro_rules! define_look_param_mut {
                     .as_mut()
                     .map(|matte| &mut matte.softness)
                     .ok_or_else(|| missing("track matte")),
-                LookParam::MaskFeather
-                | LookParam::MaskCenter
-                | LookParam::MaskSize
-                | LookParam::MaskRotation
-                | LookParam::MaskRoundness => Err(ModelError::InvalidParam(format!(
-                    "look parameter {param:?} is routed through the mask param helpers"
-                ))),
             }
         }
     };
@@ -347,15 +493,6 @@ macro_rules! define_validate_look_value {
                 | LookParam::MatteSoftness => (0.0..=1.0).contains(&value),
                 $(LookParam::$variant => crate::ColorAdjustments::slider_of(param)
                     .is_some_and(|slider| (slider.min..=slider.max).contains(&value)),)*
-                LookParam::MaskFeather
-                | LookParam::MaskCenter
-                | LookParam::MaskSize
-                | LookParam::MaskRotation
-                | LookParam::MaskRoundness => {
-                    return Err(ModelError::InvalidParam(format!(
-                        "look parameter {param:?} is routed through the mask param helpers"
-                    )));
-                }
             };
             if value.is_finite() && valid {
                 Ok(())

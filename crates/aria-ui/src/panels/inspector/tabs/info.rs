@@ -36,31 +36,30 @@ pub fn info_tab(
             .any(|item| item.id == id && item.missing)
     });
     let media_id = clip.media_id.filter(|_| media_missing);
-    let relink =
-        media_id.map(|id| {
-            components::ghost_button("relink-media", "Relink", theme).on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                    this.state.update(cx, |state, _| {
-                        state.request_pick(
-                            Ask::OpenFile(FileSpec::new("Relink media").filter(
-                                "Media",
-                                crate::app::media::import::MEDIA_IMPORT_EXTENSIONS,
-                            )),
-                            move |state, answer| {
-                                let Some(path) = answer.one() else {
-                                    return;
-                                };
-                                if let Err(err) = state.relink_media(MediaId::from_raw(id), path) {
-                                    state.report_error(&err);
-                                }
-                            },
-                        );
-                    });
-                    cx.notify();
-                }),
-            )
-        });
+    let relink = media_id.map(|id| {
+        components::ghost_button("relink-media", "Relink", theme).on_mouse_down(
+            MouseButton::Left,
+            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                this.state.update(cx, |state, _| {
+                    state.request_pick(
+                        Ask::OpenFile(FileSpec::new("Relink media").filter(
+                            "Media",
+                            &crate::app::media::import::media_import_extensions(),
+                        )),
+                        move |state, answer| {
+                            let Some(path) = answer.one() else {
+                                return;
+                            };
+                            if let Err(err) = state.relink_media(MediaId::from_raw(id), path) {
+                                state.report_error(&err);
+                            }
+                        },
+                    );
+                });
+                cx.notify();
+            }),
+        )
+    });
     div()
         .flex()
         .flex_col()

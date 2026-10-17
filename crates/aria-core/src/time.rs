@@ -49,6 +49,15 @@ impl Rational {
         f64::from(self.num) / f64::from(self.den)
     }
 
+    /// Frames in one timecode second: the rate rounded up, so 24000/1001
+    /// counts 24 and 30000/1001 counts 30. A tick is one frame at the rate, so
+    /// this is the frame field's modulus, not the ticks in a wall-clock second
+    /// ([`Rational::as_f64`] is that).
+    pub fn nominal_fps(self) -> i64 {
+        let den = i64::from(self.den).max(1);
+        ((i64::from(self.num) + den - 1) / den).max(1)
+    }
+
     /// Seconds-per-unit as a float.
     pub fn seconds_per_unit(self) -> f64 {
         if self.num == 0 {

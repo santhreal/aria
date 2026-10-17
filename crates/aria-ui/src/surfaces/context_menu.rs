@@ -23,12 +23,16 @@ use aria_engine::EngineError;
 
 use crate::app::AppState;
 
+pub use badge::{BADGE_ITEMS, BadgeMenu, BadgeProperty, draw_property};
 pub use clip::{CLIP_ITEMS, ClipMenu, TRANSITION_ITEMS, apply_blend};
+pub use effect::{EFFECT_ITEMS, EffectMenu};
 pub use pool::{POOL_ITEMS, PoolMenu};
 pub use recent::RECENT_ITEMS;
 pub use track::{TRACK_ITEMS, TrackMenu};
 
+mod badge;
 mod clip;
+mod effect;
 mod pool;
 mod recent;
 mod track;
@@ -68,6 +72,10 @@ pub enum MenuItem<F> {
     /// The rows are data, so they are generated where their data is rather than
     /// listed here; what they ask for is [`apply_blend`].
     Blends,
+    /// Every property a clip bar can draw as its line, with the drawn one
+    /// marked. Generated from the clip like [`MenuItem::Blends`]; what each row
+    /// asks for is [`draw_property`].
+    Properties,
 }
 
 impl<F> MenuItem<F> {
@@ -75,7 +83,7 @@ impl<F> MenuItem<F> {
     pub fn row(&self) -> Option<&MenuRow<F>> {
         match self {
             Self::Row(row) | Self::Outside(row) => Some(row),
-            Self::Labels | Self::Blends => None,
+            Self::Labels | Self::Blends | Self::Properties => None,
         }
     }
 }

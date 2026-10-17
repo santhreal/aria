@@ -86,9 +86,15 @@ from the source's length or the gap.
 | Fit to Fill | With four points set | Retimes the source range to the sequence range and shows the new speed |
 
 Source patching (the V and A indicators in the track headers) chooses which
-tracks receive the source's video and audio. Dragging a Source tab's frame onto
-the timeline drops it with the same patching, in overwrite mode, Ctrl for
-insert.
+tracks receive the source's video and audio. Click a dark indicator to patch the
+channel to that track; click the lit one to leave the channel out of the edit.
+An unpatched channel goes to the topmost targeted track of its kind, else the
+topmost track. The audio lands as its own clip, linked to the video. With no
+audio track in the sequence it stays in the video clip, and video placed with
+its audio patched off is silent. Dragging a Source tab's frame onto the timeline
+drops it with the same patching, in overwrite mode, Ctrl for insert. A pool item
+dragged onto the timeline uses the same patching, and the track under the
+pointer takes the channel of its kind.
 
 ## Snapping
 
@@ -110,9 +116,11 @@ Ctrl while dragging inverts snapping for that drag.
 
 Clip > Nest replaces the selection with one clip whose source is a new sequence
 holding the selection. Double-clicking a nested clip opens its sequence in a new
-Timeline tab. Edits inside it appear in every instance. A nested sequence can
-be marked as a composition, which opens with one clip per track and the
-Animation workspace.
+Timeline tab. Edits inside it appear in every instance. A nested clip draws
+every visible lane of its sequence as one picture, fitted into the canvas it is
+placed on, and that picture takes the clip's transform and look. A nested
+sequence can be marked as a composition, which opens with one clip per track
+and the Animation workspace.
 
 ## Markers
 

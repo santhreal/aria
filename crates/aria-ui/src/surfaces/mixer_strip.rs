@@ -15,7 +15,7 @@
 //! pointer crossed.
 
 use aria_engine::EngineError;
-use aria_models::TrackId;
+use aria_models::{AutomationMode, TrackId};
 
 use crate::app::AppState;
 use crate::app::mixer::FaderTarget;
@@ -45,6 +45,15 @@ pub enum Gesture {
     ReleaseFader,
     /// Add a submix bus to the project.
     AddBus,
+    /// Toggle mute on a track strip (`Some(track)`) or the master strip (`None`).
+    ToggleMute { track: Option<TrackId> },
+    /// Toggle solo-in-place on a track strip.
+    ToggleSolo { track: TrackId },
+    /// Set the automation mode on a track strip (`Some(track)`) or the master strip (`None`).
+    SetAutomation {
+        track: Option<TrackId>,
+        mode: AutomationMode,
+    },
 }
 
 impl Gesture {
@@ -57,6 +66,9 @@ impl Gesture {
             Self::RideFader { .. } => "a fader ridden",
             Self::ReleaseFader => "a fader let go",
             Self::AddBus => "a submix bus added",
+            Self::ToggleMute { .. } => "a strip mute toggled",
+            Self::ToggleSolo { .. } => "a strip solo toggled",
+            Self::SetAutomation { .. } => "an automation mode chosen",
         }
     }
 }
@@ -92,6 +104,18 @@ pub fn apply(state: &mut AppState, gesture: Gesture) -> Result<bool, EngineError
         }
         Gesture::AddBus => {
             state.add_submix_lane()?;
+            Ok(true)
+        }
+        Gesture::ToggleMute { track } => {
+            state.toggle_strip_mute(track)?;
+            Ok(true)
+        }
+        Gesture::ToggleSolo { track } => {
+            state.toggle_strip_solo(track)?;
+            Ok(true)
+        }
+        Gesture::SetAutomation { track, mode } => {
+            state.set_strip_automation_mode(track, mode)?;
             Ok(true)
         }
     }

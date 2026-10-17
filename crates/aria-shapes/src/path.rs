@@ -63,6 +63,59 @@ impl PathRaster {
     /// nothing to draw (fewer than 2 points, or no fill and no stroke).
     pub fn rasterize(&mut self, path: &BezierPath, style: &ShapeStyle, scale: f32) -> RgbaImage {
         let key = PathKey::new(path, style, scale);
+        self.memoized(key, || rasterize_uncached(path, style, scale))
+    }
+
+    /// Rasterize a closed mask `points` (in normalized `0..1` layer fractions)
+    /// onto a `width × height` stencil image. `center` shifts the path in
+    /// layer fractions and `rotation_rad` rotates around `0.5 + center`.
+    /// `expansion` offsets the edge by that many pixels, outward when
+    /// positive, with round corners.
+    pub fn rasterize_mask(
+        &mut self,
+        width: u32,
+        height: u32,
+        points: &[PathPoint],
+        center: [f32; 2],
+        rotation_rad: f32,
+        expansion: f32,
+    ) -> RgbaImage {
+        let (w, h) = (width.max(1), height.max(1));
+        let (wf, hf) = (w as f32, h as f32);
+        let map = |v: [f32; 2]| [(v[0] + center[0]) * wf, (v[1] + center[1]) * hf];
+        let pixel_path = BezierPath {
+            points: points
+                .iter()
+                .map(|p| PathPoint {
+                    anchor: map(p.anchor),
+                    handle_in: map(p.handle_in),
+                    handle_out: map(p.handle_out),
+                })
+                .collect(),
+            closed: true,
+        };
+        let style = ShapeStyle {
+            fill: Some([255, 255, 255, 255]),
+            stroke: Some(crate::Stroke {
+                rgba: w.to_be_bytes(),
+                width: f32::from_bits(h),
+            }),
+        };
+        let expansion = if expansion.is_finite() {
+            expansion
+        } else {
+            0.0
+        };
+        let key = PathKey {
+            expansion: expansion.to_bits(),
+            ..PathKey::new(&pixel_path, &style, rotation_rad)
+        };
+        self.memoized(key, || {
+            rasterize_mask_uncached(&pixel_path, w, h, center, rotation_rad, expansion)
+        })
+    }
+
+    fn memoized(&mut self, key: PathKey, build: impl FnOnce() -> RgbaImage) -> RgbaImage {
         if let Some(hit) = self.memo.get(&key) {
             if let Some(pos) = self.order.iter().position(|k| k == &key) {
                 self.order.remove(pos);
@@ -70,14 +123,13 @@ impl PathRaster {
             }
             return hit.clone();
         }
-        let image = rasterize_uncached(path, style, scale);
+        let image = build();
         const MEMO_CAP: usize = 32;
         while self.memo.len() >= MEMO_CAP {
-            if let Some(oldest) = self.order.pop_front() {
-                self.memo.remove(&oldest);
-            } else {
+            let Some(oldest) = self.order.pop_front() else {
                 break;
-            }
+            };
+            self.memo.remove(&oldest);
         }
         self.order.push_back(key.clone());
         self.memo.insert(key, image.clone());
@@ -85,24 +137,93 @@ impl PathRaster {
     }
 }
 
-fn rasterize_uncached(path: &BezierPath, style: &ShapeStyle, scale: f32) -> RgbaImage {
+/// The pixel size [`PathRaster::rasterize`] returns for `path` drawn with
+/// `style` at `scale`, without drawing it: the inked bounds plus the stroke
+/// overhang and the anti-alias margin. `(0, 0)` for a path with nothing to
+/// draw.
+pub fn path_raster_size(path: &BezierPath, style: &ShapeStyle, scale: f32) -> (u32, u32) {
+    raster_frame(path, style, scale).map_or((0, 0), |frame| (frame.width, frame.height))
+}
+
+/// What one raster of a path covers. Built once and read by both the size
+/// query and the rasterizer, so the two cannot disagree on a pixel.
+struct RasterFrame {
+    /// The outline at raster scale.
+    outline: tiny_skia::Path,
+    /// The stroke width at raster scale, `0` without a stroke.
+    stroke_w: f32,
+    /// The transparent margin on every side of the inked bounds.
+    pad: f32,
+    /// The raster scale, a non-finite or non-positive request read as `1`.
+    scale: f32,
+    width: u32,
+    height: u32,
+}
+
+/// The raster frame of `path` drawn with `style` at `scale`, or `None` when
+/// the path has no drawable segment or neither a fill nor a stroke.
+fn raster_frame(path: &BezierPath, style: &ShapeStyle, scale: f32) -> Option<RasterFrame> {
     let scale = if scale.is_finite() && scale > 0.0 {
         scale
     } else {
         1.0
     };
+    if style.fill.is_none() && style.stroke.is_none() {
+        return None;
+    }
+    let outline = build_skia_path(path, scale)?;
     let stroke_w = style.stroke.map_or(0.0, |s| (s.width * scale).max(0.0));
-    let Some(skia_path) = build_skia_path(path, scale) else {
+    let bounds = outline.bounds();
+    let pad = stroke_w * 0.5 + RASTER_PAD;
+    Some(RasterFrame {
+        width: (bounds.width() + 2.0 * pad).ceil().max(1.0) as u32,
+        height: (bounds.height() + 2.0 * pad).ceil().max(1.0) as u32,
+        outline,
+        stroke_w,
+        pad,
+        scale,
+    })
+}
+
+/// Whether a point on a path's raster lands on the path's ink.
+///
+/// `offset` is measured from the raster's center in raster pixels, the frame
+/// the renderer places the bitmap in. It is mapped back to shape-local pixels
+/// through the same frame [`PathRaster::rasterize`] draws with and tested with
+/// [`path_hit_test`], so a closed path is a hitbox inside its outline whatever
+/// its fill colour. `false` for a path with nothing to draw.
+pub fn path_raster_hit(
+    path: &BezierPath,
+    style: &ShapeStyle,
+    scale: f32,
+    offset: [f32; 2],
+) -> bool {
+    let Some(frame) = raster_frame(path, style, scale) else {
+        return false;
+    };
+    // `rasterize` centres the inked bounds in the bitmap.
+    let bounds = frame.outline.bounds();
+    let local = [
+        (bounds.x() + bounds.width() * 0.5 + offset[0]) / frame.scale,
+        (bounds.y() + bounds.height() * 0.5 + offset[1]) / frame.scale,
+    ];
+    let width = style.stroke.map_or(0.0, |stroke| stroke.width.max(0.0));
+    path_hit_test(path, local, width)
+}
+
+fn rasterize_uncached(path: &BezierPath, style: &ShapeStyle, scale: f32) -> RgbaImage {
+    let Some(RasterFrame {
+        outline: skia_path,
+        stroke_w,
+        pad,
+        width: w,
+        height: h,
+        ..
+    }) = raster_frame(path, style, scale)
+    else {
         return RgbaImage::transparent(0, 0);
     };
-    if style.fill.is_none() && style.stroke.is_none() {
-        return RgbaImage::transparent(0, 0);
-    }
-
     let bounds = skia_path.bounds();
-    let pad = stroke_w * 0.5 + RASTER_PAD;
-    let w = (bounds.width() + 2.0 * pad).ceil().max(1.0) as u32;
-    let h = (bounds.height() + 2.0 * pad).ceil().max(1.0) as u32;
     let Some(mut pixmap) = Pixmap::new(w, h) else {
         return RgbaImage::transparent(0, 0);
     };
@@ -151,6 +272,65 @@ fn rasterize_uncached(path: &BezierPath, style: &ShapeStyle, scale: f32) -> Rgba
         out[o + 1] = c.green();
         out[o + 2] = c.blue();
         out[o + 3] = c.alpha();
+    }
+    RgbaImage::new(w, h, out)
+}
+
+fn rasterize_mask_uncached(
+    pixel_path: &BezierPath,
+    w: u32,
+    h: u32,
+    center: [f32; 2],
+    rotation_rad: f32,
+    expansion: f32,
+) -> RgbaImage {
+    let Some(mut pixmap) = Pixmap::new(w, h) else {
+        return RgbaImage::transparent(0, 0);
+    };
+    if let Some(skia_path) = build_skia_path(pixel_path, 1.0) {
+        let paint = Paint {
+            anti_alias: true,
+            ..Paint::default()
+        };
+        let transform = if rotation_rad.abs() > 1e-6 {
+            Transform::from_rotate_at(
+                rotation_rad.to_degrees(),
+                (0.5 + center[0]) * w as f32,
+                (0.5 + center[1]) * h as f32,
+            )
+        } else {
+            Transform::identity()
+        };
+        pixmap.fill_path(&skia_path, &paint, FillRule::Winding, transform, None);
+        // A stroke twice the expansion wide reaches that far either side of
+        // the edge: drawn over the fill it grows the mask, erased out of it
+        // it shrinks the mask.
+        if expansion != 0.0 {
+            let edge = Paint {
+                blend_mode: if expansion > 0.0 {
+                    tiny_skia::BlendMode::SourceOver
+                } else {
+                    tiny_skia::BlendMode::DestinationOut
+                },
+                ..paint
+            };
+            let stroke = tiny_skia::Stroke {
+                width: expansion.abs() * 2.0,
+                line_cap: LineCap::Round,
+                line_join: LineJoin::Round,
+                ..tiny_skia::Stroke::default()
+            };
+            pixmap.stroke_path(&skia_path, &edge, &stroke, transform, None);
+        }
+    }
+    let mut out = vec![0u8; (w as usize) * (h as usize) * 4];
+    for (i, px) in pixmap.pixels().iter().enumerate() {
+        let a = px.alpha();
+        let o = i * 4;
+        out[o] = 255;
+        out[o + 1] = 255;
+        out[o + 2] = 255;
+        out[o + 3] = a;
     }
     RgbaImage::new(w, h, out)
 }
@@ -320,6 +500,8 @@ struct PathKey {
     fill: Option<[u8; 4]>,
     stroke: Option<([u8; 4], u32)>,
     scale: u32,
+    /// Mask edge offset by bit pattern; `0` for a raster that is not a mask.
+    expansion: u32,
 }
 
 impl PathKey {
@@ -343,6 +525,7 @@ impl PathKey {
             fill: style.fill,
             stroke: style.stroke.map(|s| (s.rgba, s.width.to_bits())),
             scale: scale.to_bits(),
+            expansion: 0,
         }
     }
 }

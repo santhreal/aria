@@ -394,10 +394,11 @@ fn every_app_menu_has_named_items() {
     assert!(file.contains(&"Save As…"));
     assert!(file.contains(&"Relink All…"));
     let sequence = crate::chrome::labels_for(crate::types::AppMenu::Sequence, &state);
-    assert!(sequence.contains(&"Add Marker"));
     assert!(sequence.contains(&"Match Frame"));
-    assert!(sequence.contains(&"Insert Source"));
-    assert!(sequence.contains(&"Overwrite Source"));
+    assert!(sequence.contains(&"Insert"));
+    assert!(sequence.contains(&"Overwrite"));
+    let markers = crate::chrome::labels_for(crate::types::AppMenu::Markers, &state);
+    assert!(markers.contains(&"Add Marker"));
     let edit = crate::chrome::labels_for(crate::types::AppMenu::Edit, &state);
     assert!(edit.contains(&"Cut"));
     assert!(edit.contains(&"Select All"));

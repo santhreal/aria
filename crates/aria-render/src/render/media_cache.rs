@@ -1,16 +1,14 @@
 use std::collections::{HashMap, hash_map::Entry};
-use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, Receiver};
 
 use aria_compositor::{CubeLut, LayerLut, RgbaImage};
-use aria_core::{RationalTime, VideoDecoder, VideoFrame};
 use aria_decoder::OutputMode;
 use aria_models::{MediaId, Project};
 
 use crate::error::RenderError;
 use crate::scene::{LayerSource, Scene, SceneLayer, SceneLut};
 
-use super::{Renderer, SeekPolicy};
+use super::Renderer;
 
 /// A `.cube` path the renderer has seen: loading on a worker, parsed, or failed
 /// (missing or malformed file; grades nothing and logs once).
@@ -109,6 +107,11 @@ fn queue_layer_luts(luts: &mut HashMap<String, CubeLutState>, layer: &SceneLayer
         LayerSource::Matte { layers, .. } => {
             queue_layer_luts(luts, &layers[0]);
             queue_layer_luts(luts, &layers[1]);
+        }
+        LayerSource::Nest { scene, .. } => {
+            for layer in scene.draw_order() {
+                queue_layer_luts(luts, layer);
+            }
         }
         LayerSource::CanvasPass
         | LayerSource::Media { .. }
@@ -253,106 +256,7 @@ pub(super) fn default_decode_mode() -> OutputMode {
     OutputMode::Cpu
 }
 
-/// Open the platform's native decoder for `path` in `mode`. Apple, Windows,
-/// and Linux honor GPU output; Android always decodes to CPU planes.
-#[cfg(target_vendor = "apple")]
-pub(super) fn open_decoder(
-    path: &Path,
-    mode: OutputMode,
-) -> Result<Box<dyn VideoDecoder>, RenderError> {
-    Ok(Box::new(aria_decoder::AvfDecoder::open(path, mode)?))
-}
-
-#[cfg(target_os = "windows")]
-pub(super) fn open_decoder(
-    path: &Path,
-    mode: OutputMode,
-) -> Result<Box<dyn VideoDecoder>, RenderError> {
-    Ok(Box::new(aria_decoder::WmfDecoder::open(path, mode)?))
-}
-
-#[cfg(target_os = "android")]
-pub(super) fn open_decoder(
-    path: &Path,
-    _mode: OutputMode,
-) -> Result<Box<dyn VideoDecoder>, RenderError> {
-    Ok(Box::new(aria_decoder::MediaCodecDecoder::open(
-        path,
-        OutputMode::Cpu,
-    )?))
-}
-
-#[cfg(target_os = "linux")]
-pub(super) fn open_decoder(
-    path: &Path,
-    mode: OutputMode,
-) -> Result<Box<dyn VideoDecoder>, RenderError> {
-    Ok(Box::new(aria_decoder::GstDecoder::open(path, mode)?))
-}
-
-#[cfg(not(any(
-    target_vendor = "apple",
-    target_os = "windows",
-    target_os = "android",
-    target_os = "linux"
-)))]
-pub(super) fn open_decoder(
-    _path: &Path,
-    _mode: OutputMode,
-) -> Result<Box<dyn VideoDecoder>, RenderError> {
-    Err(RenderError::unsupported(
-        "no native video decoder for this platform",
-    ))
-}
-
 impl Renderer {
-    /// Decode the frame of `media` at `source_time`, opening (and caching) a
-    /// decoder for this `(media, slot)` use on first sight — over the
-    /// media's proxy file when one is registered (see
-    /// [`set_proxy`](Self::set_proxy)). Under [`SeekPolicy::NearestSync`]
-    /// the frame may be the sync point before `source_time` rather than the
-    /// exact frame (see [`SeekPolicy`]).
-    pub(super) fn decode(
-        &mut self,
-        project: &Project,
-        media: MediaId,
-        slot: u32,
-        source_time: RationalTime,
-        policy: SeekPolicy,
-    ) -> Result<VideoFrame, RenderError> {
-        let mode = self.decode_mode;
-        let proxy = self.use_proxies.then(|| self.proxies.get(&media)).flatten();
-        let decoder = match self.decoders.entry((media, slot)) {
-            std::collections::hash_map::Entry::Occupied(e) => e.into_mut(),
-            std::collections::hash_map::Entry::Vacant(e) => {
-                let src = project
-                    .media(media)
-                    .ok_or(RenderError::MissingMedia(media))?;
-                let path = proxy.map(PathBuf::as_path).unwrap_or_else(|| src.path());
-                e.insert(open_decoder(path, mode)?)
-            }
-        };
-        let mut frame = match policy {
-            SeekPolicy::Exact => decoder.frame_at(source_time)?,
-            SeekPolicy::NearestSync => decoder.frame_at_nearest(source_time)?,
-        };
-        // An exact target at the media's very end can overshoot EOF: the
-        // pool trusts the container's frame count, which routinely
-        // over-reports by one, and proxies additionally run a frame short
-        // by construction (generation drops that untrustworthy tail). Show
-        // the nearest decodable frame instead of failing the whole
-        // composite — transitions pin the outgoing side at the final
-        // source frame, so a miss here would error every frame of the
-        // window.
-        if frame.is_none() {
-            frame = decoder.frame_at_nearest(source_time)?;
-        }
-        frame.ok_or(RenderError::NoFrame {
-            media,
-            time: source_time,
-        })
-    }
-
     /// Decode `media`'s single still frame into the cache on first use.
     pub(super) fn ensure_still(
         &mut self,
@@ -397,7 +301,7 @@ impl Renderer {
     /// missing, unparseable, or fail to rasterize; the failure is
     /// remembered and logged once, not re-probed per frame.
     pub(super) fn ensure_lottie_frame(&mut self, path: &str, local_time: f64) -> Option<usize> {
-        let stamp = self.lottie_stamp;
+        let stamp = self.scene_stamp;
         let state = self.lottie.entry(path.to_owned()).or_insert_with(|| {
             match aria_decoder::LottieAnimation::load(std::path::Path::new(path)) {
                 Ok(animation) => LottieState::Loaded(Box::new(LottiePlayer {
@@ -422,12 +326,13 @@ impl Renderer {
         Some(index)
     }
 
-    /// Start loading every LUT referenced by `scene` before layer realization.
+    /// Start loading every LUT referenced by `scene`, the scenes of its nests
+    /// included, before layer realization.
     ///
     /// Workers run concurrently with media decode and rasterization. Realization
     /// waits only if it reaches a LUT before that worker has completed.
     pub(super) fn preload_scene_luts(&mut self, scene: &Scene) {
-        for layer in &scene.layers {
+        for layer in scene.draw_order() {
             queue_layer_luts(&mut self.luts, layer);
         }
     }

@@ -22,6 +22,10 @@ macro_rules! project_edit_rows {
                     undo: restores("the previous sequence frame rate and clip placements"), },
                 SetAudioLayout { label: "Set audio layout", reach: operator("the settings dialog's audio-layout picker"), junctions: keeps, lock: guarded,
                     undo: restores("the previous audio channel layout"), },
+                SetTimeDisplay { label: "Set time display", reach: operator("the settings dialog's time-display picker"), junctions: keeps, lock: guarded,
+                    undo: restores("the previous time display"), },
+                SetMasterMix { label: "Master mix", reach: operator("the mixer's master strip fader, pan, mute and automation controls"), junctions: keeps, lock: guarded,
+                    undo: restores("the master strip's previous fader, pan, mute, automation mode and envelopes"), },
                 CreateBin { label: "New bin", reach: operator("the palette's New Bin row, and the sidebar's new-bin button"), junctions: keeps, lock: guarded,
                     undo: restores("the pool by deleting the folder it created"), },
                 RenameBin { label: "Rename bin", reach: operator("the rename bar, opened from a bin in the sidebar"), junctions: keeps, lock: guarded,
@@ -44,6 +48,10 @@ macro_rules! project_edit_rows {
                     undo: restores("the angle's previous offset on the group's clock"), },
                 OpenSequence { label: "Open sequence", reach: operator("the Sequence menu's Open Nested Sequence and Leave Nested Sequence rows"), junctions: keeps, lock: guarded,
                     undo: restores("the previously open sequence"), },
+                CreateSequence { label: "New sequence", reach: operator("the File menu's New Sequence row, the palette, and Ctrl+N"), junctions: keeps, lock: guarded,
+                    undo: restores("the previously open sequence, and removes the sequence it created"), },
+                SetSourcePatch { label: "Patch source", reach: operator("the lane header's source patch toggle"), junctions: keeps, lock: guarded,
+                    undo: restores("the channel's previous patch"), },
             }
         }
     };

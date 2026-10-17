@@ -21,8 +21,8 @@ use std::collections::HashMap;
 
 use aria_commands::{Command, EditCommand};
 use aria_models::{
-    Generator, LinkId, Marker, MarkerColor, MediaSource, Project, Rational, RationalTime, Shape,
-    TimeRange, TrackKind,
+    Generator, LinkId, Marker, MarkerColor, Mask, MaskKind, MediaSource, Project, Rational,
+    RationalTime, Shape, TimeRange, TrackKind,
 };
 
 use crate::validate::{Lowered, QueuedWork, validate};
@@ -60,7 +60,8 @@ pub(super) struct ToolCase {
 /// A 24 fps project wide enough to validate every tool against:
 ///
 /// - `V1` (the main lane): `clip` 0-10s with a gaussian_blur + vignette
-///   chain and a crossfade at its right cut, then `next` 10-15s abutting it.
+///   chain and a crossfade at its right cut, then `next` 10-15s abutting it,
+///   carrying a circle mask over a rectangle mask.
 /// - `V2`: empty, so placements and moves have somewhere to land.
 /// - `V3`: `baked` 30-35s, a clip a render already replaced, so a restore has
 ///   something to put back and a second render has something to refuse.
@@ -156,6 +157,13 @@ impl Fixture {
         project
             .add_transition(clip, "crossfade")
             .expect("clip abuts next");
+        // A two-mask stack on the clip after it, so the mask-stack rows have an
+        // index to address and a second position to move to.
+        for kind in [MaskKind::Circle, MaskKind::Rectangle] {
+            project
+                .add_clip_mask(next, Mask::new(kind))
+                .expect("a video clip takes masks");
+        }
 
         // A clip that has already been through a render: dressed so a render was
         // worth making, then swapped for a pool item covering its whole span.

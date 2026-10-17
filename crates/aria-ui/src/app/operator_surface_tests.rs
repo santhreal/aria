@@ -109,6 +109,10 @@ const TABLE_CLAIMS: &[&str] = &[
 /// A chord is driven the way a palette row is. A windowed chord takes the entity
 /// context and queues a job instead of editing; `windowed_reach_tests` drives
 /// those, and a job is not a command, so nothing is measured here for them.
+///
+/// Each chord is driven with linked selection on and off: the toggle selects
+/// whether a trim or a nudge carries a clip's linked companions, which is a
+/// different command.
 fn chord_dispatches() -> &'static BTreeSet<&'static str> {
     static CENSUS: std::sync::LazyLock<BTreeSet<&'static str>> = std::sync::LazyLock::new(|| {
         let mut out = BTreeSet::new();
@@ -116,15 +120,18 @@ fn chord_dispatches() -> &'static BTreeSet<&'static str> {
             let KeyBody::Plain(run) = binding.run else {
                 continue;
             };
-            let (mut state, _) = with_clip();
-            if let Some(ui) = state.selected_ui_clip() {
-                let mid =
-                    ui.timeline_start_ticks + (ui.timeline_end_ticks - ui.timeline_start_ticks) / 2;
-                state.set_playhead(mid);
+            for linked in [true, false] {
+                let (mut state, _) = with_clip();
+                state.linked_selection = linked;
+                if let Some(ui) = state.selected_ui_clip() {
+                    let mid = ui.timeline_start_ticks
+                        + (ui.timeline_end_ticks - ui.timeline_start_ticks) / 2;
+                    state.set_playhead(mid);
+                }
+                let watch = super::sent_census::Watch::on(&state);
+                run(&mut state);
+                out.extend(watch.take());
             }
-            let watch = super::sent_census::Watch::on(&state);
-            run(&mut state);
-            out.extend(watch.take());
         }
         out
     });

@@ -9,23 +9,51 @@ pub struct MoveClipAction {
     pub start: RationalTime,
 }
 
-/// Move `clip` to `to_track` at `start`. Linked companions take the same time
-/// delta and stay on their lanes, as one history entry.
+/// Move `clip` to `to_track` at `start`. Linked and grouped companions take
+/// the same time delta and stay on their lanes, as one history entry.
 pub fn execute(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     to_track: TrackId,
     start: RationalTime,
 ) -> Result<Box<dyn EditAction>, EngineError> {
+    let ids = ctx.project.move_companions(clip);
+    move_with(ctx, clip, to_track, start, ids)
+}
+
+/// Move `clip` to `to_track` at `start` without its links: clips grouped with
+/// it take the same time delta, linked clips stay where they are.
+pub fn execute_unlinked(
+    ctx: &mut ApplyContext<'_>,
+    clip: ClipId,
+    to_track: TrackId,
+    start: RationalTime,
+) -> Result<Box<dyn EditAction>, EngineError> {
+    if ctx.project.clip(clip).is_none() {
+        return Err(ModelError::UnknownClip(clip).into());
+    }
+    let ids = ctx.project.group_companions(clip);
+    move_with(ctx, clip, to_track, start, ids)
+}
+
+/// Move `clip` to `to_track` at `start` and every other clip of `ids` by the
+/// same time delta on its own lane, as one history entry.
+fn move_with(
+    ctx: &mut ApplyContext<'_>,
+    clip: ClipId,
+    to_track: TrackId,
+    start: RationalTime,
+    mut ids: Vec<ClipId>,
+) -> Result<Box<dyn EditAction>, EngineError> {
     let primary = ctx
         .project
         .clip(clip)
         .ok_or(ModelError::UnknownClip(clip))?;
     let delta = start.value - primary.start().value;
-    let ids = match primary.link {
-        Some(link) => ctx.project.linked_clips(link),
-        None => vec![clip],
-    };
+    ids.sort_by_key(|&id| {
+        let tick = ctx.project.clip(id).map_or(0, |c| c.start().value);
+        if delta > 0 { -tick } else { tick }
+    });
 
     if ids.len() == 1 {
         return move_one(ctx, clip, to_track, start);
@@ -61,6 +89,7 @@ pub fn execute(
     Ok(Box::new(CompoundAction { actions: inverses }))
 }
 
+/// Move `clip` alone: its linked companions stay where they are.
 fn move_one(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,

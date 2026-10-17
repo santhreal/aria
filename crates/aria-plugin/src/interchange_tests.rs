@@ -1,8 +1,9 @@
-//! Importers and exporters: an import lands as one undo step named for the
-//! file or leaves nothing, an export replaces the destination only once the
-//! exporter returned and leaves no partial file behind, and a panic in either
-//! fails the plugin that registered it, which removes what it registered.
-//!
+//! Importers, exporters, and media encoders: an import lands as one undo step
+//! named for the file or leaves nothing, an export replaces the destination
+//! only once the exporter returned and leaves no partial file behind, a media
+//! encoder opens a [`VideoEncoder`] session guarded on every step, and a panic
+//! in any of them fails the plugin that registered it, removing its
+//! registrations.
 //! Not caught here: an importer that never returns. An import runs on the
 //! thread that asked for it, under the project host's group.
 
@@ -15,11 +16,18 @@ use aria_engine::{Engine, EngineConfig};
 use aria_models::{Project, TrackId, TrackKind};
 use parking_lot::Mutex;
 
-use super::{Exporter, ExporterSpec, Importer, ImporterSpec, InterchangeError, InterchangeReport};
+use super::{
+    Encoder, EncoderSpec, Exporter, ExporterSpec, Importer, ImporterSpec, InterchangeError,
+    InterchangeReport,
+};
 use crate::context::PluginContext;
 use crate::error::PluginError;
 use crate::plugin::{Plugin, PluginManifest};
 use crate::project_host::{Origin, ProjectHost, TransactError, Transaction};
+use aria_core::{
+    AudioEncoderConfig, ColorSpace, CpuImage, EncodeError, EncoderConfig, FrameData, PixelFormat,
+    Plane, Rational, RationalTime, Rect, Rotation, VideoEncoder, VideoFrame,
+};
 
 const PLUGIN: &str = "test.formats";
 
@@ -112,13 +120,7 @@ impl Plugin for Formats {
 
 fn formats(ends: Ends) -> Formats {
     Formats {
-        manifest: PluginManifest {
-            id: PLUGIN,
-            name: "Formats",
-            version: "0.1.0",
-            requires: &[],
-            uses: &[],
-        },
+        manifest: PluginManifest::new(PLUGIN, "Formats", "0.1.0", &[], &[]),
         ends,
     }
 }
@@ -402,17 +404,26 @@ fn unmounting_a_plugin_removes_its_formats() {
 
 #[test]
 fn a_registration_that_outlives_its_context_drops() {
-    let (read, write) = {
+    let (read, write, encode) = {
         let ctx = PluginContext::new();
         (
             ctx.register_importer(importer("lanes", &["lanes"]), Lanes)
                 .expect("registers"),
             ctx.register_exporter(exporter("lanes", "lanes"), LaneList(Ends::Returns))
                 .expect("registers"),
+            ctx.register_encoder(
+                encoder_spec("lanes.enc", "mov", true),
+                TestEncoder {
+                    step: EncoderStep::None,
+                    ends: Ends::Returns,
+                },
+            )
+            .expect("registers"),
         )
     };
     drop(read);
     drop(write);
+    drop(encode);
 }
 
 /// Every malformed or taken spec is refused, and a refusal leaves the
@@ -461,6 +472,36 @@ fn malformed_or_taken_specs_are_refused() {
         |specs: Vec<Arc<ImporterSpec>>| specs.iter().map(|s| s.id.clone()).collect::<Vec<_>>();
     assert_eq!(ids(ctx.importers()), ["lanes"]);
     assert_eq!(ctx.exporters().len(), 1);
+    let _encoder = ctx
+        .register_encoder(
+            encoder_spec("lanes.enc", "mov", true),
+            TestEncoder {
+                step: EncoderStep::None,
+                ends: Ends::Returns,
+            },
+        )
+        .expect("registers");
+    for (id, extension) in [
+        ("", "mov"),
+        ("lanes.enc", "mov"),
+        ("prores", ""),
+        ("prores", ".mov"),
+        ("prores", "tar.gz"),
+        ("prores", "a/b"),
+    ] {
+        let refused = ctx.register_encoder(
+            encoder_spec(id, extension, true),
+            TestEncoder {
+                step: EncoderStep::None,
+                ends: Ends::Returns,
+            },
+        );
+        assert!(
+            matches!(refused, Err(PluginError::EncoderRefused(_))),
+            "encoder {id:?} {extension:?}"
+        );
+    }
+    assert_eq!(ctx.encoders().len(), 1);
 }
 
 #[test]
@@ -577,4 +618,257 @@ fn an_export_names_a_missing_exporter_or_an_unwritable_path() {
         );
     }
     assert!(fx.entries().is_empty(), "nothing is written");
+}
+
+fn encoder_spec(id: &str, extension: &str, audio: bool) -> EncoderSpec {
+    EncoderSpec {
+        id: id.to_owned(),
+        name: format!("Format {id}"),
+        extension: extension.to_owned(),
+        audio,
+    }
+}
+
+fn test_encoder_config() -> EncoderConfig {
+    EncoderConfig::new((4, 2), Rational::FPS_24, ColorSpace::BT709)
+        .with_audio(AudioEncoderConfig::new(48_000, 2))
+        .with_bitrate_kbps(2_000)
+}
+
+fn test_video_frame(width: u32, height: u32) -> VideoFrame {
+    let stride = (width as usize) * 4;
+    let plane = Plane::new(
+        vec![0u8; stride * (height as usize)],
+        stride,
+        height as usize,
+    );
+    VideoFrame::new(
+        RationalTime::zero(Rational::FPS_24),
+        PixelFormat::Rgba8,
+        ColorSpace::BT709,
+        (width, height),
+        Rect::from_size(width, height),
+        Rotation::None,
+        FrameData::Cpu(CpuImage::new(vec![plane])),
+    )
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum EncoderStep {
+    None,
+    Open,
+    Push,
+    PushAudio,
+    Finish,
+}
+
+struct TestEncoder {
+    step: EncoderStep,
+    ends: Ends,
+}
+
+struct TestEncoderSession {
+    path: PathBuf,
+    header: String,
+    frames: usize,
+    audio_samples: usize,
+    step: EncoderStep,
+    ends: Ends,
+}
+
+impl Encoder for TestEncoder {
+    fn open(
+        &self,
+        path: &Path,
+        config: &EncoderConfig,
+    ) -> Result<Box<dyn VideoEncoder>, EncodeError> {
+        if self.step == EncoderStep::Open {
+            match self.ends {
+                Ends::Returns => {}
+                Ends::Errs => return Err(EncodeError::Start(REFUSAL.into())),
+                Ends::Panics => panic!("open is broken"),
+            }
+        }
+        Ok(Box::new(TestEncoderSession {
+            path: path.to_owned(),
+            header: format!("{}x{}", config.size.0, config.size.1),
+            frames: 0,
+            audio_samples: 0,
+            step: self.step,
+            ends: self.ends,
+        }))
+    }
+}
+
+impl VideoEncoder for TestEncoderSession {
+    fn push(&mut self, frame: &VideoFrame) -> Result<(), EncodeError> {
+        if self.step == EncoderStep::Push {
+            match self.ends {
+                Ends::Returns => {}
+                Ends::Errs => return Err(EncodeError::Encode(REFUSAL.into())),
+                Ends::Panics => panic!("push is broken"),
+            }
+        }
+        self.frames += usize::from(frame.coded_size.0 > 0);
+        Ok(())
+    }
+
+    fn push_audio(&mut self, samples: &[f32], _pts: RationalTime) -> Result<(), EncodeError> {
+        if self.step == EncoderStep::PushAudio {
+            match self.ends {
+                Ends::Returns => {}
+                Ends::Errs => return Err(EncodeError::Encode(REFUSAL.into())),
+                Ends::Panics => panic!("push_audio is broken"),
+            }
+        }
+        self.audio_samples += samples.len();
+        Ok(())
+    }
+
+    fn finish(&mut self) -> Result<(), EncodeError> {
+        if self.step == EncoderStep::Finish {
+            match self.ends {
+                Ends::Returns => {}
+                Ends::Errs => return Err(EncodeError::Encode(REFUSAL.into())),
+                Ends::Panics => panic!("finish is broken"),
+            }
+        }
+        std::fs::write(
+            &self.path,
+            format!("{}:{}:{}\n", self.header, self.frames, self.audio_samples),
+        )
+        .map_err(|err| EncodeError::Encode(err.to_string()))
+    }
+}
+
+struct EncoderPlugin {
+    manifest: PluginManifest,
+    step: EncoderStep,
+    ends: Ends,
+}
+
+impl Plugin for EncoderPlugin {
+    fn manifest(&self) -> &PluginManifest {
+        &self.manifest
+    }
+
+    fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
+        ctx.register_encoder(
+            encoder_spec("lanes.enc", "MOV", true),
+            TestEncoder {
+                step: self.step,
+                ends: self.ends,
+            },
+        )?;
+        Ok(())
+    }
+}
+
+#[test]
+fn an_encoder_registers_opens_writes_frames_and_audio_and_unregisters() {
+    let fx = fixture();
+    fx.ctx
+        .mount(&EncoderPlugin {
+            manifest: PluginManifest::new(PLUGIN, "Formats", "1.0.0", &[], &[]),
+            step: EncoderStep::None,
+            ends: Ends::Returns,
+        })
+        .expect("mounts");
+    let specs = fx.ctx.encoders();
+    assert_eq!(specs.len(), 1);
+    assert_eq!(specs[0].id, "lanes.enc");
+    assert_eq!(specs[0].extension, "mov", "stored lowercase");
+    assert!(specs[0].audio);
+    assert_eq!(fx.ctx.encoder("lanes.enc"), Some(Arc::clone(&specs[0])));
+
+    let out = fx.dir.path().join("clip.mov");
+    let mut session = fx
+        .ctx
+        .open_encoder("lanes.enc", &out, &test_encoder_config())
+        .expect("opens");
+    let frame = test_video_frame(4, 2);
+    session.push(&frame).expect("push 1");
+    session.push(&frame).expect("push 2");
+    session
+        .push_audio(
+            &[0.25, -0.25, 0.5, -0.5],
+            RationalTime::zero(Rational::new(48_000, 1)),
+        )
+        .expect("push audio");
+    session.finish().expect("finish");
+    assert_eq!(std::fs::read_to_string(&out).expect("written"), "4x2:2:4\n");
+
+    fx.ctx.unmount(PLUGIN).expect("unmounts");
+    assert!(fx.ctx.encoders().is_empty());
+    assert_eq!(fx.ctx.encoder("lanes.enc"), None);
+    let err = fx
+        .ctx
+        .open_encoder("lanes.enc", &out, &test_encoder_config())
+        .err()
+        .expect("unmounted encoder cannot open");
+    assert!(
+        err.to_string().contains("lanes.enc"),
+        "missing encoder error must name the id: {err}"
+    );
+}
+
+#[test]
+fn an_encoder_panic_in_any_step_fails_its_plugin_while_an_error_does_not() {
+    for step in [
+        EncoderStep::Open,
+        EncoderStep::Push,
+        EncoderStep::PushAudio,
+        EncoderStep::Finish,
+    ] {
+        for ends in [Ends::Errs, Ends::Panics] {
+            let fx = fixture();
+            fx.ctx
+                .mount(&EncoderPlugin {
+                    manifest: PluginManifest::new(PLUGIN, "Formats", "1.0.0", &[], &[]),
+                    step,
+                    ends,
+                })
+                .expect("mounts");
+            let out = fx.dir.path().join("clip.mov");
+            let frame = test_video_frame(4, 2);
+            let case = format!("{step:?} {ends:?}");
+
+            let outcome: Result<(), EncodeError> = (|| {
+                let mut session = fx
+                    .ctx
+                    .open_encoder("lanes.enc", &out, &test_encoder_config())?;
+                session.push(&frame)?;
+                session.push_audio(&[0.1, -0.1], RationalTime::zero(Rational::new(48_000, 1)))?;
+                session.finish()
+            })();
+            let err = outcome.expect_err(&case);
+
+            match ends {
+                Ends::Returns => unreachable!(),
+                Ends::Errs => {
+                    assert!(
+                        err.to_string().contains(REFUSAL),
+                        "{case}: expected refusal in {err}"
+                    );
+                    assert_eq!(fx.failure(), None, "{case}: an error is not a fault");
+                    assert_eq!(fx.ctx.encoders().len(), 1, "{case}: stays registered");
+                }
+                Ends::Panics => {
+                    assert!(
+                        err.to_string().contains("is broken"),
+                        "{case}: expected panic message in {err}"
+                    );
+                    let reason = fx.failure().expect("panic fails the plugin");
+                    assert!(
+                        reason.contains("encoder lanes.enc panicked"),
+                        "{case}: {reason}"
+                    );
+                    assert!(
+                        fx.ctx.encoders().is_empty(),
+                        "{case}: failed plugin unregisters its encoder"
+                    );
+                }
+            }
+        }
+    }
 }

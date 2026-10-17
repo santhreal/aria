@@ -45,8 +45,9 @@ enum Kind {
     NoEdit,
 }
 use Dress::{
-    Baked, Blended, Clip, Copied, Cut, Fitted, Inside, Linked, Marked, Nest, Pair, Rendered, Sound,
-    Source,
+    Baked, Blended, Clip, Copied, Cut, Edged, EffectCopied, Effected, Fitted, Grouped, Inside,
+    Keyed, Labelled, Lanes, Linked, Marked, Masked, Nest, Pair, Picked, Ranged, Rendered, Sound,
+    Source, Sourced, Spanned,
 };
 use Kind::{Edits, NoEdit};
 /// Every menu row, what it does, and the state it is driven against. Checked
@@ -56,8 +57,10 @@ const ROWS: &[(&str, Kind, Dress)] = &[
     // Sends a command against one selected clip with the playhead inside it.
     ("edit-cut", Edits, Clip),
     ("edit-dup", Edits, Clip),
-    ("edit-split", Edits, Clip),
     ("edit-ripple", Edits, Clip),
+    ("edit-clear", Edits, Clip),
+    ("clip-enable", Edits, Clip),
+    ("clip-time-remap", Edits, Clip),
     ("seq-v", Edits, Clip),
     ("seq-a", Edits, Clip),
     ("seq-adjustment", Edits, Clip),
@@ -68,17 +71,19 @@ const ROWS: &[(&str, Kind, Dress)] = &[
     ("seq-flip-v", Edits, Clip),
     ("seq-crop-reset", Edits, Clip),
     ("seq-grade-reset", Edits, Clip),
-    ("seq-mask-clear", Edits, Clip),
     ("seq-chroma-clear", Edits, Clip),
     ("seq-matte-luma", Edits, Clip),
     ("seq-matte-alpha", Edits, Clip),
     ("seq-matte-clear", Edits, Clip),
     // Acts on state the fixture has to be dressed with first: a copy on the
     // clipboard, a marker under the playhead, a second clip to link to, a
-    // junction, a source range, a nest, or a render already on disk.
+    // junction, a source range, a nest, a mask, or a render already on disk.
+    ("seq-mask-clear", Edits, Masked),
     ("edit-paste", Edits, Copied),
     ("edit-paste-insert", Edits, Copied),
     ("edit-paste-attributes", Edits, Copied),
+    // Opens the dialog; its Remove button commits the edit.
+    ("edit-remove-attributes", NoEdit, Effected),
     ("edit-paste-fit", Edits, Fitted),
     ("seq-source-insert", Edits, Source),
     ("seq-source-overwrite", Edits, Source),
@@ -86,11 +91,14 @@ const ROWS: &[(&str, Kind, Dress)] = &[
     ("seq-marker-remove", Edits, Marked),
     ("seq-link", Edits, Pair),
     ("seq-unlink", Edits, Linked),
+    ("clip-group", Edits, Pair),
+    ("clip-ungroup", Edits, Grouped),
     ("seq-extract-audio", Edits, Sound),
     ("seq-freeze", Edits, Sound),
     ("seq-transition-crossfade", Edits, Cut),
     ("seq-transition-clear", Edits, Blended),
     ("seq-nest", Edits, Clip),
+    ("file-new-sequence", Edits, Clip),
     ("seq-nest-open", Edits, Nest),
     ("seq-nest-leave", Edits, Inside),
     ("seq-nest-place", Edits, Nest),
@@ -105,11 +113,20 @@ const ROWS: &[(&str, Kind, Dress)] = &[
     ("file-rename", NoEdit, Clip),
     ("file-export", NoEdit, Clip),
     ("file-close", NoEdit, Clip),
+    ("file-quit", NoEdit, Clip),
     ("edit-undo", NoEdit, Clip),
     ("edit-redo", NoEdit, Clip),
     ("edit-copy", NoEdit, Clip),
     ("edit-select-all", NoEdit, Clip),
     ("edit-deselect", NoEdit, Clip),
+    ("clip-speed-duration", NoEdit, Clip),
+    ("clip-audio-gain", NoEdit, Sound),
+    // Stereo removes a channel tool; the dressing carries none.
+    ("clip-channels-stereo", NoEdit, Sound),
+    ("clip-channels-swap", Edits, Sound),
+    ("clip-channels-left", Edits, Sound),
+    ("clip-channels-right", Edits, Sound),
+    ("clip-channels-mono", Edits, Sound),
     ("seq-fit", NoEdit, Clip),
     ("seq-fit-selection", NoEdit, Clip),
     ("seq-in", NoEdit, Clip),
@@ -127,34 +144,68 @@ const ROWS: &[(&str, Kind, Dress)] = &[
     // Opens a text field over the marker under the playhead. The field's own
     // commit is covered where the field is.
     ("seq-marker-rename", NoEdit, Marked),
-    ("view-sidebar", NoEdit, Clip),
-    ("view-inspector", NoEdit, Clip),
-    ("view-ai", NoEdit, Clip),
-    ("view-mixer", NoEdit, Clip),
     ("view-fullscreen", NoEdit, Clip),
     ("view-title-safe", NoEdit, Clip),
     ("view-action-safe", NoEdit, Clip),
     ("view-grid", NoEdit, Clip),
+    ("view-rulers", NoEdit, Clip),
+    ("view-guide-snap", NoEdit, Clip),
+    ("view-transparency-grid", NoEdit, Clip),
+    ("view-guides-show", NoEdit, Clip),
+    ("seq-linked-selection", NoEdit, Clip),
+    ("view-guides-clear", NoEdit, Clip),
+    ("view-split", NoEdit, Clip),
+    // Holds a reference picture beside the Program frame, or sets how it is
+    // drawn: the operator's view, not the project.
+    ("view-compare-frame", NoEdit, Clip),
+    ("view-compare-still", NoEdit, Clip),
+    ("view-compare-source", NoEdit, Source),
+    ("view-compare-vertical", NoEdit, Clip),
+    ("view-compare-horizontal", NoEdit, Clip),
+    ("view-compare-side", NoEdit, Clip),
+    ("view-compare-stop", NoEdit, Clip),
     ("view-scopes", NoEdit, Clip),
+    ("view-waveform-luma", NoEdit, Clip),
+    ("view-waveform-rgb", NoEdit, Clip),
+    ("view-waveform-ycbcr", NoEdit, Clip),
     ("view-zoom-fit", NoEdit, Clip),
     ("view-zoom-actual", NoEdit, Clip),
-    ("view-handles", NoEdit, Clip),
-    ("view-settings", NoEdit, Clip),
+    ("view-handles-transform", NoEdit, Clip),
+    ("view-handles-crop", NoEdit, Clip),
+    ("view-handles-mask", NoEdit, Clip),
+    ("view-playback-resolution", NoEdit, Clip),
+    ("view-paused-resolution", NoEdit, Clip),
+    ("view-proxies", NoEdit, Clip),
+    ("view-loop", NoEdit, Clip),
+    ("view-thumbs-head", NoEdit, Clip),
+    ("view-thumbs-head-tail", NoEdit, Clip),
+    ("view-thumbs-continuous", NoEdit, Clip),
+    ("view-waveform-log", NoEdit, Clip),
+    ("view-waveform-linear", NoEdit, Clip),
+    ("view-waveform-hidden", NoEdit, Clip),
+    ("view-follow-page", NoEdit, Clip),
+    ("view-follow-smooth", NoEdit, Clip),
     ("win-home", NoEdit, Clip),
     ("win-palette", NoEdit, Clip),
     ("win-jobs", NoEdit, Clip),
-    ("win-history", NoEdit, Clip),
     ("help-learn", NoEdit, Clip),
     ("help-data", NoEdit, Clip),
+    ("help-about", NoEdit, Clip),
     ("help-updates", NoEdit, Clip),
     // Asks the operator for a path. With no answer supplied the row asks and
     // stops, which is why it writes nothing here; each is driven with an answer
     // by a test at the foot of this file.
     ("file-open", NoEdit, Clip),
     ("file-save-as", NoEdit, Clip),
+    ("file-save-copy", NoEdit, Clip),
     ("file-save-template", NoEdit, Clip),
     ("file-use-template", NoEdit, Clip),
     ("file-import", NoEdit, Clip),
+    ("file-import-recent-clear", NoEdit, Clip),
+    ("file-import-timeline", NoEdit, Clip),
+    ("file-export-timeline", NoEdit, Clip),
+    ("file-export-frame", NoEdit, Clip),
+    ("file-install-plugin", NoEdit, Clip),
     ("file-relink-all", NoEdit, Clip),
     // Opens the project report, which reads facts and writes nothing.
     ("win-project-report", NoEdit, Clip),
@@ -163,10 +214,12 @@ const ROWS: &[(&str, Kind, Dress)] = &[
     // `layouts::WORKSPACES`: this table exists to make a new row someone's
     // decision, and a generated declaration would classify it silently.
     ("win-workspace-editing", NoEdit, Clip),
+    ("win-workspace-animation", NoEdit, Clip),
     ("win-workspace-colour", NoEdit, Clip),
     ("win-workspace-audio", NoEdit, Clip),
     ("win-workspace-effects", NoEdit, Clip),
     ("win-workspace-save", NoEdit, Clip),
+    ("win-workspace-reset", NoEdit, Clip),
     // Sequence rows that share a helper, and an exact label, with a palette row
     // already declared in `reach_tests.rs`. Same code path against the same
     // fixture, so the classification is the twin's rather than a fresh guess.
@@ -178,12 +231,111 @@ const ROWS: &[(&str, Kind, Dress)] = &[
     ("seq-lane-shift-earlier", NoEdit, Clip),
     ("seq-lane-shift-later", Edits, Clip),
     ("seq-marker-snap", NoEdit, Clip),
+    ("seq-render-in-to-out", NoEdit, Clip),
+    ("seq-render-selection", NoEdit, Clip),
+    ("clip-analyze:aria.beats", NoEdit, Sound),
+    ("seq-analyze:aria.silence", NoEdit, Clip),
+    ("seq-analyze:aria.loudness", NoEdit, Clip),
+    // Marks and the view: In and Out are session state, not project state.
+    ("mark-clip", NoEdit, Clip),
+    ("mark-go-in", NoEdit, Clip),
+    ("mark-go-out", NoEdit, Clip),
+    ("mark-clear", NoEdit, Clip),
+    ("marker-clear-all", Edits, Marked),
+    ("fx-controls", NoEdit, Clip),
+    ("anim-reveal-keyed", NoEdit, Clip),
+    ("anim-reveal-modified", NoEdit, Clip),
+    ("anim-keyframe-velocity", NoEdit, Keyed),
+    ("anim-graph-editor", NoEdit, Clip),
+    ("seq-delete-render-files", NoEdit, Clip),
+    // Cuts at the playhead, inside the clip.
+    ("seq-add-edit", Edits, Clip),
+    ("seq-add-edit-all", Edits, Clip),
+    // A label is a project edit; clearing one needs a label to clear.
+    ("edit-label-violet", Edits, Clip),
+    ("edit-label-iris", Edits, Clip),
+    ("edit-label-caribbean", Edits, Clip),
+    ("edit-label-lavender", Edits, Clip),
+    ("edit-label-cerulean", Edits, Clip),
+    ("edit-label-forest", Edits, Clip),
+    ("edit-label-rose", Edits, Clip),
+    ("edit-label-mango", Edits, Clip),
+    ("edit-label-purple", Edits, Clip),
+    ("edit-label-blue", Edits, Clip),
+    ("edit-label-teal", Edits, Clip),
+    ("edit-label-magenta", Edits, Clip),
+    ("edit-label-tan", Edits, Clip),
+    ("edit-label-green", Edits, Clip),
+    ("edit-label-brown", Edits, Clip),
+    ("edit-label-yellow", Edits, Clip),
+    ("edit-label-none", Edits, Labelled),
+    // Each sets the interpolation of the keyframe under the playhead.
+    ("anim-toggle-hold", Edits, Keyed),
+    ("anim-interp-linear", Edits, Keyed),
+    ("anim-interp-bezier", Edits, Keyed),
+    ("anim-interp-hold", Edits, Keyed),
+    ("anim-easy-ease", Edits, Keyed),
+    ("anim-easy-ease-in", Edits, Keyed),
+    ("anim-easy-ease-out", Edits, Keyed),
+    ("anim-add-keyframe", Edits, Picked),
+    ("anim-add-expression", Edits, Picked),
+    ("anim-time-reverse", Edits, Spanned),
+    ("fx-last", Edits, Effected),
+    ("fx-remove-all", Edits, Effected),
+    ("fx-paste", Edits, EffectCopied),
+    ("seq-delete-tracks", Edits, Lanes),
+    ("seq-extend-edit", Edits, Edged),
+    ("seq-lift", Edits, Ranged),
+    ("seq-extract", Edits, Ranged),
+    ("seq-default-transitions", Edits, Cut),
+    ("clip-subclip", Edits, Source),
+    ("clip-replace-source", Edits, Sourced),
+    // Selects an edit point, which is session state.
+    ("seq-trim-edit", NoEdit, Clip),
+    // A toggle of the editor's own state.
+    ("seq-snap", NoEdit, Clip),
+    // Reverts to the saved file; the fixture was never saved, so the row
+    // reports that and stops. Driven against a saved project by its own test.
+    ("file-revert", NoEdit, Clip),
+    // Open a field, a dialog, a pane, or a page.
+    ("clip-rename", NoEdit, Clip),
+    ("edit-find", NoEdit, Clip),
+    ("edit-keyboard-shortcuts", NoEdit, Clip),
+    ("edit-preferences", NoEdit, Clip),
+    ("file-project-settings", NoEdit, Clip),
+    ("seq-settings", NoEdit, Clip),
+    ("help-plugins", NoEdit, Clip),
+    ("win-media", NoEdit, Clip),
+    ("win-effects", NoEdit, Clip),
+    ("win-program", NoEdit, Clip),
+    ("win-timeline", NoEdit, Clip),
+    ("win-inspector", NoEdit, Clip),
+    ("win-assistant", NoEdit, Clip),
+    ("win-mixer", NoEdit, Clip),
 ];
 /// What a row does and what it is driven against.
 fn row_of(id: &str) -> Option<(Kind, Dress)> {
-    ROWS.iter()
-        .find(|(row, ..)| *row == id)
-        .map(|(_, kind, dress)| (*kind, *dress))
+    by_prefix(id).or_else(|| {
+        ROWS.iter()
+            .find(|(row, ..)| *row == id)
+            .map(|(_, kind, dress)| (*kind, *dress))
+    })
+}
+/// Rows generated one per catalog entry or registered dock panel, declared by
+/// their id prefix: every effect the catalogs list and every panel the host
+/// holds is offered, so the table cannot name them one by one without going
+/// stale when an entry is added.
+fn by_prefix(id: &str) -> Option<(Kind, Dress)> {
+    use crate::chrome::menu_effect::{APPLY_AUDIO_PREFIX, APPLY_PREFIX};
+    if id.starts_with(APPLY_AUDIO_PREFIX) {
+        Some((Edits, Sound))
+    } else if id.starts_with(APPLY_PREFIX) {
+        Some((Edits, Clip))
+    } else if id.starts_with(crate::chrome::menu_items::PANEL_PREFIX) {
+        Some((NoEdit, Clip))
+    } else {
+        None
+    }
 }
 /// Every row the bar would draw, across all six menus, as (menu, id).
 fn live_rows() -> Vec<(AppMenu, String)> {
@@ -206,11 +358,17 @@ fn labels_from(menu: AppMenu, id: &str, dress: Dress) -> Vec<String> {
 /// opens asks for a command and writes no history, so the surface census reads
 /// the second.
 fn driven(menu: AppMenu, id: &str, dress: Dress) -> (Vec<String>, Vec<&'static str>) {
-    dispatch(menu, id, dress.state())
+    dispatch(menu, id, dress.state(), false)
 }
 /// The same, against a state the caller built: a row that asks for a path is
-/// driven against one carrying the answer.
-fn dispatch(menu: AppMenu, id: &str, state: AppState) -> (Vec<String>, Vec<&'static str>) {
+/// driven against one carrying the answer, and a row that opens a form is driven
+/// with Enter pressed on the form (`enter`).
+fn dispatch(
+    menu: AppMenu,
+    id: &str,
+    state: AppState,
+    enter: bool,
+) -> (Vec<String>, Vec<&'static str>) {
     let cx = gpui::TestAppContext::single();
     let before = history_labels(&state);
     let watch = super::sent_census::Watch::on(&state);
@@ -227,6 +385,12 @@ fn dispatch(menu: AppMenu, id: &str, state: AppState) -> (Vec<String>, Vec<&'sta
                 return false;
             };
             run(id, state, cx);
+            if enter {
+                assert!(
+                    state.run_dialog_primary(),
+                    "{id} opened no form Enter commits"
+                );
+            }
             true
         })
     });
@@ -278,7 +442,17 @@ static CENSUS: std::sync::LazyLock<(BTreeSet<String>, BTreeSet<&'static str>)> =
             let Some((menu, _)) = rows.iter().find(|(_, live)| live == id) else {
                 continue;
             };
-            let (wrote, asked) = dispatch(*menu, id, answered.state().0);
+            let (wrote, asked) = dispatch(*menu, id, answered.state().0, false);
+            labels.extend(wrote);
+            sent.extend(asked);
+        }
+        // A row that opens a form is driven a second time with the form
+        // committed, which is the press that sends its command.
+        for (id, dress) in FORM_ROWS {
+            let Some((menu, _)) = rows.iter().find(|(_, live)| live == id) else {
+                continue;
+            };
+            let (wrote, asked) = dispatch(*menu, id, dress.state(), true);
             labels.extend(wrote);
             sent.extend(asked);
         }
@@ -290,11 +464,45 @@ static CENSUS: std::sync::LazyLock<(BTreeSet<String>, BTreeSet<&'static str>)> =
 const PICK_ROWS: &[(&str, Answered)] = &[
     ("file-open", Answered::Open),
     ("file-save-as", Answered::SaveAs),
+    ("file-save-copy", Answered::SaveCopy),
     ("file-save-template", Answered::SaveTemplate),
     ("file-use-template", Answered::UseTemplate),
     ("file-import", Answered::Import),
     ("file-relink-all", Answered::RelinkAll),
+    ("file-import-timeline", Answered::ImportTimeline),
+    ("file-export-timeline", Answered::ExportTimeline),
+    ("file-export-frame", Answered::ExportFrame),
+    ("file-install-plugin", Answered::InstallPlugin),
+    ("view-compare-still", Answered::CompareStill),
 ];
+/// Every menu row that opens a form Enter commits, with the state it is driven
+/// against. Checked against the live menus at run time by
+/// `every_row_that_opens_a_form_is_committed`.
+const FORM_ROWS: &[(&str, Dress)] = &[
+    ("edit-remove-attributes", Effected),
+    ("clip-speed-duration", Clip),
+    ("clip-audio-gain", Sound),
+    ("seq-marker-rename", Marked),
+    ("anim-keyframe-velocity", Keyed),
+];
+/// Rows that open a dialog with a primary action the census does not press, and
+/// why.
+pub(super) const FORM_EXEMPT: &[(&str, &str)] = &[
+    (
+        "file-export",
+        "the sheet's Export writes a file and starts a job, which the export tests drive",
+    ),
+    ("file-new", LEAVES),
+    ("file-open", LEAVES),
+    ("file-home", LEAVES),
+    ("file-close", LEAVES),
+    ("file-quit", LEAVES),
+    ("win-home", LEAVES),
+    ("help-learn", LEAVES),
+];
+/// Why a row that leaves the project is exempt from the form census.
+const LEAVES: &str = "leaving a project with unsaved edits opens the Unsaved Changes prompt, \
+                      whose Save, Discard, and Cancel unsaved_tests drives";
 fn fixture() -> std::path::PathBuf {
     std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/texture.png")
 }
@@ -365,3 +573,5 @@ mod menu_reach_dress;
 mod menu_reach_tests_operator;
 #[path = "menu_reach_tests_row.rs"]
 mod menu_reach_tests_row;
+#[path = "menu_reach_tests_verbs.rs"]
+mod menu_reach_tests_verbs;

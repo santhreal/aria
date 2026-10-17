@@ -13,7 +13,6 @@
 //! control. `AI_JOB_ROWS` holds the two that can be fired directly, because
 //! they need the entity context to start a request.
 
-use crate::app::DialogKind;
 use crate::types::ActivePanel;
 
 use super::host::{CommandEntry, WindowedEntry};
@@ -51,19 +50,19 @@ pub(super) const AI_ROWS: &[CommandEntry] = &[
     CommandEntry {
         id: "pal-ai-models",
         label: "AI: choose the model",
-        run: |state| open_settings(state, "AI"),
+        run: |state| state.open_settings_at("AI"),
     },
     CommandEntry {
         id: "pal-ai-connection",
         label: "AI: test the connection",
-        run: |state| open_settings(state, "AI"),
+        run: |state| state.open_settings_at("AI"),
     },
     CommandEntry {
         id: "pal-ai-schema",
         label: "Configuration: what this build reads",
         run: |state| {
             let status = state.settings_schema_status();
-            open_settings(state, "Configuration");
+            state.open_settings_at("Configuration");
             state.status_message = Some(status);
         },
     },
@@ -91,15 +90,3 @@ pub(super) const AI_JOB_ROWS: &[WindowedEntry] = &[
         run: |state, cx| state.test_ai_connection(cx),
     },
 ];
-
-/// Open Settings with the filter naming one section.
-///
-/// The filter rather than a scroll position: the dialog already narrows itself by
-/// section title, so setting it is how a row points at a pane without the dialog
-/// needing to know who asked.
-fn open_settings(state: &mut crate::app::AppState, section: &str) {
-    state.settings_form.filter = section.to_string();
-    state.settings_form.focused = None;
-    state.settings_form.draft.clear();
-    state.open_dialog(DialogKind::Settings);
-}

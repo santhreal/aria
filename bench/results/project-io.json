@@ -1,0 +1,109 @@
+{
+  "scenario": "project-io",
+  "machine": "Server",
+  "gpu": "llvmpipe (LLVM 20.1.2, 256 bits)",
+  "driver": "llvmpipe Mesa 25.2.8-0ubuntu0.24.04.2 (LLVM 20.1.2)",
+  "wgpu_adapter": "llvmpipe (LLVM 20.1.2, 256 bits) (Vulkan)",
+  "commit": "588a23f4c9cd809b89aa3b6b062964c53b7a977d",
+  "profile": "release",
+  "environment": {
+    "machine": "Server",
+    "hostname": "santhserver",
+    "os": "Linux 6.8.0-142-generic x86_64",
+    "cpu": "11th Gen Intel(R) Core(TM) i7-11700K @ 3.60GHz",
+    "gpu": "llvmpipe (LLVM 20.1.2, 256 bits)",
+    "driver": "llvmpipe Mesa 25.2.8-0ubuntu0.24.04.2 (LLVM 20.1.2)",
+    "wgpu_adapter": "llvmpipe (LLVM 20.1.2, 256 bits) (Vulkan)",
+    "commit": "588a23f4c9cd809b89aa3b6b062964c53b7a977d",
+    "profile": "release"
+  },
+  "verdict": "fail",
+  "reason": "save_ms: measured 336.981 ms, target <= 200.000 ms",
+  "targets": [
+    {
+      "name": "open_interactive_ms",
+      "description": "project-10k open to interactive in 500 ms",
+      "comparison": "at_most",
+      "target": 500.0,
+      "unit": "ms",
+      "measured": 160.836639,
+      "verdict": "pass",
+      "reason": null,
+      "required_on_machine": true
+    },
+    {
+      "name": "save_ms",
+      "description": "project-10k save in 200 ms",
+      "comparison": "at_most",
+      "target": 200.0,
+      "unit": "ms",
+      "measured": 336.98103299999997,
+      "verdict": "fail",
+      "reason": "save_ms: measured 336.981 ms, target <= 200.000 ms",
+      "required_on_machine": true
+    }
+  ],
+  "rules": [],
+  "samples": [
+    {
+      "name": "open_interactive_ms",
+      "unit": "ms",
+      "values": [
+        148.910577,
+        160.836639,
+        228.566964,
+        774.475111,
+        204.187985,
+        82.31825900000001,
+        82.132764
+      ],
+      "min": 82.132764,
+      "p50": 160.836639,
+      "p95": 774.475111,
+      "p99": 774.475111,
+      "max": 774.475111,
+      "mean": 240.2040427142857
+    },
+    {
+      "name": "deserialize_only_ms",
+      "unit": "ms",
+      "values": [
+        131.229793,
+        143.020712,
+        129.317579,
+        695.773342,
+        193.340027,
+        71.392861,
+        71.39764799999999
+      ],
+      "min": 71.392861,
+      "p50": 131.229793,
+      "p95": 695.773342,
+      "p99": 695.773342,
+      "max": 695.773342,
+      "mean": 205.0674231428571
+    },
+    {
+      "name": "save_ms",
+      "unit": "ms",
+      "values": [
+        329.475794,
+        269.469606,
+        377.807225,
+        445.70473100000004,
+        336.98103299999997,
+        326.60560100000004,
+        381.354612
+      ],
+      "min": 269.469606,
+      "p50": 336.98103299999997,
+      "p95": 445.70473100000004,
+      "p99": 445.70473100000004,
+      "max": 445.70473100000004,
+      "mean": 352.4855145714286
+    }
+  ],
+  "notes": [
+    "project-10k verified: 50 tracks, 10000 clips, 500 markers; deserialize p50=131.23 ms, open+project+snap p50=160.84 ms, save p50=336.98 ms"
+  ]
+}

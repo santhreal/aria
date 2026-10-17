@@ -19,12 +19,24 @@ pub enum ContextTarget {
     Transition {
         clip: u64,
     },
+    /// The fx badge on `clip`'s timeline bar: the properties the bar can draw
+    /// as its line.
+    ClipBadge {
+        clip: u64,
+        track: u64,
+    },
     Preview,
     PoolItem {
         media: u64,
     },
     Recent {
         path: PathBuf,
+    },
+    /// One effect's header in the Effects tab: the effect at `index` in
+    /// `clip`'s chain.
+    Effect {
+        clip: u64,
+        index: usize,
     },
 }
 
@@ -52,6 +64,14 @@ pub enum RenameTarget {
     /// A signed frame offset to shift the selection by, across every lane it
     /// spans.
     ShiftFrames,
+    /// A workspace name to write under `<data dir>/workspaces/<name>.json`.
+    SaveWorkspace,
+    /// The name of the effect at `index` in `clip`'s chain. An empty draft is
+    /// a value: it gives the header back the catalog's label.
+    Effect {
+        clip: u64,
+        index: usize,
+    },
 }
 
 impl RenameTarget {
@@ -66,6 +86,8 @@ impl RenameTarget {
             RenameTarget::SlotLabel => "Slot hint",
             RenameTarget::ClipText => "Title text",
             RenameTarget::ShiftFrames => "Shift by (frames)",
+            RenameTarget::SaveWorkspace => "Save workspace as",
+            RenameTarget::Effect { .. } => "Rename effect",
         }
     }
 
@@ -75,6 +97,9 @@ impl RenameTarget {
     /// their mind. A note can be blank, and clearing one is the only way to take
     /// a stale note off a marker.
     pub fn allows_empty(self) -> bool {
-        matches!(self, RenameTarget::MarkerComment(_) | RenameTarget::Clip(_))
+        matches!(
+            self,
+            RenameTarget::MarkerComment(_) | RenameTarget::Clip(_) | RenameTarget::Effect { .. }
+        )
     }
 }

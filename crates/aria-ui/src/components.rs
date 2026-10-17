@@ -1,5 +1,6 @@
 //! Shared chrome widgets used by every panel.
 
+use crate::tooltip::WithTip as _;
 use gpui::motion::presets;
 use gpui::{
     CursorStyle, Div, InteractiveElement, IntoElement, ParentElement, SharedString, Stateful,
@@ -59,7 +60,7 @@ pub fn button(
         .rounded(px(Theme::CONTROL_RADIUS))
         .bg(motion::mix(theme.solid, theme.surface_raised_hover, lit))
         .text_color(motion::mix(theme.on_solid, theme.text, lit))
-        .text_size(px(11.))
+        .text_size(Theme::TEXT_UI)
         .cursor(CursorStyle::PointingHand)
         .on_hover(motion::hover_listener(key))
         .child(label.into())
@@ -82,7 +83,7 @@ pub fn ghost_button(
         .rounded(px(Theme::CONTROL_RADIUS))
         .bg(motion::mix(theme.wash(0.0), theme.element_hover, lit))
         .text_color(motion::mix(theme.text_muted, theme.text, lit))
-        .text_size(px(11.))
+        .text_size(Theme::TEXT_UI)
         .cursor(CursorStyle::PointingHand)
         .on_hover(motion::hover_listener(key))
         .child(label.into())
@@ -114,10 +115,10 @@ impl ChipSize {
         }
     }
 
-    fn text_px(self) -> f32 {
+    fn text_size(self) -> gpui::Pixels {
         match self {
-            Self::Regular => 11.,
-            Self::Compact => 10.,
+            Self::Regular => Theme::TEXT_UI,
+            Self::Compact => Theme::TEXT_SMALL,
         }
     }
 
@@ -163,7 +164,7 @@ pub fn chip(
             theme.element_hover,
             lit,
         ))
-        .text_size(px(size.text_px()))
+        .text_size(size.text_size())
         .text_color(motion::mix(
             if active { theme.text } else { size.rest(theme) },
             theme.text,
@@ -202,7 +203,7 @@ pub fn tab_bar(theme: &Theme, tabs: &[(&'static str, bool)]) -> Div {
                     theme.element_hover,
                     lit,
                 ))
-                .text_size(px(11.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(motion::mix(
                     if *active {
                         theme.text
@@ -242,7 +243,7 @@ pub fn band_fill(theme: &Theme, index: usize) -> gpui::Hsla {
 pub fn text_box(
     id: impl Into<motion::ControlId>,
     value: impl Into<SharedString>,
-    placeholder: &'static str,
+    placeholder: impl Into<SharedString>,
     focused: bool,
     theme: &Theme,
 ) -> Stateful<Div> {
@@ -261,7 +262,9 @@ pub fn text_box(
     div()
         .id(id.element("field"))
         .px(px(Theme::SPACE_SM))
-        .py(px(Theme::SPACE_XS))
+        .min_h(px(Theme::INPUT_HEIGHT))
+        .flex()
+        .items_center()
         .rounded(px(Theme::CONTROL_RADIUS))
         .bg(motion::mix(
             theme.surface_raised,
@@ -271,11 +274,11 @@ pub fn text_box(
         .border_1()
         .border_color(border)
         .cursor(CursorStyle::IBeam)
-        .text_size(px(12.))
+        .text_size(Theme::TEXT_UI)
         .text_color(if empty { theme.text_muted } else { theme.text })
         .on_hover(motion::hover_listener(key))
         .child(if empty && !focused {
-            SharedString::new_static(placeholder)
+            placeholder.into()
         } else if focused {
             SharedString::from(format!("{value}|"))
         } else {
@@ -350,7 +353,7 @@ pub fn icon_button(id: impl IconId, path: &'static str, theme: &Theme) -> Statef
         .bg(motion::mix(theme.wash(0.0), theme.element_hover, lit))
         .text_color(motion::mix(theme.text_muted, theme.text, lit))
         .cursor(CursorStyle::PointingHand)
-        .tooltip(crate::tooltip::deferred_builder(tip))
+        .with_tip(crate::tooltip::deferred_builder(tip))
         .on_hover(motion::hover_listener(key))
         .child(crate::icons::icon(path))
 }
@@ -378,7 +381,7 @@ pub fn danger_button(
             lit,
         ))
         .text_color(motion::mix(theme.danger, theme.danger_strong, lit))
-        .text_size(px(11.))
+        .text_size(Theme::TEXT_UI)
         .cursor(CursorStyle::PointingHand)
         .on_hover(motion::hover_listener(key))
         .child(label.into())
@@ -399,7 +402,7 @@ pub fn slider_row(
         .child(
             div()
                 .w(px(72.))
-                .text_size(px(11.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_muted)
                 .child(label),
         )
@@ -420,7 +423,7 @@ pub fn slider_row(
         .child(
             div()
                 .w(px(48.))
-                .text_size(px(11.))
+                .text_size(Theme::TEXT_UI)
                 .font_family(theme.font_mono.clone())
                 .text_color(theme.text)
                 .child(display.into()),

@@ -22,7 +22,7 @@ pub(super) fn subclip_button(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> AnyElement {
     let can_subclip =
-        state.read(cx).source_view.is_some() && state.read(cx).source_range().is_some();
+        state.read(cx).sources.focused().is_some() && state.read(cx).source_range().is_some();
     if !can_subclip {
         return div().into_any_element();
     }

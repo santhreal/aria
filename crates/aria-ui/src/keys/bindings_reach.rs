@@ -30,12 +30,6 @@ pub(super) const REACH_ROWS: &[Binding] = &[
         reach::ripple_insert
     ),
     bind!(
-        "key-marker-snap",
-        Chord::ctrl_alt("m"),
-        Editor,
-        reach::snap_marker
-    ),
-    bind!(
         "key-lane-shift-later",
         Chord::alt("right"),
         Editor,
@@ -59,12 +53,12 @@ pub(super) const REACH_ROWS: &[Binding] = &[
             state.status_message = Some(err);
         }
     }),
-    bind!("key-detect-shots", Chord::shift_alt("s"), Editor, windowed: |state, cx| state.run_detector(AnalysisKind::Shots, cx)),
+    bind!("key-detect-shots", Chord::shift_alt("c"), Editor, windowed: |state, cx| state.run_detector(AnalysisKind::Shots, cx)),
     bind!("key-detect-silence", Chord::shift_alt("q"), Editor, windowed: |state, cx| state.run_detector(AnalysisKind::Silence, cx)),
     bind!("key-detect-beats", Chord::shift_alt("b"), Editor, windowed: |state, cx| state.run_detector(AnalysisKind::Beats, cx)),
     bind!(
         "key-effect-reset",
-        Chord::alt("r"),
+        Chord::ctrl_alt("r"),
         Editor,
         reach::reset_effects
     ),

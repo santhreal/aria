@@ -4,6 +4,7 @@
 //! are unchanged, and both are still only called from the panel that owns them.
 
 use super::*;
+use crate::theme::Theme;
 
 /// A destructive host call the assistant is blocked on.
 ///
@@ -27,13 +28,13 @@ pub(super) fn ask_card(
         .gap(px(Theme::SPACE_XS))
         .child(
             div()
-                .text_size(px(11.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_faint)
                 .child(gpui::SharedString::from(format!("{name} · needs you"))),
         )
         .child(
             div()
-                .text_size(px(13.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text)
                 .child(gpui::SharedString::from(summary.to_string())),
         )
@@ -91,7 +92,7 @@ pub(super) fn skills_block(
         rows.push(
             div()
                 .id(crate::motion::MotionKey::new("ai-skill", &id).element_id("ai-skill"))
-                .text_size(px(11.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(if on { theme.text } else { theme.text_faint })
                 .cursor(gpui::CursorStyle::PointingHand)
                 .active(|style| style.opacity(0.92))
@@ -122,16 +123,19 @@ pub(super) fn skills_block(
         .gap(px(Theme::SPACE_XS))
         .border_t_1()
         .border_color(theme.border)
-        .child(div().text_size(px(11.)).text_color(theme.text_muted).child(
-            gpui::SharedString::from(if installed.is_empty() {
-                "No skills installed".to_string()
-            } else {
-                format!(
-                    "{offered} of {} skill(s) offered to the agent",
-                    installed.len()
-                )
-            }),
-        ))
+        .child(
+            div()
+                .text_size(Theme::TEXT_UI)
+                .text_color(theme.text_muted)
+                .child(gpui::SharedString::from(if installed.is_empty() {
+                    "No skills installed".to_string()
+                } else {
+                    format!(
+                        "{offered} of {} skill(s) offered to the agent",
+                        installed.len()
+                    )
+                })),
+        )
         .children(rows)
         .child(crate::panels::cloud::cloud_catalog_block(
             theme,

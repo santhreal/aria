@@ -8,13 +8,13 @@
 use super::*;
 use crate::surfaces::labels::{self, LabelTarget};
 
-/// The eight label colours plus a clear, as one row of swatches.
+/// The sixteen label colours plus a clear, as rows of swatches.
 ///
 /// The current label is ringed, so the palette says what is set as well as what
 /// can be set.
 pub(super) fn label_row(
     target: LabelTarget,
-    current: Option<aria_models::MarkerColor>,
+    current: Option<aria_models::LabelColor>,
     theme: &Theme,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
@@ -45,13 +45,13 @@ pub(super) fn label_row(
         // than a tenth colour that would look like one more label to pick.
         swatches.push(match label {
             Some(color) => swatch
-                .bg(theme.marker(color))
+                .bg(theme.label(color, false))
                 .when(chosen, |el| el.border_2().border_color(theme.text))
                 .into_any_element(),
             None => swatch
                 .border_1()
                 .border_color(theme.border)
-                .text_size(px(11.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_faint)
                 .child("×")
                 .into_any_element(),
@@ -60,6 +60,7 @@ pub(super) fn label_row(
     div()
         .flex()
         .flex_row()
+        .flex_wrap()
         .items_center()
         .gap(px(Theme::SPACE_XS))
         .px(px(Theme::SPACE_SM))
@@ -73,11 +74,11 @@ pub(super) fn label_row(
 ///
 /// Offered instead of a single "same label" row because the reach worth having
 /// is any group, not only the one the clip under the pointer happens to carry,
-/// and the count says how large a selection the click is about to make. `None`
-/// when nothing in the sequence is labelled, so an unlabelled project shows no
-/// row rather than an empty one.
+/// and the count says how large a selection the click is about to make. A clip
+/// with no label of its own counts under the label it is drawn in. `None` when
+/// the sequence has no clips.
 pub(super) fn label_groups(
-    groups: &[(aria_models::MarkerColor, usize)],
+    groups: &[(aria_models::LabelColor, usize)],
     theme: &Theme,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> Option<gpui::AnyElement> {
@@ -96,9 +97,9 @@ pub(super) fn label_groups(
                 .items_center()
                 .justify_center()
                 .rounded(px(Theme::CONTROL_RADIUS))
-                .bg(theme.marker(color))
-                .text_size(px(10.))
-                .text_color(theme.on_solid)
+                .bg(theme.label(color, false))
+                .text_size(Theme::TEXT_SMALL)
+                .text_color(theme.label_ink(color, false))
                 .cursor(CursorStyle::PointingHand)
                 .active(|style| style.opacity(0.92))
                 .on_mouse_down(
@@ -119,13 +120,14 @@ pub(super) fn label_groups(
         div()
             .flex()
             .flex_row()
+            .flex_wrap()
             .items_center()
             .gap(px(Theme::SPACE_XS))
             .px(px(Theme::SPACE_SM))
             .pb(px(Theme::SPACE_XS))
             .child(
                 div()
-                    .text_size(px(10.))
+                    .text_size(Theme::TEXT_SMALL)
                     .text_color(theme.text_faint)
                     .child("Select"),
             )

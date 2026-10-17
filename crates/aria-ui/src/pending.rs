@@ -18,8 +18,8 @@
 //! arrived and a list that blinked.
 
 use gpui::{
-    AnimationExt, AnyElement, App, Entity, InteractiveElement, IntoElement, MouseButton,
-    MouseDownEvent, ParentElement, SharedString, Styled, div, px,
+    AnimationExt, AnyElement, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
+    ParentElement, SharedString, Styled, div, px,
 };
 
 use crate::app::AppState;
@@ -52,19 +52,6 @@ pub fn job_rows(
         .take(limit)
         .map(|job| job_row(theme, job, cx))
         .collect()
-}
-
-/// Whether any job a panel owns is still running.
-///
-/// Panels use this to decide whether to draw a panel-level wait beside their
-/// own controls, so the answer is derived from the same projection the rows
-/// are, not from a flag a panel maintains beside it.
-pub fn any_live(state: &Entity<AppState>, mine: fn(&UiJob) -> bool, cx: &App) -> bool {
-    state
-        .read(cx)
-        .job_view
-        .iter()
-        .any(|job| mine(job) && !job.terminal)
 }
 
 /// The identity of a row's stop control.
@@ -137,7 +124,7 @@ pub fn job_row(
             .flex()
             .items_center()
             .justify_center()
-            .text_size(px(11.))
+            .text_size(Theme::TEXT_UI)
             .text_color(theme.text_faint)
             .child("·")
             .into_any_element()
@@ -187,10 +174,15 @@ pub fn job_row(
                 .gap(px(Theme::SPACE_XXS))
                 .flex_1()
                 .min_w_0()
-                .child(div().text_size(px(11.)).text_color(theme.text).child(head))
                 .child(
                     div()
-                        .text_size(px(11.))
+                        .text_size(Theme::TEXT_UI)
+                        .text_color(theme.text)
+                        .child(head),
+                )
+                .child(
+                    div()
+                        .text_size(Theme::TEXT_UI)
                         .text_color(theme.text_muted)
                         .child(detail),
                 )

@@ -29,6 +29,9 @@
 //! decoders and still bitmaps opened from the old bytes. Reloading is a relink
 //! to the item's own path — the one command that re-probes the file and drops
 //! every id-keyed cache for it — rather than a second path into the same caches.
+//!
+//! Export Frame is here too: `aria_render::export_frame_png` writes the frame
+//! under the playhead as a PNG at the canvas size, as a job.
 
 use std::path::{Path, PathBuf};
 
@@ -397,6 +400,44 @@ impl AppState {
             self.export_range_label()
         ));
         Ok(id.raw())
+    }
+
+    /// Export Frame: render the frame under the playhead at the canvas size
+    /// and write it to `path` as a PNG, as a job. A path with no extension
+    /// gets `.png`.
+    pub fn export_frame_job(&mut self, mut path: PathBuf) -> u64 {
+        if path.extension().is_none() {
+            path.set_extension("png");
+        }
+        let project = self.host().snapshot();
+        let at = self.playhead;
+        let gpu = super::render_device::shared_device(&self.ctx);
+        let label = format!("Exporting frame to {}", folder_label(&path));
+        let id = self.spawn_job(label, move |context| {
+            context.set_progress(0.0, "rendering".to_string());
+            let mut renderer = super::render_device::renderer_on(gpu, "the frame export")?;
+            let (w, h) = aria_render::export_frame_png(&mut renderer, &project, at, &path)
+                .map_err(|err| format!("exporting the frame to {}: {err}", path.display()))?;
+            JobCompletion::new(format!("{w} × {h} PNG"))
+                .with_output("path", path.display().to_string())
+                .map_err(String::from)
+        });
+        self.status_message = Some(format!("Exporting frame {}", self.playhead.value));
+        id.raw()
+    }
+
+    /// Ctrl+Shift+E: ask where the frame goes, then export it.
+    pub fn pick_and_export_frame(&mut self) {
+        self.request_pick(
+            Ask::SaveFile(FileSpec::new("Export Frame").filter("PNG image", &["png"])),
+            |state, answer| {
+                let Some(path) = answer.one() else {
+                    return;
+                };
+                state.export_frame_job(path);
+                state.open_dialog(DialogKind::Jobs);
+            },
+        );
     }
 
     /// Ask where the frames go, then start the render.

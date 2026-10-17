@@ -4,30 +4,75 @@
 use super::*;
 
 use crate::wire::{
-    SetAudioRole, SetClipAdjustments, SetClipAnimation, SetClipBlendMode, SetClipChroma,
-    SetClipFilter, SetClipLayerStyles, SetClipMask, SetClipMatte, SetClipStabilize, SetMotionBlur,
+    AddClipMask, MoveClipMask, RemoveClipMask, SetAudioRole, SetClipAdjustments, SetClipAnimation,
+    SetClipBlendMode, SetClipChroma, SetClipFilter, SetClipLayerStyles, SetClipMask, SetClipMatte,
+    SetClipStabilize, SetMotionBlur,
 };
+
+const MASK_LANE: &str = "masks need a visual frame";
+
+pub(super) fn add_clip_mask(
+    project: &Project,
+    args: &AddClipMask,
+) -> Result<EditCommand, Rejection> {
+    let clip = clip_ref(project, args.clip)?;
+    reject_audio_lane(project, clip, MASK_LANE, args.clip)?;
+    if clip.masks.len() >= aria_models::MAX_CLIP_MASKS {
+        return Err(Rejection::new(format!(
+            "clip {} already holds {} masks, the most a clip holds; remove one first",
+            args.clip,
+            clip.masks.len()
+        )));
+    }
+    Ok(EditCommand::AddClipMask {
+        clip: clip.id,
+        mask: lower_mask(&args.mask)?,
+    })
+}
 
 pub(super) fn set_clip_mask(
     project: &Project,
     args: &SetClipMask,
 ) -> Result<EditCommand, Rejection> {
     let clip = clip_ref(project, args.clip)?;
-    reject_audio_lane(project, clip, "masks need a visual frame", args.clip)?;
-    if clip.is_generated() {
-        return Err(Rejection::new(format!(
-            "clip {} is a generated clip; set_clip_mask only works on media \
-                     clips (footage with a source file)",
-            args.clip
-        )));
-    }
-    let mask = match &args.mask {
-        None => None,
-        Some(wire) => Some(lower_mask(wire)?),
-    };
+    reject_audio_lane(project, clip, MASK_LANE, args.clip)?;
+    mask_index(clip, args.index, args.clip)?;
     Ok(EditCommand::SetClipMask {
         clip: clip.id,
-        mask,
+        index: args.index,
+        mask: lower_mask(&args.mask)?,
+    })
+}
+
+pub(super) fn remove_clip_mask(
+    project: &Project,
+    args: &RemoveClipMask,
+) -> Result<EditCommand, Rejection> {
+    let clip = clip_ref(project, args.clip)?;
+    mask_index(clip, args.index, args.clip)?;
+    Ok(EditCommand::RemoveClipMask {
+        clip: clip.id,
+        index: args.index,
+    })
+}
+
+pub(super) fn move_clip_mask(
+    project: &Project,
+    args: &MoveClipMask,
+) -> Result<EditCommand, Rejection> {
+    let clip = clip_ref(project, args.clip)?;
+    mask_index(clip, args.from_index, args.clip)?;
+    mask_index(clip, args.to_index, args.clip)?;
+    if args.from_index == args.to_index {
+        return Err(Rejection::new(format!(
+            "mask {} on clip {} is already at index {}; move_clip_mask would make no change",
+            args.from_index, args.clip, args.to_index
+        )));
+    }
+    Ok(EditCommand::MoveClipMask {
+        clip: clip.id,
+        from_index: args.from_index,
+        to_index: args.to_index,
     })
 }
 

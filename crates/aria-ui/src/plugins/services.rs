@@ -9,7 +9,7 @@ use aria_cloud::{CloudClient, DEFAULT_BASE_URL};
 use aria_jobs::{JobManager, JobState};
 use aria_plugin::{
     DropAction, EventBus, JobFinished, JobOutcome, JobProgress, Plugin, PluginContext, PluginError,
-    PluginManifest, ResolveDroppedPath, Service, SettingsService, StorageService,
+    PluginManifest, ResolveDropped, Service, SettingsService, StorageService,
 };
 use aria_transcription::ModelManager;
 
@@ -29,14 +29,15 @@ impl Default for CloudPlugin {
 
 impl Plugin for CloudPlugin {
     fn manifest(&self) -> &PluginManifest {
-        &PluginManifest {
-            id: "aria.cloud",
-            name: "Cloud",
-            version: "0.1.0",
-            requires: &["aria.storage"],
-            // Reads the cache directory and the configured base URL.
-            uses: &["StorageService", "SettingsService"],
-        }
+        // `uses`: the cache directory and the configured base URL.
+        static MANIFEST: PluginManifest = PluginManifest::new(
+            "aria.cloud",
+            "Cloud",
+            "0.1.0",
+            &["aria.storage"],
+            &["StorageService", "SettingsService"],
+        );
+        &MANIFEST
     }
 
     fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
@@ -77,17 +78,20 @@ impl Service for DetectorTuning {}
 
 impl Plugin for AnalysisPlugin {
     fn manifest(&self) -> &PluginManifest {
-        &PluginManifest {
-            id: "aria.analysis",
-            name: "Analysis",
-            version: "0.1.0",
-            requires: &["aria.decoder"],
-            uses: &[],
-        }
+        static MANIFEST: PluginManifest =
+            PluginManifest::new("aria.analysis", "Analysis", "0.1.0", &["aria.decoder"], &[]);
+        &MANIFEST
     }
 
     fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
-        ctx.register(DetectorTuning::default());
+        let tuning = DetectorTuning::default();
+        ctx.register(tuning);
+        aria_plugin::register_shipped_analyzers(
+            ctx,
+            tuning.beats,
+            tuning.silence,
+            tuning.loudness,
+        )?;
         Ok(())
     }
 }
@@ -96,13 +100,9 @@ pub struct JobsPlugin;
 
 impl Plugin for JobsPlugin {
     fn manifest(&self) -> &PluginManifest {
-        &PluginManifest {
-            id: "aria.jobs",
-            name: "Jobs",
-            version: "0.1.0",
-            requires: &[],
-            uses: &[],
-        }
+        static MANIFEST: PluginManifest =
+            PluginManifest::new("aria.jobs", "Jobs", "0.1.0", &[], &[]);
+        &MANIFEST
     }
 
     fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
@@ -158,13 +158,14 @@ pub struct TranscriptionPlugin {
 
 impl Plugin for TranscriptionPlugin {
     fn manifest(&self) -> &PluginManifest {
-        &PluginManifest {
-            id: "aria.transcription",
-            name: "Transcription",
-            version: "0.1.0",
-            requires: &["aria.decoder", "aria.storage"],
-            uses: &["StorageLayout"],
-        }
+        static MANIFEST: PluginManifest = PluginManifest::new(
+            "aria.transcription",
+            "Transcription",
+            "0.1.0",
+            &["aria.decoder", "aria.storage"],
+            &["StorageLayout"],
+        );
+        &MANIFEST
     }
 
     fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
@@ -176,7 +177,7 @@ impl Plugin for TranscriptionPlugin {
         } else {
             let Some(layout) = ctx.try_get::<StorageLayout>() else {
                 return Err(PluginError::MountFailed(
-                    "aria.transcription",
+                    "aria.transcription".into(),
                     "storage did not mount, so there is no root to keep models under".into(),
                 ));
             };
@@ -214,13 +215,9 @@ impl Service for AiHost {}
 
 impl Plugin for AiPlugin {
     fn manifest(&self) -> &PluginManifest {
-        &PluginManifest {
-            id: "aria.ai",
-            name: "AI",
-            version: "0.1.0",
-            requires: &["aria.engine", "aria.jobs"],
-            uses: &[],
-        }
+        static MANIFEST: PluginManifest =
+            PluginManifest::new("aria.ai", "AI", "0.1.0", &["aria.engine", "aria.jobs"], &[]);
+        &MANIFEST
     }
 
     fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
@@ -229,10 +226,11 @@ impl Plugin for AiPlugin {
         });
         // A dropped `SKILL.md` is an assistant skill, whatever directory it came
         // from. Asked last, so nothing else wants it by then.
-        ctx.on_serial::<ResolveDroppedPath, DropAction, _>(|event| {
+        ctx.on_serial::<ResolveDropped, DropAction, _>(|event| {
             event
-                .path
-                .file_name()
+                .item
+                .as_path()
+                .and_then(|path| path.file_name())
                 .and_then(|name| name.to_str())
                 .is_some_and(|name| name.eq_ignore_ascii_case("SKILL.md"))
                 .then_some(DropAction::InstallSkill)

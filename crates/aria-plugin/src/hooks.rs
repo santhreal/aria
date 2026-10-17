@@ -6,11 +6,12 @@
 //! - [`CommandProposed`] is a waterfall. Every handler sees the command in mount
 //!   order and may rewrite it or veto it; the first veto stops the chain and the
 //!   host reports the reason instead of applying anything.
-//! - [`ResolveDroppedPath`] is serial. Handlers are asked in mount order and the
-//!   first one that claims the path wins, so a `.aria` file opens as a project
-//!   instead of being imported as media by whichever plugin looked first.
+//! - [`ResolveDropped`] is serial. Handlers are asked by priority (highest
+//!   first, ties in mount order) and the first one that claims the dropped path
+//!   or URL wins, so a `.aria` file opens as a project instead of being
+//!   imported as media by whichever plugin looked first.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use aria_commands::Command;
@@ -18,6 +19,7 @@ use aria_models::Project;
 
 use crate::events::{SerialEvent, WaterfallEvent};
 use crate::project_host::Origin;
+use serde::{Deserialize, Serialize};
 
 /// A command about to be applied.
 ///
@@ -65,14 +67,57 @@ impl WaterfallEvent for CommandProposed {
     }
 }
 
-/// A path dropped on the app, asking which plugin claims it.
-pub struct ResolveDroppedPath {
-    pub path: PathBuf,
+/// A filesystem path or URL dropped onto the editor window.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Dropped {
+    Path(PathBuf),
+    Url(String),
 }
 
-impl SerialEvent for ResolveDroppedPath {}
+impl Dropped {
+    /// Borrow the dropped path when `self` is [`Dropped::Path`].
+    pub fn as_path(&self) -> Option<&Path> {
+        match self {
+            Self::Path(path) => Some(path.as_path()),
+            Self::Url(_) => None,
+        }
+    }
 
-/// What a plugin says should happen to a dropped path.
+    /// Borrow the dropped URL when `self` is [`Dropped::Url`].
+    pub fn as_url(&self) -> Option<&str> {
+        match self {
+            Self::Path(_) => None,
+            Self::Url(url) => Some(url.as_str()),
+        }
+    }
+}
+
+/// A path or URL dropped on the app, asking which plugin claims it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolveDropped {
+    pub item: Dropped,
+}
+
+impl ResolveDropped {
+    /// Build a [`ResolveDropped`] event for a filesystem path.
+    pub fn path(path: impl Into<PathBuf>) -> Self {
+        Self {
+            item: Dropped::Path(path.into()),
+        }
+    }
+
+    /// Build a [`ResolveDropped`] event for a URL.
+    pub fn url(url: impl Into<String>) -> Self {
+        Self {
+            item: Dropped::Url(url.into()),
+        }
+    }
+}
+
+impl SerialEvent for ResolveDropped {}
+
+/// What a plugin says should happen to a dropped path or URL.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DropAction {
     /// Open it as an Aria project.
@@ -83,4 +128,9 @@ pub enum DropAction {
     ApplyLut,
     /// Install it as an assistant skill.
     InstallSkill,
+    /// Read it into the open project through the importer registered for its
+    /// extension.
+    ImportTimeline,
+    /// A plugin handled the dropped item directly.
+    Handled,
 }

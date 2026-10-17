@@ -111,88 +111,97 @@ fn trim_and_delete_are_inert_with_no_selection() {
     let before = clip_count(&state);
     state.trim_selected_to_playhead(true).expect("inert trim");
     state.trim_selected_to_playhead(false).expect("inert trim");
-    state.delete_selected().expect("inert delete");
+    state.clear_selected().expect("inert delete");
     assert_eq!(clip_count(&state), before);
 }
-#[test]
-fn delete_follows_the_edit_mode_for_every_mode() {
-    // Every EditMode must have a defined delete, and both must remove the clip
-    // and drop the selection. Adding a mode without a delete path fails here.
-    for mode in [EditMode::Ripple, EditMode::Overwrite] {
-        let (mut state, clip) = with_clip();
-        state.edit_mode = mode;
-        let before = clip_count(&state);
-        assert!(before > 0);
-        state.delete_selected().expect("delete in mode");
-        assert_eq!(
-            clip_count(&state),
-            before - 1,
-            "{mode:?} delete must remove the clip"
-        );
-        assert!(
-            !state.selection.contains(&clip),
-            "{mode:?} delete must drop the selection"
-        );
+/// Three abutting clips of the fixture, in timeline order.
+fn three_in_a_row() -> (AppState, [ClipId; 3]) {
+    let mut state = AppState::new(PluginContext::new(), scratch()).unwrap();
+    state.new_project().unwrap();
+    let media = state.import_media(fixture()).expect("import fixture");
+    let placed = |state: &AppState| -> Vec<(i64, i64, ClipId)> {
+        let mut clips: Vec<_> = state
+            .store
+            .sequence
+            .tracks
+            .iter()
+            .flat_map(|track| track.clips.iter())
+            .map(|clip| {
+                (
+                    clip.timeline_start_ticks,
+                    clip.timeline_end_ticks,
+                    ClipId::from_raw(clip.id),
+                )
+            })
+            .collect();
+        clips.sort_unstable();
+        clips
+    };
+    let mut at = 0;
+    for _ in 0..3 {
+        state
+            .drop_media_on_timeline(media, None, at)
+            .expect("place a clip");
+        at = placed(&state)
+            .last()
+            .map(|(_, end, _)| *end)
+            .expect("a clip");
     }
+    let ids: Vec<ClipId> = placed(&state).into_iter().map(|(_, _, id)| id).collect();
+    let ids: [ClipId; 3] = ids.try_into().expect("one clip per drop");
+    (state, ids)
 }
+
+fn start_of(state: &AppState, clip: ClipId) -> i64 {
+    state
+        .ui_clip_ref(clip)
+        .expect("the clip survives")
+        .timeline_start_ticks
+}
+
+/// Delete is Clear and Shift+Delete is Ripple Delete in every edit mode: the
+/// mode governs drops and trims, never what a delete key does. Clear leaves
+/// the gap; Ripple Delete closes the gap of every selected clip in one undo
+/// step.
 #[test]
-fn ripple_delete_closes_the_gap_and_overwrite_leaves_it() {
-    // Two clips: deleting the first must pull the second back under Ripple and
-    // leave it in place under Overwrite. This is the observable difference.
-    let mut starts = Vec::new();
+fn clear_leaves_the_gap_and_ripple_delete_closes_it_in_every_mode() {
     for mode in [EditMode::Ripple, EditMode::Overwrite] {
-        let mut state = AppState::new(PluginContext::new(), scratch()).unwrap();
-        state.new_project().unwrap();
-        let media = state.import_media(fixture()).expect("import fixture");
-        state
-            .drop_media_on_timeline(media, None, 0)
-            .expect("place first");
-        let first_end = state
-            .store
-            .sequence
-            .tracks
-            .iter()
-            .flat_map(|track| track.clips.iter())
-            .map(|clip| clip.timeline_end_ticks)
-            .max()
-            .expect("first clip");
-        state
-            .drop_media_on_timeline(media, None, first_end)
-            .expect("place second");
-        assert_eq!(
-            clip_count(&state),
-            2,
-            "the ripple/overwrite difference is only observable with two clips"
-        );
-        let first = state
-            .store
-            .sequence
-            .tracks
-            .iter()
-            .flat_map(|track| track.clips.iter())
-            .min_by_key(|clip| clip.timeline_start_ticks)
-            .map(|clip| ClipId::from_raw(clip.id))
-            .expect("first clip");
+        let (mut state, [first, middle, _]) = three_in_a_row();
         state.edit_mode = mode;
+        let middle_at = start_of(&state, middle);
         state.select_clip(first);
-        state.delete_selected().expect("delete first");
-        let remaining = state
-            .store
-            .sequence
-            .tracks
-            .iter()
-            .flat_map(|track| track.clips.iter())
-            .map(|clip| clip.timeline_start_ticks)
-            .min()
-            .expect("second clip survives");
-        starts.push(remaining);
+        state.clear_selected().expect("clear the first clip");
+        assert_eq!(clip_count(&state), 2, "{mode:?}: Clear removed the clip");
+        assert_eq!(
+            start_of(&state, middle),
+            middle_at,
+            "{mode:?}: Clear closed the gap"
+        );
+        assert!(state.selection.is_empty(), "{mode:?}: the selection stayed");
+
+        let (mut state, [first, middle, last]) = three_in_a_row();
+        state.edit_mode = mode;
+        let middle_len = {
+            let clip = state.ui_clip_ref(middle).expect("middle");
+            clip.timeline_end_ticks - clip.timeline_start_ticks
+        };
+        state.selection = vec![first, last];
+        state
+            .ripple_delete_selected()
+            .expect("ripple delete both ends");
+        assert_eq!(clip_count(&state), 1, "{mode:?}: both selected clips go");
+        assert_eq!(
+            start_of(&state, middle),
+            0,
+            "{mode:?}: Ripple Delete left the first gap open"
+        );
+        assert_eq!(state.store.sequence.duration_ticks, middle_len);
+        assert!(
+            state.undo(),
+            "{mode:?}: the ripple delete is one undo entry"
+        );
+        assert_eq!(clip_count(&state), 3, "{mode:?}: one undo restores both");
     }
-    assert!(
-        starts[0] < starts[1],
-        "ripple must close the gap ({}) that overwrite preserves ({})",
-        starts[0],
-        starts[1]
-    );
 }
 #[test]
 fn linked_select_bypass_selects_only_the_clicked_clip() {

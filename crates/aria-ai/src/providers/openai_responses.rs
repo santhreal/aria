@@ -7,7 +7,7 @@
 //! terminal responses clear this in-memory state.
 
 use std::collections::{BTreeMap, HashSet};
-use std::io::{BufRead, BufReader, Read};
+use std::io::{BufReader, Read};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 

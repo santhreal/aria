@@ -21,8 +21,9 @@ use std::path::PathBuf;
 use crate::app::AppState;
 use crate::app::premiere_tests::with_clip;
 use crate::surfaces::context_menu::{
-    CLIP_ITEMS, ClipMenu, MenuItem, POOL_ITEMS, PREVIEW_ITEMS, PoolMenu, RECENT_ITEMS, TRACK_ITEMS,
-    TRANSITION_ITEMS, TrackMenu, apply_blend,
+    BADGE_ITEMS, BadgeMenu, CLIP_ITEMS, ClipMenu, EFFECT_ITEMS, EffectMenu, MenuItem, POOL_ITEMS,
+    PREVIEW_ITEMS, PoolMenu, RECENT_ITEMS, TRACK_ITEMS, TRANSITION_ITEMS, TrackMenu, apply_blend,
+    draw_property,
 };
 use crate::types::ActivePanel;
 
@@ -68,8 +69,27 @@ fn pressed() -> Pressed {
     press(POOL_ITEMS, POOL_STAGES, &mut out);
     press(PREVIEW_ITEMS, PREVIEW_STAGES, &mut out);
     press(RECENT_ITEMS, RECENT_STAGES, &mut out);
+    press(EFFECT_ITEMS, EFFECT_STAGES, &mut out);
+    press(BADGE_ITEMS, BADGE_STAGES, &mut out);
     out.sent.extend(blends());
+    out.sent.extend(properties());
     out
+}
+
+/// Press every property a badge menu lists, on a clip with an effect and a
+/// mask, so each kind of property row is driven.
+///
+/// The property rows are generated from the clip, so what is driven is the call
+/// they are built around, [`draw_property`]. One state serves every row: the
+/// rows differ only in the property they name, and choosing one changes no
+/// other row's request.
+fn properties() -> BTreeSet<&'static str> {
+    let (mut state, menu) = (BADGE_STAGES[0].dress)();
+    let watch = crate::app::sent_census::Watch::on(&state);
+    for property in menu.properties.iter() {
+        draw_property(&mut state, &menu, property.param).expect("the clip's own property is drawn");
+    }
+    watch.take().into_iter().collect()
 }
 
 /// Press every blend the catalog offers, on a junction that can carry one.
@@ -132,7 +152,7 @@ fn press<F: Clone>(items: &'static [MenuItem<F>], stages: &[Stage<F>], out: &mut
 /// without naming a field per row.
 fn fingerprint(state: &AppState) -> String {
     format!(
-        "{} {} {} {:?} {:?} {:?} {:?} {:?} {:?} {} {} {} {} {} {} {}",
+        "{} {} {} {:?} {:?} {:?} {:?} {:?} {:?} {} {} {} {} {} {} {} {} {} {} {:?}",
         state.revision,
         state.playhead.value,
         state.selection.len(),
@@ -146,9 +166,13 @@ fn fingerprint(state: &AppState) -> String {
         state.rename.is_some(),
         state.clipboard.is_some(),
         state.context_menu.is_some(),
+        state.preset_draft.is_some(),
         state.pending_intent.is_some(),
         state.picks_asked(),
         state.recents.len(),
+        state.ui_settings.sidebar_collapsed,
+        state.ui_settings.inspector_collapsed,
+        state.dock_tree,
     )
 }
 
@@ -193,17 +217,55 @@ const CLIP_STAGES: &[Stage<ClipMenu>] = &[
             (state, facts)
         },
     },
+    Stage {
+        what: "a clip with a parent",
+        dress: || {
+            let (state, clip) = fixtures::parented_pair();
+            let facts = ClipMenu::of(&state, clip.raw());
+            (state, facts)
+        },
+    },
+    Stage {
+        what: "two clips, grouped",
+        dress: || {
+            let mut state = fixtures::linked_pair();
+            state
+                .unlink_selected()
+                .expect("the fixture's pair comes apart");
+            state.group_selected().expect("the pair forms a group");
+            let clip = state
+                .selection
+                .first()
+                .copied()
+                .expect("the group is selected");
+            let facts = ClipMenu::of(&state, clip.raw());
+            (state, facts)
+        },
+    },
 ];
 
 /// A junction menu only makes sense over a junction that carries a blend.
-const JUNCTION_STAGES: &[Stage<ClipMenu>] = &[Stage {
-    what: "a junction carrying a blend",
-    dress: || {
-        let (state, clip) = fixtures::blended_junction();
-        let facts = ClipMenu::of(&state, clip.raw());
-        (state, facts)
+const JUNCTION_STAGES: &[Stage<ClipMenu>] = &[
+    Stage {
+        what: "a junction carrying a blend",
+        dress: || {
+            let (state, clip) = fixtures::blended_junction();
+            let facts = ClipMenu::of(&state, clip.raw());
+            (state, facts)
+        },
     },
-}];
+    Stage {
+        what: "a junction carrying a start-aligned blend",
+        dress: || {
+            let (mut state, clip) = fixtures::blended_junction();
+            state
+                .set_clip_transition_alignment(clip, aria_models::TransitionAlignment::Start)
+                .expect("the start alignment lands");
+            let facts = ClipMenu::of(&state, clip.raw());
+            (state, facts)
+        },
+    },
+];
 
 /// A lane menu opens on the lane the pointer is over: a picture lane, a sound
 /// lane, and one with lanes on both sides of it.
@@ -286,6 +348,44 @@ const PREVIEW_STAGES: &[Stage<()>] = &[Stage {
 const RECENT_STAGES: &[Stage<PathBuf>] = &[Stage {
     what: "a project on the recents list",
     dress: fixtures::remembered_project,
+}];
+
+/// An effect menu opens on a blur turned up from its default, with nothing
+/// copied and with an effect copied, so the paste row is offered in one.
+const EFFECT_STAGES: &[Stage<EffectMenu>] = &[
+    Stage {
+        what: "a blur turned up, nothing copied",
+        dress: || {
+            let (state, clip) = fixtures::blurred_clip();
+            let facts = EffectMenu::of(&state, clip.raw(), 0);
+            (state, facts)
+        },
+    },
+    Stage {
+        what: "a blur turned up, an effect copied",
+        dress: || {
+            let (mut state, clip) = fixtures::blurred_clip();
+            state.copy_effect(clip, 0);
+            state.status_message = None;
+            let facts = EffectMenu::of(&state, clip.raw(), 0);
+            (state, facts)
+        },
+    },
+];
+
+/// A badge menu opens on a clip carrying an effect and a mask, so it lists a
+/// property of every block.
+const BADGE_STAGES: &[Stage<BadgeMenu>] = &[Stage {
+    what: "a blurred clip with a rectangle mask",
+    dress: || {
+        let (mut state, clip) = fixtures::blurred_clip();
+        state
+            .add_selected_mask(aria_models::MaskKind::Rectangle)
+            .expect("the fixture's clip takes a mask");
+        state.sync_from_engine();
+        let facts = BadgeMenu::of(&state, clip.raw()).expect("the clip is projected");
+        (state, facts)
+    },
 }];
 
 /// The lane the fixture projects first.
@@ -400,6 +500,18 @@ fn a_row_is_offered_only_when_its_edit_is_possible() {
         !rows.contains(&"ctx-unlink"),
         "an unlinked selection was offered Unlink Clips"
     );
+    assert!(
+        !rows.contains(&"ctx-group"),
+        "a single-clip selection was offered Group"
+    );
+    assert!(
+        !rows.contains(&"ctx-ungroup"),
+        "an ungrouped selection was offered Ungroup"
+    );
+    assert!(
+        !rows.contains(&"ctx-release-parent"),
+        "a clip with no parent was offered Release Parent"
+    );
     assert!(rows.contains(&"ctx-split"), "Split was withheld");
 
     let pool = PoolMenu::of(&state, first_media(&state));
@@ -467,27 +579,49 @@ fn a_blend_the_catalog_does_not_offer_is_refused_without_an_edit() {
 fn the_menu_is_built_from_the_tables() {
     // Every test here drives rows. They say nothing about the menu unless the
     // menu is built from the same rows, so the one structural fact worth pinning
-    // is that each table reaches the panel that draws it.
+    // is that each table reaches the panel that draws it and the census that
+    // presses it. The tables are read from their declarations, so a new table
+    // turns this red until both reach it.
     //
     // Not covered: a drawn row that ignores its table entry and calls the session
     // itself. No census can see that, because a census drives the entry.
-    let drawn = std::fs::read_to_string(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/panels/context_menu/drawn.rs"),
-    )
-    .expect("the drawn menu is readable");
-    for table in [
-        "CLIP_ITEMS",
-        "TRACK_ITEMS",
-        "TRANSITION_ITEMS",
-        "PREVIEW_ITEMS",
-        "POOL_ITEMS",
-        "RECENT_ITEMS",
-    ] {
+    let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let read = |path: std::path::PathBuf| {
+        std::fs::read_to_string(&path).unwrap_or_else(|err| panic!("{}: {err}", path.display()))
+    };
+    let drawn = read(src.join("panels/context_menu/drawn.rs"));
+    let census = read(src.join("app/drawn_census_menu.rs"));
+    let mut sources = vec![read(src.join("surfaces/context_menu.rs"))];
+    for entry in
+        std::fs::read_dir(src.join("surfaces/context_menu")).expect("the tables are listed")
+    {
+        sources.push(read(entry.expect("a table file").path()));
+    }
+    let tables: BTreeSet<&str> = sources
+        .iter()
+        .flat_map(|source| source.lines())
+        .filter_map(|line| line.strip_prefix("pub const ")?.split_once(": &[MenuItem<"))
+        .map(|(name, _)| name)
+        .collect();
+    assert!(
+        tables.len() >= 8,
+        "the table declarations were not found: {tables:?}"
+    );
+    for table in tables {
         assert!(
             drawn.contains(&format!("drawn(\n                {table},"))
                 || drawn.contains(&format!("drawn({table},"))
                 || drawn.contains(&format!("            {table},")),
             "the drawn menu never reaches {table}"
+        );
+        assert!(
+            census.contains(&format!("    press({table}, ")),
+            "the census never presses {table}"
+        );
+        assert!(
+            census.contains(&format!("ids.extend(ids_of({table}, false));"))
+                && census.contains(&format!("ids.extend(ids_of({table}, true));")),
+            "the census row lists leave out {table}"
         );
     }
 }
@@ -501,6 +635,8 @@ fn all_ids() -> Vec<&'static str> {
     ids.extend(ids_of(POOL_ITEMS, false));
     ids.extend(ids_of(PREVIEW_ITEMS, false));
     ids.extend(ids_of(RECENT_ITEMS, false));
+    ids.extend(ids_of(EFFECT_ITEMS, false));
+    ids.extend(ids_of(BADGE_ITEMS, false));
     ids
 }
 
@@ -513,6 +649,8 @@ fn outside_rows() -> Vec<&'static str> {
     ids.extend(ids_of(POOL_ITEMS, true));
     ids.extend(ids_of(PREVIEW_ITEMS, true));
     ids.extend(ids_of(RECENT_ITEMS, true));
+    ids.extend(ids_of(EFFECT_ITEMS, true));
+    ids.extend(ids_of(BADGE_ITEMS, true));
     ids
 }
 

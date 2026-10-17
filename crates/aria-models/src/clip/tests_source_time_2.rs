@@ -443,3 +443,31 @@ fn audio_gain_ramps_linearly_at_both_edges() {
     assert_eq!(audio_gain_at(-3, 100, &vol(1.0), 10, 0), 0.0);
     assert_eq!(audio_gain_at(105, 100, &vol(1.0), 0, 10), 0.0);
 }
+
+#[test]
+fn enabled_and_group_default_for_old_saves_and_roundtrip_when_set() {
+    let mut clip = media_clip(MediaId::from_raw(1), tr(0, 48, R24), tr(0, 48, R24));
+    assert!(clip.enabled);
+    assert_eq!(clip.group, None);
+    assert!(!clip.is_silent());
+
+    let map = serde_json::to_value(&clip).unwrap();
+    assert!(!map.as_object().unwrap().contains_key("enabled"));
+    assert!(!map.as_object().unwrap().contains_key("group"));
+
+    // Old project JSON without `enabled` or `group` loads enabled and ungrouped.
+    let loaded: Clip = serde_json::from_value(map).unwrap();
+    assert!(loaded.enabled);
+    assert_eq!(loaded.group, None);
+
+    // Disabled and grouped states round-trip and silence the clip.
+    clip.enabled = false;
+    clip.group = Some(crate::GroupId::from_raw(7));
+    assert!(clip.is_silent(), "disabled clips are silent in audio mixes");
+    let json = serde_json::to_string(&clip).unwrap();
+    assert!(json.contains("\"enabled\":false"));
+    assert!(json.contains("\"group\":7"));
+    let loaded: Clip = serde_json::from_str(&json).unwrap();
+    assert!(!loaded.enabled);
+    assert_eq!(loaded.group, Some(crate::GroupId::from_raw(7)));
+}

@@ -9,7 +9,11 @@ use super::*;
 
 #[test]
 fn the_table_names_every_menu_row_and_nothing_else() {
-    let live: BTreeSet<String> = live_rows().into_iter().map(|(_, id)| id).collect();
+    let live: BTreeSet<String> = live_rows()
+        .into_iter()
+        .map(|(_, id)| id)
+        .filter(|id| by_prefix(id).is_none())
+        .collect();
     let declared: BTreeSet<String> = ROWS.iter().map(|(id, ..)| id.to_string()).collect();
     let missing: Vec<_> = live.difference(&declared).collect();
     let stale: Vec<_> = declared.difference(&live).collect();
@@ -76,6 +80,45 @@ fn every_row_that_asks_for_a_path_is_driven_with_an_answer() {
     assert!(
         undeclared.is_empty(),
         "these rows ask for a path and no test answers one: {undeclared:?}"
+    );
+}
+#[test]
+fn every_row_that_opens_a_form_is_committed() {
+    // Derived from the live menus: each row runs against its own dressing, and a
+    // row that leaves a dialog up whose Enter runs something must be driven with
+    // Enter pressed or exempted with a reason. A new form row is red here until
+    // someone decides which.
+    let cx = gpui::TestAppContext::single();
+    let committed: BTreeSet<&str> = FORM_ROWS.iter().map(|(id, _)| *id).collect();
+    let exempt: BTreeSet<&str> = FORM_EXEMPT.iter().map(|(id, _)| *id).collect();
+    let mut forms = BTreeSet::new();
+    for (menu, id) in live_rows() {
+        let Some((_, dress)) = row_of(&id) else {
+            continue;
+        };
+        let entity = entity_of(dress.state(), &cx);
+        run_row(&entity, &cx, menu, &id);
+        let dialog = cx.update(|app| entity.read(app).dialog);
+        if matches!(
+            crate::app::dialog_primary::primary(dialog),
+            crate::app::dialog_primary::Primary::Run(_)
+        ) {
+            forms.insert(id);
+        }
+    }
+    let undeclared: Vec<&String> = forms
+        .iter()
+        .filter(|id| !committed.contains(id.as_str()) && !exempt.contains(id.as_str()))
+        .collect();
+    let stale: Vec<&&str> = committed
+        .iter()
+        .chain(&exempt)
+        .filter(|id| !forms.contains(**id))
+        .collect();
+    assert!(
+        undeclared.is_empty() && stale.is_empty(),
+        "rows that open a form nothing commits: {undeclared:?}; declared rows that \
+         open no form: {stale:?}"
     );
 }
 #[test]

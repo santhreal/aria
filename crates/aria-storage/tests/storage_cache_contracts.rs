@@ -50,6 +50,13 @@ fn registry_is_exact_unique_and_round_trips() {
             Some("analysis"),
         ),
         (
+            "render_files",
+            "Render files",
+            CacheKind::Disk,
+            CacheTier::Disposable,
+            Some("render-files"),
+        ),
+        (
             "ai_models",
             "AI models",
             CacheKind::Disk,
@@ -231,4 +238,22 @@ fn ai_models_cache_participates_in_overlap_validation() {
             other: CacheId::AiModels,
         })
     ));
+}
+
+#[test]
+fn render_files_cache_has_a_stable_disposable_disk_contract() {
+    let temporary = TestDirectory::new();
+    let layout = StorageLayout::new(&temporary.path).unwrap();
+    let descriptor = CacheId::RenderFiles.descriptor();
+    let root = temporary.path.join("render-files");
+
+    assert_eq!(CacheId::parse("render_files"), Ok(CacheId::RenderFiles));
+    assert_eq!("render_files".parse::<CacheId>(), Ok(CacheId::RenderFiles));
+    assert_eq!(CacheId::RenderFiles.to_string(), "render_files");
+    assert_eq!(cache_descriptor_by_key("render_files"), Some(descriptor));
+    assert_eq!(descriptor.label, "Render files");
+    assert_eq!(descriptor.kind, CacheKind::Disk);
+    assert_eq!(descriptor.tier, CacheTier::Disposable);
+    assert_eq!(descriptor.default_relative, Some("render-files"));
+    assert_eq!(layout.resolve(CacheId::RenderFiles), Some(root));
 }

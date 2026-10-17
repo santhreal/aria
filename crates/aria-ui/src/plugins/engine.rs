@@ -19,13 +19,14 @@ pub struct RenderPlugin;
 
 impl Plugin for RenderPlugin {
     fn manifest(&self) -> &PluginManifest {
-        &PluginManifest {
-            id: "aria.render",
-            name: "Render",
-            version: "0.1.0",
-            requires: &["aria.decoder", "aria.compositor"],
-            uses: &[],
-        }
+        static MANIFEST: PluginManifest = PluginManifest::new(
+            "aria.render",
+            "Render",
+            "0.1.0",
+            &["aria.decoder", "aria.compositor"],
+            &[],
+        );
+        &MANIFEST
     }
 
     fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
@@ -86,15 +87,16 @@ fn locked_lane_veto(project: &Project, command: &Command) -> Option<String> {
 
 impl Plugin for EnginePlugin {
     fn manifest(&self) -> &PluginManifest {
-        &PluginManifest {
-            id: "aria.engine",
-            name: "Engine",
-            version: "0.1.0",
-            requires: &["aria.render"],
-            // The device the render plugin brought up. Declared, so the refusal
-            // ledger shows it if this is ever mounted without one.
-            uses: &["GpuContext"],
-        }
+        // `uses`: the device the render plugin brought up. Declared, so the
+        // refusal ledger shows it if this is ever mounted without one.
+        static MANIFEST: PluginManifest = PluginManifest::new(
+            "aria.engine",
+            "Engine",
+            "0.1.0",
+            &["aria.render"],
+            &["GpuContext"],
+        );
+        &MANIFEST
     }
 
     fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {

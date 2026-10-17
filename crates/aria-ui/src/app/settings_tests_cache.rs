@@ -333,7 +333,12 @@ fn every_settings_field_round_trips_and_esc_keeps_the_saved_value() {
     retype(&mut state, SettingsField::AiKey, "sk-secret");
     state.commit_setting().expect("store the key");
     assert!(
-        SettingsField::AiKey.secret(),
+        matches!(
+            state
+                .setting_look(SettingsField::AiKey)
+                .map(|look| look.kind),
+            Some(aria_plugin::SettingKind::Secret)
+        ),
         "the key field is not marked secret"
     );
     assert_eq!(state.setting_draft(SettingsField::AiKey).0, "sk-secret");

@@ -1,0 +1,29 @@
+[package]
+name = "aria-plugin-wasm"
+description = "WebAssembly component plugin host and hot reloader for Aria"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+aria-commands = { path = "../aria-commands" }
+aria-compositor = { path = "../aria-compositor" }
+aria-models = { path = "../aria-models" }
+aria-plugin = { path = "../aria-plugin" }
+parking_lot = { workspace = true }
+rustc-hash = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+wasmtime = { workspace = true }
+
+[dev-dependencies]
+aria-core = { path = "../aria-core" }
+aria-decoder = { path = "../aria-decoder" }
+aria-engine = { path = "../aria-engine" }
+aria-render = { path = "../aria-render" }
+tempfile = "3"
+[lints]
+workspace = true

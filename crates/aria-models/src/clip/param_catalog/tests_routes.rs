@@ -19,6 +19,7 @@ fn every_row_samples_the_kind_it_declares() {
         let got = match value {
             ParamValue::Scalar(_) => ParamKind::Scalar,
             ParamValue::Vec2(_) => ParamKind::Vec2,
+            ParamValue::Vec3(_) => ParamKind::Vec3,
             ParamValue::Color(_) => ParamKind::Color,
             ParamValue::Rect(_) => ParamKind::Rect,
         };

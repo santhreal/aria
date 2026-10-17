@@ -106,7 +106,7 @@ pub const CATALOG: &[SpecRow] = &[
         easing: Easing::EaseOutExpo,
         delay_ms: 0,
         duration_ms: 320,
-        purpose: "One stage of the editor opening: the bar, then the rails, then the timeline. \
+        purpose: "One stage of the editor opening: the bar, then the docked panels. \
                   Staged by OPEN_STAGE_MS so the layout resolves in reading order \
                   instead of all at once.",
         file: "crates/aria-ui/src/shell/mod.rs",
@@ -118,11 +118,11 @@ pub const CATALOG: &[SpecRow] = &[
         easing: Easing::EaseOut,
         delay_ms: 0,
         duration_ms: 200,
-        purpose: "Geometry settling after the hand let go: a pane width, a released \
-                  splitter, a clip that was rippled, and the horizontal scale when the \
-                  editor rather than the pointer chose it.",
+        purpose: "Geometry settling after the hand let go: a clip that was rippled, and the \
+                  horizontal scale and scroll offset when the editor rather than the pointer \
+                  chose them.",
         file: "crates/aria-ui/src/motion_glide.rs",
-        symbol: "PANE",
+        symbol: "EDIT",
     },
     SpecRow {
         name: "TAB_SLIDE",
@@ -140,7 +140,8 @@ pub const CATALOG: &[SpecRow] = &[
         easing: Easing::EaseOut,
         delay_ms: 0,
         duration_ms: 180,
-        purpose: "A lane height opening or closing.",
+        purpose: "A lane height opening or closing, and the property rows a twirl opens \
+                  under it.",
         file: "crates/aria-ui/src/motion_glide.rs",
         symbol: "LANE",
     },
@@ -160,8 +161,8 @@ pub const CATALOG: &[SpecRow] = &[
         easing: Easing::EaseInOut,
         delay_ms: 0,
         duration_ms: 500,
-        purpose: "A view the editor moved: a fit, or playback the timeline had to follow. \
-                  Long, because the whole picture travels and a jump that size reads as a cut.",
+        purpose: "The assistant transcript following its newest reply. Long, because the \
+                  rows travel through the line being read and a jump that size reads as a cut.",
         file: "crates/aria-ui/src/motion_glide.rs",
         symbol: "SCROLL",
     },

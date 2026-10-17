@@ -1,0 +1,26 @@
+[plugin]
+id = "com.example.wasm-tools"
+name = "Example WASM Tools"
+version = "0.1.0"
+api = 1
+publisher = "Aria Examples"
+description = "Reference WebAssembly component plugin for Aria"
+license = "Apache-2.0"
+
+[permissions]
+project = "read-write"
+fs = ["pick"]
+
+[[commands]]
+id = "example.add-marker"
+title = "Add Example Marker"
+icon = "icons/marker.svg"
+enablement = "!playing"
+
+[[commands]]
+id = "example.inspect-and-undo"
+title = "Inspect Project and Undo"
+
+[[commands]]
+id = "example.storage-roundtrip"
+title = "Exercise Plugin Storage"

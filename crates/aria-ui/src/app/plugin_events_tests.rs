@@ -425,6 +425,20 @@ fn every_target() -> Vec<(ContextTarget, MenuTarget)> {
                 path: PathBuf::from("cut.aria"),
             },
         ),
+        (
+            ContextTarget::Effect { clip: 4, index: 1 },
+            MenuTarget::Effect {
+                clip: ClipId::from_raw(4),
+                index: 1,
+            },
+        ),
+        (
+            ContextTarget::ClipBadge { clip: 4, track: 2 },
+            MenuTarget::ClipBadge {
+                clip: ClipId::from_raw(4),
+                track: TrackId::from_raw(2),
+            },
+        ),
     ]
 }
 
@@ -432,7 +446,7 @@ fn row_labels(state: &AppState) -> Vec<String> {
     state
         .context_plugin_rows
         .iter()
-        .map(|row| row.label.clone())
+        .map(|row| row.label().to_owned())
         .collect()
 }
 

@@ -16,6 +16,7 @@ impl TextRenderer {
             swash_cache: SwashCache::new(),
             shape_memo: HashMap::new(),
             raster_memo: HashMap::new(),
+            caret_memo: HashMap::new(),
         }
     }
 
@@ -31,6 +32,7 @@ impl TextRenderer {
         self.font_system.db_mut().load_font_data(data);
         self.shape_memo.clear();
         self.raster_memo.clear();
+        self.caret_memo.clear();
         self.font_system.db().len().saturating_sub(before)
     }
 
@@ -61,7 +63,7 @@ impl TextRenderer {
         shaped
     }
 
-    fn shape_uncached(&mut self, text: &str, style: &TextStyle) -> ShapedText {
+    pub(crate) fn shape_uncached(&mut self, text: &str, style: &TextStyle) -> ShapedText {
         let buffer = self.layout(text, style);
 
         // Source byte offset of each buffer line. `LineIter` is the exact
@@ -72,8 +74,30 @@ impl TextRenderer {
         // and record every glyph's draw box (the swash image is cached, so
         // pass B's second lookup is a map hit).
         let mut clusters: Vec<PendingCluster> = Vec::new();
+        // An empty paragraph lays out a line with no glyphs. It holds a caret
+        // where its alignment puts the start of a line.
+        let mut empty_lines: Vec<caret::EmptyLine> = Vec::new();
+        let container = style.max_width.unwrap_or_else(|| {
+            buffer
+                .layout_runs()
+                .map(|run| run.line_w)
+                .fold(0.0f32, f32::max)
+        });
         for (visual_line, run) in buffer.layout_runs().enumerate() {
             let line_start = line_starts.get(run.line_i).copied().unwrap_or(0);
+            if run.glyphs.is_empty() {
+                empty_lines.push(caret::EmptyLine {
+                    line: visual_line,
+                    byte: line_start,
+                    x: match style.align {
+                        TextAlign::Center => container * 0.5,
+                        TextAlign::Right => container,
+                        TextAlign::Left | TextAlign::Justify => 0.0,
+                    },
+                    top: run.line_top,
+                    bottom: run.line_top + run.line_height,
+                });
+            }
             for glyph in run.glyphs {
                 // Mirrors cosmic-text's `Buffer::render`: the physical
                 // position bakes in the baseline; the image placement then
@@ -103,13 +127,18 @@ impl TextRenderer {
                         line: visual_line,
                         range,
                         pen_x: glyph.x,
+                        pen_right: glyph.x + glyph.w,
                         line_top: run.line_top,
+                        line_bottom: run.line_top + run.line_height,
                         baseline_y: run.line_y,
+                        rtl: glyph.level.is_rtl(),
                         glyphs: Vec::new(),
                         ink: None,
                     });
                 }
                 let cluster = clusters.last_mut().expect("just ensured non-empty");
+                cluster.pen_x = cluster.pen_x.min(glyph.x);
+                cluster.pen_right = cluster.pen_right.max(glyph.x + glyph.w);
                 if let Some(b) = ink {
                     cluster.ink = Some(match cluster.ink {
                         None => b.bounds(),
@@ -131,11 +160,14 @@ impl TextRenderer {
             Some((l, t, r, b)) => (l, t, ((r - l) as u32, (b - t) as u32)),
             None => (0, 0, (0, 0)),
         };
+        let carets = caret::stops(&clusters, &empty_lines, gx as f32, gy as f32);
+        Self::memo_insert(&mut self.caret_memo, ShapeKey::new(text, style), carets);
 
         // Pass B: rasterize each cluster's glyphs into its own tight image.
-        let style_alpha = u32::from(style.color[3]);
         let mut out = Vec::with_capacity(clusters.len());
         for c in clusters {
+            let cluster_color = style.color_at(c.range.start);
+            let cluster_alpha = u32::from(cluster_color[3]);
             let (image, offset) = match c.ink {
                 Some((l, t, r, b)) => {
                     let (w, h) = ((r - l) as u32, (b - t) as u32);
@@ -153,8 +185,8 @@ impl TextRenderer {
                                 ink.left - l,
                                 ink.top - t,
                                 img,
-                                style.color,
-                                style_alpha,
+                                cluster_color,
+                                cluster_alpha,
                             );
                         }
                     }
@@ -207,6 +239,39 @@ impl TextRenderer {
         image
     }
 
+    /// The pixel size [`rasterize`](Self::rasterize) returns for `text` and
+    /// `style`, without copying the bitmap out.
+    ///
+    /// Reads and fills the same memo as `rasterize`, so a size asked for a run
+    /// this renderer already drew costs one lookup, and a later `rasterize`
+    /// of a run sized here costs one copy.
+    pub fn raster_size(&mut self, text: &str, style: &TextStyle) -> (u32, u32) {
+        let key = RasterKey::new(text, style);
+        if let Some(hit) = self.raster_memo.get(&key) {
+            return (hit.width, hit.height);
+        }
+        let image = self.rasterize_uncached(text, style);
+        let size = (image.width, image.height);
+        Self::memo_insert(&mut self.raster_memo, key, image);
+        size
+    }
+
+    /// The ink-tight extent [`shape`](Self::shape) returns for `text` and
+    /// `style`, without copying the clusters out.
+    ///
+    /// Reads and fills the same memo as `shape`, so measuring an animated run
+    /// the renderer already shaped costs one lookup.
+    pub fn shaped_extent(&mut self, text: &str, style: &TextStyle) -> (u32, u32) {
+        let key = ShapeKey::new(text, style);
+        if let Some(hit) = self.shape_memo.get(&key) {
+            return hit.extent;
+        }
+        let shaped = self.shape_uncached(text, style);
+        let extent = shaped.extent;
+        Self::memo_insert(&mut self.shape_memo, key, shaped);
+        extent
+    }
+
     fn rasterize_uncached(&mut self, text: &str, style: &TextStyle) -> RgbaImage {
         // Lift the shaped run out of the memo instead of asking `shape` for an
         // owned copy: painting only reads it, and a run holds one bitmap per
@@ -231,7 +296,7 @@ impl TextRenderer {
     /// Insert into a memo map, bounding memory with a wholesale clear at the
     /// cap. Frame loops keep a handful of live keys, so an LRU would buy
     /// nothing; the clear only ever costs one re-shape per entry after it.
-    fn memo_insert<K: Eq + Hash, V>(memo: &mut HashMap<K, V>, key: K, value: V) {
+    pub(crate) fn memo_insert<K: Eq + Hash, V>(memo: &mut HashMap<K, V>, key: K, value: V) {
         const MEMO_CAP: usize = 64;
         if memo.len() >= MEMO_CAP {
             memo.clear();
@@ -269,7 +334,7 @@ impl TextRenderer {
         } else {
             0.0
         };
-        let attrs = Attrs::new()
+        let mut attrs = Attrs::new()
             .family(family)
             .weight(if style.bold {
                 Weight::BOLD
@@ -283,25 +348,44 @@ impl TextRenderer {
             })
             // cosmic-text expresses tracking in em, while Aria exposes px.
             .letter_spacing(tracking_px / font_size);
+        if !style.kerning {
+            let mut features = FontFeatures::new();
+            features.disable(FeatureTag::KERNING);
+            attrs = attrs.font_features(features);
+        }
         let align = match style.align {
             TextAlign::Left => Align::Left,
             TextAlign::Center => Align::Center,
             TextAlign::Right => Align::Right,
+            TextAlign::Justify => Align::Justified,
         };
-        buffer.set_text(
-            &mut self.font_system,
-            text,
-            &attrs,
-            Shaping::Advanced,
-            Some(align),
-        );
+        if style.runs.is_empty() {
+            buffer.set_text(
+                &mut self.font_system,
+                text,
+                &attrs,
+                Shaping::Advanced,
+                Some(align),
+            );
+        } else {
+            let spans = build_rich_spans(text, style, &attrs);
+            buffer.set_rich_text(
+                &mut self.font_system,
+                spans.iter().map(|(s, a)| (*s, a.as_attrs())),
+                &attrs,
+                Shaping::Advanced,
+                Some(align),
+            );
+        }
 
         // Alignment needs a container width: without one, cosmic-text aligns
         // each paragraph against its own width (offset 0 — a no-op). Measure,
         // then relayout at the widest line so Center/Right align lines against
         // each other. The +1 slack keeps the widest line from re-wrapping;
-        // ink-extent measurement trims the slack back off the bitmap.
-        if style.max_width.is_none() && style.align != TextAlign::Left {
+        // ink-extent measurement trims the slack back off the bitmap. Justify
+        // stretches only wrapped lines, and an unwrapped paragraph is one line.
+        if style.max_width.is_none() && matches!(style.align, TextAlign::Center | TextAlign::Right)
+        {
             let widest = buffer
                 .layout_runs()
                 .map(|run| run.line_w)
@@ -313,4 +397,120 @@ impl TextRenderer {
 
         buffer
     }
+}
+
+struct OwnedSpanAttrs {
+    family: Option<String>,
+    generic_family: Option<Family<'static>>,
+    weight: Weight,
+    font_style: FontStyle,
+    letter_spacing_em: f32,
+    metrics: Option<Metrics>,
+    kerning: bool,
+}
+
+impl OwnedSpanAttrs {
+    fn as_attrs(&self) -> Attrs<'_> {
+        let fam = match (&self.family, self.generic_family) {
+            (Some(name), _) => Family::Name(name.as_str()),
+            (None, Some(g)) => g,
+            (None, None) => Family::SansSerif,
+        };
+        let mut a = Attrs::new()
+            .family(fam)
+            .weight(self.weight)
+            .style(self.font_style)
+            .letter_spacing(self.letter_spacing_em);
+        if let Some(m) = self.metrics {
+            a = a.metrics(m);
+        }
+        if !self.kerning {
+            let mut features = FontFeatures::new();
+            features.disable(FeatureTag::KERNING);
+            a = a.font_features(features);
+        }
+        a
+    }
+}
+
+fn build_rich_spans<'a>(
+    text: &'a str,
+    style: &TextStyle,
+    _base: &Attrs<'_>,
+) -> Vec<(&'a str, OwnedSpanAttrs)> {
+    let mut cuts = vec![0usize, text.len()];
+    for r in &style.runs {
+        let s = clamp_char_boundary(text, r.range.start);
+        let e = clamp_char_boundary(text, r.range.end);
+        if s < e {
+            cuts.push(s);
+            cuts.push(e);
+        }
+    }
+    cuts.sort_unstable();
+    cuts.dedup();
+    let base_size = style.font_size.max(1.0);
+    let line_ratio = (style.line_height.max(1.0) / base_size).max(1.0);
+    let mut out = Vec::with_capacity(cuts.len().saturating_sub(1));
+    for pair in cuts.windows(2) {
+        let (a, b) = (pair[0], pair[1]);
+        if a >= b {
+            continue;
+        }
+        let active = style.runs.iter().rev().find(|r| {
+            let s = clamp_char_boundary(text, r.range.start);
+            let e = clamp_char_boundary(text, r.range.end);
+            s <= a && e >= b
+        });
+        let fam_ref = active
+            .and_then(|r| r.family.as_ref())
+            .unwrap_or(&style.family);
+        let (family, generic_family) = match fam_ref {
+            FontFamily::SansSerif => (None, Some(Family::SansSerif)),
+            FontFamily::Serif => (None, Some(Family::Serif)),
+            FontFamily::Monospace => (None, Some(Family::Monospace)),
+            FontFamily::Named(n) => (Some(n.clone()), None),
+        };
+        let size = active
+            .and_then(|r| r.font_size)
+            .unwrap_or(style.font_size)
+            .max(1.0);
+        let bold = active.and_then(|r| r.bold).unwrap_or(style.bold);
+        let italic = active.and_then(|r| r.italic).unwrap_or(style.italic);
+        let tracking = active
+            .and_then(|r| r.letter_spacing)
+            .unwrap_or(style.letter_spacing);
+        let tracking_px = if tracking.is_finite() {
+            tracking.clamp(-4096.0, 4096.0)
+        } else {
+            0.0
+        };
+        let metrics = (active.and_then(|r| r.font_size).is_some())
+            .then(|| Metrics::new(size, (size * line_ratio).max(style.line_height.max(1.0))));
+        out.push((
+            &text[a..b],
+            OwnedSpanAttrs {
+                family,
+                generic_family,
+                weight: if bold { Weight::BOLD } else { Weight::NORMAL },
+                font_style: if italic {
+                    FontStyle::Italic
+                } else {
+                    FontStyle::Normal
+                },
+                letter_spacing_em: tracking_px / size,
+                metrics,
+                kerning: style.kerning,
+            },
+        ));
+    }
+    out
+}
+
+fn clamp_char_boundary(text: &str, idx: usize) -> usize {
+    let mut i = idx.min(text.len());
+    while i > 0 && !text.is_char_boundary(i) {
+        i -= 1;
+    }
+    i
 }

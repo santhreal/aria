@@ -27,10 +27,18 @@ impl KeyHost {
     /// the key is pressed rather than shadowing a binding that still works. A
     /// binding rebound to the chord it already has costs nothing and is still
     /// recorded, because "the operator chose this" is what Reset undoes.
+    ///
+    /// A plugin key refused for a taken chord is rebound the same way, and the
+    /// next sync places it on the chord it was given.
     pub fn set_override(&self, id: &str, chord: Option<Chord>) -> Result<(), KeyOverrideError> {
         let mut overrides = self.overrides.write();
         let bindings = self.bindings.read();
-        let Some(target) = bindings.iter().find(|binding| binding.id == id).copied() else {
+        let Some(target) = bindings
+            .iter()
+            .find(|binding| binding.id == id)
+            .copied()
+            .or_else(|| self.refused_plugin_key(id))
+        else {
             return Err(KeyOverrideError::Unknown);
         };
         if let Some(wanted) = chord {
@@ -51,17 +59,20 @@ impl KeyHost {
             Some(row) => row.1 = chord,
             None => overrides.push((target.id, chord)),
         }
+        self.resync_plugin_keys();
         Ok(())
     }
 
     /// Put one binding back to the chord it shipped with.
     pub fn remove_override(&self, id: &str) {
         self.overrides.write().retain(|(held, _)| *held != id);
+        self.resync_plugin_keys();
     }
 
     /// Put every binding back to the chord it shipped with.
     pub fn reset_overrides(&self) {
         self.overrides.write().clear();
+        self.resync_plugin_keys();
     }
 
     /// The rebindings in force, in the order they were made. What Settings
@@ -70,17 +81,25 @@ impl KeyHost {
         self.overrides.read().clone()
     }
 
-    /// Every binding with the chord it answers to now, in registration order.
+    /// Every binding with the chord it answers to now, in registration order,
+    /// then each refused plugin key with no chord, so it can be given one.
     pub fn rows(&self) -> Vec<BindingRow> {
         let overrides = self.overrides.read();
-        self.bindings
-            .read()
+        let bindings = self.bindings.read();
+        let refused = self.plugin_refused.read();
+        let overridden = |id: &str| overrides.iter().any(|(held, _)| *held == id);
+        bindings
             .iter()
             .map(|binding| BindingRow {
                 binding: *binding,
                 chord: Self::chord_for(overrides.as_slice(), binding),
-                overridden: overrides.iter().any(|(id, _)| *id == binding.id),
+                overridden: overridden(binding.id),
             })
+            .chain(refused.iter().map(|binding| BindingRow {
+                binding: *binding,
+                chord: None,
+                overridden: overridden(binding.id),
+            }))
             .collect()
     }
 

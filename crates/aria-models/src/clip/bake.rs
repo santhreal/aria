@@ -29,10 +29,13 @@
 //!   multiplication, so the restore fails closed and names the retime.
 //!
 //! What a bake folds in is what the renderer applies to the clip: its
-//! transform, crop, flips, effect chain, mask, key, grade, LUT, layer styles,
-//! motion blur, edge animations, retiming, and its audio envelope. What it
-//! cannot fold stays on the clip: the blend mode and the track matte both need
-//! the layers around this one, and stabilization is not rendered at all.
+//! transform, crop, flips, effect chain, property drivers, mask, key, grade,
+//! LUT, layer styles, motion blur, edge animations, retiming, and its audio
+//! envelope. What it
+//! cannot fold stays on the clip: the blend mode, the track matte, and the
+//! parent all need the layers around this one, and stabilization is not
+//! rendered at all. A baked clip keeps its parent: the file holds the clip
+//! placed by its own transform, and the parent's frame places that picture.
 
 use super::*;
 
@@ -92,7 +95,8 @@ impl Clip {
         bare.flip_h = false;
         bare.flip_v = false;
         bare.effects.clear();
-        bare.mask = None;
+        bare.drivers.clear();
+        bare.masks.clear();
         bare.chroma_key = None;
         bare.filter = None;
         bare.lut = None;
@@ -132,6 +136,9 @@ impl Clip {
 
         let mut baked = self.stripped();
         baked.bake = Some(Box::new(Clip::clone(self)));
+        // The property the bar drew may be one the bake spent; the original
+        // keeps it for an unbake.
+        baked.line_param = None;
         // Everything the renderer applied is in the file's pixels now.
         baked.content = ClipSource::Media { media, source };
         Ok(baked)
@@ -172,6 +179,8 @@ impl Clip {
         let mut restored = Clip::clone(original);
         restored.id = self.id;
         restored.link = self.link;
+        restored.group = self.group;
+        restored.enabled = self.enabled;
         restored.timeline = self.timeline;
         restored.bake = None;
         if let Some(source) = original.source_range() {

@@ -1,4 +1,4 @@
-//! The Markers tab: every ruler marker as a row.
+//! The Markers dock panel: every ruler marker as a row.
 //!
 //! Markers used to exist only as flags on the ruler, so a marker off screen was
 //! a marker the operator could not find, and its colour and note were data
@@ -25,27 +25,47 @@ use crate::theme::Theme;
 use crate::timecode;
 use crate::types::{RenameTarget, UiMarker};
 
-pub(crate) fn markers_panel(
+/// The surface name of the panel.
+const SURFACE: &str = "markers-panel";
+
+/// Window > Markers: the marker list, scrolled inside its frame.
+pub fn render(
+    state: &Entity<AppState>,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> gpui::AnyElement {
+    let theme = Theme::of(cx);
+    div()
+        .id(SURFACE)
+        .debug_selector(|| SURFACE.into())
+        .size_full()
+        .overflow_y_scroll()
+        .p(px(Theme::SPACE_SM))
+        .child(markers_panel(&theme, state, cx))
+        .into_any_element()
+}
+
+fn markers_panel(
     theme: &Theme,
     state: &Entity<AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
-    let markers = state.read(cx).store.sequence.markers.clone();
+    let is_empty = state.read(cx).store.sequence.markers.is_empty();
+    let active_filter = state.read(cx).marker_color_filter();
+    let markers = state.read(cx).visible_markers();
     let rate = state.read(cx).store.sequence.frame_rate;
     let playhead = state.read(cx).playhead.value;
-    // The project's own count, not the row count. They agree unless a
-    // projection dropped one, and a panel that silently shows fewer rows than
-    // the sequence holds is worse than one that says the two disagree.
+    // The project's own count, not the row count. They agree unless a colour
+    // filter is active or a projection dropped one.
     let held = state.read(cx).marker_count();
 
-    if markers.is_empty() {
+    if is_empty {
         return div()
             .flex()
             .flex_col()
             .gap(px(Theme::SPACE_SM))
             .child(
                 div()
-                    .text_size(px(13.))
+                    .text_size(Theme::TEXT_UI)
                     .text_color(theme.text_faint)
                     .child("No markers. Add one at the playhead."),
             )
@@ -67,8 +87,78 @@ pub(crate) fn markers_panel(
         .flex_col()
         .gap(px(Theme::SPACE_XS))
         .child(count_line(theme, rows.len(), held))
+        .child(filter_bar(theme, active_filter, cx))
         .child(add_button(theme, cx))
         .children(rows)
+        .into_any_element()
+}
+
+fn filter_bar(
+    theme: &Theme,
+    active: Option<aria_models::MarkerColor>,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> gpui::AnyElement {
+    let all_chip = components::chip(
+        "marker-filter-all",
+        "All",
+        active.is_none(),
+        components::ChipSize::Compact,
+        theme,
+    )
+    .on_mouse_down(
+        MouseButton::Left,
+        cx.listener(|this, _: &MouseDownEvent, _, cx| {
+            this.state
+                .update(cx, |state, _| state.set_marker_color_filter(None));
+            cx.notify();
+        }),
+    );
+    div()
+        .flex()
+        .flex_wrap()
+        .items_center()
+        .gap(px(Theme::SPACE_XXS))
+        .child(all_chip)
+        .children(aria_models::MarkerColor::ALL.into_iter().map(|color| {
+            let is_active = active == Some(color);
+            let id = match color {
+                aria_models::MarkerColor::Teal => "marker-filter-teal",
+                aria_models::MarkerColor::Blue => "marker-filter-blue",
+                aria_models::MarkerColor::Green => "marker-filter-green",
+                aria_models::MarkerColor::Yellow => "marker-filter-yellow",
+                aria_models::MarkerColor::Orange => "marker-filter-orange",
+                aria_models::MarkerColor::Red => "marker-filter-red",
+                aria_models::MarkerColor::Pink => "marker-filter-pink",
+                aria_models::MarkerColor::Purple => "marker-filter-purple",
+            };
+            div()
+                .id(id)
+                .w(px(14.))
+                .h(px(14.))
+                .rounded(px(3.))
+                .border_1()
+                .border_color(if is_active {
+                    theme.accent
+                } else {
+                    theme.border
+                })
+                .bg(theme.marker(color))
+                .cursor(CursorStyle::PointingHand)
+                .on_mouse_down(
+                    MouseButton::Left,
+                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                        this.state.update(cx, |state, _| {
+                            let next = if state.marker_color_filter() == Some(color) {
+                                None
+                            } else {
+                                Some(color)
+                            };
+                            state.set_marker_color_filter(next);
+                        });
+                        cx.notify();
+                    }),
+                )
+        }))
         .into_any_element()
 }
 
@@ -81,7 +171,7 @@ fn count_line(theme: &Theme, shown: usize, held: usize) -> gpui::AnyElement {
         format!("{shown} of {held} markers shown")
     };
     div()
-        .text_size(px(11.))
+        .text_size(Theme::TEXT_UI)
         .text_color(if shown == held {
             theme.text_muted
         } else {
@@ -168,21 +258,51 @@ fn row(
                 .items_center()
                 .gap(px(Theme::SPACE_XS))
                 .child(swatch(theme, marker, cx))
-                .child(div().text_size(px(11.)).text_color(theme.text_muted).child(
-                    SharedString::from(timecode::format_ticks(tick, rate_num, rate_den)),
-                ))
+                .child(
+                    div()
+                        .text_size(Theme::TEXT_UI)
+                        .text_color(theme.text_muted)
+                        .child(SharedString::from(timecode::format_ticks(
+                            tick, rate_num, rate_den,
+                        ))),
+                )
+                .when(marker.duration_ticks > 0, |el| {
+                    let dur = timecode::format_ticks(marker.duration_ticks, rate_num, rate_den);
+                    el.child(
+                        div()
+                            .text_size(Theme::TEXT_UI)
+                            .text_color(theme.text_muted)
+                            .child(SharedString::from(format!("+{dur}"))),
+                    )
+                })
                 .child(
                     div()
                         .flex_1()
-                        .text_size(px(13.))
+                        .text_size(Theme::TEXT_UI)
                         .text_color(theme.text)
                         .child(SharedString::from(name)),
-                ),
+                )
+                .when(marker.kind != aria_models::MarkerKind::Comment, |el| {
+                    el.child(
+                        div()
+                            .text_size(Theme::TEXT_SMALL)
+                            .text_color(theme.text_muted)
+                            .child(marker.kind.label()),
+                    )
+                })
+                .when(marker.clip_id.is_some(), |el| {
+                    el.child(
+                        div()
+                            .text_size(Theme::TEXT_SMALL)
+                            .text_color(theme.text_faint)
+                            .child("Clip"),
+                    )
+                }),
         )
         .when(!comment.is_empty(), |el| {
             el.child(
                 div()
-                    .text_size(px(11.))
+                    .text_size(Theme::TEXT_UI)
                     .text_color(theme.text_faint)
                     .child(SharedString::from(comment)),
             )
@@ -191,6 +311,7 @@ fn row(
             div()
                 .flex()
                 .gap(px(Theme::SPACE_XS))
+                .child(edit_dialog_action(theme, id, cx))
                 .child(action(
                     theme,
                     "marker-rename",
@@ -279,6 +400,29 @@ fn action(
         cx.listener(move |this, _: &MouseDownEvent, _, cx| {
             cx.stop_propagation();
             this.state.update(cx, |state, _| state.begin_rename(target));
+            cx.notify();
+        }),
+    )
+    .into_any_element()
+}
+
+fn edit_dialog_action(
+    theme: &Theme,
+    marker: u64,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> gpui::AnyElement {
+    components::ghost_button(
+        crate::motion::MotionKey::new("marker-edit", marker),
+        "Edit…",
+        theme,
+    )
+    .on_mouse_down(
+        MouseButton::Left,
+        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+            cx.stop_propagation();
+            this.state.update(cx, |state, _| {
+                state.open_marker_edit(marker);
+            });
             cx.notify();
         }),
     )

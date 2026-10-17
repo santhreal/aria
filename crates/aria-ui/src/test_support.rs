@@ -45,9 +45,50 @@ pub(crate) fn drawn_shell<'a>(
     gpui::Entity<crate::app::AppState>,
     &'a mut gpui::VisualTestContext,
 ) {
+    let state = shell_state(cx, tag);
+    let owned = state.clone();
+    let (_shell, visual) = cx.add_window_view(|_, cx| crate::shell::Shell::new(owned, cx));
+    (state, visual)
+}
+
+/// [`drawn_shell`] in a window at `bounds` on the screen, for a test that
+/// tells a position in the window from one on the screen. The window
+/// [`drawn_shell`] opens fills the screen, so the two are the same there.
+pub(crate) fn drawn_shell_at(
+    cx: &mut gpui::TestAppContext,
+    tag: &str,
+    bounds: gpui::Bounds<gpui::Pixels>,
+) -> (gpui::Entity<crate::app::AppState>, gpui::VisualTestContext) {
     use gpui::AppContext as _;
-    let state = cx.update(|app| {
-        crate::theme::Theme::install(crate::theme::Appearance::Dark, Default::default(), app);
+    let state = shell_state(cx, tag);
+    let owned = state.clone();
+    let window = cx
+        .update(|app| {
+            app.open_window(
+                gpui::WindowOptions {
+                    window_bounds: Some(gpui::WindowBounds::Windowed(bounds)),
+                    ..Default::default()
+                },
+                |_, cx| cx.new(|cx| crate::shell::Shell::new(owned, cx)),
+            )
+        })
+        .unwrap_or_else(|err| panic!("a test window at {bounds:?}: {err:?}"));
+    let visual = gpui::VisualTestContext::from_window(*window, cx);
+    visual.run_until_parked();
+    (state, visual)
+}
+
+/// The state [`drawn_shell`] draws: the UI plugin mounted and an empty
+/// project open.
+fn shell_state(cx: &mut gpui::TestAppContext, tag: &str) -> gpui::Entity<crate::app::AppState> {
+    use gpui::AppContext as _;
+    cx.update(|app| {
+        crate::theme::Theme::install(
+            crate::theme::Appearance::Dark,
+            Default::default(),
+            None,
+            app,
+        );
         let ctx = aria_plugin::PluginContext::new();
         ctx.mount(&crate::plugins::UiPlugin)
             .unwrap_or_else(|err| panic!("the ui plugin needs nothing: {err:?}"));
@@ -57,10 +98,7 @@ pub(crate) fn drawn_shell<'a>(
             panic!("a project to edit: {err:?}");
         }
         app.new(|_| state)
-    });
-    let owned = state.clone();
-    let (_shell, visual) = cx.add_window_view(|_, cx| crate::shell::Shell::new(owned, cx));
-    (state, visual)
+    })
 }
 
 /// Whether `inner` lies inside `outer`, edges included. Layout is in floats, so
@@ -74,6 +112,26 @@ pub(crate) fn bounds_inside(
         && inner.top() >= outer.top() - slack
         && inner.right() <= outer.right() + slack
         && inner.bottom() <= outer.bottom() + slack
+}
+
+/// The device the render plugin brings up, mounted on `ctx` with the plugins
+/// it depends on as a session mounts them, or `None` on a host with no GPU.
+///
+/// Through `PluginContext::mount` only. A direct `Plugin::mount` hands the
+/// plugin a context that is not mounting, so every service it registers is
+/// dropped when the call returns and the device is never there to find: a
+/// test asking for it skips on every host, GPU or not.
+pub(crate) fn mounted_gpu(ctx: &aria_plugin::PluginContext) -> Option<aria_compositor::GpuContext> {
+    let chain: [&dyn aria_plugin::Plugin; 3] = [
+        &crate::plugins::DecoderPlugin,
+        &crate::plugins::CompositorPlugin,
+        &crate::plugins::RenderPlugin,
+    ];
+    for plugin in chain {
+        ctx.mount(plugin).expect("mount the render chain");
+    }
+    let gpu = ctx.try_get::<aria_compositor::GpuContext>()?;
+    Some(gpu.share())
 }
 
 #[cfg(test)]

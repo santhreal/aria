@@ -51,6 +51,10 @@ pub enum WireClipParam {
     Text { param: WireTextParam },
     /// A scalar property of the clip's color look.
     Look { param: WireLookParam },
+    /// A property of one mask in the clip's mask stack. `index` is the
+    /// mask's position (0 = top), as in `set_clip_mask`. `center` and `size`
+    /// use `position`; the rest use `value`.
+    Mask { index: u32, param: WireMaskParam },
     /// A property of the clip's layer-quad styles (shadow/glow/outline/
     /// background). Color params use `rgba`; `shadow_offset` uses
     /// `position`; the rest use scalar `value`.
@@ -87,9 +91,7 @@ pub enum WireTextParam {
     BackgroundRadius,
 }
 
-/// Animatable properties of a clip's color look / mask.
-///
-/// `mask_center` / `mask_size` carry vec2 values; the rest are scalars.
+/// Animatable scalar properties of a clip's color look.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum WireLookParam {
@@ -104,8 +106,12 @@ pub enum WireLookParam {
     AdjustHue,
     AdjustHighlights,
     AdjustShadows,
+    AdjustWhites,
+    AdjustBlacks,
     AdjustSharpness,
     AdjustVignette,
+    AdjustVibrance,
+    AdjustFadedFilm,
     /// Lift / gamma / gain, per channel and master: the colour wheels. Lift is
     /// a signed offset (-1 … 1, 0 neutral); gamma and gain are multiplicative
     /// (0 … 4, 1 neutral).
@@ -121,14 +127,68 @@ pub enum WireLookParam {
     AdjustGainG,
     AdjustGainB,
     AdjustGainMaster,
-    MaskFeather,
-    MaskCenter,
-    MaskSize,
-    MaskRotation,
-    MaskRoundness,
+    /// RGB curves, hue curves and the HSL secondary: signed (-1 … 1, 0
+    /// neutral).
+    AdjustCurveMasterShadows,
+    AdjustCurveMasterMidtones,
+    AdjustCurveMasterHighlights,
+    AdjustCurveRedShadows,
+    AdjustCurveRedMidtones,
+    AdjustCurveRedHighlights,
+    AdjustCurveGreenShadows,
+    AdjustCurveGreenMidtones,
+    AdjustCurveGreenHighlights,
+    AdjustCurveBlueShadows,
+    AdjustCurveBlueMidtones,
+    AdjustCurveBlueHighlights,
+    AdjustHueSatRed,
+    AdjustHueSatYellow,
+    AdjustHueSatGreen,
+    AdjustHueSatCyan,
+    AdjustHueSatBlue,
+    AdjustHueSatMagenta,
+    AdjustHueHueRed,
+    AdjustHueHueYellow,
+    AdjustHueHueGreen,
+    AdjustHueHueCyan,
+    AdjustHueHueBlue,
+    AdjustHueHueMagenta,
+    AdjustHueLumaRed,
+    AdjustHueLumaYellow,
+    AdjustHueLumaGreen,
+    AdjustHueLumaCyan,
+    AdjustHueLumaBlue,
+    AdjustHueLumaMagenta,
+    AdjustHslKeyHue,
+    AdjustHslKeyWidth,
+    AdjustHslHue,
+    AdjustHslSaturation,
+    AdjustHslLuma,
     ChromaStrength,
     ChromaShadow,
     MatteSoftness,
+}
+
+/// Animatable properties of one mask in a clip's mask stack.
+///
+/// `center` / `size` carry vec2 values; the rest are scalars.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum WireMaskParam {
+    /// Edge softness, 0 … 1.
+    Feather,
+    /// Centre offset as a fraction of the layer size.
+    Center,
+    /// Size as a fraction of the layer size.
+    Size,
+    /// Rotation in degrees, clockwise.
+    Rotation,
+    /// Rectangle corner rounding, 0 … 1.
+    Roundness,
+    /// How much of the mask's result replaces the coverage above it, 0 … 1.
+    Opacity,
+    /// Edge offset in reference pixels, outward when positive.
+    Expansion,
 }
 
 /// Animatable properties of a clip's layer-quad styles.

@@ -5,7 +5,7 @@ use crate::wire;
 
 #[test]
 fn look_commands_lower_and_guard() {
-    let (project, _, _, _, clip, title) = fixture();
+    let (project, _, _, _, clip, _) = fixture();
 
     let edit = lower(
         &project,
@@ -58,75 +58,6 @@ fn look_commands_lower_and_guard() {
         }),
     );
     assert!(msg.contains("does not fit"), "{msg}");
-
-    let msg = reject(
-        &project,
-        WireCommand::SetClipMask(wire::SetClipMask {
-            clip: title,
-            mask: Some(wire::WireMask {
-                kind: wire::WireMaskKind::Circle,
-                feather: None,
-                invert: None,
-                center: None,
-                size: None,
-                rotation: None,
-                roundness: None,
-            }),
-        }),
-    );
-    assert!(msg.contains("generated clip"), "{msg}");
-}
-
-#[test]
-fn mask_with_geometry_lowers_to_constants() {
-    let (project, _, _, _, clip, _) = fixture();
-
-    let edit = lower(
-        &project,
-        WireCommand::SetClipMask(wire::SetClipMask {
-            clip,
-            mask: Some(wire::WireMask {
-                kind: wire::WireMaskKind::Rectangle,
-                feather: Some(0.25),
-                invert: Some(true),
-                center: Some([0.1, -0.2]),
-                size: Some([0.8, 0.6]),
-                rotation: Some(15.0),
-                roundness: Some(0.3),
-            }),
-        }),
-    );
-    match edit {
-        EditCommand::SetClipMask {
-            mask: Some(mask), ..
-        } => {
-            assert_eq!(mask.kind, MaskKind::Rectangle);
-            assert_eq!(mask.feather, Param::Constant(0.25));
-            assert!(mask.invert);
-            assert_eq!(mask.center, Param::Constant([0.1, -0.2]));
-            assert_eq!(mask.size, Param::Constant([0.8, 0.6]));
-            assert_eq!(mask.rotation, Param::Constant(15.0));
-            assert_eq!(mask.roundness, Param::Constant(0.3));
-        }
-        other => panic!("expected SetClipMask with geometry, got {other:?}"),
-    }
-
-    let msg = reject(
-        &project,
-        WireCommand::SetClipMask(wire::SetClipMask {
-            clip,
-            mask: Some(wire::WireMask {
-                kind: wire::WireMaskKind::Circle,
-                feather: None,
-                invert: None,
-                center: None,
-                size: Some([0.0, 1.0]),
-                rotation: None,
-                roundness: None,
-            }),
-        }),
-    );
-    assert!(msg.contains("mask size"), "{msg}");
 }
 
 #[test]
@@ -199,88 +130,6 @@ fn set_clip_adjustments_lowers_new_sliders_and_rejects_ranges() {
             tangents: None,
         }
     );
-}
-
-#[test]
-fn mask_center_keyframe_uses_position_on_masked_clip() {
-    let (mut project, _, _, _, clip, _) = fixture();
-    project
-        .set_clip_mask(ClipId::from_raw(clip), Some(Mask::new(MaskKind::Circle)))
-        .unwrap();
-
-    let msg = reject(
-        &project,
-        WireCommand::SetParamKeyframe(wire::SetParamKeyframe {
-            clip,
-            param: wire::WireClipParam::Look {
-                param: wire::WireLookParam::MaskCenter,
-            },
-            at: 1.0,
-            value: Some(0.5),
-            position: None,
-            rgba: None,
-            rect: None,
-            easing: None,
-
-            tangent_out: None,
-            tangent_in: None,
-        }),
-    );
-    assert!(msg.contains("position"), "{msg}");
-
-    let edit = lower(
-        &project,
-        WireCommand::SetParamKeyframe(wire::SetParamKeyframe {
-            clip,
-            param: wire::WireClipParam::Look {
-                param: wire::WireLookParam::MaskCenter,
-            },
-            at: 1.0,
-            value: None,
-            position: Some([0.25, -0.1]),
-            rgba: None,
-            rect: None,
-            easing: None,
-
-            tangent_out: None,
-            tangent_in: None,
-        }),
-    );
-    assert_eq!(
-        edit,
-        EditCommand::SetParamKeyframe {
-            clip: ClipId::from_raw(clip),
-            param: ClipParam::Look {
-                param: aria_models::LookParam::MaskCenter,
-            },
-            at: RationalTime::new(24, R24),
-            value: ParamValue::Vec2([0.25, -0.1]),
-            easing: Easing::Linear,
-            tangents: None,
-        }
-    );
-
-    // Tagged nesting on the wire: {"look":{"param":"mask_center"}}
-    let from_json = WireCommand::from_tool_call(
-        "set_param_keyframe",
-        serde_json::json!({
-            "clip": clip,
-            "param": { "look": { "param": "mask_center" } },
-            "at": 1.0,
-            "position": [0.25, -0.1],
-        }),
-    )
-    .unwrap();
-    let WireCommand::SetParamKeyframe(args) = from_json else {
-        panic!("expected SetParamKeyframe");
-    };
-    assert_eq!(
-        args.param,
-        wire::WireClipParam::Look {
-            param: wire::WireLookParam::MaskCenter
-        }
-    );
-    assert_eq!(args.position, Some([0.25, -0.1]));
 }
 
 #[test]

@@ -34,6 +34,8 @@ pub struct ExportRequest {
     pub size: (u32, u32),
     /// The span, worded as the sheet and the status line word it.
     pub range: String,
+    /// Registered plugin encoder id, or `None` for the platform encoder.
+    pub plugin_encoder: Option<String>,
 }
 
 impl AppState {
@@ -43,11 +45,12 @@ impl AppState {
     /// Here rather than in the sheet, so the path the sheet prints and the path
     /// the button writes to are one answer.
     pub fn export_destination(&self) -> PathBuf {
+        let ext = self.export_extension();
         match self.project_path.as_ref() {
-            Some(path) => path.with_extension("mp4"),
+            Some(path) => path.with_extension(&ext),
             None => self
                 .data_dir
-                .join(format!("{}.mp4", self.store.project_name)),
+                .join(format!("{}.{ext}", self.store.project_name)),
         }
     }
 
@@ -58,6 +61,7 @@ impl AppState {
             format: self.export_format(),
             size: self.export_size(),
             range: self.export_range_label(),
+            plugin_encoder: self.export_options.plugin_encoder.clone(),
         }
     }
 

@@ -31,6 +31,7 @@ impl Compositor {
             LayerContent::Rgba(image) => self.build_rgba(gpu, config, layer, image, grade),
             LayerContent::Sdf(shape) => self.build_sdf(gpu, config, layer, shape, grade),
             LayerContent::Glyphs(glyphs) => self.build_glyphs(gpu, config, layer, glyphs, grade),
+            LayerContent::Nest(nest) => self.build_nest(gpu, config, layer, *nest, grade),
         }
     }
 
@@ -428,7 +429,19 @@ impl Compositor {
                 .insert(image_key, (texture.clone(), view.clone()));
             (texture, view)
         };
+        Ok(self.bind_rgba(gpu, config, layer, (texture, view), color_grade))
+    }
 
+    /// Bind `view`, premultiplied RGBA, as the content of `layer` through the
+    /// RGBA pipelines. The layer holds `texture` alive with its bind group.
+    pub(super) fn bind_rgba(
+        &self,
+        gpu: &GpuContext,
+        config: &CompositorConfig,
+        layer: &CompositeLayer<'_>,
+        (texture, view): (wgpu::Texture, wgpu::TextureView),
+        color_grade: Option<ColorGrade>,
+    ) -> LayerGpu {
         let (linear, trans) = placement_affine(config, &layer.placement, 0.0);
         let grade = pack_grade(color_grade);
         let placement_uniforms = RgbaUniforms {
@@ -450,13 +463,13 @@ impl Compositor {
                 ],
             );
 
-            return Ok(LayerGpu {
+            return LayerGpu {
                 pipeline: LayerPipeline::Rgba,
                 bind_group,
                 _planes: Some(PlaneSet::Single((texture, view))),
                 _keep_alive: None,
                 instances: None,
-            });
+            };
         }
 
         let fx_uniforms = pack_fx_uniforms(&layer.fx, &layer.placement);
@@ -472,13 +485,13 @@ impl Compositor {
             ],
         );
 
-        Ok(LayerGpu {
+        LayerGpu {
             pipeline: LayerPipeline::RgbaFx,
             bind_group,
             _planes: Some(PlaneSet::Single((texture, view))),
             _keep_alive: None,
             instances: None,
-        })
+        }
     }
 }
 
@@ -541,7 +554,7 @@ fn premultiply_for_upload(
 const MASK_SIZE_EPS: f32 = 1e-3;
 
 fn pack_fx_uniforms(effects: &LayerEffects, placement: &LayerPlacement) -> FxEffectsUniform {
-    let (mask, half_zw, mask_geo) = match effects.mask {
+    let (mask, half_zw, mask_geo, mask_mix) = match effects.mask {
         Some(m) => (
             [m.kind as f32, m.feather, m.invert as f32, 1.0],
             [m.rotation_rad, m.roundness],
@@ -551,8 +564,14 @@ fn pack_fx_uniforms(effects: &LayerEffects, placement: &LayerPlacement) -> FxEff
                 m.size[0].max(MASK_SIZE_EPS),
                 m.size[1].max(MASK_SIZE_EPS),
             ],
+            [m.mix.offset, m.mix.scale, m.expansion, 0.0],
         ),
-        None => ([0.0, 0.0, 0.0, 0.0], [0.0, 0.0], [0.0, 0.0, 1.0, 1.0]),
+        None => (
+            [0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0],
+            [0.0, 0.0, 1.0, 1.0],
+            [0.0, 1.0, 0.0, 0.0],
+        ),
     };
     let chroma = effects
         .chroma_key
@@ -569,6 +588,7 @@ fn pack_fx_uniforms(effects: &LayerEffects, placement: &LayerPlacement) -> FxEff
             half_zw[1],
         ],
         mask_geo,
+        mask_mix,
     }
 }
 

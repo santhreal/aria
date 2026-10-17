@@ -204,8 +204,9 @@ fn ripple_insert_at_the_playhead_pushes_downstream_clips() {
     let media = fixture_media(&state, track, clip.raw());
 
     state.set_playhead(0);
+    state.pool_selection.replace(media.raw());
     state
-        .ripple_insert_at_playhead(TrackId::from_raw(track), media)
+        .place_pool_selection(crate::types::EditMode::Ripple)
         .unwrap();
     assert!(
         clip_start(&state, track, clip.raw()) > 0,

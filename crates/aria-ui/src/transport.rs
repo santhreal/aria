@@ -6,8 +6,6 @@
 
 /// Pixels per second at zoom 1. Must match the timeline ruler.
 pub const TIMELINE_BASE_PPS: f32 = 80.0;
-/// Track-header column width. Must match the timeline chrome.
-pub const TIMELINE_HEADER_W: f32 = 132.0;
 
 /// The widest a second may be drawn: sixteen times base, where a frame at 24fps
 /// is 53px and a single frame can be trimmed by eye.
@@ -59,6 +57,127 @@ pub fn zoom_keep_pointer(zoom: f32, scroll_x: f32, pointer_x: f32, factor: f32) 
     let next = clamp_zoom(zoom * factor);
     let next_scroll = (seconds * TIMELINE_BASE_PPS * next - pointer_x).max(0.0);
     (next, next_scroll)
+}
+
+/// Signed playback speed as a rational multiplier of the sequence rate.
+///
+/// Stored in hundredths (`100 / 100` = 1x, `25 / 100` = 1/4x,
+/// `110 / 100` = 1.1x, `-200 / 100` = -2x).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ShuttleSpeed {
+    pub num: i32,
+    pub den: i32,
+}
+
+impl ShuttleSpeed {
+    pub const STOP: Self = Self::hundredths(0);
+    pub const ONE: Self = Self::hundredths(100);
+    pub const REVERSE_ONE: Self = Self::hundredths(-100);
+    pub const QUARTER: Self = Self::hundredths(25);
+    pub const REVERSE_QUARTER: Self = Self::hundredths(-25);
+    pub const MIN_HUNDREDTHS: i32 = -800;
+    pub const MAX_HUNDREDTHS: i32 = 800;
+    pub const MAX_AUDIBLE_HUNDREDTHS: i32 = 400;
+
+    pub const fn new(num: i32, den: i32) -> Self {
+        Self {
+            num,
+            den: if den <= 0 { 1 } else { den },
+        }
+    }
+
+    pub const fn hundredths(hundredths: i32) -> Self {
+        Self {
+            num: hundredths,
+            den: 100,
+        }
+    }
+
+    pub const fn steps(steps: i32) -> Self {
+        Self {
+            num: steps.saturating_mul(100),
+            den: 100,
+        }
+    }
+
+    pub const fn as_hundredths(self) -> i32 {
+        if self.den == 100 {
+            self.num
+        } else {
+            let den = if self.den > 1 { self.den } else { 1 };
+            ((self.num as i64 * 100) / (den as i64)) as i32
+        }
+    }
+
+    pub const fn signum(self) -> i32 {
+        self.num.signum()
+    }
+
+    pub const fn is_audible(self) -> bool {
+        let den = if self.den > 1 { self.den } else { 1 };
+        self.num != 0 && (self.num as i64).abs() <= 4 * (den as i64)
+    }
+
+    pub const fn clamp_range(self) -> Self {
+        let h = self.as_hundredths();
+        let clamped = if h < Self::MIN_HUNDREDTHS {
+            Self::MIN_HUNDREDTHS
+        } else if h > Self::MAX_HUNDREDTHS {
+            Self::MAX_HUNDREDTHS
+        } else {
+            h
+        };
+        Self::hundredths(clamped)
+    }
+
+    /// Integer speed reported on plugin `ViewFrame::speed` (`1`, `2`, `4`, `8`, `-1`, ...).
+    pub const fn as_plugin_speed(self) -> i32 {
+        let h = self.as_hundredths();
+        if h.abs() >= 100 { h / 100 } else { h.signum() }
+    }
+
+    /// Step shuttle speed by 10% (`10` hundredths) in the sign of `delta_sign`,
+    /// crossing zero directly (`0.1x <-> -0.1x`) and clamping to `[-8x, 8x]`.
+    pub const fn step_ten_percent(self, delta_sign: i32) -> Self {
+        if delta_sign == 0 {
+            return self;
+        }
+        let step = if delta_sign < 0 { -10 } else { 10 };
+        let mut next = self.as_hundredths() + step;
+        if next == 0 {
+            next = step;
+        }
+        Self::hundredths(next).clamp_range()
+    }
+}
+
+impl Default for ShuttleSpeed {
+    fn default() -> Self {
+        Self::ONE
+    }
+}
+
+impl PartialEq<i32> for ShuttleSpeed {
+    fn eq(&self, other: &i32) -> bool {
+        i64::from(self.num) == i64::from(*other) * i64::from(self.den.max(1))
+    }
+}
+
+impl std::fmt::Display for ShuttleSpeed {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let h = self.as_hundredths();
+        if h % 100 == 0 {
+            write!(f, "{}x", h / 100)
+        } else {
+            let sign = if h < 0 { "-" } else { "" };
+            let abs = h.abs();
+            if abs % 10 == 0 {
+                write!(f, "{sign}{}.{}x", abs / 100, (abs % 100) / 10)
+            } else {
+                write!(f, "{sign}{}.{:02}x", abs / 100, abs % 100)
+            }
+        }
+    }
 }
 
 /// Playhead tick after `elapsed_ms` milliseconds of playback starting at

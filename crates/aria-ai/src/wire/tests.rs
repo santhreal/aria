@@ -423,7 +423,7 @@ fn tool_specs_cached_initialized_once_and_thread_safe() {
 
 #[test]
 fn tool_schema_version_changelog_and_coherence() {
-    assert_eq!(TOOL_SCHEMA_VERSION, 48);
+    assert_eq!(TOOL_SCHEMA_VERSION, 51);
     // Verify the snapshot file matches the current version
     let snapshot_content = include_str!("../../tests/snapshots/tools.json");
     let parsed: serde_json::Value = serde_json::from_str(snapshot_content).unwrap();

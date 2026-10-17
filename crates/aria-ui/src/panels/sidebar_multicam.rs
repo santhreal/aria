@@ -264,7 +264,7 @@ pub fn multicam_section(
                     .child(back)
                     .child(
                         div()
-                            .text_size(px(10.))
+                            .text_size(Theme::TEXT_SMALL)
                             .text_color(theme.text_muted)
                             .child(SharedString::from(offset_label(angle.offset))),
                     )
@@ -331,7 +331,7 @@ pub fn multicam_section(
                         .items_center()
                         .child(
                             div()
-                                .text_size(px(12.))
+                                .text_size(Theme::TEXT_TITLE)
                                 .text_color(theme.text)
                                 .child(group.name.to_string()),
                         )
@@ -343,7 +343,7 @@ pub fn multicam_section(
                                 .gap(px(Theme::SPACE_XS))
                                 .child(
                                     div()
-                                        .text_size(px(10.))
+                                        .text_size(Theme::TEXT_SMALL)
                                         .text_color(theme.text_muted)
                                         .child(SharedString::from(count_label)),
                                 )

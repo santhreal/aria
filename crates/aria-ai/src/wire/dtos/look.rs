@@ -13,7 +13,43 @@ pub enum WireMaskKind {
     Star,
 }
 
-/// A shaped alpha mask on a media-backed visual clip.
+impl WireMaskKind {
+    /// The wire name, as `describe_project` and the transcript print it.
+    pub const fn id(self) -> &'static str {
+        match self {
+            WireMaskKind::Linear => "linear",
+            WireMaskKind::Mirror => "mirror",
+            WireMaskKind::Circle => "circle",
+            WireMaskKind::Rectangle => "rectangle",
+            WireMaskKind::Heart => "heart",
+            WireMaskKind::Star => "star",
+        }
+    }
+}
+
+/// How a mask combines with the masks above it on the same clip. The stack
+/// applies top to bottom; each mask replaces the coverage so far with its
+/// mode's result, mixed by its opacity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum WireMaskMode {
+    /// The mask cuts nothing; it stays on the clip, switched off.
+    None,
+    /// The coverage gains the mask.
+    Add,
+    /// The coverage loses the mask.
+    Subtract,
+    /// The coverage keeps only what the mask also covers.
+    Intersect,
+    /// The larger of the coverage and the mask.
+    Lighten,
+    /// The smaller of the coverage and the mask.
+    Darken,
+    /// What the coverage or the mask covers, but not both.
+    Difference,
+}
+
+/// One shaped alpha mask in a visual clip's mask stack.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct WireMask {
     pub kind: WireMaskKind,
@@ -40,14 +76,54 @@ pub struct WireMask {
     /// by other kinds. Omitted uses the default (`0`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub roundness: Option<f32>,
+    /// How the mask combines with the masks above it. Omitted uses `add`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mode: Option<WireMaskMode>,
+    /// How much of the mask's result replaces the coverage above it, 0 … 1.
+    /// Omitted uses `1`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub opacity: Option<f64>,
+    /// Edge offset in reference pixels (1080p baseline): positive grows the
+    /// mask outward, negative shrinks it, within ±4096. Omitted uses `0`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expansion: Option<f32>,
 }
 
-/// Set (or clear) a per-clip mask on a media-backed visual clip.
+/// Append a mask to the bottom of a visual clip's mask stack. A clip holds at
+/// most 32 masks; `describe_project` lists the current stack.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct AddClipMask {
+    pub clip: u64,
+    pub mask: WireMask,
+}
+
+/// Replace one mask in a clip's mask stack. The new constants replace any
+/// keyframes on the mask's properties; drivers on them stay attached.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct SetClipMask {
     pub clip: u64,
-    /// Mask to apply. `null` clears the mask.
-    pub mask: Option<WireMask>,
+    /// Position of the mask in the stack (0 = top).
+    pub index: u32,
+    pub mask: WireMask,
+}
+
+/// Remove one mask from a clip's mask stack.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct RemoveClipMask {
+    pub clip: u64,
+    /// Position of the mask in the stack (0 = top).
+    pub index: u32,
+}
+
+/// Reorder one mask within a clip's mask stack. Both indices address the
+/// stack before the move; `to_index` is the moved mask's final position.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct MoveClipMask {
+    pub clip: u64,
+    /// Current position of the mask to move (0 = top).
+    pub from_index: u32,
+    /// Final position for the moved mask (0 = top).
+    pub to_index: u32,
 }
 
 /// Chroma key settings for green-screen style removal.

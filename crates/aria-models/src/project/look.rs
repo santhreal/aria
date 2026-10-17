@@ -4,14 +4,16 @@ use std::path::Path;
 
 use crate::clip::{
     Clip, ClipParam, ClipSource, ClipTransform, CropRect, Generator, ParamValue, Replaceable,
-    SlotMedia, look_animation_combo_period_ticks, look_animation_window_ticks, split_speed_curve,
+    SlotMedia, index_after_move, index_after_remove, look_animation_combo_period_ticks,
+    look_animation_window_ticks, split_speed_curve,
 };
 use crate::effects::EffectInstance;
 use crate::error::ModelError;
 use crate::ids::{ClipId, MediaId, ProjectId, TrackId};
+use crate::look::mask::mask_mut;
 use crate::look::{
     AnimationRef, AnimationSlot, AudioRole, BlendMode, ChromaKey, ColorAdjustments, Filter,
-    LayerStyles, Lut, Mask, MotionBlur, StabilizeLevel, TrackMatte, animation_spec,
+    LayerStyles, Lut, MAX_CLIP_MASKS, Mask, MotionBlur, StabilizeLevel, TrackMatte, animation_spec,
 };
 use crate::media::MediaSource;
 use crate::metadata::ProjectMetadata;
@@ -72,18 +74,78 @@ impl Project {
         Ok(())
     }
 
-    /// Set (or with `None` clear) a clip's shaped alpha mask (CapCut mask,
-    /// Phase I — persisted now, rendered later). Media-backed visual clips
-    /// only; the mask itself is validated (feather range).
-    pub fn set_clip_mask(&mut self, clip_id: ClipId, mask: Option<Mask>) -> Result<(), ModelError> {
-        if let Some(mask) = &mask {
-            mask.validate()?;
-        }
-        self.require_visual_media(clip_id, "a mask")?;
-        self.timeline_mut()
+    /// Append `mask` to the bottom of a clip's mask stack and return its
+    /// index. Visual clips only, footage or generated; the mask is validated
+    /// first, and a stack holds at most [`MAX_CLIP_MASKS`].
+    pub fn add_clip_mask(&mut self, clip_id: ClipId, mask: Mask) -> Result<u32, ModelError> {
+        mask.validate()?;
+        self.require_visual(clip_id, "a mask")?;
+        let clip = self
+            .timeline_mut()
             .clip_mut(clip_id)
-            .expect("clip existence checked above")
-            .mask = mask;
+            .expect("clip existence checked above");
+        if clip.masks.len() >= MAX_CLIP_MASKS {
+            return Err(ModelError::InvalidParam(format!(
+                "clip {clip_id} already carries {MAX_CLIP_MASKS} masks"
+            )));
+        }
+        clip.masks.push(mask);
+        Ok((clip.masks.len() - 1) as u32)
+    }
+
+    /// Replace the mask at `index` in a clip's stack. Drivers on its
+    /// properties stay attached.
+    pub fn set_clip_mask(
+        &mut self,
+        clip_id: ClipId,
+        index: u32,
+        mask: Mask,
+    ) -> Result<(), ModelError> {
+        mask.validate()?;
+        self.require_visual(clip_id, "a mask")?;
+        let clip = self
+            .timeline_mut()
+            .clip_mut(clip_id)
+            .expect("clip existence checked above");
+        *mask_mut(&mut clip.masks, index)? = mask;
+        Ok(())
+    }
+
+    /// Remove the mask at `index` from a clip's stack and return it. Drivers on
+    /// its properties are dropped; drivers on the masks below it follow them up
+    /// one index.
+    pub fn remove_clip_mask(&mut self, clip_id: ClipId, index: u32) -> Result<Mask, ModelError> {
+        let clip = self
+            .timeline_mut()
+            .clip_mut(clip_id)
+            .ok_or(ModelError::UnknownClip(clip_id))?;
+        mask_mut(&mut clip.masks, index)?;
+        let removed = clip.masks.remove(index as usize);
+        clip.remap_mask_refs(index_after_remove(index));
+        Ok(removed)
+    }
+
+    /// Move one mask within a clip's stack. Both indices address the stack
+    /// before the move; `to_index` is the mask's index after it. Moving a mask
+    /// to its current index is a valid no-op. Drivers follow their masks.
+    pub fn move_clip_mask(
+        &mut self,
+        clip_id: ClipId,
+        from_index: u32,
+        to_index: u32,
+    ) -> Result<(), ModelError> {
+        let clip = self
+            .timeline_mut()
+            .clip_mut(clip_id)
+            .ok_or(ModelError::UnknownClip(clip_id))?;
+        mask_mut(&mut clip.masks, from_index)?;
+        mask_mut(&mut clip.masks, to_index)?;
+        if from_index == to_index {
+            return Ok(());
+        }
+        let mask = clip.masks.remove(from_index as usize);
+        clip.masks.insert(to_index as usize, mask);
+        clip.remap_mask_refs(index_after_move(from_index, to_index));
         Ok(())
     }
 

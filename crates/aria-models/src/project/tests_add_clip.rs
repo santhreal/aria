@@ -236,12 +236,12 @@ fn duplicate_clip_preserves_full_property_snapshot() {
         clip.effects = vec![effect];
         clip.beats = vec![19, 31, 47];
 
-        clip.mask = Some(Mask {
+        clip.masks = vec![Mask {
             kind: MaskKind::Heart,
             feather: 0.35.into(),
             invert: true,
             ..Mask::new(MaskKind::Heart)
-        });
+        }];
         clip.chroma_key = Some(ChromaKey {
             rgb: [3, 240, 17],
             strength: 0.72.into(),

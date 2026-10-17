@@ -113,6 +113,19 @@ impl ExportSettings {
             }
             .into());
         }
+        Self::resolved_for_encoder(project, format, true)
+    }
+
+    /// Resolve `format` against `project` for a caller-supplied encoder (such as
+    /// a registered plugin encoder) without checking the platform encoder's
+    /// codec/bitrate capability table.
+    ///
+    /// When `encoder_supports_audio` is `false`, `audio` is forced to `false`.
+    pub fn resolved_for_encoder(
+        project: &Project,
+        format: ExportFormat,
+        encoder_supports_audio: bool,
+    ) -> Result<Self, RenderError> {
         if let Some((w, h)) = format.size
             && (w < MIN_EXPORT_DIM || h < MIN_EXPORT_DIM)
         {
@@ -136,7 +149,7 @@ impl ExportSettings {
             size: format.size.unwrap_or(base.size),
             frame_rate: format.frame_rate.unwrap_or(base.frame_rate),
             keyframe_interval: format.keyframe_interval,
-            audio: format.audio.unwrap_or(base.audio),
+            audio: encoder_supports_audio && format.audio.unwrap_or(base.audio),
             range: format.range,
             video_codec: format.video_codec.unwrap_or(base.video_codec),
             bitrate_kbps: format.bitrate_kbps,
@@ -214,6 +227,10 @@ impl ExportSettings {
 /// caller-owned encoder's unfinalized output remains caller-managed.
 pub type ExportObserver<'a> = &'a mut dyn FnMut(u64, u64) -> bool;
 
+/// Opens a [`VideoEncoder`] writing `config` to `path`.
+pub type EncoderOpener<'a> =
+    &'a mut dyn FnMut(&Path, EncoderConfig) -> Result<Box<dyn VideoEncoder>, EncodeError>;
+
 /// How many frames an export will write, or a refusal naming why there are
 /// none.
 ///
@@ -273,10 +290,35 @@ pub fn export_to_file_observed(
     settings: ExportSettings,
     observer: ExportObserver<'_>,
 ) -> Result<u64, RenderError> {
+    export_to_file_with_encoder_observed(
+        renderer,
+        project,
+        path,
+        settings,
+        &mut aria_encoder::open_encoder,
+        observer,
+    )
+}
+
+/// [`export_to_file_observed`] with a caller-supplied encoder opener (such as a
+/// registered plugin encoder).
+///
+/// Encoding writes to the same sibling `TransactionalFile` staging directory
+/// as [`export_to_file_observed`], and atomically replaces `path` only after
+/// the encoder finishes cleanly. Cancellation or failure drops the encoder and
+/// discards the staging directory, leaving `path` untouched.
+pub fn export_to_file_with_encoder_observed(
+    renderer: &mut Renderer,
+    project: &Project,
+    path: &Path,
+    settings: ExportSettings,
+    open_encoder: EncoderOpener<'_>,
+    observer: ExportObserver<'_>,
+) -> Result<u64, RenderError> {
     let settings = settings.evened();
     export_frame_count(project, settings)?;
     let staging = TransactionalFile::new(path)?;
-    let mut encoder = aria_encoder::open_encoder(
+    let mut encoder = open_encoder(
         staging.staging_path(),
         export_config_with(project, settings),
     )?;
@@ -505,7 +547,7 @@ fn rgba_to_frame(image: RgbaImage, pts: RationalTime) -> VideoFrame {
 // `crate::export::decode_png` still name them.
 #[path = "export_png.rs"]
 mod png_sink;
-pub use png_sink::{PngSequenceEncoder, decode_png, encode_png};
+pub use png_sink::{PngSequenceEncoder, decode_png, encode_png, export_frame_png};
 
 #[cfg(test)]
 mod tests {

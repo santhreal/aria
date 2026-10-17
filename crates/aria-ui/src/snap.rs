@@ -25,6 +25,8 @@ pub enum SnapKind {
     Beat,
     ClipStart,
     ClipEnd,
+    /// Another keyframe on the clip a keyframe drag belongs to.
+    Keyframe,
 }
 
 impl SnapKind {
@@ -40,6 +42,7 @@ impl SnapKind {
             SnapKind::Beat => "beat",
             SnapKind::ClipStart => "clip start",
             SnapKind::ClipEnd => "clip end",
+            SnapKind::Keyframe => "keyframe",
         }
     }
 
@@ -60,11 +63,12 @@ impl SnapKind {
             SnapKind::ClipStart => 6,
             SnapKind::ClipEnd => 7,
             SnapKind::Beat => 8,
+            SnapKind::Keyframe => 9,
         }
     }
 
     /// Every kind, so a test can enumerate them rather than list them.
-    pub const ALL: [SnapKind; 9] = [
+    pub const ALL: [SnapKind; 10] = [
         SnapKind::SequenceStart,
         SnapKind::SequenceEnd,
         SnapKind::Playhead,
@@ -74,6 +78,7 @@ impl SnapKind {
         SnapKind::Beat,
         SnapKind::ClipStart,
         SnapKind::ClipEnd,
+        SnapKind::Keyframe,
     ];
 }
 
@@ -247,13 +252,15 @@ pub fn index_for(store: &crate::types::UiEditorStore) -> SnapIndex {
         SnapCandidate::new(0, SnapKind::SequenceStart),
         SnapCandidate::new(store.sequence.duration_ticks, SnapKind::SequenceEnd),
     ];
-    rows.extend(
-        store
-            .sequence
-            .markers
-            .iter()
-            .map(|marker| SnapCandidate::new(marker.tick, SnapKind::Marker)),
-    );
+    for marker in store.sequence.markers.iter() {
+        rows.push(SnapCandidate::new(marker.tick, SnapKind::Marker));
+        if marker.duration_ticks > 0 {
+            rows.push(SnapCandidate::new(
+                marker.tick + marker.duration_ticks,
+                SnapKind::Marker,
+            ));
+        }
+    }
     // Beats live on the clip, not in the analysis cache: a reopened project
     // still snaps to them, and a trimmed clip offers only the beats it kept.
     for track in &store.sequence.tracks {

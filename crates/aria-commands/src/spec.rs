@@ -223,6 +223,7 @@ macro_rules! edit_registry {
     (@reader_name lane) => { read_lane };
     (@reader_name clips) => { read_clips };
     (@reader_name insert) => { read_insert };
+    (@reader_name patched_lanes) => { read_patched_lanes };
 
     // A shape reader answers for the variants of its own group. The fallback
     // arm keeps it total; it is unreachable, because a row hands out only the
@@ -290,6 +291,19 @@ macro_rules! edit_registry {
                 $(EditCommand::$variant { clips, .. })|+ => EditTargets {
                     clips: clips.to_vec(),
                     tracks: Vec::new(),
+                },
+                _ => EditTargets::default(),
+            }
+        }
+    };
+    (@reader patched_lanes, $($variant:ident),+) => {
+        /// The picture lane and the sound lane of a patched edit, either of
+        /// which the command may leave out.
+        fn read_patched_lanes(command: &EditCommand) -> EditTargets {
+            match command {
+                $(EditCommand::$variant { track, sound, .. })|+ => EditTargets {
+                    clips: Vec::new(),
+                    tracks: track.iter().copied().chain(sound.lane()).collect(),
                 },
                 _ => EditTargets::default(),
             }

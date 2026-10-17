@@ -17,19 +17,20 @@
 //! state and no panel block until someone writes them, and the tests below go
 //! red until they exist.
 //!
-//! Two things this census does not cover, each for a stated reason. A group
-//! whose properties are all colours or rectangles yields no stepper rows at all
-//! — a swatch and the crop handles own those — so `framing` is skipped by that
-//! derivation rather than by an exception. And `effect-<index>` is a group per
-//! effect instance rather than a shipped block: the effects rack is its own
-//! surface and its own slice of ledger row 140.
+//! A group whose properties are all colours or rectangles yields no stepper
+//! rows at all — a swatch and the crop handles own those — so `framing` is
+//! skipped by that derivation rather than by an exception. `effect-<index>` and
+//! `mask-<index>` are a group per effect or mask instance, built per clip
+//! rather than held in the static catalog: the effects rack is its own surface,
+//! and the mask block's groups are held by
+//! `every_row_of_every_mask_edits_its_own_mask`.
 
 use std::collections::BTreeSet;
 
 use aria_engine::EngineError;
 use aria_models::{
-    ClipId, Generator, MaskKind, MatteSource, Param, ParamKind, Shape, ShapeStroke,
-    clip_param_catalog,
+    ClipId, ClipParam, Generator, MaskKind, MatteSource, Param, ParamKind, Shape, ShapeStroke,
+    clip_param_catalog, mask_param_group,
 };
 
 use crate::app::AppState;
@@ -77,10 +78,6 @@ const STAGES: &[Stage] = &[
         dress: a_graded_clip,
     },
     Stage {
-        group: "mask",
-        dress: a_masked_clip,
-    },
-    Stage {
         group: "chroma",
         dress: a_keyed_clip,
     },
@@ -121,7 +118,7 @@ const STAGES: &[Stage] = &[
 /// this file rather than the panel.
 fn nudge(state: &mut AppState, group: &str, row: &ParamRow) -> Result<(), EngineError> {
     match param_units::of_param(group, row.param) {
-        Some(units) => (units.write)(state, units.step),
+        Some(units) => (units.write)(state, units.unit),
         None => state.nudge_param(row.param, row.component, row.step()),
     }
 }
@@ -287,7 +284,7 @@ fn a_row_with_its_own_units_writes_through_the_catalog() {
                     panic!("the {group} block declares units for a property it does not draw")
                 });
             let watch = Watch::on(&state);
-            (unit.write)(&mut state, unit.step)
+            (unit.write)(&mut state, unit.unit)
                 .unwrap_or_else(|err| panic!("riding {}: {err}", row.id));
             let sent = watch.take();
             assert_eq!(
@@ -419,6 +416,51 @@ fn the_style_blocks_draw_their_group() {
     }
 }
 
+/// A mask's rows are a group per mask, `mask-<index>`, built per clip like an
+/// effect's, so the static catalog `STAGES` is held to does not hold them. On a
+/// clip with three masks, each mask's group owns rows, every row addresses its
+/// own mask, and every nudge asks for a parameter edit; the mask block draws the
+/// group of the mask it is drawing. What this does not see is that the block
+/// draws the active mask's rows and no other's, which `mask_tests.rs` holds
+/// through the state the block reads.
+#[test]
+fn every_row_of_every_mask_edits_its_own_mask() {
+    let mut state = a_clip();
+    let stack = [MaskKind::Circle, MaskKind::Rectangle, MaskKind::Path];
+    for kind in stack {
+        state.add_selected_mask(kind).expect("the mask lands");
+    }
+    for index in 0..stack.len() as u32 {
+        let group = mask_param_group(index);
+        let rows = state.param_rows(&group);
+        assert!(!rows.is_empty(), "mask {index} owns no rows in `{group}`");
+        for row in rows {
+            assert!(
+                matches!(row.param, ClipParam::Mask { mask, .. } if mask == index),
+                "`{group}` offered {}, which is not a property of mask {index}",
+                row.id
+            );
+            let watch = Watch::on(&state);
+            nudge(&mut state, &group, &row)
+                .unwrap_or_else(|err| panic!("nudging {} was refused: {err}", row.id));
+            assert!(
+                !watch.take().is_empty(),
+                "nudging `{}` of mask {index} sent nothing, so the row is inert",
+                row.id
+            );
+        }
+    }
+    let source = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src/panels/inspector/blocks/mask.rs"),
+    )
+    .expect("the mask block is readable");
+    assert!(
+        source.contains("param_rows(theme, &mask_param_group(index), state, cx)"),
+        "the mask block no longer draws the rows of the mask it is looping over"
+    );
+}
+
 // --- dressed states ------------------------------------------------------
 //
 // Each returns a project with one clip selected, holding whatever the group's
@@ -446,14 +488,6 @@ fn a_graded_clip() -> AppState {
     state
         .set_selected_lut("/luts/warm.cube")
         .expect("the LUT lands");
-    state
-}
-
-fn a_masked_clip() -> AppState {
-    let mut state = a_clip();
-    state
-        .set_selected_mask_kind(MaskKind::Circle)
-        .expect("the mask lands");
     state
 }
 
@@ -504,7 +538,7 @@ fn a_title() -> AppState {
 /// A star with an outline, because two shape properties only exist on a shape
 /// that has them: the inner ratio belongs to a star and the stroke width to a
 /// shape that is stroked.
-fn a_shape() -> AppState {
+pub(super) fn a_shape() -> AppState {
     generated(Generator::Shape {
         shape: Shape::Star {
             points: 5,

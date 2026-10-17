@@ -194,8 +194,14 @@ fn every_snap_kind_has_a_producer() {
     // The three the editor supplies per query, because they move without a
     // projection (`AppState::loose_magnets`).
     let loose = [SnapKind::Playhead, SnapKind::MarkIn, SnapKind::MarkOut];
+    // The one a keyframe drag in the property rows builds from the dragged
+    // clip's own keys (`AppState::update_timeline_keyframe_drag`): those are
+    // not edges of the sequence, so no clip drag snaps to them.
+    let keyframe_drag = [SnapKind::Keyframe];
     for kind in SnapKind::ALL {
-        let produced = loose.contains(&kind) || index.rows().iter().any(|row| row.kind == kind);
+        let produced = loose.contains(&kind)
+            || keyframe_drag.contains(&kind)
+            || index.rows().iter().any(|row| row.kind == kind);
         assert!(
             produced,
             "{kind:?} is a magnet nothing builds: add it to the index or to the loose set"

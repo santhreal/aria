@@ -10,7 +10,7 @@
 //! saturated primaries for the vectorscope, and a channel-separated block so
 //! the histogram's three traces do not sit on top of each other.
 
-use aria_analysis::{Rgba8Frame, ScopeConfig, measure_scopes};
+use aria_analysis::{Rgba8Frame, ScopeConfig, WaveformTrace, measure_scopes};
 use aria_core::RgbaImage;
 
 use super::{BLESS, Difference, check, compare, diff_map, reference_names};
@@ -62,8 +62,15 @@ fn frame() -> RgbaImage {
     RgbaImage::new(FRAME_W, FRAME_H, pixels)
 }
 
-/// The three pictures the scope strip draws for that frame.
+/// The three pictures the scope strip draws for that frame, with the waveform
+/// counting luma.
 fn scopes() -> ScopeImages {
+    traced(WaveformTrace::Luma)
+}
+
+/// The three pictures the scope strip draws for that frame, with the waveform
+/// counting `trace`.
+fn traced(trace: WaveformTrace) -> ScopeImages {
     let source = frame();
     let view = Rgba8Frame::new(
         &source.pixels,
@@ -73,15 +80,42 @@ fn scopes() -> ScopeImages {
         0.0,
     )
     .expect("a well-formed frame");
-    ScopeImages::paint(&measure_scopes(view, ScopeConfig::default()))
+    ScopeImages::paint(&measure_scopes(
+        view,
+        ScopeConfig::default().with_waveform_trace(trace),
+    ))
 }
 
 /// Every reference the suite claims, in the order the strip shows them.
-const CLAIMED: [&str; 3] = ["scope-waveform", "scope-vectorscope", "scope-histogram"];
+const CLAIMED: [&str; 5] = [
+    "scope-waveform",
+    "scope-waveform-rgb",
+    "scope-waveform-ycbcr",
+    "scope-vectorscope",
+    "scope-histogram",
+];
 
 #[test]
 fn snapshot_diff_waveform() {
     check("scope-waveform", &scopes().waveform).expect("the waveform matches its reference");
+}
+
+#[test]
+fn snapshot_diff_waveform_rgb_parade() {
+    check(
+        "scope-waveform-rgb",
+        &traced(WaveformTrace::RgbParade).waveform,
+    )
+    .expect("the RGB parade matches its reference");
+}
+
+#[test]
+fn snapshot_diff_waveform_ycbcr_parade() {
+    check(
+        "scope-waveform-ycbcr",
+        &traced(WaveformTrace::YcbcrParade).waveform,
+    )
+    .expect("the YCbCr parade matches its reference");
 }
 
 #[test]

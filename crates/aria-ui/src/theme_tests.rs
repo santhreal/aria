@@ -140,7 +140,6 @@ fn track_tints_are_near_neutral() {
         d.track_video,
         d.track_audio,
         d.track_text,
-        d.track_shape,
         d.track_generator,
     ] {
         assert!(
@@ -271,6 +270,52 @@ fn every_theme_token_is_painted_by_a_control() {
     );
 }
 
+/// Every text size in the crate comes from the type scale on [`Theme`].
+///
+/// The class this closes: a literal `text_size(px(13.))` beside the scale is
+/// a size look.md never states, and 98 files had grown their own. The scan
+/// reads every source file at run time, so a literal added to any file,
+/// present or future, turns this red. A size computed at run time (a plugin
+/// overlay's own size) is not a digit literal and is left alone.
+///
+/// Not covered: a literal hidden behind a local `const` or a variable. The
+/// constants on `Theme` are the only sizes this test can see being used.
+#[test]
+fn text_sizes_come_from_the_type_scale() {
+    let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut literals = Vec::new();
+    let mut scanned = 0;
+    let mut stack = vec![src];
+    while let Some(dir) = stack.pop() {
+        for entry in std::fs::read_dir(&dir).expect("a source directory") {
+            let path = entry.expect("an entry").path();
+            if path.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            if path.extension().and_then(|e| e.to_str()) != Some("rs") || path.ends_with(file!()) {
+                continue;
+            }
+            scanned += 1;
+            let text = std::fs::read_to_string(&path).expect("a source file");
+            for (index, line) in text.lines().enumerate() {
+                let Some(at) = line.find("text_size(px(") else {
+                    continue;
+                };
+                let after = &line[at + "text_size(px(".len()..];
+                if after.starts_with(|c: char| c.is_ascii_digit()) {
+                    literals.push(format!("{}:{}", path.display(), index + 1));
+                }
+            }
+        }
+    }
+    assert!(scanned > 100, "the scan read {scanned} files, so src moved");
+    assert!(
+        literals.is_empty(),
+        "these text sizes are literals; use a Theme::TEXT_* constant: {literals:#?}"
+    );
+}
+
 /// The theme is built when it is installed and shared after that.
 ///
 /// What this defends: `Theme::of` used to hand back a borrow that every caller
@@ -281,7 +326,12 @@ fn every_theme_token_is_painted_by_a_control() {
 fn the_installed_theme_is_read_not_rebuilt() {
     let cx = gpui::TestAppContext::single();
     let (first, second) = cx.update(|app| {
-        Theme::install(Appearance::Dark, aria_settings::ThemeChoice::Default, app);
+        Theme::install(
+            Appearance::Dark,
+            aria_settings::ThemeChoice::Default,
+            None,
+            app,
+        );
         let first = Theme::of(app);
         let second = Theme::of(app);
         (first, second)
@@ -305,9 +355,19 @@ fn the_installed_theme_is_read_not_rebuilt() {
 fn installing_a_theme_replaces_the_one_readers_get() {
     let cx = gpui::TestAppContext::single();
     let (dark, light) = cx.update(|app| {
-        Theme::install(Appearance::Dark, aria_settings::ThemeChoice::Default, app);
+        Theme::install(
+            Appearance::Dark,
+            aria_settings::ThemeChoice::Default,
+            None,
+            app,
+        );
         let dark = Theme::of(app);
-        Theme::install(Appearance::Light, aria_settings::ThemeChoice::Default, app);
+        Theme::install(
+            Appearance::Light,
+            aria_settings::ThemeChoice::Default,
+            None,
+            app,
+        );
         let light = Theme::of(app);
         (dark, light)
     });
@@ -317,4 +377,57 @@ fn installing_a_theme_replaces_the_one_readers_get() {
         !std::ptr::eq(&*dark as *const Theme, &*light as *const Theme),
         "a new install is a new theme, not a mutation of the one already handed out"
     );
+}
+
+/// Clip names and badges are drawn in [`Theme::label_ink`] on a label fill.
+///
+/// The class this closes: a label hue added or changed so that the name on
+/// every clip carrying it drops below WCAG AA. Every label in
+/// [`aria_models::LabelColor::ALL`], selected and not, is checked in both
+/// appearances, so a new label starts covered. Not caught: whether a hue is
+/// distinguishable from its neighbours.
+#[test]
+fn every_label_fill_carries_readable_ink() {
+    for theme in [Theme::dark(), Theme::light()] {
+        for label in aria_models::LabelColor::ALL {
+            for selected in [false, true] {
+                let fill = theme.label(label, selected);
+                let ink = theme.label_ink(label, selected);
+                let ratio = contrast_ratio(ink, fill);
+                assert!(
+                    ratio >= 4.5,
+                    "{label:?} selected={selected}: ink {ratio:.2}:1 fails WCAG AA"
+                );
+            }
+            assert_ne!(
+                theme.label(label, false),
+                theme.label(label, true),
+                "{label:?} draws selected as unselected"
+            );
+        }
+    }
+}
+
+/// The dark surfaces and text match the values `docs/spec/look.md` states.
+#[test]
+fn dark_surfaces_hold_the_values_the_look_chapter_states() {
+    let d = Theme::dark();
+    for (token, color, hex) in [
+        ("bg", d.bg, 0x141414),
+        ("surface", d.surface, 0x1c1c1c),
+        ("surface_header", d.surface_header, 0x232323),
+        ("surface_raised", d.surface_raised, 0x2a2a2a),
+        ("surface_overlay", d.surface_overlay, 0x2e2e2e),
+        ("border", d.border, 0x0e0e0e),
+        ("text", d.text, 0xd6d6d6),
+        ("text_muted", d.text_muted, 0x9a9a9a),
+        ("text_faint", d.text_faint, 0x6b6b6b),
+        ("value", d.value, 0x5aa8ff),
+    ] {
+        let rgba = gpui::Rgba::from(color);
+        let got = [rgba.r, rgba.g, rgba.b].map(|c| (c * 255.0).round() as u32);
+        let want = [hex >> 16 & 0xff, hex >> 8 & 0xff, hex & 0xff];
+        assert_eq!(got, want, "{token}");
+    }
+    assert_eq!(d.hairline, hsla(0.0, 0.0, 1.0, 0.06));
 }

@@ -50,6 +50,21 @@ const DECLARED: &[(&str, &str, &str)] = &[
         "walks the voice lane for the ducking command; nothing draws spans",
     ),
     (
+        "app/effect_header.rs",
+        "effect_on",
+        "reads the effect a header verb is about to reset, rename, duplicate, copy or save",
+    ),
+    (
+        "app/effect_header.rs",
+        "chain_len",
+        "bounds a move or a paste of an effect that is about to land",
+    ),
+    (
+        "app/effect_header.rs",
+        "next_free_effect_name",
+        "numbers the copy a duplicate is about to add",
+    ),
+    (
         "app/export_options.rs",
         "export_settings",
         "resolves an export against the project for a job that is about to start; \
@@ -81,6 +96,17 @@ const DECLARED: &[(&str, &str, &str)] = &[
         "the same resolve as export_settings, for the PNG-sequence job",
     ),
     (
+        "app/rename.rs",
+        "current_name",
+        "seeds a rename draft when one opens and compares it on commit; an effect's \
+         name is read from the model chain the header menu was opened on",
+    ),
+    (
+        "app/source_patch.rs",
+        "source_channels",
+        "reads a pool item's channels for a drop or a Source edit about to land",
+    ),
+    (
         "app/text_reach.rs",
         "title_ink_report",
         "measures every title's ink for the report the operator asked for",
@@ -104,6 +130,17 @@ const DECLARED: &[(&str, &str, &str)] = &[
         "app/transport.rs",
         "republish_audio",
         "hands that snapshot to the audio engine after an edit or a seek",
+    ),
+    (
+        "app/viewer_match.rs",
+        "clip_frame",
+        "maps the playhead into a clip's take when Match Frame or a double-click \
+         opens a Source tab",
+    ),
+    (
+        "app/viewer_match.rs",
+        "linked_trim",
+        "converts a Source tab's new In or Out into the trim the clip takes",
     ),
 ];
 

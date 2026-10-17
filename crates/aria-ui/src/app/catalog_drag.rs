@@ -36,11 +36,16 @@ impl AppState {
         match drag.kind {
             CatalogDragKind::Animation => self.set_selected_animation(&drag.id),
             CatalogDragKind::Mask => match MaskKind::from_id(&drag.id) {
-                Some(kind) => self.set_selected_mask_kind(kind),
+                Some(kind) => self.add_selected_mask(kind),
                 None => Ok(()),
             },
             CatalogDragKind::Transition => self.set_selected_transition(&drag.id),
-            CatalogDragKind::Sticker | CatalogDragKind::Generator => Ok(()),
+            CatalogDragKind::Effect => self.add_effect_to_selected(drag.id.as_str()),
+            CatalogDragKind::AudioEffect => self.add_audio_effect_to_selection(&drag.id),
+            CatalogDragKind::Preset => self.apply_preset(&drag.id),
+            CatalogDragKind::Sticker | CatalogDragKind::Generator | CatalogDragKind::ClipType => {
+                Ok(())
+            }
         }
     }
 
@@ -62,8 +67,47 @@ impl AppState {
             CatalogDragKind::Generator => {
                 self.drop_effect_generator_on_timeline(&drag.id, track, at)
             }
-            CatalogDragKind::Animation | CatalogDragKind::Mask | CatalogDragKind::Transition => {
-                Ok(())
+            CatalogDragKind::ClipType => self.drop_clip_type_on_timeline(&drag.id, track, at),
+            CatalogDragKind::Animation
+            | CatalogDragKind::Mask
+            | CatalogDragKind::Transition
+            | CatalogDragKind::Effect
+            | CatalogDragKind::AudioEffect
+            | CatalogDragKind::Preset => Ok(()),
+        }
+    }
+
+    /// Apply a dragged catalog entry dropped on the inspector's Effects tab to
+    /// the selected clip.
+    ///
+    /// An effect lands before the chain's effect at `at`, or at the end when
+    /// `at` is `None` or past the end, on every selected clip on the same kind
+    /// of lane as the first; a shorter chain takes it at its end. Every other
+    /// payload that targets a clip applies as a drop on the selected clip does.
+    /// A payload that places a clip of its own is refused with where it goes.
+    pub fn drop_catalog_on_effect_controls(
+        &mut self,
+        drag: &CatalogDrag,
+        at: Option<usize>,
+    ) -> Result<(), EngineError> {
+        match drag.kind {
+            CatalogDragKind::Effect => {
+                let peers = self.peers_sharing_effect(None);
+                self.edit_each(peers, |state| state.insert_effect_in_selected(&drag.id, at))
+            }
+            CatalogDragKind::Animation
+            | CatalogDragKind::Mask
+            | CatalogDragKind::Transition
+            | CatalogDragKind::AudioEffect
+            | CatalogDragKind::Preset => match self.selected_clip_or_decline() {
+                Some(clip) => self.drop_catalog_on_clip(drag, clip),
+                None => Ok(()),
+            },
+            CatalogDragKind::Sticker | CatalogDragKind::Generator | CatalogDragKind::ClipType => {
+                Err(EngineError::Refused(format!(
+                    "{} places a clip of its own: drop it on a lane.",
+                    drag.label
+                )))
             }
         }
     }

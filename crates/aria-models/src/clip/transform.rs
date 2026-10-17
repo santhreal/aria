@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::clip::CropRect;
 use crate::error::ModelError;
-use crate::param::{Easing, Lerp, Param, SegmentSample};
+use crate::param::{Easing, Keyframe, Lerp, Param, SegmentSample};
 
 /// Per-axis scale. Serializes as a bare number when uniform (so old builds
 /// and old saves stay interchangeable) and as `[x, y]` when split.
@@ -89,7 +89,19 @@ impl Lerp for Scale2 {
 
 impl crate::param::Extrapolate for Scale2 {}
 
-impl SegmentSample for Scale2 {}
+impl SegmentSample for Scale2 {
+    fn segment_delta(a: &Keyframe<Self>, b: &Keyframe<Self>) -> f32 {
+        let dx = b.value.x - a.value.x;
+        let dy = b.value.y - a.value.y;
+        if dx.abs() >= dy.abs() { dx } else { dy }
+    }
+
+    fn segment_distance(a: &Keyframe<Self>, b: &Keyframe<Self>) -> f32 {
+        let dx = b.value.x - a.value.x;
+        let dy = b.value.y - a.value.y;
+        (dx * dx + dy * dy).sqrt()
+    }
+}
 
 impl Serialize for Scale2 {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
@@ -237,7 +249,7 @@ clip_param_enum! {
 /// [`ClipParam::class`] declares what each variant is: a property addressed
 /// directly, a wrapper over one of the property axes, or a parameter the
 /// animatable-property registry holds no row for.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ClipParam {
     Position => ClipParam::Position,
@@ -290,11 +302,18 @@ pub enum ClipParam {
         param: TextParam,
     } => ClipParam::Text { param: TextParam::Size },
     /// An animatable property of the clip's color look. Structural look
-    /// selections (filter id, LUT path, mask shape, chroma color) remain
-    /// ordinary clip edits.
+    /// selections (filter id, LUT path, chroma color) remain ordinary clip
+    /// edits.
     Look {
         param: LookParam,
     } => ClipParam::Look { param: LookParam::FilterIntensity },
+    /// An animatable property of one of the clip's masks: `mask` is the index
+    /// into [`crate::Clip::masks`]. The shape, mode, inversion and path remain
+    /// ordinary mask edits.
+    Mask {
+        mask: u32,
+        param: MaskParam,
+    } => ClipParam::Mask { mask: 0, param: MaskParam::Feather },
     /// An animatable property of the clip's layer styles. Enabling/removing a
     /// style block remains a structural edit (`SetClipLayerStyles`).
     Style {
@@ -344,7 +363,7 @@ param_enum! {
 /// [`ClipParam::Shape`]). Structural knobs — the shape kind, polygon sides,
 /// star points, path points — are not animatable; they change through
 /// `SetGenerator`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ShapeParam {
     /// Shape box width (reference px). Scalar.
@@ -369,7 +388,7 @@ pub enum ShapeParam {
 param_enum! {
 /// The animatable visual treatment properties of a [`crate::Generator::Text`] clip.
 /// Font selection and layout structure remain ordinary generator edits.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TextParam {
     /// Glyph size (reference px). Scalar.
@@ -399,11 +418,9 @@ pub enum TextParam {
 }
 
 param_enum! {
-/// The animatable properties in a clip's color look / mask.
-///
-/// [`LookParam::MaskCenter`] / [`LookParam::MaskSize`] carry [`ParamValue::Vec2`];
-/// the rest carry [`ParamValue::Scalar`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+/// The animatable properties in a clip's color look, chroma key and track
+/// matte. Every one carries [`ParamValue::Scalar`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum LookParam {
     /// Colour filter strength (`0` … `1`). Scalar; requires a filter.
@@ -428,10 +445,18 @@ pub enum LookParam {
     AdjustHighlights,
     /// Grade shadow lift. Scalar.
     AdjustShadows,
+    /// Grade white point. Scalar.
+    AdjustWhites,
+    /// Grade black point. Scalar.
+    AdjustBlacks,
     /// Grade sharpness. Scalar.
     AdjustSharpness,
     /// Grade vignette strength. Scalar.
     AdjustVignette,
+    /// Grade vibrance. Scalar.
+    AdjustVibrance,
+    /// Grade faded film strength. Scalar.
+    AdjustFadedFilm,
     /// Grade lift red channel offset. Scalar.
     AdjustLiftR,
     /// Grade lift green channel offset. Scalar.
@@ -456,16 +481,76 @@ pub enum LookParam {
     AdjustGainB,
     /// Grade gain master scale. Scalar.
     AdjustGainMaster,
-    /// Mask edge softness (`0` … `1`). Scalar.
-    MaskFeather,
-    /// Mask center offset as a fraction of layer size. Vec2.
-    MaskCenter,
-    /// Mask size as a fraction of layer size. Vec2.
-    MaskSize,
-    /// Mask rotation in degrees (clockwise). Scalar.
-    MaskRotation,
-    /// Rectangle corner rounding (`0` … `1`). Scalar.
-    MaskRoundness,
+    /// Grade RGB curve, every channel, shadows point. Scalar.
+    AdjustCurveMasterShadows,
+    /// Grade RGB curve, every channel, midtones point. Scalar.
+    AdjustCurveMasterMidtones,
+    /// Grade RGB curve, every channel, highlights point. Scalar.
+    AdjustCurveMasterHighlights,
+    /// Grade RGB curve, red, shadows point. Scalar.
+    AdjustCurveRedShadows,
+    /// Grade RGB curve, red, midtones point. Scalar.
+    AdjustCurveRedMidtones,
+    /// Grade RGB curve, red, highlights point. Scalar.
+    AdjustCurveRedHighlights,
+    /// Grade RGB curve, green, shadows point. Scalar.
+    AdjustCurveGreenShadows,
+    /// Grade RGB curve, green, midtones point. Scalar.
+    AdjustCurveGreenMidtones,
+    /// Grade RGB curve, green, highlights point. Scalar.
+    AdjustCurveGreenHighlights,
+    /// Grade RGB curve, blue, shadows point. Scalar.
+    AdjustCurveBlueShadows,
+    /// Grade RGB curve, blue, midtones point. Scalar.
+    AdjustCurveBlueMidtones,
+    /// Grade RGB curve, blue, highlights point. Scalar.
+    AdjustCurveBlueHighlights,
+    /// Grade hue curve, saturation of reds. Scalar.
+    AdjustHueSatRed,
+    /// Grade hue curve, saturation of yellows. Scalar.
+    AdjustHueSatYellow,
+    /// Grade hue curve, saturation of greens. Scalar.
+    AdjustHueSatGreen,
+    /// Grade hue curve, saturation of cyans. Scalar.
+    AdjustHueSatCyan,
+    /// Grade hue curve, saturation of blues. Scalar.
+    AdjustHueSatBlue,
+    /// Grade hue curve, saturation of magentas. Scalar.
+    AdjustHueSatMagenta,
+    /// Grade hue curve, hue of reds. Scalar.
+    AdjustHueHueRed,
+    /// Grade hue curve, hue of yellows. Scalar.
+    AdjustHueHueYellow,
+    /// Grade hue curve, hue of greens. Scalar.
+    AdjustHueHueGreen,
+    /// Grade hue curve, hue of cyans. Scalar.
+    AdjustHueHueCyan,
+    /// Grade hue curve, hue of blues. Scalar.
+    AdjustHueHueBlue,
+    /// Grade hue curve, hue of magentas. Scalar.
+    AdjustHueHueMagenta,
+    /// Grade hue curve, luma of reds. Scalar.
+    AdjustHueLumaRed,
+    /// Grade hue curve, luma of yellows. Scalar.
+    AdjustHueLumaYellow,
+    /// Grade hue curve, luma of greens. Scalar.
+    AdjustHueLumaGreen,
+    /// Grade hue curve, luma of cyans. Scalar.
+    AdjustHueLumaCyan,
+    /// Grade hue curve, luma of blues. Scalar.
+    AdjustHueLumaBlue,
+    /// Grade hue curve, luma of magentas. Scalar.
+    AdjustHueLumaMagenta,
+    /// Grade HSL secondary key centre. Scalar.
+    AdjustHslKeyHue,
+    /// Grade HSL secondary key width. Scalar.
+    AdjustHslKeyWidth,
+    /// Grade HSL secondary hue turn. Scalar.
+    AdjustHslHue,
+    /// Grade HSL secondary saturation. Scalar.
+    AdjustHslSaturation,
+    /// Grade HSL secondary luma offset. Scalar.
+    AdjustHslLuma,
     /// Chroma-key tolerance (`0` … `1`). Scalar; requires a chroma key.
     ChromaStrength,
     /// Chroma-key shadow retention (`0` … `1`). Scalar; requires a chroma key.
@@ -476,11 +561,38 @@ pub enum LookParam {
 }
 
 param_enum! {
+/// An animatable property of one of the clip's masks (see [`ClipParam::Mask`]).
+///
+/// [`MaskParam::Center`] and [`MaskParam::Size`] carry [`ParamValue::Vec2`];
+/// the rest carry [`ParamValue::Scalar`]. The shape, mode, inversion and path
+/// are not animatable; they change through `SetClipMask`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MaskParam {
+    /// Edge softness (`0` … `1`). Scalar.
+    Feather,
+    /// Centre offset as a fraction of layer size. Vec2.
+    Center,
+    /// Size as a fraction of layer size. Vec2.
+    Size,
+    /// Rotation in degrees (clockwise). Scalar.
+    Rotation,
+    /// Rectangle corner rounding (`0` … `1`). Scalar.
+    Roundness,
+    /// How much of the mask's result replaces the stack above it (`0` … `1`).
+    /// Scalar.
+    Opacity,
+    /// Edge offset in reference pixels, outward when positive. Scalar.
+    Expansion,
+}
+}
+
+param_enum! {
 /// An animatable property of the clip's [`crate::LayerStyles`].
 ///
 /// `*Color` params carry [`ParamValue::Color`]; [`StyleParam::ShadowOffset`]
 /// carries [`ParamValue::Vec2`]; the rest carry [`ParamValue::Scalar`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StyleParam {
     /// Shadow color. Color.
@@ -517,7 +629,7 @@ param_enum! {
 /// rather than the wrapper.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ParamAxis {
-    /// [`LookParam`]: colour grade, mask, chroma key, track matte.
+    /// [`LookParam`]: colour grade, chroma key, track matte.
     Look,
     /// [`StyleParam`]: shadow, glow, outline, background plate.
     Style,
@@ -569,6 +681,10 @@ pub enum ParamExclusion {
     /// through `set_param_keyframe`, so it is not a property in the registry's
     /// sense.
     SpeedCurve,
+    /// The parameter names a property of one of the clip's masks. Mask rows
+    /// are per mask: [`crate::clip_params_for`] builds a row for each property
+    /// of each mask a clip carries, so the static catalog holds none.
+    MaskSlot,
 }
 
 /// What a [`ClipParam`] variant addresses, and so where its rows in the
@@ -595,20 +711,21 @@ pub enum ClipParamClass {
 pub enum ParamValue {
     Scalar(f32),
     Vec2([f32; 2]),
+    Vec3([f32; 3]),
     Color([u8; 4]),
     /// Axis-aligned rect as `[x, y, w, h]` (e.g. [`ClipParam::Crop`]).
     Rect([f32; 4]),
 }
 
 impl ParamValue {
-    pub(super) fn scalar(self) -> Result<f32, ModelError> {
+    pub(crate) fn scalar(self) -> Result<f32, ModelError> {
         match self {
             ParamValue::Scalar(v) => Ok(v),
             _ => Err(ModelError::InvalidParam("expected a scalar value".into())),
         }
     }
 
-    pub(super) fn vec2(self) -> Result<[f32; 2], ModelError> {
+    pub(crate) fn vec2(self) -> Result<[f32; 2], ModelError> {
         match self {
             ParamValue::Vec2(v) => Ok(v),
             _ => Err(ModelError::InvalidParam("expected a vec2 value".into())),
@@ -627,6 +744,98 @@ impl ParamValue {
             ParamValue::Rect(v) => Ok(v),
             _ => Err(ModelError::InvalidParam("expected a rect value".into())),
         }
+    }
+}
+
+impl Lerp for ParamValue {
+    fn lerp(a: Self, b: Self, t: f32) -> Self {
+        match (a, b) {
+            (Self::Scalar(x), Self::Scalar(y)) => Self::Scalar(f32::lerp(x, y, t)),
+            (Self::Vec2(x), Self::Vec2(y)) => Self::Vec2(<[f32; 2]>::lerp(x, y, t)),
+            (Self::Vec3(x), Self::Vec3(y)) => Self::Vec3(<[f32; 3]>::lerp(x, y, t)),
+            (Self::Color(x), Self::Color(y)) => Self::Color(<[u8; 4]>::lerp(x, y, t)),
+            (Self::Rect(x), Self::Rect(y)) => Self::Rect([
+                f32::lerp(x[0], y[0], t),
+                f32::lerp(x[1], y[1], t),
+                f32::lerp(x[2], y[2], t),
+                f32::lerp(x[3], y[3], t),
+            ]),
+            (first, _) => first,
+        }
+    }
+}
+
+impl SegmentSample for ParamValue {
+    fn segment_sample(a: &Keyframe<Self>, b: &Keyframe<Self>, eased_t: f32) -> Self {
+        if let (Self::Vec2(va), Self::Vec2(vb)) = (a.value, b.value) {
+            let ka = Keyframe {
+                tick: a.tick,
+                value: va,
+                easing: a.easing,
+                tangents: a.tangents,
+            };
+            let kb = Keyframe {
+                tick: b.tick,
+                value: vb,
+                easing: b.easing,
+                tangents: b.tangents,
+            };
+            return Self::Vec2(<[f32; 2]>::segment_sample(&ka, &kb, eased_t));
+        }
+        Lerp::lerp(a.value, b.value, eased_t)
+    }
+
+    fn segment_delta(a: &Keyframe<Self>, b: &Keyframe<Self>) -> f32 {
+        match (a.value, b.value) {
+            (Self::Scalar(va), Self::Scalar(vb)) => vb - va,
+            (Self::Vec2(va), Self::Vec2(vb)) => {
+                let ka = Keyframe {
+                    tick: a.tick,
+                    value: va,
+                    easing: a.easing,
+                    tangents: a.tangents,
+                };
+                let kb = Keyframe {
+                    tick: b.tick,
+                    value: vb,
+                    easing: b.easing,
+                    tangents: b.tangents,
+                };
+                <[f32; 2]>::segment_delta(&ka, &kb)
+            }
+            (Self::Vec3(va), Self::Vec3(vb)) => {
+                let ka = Keyframe {
+                    tick: a.tick,
+                    value: va,
+                    easing: a.easing,
+                    tangents: a.tangents,
+                };
+                let kb = Keyframe {
+                    tick: b.tick,
+                    value: vb,
+                    easing: b.easing,
+                    tangents: b.tangents,
+                };
+                <[f32; 3]>::segment_delta(&ka, &kb)
+            }
+            (Self::Color(va), Self::Color(vb)) => {
+                let ka = Keyframe::new(a.tick, va, a.easing);
+                let kb = Keyframe::new(b.tick, vb, b.easing);
+                <[u8; 4]>::segment_delta(&ka, &kb)
+            }
+            (Self::Rect(va), Self::Rect(vb)) => {
+                let dx = vb[0] - va[0];
+                let dy = vb[1] - va[1];
+                let dw = vb[2] - va[2];
+                let dh = vb[3] - va[3];
+                (dx * dx + dy * dy + dw * dw + dh * dh).sqrt()
+            }
+            _ => 0.0,
+        }
+    }
+
+    fn segment_distance(a: &Keyframe<Self>, b: &Keyframe<Self>) -> f32 {
+        Self::segment_delta(a, b).abs()
     }
 }
 
@@ -788,9 +997,9 @@ pub(crate) fn scale_value(value: ParamValue) -> Result<Scale2, ModelError> {
     match value {
         ParamValue::Scalar(v) => Ok(Scale2::uniform(v)),
         ParamValue::Vec2(v) => Ok(Scale2::from(v)),
-        ParamValue::Color(_) | ParamValue::Rect(_) => Err(ModelError::InvalidParam(
-            "expected a scalar or vec2 scale value".into(),
-        )),
+        ParamValue::Vec3(_) | ParamValue::Color(_) | ParamValue::Rect(_) => Err(
+            ModelError::InvalidParam("expected a scalar or vec2 scale value".into()),
+        ),
     }
 }
 

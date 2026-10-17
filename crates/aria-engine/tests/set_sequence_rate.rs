@@ -9,7 +9,7 @@ mod common;
 use aria_commands::{Command, EditCommand};
 use aria_core::{Rational, TimeRange};
 use aria_engine::{Engine, EngineConfig};
-use aria_models::{AudioLayout, Generator, MediaSource, Project};
+use aria_models::{AudioLayout, Generator, MediaSource, Project, TimeDisplay};
 
 use common::{add_generated, add_track, rt, tr};
 
@@ -256,4 +256,41 @@ fn audio_layout_edit_applies_and_undo_restores_previous() {
 
     assert!(engine.redo());
     assert_eq!(engine.project().audio_layout(), AudioLayout::Surround51);
+}
+
+/// The ruler's time display is one undoable unit and survives a save. A
+/// timecode sequence saves without the field, so a file written before the
+/// field existed and a timecode file read back the same way.
+#[test]
+fn time_display_edit_applies_undoes_and_survives_a_save() {
+    let mut engine = Engine::new(EngineConfig::default()).expect("engine");
+    assert_eq!(engine.project().time_display(), TimeDisplay::Timecode);
+
+    for display in [TimeDisplay::Frames, TimeDisplay::FeetFrames] {
+        engine
+            .apply(Command::Edit(EditCommand::SetTimeDisplay { display }))
+            .expect("set time display");
+        assert_eq!(engine.project().time_display(), display);
+    }
+
+    assert!(engine.undo());
+    assert_eq!(engine.project().time_display(), TimeDisplay::Frames);
+    assert!(engine.undo());
+    assert_eq!(engine.project().time_display(), TimeDisplay::Timecode);
+    assert!(engine.redo());
+    assert_eq!(engine.project().time_display(), TimeDisplay::Frames);
+
+    let saved = engine.project().save_to_string().expect("save project");
+    let loaded = Project::load_from_string(&saved).expect("load project");
+    assert_eq!(loaded.time_display(), TimeDisplay::Frames);
+
+    let mut timecode = Project::new("timecode", Rational::FPS_24);
+    timecode.set_time_display(TimeDisplay::Timecode);
+    let saved = timecode.save_to_string().expect("save project");
+    assert!(
+        !saved.contains("time_display"),
+        "a timecode sequence saves without the field"
+    );
+    let loaded = Project::load_from_string(&saved).expect("load project");
+    assert_eq!(loaded.time_display(), TimeDisplay::Timecode);
 }

@@ -54,7 +54,7 @@ fn fully_dressed_clip() -> Clip {
         path: "/tmp/look.cube".into(),
         intensity: Param::Constant(0.5),
     });
-    clip.mask = Some(Mask::new(MaskKind::Circle));
+    clip.masks = vec![Mask::new(MaskKind::Circle), Mask::new(MaskKind::Rectangle)];
     clip.chroma_key = Some(ChromaKey {
         rgb: [0, 177, 64],
         strength: Param::Constant(0.5),
@@ -216,8 +216,8 @@ fn the_catalog_holds_no_row_twice() {
 /// A project holding one dressed clip, so a row whose block only exists on a
 /// title or a shape is still exercised.
 ///
-/// A mask and a chroma key are media-only in the model, so the sweep needs a
-/// media-backed fixture as well as the generated ones — which is itself part of
+/// A chroma key is media-only in the model, so the sweep needs a media-backed
+/// fixture as well as the generated ones — which is itself part of
 /// the contract: a row available on a generated clip must be writable there.
 fn generated_project(clip: Clip) -> (crate::Project, crate::ClipId) {
     let generator = match &clip.content {
@@ -234,8 +234,8 @@ fn generated_project(clip: Clip) -> (crate::Project, crate::ClipId) {
     (project, id)
 }
 
-/// A media clip carrying every look block, including the two the model refuses
-/// on a generated clip.
+/// A media clip carrying every look block, including the chroma key the model
+/// refuses on a generated clip.
 fn dressed_media_project() -> (crate::Project, crate::ClipId) {
     let dressed = fully_dressed_clip();
     let mut project = crate::Project::new("p", FPS_24);
@@ -258,10 +258,10 @@ fn dressed_media_project() -> (crate::Project, crate::ClipId) {
 /// Apply the fixture's optional look blocks through the project, so each one is
 /// validated on the way in.
 fn dress(project: &mut crate::Project, id: crate::ClipId, clip: &Clip, media_backed: bool) {
+    for mask in &clip.masks {
+        project.add_clip_mask(id, mask.clone()).expect("mask");
+    }
     if media_backed {
-        if let Some(mask) = clip.mask.clone() {
-            project.set_clip_mask(id, Some(mask)).expect("mask");
-        }
         if let Some(chroma) = clip.chroma_key.clone() {
             project
                 .set_clip_chroma_key(id, Some(chroma))
@@ -287,3 +287,9 @@ mod routes;
 
 #[path = "tests_declared_facts.rs"]
 mod declared_facts;
+
+#[path = "tests_mask_rows.rs"]
+mod mask_rows;
+
+#[path = "tests_defaults.rs"]
+mod defaults;

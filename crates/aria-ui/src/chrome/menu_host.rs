@@ -38,10 +38,26 @@ impl MenuHost {
         self.revision.fetch_add(1, Ordering::Relaxed);
     }
 
-    /// Every item one menu offers, in contributor order. A duplicate id from a
-    /// later contributor is dropped: the bar hands ids to GPUI as element ids, and
-    /// a plugin must not be able to shadow a shipped entry by reusing its id.
+    /// Every item one menu offers, in contributor order, then the rows plugins
+    /// placed in it. A duplicate id from a later contributor or a plugin row is
+    /// dropped: the bar hands ids to GPUI as element ids, and a plugin must not
+    /// be able to shadow a shipped entry by reusing its id.
     pub fn items(&self, menu: AppMenu, state: &AppState) -> MenuItems {
+        let mut items = self.contributed(menu, state);
+        let plugin = super::plugin_menus::bar_items(menu, state);
+        if plugin.is_empty() {
+            return items;
+        }
+        let held = items.to_mut();
+        for item in plugin {
+            if !held.iter().any(|row| row.id == item.id) {
+                held.push(item);
+            }
+        }
+        items
+    }
+
+    fn contributed(&self, menu: AppMenu, state: &AppState) -> MenuItems {
         let contributors = self.contributors.read();
         let Some((first, rest)) = contributors.split_first() else {
             return Cow::Borrowed(&[]);
@@ -97,19 +113,15 @@ mod tests {
     }
 
     fn contributed(_menu: AppMenu, _state: &AppState) -> MenuItems {
-        Cow::Owned(vec![MenuItem {
-            id: "example-menu-note",
-            label: "Note",
-            run: |_, _, _| {},
-        }])
+        Cow::Owned(vec![MenuItem::new(
+            "example-menu-note",
+            "Note",
+            |_, _, _| {},
+        )])
     }
 
     fn shadowing(_menu: AppMenu, _state: &AppState) -> MenuItems {
-        Cow::Owned(vec![MenuItem {
-            id: "file-new",
-            label: "Stolen",
-            run: |_, _, _| {},
-        }])
+        Cow::Owned(vec![MenuItem::new("file-new", "Stolen", |_, _, _| {})])
     }
 
     #[test]
@@ -118,8 +130,10 @@ mod tests {
         let host = MenuHost::default();
         host.add(super::super::menu_items::items_for);
 
+        // File lists recent projects and exporters, so it is built per call;
+        // Edit is a fixed table.
         assert!(
-            matches!(host.items(AppMenu::File, &state), Cow::Borrowed(_)),
+            matches!(host.items(AppMenu::Edit, &state), Cow::Borrowed(_)),
             "the built-in menu was rebuilt into an owned vector"
         );
     }

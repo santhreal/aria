@@ -12,9 +12,11 @@
 //! `plugins::ui`'s panel census instead.
 
 use crate::app::AppState;
-use crate::app::mixer::{FaderTarget, frac_to_gain, gain_label, gain_to_frac};
+use crate::app::mixer::{
+    FaderTarget, frac_to_gain, frac_to_pan, gain_label, gain_to_frac, pan_label, pan_to_frac,
+};
 use crate::app::premiere_tests::with_clip;
-use aria_models::{TrackId, TrackKind};
+use aria_models::{AutomationMode, TrackId, TrackKind};
 
 /// The height a fader is drawn at in the panel, so a drag here travels the same
 /// distance a pointer does there.
@@ -355,7 +357,7 @@ fn buses_are_named_in_sequence_and_open_the_mixer() {
         .expect("the palette offers a bus");
     (row.run)(&mut state);
     assert_eq!(state.active_panel, crate::types::ActivePanel::Mixer);
-    assert!(state.active_panel.takes_over_viewer());
+    assert!(state.dock_tree.is_active(crate::dock::PANEL_MIXER));
     assert_eq!(state.mixer_strips().expect("no cycle").len(), 4);
 }
 
@@ -370,10 +372,75 @@ fn the_mixer_pane_toggles_back_to_the_program_monitor() {
         ActivePanel::Timeline.toggle_to(ActivePanel::Mixer),
         ActivePanel::Mixer
     );
-    // Both viewer panes claim the rectangle; the panes beside it do not.
-    assert!(ActivePanel::Mixer.takes_over_viewer());
-    assert!(ActivePanel::Ai.takes_over_viewer());
-    assert!(!ActivePanel::Preview.takes_over_viewer());
+    let (mut state, _, _) = with_lanes(0);
+    state.focus_pane(ActivePanel::Mixer);
+    assert_eq!(state.active_panel, ActivePanel::Mixer);
+    assert!(state.dock_tree.is_active(crate::dock::PANEL_MIXER));
+    state.close_focused().expect("close mixer tab");
+    assert!(!state.dock_tree.is_open(crate::dock::PANEL_MIXER));
+    assert_eq!(state.active_panel, ActivePanel::Preview);
+}
+
+#[test]
+fn pan_has_a_center_detent_and_drags_lane_and_master_as_one_undo_entry() {
+    assert_eq!(pan_to_frac(0.0), 0.5);
+    assert_eq!(frac_to_pan(0.5), 0.0);
+    assert_eq!(frac_to_pan(0.502), 0.0);
+    assert_eq!(frac_to_pan(0.498), 0.0);
+    assert_eq!(pan_label(0.0), "C");
+    assert_eq!(pan_label(-0.5), "L50");
+    assert_eq!(pan_label(0.75), "R75");
+
+    let (mut state, lane, _buses) = with_lanes(0);
+    let before = state.history_entries().len();
+    let target = FaderTarget::LanePan(lane);
+    state.begin_fader_drag(target, 50.0, TRAVEL);
+    assert!(state.drag_fader_to_pointer(80.0));
+    assert!(state.drag_fader_to_pointer(100.0));
+    assert_eq!(state.history_entries().len(), before);
+    let drafted = state.fader_dragging().expect("pan drag").gain;
+    assert!(drafted > 0.0, "dragging right pans right, got {drafted}");
+    assert_eq!(
+        state.fader_value(target, strip_named(&state, "A1").pan),
+        drafted
+    );
+    state.commit_fader_drag().expect("commit pan");
+    assert_eq!(state.history_entries().len(), before + 1);
+    assert_eq!(strip_named(&state, "A1").pan, drafted);
+    assert!(state.undo());
+    assert_eq!(strip_named(&state, "A1").pan, 0.0);
+}
+
+#[test]
+fn mute_and_solo_in_place_update_strip_audibility_and_master_strip() {
+    let (mut state, lane, buses) = with_lanes(1);
+    assert!(!strip_named(&state, "A1").muted);
+    assert!(!strip_named(&state, "A1").solo);
+    assert!(strip_named(&state, "Main").audible);
+
+    state.toggle_strip_solo(lane).expect("solo A1");
+    assert!(strip_named(&state, "A1").solo);
+    assert!(strip_named(&state, "A1").audible);
+    assert!(
+        !strip_named(&state, "Main").audible,
+        "solo-in-place silences unsoloed source lanes"
+    );
+    assert!(
+        strip_named(&state, "Bus 1").audible,
+        "submix buses stay open when a source lane is soloed"
+    );
+    state.toggle_strip_solo(lane).expect("unsolo A1");
+    assert!(strip_named(&state, "Main").audible);
+
+    state.toggle_strip_mute(None).expect("mute master");
+    assert!(state.master_chain().muted);
+    state.toggle_strip_mute(None).expect("unmute master");
+    assert!(!state.master_chain().muted);
+    state
+        .set_strip_automation_mode(None, AutomationMode::Read)
+        .expect("master automation mode");
+    assert_eq!(state.master_chain().automation, AutomationMode::Read);
+    let _ = buses;
 }
 
 /// What each strip's meter reads. Declared here because a meter is part of the

@@ -34,6 +34,14 @@ const CASES: &[Case] = &[
         expect: "Opening shot",
     },
     Case {
+        id: "aria.field.value",
+        focus: super::value_scrub_tests::open_probe_entry,
+        // A value box takes the characters a number is written with and drops
+        // the rest, and the first one replaces the selected value.
+        paste: "12.5 px",
+        expect: "12.5",
+    },
+    Case {
         id: "aria.field.bin-rename",
         focus: |state| {
             // A session starts with no bins: the box under test only exists
@@ -73,6 +81,31 @@ const CASES: &[Case] = &[
         expect: "interview",
     },
     Case {
+        id: "aria.field.effects-search",
+        focus: AppState::open_effects_panel,
+        paste: "gaussian blur",
+        expect: "gaussian blur",
+    },
+    Case {
+        id: "aria.field.property-search",
+        focus: |state| state.focus_property_search(true),
+        paste: "anchor point",
+        expect: "anchor point",
+    },
+    Case {
+        id: "aria.field.marker-edit",
+        focus: |state| {
+            state.add_marker_at_playhead().expect("a marker");
+            state.edit_marker_at_playhead();
+            state.focus_marker_edit_field(Some(crate::app::MarkerEditField::Name));
+            while !(fields::focused(state).expect("marker edit").text)(state).is_empty() {
+                state.marker_edit_pop();
+            }
+        },
+        paste: "Chapter 1",
+        expect: "Chapter 1",
+    },
+    Case {
         id: "aria.field.setting",
         focus: |state| {
             state.focus_setting(Some(SettingsField::AiBaseUrl));
@@ -103,16 +136,62 @@ const CASES: &[Case] = &[
         expect: "trim the last two seconds",
     },
     Case {
-        id: "aria.field.effect-preset",
+        id: "aria.field.preset",
         focus: |state| {
             // The name belongs to a clip's stack, so the box only opens once a
             // clip is selected: the field refuses to appear otherwise.
             let clip = first_clip(state);
             state.select_clip(aria_models::ClipId::from_raw(clip));
-            state.open_effect_preset_draft();
+            state.open_preset_draft();
         },
         paste: "Warm grade",
         expect: "Warm grade",
+    },
+    Case {
+        id: "aria.field.driver",
+        focus: |state| {
+            // A driver belongs to a property of a selected clip, so the box
+            // opens on one: Alt+click adds the driver and opens its source.
+            state
+                .ctx
+                .mount(&aria_plugin::ExpressionsPlugin)
+                .expect("mount Expressions");
+            let clip = first_clip(state);
+            state.select_clip(aria_models::ClipId::from_raw(clip));
+            state
+                .toggle_driver(aria_models::ClipParam::Rotation)
+                .expect("add a driver");
+            while !(fields::focused(state).expect("driver").text)(state).is_empty() {
+                state.driver_draft_pop();
+            }
+        },
+        paste: "wiggle(2, 15)",
+        expect: "wiggle(2, 15)",
+    },
+    Case {
+        id: "aria.field.plugin-panel",
+        focus: super::plugin_panels_tests::focus_probe_input,
+        paste: "Take 3",
+        expect: "Take 3",
+    },
+    Case {
+        id: "aria.field.title",
+        focus: |state| {
+            // The Type tool places a title with its placeholder selected, so the
+            // run replaces the placeholder.
+            let [width, height] = state.canvas_size();
+            let canvas =
+                crate::app::canvas_overlay::Rect::new(0.0, 0.0, width as f32, height as f32);
+            state.overlay_frame = crate::app::canvas_overlay::FrameBox {
+                container: Some(canvas),
+                canvas: Some(canvas),
+                layer: None,
+            };
+            state.tool = crate::types::EditorTool::Type;
+            assert!(state.select_layer_at([width as f32 * 0.5, height as f32 * 0.3], false));
+        },
+        paste: "Night falls",
+        expect: "Night falls",
     },
 ];
 

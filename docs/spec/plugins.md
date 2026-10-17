@@ -52,7 +52,7 @@ license = "MIT"
 requires = ["aria.color >=1"]      # other plugins, with version ranges
 
 [activation]
-on = ["effect:com.example.color-tools.split-tone", "command:color-tools.*", "panel:color-tools.lut-stack"]
+on = ["effect:com.example.color-tools.split-tone", "command:color-tools.reset-stack", "panel:color-tools.lut-stack", "file:cube"]
 
 [permissions]
 project = "read-write"             # none | read | read-write
@@ -72,13 +72,84 @@ shader = "shaders/split_tone.wgsl"
 [[commands]]
 id = "color-tools.reset-stack"
 title = "Reset LUT Stack"
+icon = "icons/reset.svg"
+enablement = "selection && !playing"
 key = "Ctrl+Alt+L"
-menu = "Effect/Color Tools"
+menu = "Sequence/Color Tools"
+
+[[menus]]
+command = "color-tools.reset-stack"
+menu = "Clip"
+
+[[keys]]
+command = "color-tools.reset-stack"
+key = "Ctrl+Shift+L"
+route = "home"
+
+[[panels]]
+id = "color-tools.lut-stack"
+title = "LUT Stack"
+location = "inspector"
+
+[[settings]]
+key = "lut-directory"
+label = "LUT folder"
+placeholder = "~/luts"
+
+[[settings]]
+key = "strength"
+label = "Strength"
+type = "number"
+min = 0.0
+max = 1.0
+step = 0.05
+default = 0.5
 ```
 
 Every contribution can be declared in the manifest, so Aria lists effects,
 commands, menus, keys, settings, and panels without loading the plugin. Code
 registers handlers for them when the plugin activates.
+
+A command's `menu` and `key` are one `[[menus]]` entry and one `[[keys]]`
+entry. Both tables name a command declared in `[[commands]]`.
+
+- `menu` is a menu bar menu (`File`, `Edit`, `Sequence`, `View`, `Window`,
+  `Help`) or a context menu (`Clip`, `Track`, `Media`, `Viewer`,
+  `Transition`), optionally
+  followed by a group: `Sequence/Color Tools` lists the row as
+  `Color Tools: Reset LUT Stack`. A row is drawn below the menu's own rows
+  while its command is registered.
+- `icon` is an SVG file in the package, at most 64 KiB, drawn tinted in the
+  palette and menus. `enablement` is a condition over editor state, such as
+  `selection && !playing`; while it does not hold, the palette dims the
+  command and menus leave it out. The keys are listed under
+  [Enablement](../plugins/commands.md#enablement).
+- `key` is a chord such as `Ctrl+Alt+L` on a key Aria binds. `route` is
+  `editor` (the default) or `home`. A chord another binding holds on the same
+  route is refused and listed under Settings > Keys, where the command can be
+  given another chord.
+- `[[settings]]` fields are drawn in Settings in a section titled with the
+  plugin's name. `type` is `text` (the default), `secret`, `toggle`, `number`
+  (with `min`, `max`, and `step`), or `choice` (with `options`). `key` is
+  stored under the plugin id: `lut-directory` is
+  `com.example.color-tools.lut-directory`. Values are stored as text: `true`
+  or `false`, a decimal number, or the chosen option. An unset key reads as
+  `default`.
+- `[[panels]]` lists the panels the plugin registers, each with an `id`, a
+  `title`, and a `location` of `sidebar`, `inspector`, or `timeline`.
+- `[activation] on` lists the events the plugin loads on:
+
+  | Event | Fires when |
+  | --- | --- |
+  | `startup` | Aria starts |
+  | `command:<id>` | the declared command runs from the palette, a menu, or a key |
+  | `file:<ext>` | a file with that extension is dropped, imported, or read as a timeline |
+  | `effect:<id>`, `transition:<id>`, `generator:<id>` | the open project uses it |
+  | `panel:<id>` | the declared panel is opened |
+  | `setting:<key>` | the declared setting is read or saved |
+
+  `command:`, `panel:`, and `setting:` name an entry the manifest declares. An
+  extension is matched without case.
 
 ## Lifecycle
 
@@ -92,9 +163,11 @@ installed -> (activation event) -> active -> (disable / uninstall / reload) -> i
    and the shipped set. Reading a manifest runs no plugin code.
 2. **Activation.** A plugin loads on the first of its activation events: start
    up, a command, a file type opened or dropped, an effect, transition, or
-   generator used in an open project, a panel opened, a setting read, or a
-   service requested by another plugin. Plugins with no activation section load
-   at start.
+   generator used in an open project, a panel opened, or a setting read or
+   saved. Until then its declared contributions are listed and its declared
+   panels show an Open button. Plugins with no activation section, plugins
+   with no code, and plugins a plugin that loads at start requires load at
+   start. A waiting plugin's requirements that also wait load before it.
 3. **Mount.** The plugin registers handlers for its contributions and services,
    and subscribes to events. Mount time is measured and shown in the Plugins
    panel.
@@ -280,7 +353,7 @@ plugin's name, and is visible to every `CommandProposed` handler.
 | `RenderFinished`, `ExportStarted`, `ExportFinished` | Notification with result |
 | `JobProgress`, `JobFinished` | Notification |
 | `PluginActivated`, `PluginDeactivated` | Notification |
-| `ResolveDroppedPath` | Serial: the first handler that claims a path or URL wins |
+| `ResolveDropped` | Serial: handlers ordered by priority then mount order claim a dropped path or URL |
 | `ContextMenuRequested` | Waterfall: handlers add items for the clicked target |
 
 Handlers for notifications run off the UI thread unless they ask for it.
@@ -295,7 +368,7 @@ Handlers for notifications run off the UI thread unless they ask for it.
 | `aria plugin pack <dir>` | Writes the `.ariaplugin` package |
 
 The SDK reference (`aria-sdk` for Rust, `aria:plugin` WIT for WASM) is generated
-from the API definitions; `docs/plugin-development.md` is the guide.
+from the API definitions; `docs/plugins/README.md` is the guide.
 
 ## Shipped plugins
 

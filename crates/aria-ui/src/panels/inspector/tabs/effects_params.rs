@@ -1,0 +1,1278 @@
+//! Inspector parameter rows for effect instances and transitions (v2 parameter kinds,
+//! collapsible groups, visibility conditions, display hints, soft ranges, units, and tooltips).
+
+use crate::tooltip::WithTip as _;
+use aria_models::{
+    ClipId, ClipParam, EffectCurvePoint, EffectGradientStop, EffectParamDisplay, EffectParamKind,
+    EffectParamSpec, TransitionSpec,
+};
+use gpui::{
+    AnyElement, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
+    SharedString, Styled, div, px,
+};
+
+use crate::app::AppState;
+use crate::app::clip_params::{ColorRow, ParamRow};
+use crate::app::key_strip::KeyStrip;
+use crate::components;
+use crate::fluent::FluentBuilder;
+use crate::motion::MotionKey;
+use crate::panels::inspector::blocks::widgets::{
+    MIXED, Readout, Stopwatch, Watching, audio_row, color_name, color_stopwatch, stepper_row,
+    swatch, swatch_row,
+};
+use crate::surfaces::clip_pick::{self, Pick, TransitionSlotEdit};
+use crate::surfaces::effects_rack::{self, Gesture, SlotEdit};
+use crate::theme::Theme;
+use crate::types::{UiEffectInstance, UiTransition};
+
+/// Build all visible parameter rows (and collapsible group sections) for one effect instance.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn effect_param_rows(
+    theme: &Theme,
+    state: &gpui::Entity<crate::app::AppState>,
+    index: usize,
+    effect: &UiEffectInstance,
+    sequence_clips: &[(ClipId, SharedString)],
+    font_families: &[String],
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> Vec<AnyElement> {
+    let Some(spec) = aria_models::effect_spec(&effect.id) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    let known_groups: Vec<&str> = spec.groups.iter().map(|g| g.id.as_str()).collect();
+    let keys = EffectKeys::read(state.read(cx), index);
+
+    for (slot, pspec) in spec.params.iter().enumerate() {
+        if !effect.is_slot_visible(slot) {
+            continue;
+        }
+        let in_known_group = pspec
+            .group
+            .as_deref()
+            .is_some_and(|gid| known_groups.contains(&gid));
+        if in_known_group {
+            continue;
+        }
+        push_effect_slot_rows(
+            &mut out,
+            theme,
+            state,
+            &keys,
+            index,
+            slot,
+            pspec,
+            effect,
+            sequence_clips,
+            font_families,
+            cx,
+        );
+    }
+
+    for group in &spec.groups {
+        let visible_slots: Vec<(usize, &EffectParamSpec)> = spec
+            .params
+            .iter()
+            .enumerate()
+            .filter(|(slot, pspec)| {
+                pspec.group.as_deref() == Some(group.id.as_str()) && effect.is_slot_visible(*slot)
+            })
+            .collect();
+        if visible_slots.is_empty() {
+            continue;
+        }
+        let collapsed = state
+            .read(cx)
+            .is_effect_group_collapsed(index, &group.id, group.collapsed);
+        let group_name = group.id.clone();
+        let header_label = format!("{} {}", if collapsed { "▸" } else { "▾" }, group.label);
+        out.push(
+            components::ghost_button(
+                MotionKey::new("fx-group", index).with(group.id.as_str()),
+                header_label,
+                theme,
+            )
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                    let group_name = group_name.clone();
+                    this.state.update(cx, |state, _| {
+                        let _ = effects_rack::apply(
+                            state,
+                            Gesture::ToggleGroup {
+                                index,
+                                group: group_name,
+                            },
+                        );
+                    });
+                    cx.notify();
+                }),
+            )
+            .into_any_element(),
+        );
+        if !collapsed {
+            for (slot, pspec) in visible_slots {
+                push_effect_slot_rows(
+                    &mut out,
+                    theme,
+                    state,
+                    &keys,
+                    index,
+                    slot,
+                    pspec,
+                    effect,
+                    sequence_clips,
+                    font_families,
+                    cx,
+                );
+            }
+        }
+    }
+
+    out
+}
+
+/// Build all visible parameter rows for the selected clip's transition.
+pub(crate) fn transition_param_rows(
+    theme: &Theme,
+    state: &gpui::Entity<crate::app::AppState>,
+    transition: &UiTransition,
+    spec: &TransitionSpec,
+    sequence_clips: &[(ClipId, SharedString)],
+    font_families: &[String],
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> Vec<AnyElement> {
+    let mut out = Vec::new();
+    for (slot, pspec) in spec.params.iter().enumerate() {
+        if !transition.is_slot_visible(slot) {
+            continue;
+        }
+        push_transition_slot_rows(
+            &mut out,
+            theme,
+            state,
+            slot,
+            pspec,
+            transition,
+            sequence_clips,
+            font_families,
+            cx,
+        );
+    }
+    out
+}
+
+/// What the rows of one effect read off the state once a frame: each animatable
+/// slot's value at the playhead with its keyframe state and time area, and the
+/// driver draft its stopwatches show. A slot no row is offered for reads the
+/// projection and draws no stopwatch.
+struct EffectKeys {
+    rows: Vec<(ParamRow, Option<KeyStrip>)>,
+    colors: Vec<(ColorRow, Option<KeyStrip>)>,
+    watching: Watching,
+    /// The slots no curve carries that the other selected clips set
+    /// differently.
+    mixed_slots: Vec<usize>,
+}
+
+impl EffectKeys {
+    fn read(state: &AppState, index: usize) -> Self {
+        Self {
+            rows: state
+                .effect_param_rows(index)
+                .into_iter()
+                .map(|row| {
+                    let strip = state.key_strip(row.param);
+                    (row, strip)
+                })
+                .collect(),
+            colors: state
+                .effect_param_colors(index)
+                .into_iter()
+                .map(|row| {
+                    let strip = state.key_strip(row.param);
+                    (row, strip)
+                })
+                .collect(),
+            watching: Watching::read(state),
+            mixed_slots: state.effect_slots_mixed(index),
+        }
+    }
+
+    /// Whether the other selected clips read component `component` of slot
+    /// `slot` differently at the playhead, so its row prints a dash.
+    fn mixed(&self, index: usize, slot: usize, component: Option<u8>) -> bool {
+        let param = slot_param(index, slot);
+        self.rows
+            .iter()
+            .map(|(row, _)| row)
+            .find(|row| row.param == param && row.component == component)
+            .map(|row| row.mixed)
+            .or_else(|| {
+                self.colors
+                    .iter()
+                    .find(|(row, _)| row.param == param)
+                    .map(|(row, _)| row.mixed)
+            })
+            .unwrap_or_else(|| self.mixed_slots.contains(&slot))
+    }
+
+    /// The value of component `component` of slot `slot` at the playhead, and
+    /// the stopwatch its row draws.
+    fn number(&self, index: usize, slot: usize, component: Option<u8>) -> Option<(f32, Stopwatch)> {
+        let param = slot_param(index, slot);
+        self.rows
+            .iter()
+            .find(|(row, _)| row.param == param && row.component == component)
+            .map(|(row, strip)| (row.value, self.watching.stopwatch(row, strip.clone())))
+    }
+
+    /// The colour of slot `slot` at the playhead, and the stopwatch its row
+    /// draws.
+    fn color(&self, index: usize, slot: usize) -> Option<([u8; 4], Stopwatch)> {
+        let param = slot_param(index, slot);
+        self.colors
+            .iter()
+            .find(|(row, _)| row.param == param)
+            .map(|(row, strip)| (row.value, color_stopwatch(row, strip.clone())))
+    }
+}
+
+/// The property address of slot `slot` on effect `index`.
+fn slot_param(index: usize, slot: usize) -> ClipParam {
+    ClipParam::Effect {
+        effect: index as u32,
+        param: slot as u32,
+    }
+}
+
+fn scalar_readout(value: f32, pspec: &EffectParamSpec) -> Readout {
+    let min = pspec.soft_min.unwrap_or(pspec.min);
+    let max = pspec.soft_max.unwrap_or(pspec.max);
+    let unit = ((max - min) / 100.0).max(0.01);
+    if pspec.kind == EffectParamKind::Angle || pspec.display == Some(EffectParamDisplay::AngleDial)
+    {
+        Readout::printed(format!("{value:.1}°"), value, 1, unit)
+    } else if pspec.display == Some(EffectParamDisplay::Percentage) {
+        Readout::printed(format!("{:.0}%", value * 100.0), value, 2, unit)
+    } else if let Some(u) = pspec.unit.as_deref().filter(|u| !u.is_empty()) {
+        Readout::printed(format!("{value:.2} {u}"), value, 2, unit)
+    } else {
+        Readout::number(value, 2, unit)
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn push_effect_slot_rows(
+    out: &mut Vec<AnyElement>,
+    theme: &Theme,
+    state: &gpui::Entity<crate::app::AppState>,
+    keys: &EffectKeys,
+    index: usize,
+    slot: usize,
+    pspec: &EffectParamSpec,
+    effect: &UiEffectInstance,
+    sequence_clips: &[(ClipId, SharedString)],
+    font_families: &[String],
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) {
+    let tip = pspec.tooltip.clone();
+    match pspec.kind {
+        // Every number reads at the playhead and keys where an edit lands when
+        // the slot is animated, so the value shown is the value written.
+        EffectParamKind::Scalar | EffectParamKind::Angle => {
+            let keyed = keys.number(index, slot, None);
+            let value = keyed.as_ref().map_or_else(
+                || effect.scalar(slot).unwrap_or(pspec.default),
+                |(value, _)| *value,
+            );
+            let readout = scalar_readout(value, pspec).dashed(keys.mixed(index, slot, None));
+            out.push(
+                div()
+                    .id(MotionKey::new("fx-param-tip", index)
+                        .with(slot)
+                        .element_id("fx-param-tip"))
+                    .when_some(tip, |el, tip| {
+                        el.with_tip(crate::tooltip::text_builder(tip))
+                    })
+                    .child(stepper_row(
+                        theme,
+                        state,
+                        MotionKey::new(&pspec.name, index),
+                        pspec.label.as_str(),
+                        readout,
+                        None,
+                        keyed.map(|(_, watch)| watch),
+                        move |state, by| {
+                            effects_rack::apply(state, Gesture::NudgeScalar { index, slot, by })
+                        },
+                        cx,
+                    ))
+                    .into_any_element(),
+            );
+        }
+        EffectParamKind::Int => {
+            let keyed = keys.number(index, slot, None);
+            let value = keyed.as_ref().map_or_else(
+                || effect.int(slot).unwrap_or(pspec.default_int as i32),
+                |(value, _)| value.round() as i32,
+            );
+            out.push(
+                div()
+                    .id(MotionKey::new("fx-param-int", index)
+                        .with(slot)
+                        .element_id("fx-param-int"))
+                    .when_some(tip, |el, tip| {
+                        el.with_tip(crate::tooltip::text_builder(tip))
+                    })
+                    .child(stepper_row(
+                        theme,
+                        state,
+                        MotionKey::new(&pspec.name, index),
+                        pspec.label.as_str(),
+                        Readout::number(value as f32, 0, 1.0).dashed(keys.mixed(index, slot, None)),
+                        None,
+                        keyed.map(|(_, watch)| watch),
+                        move |state, by| {
+                            effects_rack::apply(
+                                state,
+                                Gesture::EditSlot {
+                                    index,
+                                    slot,
+                                    edit: SlotEdit::NudgeInt(by.round() as i32),
+                                },
+                            )
+                        },
+                        cx,
+                    ))
+                    .into_any_element(),
+            );
+        }
+        EffectParamKind::Bool => {
+            let value = effect.bool_val(slot).unwrap_or(pspec.default_bool);
+            let btn_label = if keys.mixed(index, slot, None) {
+                MIXED
+            } else if value {
+                "✓ On"
+            } else {
+                "○ Off"
+            };
+            out.push(
+                div()
+                    .id(MotionKey::new("fx-param-bool-row", index)
+                        .with(slot)
+                        .element_id("fx-param-bool-row"))
+                    .when_some(tip, |el, tip| {
+                        el.with_tip(crate::tooltip::text_builder(tip))
+                    })
+                    .flex()
+                    .flex_row()
+                    .items_center()
+                    .justify_between()
+                    .px(px(Theme::SPACE_XS))
+                    .py(px(Theme::SPACE_XS))
+                    .child(
+                        div()
+                            .text_size(Theme::TEXT_UI)
+                            .text_color(theme.text_muted)
+                            .child(pspec.label.clone()),
+                    )
+                    .child(
+                        components::ghost_button(
+                            MotionKey::new("fx-param-bool", index).with(slot),
+                            btn_label,
+                            theme,
+                        )
+                        .on_mouse_down(
+                            MouseButton::Left,
+                            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                                this.state.update(cx, |state, _| {
+                                    if let Err(err) = effects_rack::apply(
+                                        state,
+                                        Gesture::EditSlot {
+                                            index,
+                                            slot,
+                                            edit: SlotEdit::ToggleBool,
+                                        },
+                                    ) {
+                                        state.report_error(&err);
+                                    }
+                                });
+                                cx.notify();
+                            }),
+                        ),
+                    )
+                    .into_any_element(),
+            );
+        }
+        EffectParamKind::Choice => {
+            let current = effect
+                .choice(slot)
+                .unwrap_or_else(|| pspec.default_choice_id().unwrap_or_default());
+            let mixed = keys.mixed(index, slot, None);
+            let chips: Vec<AnyElement> = pspec
+                .choices
+                .iter()
+                .map(|opt| {
+                    let opt_val = opt.id.clone();
+                    let text = if opt.id == current && !mixed {
+                        format!("• {}", opt.label)
+                    } else {
+                        opt.label.clone()
+                    };
+                    components::ghost_button(
+                        MotionKey::new("fx-choice", index)
+                            .with(slot)
+                            .with(opt.id.as_str()),
+                        text,
+                        theme,
+                    )
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                            let choice = opt_val.clone();
+                            this.state.update(cx, |state, _| {
+                                if let Err(err) = effects_rack::apply(
+                                    state,
+                                    Gesture::EditSlot {
+                                        index,
+                                        slot,
+                                        edit: SlotEdit::Choice(choice),
+                                    },
+                                ) {
+                                    state.report_error(&err);
+                                }
+                            });
+                            cx.notify();
+                        }),
+                    )
+                    .into_any_element()
+                })
+                .collect();
+            out.push(
+                div()
+                    .id(MotionKey::new("fx-choice-row", index)
+                        .with(slot)
+                        .element_id("fx-choice-row"))
+                    .when_some(tip, |el, tip| {
+                        el.with_tip(crate::tooltip::text_builder(tip))
+                    })
+                    .flex()
+                    .flex_row()
+                    .items_center()
+                    .justify_between()
+                    .px(px(Theme::SPACE_XS))
+                    .py(px(Theme::SPACE_XS))
+                    .child(
+                        div()
+                            .text_size(Theme::TEXT_UI)
+                            .text_color(theme.text_muted)
+                            .child(pspec.label.clone()),
+                    )
+                    .child(
+                        div()
+                            .flex()
+                            .flex_row()
+                            .gap(px(Theme::SPACE_XS))
+                            .children(chips),
+                    )
+                    .into_any_element(),
+            );
+        }
+        EffectParamKind::Color => {
+            let (value, watch) = match keys.color(index, slot) {
+                Some((value, watch)) => (value, Some(watch)),
+                None => (
+                    effect
+                        .color(slot)
+                        .unwrap_or_else(|| pspec.default_color_u8()),
+                    None,
+                ),
+            };
+            out.push(swatch_row(
+                theme,
+                MotionKey::new("fx-slot", index).with(slot),
+                pspec.label.clone().into(),
+                (!keys.mixed(index, slot, None)).then_some(value),
+                watch,
+                move |state, rgba| effects_rack::apply(state, Gesture::Color { index, slot, rgba }),
+                cx,
+            ));
+        }
+        EffectParamKind::Vec2 | EffectParamKind::Size => {
+            let value = effect.vec2(slot).unwrap_or(pspec.default_vec2);
+            let unit = ((pspec.max - pspec.min) / 100.0).max(0.001);
+            let axes = if pspec.kind == EffectParamKind::Size {
+                [(0usize, "w"), (1usize, "h")]
+            } else {
+                [(0usize, "x"), (1usize, "y")]
+            };
+            for (axis, name) in axes {
+                let keyed = keys.number(index, slot, Some(axis as u8));
+                let shown = keyed.as_ref().map_or(value[axis], |(value, _)| *value);
+                out.push(
+                    stepper_row(
+                        theme,
+                        state,
+                        MotionKey::new(&pspec.name, index).with(name),
+                        &format!("{} {name}", pspec.label),
+                        Readout::number(shown, 3, unit).dashed(keys.mixed(
+                            index,
+                            slot,
+                            Some(axis as u8),
+                        )),
+                        None,
+                        keyed.map(|(_, watch)| watch),
+                        move |state, by| {
+                            effects_rack::apply(
+                                state,
+                                Gesture::NudgeVec2 {
+                                    index,
+                                    slot,
+                                    axis,
+                                    by,
+                                },
+                            )
+                        },
+                        cx,
+                    )
+                    .into_any_element(),
+                );
+            }
+        }
+        EffectParamKind::Point3 => {
+            let value = effect.point3(slot).unwrap_or(pspec.default_vec3);
+            let unit = ((pspec.max - pspec.min) / 100.0).max(0.001);
+            for (axis, name) in [(0usize, "x"), (1usize, "y"), (2usize, "z")] {
+                let keyed = keys.number(index, slot, Some(axis as u8));
+                let shown = keyed.as_ref().map_or(value[axis], |(value, _)| *value);
+                out.push(
+                    stepper_row(
+                        theme,
+                        state,
+                        MotionKey::new(&pspec.name, index).with(name),
+                        &format!("{} {name}", pspec.label),
+                        Readout::number(shown, 3, unit).dashed(keys.mixed(
+                            index,
+                            slot,
+                            Some(axis as u8),
+                        )),
+                        None,
+                        keyed.map(|(_, watch)| watch),
+                        move |state, by| {
+                            effects_rack::apply(
+                                state,
+                                Gesture::EditSlot {
+                                    index,
+                                    slot,
+                                    edit: SlotEdit::NudgePoint3 { axis, by },
+                                },
+                            )
+                        },
+                        cx,
+                    )
+                    .into_any_element(),
+                );
+            }
+        }
+        EffectParamKind::Curve => {
+            let count = effect
+                .curve(slot)
+                .map_or(pspec.default_curve.len(), <[EffectCurvePoint]>::len);
+            let presets = [
+                (
+                    "Linear",
+                    vec![
+                        EffectCurvePoint::new(0.0, 0.0),
+                        EffectCurvePoint::new(1.0, 1.0),
+                    ],
+                ),
+                (
+                    "S-Curve",
+                    vec![
+                        EffectCurvePoint::new(0.0, 0.0),
+                        EffectCurvePoint::new(0.25, 0.15),
+                        EffectCurvePoint::new(0.75, 0.85),
+                        EffectCurvePoint::new(1.0, 1.0),
+                    ],
+                ),
+                (
+                    "Invert",
+                    vec![
+                        EffectCurvePoint::new(0.0, 1.0),
+                        EffectCurvePoint::new(1.0, 0.0),
+                    ],
+                ),
+            ];
+            let chips: Vec<AnyElement> = presets
+                .into_iter()
+                .map(|(preset_name, pts)| {
+                    components::ghost_button(
+                        MotionKey::new("fx-curve", index)
+                            .with(slot)
+                            .with(preset_name),
+                        preset_name,
+                        theme,
+                    )
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                            let pts = pts.clone();
+                            this.state.update(cx, |state, _| {
+                                if let Err(err) = effects_rack::apply(
+                                    state,
+                                    Gesture::EditSlot {
+                                        index,
+                                        slot,
+                                        edit: SlotEdit::Curve(pts),
+                                    },
+                                ) {
+                                    state.report_error(&err);
+                                }
+                            });
+                            cx.notify();
+                        }),
+                    )
+                    .into_any_element()
+                })
+                .collect();
+            out.push(
+                div()
+                    .flex()
+                    .flex_row()
+                    .items_center()
+                    .justify_between()
+                    .px(px(Theme::SPACE_XS))
+                    .py(px(Theme::SPACE_XS))
+                    .child(
+                        div()
+                            .text_size(Theme::TEXT_UI)
+                            .text_color(theme.text_muted)
+                            .child(if keys.mixed(index, slot, None) {
+                                format!("{} ({MIXED})", pspec.label)
+                            } else {
+                                format!("{} ({count} pts)", pspec.label)
+                            }),
+                    )
+                    .child(
+                        div()
+                            .flex()
+                            .flex_row()
+                            .gap(px(Theme::SPACE_XS))
+                            .children(chips),
+                    )
+                    .into_any_element(),
+            );
+        }
+        EffectParamKind::Gradient => {
+            let count = effect
+                .gradient(slot)
+                .map_or(pspec.default_gradient.len(), <[EffectGradientStop]>::len);
+            let presets = [
+                (
+                    "B&W",
+                    vec![
+                        EffectGradientStop::new(0.0, [0.0, 0.0, 0.0, 1.0]),
+                        EffectGradientStop::new(1.0, [1.0, 1.0, 1.0, 1.0]),
+                    ],
+                ),
+                (
+                    "Warm",
+                    vec![
+                        EffectGradientStop::new(0.0, [0.1, 0.02, 0.0, 1.0]),
+                        EffectGradientStop::new(1.0, [1.0, 0.85, 0.4, 1.0]),
+                    ],
+                ),
+            ];
+            let chips: Vec<AnyElement> = presets
+                .into_iter()
+                .map(|(preset_name, stops)| {
+                    components::ghost_button(
+                        MotionKey::new("fx-grad", index)
+                            .with(slot)
+                            .with(preset_name),
+                        preset_name,
+                        theme,
+                    )
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                            let stops = stops.clone();
+                            this.state.update(cx, |state, _| {
+                                if let Err(err) = effects_rack::apply(
+                                    state,
+                                    Gesture::EditSlot {
+                                        index,
+                                        slot,
+                                        edit: SlotEdit::Gradient(stops),
+                                    },
+                                ) {
+                                    state.report_error(&err);
+                                }
+                            });
+                            cx.notify();
+                        }),
+                    )
+                    .into_any_element()
+                })
+                .collect();
+            out.push(
+                div()
+                    .flex()
+                    .flex_row()
+                    .items_center()
+                    .justify_between()
+                    .px(px(Theme::SPACE_XS))
+                    .py(px(Theme::SPACE_XS))
+                    .child(
+                        div()
+                            .text_size(Theme::TEXT_UI)
+                            .text_color(theme.text_muted)
+                            .child(if keys.mixed(index, slot, None) {
+                                format!("{} ({MIXED})", pspec.label)
+                            } else {
+                                format!("{} ({count} stops)", pspec.label)
+                            }),
+                    )
+                    .child(
+                        div()
+                            .flex()
+                            .flex_row()
+                            .gap(px(Theme::SPACE_XS))
+                            .children(chips),
+                    )
+                    .into_any_element(),
+            );
+        }
+        EffectParamKind::Text | EffectParamKind::File => {
+            let current = effect
+                .text(slot)
+                .unwrap_or(pspec.default_text.as_str())
+                .to_string();
+            out.push(
+                div()
+                    .flex()
+                    .flex_row()
+                    .items_center()
+                    .justify_between()
+                    .px(px(Theme::SPACE_XS))
+                    .py(px(Theme::SPACE_XS))
+                    .child(
+                        div()
+                            .text_size(Theme::TEXT_UI)
+                            .text_color(theme.text_muted)
+                            .child(if keys.mixed(index, slot, None) {
+                                format!("{}: {MIXED}", pspec.label)
+                            } else {
+                                format!("{}: {current}", pspec.label)
+                            }),
+                    )
+                    .child(
+                        components::ghost_button(
+                            MotionKey::new("fx-text-clear", index).with(slot),
+                            "Clear",
+                            theme,
+                        )
+                        .on_mouse_down(
+                            MouseButton::Left,
+                            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                                this.state.update(cx, |state, _| {
+                                    if let Err(err) = effects_rack::apply(
+                                        state,
+                                        Gesture::EditSlot {
+                                            index,
+                                            slot,
+                                            edit: SlotEdit::Text(String::new()),
+                                        },
+                                    ) {
+                                        state.report_error(&err);
+                                    }
+                                });
+                                cx.notify();
+                            }),
+                        ),
+                    )
+                    .into_any_element(),
+            );
+        }
+        EffectParamKind::Font => {
+            let current = effect.text(slot).unwrap_or(pspec.default_text.as_str());
+            let mixed = keys.mixed(index, slot, None);
+            let chips: Vec<AnyElement> = font_families
+                .iter()
+                .take(4)
+                .map(|family| {
+                    let family_val = family.clone();
+                    let label = if family == current && !mixed {
+                        format!("• {family}")
+                    } else {
+                        family.clone()
+                    };
+                    components::ghost_button(
+                        MotionKey::new("fx-font", index)
+                            .with(slot)
+                            .with(family.as_str()),
+                        label,
+                        theme,
+                    )
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                            let family_val = family_val.clone();
+                            this.state.update(cx, |state, _| {
+                                if let Err(err) = effects_rack::apply(
+                                    state,
+                                    Gesture::EditSlot {
+                                        index,
+                                        slot,
+                                        edit: SlotEdit::Text(family_val),
+                                    },
+                                ) {
+                                    state.report_error(&err);
+                                }
+                            });
+                            cx.notify();
+                        }),
+                    )
+                    .into_any_element()
+                })
+                .collect();
+            out.push(
+                div()
+                    .flex()
+                    .flex_row()
+                    .items_center()
+                    .justify_between()
+                    .px(px(Theme::SPACE_XS))
+                    .py(px(Theme::SPACE_XS))
+                    .child(
+                        div()
+                            .text_size(Theme::TEXT_UI)
+                            .text_color(theme.text_muted)
+                            .child(pspec.label.clone()),
+                    )
+                    .child(
+                        div()
+                            .flex()
+                            .flex_row()
+                            .gap(px(Theme::SPACE_XS))
+                            .children(chips),
+                    )
+                    .into_any_element(),
+            );
+        }
+        EffectParamKind::Layer => {
+            // Clips that point at different layers mark no chip.
+            let current = effect
+                .layer(slot)
+                .filter(|_| !keys.mixed(index, slot, None));
+            let mut chips: Vec<AnyElement> = Vec::with_capacity(sequence_clips.len() + 1);
+            chips.push(
+                components::ghost_button(
+                    MotionKey::new("fx-layer-none", index).with(slot),
+                    if effect.layer(slot).is_none() && !keys.mixed(index, slot, None) {
+                        "• None"
+                    } else {
+                        "None"
+                    },
+                    theme,
+                )
+                .on_mouse_down(
+                    MouseButton::Left,
+                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                        this.state.update(cx, |state, _| {
+                            if let Err(err) = effects_rack::apply(
+                                state,
+                                Gesture::EditSlot {
+                                    index,
+                                    slot,
+                                    edit: SlotEdit::Layer(None),
+                                },
+                            ) {
+                                state.report_error(&err);
+                            }
+                        });
+                        cx.notify();
+                    }),
+                )
+                .into_any_element(),
+            );
+            for (target_clip, name) in sequence_clips {
+                let target = *target_clip;
+                let text = if current == Some(Some(target.raw())) {
+                    format!("• {name}")
+                } else {
+                    name.to_string()
+                };
+                chips.push(
+                    components::ghost_button(
+                        MotionKey::new("fx-layer", index)
+                            .with(slot)
+                            .with(target.raw()),
+                        text,
+                        theme,
+                    )
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                            this.state.update(cx, |state, _| {
+                                if let Err(err) = effects_rack::apply(
+                                    state,
+                                    Gesture::EditSlot {
+                                        index,
+                                        slot,
+                                        edit: SlotEdit::Layer(Some(target)),
+                                    },
+                                ) {
+                                    state.report_error(&err);
+                                }
+                            });
+                            cx.notify();
+                        }),
+                    )
+                    .into_any_element(),
+                );
+            }
+            let refusal = state.read(cx).effect_layer_refusal(index, slot);
+            out.push(
+                div()
+                    .flex()
+                    .flex_col()
+                    .px(px(Theme::SPACE_XS))
+                    .py(px(Theme::SPACE_XS))
+                    .gap(px(Theme::SPACE_XS))
+                    .child(
+                        div()
+                            .flex()
+                            .flex_row()
+                            .items_center()
+                            .justify_between()
+                            .child(
+                                div()
+                                    .text_size(Theme::TEXT_UI)
+                                    .text_color(theme.text_muted)
+                                    .child(pspec.label.clone()),
+                            )
+                            .child(
+                                div()
+                                    .flex()
+                                    .flex_row()
+                                    .gap(px(Theme::SPACE_XS))
+                                    .children(chips),
+                            ),
+                    )
+                    .when_some(refusal, |row, message| {
+                        row.child(
+                            div()
+                                .text_size(Theme::TEXT_UI)
+                                .text_color(theme.danger)
+                                .child(message),
+                        )
+                    })
+                    .into_any_element(),
+            );
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn push_transition_slot_rows(
+    out: &mut Vec<AnyElement>,
+    theme: &Theme,
+    state: &gpui::Entity<crate::app::AppState>,
+    slot: usize,
+    pspec: &EffectParamSpec,
+    transition: &UiTransition,
+    _sequence_clips: &[(ClipId, SharedString)],
+    _font_families: &[String],
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) {
+    match pspec.kind {
+        EffectParamKind::Scalar | EffectParamKind::Angle => {
+            let value = transition.scalar(slot).unwrap_or(pspec.default);
+            let readout = scalar_readout(value, pspec);
+            out.push(
+                audio_row(
+                    theme,
+                    state,
+                    MotionKey::new("tr-param", slot).with(pspec.name.as_str()),
+                    pspec.label.as_str(),
+                    readout,
+                    move |state, by| {
+                        clip_pick::apply(
+                            state,
+                            Pick::TransitionParam {
+                                slot,
+                                edit: TransitionSlotEdit::NudgeScalar(by),
+                            },
+                        )
+                    },
+                    cx,
+                )
+                .into_any_element(),
+            );
+        }
+        EffectParamKind::Int => {
+            let value = transition.int(slot).unwrap_or(pspec.default_int as i32);
+            out.push(
+                audio_row(
+                    theme,
+                    state,
+                    MotionKey::new("tr-param-int", slot).with(pspec.name.as_str()),
+                    pspec.label.as_str(),
+                    Readout::number(value as f32, 0, 1.0),
+                    move |state, by| {
+                        clip_pick::apply(
+                            state,
+                            Pick::TransitionParam {
+                                slot,
+                                edit: TransitionSlotEdit::NudgeInt(by.round() as i32),
+                            },
+                        )
+                    },
+                    cx,
+                )
+                .into_any_element(),
+            );
+        }
+        EffectParamKind::Bool => {
+            let value = transition.bool_val(slot).unwrap_or(pspec.default_bool);
+            let btn_label = if value { "✓ On" } else { "○ Off" };
+            out.push(
+                div()
+                    .flex()
+                    .flex_row()
+                    .items_center()
+                    .justify_between()
+                    .px(px(Theme::SPACE_XS))
+                    .py(px(Theme::SPACE_XS))
+                    .child(
+                        div()
+                            .text_size(Theme::TEXT_UI)
+                            .text_color(theme.text_muted)
+                            .child(pspec.label.clone()),
+                    )
+                    .child(
+                        components::ghost_button(MotionKey::new("tr-bool", slot), btn_label, theme)
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                                    this.state.update(cx, |state, _| {
+                                        if let Err(err) = clip_pick::apply(
+                                            state,
+                                            Pick::TransitionParam {
+                                                slot,
+                                                edit: TransitionSlotEdit::ToggleBool,
+                                            },
+                                        ) {
+                                            state.report_error(&err);
+                                        }
+                                    });
+                                    cx.notify();
+                                }),
+                            ),
+                    )
+                    .into_any_element(),
+            );
+        }
+        EffectParamKind::Choice => {
+            let current = transition
+                .choice(slot)
+                .unwrap_or_else(|| pspec.default_choice_id().unwrap_or_default());
+            let chips: Vec<AnyElement> = pspec
+                .choices
+                .iter()
+                .map(|opt| {
+                    let opt_val = opt.id.clone();
+                    let text = if opt.id == current {
+                        format!("• {}", opt.label)
+                    } else {
+                        opt.label.clone()
+                    };
+                    components::ghost_button(
+                        MotionKey::new("tr-choice", slot).with(opt.id.as_str()),
+                        text,
+                        theme,
+                    )
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                            let choice = opt_val.clone();
+                            this.state.update(cx, |state, _| {
+                                if let Err(err) = clip_pick::apply(
+                                    state,
+                                    Pick::TransitionParam {
+                                        slot,
+                                        edit: TransitionSlotEdit::Choice(choice),
+                                    },
+                                ) {
+                                    state.report_error(&err);
+                                }
+                            });
+                            cx.notify();
+                        }),
+                    )
+                    .into_any_element()
+                })
+                .collect();
+            out.push(
+                div()
+                    .flex()
+                    .flex_row()
+                    .items_center()
+                    .justify_between()
+                    .px(px(Theme::SPACE_XS))
+                    .py(px(Theme::SPACE_XS))
+                    .child(
+                        div()
+                            .text_size(Theme::TEXT_UI)
+                            .text_color(theme.text_muted)
+                            .child(pspec.label.clone()),
+                    )
+                    .child(
+                        div()
+                            .flex()
+                            .flex_row()
+                            .gap(px(Theme::SPACE_XS))
+                            .children(chips),
+                    )
+                    .into_any_element(),
+            );
+        }
+        EffectParamKind::Color => {
+            let value = transition
+                .color(slot)
+                .unwrap_or_else(|| pspec.default_color_u8());
+            let swatches: Vec<_> = crate::app::clip_effects::PARAM_COLORS
+                .iter()
+                .map(|(name, _, rgba)| {
+                    let rgba = *rgba;
+                    let picked = rgba == value;
+                    div()
+                        .id(MotionKey::new("tr-slot-col", slot)
+                            .with(name)
+                            .element_id("tr-slot-col"))
+                        .w(px(16.))
+                        .h(px(16.))
+                        .rounded(px(Theme::CONTROL_RADIUS))
+                        .bg(swatch(rgba))
+                        .border_1()
+                        .border_color(if picked { theme.accent } else { theme.border })
+                        .on_mouse_down(
+                            MouseButton::Left,
+                            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                                this.state.update(cx, |state, _| {
+                                    if let Err(err) = clip_pick::apply(
+                                        state,
+                                        Pick::TransitionParam {
+                                            slot,
+                                            edit: TransitionSlotEdit::Color(rgba),
+                                        },
+                                    ) {
+                                        state.report_error(&err);
+                                    }
+                                });
+                                cx.notify();
+                            }),
+                        )
+                        .into_any_element()
+                })
+                .collect();
+            out.push(
+                div()
+                    .flex()
+                    .flex_row()
+                    .items_center()
+                    .justify_between()
+                    .px(px(Theme::SPACE_XS))
+                    .py(px(Theme::SPACE_XS))
+                    .child(
+                        div()
+                            .flex()
+                            .flex_row()
+                            .gap(px(Theme::SPACE_XS))
+                            .items_center()
+                            .child(
+                                div()
+                                    .text_size(Theme::TEXT_UI)
+                                    .text_color(theme.text_muted)
+                                    .child(pspec.label.clone()),
+                            )
+                            .child(
+                                div()
+                                    .text_size(Theme::TEXT_UI)
+                                    .text_color(theme.text_faint)
+                                    .child(color_name(value)),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .flex()
+                            .flex_row()
+                            .gap(px(Theme::SPACE_XS))
+                            .children(swatches),
+                    )
+                    .into_any_element(),
+            );
+        }
+        EffectParamKind::Vec2 | EffectParamKind::Size => {
+            let value = transition.vec2(slot).unwrap_or(pspec.default_vec2);
+            let unit = ((pspec.max - pspec.min) / 100.0).max(0.001);
+            for (axis, name) in [(0usize, "x"), (1usize, "y")] {
+                out.push(
+                    audio_row(
+                        theme,
+                        state,
+                        MotionKey::new("tr-vec2", slot).with(name),
+                        &format!("{} {name}", pspec.label),
+                        Readout::number(value[axis], 3, unit),
+                        move |state, by| {
+                            clip_pick::apply(
+                                state,
+                                Pick::TransitionParam {
+                                    slot,
+                                    edit: TransitionSlotEdit::NudgeVec2 { axis, by },
+                                },
+                            )
+                        },
+                        cx,
+                    )
+                    .into_any_element(),
+                );
+            }
+        }
+        EffectParamKind::Point3 => {
+            let value = transition.point3(slot).unwrap_or(pspec.default_vec3);
+            let unit = ((pspec.max - pspec.min) / 100.0).max(0.001);
+            for (axis, name) in [(0usize, "x"), (1usize, "y"), (2usize, "z")] {
+                out.push(
+                    audio_row(
+                        theme,
+                        state,
+                        MotionKey::new("tr-pt3", slot).with(name),
+                        &format!("{} {name}", pspec.label),
+                        Readout::number(value[axis], 3, unit),
+                        move |state, by| {
+                            clip_pick::apply(
+                                state,
+                                Pick::TransitionParam {
+                                    slot,
+                                    edit: TransitionSlotEdit::NudgePoint3 { axis, by },
+                                },
+                            )
+                        },
+                        cx,
+                    )
+                    .into_any_element(),
+                );
+            }
+        }
+        EffectParamKind::Curve
+        | EffectParamKind::Gradient
+        | EffectParamKind::Text
+        | EffectParamKind::Font
+        | EffectParamKind::File
+        | EffectParamKind::Layer => {}
+    }
+}

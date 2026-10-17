@@ -252,3 +252,285 @@ fn collapsing_one_lane_leaves_the_others_expanded() {
         );
     }
 }
+
+#[test]
+fn stepping_a_lane_through_height_presets() {
+    let (mut state, _clip) = with_clip();
+    let track = fixture_lane(&mut state);
+
+    // Start at Mini (20) and walk up through every preset in TrackDisplay::PRESETS.
+    state
+        .set_lane_height(track, TrackDisplay::PRESETS[0].1 as f32)
+        .expect("set to Mini");
+    for window in TrackDisplay::PRESETS.windows(2) {
+        let (from_name, from_h) = window[0];
+        let (to_name, to_h) = window[1];
+        assert_eq!(state.lane_display(track).height, from_h, "at {from_name}");
+        let depth = state.history_depth();
+        state
+            .step_lane_height_preset(track, true)
+            .expect("step taller");
+        assert_eq!(
+            state.lane_display(track).height,
+            to_h,
+            "stepping up from {from_name} ({from_h}) should land on {to_name} ({to_h})"
+        );
+        assert_eq!(
+            state.history_depth(),
+            depth + 1,
+            "one undo step per preset notch"
+        );
+    }
+
+    // At Large (72), stepping taller clamps without adding an undo entry.
+    let depth = state.history_depth();
+    state
+        .step_lane_height_preset(track, true)
+        .expect("step taller at Large");
+    assert_eq!(state.lane_display(track).height, 72);
+    assert_eq!(state.history_depth(), depth);
+
+    // Walk down from Large (72) through every preset to Mini (20).
+    for window in TrackDisplay::PRESETS.windows(2).rev() {
+        let (to_name, to_h) = window[0];
+        let (from_name, from_h) = window[1];
+        assert_eq!(state.lane_display(track).height, from_h, "at {from_name}");
+        let depth = state.history_depth();
+        state
+            .step_lane_height_preset(track, false)
+            .expect("step shorter");
+        assert_eq!(
+            state.lane_display(track).height,
+            to_h,
+            "stepping down from {from_name} ({from_h}) should land on {to_name} ({to_h})"
+        );
+        assert_eq!(state.history_depth(), depth + 1);
+    }
+
+    // At Mini (20), stepping shorter clamps without adding an undo entry.
+    let depth = state.history_depth();
+    state
+        .step_lane_height_preset(track, false)
+        .expect("step shorter at Mini");
+    assert_eq!(state.lane_display(track).height, 20);
+    assert_eq!(state.history_depth(), depth);
+
+    // Intermediate heights between presets step to the nearest preset in the scroll direction.
+    state.set_lane_height(track, 25.0).expect("set 25");
+    state
+        .step_lane_height_preset(track, true)
+        .expect("25 up -> 32");
+    assert_eq!(state.lane_display(track).height, 32);
+
+    state.set_lane_height(track, 25.0).expect("set 25");
+    state
+        .step_lane_height_preset(track, false)
+        .expect("25 down -> 20");
+    assert_eq!(state.lane_display(track).height, 20);
+
+    // Manually dragged above Large (e.g. 100): scrolling up leaves 100 unchanged;
+    // scrolling down steps to Large (72).
+    state.set_lane_height(track, 100.0).expect("set 100");
+    let depth = state.history_depth();
+    state
+        .step_lane_height_preset(track, true)
+        .expect("100 up stays 100");
+    assert_eq!(state.lane_display(track).height, 100);
+    assert_eq!(state.history_depth(), depth);
+
+    state
+        .step_lane_height_preset(track, false)
+        .expect("100 down -> 72");
+    assert_eq!(state.lane_display(track).height, 72);
+}
+
+#[test]
+fn the_track_context_menu_offers_every_height_preset_and_marks_the_active_one() {
+    use crate::surfaces::context_menu::{MenuItem, TRACK_ITEMS, TrackMenu};
+
+    let (mut state, _clip) = with_clip();
+    let track = fixture_lane(&mut state);
+
+    let preset_rows: Vec<_> = TRACK_ITEMS
+        .iter()
+        .filter_map(MenuItem::row)
+        .filter(|row| {
+            let text = (row.label)(&TrackMenu::of(&state, track).expect("track menu"));
+            text.contains("Lane Height:")
+        })
+        .collect();
+    assert_eq!(
+        preset_rows.len(),
+        TrackDisplay::PRESETS.len(),
+        "track context menu must offer one row per TrackDisplay::PRESETS entry"
+    );
+
+    for (row, &(name, height)) in preset_rows.iter().zip(TrackDisplay::PRESETS.iter()) {
+        let expected_id = format!("ctx-lane-{}", name.to_ascii_lowercase());
+        assert_eq!(row.id, expected_id);
+
+        let facts = TrackMenu::of(&state, track).expect("track menu");
+        (row.run)(&mut state, &facts).expect("apply preset from context menu");
+        assert_eq!(
+            state.lane_display(track).height,
+            height,
+            "clicking {} should set height to {height}",
+            row.id
+        );
+
+        let facts = TrackMenu::of(&state, track).expect("track menu at preset");
+        for (other_row, &(other_name, _)) in preset_rows.iter().zip(TrackDisplay::PRESETS.iter()) {
+            let label = (other_row.label)(&facts);
+            if other_name == name {
+                assert_eq!(
+                    label,
+                    format!("• Lane Height: {other_name}"),
+                    "active preset {name} must be marked"
+                );
+            } else {
+                assert_eq!(
+                    label,
+                    format!("Lane Height: {other_name}"),
+                    "inactive preset {other_name} must be unmarked when {name} is active"
+                );
+            }
+        }
+    }
+
+    // A custom dragged height marks none of the presets.
+    state.set_lane_height(track, 60.0).expect("set custom 60");
+    let facts = TrackMenu::of(&state, track).expect("track menu at custom height");
+    for (row, &(name, _)) in preset_rows.iter().zip(TrackDisplay::PRESETS.iter()) {
+        assert_eq!((row.label)(&facts), format!("Lane Height: {name}"));
+    }
+}
+
+#[gpui::test]
+fn shift_scrolling_a_track_header_steps_its_preset_without_scrolling_the_timeline(
+    cx: &mut gpui::TestAppContext,
+) {
+    use gpui::{Modifiers, ScrollDelta, ScrollWheelEvent, TouchPhase, point, px};
+
+    let (state, visual) = crate::test_support::drawn_shell(cx, "lane-shift-scroll");
+    visual.update(|_, app| {
+        app.set_reduce_motion(true);
+        state.update(app, |s, _| {
+            s.add_track(aria_models::TrackKind::Audio, "A1")
+                .expect("add audio track");
+        });
+    });
+    visual.run_until_parked();
+
+    let (v1, a1) = visual.read(|app| {
+        let s = state.read(app);
+        let v1 = s
+            .store
+            .sequence
+            .tracks
+            .iter()
+            .find(|t| t.kind == crate::types::UiTrackKind::Video)
+            .expect("video track")
+            .id;
+        let a1 = s
+            .store
+            .sequence
+            .tracks
+            .iter()
+            .find(|t| t.kind == crate::types::UiTrackKind::Audio)
+            .expect("audio track")
+            .id;
+        (v1, a1)
+    });
+
+    let header_center = visual
+        .debug_bounds("track-header-V1")
+        .expect("v1 track header is drawn")
+        .center();
+
+    let scroll_at =
+        |visual: &mut gpui::VisualTestContext, pos: gpui::Point<gpui::Pixels>, dy: f32| {
+            visual.simulate_mouse_move(pos, None, Modifiers::shift());
+            visual.simulate_event(ScrollWheelEvent {
+                position: pos,
+                delta: ScrollDelta::Lines(point(0.0, dy)),
+                modifiers: Modifiers::shift(),
+                touch_phase: TouchPhase::Moved,
+            });
+            visual.run_until_parked();
+        };
+
+    // V1 starts at Medium (48); Shift+scroll down twice steps V1 to Small (32) then Mini (20),
+    // without scrolling the timeline horizontally or changing A1's height.
+    scroll_at(visual, header_center, -1.0);
+    assert_eq!(
+        visual.read(|app| state.read(app).lane_display(v1).height),
+        32,
+        "first Shift+scroll down on V1 header steps 48 -> 32"
+    );
+    assert_eq!(
+        visual.read(|app| state.read(app).lane_display(a1).height),
+        48,
+        "neighbour track A1 height is untouched"
+    );
+    assert_eq!(
+        visual.read(|app| state.read(app).scroll_x),
+        0.0,
+        "Shift+scroll on track header must not scroll timeline horizontally"
+    );
+
+    let header_center = visual
+        .debug_bounds("track-header-V1")
+        .expect("v1 track header is drawn")
+        .center();
+    scroll_at(visual, header_center, -1.0);
+    assert_eq!(
+        visual.read(|app| state.read(app).lane_display(v1).height),
+        20,
+        "second Shift+scroll down on V1 header steps 32 -> 20"
+    );
+    let v1_bounds = visual
+        .debug_bounds("track-header-V1")
+        .expect("v1 track header is drawn at Mini");
+    assert_eq!(
+        v1_bounds.size.height,
+        px(20.0),
+        "Mini lane draws at 20 px height without being floored at 28 px"
+    );
+
+    // Shift+scroll up three times steps V1 through Small (32) -> Medium (48) -> Large (72).
+    for expected in [32, 48, 72] {
+        let pos = visual
+            .debug_bounds("track-header-V1")
+            .expect("v1 track header is drawn")
+            .center();
+        scroll_at(visual, pos, 1.0);
+        assert_eq!(
+            visual.read(|app| state.read(app).lane_display(v1).height),
+            expected
+        );
+    }
+    assert_eq!(visual.read(|app| state.read(app).scroll_x), 0.0);
+    assert_eq!(
+        visual.read(|app| state.read(app).lane_display(a1).height),
+        48
+    );
+
+    // Shift+scroll over the time area still scrolls horizontally without changing track heights.
+    let canvas_center = visual
+        .debug_bounds("timeline-video-canvas")
+        .expect("timeline video canvas is drawn")
+        .center();
+    scroll_at(visual, canvas_center, 1.0);
+    assert!(
+        visual.read(|app| state.read(app).scroll_x) > 0.0,
+        "Shift+scroll over the time area scrolls horizontally"
+    );
+    assert_eq!(
+        visual.read(|app| state.read(app).lane_display(v1).height),
+        72
+    );
+    assert_eq!(
+        visual.read(|app| state.read(app).lane_display(a1).height),
+        48
+    );
+}

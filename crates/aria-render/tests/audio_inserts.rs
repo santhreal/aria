@@ -70,12 +70,14 @@ fn scalar(name: &str, default: f32, min: f32, max: f32) -> EffectParamSpec {
         max,
         default_color: [0; 4],
         default_vec2: [0.0; 2],
+        ..Default::default()
     }
 }
 
 fn spec(id: &str, params: Vec<EffectParamSpec>, latency: u32, sidechain: bool) -> AudioEffectSpec {
     AudioEffectSpec {
         id: id.into(),
+        category: String::new(),
         label: format!("{id} label"),
         params,
         latency,

@@ -34,6 +34,7 @@ fn a_declared_range_is_the_range_the_model_enforces() {
             let value_of: fn(f32) -> ParamValue = match spec.kind {
                 ParamKind::Scalar => ParamValue::Scalar,
                 ParamKind::Vec2 => |v| ParamValue::Vec2([v, v]),
+                ParamKind::Vec3 => |v| ParamValue::Vec3([v, v, v]),
                 _ => continue,
             };
             {
@@ -129,7 +130,6 @@ fn every_row_declares_a_group_a_panel_knows() {
         "filter",
         "lut",
         "grade",
-        "mask",
         "chroma",
         "matte",
         "shadow",

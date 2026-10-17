@@ -27,6 +27,7 @@ impl Text {
         underline = false,
         case = "normal",
         letter_spacing = 0.0,
+        kerning = true,
         line_spacing = 1.2,
         align = ("center".to_string(), "middle".to_string()),
         wrap = true,
@@ -45,6 +46,7 @@ impl Text {
         underline: bool,
         case: &str,
         letter_spacing: f32,
+        kerning: bool,
         line_spacing: f32,
         align: (String, String),
         wrap: bool,
@@ -61,6 +63,7 @@ impl Text {
             case: parse_text_case(case)?,
             fill: parse_color_opt(color)?.into(),
             letter_spacing: letter_spacing.into(),
+            kerning,
             line_spacing: line_spacing.into(),
             align_h: parse_align_h(&align.0)?,
             align_v: parse_align_v(&align.1)?,
@@ -71,6 +74,7 @@ impl Text {
             // Catalog presets are not exposed here: treatments are
             // always explicit stroke/background/shadow arguments.
             effect_preset: None,
+            runs: Vec::new(),
         };
         // The model's own bounds decide what a size, spacing, or stroke width
         // may be, so a script learns at the constructor rather than at render.
@@ -112,6 +116,7 @@ fn parse_align_h(s: &str) -> PyResult<TextAlignH> {
         "left" => TextAlignH::Left,
         "center" => TextAlignH::Center,
         "right" => TextAlignH::Right,
+        "justify" => TextAlignH::Justify,
         other => {
             return Err(PyValueError::new_err(format!(
                 "unknown horizontal align {other:?}"
@@ -222,6 +227,7 @@ fn apply_text_style_fields(style: &mut TextStyle, dict: &Bound<'_, PyDict>) -> P
             "italic" => style.italic = value.extract()?,
             "underline" => style.underline = value.extract()?,
             "letter_spacing" => style.letter_spacing = value.extract::<f32>()?.into(),
+            "kerning" => style.kerning = value.extract()?,
             "line_spacing" => style.line_spacing = value.extract::<f32>()?.into(),
             "wrap" => style.wrap = value.extract()?,
             "case" => style.case = parse_text_case(&value.extract::<String>()?)?,

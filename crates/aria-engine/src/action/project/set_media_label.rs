@@ -3,20 +3,20 @@
 //! Self-inverse: applying it returns the same action carrying the colour that
 //! was there before, so undo and redo are the same code path.
 
-use aria_models::{MarkerColor, MediaId, ModelError};
+use aria_models::{LabelColor, MediaId, ModelError};
 
 use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
 
 pub struct SetMediaLabelAction {
     pub media: MediaId,
-    pub label: Option<MarkerColor>,
+    pub label: Option<LabelColor>,
 }
 
 pub fn execute(
     ctx: &mut ApplyContext<'_>,
     media: MediaId,
-    label: Option<MarkerColor>,
+    label: Option<LabelColor>,
 ) -> Result<Box<dyn EditAction>, EngineError> {
     let source = ctx
         .project

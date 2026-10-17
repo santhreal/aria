@@ -8,7 +8,9 @@ pub(super) fn clip_param(
     clip: &Clip,
     wire_clip: u64,
 ) -> Result<ClipParam, Rejection> {
-    use crate::wire::{WireLookParam, WireShapeParam, WireStyleParam, WireTextParam};
+    use crate::wire::{
+        WireLookParam, WireMaskParam, WireShapeParam, WireStyleParam, WireTextParam,
+    };
 
     Ok(match param {
         WireClipParam::Position => ClipParam::Position,
@@ -66,8 +68,12 @@ pub(super) fn clip_param(
                 WireLookParam::AdjustHue => aria_models::LookParam::AdjustHue,
                 WireLookParam::AdjustHighlights => aria_models::LookParam::AdjustHighlights,
                 WireLookParam::AdjustShadows => aria_models::LookParam::AdjustShadows,
+                WireLookParam::AdjustWhites => aria_models::LookParam::AdjustWhites,
+                WireLookParam::AdjustBlacks => aria_models::LookParam::AdjustBlacks,
                 WireLookParam::AdjustSharpness => aria_models::LookParam::AdjustSharpness,
                 WireLookParam::AdjustVignette => aria_models::LookParam::AdjustVignette,
+                WireLookParam::AdjustVibrance => aria_models::LookParam::AdjustVibrance,
+                WireLookParam::AdjustFadedFilm => aria_models::LookParam::AdjustFadedFilm,
                 WireLookParam::AdjustLiftR => aria_models::LookParam::AdjustLiftR,
                 WireLookParam::AdjustLiftG => aria_models::LookParam::AdjustLiftG,
                 WireLookParam::AdjustLiftB => aria_models::LookParam::AdjustLiftB,
@@ -80,16 +86,85 @@ pub(super) fn clip_param(
                 WireLookParam::AdjustGainG => aria_models::LookParam::AdjustGainG,
                 WireLookParam::AdjustGainB => aria_models::LookParam::AdjustGainB,
                 WireLookParam::AdjustGainMaster => aria_models::LookParam::AdjustGainMaster,
-                WireLookParam::MaskFeather => aria_models::LookParam::MaskFeather,
-                WireLookParam::MaskCenter => aria_models::LookParam::MaskCenter,
-                WireLookParam::MaskSize => aria_models::LookParam::MaskSize,
-                WireLookParam::MaskRotation => aria_models::LookParam::MaskRotation,
-                WireLookParam::MaskRoundness => aria_models::LookParam::MaskRoundness,
+                WireLookParam::AdjustCurveMasterShadows => {
+                    aria_models::LookParam::AdjustCurveMasterShadows
+                }
+                WireLookParam::AdjustCurveMasterMidtones => {
+                    aria_models::LookParam::AdjustCurveMasterMidtones
+                }
+                WireLookParam::AdjustCurveMasterHighlights => {
+                    aria_models::LookParam::AdjustCurveMasterHighlights
+                }
+                WireLookParam::AdjustCurveRedShadows => {
+                    aria_models::LookParam::AdjustCurveRedShadows
+                }
+                WireLookParam::AdjustCurveRedMidtones => {
+                    aria_models::LookParam::AdjustCurveRedMidtones
+                }
+                WireLookParam::AdjustCurveRedHighlights => {
+                    aria_models::LookParam::AdjustCurveRedHighlights
+                }
+                WireLookParam::AdjustCurveGreenShadows => {
+                    aria_models::LookParam::AdjustCurveGreenShadows
+                }
+                WireLookParam::AdjustCurveGreenMidtones => {
+                    aria_models::LookParam::AdjustCurveGreenMidtones
+                }
+                WireLookParam::AdjustCurveGreenHighlights => {
+                    aria_models::LookParam::AdjustCurveGreenHighlights
+                }
+                WireLookParam::AdjustCurveBlueShadows => {
+                    aria_models::LookParam::AdjustCurveBlueShadows
+                }
+                WireLookParam::AdjustCurveBlueMidtones => {
+                    aria_models::LookParam::AdjustCurveBlueMidtones
+                }
+                WireLookParam::AdjustCurveBlueHighlights => {
+                    aria_models::LookParam::AdjustCurveBlueHighlights
+                }
+                WireLookParam::AdjustHueSatRed => aria_models::LookParam::AdjustHueSatRed,
+                WireLookParam::AdjustHueSatYellow => aria_models::LookParam::AdjustHueSatYellow,
+                WireLookParam::AdjustHueSatGreen => aria_models::LookParam::AdjustHueSatGreen,
+                WireLookParam::AdjustHueSatCyan => aria_models::LookParam::AdjustHueSatCyan,
+                WireLookParam::AdjustHueSatBlue => aria_models::LookParam::AdjustHueSatBlue,
+                WireLookParam::AdjustHueSatMagenta => aria_models::LookParam::AdjustHueSatMagenta,
+                WireLookParam::AdjustHueHueRed => aria_models::LookParam::AdjustHueHueRed,
+                WireLookParam::AdjustHueHueYellow => aria_models::LookParam::AdjustHueHueYellow,
+                WireLookParam::AdjustHueHueGreen => aria_models::LookParam::AdjustHueHueGreen,
+                WireLookParam::AdjustHueHueCyan => aria_models::LookParam::AdjustHueHueCyan,
+                WireLookParam::AdjustHueHueBlue => aria_models::LookParam::AdjustHueHueBlue,
+                WireLookParam::AdjustHueHueMagenta => aria_models::LookParam::AdjustHueHueMagenta,
+                WireLookParam::AdjustHueLumaRed => aria_models::LookParam::AdjustHueLumaRed,
+                WireLookParam::AdjustHueLumaYellow => aria_models::LookParam::AdjustHueLumaYellow,
+                WireLookParam::AdjustHueLumaGreen => aria_models::LookParam::AdjustHueLumaGreen,
+                WireLookParam::AdjustHueLumaCyan => aria_models::LookParam::AdjustHueLumaCyan,
+                WireLookParam::AdjustHueLumaBlue => aria_models::LookParam::AdjustHueLumaBlue,
+                WireLookParam::AdjustHueLumaMagenta => aria_models::LookParam::AdjustHueLumaMagenta,
+                WireLookParam::AdjustHslKeyHue => aria_models::LookParam::AdjustHslKeyHue,
+                WireLookParam::AdjustHslKeyWidth => aria_models::LookParam::AdjustHslKeyWidth,
+                WireLookParam::AdjustHslHue => aria_models::LookParam::AdjustHslHue,
+                WireLookParam::AdjustHslSaturation => aria_models::LookParam::AdjustHslSaturation,
+                WireLookParam::AdjustHslLuma => aria_models::LookParam::AdjustHslLuma,
                 WireLookParam::ChromaStrength => aria_models::LookParam::ChromaStrength,
                 WireLookParam::ChromaShadow => aria_models::LookParam::ChromaShadow,
                 WireLookParam::MatteSoftness => aria_models::LookParam::MatteSoftness,
             },
         },
+        WireClipParam::Mask { index, param } => {
+            mask_index(clip, *index, wire_clip)?;
+            ClipParam::Mask {
+                mask: *index,
+                param: match param {
+                    WireMaskParam::Feather => aria_models::MaskParam::Feather,
+                    WireMaskParam::Center => aria_models::MaskParam::Center,
+                    WireMaskParam::Size => aria_models::MaskParam::Size,
+                    WireMaskParam::Rotation => aria_models::MaskParam::Rotation,
+                    WireMaskParam::Roundness => aria_models::MaskParam::Roundness,
+                    WireMaskParam::Opacity => aria_models::MaskParam::Opacity,
+                    WireMaskParam::Expansion => aria_models::MaskParam::Expansion,
+                },
+            }
+        }
         WireClipParam::Style { param } => ClipParam::Style {
             param: match param {
                 WireStyleParam::ShadowColor => aria_models::StyleParam::ShadowColor,
@@ -136,16 +211,35 @@ pub(super) fn lower_mask_kind(kind: WireMaskKind) -> MaskKind {
     }
 }
 
+pub(super) fn lower_mask_mode(mode: WireMaskMode) -> MaskMode {
+    match mode {
+        WireMaskMode::None => MaskMode::None,
+        WireMaskMode::Add => MaskMode::Add,
+        WireMaskMode::Subtract => MaskMode::Subtract,
+        WireMaskMode::Intersect => MaskMode::Intersect,
+        WireMaskMode::Lighten => MaskMode::Lighten,
+        WireMaskMode::Darken => MaskMode::Darken,
+        WireMaskMode::Difference => MaskMode::Difference,
+    }
+}
+
 pub(super) fn lower_mask(wire: &WireMask) -> Result<Mask, Rejection> {
     let feather = wire.feather.unwrap_or(0.0);
-    if !feather.is_finite() || !(0.0..=1.0).contains(&feather) {
-        return Err(Rejection::new(format!(
-            "mask feather must be between 0 and 1 (got {feather})"
-        )));
+    let opacity = wire.opacity.unwrap_or(1.0);
+    for (name, value) in [("feather", feather), ("opacity", opacity)] {
+        if !value.is_finite() || !(0.0..=1.0).contains(&value) {
+            return Err(Rejection::new(format!(
+                "mask {name} must be between 0 and 1 (got {value})"
+            )));
+        }
     }
     let mut mask = Mask::new(lower_mask_kind(wire.kind));
     mask.feather = Param::Constant(feather as f32);
+    mask.opacity = Param::Constant(opacity as f32);
     mask.invert = wire.invert.unwrap_or(false);
+    if let Some(mode) = wire.mode {
+        mask.mode = lower_mask_mode(mode);
+    }
     if let Some(center) = wire.center {
         if !center[0].is_finite() || !center[1].is_finite() {
             return Err(Rejection::new("mask center coordinates must be finite"));
@@ -169,6 +263,12 @@ pub(super) fn lower_mask(wire: &WireMask) -> Result<Mask, Rejection> {
             return Err(Rejection::new("mask roundness must be finite"));
         }
         mask.roundness = Param::Constant(roundness);
+    }
+    if let Some(expansion) = wire.expansion {
+        if !expansion.is_finite() {
+            return Err(Rejection::new("mask expansion must be finite"));
+        }
+        mask.expansion = Param::Constant(expansion);
     }
     // Model `Mask::validate` range-checks every geometry field.
     mask.validate().map_err(|e| Rejection::new(e.to_string()))?;

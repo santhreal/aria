@@ -1,6 +1,6 @@
 //! What an icon-only control is called, and what key does the same thing.
 //!
-//! One owner, because a glyph is not a name: the tool strip, the transport, the
+//! One owner, because a glyph is not a name: the tool bar, the transport, the
 //! track headers, and the effect rows were all icon-only, so the only way to
 //! learn what a control did was to press it. Every one of them now names itself
 //! on hover, with its shortcut when it has one.
@@ -10,7 +10,12 @@
 //! with it and a tip that names a binding which no longer exists is caught by the
 //! test below rather than shown as a lie.
 
-use gpui::{AnyView, App, AppContext, IntoElement, ParentElement, Render, Styled, Window, div, px};
+use std::time::Duration;
+
+use gpui::{
+    AnyView, App, AppContext, InteractiveElement, IntoElement, ParentElement, Render,
+    StatefulInteractiveElement, Styled, Window, div, px,
+};
 
 use crate::keys::bindings::SHIPPED_BINDINGS;
 use crate::theme::Theme;
@@ -30,11 +35,21 @@ pub struct ControlTip {
 
 /// Every icon-only control that names itself.
 pub const CONTROL_TIPS: &[ControlTip] = &[
-    // Tool strip.
+    // Tool bar.
     ControlTip {
         control: "tool-pointer",
         name: "Pointer",
         binding: Some("key-tool-pointer"),
+    },
+    ControlTip {
+        control: "tool-track-forward",
+        name: "Track Select Forward — select from here on",
+        binding: Some("key-tool-track-forward"),
+    },
+    ControlTip {
+        control: "tool-track-backward",
+        name: "Track Select Backward — select up to here",
+        binding: Some("key-tool-track-backward"),
     },
     ControlTip {
         control: "tool-razor",
@@ -77,6 +92,16 @@ pub const CONTROL_TIPS: &[ControlTip] = &[
         binding: Some("key-tool-ripple"),
     },
     ControlTip {
+        control: "tool-pen",
+        name: "Pen — add keyframes or draw masks",
+        binding: Some("key-tool-pen"),
+    },
+    ControlTip {
+        control: "tool-type",
+        name: "Type — create or edit text in the Viewer",
+        binding: Some("key-tool-type"),
+    },
+    ControlTip {
         control: "bin-new",
         name: "New bin in this folder",
         binding: None,
@@ -94,14 +119,29 @@ pub const CONTROL_TIPS: &[ControlTip] = &[
     ControlTip {
         control: "snap",
         name: "Snapping",
+        binding: Some("key-snap"),
+    },
+    ControlTip {
+        control: "linked-selection",
+        name: "Linked selection",
         binding: None,
     },
     ControlTip {
-        control: "toolbar-tc",
+        control: "timeline-display",
+        name: "Timeline display settings",
+        binding: None,
+    },
+    ControlTip {
+        control: "fit-timeline",
+        name: "Fit the sequence to the window",
+        binding: Some("key-fit"),
+    },
+    // The Viewer's control row: the playhead field and the transport.
+    ControlTip {
+        control: "playhead-tc",
         name: "Playhead timecode",
         binding: None,
     },
-    // Transport, in the tool strip and under the preview.
     ControlTip {
         control: "go-start",
         name: "Go to start",
@@ -123,8 +163,13 @@ pub const CONTROL_TIPS: &[ControlTip] = &[
         binding: Some("key-play"),
     },
     ControlTip {
+        control: "preview-loop",
+        name: "Loop playback",
+        binding: Some("key-loop"),
+    },
+    ControlTip {
         control: "preview-shuttle",
-        name: "Shuttle speed — silent above 1x, click for 1x",
+        name: "Shuttle speed — silent above 4x, click for 1x",
         binding: Some("key-shuttle-forward"),
     },
     ControlTip {
@@ -137,12 +182,17 @@ pub const CONTROL_TIPS: &[ControlTip] = &[
         name: "Go to end",
         binding: Some("key-end"),
     },
-    // Preview view.
     ControlTip {
-        control: "fit-timeline",
-        name: "Fit the sequence to the window",
-        binding: Some("key-fit"),
+        control: "program-mark-in",
+        name: "Mark the sequence in point",
+        binding: Some("key-mark-in"),
     },
+    ControlTip {
+        control: "program-mark-out",
+        name: "Mark the sequence out point",
+        binding: Some("key-mark-out"),
+    },
+    // Preview view.
     ControlTip {
         control: "preview-zoom-out",
         name: "Zoom the preview out",
@@ -164,8 +214,58 @@ pub const CONTROL_TIPS: &[ControlTip] = &[
         binding: None,
     },
     ControlTip {
+        control: "preview-resolution",
+        name: "Playback and paused resolution",
+        binding: None,
+    },
+    ControlTip {
+        control: "preview-proxies-toggle",
+        name: "Play proxies or the original media",
+        binding: None,
+    },
+    ControlTip {
         control: "preview-meter",
         name: "Output peaks — click to clear the clip",
+        binding: None,
+    },
+    ControlTip {
+        control: "viewer-tab-program",
+        name: "Show the sequence",
+        binding: Some("key-pane-viewer"),
+    },
+    ControlTip {
+        control: "viewer-tab-source",
+        name: "Show this source; middle-click to close it",
+        binding: Some("key-pane-viewer"),
+    },
+    ControlTip {
+        control: "viewer-tab-close",
+        name: "Close this Source tab",
+        binding: Some("key-pane-close"),
+    },
+    ControlTip {
+        control: "viewer-split",
+        name: "Source and Program side by side",
+        binding: None,
+    },
+    ControlTip {
+        control: "viewer-rulers",
+        name: "Rulers and guides over the Program view",
+        binding: Some("key-rulers"),
+    },
+    ControlTip {
+        control: "viewer-safe",
+        name: "Title-safe and action-safe margins",
+        binding: None,
+    },
+    ControlTip {
+        control: "viewer-guides",
+        name: "Show the guides dragged from the rulers",
+        binding: None,
+    },
+    ControlTip {
+        control: "viewer-alpha",
+        name: "Transparency grid where no layer covers the canvas",
         binding: None,
     },
     // Source monitor.
@@ -199,10 +299,46 @@ pub const CONTROL_TIPS: &[ControlTip] = &[
         name: "Overwrite with the marked range",
         binding: Some("key-source-overwrite"),
     },
-    // Timeline.
+    // Timeline. The header repeats the tool bar's toggles beside the
+    // timecode, each under its own id so the two light on their own.
     ControlTip {
         control: "add-track",
         name: "Add a track",
+        binding: None,
+    },
+    ControlTip {
+        control: "timeline-tc",
+        name: "Sequence timecode",
+        binding: None,
+    },
+    ControlTip {
+        control: "timeline-snap",
+        name: "Snapping",
+        binding: Some("key-snap"),
+    },
+    ControlTip {
+        control: "timeline-linked",
+        name: "Linked selection",
+        binding: None,
+    },
+    ControlTip {
+        control: "timeline-marker",
+        name: "Add a marker at the playhead",
+        binding: Some("key-marker-add"),
+    },
+    ControlTip {
+        control: "timeline-display-settings",
+        name: "Timeline display settings",
+        binding: None,
+    },
+    ControlTip {
+        control: "timeline-graph",
+        name: "Graph editor",
+        binding: Some("key-graph-editor"),
+    },
+    ControlTip {
+        control: "property-search-clear",
+        name: "Clear the property search",
         binding: None,
     },
     // Multicam. A frame nudge and an audio sync are glyphs on a dense row of
@@ -233,7 +369,24 @@ pub const CONTROL_TIPS: &[ControlTip] = &[
         name: "Reset this colour wheel",
         binding: None,
     },
+    // Driver source under a driven property.
+    ControlTip {
+        control: "inspector-driver-whip",
+        name: "Pick whip: click a property to read it in this driver",
+        binding: None,
+    },
+    // Parent row in the Transform tab.
+    ControlTip {
+        control: "inspector-parent-whip",
+        name: "Pick whip: drag onto a timeline clip, or click here and then the clip, to parent this clip to it. Hold Shift to snap",
+        binding: None,
+    },
     // Effect rows.
+    ControlTip {
+        control: "inspector-fx-bypass",
+        name: "Switch this effect off, or back on",
+        binding: None,
+    },
     ControlTip {
         control: "inspector-fx-up",
         name: "Move this effect earlier",
@@ -242,6 +395,16 @@ pub const CONTROL_TIPS: &[ControlTip] = &[
     ControlTip {
         control: "inspector-fx-down",
         name: "Move this effect later",
+        binding: None,
+    },
+    ControlTip {
+        control: "inspector-fx-reset",
+        name: "Put this effect's parameters back at their defaults",
+        binding: None,
+    },
+    ControlTip {
+        control: "inspector-fx-menu",
+        name: "Rename, duplicate, copy, paste or save this effect as a preset",
         binding: None,
     },
     ControlTip {
@@ -265,23 +428,41 @@ pub const CONTROL_TIPS: &[ControlTip] = &[
         name: "Remove this audio effect",
         binding: None,
     },
-    // The bar's own controls: the two rails, the settings dialog, and the three
-    // window buttons. Each is a glyph with no word beside it.
+    // The property rows in the timeline and in Effect Controls, and the Path
+    // rows: a stopwatch, a keyframe navigator and a reset, each a glyph. A row
+    // is drawn once per property, so the key is the control's kind, and each
+    // control is named once for every row that draws it.
     ControlTip {
-        control: "rail-sidebar",
-        name: "Media sidebar",
+        control: "prop-watch",
+        name: "Stopwatch: animate this property, or stop animating it and keep the value at the playhead. Alt+click adds or removes a driver",
         binding: None,
     },
     ControlTip {
-        control: "rail-inspector",
-        name: "Inspector rail",
+        control: "prop-reset",
+        name: "Reset this property to its default, as a keyframe when it is animated",
         binding: None,
     },
     ControlTip {
-        control: "settings",
-        name: "Settings",
-        binding: Some("key-settings"),
+        control: "path-watch",
+        name: "Stopwatch — keyframe the mask path",
+        binding: None,
     },
+    ControlTip {
+        control: "kf-prev",
+        name: "Go to the previous keyframe",
+        binding: None,
+    },
+    ControlTip {
+        control: "kf-at",
+        name: "Add or remove a keyframe at the playhead",
+        binding: None,
+    },
+    ControlTip {
+        control: "kf-next",
+        name: "Go to the next keyframe",
+        binding: None,
+    },
+    // The three window buttons. Each is a glyph with no word beside it.
     ControlTip {
         control: "caption-min",
         name: "Minimise the window",
@@ -331,7 +512,7 @@ pub fn shipped_label(id: &str) -> Option<String> {
 
 /// The hover card itself: the name, and the chord beside it.
 pub struct Tip {
-    name: &'static str,
+    name: gpui::SharedString,
     chord: Option<String>,
 }
 
@@ -340,6 +521,7 @@ impl Render for Tip {
         let theme = Theme::of(cx);
         let chord = self.chord.clone();
         div()
+            .debug_selector(|| "tooltip".into())
             .flex()
             .items_center()
             .gap(px(Theme::SPACE_SM))
@@ -349,18 +531,40 @@ impl Render for Tip {
             .bg(theme.surface_card)
             .border_1()
             .border_color(theme.border)
-            .text_size(px(12.))
+            .text_size(Theme::TEXT_TITLE)
             .text_color(theme.text)
-            .child(self.name)
+            .child(self.name.clone())
             .children(chord.map(|chord| {
                 div()
                     .font_family(theme.font_mono.clone())
-                    .text_size(px(11.))
+                    .text_size(Theme::TEXT_UI)
                     .text_color(theme.text_faint)
                     .child(chord)
             }))
     }
 }
+
+/// How long the pointer rests on a control before its tip shows.
+pub const SHOW_DELAY: Duration = Duration::from_millis(400);
+
+/// A tip attached with the crate's rest delay.
+///
+/// Every tip in the crate is attached through [`WithTip::with_tip`], so
+/// [`SHOW_DELAY`] is the rest delay for all of them, and the census below fails
+/// on a tip attached any other way. A press hides the tip and holds it back
+/// until the pointer leaves the control, so a tip never opens over the menu or
+/// popover the press opened.
+pub trait WithTip: StatefulInteractiveElement {
+    /// The element with `build` as its tip, shown after [`SHOW_DELAY`].
+    fn with_tip(self, build: impl Fn(&mut Window, &mut App) -> AnyView + 'static) -> Self
+    where
+        Self: Sized,
+    {
+        self.tooltip(build).tooltip_show_delay(SHOW_DELAY)
+    }
+}
+
+impl<E: StatefulInteractiveElement> WithTip for E {}
 
 /// The tooltip builder for one control id, or nothing when it is not named.
 ///
@@ -371,7 +575,7 @@ impl Render for Tip {
 pub fn builder(control: &str) -> Option<impl Fn(&mut Window, &mut App) -> AnyView + use<>> {
     let tip = tip_for(control)?;
     Some(move |_: &mut Window, cx: &mut App| {
-        let name = tip.name;
+        let name = gpui::SharedString::new_static(tip.name);
         let chord = chord_label(&tip, cx);
         cx.new(|_| Tip { name, chord }).into()
     })
@@ -384,9 +588,20 @@ pub fn deferred_builder(
 ) -> impl Fn(&mut Window, &mut App) -> AnyView + use<> {
     move |_: &mut Window, cx: &mut App| {
         let tip = tip_for(control).unwrap_or_else(|| panic!("{control} has no registered tooltip"));
-        let name = tip.name;
+        let name = gpui::SharedString::new_static(tip.name);
         let chord = chord_label(&tip, cx);
         cx.new(|_| Tip { name, chord }).into()
+    }
+}
+
+/// A tooltip showing a dynamic text label (such as a plugin's display name).
+pub fn text_builder<T: Into<gpui::SharedString>>(
+    text: T,
+) -> impl Fn(&mut Window, &mut App) -> AnyView + use<T> {
+    let name = text.into();
+    move |_: &mut Window, cx: &mut App| {
+        let name = name.clone();
+        cx.new(|_| Tip { name, chord: None }).into()
     }
 }
 
@@ -415,6 +630,34 @@ mod tests {
         }
     }
 
+    /// Controls drawn twice for one action: the timeline header repeats the
+    /// tool bar's toggles, as (the header's, the tool bar's). A twin shares
+    /// its name and its chord with the control it repeats, and with no other.
+    const TWINS: &[(&str, &str)] = &[
+        ("timeline-snap", "snap"),
+        ("timeline-linked", "linked-selection"),
+        ("timeline-display-settings", "timeline-display"),
+    ];
+
+    fn twins(one: &str, other: &str) -> bool {
+        TWINS
+            .iter()
+            .any(|&(twin, of)| (twin, of) == (one, other) || (of, twin) == (one, other))
+    }
+
+    fn tip(control: &str) -> &'static ControlTip {
+        CONTROL_TIPS
+            .iter()
+            .find(|tip| tip.control == control)
+            .unwrap_or_else(|| panic!("{control} has no row in CONTROL_TIPS"))
+    }
+
+    /// WHY: two controls with one name read as one action in their tooltips
+    /// while they do different things. Closes "a new control named after an
+    /// existing one": every name belongs to one control unless `TWINS`
+    /// declares the pair, so a second control called the same goes red until
+    /// someone states it repeats the first. Does not cover two names for one
+    /// action outside `TWINS`.
     #[test]
     fn a_control_is_named_once_and_the_names_differ() {
         for tip in CONTROL_TIPS {
@@ -428,13 +671,32 @@ mod tests {
                 .iter()
                 .filter(|other| other.name == tip.name)
                 .map(|other| other.control)
+                .filter(|&other| other != tip.control && !twins(tip.control, other))
                 .collect();
-            assert_eq!(
-                sharing.len(),
-                1,
-                "{:?} all call themselves {}",
+            assert!(
+                sharing.is_empty(),
+                "{} and {:?} all call themselves {}",
+                tip.control,
                 sharing,
                 tip.name
+            );
+        }
+    }
+
+    /// WHY: a toggle the header repeats is the tool bar's toggle, so its
+    /// tooltip reads the same: the header's Snapping showed `S` and the tool
+    /// bar's did not. Closes "a repeated control whose name or chord drifts
+    /// from the one it repeats" for every pair in `TWINS`.
+    #[test]
+    fn a_twin_is_named_and_bound_as_the_control_it_repeats() {
+        for &(twin, of) in TWINS {
+            let (twin, of) = (tip(twin), tip(of));
+            assert_eq!(
+                (twin.name, twin.binding),
+                (of.name, of.binding),
+                "{} does not read as {}, the control it repeats",
+                twin.control,
+                of.control
             );
         }
     }
@@ -459,6 +721,114 @@ mod tests {
         }
     }
 
+    /// WHY: GPUI shows a tip after its own 500 ms default unless the element
+    /// sets a delay, so the table can name a control whose tip still shows
+    /// late, and a tip that opens after a press covers the menu the press
+    /// opened. Hovers the Viewer's go-to-start button in a drawn shell: nothing
+    /// a millisecond before [`SHOW_DELAY`], the tip a millisecond after it,
+    /// nothing once the button is pressed or after a press made during the
+    /// delay, however long the pointer rests or moves on the button, and the
+    /// tip again once the pointer has left and come back. Does not cover a tip
+    /// attached without [`WithTip::with_tip`]; the census below covers that.
+    #[gpui::test]
+    fn a_tip_shows_after_the_rest_delay_and_a_press_holds_it_back(cx: &mut gpui::TestAppContext) {
+        use gpui::{Modifiers, MouseButton};
+        let executor = cx.executor();
+        let (_state, visual) = crate::test_support::drawn_shell(cx, "tooltip-rest");
+        visual.run_until_parked();
+        let bounds = visual
+            .debug_bounds("go-start")
+            .expect("the Viewer draws its go-to-start button");
+        let button = bounds.center();
+        let elsewhere = button + gpui::point(gpui::px(1.), gpui::px(0.));
+        let away = gpui::point(gpui::px(1.), gpui::px(1.));
+        let none = Modifiers::none();
+        let rest = |visual: &mut gpui::VisualTestContext| {
+            executor.advance_clock(SHOW_DELAY * 2);
+            visual.run_until_parked();
+            visual.debug_bounds("tooltip").is_some()
+        };
+        visual.simulate_mouse_move(button, None, none);
+        let step = Duration::from_millis(1);
+        executor.advance_clock(SHOW_DELAY - step);
+        visual.run_until_parked();
+        assert_eq!(
+            visual.debug_bounds("tooltip"),
+            None,
+            "the tip showed before the pointer rested {SHOW_DELAY:?}"
+        );
+        executor.advance_clock(step * 2);
+        visual.run_until_parked();
+        assert!(
+            visual.debug_bounds("tooltip").is_some(),
+            "no tip once the pointer rested {SHOW_DELAY:?}"
+        );
+        visual.simulate_mouse_down(button, MouseButton::Left, none);
+        visual.run_until_parked();
+        assert_eq!(
+            visual.debug_bounds("tooltip"),
+            None,
+            "the tip stayed up through a press"
+        );
+        visual.simulate_mouse_up(button, MouseButton::Left, none);
+        assert!(!rest(visual), "the tip came back with the pointer at rest");
+        visual.simulate_mouse_move(elsewhere, None, none);
+        assert!(
+            !rest(visual),
+            "a move on the pressed button brought its tip back"
+        );
+        visual.simulate_mouse_move(away, None, none);
+        visual.simulate_mouse_move(button, None, none);
+        assert!(
+            rest(visual),
+            "no tip after the pointer left the button and came back"
+        );
+        visual.simulate_mouse_move(away, None, none);
+        visual.simulate_mouse_move(button, None, none);
+        visual.simulate_mouse_down(button, MouseButton::Left, none);
+        visual.simulate_mouse_up(button, MouseButton::Left, none);
+        assert!(
+            !rest(visual),
+            "a press during the rest delay let the tip open after it"
+        );
+    }
+
+    /// WHY: a tip attached with the raw GPUI call rests for GPUI's default
+    /// rather than [`SHOW_DELAY`]. Every source file under `src` is read, so a
+    /// file added later is covered on the run that adds it, and the only raw
+    /// call allowed is the one in [`WithTip::with_tip`]. The needles are
+    /// assembled with `concat!` so this test does not match itself. The floor
+    /// on attached tips fails a scan that reads nothing.
+    #[test]
+    fn every_tip_is_attached_with_the_rest_delay() {
+        let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut files = Vec::new();
+        crate::test_support::collect_rs(&src, &mut files);
+        let raw_needles = [concat!(".tool", "tip("), concat!("hoverable_", "tooltip(")];
+        let owner = src.join("tooltip.rs");
+        let mut attached = 0;
+        for path in &files {
+            let text = std::fs::read_to_string(path).expect("read a source file");
+            attached += text.matches(concat!(".with_", "tip(")).count();
+            let raw: usize = raw_needles
+                .iter()
+                .map(|needle| text.matches(needle).count())
+                .sum();
+            let allowed = usize::from(*path == owner);
+            assert_eq!(
+                raw,
+                allowed,
+                "{} attaches a tip without crate::tooltip::WithTip, so it shows after \
+                 GPUI's default delay rather than SHOW_DELAY",
+                path.display()
+            );
+        }
+        assert!(
+            attached >= 40,
+            "the scan found {attached} tips attached with the rest delay"
+        );
+    }
+
     #[test]
     fn an_unnamed_control_has_no_tip_rather_than_an_empty_one() {
         assert!(tip_for("no-such-control").is_none());
@@ -472,12 +842,12 @@ mod tests {
         let play = tip_for("play").expect("play is named");
         assert_eq!(
             shipped_label(play.binding.expect("play has a key")).as_deref(),
-            Some("space")
+            Some("Space")
         );
         let pointer = tip_for("tool-pointer").expect("the pointer tool is named");
         assert_eq!(
             shipped_label(pointer.binding.expect("the pointer tool has a key")).as_deref(),
-            Some("v")
+            Some("V")
         );
         let add = tip_for("add-track").expect("add track is named");
         assert_eq!(add.binding, None, "it has no shortcut to claim");
@@ -504,13 +874,19 @@ mod tests {
         let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
         let tipped_ids: std::collections::HashSet<&str> =
             CONTROL_TIPS.iter().map(|tip| tip.control).collect();
-        // Chrome wraps `icon_button` in `icon_act` / `tool_btn`. Those still
-        // name the tooltip id in the first argument; scanning only the inner
-        // helper misses the settings and transport rows.
+        // The tool bar wraps `icon_button` in `tool_btn` and its display
+        // button in `display_btn`, and the Viewer wraps it in `jump_btn` and
+        // `step_btn` and draws its marks and view chips through `mark_btn`
+        // and `toggle_chip`. Each names the tooltip id in its first argument;
+        // scanning only the inner helper misses them.
         let needles = [
             concat!("icon_", "button("),
-            concat!("icon_", "act("),
             concat!("tool_", "btn("),
+            concat!("display_", "btn("),
+            concat!("jump_", "btn("),
+            concat!("step_", "btn("),
+            concat!("mark_", "btn("),
+            concat!("toggle_", "chip("),
         ];
         let mut found: std::collections::HashSet<String> = std::collections::HashSet::new();
 
@@ -556,9 +932,18 @@ mod tests {
         }
 
         assert!(
-            found.contains("settings"),
-            "the scan reached no call site: {} ids found, and the settings button \
-             in the tool strip was not one of them",
+            [
+                "snap",
+                "go-start",
+                "next-frame",
+                "program-mark-in",
+                "viewer-safe"
+            ]
+            .iter()
+            .all(|id| found.contains(*id)),
+            "the scan reached no call site: {} ids found, and the snap toggle in \
+             the tool bar, the Viewer's go-to-start or In button, or its Safe chip \
+             was not one of them",
             found.len()
         );
     }

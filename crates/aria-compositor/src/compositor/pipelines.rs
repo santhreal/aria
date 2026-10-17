@@ -216,6 +216,8 @@ impl Compositor {
             target: None,
             pass_registry: PassRegistry::new(device),
             offscreen: None,
+            references: crate::effect_render::CanvasTargets::new("aria.reference"),
+            nests: crate::effect_render::CanvasTargets::new("aria.nest"),
             layer_passes: crate::effect_render::PassCache::new(gpu.queue.clone()),
             plane_textures: std::cell::RefCell::new(super::upload::PlaneTexturePool::default()),
             rgba_textures: std::cell::RefCell::new(super::upload::RgbaTextureCache::default()),
@@ -224,6 +226,7 @@ impl Compositor {
             lut_upload_scratch: Vec::new(),
             premul_scratch: std::cell::RefCell::new(Vec::new()),
             glyph_instances: std::cell::RefCell::new(Vec::new()),
+            readback_count: 0,
             #[cfg(target_vendor = "apple")]
             metal_import: crate::metal_import::MetalSurfaceImporter::new(gpu),
             #[cfg(target_os = "windows")]

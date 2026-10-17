@@ -100,13 +100,17 @@ where
 
 pub(super) fn section_title(theme: &Theme, label: &'static str) -> impl IntoElement {
     div()
-        .text_size(px(14.))
+        .text_size(Theme::TEXT_HEADING)
         .font_weight(gpui::FontWeight::SEMIBOLD)
         .text_color(theme.text)
         .child(label)
 }
 
-pub(super) fn learn_line(theme: &Theme, key: &'static str, copy: &'static str) -> impl IntoElement {
+pub(super) fn learn_line(
+    theme: &Theme,
+    key: impl Into<gpui::SharedString>,
+    copy: &'static str,
+) -> impl IntoElement {
     div()
         .flex()
         .flex_row()
@@ -114,12 +118,17 @@ pub(super) fn learn_line(theme: &Theme, key: &'static str, copy: &'static str) -
         .child(
             div()
                 .w(px(96.))
-                .text_size(px(11.))
+                .text_size(Theme::TEXT_UI)
                 .font_family(theme.font_mono.clone())
                 .text_color(theme.text_muted)
-                .child(key),
+                .child(key.into()),
         )
-        .child(div().text_size(px(13.)).text_color(theme.text).child(copy))
+        .child(
+            div()
+                .text_size(Theme::TEXT_UI)
+                .text_color(theme.text)
+                .child(copy),
+        )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -158,13 +167,13 @@ pub(super) fn hero_tile(
         .child(crate::icons::icon(icon).size(px(Theme::SPACE_LG)))
         .child(
             div()
-                .text_size(px(14.))
+                .text_size(Theme::TEXT_HEADING)
                 .font_weight(gpui::FontWeight::SEMIBOLD)
                 .child(title),
         )
         .child(
             div()
-                .text_size(px(13.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_muted)
                 .child(detail),
         )
@@ -246,7 +255,7 @@ fn recent_card(
         .gap(px(Theme::SPACE_XS))
         .child(
             div()
-                .text_size(px(13.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text)
                 .child(recent.label.clone()),
         )
@@ -254,13 +263,13 @@ fn recent_card(
             div()
                 // The dimmest tier: a path is how the operator tells two
                 // projects with the same name apart, and nothing else.
-                .text_size(px(11.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_dim)
                 .child(recent.detail.clone()),
         )
         .child(
             div()
-                .text_size(px(11.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_muted)
                 .child(status),
         )
@@ -330,7 +339,7 @@ pub(super) fn card_action(
         .px(px(Theme::SPACE_SM))
         .py(px(Theme::SPACE_XS))
         .rounded(px(Theme::CONTROL_RADIUS))
-        .text_size(px(11.))
+        .text_size(Theme::TEXT_UI)
         .text_color(theme.text_muted)
         .cursor(CursorStyle::PointingHand)
         .active(|style| style.opacity(0.92))

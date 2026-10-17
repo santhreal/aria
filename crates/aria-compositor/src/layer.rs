@@ -15,6 +15,11 @@ pub struct CompositorConfig {
     pub height: u32,
     /// Opaque background the canvas clears to before layers composite over it.
     pub background: [u8; 4],
+    /// Sequence or preview frame budget (`1 / fps`). When set, a registered
+    /// plugin effect or transition whose pass exceeds this duration reports an
+    /// [`EffectFaultKind::MissedDeadline`](crate::EffectFaultKind::MissedDeadline)
+    /// fault without unmounting the plugin.
+    pub frame_budget: Option<std::time::Duration>,
 }
 
 impl CompositorConfig {
@@ -23,11 +28,17 @@ impl CompositorConfig {
             width,
             height,
             background: [0, 0, 0, 255],
+            frame_budget: None,
         }
     }
 
     pub const fn with_background(mut self, background: [u8; 4]) -> Self {
         self.background = background;
+        self
+    }
+
+    pub const fn with_frame_budget(mut self, budget: std::time::Duration) -> Self {
+        self.frame_budget = Some(budget);
         self
     }
 }
@@ -92,6 +103,11 @@ pub struct LayerMask {
     pub rotation_rad: f32,
     /// Rectangle corner rounding, `0` … `1` (ignored for other kinds).
     pub roundness: f32,
+    /// Edge offset in layer pixels, outward when positive.
+    pub expansion: f32,
+    /// The remap the coverage takes after inversion. [`CoverageMix::KEEP`]
+    /// draws the shape; a single mask's op and opacity fold in here.
+    pub mix: CoverageMix,
 }
 
 impl LayerMask {
@@ -105,7 +121,148 @@ impl LayerMask {
             size: [1.0, 1.0],
             rotation_rad: 0.0,
             roundness: 0.0,
+            expansion: 0.0,
+            mix: CoverageMix::KEEP,
         }
+    }
+}
+
+/// How one mask combines with the masks above it in a [`LayerStencil`],
+/// given the coverage `a` the stack holds so far and the mask's own coverage
+/// `m`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MaskOp {
+    /// `min(1, a + m)`.
+    #[default]
+    Add,
+    /// `max(0, a - m)`.
+    Subtract,
+    /// `a * m`.
+    Intersect,
+    /// `max(a, m)`.
+    Lighten,
+    /// `min(a, m)`.
+    Darken,
+    /// `|a - m|`.
+    Difference,
+}
+
+impl MaskOp {
+    /// Every op, in id order.
+    pub const ALL: [MaskOp; 6] = [
+        MaskOp::Add,
+        MaskOp::Subtract,
+        MaskOp::Intersect,
+        MaskOp::Lighten,
+        MaskOp::Darken,
+        MaskOp::Difference,
+    ];
+
+    /// Id shared with WGSL (`mask_stack.wgsl`).
+    pub const fn id(self) -> u32 {
+        match self {
+            MaskOp::Add => 0,
+            MaskOp::Subtract => 1,
+            MaskOp::Intersect => 2,
+            MaskOp::Lighten => 3,
+            MaskOp::Darken => 4,
+            MaskOp::Difference => 5,
+        }
+    }
+
+    /// The coverage a stack starts from when this op is its first: full for
+    /// an op that cuts, empty for an op that adds.
+    pub const fn start(self) -> f32 {
+        match self {
+            MaskOp::Subtract | MaskOp::Intersect | MaskOp::Darken => 1.0,
+            MaskOp::Add | MaskOp::Lighten | MaskOp::Difference => 0.0,
+        }
+    }
+
+    /// `op(a, m)`, the CPU twin of `mask_stack.wgsl`'s `combine`.
+    pub fn apply(self, a: f32, m: f32) -> f32 {
+        match self {
+            MaskOp::Add => (a + m).min(1.0),
+            MaskOp::Subtract => (a - m).max(0.0),
+            MaskOp::Intersect => a * m,
+            MaskOp::Lighten => a.max(m),
+            MaskOp::Darken => a.min(m),
+            MaskOp::Difference => (a - m).abs(),
+        }
+    }
+}
+
+/// A coverage `c` remapped to `offset + scale * c`, clamped to `0..=1`.
+///
+/// One mask over an empty stack reduces to this for every op, opacity and
+/// inversion, so a stack of one draws in the pass that evaluates its shape
+/// instead of through the stack passes.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CoverageMix {
+    pub offset: f32,
+    pub scale: f32,
+}
+
+impl CoverageMix {
+    /// The coverage as drawn.
+    pub const KEEP: Self = Self {
+        offset: 0.0,
+        scale: 1.0,
+    };
+    /// The complement of the coverage.
+    pub const INVERT: Self = Self {
+        offset: 1.0,
+        scale: -1.0,
+    };
+    /// Full coverage, whatever was drawn.
+    pub const ALL: Self = Self {
+        offset: 1.0,
+        scale: 0.0,
+    };
+
+    /// One mask over the start its op sets: `mix(s, op(s, m), opacity)` with
+    /// `s = op.start()` and `m` the coverage, or its complement when
+    /// `invert`.
+    pub fn single(op: MaskOp, opacity: f32, invert: bool) -> Self {
+        let opacity = opacity.clamp(0.0, 1.0);
+        let start = op.start();
+        // Over its own start every op reads `m`, except Subtract, which reads
+        // `1 - m`.
+        let (base, sign) = match op {
+            MaskOp::Subtract => (1.0, -1.0),
+            _ => (0.0, 1.0),
+        };
+        let over_m = Self {
+            offset: start + opacity * (base - start),
+            scale: opacity * sign,
+        };
+        if invert {
+            Self {
+                offset: over_m.offset + over_m.scale,
+                scale: -over_m.scale,
+            }
+        } else {
+            over_m
+        }
+    }
+
+    /// The remap of `1 - mix(c)`: where this one keeps, the complement cuts.
+    pub fn complement(self) -> Self {
+        Self {
+            offset: 1.0 - self.offset,
+            scale: -self.scale,
+        }
+    }
+
+    /// `offset + scale * c`, clamped to `0..=1`.
+    pub fn apply(self, c: f32) -> f32 {
+        (self.offset + self.scale * c).clamp(0.0, 1.0)
+    }
+}
+
+impl Default for CoverageMix {
+    fn default() -> Self {
+        Self::KEEP
     }
 }
 
@@ -339,6 +496,10 @@ pub enum LayerContent<'a> {
     Sdf(SdfLayer),
     /// Per-character text as instanced atlas quads.
     Glyphs(GlyphsLayer<'a>),
+    /// The picture a [`CompositorLayer::Nest`] with this id drew this frame,
+    /// premultiplied. The UV rect selects the part of that canvas-sized
+    /// target the layer shows.
+    Nest(u64),
 }
 
 #[derive(Debug, Clone)]
@@ -356,8 +517,6 @@ pub struct CompositeLayer<'a> {
     /// Resolved color grade for this layer; `None` is the identity fast path.
     pub color_grade: Option<ColorGrade>,
     /// `.cube` LUT applied after the grade; `None` is the identity fast path.
-    /// Skipped while the layer is a transition side (matching effect chains,
-    /// which also pause during the blend).
     pub lut: Option<LayerLut<'a>>,
     /// How this layer composites over the accumulated canvas. `Normal` keeps
     /// the direct src-over fast path; other modes force the offscreen blend pass.
@@ -370,7 +529,69 @@ pub struct CompositeLayer<'a> {
     /// composites that average like a normal premultiplied layer. Texture
     /// content stays shared across passes (transform-only motion blur).
     /// Styles / blend modes apply to the accumulated result.
-    pub blur_passes: Vec<LayerPlacement>,
+    pub blur_passes: &'a [LayerPlacement],
+    /// A mask cutting the layer before its effect chain, so the effects, LUT,
+    /// styles and blend mode all apply to what the mask keeps. Forces the
+    /// offscreen path.
+    pub stencil: Option<LayerStencil<'a>>,
+}
+
+/// A stack of masks placed on the canvas: their combined coverage keeps the
+/// layer it cuts.
+///
+/// On a layer the stack cuts the content before its effect chain. On a canvas
+/// pass it limits where the pass replaces the canvas: the canvas keeps its own
+/// pixels outside the stack. The stack starts empty, or full when its first
+/// mask's op cuts ([`MaskOp::start`]), and each mask then combines with the
+/// coverage above it. An empty stack keeps everything.
+#[derive(Debug, Clone, Copy)]
+pub struct LayerStencil<'a> {
+    /// The masks, top first.
+    pub masks: &'a [StencilMask],
+    /// The rasterized coverages [`StencilCoverage::Image`] indexes.
+    pub images: &'a [RgbaImage],
+    /// Where the coverage lands on the canvas.
+    pub placement: LayerPlacement,
+    /// Motion-blur sample placements of the coverage, drawn and averaged as a
+    /// layer's are; empty draws it once at `placement`.
+    pub blur_passes: &'a [LayerPlacement],
+}
+
+/// One mask of a [`LayerStencil`].
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct StencilMask {
+    /// What draws the coverage.
+    pub coverage: StencilCoverage,
+    /// Keep where the coverage is transparent instead of where it is opaque.
+    pub invert: bool,
+    /// Edge softness in `0.0..=1.0`; `0` uses the coverage's own edge.
+    pub softness: f32,
+    /// How the mask combines with the masks above it.
+    pub op: MaskOp,
+    /// How much of the combined result replaces the stack above, `0.0..=1.0`.
+    pub opacity: f32,
+}
+
+impl StencilMask {
+    /// A hard-edged mask that keeps where `coverage` is opaque.
+    pub const fn keep(coverage: StencilCoverage) -> Self {
+        Self {
+            coverage,
+            invert: false,
+            softness: 0.0,
+            op: MaskOp::Add,
+            opacity: 1.0,
+        }
+    }
+}
+
+/// The coverage of a [`StencilMask`].
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum StencilCoverage {
+    /// The alpha of [`LayerStencil::images`] at this index.
+    Image(usize),
+    /// A parametric shape evaluated over the placed quad.
+    Shape(LayerMask),
 }
 
 /// Which channel of a matte layer decides where the content survives.
@@ -392,8 +613,9 @@ impl MatteRead {
     }
 }
 
-/// A layer, a canvas-wide pass, a dual-source transition, or a matted pair
-/// submitted to the compositor.
+/// A layer, a canvas-wide pass, a dual-source transition, a matted pair, a
+/// clip drawn for effects to read, or a nested sequence drawn for layers to
+/// show, submitted to the compositor.
 ///
 /// Every field is a borrow or a small `Copy` value, so the whole enum is
 /// `Copy`: the render walks scenes by value without touching the heap.
@@ -406,15 +628,32 @@ pub enum CompositorLayer<'a> {
         effects: &'a [PassInstance],
         grade: Option<ColorGrade>,
         lut: Option<LayerLut<'a>>,
+        /// Limit the pass to the mask's coverage; the canvas keeps its own
+        /// pixels outside it.
+        stencil: Option<&'a LayerStencil<'a>>,
     },
-    /// Blend two independently placed layers by transition progress.
+    /// Blend two independently placed layers by transition progress. Each
+    /// side draws as its layer alone on a transparent canvas: content, motion
+    /// blur, effect chain, LUT, styles and blend mode.
     Transition {
         outgoing: &'a CompositeLayer<'a>,
         incoming: &'a CompositeLayer<'a>,
         transition_id: &'a str,
         progress: f32,
     },
-    /// Cut `content` by `stencil`: the stencil is read, never drawn.
+    /// Blend two independently placed layers by transition progress and
+    /// flattened parameter floats. Sides draw as in
+    /// [`Transition`](Self::Transition).
+    TransitionWithParams {
+        outgoing: &'a CompositeLayer<'a>,
+        incoming: &'a CompositeLayer<'a>,
+        transition_id: &'a str,
+        progress: f32,
+        params: &'a [f32],
+    },
+    /// Cut `content` by `stencil`: the stencil is read, never drawn onto the
+    /// destination. Content and stencil each draw as their layers alone, as
+    /// the sides of a [`Transition`](Self::Transition) do.
     Matte {
         content: &'a CompositeLayer<'a>,
         stencil: &'a CompositeLayer<'a>,
@@ -423,6 +662,30 @@ pub enum CompositorLayer<'a> {
         invert: bool,
         /// Edge softness in `0.0..=1.0`; `0` uses the stencil's own edge.
         softness: f32,
+    },
+    /// Draw `item` into the reference target of `clip` instead of onto the
+    /// canvas: a layer with its content, motion blur, effect chain, and LUT,
+    /// a matte, or a transition. A registered effect pass reading a layer
+    /// parameter set to `clip` reads that target; a reference no item draws
+    /// reads transparent. A layer drawn here skips its styles and blend mode,
+    /// and a canvas pass, a nest, or a nested reference draws nothing. Submit
+    /// references before the layers that read them. Among the items of a
+    /// [`Nest`](Self::Nest), a reference clears its target before it draws, so
+    /// a sequence drawn twice in one frame reads its own frames each time.
+    Reference {
+        clip: u64,
+        item: &'a CompositorLayer<'a>,
+    },
+    /// Draw `items` onto the target of nest `nest`, cleared to transparent
+    /// first, as a frame draws its items onto the canvas: layers with their
+    /// styles and blend modes, canvas passes over what the nest has drawn so
+    /// far, transitions, mattes, and references. A layer whose content is
+    /// [`LayerContent::Nest`] with this id samples the target. A nest among
+    /// `items` draws nothing: submit it first, at the top level. Submit a nest
+    /// before the layers that read it.
+    Nest {
+        nest: u64,
+        items: &'a [CompositorLayer<'a>],
     },
 }
 
@@ -433,10 +696,10 @@ impl<'a> CompositorLayer<'a> {
 }
 
 impl<'a> CompositeLayer<'a> {
-    /// A video-frame layer with no crop/mirror.
-    pub fn frame(frame: &'a VideoFrame, placement: LayerPlacement) -> Self {
+    /// `content` at `placement` with no look attached.
+    fn plain(content: LayerContent<'a>, placement: LayerPlacement) -> Self {
         Self {
-            content: LayerContent::Frame(frame),
+            content,
             placement,
             uv: FULL_UV,
             effects: &[],
@@ -445,56 +708,29 @@ impl<'a> CompositeLayer<'a> {
             lut: None,
             blend_mode: BlendMode::Normal,
             styles: LayerStyles::default(),
-            blur_passes: Vec::new(),
+            blur_passes: &[],
+            stencil: None,
         }
+    }
+
+    /// A video-frame layer with no crop/mirror.
+    pub fn frame(frame: &'a VideoFrame, placement: LayerPlacement) -> Self {
+        Self::plain(LayerContent::Frame(frame), placement)
     }
 
     /// An RGBA bitmap layer (text/shape/sticker/still) with no crop/mirror.
     pub fn rgba(image: &'a RgbaImage, placement: LayerPlacement) -> Self {
-        Self {
-            content: LayerContent::Rgba(image),
-            placement,
-            uv: FULL_UV,
-            effects: &[],
-            fx: LayerEffects::IDENTITY,
-            color_grade: None,
-            lut: None,
-            blend_mode: BlendMode::Normal,
-            styles: LayerStyles::default(),
-            blur_passes: Vec::new(),
-        }
+        Self::plain(LayerContent::Rgba(image), placement)
     }
 
     /// A solid-color layer.
     pub fn solid(rgba: [u8; 4], placement: LayerPlacement) -> Self {
-        Self {
-            content: LayerContent::Solid(rgba),
-            placement,
-            uv: FULL_UV,
-            effects: &[],
-            fx: LayerEffects::IDENTITY,
-            color_grade: None,
-            lut: None,
-            blend_mode: BlendMode::Normal,
-            styles: LayerStyles::default(),
-            blur_passes: Vec::new(),
-        }
+        Self::plain(LayerContent::Solid(rgba), placement)
     }
 
     /// A parametric shape layer (GPU SDF; UV does not apply).
     pub fn sdf(shape: SdfLayer, placement: LayerPlacement) -> Self {
-        Self {
-            content: LayerContent::Sdf(shape),
-            placement,
-            uv: FULL_UV,
-            effects: &[],
-            fx: LayerEffects::IDENTITY,
-            color_grade: None,
-            lut: None,
-            blend_mode: BlendMode::Normal,
-            styles: LayerStyles::default(),
-            blur_passes: Vec::new(),
-        }
+        Self::plain(LayerContent::Sdf(shape), placement)
     }
 
     /// Per-character text as instanced atlas quads.
@@ -502,18 +738,12 @@ impl<'a> CompositeLayer<'a> {
     /// `placement` supplies the layer opacity multiplier (and is the grade/fx
     /// anchor); each glyph's on-canvas transform lives on the instances.
     pub fn glyphs(glyphs: GlyphsLayer<'a>, placement: LayerPlacement) -> Self {
-        Self {
-            content: LayerContent::Glyphs(glyphs),
-            placement,
-            uv: FULL_UV,
-            effects: &[],
-            fx: LayerEffects::IDENTITY,
-            color_grade: None,
-            lut: None,
-            blend_mode: BlendMode::Normal,
-            styles: LayerStyles::default(),
-            blur_passes: Vec::new(),
-        }
+        Self::plain(LayerContent::Glyphs(glyphs), placement)
+    }
+
+    /// The picture nest `nest` drew this frame, placed whole.
+    pub fn nest(nest: u64, placement: LayerPlacement) -> Self {
+        Self::plain(LayerContent::Nest(nest), placement)
     }
 
     /// Attach an effect chain (sampled at resolve time).
@@ -568,8 +798,14 @@ impl<'a> CompositeLayer<'a> {
 
     /// Attach motion-blur supersample placements (empty keeps the single-draw
     /// path). Forces the offscreen accumulate path when non-empty.
-    pub fn with_blur_passes(mut self, blur_passes: Vec<LayerPlacement>) -> Self {
+    pub fn with_blur_passes(mut self, blur_passes: &'a [LayerPlacement]) -> Self {
         self.blur_passes = blur_passes;
+        self
+    }
+
+    /// Cut the layer by a mask before its effect chain (see [`LayerStencil`]).
+    pub fn with_stencil(mut self, stencil: LayerStencil<'a>) -> Self {
+        self.stencil = Some(stencil);
         self
     }
 }

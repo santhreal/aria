@@ -50,6 +50,13 @@
 //! the bound is on that: a [`Stall`] restarts its window every time any holder
 //! returns a slot, and only a window in which nothing came back anywhere is
 //! called a deadlock.
+//!
+//! The sixth defect was between processes. Two suites running in one temp dir
+//! each had a pool of their own over the same five paths, and each emptied
+//! directories the other was asserting on. A holder now locks its slot's
+//! `.lease` file, a slot that is free here but locked by another process is
+//! skipped, and a waiter polls for it, because a release in another process
+//! signals nothing in this one.
 
 use std::cell::OnceCell;
 use std::path::{Path, PathBuf};
@@ -58,6 +65,14 @@ use std::time::{Duration, Instant};
 
 /// The fixed name every pool directory starts with.
 const NAME: &str = "aria-scratch";
+
+/// The file inside a slot that a holder locks, so a second process sharing the
+/// temp dir does not take the same slot.
+const LEASE_FILE: &str = ".lease";
+
+/// How often a waiter retries slots that another process holds. A release in
+/// another process signals nothing here, so the wait for one is a poll.
+const CROSS_PROCESS_POLL: Duration = Duration::from_millis(25);
 
 /// How many scratch slots exist. Not a budget, a count: these are all of them,
 /// for every run, on every machine.
@@ -117,12 +132,27 @@ impl Pool {
         let mut free = self.free();
         let mut stall = Stall::new(free.released);
         loop {
-            if let Some(index) = free.slots.pop() {
-                return Lease { pool: self, index };
+            // A slot free in this process can still be held by another suite
+            // running in the same temp dir.
+            for at in (0..free.slots.len()).rev() {
+                if let Some(lock) = self.claim(free.slots[at]) {
+                    let index = free.slots.remove(at);
+                    return Lease {
+                        pool: self,
+                        index,
+                        _lock: lock,
+                    };
+                }
             }
+            let held_elsewhere = !free.slots.is_empty();
+            let wait = if held_elsewhere {
+                CROSS_PROCESS_POLL
+            } else {
+                self.wait
+            };
             free = self
                 .ready
-                .wait_timeout(free, self.wait)
+                .wait_timeout(free, wait)
                 .unwrap_or_else(|poisoned| poisoned.into_inner())
                 .0;
             stall.observe(free.released);
@@ -143,6 +173,28 @@ impl Pool {
         self.free
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    /// Lock slot `index` against every other process, or `None` while another
+    /// process holds it. Two suites sharing a temp dir would otherwise empty
+    /// each other's directories mid-test. The lock is released when the file
+    /// closes, so a process that dies holding a slot frees it.
+    fn claim(&self, index: usize) -> Option<std::fs::File> {
+        let slot = self.slot(index);
+        std::fs::create_dir_all(&slot).expect("create a scratch slot");
+        let lock = std::fs::OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(slot.join(LEASE_FILE))
+            .expect("open a scratch slot's lease file");
+        match lock.try_lock() {
+            Ok(()) => Some(lock),
+            Err(std::fs::TryLockError::WouldBlock) => None,
+            Err(std::fs::TryLockError::Error(err)) => {
+                panic!("lock scratch slot {slot:?} against other processes: {err}")
+            }
+        }
     }
 
     /// Slot `index`'s directory, named rather than created.
@@ -167,6 +219,8 @@ impl Pool {
 struct Lease<'pool> {
     pool: &'pool Pool,
     index: usize,
+    /// The slot's lease file, locked while this lease lives.
+    _lock: std::fs::File,
 }
 
 impl Lease<'_> {
@@ -333,6 +387,39 @@ mod tests {
             "fifty claims made {} directories, so the count still follows the calls",
             found.len()
         );
+    }
+
+    /// Two suites in one temp dir are two processes with a pool each. A slot
+    /// one pool holds is not handed out by the other until it comes back, so
+    /// neither suite empties a directory the other is asserting on.
+    #[test]
+    fn a_slot_another_pool_on_the_same_root_holds_is_not_handed_out() {
+        let root = scratch("shared-root");
+        let first = Pool::new(root.clone(), 2, SOON);
+        let second = Pool::new(root, 2, SOON);
+        let held = first.lease();
+        let other = second.lease();
+        assert_ne!(held.index, other.index, "two pools leased one slot");
+        let held_index = held.index;
+        let (tx, rx) = mpsc::channel();
+        let second = &second;
+        std::thread::scope(|scope| {
+            scope.spawn(move || {
+                let lease = second.lease();
+                tx.send(lease.index).expect("the test is listening");
+            });
+            assert!(
+                rx.recv_timeout(Duration::from_millis(150)).is_err(),
+                "the second pool handed out the slot the first holds"
+            );
+            drop(held);
+            assert_eq!(
+                rx.recv_timeout(SOON * 4).ok(),
+                Some(held_index),
+                "the returned slot never reached the other pool"
+            );
+        });
+        drop(other);
     }
 
     /// A lease is a loan, not a spend: the same pool answers forever. Ten times

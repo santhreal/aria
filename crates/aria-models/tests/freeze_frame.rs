@@ -102,7 +102,7 @@ fn freeze_helper_bakes_visual_state_and_clears_dynamic_semantics() {
     .into();
     source.flip_h = true;
     source.flip_v = true;
-    source.mask = Some(Mask::new(MaskKind::Circle));
+    source.masks = vec![Mask::new(MaskKind::Circle)];
     source.chroma_key = Some(ChromaKey {
         rgb: [0, 255, 0],
         strength: 0.7.into(),
@@ -170,7 +170,7 @@ fn freeze_helper_bakes_visual_state_and_clears_dynamic_semantics() {
     assert_eq!(frozen.crop, Param::Constant(source.crop.sample(20)));
     assert!(!frozen.crop.is_animated());
     assert_eq!((frozen.flip_h, frozen.flip_v), (true, true));
-    assert_eq!(frozen.mask, source.mask);
+    assert_eq!(frozen.masks, source.masks);
     assert_eq!(frozen.chroma_key, source.chroma_key);
     assert_eq!(frozen.stabilize, source.stabilize);
     assert_eq!(frozen.filter, source.filter);

@@ -1,6 +1,8 @@
-//! The Appearance and Canvas pickers.
+//! The Appearance, Canvas and Sequence pickers.
 
-use aria_models::{AudioLayout, CanvasAspect, Rational};
+use std::sync::Arc;
+
+use aria_models::{AudioLayout, CanvasAspect, Rational, TimeDisplay};
 use gpui::{
     InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, SharedString,
     StatefulInteractiveElement, Styled, div, px,
@@ -10,6 +12,7 @@ use crate::appearance::{self, AppearanceMode};
 use crate::motion;
 use crate::surfaces::settings_pick::{self, Pick};
 use crate::theme::Theme;
+use crate::theme::file::ThemeFile;
 
 /// Page, card, and accent from a palette that is not installed.
 ///
@@ -79,7 +82,7 @@ pub(super) fn appearance_row(
         .on_hover(motion::hover_listener(fade))
         .child(
             div()
-                .text_size(px(13.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text)
                 .child(candidate.label()),
         )
@@ -134,13 +137,13 @@ pub(super) fn motion_row(
         .on_hover(motion::hover_listener(fade))
         .child(
             div()
-                .text_size(px(13.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text)
                 .child(candidate.label()),
         )
         .child(
             div()
-                .text_size(px(12.))
+                .text_size(Theme::TEXT_TITLE)
                 .text_color(theme.text_muted)
                 .child(candidate.detail()),
         )
@@ -195,7 +198,7 @@ pub(super) fn theme_row(
         .on_hover(motion::hover_listener(fade))
         .child(
             div()
-                .text_size(px(13.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text)
                 .child(format!("Accent: {}", candidate.key())),
         )
@@ -211,6 +214,108 @@ pub(super) fn theme_row(
                 appearance::set_theme_choice(candidate, cx);
                 cx.notify();
             }),
+        )
+}
+
+/// One theme file, or the shipped theme for `None`. The swatch is the theme in
+/// the appearance on screen now. The click repaints and saves the choice.
+pub(super) fn theme_file_row(
+    theme: &Theme,
+    candidate: Option<Arc<ThemeFile>>,
+    current: Option<&str>,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> impl IntoElement {
+    let stem = candidate.as_ref().map(|file| file.stem.clone());
+    let selected = stem.as_deref() == current;
+    let label = candidate
+        .as_ref()
+        .map_or_else(|| "Shipped".to_owned(), |file| file.label());
+    let fade = motion::MotionKey::new("theme-file", stem.as_deref().unwrap_or(""));
+    let key = fade.element_id("theme-file");
+    let shadows = if selected {
+        crate::theme::glass_selected_shadows()
+    } else {
+        Vec::new()
+    };
+    let base = Theme::for_choice(theme.appearance, appearance::theme_choice(cx));
+    let preview = match &candidate {
+        Some(file) => base.with_file(file),
+        None => base,
+    };
+    let detail = match &candidate {
+        Some(file) if !file.covers(theme.appearance) => "Shipped colours in this appearance",
+        Some(_) => "",
+        None => "The built-in palette",
+    };
+    div()
+        .id(key)
+        .flex()
+        .flex_row()
+        .items_center()
+        .justify_between()
+        .gap(px(Theme::SPACE_SM))
+        .px(px(Theme::SPACE_SM))
+        .py(px(Theme::SPACE_XS))
+        .rounded(px(Theme::CONTROL_RADIUS))
+        .bg(row_fill(theme, fade, selected))
+        .shadow(shadows)
+        .cursor(gpui::CursorStyle::PointingHand)
+        .active(|style| style.opacity(0.92))
+        .on_hover(motion::hover_listener(fade))
+        .child(
+            div()
+                .text_size(Theme::TEXT_UI)
+                .text_color(theme.text)
+                .child(format!("Theme: {label}")),
+        )
+        .child(
+            div()
+                .flex()
+                .flex_row()
+                .items_center()
+                .gap(px(Theme::SPACE_SM))
+                .child(
+                    div()
+                        .text_size(Theme::TEXT_TITLE)
+                        .text_color(theme.text_muted)
+                        .child(detail),
+                )
+                .child(swatch(&preview)),
+        )
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                appearance::set_theme_file(candidate.clone(), cx);
+                let stem = stem.clone();
+                let label = label.clone();
+                this.state.update(cx, |state, cx| {
+                    state.ui_settings.theme_file = stem;
+                    state.persist_settings_later(cx);
+                    state.status_message = Some(format!("Theme: {label}"));
+                });
+                cx.notify();
+            }),
+        )
+}
+
+/// A theme file that could not be read, and why. Not selectable.
+pub(super) fn theme_file_failure_row(theme: &Theme, file: &str, reason: &str) -> impl IntoElement {
+    div()
+        .flex()
+        .flex_col()
+        .px(px(Theme::SPACE_SM))
+        .py(px(Theme::SPACE_XS))
+        .child(
+            div()
+                .text_size(Theme::TEXT_UI)
+                .text_color(theme.text)
+                .child(format!("Theme file {file}")),
+        )
+        .child(
+            div()
+                .text_size(Theme::TEXT_TITLE)
+                .text_color(theme.danger)
+                .child(reason.to_owned()),
         )
 }
 
@@ -240,7 +345,7 @@ pub(super) fn canvas_row(
         .on_hover(motion::hover_listener(fade))
         .child(
             div()
-                .text_size(px(13.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text)
                 .child(SharedString::from(candidate.name().to_string())),
         )
@@ -283,7 +388,12 @@ pub(super) fn resolution_row(
         .cursor(gpui::CursorStyle::PointingHand)
         .active(|style| style.opacity(0.92))
         .on_hover(motion::hover_listener(fade))
-        .child(div().text_size(px(13.)).text_color(theme.text).child(label))
+        .child(
+            div()
+                .text_size(Theme::TEXT_UI)
+                .text_color(theme.text)
+                .child(label),
+        )
         .on_mouse_down(
             MouseButton::Left,
             cx.listener(move |this, _: &MouseDownEvent, _, cx| {
@@ -305,34 +415,14 @@ pub(super) fn sequence_rate_row(
     label: SharedString,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
-    let selected = aria_core::rate_eq(candidate, current);
-    let fade = motion::MotionKey::new("sequence-rate", candidate.num).with(candidate.den);
-    let id = fade.element_id("sequence-rate");
-    div()
-        .id(id)
-        .flex()
-        .flex_row()
-        .items_center()
-        .justify_between()
-        .px(px(Theme::SPACE_SM))
-        .py(px(Theme::SPACE_XS))
-        .rounded(px(Theme::CONTROL_RADIUS))
-        .bg(row_fill(&theme, fade, selected))
-        .cursor(gpui::CursorStyle::PointingHand)
-        .active(|style| style.opacity(0.92))
-        .on_hover(motion::hover_listener(fade))
-        .child(div().text_size(px(13.)).text_color(theme.text).child(label))
-        .on_mouse_down(
-            MouseButton::Left,
-            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                this.state.update(cx, |state, _| {
-                    if let Err(err) = settings_pick::apply(state, Pick::Rate(candidate)) {
-                        state.report_error(&err);
-                    }
-                });
-                cx.notify();
-            }),
-        )
+    pick_row(
+        theme,
+        motion::MotionKey::new("sequence-rate", candidate.num).with(candidate.den),
+        aria_core::rate_eq(candidate, current),
+        label,
+        Pick::Rate(candidate),
+        cx,
+    )
 }
 
 /// One selectable audio layout.
@@ -342,11 +432,45 @@ pub(super) fn audio_layout_row(
     current: AudioLayout,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
-    let selected = candidate == current;
-    let fade = motion::MotionKey::new("audio-layout", candidate.name());
-    let id = fade.element_id("audio-layout");
+    pick_row(
+        theme,
+        motion::MotionKey::new("audio-layout", candidate.name()),
+        candidate == current,
+        SharedString::from(candidate.label()),
+        Pick::Layout(candidate),
+        cx,
+    )
+}
+
+/// One selectable time display: how the ruler and the clocks count time.
+pub(super) fn time_display_row(
+    theme: &Theme,
+    candidate: TimeDisplay,
+    current: TimeDisplay,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> impl IntoElement {
+    pick_row(
+        theme,
+        motion::MotionKey::new("time-display", candidate.name()),
+        candidate == current,
+        SharedString::from(candidate.label()),
+        Pick::Display(candidate),
+        cx,
+    )
+}
+
+/// A labelled row that installs `pick` on press, lit while it is the current
+/// value.
+fn pick_row(
+    theme: &Theme,
+    fade: motion::MotionKey,
+    selected: bool,
+    label: SharedString,
+    pick: Pick,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> impl IntoElement {
     div()
-        .id(id)
+        .id(fade.element_id("settings-pick"))
         .flex()
         .flex_row()
         .items_center()
@@ -354,21 +478,21 @@ pub(super) fn audio_layout_row(
         .px(px(Theme::SPACE_SM))
         .py(px(Theme::SPACE_XS))
         .rounded(px(Theme::CONTROL_RADIUS))
-        .bg(row_fill(&theme, fade, selected))
+        .bg(row_fill(theme, fade, selected))
         .cursor(gpui::CursorStyle::PointingHand)
         .active(|style| style.opacity(0.92))
         .on_hover(motion::hover_listener(fade))
         .child(
             div()
-                .text_size(px(13.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text)
-                .child(SharedString::from(candidate.label())),
+                .child(label),
         )
         .on_mouse_down(
             MouseButton::Left,
             cx.listener(move |this, _: &MouseDownEvent, _, cx| {
                 this.state.update(cx, |state, _| {
-                    if let Err(err) = settings_pick::apply(state, Pick::Layout(candidate)) {
+                    if let Err(err) = settings_pick::apply(state, pick) {
                         state.report_error(&err);
                     }
                 });

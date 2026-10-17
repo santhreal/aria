@@ -82,6 +82,7 @@ fn canvas_pass_grade_replaces_translucent_canvas() {
                     effects: &[],
                     grade: Some(grade),
                     lut: None,
+                    stencil: None,
                 },
             ],
         )
@@ -181,26 +182,39 @@ aria_models::adjust_slider_rows!(grade_probes);
 
 /// A plate with lights, darks, colour, hard edges and off-centre content.
 ///
-/// Every quadrant sits away from both 0 and 255, so a multiplier is visible
-/// before it clamps; the quadrant boundaries are the neighbours sharpness
-/// needs, and nothing is grey, which is what saturation and hue need.
+/// Every cell sits away from both 0 and 255, so a multiplier is visible
+/// before it clamps; the cell boundaries are the neighbours sharpness needs,
+/// and nothing is grey, which is what saturation and hue need. The eight
+/// cells reach every hue a hue curve has a knot at, so each knot moves one.
 fn census_plate(w: u32, h: u32) -> RgbaImage {
-    let quadrants = [
+    let cells = [
         [70u8, 90, 120, 255],
         [190, 150, 90, 255],
         [120, 60, 60, 255],
         [150, 200, 170, 255],
+        [170, 80, 160, 255],
+        [180, 180, 70, 255],
+        [70, 160, 160, 255],
+        [90, 150, 80, 255],
     ];
     let mut pixels = vec![0u8; (w * h * 4) as usize];
     for y in 0..h {
         for x in 0..w {
             let i = ((y * w + x) * 4) as usize;
-            let q = usize::from(x >= w / 2) + 2 * usize::from(y >= h / 2);
-            pixels[i..i + 4].copy_from_slice(&quadrants[q]);
+            let cell = (x * 4 / w) as usize + 4 * usize::from(y >= h / 2);
+            pixels[i..i + 4].copy_from_slice(&cells[cell]);
         }
     }
     RgbaImage::new(w, h, pixels)
 }
+
+/// Rows that change nothing alone. The HSL secondary's key selects which hues
+/// the secondary reaches, so it moves a frame only beside a secondary slider:
+/// each is pressed with that partner and measured against the partner alone.
+const QUALIFIERS: &[(&str, &str)] = &[
+    ("adjust-hsl-key-hue", "adjust-hsl-saturation"),
+    ("adjust-hsl-key-width", "adjust-hsl-saturation"),
+];
 
 /// The largest per-channel difference between two frames of equal size.
 fn worst_channel_delta(a: &RgbaImage, b: &RgbaImage) -> i32 {
@@ -228,6 +242,23 @@ fn probe_grade(id: &str, set: fn(&mut ColorGrade)) -> ColorGrade {
     grade
 }
 
+/// The grade a probe renders and the grade its frame is measured against:
+/// neutral, or for a qualifier its partner pressed alone.
+fn probe_pair(id: &str, set: fn(&mut ColorGrade)) -> (ColorGrade, ColorGrade) {
+    let mut grade = probe_grade(id, set);
+    let Some((_, partner)) = QUALIFIERS.iter().find(|(row, _)| *row == id) else {
+        return (grade, ColorGrade::IDENTITY);
+    };
+    let (_, press) = PROBES
+        .iter()
+        .find(|(row, _)| row == partner)
+        .expect("a qualifier's partner is a slider row");
+    press(&mut grade);
+    let mut against = ColorGrade::IDENTITY;
+    press(&mut against);
+    (grade, against)
+}
+
 #[test]
 fn every_slider_moves_the_layer_it_grades() {
     let gpu = gpu_or_skip!();
@@ -235,19 +266,19 @@ fn every_slider_moves_the_layer_it_grades() {
     let plate = census_plate(32, 32);
     let config = CompositorConfig::new(32, 32).with_background([0, 0, 0, 255]);
     let placement = LayerPlacement::full_canvas(&config);
-    let baseline = comp
-        .render(&gpu, &config, &[CompositeLayer::rgba(&plate, placement)])
-        .expect("baseline");
 
     for (id, set) in PROBES {
-        let grade = probe_grade(id, *set);
-        let graded = comp
-            .render(
+        let (grade, against) = probe_pair(id, *set);
+        let mut frame = |grade: ColorGrade| {
+            comp.render(
                 &gpu,
                 &config,
                 &[CompositeLayer::rgba(&plate, placement).with_grade(grade)],
             )
-            .expect("graded layer");
+            .expect("graded layer")
+        };
+        let baseline = frame(against);
+        let graded = frame(grade);
         assert!(
             worst_channel_delta(&baseline, &graded) >= 2,
             "{id} composited the plate unchanged: the row has a lane no shader reads"
@@ -262,14 +293,11 @@ fn every_slider_moves_the_canvas_pass() {
     let plate = census_plate(32, 32);
     let config = CompositorConfig::new(32, 32).with_background([0, 0, 0, 255]);
     let layer = CompositeLayer::rgba(&plate, LayerPlacement::full_canvas(&config));
-    let baseline = comp
-        .render_compositor_layers(&gpu, &config, &[CompositorLayer::layer(&layer)])
-        .expect("baseline");
 
     for (id, set) in PROBES {
-        let grade = probe_grade(id, *set);
-        let graded = comp
-            .render_compositor_layers(
+        let (grade, against) = probe_pair(id, *set);
+        let mut frame = |grade: ColorGrade| {
+            comp.render_compositor_layers(
                 &gpu,
                 &config,
                 &[
@@ -278,14 +306,57 @@ fn every_slider_moves_the_canvas_pass() {
                         effects: &[],
                         grade: Some(grade),
                         lut: None,
+                        stencil: None,
                     },
                 ],
             )
-            .expect("graded canvas");
+            .expect("graded canvas")
+        };
+        let baseline = frame(against);
+        let graded = frame(grade);
         assert!(
             worst_channel_delta(&baseline, &graded) >= 2,
             "{id} left the canvas pass unchanged: the row has a lane no shader reads"
         );
+    }
+}
+
+/// The shader and `ColorGrade::apply_image` are one grade written twice. Every
+/// row pressed alone, a qualifier with its partner, lands on the same pixels
+/// from both, so a stage changed on one side and not the other fails here.
+#[test]
+fn every_slider_matches_its_cpu_mirror() {
+    let gpu = gpu_or_skip!();
+    let mut comp = Compositor::new(&gpu);
+    let plate = census_plate(32, 32);
+    let config = CompositorConfig::new(32, 32).with_background([0, 0, 0, 255]);
+    let placement = LayerPlacement::full_canvas(&config);
+
+    for (id, set) in PROBES {
+        let (grade, _) = probe_pair(id, *set);
+        let shader = comp
+            .render(
+                &gpu,
+                &config,
+                &[CompositeLayer::rgba(&plate, placement).with_grade(grade)],
+            )
+            .expect("graded layer");
+        let mut mirror = plate.pixels.clone();
+        grade.apply_image(plate.width, plate.height, &mut mirror);
+        for y in 0..plate.height {
+            for x in 0..plate.width {
+                let at = ((y * plate.width + x) * 4) as usize;
+                let want: [u8; 4] = mirror[at..at + 4].try_into().expect("four channels");
+                let got = shader.pixel(x, y);
+                for ch in 0..3 {
+                    let off = (i32::from(got[ch]) - i32::from(want[ch])).abs();
+                    assert!(
+                        off <= 4,
+                        "{id} at ({x},{y}): shader {got:?}, CPU mirror {want:?}"
+                    );
+                }
+            }
+        }
     }
 }
 

@@ -12,7 +12,8 @@
 // what keeps a move from quietly orphaning a binding.
 use super::{
     AudioReader, CHANNELS, DecodeError, DenoiseReader, EXPORT_AUDIO_CHANNELS, EXPORT_AUDIO_RATE,
-    Span, audio_gain_at, pan_channel_gains, warped_source_frame,
+    OLA_FRAME, OLA_HOP, OLA_PAD, OLA_WARMUP, Span, audio_gain_at, ola_aligned_offset, ola_frames,
+    ola_window, pan_channel_gains, warped_source_frame,
 };
 
 pub(crate) fn open_span_reader(span: &Span) -> Result<Box<dyn AudioReader>, DecodeError> {
@@ -70,6 +71,94 @@ pub(crate) fn span_source_offset(span: &Span, rel_out: i64, span_len: i64) -> f6
     (last - forward).clamp(0.0, last)
 }
 
+/// Source sample range `[src_floor, src_ceil)` needed to WSOLA-stretch output
+/// frames `[rel_start, rel_end)`.
+pub(crate) fn ola_source_bounds(
+    rel_start: i64,
+    rel_end: i64,
+    anchor_at: &mut dyn FnMut(i64) -> f64,
+) -> (i64, i64) {
+    let (first_frame, last_frame) = ola_frames(rel_start, rel_end);
+    let warmup_frame = (first_frame - OLA_WARMUP).max(0);
+    let mut src_min = f64::MAX;
+    let mut src_max = f64::MIN;
+    for k in warmup_frame..=last_frame {
+        let anchor = anchor_at(k * OLA_HOP as i64);
+        src_min = src_min.min(anchor);
+        src_max = src_max.max(anchor);
+    }
+    src_min -= OLA_PAD as f64;
+    src_max += OLA_PAD as f64;
+    let src_floor = (src_min.floor() as i64).max(0);
+    let src_ceil = (src_max.ceil() as i64 + 1).max(src_floor);
+    (src_floor, src_ceil)
+}
+
+/// WSOLA overlap-add synthesis of `[rel_start, rel_end)` from decoded stereo
+/// `window` starting at `src_floor` with `got` frames.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn ola_synthesize(
+    window: &[f32],
+    got: usize,
+    src_floor: i64,
+    rel_start: i64,
+    rel_end: i64,
+    direction: i64,
+    anchor_at: &mut dyn FnMut(i64) -> f64,
+    weight_scratch: &mut Vec<f32>,
+    out: &mut [f32],
+) {
+    let out_frames = (rel_end - rel_start).max(0) as usize;
+    out[..out_frames * CHANNELS].fill(0.0);
+    weight_scratch.resize(out_frames, 0.0);
+    weight_scratch.fill(0.0);
+    let (first_frame, last_frame) = ola_frames(rel_start, rel_end);
+    let warmup_frame = (first_frame - OLA_WARMUP).max(0);
+    let mut previous = None;
+    for k in warmup_frame..=last_frame {
+        let anchor = anchor_at(k * OLA_HOP as i64);
+        let aligned = ola_aligned_offset(anchor, previous, direction, &mut |pos| {
+            mono_at(window, got, src_floor, pos)
+        });
+        previous = Some(aligned);
+        if k < first_frame {
+            continue;
+        }
+        let base_out = k * OLA_HOP as i64;
+        for i in 0..OLA_FRAME {
+            let rel = base_out + i as i64;
+            if rel < rel_start || rel >= rel_end {
+                continue;
+            }
+            let weight = ola_window(i);
+            let pos = aligned + (direction * i as i64) as f64;
+            let out_idx = (rel - rel_start) as usize;
+            weight_scratch[out_idx] += weight;
+            for ch in 0..CHANNELS {
+                out[out_idx * CHANNELS + ch] += weight * sample_at(window, got, src_floor, pos, ch);
+            }
+        }
+    }
+    // Divide by the weight that landed so single-frame edges at span boundaries
+    // hold full level instead of fading by half a Hann window.
+    for (out_idx, &weight) in weight_scratch.iter().enumerate() {
+        if weight < 1e-4 {
+            for ch in 0..CHANNELS {
+                out[out_idx * CHANNELS + ch] = 0.0;
+            }
+            continue;
+        }
+        let inv = 1.0 / weight;
+        for ch in 0..CHANNELS {
+            let s = &mut out[out_idx * CHANNELS + ch];
+            *s *= inv;
+            if s.is_subnormal() || !s.is_finite() {
+                *s = 0.0;
+            }
+        }
+    }
+}
+
 pub(crate) fn accumulate_span_samples(
     span: &Span,
     span_rel_start: i64,
@@ -80,12 +169,14 @@ pub(crate) fn accumulate_span_samples(
 ) {
     let span_len = span.end - span.start;
     let first = span_rel_start - span.start;
-    // Center pan + unit volume + no fades: bit-exact passthrough of today's
-    // pre-pan mix (no √2 scaling at rest).
+    // Center pan + unit volume + no fades or crossfades: bit-exact passthrough
+    // of today's pre-pan mix (no √2 scaling at rest).
     let unity = span.volume.constant() == Some(1.0)
         && span.pan.constant() == Some(0.0)
         && span.fade_in == 0
-        && span.fade_out == 0;
+        && span.fade_out == 0
+        && span.crossfade_in.is_none()
+        && span.crossfade_out.is_none();
     if unity {
         for (dst, src) in out[out_offset..]
             .iter_mut()
@@ -96,7 +187,8 @@ pub(crate) fn accumulate_span_samples(
     } else {
         for frame in 0..frames {
             let pos = first + frame as i64;
-            let gain = audio_gain_at(pos, span_len, &span.volume, span.fade_in, span.fade_out);
+            let gain = audio_gain_at(pos, span_len, &span.volume, span.fade_in, span.fade_out)
+                * span.crossfade_gain(pos);
             let (left, right) = pan_channel_gains(span.pan.sample(pos));
             let base = out_offset + frame * CHANNELS;
             out[base] += samples[frame * CHANNELS] * gain * left;
@@ -129,4 +221,77 @@ pub(crate) fn ticks_to_samples(value: i64, num: i32, den: i32) -> i64 {
 /// frame `n`, so audio and video cover identical wall-clock spans.
 pub fn sample_boundary(n: i64, out_num: i32, out_den: i32) -> i64 {
     ticks_to_samples(n, out_num, out_den)
+}
+/// Convert output sample frame `sample` at [`EXPORT_AUDIO_RATE`] to sequence ticks at `fps`.
+pub(crate) fn samples_to_ticks(sample: i64, fps: aria_models::Rational) -> i64 {
+    if fps.num <= 0 || fps.den <= 0 {
+        return 0;
+    }
+    let ticks = i128::from(sample) * i128::from(fps.num)
+        / (i128::from(fps.den) * i128::from(EXPORT_AUDIO_RATE));
+    ticks.clamp(i128::from(i64::MIN), i128::from(i64::MAX)) as i64
+}
+
+/// Apply a strip's fader and constant-power stereo pan to interleaved stereo `buf`
+/// starting at output sample `start_sample` on sequence rate `fps`.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn apply_strip_gain_pan(
+    buf: &mut [f32],
+    start_sample: i64,
+    fps: aria_models::Rational,
+    muted: bool,
+    static_gain: f32,
+    static_pan: f32,
+    automation: aria_models::AutomationMode,
+    volume_envelope: &aria_models::Param<f32>,
+    pan_envelope: &aria_models::Param<f32>,
+) {
+    if muted {
+        buf.fill(0.0);
+        return;
+    }
+    let reads_vol = automation.reads_envelope() && volume_envelope.is_animated();
+    let reads_pan = automation.reads_envelope() && pan_envelope.is_animated();
+    let const_gain = (!reads_vol).then_some(static_gain);
+    let const_pan = (!reads_pan).then_some(static_pan);
+    if let (Some(gain), Some(pan)) = (const_gain, const_pan) {
+        if gain == 1.0 && pan == 0.0 {
+            return;
+        }
+        if pan == 0.0 {
+            for sample in buf.iter_mut() {
+                *sample *= gain;
+            }
+            return;
+        }
+        let (left, right) = pan_channel_gains(pan);
+        let l = gain * left;
+        let r = gain * right;
+        for frame in buf.chunks_exact_mut(CHANNELS) {
+            frame[0] *= l;
+            frame[1] *= r;
+        }
+        return;
+    }
+    for (idx, frame) in buf.chunks_exact_mut(CHANNELS).enumerate() {
+        let tick = samples_to_ticks(start_sample + idx as i64, fps);
+        let gain = if reads_vol {
+            volume_envelope.sample(tick)
+        } else {
+            static_gain
+        };
+        let pan = if reads_pan {
+            pan_envelope.sample(tick)
+        } else {
+            static_pan
+        };
+        if pan == 0.0 {
+            frame[0] *= gain;
+            frame[1] *= gain;
+        } else {
+            let (left, right) = pan_channel_gains(pan);
+            frame[0] *= gain * left;
+            frame[1] *= gain * right;
+        }
+    }
 }

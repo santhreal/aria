@@ -179,18 +179,26 @@ pub(super) fn sample_text_animation(
 
 /// Sample `clip.effects` at clip-local `tick` into compositor-ready passes.
 /// `seconds` is the time since the clip started, which a registered pass
-/// reads as `aria.time`. An effect no pass renders is dropped.
+/// reads as `aria.time`. A bypassed effect and an effect no pass renders are
+/// dropped. `point` is a live vec2 value for one parameter (see
+/// [`ResolveOverrides::effect_vec2`]).
 pub(super) fn resolve_effects(
     clip: &aria_models::Clip,
     tick: i64,
     seconds: f32,
+    point: Option<(aria_models::ClipId, usize, usize, [f32; 2])>,
 ) -> Vec<ResolvedPass> {
     let tick_f = tick as f64;
     clip.effects
         .iter()
-        .filter_map(|fx| {
+        .enumerate()
+        .filter(|(_, fx)| !fx.bypass)
+        .filter_map(|(index, fx)| {
             let id = aria_compositor::pass_id(&fx.effect_id)?;
-            pack_effect(fx, tick_f, id, seconds).ok()
+            let point = point
+                .filter(|(owner, effect, ..)| *owner == clip.id && *effect == index)
+                .map(|(_, _, slot, value)| (slot, value));
+            pack_effect(fx, tick_f, id, seconds, point).ok()
         })
         .collect()
 }
@@ -200,42 +208,23 @@ fn pack_effect(
     tick: f64,
     id: aria_compositor::PassId,
     seconds: f32,
+    point: Option<(usize, [f32; 2])>,
 ) -> Result<ResolvedPass, aria_models::ModelError> {
-    use aria_models::EffectParamKind;
-
-    let spec = fx.spec()?;
-    let mut params = Vec::with_capacity(spec.params.len() * 4);
-    for pspec in &spec.params {
-        match pspec.kind {
-            EffectParamKind::Scalar => {
-                let value = fx.sample_param(&pspec.name, tick).unwrap_or(pspec.default);
-                params.push(value);
-            }
-            EffectParamKind::Vec2 => {
-                let value = fx
-                    .sample_vec2_param(&pspec.name, tick)
-                    .unwrap_or(pspec.default_vec2);
-                params.push(value[0]);
-                params.push(value[1]);
-            }
-            EffectParamKind::Color => {
-                let value = fx
-                    .sample_color_param(&pspec.name, tick)
-                    .unwrap_or(pspec.default_color);
-                params.push(f32::from(value[0]) / 255.0);
-                params.push(f32::from(value[1]) / 255.0);
-                params.push(f32::from(value[2]) / 255.0);
-                params.push(f32::from(value[3]) / 255.0);
-            }
-        }
-    }
-    let pass = ResolvedPass::new(id, params);
-    // Shipped passes do not read the time; leaving it 0 keeps equal frames
-    // equal so the scene cache holds across them.
-    Ok(match pass.id {
-        aria_compositor::PassId::Registered(_) => pass.with_time(seconds),
-        aria_compositor::PassId::Shipped(_) => pass,
-    })
+    let params = fx.sample_flattened_floats(tick, point)?;
+    // Shipped passes do not read the time or CPU instance, and a registered
+    // effect that does not declare `time_dependent` reads time 0; leaving
+    // them empty keeps equal frames equal so the scene cache holds across them.
+    let reads_time = match &id {
+        aria_compositor::PassId::Registered(registered) => Some(registered.is_time_dependent()),
+        aria_compositor::PassId::Shipped(_) => None,
+    };
+    let Some(reads_time) = reads_time else {
+        return Ok(ResolvedPass::new(id, params));
+    };
+    let seconds = if reads_time { seconds } else { 0.0 };
+    Ok(ResolvedPass::new(id, params)
+        .with_time(seconds)
+        .with_instance(fx.clone()))
 }
 
 /// UV rect from a clip's crop sampled at a clip-relative tick, with axes

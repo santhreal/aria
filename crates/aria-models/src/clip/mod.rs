@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::effects::EffectInstance;
 use crate::error::ModelError;
-use crate::ids::{ClipId, LinkId, MediaId, MulticamGroupId, SequenceId};
+use crate::ids::{ClipId, GroupId, LinkId, MediaId, MulticamGroupId, SequenceId};
 use crate::param::Param;
 use crate::param_walk::ParamWalk;
 use crate::time::{Rational, RationalTime, TimeRange, check_same_rate};
@@ -11,12 +11,16 @@ use crate::time::{Rational, RationalTime, TimeRange, check_same_rate};
 #[allow(unused_imports)]
 use crate::param::{Easing, Keyframe};
 
+mod attributes;
 mod bake;
 mod crop;
+mod driver;
 mod generator;
 pub(crate) mod generator_catalog;
+mod line;
 mod param_axis;
 mod param_catalog;
+mod parent;
 pub(crate) mod retiming;
 mod split;
 mod template;
@@ -26,19 +30,24 @@ mod transform;
 #[cfg(test)]
 mod tests;
 
+pub use attributes::ClipAttribute;
 pub use crop::{CropRect, MIN_CROP_FRACTION};
+pub use driver::{DriverCode, MAX_DRIVER_LANGUAGE, MAX_DRIVER_SOURCE, PropertyDriver};
+/// The `ClipParam` registry's accessor for one effect on a clip's chain, so the
+/// project's effect commands and the registry's write route agree on the error.
+pub(crate) use driver::{index_after_move, index_after_remove};
 pub use generator::{
     ClipSource, Generator, MAX_SHAPE_DIM, MAX_STAR_POINTS, MAX_STROKE_WIDTH, SHAPE_DROP_HEIGHT,
     SHAPE_DROP_WIDTH, Shape, ShapePath, ShapePathPoint, ShapeStroke,
 };
 pub use generator_catalog::{GeneratorSpec, generator_spec, generator_spec_by_id, generator_specs};
-/// The `ClipParam` registry's accessor for one effect on a clip's chain, so the
-/// project's effect commands and the registry's write route agree on the error.
+pub use line::default_line_param;
 pub(crate) use param_axis::effect_mut;
 pub use param_catalog::{
-    ParamKind, ParamRange, ParamScope, ParamSpec, clip_param_catalog, clip_params_for, param_spec,
-    visit_clip_params,
+    ParamKind, ParamRange, ParamScope, ParamSpec, clip_param_catalog, clip_params_for,
+    mask_param_group, param_spec, property_row, visit_clip_params,
 };
+pub use parent::{MAX_PARENT_DEPTH, ParentFrame, ParentKeep};
 pub use retiming::{
     MAX_SPEED, MIN_SPEED, ParamTime, SPEED_CURVE_SCALE, SpeedPresetSpec, retimed_duration,
     speed_curve_integral, speed_curve_source_fraction, speed_preset, speed_preset_catalog,
@@ -47,10 +56,11 @@ pub use retiming::{
 pub(crate) use split::{split_speed_curve, validate_split_render_continuity};
 pub use template::{Replaceable, SlotMedia};
 pub use text::{
-    TextAlignH, TextAlignV, TextBackground, TextCase, TextShadow, TextStroke, TextStyle,
+    MAX_TEXT_RUNS, TEXT_RUN_VERSION, TextAlignH, TextAlignV, TextBackground, TextCase, TextShadow,
+    TextStroke, TextStyle, TextStyleRun,
 };
 pub use transform::{
-    AnimatedTransform, ClipParam, ClipParamClass, ClipTransform, LookParam, ParamAxis,
+    AnimatedTransform, ClipParam, ClipParamClass, ClipTransform, LookParam, MaskParam, ParamAxis,
     ParamExclusion, ParamValue, Scale2, ShapeParam, StyleParam, TextParam,
 };
 
@@ -73,6 +83,21 @@ pub struct Clip {
     /// dropping media with an audio stream. `None` ⇔ unlinked.
     #[serde(default)]
     pub link: Option<LinkId>,
+    /// Clip group (`Clip` > `Group`): clips sharing a `GroupId` are selected
+    /// and moved together while trims stay per-clip. `None` ⇔ ungrouped.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group: Option<GroupId>,
+    /// The clip on the same sequence whose transform this clip's transform is
+    /// read in, while the two overlap in time. A parent that is gone, or on
+    /// another sequence, leaves the clip on its own transform. `None` ⇔ no
+    /// parent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent: Option<ClipId>,
+    /// Whether the clip contributes to preview/export rendering and audio mix
+    /// (`Clip` > `Enable`). `true` (and absent from saves) by default so old
+    /// projects load enabled.
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
+    pub enabled: bool,
     /// Spatial placement on the canvas, animatable per property. Identity
     /// (aspect-fit, centered) for clips created before transforms existed.
     /// Ignored on audio tracks. Sample at a clip-relative tick via
@@ -164,12 +189,12 @@ pub struct Clip {
     /// Organizational label colour (Premiere label colours): a hue the
     /// operator assigns so related clips read as a group. Purely visual and
     /// render-neutral — the timeline and the inspector draw it, nothing
-    /// composites it. Shares [`crate::MarkerColor`]'s eight-hue palette, so a
-    /// label and a marker of the same colour are the same colour on screen.
-    /// `None` (and absent from saves) means the clip takes its lane's tint, so
-    /// old files load unchanged.
+    /// composites it. `None` (and absent from saves) means the clip takes the
+    /// default label of its kind, so old files load unchanged; a label saved
+    /// as one of the eight marker colours loads through
+    /// [`crate::LabelColor`]'s aliases.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub label: Option<crate::MarkerColor>,
+    pub label: Option<crate::LabelColor>,
     /// Operator-given name (Premiere clip name), shown on the timeline card in
     /// place of the name the clip's source would give it. `None` (and absent
     /// from saves) means the source names it — the media file, the generator, or
@@ -226,11 +251,18 @@ pub struct Clip {
     /// absent from saves) until detected, so old files load unchanged.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub beats: Vec<i64>,
-    /// Shaped alpha mask (CapCut mask, Phase I): persisted + validated now,
-    /// rendered later (documented render gap, like stickers). Meaningful on
-    /// media-backed visual clips; `None` (and absent from saves) otherwise.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub mask: Option<crate::look::Mask>,
+    /// User markers attached to this clip in clip time (`source.start.rate` for
+    /// media/multicam/sequence clips, or clip-local `0..timeline.duration` for
+    /// generated clips), sorted by `(tick, id)`. Stored in clip time so they
+    /// move with the clip across timeline moves, trims, and splits.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub markers: Vec<crate::timeline::Marker>,
+    /// The clip's mask stack, top first. Each mask combines with the result of
+    /// the masks above it through its [`crate::MaskMode`]; the stack cuts the
+    /// clip's alpha. At most [`crate::MAX_CLIP_MASKS`]; empty (and absent from
+    /// saves) on an unmasked clip.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub masks: Vec<crate::look::Mask>,
     /// Chroma keying (CapCut chroma key, Phase I): render-neutral this
     /// milestone. Media-backed visual clips only; absent while `None`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -296,6 +328,23 @@ pub struct Clip {
     /// [`Clip::baked`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bake: Option<Box<Clip>>,
+    /// Code that replaces properties' keyframed values, at most one per
+    /// property. Empty (and absent from saves) for an ordinary clip.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub drivers: Vec<PropertyDriver>,
+    /// The id of the registered clip type this clip is
+    /// ([`crate::ClipTypeSpec`]). The type's generator is the first effect in
+    /// [`Clip::effects`] and its parameters are the type's data. `None` (and
+    /// absent from saves) for every other clip. A clip whose type is not
+    /// registered keeps the id and draws what its effect chain draws.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub clip_type: Option<String>,
+    /// The property the clip's bar on the timeline draws as its line and its
+    /// keyframe dots, chosen from the bar's fx badge menu. `None` (and absent
+    /// from saves) draws the lane's default: Volume on an audio lane, Opacity
+    /// on any other lane.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub line_param: Option<ClipParam>,
 }
 
 /// Upper bound for [`Clip::volume`] (CapCut's 1000% ceiling).
@@ -341,6 +390,10 @@ pub(super) fn is_unit_speed_curve(curve: &Param<f32>) -> bool {
 }
 
 fn default_preserve_pitch() -> bool {
+    true
+}
+
+fn default_true() -> bool {
     true
 }
 
@@ -464,6 +517,9 @@ impl Clip {
             timeline,
             freeze_frame: false,
             link: None,
+            group: None,
+            parent: None,
+            enabled: default_true(),
             transform: AnimatedTransform::identity(),
             blend_mode: crate::look::BlendMode::default(),
             motion_blur: crate::look::MotionBlur::default(),
@@ -485,7 +541,8 @@ impl Clip {
             effects: Vec::new(),
             audio_effects: Vec::new(),
             beats: Vec::new(),
-            mask: None,
+            markers: Vec::new(),
+            masks: Vec::new(),
             chroma_key: None,
             matte: None,
             stabilize: None,
@@ -499,6 +556,9 @@ impl Clip {
             replaceable: None,
             text_editable: false,
             bake: None,
+            drivers: Vec::new(),
+            clip_type: None,
+            line_param: None,
         }
     }
 
@@ -622,6 +682,7 @@ impl Clip {
         frozen.fade_out = 0;
         frozen.denoise = false;
         frozen.beats.clear();
+        frozen.markers.clear();
         frozen.audio_role = None;
 
         frozen.animation_in = None;
@@ -710,7 +771,7 @@ impl Clip {
     /// treated as silent — it may be non-zero elsewhere — so the mixers keep
     /// it and sample per sample-frame.
     pub fn is_silent(&self) -> bool {
-        self.freeze_frame || matches!(self.volume.constant(), Some(v) if v <= 0.0)
+        !self.enabled || self.freeze_frame || matches!(self.volume.constant(), Some(v) if v <= 0.0)
     }
 
     /// True iff the clip carries detected beat markers (M8 Phase 6).
@@ -808,5 +869,178 @@ impl Clip {
             .collect();
         out.sort_unstable();
         out
+    }
+
+    /// The id of the first contribution this clip holds that no catalog lists:
+    /// its clip type, then its video effects and audio effects in chain order.
+    /// A plugin that is missing, failed, or disabled drops its registrations,
+    /// so this is the id the clip's missing-plugin badge states. The clip keeps
+    /// the id, its parameters, and its keyframes unchanged.
+    pub fn missing_plugin_id(&self) -> Option<&str> {
+        if let Some(id) = self.clip_type.as_deref()
+            && crate::clip_type_spec(id).is_none()
+        {
+            return Some(id);
+        }
+        self.effects
+            .iter()
+            .find(|fx| crate::effect_spec(&fx.effect_id).is_none())
+            .map(|fx| fx.effect_id.as_str())
+            .or_else(|| {
+                self.audio_effects
+                    .iter()
+                    .find(|fx| crate::audio_effect_spec(&fx.effect_id).is_none())
+                    .map(|fx| fx.effect_id.as_str())
+            })
+    }
+
+    /// Markers attached to this clip, in `(tick, id)` order.
+    pub fn markers(&self) -> &[crate::timeline::Marker] {
+        &self.markers
+    }
+
+    /// Find a clip marker on this clip by id.
+    pub fn marker(&self, id: crate::ids::MarkerId) -> Option<&crate::timeline::Marker> {
+        self.markers.iter().find(|m| m.id == id)
+    }
+
+    /// The clip's own time window: its media/multicam/sequence source range, or
+    /// `0..timeline.duration` at the timeline rate for a generated clip.
+    pub fn clip_time_range(&self) -> TimeRange {
+        self.source_range().unwrap_or_else(|| {
+            TimeRange::at_rate(0, self.timeline.duration.value, self.timeline.start.rate)
+        })
+    }
+
+    /// Map an absolute timeline tick inside this clip to the clip's own time
+    /// coordinate (`source` time for media/multicam/sequence clips, or
+    /// clip-local `0..duration` for generated clips).
+    pub fn clip_time_at_timeline_tick(&self, timeline_tick: i64) -> Option<RationalTime> {
+        if timeline_tick < self.timeline.start.value || timeline_tick >= self.timeline.end_tick() {
+            return None;
+        }
+        if self.source_range().is_some() {
+            self.source_time_at(RationalTime::new(timeline_tick, self.timeline.start.rate))
+                .ok()
+                .flatten()
+        } else {
+            Some(RationalTime::new(
+                timeline_tick - self.timeline.start.value,
+                self.timeline.start.rate,
+            ))
+        }
+    }
+
+    /// Map a clip-time tick to an absolute timeline tick, or `None` if it lies
+    /// outside the clip's active window.
+    pub fn timeline_tick_for_clip_time(&self, clip_tick: i64) -> Option<i64> {
+        if self.source_range().is_some() {
+            self.timeline_tick_for_source(clip_tick)
+        } else if (0..self.timeline.duration.value).contains(&clip_tick) {
+            Some(self.timeline.start.value + clip_tick)
+        } else {
+            None
+        }
+    }
+
+    /// Map a clip-time span `[start, end)` to an absolute timeline span
+    /// `(tl_start, tl_end)`, clamped to the clip's visible window.
+    pub fn timeline_span_for_clip_time(&self, start: i64, end: i64) -> Option<(i64, i64)> {
+        if self.source_range().is_some() {
+            self.timeline_span_for_source(start, end)
+        } else {
+            let dur = self.timeline.duration.value;
+            if dur <= 0 || end <= start {
+                return None;
+            }
+            let low = start.max(0);
+            let high = end.min(dur);
+            (high > low).then_some((
+                self.timeline.start.value + low,
+                self.timeline.start.value + high,
+            ))
+        }
+    }
+
+    /// Insert a clip marker in `(tick, id)` order, validating that its position
+    /// and duration lie within [`Self::clip_time_range`].
+    pub fn add_marker(
+        &mut self,
+        mut marker: crate::timeline::Marker,
+    ) -> Result<crate::ids::MarkerId, ModelError> {
+        if !marker.tick.rate.is_valid() || !marker.duration.rate.is_valid() {
+            return Err(ModelError::InvalidRange);
+        }
+        if marker.duration.value < 0 {
+            return Err(ModelError::InvalidParam(format!(
+                "marker duration must be non-negative (got {})",
+                marker.duration.value
+            )));
+        }
+        if self.marker(marker.id).is_some() {
+            return Err(ModelError::InvalidRange);
+        }
+        let window = self.clip_time_range();
+        marker.tick = crate::time::resample(marker.tick, window.start.rate);
+        marker.duration = crate::time::resample(marker.duration, window.start.rate);
+        let start = window.start.value;
+        let end = window.end_tick();
+        if marker.tick.value < start || marker.tick.value >= end {
+            return Err(ModelError::InvalidParam(format!(
+                "clip marker tick ({}) is outside clip source range [{start}..{end})",
+                marker.tick.value
+            )));
+        }
+        let marker_end = marker.tick.value + marker.duration.value;
+        if marker_end > end {
+            return Err(ModelError::InvalidParam(format!(
+                "clip marker range end ({marker_end}) exceeds clip source end ({end})"
+            )));
+        }
+        let id = marker.id;
+        let at = self
+            .markers
+            .partition_point(|m| (m.tick.value, m.id) <= (marker.tick.value, marker.id));
+        self.markers.insert(at, marker);
+        Ok(id)
+    }
+
+    /// Remove a clip marker by id, returning it for undo capture.
+    pub fn remove_marker(&mut self, id: crate::ids::MarkerId) -> Option<crate::timeline::Marker> {
+        let index = self.markers.iter().position(|m| m.id == id)?;
+        Some(self.markers.remove(index))
+    }
+
+    /// Update all fields of a clip marker in place, validating `duration >= 0`
+    /// and that `tick + duration` stays within [`Self::clip_time_range`].
+    #[allow(clippy::too_many_arguments)]
+    pub fn edit_marker(
+        &mut self,
+        id: crate::ids::MarkerId,
+        tick: RationalTime,
+        duration: RationalTime,
+        name: String,
+        color: crate::timeline::MarkerColor,
+        comment: String,
+        kind: crate::timeline::MarkerKind,
+    ) -> Result<(), ModelError> {
+        let mut marker = self
+            .remove_marker(id)
+            .ok_or(ModelError::UnknownMarker(id))?;
+        let before = marker.clone();
+        marker.tick = tick;
+        marker.duration = duration;
+        marker.name = name;
+        marker.color = color;
+        marker.comment = comment;
+        marker.kind = kind;
+        match self.add_marker(marker) {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                let restored = self.add_marker(before);
+                debug_assert!(restored.is_ok(), "re-inserting the removed clip marker");
+                Err(e)
+            }
+        }
     }
 }

@@ -73,8 +73,12 @@ The keys are the inspector's grade sliders, in panel order:
 | `hue` | -1 … 1 | rotation; ±1 is ±30° |
 | `highlights` | -1 … 1 | tones above mid luma |
 | `shadows` | -1 … 1 | tones below mid luma |
+| `whites` | -1 … 1 | white point; +1 takes 0.75 to white |
+| `blacks` | -1 … 1 | black point; +1 lifts black to 0.2 |
 | `sharpness` | 0 … 1 | unsharp-mask strength |
 | `vignette` | 0 … 1 | radial darkening from the centre |
+| `vibrance` | -1 … 1 | saturation, weighted toward muted colours |
+| `faded_film` | 0 … 1 | lifts black toward grey, white stays |
 | `lift_r` | -1 … 1 | shadow offset, red |
 | `lift_g` | -1 … 1 | shadow offset, green |
 | `lift_b` | -1 … 1 | shadow offset, blue |
@@ -87,6 +91,41 @@ The keys are the inspector's grade sliders, in panel order:
 | `gain_g` | 0 … 4 | highlight scale, green |
 | `gain_b` | 0 … 4 | highlight scale, blue |
 | `gain_master` | 0 … 4 | highlight scale, every channel |
+| `curve_master_shadows` | -1 … 1 | RGB curve, every channel, at 1/4 input |
+| `curve_master_midtones` | -1 … 1 | RGB curve, every channel, at 1/2 input |
+| `curve_master_highlights` | -1 … 1 | RGB curve, every channel, at 3/4 input |
+| `curve_red_shadows` | -1 … 1 | RGB curve, red, at 1/4 input |
+| `curve_red_midtones` | -1 … 1 | RGB curve, red, at 1/2 input |
+| `curve_red_highlights` | -1 … 1 | RGB curve, red, at 3/4 input |
+| `curve_green_shadows` | -1 … 1 | RGB curve, green, at 1/4 input |
+| `curve_green_midtones` | -1 … 1 | RGB curve, green, at 1/2 input |
+| `curve_green_highlights` | -1 … 1 | RGB curve, green, at 3/4 input |
+| `curve_blue_shadows` | -1 … 1 | RGB curve, blue, at 1/4 input |
+| `curve_blue_midtones` | -1 … 1 | RGB curve, blue, at 1/2 input |
+| `curve_blue_highlights` | -1 … 1 | RGB curve, blue, at 3/4 input |
+| `hue_sat_red` | -1 … 1 | saturation of reds |
+| `hue_sat_yellow` | -1 … 1 | saturation of yellows |
+| `hue_sat_green` | -1 … 1 | saturation of greens |
+| `hue_sat_cyan` | -1 … 1 | saturation of cyans |
+| `hue_sat_blue` | -1 … 1 | saturation of blues |
+| `hue_sat_magenta` | -1 … 1 | saturation of magentas |
+| `hue_hue_red` | -1 … 1 | hue of reds; ±1 is ±60° |
+| `hue_hue_yellow` | -1 … 1 | hue of yellows; ±1 is ±60° |
+| `hue_hue_green` | -1 … 1 | hue of greens; ±1 is ±60° |
+| `hue_hue_cyan` | -1 … 1 | hue of cyans; ±1 is ±60° |
+| `hue_hue_blue` | -1 … 1 | hue of blues; ±1 is ±60° |
+| `hue_hue_magenta` | -1 … 1 | hue of magentas; ±1 is ±60° |
+| `hue_luma_red` | -1 … 1 | luma of reds |
+| `hue_luma_yellow` | -1 … 1 | luma of yellows |
+| `hue_luma_green` | -1 … 1 | luma of greens |
+| `hue_luma_cyan` | -1 … 1 | luma of cyans |
+| `hue_luma_blue` | -1 … 1 | luma of blues |
+| `hue_luma_magenta` | -1 … 1 | luma of magentas |
+| `hsl_key_hue` | -1 … 1 | keyed hue centre; 0 is red, ±1 is cyan |
+| `hsl_key_width` | -1 … 1 | keyed hue half-width; 30° at 0 |
+| `hsl_hue` | -1 … 1 | hue of the keyed colours; ±1 is ±60° |
+| `hsl_saturation` | -1 … 1 | saturation of the keyed colours |
+| `hsl_luma` | -1 … 1 | luma of the keyed colours |
 
 The gamma and gain keys multiply, so `1` is no change and the value a preset
 states is the multiplier at full intensity. A `0`, or a key left out, is read
@@ -149,8 +188,8 @@ kind = "circle"
 label = "Round"
 ```
 
-The shipped kinds are `linear`, `mirror`, `circle`, `rectangle`, `heart`, and
-`star`. A kind is a shape the renderer draws, so the set is fixed: a file may
+The shipped kinds are `linear`, `mirror`, `circle`, `rectangle`, `heart`, `star`,
+and `path`. A kind is a shape the renderer draws, so the set is fixed: a file may
 relabel or reorder the shapes, and a file that names an unknown kind, or leaves
 one out, is refused whole.
 

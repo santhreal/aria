@@ -169,12 +169,14 @@ fn look_commands_surface_in_ui_state() {
 
     // Untouched clips carry none of the look fields on the wire.
     let before = first_clip(session, "video");
-    for key in ["mask", "chroma_key", "stabilize", "filter", "adjust"] {
+    for key in ["masks", "chroma_key", "stabilize", "filter", "adjust"] {
         assert!(before.get(key).is_none(), "{key} unexpectedly present");
     }
 
     for command in [
-        serde_json::json!({"type": "SetClipMask", "clip": clip, "mask": {"kind": "circle"}}),
+        serde_json::json!({"type": "AddClipMask", "clip": clip, "mask": {"kind": "circle"}}),
+        serde_json::json!({"type": "AddClipMask", "clip": clip,
+            "mask": {"kind": "star", "mode": "subtract", "opacity": 0.5}}),
         serde_json::json!({"type": "SetClipChroma", "clip": clip,
             "chroma": {"rgb": [0, 255, 0], "strength": 0.5}}),
         serde_json::json!({"type": "SetClipStabilize", "clip": clip, "stabilize": "smooth"}),
@@ -190,7 +192,9 @@ fn look_commands_surface_in_ui_state() {
     }
 
     let styled = first_clip(session, "video");
-    assert_eq!(styled["mask"]["kind"], "circle");
+    assert_eq!(styled["masks"][0]["kind"], "circle");
+    assert_eq!(styled["masks"][1]["mode"], "subtract");
+    assert_eq!(styled["masks"][1]["opacity"], 0.5);
     assert_eq!(styled["chroma_key"]["rgb"][1], 255);
     assert_eq!(styled["stabilize"], "smooth");
     assert_eq!(styled["filter"]["id"], "noir");

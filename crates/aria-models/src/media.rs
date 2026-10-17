@@ -44,10 +44,10 @@ pub struct MediaSource {
     /// load unchanged.
     #[serde(default, skip_serializing_if = "is_false")]
     pub is_image: bool,
-    /// Operator grouping colour for the bin row, shared with clip labels and
-    /// markers. Absent from saves while unset, so old files load unchanged.
+    /// Operator grouping colour for the bin row, from the clip label set.
+    /// Absent from saves while unset, so old files load unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub label: Option<crate::MarkerColor>,
+    pub label: Option<crate::LabelColor>,
     /// Unix seconds when the file entered the pool, so a pool can be ordered by
     /// date added. Absent from saves made before it existed; such an entry has
     /// no import time rather than a fabricated one.

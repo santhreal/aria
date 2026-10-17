@@ -13,9 +13,9 @@ use std::path::PathBuf;
 use aria_commands::{
     AnimationRef, AnimationSlot, AudioLayout, AudioRole, BlendMode, CanvasAspect, ChromaKey,
     ClipId, ClipParam, ColorAdjustments, Command, Easing, EditCommand, EditOutcome, ExportFormat,
-    Filter, Generator, LayerShadow, LayerStyles, MarkerId, Mask, MaskKind, MediaId, MotionBlur,
-    Param, ParamValue, ProjectCommand, Rational, RationalTime, SpatialTangents, StabilizeLevel,
-    TimeRange, TrackId, VideoCodec,
+    Filter, Generator, LayerShadow, LayerStyles, MarkerId, Mask, MaskKind, MaskMode, MediaId,
+    MotionBlur, Param, ParamValue, ProjectCommand, Rational, RationalTime, SpatialTangents,
+    StabilizeLevel, TimeDisplay, TimeRange, TrackId, VideoCodec,
 };
 use serde_json::{Value, json};
 

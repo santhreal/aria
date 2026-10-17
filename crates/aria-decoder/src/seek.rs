@@ -81,7 +81,7 @@ const FALLBACK_FPS: f64 = 30.0;
 /// The defaults (300 ms per seek, 10 ms per frame) reproduce the previous
 /// fixed 1-second window at 30 fps until real measurements replace them.
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct SeekStats {
+pub struct SeekStats {
     /// EMA of a full seek-path `frame_at`: `seek()` plus the keyframe-prefix
     /// walk to the covering frame, in milliseconds.
     seek_ms: f64,
@@ -113,16 +113,7 @@ impl SeekStats {
     /// Clamped to at least two frame periods (sequential playback must always
     /// roll) and at most [`MAX_ROLL_WINDOW_SECS`].
     fn roll_window_us(&self, frame_rate: Rational) -> i64 {
-        let fps = if frame_rate.is_valid() {
-            let fps = f64::from(frame_rate.num) / f64::from(frame_rate.den);
-            if fps.is_finite() && fps > 0.0 {
-                fps
-            } else {
-                FALLBACK_FPS
-            }
-        } else {
-            FALLBACK_FPS
-        };
+        let fps = frames_per_sec(frame_rate);
         let break_even_frames = (self.seek_ms / self.frame_ms).max(0.0);
         let secs = (break_even_frames / fps).clamp(2.0 / fps, MAX_ROLL_WINDOW_SECS);
         (secs * 1e6) as i64
@@ -203,6 +194,44 @@ pub(crate) fn should_roll_forward(
     !within_tick_slack(ahead, last.rate, target.rate.num, scale, frame_rate)
 }
 
+/// Whether a frame at `later` is a different, later frame than one at
+/// `earlier`: after it by more than the truncation slack. Invalid rates fall
+/// back to an exact comparison.
+pub(crate) fn is_after(later: RationalTime, earlier: RationalTime, frame_rate: Rational) -> bool {
+    if later.compare(earlier) != Ordering::Greater {
+        return false;
+    }
+    if !later.rate.is_valid() || !earlier.rate.is_valid() {
+        return true;
+    }
+    let ahead = scaled_delta(later, earlier);
+    let scale = i128::from(later.rate.num) * i128::from(earlier.rate.num);
+    !within_tick_slack(ahead, earlier.rate, later.rate.num, scale, frame_rate)
+}
+
+/// Whether `target` lies before `at` by more than half a frame period: the
+/// frame for `target` precedes the frame at `at`. Without a valid frame rate,
+/// [`is_after`] decides.
+pub(crate) fn is_frame_before(
+    target: RationalTime,
+    at: RationalTime,
+    frame_rate: Rational,
+) -> bool {
+    if !frame_rate.is_valid() || !target.rate.is_valid() || !at.rate.is_valid() {
+        return is_after(at, target, frame_rate);
+    }
+    if at.compare(target) != Ordering::Greater {
+        return false;
+    }
+    // (at − target) secs > den / (2·num) secs, cross-multiplied by the scale.
+    let behind = scaled_delta(at, target);
+    let scale = i128::from(at.rate.num) * i128::from(target.rate.num);
+    match behind.checked_mul(2 * i128::from(frame_rate.num)) {
+        Some(lhs) => lhs > scale * i128::from(frame_rate.den),
+        None => true,
+    }
+}
+
 /// Whether the decoded frame at `frame_pts` satisfies a request for `target`:
 /// at/after it, or before it by no more than the truncation slack (see the
 /// module docs).
@@ -234,55 +263,153 @@ pub(crate) fn frame_covers(
 /// EMA with the whole `seek()`-plus-walk duration, a roll-path call updates
 /// the per-frame EMA with `elapsed / frames_decoded`. The two `Instant`
 /// reads are nanoseconds against millisecond-scale decode work.
-pub(crate) fn frame_at_rolling<D: VideoDecoder + ?Sized>(
+pub fn frame_at_rolling<D: VideoDecoder + ?Sized>(
     decoder: &mut D,
     last_pts: Option<RationalTime>,
     stats: &mut SeekStats,
     target: RationalTime,
 ) -> Result<Option<VideoFrame>, DecodeError> {
     let frame_rate = decoder.info().frame_rate;
-    let mut rolling = should_roll_forward(
-        last_pts,
-        target,
-        frame_rate,
-        stats.roll_window_us(frame_rate),
-    );
+    let window = stats.roll_window_us(frame_rate);
     let start = Instant::now();
-    if !rolling {
-        decoder.seek(target)?;
+    if should_roll_forward(last_pts, target, frame_rate, window) {
+        let fps = frames_per_sec(frame_rate);
+        let max_roll_frames = ((window as f64 * fps / 1e6).ceil() as u32 * 2).clamp(16, 240);
+        let mut decoded = 0u32;
+        loop {
+            // Rolling into the end of the stream means the target lies past
+            // it: the same miss the seek path returns.
+            let Some(frame) = decoder.next_frame()? else {
+                return Ok(None);
+            };
+            decoded += 1;
+            if frame_covers(frame.pts, target, frame_rate) {
+                let elapsed_ms = start.elapsed().as_secs_f64() * 1e3;
+                stats.observe_roll_frame(elapsed_ms / f64::from(decoded));
+                return Ok(Some(frame));
+            }
+            if decoded >= max_roll_frames {
+                // Walked too far forward on non-advancing or non-monotonic
+                // timestamps: seek instead.
+                break;
+            }
+        }
+    }
+    let found = seek_walk(decoder, target, frame_rate, |_| {})?;
+    if found.is_some() {
+        stats.observe_seek(start.elapsed().as_secs_f64() * 1e3);
+    }
+    Ok(found)
+}
+
+/// Frames per second of `frame_rate`, [`FALLBACK_FPS`] without a valid,
+/// positive rate.
+fn frames_per_sec(frame_rate: Rational) -> f64 {
+    let fps = f64::from(frame_rate.num) / f64::from(frame_rate.den);
+    if frame_rate.is_valid() && fps.is_finite() && fps > 0.0 {
+        fps
+    } else {
+        FALLBACK_FPS
+    }
+}
+
+/// Frames a seek walk decodes past its landing point before it gives up, so a
+/// corrupt stream whose timestamps never reach the target ends.
+const MAX_SEEK_WALK: u32 = 600;
+
+/// Seek to the sync sample before `target` and decode forward to the first
+/// frame covering it, passing each earlier frame to `before` in stream order.
+///
+/// A seek that lands past `target`, or at the end of the stream, hit a sync
+/// sample that cannot start a decode (an open GOP); the walk seeks earlier by
+/// [`Backoff`] until it lands at or before `target`, then walks from there.
+/// Frames reach `before` only after the final landing, so they are the
+/// unbroken run that precedes the returned frame. `Ok(None)` when no frame
+/// covers `target` within [`MAX_SEEK_WALK`] frames of the landing point plus
+/// the back-off span.
+pub(crate) fn seek_walk<D: VideoDecoder + ?Sized>(
+    decoder: &mut D,
+    target: RationalTime,
+    frame_rate: Rational,
+    mut before: impl FnMut(VideoFrame),
+) -> Result<Option<VideoFrame>, DecodeError> {
+    let fps = frames_per_sec(frame_rate);
+    let mut backoff = Backoff::new(target);
+    let mut walk_limit = MAX_SEEK_WALK;
+    decoder.seek(target)?;
+    let mut frame = decoder.next_frame()?;
+    while frame
+        .as_ref()
+        .is_none_or(|frame| is_frame_before(target, frame.pts, frame_rate))
+    {
+        let Some((point, secs)) = backoff.next() else {
+            break;
+        };
+        decoder.seek(point)?;
+        walk_limit = MAX_SEEK_WALK.saturating_add((secs as f64 * fps).ceil() as u32);
+        frame = decoder.next_frame()?;
     }
     let mut decoded = 0u32;
-    let max_roll_frames = {
-        let fps = if frame_rate.is_valid() {
-            (f64::from(frame_rate.num) / f64::from(frame_rate.den)).max(1.0)
-        } else {
-            FALLBACK_FPS
-        };
-        ((stats.roll_window_us(frame_rate) as f64 * fps / 1e6).ceil() as u32 * 2).clamp(16, 240)
-    };
-    const MAX_TOTAL_WALK_LIMIT: u32 = 600;
-
-    while let Some(frame) = decoder.next_frame()? {
+    while let Some(next) = frame {
         decoded += 1;
-        if frame_covers(frame.pts, target, frame_rate) {
-            let elapsed_ms = start.elapsed().as_secs_f64() * 1e3;
-            if rolling {
-                stats.observe_roll_frame(elapsed_ms / f64::from(decoded));
-            } else {
-                stats.observe_seek(elapsed_ms);
-            }
-            return Ok(Some(frame));
+        if frame_covers(next.pts, target, frame_rate) {
+            return Ok(Some(next));
         }
-        if rolling && decoded >= max_roll_frames {
-            // Walked too far forward on non-advancing/non-monotonic timestamps; fall back to hard seek.
-            decoder.seek(target)?;
-            rolling = false;
-        } else if !rolling && decoded >= MAX_TOTAL_WALK_LIMIT {
-            // Bounded safety ceiling to guarantee termination on corrupt infinite streams.
+        if decoded >= walk_limit {
             break;
         }
+        before(next);
+        frame = decoder.next_frame()?;
     }
     Ok(None)
+}
+
+/// Longest back-off, in seconds, for a seek that lands past its target.
+const MAX_BACKOFF_SECS: i64 = 64;
+
+/// Earlier seek points for a target whose seek landed past it: one second
+/// before it, then two, four, and so on to [`MAX_BACKOFF_SECS`] or the start
+/// of the stream, whichever is first.
+pub(crate) struct Backoff {
+    target: RationalTime,
+    secs: i64,
+    at_start: bool,
+}
+
+impl Backoff {
+    pub(crate) fn new(target: RationalTime) -> Self {
+        Self {
+            target,
+            secs: 0,
+            at_start: false,
+        }
+    }
+
+    /// The next earlier seek point and how far before the target it is, or
+    /// `None` once the start of the stream or the longest back-off was tried.
+    pub(crate) fn next(&mut self) -> Option<(RationalTime, i64)> {
+        if self.at_start || self.secs >= MAX_BACKOFF_SECS || !self.target.rate.is_valid() {
+            return None;
+        }
+        self.secs = (self.secs * 2).max(1);
+        let rate = self.target.rate;
+        // A valid rate has a positive numerator and denominator.
+        let (span, den) = (
+            i128::from(self.secs) * i128::from(rate.num),
+            i128::from(rate.den),
+        );
+        let back = (span + den - 1) / den;
+        let value = i128::from(self.target.value) - back;
+        if value <= 0 {
+            self.at_start = true;
+            if self.target.value <= 0 {
+                return None;
+            }
+            return Some((RationalTime::new(0, rate), self.secs));
+        }
+        let value = i64::try_from(value).ok()?;
+        Some((RationalTime::new(value, rate), self.secs))
+    }
 }
 
 /// [`VideoDecoder::frame_at_nearest`] with the same roll-forward fast path
@@ -296,13 +423,13 @@ pub(crate) fn frame_at_rolling<D: VideoDecoder + ?Sized>(
 /// but "nearest" callers expect the tail frame there — containers
 /// routinely over-report their frame count by one, so end-of-media
 /// targets overshoot EOF in ordinary editing (transition tail frames,
-/// the final tick of a clip). Such targets fall back to
-/// [`seek_back_to_tail`].
+/// the final tick of a clip). Such targets fall back to the last frame
+/// before end of stream.
 ///
 /// The snap path deliberately does **not** feed `stats`: its cost (one
 /// decode) says nothing about a full exact `frame_at`, and folding it into
 /// the seek EMA would shrink the roll window that exact calls rely on.
-pub(crate) fn frame_at_nearest_rolling<D: VideoDecoder + ?Sized>(
+pub fn frame_at_nearest_rolling<D: VideoDecoder + ?Sized>(
     decoder: &mut D,
     last_pts: Option<RationalTime>,
     stats: &mut SeekStats,

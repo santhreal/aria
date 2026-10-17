@@ -1,9 +1,11 @@
-//! What an export is going to write, before it writes any of it.
+//! What an export is going to write, before and during the encode pass.
 //!
-//! The frame span is the one number the frame loop, the progress total and the
-//! encoder all read, so a wrong one is either a file with missing frames or a
-//! zero-frame file that reads as a success. These pin the boundary cases of
-//! that arithmetic and the two refusals that come out of it.
+//! Defect class closed: wrong frame-span arithmetic, partial or corrupt files
+//! left at the destination when an encoder fails or is cancelled mid-export, and
+//! audio samples pushed to a video-only encoder (`supports_audio == false`).
+//!
+//! What this does not catch: hardware platform encoder output bitstreams, which
+//! are covered by `tests/export_pipeline.rs`.
 
 use super::*;
 use aria_core::Rational;
@@ -153,4 +155,38 @@ fn every_reason_names_its_own_way_out() {
         seen.push(text);
     }
     assert_eq!(seen.len(), EmptyExport::ALL.len());
+}
+
+/// `resolved_for_encoder` validates dimensions, rate, and span without consulting
+/// the platform encoder capability table, and forces `audio = false` when the
+/// encoder does not support audio.
+#[test]
+fn resolved_for_encoder_respects_audio_capability_and_validates_bounds() {
+    let project = one_second();
+    let mut fmt = ExportFormat::default();
+    fmt.audio = Some(true);
+    fmt.size = Some((640, 361));
+
+    let with_audio =
+        ExportSettings::resolved_for_encoder(&project, fmt, true).expect("valid settings");
+    assert!(with_audio.audio);
+    assert_eq!(with_audio.size, (640, 360), "dimensions are evened");
+
+    let without_audio =
+        ExportSettings::resolved_for_encoder(&project, fmt, false).expect("valid settings");
+    assert!(
+        !without_audio.audio,
+        "audio must be disabled when encoder does not support audio"
+    );
+
+    let bad_size = ExportFormat {
+        size: Some((1, 100)),
+        ..ExportFormat::default()
+    };
+    assert!(matches!(
+        ExportSettings::resolved_for_encoder(&project, bad_size, true),
+        Err(RenderError::Format(ExportFormatError::Size {
+            asked: (1, 100)
+        }))
+    ));
 }

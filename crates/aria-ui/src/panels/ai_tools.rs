@@ -39,25 +39,27 @@ pub fn render(
     let total: usize = groups.iter().map(|(_, tools)| tools.len()).sum();
     let flat = state.read(cx).ai_tool_names().len();
 
-    let mut body =
-        div()
-            .flex()
-            .flex_col()
-            .gap(px(Theme::SPACE_SM))
-            .p(px(Theme::SPACE_MD))
-            .child(
-                div()
-                    .text_size(px(13.))
-                    .font_weight(gpui::FontWeight::SEMIBOLD)
-                    .text_color(theme.text)
-                    .child("What the assistant can do"),
-            )
-            .child(div().text_size(px(11.)).text_color(theme.text_faint).child(
-                SharedString::from(format!(
+    let mut body = div()
+        .flex()
+        .flex_col()
+        .gap(px(Theme::SPACE_SM))
+        .p(px(Theme::SPACE_MD))
+        .child(
+            div()
+                .text_size(Theme::TEXT_UI)
+                .font_weight(gpui::FontWeight::SEMIBOLD)
+                .text_color(theme.text)
+                .child("What the assistant can do"),
+        )
+        .child(
+            div()
+                .text_size(Theme::TEXT_UI)
+                .text_color(theme.text_faint)
+                .child(SharedString::from(format!(
                     "{total} tool(s) in {} group(s); {flat} of them edit the project",
                     groups.len()
-                )),
-            ));
+                ))),
+        );
     for (name, tools) in groups {
         body = body.child(group_block(&theme, &name, &tools));
     }
@@ -81,14 +83,14 @@ fn group_block(theme: &Theme, name: &SharedString, tools: &[SharedString]) -> im
         .border_color(theme.border)
         .child(
             div()
-                .text_size(px(11.))
+                .text_size(Theme::TEXT_UI)
                 .font_weight(gpui::FontWeight::SEMIBOLD)
                 .text_color(theme.text_faint)
                 .child(SharedString::from(format!("{name} · {}", tools.len()))),
         )
         .children(tools.iter().map(|tool| {
             div()
-                .text_size(px(12.))
+                .text_size(Theme::TEXT_TITLE)
                 .text_color(theme.text_muted)
                 .child(tool.clone())
         }))

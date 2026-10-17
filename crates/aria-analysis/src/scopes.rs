@@ -17,7 +17,9 @@
 //! report an exposure the picture does not have.
 //!
 //! Luma and chroma are BT.709 (`0.2126 / 0.7152 / 0.0722`), the coefficients
-//! the compositor and the encoders already work in.
+//! the compositor and the encoders already work in. Both are computed in fixed
+//! point, so a GPU pass that counts the same frame gets the same bins:
+//! `aria_compositor::GpuScopes` runs this arithmetic in WGSL.
 
 use crate::ConfigError;
 use crate::shot_detection::Rgba8Frame;
@@ -39,16 +41,71 @@ pub const MAX_VECTORSCOPE_SIZE: usize = 512;
 /// render that produced the frame.
 pub const MAX_SCOPE_SAMPLES: usize = 4_000_000;
 
+/// One quantity a waveform column counts, by 8-bit code value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum WaveformChannel {
+    /// BT.709 luma, [`luma709`].
+    Luma,
+    /// The red code value.
+    Red,
+    /// The green code value.
+    Green,
+    /// The blue code value.
+    Blue,
+    /// BT.709 Cb as a code value, 128 for neutral, [`chroma_codes709`].
+    Cb,
+    /// BT.709 Cr as a code value, 128 for neutral, [`chroma_codes709`].
+    Cr,
+}
+
+/// What a waveform monitor counts: one trace, or a parade of three laid side
+/// by side.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum WaveformTrace {
+    /// Luma per column.
+    #[default]
+    Luma,
+    /// Red, green, and blue per column, side by side.
+    RgbParade,
+    /// Luma, Cb, and Cr per column, side by side.
+    YcbcrParade,
+}
+
+impl WaveformTrace {
+    /// Every trace, in the order a picker offers them.
+    pub const ALL: [Self; 3] = [Self::Luma, Self::RgbParade, Self::YcbcrParade];
+
+    /// The channels counted, in the order a parade lays them out left to
+    /// right. Each is a block of `columns × SCOPE_BINS` counts in that order.
+    #[must_use]
+    pub const fn channels(self) -> &'static [WaveformChannel] {
+        match self {
+            Self::Luma => &[WaveformChannel::Luma],
+            Self::RgbParade => &[
+                WaveformChannel::Red,
+                WaveformChannel::Green,
+                WaveformChannel::Blue,
+            ],
+            Self::YcbcrParade => &[
+                WaveformChannel::Luma,
+                WaveformChannel::Cb,
+                WaveformChannel::Cr,
+            ],
+        }
+    }
+}
+
 /// How much of the frame is read and how finely the scopes are resolved.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ScopeConfig {
     waveform_columns: usize,
     vectorscope_size: usize,
     maximum_samples: usize,
+    waveform_trace: WaveformTrace,
 }
 
 impl Default for ScopeConfig {
-    /// The shipped preview settings: 256 waveform columns, a 128-pixel
+    /// The shipped preview settings: 256 waveform columns of luma, a 128-pixel
     /// vectorscope, and a 200k-pixel budget, which is a whole 540p frame and a
     /// sixteenth of a 4K one.
     fn default() -> Self {
@@ -56,12 +113,14 @@ impl Default for ScopeConfig {
             waveform_columns: 256,
             vectorscope_size: 128,
             maximum_samples: 200_000,
+            waveform_trace: WaveformTrace::Luma,
         }
     }
 }
 
 impl ScopeConfig {
-    /// Validates a scope configuration.
+    /// Validates a scope configuration. The waveform counts luma; see
+    /// [`Self::with_waveform_trace`].
     ///
     /// # Errors
     ///
@@ -94,7 +153,23 @@ impl ScopeConfig {
             waveform_columns,
             vectorscope_size,
             maximum_samples,
+            waveform_trace: WaveformTrace::Luma,
         })
+    }
+
+    /// This configuration with the waveform counting `trace`.
+    #[must_use]
+    pub const fn with_waveform_trace(self, trace: WaveformTrace) -> Self {
+        Self {
+            waveform_trace: trace,
+            ..self
+        }
+    }
+
+    /// What the waveform counts.
+    #[must_use]
+    pub const fn waveform_trace(self) -> WaveformTrace {
+        self.waveform_trace
     }
 
     /// Waveform columns the frame's width is folded into.
@@ -154,43 +229,87 @@ impl Histogram {
     }
 }
 
-/// Luma per horizontal position: `columns × SCOPE_BINS` counts, so a column is
-/// the vertical smear a waveform monitor draws for that part of the picture.
+/// Code values per horizontal position, for each channel its
+/// [`WaveformTrace`] counts: `columns × SCOPE_BINS` counts per channel, so a
+/// column is the vertical smear a waveform monitor draws for that part of the
+/// picture.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Waveform {
+    trace: WaveformTrace,
     columns: usize,
     cells: Vec<u32>,
 }
 
 impl Waveform {
+    /// An empty waveform of `columns` columns counting `trace`.
+    fn empty(trace: WaveformTrace, columns: usize) -> Self {
+        Self {
+            trace,
+            columns,
+            cells: vec![0; trace.channels().len() * columns * SCOPE_BINS],
+        }
+    }
+
+    /// What the waveform counted.
+    #[must_use]
+    pub const fn trace(&self) -> WaveformTrace {
+        self.trace
+    }
+
     /// Columns the frame width was folded into.
     #[must_use]
     pub const fn columns(&self) -> usize {
         self.columns
     }
 
-    /// Sample count at `column` with luma code `bin`, or zero out of bounds.
+    /// The counts of `channel`, [`SCOPE_BINS`] per column, column after
+    /// column, or `None` when the trace does not count it.
+    #[must_use]
+    pub fn channel_counts(&self, channel: WaveformChannel) -> Option<&[u32]> {
+        let index = self
+            .trace
+            .channels()
+            .iter()
+            .position(|counted| *counted == channel)?;
+        let len = self.columns * SCOPE_BINS;
+        self.cells.get(index * len..(index + 1) * len)
+    }
+
+    /// Sample count at `column` with luma code `bin`, or zero out of bounds
+    /// or when the trace counts no luma.
     #[must_use]
     pub fn cell(&self, column: usize, bin: usize) -> u32 {
+        self.channel_cell(WaveformChannel::Luma, column, bin)
+    }
+
+    /// Sample count of `channel` at `column` with code `bin`, or zero out of
+    /// bounds or when the trace does not count `channel`.
+    #[must_use]
+    pub fn channel_cell(&self, channel: WaveformChannel, column: usize, bin: usize) -> u32 {
         if column >= self.columns || bin >= SCOPE_BINS {
             return 0;
         }
-        self.cells[column * SCOPE_BINS + bin]
+        self.channel_counts(channel)
+            .map_or(0, |plane| plane[column * SCOPE_BINS + bin])
     }
 
-    /// The tallest cell, for scaling drawn intensity.
+    /// The tallest cell across every counted channel, for scaling drawn
+    /// intensity. One peak for a parade, so its channels compare at one
+    /// brightness.
     #[must_use]
     pub fn peak(&self) -> u32 {
         self.cells.iter().copied().max().unwrap_or(0)
     }
 
-    /// Mean luma code of `column`, or `None` when nothing landed there.
+    /// Mean luma code of `column`, or `None` when nothing landed there or the
+    /// trace counts no luma.
     #[must_use]
     pub fn column_mean(&self, column: usize) -> Option<f32> {
         if column >= self.columns {
             return None;
         }
-        let row = &self.cells[column * SCOPE_BINS..(column + 1) * SCOPE_BINS];
+        let plane = self.channel_counts(WaveformChannel::Luma)?;
+        let row = &plane[column * SCOPE_BINS..(column + 1) * SCOPE_BINS];
         let count: u32 = row.iter().sum();
         if count == 0 {
             return None;
@@ -248,7 +367,7 @@ impl Vectorscope {
 pub struct FrameScopes {
     /// Code-value distribution.
     pub histogram: Histogram,
-    /// Luma per horizontal position.
+    /// Code values per horizontal position.
     pub waveform: Waveform,
     /// Chroma distribution.
     pub vectorscope: Vectorscope,
@@ -260,11 +379,137 @@ pub struct FrameScopes {
     pub timestamp_seconds: f64,
 }
 
+/// Luma weights in 16-bit fixed point. They sum to 65536, so a grey reads
+/// its own code value.
+const LUMA_WEIGHTS: [u32; 3] = [13_933, 46_871, 4_732];
+
+/// One 8-bit channel's full span in the 15-bit chroma fixed point.
+const CHROMA_ONE: u64 = 32_768 * 255;
+
+/// Neutral chroma, half of [`CHROMA_ONE`].
+const CHROMA_HALF: u64 = CHROMA_ONE / 2;
+
+impl FrameScopes {
+    /// Scopes counted outside [`measure`], such as by a GPU pass, read under
+    /// `config`.
+    ///
+    /// `histogram` is red, green, blue, and luma, [`SCOPE_BINS`] counts each.
+    /// `waveform` holds, for each channel of `config.waveform_trace()` in
+    /// order, `config.waveform_columns()` columns of [`SCOPE_BINS`] counts,
+    /// column after column. `vectorscope` holds
+    /// `config.vectorscope_size()` rows of that many counts, top row first.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigError`] naming the first buffer whose length does not
+    /// match `config`.
+    pub fn from_counts(
+        config: ScopeConfig,
+        histogram: [Vec<u32>; 4],
+        waveform: Vec<u32>,
+        vectorscope: Vec<u32>,
+        sampled: u32,
+        timestamp_seconds: f64,
+    ) -> Result<Self, ConfigError> {
+        if histogram.iter().any(|bins| bins.len() != SCOPE_BINS) {
+            return Err(ConfigError::new(
+                "histogram",
+                "every channel must hold SCOPE_BINS counts",
+            ));
+        }
+        let columns = config.waveform_columns();
+        let trace = config.waveform_trace();
+        if waveform.len() != trace.channels().len() * columns * SCOPE_BINS {
+            return Err(ConfigError::new(
+                "waveform",
+                "must hold waveform_columns times SCOPE_BINS counts per traced channel",
+            ));
+        }
+        let size = config.vectorscope_size();
+        if vectorscope.len() != size * size {
+            return Err(ConfigError::new(
+                "vectorscope",
+                "must hold vectorscope_size squared counts",
+            ));
+        }
+        let [red, green, blue, luma] = histogram;
+        Ok(Self {
+            histogram: Histogram {
+                red,
+                green,
+                blue,
+                luma,
+            },
+            waveform: Waveform {
+                trace,
+                columns,
+                cells: waveform,
+            },
+            vectorscope: Vectorscope {
+                size,
+                cells: vectorscope,
+            },
+            sampled,
+            timestamp_seconds,
+        })
+    }
+}
+
 /// BT.709 luma of one 8-bit RGB triple, rounded to a code value.
+///
+/// Fixed point: `0.2126 / 0.7152 / 0.0722` are `13933 / 46871 / 4732` over
+/// 65536, rounded half up.
 #[must_use]
 pub fn luma709(red: u8, green: u8, blue: u8) -> u8 {
-    let luma = 0.212_6 * f32::from(red) + 0.715_2 * f32::from(green) + 0.072_2 * f32::from(blue);
-    luma.round().clamp(0.0, 255.0) as u8
+    let [wr, wg, wb] = LUMA_WEIGHTS;
+    let weighted = wr * u32::from(red) + wg * u32::from(green) + wb * u32::from(blue);
+    // At most 255 * 65536 + 32768, so the shift leaves at most 255.
+    ((weighted + 32_768) >> 16) as u8
+}
+
+/// The vectorscope cell `(x, y)` of one 8-bit RGB triple on a grid `size`
+/// cells wide: Cb to the right, Cr upward, neutral at [`Vectorscope::centre`].
+///
+/// BT.709 chroma in 15-bit fixed point: Cb is `-3754 R - 12630 G + 16384 B`
+/// and Cr is `16384 R - 14882 G - 1502 B` over 32768, so every grey lands on
+/// the centre cell. Positions round half up. For every `size` up to
+/// [`MAX_VECTORSCOPE_SIZE`] each intermediate fits in a `u32`, which is what
+/// the GPU pass computes in.
+#[must_use]
+pub fn vectorscope_cell(red: u8, green: u8, blue: u8, size: usize) -> (usize, usize) {
+    let (right, up) = chroma_offsets(red, green, blue);
+    offsets_cell(right, up, size)
+}
+
+/// The vectorscope cell of chroma offsets from [`chroma_offsets`].
+fn offsets_cell(right: u64, up: u64, size: usize) -> (usize, usize) {
+    let last = size.saturating_sub(1) as u64;
+    let cell = |offset: u64| ((offset * last + CHROMA_HALF) / CHROMA_ONE).min(last) as usize;
+    (cell(right), cell(CHROMA_ONE - up))
+}
+
+/// BT.709 Cb and Cr of one 8-bit RGB triple as code values: 0 at -1/2, 255 at
+/// +1/2, and 128 for every grey. The fixed point of [`vectorscope_cell`],
+/// rounded half up to 255 steps; each intermediate fits in a `u32`, which is
+/// what the GPU pass computes in.
+#[must_use]
+pub fn chroma_codes709(red: u8, green: u8, blue: u8) -> (u8, u8) {
+    let (right, up) = chroma_offsets(red, green, blue);
+    (offset_code(right), offset_code(up))
+}
+
+/// The code value of one chroma offset from [`chroma_offsets`]. At most
+/// `CHROMA_ONE * 255 + CHROMA_HALF` over `CHROMA_ONE`, so at most 255.
+fn offset_code(offset: u64) -> u8 {
+    ((offset * 255 + CHROMA_HALF) / CHROMA_ONE) as u8
+}
+
+/// Cb + 1/2 and Cr + 1/2 of one 8-bit RGB triple, each in `[0, CHROMA_ONE]`.
+fn chroma_offsets(red: u8, green: u8, blue: u8) -> (u64, u64) {
+    let (r, g, b) = (u64::from(red), u64::from(green), u64::from(blue));
+    let right = (16_384 * b + CHROMA_HALF) - (3_754 * r + 12_630 * g);
+    let up = (16_384 * r + CHROMA_HALF) - (14_882 * g + 1_502 * b);
+    (right, up)
 }
 
 /// BT.709 chroma of one 8-bit RGB triple, each in `[-0.5, 0.5]`.
@@ -288,10 +533,9 @@ pub fn measure(frame: Rgba8Frame<'_>, config: ScopeConfig) -> FrameScopes {
     let mut histogram = Histogram::empty();
     let columns = config.waveform_columns();
     let size = config.vectorscope_size();
-    let mut waveform = Waveform {
-        columns,
-        cells: vec![0; columns * SCOPE_BINS],
-    };
+    let channels = config.waveform_trace().channels();
+    let mut waveform = Waveform::empty(config.waveform_trace(), columns);
+    let plane = columns * SCOPE_BINS;
     let mut vectorscope = Vectorscope {
         size,
         cells: vec![0; size * size],
@@ -317,12 +561,20 @@ pub fn measure(frame: Rgba8Frame<'_>, config: ScopeConfig) -> FrameScopes {
                 histogram.luma[usize::from(luma)] += 1;
 
                 let column = x * columns / frame.width();
-                waveform.cells[column * SCOPE_BINS + usize::from(luma)] += 1;
+                let (right, up) = chroma_offsets(red, green, blue);
+                for (index, channel) in channels.iter().enumerate() {
+                    let code = match channel {
+                        WaveformChannel::Luma => luma,
+                        WaveformChannel::Red => red,
+                        WaveformChannel::Green => green,
+                        WaveformChannel::Blue => blue,
+                        WaveformChannel::Cb => offset_code(right),
+                        WaveformChannel::Cr => offset_code(up),
+                    };
+                    waveform.cells[index * plane + column * SCOPE_BINS + usize::from(code)] += 1;
+                }
 
-                let (cb, cr) = chroma709(red, green, blue);
-                let last = size.saturating_sub(1);
-                let vx = (((cb + 0.5) * last as f32).round() as i64).clamp(0, last as i64) as usize;
-                let vy = (((0.5 - cr) * last as f32).round() as i64).clamp(0, last as i64) as usize;
+                let (vx, vy) = offsets_cell(right, up, size);
                 vectorscope.cells[vy * size + vx] += 1;
 
                 sampled += 1;
@@ -341,12 +593,15 @@ pub fn measure(frame: Rgba8Frame<'_>, config: ScopeConfig) -> FrameScopes {
     }
 }
 
-/// Stride that keeps `ceil(w/s) * ceil(h/s)` within `budget`.
+/// Stride that keeps `ceil(w/s) * ceil(h/s)` within `budget`: [`measure`]
+/// reads every `stride`-th pixel of every `stride`-th row, starting at the
+/// first, and so does a GPU pass that counts the same frame.
 ///
 /// Grown one step at a time from the ideal square-root stride: the closed form
 /// undershoots on extreme aspect ratios, and a scope that quietly reads more
 /// than its budget on a 16384×16 frame is the cost this exists to bound.
-fn sample_stride(width: usize, height: usize, budget: usize) -> usize {
+#[must_use]
+pub fn sample_stride(width: usize, height: usize, budget: usize) -> usize {
     let pixels = width.saturating_mul(height);
     if pixels <= budget {
         return 1;

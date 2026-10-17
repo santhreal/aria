@@ -1,7 +1,6 @@
-//! Load external plugins from a directory and report what mounted.
+//! Load external plugin packages from a directory and print their mount status.
 //!
-//! The headed app does this at boot; this is the same call with the result
-//! printed, for checking a plugin before shipping it:
+//! Run against a plugin directory:
 //!
 //! ```text
 //! cargo run -p aria-plugin --example load_external -- ~/.aria/plugins
@@ -25,7 +24,7 @@ fn main() {
 
     println!("{}", dir.display());
     for manifest in aria_plugin::external::loaded() {
-        let mounted = ctx.plugins().contains(&manifest.id);
+        let mounted = ctx.is_mounted(&manifest.id);
         println!(
             "  {} {} ({}) {}",
             if mounted { "mounted" } else { "refused" },
@@ -38,6 +37,6 @@ fn main() {
         println!("  failed  {}: {}", failure.id, failure.reason);
     }
     if aria_plugin::external::loaded().is_empty() && failures.is_empty() {
-        println!("  no plugin libraries found");
+        println!("  no plugin packages found");
     }
 }

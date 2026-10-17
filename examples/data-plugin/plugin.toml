@@ -1,0 +1,31 @@
+[plugin]
+id = "com.example.data-pack"
+name = "Example Data Pack"
+version = "0.1.0"
+api = 1
+publisher = "Aria Examples"
+description = "Declared WGSL effect, generator, transition, and preset with no guest code."
+license = "MIT OR Apache-2.0"
+
+[[effects]]
+id = "warm-tint"
+name = "Warm Tint"
+category = "Color"
+shader = "shaders/warm-tint.wgsl"
+
+[[effects.params]]
+name = "gain"
+label = "Gain"
+default = 1.0
+min = 0.0
+max = 2.0
+
+[[generators]]
+id = "uv-gradient"
+name = "UV Gradient"
+shader = "shaders/uv-gradient.wgsl"
+
+[[transitions]]
+id = "cross-dissolve"
+name = "Cross Dissolve"
+shader = "shaders/cross-dissolve.wgsl"

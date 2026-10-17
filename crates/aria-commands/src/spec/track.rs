@@ -8,9 +8,10 @@ macro_rules! track_rows {
             addresses lane {
                 AddClip {
                     label: "Add clip",
-                    reach: internal(
-                        "a pool item dropped on a lane resolves through OverwriteClip or \
-                         RippleInsert, which also decide what happens to what is already there",
+                    reach: operator(
+                        "the File menu's Import Timeline row, which places every clip the \
+                         timeline file holds; a pool item dropped on a lane goes through \
+                         OverwriteClip or RippleInsert instead",
                     ),
                     junctions: keeps,
                     lock: guarded,
@@ -44,6 +45,10 @@ macro_rules! track_rows {
                     undo: restores("the lane's previous view options"), },
                 SetTrackGain { label: "Lane fader", reach: operator("the mixer's fader, on release"), junctions: keeps, lock: guarded,
                     undo: restores("the lane's previous routing"), },
+                SetTrackPan { label: "Lane pan", reach: operator("the mixer's pan control, on release"), junctions: keeps, lock: guarded,
+                    undo: restores("the lane's previous routing"), },
+                SetTrackAutomation { label: "Lane automation", reach: operator("the mixer's automation mode picker, and fader or pan automation recording during playback"), junctions: keeps, lock: guarded,
+                    undo: restores("the lane's previous automation mode and volume and pan envelopes"), },
                 SetTrackOutput { label: "Lane output", reach: operator("the mixer's output picker on each strip"), junctions: keeps, lock: guarded,
                     undo: restores("the lane's previous routing"), },
                 AddSend { label: "Add send", reach: operator("the mixer's send button on each strip"), junctions: keeps, lock: guarded,
@@ -54,14 +59,18 @@ macro_rules! track_rows {
                     undo: restores("the lane's previous routing"), },
                 ShiftClips { label: "Shift clips", reach: operator("the palette's gap and lane-shift rows, and the lane-shift chords"), junctions: breaks, lock: guarded,
                     undo: restores("the lane's placement by shifting it back the same distance"), },
-                RippleInsert { label: "Ripple insert", reach: operator("the source monitor's insert button, a media drop that ripples, and a click on a pool card while the sequence ripples"), junctions: breaks, lock: guarded,
+                RippleInsert { label: "Ripple insert", reach: internal("the assistant's insert tool, scripts, and the mobile place intent put one clip on one lane; the desktop's drops, pool placement, and Source tabs send Source edit, which patches picture and sound"), junctions: breaks, lock: guarded,
                     undo: restores("the lane by removing the clip, re-closing the hole it opened, and rejoining the clip it cut to open it"), },
-                OverwriteClip { label: "Overwrite", reach: operator("the source monitor's overwrite button, a media drop onto a lane, and a click on a pool card while the sequence overwrites"), junctions: breaks, lock: guarded,
+                OverwriteClip { label: "Overwrite", reach: internal("the assistant's overwrite tool and scripts put one clip on one lane; the desktop's drops, pool placement, and Source tabs send Source edit, which patches picture and sound"), junctions: breaks, lock: guarded,
                     undo: restores("the lane by removing the clip and putting back everything it covered"), },
-                FitToFill { label: "Fit to fill", reach: operator("the source monitor's insert and overwrite buttons, over a range marked on the sequence"), junctions: breaks, lock: guarded,
+                FitToFill { label: "Fit to fill", reach: internal("the assistant's fit tool and scripts place a retimed clip on one lane; the source monitor's edits send Source edit, which patches picture and sound"), junctions: breaks, lock: guarded,
                     undo: restores("the lane by removing the retimed clip and undoing the span it opened or covered"), },
                 PlaceNestedSequence { label: "Place nested sequence", reach: operator("the Sequence menu's Place Nest At Playhead row"), junctions: breaks, lock: guarded,
                     undo: restores("the lane by removing the placed nested sequence clip"), },
+            }
+            addresses patched_lanes {
+                SourceEdit { label: "Source edit", reach: operator("a media drop onto a lane, the source monitor's insert and overwrite buttons and their chords with or without a range marked on the sequence, and the same chords with Program focused for the selected pool items"), junctions: breaks, lock: guarded,
+                    undo: restores("both lanes by removing the placed clips and undoing the span they opened or covered"), },
             }
         }
     };

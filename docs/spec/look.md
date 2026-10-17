@@ -59,7 +59,8 @@ started.
 A button press dims the button to 92 % opacity and darkens its plate. A
 disabled control is drawn at 40 % opacity, keeps the arrow cursor, and states
 the reason in its tooltip. Every icon-only control has a tooltip naming the
-action and its chord, shown after 400 ms and hidden on press.
+action and its chord, shown after 400 ms and hidden on press. After a press the
+tooltip stays hidden until the pointer leaves the control.
 
 Keyboard focus draws a 1 px accent ring around the focused control. A pointer
 click does not leave a focus ring.

@@ -1,10 +1,10 @@
 //! Project the engine model into [`UiEditorStore`].
 
 use crate::types::{
-    UiAnimation, UiChroma, UiClip, UiClipKind, UiClipTransform, UiEditorStore, UiEffectInstance,
+    UiAnimation, UiChroma, UiClip, UiClipKind, UiClipType, UiEditorStore, UiEffectInstance,
     UiFilter, UiGenerator, UiLut, UiMarker, UiMask, UiMatte, UiMediaItem, UiMulticamAngle,
     UiMulticamGroup, UiSequence, UiSequenceRef, UiSlot, UiStyles, UiTrack, UiTrackKind,
-    UiTransition, clip_id, media_id, track_id,
+    UiTransition, UiTypeHandle, clip_id, media_id, track_id,
 };
 use aria_models::{
     Clip, ClipAction, ClipCapabilities, ClipId, ClipSource, EffectInstance, Filter, Generator,
@@ -28,11 +28,56 @@ pub fn project_to_ui_with(
     can_redo: bool,
 ) -> UiEditorStore {
     let timeline = project.timeline();
-    let mut tracks: Vec<UiTrack> = timeline
-        .tracks_ordered()
-        .map(|track| track_to_ui(project, track, selection))
-        .collect();
+    let drifts = project.link_drifts();
+    let mut tracks: Vec<UiTrack> = Vec::new();
+    let mut audio_tracks: Vec<UiTrack> = Vec::new();
+    for track in timeline.tracks_ordered() {
+        let ui = track_to_ui(project, track, selection, &drifts);
+        if matches!(track.kind, TrackKind::Audio | TrackKind::Submix) {
+            audio_tracks.push(ui);
+        } else {
+            tracks.push(ui);
+        }
+    }
+    // Visual lanes stack upward from the A/V divider (V1 closest to the divider,
+    // V2 above V1, V3 above V2); audio lanes stack downward from the divider
+    // (A1 closest to the divider, A2 below A1, A3 below A2).
     tracks.reverse();
+    tracks.extend(audio_tracks);
+
+    let mut markers: Vec<UiMarker> = timeline
+        .markers()
+        .iter()
+        .map(|marker| UiMarker {
+            id: marker.id.raw(),
+            tick: marker.tick.value,
+            duration_ticks: marker.duration.value,
+            name: marker.name.clone().into(),
+            color: marker.color,
+            comment: marker.comment.clone().into(),
+            kind: marker.kind,
+            clip_id: None,
+            clip_tick: None,
+            clip_duration_ticks: None,
+            clip_rate: None,
+        })
+        .collect();
+    for track in &tracks {
+        for clip in &track.clips {
+            markers.extend(clip.markers.iter().cloned());
+        }
+    }
+    markers.sort_by_key(|m| (m.tick, m.id));
+
+    let mut sequence = UiSequence {
+        tracks,
+        duration_ticks: timeline.duration().value,
+        frame_rate: timeline.frame_rate,
+        markers: markers.into(),
+        source_patching: timeline.source_patching(),
+        time_display: timeline.time_display(),
+    };
+    sequence.mark_patched_lanes();
 
     UiEditorStore {
         project_name: project.name.clone().into(),
@@ -43,22 +88,7 @@ pub fn project_to_ui_with(
         zoom: 1.0,
         scroll_x: 0.0,
         selection: selection.iter().copied().map(clip_id).collect(),
-        sequence: UiSequence {
-            tracks,
-            duration_ticks: timeline.duration().value,
-            frame_rate: timeline.frame_rate,
-            markers: timeline
-                .markers()
-                .iter()
-                .map(|marker| UiMarker {
-                    id: marker.id.raw(),
-                    tick: marker.tick.value,
-                    name: marker.name.clone().into(),
-                    color: marker.color,
-                    comment: marker.comment.clone().into(),
-                })
-                .collect(),
-        },
+        sequence,
         media: project
             .media_iter()
             .map(|m| media_to_ui(m, project))
@@ -106,6 +136,8 @@ mod tests;
 
 // Helpers live in sibling files, declared here. Each is `pub(super)`, so the
 // parent and the siblings reach it by name and nothing is left unreachable.
+#[path = "projection_bar.rs"]
+mod bar;
 #[path = "projection_clip.rs"]
 mod clip;
 #[path = "projection_effect.rs"]

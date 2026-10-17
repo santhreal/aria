@@ -9,7 +9,9 @@
 use std::path::PathBuf;
 
 use aria_commands::{Command, EditCommand};
-use aria_models::{ClipId, MediaId, TimeRange};
+use aria_models::{
+    ClipId, ClipParam, Easing, MediaId, ParamValue, RationalTime, SpatialTangents, TimeRange,
+};
 
 use crate::app::AppState;
 use crate::app::premiere_tests::{with_clip, with_media};
@@ -83,6 +85,105 @@ pub(super) fn middle_lane() -> (AppState, u64) {
         .copied()
         .expect("three video lanes, so a middle one");
     (state, middle)
+}
+
+/// Two clips over the same span on two video lanes, the lower one selected, so
+/// the Parent row offers the upper one. Returns the lower clip and the upper.
+pub(super) fn stacked_pair() -> (AppState, ClipId, ClipId) {
+    let (mut state, lower) = with_clip();
+    let media = MediaId::from_raw(
+        state
+            .store
+            .media
+            .first()
+            .expect("the fixture's pool item")
+            .id,
+    );
+    state
+        .add_track(aria_models::TrackKind::Video, "V2")
+        .expect("a second lane");
+    state.sync_from_engine();
+    let lane = state
+        .store
+        .sequence
+        .tracks
+        .iter()
+        .find(|lane| matches!(lane.kind, crate::types::UiTrackKind::Video) && lane.clips.is_empty())
+        .map(|lane| aria_models::TrackId::from_raw(lane.id))
+        .expect("an empty video lane is projected");
+    // Overwrite: a ripple drop opens a hole on every sync-locked lane, which
+    // would push the lower clip past the end of the upper one.
+    let mode = std::mem::replace(&mut state.edit_mode, crate::types::EditMode::Overwrite);
+    state
+        .drop_media_on_timeline(media, Some(lane), 0)
+        .expect("place the upper clip");
+    state.edit_mode = mode;
+    let upper = state
+        .store
+        .sequence
+        .tracks
+        .iter()
+        .flat_map(|lane| lane.clips.iter())
+        .map(|clip| ClipId::from_raw(clip.id))
+        .find(|clip| *clip != lower)
+        .expect("the upper clip");
+    state.select_clip(lower);
+    (state, lower, upper)
+}
+
+/// [`stacked_pair`] with the lower clip parented to the upper one and
+/// selected, so the row that releases a parent has one to release.
+pub(super) fn parented_pair() -> (AppState, ClipId) {
+    let (mut state, lower, upper) = stacked_pair();
+    state
+        .set_clip_parent(lower, Some(upper), aria_models::ParentKeep::Place)
+        .expect("the upper clip parents the lower one");
+    state.select_clip(lower);
+    (state, lower)
+}
+
+/// Key `param` of the selected clip at `tick` frames into the clip to `value`,
+/// linear, with `tangents` shaping a motion path through the keyframe.
+pub(super) fn key_point(
+    state: &mut AppState,
+    param: ClipParam,
+    tick: i64,
+    value: [f32; 2],
+    tangents: Option<SpatialTangents>,
+) {
+    let clip = state.selected_clip().expect("a selected clip to key");
+    let start = state
+        .selected_model()
+        .expect("the selected clip is in the project")
+        .timeline
+        .start;
+    state
+        .apply_command(Command::Edit(EditCommand::SetParamKeyframe {
+            clip,
+            param,
+            at: RationalTime::new(start.value + tick, start.rate),
+            value: ParamValue::Vec2(value),
+            easing: Easing::Linear,
+            tangents,
+        }))
+        .expect("a keyframe inside the selected clip");
+}
+
+/// The selected clip's Position keyed three times, twelve frames apart: a
+/// corner, a smooth keyframe, and a corner. A motion path is drawn with
+/// keyframes to drag, tangents to bend, and segments to add a keyframe on.
+pub(super) fn keyed_path(state: &mut AppState) {
+    let smooth = SpatialTangents {
+        in_t: [-0.08, 0.0],
+        out_t: [0.08, 0.0],
+    };
+    for (tick, value, tangents) in [
+        (0, [-0.25, 0.0], None),
+        (12, [0.0, 0.2], Some(smooth)),
+        (24, [0.25, 0.0], None),
+    ] {
+        key_point(state, ClipParam::Position, tick, value, tangents);
+    }
 }
 
 /// A pool item no clip holds, so the row that drops one from the project is
@@ -299,4 +400,210 @@ pub(super) fn adopted_render(name: &str) -> (AppState, ClipId) {
     std::fs::create_dir_all(dest.parent().expect("a parent")).expect("the renders directory");
     std::fs::copy(rendered_file(), &dest).expect("stand a render in");
     (state, clip)
+}
+
+/// Three clips over the same span on three video lanes, each a quarter of the
+/// frame and placed apart and unevenly, all selected, bottom to top: something
+/// for every Align button to move and a middle clip for Distribute to move.
+pub(super) fn spread_three() -> (AppState, [ClipId; 3]) {
+    let (mut state, lower, upper) = stacked_pair();
+    let media = MediaId::from_raw(
+        state
+            .store
+            .media
+            .first()
+            .expect("the fixture's pool item")
+            .id,
+    );
+    state
+        .add_track(aria_models::TrackKind::Video, "V3")
+        .expect("a third lane");
+    state.sync_from_engine();
+    let lane = state
+        .store
+        .sequence
+        .tracks
+        .iter()
+        .find(|lane| matches!(lane.kind, crate::types::UiTrackKind::Video) && lane.clips.is_empty())
+        .map(|lane| aria_models::TrackId::from_raw(lane.id))
+        .expect("an empty video lane is projected");
+    let mode = std::mem::replace(&mut state.edit_mode, crate::types::EditMode::Overwrite);
+    state
+        .drop_media_on_timeline(media, Some(lane), 0)
+        .expect("place the top clip");
+    state.edit_mode = mode;
+    let top = state
+        .store
+        .sequence
+        .tracks
+        .iter()
+        .flat_map(|lane| lane.clips.iter())
+        .map(|clip| ClipId::from_raw(clip.id))
+        .find(|clip| *clip != lower && *clip != upper)
+        .expect("the top clip");
+    let clips = [lower, upper, top];
+    for (clip, position) in clips
+        .into_iter()
+        .zip([[-0.3, -0.2], [0.05, 0.1], [0.35, 0.25]])
+    {
+        state
+            .apply_command(Command::Edit(EditCommand::SetClipTransform {
+                clip,
+                transform: aria_models::ClipTransform {
+                    position,
+                    scale: aria_models::Scale2::uniform(0.25),
+                    ..aria_models::ClipTransform::IDENTITY
+                },
+                at: None,
+            }))
+            .expect("place a clip");
+    }
+    state.selection = clips.to_vec();
+    state.sync_from_engine();
+    (state, clips)
+}
+
+/// The fixture's clip carrying a Gaussian Blur with its radius turned up from
+/// the default, so a reset has a value to put back and a copy has a value to
+/// carry.
+pub(super) fn blurred_clip() -> (AppState, ClipId) {
+    let (mut state, clip) = with_clip();
+    state
+        .apply_command(Command::Edit(EditCommand::AddEffect {
+            clip,
+            effect_id: "gaussian_blur".into(),
+        }))
+        .expect("add a blur");
+    state
+        .apply_command(Command::Edit(EditCommand::SetEffectParam {
+            clip,
+            index: 0,
+            param: 0,
+            value: 12.0,
+        }))
+        .expect("turn the radius up");
+    state.sync_from_engine();
+    (state, clip)
+}
+
+/// The selected clip copied onto a new lane of its kind over the same span,
+/// and both selected, the copy second: a clip beside the drawn one that holds
+/// every value, effect, keyframe and driver it does, so an edit in Effect
+/// Controls has a second clip to reach. A clip with a clip abutting it on the
+/// right takes a copy of that clip too, and of the transition between them, so
+/// the copy owns a junction as the drawn clip does. Returns the drawn clip and
+/// the copy.
+pub(super) fn twin_selected(state: &mut AppState) -> (ClipId, ClipId) {
+    let drawn = state.selected_clip().expect("the dressing selects a clip");
+    let (kind, neighbour, blend) = {
+        let engine = state.engine().lock();
+        let project = engine.project();
+        let timeline = project.timeline();
+        let track = timeline
+            .track_of(drawn)
+            .and_then(|id| timeline.track(id))
+            .expect("the drawn clip is on a lane");
+        let end = timeline
+            .clip(drawn)
+            .expect("the drawn clip")
+            .timeline
+            .end_tick();
+        let neighbour = track
+            .clips()
+            .find(|clip| clip.id != drawn && clip.timeline.start.value == end)
+            .map(|clip| clip.id);
+        (track.kind, neighbour, project.transition_at(drawn).cloned())
+    };
+    state.add_track(kind, "Twin").expect("a lane for the copy");
+    state.sync_from_engine();
+    let lane = {
+        let engine = state.engine().lock();
+        engine
+            .project()
+            .timeline()
+            .tracks_ordered()
+            .find(|track| track.kind == kind && track.is_empty())
+            .map(|track| track.id)
+            .expect("an empty lane of the drawn clip's kind")
+    };
+    for clip in neighbour.into_iter().chain([drawn]) {
+        state.select_clip(clip);
+        state
+            .duplicate_selection_to_lane(lane.raw())
+            .expect("the copy lands over the same span");
+    }
+    let start = model_of(state, drawn).timeline.start;
+    let twin = {
+        let engine = state.engine().lock();
+        engine
+            .project()
+            .timeline()
+            .track(lane)
+            .and_then(|track| track.clips().find(|clip| clip.timeline.start == start))
+            .map(|clip| clip.id)
+            .expect("the copy is on its lane")
+    };
+    if let Some(blend) = blend {
+        state
+            .apply_command(Command::Edit(EditCommand::AddTransition {
+                clip: twin,
+                transition_id: blend.transition_id.clone(),
+            }))
+            .expect("the copy's junction takes the drawn clip's transition");
+        state
+            .apply_command(Command::Edit(EditCommand::SetTransitionState {
+                clip: twin,
+                transition: blend,
+            }))
+            .expect("the copy's transition takes the drawn one's settings");
+        state.sync_from_engine();
+    }
+    state.select_clip(drawn);
+    state.add_clip_to_selection(twin);
+    (drawn, twin)
+}
+
+/// `clip` as the model holds it.
+pub(super) fn model_of(state: &AppState, clip: ClipId) -> aria_models::Clip {
+    state
+        .engine()
+        .lock()
+        .project()
+        .timeline()
+        .clip(clip)
+        .cloned()
+        .expect("the clip is in the project")
+}
+
+/// One side of [`the_pair`]: a clip as the model holds it and the transition
+/// at its right junction.
+pub(super) type Side = (aria_models::Clip, Option<aria_models::Transition>);
+
+/// The models of `drawn` and `twin` and the transitions at their junctions,
+/// with what a copy onto another lane changes put back to the drawn clip's:
+/// its id, its place, the clips its transition joins, and its template fill
+/// order, which marking several clips as slots numbers one by one. Two clips an
+/// edit in Effect Controls left alike compare equal.
+pub(super) fn the_pair(state: &AppState, drawn: ClipId, twin: ClipId) -> (Side, Side) {
+    let engine = state.engine().lock();
+    let project = engine.project();
+    let side = |clip: ClipId| -> Side {
+        let model = project
+            .timeline()
+            .clip(clip)
+            .cloned()
+            .expect("the clip is in the project");
+        (model, project.transition_at(clip).cloned())
+    };
+    let (drawn, (mut twin, mut twin_blend)) = (side(drawn), side(twin));
+    twin.id = drawn.0.id;
+    twin.timeline = drawn.0.timeline;
+    if let (Some(copy), Some(own)) = (twin.replaceable.as_mut(), drawn.0.replaceable.as_ref()) {
+        copy.order = own.order;
+    }
+    if let (Some(copy), Some(own)) = (twin_blend.as_mut(), drawn.1.as_ref()) {
+        copy.left = own.left;
+        copy.right = own.right;
+    }
+    (drawn, (twin, twin_blend))
 }

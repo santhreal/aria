@@ -20,6 +20,7 @@
 //! no gpui element: the direction runs from the panel to the registry, never
 //! back.
 
+pub mod align_pick;
 pub mod analysis_pick;
 pub mod bin_strip;
 pub mod clip_pick;
@@ -57,4 +58,7 @@ pub enum Glyph {
     /// The lane chevron, which turns rather than swapping glyphs, so the header
     /// shows the lane closing.
     Chevron,
+    /// The letter of the source channel the lane takes, `V` or `A`, so a patch
+    /// reads as the channel it carries.
+    Channel,
 }

@@ -19,7 +19,7 @@ appears twice, the document listed here for that concern is the one to edit.
 | Document | Concern |
 | --- | --- |
 | [architecture.md](architecture.md) | Crates, the UI boundary, decode and GPU paths |
-| [plugin-development.md](plugin-development.md) | Registries a plugin contributes to |
+| [plugins/README.md](plugins/README.md) | Registries a plugin contributes to |
 | [theme-tokens.md](theme-tokens.md) | Colour and spacing tokens |
 | [animation-catalog.md](animation-catalog.md) | Motion specs and their call sites |
 | [icons.md](icons.md) | Icon names and text placeholders |

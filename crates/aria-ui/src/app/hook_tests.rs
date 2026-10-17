@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 use aria_commands::{Command, EditCommand};
 use aria_engine::EngineError;
 use aria_models::{ClipId, RationalTime, TrackId};
-use aria_plugin::{CommandProposed, DropAction, Origin, PluginContext, ResolveDroppedPath};
+use aria_plugin::{CommandProposed, DropAction, Origin, PluginContext, ResolveDropped};
 
 use super::AppState;
 use crate::plugins::mount_all;
@@ -32,7 +32,7 @@ fn proposal(command: Command) -> CommandProposed {
 /// The shipped configuration: every built-in plugin mounted, one clip placed.
 /// The lock guard is an engine-plugin handler, so a bare context would not have
 /// it — which is the point of mounting here.
-fn mounted_state_with_clip() -> (AppState, ClipId, TrackId) {
+pub(crate) fn mounted_state_with_clip() -> (AppState, ClipId, TrackId) {
     let ctx = PluginContext::new();
     let dir = crate::scratch_pool::scratch("hooks");
     let _ = mount_all(&ctx, &dir);
@@ -178,13 +178,17 @@ fn every_mounted_handler_answers_a_proposal_without_locking_the_engine() {
 
 #[test]
 fn every_dropped_file_type_goes_to_the_plugin_that_owns_it() {
-    let (state, _, _) = mounted_state_with_clip();
+    let (mut state, clip, _) = mounted_state_with_clip();
+    state.select_clip(clip);
     let cases: &[(&str, DropAction)] = &[
         ("/tmp/clip.mp4", DropAction::ImportMedia),
         ("/tmp/take.MOV", DropAction::ImportMedia),
         ("/tmp/warm.cube", DropAction::ApplyLut),
         ("/tmp/WARM.CUBE", DropAction::ApplyLut),
         ("/tmp/pack/SKILL.md", DropAction::InstallSkill),
+        ("/tmp/cut.edl", DropAction::ImportTimeline),
+        ("/tmp/cut.SRT", DropAction::ImportTimeline),
+        ("/tmp/cut.vtt", DropAction::ImportTimeline),
         // Unclaimed means media: the importer's own error is the better message.
         ("/tmp/notes.txt", DropAction::ImportMedia),
         ("/tmp/extensionless", DropAction::ImportMedia),
@@ -196,6 +200,17 @@ fn every_dropped_file_type_goes_to_the_plugin_that_owns_it() {
             state.classify_drop(Path::new(path)),
             *want,
             "{path} was claimed by the wrong plugin"
+        );
+    }
+
+    // With nothing selected a grade has no clip to apply to, so the importer
+    // for its extension reads it onto the sequence.
+    state.clear_selection();
+    for path in ["/tmp/warm.cube", "/tmp/WARM.CUBE"] {
+        assert_eq!(
+            state.classify_drop(Path::new(path)),
+            DropAction::ImportTimeline,
+            "{path} with no clip selected"
         );
     }
 }
@@ -230,29 +245,58 @@ fn the_first_plugin_to_claim_a_path_wins_and_the_rest_are_not_asked() {
     let first = std::sync::Arc::clone(&asked);
     let second = std::sync::Arc::clone(&asked);
     let third = std::sync::Arc::clone(&asked);
-    let _a = ctx.on_serial::<ResolveDroppedPath, DropAction, _>(move |_| {
+    let _a = ctx.on_serial::<ResolveDropped, DropAction, _>(move |_| {
         first.lock().unwrap().push("a");
         None
     });
-    let _b = ctx.on_serial::<ResolveDroppedPath, DropAction, _>(move |_| {
+    let _b = ctx.on_serial::<ResolveDropped, DropAction, _>(move |_| {
         second.lock().unwrap().push("b");
         Some(DropAction::ApplyLut)
     });
-    let _c = ctx.on_serial::<ResolveDroppedPath, DropAction, _>(move |_| {
+    let _c = ctx.on_serial::<ResolveDropped, DropAction, _>(move |_| {
         third.lock().unwrap().push("c");
         Some(DropAction::InstallSkill)
     });
 
     let claimed = ctx
         .events()
-        .serial::<ResolveDroppedPath, DropAction>(&ResolveDroppedPath {
-            path: PathBuf::from("/tmp/anything"),
-        });
+        .serial::<ResolveDropped, DropAction>(&ResolveDropped::path(PathBuf::from("anything")));
     assert_eq!(claimed, Some(DropAction::ApplyLut));
     assert_eq!(
         asked.lock().unwrap().as_slice(),
         &["a", "b"],
         "handlers are asked in registration order and stop at the first claim"
+    );
+
+    // A higher-priority handler registered later runs before lower-priority
+    // handlers and claims first; equal priorities keep mount order.
+    let asked_prio = std::sync::Arc::new(parking_lot::Mutex::new(Vec::new()));
+    let p1 = std::sync::Arc::clone(&asked_prio);
+    let p2 = std::sync::Arc::clone(&asked_prio);
+    let p3 = std::sync::Arc::clone(&asked_prio);
+    let ctx_prio = PluginContext::new();
+    let _low = ctx_prio.on_serial::<ResolveDropped, DropAction, _>(move |_| {
+        p1.lock().push("low-0");
+        Some(DropAction::ImportMedia)
+    });
+    let _high_first =
+        ctx_prio.on_serial_with_priority::<ResolveDropped, DropAction, _>(10, move |_| {
+            p2.lock().push("high-10-a");
+            None
+        });
+    let _high_second =
+        ctx_prio.on_serial_with_priority::<ResolveDropped, DropAction, _>(10, move |_| {
+            p3.lock().push("high-10-b");
+            Some(DropAction::Handled)
+        });
+    let prio_claim = ctx_prio
+        .events()
+        .serial::<ResolveDropped, DropAction>(&ResolveDropped::url("https://example.invalid/feed"));
+    assert_eq!(prio_claim, Some(DropAction::Handled));
+    assert_eq!(
+        asked_prio.lock().as_slice(),
+        &["high-10-a", "high-10-b"],
+        "higher priority runs first and equal priorities preserve mount order"
     );
 }
 
@@ -321,5 +365,101 @@ fn an_unclaimed_path_is_media_when_no_plugin_is_mounted_at_all() {
         state.classify_drop(&fixture()),
         DropAction::ImportMedia,
         "a real media file with no decoder plugin is still media"
+    );
+}
+
+/// A decoder plugin's extensions join the list every import dialog offers,
+/// after the shipped ones, until its registration drops. Closes "a plugin
+/// reads a format the File dialog will not let anyone pick".
+#[test]
+fn import_dialogs_offer_what_decoder_plugins_read() {
+    use crate::app::media::import::{MEDIA_IMPORT_EXTENSIONS, media_import_extensions};
+
+    struct Nothing;
+    impl aria_plugin::ExternalDecoder for Nothing {
+        fn probe(&self, _path: &Path) -> Result<aria_plugin::MediaProbe, aria_core::DecodeError> {
+            Err(aria_core::DecodeError::unsupported("reads nothing"))
+        }
+        fn open_video(
+            &self,
+            _path: &Path,
+        ) -> Result<Box<dyn aria_core::VideoDecoder>, aria_core::DecodeError> {
+            Err(aria_core::DecodeError::unsupported("reads nothing"))
+        }
+    }
+
+    let ctx = PluginContext::new();
+    let held = ctx
+        .register_decoder(
+            aria_plugin::DecoderSpec {
+                id: "nothing".into(),
+                name: "Nothing".into(),
+                extensions: vec!["AriaUiOnly".into()],
+                priority: 0,
+            },
+            Nothing,
+        )
+        .expect("registers");
+    let offered = media_import_extensions();
+    assert_eq!(
+        offered[..MEDIA_IMPORT_EXTENSIONS.len()],
+        *MEDIA_IMPORT_EXTENSIONS
+    );
+    assert!(offered.contains(&"ariauionly".to_owned()), "{offered:?}");
+    drop(held);
+    assert!(!media_import_extensions().contains(&"ariauionly".to_owned()));
+}
+
+#[gpui::test]
+fn dropped_url_goes_through_resolve_dropped_and_unclaimed_url_posts_notice(
+    cx: &mut gpui::TestAppContext,
+) {
+    use crate::test_support::drawn_shell;
+    use gpui::{point, px};
+
+    let (state, visual) = drawn_shell(cx, "url-drops");
+    visual.run_until_parked();
+
+    visual.simulate_url_drop(
+        point(px(200.), px(200.)),
+        ["https://example.invalid/unclaimed.mp4"],
+    );
+    let notice = visual.read(|app| state.read(app).status_message.clone());
+    assert_eq!(
+        notice.as_deref(),
+        Some("No plugin accepts https://example.invalid/unclaimed.mp4")
+    );
+
+    let seen = std::sync::Arc::new(parking_lot::Mutex::new(Vec::<String>::new()));
+    let seen_in_handler = std::sync::Arc::clone(&seen);
+    let _sub = visual.update(|_, app| {
+        state.update(app, |state, _| {
+            state.status_message = None;
+            state
+                .ctx
+                .on_serial_with_priority::<ResolveDropped, DropAction, _>(5, move |event| {
+                    let url = event.item.as_url()?;
+                    if url.starts_with("https://example.invalid/claimed/") {
+                        seen_in_handler.lock().push(url.to_owned());
+                        Some(DropAction::Handled)
+                    } else {
+                        None
+                    }
+                })
+        })
+    });
+
+    visual.simulate_url_drop(
+        point(px(200.), px(200.)),
+        ["https://example.invalid/claimed/asset-42"],
+    );
+    assert_eq!(
+        seen.lock().as_slice(),
+        &["https://example.invalid/claimed/asset-42".to_owned()]
+    );
+    let status_after_claim = visual.read(|app| state.read(app).status_message.clone());
+    assert_eq!(
+        status_after_claim, None,
+        "a claimed URL must not post an unclaimed notice"
     );
 }

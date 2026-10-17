@@ -1,34 +1,28 @@
-use std::collections::HashMap;
+use std::ops::Range;
 use std::time::Instant;
 
 #[cfg(test)]
 mod conformance;
-// `composite.rs` is the realized-layer → borrowed-`CompositeLayer` conversion,
-// moved out of `layers.rs` to stay under the file ceiling.
+// `composite.rs` is the realized-layer → borrowed-`CompositeLayer` conversion.
 mod composite;
 mod layers;
 mod pass_one;
 mod text;
 
-use composite::composite_from_realized;
-use layers::{Realized, fixed_size};
+use composite::{Caches, composite_card, composite_leaf};
+use layers::{Nests, Realized};
 
 use aria_compositor::{
     ColorGrade, CompositeLayer, CompositorConfig, CompositorLayer, FrameSink, ImageSink,
-    LayerPlacement, MatteRead, PassInstance, SdfLayer, wgpu,
+    LayerPlacement, LayerStencil, MatteRead, PassInstance, wgpu,
 };
 use aria_core::Cancel;
-use aria_models::{MatteSource, MediaId, Project};
-use aria_shapes::ShapeStyle;
+use aria_models::{MatteSource, Project};
 
 use crate::error::RenderError;
-use crate::motion_blur::{
-    blur_passes_for_placement, layer_placements_from_bitmap_scaled_blur_passes,
-    layer_placements_from_blur_passes,
-};
-use crate::scene::{LayerSource, Scene, SceneLayer, SceneLut, SizeSpec};
+use crate::scene::{LayerSource, Scene, SceneLayer, SceneLut};
 
-use super::effects::{blend_mode, layer_effects, layer_styles};
+use super::effects::layer_effects;
 use super::media_cache::layer_lut;
 use super::{FrameStats, PendingFrame, Renderer, SLOW_FRAME_LOG_MS, SeekPolicy};
 
@@ -48,10 +42,6 @@ fn matte_read(source: MatteSource) -> MatteRead {
         MatteSource::Alpha => MatteRead::Alpha,
         MatteSource::Luma => MatteRead::Luma,
     }
-}
-
-fn realized_scene_layer(layers: &[SceneLayer], scene_idx: usize) -> &SceneLayer {
-    &layers[scene_idx]
 }
 
 fn transition_effects(layer: &SceneLayer) -> (&[PassInstance], &[PassInstance]) {
@@ -75,16 +65,20 @@ fn matte_effects(layer: &SceneLayer) -> (&[PassInstance], &[PassInstance]) {
 pub(super) struct RealizeScratch {
     realized: Vec<Realized>,
     scene_indices: Vec<usize>,
-    blur_for_realized: Vec<Vec<LayerPlacement>>,
-    occurrence: HashMap<MediaId, u32>,
+    /// The range of `realized` each level holds: the frame's scene, then the
+    /// scene of each nest.
+    levels: Vec<Range<usize>>,
+    /// The range of a frame's compositor items each level holds, in the same
+    /// order.
+    item_levels: Vec<Range<usize>>,
 }
 
 impl RealizeScratch {
     fn begin_frame(&mut self) {
         self.realized.clear();
         self.scene_indices.clear();
-        self.blur_for_realized.clear();
-        self.occurrence.clear();
+        self.levels.clear();
+        self.item_levels.clear();
     }
 }
 
@@ -124,26 +118,27 @@ impl Renderer {
         if cancel.is_cancelled() {
             return Err(RenderError::Cancelled);
         }
-        // New scene, new LRU stamp: frames touched below are eviction-exempt
-        // until the next scene.
-        self.lottie_stamp += 1;
+        // New scene, new stamp: Lottie frames and decoders touched below are
+        // eviction-exempt until the next scene.
+        self.scene_stamp += 1;
         // First pass: decode/rasterize each layer into owned pixels and a final
         // placement. Held in `realized` so the borrowed `CompositeLayer`s built
         // below stay valid through the composite call.
         scratch.begin_frame();
-        let decode_ms = self.realize_scene_layers(
-            project,
-            scene,
-            policy,
-            &cancel,
-            &mut scratch.realized,
-            &mut scratch.scene_indices,
-            &mut scratch.blur_for_realized,
-            &mut scratch.occurrence,
-        )?;
+        let mut nests = Nests::new(scene);
+        let decode_ms =
+            self.realize_scene_layers(project, scene, policy, &cancel, &mut nests, scratch)?;
+        self.retire_decoders();
         let realized = &scratch.realized;
-        let blur_for_realized = &scratch.blur_for_realized;
+        let caches = Caches {
+            stills: &self.stills,
+            stickers: &self.stickers,
+            lottie: &self.lottie,
+            luts: &self.luts,
+        };
         let mut layer_storage: Vec<CompositeLayer<'_>> = Vec::new();
+        // The masks of canvas passes, which a pass holds by reference.
+        let mut stencils: Vec<LayerStencil<'_>> = Vec::new();
         // Phase 1: build all composite layers (indices only for transitions).
         enum LayerJob<'a> {
             Plain {
@@ -153,12 +148,14 @@ impl Renderer {
                 effects: &'a [PassInstance],
                 grade: Option<ColorGrade>,
                 lut: &'a Option<SceneLut>,
+                stencil: Option<usize>,
             },
             Transition {
                 out_idx: usize,
                 in_idx: usize,
                 transition_id: &'a str,
                 progress: f32,
+                params: &'a [f32],
             },
             Matte {
                 content_idx: usize,
@@ -168,164 +165,119 @@ impl Renderer {
                 softness: f32,
             },
         }
-        let mut jobs: Vec<LayerJob<'_>> = Vec::new();
+        // Each job with the clip whose reference target it draws into, `None`
+        // for a job drawn onto the canvas.
+        let mut jobs: Vec<(Option<u64>, LayerJob<'_>)> = Vec::new();
 
-        for (realized_idx, (r, &scene_idx)) in
-            realized.iter().zip(&scratch.scene_indices).enumerate()
-        {
-            let scene_layer = realized_scene_layer(&scene.layers, scene_idx);
-            match r {
-                Realized::CanvasPass { grade, lut } => {
-                    let effects = &scene_layer.effects;
-                    jobs.push(LayerJob::CanvasPass {
-                        effects,
-                        grade: *grade,
+        let level_scenes = std::iter::once(scene).chain(nests.scenes.iter().copied());
+        for (level_scene, level) in level_scenes.zip(&scratch.levels) {
+            let start = jobs.len();
+            for (r, &scene_idx) in realized[level.clone()]
+                .iter()
+                .zip(&scratch.scene_indices[level.clone()])
+            {
+                let scene_layer = level_scene.drawn(scene_idx);
+                let reference = match scene_layer.clip {
+                    _ if scene_idx >= level_scene.references.len() => None,
+                    Some(clip) => Some(clip.raw()),
+                    // The resolver places a reference only for a clip.
+                    None => continue,
+                };
+                match r {
+                    Realized::CanvasPass {
+                        grade,
                         lut,
-                    });
-                }
-                Realized::Transition {
-                    outgoing,
-                    incoming,
-                    transition_id,
-                    progress,
-                } => {
-                    let (out_effects, in_effects) = transition_effects(scene_layer);
-                    layer_storage.push(composite_from_realized(
-                        outgoing.as_ref(),
-                        &self.stills,
-                        &self.stickers,
-                        &self.lottie,
-                        &self.luts,
-                        out_effects,
-                    ));
-                    let out_idx = layer_storage.len() - 1;
-                    layer_storage.push(composite_from_realized(
-                        incoming.as_ref(),
-                        &self.stills,
-                        &self.stickers,
-                        &self.lottie,
-                        &self.luts,
-                        in_effects,
-                    ));
-                    let in_idx = layer_storage.len() - 1;
-                    jobs.push(LayerJob::Transition {
-                        out_idx,
-                        in_idx,
-                        transition_id: transition_id.as_str(),
-                        progress: *progress,
-                    });
-                }
-                Realized::Matte {
-                    content,
-                    stencil,
-                    read,
-                    invert,
-                    softness,
-                } => {
-                    let (content_effects, stencil_effects) = matte_effects(scene_layer);
-                    layer_storage.push(composite_from_realized(
-                        content.as_ref(),
-                        &self.stills,
-                        &self.stickers,
-                        &self.lottie,
-                        &self.luts,
-                        content_effects,
-                    ));
-                    let content_idx = layer_storage.len() - 1;
-                    layer_storage.push(composite_from_realized(
-                        stencil.as_ref(),
-                        &self.stills,
-                        &self.stickers,
-                        &self.lottie,
-                        &self.luts,
-                        stencil_effects,
-                    ));
-                    let stencil_idx = layer_storage.len() - 1;
-                    jobs.push(LayerJob::Matte {
-                        content_idx,
-                        stencil_idx,
-                        read: *read,
-                        invert: *invert,
-                        softness: *softness,
-                    });
-                }
-                Realized::Glyphs {
-                    background: Some((bg_image, bg_placement)),
-                    fx,
-                    color_grade,
-                    lut,
-                    blend_mode,
-                    ..
-                } => {
-                    // Whole-run background card sits behind the glyphs.
-                    let bg_effects = scene_layer.effects.as_slice();
-                    layer_storage.push(
-                        CompositeLayer::rgba(bg_image, *bg_placement)
-                            .with_fx(*fx)
-                            .with_effects(bg_effects)
-                            .with_color_grade(*color_grade)
-                            .with_lut(layer_lut(lut, &self.luts))
-                            .with_blend_mode(*blend_mode),
-                    );
-                    jobs.push(LayerJob::Plain {
-                        storage_idx: layer_storage.len() - 1,
-                    });
-                    // Glyphs share the same effect chain reference when present.
-                    // Per-glyph instances own placement; transform motion blur
-                    // is not applied to glyph runs (bitmap text still blurs).
-                    let glyph_effects = bg_effects;
-                    layer_storage.push(composite_from_realized(
-                        r,
-                        &self.stills,
-                        &self.stickers,
-                        &self.lottie,
-                        &self.luts,
-                        glyph_effects,
-                    ));
-                    jobs.push(LayerJob::Plain {
-                        storage_idx: layer_storage.len() - 1,
-                    });
-                }
-                other => {
-                    let effects = scene_layer.effects.as_slice();
-                    let mut cl = composite_from_realized(
-                        other,
-                        &self.stills,
-                        &self.stickers,
-                        &self.lottie,
-                        &self.luts,
-                        effects,
-                    );
-                    let mut blur = blur_for_realized[realized_idx].clone();
-                    // BitmapScaled layers skip attach-time sampling; fill now.
-                    if blur.is_empty()
-                        && self.apply_motion_blur
-                        && !matches!(other, Realized::Glyphs { .. })
-                        && let Some(clip_id) = scene.layers[scene_idx].clip
-                    {
-                        blur = blur_passes_for_placement(
-                            project,
-                            scene,
-                            clip_id,
-                            cl.placement,
-                            scene.layers[scene_idx].anchor_point,
-                        );
+                        stencil,
+                    } => {
+                        let stencil = stencil.as_ref().map(|stencil| {
+                            stencils.push(stencil.borrow(&[]));
+                            stencils.len() - 1
+                        });
+                        jobs.push((
+                            reference,
+                            LayerJob::CanvasPass {
+                                effects: &scene_layer.effects,
+                                grade: *grade,
+                                lut,
+                                stencil,
+                            },
+                        ));
                     }
-                    if !blur.is_empty() {
-                        cl = cl.with_blur_passes(blur);
+                    Realized::Transition {
+                        outgoing,
+                        incoming,
+                        transition_id,
+                        progress,
+                    } => {
+                        let (out_effects, in_effects) = transition_effects(scene_layer);
+                        layer_storage.push(composite_leaf(outgoing, &caches, out_effects));
+                        let out_idx = layer_storage.len() - 1;
+                        layer_storage.push(composite_leaf(incoming, &caches, in_effects));
+                        let in_idx = layer_storage.len() - 1;
+                        let params = scene_layer
+                            .effects
+                            .first()
+                            .map_or(&[][..], |pass| pass.params.as_slice());
+                        jobs.push((
+                            reference,
+                            LayerJob::Transition {
+                                out_idx,
+                                in_idx,
+                                transition_id: transition_id.as_str(),
+                                progress: *progress,
+                                params,
+                            },
+                        ));
                     }
-                    layer_storage.push(cl);
-                    jobs.push(LayerJob::Plain {
-                        storage_idx: layer_storage.len() - 1,
-                    });
+                    Realized::Matte {
+                        content,
+                        stencil,
+                        read,
+                        invert,
+                        softness,
+                    } => {
+                        let (content_effects, stencil_effects) = matte_effects(scene_layer);
+                        layer_storage.push(composite_leaf(content, &caches, content_effects));
+                        let content_idx = layer_storage.len() - 1;
+                        layer_storage.push(composite_leaf(stencil, &caches, stencil_effects));
+                        let stencil_idx = layer_storage.len() - 1;
+                        jobs.push((
+                            reference,
+                            LayerJob::Matte {
+                                content_idx,
+                                stencil_idx,
+                                read: *read,
+                                invert: *invert,
+                                softness: *softness,
+                            },
+                        ));
+                    }
+                    Realized::Layer(leaf) => {
+                        let effects = scene_layer.effects.as_slice();
+                        // A text run's background card draws behind its glyphs.
+                        let card = composite_card(leaf, &caches, effects);
+                        for layer in card
+                            .into_iter()
+                            .chain([composite_leaf(leaf, &caches, effects)])
+                        {
+                            layer_storage.push(layer);
+                            jobs.push((
+                                reference,
+                                LayerJob::Plain {
+                                    storage_idx: layer_storage.len() - 1,
+                                },
+                            ));
+                        }
+                    }
                 }
             }
+            scratch.item_levels.push(start..jobs.len());
         }
 
         // Phase 2: borrow storage immutably for compositor dispatch.
-        let compositor_layers: Vec<CompositorLayer<'_>> = jobs
+        let items: Vec<CompositorLayer<'_>> = jobs
             .iter()
-            .map(|job| match job {
+            .map(|(_, job)| match job {
                 LayerJob::Plain { storage_idx } => {
                     CompositorLayer::layer(&layer_storage[*storage_idx])
                 }
@@ -333,21 +285,25 @@ impl Renderer {
                     effects,
                     grade,
                     lut,
+                    stencil,
                 } => CompositorLayer::CanvasPass {
                     effects,
                     grade: *grade,
-                    lut: layer_lut(lut, &self.luts),
+                    lut: layer_lut(lut, caches.luts),
+                    stencil: stencil.map(|index| &stencils[index]),
                 },
                 LayerJob::Transition {
                     out_idx,
                     in_idx,
                     transition_id,
                     progress,
-                } => CompositorLayer::Transition {
+                    params,
+                } => CompositorLayer::TransitionWithParams {
                     outgoing: &layer_storage[*out_idx],
                     incoming: &layer_storage[*in_idx],
                     transition_id,
                     progress: *progress,
+                    params,
                 },
                 LayerJob::Matte {
                     content_idx,
@@ -364,27 +320,67 @@ impl Renderer {
                 },
             })
             .collect();
+        // A reference wraps the item it draws into a clip's target, and every
+        // reference of a level is submitted before the items whose effects
+        // read it. A level keeps the range its jobs hold.
+        let mut ordered: Vec<CompositorLayer<'_>> = Vec::with_capacity(items.len());
+        for level in &scratch.item_levels {
+            let level = || jobs[level.clone()].iter().zip(&items[level.clone()]);
+            ordered.extend(level().filter_map(|((reference, _), item)| {
+                reference.map(|clip| CompositorLayer::Reference { clip, item })
+            }));
+            ordered.extend(
+                level()
+                    .filter(|((reference, _), _)| reference.is_none())
+                    .map(|(_, item)| *item),
+            );
+        }
+        // Each nest draws before the level that shows it. A nest is realized
+        // after every nest before it, so the nests a nest shows come later in
+        // the list and are submitted first.
+        let nested: Vec<CompositorLayer<'_>>;
+        let compositor_layers: &[CompositorLayer<'_>] = match scratch.item_levels.split_first() {
+            Some((top, inner)) if !inner.is_empty() => {
+                nested = inner
+                    .iter()
+                    .enumerate()
+                    .rev()
+                    .map(|(nest, level)| CompositorLayer::Nest {
+                        nest: nest as u64,
+                        items: &ordered[level.clone()],
+                    })
+                    .chain(ordered[top.clone()].iter().copied())
+                    .collect();
+                &nested
+            }
+            _ => &ordered,
+        };
 
         // Submission is the last cancellation boundary. The pending copy owns
         // no scene borrows, so a later frame can realize while this one maps.
         if cancel.is_cancelled() {
             return Err(RenderError::Cancelled);
         }
-        let config =
+        let mut config =
             CompositorConfig::new(scene.width, scene.height).with_background(scene.background);
+        if scene.tick.rate.is_valid() {
+            config = config.with_frame_budget(std::time::Duration::from_secs_f64(
+                scene.tick.rate.seconds_per_unit(),
+            ));
+        }
         let realize_ms = realize_started.elapsed().as_secs_f64() * 1000.0;
         let submitted_at = Instant::now();
         let readback = match output {
             Output::Readback => Some(self.compositor.submit_compositor_layers(
                 &self.gpu,
                 &config,
-                &compositor_layers,
+                compositor_layers,
             )?),
             Output::Texture(texture) => {
                 self.compositor.submit_compositor_layers_to_texture(
                     &self.gpu,
                     &config,
-                    &compositor_layers,
+                    compositor_layers,
                     texture,
                 )?;
                 None

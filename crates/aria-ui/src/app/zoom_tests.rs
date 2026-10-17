@@ -32,13 +32,13 @@ fn viewport(state: &AppState) -> f32 {
         state.last_window_w,
         sidebar,
         inspector,
-        transport::TIMELINE_HEADER_W,
+        state.ui_settings.outline_width,
     )
 }
 
 /// Where the playhead sits in pixels, the way the lanes place it.
 fn playhead_px(state: &AppState) -> f32 {
-    let fps = state.store.sequence.frame_rate.num.max(1) as f32;
+    let fps = state.store.sequence.ticks_per_second();
     (state.playhead.value.max(0) as f32 / fps) * transport::TIMELINE_BASE_PPS * state.zoom
 }
 
@@ -48,7 +48,7 @@ fn ten_minutes() -> AppState {
     let (mut state, _clip) = with_clip();
     state.last_window_w = 1440.0;
     state.set_zoom(1.0, false);
-    let fps = state.store.sequence.frame_rate.num.max(1) as i64;
+    let fps = state.store.sequence.frame_rate.nominal_fps();
     state.store_mut().sequence.duration_ticks = fps * 600;
     state.scroll_timeline_to(0.0, false);
     state
@@ -57,7 +57,7 @@ fn ten_minutes() -> AppState {
 #[test]
 fn the_view_follows_a_playhead_that_has_run_past_it() {
     let mut state = ten_minutes();
-    let fps = state.store.sequence.frame_rate.num.max(1) as i64;
+    let fps = state.store.sequence.frame_rate.nominal_fps();
     state.set_playhead(fps * 300);
 
     assert!(
@@ -84,7 +84,7 @@ fn the_view_follows_a_playhead_that_has_run_past_it() {
 #[test]
 fn the_view_stays_where_it_is_while_it_still_shows_the_playhead() {
     let mut state = ten_minutes();
-    let fps = state.store.sequence.frame_rate.num.max(1) as i64;
+    let fps = state.store.sequence.frame_rate.nominal_fps();
     state.set_playhead(fps * 2);
 
     assert!(!state.follow_playhead(), "two seconds in is on screen");
@@ -272,4 +272,33 @@ fn selection_span_reads_the_projected_selection_flag() {
     clip.selected = true;
     let expected = (clip.timeline_start_ticks, clip.timeline_end_ticks);
     assert_eq!(state.selection_span(), Some(expected));
+}
+
+/// A fit frames the sequence's length in seconds at every rate the settings
+/// dialog offers.
+///
+/// The class: a conversion that took the rate's numerator as the ticks in a
+/// second, so a 23.976 sequence (24000/1001) measured a thousandth of its
+/// length and fit at the widest zoom. The expectation is in seconds, so it does
+/// not lean on the conversion under test.
+#[test]
+fn a_fit_frames_thirty_seconds_at_every_offered_rate() {
+    let mut state = ten_minutes();
+    let width = viewport(&state);
+    let want = width / (30.0 * transport::TIMELINE_BASE_PPS);
+    assert!(
+        want > transport::ZOOM_MIN && want < transport::ZOOM_MAX,
+        "thirty seconds fit inside the zoom range"
+    );
+    for rate in crate::surfaces::settings_pick::RATES {
+        let sequence = &mut state.store_mut().sequence;
+        sequence.frame_rate = rate;
+        sequence.duration_ticks = (rate.as_f64() * 30.0).round() as i64;
+        state.zoom_fit_sequence();
+        assert!(
+            (state.zoom - want).abs() < want * 0.01,
+            "{rate:?}: thirty seconds fit at zoom {} instead of {want}",
+            state.zoom
+        );
+    }
 }

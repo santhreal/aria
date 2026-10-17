@@ -93,6 +93,11 @@ define_id!(
     LinkId
 );
 define_id!(
+    /// Identifies a clip group (`Clip` > `Group`): clips sharing a `GroupId`
+    /// select and move together while trims stay per-clip.
+    GroupId
+);
+define_id!(
     /// Identifies a [`Marker`](crate::Marker) on the timeline ruler.
     MarkerId
 );

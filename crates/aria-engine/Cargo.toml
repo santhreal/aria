@@ -129,6 +129,10 @@ name = "paste_retimed"
 path = "tests/paste_retimed.rs"
 
 [[test]]
+name = "remove_attributes"
+path = "tests/remove_attributes.rs"
+
+[[test]]
 name = "project_file"
 path = "tests/project_file.rs"
 
@@ -153,6 +157,10 @@ name = "source_frame"
 path = "tests/source_frame.rs"
 
 [[test]]
+name = "source_edit"
+path = "tests/source_edit.rs"
+
+[[test]]
 name = "sync_lock"
 path = "tests/sync_lock.rs"
 
@@ -169,12 +177,28 @@ name = "unlink_clips"
 path = "tests/unlink_clips.rs"
 
 [[test]]
+name = "unlinked_edits"
+path = "tests/unlinked_edits.rs"
+
+[[test]]
 name = "workflow"
 path = "tests/workflow.rs"
 
 [[test]]
 name = "nested_sequence"
 path = "tests/nested_sequence.rs"
+
+[[test]]
+name = "drivers"
+path = "tests/drivers.rs"
+
+[[test]]
+name = "audio_inserts"
+path = "tests/audio_inserts.rs"
+
+[[test]]
+name = "multicam"
+path = "tests/multicam.rs"
 
 [lints]
 workspace = true

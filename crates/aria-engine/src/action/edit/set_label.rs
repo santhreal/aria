@@ -1,4 +1,4 @@
-use aria_models::{ClipId, MarkerColor, ModelError};
+use aria_models::{ClipId, LabelColor, ModelError};
 
 use crate::action::edit::restore_clip::RestoreClipAction;
 use crate::action::{ApplyContext, EditAction};
@@ -11,7 +11,7 @@ use crate::error::EngineError;
 pub fn set_label(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
-    label: Option<MarkerColor>,
+    label: Option<LabelColor>,
 ) -> Result<Box<dyn EditAction>, EngineError> {
     let before = ctx
         .project

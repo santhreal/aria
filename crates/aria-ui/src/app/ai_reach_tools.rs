@@ -63,8 +63,9 @@ impl AppState {
 
     /// Every tool the model is handed, grouped as the registry groups them.
     ///
-    /// Enumerated from `aria_ai::wire::tool_groups` plus the two specs the agent
-    /// appends per turn, so this is the vocabulary a prompt actually carries. The
+    /// Enumerated from `aria_ai::wire::tool_groups`, the two specs the agent
+    /// appends per turn, and one group per plugin that offers tools, so this is
+    /// the vocabulary a prompt actually carries. The
     /// existing settings row counts them; a count is not a capability list, and
     /// "the assistant can edit the timeline" should not be something an operator
     /// takes on trust.
@@ -88,6 +89,13 @@ impl AppState {
                 aria_ai::extend::read_skill_spec().name.into(),
             ],
         ));
+        for tool in self.ctx.ai_tools() {
+            let group: SharedString = format!("from the {} plugin", tool.plugin_name).into();
+            match groups.iter_mut().find(|(name, _)| *name == group) {
+                Some((_, tools)) => tools.push(tool.call_name.into()),
+                None => groups.push((group, vec![tool.call_name.into()])),
+            }
+        }
         groups
     }
 

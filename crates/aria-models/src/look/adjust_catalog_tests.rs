@@ -189,7 +189,7 @@ fn a_save_written_without_a_slider_reads_it_at_neutral() {
     // The shape of an older project: the keys this build knows are absent, and
     // a key it does not know is present.
     let older: ColorAdjustments =
-        serde_json::from_str(r#"{"brightness":0.5,"vibrance":0.9}"#).expect("an older save");
+        serde_json::from_str(r#"{"brightness":0.5,"sparkle":0.9}"#).expect("an older save");
     assert_eq!(older.brightness.constant(), Some(0.5));
     for slider in ColorAdjustments::SLIDERS {
         if slider.name == "brightness" {

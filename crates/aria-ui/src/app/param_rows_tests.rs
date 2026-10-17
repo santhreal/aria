@@ -10,7 +10,7 @@
 //! What it does not catch: whether a panel actually draws the rows it is
 //! offered. That is the panel's own test.
 
-use aria_models::{ClipParam, LookParam, MaskKind, ParamKind, ParamValue};
+use aria_models::{ClipParam, MaskKind, MaskParam, ParamKind, ParamValue};
 
 use super::premiere_tests::with_clip;
 
@@ -28,9 +28,7 @@ fn declared_groups() -> Vec<String> {
 #[test]
 fn a_group_offers_a_row_for_every_scalar_and_vector_property_it_owns() {
     let (mut state, _) = with_clip();
-    state
-        .set_selected_mask_kind(MaskKind::Circle)
-        .expect("mask");
+    state.add_selected_mask(MaskKind::Circle).expect("mask");
 
     // The rows the model says are reachable on this clip, by group.
     let clip_id = state.selected_clip().expect("selection");
@@ -48,6 +46,7 @@ fn a_group_offers_a_row_for_every_scalar_and_vector_property_it_owns() {
             .map(|spec| {
                 let rows = match spec.kind {
                     ParamKind::Scalar => 1,
+                    ParamKind::Vec3 => 3,
                     _ => 2,
                 };
                 (spec.group.to_string(), spec.id.to_string(), rows)
@@ -61,9 +60,19 @@ fn a_group_offers_a_row_for_every_scalar_and_vector_property_it_owns() {
 
     for (group, id, rows) in expected {
         let offered = state.param_rows(&group);
+        // A scalar row's id is the property's id; a vector row's id adds an
+        // axis suffix. A sibling whose id extends this one, such as
+        // `adjust-hue-sat-red` beside `adjust-hue`, is not this property's row.
         let matching = offered
             .iter()
-            .filter(|row| row.id.as_str() == id || row.id.starts_with(&format!("{id}-")))
+            .filter(|row| {
+                row.id.as_str() == id
+                    || row
+                        .id
+                        .strip_prefix(id.as_str())
+                        .and_then(|rest| rest.strip_prefix('-'))
+                        .is_some_and(|axis| ["x", "y", "z"].contains(&axis))
+            })
             .count();
         assert_eq!(
             matching,
@@ -115,11 +124,10 @@ fn a_row_edit_on_a_constant_property_stays_a_constant() {
 #[test]
 fn a_row_edit_on_an_animated_property_moves_the_keyframe_instead_of_flattening_it() {
     let (mut state, _) = with_clip();
-    state
-        .set_selected_mask_kind(MaskKind::Circle)
-        .expect("mask");
-    let feather = ClipParam::Look {
-        param: LookParam::MaskFeather,
+    state.add_selected_mask(MaskKind::Circle).expect("mask");
+    let feather = ClipParam::Mask {
+        mask: 0,
+        param: MaskParam::Feather,
     };
     state.add_keyframe_at_playhead(feather).expect("keyframe");
     assert_eq!(
@@ -148,14 +156,14 @@ fn a_row_edit_keeps_the_rest_of_its_block() {
     // The knob tables this replaces rebuilt the whole mask from the projection,
     // so one edit reset every sibling. Rotation must survive a feather edit.
     let (mut state, _) = with_clip();
-    state
-        .set_selected_mask_kind(MaskKind::Circle)
-        .expect("mask");
-    let rotation = ClipParam::Look {
-        param: LookParam::MaskRotation,
+    state.add_selected_mask(MaskKind::Circle).expect("mask");
+    let rotation = ClipParam::Mask {
+        mask: 0,
+        param: MaskParam::Rotation,
     };
-    let feather = ClipParam::Look {
-        param: LookParam::MaskFeather,
+    let feather = ClipParam::Mask {
+        mask: 0,
+        param: MaskParam::Feather,
     };
     state
         .set_param_scalar(rotation, None, 30.0)
@@ -341,29 +349,28 @@ fn row_of(state: &super::AppState, group: &str, param: ClipParam) -> super::clip
 #[test]
 fn a_row_reports_whether_a_keyframe_sits_under_the_playhead() {
     let (mut state, _) = with_clip();
-    state
-        .set_selected_mask_kind(MaskKind::Circle)
-        .expect("mask");
-    let feather = ClipParam::Look {
-        param: LookParam::MaskFeather,
+    state.add_selected_mask(MaskKind::Circle).expect("mask");
+    let feather = ClipParam::Mask {
+        mask: 0,
+        param: MaskParam::Feather,
     };
     let at = state.playhead.value;
 
-    let constant = row_of(&state, "mask", feather);
+    let constant = row_of(&state, "mask-0", feather);
     assert!(
         !constant.animated && !constant.at_playhead,
         "an unkeyed row reports itself animated or pinned"
     );
 
     state.add_keyframe_at_playhead(feather).expect("keyframe");
-    let pinned = row_of(&state, "mask", feather);
+    let pinned = row_of(&state, "mask-0", feather);
     assert!(
         pinned.animated && pinned.at_playhead,
         "the row does not report the key under the playhead"
     );
 
     state.set_playhead(at + 1);
-    let off = row_of(&state, "mask", feather);
+    let off = row_of(&state, "mask-0", feather);
     assert!(
         off.animated && !off.at_playhead,
         "the row reports a key one tick off the playhead as pinned"
@@ -382,9 +389,7 @@ fn a_row_reports_whether_a_keyframe_sits_under_the_playhead() {
 #[test]
 fn a_vector_property_carries_its_component_row_text() {
     let (mut state, _) = with_clip();
-    state
-        .set_selected_mask_kind(MaskKind::Circle)
-        .expect("mask");
+    state.add_selected_mask(MaskKind::Circle).expect("mask");
     let mut vectors = 0usize;
     let mut scalars = 0usize;
     for row in state.key_params().iter() {
@@ -402,6 +407,11 @@ fn a_vector_property_carries_its_component_row_text() {
                 assert_eq!(axes[1].id.as_str(), format!("{}-y", row.id));
                 assert_eq!(axes[0].label.as_str(), format!("{} X", row.label));
                 assert_eq!(axes[1].label.as_str(), format!("{} Y", row.label));
+            }
+            ParamKind::Vec3 => {
+                vectors += 1;
+                let axes: Vec<_> = row.axes().iter().collect();
+                assert_eq!(axes.len(), 3);
             }
             // A colour needs a picker and a rectangle needs handles, so neither
             // is drawn as a stepper either.

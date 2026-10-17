@@ -27,6 +27,9 @@ aria-render = { path = "../aria-render" }
 aria-compositor = { path = "../aria-compositor" }
 aria-core = { path = "../aria-core" }
 aria-plugin = { path = "../aria-plugin" }
+# Installed WASM packages mount through it, beside native and data packages.
+aria-plugin-wasm = { path = "../aria-plugin-wasm" }
+aria-interchange = { path = "../aria-interchange" }
 aria-storage = { path = "../aria-storage" }
 aria-settings = { path = "../aria-settings" }
 aria-decoder = { path = "../aria-decoder" }
@@ -44,6 +47,8 @@ smallvec = "1"
 sha2 = "0.10"
 serde = { workspace = true }
 serde_json = { workspace = true }
+# Theme files under `<data dir>/themes`.
+toml = "0.8"
 dirs = "6"
 tracing = { workspace = true }
 parking_lot = { workspace = true }

@@ -48,7 +48,7 @@ pub fn strip(
     for item in path.iter() {
         crumbs.push(
             div()
-                .text_size(px(10.))
+                .text_size(Theme::TEXT_SMALL)
                 .text_color(theme.text_faint)
                 .child("/")
                 .into_any_element(),
@@ -147,7 +147,7 @@ fn crumb(
         .px(px(Theme::SPACE_XS))
         .py(px(Theme::SPACE_XXS))
         .rounded(px(Theme::CONTROL_RADIUS))
-        .text_size(px(11.))
+        .text_size(Theme::TEXT_UI)
         .text_color(motion::mix(
             if current {
                 theme.text
@@ -307,6 +307,11 @@ fn row(
                     cx.reduce_motion(),
                 )),
         )
-        .child(div().text_size(px(12.)).text_color(theme.text).child(label));
+        .child(
+            div()
+                .text_size(Theme::TEXT_TITLE)
+                .text_color(theme.text)
+                .child(label),
+        );
     crate::pending::arriving(motion::MotionKey::new("bin-in", bin), index, card)
 }

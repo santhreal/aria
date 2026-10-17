@@ -14,7 +14,7 @@ fn quad_center_rotates_about_the_anchor() {
         opacity: 1.0,
         uv: [0.0, 0.0, 1.0, 1.0],
         effects: Vec::new(),
-        mask: None,
+        masks: Vec::new(),
         chroma_key: None,
         color_grade: None,
         lut: None,
@@ -66,6 +66,8 @@ fn resolve_with_substitutes_transform_and_generator_for_one_clip() {
         styles: None,
         animation: None,
         crop: None,
+        effect_vec2: None,
+        transparent: false,
     };
     let scene = resolve_with(&project, rt(5), overrides).unwrap();
     let layer = &scene.layers[0];

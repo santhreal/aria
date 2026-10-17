@@ -1,9 +1,5 @@
-//! The Sequence menu: everything the bar offers for the timeline itself.
-//!
-//! Moved out of [`super::menu_items`] unchanged. It was the largest of the six
-//! tables by a wide margin — a menu of the sequence covers trimming, marks,
-//! tracks, markers, links, framing, grade, mask, matte and transitions — and one
-//! file per menu is what keeps the other five readable.
+//! The Sequence menu: rendering, edits at the playhead, the In to Out range,
+//! tracks, and the sequence's nests.
 //!
 //! [`super::menu_items::items_for`] still dispatches here, so the bar, the
 //! palette and the tests all reach these rows through the one registry.
@@ -13,397 +9,267 @@ use std::borrow::Cow;
 use crate::app::AppState;
 use crate::commands::reach;
 
+use super::menu_guards as guards;
 use super::menu_items::{MenuItem, MenuItems};
 
+/// Report a failed edit on the status line.
+fn report<T>(state: &mut AppState, result: Result<T, aria_engine::EngineError>) {
+    if let Err(err) = result {
+        state.report_error(&err);
+    }
+}
+
+/// Add a lane of `kind`, named after the lanes of that kind already there.
+fn add_lane(state: &mut AppState, kind: aria_models::TrackKind) {
+    let (shown, prefix) = match kind {
+        aria_models::TrackKind::Audio => (crate::types::UiTrackKind::Audio, "A"),
+        _ => (crate::types::UiTrackKind::Video, "V"),
+    };
+    let n = state
+        .store
+        .sequence
+        .tracks
+        .iter()
+        .filter(|t| t.kind == shown)
+        .count()
+        + 1;
+    let added = state.add_track(kind, format!("{prefix}{n}"));
+    report(state, added)
+}
+
+const ADD_TRACKS: &str = "Add Tracks";
+const NESTED: &str = "Nested Sequence";
+const SOURCE: &str = "Source";
+const DUCKING: &str = "Ducking";
+
+/// The id prefix of a Sequence > Analyze row for one registered sequence analyzer.
+pub(crate) const SEQ_ANALYZE_PREFIX: &str = "seq-analyze:";
+const ANALYZE: &str = "Analyze";
 static SEQUENCE_ITEMS: &[MenuItem] = &[
-    MenuItem {
-        id: "seq-fit",
-        label: "Fit",
-        run: |_, s, _| s.zoom_fit_sequence(),
-    },
-    MenuItem {
-        id: "seq-fit-selection",
-        label: "Fit Selection",
-        run: |_, s, _| s.zoom_fit_selection(),
-    },
-    MenuItem {
-        id: "seq-match-frame",
-        label: "Match Frame",
-        run: |_, s, _| {
-            s.match_frame();
-        },
-    },
-    MenuItem {
-        id: "seq-source-insert",
-        label: "Insert Source",
-        run: |_, s, _| {
-            if let Err(err) = s.cut_source_in(crate::types::EditMode::Ripple) {
-                s.report_error(&err);
+    MenuItem::new("seq-settings", "Sequence Settings…", |_, s, _| {
+        s.open_settings_at("Canvas")
+    }),
+    MenuItem::new("seq-render-in-to-out", "Render In to Out", |_, s, _| {
+        if let Err(err) = s.render_in_to_out() {
+            s.status_message = Some(err);
+        }
+    })
+    .key("key-render-in-to-out")
+    .when(guards::clips),
+    MenuItem::new("seq-render-selection", "Render Selection", |_, s, _| {
+        if let Err(err) = s.render_selection() {
+            s.status_message = Some(err);
+        }
+    })
+    .when(guards::selection),
+    MenuItem::new(
+        "seq-delete-render-files",
+        "Delete Render Files",
+        |_, s, _| {
+            if let Err(err) = s.delete_render_files() {
+                s.status_message = Some(err);
             }
         },
-    },
-    MenuItem {
-        id: "seq-source-overwrite",
-        label: "Overwrite Source",
-        run: |_, s, _| {
-            if let Err(err) = s.cut_source_in(crate::types::EditMode::Overwrite) {
-                s.report_error(&err);
-            }
+    ),
+    MenuItem::new("seq-add-edit", "Add Edit", |_, s, _| {
+        let added = s.add_edit(false);
+        report(s, added)
+    })
+    .key("key-split")
+    .when(guards::clips),
+    MenuItem::new("seq-add-edit-all", "Add Edit to All Tracks", |_, s, _| {
+        let added = s.add_edit(true);
+        report(s, added)
+    })
+    .key("key-split-all")
+    .when(guards::clips),
+    MenuItem::new("seq-trim-edit", "Trim Edit", |_, s, _| {
+        s.select_nearest_edit()
+    })
+    .when(guards::clips),
+    MenuItem::new("seq-extend-edit", "Extend Edit", |_, s, _| {
+        let extended = s.extend_edit_to_playhead();
+        report(s, extended)
+    })
+    .when(guards::edge),
+    MenuItem::new(
+        "seq-default-transitions",
+        "Apply Default Transitions",
+        |_, s, _| {
+            let applied = s.add_default_transition(aria_models::TransitionMedia::Picture);
+            report(s, applied)
         },
-    },
-    MenuItem {
-        id: "seq-in",
-        label: "Zoom In",
-        run: |_, s, _| {
-            s.set_zoom(s.zoom * crate::transport::ZOOM_STEP, true);
+    )
+    .key("key-transition")
+    .when(guards::clips),
+    MenuItem::new("seq-lift", "Lift", |_, s, _| {
+        let lifted = s.remove_marked_range(false);
+        report(s, lifted)
+    })
+    .key("key-lift")
+    .when(guards::range),
+    MenuItem::new("seq-extract", "Extract", |_, s, _| {
+        let extracted = s.remove_marked_range(true);
+        report(s, extracted)
+    })
+    .key("key-extract")
+    .when(guards::range),
+    MenuItem::new("seq-snap", "Snap", |_, s, _| s.toggle_snapping())
+        .key("key-snap")
+        .checked(|_, s| s.snap_enabled),
+    MenuItem::new("seq-linked-selection", "Linked Selection", |_, s, _| {
+        s.toggle_linked_selection()
+    })
+    .checked(|_, s| s.linked_selection),
+    MenuItem::new("seq-v", "Video Track", |_, s, _| {
+        add_lane(s, aria_models::TrackKind::Video)
+    })
+    .under(ADD_TRACKS),
+    MenuItem::new("seq-a", "Audio Track", |_, s, _| {
+        add_lane(s, aria_models::TrackKind::Audio)
+    })
+    .under(ADD_TRACKS),
+    MenuItem::new("seq-delete-tracks", "Delete Empty Tracks", |_, s, _| {
+        let deleted = s.delete_empty_tracks();
+        report(s, deleted)
+    })
+    .when(guards::empty_tracks),
+    MenuItem::new("seq-adjustment", "Add Adjustment Layer", |_, s, _| {
+        let added = s.add_adjustment_layer().map(drop);
+        report(s, added)
+    }),
+    MenuItem::new("seq-match-frame", "Match Frame", |_, s, _| {
+        s.match_frame();
+    })
+    .key("key-match-frame")
+    .when(guards::selection),
+    MenuItem::new("seq-source-insert", "Insert", |_, s, _| {
+        let cut = s.cut_source_in(crate::types::EditMode::Ripple);
+        report(s, cut)
+    })
+    .when(guards::source_range)
+    .under(SOURCE),
+    MenuItem::new("seq-source-overwrite", "Overwrite", |_, s, _| {
+        let cut = s.cut_source_in(crate::types::EditMode::Overwrite);
+        report(s, cut)
+    })
+    .when(guards::source_range)
+    .under(SOURCE),
+    MenuItem::new("seq-ripple-insert", "Insert Pool Selection", |_, s, _| {
+        reach::ripple_insert(s)
+    })
+    .when(guards::pool_selection)
+    .under(SOURCE),
+    MenuItem::new("seq-ripple-in", "Ripple Trim In", |_, s, _| {
+        let trimmed = s.trim_selected_to_playhead(true);
+        report(s, trimmed)
+    })
+    .when(guards::selection),
+    MenuItem::new("seq-ripple-out", "Ripple Trim Out", |_, s, _| {
+        let trimmed = s.trim_selected_to_playhead(false);
+        report(s, trimmed)
+    })
+    .when(guards::selection),
+    MenuItem::new(
+        "seq-transition-crossfade",
+        "Add Cross Fade at Cut",
+        |_, s, _| {
+            let set = s.set_selected_transition("crossfade");
+            report(s, set)
         },
-    },
-    MenuItem {
-        id: "seq-out",
-        label: "Zoom Out",
-        run: |_, s, _| {
-            s.set_zoom(s.zoom / crate::transport::ZOOM_STEP, true);
+    )
+    .when(guards::selection),
+    MenuItem::new(
+        "seq-transition-clear",
+        "Remove Transition at Cut",
+        |_, s, _| {
+            let cleared = s.clear_selected_transition();
+            report(s, cleared)
         },
-    },
-    MenuItem {
-        id: "seq-v",
-        label: "Add Video Track",
-        run: |_, s, _| {
-            let n = s
-                .store
-                .sequence
-                .tracks
-                .iter()
-                .filter(|t| matches!(t.kind, crate::types::UiTrackKind::Video))
-                .count()
-                + 1;
-            if let Err(err) = s.add_track(aria_models::TrackKind::Video, format!("V{n}")) {
-                s.report_error(&err);
-            }
-        },
-    },
-    MenuItem {
-        id: "seq-a",
-        label: "Add Audio Track",
-        run: |_, s, _| {
-            let n = s
-                .store
-                .sequence
-                .tracks
-                .iter()
-                .filter(|t| matches!(t.kind, crate::types::UiTrackKind::Audio))
-                .count()
-                + 1;
-            if let Err(err) = s.add_track(aria_models::TrackKind::Audio, format!("A{n}")) {
-                s.report_error(&err);
-            }
-        },
-    },
-    MenuItem {
-        id: "seq-adjustment",
-        label: "Add Adjustment Layer",
-        run: |_, s, _| {
-            if let Err(err) = s.add_adjustment_layer() {
-                s.report_error(&err);
-            }
-        },
-    },
-    MenuItem {
-        id: "seq-marker",
-        label: "Add Marker",
-        run: |_, s, _| {
-            if let Err(err) = s.add_marker_at_playhead() {
-                s.report_error(&err);
-            }
-        },
-    },
-    MenuItem {
-        id: "seq-mark-in",
-        label: "Mark In",
-        run: |_, s, _| s.set_mark_in(),
-    },
-    MenuItem {
-        id: "seq-mark-out",
-        label: "Mark Out",
-        run: |_, s, _| s.set_mark_out(),
-    },
-    MenuItem {
-        id: "seq-clear-in",
-        label: "Clear In",
-        run: |_, s, _| s.clear_mark_in(),
-    },
-    MenuItem {
-        id: "seq-clear-out",
-        label: "Clear Out",
-        run: |_, s, _| s.clear_mark_out(),
-    },
-    MenuItem {
-        id: "seq-ripple-in",
-        label: "Ripple Trim In",
-        run: |_, s, _| {
-            if let Err(err) = s.trim_selected_to_playhead(true) {
-                s.report_error(&err);
-            }
-        },
-    },
-    MenuItem {
-        id: "seq-ripple-out",
-        label: "Ripple Trim Out",
-        run: |_, s, _| {
-            if let Err(err) = s.trim_selected_to_playhead(false) {
-                s.report_error(&err);
-            }
-        },
-    },
-    MenuItem {
-        id: "seq-marker-remove",
-        label: "Delete Marker at Playhead",
-        run: |_, s, _| {
-            if let Err(err) = s.remove_marker_at_playhead() {
-                s.report_error(&err);
-            }
-        },
-    },
-    MenuItem {
-        id: "seq-marker-rename",
-        label: "Rename Marker at Playhead",
-        run: |_, s, _| s.begin_rename_marker_at_playhead(),
-    },
-    MenuItem {
-        id: "seq-marker-next",
-        label: "Next Marker",
-        run: |_, s, _| s.go_to_next_marker(),
-    },
-    MenuItem {
-        id: "seq-marker-prev",
-        label: "Previous Marker",
-        run: |_, s, _| s.go_to_prev_marker(),
-    },
-    MenuItem {
-        id: "seq-link",
-        label: "Link Clips",
-        run: |_, s, _| {
-            if let Err(err) = s.link_selected() {
-                s.report_error(&err);
-            }
-        },
-    },
-    MenuItem {
-        id: "seq-unlink",
-        label: "Unlink Clips",
-        run: |_, s, _| {
-            if let Err(err) = s.unlink_selected() {
-                s.report_error(&err);
-            }
-        },
-    },
-    MenuItem {
-        id: "seq-extract-audio",
-        label: "Extract Audio",
-        run: |_, s, _| {
-            if let Err(err) = s.extract_selected_audio() {
-                s.report_error(&err);
-            }
-        },
-    },
-    MenuItem {
-        id: "seq-freeze",
-        label: "Freeze Frame",
-        run: |_, s, _| {
-            if let Err(err) = s.freeze_selected_frame() {
-                s.report_error(&err);
-            }
-        },
-    },
-    MenuItem {
-        id: "seq-flip-h",
-        label: "Flip Horizontal",
-        run: |_, s, _| {
-            if let Err(err) = s.toggle_selected_flip_h() {
-                s.report_error(&err);
-            }
-        },
-    },
-    MenuItem {
-        id: "seq-flip-v",
-        label: "Flip Vertical",
-        run: |_, s, _| {
-            if let Err(err) = s.toggle_selected_flip_v() {
-                s.report_error(&err);
-            }
-        },
-    },
-    MenuItem {
-        id: "seq-crop-reset",
-        label: "Reset Framing",
-        run: |_, s, _| {
-            if let Err(err) = s.clear_selected_crop() {
-                s.report_error(&err);
-            }
-        },
-    },
-    MenuItem {
-        id: "seq-grade-reset",
-        label: "Reset Grade",
-        run: |_, s, _| {
-            if let Err(err) = s.clear_selected_adjustments() {
-                s.report_error(&err);
-            }
-        },
-    },
-    MenuItem {
-        id: "seq-mask-clear",
-        label: "Remove Mask",
-        run: |_, s, _| {
-            if let Err(err) = s.clear_selected_mask() {
-                s.report_error(&err);
-            }
-        },
-    },
-    MenuItem {
-        id: "seq-chroma-clear",
-        label: "Remove Chroma Key",
-        run: |_, s, _| {
-            if let Err(err) = s.clear_selected_chroma() {
-                s.report_error(&err);
-            }
-        },
-    },
-    MenuItem {
-        id: "seq-matte-luma",
-        label: "Track Matte from Luma Above",
-        run: |_, s, _| {
-            if let Err(err) = s.set_selected_matte_source(aria_models::MatteSource::Luma) {
-                s.report_error(&err);
-            }
-        },
-    },
-    MenuItem {
-        id: "seq-matte-alpha",
-        label: "Track Matte from Alpha Above",
-        run: |_, s, _| {
-            if let Err(err) = s.set_selected_matte_source(aria_models::MatteSource::Alpha) {
-                s.report_error(&err);
-            }
-        },
-    },
-    MenuItem {
-        id: "seq-matte-clear",
-        label: "Remove Track Matte",
-        run: |_, s, _| {
-            if let Err(err) = s.clear_selected_matte() {
-                s.report_error(&err);
-            }
-        },
-    },
-    MenuItem {
-        id: "seq-transition-crossfade",
-        label: "Add Cross Fade at Cut",
-        run: |_, s, _| {
-            if let Err(err) = s.set_selected_transition("crossfade") {
-                s.report_error(&err);
-            }
-        },
-    },
-    MenuItem {
-        id: "seq-transition-clear",
-        label: "Remove Transition at Cut",
-        run: |_, s, _| {
-            if let Err(err) = s.clear_selected_transition() {
-                s.report_error(&err);
-            }
-        },
-    },
-    // Rows whose action had no operator path at all before. The bodies live
-    // in `crate::commands::reach`, which the palette rows
+    )
+    .when(guards::selection),
+    // Rows whose bodies live in `crate::commands::reach`, which the palette rows
     // call too, so the bar and the palette cannot drift into doing two
-    // different things. The labels match the palette's exactly, which is what
-    // makes the palette offer each row once instead of twice.
-    MenuItem {
-        id: "seq-lane-shift-later",
-        label: "Shift lane one second later",
-        run: |_, s, _| reach::shift_lane(s, true),
-    },
-    MenuItem {
-        id: "seq-lane-shift-earlier",
-        label: "Shift lane one second earlier",
-        run: |_, s, _| reach::shift_lane(s, false),
-    },
-    MenuItem {
-        id: "seq-ripple-insert",
-        label: "Insert pool item at playhead",
-        run: |_, s, _| reach::ripple_insert(s),
-    },
-    MenuItem {
-        id: "seq-marker-snap",
-        label: "Move nearest marker to playhead",
-        run: |_, s, _| reach::snap_marker(s),
-    },
-    MenuItem {
-        id: "seq-effect-reset",
-        label: "Reset effect parameters",
-        run: |_, s, _| reach::reset_effects(s),
-    },
-    MenuItem {
-        id: "seq-canvas-background",
-        label: "Reset canvas background",
-        run: |_, s, _| reach::reset_canvas_background(s),
-    },
-    MenuItem {
-        id: "seq-duck-amount",
-        label: "Cycle duck amount",
-        run: |_, s, _| s.cycle_duck_amount(),
-    },
-    MenuItem {
-        id: "seq-duck-attack",
-        label: "Cycle duck attack",
-        run: |_, s, _| s.cycle_duck_attack(),
-    },
-    MenuItem {
-        id: "seq-duck-release",
-        label: "Cycle duck release",
-        run: |_, s, _| s.cycle_duck_release(),
-    },
-    MenuItem {
-        id: "seq-nest",
-        label: "Nest Selection",
-        run: |_, s, _| reach::nest_selection(s),
-    },
-    MenuItem {
-        id: "seq-nest-open",
-        label: "Open Nested Sequence",
-        run: |_, s, _| reach::open_selected_nest(s),
-    },
-    MenuItem {
-        id: "seq-nest-leave",
-        label: "Leave Nested Sequence",
-        run: |_, s, _| reach::leave_sequence(s),
-    },
-    MenuItem {
-        id: "seq-nest-place",
-        label: "Place Nest At Playhead",
-        run: |_, s, _| reach::place_selected_nest(s),
-    },
-    MenuItem {
-        id: "seq-bake-clip",
-        label: "Render and replace",
-        run: |_, s, _| {
-            if let Err(err) = s.render_and_replace() {
-                s.status_message = Some(err);
-            }
-        },
-    },
-    MenuItem {
-        id: "seq-bake-restore",
-        label: "Restore unrendered",
-        run: |_, s, _| {
-            if let Err(err) = s.restore_unrendered() {
-                s.status_message = Some(err);
-            }
-        },
-    },
+    // different things. The labels match the palette's, which is what makes
+    // the palette offer each row once instead of twice.
+    MenuItem::new(
+        "seq-lane-shift-later",
+        "Shift lane one second later",
+        |_, s, _| reach::shift_lane(s, true),
+    ),
+    MenuItem::new(
+        "seq-lane-shift-earlier",
+        "Shift lane one second earlier",
+        |_, s, _| reach::shift_lane(s, false),
+    ),
+    MenuItem::new(
+        "seq-canvas-background",
+        "Reset canvas background",
+        |_, s, _| reach::reset_canvas_background(s),
+    ),
+    MenuItem::new("seq-duck-amount", "Cycle duck amount", |_, s, _| {
+        s.cycle_duck_amount()
+    })
+    .under(DUCKING),
+    MenuItem::new("seq-duck-attack", "Cycle duck attack", |_, s, _| {
+        s.cycle_duck_attack()
+    })
+    .under(DUCKING),
+    MenuItem::new("seq-duck-release", "Cycle duck release", |_, s, _| {
+        s.cycle_duck_release()
+    })
+    .under(DUCKING),
+    MenuItem::new("seq-nest-open", "Open Nested Sequence", |_, s, _| {
+        reach::open_selected_nest(s)
+    })
+    .under(NESTED),
+    MenuItem::new("seq-nest-leave", "Leave Nested Sequence", |_, s, _| {
+        reach::leave_sequence(s)
+    })
+    .under(NESTED),
+    MenuItem::new("seq-nest-place", "Place Nest At Playhead", |_, s, _| {
+        reach::place_selected_nest(s)
+    })
+    .under(NESTED),
 ];
 
-pub(super) fn sequence_items(_state: &AppState) -> MenuItems {
-    Cow::Borrowed(SEQUENCE_ITEMS)
+fn run_sequence_analyzer(id: &str, state: &mut AppState, cx: &mut gpui::Context<AppState>) {
+    if let Some(analyzer_id) = id.strip_prefix(SEQ_ANALYZE_PREFIX)
+        && let Err(err) = state.run_registered_analyzer(analyzer_id, cx)
+    {
+        state.report_error(err);
+    }
+}
+
+pub(super) fn sequence_items(state: &AppState) -> MenuItems {
+    let analyzers: Vec<_> = state
+        .ctx
+        .analyzers()
+        .into_iter()
+        .filter(|entry| {
+            matches!(
+                entry.spec().scope,
+                aria_plugin::AnalyzerScope::Sequence | aria_plugin::AnalyzerScope::InOut
+            )
+        })
+        .collect();
+    if analyzers.is_empty() {
+        return Cow::Borrowed(SEQUENCE_ITEMS);
+    }
+    let intern = crate::interned::intern;
+    let mut items = Vec::with_capacity(SEQUENCE_ITEMS.len() + analyzers.len());
+    items.extend_from_slice(SEQUENCE_ITEMS);
+    for entry in analyzers {
+        let spec = entry.spec();
+        items.push(
+            MenuItem::new(
+                intern(&format!("{SEQ_ANALYZE_PREFIX}{}", spec.id)),
+                intern(&spec.label),
+                run_sequence_analyzer,
+            )
+            .when(guards::clips)
+            .under(ANALYZE),
+        );
+    }
+    Cow::Owned(items)
 }

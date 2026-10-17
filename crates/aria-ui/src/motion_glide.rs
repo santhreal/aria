@@ -2,7 +2,7 @@
 //!
 //! [`gpui::Animation`] runs one fixed transition from the frame an element first
 //! appears, which is the wrong shape for a number that keeps moving: the
-//! playhead, a lane's height, a pane's width, a clip's position after a ripple.
+//! playhead, a lane's height, a clip's position after a ripple.
 //! Those chase a target instead, in the shared glide store, a
 //! [`gpui::motion::TweenStore`] sampled at the open motion frame. Every
 //! transition here runs on a catalog [`MotionSpec`].
@@ -27,13 +27,9 @@ pub(crate) const LANE: MotionSpec = presets::COLLAPSE;
 /// cards it displaced instead of teleporting them.
 pub(crate) const EDIT: MotionSpec = presets::RESIZE;
 
-/// A pane changing size: a splitter that was released, or a rail collapsing.
-/// A collapse is a resize to zero, so it is the same motion.
-pub(crate) const PANE: MotionSpec = presets::RESIZE;
-
-/// The horizontal offset, when the view moved on the editor's initiative: a fit,
-/// or playback that ran past the edge. Slower than the playhead's own beat
-/// because the whole picture travels, and a jump that size reads as a cut.
+/// A list the editor scrolled to show a new row: the assistant transcript
+/// following its newest reply. Slow, because the rows travel through the line
+/// the reader is on, and a jump that size reads as a cut.
 pub(crate) const SCROLL: MotionSpec = presets::SCROLL_GLIDE;
 
 /// The horizontal offset after a pan was released. The same length as [`SCROLL`]
@@ -43,10 +39,13 @@ pub(crate) const SCROLL: MotionSpec = presets::SCROLL_GLIDE;
 /// than as a bug.
 pub(crate) const FLING: MotionSpec = super::FLING;
 
-/// The horizontal scale, when the editor chose it: a fit, a keyed step, a menu
-/// row. Shorter than [`SCROLL`] because the drawn scale is not the committed one
-/// while this runs, and a click during that window lands on the tick that is
-/// under the pointer on screen rather than the one the model would compute.
+/// The horizontal scale and scroll offset, when the editor chose them: a fit, a
+/// keyed step, a menu row, playback that ran past the edge. Both ride this one
+/// spec, so a tick held in place across the change (the playhead under `=`)
+/// stays put while they travel; two specs drift it. Short, because the drawn
+/// scale is not the committed one while this runs, and a click during that
+/// window lands on the tick that is under the pointer on screen rather than the
+/// one the model would compute.
 pub(crate) const ZOOM: MotionSpec = presets::RESIZE;
 
 /// A binary state a card can leave again: selected, locked. The same beat as a
@@ -79,11 +78,14 @@ pub(crate) const WAIT: MotionSpec = super::OPEN;
 /// moving it: a splitter under the pointer, a scroll the operator is driving.
 /// Reduced motion is read from the frame's policy, so a new call site cannot
 /// forget it and leave one pane sliding for an operator who turned motion off.
+/// Playback holds the value at its target the same way
+/// ([`super::hold_for_playback`]).
 pub(crate) fn glide(key: MotionKey, target: f32, spec: MotionSpec, instant: bool) -> f32 {
     with_frame(|chrome, frame| {
+        let policy = chrome.policy(frame.policy());
         chrome
             .glide
-            .glide(key, target, spec, instant, frame.policy(), frame.now())
+            .glide(key, target, spec, instant, policy, frame.now())
     })
 }
 

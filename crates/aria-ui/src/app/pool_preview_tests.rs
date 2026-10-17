@@ -41,13 +41,24 @@ fn with_selection() -> (AppState, u64) {
 fn with_monitor() -> (AppState, u64, i64) {
     let (mut state, media) = with_selection();
     assert!(state.toggle_source_monitor(), "the monitor opens");
-    let frames = state
-        .source_view
-        .as_ref()
-        .expect("open")
-        .duration_ticks
-        .max(1);
+    let frames = state.sources.focused().expect("open").duration_ticks.max(1);
     (state, media, frames)
+}
+/// A monitor open on a 24 fps, two-second shot with sound, in a 24 fps
+/// sequence with an audio lane, so a source tick and a timeline tick are the
+/// same length and the sound patches to a lane of its own.
+fn with_video_monitor() -> (AppState, u64) {
+    let mut state = state();
+    state
+        .add_lane_of_kind(aria_models::TrackKind::Audio, None)
+        .expect("an audio lane");
+    let video = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/fixture-640x360-24fps-3s-av.mp4");
+    let media = state.import_media(video).expect("import").raw();
+    state.select_pool_item(media);
+    state.active_panel = ActivePanel::Media;
+    assert!(state.toggle_source_monitor(), "the monitor opens");
+    (state, media)
 }
 // --- three-point, four-point, and match frame --------------------------------
 

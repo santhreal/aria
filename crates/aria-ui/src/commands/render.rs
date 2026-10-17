@@ -27,6 +27,33 @@ pub(super) const RENDER_ROWS: &[CommandEntry] = &[
         run: |state| state.report_render_cost(),
     },
     CommandEntry {
+        id: "pal-render-in-to-out",
+        label: "Render In to Out",
+        run: |state| {
+            if let Err(err) = state.render_in_to_out() {
+                state.status_message = Some(err);
+            }
+        },
+    },
+    CommandEntry {
+        id: "pal-render-selection",
+        label: "Render Selection",
+        run: |state| {
+            if let Err(err) = state.render_selection() {
+                state.status_message = Some(err);
+            }
+        },
+    },
+    CommandEntry {
+        id: "pal-delete-render-files",
+        label: "Delete Render Files",
+        run: |state| {
+            if let Err(err) = state.delete_render_files() {
+                state.status_message = Some(err);
+            }
+        },
+    },
+    CommandEntry {
         id: "pal-media-reload",
         label: "Reload media from disk",
         run: |state| state.reload_selected_media(),

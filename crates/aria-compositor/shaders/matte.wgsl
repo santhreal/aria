@@ -1,5 +1,6 @@
 // Track matte: content @0, stencil @1. params.x = channel (0 alpha, 1 luma),
-// params.y = invert (0 or 1), params.z = softness.
+// params.z = softness, and the coverage is remapped to params.y + params.w * c
+// (`CoverageMix`): `0 + 1c` keeps, `1 - 1c` inverts.
 //
 // Both inputs are premultiplied, so coverage scales the whole RGBA. Luma is
 // read from the stencil's unpremultiplied colour: a premultiplied black pixel
@@ -77,8 +78,5 @@ fn fs(in: VsOut) -> @location(0) vec4<f32> {
     }
     coverage = coverage / f32(TAPS * TAPS);
 
-    if (u.params.y > 0.5) {
-        coverage = 1.0 - coverage;
-    }
-    return content * clamp(coverage, 0.0, 1.0);
+    return content * clamp(u.params.y + u.params.w * coverage, 0.0, 1.0);
 }

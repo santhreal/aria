@@ -1,6 +1,6 @@
 //! Media bin.
 
-use crate::app::media::import::MEDIA_IMPORT_EXTENSIONS;
+use crate::app::media::import::media_import_extensions;
 use crate::app::picker::{Ask, FileSpec};
 use crate::app::pool_preview;
 use crate::app::{AppState, spawn_preview};
@@ -10,8 +10,8 @@ use crate::fluent::FluentBuilder;
 use crate::motion;
 use crate::theme::Theme;
 use crate::types::{
-    ActivePanel, CatalogDrag, CatalogDragKind, MediaSort, POOL_CELL_WIDTH, PoolView, SidebarTab,
-    UiClipKind, UiMediaItem, freeform_default_position, freeform_drop_to_position,
+    ActivePanel, CatalogDrag, CatalogDragKind, MediaSort, POOL_CELL_WIDTH, PoolView, SidebarGroup,
+    SidebarTab, UiClipKind, UiMediaItem, freeform_default_position, freeform_drop_to_position,
 };
 use aria_cloud::dto::StockKind;
 use aria_models::{Generator, MediaId, Shape};
@@ -30,11 +30,11 @@ pub fn render(
     let tab = state.read(cx).sidebar_tab;
     // The rows the pool tabs draw: a view over the projection, computed only
     // for the two tabs that draw one.
-    let rows =
-        matches!(tab, SidebarTab::Media | SidebarTab::Audio).then(|| state.read(cx).pool_rows(tab));
+    let rows = tab.shows_pool().then(|| state.read(cx).pool_rows(tab));
     // What the selection already carries, so the browsable catalogs can say so.
     // Read once, next to the other reads, rather than per row. Animations occupy
-    // three slots at once, which is why each of these is a set.
+    // three slots at once and a clip holds a stack of masks, which is why each
+    // of these is a set; the masks' shapes are one bit per `MaskKind::ALL` entry.
     let (animations, mask, transition) = {
         let state = state.read(cx);
         let animations = crate::app::clip_anim::SLOTS.map(|slot| {
@@ -45,9 +45,11 @@ pub fn render(
         let selected = state.selected_ui_clip_ref();
         (
             animations,
-            selected
-                .and_then(|clip| clip.mask)
-                .map(|mask| mask.kind.id()),
+            selected.map_or(0, |clip| {
+                clip.masks
+                    .iter()
+                    .fold(0, |bits, mask| bits | mask_bit(mask.kind))
+            }),
             selected
                 .and_then(|clip| clip.transition.as_ref())
                 .map(|transition| transition.id.clone()),
@@ -62,7 +64,6 @@ pub fn render(
         .bg(theme.surface)
         .border_r_1()
         .border_color(if selected { theme.accent } else { theme.border })
-        .child(header(&theme, cx))
         .child(filter_chips(&theme, tab, cx))
         .child(
             div()
@@ -104,23 +105,34 @@ pub fn render(
                     .into_any_element(),
                     SidebarTab::Generators => {
                         let generators = crate::catalog_text::generators();
-                        if generators.is_empty() {
+                        let types = crate::catalog_text::clip_types();
+                        if generators.is_empty() && types.is_empty() {
                             div()
-                                .text_size(px(13.))
+                                .text_size(Theme::TEXT_UI)
                                 .text_color(theme.text_faint)
-                                .child("No generators. Plugins add them.")
+                                .child("No generators.")
                                 .into_any_element()
                         } else {
-                            catalog_grid(
-                                &theme,
-                                &generators,
-                                CatalogDragKind::Generator,
-                                "Click to place at the playhead, or drag onto a lane",
-                                |state, id| state.add_effect_generator(id),
-                                |_| false,
-                                cx,
-                            )
-                            .into_any_element()
+                            let typed = (!types.is_empty())
+                                .then(|| clip_types::clip_type_grid(&theme, &types, cx));
+                            let plain = (!generators.is_empty()).then(|| {
+                                catalog_grid(
+                                    &theme,
+                                    &generators,
+                                    CatalogDragKind::Generator,
+                                    "Click to place at the playhead, or drag onto a lane",
+                                    |state, id| state.add_effect_generator(id),
+                                    |_| false,
+                                    cx,
+                                )
+                            });
+                            div()
+                                .flex()
+                                .flex_col()
+                                .gap(px(Theme::SPACE_MD))
+                                .children(typed)
+                                .children(plain)
+                                .into_any_element()
                         }
                     }
                     SidebarTab::Animations => catalog_grid(
@@ -139,10 +151,13 @@ pub fn render(
                         CatalogDragKind::Mask,
                         "Click for the selected clip, or drag onto a clip",
                         |state, id| match aria_models::MaskKind::from_id(id) {
-                            Some(kind) => state.set_selected_mask_kind(kind),
+                            Some(kind) => state.add_selected_mask(kind),
                             None => Ok(()),
                         },
-                        |id| mask == Some(id),
+                        |id| {
+                            aria_models::MaskKind::from_id(id)
+                                .is_some_and(|kind| mask & mask_bit(kind) != 0)
+                        },
                         cx,
                     )
                     .into_any_element(),
@@ -156,6 +171,7 @@ pub fn render(
                         cx,
                     )
                     .into_any_element(),
+                    SidebarTab::Effects => super::effects_browser::effects_panel(&theme, state, cx),
                     SidebarTab::Stock => {
                         cloud_grid(&theme, CloudFeed::Stock, state, cx).into_any_element()
                     }
@@ -165,9 +181,6 @@ pub fn render(
                     SidebarTab::Generate => super::generate::generate_panel(&theme, state, cx),
                     SidebarTab::Captions => super::captions::captions_panel(&theme, state, cx),
                     SidebarTab::Analysis => super::analysis::analysis_panel(&theme, state, cx),
-                    SidebarTab::Markers => {
-                        super::markers::markers_panel(&theme, state, cx).into_any_element()
-                    }
                     SidebarTab::Media | SidebarTab::Audio => {
                         let rows = rows.as_ref().expect("the pool tabs read their rows above");
                         bin(&theme, state, tab, rows, cx)
@@ -192,6 +205,8 @@ const STOCK_KINDS: [(&str, &str, StockKind); 3] = [
 ];
 #[path = "sidebar_bins.rs"]
 pub(crate) mod bins;
+#[path = "sidebar_clip_types.rs"]
+mod clip_types;
 /// What follows the pointer during a catalog drag: the entry's own name, so the
 /// operator can see which preset they are carrying over a dense timeline.
 ///
@@ -199,8 +214,8 @@ pub(crate) mod bins;
 /// caller has only a borrow, and it renders with a context of its own — so it
 /// reads the installed theme like every other surface instead of being handed
 /// a copy of one at the moment the drag started.
-struct DragGhost {
-    label: gpui::SharedString,
+pub(crate) struct DragGhost {
+    pub(crate) label: gpui::SharedString,
 }
 impl gpui::Render for DragGhost {
     fn render(
@@ -223,12 +238,21 @@ impl gpui::Render for DragGhost {
                     .rounded(px(Theme::CONTROL_RADIUS))
                     .border_1()
                     .border_color(theme.accent)
-                    .text_size(px(12.))
+                    .text_size(Theme::TEXT_TITLE)
                     .text_color(theme.text)
                     .child(self.label.clone()),
             )),
         )
     }
+}
+
+/// The bit a mask shape takes in a set of shapes: its position in
+/// `MaskKind::ALL`.
+fn mask_bit(kind: aria_models::MaskKind) -> u8 {
+    aria_models::MaskKind::ALL
+        .iter()
+        .position(|candidate| *candidate == kind)
+        .map_or(0, |index| 1 << index)
 }
 
 // Helpers live in sibling files, declared here. Each is `pub(super)`, so the
@@ -241,5 +265,5 @@ mod media;
 pub(crate) mod multicam;
 #[path = "sidebar_subclip.rs"]
 mod subclip;
-use grid::{catalog_grid, cloud_grid, filter_chips, generator_grid, header};
+use grid::{catalog_grid, cloud_grid, filter_chips, generator_grid};
 use media::bin;

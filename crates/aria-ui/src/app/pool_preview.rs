@@ -66,8 +66,6 @@ pub struct PoolPreviewStore {
     /// pixels. A pointer position means nothing without it, and a mouse move
     /// carries no element bounds.
     rects: HashMap<u64, (f32, f32)>,
-    /// Where the monitor's scrub bar was last painted, same reason.
-    source_bar: Option<(f32, f32)>,
 }
 impl PoolPreviewStore {
     pub fn get(&self, media: u64, tick: i64) -> Option<&Arc<RenderImage>> {
@@ -83,16 +81,6 @@ impl PoolPreviewStore {
     /// Where `media`'s picture was last painted, if it has been.
     pub fn rect(&self, media: u64) -> Option<(f32, f32)> {
         self.rects.get(&media).copied()
-    }
-
-    /// Record where the monitor's scrub bar is painted.
-    pub fn record_source_bar(&mut self, left: f32, width: f32) {
-        self.source_bar = Some((left, width));
-    }
-
-    /// Where the monitor's scrub bar was last painted, if it has been.
-    pub fn source_bar(&self) -> Option<(f32, f32)> {
-        self.source_bar
     }
 
     /// Whether this thumbnail should be rendered now: nothing is held for it,
@@ -214,6 +202,7 @@ impl PoolPreviewStore {
         }
     }
 }
+
 /// What the source monitor is showing: a pool entry, and where in it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceView {
@@ -227,7 +216,21 @@ pub struct SourceView {
     pub mark_in: Option<i64>,
     /// The source out point, exclusive, if one is set.
     pub mark_out: Option<i64>,
+    /// The timeline clip this tab was opened from. Its In and Out are that
+    /// clip's source window, and setting either trims the clip.
+    pub clip: Option<u64>,
 }
+
+impl SourceView {
+    /// The marked window, `[In, Out)`: the whole take where a mark is unset.
+    pub fn window(&self) -> (i64, i64) {
+        (
+            self.mark_in.unwrap_or(0),
+            self.mark_out.unwrap_or_else(|| self.duration_ticks.max(1)),
+        )
+    }
+}
+
 /// The source tick under the pointer, for a row `width` px wide.
 ///
 /// The last frame sits at the right edge rather than one frame past it, so a
@@ -257,16 +260,20 @@ impl AppState {
     }
 
     pub fn mark_out_here(&mut self) {
-        if self.source_view.is_some() {
+        if self.sources.focused().is_some() {
             self.set_source_out();
-            self.status_message = Some("Source Out".into());
         } else {
             self.set_mark_out();
         }
     }
 
     pub fn clear_mark_in_here(&mut self) {
-        if let Some(view) = self.source_view.as_mut() {
+        if let Some(view) = self.sources.focused_mut() {
+            if view.clip.is_some() {
+                let (_, out) = view.window();
+                self.trim_linked_source(0, out);
+                return;
+            }
             view.mark_in = None;
             self.status_message = Some("Cleared Source In".into());
         } else {
@@ -275,7 +282,13 @@ impl AppState {
     }
 
     pub fn clear_mark_out_here(&mut self) {
-        if let Some(view) = self.source_view.as_mut() {
+        if let Some(view) = self.sources.focused_mut() {
+            if view.clip.is_some() {
+                let (start, _) = view.window();
+                let end = view.duration_ticks.max(1);
+                self.trim_linked_source(start, end);
+                return;
+            }
             view.mark_out = None;
             self.status_message = Some("Cleared Source Out".into());
         } else {
@@ -284,152 +297,133 @@ impl AppState {
     }
 
     pub fn source_range(&self) -> Option<(i64, i64)> {
-        let view = self.source_view.as_ref()?;
-        let start = view.mark_in.unwrap_or(0);
-        let end = view.mark_out.unwrap_or_else(|| view.duration_ticks.max(1));
+        let (start, end) = self.sources.focused()?.window();
         (end > start).then_some((start, end))
     }
 
-    pub fn scrub_source(&mut self, x: f32) {
-        let Some((left, width)) = self.pool_preview.source_bar() else {
-            return;
-        };
-        let Some((media, duration_ticks)) = self
-            .source_view
-            .as_ref()
-            .map(|view| (view.media, view.duration_ticks))
-        else {
-            return;
-        };
-        let tick = scrub_tick(x - left, width, duration_ticks);
-        self.hover_pool_item(media, tick);
-    }
-
+    /// Place the Source tab's range on the sequence through source patching:
+    /// Insert with `Ripple`, Overwrite otherwise. The four points decide where
+    /// it lands, how much of the source it takes, and whether it is retimed to
+    /// fill a marked sequence span.
     pub fn cut_source_in(&mut self, mode: crate::types::EditMode) -> Result<(), EngineError> {
-        let Some(media) = self.source_view.as_ref().map(|view| view.media) else {
-            return Ok(());
+        let Some(view) = self.sources.focused() else {
+            return self.place_pool_selection(mode);
         };
-        let Some((start, end)) = self.source_range() else {
-            self.status_message = Some("the marked range is empty".into());
-            return Ok(());
-        };
-        let media = MediaId::from_raw(media);
-        let (rate, kind) = {
+        let media = MediaId::from_raw(view.media);
+        let (source_in, source_out, source_len) =
+            (view.mark_in, view.mark_out, view.duration_ticks);
+        let (rate, bounded) = {
             let engine = self.engine.lock();
             let Some(item) = engine.project().media(media) else {
                 return Ok(());
             };
             (
                 item.frame_rate,
-                if item.kind() == aria_models::MediaKind::Audio {
-                    aria_models::TrackKind::Audio
-                } else {
-                    aria_models::TrackKind::Video
-                },
+                item.kind() != aria_models::MediaKind::Image,
             )
         };
-        let source = aria_models::TimeRange::at_rate(start, end - start, rate);
-        let track = self.drop_target_track(kind, None)?;
-        let fill = self.marked_range();
-        let at = aria_models::RationalTime::new(
-            fill.map(|(from, _)| from)
-                .or(self.mark_in)
-                .unwrap_or(self.playhead.value)
-                .max(0),
-            self.playhead.rate,
+        let sequence_rate = self.playhead.rate;
+        let placed = super::three_point::resolve(
+            super::three_point::Points {
+                source_in,
+                source_out,
+                source_len,
+                bounded,
+                sequence_in: self.mark_in,
+                sequence_out: self.mark_out,
+                playhead: self.playhead.value,
+            },
+            |ticks| {
+                aria_models::resample(aria_models::RationalTime::new(ticks, rate), sequence_rate)
+                    .value
+            },
+            |ticks| {
+                aria_models::resample(aria_models::RationalTime::new(ticks, sequence_rate), rate)
+                    .value
+            },
         );
-        let ripple = mode == crate::types::EditMode::Ripple;
-        let command = match fill {
-            Some((from, to)) => aria_commands::EditCommand::FitToFill {
-                track,
-                media,
-                source,
-                at,
-                duration: aria_models::RationalTime::new(to - from, self.playhead.rate),
-                ripple,
-            },
-            None if ripple => aria_commands::EditCommand::RippleInsert {
-                track,
-                media,
-                source,
-                at,
-            },
-            None => aria_commands::EditCommand::OverwriteClip {
-                track,
-                media,
-                source,
-                at,
-            },
-        };
-        self.apply_command(aria_commands::Command::Edit(command))?;
-        self.status_message = Some(
-            match (fill.is_some(), ripple) {
-                (true, _) => "Fit to fill",
-                (false, true) => "Insert",
-                (false, false) => "Overwrite",
+        let placed = match placed {
+            Ok(placed) => placed,
+            Err(why) => {
+                self.status_message = Some(why.into());
+                return Ok(());
             }
-            .into(),
-        );
+        };
+        let (start, end) = placed.source;
+        let source = aria_models::TimeRange::at_rate(start, end - start, rate);
+        let ripple = mode == crate::types::EditMode::Ripple;
+        let sent = self.place_source(super::source_patch::SourcePlacement {
+            media,
+            source,
+            at: aria_models::RationalTime::new(placed.at, sequence_rate),
+            fill: placed
+                .fill
+                .map(|span| aria_models::RationalTime::new(span, sequence_rate)),
+            ripple,
+            aimed: None,
+        })?;
+        if !sent {
+            return Ok(());
+        }
+        self.status_message = Some(match placed.fill {
+            // The speed the take now plays at, as Fit to Fill reports it.
+            Some(span) => {
+                let take = aria_models::resample(source.duration, sequence_rate)
+                    .value
+                    .max(1);
+                format!("Fit to fill at {}% speed", (take * 100 + span / 2) / span)
+            }
+            None if ripple => "Insert".into(),
+            None => "Overwrite".into(),
+        });
         Ok(())
     }
 
+    /// F: open the take under the playhead in a Source tab at the frame the
+    /// sequence shows, with the clip's source window as In and Out. The
+    /// selection wins when it is under the playhead, because that is the clip
+    /// you are looking at; otherwise the topmost media clip does, since that is
+    /// the picture the preview shows.
     pub fn match_frame(&mut self) -> bool {
         let playhead = self.playhead.value;
         let selected = self.selected_clip();
-        let found = {
+        let chosen = {
             let engine = self.engine.lock();
-            let project = engine.project();
-            // The selection wins when it is under the playhead, because that is
-            // the clip you are looking at; otherwise the topmost one is, since
-            // that is the picture the preview is showing.
-            let mut under: Vec<&aria_models::Clip> = project
+            let mut under: Vec<aria_models::ClipId> = engine
+                .project()
                 .timeline()
                 .tracks_ordered()
                 .flat_map(|lane| lane.clips())
                 .filter(|clip| {
-                    clip.timeline.start.value <= playhead && playhead < clip.timeline.end_tick()
+                    clip.media().is_some()
+                        && clip.timeline.start.value <= playhead
+                        && playhead < clip.timeline.end_tick()
                 })
+                .map(|clip| clip.id)
                 .collect();
-            let chosen = selected
-                .and_then(|id| under.iter().copied().find(|clip| clip.id == id))
-                .or_else(|| under.pop());
-            chosen.and_then(|clip| match &clip.content {
-                aria_models::ClipSource::Media { media, source } => Some((
-                    *media,
-                    source.start.value + clip.scale_by_speed(playhead - clip.timeline.start.value),
-                    source.start.value,
-                    source.end_tick(),
-                )),
-                _ => None,
-            })
+            selected
+                .filter(|id| under.contains(id))
+                .or_else(|| under.pop())
         };
-        let Some((media, tick, take_in, take_out)) = found else {
+        let Some(frame) = chosen.and_then(|clip| self.clip_frame(clip, playhead)) else {
             self.status_message = Some("no media clip under the playhead".into());
             return false;
         };
-        self.select_pool_item(media.raw());
-        if !self
-            .source_view
-            .as_ref()
-            .is_some_and(|view| view.media == media.raw())
-        {
-            self.source_view = None;
-            if !self.toggle_source_monitor() {
-                return false;
-            }
+        self.select_pool_item(frame.media);
+        if !self.open_source(frame.media) {
+            return false;
         }
-        let Some(view) = self.source_view.as_mut() else {
+        let Some(view) = self.sources.focused_mut() else {
             return false;
         };
-        view.tick = tick.clamp(0, view.duration_ticks.saturating_sub(1).max(0));
+        view.tick = frame
+            .tick
+            .clamp(0, view.duration_ticks.saturating_sub(1).max(0));
+        let (take_in, take_out) = frame.window;
         view.mark_in = Some(take_in);
         view.mark_out = Some(take_out);
         self.status_message = Some("Match Frame".into());
         true
-    }
-
-    pub fn close_source_monitor(&mut self) {
-        self.source_view = None;
     }
 }
 

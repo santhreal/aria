@@ -35,7 +35,13 @@ fn state() -> AppState {
 fn host(state: &AppState, autonomy: Autonomy) -> (ShellHost, crate::handoff::Wakes<Beat>) {
     let (tx, rx) = crate::handoff::wakes();
     (
-        ShellHost::new(std::sync::Arc::clone(&state.engine), tx, autonomy, None),
+        ShellHost::new(
+            std::sync::Arc::clone(&state.engine),
+            tx,
+            autonomy,
+            None,
+            PluginContext::clone(&state.ctx),
+        ),
         rx,
     )
 }

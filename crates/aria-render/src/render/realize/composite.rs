@@ -1,192 +1,99 @@
-//! One realized layer → one borrowed [`CompositeLayer`].
-//!
-//! Moved out of `layers.rs` to stay under the file ceiling; nothing changed.
-//! The three non-layer variants are named rather than swept by a wildcard, so a
-//! new `Realized` variant stops compiling here until it says which side it is
-//! on.
+//! One realized [`Leaf`] → the borrowed [`CompositeLayer`]s it draws as.
 
 use std::collections::HashMap;
 
-use aria_compositor::{CompositeLayer, GlyphsLayer, PassInstance, RgbaImage};
+use aria_compositor::{
+    CompositeLayer, FULL_UV, GlyphsLayer, LayerContent, LayerStyles, PassInstance, RgbaImage,
+};
 use aria_models::MediaId;
 
 use super::super::media_cache::{CubeLutState, LottieState, StickerSequence, layer_lut};
-use super::layers::Realized;
+use super::layers::{Leaf, Pixels};
 
-pub(super) fn composite_from_realized<'a>(
-    r: &'a Realized,
-    stills: &'a HashMap<MediaId, RgbaImage>,
-    stickers: &'a HashMap<String, StickerSequence>,
-    lottie: &'a HashMap<String, LottieState>,
-    luts: &'a HashMap<String, CubeLutState>,
-    effects: &'a [PassInstance],
-) -> CompositeLayer<'a> {
-    match r {
-        Realized::Solid {
-            rgba,
-            placement,
-            fx,
-            color_grade,
-            lut,
-            blend_mode,
-            styles,
-            ..
-        } => CompositeLayer::solid(*rgba, *placement)
-            .with_fx(*fx)
-            .with_effects(effects)
-            .with_color_grade(*color_grade)
-            .with_lut(layer_lut(lut, luts))
-            .with_blend_mode(*blend_mode)
-            .with_styles(*styles),
-        Realized::Bitmap {
-            image,
-            placement,
-            uv,
-            fx,
-            color_grade,
-            lut,
-            blend_mode,
-            styles,
-            ..
-        } => CompositeLayer::rgba(image, *placement)
-            .with_uv(*uv)
-            .with_fx(*fx)
-            .with_effects(effects)
-            .with_color_grade(*color_grade)
-            .with_lut(layer_lut(lut, luts))
-            .with_blend_mode(*blend_mode)
-            .with_styles(*styles),
-        Realized::Frame {
-            frame,
-            placement,
-            uv,
-            fx,
-            color_grade,
-            lut,
-            blend_mode,
-            styles,
-            ..
-        } => CompositeLayer::frame(frame, *placement)
-            .with_uv(*uv)
-            .with_fx(*fx)
-            .with_effects(effects)
-            .with_color_grade(*color_grade)
-            .with_lut(layer_lut(lut, luts))
-            .with_blend_mode(*blend_mode)
-            .with_styles(*styles),
-        Realized::Still {
-            media,
-            placement,
-            uv,
-            fx,
-            color_grade,
-            lut,
-            blend_mode,
-            styles,
-            ..
-        } => CompositeLayer::rgba(&stills[media], *placement)
-            .with_uv(*uv)
-            .with_fx(*fx)
-            .with_effects(effects)
-            .with_color_grade(*color_grade)
-            .with_lut(layer_lut(lut, luts))
-            .with_blend_mode(*blend_mode)
-            .with_styles(*styles),
-        Realized::Sticker {
-            asset,
-            frame_index,
-            placement,
-            uv,
-            fx,
-            color_grade,
-            lut,
-            blend_mode,
-            styles,
-            ..
-        } => CompositeLayer::rgba(&stickers[asset].frames[*frame_index], *placement)
-            .with_uv(*uv)
-            .with_fx(*fx)
-            .with_effects(effects)
-            .with_color_grade(*color_grade)
-            .with_lut(layer_lut(lut, luts))
-            .with_blend_mode(*blend_mode)
-            .with_styles(*styles),
-        Realized::Lottie {
-            path,
-            frame_index,
-            placement,
-            uv,
-            fx,
-            color_grade,
-            lut,
-            blend_mode,
-            styles,
-            ..
-        } => {
-            // Realize only emits `Realized::Lottie` after `ensure_lottie_frame`
+/// The renderer caches the pixels of a realized layer are read from.
+pub(super) struct Caches<'a> {
+    pub(super) stills: &'a HashMap<MediaId, RgbaImage>,
+    pub(super) stickers: &'a HashMap<String, StickerSequence>,
+    pub(super) lottie: &'a HashMap<String, LottieState>,
+    pub(super) luts: &'a HashMap<String, CubeLutState>,
+}
+
+fn content<'a>(pixels: &'a Pixels, caches: &Caches<'a>) -> LayerContent<'a> {
+    match pixels {
+        Pixels::Frame(frame) => LayerContent::Frame(frame),
+        Pixels::Still(media) => LayerContent::Rgba(&caches.stills[media]),
+        Pixels::Sticker { asset, frame_index } => {
+            LayerContent::Rgba(&caches.stickers[asset].frames[*frame_index])
+        }
+        Pixels::Lottie { path, frame_index } => {
+            // Realize only emits Lottie pixels after `ensure_lottie_frame`
             // cached this exact frame, and the LRU never evicts frames stamped
             // by the scene being composed.
-            let LottieState::Loaded(player) = &lottie[path] else {
+            let LottieState::Loaded(player) = &caches.lottie[path] else {
                 unreachable!("realized lottie layer without a loaded player")
             };
-            CompositeLayer::rgba(&player.frames[frame_index].0, *placement)
-                .with_uv(*uv)
-                .with_fx(*fx)
-                .with_effects(effects)
-                .with_color_grade(*color_grade)
-                .with_lut(layer_lut(lut, luts))
-                .with_blend_mode(*blend_mode)
-                .with_styles(*styles)
+            LayerContent::Rgba(&player.frames[frame_index].0)
         }
-        Realized::Sdf {
-            shape,
-            placement,
-            fx,
-            color_grade,
-            lut,
-            blend_mode,
-            styles,
-            ..
-        } => CompositeLayer::sdf(*shape, *placement)
-            .with_fx(*fx)
-            .with_effects(effects)
-            .with_color_grade(*color_grade)
-            .with_lut(layer_lut(lut, luts))
-            .with_blend_mode(*blend_mode)
-            .with_styles(*styles),
-        Realized::Glyphs {
+        Pixels::Bitmap(image) => LayerContent::Rgba(image),
+        Pixels::Solid(rgba) => LayerContent::Solid(*rgba),
+        Pixels::Sdf(shape) => LayerContent::Sdf(*shape),
+        Pixels::Glyphs {
             glyphs,
             instances,
             atlas_key,
-            background,
-            placement,
-            fx,
-            color_grade,
-            lut,
-            blend_mode,
-            styles,
             ..
-        } => {
-            // Background is composited as a separate preceding layer in the
-            // job walk; this arm only builds the glyph instances.
-            let _ = background;
-            CompositeLayer::glyphs(
-                GlyphsLayer {
-                    atlas_key: *atlas_key,
-                    glyphs,
-                    instances,
-                },
-                *placement,
-            )
-            .with_fx(*fx)
-            .with_effects(effects)
-            .with_color_grade(*color_grade)
-            .with_lut(layer_lut(lut, luts))
-            .with_blend_mode(*blend_mode)
-            .with_styles(*styles)
-        }
-        Realized::Transition { .. } | Realized::Matte { .. } | Realized::CanvasPass { .. } => {
-            unreachable!("non-layer realized items handled separately")
-        }
+        } => LayerContent::Glyphs(GlyphsLayer {
+            atlas_key: *atlas_key,
+            glyphs,
+            instances,
+        }),
+        Pixels::Nest(nest) => LayerContent::Nest(*nest),
     }
+}
+
+/// `leaf` as the compositor draws it, under `effects`.
+pub(super) fn composite_leaf<'a>(
+    leaf: &'a Leaf,
+    caches: &Caches<'a>,
+    effects: &'a [PassInstance],
+) -> CompositeLayer<'a> {
+    CompositeLayer {
+        content: content(&leaf.pixels, caches),
+        placement: leaf.placement,
+        uv: leaf.uv,
+        effects,
+        fx: leaf.fx,
+        color_grade: leaf.color_grade,
+        lut: layer_lut(&leaf.lut, caches.luts),
+        blend_mode: leaf.blend_mode,
+        styles: leaf.styles,
+        blur_passes: &leaf.blur,
+        stencil: leaf
+            .stencil
+            .as_ref()
+            .map(|stencil| stencil.borrow(&leaf.blur)),
+    }
+}
+
+/// The background card of a glyph run, drawn behind it with the run's look
+/// and mask and none of its styles; `None` for any other leaf.
+pub(super) fn composite_card<'a>(
+    leaf: &'a Leaf,
+    caches: &Caches<'a>,
+    effects: &'a [PassInstance],
+) -> Option<CompositeLayer<'a>> {
+    let Pixels::Glyphs {
+        background: Some((image, placement)),
+        ..
+    } = &leaf.pixels
+    else {
+        return None;
+    };
+    Some(CompositeLayer {
+        content: LayerContent::Rgba(image),
+        placement: *placement,
+        uv: FULL_UV,
+        styles: LayerStyles::default(),
+        ..composite_leaf(leaf, caches, effects)
+    })
 }

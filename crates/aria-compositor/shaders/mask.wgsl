@@ -1,8 +1,10 @@
 // mask.wgsl — shared mask alpha helpers for rgba_fx / yuv_fx pipelines.
 //
 // Evaluated in quad-local pixels (origin at center, +y down). `half` is the
-// layer's half-extents (`placement.size * 0.5`). Geometry (center / size /
-// rotation / roundness) is applied in that same space before the SDF.
+// layer's half-extents (`placement.size * 0.5`). The point is moved into the
+// mask's frame (center, rotation) and the size scales the shape rather than
+// the point, so every distance stays in layer pixels: the anti-alias ramp is
+// one pixel wide at any mask size, and expansion offsets the edge by pixels.
 
 const BASE_AA: f32 = 1.0;
 const PI: f32 = 3.14159265358979;
@@ -100,22 +102,50 @@ const MASK_RECTANGLE: u32 = 3u;
 const MASK_HEART: u32 = 4u;
 const MASK_STAR: u32 = 5u;
 
-// Map layer-local px → mask space. Identity geometry (center 0, size 1, rot 0)
-// is an exact no-op: subtract 0, rotate by 0, divide by 1.
+// Map layer-local px → the mask's frame: offset by its center, unrotated.
+// Identity geometry (center 0, rot 0) is an exact no-op.
 fn mask_space(
     local: vec2<f32>,
     half: vec2<f32>,
     center: vec2<f32>,
-    size: vec2<f32>,
     rotation: f32,
 ) -> vec2<f32> {
-    var p = local - center * (half * 2.0);
+    let p = local - center * (half * 2.0);
     let c = cos(-rotation);
     let s = sin(-rotation);
-    p = vec2(c * p.x - s * p.y, s * p.x + c * p.y);
-    return p / size;
+    return vec2(c * p.x - s * p.y, s * p.x + c * p.y);
 }
 
+// Signed distance in layer px from the mask's edge, negative inside.
+fn mask_distance(p: vec2<f32>, extent: vec2<f32>, kind: u32, roundness: f32) -> f32 {
+    switch kind {
+        case MASK_LINEAR: {
+            // The vertical center line (x = 0): the right half is inside.
+            return -p.x;
+        }
+        case MASK_MIRROR: {
+            // The left half is inside (x <= 0).
+            return p.x;
+        }
+        case MASK_CIRCLE: {
+            return sd_ellipse(p, extent);
+        }
+        case MASK_RECTANGLE: {
+            let r = roundness * 0.5 * min(extent.x, extent.y);
+            return sd_round_box(p, extent, r);
+        }
+        case MASK_HEART: {
+            return sd_heart(p, extent);
+        }
+        default: {
+            // Star (5 points, inner 0.5).
+            return sd_star(p, extent, 5.0, 0.5);
+        }
+    }
+}
+
+// The mask's coverage at `local`, after expansion and inversion and before
+// the stack mix.
 fn mask_alpha(
     local: vec2<f32>,
     half: vec2<f32>,
@@ -126,36 +156,12 @@ fn mask_alpha(
     size: vec2<f32>,
     rotation: f32,
     roundness: f32,
+    expansion: f32,
 ) -> f32 {
-    let p = mask_space(local, half, center, size, rotation);
-    let aa = BASE_AA + feather * min(half.x, half.y);
-    var alpha = 1.0;
-
-    switch kind {
-        case MASK_LINEAR: {
-            // Soft ramp across the vertical center line (x = 0): right half visible.
-            alpha = coverage(-p.x, aa);
-        }
-        case MASK_MIRROR: {
-            // Keep the left half visible (x <= 0).
-            alpha = coverage(p.x, aa);
-        }
-        case MASK_CIRCLE: {
-            alpha = coverage(sd_ellipse(p, half), aa);
-        }
-        case MASK_RECTANGLE: {
-            let r = roundness * 0.5 * min(half.x, half.y);
-            alpha = coverage(sd_round_box(p, half, r), aa);
-        }
-        case MASK_HEART: {
-            alpha = coverage(sd_heart(p, half), aa);
-        }
-        default: {
-            // Star (5 points, inner 0.5).
-            alpha = coverage(sd_star(p, half, 5.0, 0.5), aa);
-        }
-    }
-
+    let p = mask_space(local, half, center, rotation);
+    let extent = max(half * size, vec2(1e-3, 1e-3));
+    let aa = BASE_AA + feather * min(extent.x, extent.y);
+    var alpha = coverage(mask_distance(p, extent, kind, roundness) - expansion, aa);
     if invert > 0.5 {
         alpha = 1.0 - alpha;
     }

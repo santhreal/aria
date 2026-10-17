@@ -18,10 +18,9 @@
 //! that declaration at run time: a new directly-addressed property is red until
 //! it has a row here. Three of the eight had one before.
 
-use aria_models::{ClipParam, MediaId, TrackKind};
+use aria_models::ClipParam;
 
 use crate::app::AppState;
-use crate::types::UiClipKind;
 
 use super::host::CommandEntry;
 
@@ -58,39 +57,11 @@ pub(crate) fn shift_lane(state: &mut AppState, later: bool) {
     }
 }
 
-/// Insert the pool item the bin last acted on at the playhead, rippling what is
-/// already there to the right.
-///
-/// The overwrite half of this pair is the ordinary drop; this is the Ripple-mode
-/// one, and it had no surface because the source monitor's insert needs a marked
-/// range and a monitor open.
+/// Insert the selected pool items at the playhead through source patching,
+/// rippling the patched and sync-locked lanes: the `,` key with Program
+/// focused, offered by name.
 pub(crate) fn ripple_insert(state: &mut AppState) {
-    let Some(id) = state.pool_selection.focus() else {
-        state.status_message = Some("Select a pool item to insert".into());
-        return;
-    };
-    let Some(kind) = state
-        .store
-        .media
-        .iter()
-        .find(|item| item.id == id)
-        .map(|item| item.kind)
-    else {
-        return;
-    };
-    let lane = if matches!(kind, UiClipKind::Audio) {
-        TrackKind::Audio
-    } else {
-        TrackKind::Video
-    };
-    let track = match state.drop_target_track(lane, None) {
-        Ok(track) => track,
-        Err(err) => {
-            state.report_error(&err);
-            return;
-        }
-    };
-    if let Err(err) = state.ripple_insert_at_playhead(track, MediaId::from_raw(id)) {
+    if let Err(err) = state.place_pool_selection(crate::types::EditMode::Ripple) {
         state.report_error(&err);
     }
 }
@@ -158,6 +129,13 @@ pub(crate) fn reset_canvas_background(state: &mut AppState) {
 /// inspector hides the picker too.
 pub(crate) fn cycle_font(state: &mut AppState, forward: bool) {
     if let Err(err) = state.cycle_selected_font(forward) {
+        state.report_error(&err);
+    }
+}
+
+/// New Sequence, from the File menu, the palette, and Ctrl+N.
+pub(crate) fn new_sequence(state: &mut AppState) {
+    if let Err(err) = state.new_sequence() {
         state.report_error(&err);
     }
 }
@@ -245,7 +223,7 @@ pub(super) const REACH_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-ripple-insert",
-        label: "Insert pool item at playhead",
+        label: "Insert pool selection at playhead",
         run: ripple_insert,
     },
     CommandEntry {
@@ -291,7 +269,7 @@ pub(super) const REACH_ROWS: &[CommandEntry] = &[
     // --- render and replace -------------------------------------------------
     CommandEntry {
         id: "pal-bake-clip",
-        label: "Render and replace",
+        label: "Render and Replace",
         run: |state| {
             if let Err(err) = state.render_and_replace() {
                 state.status_message = Some(err);
@@ -300,7 +278,7 @@ pub(super) const REACH_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-bake-restore",
-        label: "Restore unrendered",
+        label: "Restore Unrendered",
         run: |state| {
             if let Err(err) = state.restore_unrendered() {
                 state.status_message = Some(err);
@@ -308,6 +286,11 @@ pub(super) const REACH_ROWS: &[CommandEntry] = &[
         },
     },
     // --- nested sequences: three operator commands with no surface ----------
+    CommandEntry {
+        id: "pal-new-sequence",
+        label: "New sequence",
+        run: new_sequence,
+    },
     CommandEntry {
         id: "pal-nest-selection",
         label: "Nest selection into a sequence",

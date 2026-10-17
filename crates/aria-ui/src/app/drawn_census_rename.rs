@@ -2,8 +2,9 @@
 //!
 //! The bar is one field for eight targets, so the registry here is the target
 //! itself: `RenameTarget::label` is the prompt the panel draws, and the state
-//! machine behind it is `begin_rename` / `rename_push` / `commit_rename`, which
-//! is exactly what the shell's key routing calls. A census drives that path one
+//! machine behind it is `begin_rename` / `rename_push` / `commit_rename`.
+//! `rename_push` types one character over the selection through
+//! `replace_rename_text`, the call the shell's text-input handler makes. A census drives that path one
 //! character at a time rather than writing `rename_draft` and committing,
 //! because the draft is bounded on push and a census that assigns the field
 //! would measure a keyboard the product does not have.
@@ -68,6 +69,14 @@ const RENAME_STAGES: &[Stage] = &[
         what: "a selection to shift",
         dress: a_selection_to_shift,
     },
+    Stage {
+        what: "a workspace to save",
+        dress: a_workspace_to_save,
+    },
+    Stage {
+        what: "an effect in a clip's chain",
+        dress: an_effect,
+    },
 ];
 
 /// What the operator types into `target`'s draft.
@@ -87,6 +96,8 @@ fn typed(target: RenameTarget) -> &'static str {
         RenameTarget::SlotLabel => "Logo here",
         RenameTarget::ClipText => "Second title",
         RenameTarget::ShiftFrames => "5",
+        RenameTarget::SaveWorkspace => "My Grading",
+        RenameTarget::Effect { .. } => "Soft Blur",
     }
 }
 
@@ -217,6 +228,22 @@ fn a_selection_to_shift() -> (AppState, RenameTarget) {
     (state, RenameTarget::ShiftFrames)
 }
 
+fn a_workspace_to_save() -> (AppState, RenameTarget) {
+    let (state, _) = with_clip();
+    (state, RenameTarget::SaveWorkspace)
+}
+
+fn an_effect() -> (AppState, RenameTarget) {
+    let (state, clip) = crate::app::fixtures::blurred_clip();
+    (
+        state,
+        RenameTarget::Effect {
+            clip: clip.raw(),
+            index: 0,
+        },
+    )
+}
+
 /// Every prompt `RenameTarget::label` can draw, read back out of its own match.
 ///
 /// Derived from source rather than listed here: the compiler already forces
@@ -277,11 +304,12 @@ fn every_rename_the_bar_opens_asks_for_something() {
         let (mut state, target) = (stage.dress)();
         let watch = Watch::on(&state);
         commit(&mut state, target, typed(target));
-        assert!(
-            !watch.take().is_empty(),
-            "renaming {} asked for nothing",
-            stage.what
-        );
+        let asked = if target == RenameTarget::SaveWorkspace {
+            state.data_dir.join("workspaces/My Grading.json").exists()
+        } else {
+            !watch.take().is_empty()
+        };
+        assert!(asked, "renaming {} asked for nothing", stage.what);
         assert_eq!(
             state.rename, None,
             "the bar stayed open after committing {}",
@@ -382,7 +410,10 @@ fn the_bar_is_drawn_from_the_rename_state() {
         ),
         (
             "keys/fields.rs",
-            ["state.commit_rename()", "push: AppState::rename_push"],
+            [
+                "state.commit_rename()",
+                "replace: AppState::replace_rename_text",
+            ],
         ),
     ] {
         let drawn = std::fs::read_to_string(src.join(file))

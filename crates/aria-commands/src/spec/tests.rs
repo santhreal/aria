@@ -188,6 +188,19 @@ fn chain_ids(payload: &BTreeMap<String, Value>, variant: &str) -> Vec<u64> {
     }
 }
 
+/// The audio lane a source edit's `sound` lands on: `{"lane": id}` names a
+/// lane, `"in_picture"` and `"off"` none.
+fn sound_lane(payload: &BTreeMap<String, Value>) -> Vec<u64> {
+    match payload.get("sound") {
+        Some(Value::Object(placement)) => placement
+            .get("lane")
+            .map(|id| id.as_u64().expect("an entity id is a whole number"))
+            .into_iter()
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
 fn raw(ids: &[impl serde::Serialize]) -> Vec<u64> {
     ids.iter()
         .map(|id| {
@@ -206,8 +219,8 @@ fn raw(ids: &[impl serde::Serialize]) -> Vec<u64> {
 /// going missing from its targets.
 ///
 /// The independent side is serde: the top-level `clip`, `clips`, `track` and
-/// `to_track` fields, and the clip or lane an insert command's `target` holds,
-/// are exactly the ids a command addresses directly, which is what a lock
+/// `to_track` fields, the clip or lane an insert command's `target` holds, and
+/// the audio lane a source edit's `sound` lands on, are exactly the ids a command addresses directly, which is what a lock
 /// policy has to check.
 #[test]
 fn targets_name_every_clip_and_lane_the_payload_does() {
@@ -222,6 +235,7 @@ fn targets_name_every_clip_and_lane_the_payload_does() {
         let mut expected_tracks = named_ids(&payload, "track");
         expected_tracks.extend(named_ids(&payload, "to_track"));
         expected_tracks.extend(chain_ids(&payload, "Track"));
+        expected_tracks.extend(sound_lane(&payload));
 
         assert_eq!(
             raw(&targets.clips),

@@ -49,7 +49,8 @@ pub use gain::{
 pub use scopes::measure as measure_scopes;
 pub use scopes::{
     FrameScopes, Histogram, MAX_SCOPE_SAMPLES, MAX_VECTORSCOPE_SIZE, MAX_WAVEFORM_COLUMNS,
-    SCOPE_BINS, ScopeConfig, Vectorscope, Waveform,
+    SCOPE_BINS, ScopeConfig, Vectorscope, Waveform, WaveformChannel, WaveformTrace,
+    chroma_codes709, sample_stride as scope_sample_stride, vectorscope_cell,
 };
 pub use shot_detection::{
     MAX_SHOT_HISTOGRAM_BINS, MAX_SHOT_SAMPLE_HEIGHT, MAX_SHOT_SAMPLE_WIDTH, Rgba8Frame,

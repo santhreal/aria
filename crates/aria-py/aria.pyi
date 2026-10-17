@@ -331,6 +331,7 @@ class Text:
         underline: bool = False,
         case: Literal["normal", "upper", "lower", "title"] = "normal",
         letter_spacing: float = 0.0,
+        kerning: bool = True,
         line_spacing: float = 1.2,
         align: tuple[str, str] = ("center", "middle"),
         wrap: bool = True,

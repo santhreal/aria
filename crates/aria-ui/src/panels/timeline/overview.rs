@@ -1,19 +1,43 @@
-//! Sequence overview under the ruler: the whole cut in one strip, click to pan.
+//! Sequence overview and zoom scroll bar along the bottom of the timeline.
 //!
-//! The ruler is already at the file ceiling. Mapping lives here so a click and
-//! a draw cannot disagree about where a tick sits on the strip.
+//! Dragging the viewport window scrolls the sequence; dragging its left or
+//! right handle zooms the timeline in or out; clicking outside the window
+//! centers the viewport on the clicked tick. Clip spans are coalesced in pixel
+//! space so sequences with thousands of clips build a small, bounded number of
+//! overview segments. Under the outline column the bar holds the add-track
+//! button and the zoom readout, which fits the sequence on a click.
+
+use std::cell::Cell;
 
 use gpui::{
-    InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled, div, px,
+    CursorStyle, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, MouseMoveEvent,
+    MouseUpEvent, ParentElement, StatefulInteractiveElement, Styled, div, px,
 };
 
+use aria_models::TrackKind;
+
 use crate::app::AppState;
+use crate::fluent::FluentBuilder;
 use crate::theme::Theme;
+use crate::tooltip::WithTip as _;
 use crate::types::UiEditorStore;
 
-use super::{HEADER_W, ticks_to_px};
+use super::ticks_to_px;
 
-pub(super) const OVERVIEW_H: f32 = 12.0;
+pub(super) const OVERVIEW_H: f32 = 18.0;
+const HANDLE_W: f32 = 6.0;
+const MAX_OVERVIEW_SPANS: usize = 64;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum OverviewDrag {
+    Pan,
+    LeftHandle,
+    RightHandle,
+}
+
+thread_local! {
+    static OVERVIEW_DRAG: Cell<Option<OverviewDrag>> = const { Cell::new(None) };
+}
 
 /// Tick under `x` on a strip that maps `[0, duration]` onto `[0, width]`.
 pub(super) fn tick_at(x: f32, width: f32, duration: i64) -> i64 {
@@ -42,8 +66,49 @@ pub(super) fn window_on_strip(scroll_x: f32, full_px: f32, view_w: f32) -> (f32,
     let strip = view_w.max(1.0);
     let full = full_px.max(1.0);
     let x = (scroll_x / full) * strip;
-    let w = ((view_w / full) * strip).clamp(2.0, strip.max(2.0));
-    (x.max(0.0), w)
+    let w = ((view_w / full) * strip).clamp(12.0, strip.max(12.0));
+    (x.clamp(0.0, (strip - w).max(0.0)), w)
+}
+
+/// Coalesce clip `[start, end]` intervals into at most `MAX_OVERVIEW_SPANS`
+/// pixel intervals `(x, w)` so 10,000 clips never build 10,000 overview nodes.
+pub(super) fn coalesce_overview_spans(
+    store: &UiEditorStore,
+    duration: i64,
+    view_w: f32,
+) -> Vec<(f32, f32)> {
+    if duration <= 0 || view_w <= 0.0 {
+        return Vec::new();
+    }
+    let bucket_w = (view_w / MAX_OVERVIEW_SPANS as f32).max(2.0);
+    let mut buckets = [false; MAX_OVERVIEW_SPANS];
+    for track in &store.sequence.tracks {
+        for clip in &track.clips {
+            let x0 = x_at(clip.timeline_start_ticks, duration, view_w).clamp(0.0, view_w);
+            let x1 = x_at(clip.timeline_end_ticks, duration, view_w).clamp(x0, view_w);
+            let b0 = ((x0 / bucket_w).floor() as usize).min(MAX_OVERVIEW_SPANS - 1);
+            let b1 = ((x1 / bucket_w).ceil() as usize).min(MAX_OVERVIEW_SPANS);
+            for slot in &mut buckets[b0..b1.max(b0 + 1).min(MAX_OVERVIEW_SPANS)] {
+                *slot = true;
+            }
+        }
+    }
+    let mut merged = Vec::new();
+    let mut idx = 0;
+    while idx < MAX_OVERVIEW_SPANS {
+        if !buckets[idx] {
+            idx += 1;
+            continue;
+        }
+        let start = idx;
+        while idx < MAX_OVERVIEW_SPANS && buckets[idx] {
+            idx += 1;
+        }
+        let x = start as f32 * bucket_w;
+        let w = ((idx - start) as f32 * bucket_w).min(view_w - x).max(1.0);
+        merged.push((x, w));
+    }
+    merged
 }
 
 pub(super) fn overview(
@@ -53,21 +118,14 @@ pub(super) fn overview(
     fps: f32,
     scroll_x: f32,
     view_w: f32,
-    _state: &gpui::Entity<AppState>,
+    add_name: String,
+    zoom: f32,
+    state: &gpui::Entity<AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
+    let outline = state.read(cx).ui_settings.outline_width;
     let duration = store.sequence.duration_ticks;
-    let spans: Vec<(i64, i64)> = store
-        .sequence
-        .tracks
-        .iter()
-        .flat_map(|track| {
-            track
-                .clips
-                .iter()
-                .map(|clip| (clip.timeline_start_ticks, clip.timeline_end_ticks))
-        })
-        .collect();
+    let spans = coalesce_overview_spans(store, duration, view_w);
     let full_px = ticks_to_px(duration, fps, pps).max(1.0);
     let (window_x, window_w) = window_on_strip(scroll_x, full_px, view_w);
     let accent = theme.accent;
@@ -81,15 +139,60 @@ pub(super) fn overview(
         .w_full()
         .flex()
         .flex_row()
-        .border_b_1()
+        .border_t_1()
         .border_color(border)
         .bg(theme.surface)
         .child(
             div()
-                .w(px(HEADER_W))
+                .w(px(outline))
                 .h_full()
+                .flex_shrink_0()
                 .border_r_1()
-                .border_color(border),
+                .border_color(border)
+                .px(px(Theme::SPACE_SM))
+                .flex()
+                .items_center()
+                .justify_between()
+                .child(
+                    crate::components::icon_button("add-track", crate::icons::PLUS, theme)
+                        .on_mouse_down(
+                            MouseButton::Left,
+                            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                                cx.stop_propagation();
+                                let name = add_name.clone();
+                                this.state.update(cx, |state, _| {
+                                    if let Err(err) = state.add_track(TrackKind::Video, name) {
+                                        state.report_error(&err);
+                                    }
+                                });
+                                cx.notify();
+                            }),
+                        ),
+                )
+                .child(
+                    div()
+                        .id("timeline-zoom-fit")
+                        .debug_selector(|| "timeline-zoom-fit".into())
+                        .text_size(Theme::TEXT_SMALL)
+                        .font_family(theme.font_mono.clone())
+                        .text_color(theme.text_muted)
+                        .cursor(CursorStyle::PointingHand)
+                        .active(|style| style.opacity(0.92))
+                        .when_some(crate::tooltip::builder("fit-timeline"), |el, tip| {
+                            el.with_tip(tip)
+                        })
+                        // The zoom is the fit control: a click on the number
+                        // fits the sequence to the window.
+                        .on_mouse_down(
+                            MouseButton::Left,
+                            cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                                cx.stop_propagation();
+                                this.state.update(cx, |state, _| state.zoom_fit_sequence());
+                                cx.notify();
+                            }),
+                        )
+                        .child(format!("{:.0}%", zoom * 100.0)),
+                ),
         )
         .child(
             div()
@@ -110,6 +213,7 @@ pub(super) fn overview(
                         if x < 0.0 {
                             return;
                         }
+                        OVERVIEW_DRAG.set(Some(OverviewDrag::Pan));
                         let tick = tick_at(x, view_w, duration);
                         let to = scroll_to_center(tick, fps, pps, view_w);
                         this.state.update(cx, |state, _| {
@@ -118,21 +222,40 @@ pub(super) fn overview(
                         cx.notify();
                     }),
                 )
-                .children(spans.into_iter().filter_map(|(start, end)| {
-                    let x = x_at(start, duration, view_w);
-                    let w = (x_at(end, duration, view_w) - x).max(1.0);
-                    if w < 0.5 {
-                        return None;
+                .on_mouse_move(cx.listener(move |this, event: &MouseMoveEvent, _, cx| {
+                    let Some(mode) = OVERVIEW_DRAG.get() else {
+                        return;
+                    };
+                    if !event.dragging() {
+                        OVERVIEW_DRAG.set(None);
+                        return;
                     }
-                    Some(
-                        div()
-                            .absolute()
-                            .left(px(x))
-                            .top(px(2.0))
-                            .h(px(OVERVIEW_H - 4.0))
-                            .w(px(w))
-                            .bg(raised),
-                    )
+                    let Some(left) = this.state.read(cx).timeline_content_left() else {
+                        return;
+                    };
+                    let view_w = this.state.read(cx).timeline_viewport_px().max(1.0);
+                    let norm = ((f32::from(event.position.x) - left) / view_w).clamp(0.0, 1.0);
+                    this.state.update(cx, |state, _| match mode {
+                        OverviewDrag::Pan => state.zoom_bar_pan(norm),
+                        OverviewDrag::LeftHandle => state.zoom_bar_drag_handle(true, norm),
+                        OverviewDrag::RightHandle => state.zoom_bar_drag_handle(false, norm),
+                    });
+                    cx.notify();
+                }))
+                .on_mouse_up(
+                    MouseButton::Left,
+                    cx.listener(|_, _: &MouseUpEvent, _, _| {
+                        OVERVIEW_DRAG.set(None);
+                    }),
+                )
+                .children(spans.into_iter().map(|(x, w)| {
+                    div()
+                        .absolute()
+                        .left(px(x))
+                        .top(px(2.0))
+                        .h(px(OVERVIEW_H - 4.0))
+                        .w(px(w))
+                        .bg(raised)
                 }))
                 .child(
                     div()
@@ -144,7 +267,51 @@ pub(super) fn overview(
                         .w(px(window_w))
                         .border_1()
                         .border_color(accent)
-                        .bg(wash),
+                        .bg(wash)
+                        .cursor(CursorStyle::OpenHand)
+                        .on_mouse_down(
+                            MouseButton::Left,
+                            cx.listener(|_, _: &MouseDownEvent, _, cx| {
+                                cx.stop_propagation();
+                                OVERVIEW_DRAG.set(Some(OverviewDrag::Pan));
+                            }),
+                        )
+                        .child(
+                            div()
+                                .id("sequence-overview-handle-left")
+                                .absolute()
+                                .left_0()
+                                .top_0()
+                                .bottom_0()
+                                .w(px(HANDLE_W))
+                                .bg(accent)
+                                .cursor(CursorStyle::ResizeLeftRight)
+                                .on_mouse_down(
+                                    MouseButton::Left,
+                                    cx.listener(|_, _: &MouseDownEvent, _, cx| {
+                                        cx.stop_propagation();
+                                        OVERVIEW_DRAG.set(Some(OverviewDrag::LeftHandle));
+                                    }),
+                                ),
+                        )
+                        .child(
+                            div()
+                                .id("sequence-overview-handle-right")
+                                .absolute()
+                                .right_0()
+                                .top_0()
+                                .bottom_0()
+                                .w(px(HANDLE_W))
+                                .bg(accent)
+                                .cursor(CursorStyle::ResizeLeftRight)
+                                .on_mouse_down(
+                                    MouseButton::Left,
+                                    cx.listener(|_, _: &MouseDownEvent, _, cx| {
+                                        cx.stop_propagation();
+                                        OVERVIEW_DRAG.set(Some(OverviewDrag::RightHandle));
+                                    }),
+                                ),
+                        ),
                 ),
         )
 }

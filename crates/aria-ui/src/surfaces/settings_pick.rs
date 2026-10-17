@@ -1,5 +1,5 @@
 //! What an operator picks in the settings dialog's project section: the canvas,
-//! the sequence rate and the audio layout.
+//! the sequence rate, the audio layout and the time display.
 //!
 //! These three commands claimed a surface no test could see. Each row was a
 //! `div()` with its setter sealed in a gpui closure, so `Set canvas`, `Set
@@ -21,7 +21,7 @@
 //! command row says so.
 
 use aria_engine::EngineError;
-use aria_models::{AudioLayout, CanvasAspect, Rational};
+use aria_models::{AudioLayout, CanvasAspect, Rational, TimeDisplay};
 
 use crate::app::AppState;
 
@@ -37,6 +37,8 @@ pub enum Pick {
     Rate(Rational),
     /// The sequence's audio channel layout.
     Layout(AudioLayout),
+    /// How the sequence counts time: timecode, frames, or feet and frames.
+    Display(TimeDisplay),
 }
 
 impl Pick {
@@ -48,6 +50,7 @@ impl Pick {
             Self::Resolution(Some(_)) => "an explicit canvas size",
             Self::Rate(_) => "a sequence frame rate",
             Self::Layout(_) => "an audio layout",
+            Self::Display(_) => "a time display",
         }
     }
 }
@@ -74,5 +77,6 @@ pub fn apply(state: &mut AppState, pick: Pick) -> Result<(), EngineError> {
         Pick::Resolution(size) => state.set_canvas_resolution(size),
         Pick::Rate(rate) => state.set_sequence_rate(rate),
         Pick::Layout(layout) => state.set_audio_layout(layout),
+        Pick::Display(display) => state.set_time_display(display),
     }
 }

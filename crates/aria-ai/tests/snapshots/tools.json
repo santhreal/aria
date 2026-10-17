@@ -1083,11 +1083,11 @@
       }
     },
     {
-      "description": "Add a transition at the cut where a clip meets the next clip on its track. Available transitions: crossfade, dip_to_black, dip_to_white, wipe_left, wipe_right, wipe_up, wipe_down, slide. The clip must butt directly against a following clip. Not valid on audio tracks.",
+      "description": "Add a transition at the cut where a clip meets the next clip on its track. A video, text or sticker lane takes: crossfade, dip_to_black, dip_to_white, wipe_left, wipe_right, wipe_up, wipe_down, slide. An audio lane takes: constant_power, constant_gain, exponential_fade. The clip must butt directly against a following clip. Not valid on effect, filter or adjustment lanes.",
       "name": "add_transition",
       "parameters": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "description": "Add a transition at the junction where `clip` abuts the next clip on its\ntrack. `clip` must butt directly against a following clip (same track, the\nnext clip starts exactly where this one ends). Rejected for clips on audio\ntracks and clips with no abutting neighbor.",
+        "description": "Add a transition at the junction where `clip` abuts the next clip on its\ntrack. `clip` must butt directly against a following clip (same track, the\nnext clip starts exactly where this one ends). Rejected for clips on\neffect, filter and adjustment lanes, a transition the lane does not take,\nand clips with no abutting neighbor.",
         "properties": {
           "clip": {
             "format": "uint64",
@@ -1095,7 +1095,7 @@
             "type": "integer"
           },
           "transition": {
-            "description": "Transition id from the catalog, e.g. `crossfade` or `dip_to_black`.",
+            "description": "Transition id: a catalog blend such as `crossfade` or `dip_to_black` on\na picture lane, or `constant_power`, `constant_gain` or\n`exponential_fade` on an audio lane.",
             "type": "string"
           }
         },
@@ -1371,7 +1371,7 @@
                   "look": {
                     "properties": {
                       "param": {
-                        "description": "Animatable properties of a clip's color look / mask.\n\n`mask_center` / `mask_size` carry vec2 values; the rest are scalars.",
+                        "description": "Animatable scalar properties of a clip's color look.",
                         "oneOf": [
                           {
                             "enum": [
@@ -1386,8 +1386,12 @@
                               "adjust_hue",
                               "adjust_highlights",
                               "adjust_shadows",
+                              "adjust_whites",
+                              "adjust_blacks",
                               "adjust_sharpness",
                               "adjust_vignette",
+                              "adjust_vibrance",
+                              "adjust_faded_film",
                               "adjust_lift_g",
                               "adjust_lift_b",
                               "adjust_lift_master",
@@ -1399,11 +1403,40 @@
                               "adjust_gain_g",
                               "adjust_gain_b",
                               "adjust_gain_master",
-                              "mask_feather",
-                              "mask_center",
-                              "mask_size",
-                              "mask_rotation",
-                              "mask_roundness",
+                              "adjust_curve_master_midtones",
+                              "adjust_curve_master_highlights",
+                              "adjust_curve_red_shadows",
+                              "adjust_curve_red_midtones",
+                              "adjust_curve_red_highlights",
+                              "adjust_curve_green_shadows",
+                              "adjust_curve_green_midtones",
+                              "adjust_curve_green_highlights",
+                              "adjust_curve_blue_shadows",
+                              "adjust_curve_blue_midtones",
+                              "adjust_curve_blue_highlights",
+                              "adjust_hue_sat_red",
+                              "adjust_hue_sat_yellow",
+                              "adjust_hue_sat_green",
+                              "adjust_hue_sat_cyan",
+                              "adjust_hue_sat_blue",
+                              "adjust_hue_sat_magenta",
+                              "adjust_hue_hue_red",
+                              "adjust_hue_hue_yellow",
+                              "adjust_hue_hue_green",
+                              "adjust_hue_hue_cyan",
+                              "adjust_hue_hue_blue",
+                              "adjust_hue_hue_magenta",
+                              "adjust_hue_luma_red",
+                              "adjust_hue_luma_yellow",
+                              "adjust_hue_luma_green",
+                              "adjust_hue_luma_cyan",
+                              "adjust_hue_luma_blue",
+                              "adjust_hue_luma_magenta",
+                              "adjust_hsl_key_hue",
+                              "adjust_hsl_key_width",
+                              "adjust_hsl_hue",
+                              "adjust_hsl_saturation",
+                              "adjust_hsl_luma",
                               "chroma_strength",
                               "chroma_shadow",
                               "matte_softness"
@@ -1413,6 +1446,11 @@
                           {
                             "const": "adjust_lift_r",
                             "description": "Lift / gamma / gain, per channel and master: the colour wheels. Lift is\na signed offset (-1 … 1, 0 neutral); gamma and gain are multiplicative\n(0 … 4, 1 neutral).",
+                            "type": "string"
+                          },
+                          {
+                            "const": "adjust_curve_master_shadows",
+                            "description": "RGB curves, hue curves and the HSL secondary: signed (-1 … 1, 0\nneutral).",
                             "type": "string"
                           }
                         ]
@@ -1426,6 +1464,70 @@
                 },
                 "required": [
                   "look"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "A property of one mask in the clip's mask stack. `index` is the\nmask's position (0 = top), as in `set_clip_mask`. `center` and `size`\nuse `position`; the rest use `value`.",
+                "properties": {
+                  "mask": {
+                    "properties": {
+                      "index": {
+                        "format": "uint32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "param": {
+                        "description": "Animatable properties of one mask in a clip's mask stack.\n\n`center` / `size` carry vec2 values; the rest are scalars.",
+                        "oneOf": [
+                          {
+                            "const": "feather",
+                            "description": "Edge softness, 0 … 1.",
+                            "type": "string"
+                          },
+                          {
+                            "const": "center",
+                            "description": "Centre offset as a fraction of the layer size.",
+                            "type": "string"
+                          },
+                          {
+                            "const": "size",
+                            "description": "Size as a fraction of the layer size.",
+                            "type": "string"
+                          },
+                          {
+                            "const": "rotation",
+                            "description": "Rotation in degrees, clockwise.",
+                            "type": "string"
+                          },
+                          {
+                            "const": "roundness",
+                            "description": "Rectangle corner rounding, 0 … 1.",
+                            "type": "string"
+                          },
+                          {
+                            "const": "opacity",
+                            "description": "How much of the mask's result replaces the coverage above it, 0 … 1.",
+                            "type": "string"
+                          },
+                          {
+                            "const": "expansion",
+                            "description": "Edge offset in reference pixels, outward when positive.",
+                            "type": "string"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "index",
+                      "param"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "mask"
                 ],
                 "type": "object"
               },
@@ -1467,7 +1569,7 @@
             ]
           },
           "position": {
-            "description": "New `[x, y]` for `position`, `anchor_point`, style `shadow_offset`,\nlook `mask_center` / `mask_size`, or vec2 effect params. Ignored for\nscalar, color, and rect params.",
+            "description": "New `[x, y]` for `position`, `anchor_point`, style `shadow_offset`,\nmask `center` / `size`, or vec2 effect params. Ignored for\nscalar, color, and rect params.",
             "items": {
               "format": "double",
               "type": "number"
@@ -1716,7 +1818,7 @@
                   "look": {
                     "properties": {
                       "param": {
-                        "description": "Animatable properties of a clip's color look / mask.\n\n`mask_center` / `mask_size` carry vec2 values; the rest are scalars.",
+                        "description": "Animatable scalar properties of a clip's color look.",
                         "oneOf": [
                           {
                             "enum": [
@@ -1731,8 +1833,12 @@
                               "adjust_hue",
                               "adjust_highlights",
                               "adjust_shadows",
+                              "adjust_whites",
+                              "adjust_blacks",
                               "adjust_sharpness",
                               "adjust_vignette",
+                              "adjust_vibrance",
+                              "adjust_faded_film",
                               "adjust_lift_g",
                               "adjust_lift_b",
                               "adjust_lift_master",
@@ -1744,11 +1850,40 @@
                               "adjust_gain_g",
                               "adjust_gain_b",
                               "adjust_gain_master",
-                              "mask_feather",
-                              "mask_center",
-                              "mask_size",
-                              "mask_rotation",
-                              "mask_roundness",
+                              "adjust_curve_master_midtones",
+                              "adjust_curve_master_highlights",
+                              "adjust_curve_red_shadows",
+                              "adjust_curve_red_midtones",
+                              "adjust_curve_red_highlights",
+                              "adjust_curve_green_shadows",
+                              "adjust_curve_green_midtones",
+                              "adjust_curve_green_highlights",
+                              "adjust_curve_blue_shadows",
+                              "adjust_curve_blue_midtones",
+                              "adjust_curve_blue_highlights",
+                              "adjust_hue_sat_red",
+                              "adjust_hue_sat_yellow",
+                              "adjust_hue_sat_green",
+                              "adjust_hue_sat_cyan",
+                              "adjust_hue_sat_blue",
+                              "adjust_hue_sat_magenta",
+                              "adjust_hue_hue_red",
+                              "adjust_hue_hue_yellow",
+                              "adjust_hue_hue_green",
+                              "adjust_hue_hue_cyan",
+                              "adjust_hue_hue_blue",
+                              "adjust_hue_hue_magenta",
+                              "adjust_hue_luma_red",
+                              "adjust_hue_luma_yellow",
+                              "adjust_hue_luma_green",
+                              "adjust_hue_luma_cyan",
+                              "adjust_hue_luma_blue",
+                              "adjust_hue_luma_magenta",
+                              "adjust_hsl_key_hue",
+                              "adjust_hsl_key_width",
+                              "adjust_hsl_hue",
+                              "adjust_hsl_saturation",
+                              "adjust_hsl_luma",
                               "chroma_strength",
                               "chroma_shadow",
                               "matte_softness"
@@ -1758,6 +1893,11 @@
                           {
                             "const": "adjust_lift_r",
                             "description": "Lift / gamma / gain, per channel and master: the colour wheels. Lift is\na signed offset (-1 … 1, 0 neutral); gamma and gain are multiplicative\n(0 … 4, 1 neutral).",
+                            "type": "string"
+                          },
+                          {
+                            "const": "adjust_curve_master_shadows",
+                            "description": "RGB curves, hue curves and the HSL secondary: signed (-1 … 1, 0\nneutral).",
                             "type": "string"
                           }
                         ]
@@ -1771,6 +1911,70 @@
                 },
                 "required": [
                   "look"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "A property of one mask in the clip's mask stack. `index` is the\nmask's position (0 = top), as in `set_clip_mask`. `center` and `size`\nuse `position`; the rest use `value`.",
+                "properties": {
+                  "mask": {
+                    "properties": {
+                      "index": {
+                        "format": "uint32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "param": {
+                        "description": "Animatable properties of one mask in a clip's mask stack.\n\n`center` / `size` carry vec2 values; the rest are scalars.",
+                        "oneOf": [
+                          {
+                            "const": "feather",
+                            "description": "Edge softness, 0 … 1.",
+                            "type": "string"
+                          },
+                          {
+                            "const": "center",
+                            "description": "Centre offset as a fraction of the layer size.",
+                            "type": "string"
+                          },
+                          {
+                            "const": "size",
+                            "description": "Size as a fraction of the layer size.",
+                            "type": "string"
+                          },
+                          {
+                            "const": "rotation",
+                            "description": "Rotation in degrees, clockwise.",
+                            "type": "string"
+                          },
+                          {
+                            "const": "roundness",
+                            "description": "Rectangle corner rounding, 0 … 1.",
+                            "type": "string"
+                          },
+                          {
+                            "const": "opacity",
+                            "description": "How much of the mask's result replaces the coverage above it, 0 … 1.",
+                            "type": "string"
+                          },
+                          {
+                            "const": "expansion",
+                            "description": "Edge offset in reference pixels, outward when positive.",
+                            "type": "string"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "index",
+                      "param"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "mask"
                 ],
                 "type": "object"
               },
@@ -1981,7 +2185,7 @@
                   "look": {
                     "properties": {
                       "param": {
-                        "description": "Animatable properties of a clip's color look / mask.\n\n`mask_center` / `mask_size` carry vec2 values; the rest are scalars.",
+                        "description": "Animatable scalar properties of a clip's color look.",
                         "oneOf": [
                           {
                             "enum": [
@@ -1996,8 +2200,12 @@
                               "adjust_hue",
                               "adjust_highlights",
                               "adjust_shadows",
+                              "adjust_whites",
+                              "adjust_blacks",
                               "adjust_sharpness",
                               "adjust_vignette",
+                              "adjust_vibrance",
+                              "adjust_faded_film",
                               "adjust_lift_g",
                               "adjust_lift_b",
                               "adjust_lift_master",
@@ -2009,11 +2217,40 @@
                               "adjust_gain_g",
                               "adjust_gain_b",
                               "adjust_gain_master",
-                              "mask_feather",
-                              "mask_center",
-                              "mask_size",
-                              "mask_rotation",
-                              "mask_roundness",
+                              "adjust_curve_master_midtones",
+                              "adjust_curve_master_highlights",
+                              "adjust_curve_red_shadows",
+                              "adjust_curve_red_midtones",
+                              "adjust_curve_red_highlights",
+                              "adjust_curve_green_shadows",
+                              "adjust_curve_green_midtones",
+                              "adjust_curve_green_highlights",
+                              "adjust_curve_blue_shadows",
+                              "adjust_curve_blue_midtones",
+                              "adjust_curve_blue_highlights",
+                              "adjust_hue_sat_red",
+                              "adjust_hue_sat_yellow",
+                              "adjust_hue_sat_green",
+                              "adjust_hue_sat_cyan",
+                              "adjust_hue_sat_blue",
+                              "adjust_hue_sat_magenta",
+                              "adjust_hue_hue_red",
+                              "adjust_hue_hue_yellow",
+                              "adjust_hue_hue_green",
+                              "adjust_hue_hue_cyan",
+                              "adjust_hue_hue_blue",
+                              "adjust_hue_hue_magenta",
+                              "adjust_hue_luma_red",
+                              "adjust_hue_luma_yellow",
+                              "adjust_hue_luma_green",
+                              "adjust_hue_luma_cyan",
+                              "adjust_hue_luma_blue",
+                              "adjust_hue_luma_magenta",
+                              "adjust_hsl_key_hue",
+                              "adjust_hsl_key_width",
+                              "adjust_hsl_hue",
+                              "adjust_hsl_saturation",
+                              "adjust_hsl_luma",
                               "chroma_strength",
                               "chroma_shadow",
                               "matte_softness"
@@ -2023,6 +2260,11 @@
                           {
                             "const": "adjust_lift_r",
                             "description": "Lift / gamma / gain, per channel and master: the colour wheels. Lift is\na signed offset (-1 … 1, 0 neutral); gamma and gain are multiplicative\n(0 … 4, 1 neutral).",
+                            "type": "string"
+                          },
+                          {
+                            "const": "adjust_curve_master_shadows",
+                            "description": "RGB curves, hue curves and the HSL secondary: signed (-1 … 1, 0\nneutral).",
                             "type": "string"
                           }
                         ]
@@ -2036,6 +2278,70 @@
                 },
                 "required": [
                   "look"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "A property of one mask in the clip's mask stack. `index` is the\nmask's position (0 = top), as in `set_clip_mask`. `center` and `size`\nuse `position`; the rest use `value`.",
+                "properties": {
+                  "mask": {
+                    "properties": {
+                      "index": {
+                        "format": "uint32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "param": {
+                        "description": "Animatable properties of one mask in a clip's mask stack.\n\n`center` / `size` carry vec2 values; the rest are scalars.",
+                        "oneOf": [
+                          {
+                            "const": "feather",
+                            "description": "Edge softness, 0 … 1.",
+                            "type": "string"
+                          },
+                          {
+                            "const": "center",
+                            "description": "Centre offset as a fraction of the layer size.",
+                            "type": "string"
+                          },
+                          {
+                            "const": "size",
+                            "description": "Size as a fraction of the layer size.",
+                            "type": "string"
+                          },
+                          {
+                            "const": "rotation",
+                            "description": "Rotation in degrees, clockwise.",
+                            "type": "string"
+                          },
+                          {
+                            "const": "roundness",
+                            "description": "Rectangle corner rounding, 0 … 1.",
+                            "type": "string"
+                          },
+                          {
+                            "const": "opacity",
+                            "description": "How much of the mask's result replaces the coverage above it, 0 … 1.",
+                            "type": "string"
+                          },
+                          {
+                            "const": "expansion",
+                            "description": "Edge offset in reference pixels, outward when positive.",
+                            "type": "string"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "index",
+                      "param"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "mask"
                 ],
                 "type": "object"
               },
@@ -2077,7 +2383,7 @@
             ]
           },
           "position": {
-            "description": "New `[x, y]` for `position`, `anchor_point`, style `shadow_offset`,\nlook `mask_center` / `mask_size`, or vec2 effect params. Ignored for\nscalar, color, and rect params.",
+            "description": "New `[x, y]` for `position`, `anchor_point`, style `shadow_offset`,\nmask `center` / `size`, or vec2 effect params. Ignored for\nscalar, color, and rect params.",
             "items": {
               "format": "double",
               "type": "number"
@@ -2131,6 +2437,386 @@
           "param"
         ],
         "title": "SetParamConstant",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Attach a driver to any animatable clip property: code evaluated every frame that replaces the property's keyframed value, or omit `code` to remove it. Use the same `param` selector as set_param_keyframe. `code` is in `aria.expressions`, a JavaScript subset with the After Effects expression library: `time` (seconds), `value` (the keyframed value), `wiggle(freq, amp)`, `loopOut(\"cycle\")`, `linear(t, t0, t1, v0, v1)`, `ease`, `valueAtTime(t)`, `random`, `Math`, and references such as `thisComp.layer(\"Logo\").transform.position`. Position reads in canvas pixels from the top-left, scale and opacity in percent, rotation in degrees. Refused when the driver would read its own value back through other drivers.",
+      "name": "set_param_driver",
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Attach a driver: code evaluated per frame that replaces one property's\nkeyframed value. Omit `code` to remove the property's driver.",
+        "properties": {
+          "clip": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "code": {
+            "description": "The driver's source. Omitted removes the driver.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "language": {
+            "description": "The driver language id. Omitted is `aria.expressions`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "param": {
+            "description": "An animatable clip property the keyframe commands can address.",
+            "oneOf": [
+              {
+                "const": "position",
+                "description": "Canvas placement of the content center (vec2: use the `position`\nargument, not `value`).",
+                "type": "string"
+              },
+              {
+                "const": "anchor_point",
+                "description": "Canvas point around which the clip scales and rotates (vec2: use the\n`position` argument, not `value`).",
+                "type": "string"
+              },
+              {
+                "const": "scale",
+                "description": "Scale (1.0 = fit inside the canvas). Use `value` for a uniform number\nor `position` as `[x, y]` for per-axis.",
+                "type": "string"
+              },
+              {
+                "const": "rotation",
+                "description": "Clockwise rotation in degrees.",
+                "type": "string"
+              },
+              {
+                "const": "opacity",
+                "description": "Layer opacity 0.0–1.0.",
+                "type": "string"
+              },
+              {
+                "const": "crop",
+                "description": "Kept-region crop window as content fractions (rect: use the `rect`\nargument `[x, y, w, h]`, not `value`). Visual clips only.",
+                "type": "string"
+              },
+              {
+                "const": "volume",
+                "description": "Audio gain envelope (0.0 = mute, 1.0 = unchanged, up to 10.0 boost).\nKeyframing it draws volume automation; this is how you fade audio in\nor out over time or duck music under a voice. Media-backed clips only.",
+                "type": "string"
+              },
+              {
+                "const": "pan",
+                "description": "Stereo pan envelope (−1.0 = full left, 0.0 = center, +1.0 = full\nright). Keyframing it draws balance automation. Media-backed clips\nonly (including video clips with sound — same target rule as volume).",
+                "type": "string"
+              },
+              {
+                "const": "speed",
+                "description": "Playback-rate ramp (scalar: 1.0 = normal speed). Media-backed clips\nonly; keyframes use normalized positions within the clip.",
+                "type": "string"
+              },
+              {
+                "additionalProperties": false,
+                "description": "A parameter of an effect already on the clip. `index` is the\neffect-chain position and `param` is its catalog name, as in\n`set_effect_param`. Use `value` for scalars, `position` for vec2\nparams, and `rgba` for color params.",
+                "properties": {
+                  "effect": {
+                    "properties": {
+                      "index": {
+                        "format": "uint32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "param": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "index",
+                      "param"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "effect"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "A visual property of a generated shape clip.",
+                "properties": {
+                  "shape": {
+                    "properties": {
+                      "param": {
+                        "description": "Animatable properties of a generated shape clip.",
+                        "enum": [
+                          "width",
+                          "height",
+                          "corner_radius",
+                          "inner_ratio",
+                          "fill",
+                          "stroke_color",
+                          "stroke_width"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "param"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "shape"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "A visual style property of a generated text clip.",
+                "properties": {
+                  "text": {
+                    "properties": {
+                      "param": {
+                        "description": "Animatable visual-style properties of a generated text clip.",
+                        "enum": [
+                          "size",
+                          "fill",
+                          "letter_spacing",
+                          "line_spacing",
+                          "stroke_width",
+                          "stroke_color",
+                          "shadow_blur",
+                          "shadow_distance",
+                          "shadow_color",
+                          "background_color",
+                          "background_radius"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "param"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "text"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "A scalar property of the clip's color look.",
+                "properties": {
+                  "look": {
+                    "properties": {
+                      "param": {
+                        "description": "Animatable scalar properties of a clip's color look.",
+                        "oneOf": [
+                          {
+                            "enum": [
+                              "filter_intensity",
+                              "lut_intensity",
+                              "adjust_brightness",
+                              "adjust_contrast",
+                              "adjust_saturation",
+                              "adjust_exposure",
+                              "adjust_temperature",
+                              "adjust_tint",
+                              "adjust_hue",
+                              "adjust_highlights",
+                              "adjust_shadows",
+                              "adjust_whites",
+                              "adjust_blacks",
+                              "adjust_sharpness",
+                              "adjust_vignette",
+                              "adjust_vibrance",
+                              "adjust_faded_film",
+                              "adjust_lift_g",
+                              "adjust_lift_b",
+                              "adjust_lift_master",
+                              "adjust_gamma_r",
+                              "adjust_gamma_g",
+                              "adjust_gamma_b",
+                              "adjust_gamma_master",
+                              "adjust_gain_r",
+                              "adjust_gain_g",
+                              "adjust_gain_b",
+                              "adjust_gain_master",
+                              "adjust_curve_master_midtones",
+                              "adjust_curve_master_highlights",
+                              "adjust_curve_red_shadows",
+                              "adjust_curve_red_midtones",
+                              "adjust_curve_red_highlights",
+                              "adjust_curve_green_shadows",
+                              "adjust_curve_green_midtones",
+                              "adjust_curve_green_highlights",
+                              "adjust_curve_blue_shadows",
+                              "adjust_curve_blue_midtones",
+                              "adjust_curve_blue_highlights",
+                              "adjust_hue_sat_red",
+                              "adjust_hue_sat_yellow",
+                              "adjust_hue_sat_green",
+                              "adjust_hue_sat_cyan",
+                              "adjust_hue_sat_blue",
+                              "adjust_hue_sat_magenta",
+                              "adjust_hue_hue_red",
+                              "adjust_hue_hue_yellow",
+                              "adjust_hue_hue_green",
+                              "adjust_hue_hue_cyan",
+                              "adjust_hue_hue_blue",
+                              "adjust_hue_hue_magenta",
+                              "adjust_hue_luma_red",
+                              "adjust_hue_luma_yellow",
+                              "adjust_hue_luma_green",
+                              "adjust_hue_luma_cyan",
+                              "adjust_hue_luma_blue",
+                              "adjust_hue_luma_magenta",
+                              "adjust_hsl_key_hue",
+                              "adjust_hsl_key_width",
+                              "adjust_hsl_hue",
+                              "adjust_hsl_saturation",
+                              "adjust_hsl_luma",
+                              "chroma_strength",
+                              "chroma_shadow",
+                              "matte_softness"
+                            ],
+                            "type": "string"
+                          },
+                          {
+                            "const": "adjust_lift_r",
+                            "description": "Lift / gamma / gain, per channel and master: the colour wheels. Lift is\na signed offset (-1 … 1, 0 neutral); gamma and gain are multiplicative\n(0 … 4, 1 neutral).",
+                            "type": "string"
+                          },
+                          {
+                            "const": "adjust_curve_master_shadows",
+                            "description": "RGB curves, hue curves and the HSL secondary: signed (-1 … 1, 0\nneutral).",
+                            "type": "string"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "param"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "look"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "A property of one mask in the clip's mask stack. `index` is the\nmask's position (0 = top), as in `set_clip_mask`. `center` and `size`\nuse `position`; the rest use `value`.",
+                "properties": {
+                  "mask": {
+                    "properties": {
+                      "index": {
+                        "format": "uint32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "param": {
+                        "description": "Animatable properties of one mask in a clip's mask stack.\n\n`center` / `size` carry vec2 values; the rest are scalars.",
+                        "oneOf": [
+                          {
+                            "const": "feather",
+                            "description": "Edge softness, 0 … 1.",
+                            "type": "string"
+                          },
+                          {
+                            "const": "center",
+                            "description": "Centre offset as a fraction of the layer size.",
+                            "type": "string"
+                          },
+                          {
+                            "const": "size",
+                            "description": "Size as a fraction of the layer size.",
+                            "type": "string"
+                          },
+                          {
+                            "const": "rotation",
+                            "description": "Rotation in degrees, clockwise.",
+                            "type": "string"
+                          },
+                          {
+                            "const": "roundness",
+                            "description": "Rectangle corner rounding, 0 … 1.",
+                            "type": "string"
+                          },
+                          {
+                            "const": "opacity",
+                            "description": "How much of the mask's result replaces the coverage above it, 0 … 1.",
+                            "type": "string"
+                          },
+                          {
+                            "const": "expansion",
+                            "description": "Edge offset in reference pixels, outward when positive.",
+                            "type": "string"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "index",
+                      "param"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "mask"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "A property of the clip's layer-quad styles (shadow/glow/outline/\nbackground). Color params use `rgba`; `shadow_offset` uses\n`position`; the rest use scalar `value`.",
+                "properties": {
+                  "style": {
+                    "properties": {
+                      "param": {
+                        "description": "Animatable properties of a clip's layer-quad styles.",
+                        "enum": [
+                          "shadow_color",
+                          "shadow_offset",
+                          "shadow_blur",
+                          "glow_color",
+                          "glow_radius",
+                          "glow_intensity",
+                          "outline_color",
+                          "outline_width",
+                          "background_color",
+                          "background_padding",
+                          "background_radius"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "param"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "style"
+                ],
+                "type": "object"
+              }
+            ]
+          }
+        },
+        "required": [
+          "clip",
+          "param"
+        ],
+        "title": "SetParamDriver",
         "type": "object"
       }
     },
@@ -2299,7 +2985,7 @@
                   "look": {
                     "properties": {
                       "param": {
-                        "description": "Animatable properties of a clip's color look / mask.\n\n`mask_center` / `mask_size` carry vec2 values; the rest are scalars.",
+                        "description": "Animatable scalar properties of a clip's color look.",
                         "oneOf": [
                           {
                             "enum": [
@@ -2314,8 +3000,12 @@
                               "adjust_hue",
                               "adjust_highlights",
                               "adjust_shadows",
+                              "adjust_whites",
+                              "adjust_blacks",
                               "adjust_sharpness",
                               "adjust_vignette",
+                              "adjust_vibrance",
+                              "adjust_faded_film",
                               "adjust_lift_g",
                               "adjust_lift_b",
                               "adjust_lift_master",
@@ -2327,11 +3017,40 @@
                               "adjust_gain_g",
                               "adjust_gain_b",
                               "adjust_gain_master",
-                              "mask_feather",
-                              "mask_center",
-                              "mask_size",
-                              "mask_rotation",
-                              "mask_roundness",
+                              "adjust_curve_master_midtones",
+                              "adjust_curve_master_highlights",
+                              "adjust_curve_red_shadows",
+                              "adjust_curve_red_midtones",
+                              "adjust_curve_red_highlights",
+                              "adjust_curve_green_shadows",
+                              "adjust_curve_green_midtones",
+                              "adjust_curve_green_highlights",
+                              "adjust_curve_blue_shadows",
+                              "adjust_curve_blue_midtones",
+                              "adjust_curve_blue_highlights",
+                              "adjust_hue_sat_red",
+                              "adjust_hue_sat_yellow",
+                              "adjust_hue_sat_green",
+                              "adjust_hue_sat_cyan",
+                              "adjust_hue_sat_blue",
+                              "adjust_hue_sat_magenta",
+                              "adjust_hue_hue_red",
+                              "adjust_hue_hue_yellow",
+                              "adjust_hue_hue_green",
+                              "adjust_hue_hue_cyan",
+                              "adjust_hue_hue_blue",
+                              "adjust_hue_hue_magenta",
+                              "adjust_hue_luma_red",
+                              "adjust_hue_luma_yellow",
+                              "adjust_hue_luma_green",
+                              "adjust_hue_luma_cyan",
+                              "adjust_hue_luma_blue",
+                              "adjust_hue_luma_magenta",
+                              "adjust_hsl_key_hue",
+                              "adjust_hsl_key_width",
+                              "adjust_hsl_hue",
+                              "adjust_hsl_saturation",
+                              "adjust_hsl_luma",
                               "chroma_strength",
                               "chroma_shadow",
                               "matte_softness"
@@ -2341,6 +3060,11 @@
                           {
                             "const": "adjust_lift_r",
                             "description": "Lift / gamma / gain, per channel and master: the colour wheels. Lift is\na signed offset (-1 … 1, 0 neutral); gamma and gain are multiplicative\n(0 … 4, 1 neutral).",
+                            "type": "string"
+                          },
+                          {
+                            "const": "adjust_curve_master_shadows",
+                            "description": "RGB curves, hue curves and the HSL secondary: signed (-1 … 1, 0\nneutral).",
                             "type": "string"
                           }
                         ]
@@ -2354,6 +3078,70 @@
                 },
                 "required": [
                   "look"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "A property of one mask in the clip's mask stack. `index` is the\nmask's position (0 = top), as in `set_clip_mask`. `center` and `size`\nuse `position`; the rest use `value`.",
+                "properties": {
+                  "mask": {
+                    "properties": {
+                      "index": {
+                        "format": "uint32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "param": {
+                        "description": "Animatable properties of one mask in a clip's mask stack.\n\n`center` / `size` carry vec2 values; the rest are scalars.",
+                        "oneOf": [
+                          {
+                            "const": "feather",
+                            "description": "Edge softness, 0 … 1.",
+                            "type": "string"
+                          },
+                          {
+                            "const": "center",
+                            "description": "Centre offset as a fraction of the layer size.",
+                            "type": "string"
+                          },
+                          {
+                            "const": "size",
+                            "description": "Size as a fraction of the layer size.",
+                            "type": "string"
+                          },
+                          {
+                            "const": "rotation",
+                            "description": "Rotation in degrees, clockwise.",
+                            "type": "string"
+                          },
+                          {
+                            "const": "roundness",
+                            "description": "Rectangle corner rounding, 0 … 1.",
+                            "type": "string"
+                          },
+                          {
+                            "const": "opacity",
+                            "description": "How much of the mask's result replaces the coverage above it, 0 … 1.",
+                            "type": "string"
+                          },
+                          {
+                            "const": "expansion",
+                            "description": "Edge offset in reference pixels, outward when positive.",
+                            "type": "string"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "index",
+                      "param"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "mask"
                 ],
                 "type": "object"
               },
@@ -2948,11 +3736,11 @@
       }
     },
     {
-      "description": "Set or clear a shaped alpha mask on a media-backed visual clip. Mask kinds: linear, mirror, circle, rectangle, heart, star. Optional constants: feather (0..1), invert, center/size as fractions of the layer, rotation in degrees clockwise, roundness (0..1, rectangle only). Omitted geometry uses defaults. Constants only — animate with set_param_keyframe using look params (mask_feather, mask_center, mask_size, mask_rotation, mask_roundness). Pass null for mask to clear.",
-      "name": "set_clip_mask",
+      "description": "Append a shaped alpha mask to the bottom of a visual clip's mask stack: footage, a still, a title, a shape, a sticker, an animation or an adjustment layer. A clip holds up to 32 masks. Mask kinds: linear, mirror, circle, rectangle, heart, star. Modes: add (default), subtract, intersect, lighten, darken, difference, none (kept but switched off); the stack applies top to bottom and each mask combines with the coverage above it. Optional constants: feather (0..1), invert, opacity (0..1, default 1), expansion in reference pixels (negative shrinks), center/size as fractions of the layer, rotation in degrees clockwise, roundness (0..1, rectangle only). Animate with set_param_keyframe using the mask param ({index, param}: feather, center, size, rotation, roundness, opacity, expansion).",
+      "name": "add_clip_mask",
       "parameters": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "description": "Set (or clear) a per-clip mask on a media-backed visual clip.",
+        "description": "Append a mask to the bottom of a visual clip's mask stack. A clip holds at\nmost 32 masks; `describe_project` lists the current stack.",
         "properties": {
           "clip": {
             "format": "uint64",
@@ -2960,7 +3748,7 @@
             "type": "integer"
           },
           "mask": {
-            "description": "Mask to apply. `null` clears the mask.",
+            "description": "One shaped alpha mask in a visual clip's mask stack.",
             "properties": {
               "center": {
                 "description": "Mask center offset from the layer center, as fractions of the layer\nsize per axis (`[0,0]` = centered, `[0.5,0]` = right edge). Omitted\nuses the default (`[0,0]`).",
@@ -2972,6 +3760,14 @@
                 "minItems": 2,
                 "type": [
                   "array",
+                  "null"
+                ]
+              },
+              "expansion": {
+                "description": "Edge offset in reference pixels (1080p baseline): positive grows the\nmask outward, negative shrinks it, within ±4096. Omitted uses `0`.",
+                "format": "float",
+                "type": [
+                  "number",
                   "null"
                 ]
               },
@@ -3001,6 +3797,62 @@
                   "star"
                 ],
                 "type": "string"
+              },
+              "mode": {
+                "anyOf": [
+                  {
+                    "description": "How a mask combines with the masks above it on the same clip. The stack\napplies top to bottom; each mask replaces the coverage so far with its\nmode's result, mixed by its opacity.",
+                    "oneOf": [
+                      {
+                        "const": "none",
+                        "description": "The mask cuts nothing; it stays on the clip, switched off.",
+                        "type": "string"
+                      },
+                      {
+                        "const": "add",
+                        "description": "The coverage gains the mask.",
+                        "type": "string"
+                      },
+                      {
+                        "const": "subtract",
+                        "description": "The coverage loses the mask.",
+                        "type": "string"
+                      },
+                      {
+                        "const": "intersect",
+                        "description": "The coverage keeps only what the mask also covers.",
+                        "type": "string"
+                      },
+                      {
+                        "const": "lighten",
+                        "description": "The larger of the coverage and the mask.",
+                        "type": "string"
+                      },
+                      {
+                        "const": "darken",
+                        "description": "The smaller of the coverage and the mask.",
+                        "type": "string"
+                      },
+                      {
+                        "const": "difference",
+                        "description": "What the coverage or the mask covers, but not both.",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "How the mask combines with the masks above it. Omitted uses `add`."
+              },
+              "opacity": {
+                "description": "How much of the mask's result replaces the coverage above it, 0 … 1.\nOmitted uses `1`.",
+                "format": "double",
+                "type": [
+                  "number",
+                  "null"
+                ]
               },
               "rotation": {
                 "description": "Mask rotation in degrees, clockwise about the mask center. Omitted\nuses the default (`0`).",
@@ -3035,16 +3887,245 @@
             "required": [
               "kind"
             ],
-            "type": [
-              "object",
-              "null"
-            ]
+            "type": "object"
           }
         },
         "required": [
-          "clip"
+          "clip",
+          "mask"
+        ],
+        "title": "AddClipMask",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Replace the mask at index (0 = top) in a visual clip's mask stack. Takes the same mask object as add_clip_mask; omitted fields use their defaults, and the new constants replace any keyframes on that mask.",
+      "name": "set_clip_mask",
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Replace one mask in a clip's mask stack. The new constants replace any\nkeyframes on the mask's properties; drivers on them stay attached.",
+        "properties": {
+          "clip": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "index": {
+            "description": "Position of the mask in the stack (0 = top).",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "mask": {
+            "description": "One shaped alpha mask in a visual clip's mask stack.",
+            "properties": {
+              "center": {
+                "description": "Mask center offset from the layer center, as fractions of the layer\nsize per axis (`[0,0]` = centered, `[0.5,0]` = right edge). Omitted\nuses the default (`[0,0]`).",
+                "items": {
+                  "format": "float",
+                  "type": "number"
+                },
+                "maxItems": 2,
+                "minItems": 2,
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "expansion": {
+                "description": "Edge offset in reference pixels (1080p baseline): positive grows the\nmask outward, negative shrinks it, within ±4096. Omitted uses `0`.",
+                "format": "float",
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "feather": {
+                "description": "Edge softness, 0 (hard) … 1 (fully feathered). Defaults to 0.",
+                "format": "double",
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "invert": {
+                "description": "Keep the outside instead of the inside.",
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "kind": {
+                "description": "Mask shape kinds (CapCut mask presets).",
+                "enum": [
+                  "linear",
+                  "mirror",
+                  "circle",
+                  "rectangle",
+                  "heart",
+                  "star"
+                ],
+                "type": "string"
+              },
+              "mode": {
+                "anyOf": [
+                  {
+                    "description": "How a mask combines with the masks above it on the same clip. The stack\napplies top to bottom; each mask replaces the coverage so far with its\nmode's result, mixed by its opacity.",
+                    "oneOf": [
+                      {
+                        "const": "none",
+                        "description": "The mask cuts nothing; it stays on the clip, switched off.",
+                        "type": "string"
+                      },
+                      {
+                        "const": "add",
+                        "description": "The coverage gains the mask.",
+                        "type": "string"
+                      },
+                      {
+                        "const": "subtract",
+                        "description": "The coverage loses the mask.",
+                        "type": "string"
+                      },
+                      {
+                        "const": "intersect",
+                        "description": "The coverage keeps only what the mask also covers.",
+                        "type": "string"
+                      },
+                      {
+                        "const": "lighten",
+                        "description": "The larger of the coverage and the mask.",
+                        "type": "string"
+                      },
+                      {
+                        "const": "darken",
+                        "description": "The smaller of the coverage and the mask.",
+                        "type": "string"
+                      },
+                      {
+                        "const": "difference",
+                        "description": "What the coverage or the mask covers, but not both.",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "How the mask combines with the masks above it. Omitted uses `add`."
+              },
+              "opacity": {
+                "description": "How much of the mask's result replaces the coverage above it, 0 … 1.\nOmitted uses `1`.",
+                "format": "double",
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "rotation": {
+                "description": "Mask rotation in degrees, clockwise about the mask center. Omitted\nuses the default (`0`).",
+                "format": "float",
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "roundness": {
+                "description": "Rectangle corner rounding, `0` (sharp) … `1` (fully round). Ignored\nby other kinds. Omitted uses the default (`0`).",
+                "format": "float",
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "size": {
+                "description": "Mask size as fractions of the layer size per axis (`[1,1]` covers the\nlayer). Omitted uses the default (`[1,1]`).",
+                "items": {
+                  "format": "float",
+                  "type": "number"
+                },
+                "maxItems": 2,
+                "minItems": 2,
+                "type": [
+                  "array",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "clip",
+          "index",
+          "mask"
         ],
         "title": "SetClipMask",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Remove the mask at index (0 = top) from a clip's mask stack. The masks below it move up one place.",
+      "name": "remove_clip_mask",
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Remove one mask from a clip's mask stack.",
+        "properties": {
+          "clip": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "index": {
+            "description": "Position of the mask in the stack (0 = top).",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "clip",
+          "index"
+        ],
+        "title": "RemoveClipMask",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Move one mask within a clip's mask stack, which changes how the stack combines. Both indices address the stack before the move; to_index is the mask's final position (0 = top).",
+      "name": "move_clip_mask",
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Reorder one mask within a clip's mask stack. Both indices address the\nstack before the move; `to_index` is the moved mask's final position.",
+        "properties": {
+          "clip": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "from_index": {
+            "description": "Current position of the mask to move (0 = top).",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "to_index": {
+            "description": "Final position for the moved mask (0 = top).",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "clip",
+          "from_index",
+          "to_index"
+        ],
+        "title": "MoveClipMask",
         "type": "object"
       }
     },
@@ -3507,6 +4588,14 @@
         "additionalProperties": false,
         "description": "Set manual color adjustments (CapCut adjust) on any visual clip.\nOmitted sliders keep their current value; all-neutral clears the\ngrade.\n\nOne argument per grade slider, expanded from the model's adjustment\nrow list, so every slider a clip carries is reachable here and a\nslider cannot be named under two different words. A slider's range\ncomes from its own row: signed sliders are `-1..=1`,\none-directional sliders (`sharpness`, `vignette`) are `0..=1`, and\nthe lift / gamma / gain wheels are `0..=4` around unity.",
         "properties": {
+          "blacks": {
+            "description": "Black point; `+1` lifts black to 0.2, `-1` takes 0.25 to black.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
           "brightness": {
             "description": "Overall lift of every channel.",
             "format": "double",
@@ -3529,8 +4618,112 @@
               "null"
             ]
           },
+          "curve_blue_highlights": {
+            "description": "RGB curve, blue, at 3/4 input; ±1 moves the point a quarter.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "curve_blue_midtones": {
+            "description": "RGB curve, blue, at 1/2 input; ±1 moves the point a quarter.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "curve_blue_shadows": {
+            "description": "RGB curve, blue, at 1/4 input; ±1 moves the point a quarter.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "curve_green_highlights": {
+            "description": "RGB curve, green, at 3/4 input; ±1 moves the point a quarter.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "curve_green_midtones": {
+            "description": "RGB curve, green, at 1/2 input; ±1 moves the point a quarter.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "curve_green_shadows": {
+            "description": "RGB curve, green, at 1/4 input; ±1 moves the point a quarter.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "curve_master_highlights": {
+            "description": "RGB curve, every channel, at 3/4 input; ±1 moves the point a quarter.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "curve_master_midtones": {
+            "description": "RGB curve, every channel, at 1/2 input; ±1 moves the point a quarter.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "curve_master_shadows": {
+            "description": "RGB curve, every channel, at 1/4 input; ±1 moves the point a quarter.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "curve_red_highlights": {
+            "description": "RGB curve, red, at 3/4 input; ±1 moves the point a quarter.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "curve_red_midtones": {
+            "description": "RGB curve, red, at 1/2 input; ±1 moves the point a quarter.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "curve_red_shadows": {
+            "description": "RGB curve, red, at 1/4 input; ±1 moves the point a quarter.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
           "exposure": {
             "description": "Stops of light, applied before the tone curve.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "faded_film": {
+            "description": "Lifts the blacks toward grey and leaves white in place.",
             "format": "double",
             "type": [
               "number",
@@ -3609,8 +4802,192 @@
               "null"
             ]
           },
+          "hsl_hue": {
+            "description": "Hue of the keyed colours; ±1 turns them 60°.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "hsl_key_hue": {
+            "description": "Centre of the keyed hue range; 0 is red, ±1 is cyan.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "hsl_key_width": {
+            "description": "Half-width of the keyed hue range: 30° at 0, 60° at `+1`, 0° at `-1`.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "hsl_luma": {
+            "description": "Luma of the keyed colours; ±1 is ±0.25.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "hsl_saturation": {
+            "description": "Saturation of the keyed colours; `-1` greys them.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
           "hue": {
             "description": "Hue rotation; ±1 maps to ±30°.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "hue_hue_blue": {
+            "description": "Hue of blues; ±1 turns them 60°.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "hue_hue_cyan": {
+            "description": "Hue of cyans; ±1 turns them 60°.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "hue_hue_green": {
+            "description": "Hue of greens; ±1 turns them 60°.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "hue_hue_magenta": {
+            "description": "Hue of magentas; ±1 turns them 60°.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "hue_hue_red": {
+            "description": "Hue of reds; ±1 turns them 60°.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "hue_hue_yellow": {
+            "description": "Hue of yellows; ±1 turns them 60°.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "hue_luma_blue": {
+            "description": "Luma of blues; ±1 is ±0.25.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "hue_luma_cyan": {
+            "description": "Luma of cyans; ±1 is ±0.25.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "hue_luma_green": {
+            "description": "Luma of greens; ±1 is ±0.25.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "hue_luma_magenta": {
+            "description": "Luma of magentas; ±1 is ±0.25.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "hue_luma_red": {
+            "description": "Luma of reds; ±1 is ±0.25.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "hue_luma_yellow": {
+            "description": "Luma of yellows; ±1 is ±0.25.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "hue_sat_blue": {
+            "description": "Saturation of blues; `-1` greys them.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "hue_sat_cyan": {
+            "description": "Saturation of cyans; `-1` greys them.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "hue_sat_green": {
+            "description": "Saturation of greens; `-1` greys them.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "hue_sat_magenta": {
+            "description": "Saturation of magentas; `-1` greys them.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "hue_sat_red": {
+            "description": "Saturation of reds; `-1` greys them.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "hue_sat_yellow": {
+            "description": "Saturation of yellows; `-1` greys them.",
             "format": "double",
             "type": [
               "number",
@@ -3689,8 +5066,24 @@
               "null"
             ]
           },
+          "vibrance": {
+            "description": "Saturation weighted toward the least saturated colours.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
           "vignette": {
             "description": "Radial darkening from the layer centre.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "whites": {
+            "description": "White point; `+1` takes 0.75 to white, `-1` takes white to 0.8.",
             "format": "double",
             "type": [
               "number",
@@ -4040,5 +5433,5 @@
       }
     }
   ],
-  "version": 48
+  "version": 51
 }

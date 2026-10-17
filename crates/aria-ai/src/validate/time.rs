@@ -1,5 +1,5 @@
 use super::*;
-use crate::wire::{WireLookParam, WireShapeParam, WireStyleParam, WireTextParam};
+use crate::wire::{WireMaskParam, WireShapeParam, WireStyleParam, WireTextParam};
 
 // --- seconds → ticks ---------------------------------------------------------
 
@@ -139,7 +139,9 @@ pub(super) fn param_value(
             let (_, slot, spec) = effect_param_slot(clip, *index, name, wire_clip)?;
             let pspec = &spec.params[slot];
             match pspec.kind {
-                aria_models::EffectParamKind::Scalar => value
+                aria_models::EffectParamKind::Scalar
+                | aria_models::EffectParamKind::Angle
+                | aria_models::EffectParamKind::Int => value
                     .map(|v| finite_scalar(v, name).map(ParamValue::Scalar))
                     .transpose()?
                     .ok_or_else(|| {
@@ -147,7 +149,7 @@ pub(super) fn param_value(
                             "effect param '{name}' is a scalar; pass 'value' (a number)"
                         ))
                     }),
-                aria_models::EffectParamKind::Vec2 => position
+                aria_models::EffectParamKind::Vec2 | aria_models::EffectParamKind::Size => position
                     .map(|p| finite_vec2(p, name).map(ParamValue::Vec2))
                     .transpose()?
                     .ok_or_else(|| {
@@ -163,6 +165,10 @@ pub(super) fn param_value(
                         ))
                     })
                 }
+                other => Err(Rejection::new(format!(
+                    "effect param '{name}' has kind '{}' and cannot be keyframed through wire param_value",
+                    other.as_str()
+                ))),
             }
         }
         WireClipParam::Crop => {
@@ -184,15 +190,16 @@ pub(super) fn param_value(
         | WireClipParam::Style {
             param: WireStyleParam::ShadowOffset,
         }
-        | WireClipParam::Look {
-            param: WireLookParam::MaskCenter | WireLookParam::MaskSize,
+        | WireClipParam::Mask {
+            param: WireMaskParam::Center | WireMaskParam::Size,
+            ..
         } => position
             .map(|p| finite_vec2(p, "param position").map(ParamValue::Vec2))
             .transpose()?
             .ok_or_else(|| {
                 Rejection::new(
-                    "position, anchor_point, style shadow_offset, and look \
-                     mask_center/mask_size params need the 'position' argument as [x, y]",
+                    "position, anchor_point, style shadow_offset, and mask \
+                     center/size params need the 'position' argument as [x, y]",
                 )
             }),
         WireClipParam::Scale => {
@@ -231,6 +238,15 @@ pub(super) fn param_value(
                 | WireTextParam::BackgroundRadius,
         }
         | WireClipParam::Look { .. }
+        | WireClipParam::Mask {
+            param:
+                WireMaskParam::Feather
+                | WireMaskParam::Rotation
+                | WireMaskParam::Roundness
+                | WireMaskParam::Opacity
+                | WireMaskParam::Expansion,
+            ..
+        }
         | WireClipParam::Style {
             param:
                 WireStyleParam::ShadowBlur

@@ -46,7 +46,7 @@ pub(super) fn peak_meter(
         .cursor(gpui::CursorStyle::PointingHand)
         .active(|style| style.opacity(0.92))
         .when_some(crate::tooltip::builder("preview-meter"), |el, tip| {
-            el.tooltip(tip)
+            el.with_tip(tip)
         })
         .on_mouse_down(
             MouseButton::Left,

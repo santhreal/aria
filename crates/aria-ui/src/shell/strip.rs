@@ -1,10 +1,11 @@
-//! Strip: 8 helpers from [`super`].
+//! The status bar, the timeline splitter, and the session tickers.
 //!
-//! Split out of `shell.rs` to stay under the file ceiling. A pure
-//! move. Each item is `pub(super)` so the parent and its other children can
-//! reach it by name; nothing else changed.
+//! Split out of `shell.rs` to stay under the file ceiling. Each item is
+//! `pub(super)` so the parent and its other children can reach it by name.
 
 use super::*;
+use crate::theme::Theme;
+use crate::tooltip::WithTip as _;
 
 pub(super) fn status_strip(
     theme: &Theme,
@@ -42,36 +43,31 @@ pub(super) fn status_strip(
         )
         .into_any_element()
     });
-    let store = &state.read(cx).store;
-    let rate = store.sequence.frame_rate;
-    let fps = if rate.den == 0 {
-        0.0
-    } else {
-        rate.num as f32 / rate.den as f32
-    };
-    let clock = format!(
-        "{}  ·  {:.3} fps  ·  {} tracks",
-        crate::timecode::format_ticks(store.playhead_ticks, rate.num, rate.den),
-        fps,
-        store.sequence.tracks.len(),
-    );
+    let job = live_job(theme, state, cx);
+    let drops = dropped_indicator(theme, state.read(cx).dropped_frames().total(), cx);
+    let read = state.read(cx);
+    let resolution = format!("Playback {}", read.playback_resolution_text());
+    let gpu = read.preview_worker.device_name();
+    // During playback, the rate achieved against the sequence's. At rest the
+    // sequence's own rate is in the Viewer and the timeline, so the strip
+    // shows nothing.
+    let report = read.playback_report();
+    let achieved = (read.playing && report.presented > 0).then(|| {
+        let rate = read.store.sequence.frame_rate;
+        let fps = if rate.den == 0 {
+            0.0
+        } else {
+            rate.num as f64 / rate.den as f64
+        };
+        format!("{:.1}/{fps:.3} fps", report.achieved_fps)
+    });
     let has_err = err.is_some();
     let note = err.or(status).unwrap_or_default();
     // A status line that replaced another one has to be seen to have changed:
     // two refusals in a row can differ by their text alone. The element id is
     // the message's own identity, so a new message is a new element and fades
-    // in, while a repaint carrying the same message does not restart the fade.
+    // in, while a repaint holding the same message does not restart the fade.
     let note_id = motion::MotionKey::new("status", &note);
-    // A dot beside the clock while any job is in flight, breathing on the
-    // catalog's own pulse so it reads as live rather than as a decoration. The
-    // jobs panel says what the work is; this says only that there is some.
-    let live_work = crate::pending::any_live(state, |_| true, cx);
-    let dot = if live_work {
-        let phase = motion::pulse_delta(&gpui::motion::presets::ZERON_PULSE, cx.entity_id(), cx);
-        gpui::motion::loaders::pulse_opacity(phase)
-    } else {
-        0.0
-    };
     div()
         .h(px(Theme::STATUS_STRIP_HEIGHT))
         .w_full()
@@ -79,9 +75,8 @@ pub(super) fn status_strip(
         .items_center()
         .px(px(Theme::SPACE_MD))
         .gap(px(Theme::SPACE_MD))
-        // The strip carries the error rather than only its text: a one-line
-        // message in a 24px strip is easy to miss, and the wash is quiet enough
-        // to sit under a timecode that is read constantly.
+        // The strip is washed for an error rather than only coloured: a
+        // one-line message in a 22px strip is easy to miss.
         .bg(if has_err {
             theme.danger_muted
         } else {
@@ -89,133 +84,155 @@ pub(super) fn status_strip(
         })
         .border_t_1()
         .border_color(theme.border)
-        .text_size(px(11.))
+        .text_size(Theme::TEXT_UI)
         .font_family(theme.font_mono.clone())
         .text_color(theme.text_muted)
-        .when(live_work, |el| {
-            el.child(
+        // Left: where edits land, and the last thing that happened.
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .flex()
+                .items_center()
+                .gap(px(Theme::SPACE_MD))
+                .when_some(breadcrumb, |el, chip| el.child(chip))
+                .child(
+                    div().min_w_0().truncate().child(motion::fade_quick(
+                        note_id,
+                        div()
+                            .text_color(if has_err {
+                                theme.danger
+                            } else {
+                                theme.text_faint
+                            })
+                            .child(note),
+                    )),
+                ),
+        )
+        // Centre: the work in flight.
+        .when_some(job, |el, job| el.child(job))
+        // Right: how playback is keeping up, and on what.
+        .child(
+            div()
+                .flex_1()
+                .flex()
+                .items_center()
+                .justify_end()
+                .gap(px(Theme::SPACE_MD))
+                .when_some(achieved, |el, achieved| el.child(achieved))
+                .child(drops)
+                .child(
+                    div()
+                        .id("status-playback-resolution")
+                        .when_some(crate::tooltip::builder("preview-resolution"), |el, tip| {
+                            el.with_tip(tip)
+                        })
+                        .child(resolution),
+                )
+                .when_some(gpu, |el, gpu| {
+                    el.child(div().text_color(theme.text_faint).child(gpu))
+                }),
+        )
+}
+
+/// The first job still running, its bar, and how many more are running beside
+/// it, or nothing while no work is in flight. A click brings the Jobs panel
+/// forward, where every job has its own row and its Stop.
+fn live_job(
+    theme: &Theme,
+    state: &Entity<AppState>,
+    cx: &mut Context<Shell>,
+) -> Option<gpui::AnyElement> {
+    // The handle: the projection is rebuilt when a job reports, not when a
+    // frame draws.
+    let jobs = state.read(cx).job_view.clone();
+    let mut live = jobs.iter().filter(|job| !job.terminal);
+    let first = live.next()?;
+    let more = live.count();
+    // The same key as the job's row on the board, so the two bars draw one
+    // width for one job.
+    let bar = crate::loaders::progress_bar(
+        motion::ControlId::Key(motion::MotionKey::new("job-bar", first.id)),
+        first.progress,
+        theme,
+        cx.entity_id(),
+        cx,
+    )
+    .into_any_element();
+    // Breathing on the catalog's pulse, so the dot reads as live rather than
+    // as a decoration.
+    let phase = motion::pulse_delta(&gpui::motion::presets::ZERON_PULSE, cx.entity_id(), cx);
+    let dot = gpui::motion::loaders::pulse_opacity(phase);
+    Some(
+        div()
+            .id("status-job")
+            .debug_selector(|| "status-job".into())
+            .flex()
+            .items_center()
+            .gap(px(Theme::SPACE_SM))
+            .cursor_pointer()
+            .child(
                 div()
                     .size(px(6.))
                     .rounded(px(3.))
                     .bg(theme.recording_dot.opacity(dot)),
             )
-        })
-        .when_some(breadcrumb, |el, chip| el.child(chip))
-        .child(clock)
-        .child(
-            div().flex_1().child(motion::fade_quick(
-                note_id,
+            .child(
                 div()
-                    .text_color(if has_err {
-                        theme.danger
-                    } else {
-                        theme.text_faint
-                    })
-                    .child(note),
-            )),
-        )
-}
-
-pub(super) fn pane(width: f32, child: impl IntoElement) -> impl IntoElement {
-    motion::fade_in(
-        "pane-in",
-        div()
-            .w(px(width))
-            .h_full()
-            .min_h_0()
-            .overflow_hidden()
-            .child(child),
-    )
-}
-
-/// Concrete `Div` for the same reason [`crate::chrome::editor_bar`] is: the
-/// timeline is the last stage of the editor opening, and a stage is animated.
-pub(super) fn pane_h(height: f32, child: impl IntoElement) -> gpui::Div {
-    div()
-        .h(px(height))
-        .w_full()
-        .min_h_0()
-        .overflow_hidden()
-        .child(child)
-}
-
-pub(super) fn collapsed_strip(
-    label: &'static str,
-    sidebar: bool,
-    cx: &mut Context<Shell>,
-) -> impl IntoElement {
-    let theme = Theme::of(cx);
-    motion::fade_quick(
-        label,
-        div()
-            .id(label)
-            .w(px(28.))
-            .h_full()
-            .flex()
-            .items_center()
-            .justify_center()
-            .bg(theme.surface)
-            .text_size(px(11.))
-            .text_color(theme.text_faint)
-            .cursor(CursorStyle::PointingHand)
-            .active(|style| style.opacity(0.92))
+                    .max_w(px(240.))
+                    .truncate()
+                    .text_color(theme.text)
+                    .child(first.label.clone()),
+            )
+            .child(div().w(px(72.)).child(bar))
+            .when(more > 0, |el| {
+                el.child(
+                    div()
+                        .text_color(theme.text_faint)
+                        .child(gpui::SharedString::from(format!("+{more}"))),
+                )
+            })
             .on_mouse_down(
                 MouseButton::Left,
-                cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                cx.listener(|this, _: &MouseDownEvent, _, cx| {
                     this.state.update(cx, |state, _| {
-                        if sidebar {
-                            state.ui_settings.sidebar_collapsed = false;
-                        } else {
-                            state.ui_settings.inspector_collapsed = false;
-                        }
+                        state.focus_dock_panel(crate::dock::PANEL_JOBS)
                     });
-                    this.persist(cx);
                     cx.notify();
                 }),
             )
-            .child(label.chars().next().unwrap_or('·').to_string()),
+            .into_any_element(),
     )
 }
 
-pub(super) fn split_col(cx: &mut Context<Shell>, kind: DragKind) -> impl IntoElement {
-    let theme = Theme::of(cx);
-    let id = match kind {
-        DragKind::Sidebar => "split-sidebar",
-        DragKind::Inspector => "split-inspector",
-        DragKind::Timeline | DragKind::Pan | DragKind::Lane(_) => "split-timeline",
+/// The dropped-frame indicator: green while no playback frame has dropped since
+/// the last reset, yellow with the count otherwise. A click resets it.
+fn dropped_indicator(
+    theme: &Theme,
+    dropped: u32,
+    cx: &mut Context<Shell>,
+) -> impl IntoElement + use<> {
+    let (label, color): (gpui::SharedString, _) = if dropped == 0 {
+        ("0 dropped".into(), theme.success)
+    } else {
+        (format!("{dropped} dropped").into(), theme.warning)
     };
-    div()
-        .id(id)
-        .w(px(SPLIT))
-        .h_full()
-        .cursor(CursorStyle::ResizeLeftRight)
-        .bg(theme.bg)
-        .hover(|el| el.bg(theme.border_strong))
-        .on_mouse_down(
-            MouseButton::Left,
-            cx.listener(move |this, event: &MouseDownEvent, _, cx| {
-                if event.click_count >= 2 {
-                    this.state.update(cx, |state, _| {
-                        let which = match kind {
-                            DragKind::Sidebar => "sidebar",
-                            DragKind::Inspector => "inspector",
-                            DragKind::Timeline | DragKind::Pan | DragKind::Lane(_) => "timeline",
-                        };
-                        state.reset_split(which);
-                    });
-                    this.persist(cx);
-                    cx.notify();
-                    return;
-                }
-                let panes = this.state.read(cx).ui_settings.panes();
-                let start = match kind {
-                    DragKind::Sidebar => panes.sidebar_width,
-                    DragKind::Inspector => panes.inspector_width,
-                    DragKind::Timeline | DragKind::Pan | DragKind::Lane(_) => panes.timeline_height,
-                };
-                this.drag = Some(Drag::new(kind, f32::from(event.position.x), start));
-            }),
-        )
+    crate::components::chip(
+        "status-dropped-frames",
+        label,
+        false,
+        crate::components::ChipSize::Compact,
+        theme,
+    )
+    .text_color(color)
+    .on_mouse_down(
+        MouseButton::Left,
+        cx.listener(|this, _: &MouseDownEvent, _, cx| {
+            this.state
+                .update(cx, |state, _| state.reset_dropped_frames());
+            cx.notify();
+        }),
+    )
 }
 
 pub(super) fn split_row(cx: &mut Context<Shell>, kind: DragKind) -> impl IntoElement {
@@ -243,12 +260,14 @@ pub(super) fn split_row(cx: &mut Context<Shell>, kind: DragKind) -> impl IntoEle
         )
 }
 
-/// Age the status line and write recovery copies for the life of the session.
+/// Age the status line, write recovery copies and reload plugins whose files
+/// changed, for the life of the session.
 ///
 /// The ticker asks the state whether the message is spent rather than every
-/// writer arming a timer, and repaints only when something actually cleared.
-/// Autosave rides the same half-second wake rather than arming a second timer:
-/// it decides for itself whether a copy is due.
+/// writer arming a timer, and repaints only when something cleared or a
+/// plugin reloaded. Autosave and the plugin watch ride the same half-second
+/// wake rather than arming timers of their own: each checks whether it has
+/// work.
 ///
 /// The task holds a weak shell handle and nothing else. The state is reached
 /// through the shell on each wake, so a timer still pending after
@@ -264,7 +283,8 @@ pub(super) fn spawn_status_ageing(cx: &mut Context<Shell>) {
                     shell.state.update(cx, |state, cx| {
                         let now = Instant::now();
                         state.autosave_tick(now);
-                        if state.age_status(now) {
+                        let reloaded = state.reload_changed_plugins();
+                        if state.age_status(now) || reloaded {
                             cx.notify();
                         }
                     });

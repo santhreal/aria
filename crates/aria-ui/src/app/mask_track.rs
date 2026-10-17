@@ -32,7 +32,7 @@ use aria_commands::{Command, EditCommand};
 use aria_core::RgbaImage;
 use aria_engine::EngineError;
 use aria_jobs::JobCompletion;
-use aria_models::{ClipId, ClipParam, Easing, LookParam, ParamValue, Project, RationalTime};
+use aria_models::{ClipId, ClipParam, Easing, Mask, MaskParam, ParamValue, Project, RationalTime};
 use gpui::Context;
 
 use super::AppState;
@@ -149,6 +149,51 @@ pub struct MaskWalk {
     pub floor: f32,
 }
 
+/// The mask a track writes to: a clip, and the mask as it stood when the track
+/// started.
+///
+/// The stack can change while a job runs: removing or moving a mask above the
+/// tracked one shifts its index. [`MaskTarget::locate`] finds the mask again when
+/// the keyframes come back.
+#[derive(Debug, Clone, PartialEq)]
+struct MaskTarget {
+    clip: ClipId,
+    /// The mask's index in the stack when the track started.
+    index: u32,
+    /// The mask when the track started.
+    start: Mask,
+}
+
+impl MaskTarget {
+    /// The index of the tracked mask in `masks`, or `None` when no mask, or
+    /// more than one, matches the mask the track started from.
+    ///
+    /// A mask matches when its kind, path, and centre are unchanged. Those place
+    /// the mask; an edit to its feather, mode, or opacity while the track runs
+    /// leaves them alone. The start index is tried first, so an unchanged stack
+    /// resolves to it even when another mask in the stack is identical.
+    fn locate(&self, masks: &[Mask]) -> Option<u32> {
+        let same = |mask: &Mask| {
+            mask.kind == self.start.kind
+                && mask.path == self.start.path
+                && mask.path_closed == self.start.path_closed
+                && mask.center == self.start.center
+        };
+        if masks.get(self.index as usize).is_some_and(same) {
+            return Some(self.index);
+        }
+        let mut found = masks
+            .iter()
+            .enumerate()
+            .filter(|&(_, mask)| same(mask))
+            .map(|(index, _)| index);
+        match (found.next(), found.next()) {
+            (Some(index), None) => u32::try_from(index).ok(),
+            _ => None,
+        }
+    }
+}
+
 /// Walk `frames` forward and return the centre keyframes the track earned.
 ///
 /// Writes nothing. Keyframes come back as a list so the caller decides where
@@ -242,7 +287,7 @@ impl AppState {
         cancel: &AtomicBool,
         floor: f32,
     ) -> Result<MaskTrackReport, EngineError> {
-        let Ok((clip, walk)) = self.mask_walk(span, floor) else {
+        let Ok((target, walk)) = self.mask_walk(span, floor) else {
             return Ok(MaskTrackReport::nothing());
         };
         let (keys, report) = walk_mask(
@@ -251,7 +296,7 @@ impl AppState {
             &|| cancel.load(Ordering::Relaxed),
             &mut |_, _| {},
         );
-        self.write_track(clip, &keys)?;
+        self.write_track(target.clip, target.index, &keys)?;
         Ok(report)
     }
 
@@ -266,7 +311,7 @@ impl AppState {
     /// come back to the window, which writes them as one history entry — the
     /// only thread that edits the session is still the one that draws it.
     pub fn track_selected_mask_job(&mut self, cx: &mut Context<Self>) -> Result<u64, String> {
-        let (clip, walk) = self
+        let (target, walk) = self
             .mask_walk(self.mask_track_span(), CONFIDENCE_FLOOR)
             .map_err(str::to_string)?;
         let name = self
@@ -323,7 +368,7 @@ impl AppState {
             let outcome = wakes.next_from_a_thread(cx.background_executor()).await;
             let _ = this.update(cx, |state, cx| {
                 match outcome {
-                    Some(Ok((keys, report))) => state.adopt_track(clip, &keys, report),
+                    Some(Ok((keys, report))) => state.adopt_track(&target, &keys, report),
                     Some(Err(reason)) => state.report_error(reason),
                     None => state.report_error("the mask track ended without reporting"),
                 }
@@ -364,13 +409,17 @@ impl AppState {
     /// synchronous pass reports "nothing to track" as an empty report and the job
     /// reports it to the operator in words. Two copies of the questions are two
     /// chances for the two surfaces to disagree about what a trackable mask is.
-    fn mask_walk(&self, span: i64, floor: f32) -> Result<(ClipId, MaskWalk), &'static str> {
+    fn mask_walk(&self, span: i64, floor: f32) -> Result<(MaskTarget, MaskWalk), &'static str> {
         let clip = self
             .selected_clip()
             .ok_or("Select a clip with a mask to track")?;
-        let mask = self
-            .selected_ui_clip()
-            .and_then(|ui| ui.mask)
+        let (index, mask) = self
+            .active_mask()
+            .zip(self.active_ui_mask())
+            .ok_or("Draw a mask on the clip before tracking it")?;
+        let start = self
+            .active_model_mask()
+            .cloned()
             .ok_or("Draw a mask on the clip before tracking it")?;
         let (quad_center, quad_size) = self
             .selected_layer_quad()
@@ -384,7 +433,7 @@ impl AppState {
             );
         }
         Ok((
-            clip,
+            MaskTarget { clip, index, start },
             MaskWalk {
                 start: self.playhead,
                 span,
@@ -403,14 +452,33 @@ impl AppState {
         ))
     }
 
-    /// Adopt a finished track: write what it followed, and say what it did.
+    /// Adopt a finished track: write what it followed onto the mask it
+    /// followed, and say what it did.
+    ///
+    /// The mask is found again by [`MaskTarget::locate`], so a mask removed or
+    /// moved above it while the job ran does not send the keyframes to its
+    /// neighbour. A tracked mask that is gone or reshaped gets nothing, and the
+    /// window reports why.
     fn adopt_track(
         &mut self,
-        clip: ClipId,
+        target: &MaskTarget,
         keys: &[(RationalTime, [f32; 2])],
         report: MaskTrackReport,
     ) {
-        if let Err(err) = self.write_track(clip, keys) {
+        let found = self
+            .engine()
+            .lock()
+            .project()
+            .clip(target.clip)
+            .and_then(|clip| target.locate(&clip.masks));
+        let Some(index) = found else {
+            self.report_error(
+                "The tracked mask was removed or reshaped while the track ran, \
+                 so no keyframes were written. Track it again.",
+            );
+            return;
+        };
+        if let Err(err) = self.write_track(target.clip, index, keys) {
             self.report_error(&err);
             return;
         }
@@ -424,7 +492,8 @@ impl AppState {
         });
     }
 
-    /// Write `keys` as the mask centre, as one history entry.
+    /// Write `keys` as the centre of mask `mask` of `clip`, as one history
+    /// entry.
     ///
     /// One gesture, one undo entry: a track that went wrong reverts in a
     /// keystroke instead of one per frame. A pass that followed nothing opens no
@@ -432,13 +501,15 @@ impl AppState {
     fn write_track(
         &mut self,
         clip: ClipId,
+        mask: u32,
         keys: &[(RationalTime, [f32; 2])],
     ) -> Result<(), EngineError> {
         if keys.is_empty() {
             return Ok(());
         }
-        let param = ClipParam::Look {
-            param: LookParam::MaskCenter,
+        let param = ClipParam::Mask {
+            mask,
+            param: MaskParam::Center,
         };
         let group = self.host().group(&aria_plugin::Origin::Editor)?;
         let outcome = keys
@@ -447,6 +518,8 @@ impl AppState {
         // The keys written before a failure are a usable track up to that frame,
         // so they are kept as the one entry.
         group.commit();
+        // The commit changes the History list and not the project.
+        self.sync_from_engine();
         outcome
     }
 

@@ -17,7 +17,8 @@ use toml_edit::{DocumentMut, Item, Table, value};
 
 use crate::{
     AiApiProtocol, AiSource, Autonomy, DEFAULT_DOWNLOAD_QUOTA_MIB, MAX_DOWNLOAD_QUOTA_MIB,
-    MAX_DOWNLOAD_TIMEOUT_SECS, MIN_DOWNLOAD_QUOTA_MIB, ReasoningSummary, Settings,
+    MAX_DOWNLOAD_TIMEOUT_SECS, MAX_WASM_FUEL_PER_CALL, MAX_WASM_MEMORY_MIB, MIN_DOWNLOAD_QUOTA_MIB,
+    MIN_WASM_FUEL_PER_CALL, MIN_WASM_MEMORY_MIB, PluginLimitSettings, ReasoningSummary, Settings,
     StoragePathOverrides, StorageSettings, TranscriptionSettings, schema,
 };
 
@@ -209,6 +210,28 @@ impl Settings {
                     "total_timeout_secs",
                     self.transcription.total_timeout_secs as i64,
                 );
+            }
+        }
+        {
+            // Refused at the save like the timeouts: the value came from a
+            // control that clamps, and the WASM host would be handed it.
+            let limits = self.plugin_limits;
+            if !PluginLimitSettings::is_valid_fuel_per_call(limits.wasm_fuel_per_call) {
+                return Err(format!(
+                    "plugin_limits.wasm_fuel_per_call must be between {MIN_WASM_FUEL_PER_CALL} and {MAX_WASM_FUEL_PER_CALL}"
+                ));
+            }
+            if !PluginLimitSettings::is_valid_memory_mib(limits.wasm_memory_mib) {
+                return Err(format!(
+                    "plugin_limits.wasm_memory_mib must be between {MIN_WASM_MEMORY_MIB} and {MAX_WASM_MEMORY_MIB}"
+                ));
+            }
+            if limits == PluginLimitSettings::default() {
+                doc.remove("plugin_limits");
+            } else {
+                let t = ensure_table(doc, "plugin_limits");
+                set_integer(t, "wasm_fuel_per_call", limits.wasm_fuel_per_call as i64);
+                set_integer(t, "wasm_memory_mib", limits.wasm_memory_mib as i64);
             }
         }
         {

@@ -4,10 +4,15 @@
 //! Art lives in repo-root `assets/icon/`. An icon paints its glyph as a mask
 //! in the text colour of the control around it, so one glyph serves both
 //! appearances; the brand mark is raster art with its own colours and is drawn
-//! through [`brand_mark`].
+//! through [`brand_mark`]. A plugin command's icon is served under
+//! `plugin-icon/` once `plugin_icon_path` has named it.
 
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::panic::Location;
+use std::sync::{Arc, LazyLock};
+
+use parking_lot::RwLock;
 
 use gpui::{
     App, AssetSource, Bounds, Element, ElementId, GlobalElementId, ImageSource, Img,
@@ -28,7 +33,7 @@ macro_rules! icon_assets {
                     $($path => Some(Cow::Borrowed(
                         include_bytes!(concat!("../../../assets/icon/", $file)).as_slice(),
                     )),)+
-                    _ => None,
+                    _ => plugin_icon(path),
                 })
             }
 
@@ -79,11 +84,16 @@ icon_assets![
     (UPLOAD, "shell/upload.svg", "icon/upload.svg"),
     (SETTINGS, "shell/settings.svg", "icon/settings.svg"),
     (TRASH, "inspector/trash-2.svg", "icon/trash.svg"),
+    (ELLIPSIS, "inspector/ellipsis.svg", "icon/ellipsis.svg"),
     (FIT, "fullscreen.svg", "icon/fit.svg"),
     (SCISSORS, "timeline/scissors.svg", "icon/scissors.svg"),
     (ZOOM_IN, "timeline/zoom-in.svg", "icon/zoom-in.svg"),
     (ZOOM_OUT, "timeline/zoom-out.svg", "icon/zoom-out.svg"),
     (MAGNET, "timeline/magnet.svg", "icon/magnet.svg"),
+    (WRENCH, "timeline/wrench.svg", "icon/wrench.svg"),
+    // The timeline header: a marker at the playhead, and the graph editor.
+    (FLAG, "timeline/flag.svg", "icon/flag.svg"),
+    (GRAPH, "timeline/chart-spline.svg", "icon/graph.svg"),
     (MINUS, "shell/minus.svg", "icon/minus.svg"),
     (SQUARE, "shell/square.svg", "icon/square.svg"),
     (CLOSE, "shell/x.svg", "icon/close.svg"),
@@ -95,6 +105,8 @@ icon_assets![
     (ROLL, "timeline/grip-vertical.svg", "icon/roll.svg"),
     (RATE, "timeline/gauge.svg", "icon/rate.svg"),
     (RIPPLE, "timeline/fold-horizontal.svg", "icon/ripple.svg"),
+    (PEN, "inspector/spline.svg", "icon/pen.svg"),
+    (TYPE, "library/text.svg", "icon/type.svg"),
     // Transport. The strip previously drew the two zoom magnifiers for
     // "go to start/end" and for frame stepping, which read as zoom controls
     // in the one place an operator looks for playback.
@@ -105,7 +117,57 @@ icon_assets![
     // One glyph for every disclosure in the app: a row that opens turns this
     // one, rather than swapping to a second asset mid-transition.
     (CHEVRON_DOWN, "ui/chevron-down.svg", "icon/chevron-down.svg"),
+    // A favourite: lit when the entry is starred, faint when it is not.
+    (STAR, "ui/star.svg", "icon/star.svg"),
 ];
+
+/// Where plugin command icons are served.
+const PLUGIN_ICON_DIR: &str = "plugin-icon/";
+
+/// Plugin command icons by content key: the asset path each is served under,
+/// and the SVG served there. An icon stays for the session once named, so a
+/// path handed to a drawn row never stops resolving.
+static PLUGIN_ICONS: LazyLock<RwLock<HashMap<u64, (&'static str, Arc<str>)>>> =
+    LazyLock::new(RwLock::default);
+
+/// The asset path `icon` is served under, for [`icon`]. Equal icons share one
+/// path, so gpui rasterizes each shape once.
+pub(crate) fn plugin_icon_path(icon: &aria_plugin::CommandIcon) -> &'static str {
+    served_icon_path(icon.key(), || Arc::from(icon.svg()))
+}
+
+/// The asset path a clip type's icon is served under. The catalog holds the
+/// icon [`aria_plugin::CommandIcon`] rewrote, keyed the same way, so a clip
+/// type and a command with one icon share one path.
+pub(crate) fn clip_type_icon_path(icon: &aria_models::ClipTypeIcon) -> &'static str {
+    served_icon_path(icon.key, || Arc::clone(&icon.svg))
+}
+
+/// The path the icon keyed `key` is served under, serving `svg` there the
+/// first time the key is named.
+fn served_icon_path(key: u64, svg: impl FnOnce() -> Arc<str>) -> &'static str {
+    if let Some((path, _)) = PLUGIN_ICONS.read().get(&key) {
+        return path;
+    }
+    PLUGIN_ICONS
+        .write()
+        .entry(key)
+        .or_insert_with(|| {
+            let path = crate::interned::intern(&format!("{PLUGIN_ICON_DIR}{key:016x}.svg"));
+            (path, svg())
+        })
+        .0
+}
+
+/// The SVG of a plugin icon [`plugin_icon_path`] named, or `None` for any other
+/// path.
+fn plugin_icon(path: &str) -> Option<Cow<'static, [u8]>> {
+    let key = path.strip_prefix(PLUGIN_ICON_DIR)?.strip_suffix(".svg")?;
+    let key = u64::from_str_radix(key, 16).ok()?;
+    let icons = PLUGIN_ICONS.read();
+    let (served, svg) = icons.get(&key)?;
+    (*served == path).then(|| Cow::Owned(svg.as_bytes().to_vec()))
+}
 
 /// An icon element for an embedded asset path, 14px unless the caller sets
 /// `.size(..)`.

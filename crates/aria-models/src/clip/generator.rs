@@ -332,6 +332,14 @@ pub struct ShapeStroke {
     pub width: Param<f32>,
 }
 
+/// The stroke a shape is given when one is added, and what a reset returns
+/// its width and colour to: opaque black, 4 reference pixels wide.
+impl Default for ShapeStroke {
+    fn default() -> Self {
+        Self::new([0, 0, 0, 255], 4.0)
+    }
+}
+
 impl ShapeStroke {
     /// A constant stroke.
     pub fn new(rgba: [u8; 4], width: f32) -> Self {
@@ -343,7 +351,7 @@ impl ShapeStroke {
 }
 
 /// Default fill color for a shape without one (opaque white).
-fn default_shape_rgba() -> Param<[u8; 4]> {
+pub(super) fn default_shape_rgba() -> Param<[u8; 4]> {
     Param::Constant([255, 255, 255, 255])
 }
 
@@ -358,7 +366,7 @@ fn default_shape_height() -> Param<f32> {
     Param::Constant(540.0)
 }
 
-fn default_star_inner() -> Param<f32> {
+pub(super) fn default_star_inner() -> Param<f32> {
     Param::Constant(0.5)
 }
 
@@ -423,12 +431,12 @@ impl Generator {
 
     /// Resolve catalog presets into concrete fields — currently the text
     /// style's `effect_preset`: validate the id and bake the catalog's
-    /// stroke / shadow / background onto the style (preset-owned while a
-    /// preset is selected; shells clear the id before manual treatment
-    /// edits). No-op for other generators and preset-less styles. Called by
-    /// [`crate::Project::add_generated`] / [`crate::Project::set_generator`]
-    /// so every platform gets identical baked fields from one source of
-    /// truth.
+    /// stroke / shadow / background onto the style. No-op for other
+    /// generators and preset-less styles. Called by
+    /// [`crate::Project::add_generated`], and by
+    /// [`crate::Project::set_generator`] when the preset differs from the one
+    /// the clip holds, so every platform gets identical baked fields from one
+    /// source of truth and a treatment edited after the preset is kept.
     pub fn resolve_presets(&mut self) -> Result<(), ModelError> {
         let Generator::Text { style, .. } = self else {
             return Ok(());

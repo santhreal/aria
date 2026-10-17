@@ -23,11 +23,11 @@ fn noop_command(_: &mut crate::app::AppState) {}
 fn noop_menu(_: &str, _: &mut crate::app::AppState, _: &mut gpui::Context<crate::app::AppState>) {}
 
 const CONTRIBUTED_MENU_ROW: [crate::chrome::menu_items::MenuItem; 1] =
-    [crate::chrome::menu_items::MenuItem {
-        id: "palette-cache-menu-probe",
-        label: "Palette cache menu probe",
-        run: noop_menu,
-    }];
+    [crate::chrome::menu_items::MenuItem::new(
+        "palette-cache-menu-probe",
+        "Palette cache menu probe",
+        noop_menu,
+    )];
 
 fn contributed_menu(
     menu: AppMenu,
@@ -57,14 +57,17 @@ fn state() -> crate::app::AppState {
 }
 
 /// Every row the app bar would draw, across every menu, for this state.
-fn menu_rows(state: &crate::app::AppState) -> Vec<(AppMenu, &'static str)> {
+/// Each as its menu, its label, and the label the palette offers it under: a
+/// row in a submenu is offered after its caption, unless a command already
+/// offers its bare label.
+fn menu_rows(state: &crate::app::AppState) -> Vec<(AppMenu, &'static str, gpui::SharedString)> {
     let host = crate::chrome::menu_host::host_of(&state.ctx).expect("the ui plugin mounts menus");
     AppMenu::ALL
         .into_iter()
         .flat_map(|menu| {
             host.items(menu, state)
                 .iter()
-                .map(move |item| (menu, item.label))
+                .map(move |item| (menu, item.label, crate::app::palette::offered_label(item)))
                 .collect::<Vec<_>>()
         })
         .collect()
@@ -76,9 +79,12 @@ fn every_menu_row_is_offered_by_name() {
     state.open_dialog(DialogKind::Palette);
     let catalog = state.palette_catalog();
     let offered: Vec<&str> = catalog.iter().map(|offer| offer.label.as_str()).collect();
-    for (menu, label) in menu_rows(&state) {
+    // The catalog folds rows that differ only in case into one, as the
+    // operator reads them as one; "New project" offers "New Project".
+    let offers = |name: &str| offered.iter().any(|each| each.eq_ignore_ascii_case(name));
+    for (menu, label, captioned) in menu_rows(&state) {
         assert!(
-            offered.contains(&label),
+            offers(label) || offers(&captioned),
             "{label} is in the {} menu but the palette does not offer it",
             menu.label()
         );
@@ -202,10 +208,18 @@ fn a_shorter_hit_list_cannot_leave_the_highlight_past_the_end() {
     state.palette_move(6);
     assert_eq!(state.palette_highlight(), Some(6));
     // Set the query behind the palette's back, as a state change elsewhere can:
-    // the highlight is clamped on read, not only when a key is pressed.
-    state.palette_query = "settings".into();
+    // the highlight is clamped on read, not only when a key is pressed. The
+    // longest label matches itself and next to nothing else, so the list
+    // shrinks below the highlight however many rows the menus add.
+    let longest = state
+        .palette_catalog()
+        .iter()
+        .map(|offer| offer.label.to_string())
+        .max_by_key(|label| label.len())
+        .expect("the palette lists rows");
+    state.palette_query = longest;
     let count = state.palette_hits().len();
-    assert!(count >= 1 && count <= 7);
+    assert!((1..7).contains(&count), "{count} hits");
     assert_eq!(state.palette_highlight(), Some(count - 1));
 }
 
@@ -236,7 +250,9 @@ fn a_menu_row_reports_itself_back_for_the_context_to_run() {
             Offered::Command(_)
             | Offered::Windowed(_)
             | Offered::Effect(_)
-            | Offered::Generator(_) => None,
+            | Offered::Generator(_)
+            | Offered::ClipType { .. }
+            | Offered::Plugin(_) => None,
         })
         .expect("a menu-only row is on offer");
     assert_eq!(

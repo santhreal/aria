@@ -38,32 +38,28 @@ fn snap_ticks(fps: f32, pps: f32) -> i64 {
     (((SNAP_PX / pps) * fps.max(1.0)).round() as i64).max(1)
 }
 
-/// Make `el` a lane that accepts dragged pool media.
-///
-/// Attached to the lane's clip area, so the tick is measured from the same
-/// origin the clips are drawn against.
-///
-/// Holding Alt over an occupied position repoints that clip at the dragged
-/// media instead of placing a new one — the replace-edit gesture, keeping the
-/// clip's placement, transform, effects, and keyframes. Alt over empty lane
-/// falls through to the placement, so the modifier never turns a drop into
-/// nothing.
-pub(crate) fn lane_target(
+/// Make `el` a lane-group canvas container that accepts dragged pool media and
+/// catalog items, resolving the target lane from the pointer's vertical offset.
+pub(crate) fn group_target(
     el: Div,
-    track_id: u64,
+    lanes: std::rc::Rc<Vec<(u64, f32, f32)>>,
     scroll_x: f32,
     fps: f32,
     pps: f32,
     accent: gpui::Hsla,
     cx: &mut gpui::Context<Shell>,
 ) -> Div {
+    let lanes_media = lanes.clone();
+    let lanes_catalog = lanes;
     el.on_drag_move(
         cx.listener(move |this, event: &gpui::DragMoveEvent<MediaDrag>, _, cx| {
             let x = f32::from(event.event.position.x - event.bounds.origin.x);
+            let y = f32::from(event.event.position.y - event.bounds.origin.y);
+            let Some(track_id) = lane_at_y(&lanes_media, y) else {
+                return;
+            };
             let tick = crate::panels::timeline::px_to_ticks(x + scroll_x, fps, pps);
             this.set_media_drop(track_id, tick);
-            // The lane draws the insertion line from this reading, so a repaint
-            // is owed exactly when the tick moves.
             if drop_hint::set(DropHint::Lane {
                 track: track_id,
                 tick,
@@ -72,8 +68,6 @@ pub(crate) fn lane_target(
             }
         }),
     )
-    // A replace is a stronger commitment than an insertion, and the lane says so
-    // while Alt is held rather than after the drop.
     .drag_over::<MediaDrag>(move |style, _, window, _| {
         let alt = window.modifiers().alt;
         style.bg(accent.opacity(if alt { 0.28 } else { 0.12 }))
@@ -81,12 +75,10 @@ pub(crate) fn lane_target(
     .on_drop(cx.listener(move |this, drag: &MediaDrag, window, cx| {
         drop_hint::clear();
         let media = drag.media;
-        let replacing = window.modifiers().alt;
-        let target = this
-            .take_media_drop()
-            .filter(|(id, _)| *id == track_id)
-            .map(|(_, tick)| tick);
-        let Some(tick) = target else {
+        let from_source = drag.from_source;
+        let insert = window.modifiers().secondary();
+        let replacing = window.modifiers().alt && !from_source;
+        let Some((track_id, tick)) = this.take_media_drop() else {
             return;
         };
         this.state.update(cx, |state, _| {
@@ -94,8 +86,6 @@ pub(crate) fn lane_target(
             let track = aria_models::TrackId::from_raw(track_id);
             if replacing {
                 match state.replace_media_at(media, track, tick) {
-                    // A replace lands on the clip that is already there, so the
-                    // magnet has nothing to say about where it goes.
                     Ok(true) => return,
                     Ok(false) => {}
                     Err(err) => {
@@ -105,13 +95,63 @@ pub(crate) fn lane_target(
                 }
             }
             let (tick, _) = state.snap_at(tick, None, snap_ticks(fps, pps), false);
-            if let Err(err) = state.drop_media_on_timeline(media, Some(track), tick) {
+            let dropped = if from_source {
+                state.drop_source_on_timeline(Some(track), tick, insert)
+            } else {
+                state.drop_media_on_timeline(media, Some(track), tick)
+            };
+            if let Err(err) = dropped {
                 state.report_error(&err);
             }
         });
         crate::app::spawn_preview(this.state.clone(), cx);
         cx.notify();
     }))
+    .on_drag_move(cx.listener(
+        move |this, event: &gpui::DragMoveEvent<crate::types::CatalogDrag>, _, cx| {
+            let x = f32::from(event.event.position.x - event.bounds.origin.x);
+            let y = f32::from(event.event.position.y - event.bounds.origin.y);
+            let Some(track_id) = lane_at_y(&lanes_catalog, y) else {
+                return;
+            };
+            let tick = crate::panels::timeline::px_to_ticks(x + scroll_x, fps, pps);
+            this.set_catalog_drop(track_id, tick);
+            if drop_hint::set(DropHint::Lane {
+                track: track_id,
+                tick,
+            }) {
+                cx.notify();
+            }
+        },
+    ))
+    .drag_over::<crate::types::CatalogDrag>(move |style, _, _, _| style.bg(accent.opacity(0.12)))
+    .on_drop(
+        cx.listener(move |this, drag: &crate::types::CatalogDrag, _, cx| {
+            drop_hint::clear();
+            let Some((track_id, tick)) = this.take_catalog_drop() else {
+                return;
+            };
+            this.state.update(cx, |state, _| {
+                if let Err(err) = state.drop_catalog_on_track(
+                    drag,
+                    Some(aria_models::TrackId::from_raw(track_id)),
+                    tick,
+                ) {
+                    state.report_error(&err);
+                }
+            });
+            crate::app::spawn_preview(this.state.clone(), cx);
+            cx.notify();
+        }),
+    )
+}
+
+fn lane_at_y(lanes: &[(u64, f32, f32)], y: f32) -> Option<u64> {
+    lanes
+        .iter()
+        .find(|(_, top, bottom)| y >= *top && y < *bottom)
+        .or_else(|| lanes.last())
+        .map(|(id, _, _)| *id)
 }
 
 /// The strip above the first lane or below the last: the only media drop that
@@ -124,12 +164,12 @@ pub(crate) fn edge_strip(
     theme: &Theme,
     top: bool,
     scroll_x: f32,
+    header_w: f32,
     fps: f32,
     pps: f32,
     cx: &mut gpui::Context<Shell>,
 ) -> impl IntoElement {
     let accent = theme.accent;
-    let header_w = crate::transport::TIMELINE_HEADER_W;
     div()
         .id(if top {
             "lane-edge-top"
@@ -170,17 +210,20 @@ pub(crate) fn edge_strip(
             }),
         )
         .drag_over::<MediaDrag>(move |style, _, _, _| style.bg(accent.opacity(0.35)))
-        .on_drop(cx.listener(move |this, drag: &MediaDrag, _, cx| {
+        .on_drop(cx.listener(move |this, drag: &MediaDrag, window, cx| {
             drop_hint::clear();
-            let media = drag.media;
+            let media = aria_models::MediaId::from_raw(drag.media);
+            let from_source = drag.from_source.then(|| window.modifiers().secondary());
             let Some(tick) = this.take_media_edge_drop() else {
                 return;
             };
             this.state.update(cx, |state, _| {
                 let (tick, _) = state.snap_at(tick, None, snap_ticks(fps, pps), false);
-                if let Err(err) =
-                    state.drop_media_on_new_lane(aria_models::MediaId::from_raw(media), top, tick)
-                {
+                let dropped = match from_source {
+                    Some(insert) => state.drop_source_on_new_lane(top, tick, insert),
+                    None => state.drop_media_on_new_lane(media, top, tick),
+                };
+                if let Err(err) = dropped {
                     state.report_error(&err);
                 }
             });

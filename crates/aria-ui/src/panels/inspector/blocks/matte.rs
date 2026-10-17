@@ -65,7 +65,7 @@ pub fn matte_block(
         .child(section_label(theme, "Track matte"))
         .child(
             div()
-                .text_size(px(11.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_faint)
                 .child(match matte {
                     Some(matte) => format!(
@@ -80,7 +80,7 @@ pub fn matte_block(
         .when(matte.is_some() && !stencil_ready, |this| {
             this.child(
                 div()
-                    .text_size(px(11.))
+                    .text_size(Theme::TEXT_UI)
                     .text_color(theme.warning)
                     .child("Nothing above this clip to cut with"),
             )

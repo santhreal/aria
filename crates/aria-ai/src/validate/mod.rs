@@ -27,7 +27,7 @@ use aria_models::{
     AnimationRef, AnimationSlot, AudioRole, BlendMode, CanvasAspect, ChromaKey, Clip, ClipId,
     ClipParam, ClipTransform, CropRect, Easing, Filter, Generator, LayerBackground, LayerGlow,
     LayerOutline, LayerShadow, LayerStyles, Marker, MarkerColor, MarkerId, Mask, MaskKind,
-    MatteSource, MediaId, Param, ParamValue, PiecewiseEasingPreset, Project, Rational,
+    MaskMode, MatteSource, MediaId, Param, ParamValue, PiecewiseEasingPreset, Project, Rational,
     RationalTime, StabilizeLevel, TimeRange, TrackId, TrackKind, TrackMatte, animation_spec,
     filter_catalog, filter_spec,
 };
@@ -35,8 +35,8 @@ use aria_models::{
 use crate::wire::{
     MAX_MULTI_CLIP_REFS, WireAnimationSlot, WireAudioRole, WireBlendMode, WireCanvasAspect,
     WireChromaKey, WireClipParam, WireCommand, WireEasing, WireEasingPreset, WireGenerator,
-    WireLayerStyles, WireMarkerColor, WireMask, WireMaskKind, WireMatteSource, WireShape,
-    WireStabilizeLevel, WireTrackKind, WireTrackMatte,
+    WireLayerStyles, WireMarkerColor, WireMask, WireMaskKind, WireMaskMode, WireMatteSource,
+    WireShape, WireStabilizeLevel, WireTrackKind, WireTrackMatte,
 };
 
 use audio::*;

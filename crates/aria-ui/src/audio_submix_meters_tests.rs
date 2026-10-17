@@ -30,6 +30,9 @@ fn a_strip_reads_its_own_lane_and_not_the_master() {
         state.meter(),
         MeterReading {
             peaks: [1.0, 1.0],
+            rms: [1.0, 1.0],
+            hold: [1.0, 1.0],
+            hold_age: [0.0, 0.0],
             clipped: true,
         },
         "the master keeps its own reading"

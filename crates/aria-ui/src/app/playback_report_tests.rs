@@ -104,40 +104,49 @@ fn starting_playback_again_forgets_the_previous_run() {
     );
 }
 
-/// The shuttle ladder is the target, not a decoration: at 4x the player has to
-/// produce four frames in the time one frame usually takes, so a frame that was
-/// comfortable at 1x is late at 4x. Measuring against the sequence rate instead
-/// would report a smooth 4x that visibly stutters.
+/// The shuttle ladder changes which frames are shown, not how many: at 2x each
+/// frame period shows the frame two ticks on, so the rate playback is measured
+/// against stays the sequence's. Measuring 2x against twice the rate would ask
+/// the renderer for frames nobody sees and call a smooth shuttle late.
 #[test]
-fn the_shuttle_step_raises_the_rate_playback_is_measured_against() {
+fn the_shuttle_step_moves_further_per_frame_at_the_sequence_rate() {
     let (mut state, _) = with_clip();
     state.set_shuttle(1);
     let at_one = state.playback.budget();
+    assert_eq!(
+        state.playback_cadence().tick(1) - state.playback_cadence().anchor,
+        1
+    );
 
     state.set_shuttle(1);
     assert_eq!(state.shuttle, 2);
-    let at_two = state.playback.budget();
-    // Halved, within the nanosecond the two divisions round differently by:
-    // asserting exact equality would test `Duration::from_secs_f64`, not the
-    // rate the transport asked for.
-    let doubled = at_two.as_secs_f64() * 2.0;
-    assert!(
-        (doubled - at_one.as_secs_f64()).abs() < 1e-6,
-        "2x asked for a {doubled:.6}s budget where 1x asks for {:.6}s",
-        at_one.as_secs_f64()
+    assert_eq!(
+        state.playback.budget(),
+        at_one,
+        "2x changed the frame budget"
+    );
+    assert_eq!(
+        state.playback_cadence().tick(1) - state.playback_cadence().anchor,
+        2,
+        "2x did not skip a tick per frame"
+    );
+    state.set_shuttle(1);
+    assert_eq!(
+        state.playback_cadence().tick(1) - state.playback_cadence().anchor,
+        4
     );
 
-    state.playback.frame(at_one);
+    state.playback.frame(at_one / 2);
     let report = state.playback_report();
     assert_eq!(
         report.late,
-        1,
-        "a 1x-sized frame was on time at 2x: {}",
+        0,
+        "a frame inside the sequence budget was late at 4x: {}",
         report.label()
     );
     assert_eq!(
         report.target_fps.round(),
-        (state.playhead.rate.as_f64() * 2.0).round()
+        state.playhead.rate.as_f64().round()
     );
 }
 

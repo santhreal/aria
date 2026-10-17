@@ -215,7 +215,6 @@ fn every_glide_spec_is_a_catalog_spec() {
     assert_eq!(PLAYHEAD.easing, Easing::EaseOut);
     assert_eq!(LANE, presets::COLLAPSE);
     assert_eq!(EDIT, presets::RESIZE);
-    assert_eq!(PANE, presets::RESIZE);
     assert_eq!(ZOOM, presets::RESIZE);
     assert_eq!(SCROLL, presets::SCROLL_GLIDE);
     assert_eq!(FLING, crate::motion::FLING);
@@ -230,4 +229,41 @@ fn every_glide_spec_is_a_catalog_spec() {
     assert_eq!(ROUTE, presets::DIALOG_IN);
     assert_eq!(PROGRESS, presets::RESIZE);
     assert_eq!(WAIT, crate::motion::OPEN);
+}
+
+/// Playback holds every glide and hover fade at its end state, and the hold
+/// lifts when playback stops.
+///
+/// The class this closes: chrome that keeps easing while the picture plays,
+/// which spends the frame budget `docs/spec/look.md` gives the picture, and a
+/// playhead that chases the frame on screen instead of standing on it. It does
+/// not cover one-shot entrances, which playback does not hold.
+#[test]
+fn playback_holds_glides_and_hover_fades_at_their_end_state() {
+    use crate::motion::{hold_for_playback, hover_t, set_hover};
+
+    let frames = TestFrames::new();
+    let k = key("held");
+    let lit = key("held-hover");
+    glide(k, 0.0, presets::RESIZE, false);
+
+    hold_for_playback(true);
+    assert_eq!(
+        glide(k, 100.0, presets::RESIZE, false),
+        100.0,
+        "a glide during playback draws its target at once"
+    );
+    frames.update(|cx| set_hover(lit, true, cx.motion_policy(), cx.frame_instant()));
+    assert_eq!(hover_t(lit), 1.0, "a hover during playback is lit at once");
+    assert!(!frames.end(), "and nothing is left moving");
+
+    hold_for_playback(false);
+    let leaving = glide(k, 0.0, presets::RESIZE, false);
+    assert!(
+        leaving > 0.0,
+        "once playback stops a change travels again: {leaving}"
+    );
+    assert!(frames.end(), "and the store reports it moving");
+    frames.advance(past_the_end(presets::RESIZE));
+    assert_eq!(glide(k, 0.0, presets::RESIZE, false), 0.0);
 }

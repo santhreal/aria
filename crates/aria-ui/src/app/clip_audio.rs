@@ -18,6 +18,11 @@ use super::AppState;
 /// here rather than seventy steps under unity.
 pub const VOLUME_FLOOR_DB: f32 = -60.0;
 
+/// The level silence counts as when a gain is moved: one decibel under the
+/// floor, so a 1 dB step up lands on the floor and any level under the floor
+/// mutes.
+pub const SILENT_DB: f32 = VOLUME_FLOOR_DB - 1.0;
+
 impl AppState {
     /// Set the selected clip's gain.
     ///
@@ -40,17 +45,11 @@ impl AppState {
         let Some(clip) = self.selected_ui_clip_ref() else {
             return Ok(());
         };
-        let next = match db_from_linear(clip.volume) {
-            None if decibels > 0.0 => linear_from_db(VOLUME_FLOOR_DB),
-            None => 0.0,
-            Some(current) => {
-                let level = current + decibels;
-                if level < VOLUME_FLOOR_DB {
-                    0.0
-                } else {
-                    linear_from_db(level)
-                }
-            }
+        let level = db_from_linear(clip.volume).unwrap_or(SILENT_DB) + decibels;
+        let next = if level < VOLUME_FLOOR_DB {
+            0.0
+        } else {
+            linear_from_db(level)
         };
         self.set_selected_volume(next)
     }

@@ -25,7 +25,7 @@ use std::time::{Duration, Instant};
 
 use aria_jobs::{JobCompletion, JobId, JobManager};
 use aria_models::Project;
-use aria_plugin::{EventBus, ExportFinished, ExportStarted, RenderResult};
+use aria_plugin::{EventBus, ExportFinished, ExportStarted, PluginContext, RenderResult};
 use aria_render::ExportSettings;
 
 use super::jobs::{CommitGuard, file_label};
@@ -101,6 +101,55 @@ pub fn default_export_runner(gpu: Option<aria_compositor::GpuContext>) -> Export
     })
 }
 
+fn run_plugin_export(
+    context: &aria_jobs::JobContext,
+    project: &Project,
+    dest: &Path,
+    settings: ExportSettings,
+    gpu: Option<&aria_compositor::GpuContext>,
+    plugins: &PluginContext,
+    encoder_id: &str,
+) -> Result<JobCompletion, String> {
+    if plugins.encoder(encoder_id).is_none() {
+        return Err(format!(
+            "no encoder is registered as {encoder_id}; enable or reinstall the plugin that provides it"
+        ));
+    }
+    let mut renderer = super::render_device::renderer_on(gpu.map(|g| g.share()), "export")?;
+    let mut guard = CommitGuard::new(context, "the exported file");
+    let mut observer = |done: u64, total: u64| {
+        let fraction = if total == 0 {
+            0.0
+        } else {
+            done as f32 / total as f32
+        };
+        context.set_progress(fraction, format!("frame {done}/{total}"));
+        if done == total {
+            return guard.begin().is_ok();
+        }
+        !context.cancelled()
+    };
+    let mut opener = |stage_path: &Path, config: aria_core::EncoderConfig| {
+        plugins.open_encoder(encoder_id, stage_path, &config)
+    };
+    let frames = aria_render::export_to_file_with_encoder_observed(
+        &mut renderer,
+        project,
+        dest,
+        settings,
+        &mut opener,
+        &mut observer,
+    )
+    .map_err(|err| err.to_string())?;
+    debug_assert!(
+        guard.committed(),
+        "the export published without the boundary"
+    );
+    JobCompletion::new(format!("{frames} frame(s)"))
+        .with_output("path", dest.display().to_string())
+        .map_err(String::from)
+}
+
 /// One entry in the export queue.
 #[derive(Debug, Clone)]
 pub struct ExportQueueEntry {
@@ -109,6 +158,7 @@ pub struct ExportQueueEntry {
     pub dest: PathBuf,
     pub settings: ExportSettings,
     pub project: Arc<Project>,
+    pub plugin_encoder: Option<String>,
     pub state: ExportEntryState,
     pub progress: Option<f32>,
     pub error: Option<String>,
@@ -143,6 +193,8 @@ struct SharedQueue {
     job_manager: JobManager,
     runner: Mutex<ExportRunner>,
     inner: Mutex<QueueInner>,
+    plugins: Option<PluginContext>,
+    gpu: Option<aria_compositor::GpuContext>,
     /// Where `ExportStarted` and `ExportFinished` are posted.
     events: Arc<EventBus>,
     /// Held across a state transition and its notification, so an entry's
@@ -228,22 +280,33 @@ impl SharedQueue {
             let project = Arc::clone(&entry.project);
             let dest = entry.dest.to_path_buf();
             let settings = entry.settings;
+            let plugin_encoder = entry.plugin_encoder.clone();
             let label = entry.label.to_string();
             let cancel_early = entry.cancel_requested;
             // After the entry's own fields: `entry` borrows `inner`, so the
             // running marker is written once that borrow is done with.
             inner.running_id = Some(entry_id);
 
-            (entry_id, label, dest, settings, project, cancel_early)
+            (
+                entry_id,
+                label,
+                dest,
+                settings,
+                project,
+                plugin_encoder,
+                cancel_early,
+            )
         };
 
-        let (entry_id, label, dest, settings, project, cancel_early) = to_spawn;
+        let (entry_id, label, dest, settings, project, plugin_encoder, cancel_early) = to_spawn;
         self.events.post(ExportStarted { path: dest.clone() });
         drop(announcing);
         let runner = {
             let r = self.runner.lock().expect("runner lock");
             Arc::clone(&*r)
         };
+        let plugins = self.plugins.clone();
+        let gpu = self.gpu.as_ref().map(|g| g.share());
 
         let shared_for_job = Arc::clone(self);
         let job_id = self
@@ -258,7 +321,23 @@ impl SharedQueue {
                     context,
                     completed: false,
                 };
-                let result = runner(context, &project, &dest, settings);
+                let result = match plugin_encoder.as_deref() {
+                    Some(encoder_id) => match plugins.as_ref() {
+                        Some(ctx) => run_plugin_export(
+                            context,
+                            &project,
+                            &dest,
+                            settings,
+                            gpu.as_ref(),
+                            ctx,
+                            encoder_id,
+                        ),
+                        None => Err(format!(
+                            "no encoder is registered as {encoder_id}; enable or reinstall the plugin that provides it"
+                        )),
+                    },
+                    None => runner(context, &project, &dest, settings),
+                };
                 guard.finish(&result);
                 result
             });
@@ -325,6 +404,8 @@ impl ExportQueue {
             shared: Arc::new(SharedQueue {
                 job_manager,
                 runner: Mutex::new(runner),
+                plugins: None,
+                gpu: None,
                 inner: Mutex::new(QueueInner {
                     next_id: 1,
                     entries: Vec::new(),
@@ -342,7 +423,33 @@ impl ExportQueue {
         gpu: Option<aria_compositor::GpuContext>,
         events: Arc<EventBus>,
     ) -> Self {
-        Self::new(job_manager, default_export_runner(gpu), events)
+        Self::new_with_device_and_plugins(job_manager, gpu, None, events)
+    }
+
+    /// Create a new queue using the default production GPU renderer and a
+    /// [`PluginContext`] for resolving plugin-contributed encoders.
+    pub fn new_with_device_and_plugins(
+        job_manager: JobManager,
+        gpu: Option<aria_compositor::GpuContext>,
+        plugins: Option<PluginContext>,
+        events: Arc<EventBus>,
+    ) -> Self {
+        let runner = default_export_runner(gpu.as_ref().map(|g| g.share()));
+        Self {
+            shared: Arc::new(SharedQueue {
+                job_manager,
+                runner: Mutex::new(runner),
+                plugins,
+                gpu,
+                inner: Mutex::new(QueueInner {
+                    next_id: 1,
+                    entries: Vec::new(),
+                    running_id: None,
+                }),
+                events,
+                announcing: Mutex::new(()),
+            }),
+        }
     }
 
     /// Replace the export runner (useful for tests and scripted doubles).
@@ -351,8 +458,19 @@ impl ExportQueue {
         *r = runner;
     }
 
-    /// Enqueue an export pass. Returns the unique entry ID.
+    /// Enqueue an export pass using the platform encoder. Returns the unique entry ID.
     pub fn enqueue(&self, dest: PathBuf, settings: ExportSettings, project: Arc<Project>) -> u64 {
+        self.enqueue_with_encoder(dest, settings, project, None)
+    }
+
+    /// Enqueue an export pass with an optional plugin encoder id. Returns the unique entry ID.
+    pub fn enqueue_with_encoder(
+        &self,
+        dest: PathBuf,
+        settings: ExportSettings,
+        project: Arc<Project>,
+        plugin_encoder: Option<String>,
+    ) -> u64 {
         let id = {
             let mut inner = self.shared.inner.lock().expect("queue lock");
             let id = inner.next_id;
@@ -364,6 +482,7 @@ impl ExportQueue {
                 dest,
                 settings,
                 project,
+                plugin_encoder,
                 state: ExportEntryState::Queued,
                 progress: None,
                 error: None,
@@ -459,7 +578,7 @@ impl ExportQueue {
             .collect()
     }
 
-    /// Whether the queue has no active or pending jobs.
+    /// True when the queue has no active or pending jobs.
     pub fn is_idle(&self) -> bool {
         let inner = self.shared.inner.lock().expect("queue lock");
         !inner.entries.iter().any(|e| !e.state.is_terminal())

@@ -29,72 +29,93 @@ pub fn execute(
     duration: RationalTime,
     ripple: bool,
 ) -> Result<(ClipId, Box<dyn EditAction>), EngineError> {
-    let tl_rate = ctx.project.timeline().frame_rate;
-    let fill = resample(duration, tl_rate).value;
+    let fill = span_ticks(ctx, duration)?;
+    let mut inverses: Vec<Box<dyn EditAction>> = Vec::new();
+    let placed = open_span(ctx, &[track], at, fill, ripple, &mut inverses)
+        .and_then(|()| place_retimed(ctx, track, media, source, at, fill, &mut inverses));
+    match placed {
+        Ok(id) => Ok((id, Box::new(CompoundAction { actions: inverses }))),
+        Err(err) => {
+            rollback(ctx, inverses);
+            Err(err)
+        }
+    }
+}
+
+/// `duration` in ticks of the open sequence, refused when it is empty.
+pub(crate) fn span_ticks(
+    ctx: &ApplyContext<'_>,
+    duration: RationalTime,
+) -> Result<i64, EngineError> {
+    let fill = resample(duration, ctx.project.timeline().frame_rate).value;
     if fill <= 0 {
         return Err(EngineError::Refused(
             "a four-point edit needs a span to fill".into(),
         ));
     }
+    Ok(fill)
+}
+
+/// Open `[at, at + fill)` on every lane in `lanes`: with `ripple` each lane,
+/// and every other sync-locked lane, is pushed right by `fill`; without it the
+/// span is covered on each lane the way [`overwrite`] covers one.
+pub(crate) fn open_span(
+    ctx: &mut ApplyContext<'_>,
+    lanes: &[TrackId],
+    at: RationalTime,
+    fill: i64,
+    ripple: bool,
+    inverses: &mut Vec<Box<dyn EditAction>>,
+) -> Result<(), EngineError> {
+    let tl_rate = ctx.project.timeline().frame_rate;
+    if ripple {
+        return shift_clips::open_lanes_for_insert(
+            ctx,
+            lanes,
+            at,
+            RationalTime::new(fill, tl_rate),
+            inverses,
+        );
+    }
+    for &lane in lanes {
+        clear_span(ctx, lane, at.value, at.value + fill, tl_rate, inverses)?;
+    }
+    Ok(())
+}
+
+/// Place `source` at `at` on `track`, already opened, and retime it to occupy
+/// `fill` ticks. A take that already lasts `fill` is placed as it is.
+pub(crate) fn place_retimed(
+    ctx: &mut ApplyContext<'_>,
+    track: TrackId,
+    media: MediaId,
+    source: TimeRange,
+    at: RationalTime,
+    fill: i64,
+    inverses: &mut Vec<Box<dyn EditAction>>,
+) -> Result<ClipId, EngineError> {
+    let tl_rate = ctx.project.timeline().frame_rate;
     // Mirror Project::add_clip's source→timeline resampling: the speed is the
     // ratio of what the take is worth on this timeline to what it must fill.
     let source_ticks = resample(source.duration, tl_rate).value.max(1);
-    let start = at.value;
-
-    let mut inverses: Vec<Box<dyn EditAction>> = Vec::new();
-    let opened = if ripple {
-        shift_clips::open_for_insert(
-            ctx,
-            track,
-            at,
-            RationalTime::new(fill, tl_rate),
-            &mut inverses,
-        )
-    } else {
-        clear_span(ctx, track, start, start + fill, tl_rate, &mut inverses)
-    };
-    if let Err(err) = opened {
-        rollback(ctx, inverses);
-        return Err(err);
-    }
-
     // Where the clip is placed while it is still at full length.
-    let park = (source_ticks > fill).then(|| park_tick(ctx, track, start + fill));
+    let park = (source_ticks > fill).then(|| park_tick(ctx, track, at.value + fill));
     let place_at = park.map_or(at, |tick| RationalTime::new(tick, tl_rate));
 
-    let id = match add_clip::execute(ctx, track, media, source, place_at) {
-        Ok((id, inverse)) => {
-            inverses.push(inverse);
-            id
-        }
-        Err(err) => {
-            rollback(ctx, inverses);
-            return Err(err);
-        }
-    };
-
+    let (id, inverse) = add_clip::execute(ctx, track, media, source, place_at)?;
+    inverses.push(inverse);
     if source_ticks != fill {
-        let speed = ratio(source_ticks, fill);
-        match set_speed::set_speed(ctx, id, speed, false) {
-            Ok(inverse) => inverses.push(inverse),
-            Err(err) => {
-                rollback(ctx, inverses);
-                return Err(err);
-            }
-        }
+        inverses.push(set_speed::set_speed(
+            ctx,
+            id,
+            ratio(source_ticks, fill),
+            false,
+        )?);
     }
-
     if park.is_some() {
-        match move_clip::execute(ctx, id, track, at) {
-            Ok(inverse) => inverses.push(inverse),
-            Err(err) => {
-                rollback(ctx, inverses);
-                return Err(err);
-            }
-        }
+        inverses.push(move_clip::execute(ctx, id, track, at)?);
     }
-
-    Ok((id, Box::new(CompoundAction { actions: inverses })))
+    Ok(id)
 }
 
 /// A tick past everything the lane holds, so a full-length take can be parked
@@ -157,7 +178,7 @@ fn clear_span(
 }
 
 /// Revert applied steps, newest first, so a refused fit leaves no trace.
-fn rollback(ctx: &mut ApplyContext<'_>, inverses: Vec<Box<dyn EditAction>>) {
+pub(crate) fn rollback(ctx: &mut ApplyContext<'_>, inverses: Vec<Box<dyn EditAction>>) {
     for inverse in inverses.into_iter().rev() {
         if inverse.apply(ctx).is_err() {
             tracing::error!("fit-to-fill rollback failed; the lane may hold a partial edit");

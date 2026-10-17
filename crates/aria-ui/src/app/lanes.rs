@@ -79,6 +79,32 @@ impl AppState {
             .unwrap_or_default()
     }
 
+    /// Step a lane's height to the next preset in [`TrackDisplay::PRESETS`] in the
+    /// requested direction (`taller = true` steps up, `false` steps down).
+    ///
+    /// A lane between presets steps to the nearest preset in the scroll direction.
+    /// A lane already at or beyond the outer preset in that direction is left
+    /// unchanged without recording an undo step.
+    pub fn step_lane_height_preset(&mut self, track: u64, taller: bool) -> Result<(), EngineError> {
+        let current = self.lane_display(track).height;
+        let next = if taller {
+            TrackDisplay::PRESETS
+                .iter()
+                .map(|&(_, h)| h)
+                .find(|&h| h > current)
+        } else {
+            TrackDisplay::PRESETS
+                .iter()
+                .rev()
+                .map(|&(_, h)| h)
+                .find(|&h| h < current)
+        };
+        if let Some(height) = next {
+            self.set_lane_height(track, height as f32)?;
+        }
+        Ok(())
+    }
+
     /// Record the height a lane resize would land on. Clamped here so the
     /// preview never shows a height the engine would refuse.
     pub fn set_lane_preview(&mut self, track: u64, height: f32) {
@@ -96,4 +122,75 @@ impl AppState {
     pub fn take_lane_preview(&mut self) -> Option<f32> {
         self.lane_resize.take().map(|(_, height)| height)
     }
+
+    /// Set the height fraction `[0.15, 0.85]` allocated to the video lane group
+    /// above the horizontal A/V divider.
+    pub fn set_timeline_av_split(&mut self, ratio: f32) {
+        self.timeline_av_split = ratio.clamp(0.15, 0.85);
+    }
+
+    /// Scroll the video lane group vertically, clamped to `[0.0, max_scroll]`.
+    pub fn scroll_video_lanes(&mut self, delta_y: f32, max_scroll: f32) {
+        self.video_scroll_y = (self.video_scroll_y + delta_y).clamp(0.0, max_scroll.max(0.0));
+    }
+
+    /// Scroll the audio lane group vertically, clamped to `[0.0, max_scroll]`.
+    pub fn scroll_audio_lanes(&mut self, delta_y: f32, max_scroll: f32) {
+        self.audio_scroll_y = (self.audio_scroll_y + delta_y).clamp(0.0, max_scroll.max(0.0));
+    }
+
+    /// Number of visual lanes seated above the A/V divider.
+    pub fn visual_lane_count(&self) -> usize {
+        self.store
+            .sequence
+            .tracks
+            .iter()
+            .take_while(|lane| {
+                !matches!(
+                    lane.kind,
+                    crate::types::UiTrackKind::Audio | crate::types::UiTrackKind::Submix
+                )
+            })
+            .count()
+    }
+
+    /// Ordinal badge for the lane at `row`: video lanes number upward from the
+    /// divider (`V1`, `V2`, `V3`, ...), while audio lanes number downward from
+    /// the divider (`A1`, `A2`, `A3`, ...).
+    pub fn lane_badge_at(&self, row: usize) -> String {
+        lane_badge(&self.store.sequence.tracks, row)
+    }
+}
+
+/// Compute the ordinal badge (`V1`, `V2`, ..., `A1`, `A2`, ...) for `tracks[row]`.
+pub(super) fn lane_badge(tracks: &[crate::types::UiTrack], row: usize) -> String {
+    use crate::types::UiTrackKind;
+    let Some(target) = tracks.get(row) else {
+        return String::new();
+    };
+    let visual_count = tracks
+        .iter()
+        .take_while(|lane| !matches!(lane.kind, UiTrackKind::Audio | UiTrackKind::Submix))
+        .count();
+    let prefix = match target.kind {
+        UiTrackKind::Video => "V",
+        UiTrackKind::Audio => "A",
+        UiTrackKind::Text => "T",
+        UiTrackKind::Generator => "G",
+        UiTrackKind::Adjustment => "ADJ",
+        UiTrackKind::Submix => "SUB",
+    };
+    let ordinal = if row < visual_count {
+        tracks[row..visual_count]
+            .iter()
+            .filter(|lane| lane.kind == target.kind)
+            .count()
+    } else {
+        tracks[visual_count..=row]
+            .iter()
+            .filter(|lane| lane.kind == target.kind)
+            .count()
+    }
+    .max(1);
+    format!("{prefix}{ordinal}")
 }

@@ -85,11 +85,13 @@ pub(crate) const OLA_HOP: usize = OLA_FRAME / 2;
 /// warble.
 const OLA_SEARCH: i64 = 128;
 
-/// Search stride. Every fourth offset is tried, which finds the same alignment
-/// as an exhaustive search on anything with a period longer than four samples
-/// (everything below 12 kHz) at a quarter of the cost.
-const OLA_SEARCH_STEP: i64 = 4;
+/// Search stride. Sample-by-sample search locks phase to within one sample
+/// across the audible band.
+const OLA_SEARCH_STEP: i64 = 1;
 
+/// Frames before a block's first overlapping frame included in the alignment
+/// walk so block boundaries stay in phase without cross-block state.
+pub(crate) const OLA_WARMUP: i64 = 8;
 /// Correlation stride. The reference is subsampled for the same reason.
 const OLA_CORR_STEP: usize = 4;
 
@@ -124,10 +126,8 @@ pub(crate) fn ola_frames(rel_start: i64, rel_end: i64) -> (i64, i64) {
 /// samples so that the frame continues the waveform the previous frame was
 /// playing instead of cutting into it at a random phase.
 ///
-/// Deterministic on purpose: the search compares against the *ideal* previous
-/// frame rather than the aligned one, so a frame renders the same whichever
-/// output block asks for it. A mixer that re-reads a block — every block here
-/// re-seeks — would otherwise produce a different answer the second time.
+/// Deterministic across block sizes when warmed up over [`OLA_WARMUP`] prior
+/// frames: each frame aligns against the previous frame's aligned offset.
 pub(crate) fn ola_aligned_offset(
     anchor: f64,
     previous: Option<f64>,
@@ -155,8 +155,11 @@ pub(crate) fn ola_aligned_offset(
             energy += a * a;
             i += OLA_CORR_STEP;
         }
-        // Normalised: a loud frame must not win over a well-aligned one.
-        let score = dot / (energy.sqrt() + 1e-6);
+        // Normalised so a loud frame cannot beat a phase-aligned one, with a
+        // tiny preference for smaller slides so silence and periodic ties stay
+        // nearest the ideal anchor.
+        let distance_bias = 1e-5 * (delta.abs() as f32 / OLA_SEARCH as f32);
+        let score = dot / (energy.sqrt() + 1e-6) - distance_bias;
         if score > best_score {
             best_score = score;
             best = candidate;

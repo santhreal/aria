@@ -86,7 +86,7 @@ pub(crate) fn captions_panel(
                 .border_1()
                 .border_color(border)
                 .cursor(CursorStyle::IBeam)
-                .text_size(px(12.))
+                .text_size(Theme::TEXT_TITLE)
                 .text_color(if language.is_empty() {
                     theme.text_muted
                 } else {
@@ -119,7 +119,7 @@ pub(crate) fn captions_panel(
         .child(word_toggle(theme, word_level, cx))
         .child(
             div()
-                .text_size(px(11.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_muted)
                 .child(SharedString::from(if !installed {
                     "Install a transcription model in Settings to caption".to_string()
@@ -192,7 +192,7 @@ fn confidence_chip(theme: &Theme, value: f32) -> gpui::AnyElement {
     let (name, color) = band_for(theme, value);
     let percent = (value * 100.).round() as i32;
     div()
-        .text_size(px(10.))
+        .text_size(Theme::TEXT_SMALL)
         .text_color(color)
         .child(SharedString::from(format!("{percent}% {name}")))
         .into_any_element()
@@ -231,13 +231,16 @@ fn segment_rows(
                         .flex()
                         .items_center()
                         .gap(px(Theme::SPACE_SM))
-                        .child(div().text_size(px(10.)).text_color(theme.text_muted).child(
-                            SharedString::from(crate::timecode::format_ticks(
-                                segment.start_tick,
-                                rate.num,
-                                rate.den,
-                            )),
-                        ))
+                        .child(
+                            div()
+                                .text_size(Theme::TEXT_SMALL)
+                                .text_color(theme.text_muted)
+                                .child(SharedString::from(crate::timecode::format_ticks(
+                                    segment.start_tick,
+                                    rate.num,
+                                    rate.den,
+                                ))),
+                        )
                         .children(
                             segment
                                 .confidence
@@ -246,14 +249,14 @@ fn segment_rows(
                 )
                 .child(
                     div()
-                        .text_size(px(11.))
+                        .text_size(Theme::TEXT_UI)
                         .text_color(theme.text)
                         .child(segment.text.clone()),
                 )
                 .children(weakest.map(|word| {
                     let (_, color) = band_for(theme, word.confidence);
                     div()
-                        .text_size(px(10.))
+                        .text_size(Theme::TEXT_SMALL)
                         .text_color(color)
                         .child(SharedString::from(format!(
                             "weakest: {} {}%",

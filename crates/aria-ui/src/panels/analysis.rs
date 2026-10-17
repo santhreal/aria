@@ -136,7 +136,7 @@ pub(crate) fn analysis_panel(
         )
         .child(
             div()
-                .text_size(px(11.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_muted)
                 .child(SharedString::from(if !selected {
                     "Select a clip, then detect".to_string()
@@ -287,12 +287,18 @@ fn moment_rows(
                 .py(px(Theme::SPACE_XS))
                 .rounded(px(Theme::CONTROL_RADIUS))
                 .bg(theme.surface_raised)
-                .child(div().text_size(px(10.)).text_color(theme.text_muted).child(
-                    SharedString::from(format!("{timecode} · {:.0}%", moment.confidence * 100.0)),
-                ))
                 .child(
                     div()
-                        .text_size(px(11.))
+                        .text_size(Theme::TEXT_SMALL)
+                        .text_color(theme.text_muted)
+                        .child(SharedString::from(format!(
+                            "{timecode} · {:.0}%",
+                            moment.confidence * 100.0
+                        ))),
+                )
+                .child(
+                    div()
+                        .text_size(Theme::TEXT_UI)
                         .text_color(if moment.stale {
                             theme.text_muted
                         } else {

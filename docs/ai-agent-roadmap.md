@@ -100,7 +100,7 @@ Every host tool then declares exactly one `ToolTier`:
 
 **Namespaced host tools.** Everything beyond the edit vocabulary is a host
 tool named `{namespace}_{tool}` — namespaces `app`, `project`, `system`,
-`media`, `analysis`, `python`, `job`. The built-in edit vocabulary stays
+`media`, `analysis`, `python`, `job`, `plugin`. The built-in edit vocabulary stays
 unprefixed. Dispatch requires exact membership in the host registry; the
 namespace is validated at registration time and used for grouping, not as a
 wildcard router. Unknown names fall through to the closed wire-command parser

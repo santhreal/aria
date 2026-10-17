@@ -2,12 +2,12 @@
 //!
 //! A single centred bar serves every [`RenameTarget`], because the rename state
 //! is one field rather than one field per surface. Keys are routed by the shell,
-//! so this draws the draft and nothing else.
+//! so this draws the draft, its selection and its caret, and nothing else.
 
 use std::cell::RefCell;
 
 use gpui::{
-    Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
+    Div, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
     SharedString, Styled, div, px,
 };
 
@@ -18,13 +18,17 @@ use crate::plugins::overlay_host::{self as overlays, OverlayWhen};
 use crate::theme::Theme;
 use crate::types::RenameTarget;
 
+/// A rename as the bar draws it: the target, the draft, and the draft's
+/// `(anchor, caret)` in characters.
+type Drawn = (RenameTarget, String, (usize, usize));
+
 thread_local! {
     /// The rename the bar drew last, so the exit has something to draw.
     ///
     /// `AppState::rename` is cleared the instant the rename is applied or
     /// cancelled, which is correct: the draft must not survive one frame longer
     /// than the edit. The picture still owes a fade, and it takes it from here.
-    static LAST_DRAFT: RefCell<Option<(RenameTarget, String)>> = RefCell::new(None);
+    static LAST_DRAFT: RefCell<Option<Drawn>> = RefCell::new(None);
 }
 
 pub fn render(
@@ -33,13 +37,14 @@ pub fn render(
 ) -> impl IntoElement {
     let open = {
         let app = state.read(cx);
-        app.rename.map(|target| (target, app.rename_draft.clone()))
+        app.rename
+            .map(|target| (target, app.rename_draft.clone(), app.rename_selection()))
     };
     let exiting = match open {
         Some(_) => None,
         None => overlays::exit_t(OverlayWhen::Rename, state, cx),
     };
-    let Some((target, draft)) = drawn_rename(open, exiting, cx) else {
+    let Some((target, draft, (anchor, caret))) = drawn_rename(open, exiting, cx) else {
         return div().into_any_element();
     };
     let theme = Theme::of(cx);
@@ -68,32 +73,14 @@ pub fn render(
         .on_mouse_down(MouseButton::Left, |_: &MouseDownEvent, _, _| {})
         .child(
             div()
-                .text_size(px(10.0))
+                .text_size(Theme::TEXT_SMALL)
                 .text_color(theme.text_muted)
                 .child(SharedString::from(target.label())),
         )
+        .child(draft_line(&draft, anchor, caret, &theme, blink))
         .child(
             div()
-                .flex()
-                .items_center()
-                .gap(px(2.0))
-                .child(
-                    div()
-                        .text_size(px(13.0))
-                        .text_color(theme.text)
-                        .child(SharedString::from(draft)),
-                )
-                .child(
-                    div()
-                        .w(px(1.5))
-                        .h(px(15.0))
-                        .bg(theme.caret.opacity(blink))
-                        .into_any_element(),
-                ),
-        )
-        .child(
-            div()
-                .text_size(px(9.0))
+                .text_size(Theme::TEXT_MICRO)
                 .text_color(theme.text_muted.opacity(0.7))
                 .child(SharedString::from("Enter to apply, Esc to cancel")),
         );
@@ -129,12 +116,59 @@ pub fn render(
         .into_any_element()
 }
 
+/// The draft, its selection tinted, with the caret at the caret's end of it.
+///
+/// The caret is an overlay on a zero-width mark, so the glyphs after it stay
+/// where the font places them.
+fn draft_line(draft: &str, anchor: usize, caret: usize, theme: &Theme, blink: f32) -> Div {
+    let byte = |index: usize| {
+        draft
+            .char_indices()
+            .nth(index)
+            .map_or(draft.len(), |(at, _)| at)
+    };
+    let (low, high) = (anchor.min(caret), anchor.max(caret));
+    let run = |range: std::ops::Range<usize>| {
+        div().child(SharedString::from(
+            draft[byte(range.start)..byte(range.end)].to_owned(),
+        ))
+    };
+    let mark = div()
+        .debug_selector(|| "rename-caret".into())
+        .relative()
+        .flex_none()
+        .h(px(15.0))
+        .child(
+            div()
+                .absolute()
+                .top_0()
+                .left(px(-0.75))
+                .w(px(1.5))
+                .h_full()
+                .bg(theme.caret.opacity(blink)),
+        );
+    let selected = (low < high).then(|| {
+        run(low..high)
+            .debug_selector(|| "rename-selection".into())
+            .rounded(px(2.0))
+            .bg(theme.selection)
+    });
+    let line = div()
+        .flex()
+        .items_center()
+        .text_size(Theme::TEXT_UI)
+        .text_color(theme.text)
+        .child(run(0..low));
+    let line = if caret == low {
+        line.child(mark).children(selected)
+    } else {
+        line.children(selected).child(mark)
+    };
+    line.child(run(high..draft.chars().count()))
+}
+
 /// The rename to draw: the live one, or the one still fading out.
-fn drawn_rename(
-    open: Option<(RenameTarget, String)>,
-    exiting: Option<f32>,
-    cx: &gpui::App,
-) -> Option<(RenameTarget, String)> {
+fn drawn_rename(open: Option<Drawn>, exiting: Option<f32>, cx: &gpui::App) -> Option<Drawn> {
     if let Some(rename) = open {
         LAST_DRAFT.with(|slot| *slot.borrow_mut() = Some(rename.clone()));
         return Some(rename);

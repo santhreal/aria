@@ -58,6 +58,7 @@ use self::text::TEXT_ROWS;
 pub(crate) fn dispatch(
     shell: &mut crate::shell::Shell,
     index: Option<usize>,
+    window: &gpui::Window,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) {
     let pending = shell.state.update(cx, |state, _| match index {
@@ -76,7 +77,7 @@ pub(crate) fn dispatch(
             state.open_dialog(DialogKind::None);
         }
     });
-    start_playback(shell.state.clone(), cx);
+    start_playback(shell.state.clone(), window, cx);
     spawn_preview(shell.state.clone(), cx);
     cx.notify();
 }
@@ -184,7 +185,7 @@ const ANALYSIS_JOB_ROWS: &[WindowedEntry] = &[
     },
     WindowedEntry {
         id: "pal-updates",
-        label: "Check for updates",
+        label: "Check for Updates",
         run: AppState::check_for_updates,
     },
 ];
@@ -213,7 +214,7 @@ pub const BUILTIN_JOB_COMMANDS: &[WindowedEntry] = &joined::<JOB_TOTAL, _>(JOB_G
 #[cfg(test)]
 mod tests {
     use super::{AnalysisKind, BUILTIN_COMMANDS, BUILTIN_JOB_COMMANDS};
-    use aria_models::{ClipParam, ClipParamClass};
+    use aria_models::{ClipParam, ClipParamClass, MaskKind};
     use std::collections::BTreeSet;
 
     /// Both tables, as `(id, label)`. Every invariant below holds across the two:
@@ -270,6 +271,22 @@ mod tests {
                 kind.label()
             );
         }
+    }
+
+    /// Every mask shape can be added by name. Enumerated from `MaskKind::ALL`, so
+    /// a shape added to the model is red here until the palette offers it, the
+    /// same way a detector is.
+    #[test]
+    fn every_mask_shape_has_a_palette_row() {
+        let missing: Vec<String> = MaskKind::ALL
+            .into_iter()
+            .map(|kind| format!("pal-mask-add-{}", kind.id()))
+            .filter(|id| !BUILTIN_COMMANDS.iter().any(|cmd| cmd.id == id.as_str()))
+            .collect();
+        assert!(
+            missing.is_empty(),
+            "mask shapes with no palette row: {missing:?}"
+        );
     }
 
     /// A job command in the plain table would run with no context and could not

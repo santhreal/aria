@@ -352,18 +352,19 @@ t.add(aria.Rect(), 0.0, 1.0)
         "sticker",
         "the lane a shape needs moved, so the refusal above is now about the wrong lane"
     );
+}
 
 #[test]
 fn concurrent_getters_do_not_panic_from_borrow_mut() {
     with_aria(|py, globals| {
         let code = c"
 p = aria.Project('test', fps=30)
-t = p.add_track('text')
+t = p.add_track('text', 'Titles')
 c1 = t.add(aria.Text('first'), 0.0, 1.0)
 c2 = t.add(aria.Text('second'), 1.0, 1.0)
 
 # Concurrent/nested reads across tracks and clips
-assert t.name == 'Text'
+assert t.name == 'Titles'
 assert len(t.clips) == 2
 assert [c.start for c in t.clips] == [0.0, 1.0]
 assert [c.duration for c in t.clips] == [1.0, 1.0]

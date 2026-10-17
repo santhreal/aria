@@ -8,50 +8,39 @@
 mod common;
 
 use aria_commands::{Command, EditCommand, EditOutcome};
-use aria_engine::{ApplyOutcome, Engine};
-use aria_models::{
-    MediaId, MediaSource, MulticamAngle, MulticamCut, MulticamGroupId, Rational, TimeRange,
-    TrackId, TrackKind,
-};
-use common::{temp_engine, tr};
+use aria_engine::{ApplyOutcome, Engine, EngineConfig};
+use aria_models::{MediaId, MediaSource, MulticamAngle, Project, Rational, TrackId, TrackKind};
+use common::tr;
 
-fn engine_with_three_media(duration: i64) -> (tempfile::TempDir, Engine, [MediaId; 3], TrackId) {
-    let (dir, mut engine) = temp_engine();
-    let (m1, m2, m3, track) = {
-        let proj = engine.project_mut();
-        let a = proj.add_media(MediaSource::new(
-            "/media/cam_a.mp4",
+/// An engine over a project holding three camera sources and one video lane.
+///
+/// The pool is fixture setup, so it is built on a `Project` and the engine is
+/// opened around it: a live engine exposes no mutable project.
+fn engine_with_three_media(duration: i64) -> (Engine, [MediaId; 3], TrackId) {
+    let mut project = Project::new("multicam", Rational::FPS_24);
+    let mut camera = |path: &str| {
+        project.add_media(MediaSource::new(
+            path,
             1920,
             1080,
             Rational::FPS_24,
             duration,
             true,
-        ));
-        let b = proj.add_media(MediaSource::new(
-            "/media/cam_b.mp4",
-            1920,
-            1080,
-            Rational::FPS_24,
-            duration,
-            true,
-        ));
-        let c = proj.add_media(MediaSource::new(
-            "/media/cam_c.mp4",
-            1920,
-            1080,
-            Rational::FPS_24,
-            duration,
-            true,
-        ));
-        let track_id = proj.add_track(TrackKind::Video, "V1");
-        (a, b, c, track_id)
+        ))
     };
-    (dir, engine, [m1, m2, m3], track)
+    let media = [
+        camera("/media/cam_a.mp4"),
+        camera("/media/cam_b.mp4"),
+        camera("/media/cam_c.mp4"),
+    ];
+    let track = project.add_track(TrackKind::Video, "V1");
+    let engine = Engine::with_project(EngineConfig::default(), project).expect("engine");
+    (engine, media, track)
 }
 
 #[test]
 fn multicam_engine_create_place_switch_and_undo_redo() {
-    let (_dir, mut engine, [m1, m2, m3], track) = engine_with_three_media(1000);
+    let (mut engine, [m1, m2, m3], track) = engine_with_three_media(1000);
 
     // 1. Create a multicam group with 3 angles
     let angles = vec![

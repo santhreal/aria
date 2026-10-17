@@ -320,6 +320,7 @@ pub fn theme_tokens(theme: &Theme) -> AnyElement {
                 shelf(vec![
                     swatch(theme, "bg", theme.bg),
                     swatch(theme, "surface", theme.surface),
+                    swatch(theme, "surface_header", theme.surface_header),
                     swatch(theme, "surface_raised", theme.surface_raised),
                     swatch(theme, "surface_raised_hover", theme.surface_raised_hover),
                     swatch(theme, "surface_card", theme.surface_card),
@@ -337,10 +338,12 @@ pub fn theme_tokens(theme: &Theme) -> AnyElement {
                 shelf(vec![
                     swatch(theme, "border", theme.border),
                     swatch(theme, "border_strong", theme.border_strong),
+                    swatch(theme, "hairline", theme.hairline),
                     swatch(theme, "text", theme.text),
                     swatch(theme, "text_muted", theme.text_muted),
                     swatch(theme, "text_faint", theme.text_faint),
                     swatch(theme, "text_dim", theme.text_dim),
+                    swatch(theme, "value", theme.value),
                     swatch(theme, "selection", theme.selection),
                     swatch(theme, "cursor", theme.cursor),
                     swatch(theme, "caret", theme.caret),
@@ -372,7 +375,6 @@ pub fn theme_tokens(theme: &Theme) -> AnyElement {
                     swatch(theme, "track_video", theme.track_video),
                     swatch(theme, "track_audio", theme.track_audio),
                     swatch(theme, "track_text", theme.track_text),
-                    swatch(theme, "track_shape", theme.track_shape),
                     swatch(theme, "track_generator", theme.track_generator),
                     swatch(theme, "playhead", theme.playhead),
                     swatch(theme, "snap_guide", theme.snap_guide),

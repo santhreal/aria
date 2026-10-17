@@ -43,12 +43,11 @@ pub(super) fn clip_param(name: &str) -> PyResult<ClipParam> {
             param: ShapeParam::StrokeWidth,
         },
         other => {
-            // Ids in the catalog are hyphenated (`anchor-point`, `mask-feather`);
-            // Python names are not, so try both spellings of the same id.
+            // Ids are hyphenated (`anchor-point`, `mask-0-feather`); Python
+            // names are not, so try both spellings of the same id.
             let hyphenated = other.replace('_', "-");
-            return aria_models::clip_param_catalog()
-                .iter()
-                .find(|spec| spec.id.as_ref() == other || spec.id.as_ref() == hyphenated)
+            return aria_models::property_row(other)
+                .or_else(|| aria_models::property_row(&hyphenated))
                 .map(|spec| spec.param)
                 .ok_or_else(|| {
                     PyValueError::new_err(format!("unknown animatable property {other:?}"))
@@ -82,11 +81,21 @@ pub(super) fn shape_style_param(
 /// fourteen parameters had no arm at all, and per-axis scale could not be
 /// expressed because the list mapped `scale` to a scalar.
 pub(super) fn param_value_for(param: ClipParam, value: &Bound<'_, PyAny>) -> PyResult<ParamValue> {
-    if let aria_models::ClipParamClass::Excluded(reason) = param.class() {
-        return Err(PyValueError::new_err(match reason {
-            aria_models::ParamExclusion::EffectSlot => "use Effect.animate for effect parameters",
-            aria_models::ParamExclusion::SpeedCurve => "speed curves are not exposed yet",
-        }));
+    let refusal = match param.class() {
+        aria_models::ClipParamClass::Excluded(aria_models::ParamExclusion::EffectSlot) => {
+            Some("use Effect.animate for effect parameters")
+        }
+        aria_models::ClipParamClass::Excluded(aria_models::ParamExclusion::SpeedCurve) => {
+            Some("speed curves are not exposed yet")
+        }
+        // A mask property is addressed by name (`mask_0_feather`) and its kind
+        // comes off the parameter like any other.
+        aria_models::ClipParamClass::Excluded(aria_models::ParamExclusion::MaskSlot)
+        | aria_models::ClipParamClass::Direct(_)
+        | aria_models::ClipParamClass::Delegated(_) => None,
+    };
+    if let Some(refusal) = refusal {
+        return Err(PyValueError::new_err(refusal));
     }
     let Some(kind) = param.kind() else {
         return Err(PyValueError::new_err(format!(
@@ -121,6 +130,13 @@ pub(super) fn param_value_for(param: ClipParam, value: &Bound<'_, PyAny>) -> PyR
                 Err(_) => return Err(pair),
             },
         },
+        aria_models::ParamKind::Vec3 => {
+            let (x, y, z) = value.extract::<(f32, f32, f32)>()?;
+            if !x.is_finite() || !y.is_finite() || !z.is_finite() {
+                return Err(PyValueError::new_err("parameter value must be finite"));
+            }
+            ParamValue::Vec3([x, y, z])
+        }
         aria_models::ParamKind::Color => ParamValue::Color(parse_color(value)?),
         aria_models::ParamKind::Rect => {
             let (x, y, w, h) = value.extract::<(f32, f32, f32, f32)>()?;
@@ -135,20 +151,24 @@ pub(super) fn param_value_for(param: ClipParam, value: &Bound<'_, PyAny>) -> PyR
 /// The parameter's current value on the clip, read through its registry row.
 ///
 /// The row owns where the value lives and whether it is reachable at all — a
-/// mask feather has no route until a mask exists, a stroke width none until the
-/// shape has a stroke. Restating that here was a second availability rule, and
-/// it covered only the shape axis.
+/// mask's feather has no route until that mask exists, a stroke width none until
+/// the shape has a stroke. The clip's own rows are walked because a mask
+/// property has no static row.
 pub(super) fn sample_param_at_clip_start(
     project: &Project,
     id: ClipId,
     param: &ClipParam,
 ) -> PyResult<ParamValue> {
     let clip = Clip::require(project, id)?;
-    aria_models::param_spec(*param)
-        .and_then(|spec| spec.sample(clip, 0))
-        .ok_or_else(|| {
-            PyValueError::new_err(format!("{param:?} has no value on this clip to hold"))
-        })
+    let mut held = None;
+    aria_models::visit_clip_params(clip, |spec| {
+        if held.is_none() && spec.param == *param {
+            held = spec.sample(clip, 0);
+        }
+    });
+    held.ok_or_else(|| {
+        PyValueError::new_err(format!("{param:?} has no value on this clip to hold"))
+    })
 }
 
 #[allow(clippy::too_many_arguments)]

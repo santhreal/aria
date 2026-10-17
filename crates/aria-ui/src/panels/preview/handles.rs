@@ -1,4 +1,4 @@
-//! On-canvas crop and mask handles.
+//! On-canvas transform, crop, mask, and clip type handles.
 //!
 //! The geometry lives in [`crate::app::canvas_overlay`]; this module only places
 //! elements at the points it computes and routes the pointer. Two pieces are
@@ -6,6 +6,7 @@
 //! placed element is offset from its parent: a measuring element records the
 //! picture area during paint, and the handles are placed from that record.
 
+use crate::tooltip::WithTip as _;
 use gpui::{
     Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, MouseMoveEvent,
     MouseUpEvent, ParentElement, StatefulInteractiveElement, Styled, canvas, div, px,
@@ -29,7 +30,10 @@ const HANDLE: f32 = 12.0;
 /// Every handle below hands its step to the registry: what a corner edits is one
 /// table there, not a closure here, and a refusal on release reaches the
 /// operator instead of the floor.
-fn step(state: &mut AppState, step: Step) {
+pub(super) fn step(state: &mut AppState, step: Step) {
+    if matches!(step, Step::Grab(..)) {
+        state.active_panel = crate::types::ActivePanel::Preview;
+    }
     if let Err(err) = overlay_gesture::apply(state, step) {
         state.report_error(&err);
     }
@@ -82,7 +86,7 @@ pub(super) fn mode_picker(
         .items_center()
         .gap(px(Theme::SPACE_XXS))
         .when_some(crate::tooltip::builder("preview-handles"), |el, tip| {
-            el.tooltip(tip)
+            el.with_tip(tip)
         });
     for (index, mode) in OverlayMode::ALL.into_iter().enumerate() {
         let id = gpui::ElementId::from(("preview-handle-mode", index));
@@ -99,7 +103,7 @@ pub(super) fn mode_picker(
                 .px(px(Theme::SPACE_XS))
                 .py(px(Theme::SPACE_XXS))
                 .rounded(px(Theme::CONTROL_RADIUS))
-                .text_size(px(11.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(crate::motion::hover_blend(
                     key,
                     if selected {
@@ -147,7 +151,29 @@ pub(super) fn overlay(
     let mode = read.overlay_mode();
     let crop = read.overlay_crop()?;
     let mask = read.overlay_mask();
+    // A path mask is shaped by its vertices: the box outline and the size
+    // handle draw nothing it uses. Its centre and rotation still apply.
+    let path_mask = read
+        .active_ui_mask()
+        .is_some_and(|mask| mask.kind == aria_models::MaskKind::Path);
     let dragging = read.overlay_dragging();
+    // The picture under the Type tool takes a caret, and under the Pen a
+    // vertex; with any other tool it moves.
+    let move_cursor = if read.tool.types() {
+        gpui::CursorStyle::IBeam
+    } else if read.tool.pens() {
+        gpui::CursorStyle::Crosshair
+    } else {
+        gpui::CursorStyle::OpenHand
+    };
+    let type_handles = read.overlay_type_handles();
+    let type_colour = read
+        .selected_ui_clip_ref()
+        .and_then(|clip| clip.clip_type.as_ref())
+        .and_then(|clip_type| clip_type.colour)
+        .map_or(theme.accent, |colour| {
+            theme.label(aria_models::LabelColor::from(colour), false)
+        });
 
     let mut root = div().absolute().size_full();
 
@@ -166,10 +192,16 @@ pub(super) fn overlay(
                     .h(px(layer.h))
                     .border_1()
                     .border_color(theme.accent)
-                    .cursor(gpui::CursorStyle::OpenHand)
+                    .cursor(move_cursor)
                     .on_mouse_down(
                         MouseButton::Left,
                         cx.listener(move |this, event: &MouseDownEvent, _, cx| {
+                            // The Type tool places a title and the Pen draws a
+                            // mask path; neither moves the picture.
+                            let tool = this.state.read(cx).tool;
+                            if tool.types() || tool.pens() {
+                                return;
+                            }
                             let at = [f32::from(event.position.x), f32::from(event.position.y)];
                             this.state
                                 .update(cx, |state, _| step(state, Step::Grab(Gesture::Move, at)));
@@ -188,6 +220,25 @@ pub(super) fn overlay(
                         let at = [f32::from(event.position.x), f32::from(event.position.y)];
                         this.state.update(cx, |state, _| {
                             step(state, Step::Grab(Gesture::Scale(handle), at))
+                        });
+                        cx.notify();
+                    }),
+                ));
+            }
+            // A clip type's handles sit above the move surface and the corners,
+            // in the type's colour, so a point the generator draws from is
+            // grabbed rather than the picture under it.
+            for (index, value) in type_handles.into_iter().enumerate() {
+                let point = frame.local(layer.at(value));
+                root = root.child(handle_dot(
+                    crate::motion::MotionKey::new("clip-type-handle", index).into(),
+                    point,
+                    type_colour,
+                    theme,
+                    cx.listener(move |this, event: &MouseDownEvent, _, cx| {
+                        let at = [f32::from(event.position.x), f32::from(event.position.y)];
+                        this.state.update(cx, |state, _| {
+                            step(state, Step::Grab(Gesture::TypeHandle(index), at))
                         });
                         cx.notify();
                     }),
@@ -229,17 +280,22 @@ pub(super) fn overlay(
             if let Some((center, size, _rotation)) = mask {
                 let [mx, my, mw, mh] = mask_box(center, size);
                 let outline = frame.local(layer.at([mx, my]));
-                root = root.child(
-                    div()
-                        .absolute()
-                        .left(px(outline[0]))
-                        .top(px(outline[1]))
-                        .w(px(layer.w * mw))
-                        .h(px(layer.h * mh))
-                        .border_1()
-                        .border_color(theme.playhead),
-                );
-                for handle in MaskHandle::ALL {
+                root = root.when(!path_mask, |root| {
+                    root.child(
+                        div()
+                            .absolute()
+                            .left(px(outline[0]))
+                            .top(px(outline[1]))
+                            .w(px(layer.w * mw))
+                            .h(px(layer.h * mh))
+                            .border_1()
+                            .border_color(theme.playhead),
+                    )
+                });
+                for handle in MaskHandle::ALL
+                    .into_iter()
+                    .filter(|handle| !path_mask || *handle != MaskHandle::Size)
+                {
                     let point = frame.local(layer.at(mask_handle_anchor(center, size, handle)));
                     root = root.child(handle_dot(
                         crate::motion::ControlId::Fixed(handle.id()),
@@ -285,6 +341,10 @@ pub(super) fn overlay(
 }
 
 /// One draggable dot, centered on `point`.
+///
+/// A press on a dot is the dot's alone. It lies over the move surface and the
+/// picture, whose own presses start a move and pick the layer under the
+/// pointer, and either would replace the drag the dot just started.
 fn handle_dot(
     id: crate::motion::ControlId,
     point: [f32; 2],
@@ -305,5 +365,8 @@ fn handle_dot(
         .border_color(theme.on_solid)
         .cursor(gpui::CursorStyle::PointingHand)
         .active(|style| style.opacity(0.92))
-        .on_mouse_down(MouseButton::Left, on_down)
+        .on_mouse_down(MouseButton::Left, move |event, window, cx| {
+            cx.stop_propagation();
+            on_down(event, window, cx);
+        })
 }

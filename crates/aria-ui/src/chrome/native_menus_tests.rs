@@ -43,32 +43,97 @@ fn every_menu_carries_every_row_the_registry_offers() {
             continue;
         }
         let native = native.unwrap_or_else(|| panic!("{} is missing", menu.label()));
+        let entries = menu_items::drop_entries(&rows);
         assert_eq!(
             native.items.len(),
-            rows.len(),
-            "{} has {} native item(s) for {} registry row(s)",
+            entries.len(),
+            "{} has {} native item(s) for {} drop entries",
             menu.label(),
             native.items.len(),
-            rows.len()
+            entries.len()
         );
-        for (item, row) in native.items.iter().zip(rows.iter()) {
-            match item {
-                gpui::MenuItem::Action { name, .. } => assert_eq!(
-                    name.as_ref(),
-                    row.label,
-                    "{} drew its rows out of registry order",
-                    menu.label()
-                ),
-                // `MenuItem` carries no `Debug`, so name the menu and the row
+        for (item, entry) in native.items.iter().zip(entries.iter()) {
+            match (item, entry) {
+                (gpui::MenuItem::Action { .. }, menu_items::DropEntry::Row(at)) => {
+                    assert_native_row(menu, item, &rows[*at], &state);
+                }
+                (
+                    gpui::MenuItem::Submenu(sub),
+                    menu_items::DropEntry::Sub {
+                        caption,
+                        rows: held,
+                    },
+                ) => {
+                    assert_eq!(
+                        sub.name.as_ref(),
+                        *caption,
+                        "{} named a submenu wrongly",
+                        menu.label()
+                    );
+                    assert_eq!(
+                        sub.items.len(),
+                        held.len(),
+                        "{} > {caption} lost rows",
+                        menu.label()
+                    );
+                    for (item, at) in sub.items.iter().zip(held.iter()) {
+                        assert_native_row(menu, item, &rows[*at], &state);
+                    }
+                }
+                // `MenuItem` carries no `Debug`, so name the menu and the entry
                 // the registry expected there instead of the item itself.
                 _ => panic!(
-                    "{} contributed a non-action item where {} belongs",
+                    "{} contributed the wrong kind of item where {} belongs",
                     menu.label(),
-                    row.label
+                    entry.caption(&rows)
                 ),
             }
         }
     }
+}
+
+/// One native row against the registry row it was derived from: the caption the
+/// CSD bar draws, which states a setting's current value beside the label, and
+/// the same disabled and checked state.
+fn assert_native_row(
+    menu: AppMenu,
+    item: &gpui::MenuItem,
+    row: &menu_items::MenuItem,
+    state: &AppState,
+) {
+    let gpui::MenuItem::Action {
+        name,
+        disabled,
+        checked,
+        ..
+    } = item
+    else {
+        panic!(
+            "{} drew {} as something other than a row",
+            menu.label(),
+            row.label
+        );
+    };
+    assert_eq!(
+        name.as_ref(),
+        menu_items::row_caption(row, state),
+        "{} drew its rows out of registry order",
+        menu.label()
+    );
+    assert_eq!(
+        *disabled,
+        row.blocked_by(state).is_some(),
+        "{} > {} is disabled in one bar and not the other",
+        menu.label(),
+        row.label
+    );
+    assert_eq!(
+        *checked,
+        row.is_checked(state),
+        "{} > {} is checked in one bar and not the other",
+        menu.label(),
+        row.label
+    );
 }
 
 #[test]

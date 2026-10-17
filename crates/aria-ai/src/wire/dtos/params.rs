@@ -5,7 +5,9 @@ use serde::{Deserialize, Serialize};
 /// names stay part of `wire::` for every caller.
 #[path = "params_axis.rs"]
 mod axis;
-pub use axis::{WireClipParam, WireLookParam, WireShapeParam, WireStyleParam, WireTextParam};
+pub use axis::{
+    WireClipParam, WireLookParam, WireMaskParam, WireShapeParam, WireStyleParam, WireTextParam,
+};
 
 /// Per-axis clip scale on the wire: a bare number (uniform, legacy agents)
 /// or `[x, y]` when split. Schema is `anyOf` number/array via untagged serde.
@@ -149,12 +151,15 @@ pub struct SetEffectParam {
 
 /// Add a transition at the junction where `clip` abuts the next clip on its
 /// track. `clip` must butt directly against a following clip (same track, the
-/// next clip starts exactly where this one ends). Rejected for clips on audio
-/// tracks and clips with no abutting neighbor.
+/// next clip starts exactly where this one ends). Rejected for clips on
+/// effect, filter and adjustment lanes, a transition the lane does not take,
+/// and clips with no abutting neighbor.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct AddTransition {
     pub clip: u64,
-    /// Transition id from the catalog, e.g. `crossfade` or `dip_to_black`.
+    /// Transition id: a catalog blend such as `crossfade` or `dip_to_black` on
+    /// a picture lane, or `constant_power`, `constant_gain` or
+    /// `exponential_fade` on an audio lane.
     pub transition: String,
 }
 
@@ -212,7 +217,7 @@ pub struct SetParamKeyframe {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub value: Option<f64>,
     /// New `[x, y]` for `position`, `anchor_point`, style `shadow_offset`,
-    /// look `mask_center` / `mask_size`, or vec2 effect params. Ignored for
+    /// mask `center` / `size`, or vec2 effect params. Ignored for
     /// scalar, color, and rect params.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub position: Option<[f64; 2]>,
@@ -282,7 +287,7 @@ pub struct SetParamConstant {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub value: Option<f64>,
     /// New `[x, y]` for `position`, `anchor_point`, style `shadow_offset`,
-    /// look `mask_center` / `mask_size`, or vec2 effect params. Ignored for
+    /// mask `center` / `size`, or vec2 effect params. Ignored for
     /// scalar, color, and rect params.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub position: Option<[f64; 2]>,
@@ -294,6 +299,20 @@ pub struct SetParamConstant {
     /// Ignored for scalar, vec2, and color params.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rect: Option<[f64; 4]>,
+}
+
+/// Attach a driver: code evaluated per frame that replaces one property's
+/// keyframed value. Omit `code` to remove the property's driver.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct SetParamDriver {
+    pub clip: u64,
+    pub param: WireClipParam,
+    /// The driver's source. Omitted removes the driver.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub code: Option<String>,
+    /// The driver language id. Omitted is `aria.expressions`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub language: Option<String>,
 }
 
 /// Change a media clip's constant playback speed and/or direction. The clip

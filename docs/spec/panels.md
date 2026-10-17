@@ -33,6 +33,12 @@ small time area spans the clip's range with its own playhead and keyframes, as
 in Premiere's Effect Controls. Dragging an effect from Effects & Presets onto
 this panel adds it to the selected clip at the drop position in the stack.
 
+A property row stays on one line. In a narrow panel the time area narrows
+first. Below 32 px it is left blank and a press there does nothing, and once it
+has no width left the property's name is shortened with an ellipsis and shown
+in full on hover. The tabs above the properties share the panel's width equally
+and shorten a long name the same way.
+
 Each effect header shows a bypass toggle (fx), the effect name, a reset button,
 and a menu with Rename, Duplicate, Save Preset, Copy, and Remove. Effects
 reorder by dragging their headers. With several clips selected, the panel edits

@@ -5,11 +5,11 @@
 //! a row does, which is what lets `app::drawn_census` press every row.
 
 use super::label::{label_groups, label_row};
-use super::row::item;
+use super::row::{item, item_with_icon};
 use super::*;
 use crate::surfaces::context_menu::{
-    CLIP_ITEMS, ClipMenu, MenuItem, POOL_ITEMS, PREVIEW_ITEMS, RECENT_ITEMS, TRACK_ITEMS,
-    TRANSITION_ITEMS, apply_blend,
+    BADGE_ITEMS, BadgeMenu, CLIP_ITEMS, ClipMenu, EFFECT_ITEMS, MenuItem, POOL_ITEMS,
+    PREVIEW_ITEMS, RECENT_ITEMS, TRACK_ITEMS, TRANSITION_ITEMS, apply_blend, draw_property,
 };
 
 /// The target to draw: the open one, or the one still fading out.
@@ -35,15 +35,27 @@ pub(super) fn drawn_target(
 /// already on it, and the groups to offer beside it.
 struct Swatches<'a> {
     target: LabelTarget,
-    current: Option<aria_models::MarkerColor>,
-    groups: &'a [(aria_models::MarkerColor, usize)],
+    current: Option<aria_models::LabelColor>,
+    groups: &'a [(aria_models::LabelColor, usize)],
 }
 
-/// What a [`MenuItem::Blends`] block draws: the junction, and which blend is
-/// already on it so the catalog can mark that row.
+/// What a [`MenuItem::Blends`] block draws: the junction, which blend is
+/// already on it so the catalog can mark that row, and which kind it takes.
 struct Blends {
     junction: ClipMenu,
     applied: Option<String>,
+    media: Option<aria_models::TransitionMedia>,
+}
+
+/// The blocks a table may hold besides its rows, each drawn only when the menu
+/// gathered the facts it reads.
+#[derive(Default)]
+struct Blocks<'a> {
+    swatches: Option<Swatches<'a>>,
+    blends: Option<Blends>,
+    /// What a [`MenuItem::Properties`] block lists: the clip's properties, the
+    /// drawn one marked.
+    properties: Option<BadgeMenu>,
 }
 
 /// Build one table into elements.
@@ -55,8 +67,7 @@ struct Blends {
 fn drawn<F: Clone + 'static>(
     items: &'static [MenuItem<F>],
     facts: F,
-    swatches: Option<Swatches<'_>>,
-    blends: Option<Blends>,
+    blocks: Blocks<'_>,
     theme: &Theme,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> Vec<gpui::AnyElement> {
@@ -79,7 +90,7 @@ fn drawn<F: Clone + 'static>(
                 }));
             }
             MenuItem::Labels => {
-                let Some(swatches) = swatches.as_ref() else {
+                let Some(swatches) = blocks.swatches.as_ref() else {
                     continue;
                 };
                 out.push(label_row(swatches.target, swatches.current, theme, cx));
@@ -88,28 +99,70 @@ fn drawn<F: Clone + 'static>(
                 }
             }
             MenuItem::Blends => {
-                let Some(blends) = blends.as_ref() else {
+                let Some(blends) = blocks.blends.as_ref() else {
                     continue;
                 };
                 // The catalog is the single owner of what is offerable, so a new
-                // blend appears here without a second list. The applied one takes
-                // the same `• ` prefix the inspector and the sidebar use.
+                // blend appears here without a second list; a cut between sounds
+                // lists the crossfades instead. The applied one takes the same
+                // `• ` prefix the inspector and the sidebar use.
                 let applied = blends.applied.as_deref();
-                for spec in crate::app::clip_transitions::transition_choices() {
-                    let id = spec.id.clone();
-                    let label = if applied == Some(spec.id.as_str()) {
-                        format!("• {}", spec.label)
+                let junction = blends.junction;
+                let mut blend = |catalog_id: &str, name: &str| {
+                    let label = if applied == Some(catalog_id) {
+                        format!("• {name}")
                     } else {
-                        spec.label.clone()
+                        name.to_owned()
                     };
-                    let junction = blends.junction;
+                    let picked = catalog_id.to_owned();
                     out.push(item(
-                        crate::motion::MotionKey::new("ctx-blend", &spec.id),
+                        crate::motion::MotionKey::new("ctx-blend", catalog_id),
                         label,
                         theme,
                         cx,
                         move |state: &mut AppState| {
-                            if let Err(err) = apply_blend(state, &junction, &id) {
+                            if let Err(err) = apply_blend(state, &junction, &picked) {
+                                state.report_error(&err);
+                            }
+                        },
+                    ));
+                };
+                match blends.media {
+                    Some(aria_models::TransitionMedia::Audio) => {
+                        for choice in crate::catalog_text::audio_transitions() {
+                            blend(&choice.id, &choice.label);
+                        }
+                    }
+                    _ => {
+                        for spec in crate::app::clip_transitions::transition_choices() {
+                            blend(&spec.id, &spec.label);
+                        }
+                    }
+                }
+            }
+            MenuItem::Properties => {
+                let Some(menu) = blocks.properties.as_ref() else {
+                    continue;
+                };
+                // The drawn property takes the `• ` prefix the blend rows use.
+                for property in menu.properties.iter() {
+                    let label = if menu.drawn == Some(property.param) {
+                        format!("• {}", property.label).into()
+                    } else {
+                        property.label.clone()
+                    };
+                    let param = property.param;
+                    let menu = menu.clone();
+                    out.push(item(
+                        crate::motion::MotionKey::new(
+                            "ctx-badge-property",
+                            format_args!("{param:?}"),
+                        ),
+                        label,
+                        theme,
+                        cx,
+                        move |state: &mut AppState| {
+                            if let Err(err) = draw_property(state, &menu, param) {
                                 state.report_error(&err);
                             }
                         },
@@ -135,12 +188,14 @@ pub(super) fn items(
             drawn(
                 CLIP_ITEMS,
                 clip,
-                Some(Swatches {
-                    target: LabelTarget::Selection,
-                    current: facts.label,
-                    groups: &facts.label_groups,
-                }),
-                None,
+                Blocks {
+                    swatches: Some(Swatches {
+                        target: LabelTarget::Selection,
+                        current: facts.label,
+                        groups: &facts.label_groups,
+                    }),
+                    ..Blocks::default()
+                },
                 theme,
                 cx,
             )
@@ -149,7 +204,7 @@ pub(super) fn items(
             let Some(track) = facts.track else {
                 return Vec::new();
             };
-            drawn(TRACK_ITEMS, track, None, None, theme, cx)
+            drawn(TRACK_ITEMS, track, Blocks::default(), theme, cx)
         }
         ContextTarget::Transition { .. } => {
             let Some(junction) = facts.clip else {
@@ -158,16 +213,19 @@ pub(super) fn items(
             drawn(
                 TRANSITION_ITEMS,
                 junction,
-                None,
-                Some(Blends {
-                    junction,
-                    applied: facts.transition_id,
-                }),
+                Blocks {
+                    blends: Some(Blends {
+                        junction,
+                        applied: facts.transition_id,
+                        media: facts.transition_media,
+                    }),
+                    ..Blocks::default()
+                },
                 theme,
                 cx,
             )
         }
-        ContextTarget::Preview => drawn(PREVIEW_ITEMS, (), None, None, theme, cx),
+        ContextTarget::Preview => drawn(PREVIEW_ITEMS, (), Blocks::default(), theme, cx),
         ContextTarget::PoolItem { media } => {
             let Some(pool) = facts.pool else {
                 return Vec::new();
@@ -175,24 +233,47 @@ pub(super) fn items(
             drawn(
                 POOL_ITEMS,
                 pool,
-                Some(Swatches {
-                    target: LabelTarget::Media(media),
-                    current: facts.pool_label,
-                    groups: &[],
-                }),
-                None,
+                Blocks {
+                    swatches: Some(Swatches {
+                        target: LabelTarget::Media(media),
+                        current: facts.pool_label,
+                        groups: &[],
+                    }),
+                    ..Blocks::default()
+                },
                 theme,
                 cx,
             )
         }
-        ContextTarget::Recent { path } => drawn(RECENT_ITEMS, path, None, None, theme, cx),
+        ContextTarget::Recent { path } => drawn(RECENT_ITEMS, path, Blocks::default(), theme, cx),
+        ContextTarget::Effect { .. } => {
+            let Some(effect) = facts.effect else {
+                return Vec::new();
+            };
+            drawn(EFFECT_ITEMS, effect, Blocks::default(), theme, cx)
+        }
+        ContextTarget::ClipBadge { .. } => {
+            let Some(badge) = facts.badge else {
+                return Vec::new();
+            };
+            drawn(
+                BADGE_ITEMS,
+                badge.clone(),
+                Blocks {
+                    properties: Some(badge),
+                    ..Blocks::default()
+                },
+                theme,
+                cx,
+            )
+        }
     }
 }
 
-/// The rows plugins added, below a rule, in mount order. A click runs the
-/// row's action on a thread of its own.
+/// The rows plugins added, below a rule, in mount order. A click runs a placed
+/// command on the window's thread and a handler's row on a thread of its own.
 pub(super) fn plugin_items(
-    entries: &[aria_plugin::MenuEntry],
+    entries: &[crate::app::ContextPluginRow],
     theme: &Theme,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> Vec<gpui::AnyElement> {
@@ -208,13 +289,14 @@ pub(super) fn plugin_items(
             .into_any_element(),
     );
     for (index, entry) in entries.iter().enumerate() {
-        let run = std::sync::Arc::clone(&entry.run);
-        out.push(item(
+        let row = entry.clone();
+        out.push(item_with_icon(
             crate::motion::MotionKey::new("ctx-plugin", index),
-            entry.label.clone(),
+            entry.label().to_owned(),
+            entry.icon(),
             theme,
             cx,
-            move |state: &mut AppState| state.run_plugin_row(std::sync::Arc::clone(&run)),
+            move |state: &mut AppState| state.run_context_plugin_row(&row),
         ));
     }
     out

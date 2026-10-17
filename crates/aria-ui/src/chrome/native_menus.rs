@@ -42,17 +42,28 @@ pub fn native_menus(state: &AppState) -> Vec<Menu> {
     };
     let mut menus = Vec::with_capacity(AppMenu::ALL.len());
     for menu in AppMenu::ALL {
-        let items: Vec<MenuItem> = host
-            .items(menu, state)
-            .iter()
-            .map(|item| {
-                MenuItem::action(
-                    super::menu_items::row_caption(item, state),
-                    RunMenuRow {
-                        menu: menu.label().to_string(),
-                        id: item.id.to_string(),
-                    },
-                )
+        let rows = host.items(menu, state);
+        let native = |item: &super::menu_items::MenuItem| {
+            MenuItem::action(
+                super::menu_items::row_caption(item, state),
+                RunMenuRow {
+                    menu: menu.label().to_string(),
+                    id: item.id.to_string(),
+                },
+            )
+            .disabled(item.blocked_by(state).is_some())
+            .checked(item.is_checked(state))
+        };
+        let items: Vec<MenuItem> = super::menu_items::drop_entries(&rows)
+            .into_iter()
+            .map(|entry| match entry {
+                super::menu_items::DropEntry::Row(at) => native(&rows[at]),
+                super::menu_items::DropEntry::Sub {
+                    caption,
+                    rows: held,
+                } => MenuItem::submenu(
+                    Menu::new(caption).items(held.iter().map(|at| native(&rows[*at]))),
+                ),
             })
             .collect();
         if items.is_empty() {
@@ -88,7 +99,9 @@ pub fn dispatch(
     super::menu_items::run_item(menu, &action.id, state, cx)
 }
 
-/// Install the platform menu bar. A no-op where the platform has none.
+/// Install the platform menu bar, and build it again whenever a plugin's
+/// commands or menu rows change, or the context keys their enablement
+/// conditions read. A no-op where the platform has none.
 ///
 /// Linux and Windows keep the client-side bar `chrome::menu_bar` draws, so
 /// nothing is registered there: two live bars would double every row.
@@ -102,6 +115,18 @@ pub fn install(state: &gpui::Entity<AppState>, cx: &mut App) {
     }
     let menus = native_menus(state.read(cx));
     cx.set_menus(menus);
+    let drawn_from = |state: &AppState| (state.ctx.command_revision(), state.ctx.context_keys());
+    let mut built = drawn_from(state.read(cx));
+    cx.observe(state, move |state, cx| {
+        let now = drawn_from(state.read(cx));
+        if now == built {
+            return;
+        }
+        built = now;
+        let menus = native_menus(state.read(cx));
+        cx.set_menus(menus);
+    })
+    .detach();
 }
 
 #[cfg(test)]

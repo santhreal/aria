@@ -1,9 +1,10 @@
-//! Application bar: Home chrome, the menu titles, and the editor tool strip.
+//! Application bar: Home chrome, the menu titles, and the editor tool bar.
 //!
 //! The bar's frame lives here. What the menu titles drop is drawn by
 //! `menu_view`, and the strip under them by `tool_strip`, so the layout and the
 //! contents are separate files.
 
+use crate::tooltip::WithTip as _;
 use gpui::{
     App, Context, CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton,
     MouseDownEvent, ParentElement, StatefulInteractiveElement, Styled, Window, div, px,
@@ -18,18 +19,32 @@ use crate::types::AppMenu;
 
 #[path = "chrome/dialog.rs"]
 pub mod dialog;
+#[path = "chrome/menu_animation.rs"]
+mod menu_animation;
+#[path = "chrome/menu_effect.rs"]
+pub(crate) mod menu_effect;
+#[path = "chrome/menu_guards.rs"]
+pub(crate) mod menu_guards;
 #[path = "chrome/menu_host.rs"]
 pub mod menu_host;
 #[path = "chrome/menu_items.rs"]
 pub mod menu_items;
+#[path = "chrome/menu_markers.rs"]
+mod menu_markers;
 #[path = "chrome/menu_sequence.rs"]
 pub(crate) mod menu_sequence;
 #[path = "chrome/menu_view.rs"]
 mod menu_view;
 #[path = "chrome/native_menus.rs"]
 pub mod native_menus;
+#[path = "chrome/plugin_menus.rs"]
+pub(crate) mod plugin_menus;
 #[path = "chrome/tool_strip.rs"]
-mod tool_strip;
+pub(crate) mod tool_strip;
+#[path = "chrome/window_frame.rs"]
+pub(crate) mod window_frame;
+
+use window_frame::Frame;
 
 /// Menu labels, for the tests that assert every menu names a real command.
 #[cfg(test)]
@@ -38,6 +53,7 @@ pub(crate) use menu_items::labels_for;
 const MENU_H: f32 = 32.0;
 
 pub fn home_bar(theme: &Theme, window: &mut Window, cx: &mut Context<Shell>) -> impl IntoElement {
+    let frame = Frame::of(window);
     div()
         .id("home-titlebar")
         .h(px(Theme::TITLEBAR_HEIGHT))
@@ -51,13 +67,13 @@ pub fn home_bar(theme: &Theme, window: &mut Window, cx: &mut Context<Shell>) -> 
         .border_color(theme.border)
         .child(
             div()
-                .flex_1()
-                .text_size(px(14.))
+                .text_size(Theme::TEXT_HEADING)
                 .font_weight(gpui::FontWeight::SEMIBOLD)
                 .text_color(theme.text)
                 .child("Aria"),
         )
-        .when(cfg!(not(target_os = "macos")), |el| {
+        .child(drag_strip("home-drag", frame, cx))
+        .when(frame.draws_controls(), |el| {
             el.child(caption_buttons(theme, window, cx))
         })
 }
@@ -89,7 +105,13 @@ fn menu_bar(
     window: &mut Window,
     cx: &mut Context<Shell>,
 ) -> impl IntoElement {
-    let open = state.read(cx).open_menu;
+    // A drop a button opened is drawn by the button, so the titles see no open
+    // drop and the bar takes no dismissal for it.
+    let open = {
+        let state = state.read(cx);
+        state.open_menu.filter(|_| state.menu_owner.is_none())
+    };
+    let frame = Frame::of(window);
     // Once per frame: the drop that is fading out is no longer in the state, so
     // the bar is what remembers it for the length of the exit.
     let drop = menu_view::drop_phase(open, cx.motion_policy());
@@ -102,11 +124,15 @@ fn menu_bar(
         .items_center()
         .px(px(Theme::SPACE_MD))
         .gap(px(Theme::SPACE_XS))
-        // A press anywhere outside the bar closes an open drop and still lands
-        // where it was aimed, as outside a context menu. A press on a title
-        // stays inside, so the title toggles or switches the drop itself.
+        // A press anywhere outside the bar and the drop closes an open drop and
+        // still lands where it was aimed, as outside a context menu. A press on
+        // a title stays inside, so the title toggles or switches the drop
+        // itself, and a press on the drop or its flyout is the row's.
         .when(open.is_some(), |el| {
-            el.on_mouse_down_out(cx.listener(|this, _: &MouseDownEvent, _, cx| {
+            el.on_mouse_down_out(cx.listener(|this, _: &MouseDownEvent, window, cx| {
+                if menu_view::pointer_on_drop(window) {
+                    return;
+                }
                 this.state.update(cx, |state, _| state.close_menu());
                 cx.notify();
             }))
@@ -123,10 +149,49 @@ fn menu_bar(
                 })
                 .collect::<Vec<_>>(),
         )
+        // The crumb sits centred between two empty stretches, which are where
+        // the window is moved from.
+        .child(drag_strip("bar-drag-left", frame, cx))
         .child(breadcrumb(theme, state, cx))
-        .when(cfg!(not(target_os = "macos")), |el| {
+        .child(drag_strip("bar-drag-right", frame, cx))
+        .when(frame.draws_controls(), |el| {
             el.child(caption_buttons(theme, window, cx))
         })
+}
+
+/// An empty stretch of a bar: where the window is moved from when the app
+/// draws its frame.
+///
+/// Under a client frame a drag moves the window, a double click maximizes or
+/// restores it, and a right click opens the window menu. A press arms the move
+/// and the first pointer travel starts it, so a click is not taken by the
+/// compositor. Under Windows the stretch is the caption, and the system gives
+/// the same gestures and snapping.
+pub(crate) fn drag_strip(
+    id: &'static str,
+    frame: Frame,
+    cx: &mut Context<Shell>,
+) -> gpui::Stateful<gpui::Div> {
+    let strip = div().id(id).flex_1().h_full();
+    match frame {
+        Frame::Platform => strip,
+        Frame::Caption => strip.window_control_area(gpui::WindowControlArea::Drag),
+        Frame::Client(_) => strip
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(|shell, event: &MouseDownEvent, window, _| {
+                    shell.window_move = event.click_count < 2;
+                    if event.click_count >= 2 {
+                        window.zoom_window();
+                    }
+                }),
+            )
+            .on_mouse_down(MouseButton::Right, |event, window, _| {
+                if window.window_controls().window_menu {
+                    window.show_window_menu(event.position);
+                }
+            }),
+    }
 }
 
 fn breadcrumb(
@@ -140,12 +205,11 @@ fn breadcrumb(
     div()
         .id("breadcrumb")
         .flex()
-        .flex_1()
         .flex_row()
         .items_center()
         .justify_center()
         .gap(px(Theme::SPACE_XS))
-        .text_size(px(13.))
+        .text_size(Theme::TEXT_UI)
         .child(
             div()
                 .id("crumb-home")
@@ -180,33 +244,43 @@ fn breadcrumb(
 
 fn caption_buttons(
     theme: &Theme,
-    _window: &mut Window,
+    window: &mut Window,
     cx: &mut Context<Shell>,
 ) -> impl IntoElement {
+    // A compositor that cannot minimize or maximize a window gets no button
+    // for it.
+    let controls = window.window_controls();
+    // Closing the window is leaving the session, so it asks about unsaved
+    // work the way Ctrl+Q does; the shell quits once the answer is in.
+    let close = cx.listener(|shell: &mut Shell, _: &MouseDownEvent, _, cx| {
+        shell.state.update(cx, |state, _| state.request_quit());
+        cx.notify();
+    });
     div()
         .flex()
         .flex_row()
         .gap(px(Theme::SPACE_XS))
-        .child(caption_btn(
-            "caption-min",
-            crate::icons::MINUS,
-            theme,
-            cx,
-            |window, _cx| window.minimize_window(),
-        ))
-        .child(caption_btn(
-            "caption-max",
-            crate::icons::SQUARE,
-            theme,
-            cx,
-            |window, _cx| window.zoom_window(),
-        ))
+        .when(controls.minimize, |el| {
+            el.child(caption_btn(
+                "caption-min",
+                crate::icons::MINUS,
+                theme,
+                |_, window, _| window.minimize_window(),
+            ))
+        })
+        .when(controls.maximize, |el| {
+            el.child(caption_btn(
+                "caption-max",
+                crate::icons::SQUARE,
+                theme,
+                |_, window, _| window.zoom_window(),
+            ))
+        })
         .child(caption_btn(
             "caption-close",
             crate::icons::CLOSE,
             theme,
-            cx,
-            |window, _cx| window.remove_window(),
+            close,
         ))
 }
 
@@ -216,8 +290,7 @@ fn caption_btn(
     id: &'static str,
     icon: &'static str,
     theme: &Theme,
-    _cx: &mut Context<Shell>,
-    on_click: fn(&mut Window, &mut App),
+    on_click: impl Fn(&MouseDownEvent, &mut Window, &mut App) + 'static,
 ) -> impl IntoElement {
     let key = motion::MotionKey::new("caption", id);
     div()
@@ -236,10 +309,8 @@ fn caption_btn(
         .text_color(motion::hover_blend(key, theme.border_strong, theme.text))
         .cursor(CursorStyle::PointingHand)
         .active(|style| style.opacity(0.92))
-        .tooltip(crate::tooltip::deferred_builder(id))
+        .with_tip(crate::tooltip::deferred_builder(id))
         .on_hover(motion::hover_listener(key))
         .child(crate::icons::icon(icon).size(px(8.)))
-        .on_mouse_down(MouseButton::Left, move |_: &MouseDownEvent, window, cx| {
-            on_click(window, cx)
-        })
+        .on_mouse_down(MouseButton::Left, on_click)
 }

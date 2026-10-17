@@ -23,18 +23,25 @@ pub struct Units {
     pub param: ClipParam,
     /// What the row prints, from the stored value.
     pub read: fn(f32) -> String,
-    /// What one nudge moves, in the units `read` prints.
-    pub step: f32,
+    /// The stored value in the units `read` prints, which is what a typed
+    /// value replaces.
+    pub shown: fn(f32) -> f32,
+    /// Digits after the point when the value is typed.
+    pub decimals: u8,
+    /// What one unit of drag moves, in the units `read` prints.
+    pub unit: f32,
     /// Move the property by `delta` of those units.
     pub write: fn(&mut AppState, f32) -> Result<(), EngineError>,
 }
 
-/// The gain of the selected clip, read in decibels.
+/// The gain of the selected clips, read in decibels.
 pub const AUDIO: &[Units] = &[Units {
     param: ClipParam::Volume,
     read: level_label,
-    step: 1.0,
-    write: |state, delta| state.nudge_selected_volume_db(delta),
+    shown: level_db,
+    decimals: 1,
+    unit: 0.5,
+    write: |state, delta| state.nudge_shared_volume_db(delta),
 }];
 
 /// Every group holding a property with a scale of its own.
@@ -54,6 +61,12 @@ pub fn of_group(group: &str) -> &'static [Units] {
 /// The units one property is read in, when they are not the catalog's.
 pub fn of_param(group: &str, param: ClipParam) -> Option<&'static Units> {
     of_group(group).iter().find(|units| units.param == param)
+}
+
+/// A gain in decibels. Silence reads one step under the floor, so a step up
+/// from it lands on the floor and anything typed under the floor mutes.
+fn level_db(volume: f32) -> f32 {
+    aria_analysis::db_from_linear(volume).unwrap_or(crate::app::clip_audio::SILENT_DB)
 }
 
 /// What a gain reads as beside the fader.

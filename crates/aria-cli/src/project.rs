@@ -14,6 +14,19 @@ pub fn load(path: &Path) -> Result<Project, String> {
     Project::load_from_file(path).map_err(|err| format!("{}: {err}", path.display()))
 }
 
+/// Print every driver that failed while `project` rendered. A failed driver's
+/// property takes its keyframed value, so without this a frame drawn with the
+/// keyframed value reads as the driven one.
+pub fn warn_driver_faults(project: &Project) {
+    for fault in aria_render::driver_faults() {
+        eprintln!(
+            "aria: warning: the driver on {} failed and its keyframed value was used: {}",
+            aria_render::driver_target(project, fault.clip, fault.param),
+            fault.message
+        );
+    }
+}
+
 /// The timeline tick nearest `seconds` at `rate`.
 ///
 /// Rounds rather than truncates: `--at 1.0` on a 24 fps timeline must land on

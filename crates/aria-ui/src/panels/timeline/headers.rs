@@ -23,7 +23,7 @@ use crate::surfaces::lane_header::{LANE_TOGGLES, LaneFlags, LaneToggle};
 use crate::theme::Theme;
 use crate::types::{ContextTarget, UiTrack};
 
-use super::{HEADER_W, glide};
+use super::glide;
 
 /// A lane's header: its name, its four toggles, and the grab surface that reorders
 /// the stack.
@@ -33,35 +33,58 @@ use super::{HEADER_W, glide};
 pub(super) fn track_header(
     theme: &Theme,
     track: &UiTrack,
+    badge: String,
     row: usize,
+    y_top: f32,
+    width: f32,
+    height: f32,
+    target_h: f32,
     dragging: bool,
     drop_row: Option<usize>,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     let track_id = track.id;
     let name = track.name.clone();
+    let collapsed = track.collapsed;
     let is_drop = drop_row == Some(row);
+    let badge_color = match track.kind {
+        crate::types::UiTrackKind::Video => theme.track_video,
+        crate::types::UiTrackKind::Audio | crate::types::UiTrackKind::Submix => theme.track_audio,
+        crate::types::UiTrackKind::Text => theme.track_text,
+        crate::types::UiTrackKind::Generator | crate::types::UiTrackKind::Adjustment => {
+            theme.track_generator
+        }
+    };
     // Built before the element: each toggle takes the entity context to install
     // its listener, and a `children` closure cannot borrow it a second time.
+    let flags = LaneFlags::of(track);
     let mut toggles = Vec::with_capacity(LANE_TOGGLES.len());
     for toggle in LANE_TOGGLES {
+        if !(toggle.shown)(flags) {
+            continue;
+        }
         toggles.push(lane_toggle(toggle, track, theme, cx).into_any_element());
     }
+    let debug_badge = badge.clone();
     div()
         .id(gpui::ElementId::named_usize(
             "track-header",
             track_id as usize,
         ))
-        .w(px(HEADER_W))
-        .h_full()
-        .px(px(Theme::SPACE_SM))
+        .debug_selector(move || format!("track-header-{debug_badge}"))
+        .absolute()
+        .top(px(y_top))
+        .left_0()
+        .w(px(width))
+        .h(px(height))
+        .px(px(Theme::SPACE_XS))
         .flex()
         .items_center()
         .gap(px(Theme::SPACE_XS))
         .border_r_1()
-        .border_color(theme.border)
-        .bg(theme.surface)
-        .relative()
+        .border_b_1()
+        .border_color(theme.hairline)
+        .bg(theme.surface_header)
         .cursor(if dragging {
             CursorStyle::ClosedHand
         } else {
@@ -112,6 +135,44 @@ pub(super) fn track_header(
                 cx.notify();
             }),
         )
+        .on_scroll_wheel(
+            cx.listener(move |this, event: &gpui::ScrollWheelEvent, _, cx| {
+                let ctrl_or_alt =
+                    event.modifiers.control || event.modifiers.platform || event.modifiers.alt;
+                if ctrl_or_alt || !event.modifiers.shift {
+                    return;
+                }
+                cx.stop_propagation();
+                let delta = event.delta.pixel_delta(px(24.0));
+                let dx = f32::from(delta.x);
+                let dy = f32::from(delta.y);
+                let motion = if dy.abs() >= dx.abs() { dy } else { dx };
+                if motion.abs() <= 0.01 {
+                    return;
+                }
+                this.state.update(cx, |state, _| {
+                    if let Err(err) = state.step_lane_height_preset(track_id, motion > 0.0) {
+                        state.report_error(&err);
+                    }
+                });
+                cx.notify();
+            }),
+        )
+        .child(
+            div()
+                .id(gpui::ElementId::named_usize(
+                    "track-badge",
+                    track_id as usize,
+                ))
+                .px(px(3.))
+                .py(px(1.))
+                .rounded(px(2.))
+                .bg(badge_color.opacity(0.22))
+                .font_family(theme.font_mono.clone())
+                .text_size(Theme::TEXT_SMALL)
+                .text_color(theme.text)
+                .child(badge),
+        )
         .child(
             div()
                 .id(gpui::ElementId::named_usize(
@@ -121,7 +182,7 @@ pub(super) fn track_header(
                 .flex_1()
                 .min_w_0()
                 .overflow_hidden()
-                .text_size(px(13.))
+                .text_size(Theme::TEXT_TITLE)
                 .text_color(theme.text_muted)
                 .on_mouse_down(
                     MouseButton::Left,
@@ -138,9 +199,33 @@ pub(super) fn track_header(
                 .child(name),
         )
         .children(toggles)
-        // The row a reorder would land on draws its own line, faded in, so the
-        // target reads as moving with the pointer instead of blinking between
-        // rows.
+        .when(!collapsed, |el| {
+            let grip = motion::MotionKey::new("lane-grip", track_id);
+            el.child(
+                div()
+                    .id(("lane-grip", track_id))
+                    .absolute()
+                    .bottom(px(-2.))
+                    .left_0()
+                    .right_0()
+                    .h(px(5.))
+                    .cursor(CursorStyle::ResizeUpDown)
+                    .bg(motion::hover_blend(
+                        grip,
+                        theme.border_strong.opacity(0.0),
+                        theme.border_strong,
+                    ))
+                    .on_hover(motion::hover_listener(grip))
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(move |this, event: &MouseDownEvent, _, cx| {
+                            cx.stop_propagation();
+                            this.start_lane_resize(track_id, f32::from(event.position.y), target_h);
+                            cx.notify();
+                        }),
+                    ),
+            )
+        })
         .when(is_drop, |el| {
             el.child(motion::fade_quick(
                 motion::MotionKey::new("track-drop", track_id),
@@ -216,7 +301,7 @@ fn lane_toggle(
             crate::icons::icon(if lit { on } else { off }).into_any_element()
         }
         Glyph::Text { on, off } => div()
-            .text_size(px(10.))
+            .text_size(Theme::TEXT_SMALL)
             .child(if lit { on } else { off })
             .into_any_element(),
         Glyph::Chevron => crate::components::chevron(
@@ -226,6 +311,15 @@ fn lane_toggle(
             cx.reduce_motion(),
         )
         .into_any_element(),
+        Glyph::Channel => div()
+            .text_size(Theme::TEXT_SMALL)
+            .font_weight(gpui::FontWeight::SEMIBOLD)
+            .child(match flags.channel {
+                Some(aria_models::SourceChannel::Video) => "V",
+                Some(aria_models::SourceChannel::Audio) => "A",
+                None => "",
+            })
+            .into_any_element(),
     };
     track_toggle(id, content, lit, theme, cx, move |state| {
         if let Err(err) = (row.run)(state, flags) {

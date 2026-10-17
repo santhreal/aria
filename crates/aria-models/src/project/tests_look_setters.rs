@@ -6,16 +6,15 @@ use super::*;
 fn look_setters_reject_wrong_content() {
     let (mut project, media_id, _) = project_with_media(100);
 
-    // Generated clips have no source pixels to mask/key/stabilize.
+    // Generated clips have no source pixels to key or stabilize, and take a
+    // mask as footage does: it cuts what the generator draws.
     let fx = project.add_track(TrackKind::Adjustment, "FX");
     let bar = project
         .add_generated(fx, Generator::Adjustment, tr(0, 24))
         .unwrap();
-    assert!(
-        project
-            .set_clip_mask(bar, Some(Mask::new(MaskKind::Linear)))
-            .is_err()
-    );
+    let mask = Mask::new(MaskKind::Linear);
+    assert_eq!(project.add_clip_mask(bar, mask.clone()).unwrap(), 0);
+    assert_eq!(project.timeline().clip(bar).unwrap().masks, vec![mask]);
     assert!(
         project
             .set_clip_stabilize(bar, Some(StabilizeLevel::Recommended))
@@ -99,7 +98,7 @@ fn look_setters_reject_wrong_content() {
     );
     assert!(
         project
-            .set_clip_mask(still, Some(Mask::new(MaskKind::Heart)))
+            .add_clip_mask(still, Mask::new(MaskKind::Heart))
             .is_ok(),
         "masks apply to stills"
     );
@@ -233,6 +232,54 @@ fn text_effect_presets_bake_onto_the_style() {
     assert_eq!(style.shadow, spec.shadow);
     assert_eq!(style.background, spec.background);
 
+    // Sent again with the preset it holds, a title keeps the treatments it was
+    // sent with: a stroke edited after the preset survives a content edit.
+    let edited = crate::TextStroke {
+        rgba: [9, 8, 7, 255].into(),
+        width: 3.0.into(),
+    };
+    let restyled = |preset: &str| crate::TextStyle {
+        effect_preset: Some(preset.into()),
+        stroke: Some(edited.clone()),
+        ..Default::default()
+    };
+    project
+        .set_generator(
+            clip,
+            Generator::Text {
+                content: "Glow again".into(),
+                style: restyled("neon"),
+            },
+        )
+        .unwrap();
+    let ClipSource::Generated(Generator::Text { style, .. }) = &project.clip(clip).unwrap().content
+    else {
+        panic!("expected text");
+    };
+    assert_eq!(style.stroke.as_ref(), Some(&edited));
+
+    // A different preset is a new choice, and it is baked.
+    let other = crate::text_effect_catalog()
+        .iter()
+        .find(|spec| spec.id != "neon")
+        .expect("the catalog ships a second preset");
+    project
+        .set_generator(
+            clip,
+            Generator::Text {
+                content: "Glow again".into(),
+                style: restyled(&other.id),
+            },
+        )
+        .unwrap();
+    let ClipSource::Generated(Generator::Text { style, .. }) = &project.clip(clip).unwrap().content
+    else {
+        panic!("expected text");
+    };
+    assert_eq!(style.stroke, other.stroke);
+    assert_eq!(style.shadow, other.shadow);
+    assert_eq!(style.background, other.background);
+
     // Unknown presets are rejected at the door.
     let bad = crate::TextStyle {
         effect_preset: Some("nope".into()),
@@ -283,7 +330,7 @@ fn look_fields_roundtrip_and_stay_off_the_wire_when_unset() {
         .add_clip(track, media_id, tr(50, 50), rt(50))
         .unwrap();
     project
-        .set_clip_mask(styled, Some(Mask::new(MaskKind::Star)))
+        .add_clip_mask(styled, Mask::new(MaskKind::Star))
         .unwrap();
     project
         .set_clip_filter(styled, Some(Filter::new("sunset")))
@@ -291,7 +338,7 @@ fn look_fields_roundtrip_and_stay_off_the_wire_when_unset() {
 
     let plain_json = serde_json::to_value(project.clip(plain).unwrap()).unwrap();
     for key in [
-        "mask",
+        "masks",
         "chroma_key",
         "stabilize",
         "filter",
@@ -304,21 +351,21 @@ fn look_fields_roundtrip_and_stay_off_the_wire_when_unset() {
         );
     }
     let styled_json = serde_json::to_value(project.clip(styled).unwrap()).unwrap();
-    assert_eq!(styled_json["mask"]["kind"], "star");
+    assert_eq!(styled_json["masks"][0]["kind"], "star");
     assert_eq!(styled_json["filter"]["id"], "sunset");
 
     // The whole project (with looks) survives a save/load roundtrip.
     let json = serde_json::to_value(&project).unwrap();
     let back: Project = serde_json::from_value(json).unwrap();
     assert_eq!(
-        back.clip(styled).unwrap().mask,
-        project.clip(styled).unwrap().mask
+        back.clip(styled).unwrap().masks,
+        project.clip(styled).unwrap().masks
     );
     assert_eq!(
         back.clip(styled).unwrap().filter,
         project.clip(styled).unwrap().filter
     );
-    assert!(back.clip(plain).unwrap().mask.is_none());
+    assert!(back.clip(plain).unwrap().masks.is_empty());
 }
 
 #[test]

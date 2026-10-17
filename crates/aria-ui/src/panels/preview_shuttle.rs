@@ -9,6 +9,7 @@
 //! Presence is [`AppState::audio_follows`], not a second reading of `shuttle`:
 //! the badge is on screen exactly when the mixer has been told to go quiet.
 
+use crate::tooltip::WithTip as _;
 use gpui::{
     AnyElement, Context, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
     ParentElement, StatefulInteractiveElement, Styled, div, px,
@@ -20,9 +21,9 @@ use crate::motion;
 use crate::shell::Shell;
 use crate::theme::Theme;
 
-/// How a shuttle rate reads on the badge: `2x`, `-4x`.
-pub(super) fn rate_label(shuttle: i32) -> String {
-    format!("{shuttle}x")
+/// How a shuttle rate reads on the badge: `8x`, `-8x`, `4.1x`.
+pub(super) fn rate_label(shuttle: crate::transport::ShuttleSpeed) -> String {
+    shuttle.to_string()
 }
 
 /// The badge, or nothing while the mixer is following the transport.
@@ -48,14 +49,14 @@ pub(super) fn badge(
         .py(px(Theme::SPACE_XXS))
         .rounded(px(Theme::CONTROL_RADIUS))
         .bg(motion::hover_blend(key, theme.warning_muted, theme.warning))
-        .text_size(px(11.))
+        .text_size(Theme::TEXT_UI)
         .font_family(theme.font_mono.clone())
         .text_color(motion::hover_blend(key, theme.warning, theme.on_solid))
         .cursor(gpui::CursorStyle::PointingHand)
         .active(|style| style.opacity(0.92))
         .on_hover(motion::hover_listener(key))
         .when_some(crate::tooltip::builder("preview-shuttle"), |el, tip| {
-            el.tooltip(tip)
+            el.with_tip(tip)
         })
         .on_mouse_down(
             MouseButton::Left,

@@ -144,6 +144,58 @@ fn transition_with_effected_clip_renders_without_panic() {
 }
 
 #[test]
+fn the_first_frame_of_a_crossfade_reads_as_its_outgoing_clip_with_effects() {
+    // Regression: the sides of a transition drew their base content only, so
+    // a clip's effect chain vanished for the length of its transition. A
+    // crossfade at progress 0 is its outgoing side, so the first frame of the
+    // window has to read as the clip did before it.
+    let mut project = Project::new("p", FPS_24);
+    let track = project.add_track(TrackKind::Sticker, "S1");
+    let red = [255, 0, 0, 255];
+    let left = project
+        .add_generated(
+            track,
+            Generator::SolidColor { rgba: red },
+            TimeRange::at_rate(0, 24, FPS_24),
+        )
+        .unwrap();
+    project
+        .add_generated(
+            track,
+            Generator::SolidColor {
+                rgba: [0, 0, 255, 255],
+            },
+            TimeRange::at_rate(24, 24, FPS_24),
+        )
+        .unwrap();
+    project.add_effect(left, "duotone").unwrap();
+    project.add_transition(left, "crossfade").unwrap();
+    project.set_transition_duration(left, 24).unwrap();
+
+    let Ok(mut renderer) = Renderer::new_headless() else {
+        eprintln!("skipping: no headless GPU available");
+        return;
+    };
+    // The transition window is [12, 36).
+    let before = renderer
+        .render_frame_fit(&project, rt(6), 64, 64)
+        .expect("render before the transition")
+        .pixel(32, 32);
+    let first = renderer
+        .render_frame_fit(&project, rt(12), 64, 64)
+        .expect("render the first transition frame")
+        .pixel(32, 32);
+    assert!(
+        before
+            .iter()
+            .zip(red)
+            .any(|(&got, plain)| got.abs_diff(plain) > 40),
+        "the duotone must show before the transition, got {before:?}"
+    );
+    assert_near(first, before, 12, "first frame of the crossfade");
+}
+
+#[test]
 fn mono_filter_at_zero_intensity_matches_no_filter() {
     let Ok(gpu) = GpuContext::new_headless_blocking() else {
         eprintln!("skipping: no headless GPU available");

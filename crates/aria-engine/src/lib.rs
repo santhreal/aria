@@ -18,7 +18,7 @@ mod proxy;
 pub use action::ApplyOutcome;
 pub use aria_commands::{Command, EditCommand, EditOutcome, ProjectCommand};
 pub use aria_models::BakeMedium;
-pub use aria_render::{FrameStats, SeekPolicy};
+pub use aria_render::{FrameKey, FrameStats, RenderFiles, SeekPolicy};
 pub use bake::{BakePass, bake_project};
 pub use engine::{Engine, EngineConfig, HistoryEntry};
 pub use error::EngineError;

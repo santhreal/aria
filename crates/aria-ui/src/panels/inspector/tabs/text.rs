@@ -1,23 +1,32 @@
 //! Text tab: a title's content, its type properties, and its text-effect preset.
 //!
-//! The numeric properties come from the catalog rather than from a list here, so
-//! the size, the spacing, the stroke and the shadow are all animatable through
-//! the same keyframe-aware path every other block writes through. They had no
-//! surface at all before that: the model carried twelve text properties and the
-//! tab drew none of them.
+//! The numeric and colour properties come from the catalog rather than from a
+//! list here, so the size, the spacing, the fill, the stroke and the shadow are
+//! all animatable through the same keyframe-aware path every other block writes
+//! through. The Character and Paragraph controls are drawn here once and shared
+//! with the Character and Paragraph dock panels, so a title has one set of
+//! writes whichever surface edits it.
 
 use gpui::{
-    InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, SharedString,
-    StatefulInteractiveElement, Styled, div, px,
+    AnyElement, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
+    SharedString, StatefulInteractiveElement, Styled, div, px,
 };
 
-use crate::components;
+use aria_models::{TextAlignH, TextAlignV, TextCase};
+
+use crate::app::clip_text::TextSwitch;
+use crate::components::{self, ChipSize};
 use crate::fluent::FluentBuilder;
+use crate::motion::MotionKey;
 use crate::surfaces::clip_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::{RenameTarget, UiClip};
 
-use crate::panels::inspector::blocks::widgets::{param_rows, section_label};
+use crate::panels::inspector::blocks::widgets::{color_rows, param_rows, section_label};
+
+/// The surface name of the inspector's Text tab. The dock panels pass their own,
+/// so a control drawn in both places keeps its hover state apart.
+const INSPECTOR: &str = "insp-text";
 
 pub fn text_tab(
     theme: &Theme,
@@ -74,7 +83,7 @@ pub fn text_tab(
         .when_some(content.clone(), |el, content| {
             el.child(
                 div()
-                    .text_size(px(13.))
+                    .text_size(Theme::TEXT_UI)
                     .text_color(theme.text)
                     .child(SharedString::from(content)),
             )
@@ -82,7 +91,7 @@ pub fn text_tab(
         .when(content.is_none(), |el| {
             el.child(
                 div()
-                    .text_size(px(13.))
+                    .text_size(Theme::TEXT_UI)
                     .text_color(theme.text_faint)
                     .child("No text"),
             )
@@ -97,10 +106,8 @@ pub fn text_tab(
                 }),
             ),
         )
-        .child(section_label(theme, "Type"))
-        .children(param_rows(theme, "text", state, cx))
-        .child(section_label(theme, "Font"))
-        .child(font_picker(theme, state, cx))
+        .children(character_controls(theme, INSPECTOR, state, cx))
+        .children(paragraph_controls(theme, INSPECTOR, state, cx))
         .child(section_label(theme, "Effect"))
         .children(presets)
         .child(section_label(theme, "Cloud presets"))
@@ -143,7 +150,7 @@ fn cloud_presets(
                 .cursor(gpui::CursorStyle::PointingHand)
                 .active(|style| style.opacity(0.92))
                 .hover(move |el| el.bg(hover))
-                .text_size(px(13.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(text)
                 .child(label)
                 .on_mouse_down(
@@ -177,6 +184,164 @@ fn cloud_presets(
         .children(rows)
 }
 
+/// The Character controls: the font, the face switches, the case, the
+/// treatments around the glyphs, then the catalog's size, spacing and colour
+/// rows. Empty when the selection is not a title.
+///
+/// `surface` names where the controls are drawn and is folded into every key.
+pub fn character_controls(
+    theme: &Theme,
+    surface: &'static str,
+    state: &gpui::Entity<crate::app::AppState>,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> Vec<AnyElement> {
+    let Some(face) = state.read(cx).selected_text_face() else {
+        return Vec::new();
+    };
+    let switches = |set: &[TextSwitch], cx: &mut gpui::Context<crate::shell::Shell>| {
+        chip_row(
+            set.iter()
+                .map(|&switch| {
+                    pick_chip(
+                        theme,
+                        MotionKey::new("text-switch", switch.label()).with(surface),
+                        switch.label(),
+                        face.is_on(switch),
+                        move || Pick::TextSwitch(switch),
+                        cx,
+                    )
+                })
+                .collect(),
+        )
+    };
+    let face_row = switches(&TextSwitch::FACE, cx);
+    let treatments = switches(&TextSwitch::TREATMENTS, cx);
+    let cases = chip_row(
+        TextCase::ALL
+            .iter()
+            .map(|&case| {
+                pick_chip(
+                    theme,
+                    MotionKey::new("text-case", case.label()).with(surface),
+                    case.label(),
+                    face.case == case,
+                    move || Pick::TextCase(case),
+                    cx,
+                )
+            })
+            .collect(),
+    );
+    let mut out = vec![
+        section_label(theme, "Font").into_any_element(),
+        font_picker(theme, surface, state, cx).into_any_element(),
+        section_label(theme, "Style").into_any_element(),
+        face_row,
+        cases,
+        section_label(theme, "Treatments").into_any_element(),
+        treatments,
+        section_label(theme, "Size and spacing").into_any_element(),
+    ];
+    out.extend(param_rows(theme, "text", state, cx));
+    out.push(section_label(theme, "Colour").into_any_element());
+    out.extend(color_rows(theme, "text", state, cx));
+    out
+}
+
+/// The Paragraph controls: where the lines sit across the frame, where the
+/// block sits down it, and whether long lines wrap. Empty when the selection is
+/// not a title.
+pub fn paragraph_controls(
+    theme: &Theme,
+    surface: &'static str,
+    state: &gpui::Entity<crate::app::AppState>,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> Vec<AnyElement> {
+    let Some(face) = state.read(cx).selected_text_face() else {
+        return Vec::new();
+    };
+    let across = chip_row(
+        TextAlignH::ALL
+            .iter()
+            .map(|&align| {
+                pick_chip(
+                    theme,
+                    MotionKey::new("text-align-h", align.label()).with(surface),
+                    align.label(),
+                    face.align_h == align,
+                    move || Pick::TextAlignH(align),
+                    cx,
+                )
+            })
+            .collect(),
+    );
+    let down = chip_row(
+        TextAlignV::ALL
+            .iter()
+            .map(|&align| {
+                pick_chip(
+                    theme,
+                    MotionKey::new("text-align-v", align.label()).with(surface),
+                    align.label(),
+                    face.align_v == align,
+                    move || Pick::TextAlignV(align),
+                    cx,
+                )
+            })
+            .collect(),
+    );
+    let wrap = chip_row(vec![pick_chip(
+        theme,
+        MotionKey::new("text-switch", TextSwitch::Wrap.label()).with(surface),
+        TextSwitch::Wrap.label(),
+        face.is_on(TextSwitch::Wrap),
+        || Pick::TextSwitch(TextSwitch::Wrap),
+        cx,
+    )]);
+    vec![
+        section_label(theme, "Alignment").into_any_element(),
+        across,
+        down,
+        section_label(theme, "Lines").into_any_element(),
+        wrap,
+    ]
+}
+
+/// A wrapping row of chips.
+fn chip_row(chips: Vec<AnyElement>) -> AnyElement {
+    div()
+        .flex()
+        .flex_row()
+        .flex_wrap()
+        .gap(px(Theme::SPACE_XXS))
+        .children(chips)
+        .into_any_element()
+}
+
+/// One chip that hands `pick` to the registry when pressed. The pick is built
+/// on the press, so the chip holds only the copyable choice it stands for.
+fn pick_chip(
+    theme: &Theme,
+    key: MotionKey,
+    label: &'static str,
+    active: bool,
+    pick: impl Fn() -> Pick + 'static,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> AnyElement {
+    components::chip(key, label, active, ChipSize::Compact, theme)
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                this.state.update(cx, |state, _| {
+                    if let Err(err) = clip_pick::apply(state, pick()) {
+                        state.report_error(&err);
+                    }
+                });
+                cx.notify();
+            }),
+        )
+        .into_any_element()
+}
+
 /// The typeface picker: a window of installed families, the one in use marked,
 /// and a step either way for walking past the window.
 ///
@@ -190,6 +355,7 @@ fn cloud_presets(
 /// block. The picker itself fades in with the tab.
 fn font_picker(
     theme: &Theme,
+    surface: &'static str,
     state: &gpui::Entity<crate::app::AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
@@ -199,18 +365,18 @@ fn font_picker(
     let mut rows: Vec<gpui::AnyElement> = Vec::with_capacity(window.len() + 1);
     rows.push(font_row(
         theme,
+        surface,
         "",
         "System default",
         current.is_empty(),
         cx,
     ));
     for (family, on) in window {
-        let label = family.clone();
-        rows.push(font_row(theme, &family, &label, on, cx));
+        rows.push(font_row(theme, surface, &family, &family, on, cx));
     }
 
     crate::motion::fade_in(
-        "font-picker",
+        MotionKey::new("font-picker", surface),
         div()
             .flex()
             .flex_col()
@@ -220,12 +386,12 @@ fn font_picker(
                 div()
                     .flex()
                     .gap(px(Theme::SPACE_XS))
-                    .child(step_button(theme, false, cx))
-                    .child(step_button(theme, true, cx)),
+                    .child(step_button(theme, surface, false, cx))
+                    .child(step_button(theme, surface, true, cx)),
             )
             .child(
                 div()
-                    .text_size(px(11.))
+                    .text_size(Theme::TEXT_UI)
                     .text_color(theme.text_faint)
                     .child(SharedString::from(format!("{installed} fonts installed"))),
             ),
@@ -236,6 +402,7 @@ fn font_picker(
 /// `""` and sets the style back to unset.
 fn font_row(
     theme: &Theme,
+    surface: &'static str,
     family: &str,
     label: &str,
     on: bool,
@@ -243,7 +410,7 @@ fn font_row(
 ) -> gpui::AnyElement {
     // Keyed by family, so two rows never share a fade and the key survives the
     // window scrolling under the pointer.
-    let key = crate::motion::MotionKey::new("font", family);
+    let key = MotionKey::new("font", family).with(surface);
     let background = crate::motion::hover_blend(key, theme.surface, theme.surface_raised_hover);
     let owned = family.to_string();
     div()
@@ -252,7 +419,7 @@ fn font_row(
         .py(px(Theme::SPACE_XXS))
         .rounded(px(Theme::CONTROL_RADIUS))
         .bg(background)
-        .text_size(px(12.))
+        .text_size(Theme::TEXT_TITLE)
         .text_color(if on { theme.accent } else { theme.text })
         .cursor(gpui::CursorStyle::PointingHand)
         .active(|style| style.opacity(0.92))
@@ -279,25 +446,30 @@ fn font_row(
 
 fn step_button(
     theme: &Theme,
+    surface: &'static str,
     forward: bool,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
-    let (id, label) = if forward {
-        ("font-next", "Next font")
+    let label = if forward {
+        "Next font"
     } else {
-        ("font-prev", "Previous font")
+        "Previous font"
     };
-    components::ghost_button(id, label, theme)
-        .on_mouse_down(
-            MouseButton::Left,
-            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                this.state.update(cx, |state, _| {
-                    if let Err(err) = clip_pick::apply(state, Pick::CycleFont { forward }) {
-                        state.report_error(&err);
-                    }
-                });
-                cx.notify();
-            }),
-        )
-        .into_any_element()
+    components::ghost_button(
+        MotionKey::new("font-step", label).with(surface),
+        label,
+        theme,
+    )
+    .on_mouse_down(
+        MouseButton::Left,
+        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+            this.state.update(cx, |state, _| {
+                if let Err(err) = clip_pick::apply(state, Pick::CycleFont { forward }) {
+                    state.report_error(&err);
+                }
+            });
+            cx.notify();
+        }),
+    )
+    .into_any_element()
 }

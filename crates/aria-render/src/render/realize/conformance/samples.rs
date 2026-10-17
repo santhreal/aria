@@ -14,7 +14,7 @@ use aria_models::{
 use aria_shapes::{BezierPath, PathPoint, SdfParams};
 use aria_text::{TextAlign, TextStyle, TextVerticalAlign};
 
-use crate::scene::{LayerSource, ResolvedPass, SceneLayer, SizeSpec};
+use crate::scene::{LayerSource, ResolvedPass, Scene, SceneLayer, SizeSpec};
 use crate::{Renderer, export_to_file};
 
 use super::{Expect, H, INK_ALPHA, Topology, W};
@@ -152,7 +152,7 @@ pub(super) fn placed(source: LayerSource, size: SizeSpec) -> SceneLayer {
         opacity: 1.0,
         uv: [0.0, 0.0, 1.0, 1.0],
         effects: Vec::new(),
-        mask: None,
+        masks: Vec::new(),
         chroma_key: None,
         color_grade: None,
         lut: None,
@@ -346,6 +346,7 @@ pub(super) fn topologies(fx: &Fixtures, renderer: &mut Renderer) -> Vec<Topology
                 },
             ],
         },
+        nest_topology(),
         // Matte: a full-canvas content cut down to the stencil's 32 px quad,
         // so both the kept and the cut region are checked.
         Topology {
@@ -371,6 +372,44 @@ pub(super) fn topologies(fx: &Fixtures, renderer: &mut Renderer) -> Vec<Topology
     ];
     all.sort_by_key(|t| t.kind());
     all
+}
+
+/// The nest sample: a canvas-sized sequence frame holding a red left half and
+/// a blue right half, placed as the 32 px quad, so both inner layers must
+/// reach the canvas, each on its own side of the quad.
+fn nest_topology() -> Topology {
+    let half = |x: f32, fill: [u8; 4]| SceneLayer {
+        center: [x, H as f32 * 0.5],
+        ..placed(
+            LayerSource::Solid(fill),
+            SizeSpec::Fixed([W as f32 * 0.5, H as f32]),
+        )
+    };
+    let mut scene = Scene::empty(W, H, [0, 0, 0, 0]);
+    scene.layers = vec![
+        half(W as f32 * 0.25, [255, 0, 0, 255]),
+        half(W as f32 * 0.75, [0, 0, 255, 255]),
+    ];
+    Topology {
+        layer: quad(LayerSource::Nest {
+            scene: Box::new(scene),
+            frame: [0.0, 0.0, 1.0, 1.0],
+        }),
+        under: Vec::new(),
+        expect: vec![
+            Expect::Pixel {
+                at: [CENTER[0] - 8, CENTER[1]],
+                rgba: [255, 0, 0, 255],
+                tol: 2,
+            },
+            Expect::Pixel {
+                at: [CENTER[0] + 8, CENTER[1]],
+                rgba: [0, 0, 255, 255],
+                tol: 2,
+            },
+            Expect::Empty { rect: OUTSIDE },
+        ],
+    }
 }
 
 /// A closed square `side` px on a side, in path-local pixels.

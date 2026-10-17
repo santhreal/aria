@@ -20,7 +20,7 @@ use crate::schema::ProjectSchema;
 use crate::time::{
     Rational, RationalTime, TimeRange, check_same_rate, resample, time_add, time_sub,
 };
-use crate::timeline::{AudioLayout, Timeline};
+use crate::timeline::{AudioLayout, TimeDisplay, Timeline};
 use crate::track::{Track, TrackKind};
 use crate::transition::Transition;
 
@@ -214,6 +214,32 @@ impl Project {
         if new_clip.animation_combo.is_none() {
             new_clip.animation_in = None;
         }
+        if let Some((_, right_source)) = new_left_source {
+            let right_start = right_source.start.value;
+            let right_end = right_source.end_tick();
+            new_clip.markers.retain_mut(|m| {
+                if m.tick.value < right_start || m.tick.value >= right_end {
+                    return false;
+                }
+                if m.tick.value + m.duration.value > right_end {
+                    m.duration.value = (right_end - m.tick.value).max(0);
+                }
+                true
+            });
+        } else {
+            let split_local = left_tl.duration.value;
+            let right_len = right_tl.duration.value;
+            new_clip.markers.retain_mut(|m| {
+                if m.tick.value < split_local || m.tick.value >= split_local + right_len {
+                    return false;
+                }
+                m.tick.value -= split_local;
+                if m.tick.value + m.duration.value > right_len {
+                    m.duration.value = (right_len - m.tick.value).max(0);
+                }
+                true
+            });
+        }
 
         let track_id = self
             .timeline()
@@ -244,6 +270,30 @@ impl Project {
                 *source = left_source;
             }
             left.speed_curve = left_speed_curve;
+            if let Some((left_source, _)) = new_left_source {
+                let left_start = left_source.start.value;
+                let left_end = left_source.end_tick();
+                left.markers.retain_mut(|m| {
+                    if m.tick.value < left_start || m.tick.value >= left_end {
+                        return false;
+                    }
+                    if m.tick.value + m.duration.value > left_end {
+                        m.duration.value = (left_end - m.tick.value).max(0);
+                    }
+                    true
+                });
+            } else {
+                let left_len = left_tl.duration.value;
+                left.markers.retain_mut(|m| {
+                    if m.tick.value < 0 || m.tick.value >= left_len {
+                        return false;
+                    }
+                    if m.tick.value + m.duration.value > left_len {
+                        m.duration.value = (left_len - m.tick.value).max(0);
+                    }
+                    true
+                });
+            }
         }
         let new_id = self.timeline_mut().add_clip(track_id, new_clip)?;
         if let Some(track) = self.timeline_mut().track_mut(track_id) {
@@ -661,8 +711,8 @@ impl Project {
     pub fn set_clip_label(
         &mut self,
         clip_id: ClipId,
-        label: Option<crate::MarkerColor>,
-    ) -> Result<Option<crate::MarkerColor>, ModelError> {
+        label: Option<crate::LabelColor>,
+    ) -> Result<Option<crate::LabelColor>, ModelError> {
         let clip = self
             .timeline_mut()
             .clip_mut(clip_id)
@@ -687,6 +737,70 @@ impl Project {
             .clip_mut(clip_id)
             .ok_or(ModelError::UnknownClip(clip_id))?;
         Ok(std::mem::replace(&mut clip.name, name))
+    }
+
+    /// Set (or with `None` clear) the clip type `clip_id` is, returning the
+    /// previous one. Refused when the id is empty, longer than
+    /// [`crate::CLIP_TYPE_ID_MAX_BYTES`], or holds a space or a control
+    /// character. The type need not be registered: a project opened without the
+    /// plugin keeps the id.
+    pub fn set_clip_type(
+        &mut self,
+        clip_id: ClipId,
+        clip_type: Option<String>,
+    ) -> Result<Option<String>, ModelError> {
+        if let Some(id) = &clip_type {
+            let fault = if id.is_empty() {
+                Some("a clip type id is empty".to_owned())
+            } else if id.len() > crate::CLIP_TYPE_ID_MAX_BYTES {
+                Some(format!(
+                    "a clip type id is limited to {} bytes",
+                    crate::CLIP_TYPE_ID_MAX_BYTES
+                ))
+            } else if id.chars().any(|c| c.is_whitespace() || c.is_control()) {
+                Some(format!(
+                    "the clip type id `{id}` holds a space or a control character"
+                ))
+            } else {
+                None
+            };
+            if let Some(fault) = fault {
+                return Err(ModelError::InvalidParam(fault));
+            }
+        }
+        let clip = self
+            .timeline_mut()
+            .clip_mut(clip_id)
+            .ok_or(ModelError::UnknownClip(clip_id))?;
+        Ok(std::mem::replace(&mut clip.clip_type, clip_type))
+    }
+
+    /// Set (or with `None` clear) the property `clip_id`'s bar on the timeline
+    /// draws as its line, returning the previous one. Refused when the clip
+    /// has no such property, and for a picture property of a clip on an audio
+    /// lane.
+    pub fn set_clip_line_param(
+        &mut self,
+        clip_id: ClipId,
+        param: Option<crate::ClipParam>,
+    ) -> Result<Option<crate::ClipParam>, ModelError> {
+        let audio_lane = self
+            .timeline()
+            .track_of(clip_id)
+            .and_then(|track| self.timeline().track(track))
+            .is_some_and(|track| track.kind.is_audio());
+        let clip = self
+            .timeline_mut()
+            .clip_mut(clip_id)
+            .ok_or(ModelError::UnknownClip(clip_id))?;
+        if let Some(param) = param
+            && clip.line_row(param, audio_lane).is_none()
+        {
+            return Err(ModelError::InvalidParam(format!(
+                "the clip has no property {param:?} to draw on its bar; choose one from its fx badge menu"
+            )));
+        }
+        Ok(std::mem::replace(&mut clip.line_param, param))
     }
 
     /// Set a media clip's audio mix (CapCut volume + fades): `volume` is
@@ -841,6 +955,14 @@ impl Project {
 
     pub fn set_audio_layout(&mut self, layout: AudioLayout) {
         self.timeline_mut().set_audio_layout(layout);
+    }
+
+    pub fn time_display(&self) -> TimeDisplay {
+        self.timeline().time_display()
+    }
+
+    pub fn set_time_display(&mut self, display: TimeDisplay) {
+        self.timeline_mut().set_time_display(display);
     }
 
     pub fn resample_frame_rate(&mut self, new_rate: Rational) -> Result<(), ModelError> {

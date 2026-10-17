@@ -85,11 +85,7 @@ fn effect_descriptor_has_one_owner() {
         let expected: Vec<u8> = spec
             .params
             .iter()
-            .map(|param| match param.kind {
-                aria_models::EffectParamKind::Scalar => 1,
-                aria_models::EffectParamKind::Vec2 => 2,
-                aria_models::EffectParamKind::Color => 4,
-            })
+            .map(|param| param.kind.shader_floats() as u8)
             .collect();
         assert_eq!(
             widths, expected,

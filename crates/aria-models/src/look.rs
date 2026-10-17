@@ -39,7 +39,10 @@ pub use animation::{
 pub use blend::BlendMode;
 pub use chroma::{ChromaKey, StabilizeLevel};
 pub use filter::{Filter, FilterGrade, FilterOffset, FilterSpec, Lut, filter_catalog, filter_spec};
-pub use mask::{Mask, MaskKind, MaskSpec, mask_catalog};
+pub use mask::{
+    MASK_PATH_VERSION, MAX_CLIP_MASKS, MAX_MASK_EXPANSION, MAX_MASK_PATH_POINTS, Mask, MaskKind,
+    MaskMode, MaskSpec, mask_catalog,
+};
 pub use matte::{MatteSource, TrackMatte};
 pub use motion_blur::MotionBlur;
 pub use styles::{LayerBackground, LayerGlow, LayerOutline, LayerShadow, LayerStyles};

@@ -10,10 +10,13 @@
 //! Not covered: the drawn dots and pointer routing, which need a window. What is
 //! covered is every rule the panel calls into.
 
+use aria_models::ClipParam;
 use aria_plugin::PluginContext;
 
 use crate::app::AppState;
-use crate::app::canvas_overlay::{OverlayDrag, Rect, TransformHandle, drag_position, drag_scale};
+use crate::app::canvas_overlay::{
+    OverlayDrag, Rect, TransformHandle, drag_position, drag_scale, layer_rect,
+};
 use crate::scratch_pool::scratch;
 use crate::types::OverlayMode;
 
@@ -49,6 +52,104 @@ pub(super) fn framed(state: &mut AppState) {
     state.overlay_frame.container = Some(Rect::new(0.0, 0.0, 400.0, 200.0));
     state.overlay_frame.canvas = Some(Rect::new(0.0, 0.0, 400.0, 200.0));
     state.overlay_frame.layer = Some(Rect::new(100.0, 50.0, 200.0, 100.0));
+}
+
+/// The tick the second Position key of [`keyed_away_from_its_start`] sits at.
+const LATER: i64 = 10;
+
+/// The still on a 400 by 200 canvas with Position keyed to (0, 0) at its first
+/// frame and to (0.3, 0) at [`LATER`], and the playhead on the later key.
+///
+/// The projected row samples the transform at the clip's first frame, so a verb
+/// that starts from the row moves the picture from (0, 0) while it is drawn at
+/// (0.3, 0).
+fn keyed_away_from_its_start() -> AppState {
+    let mut state = selected();
+    state
+        .set_canvas_resolution(Some([400, 200]))
+        .expect("a 400 by 200 canvas");
+    framed(&mut state);
+    let clip = state.selected_ui_clip().expect("selection");
+    assert!(
+        clip.timeline_start_ticks == 0 && clip.timeline_end_ticks > LATER,
+        "the still must cover both keys"
+    );
+    state
+        .add_keyframe_at_playhead(ClipParam::Position)
+        .expect("key the first frame");
+    state.set_playhead(LATER);
+    let mut later = clip.transform;
+    later.position_x = 0.3;
+    state
+        .set_selected_transform(later)
+        .expect("key the later frame");
+    assert_eq!(state.keyframes_of(ClipParam::Position).len(), 2);
+    state
+}
+
+#[test]
+fn a_viewer_arrow_nudges_the_pose_at_the_playhead() {
+    let mut state = keyed_away_from_its_start();
+    state.viewer_arrow(4.0, 0.0).expect("nudge right");
+    let pose = state.selected_pose().expect("selection");
+    assert!(
+        (pose.position_x - 0.31).abs() < 1e-4,
+        "four pixels right of 0.3 is 0.31, the nudge wrote {}",
+        pose.position_x
+    );
+    assert_eq!(
+        state.keyframes_of(ClipParam::Position).len(),
+        2,
+        "the nudge rewrites the key under the playhead"
+    );
+    state.set_playhead(0);
+    let first = state.selected_pose().expect("selection");
+    assert!(
+        first.position_x.abs() < 1e-4,
+        "the nudge moved the first key to {}",
+        first.position_x
+    );
+}
+
+#[test]
+fn a_transform_drag_starts_from_the_pose_at_the_playhead() {
+    let mut state = keyed_away_from_its_start();
+    // At rest the handles sit on the quad the resolver places at the playhead.
+    let (center, size) = state.selected_layer_quad().expect("the still draws a quad");
+    state.record_overlay_frame(Rect::new(0.0, 0.0, 400.0, 200.0));
+    let canvas = state.overlay_frame.canvas.expect("a canvas");
+    assert_eq!(
+        state.overlay_frame.layer,
+        Some(layer_rect(canvas, state.canvas_size(), center, size)),
+        "the handles left the picture at rest"
+    );
+    let shown = state.overlay_transform().expect("selection");
+    assert!(
+        (shown.position_x - 0.3).abs() < 1e-4,
+        "the handles read x {} at the later key",
+        shown.position_x
+    );
+    state.begin_transform_drag(None, [200.0, 100.0]);
+    assert_eq!(
+        state.overlay_transform(),
+        Some(shown),
+        "a press moved the picture"
+    );
+    state.drag_overlay_to([240.0, 100.0]);
+    let moved = 0.3 + 40.0 / canvas.w;
+    let draft = state.overlay_transform().expect("a draft mid-drag");
+    assert!(
+        (draft.position_x - moved).abs() < 1e-4,
+        "forty pixels right of 0.3 is {moved}, the drag drafted {}",
+        draft.position_x
+    );
+    state.end_overlay_drag().expect("commit the move");
+    let pose = state.selected_pose().expect("selection");
+    assert!(
+        (pose.position_x - moved).abs() < 1e-4,
+        "the drag committed {}",
+        pose.position_x
+    );
 }
 
 #[test]

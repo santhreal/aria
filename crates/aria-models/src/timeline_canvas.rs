@@ -9,7 +9,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::ids::MarkerId;
-use crate::time::RationalTime;
+use crate::time::{Rational, RationalTime};
 
 /// Fixed marker flag palette (M1 markers). Serialized by name so project
 /// files stay readable; [`rgba`](Self::rgba) gives the render color.
@@ -207,6 +207,54 @@ impl AudioLayout {
     }
 }
 
+/// How a sequence counts time on its ruler: SMPTE timecode, a frame count, or
+/// feet and frames of 35 mm 4-perf film, sixteen frames to the foot.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum TimeDisplay {
+    #[default]
+    Timecode,
+    Frames,
+    FeetFrames,
+}
+
+impl TimeDisplay {
+    pub const ALL: [TimeDisplay; 3] = [
+        TimeDisplay::Timecode,
+        TimeDisplay::Frames,
+        TimeDisplay::FeetFrames,
+    ];
+
+    /// Frames in one foot of 35 mm 4-perf film.
+    pub const FRAMES_PER_FOOT: i64 = 16;
+
+    /// The serialized name (`"timecode"`, `"frames"`, `"feet_frames"`).
+    pub fn name(self) -> &'static str {
+        match self {
+            TimeDisplay::Timecode => "timecode",
+            TimeDisplay::Frames => "frames",
+            TimeDisplay::FeetFrames => "feet_frames",
+        }
+    }
+
+    /// The human-readable label for UI pickers.
+    pub fn label(self) -> &'static str {
+        match self {
+            TimeDisplay::Timecode => "Timecode",
+            TimeDisplay::Frames => "Frames",
+            TimeDisplay::FeetFrames => "Feet + Frames 35mm",
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|display| display.name() == name)
+    }
+
+    pub fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
+}
+
 /// Per-project canvas settings (M1): aspect preset, background color, and an
 /// optional explicit pixel size. The default (`Auto` + black + derived size)
 /// reproduces the pre-canvas-settings render exactly.
@@ -279,14 +327,86 @@ impl CanvasSettings {
     }
 }
 
-/// A named, colored anchor point on the timeline ruler (M1 markers): the
-/// agent aligns edits to them, beat-sync (M8) will emit them.
+/// Marker category (`Comment` by default).
+///
+/// Omitted from saves while `Comment` so older project files load unchanged and
+/// ordinary comment markers stay byte-identical.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum MarkerKind {
+    #[default]
+    Comment,
+    Chapter,
+    Segmentation,
+}
+
+impl MarkerKind {
+    pub const ALL: [MarkerKind; 3] = [
+        MarkerKind::Comment,
+        MarkerKind::Chapter,
+        MarkerKind::Segmentation,
+    ];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            MarkerKind::Comment => "comment",
+            MarkerKind::Chapter => "chapter",
+            MarkerKind::Segmentation => "segmentation",
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            MarkerKind::Comment => "Comment",
+            MarkerKind::Chapter => "Chapter",
+            MarkerKind::Segmentation => "Segmentation",
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name.trim().to_ascii_lowercase().as_str() {
+            "comment" => Some(MarkerKind::Comment),
+            "chapter" => Some(MarkerKind::Chapter),
+            "segmentation" => Some(MarkerKind::Segmentation),
+            _ => None,
+        }
+    }
+
+    pub fn cycle_next(self) -> Self {
+        match self {
+            MarkerKind::Comment => MarkerKind::Chapter,
+            MarkerKind::Chapter => MarkerKind::Segmentation,
+            MarkerKind::Segmentation => MarkerKind::Comment,
+        }
+    }
+
+    pub fn is_default(&self) -> bool {
+        *self == MarkerKind::Comment
+    }
+}
+
+fn zero_marker_duration() -> RationalTime {
+    RationalTime::new(0, Rational::FPS_24)
+}
+
+fn is_zero_marker_duration(duration: &RationalTime) -> bool {
+    duration.value == 0
+}
+
+/// A named, colored marker on the timeline ruler or on a clip (in clip time).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Marker {
     pub id: MarkerId,
-    /// Position on the timeline, stored at the timeline frame rate
-    /// ([`crate::Timeline::add_marker`] resamples on insert).
+    /// Position on the timeline (for sequence markers) or in clip time (for
+    /// clip markers).
     pub tick: RationalTime,
+    /// Span of a range marker (`value == 0` for a point marker). Omitted from
+    /// saves while zero so older project files load unchanged.
+    #[serde(
+        default = "zero_marker_duration",
+        skip_serializing_if = "is_zero_marker_duration"
+    )]
+    pub duration: RationalTime,
     /// Short label shown beside the flag. May be empty (unnamed marker).
     pub name: String,
     pub color: MarkerColor,
@@ -295,17 +415,24 @@ pub struct Marker {
     /// older files load unchanged.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub comment: String,
+    /// Marker category (`Comment` by default). Absent from saves while
+    /// `Comment` so older files load unchanged.
+    #[serde(default, skip_serializing_if = "MarkerKind::is_default")]
+    pub kind: MarkerKind,
 }
 
 impl Marker {
-    /// A fresh marker with a newly allocated id and no comment.
+    /// A fresh point marker with a newly allocated id, no comment, zero
+    /// duration, and [`MarkerKind::Comment`].
     pub fn new(tick: RationalTime, name: impl Into<String>, color: MarkerColor) -> Self {
         Self {
             id: MarkerId::next(),
             tick,
+            duration: RationalTime::new(0, tick.rate),
             name: name.into(),
             color,
             comment: String::new(),
+            kind: MarkerKind::Comment,
         }
     }
 
@@ -313,6 +440,20 @@ impl Marker {
     #[must_use]
     pub fn with_comment(mut self, comment: impl Into<String>) -> Self {
         self.comment = comment.into();
+        self
+    }
+
+    /// The same marker carrying `duration`.
+    #[must_use]
+    pub fn with_duration(mut self, duration: RationalTime) -> Self {
+        self.duration = duration;
+        self
+    }
+
+    /// The same marker carrying `kind`.
+    #[must_use]
+    pub fn with_kind(mut self, kind: MarkerKind) -> Self {
+        self.kind = kind;
         self
     }
 }
@@ -341,5 +482,38 @@ mod tests {
         assert!(CanvasSettings::custom(CanvasAspect::Auto, [0, 0, 0], Some([1920, 1080])).is_ok());
         assert!(CanvasSettings::custom(CanvasAspect::Auto, [0, 0, 0], Some([1921, 1080])).is_err());
         assert!(CanvasSettings::custom(CanvasAspect::Auto, [0, 0, 0], None).is_ok());
+    }
+
+    #[test]
+    fn old_marker_json_loads_with_zero_duration_and_comment_kind() {
+        let old_json = r#"{"id":42,"tick":{"value":24,"rate":{"num":24,"den":1}},"name":"Beat","color":"teal"}"#;
+        let marker: Marker = serde_json::from_str(old_json).expect("old marker shape loads");
+        assert_eq!(marker.id, MarkerId::from_raw(42));
+        assert_eq!(marker.tick, RationalTime::new(24, Rational::FPS_24));
+        assert_eq!(marker.duration.value, 0);
+        assert_eq!(marker.kind, MarkerKind::Comment);
+        assert_eq!(marker.comment, "");
+
+        let resaved = serde_json::to_string(&marker).expect("serialize default marker");
+        assert!(!resaved.contains("duration"));
+        assert!(!resaved.contains("kind"));
+    }
+
+    #[test]
+    fn marker_with_duration_and_kind_round_trips() {
+        let marker = Marker::new(
+            RationalTime::new(48, Rational::FPS_24),
+            "Act I",
+            MarkerColor::Orange,
+        )
+        .with_comment("Opening sequence")
+        .with_duration(RationalTime::new(72, Rational::FPS_24))
+        .with_kind(MarkerKind::Chapter);
+
+        let json = serde_json::to_string(&marker).expect("serialize range chapter marker");
+        assert!(json.contains(r#""kind":"chapter""#));
+        assert!(json.contains(r#""duration""#));
+        let decoded: Marker = serde_json::from_str(&json).expect("deserialize marker");
+        assert_eq!(decoded, marker);
     }
 }

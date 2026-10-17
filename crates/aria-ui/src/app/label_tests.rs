@@ -7,12 +7,12 @@
 //! Not covered: the drawn swatch row and the card tint, which need a render
 //! surface.
 
-use aria_models::MarkerColor;
+use aria_models::{ClipId, LabelColor};
 
 use super::AppState;
 use super::premiere_tests::with_clip;
 
-fn labels(state: &AppState) -> Vec<Option<MarkerColor>> {
+fn labels(state: &AppState) -> Vec<Option<LabelColor>> {
     state
         .store
         .sequence
@@ -29,10 +29,10 @@ fn a_label_is_set_projected_and_undone() {
     assert_eq!(labels(&state), vec![None], "a fresh clip carries no label");
 
     state
-        .set_selection_label(Some(MarkerColor::Teal))
+        .set_selection_label(Some(LabelColor::Teal))
         .expect("set");
-    assert_eq!(labels(&state), vec![Some(MarkerColor::Teal)]);
-    assert_eq!(state.selected_label(), Some(MarkerColor::Teal));
+    assert_eq!(labels(&state), vec![Some(LabelColor::Teal)]);
+    assert_eq!(state.selected_label(), Some(LabelColor::Teal));
 
     assert!(state.undo(), "one command, one undo step");
     assert_eq!(labels(&state), vec![None], "undo clears the label");
@@ -42,12 +42,12 @@ fn a_label_is_set_projected_and_undone() {
 fn clearing_a_label_is_a_separate_edit() {
     let (mut state, _) = with_clip();
     state
-        .set_selection_label(Some(MarkerColor::Pink))
+        .set_selection_label(Some(LabelColor::Magenta))
         .expect("set");
     state.set_selection_label(None).expect("clear");
     assert_eq!(labels(&state), vec![None]);
     assert!(state.undo(), "the clear is undoable on its own");
-    assert_eq!(labels(&state), vec![Some(MarkerColor::Pink)]);
+    assert_eq!(labels(&state), vec![Some(LabelColor::Magenta)]);
 }
 
 #[test]
@@ -59,20 +59,40 @@ fn selecting_by_label_reaches_every_clip_that_carries_it() {
         .timeline_end_ticks;
     state.set_playhead(end / 2);
     state.split_at_playhead().expect("two clips");
+    let second = state
+        .store
+        .sequence
+        .tracks
+        .iter()
+        .flat_map(|track| track.clips.iter())
+        .map(|clip| ClipId::from_raw(clip.id))
+        .find(|clip| *clip != first)
+        .expect("the right half");
     state.select_clip(first);
     state
-        .set_selection_label(Some(MarkerColor::Blue))
+        .set_selection_label(Some(LabelColor::Blue))
         .expect("set");
     state.clear_selection();
 
-    state.select_by_label(MarkerColor::Blue);
+    state.select_by_label(LabelColor::Blue);
     assert_eq!(state.selection, vec![first], "exactly the labelled clip");
-    assert_eq!(state.label_counts(), vec![(MarkerColor::Blue, 1)]);
+    assert_eq!(
+        state.label_counts(),
+        vec![(LabelColor::Violet, 1), (LabelColor::Blue, 1)],
+        "the unlabelled half counts under the label it is drawn in"
+    );
 
-    state.select_by_label(MarkerColor::Red);
+    state.select_by_label(LabelColor::Violet);
     assert_eq!(
         state.selection,
-        vec![first],
+        vec![second],
+        "the group a clip is drawn in reaches it without a label of its own"
+    );
+
+    state.select_by_label(LabelColor::Brown);
+    assert_eq!(
+        state.selection,
+        vec![second],
         "a colour nothing carries leaves the selection alone"
     );
     assert_eq!(
@@ -94,20 +114,20 @@ fn a_label_covers_the_whole_selection() {
     assert_eq!(state.selection.len(), 2);
 
     state
-        .set_selection_label(Some(MarkerColor::Orange))
+        .set_selection_label(Some(LabelColor::Mango))
         .expect("set");
     assert_eq!(
         labels(&state),
-        vec![Some(MarkerColor::Orange), Some(MarkerColor::Orange)]
+        vec![Some(LabelColor::Mango), Some(LabelColor::Mango)]
     );
-    assert_eq!(state.label_counts(), vec![(MarkerColor::Orange, 2)]);
+    assert_eq!(state.label_counts(), vec![(LabelColor::Mango, 2)]);
 }
 
 #[test]
 fn a_label_survives_a_save_and_load_round_trip() {
     let (mut state, _) = with_clip();
     state
-        .set_selection_label(Some(MarkerColor::Purple))
+        .set_selection_label(Some(LabelColor::Purple))
         .expect("set");
     let path = state.data_dir.join("labelled.aria");
     state.project_path = Some(path.clone());
@@ -115,7 +135,7 @@ fn a_label_survives_a_save_and_load_round_trip() {
     state.new_project().expect("clear the session");
     assert!(labels(&state).is_empty());
     state.open_project(path).expect("open");
-    assert_eq!(labels(&state), vec![Some(MarkerColor::Purple)]);
+    assert_eq!(labels(&state), vec![Some(LabelColor::Purple)]);
 }
 
 #[test]
@@ -125,9 +145,9 @@ fn a_pool_row_takes_a_label_and_gives_it_back() {
     assert_eq!(state.media_label(media), None);
 
     state
-        .set_media_label(media, Some(MarkerColor::Yellow))
+        .set_media_label(media, Some(LabelColor::Yellow))
         .expect("set");
-    assert_eq!(state.media_label(media), Some(MarkerColor::Yellow));
+    assert_eq!(state.media_label(media), Some(LabelColor::Yellow));
     assert!(state.undo(), "one command, one undo step");
     assert_eq!(state.media_label(media), None, "undo clears the label");
 }
@@ -139,7 +159,7 @@ fn the_pool_filter_matches_a_label_colour() {
     let (mut state, _) = with_clip();
     let media = state.store.media.first().expect("the fixture media").id;
     state
-        .set_media_label(media, Some(MarkerColor::Teal))
+        .set_media_label(media, Some(LabelColor::Teal))
         .expect("set");
 
     for ch in "teal".chars() {
@@ -166,7 +186,7 @@ fn a_media_label_survives_a_save_and_load_round_trip() {
     let (mut state, _) = with_clip();
     let media = state.store.media.first().expect("the fixture media").id;
     state
-        .set_media_label(media, Some(MarkerColor::Red))
+        .set_media_label(media, Some(LabelColor::Caribbean))
         .expect("set");
     let path = state.data_dir.join("labelled-pool.aria");
     state.project_path = Some(path.clone());
@@ -174,5 +194,5 @@ fn a_media_label_survives_a_save_and_load_round_trip() {
     state.new_project().expect("clear the session");
     state.open_project(path).expect("open");
     let reopened = state.store.media.first().expect("the media came back").id;
-    assert_eq!(state.media_label(reopened), Some(MarkerColor::Red));
+    assert_eq!(state.media_label(reopened), Some(LabelColor::Caribbean));
 }

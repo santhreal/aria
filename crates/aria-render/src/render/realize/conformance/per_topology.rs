@@ -60,3 +60,8 @@ fn transition_topology_paints_both_of_its_sides() {
 fn matte_topology_keeps_content_only_under_its_stencil() {
     prove("matte");
 }
+
+#[test]
+fn nest_topology_paints_every_layer_of_its_scene() {
+    prove("nest");
+}

@@ -1,9 +1,9 @@
 //! Pixel conformance for the realize dispatch: every [`LayerSource`] topology
 //! either paints or refuses, and the accounting is derived from the enum.
 //!
-//! The class this closes: both realize matches — the top-level one in
-//! `mod.rs` and the sub-scene one in `layers.rs` — are exhaustive, so a new
-//! topology cannot compile without an arm. An arm can still push a realized
+//! The class this closes: the realize match in `layers.rs`, which the top
+//! level and every transition or matte side go through, is exhaustive, so a
+//! new topology cannot compile without an arm. An arm can still push a realized
 //! layer that draws nothing, or drop the placement, the image, or the fill it
 //! was handed, and that compiles and passes. Here each topology is the only
 //! content in a scene rendered onto an empty canvas and read back, so an arm
@@ -12,7 +12,7 @@
 //! Fail-by-default: [`declared_kinds`] reads the `LayerSource` capability table
 //! at run time and compares it against the [`LayerSource::kind`] of every
 //! sample, and each row's `nested` column records the sub-scene decision. A
-//! twelfth topology fails the sweep until it has a sample, an expectation, and
+//! new topology fails the sweep until it has a sample, an expectation, and
 //! a recorded sub-scene decision — and it cannot reach the table at all without
 //! an arm in that file's exhaustive match.
 //!
@@ -27,7 +27,7 @@ use std::collections::BTreeSet;
 use aria_compositor::ColorGrade;
 use aria_core::RgbaImage;
 use aria_models::{AnimationSlot, Project};
-use aria_text::{TextBackground, TextStyle};
+use aria_text::{TextAlign, TextBackground, TextStyle, TextVerticalAlign};
 
 use crate::Renderer;
 use crate::scene::{LayerSource, Nested, Scene, SceneLayer, SizeSpec, TextAnimation};
@@ -99,9 +99,9 @@ enum Expect {
 
 /// The sub-scene contract for one topology.
 ///
-/// The decision is the topology's own `nested` column, so a twelfth topology
-/// cannot reach this suite without someone recording whether
-/// `realize_subscene_layer` draws it or turns it down.
+/// The decision is the topology's own `nested` column, so a new topology
+/// cannot reach this suite without someone recording whether a transition
+/// side draws it or turns it down.
 fn nested_contract(source: &LayerSource) -> Nested {
     source.spec().nested
 }
@@ -255,6 +255,8 @@ fn prove(kind: &str) {
     check(&image, &topology.expect, kind);
 }
 
+mod looks;
+mod masks;
 mod per_topology;
 
 // ---------------------------------------------------------------------------
@@ -265,7 +267,7 @@ mod per_topology;
 /// its recorded contract says.
 ///
 /// This is the fail-by-default gate. The topology list comes from the
-/// `LayerSource` capability table, not from this file, so a twelfth topology is
+/// `LayerSource` capability table, not from this file, so a new topology is
 /// red here until it has a sample and a pixel expectation.
 #[test]
 fn every_layer_source_variant_has_a_pixel_proof() {
@@ -435,6 +437,158 @@ fn canvas_pass_applies_a_grade_with_no_effect_chain() {
         }],
         "graded canvas pass",
     );
+}
+
+// ---------------------------------------------------------------------------
+// The measured quad
+// ---------------------------------------------------------------------------
+
+/// How far an edge of a CPU raster's measured quad may sit from its ink: the
+/// path rasterizer's anti-alias margin at the sweep's largest scale, plus a
+/// pixel of edge softening. A quad that ignored a layer scale, an anchor or a
+/// title's padding is further off than this.
+const RASTER_SLACK: f32 = 5.0;
+
+/// The ink bounds of a readback, `[x0, y0, x1, y1]` in pixel edges.
+fn ink_bounds(image: &RgbaImage) -> Option<[f32; 4]> {
+    let mut bounds: Option<[u32; 4]> = None;
+    for y in 0..image.height {
+        for x in 0..image.width {
+            if image.pixel(x, y)[3] > INK_ALPHA {
+                let b = bounds.get_or_insert([x, y, x, y]);
+                *b = [b[0].min(x), b[1].min(y), b[2].max(x), b[3].max(y)];
+            }
+        }
+    }
+    bounds.map(|[x0, y0, x1, y1]| [x0 as f32, y0 as f32, (x1 + 1) as f32, (y1 + 1) as f32])
+}
+
+/// A sample moved off its anchor and stretched unevenly both ways, the inputs a
+/// measured quad has to fold in the way realize does. A title is also set at
+/// two alignment corners, and animated with padding, which the static raster
+/// includes and the glyph placement does not.
+fn displaced(layer: &SceneLayer) -> Vec<SceneLayer> {
+    let stretch = |[x, y]: [f32; 2], [sx, sy]: [f32; 2]| [x * sx, y * sy];
+    let mut out = Vec::new();
+    for (anchor, factor) in [([0.35, 0.65], [1.5, 0.6]), ([0.65, 0.35], [0.6, 1.5])] {
+        let size = match layer.size {
+            SizeSpec::Fixed(size) => SizeSpec::Fixed(stretch(size, factor)),
+            SizeSpec::BitmapScaled(scale) => SizeSpec::BitmapScaled(stretch(scale, factor)),
+        };
+        out.push(SceneLayer {
+            anchor_point: anchor,
+            size,
+            ..layer.clone()
+        });
+    }
+    if let LayerSource::Text { content, style, .. } = &layer.source {
+        let title = |style: TextStyle, animation: Option<TextAnimation>| SceneLayer {
+            source: LayerSource::Text {
+                content: content.clone(),
+                style,
+                animation,
+            },
+            ..layer.clone()
+        };
+        for (align, vertical_align) in [
+            (TextAlign::Left, TextVerticalAlign::Top),
+            (TextAlign::Right, TextVerticalAlign::Bottom),
+        ] {
+            out.push(title(
+                TextStyle {
+                    align,
+                    vertical_align,
+                    ..style.clone()
+                },
+                None,
+            ));
+        }
+        out.push(title(
+            style.clone().with_padding(8),
+            Some(TextAnimation {
+                id: "char_fade_in".into(),
+                slot: AnimationSlot::In,
+                t: 1.0,
+                intensity: 1.0,
+                stagger: 1.0,
+            }),
+        ));
+    }
+    out
+}
+
+/// Every topology that draws its own picture inks only inside the quad
+/// [`Renderer::layer_quad`] measures for it, and a CPU raster's ink reaches
+/// every edge of its quad.
+///
+/// The selection handles and the canvas pick are drawn from that quad, so a
+/// quad off the ink is a box beside the picture and a click that misses it.
+/// The raster topologies are required to be in the sweep: their quad is the
+/// one only the measure knows.
+///
+/// What this does not catch: an error inside [`RASTER_SLACK`], a quad too
+/// large around art with transparent margins (a sticker, a Lottie), and the
+/// quad of a topology that draws no picture of its own.
+#[test]
+fn every_painting_topology_inks_inside_its_measured_quad() {
+    let (fx, mut renderer) = harness_or_skip!();
+    let canvas = [W as f32, H as f32];
+    let mut measured = BTreeSet::new();
+    for topology in topologies(&fx, &mut renderer) {
+        let spec = topology.layer.source.spec();
+        if !spec.paints || spec.wraps_layers || !topology.under.is_empty() {
+            continue;
+        }
+        for layer in displaced(&topology.layer) {
+            let what = format!(
+                "{} anchored at {:?}, sized {:?}",
+                topology.kind(),
+                layer.anchor_point,
+                layer.size
+            );
+            let (center, size) = renderer
+                .layer_quad(&layer, canvas)
+                .unwrap_or_else(|| panic!("{what}: no quad"));
+            let quad = [
+                center[0] - size[0] * 0.5,
+                center[1] - size[1] * 0.5,
+                center[0] + size[0] * 0.5,
+                center[1] + size[1] * 0.5,
+            ];
+            let mut scene = Scene::empty(W, H, [0, 0, 0, 0]);
+            scene.layers.push(layer);
+            let image = render(&mut renderer, &fx.project, &scene);
+            let ink = ink_bounds(&image).unwrap_or_else(|| panic!("{what}: drew nothing"));
+            for axis in 0..2 {
+                assert!(
+                    ink[axis] >= quad[axis] - 1.0 && ink[axis + 2] <= quad[axis + 2] + 1.0,
+                    "{what}: ink {ink:?} spills out of the measured quad {quad:?}"
+                );
+            }
+            if spec.cpu_raster.is_cpu() {
+                let on_canvas = [
+                    quad[0].max(0.0),
+                    quad[1].max(0.0),
+                    quad[2].min(canvas[0]),
+                    quad[3].min(canvas[1]),
+                ];
+                for edge in 0..4 {
+                    assert!(
+                        (ink[edge] - on_canvas[edge]).abs() <= RASTER_SLACK,
+                        "{what}: edge {edge} of the measured quad {quad:?} is off the ink {ink:?}"
+                    );
+                }
+            }
+        }
+        measured.insert(topology.kind());
+    }
+    for spec in crate::scene::layer_source_specs() {
+        assert!(
+            !spec.cpu_raster.is_cpu() || measured.contains(spec.id),
+            "the '{}' topology rasterizes on the CPU and no sample measured its quad",
+            spec.id
+        );
+    }
 }
 
 // ---------------------------------------------------------------------------

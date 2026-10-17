@@ -131,7 +131,7 @@ fn timeout_row(
         .gap(px(Theme::SPACE_SM))
         .child(
             div()
-                .text_size(px(11.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_muted)
                 .child(SharedString::from(format!("{label} timeout: {secs}s"))),
         )

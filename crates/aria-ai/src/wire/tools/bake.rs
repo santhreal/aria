@@ -27,9 +27,9 @@ pub(super) const CASES: &[ToolCase] = &[
         expect: Expect::Queued(|f| crate::validate::QueuedWork::RenderAndReplace {
             clip: f.clip_id(f.clip),
         }),
-        // The fixture's second clip carries nothing, so rendering it would
+        // The fixture's sound clip carries nothing, so rendering it would
         // re-encode the file that is already there.
-        invalid: |f| serde_json::json!({ "clip": f.next }),
+        invalid: |f| serde_json::json!({ "clip": f.sound }),
         refusal: "would only re-encode it",
     },
     ToolCase {

@@ -6,7 +6,7 @@
 //! Colors are precomputed from an oklch-derived neutral scale into gpui
 //! [`Hsla`]. Numbers drive layout, colors are paint.
 
-use gpui::{App, Global, Hsla, SharedString, hsla};
+use gpui::{App, Global, Hsla, Pixels, SharedString, hsla, px};
 use std::sync::atomic::{AtomicU8, AtomicU32, Ordering};
 /// Which appearance the app is painting.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -72,6 +72,8 @@ pub struct Theme {
     pub appearance: Appearance,
     pub bg: Hsla,
     pub surface: Hsla,
+    /// Tab rows, track headers, and the property name column.
+    pub surface_header: Hsla,
     pub surface_raised: Hsla,
     pub surface_card: Hsla,
     pub surface_dialog: Hsla,
@@ -80,10 +82,14 @@ pub struct Theme {
     pub element_active: Hsla,
     pub border: Hsla,
     pub border_strong: Hsla,
+    /// Row separators.
+    pub hairline: Hsla,
     pub text: Hsla,
     pub text_muted: Hsla,
     pub text_faint: Hsla,
     pub text_dim: Hsla,
+    /// Editable numbers: a value that scrubs under a drag.
+    pub value: Hsla,
     pub solid: Hsla,
     pub on_solid: Hsla,
     pub accent: Hsla,
@@ -111,7 +117,6 @@ pub struct Theme {
     pub track_video: Hsla,
     pub track_audio: Hsla,
     pub track_text: Hsla,
-    pub track_shape: Hsla,
     pub track_generator: Hsla,
     pub playhead: Hsla,
     pub snap_guide: Hsla,
@@ -126,7 +131,7 @@ impl Theme {
     pub const HEADER_HEIGHT: f32 = 44.0;
     pub const TITLEBAR_HEIGHT: f32 = 38.0;
     pub const TITLEBAR_TOP_PAD: f32 = 2.0;
-    pub const STATUS_STRIP_HEIGHT: f32 = 24.0;
+    pub const STATUS_STRIP_HEIGHT: f32 = 22.0;
     pub const BUBBLE_RADIUS: f32 = 16.0;
     pub const PANEL_RADIUS: f32 = 10.0;
     pub const CONTROL_RADIUS: f32 = 6.0;
@@ -135,6 +140,27 @@ impl Theme {
     pub const SPACE_SM: f32 = 8.0;
     pub const SPACE_MD: f32 = 12.0;
     pub const SPACE_LG: f32 = 16.0;
+
+    /// Type scale (look.md Density). Every `text_size` in the crate is one of
+    /// these; `theme_tests` fails on a literal size.
+    pub const TEXT_MICRO: Pixels = px(9.0);
+    pub const TEXT_SMALL: Pixels = px(10.0);
+    /// UI text: lists, properties, menus, dialogs, and the window default.
+    pub const TEXT_UI: Pixels = px(11.0);
+    /// Panel tab and title text.
+    pub const TEXT_TITLE: Pixels = px(12.0);
+    pub const TEXT_HEADING: Pixels = px(14.0);
+    pub const TEXT_LARGE: Pixels = px(16.0);
+    /// The timecode in the timeline header.
+    pub const TEXT_TIMECODE: Pixels = px(18.0);
+    pub const TEXT_DISPLAY: Pixels = px(28.0);
+
+    /// Row height of lists, properties, and menus.
+    pub const ROW_HEIGHT: f32 = 22.0;
+    /// Height of a tab row.
+    pub const TAB_ROW_HEIGHT: f32 = 24.0;
+    /// Height of a text input.
+    pub const INPUT_HEIGHT: f32 = 20.0;
 
     pub fn glass(&self) -> Hsla {
         match self.appearance {
@@ -202,28 +228,31 @@ impl Theme {
     }
 
     pub fn dark() -> Self {
-        let text = neutral(0.922);
-        let text_muted = neutral(0.708);
-        let text_faint = neutral(0.556);
+        let text = grey(0xd6);
+        let text_muted = grey(0x9a);
+        let text_faint = grey(0x6b);
         let accent = oklch(0.673, 0.182, 276.935);
         let warning = oklch(0.828, 0.189, 84.429);
         let danger = oklch(0.704, 0.191, 22.216);
         Self {
             appearance: Appearance::Dark,
-            bg: grey(6),
-            surface: grey(13),
-            surface_raised: neutral(0.235),
-            surface_card: grey(0x0e),
-            surface_dialog: grey(0x10),
-            surface_overlay: grey(0x16),
+            bg: grey(0x14),
+            surface: grey(0x1c),
+            surface_header: grey(0x23),
+            surface_raised: grey(0x2a),
+            surface_card: grey(0x18),
+            surface_dialog: grey(0x26),
+            surface_overlay: grey(0x2e),
             element_hover: hsla(0.0, 0.0, 0.92, 0.11),
             element_active: hsla(0.0, 0.0, 0.92, 0.16),
-            border: hsla(0.0, 0.0, 1.0, 0.08),
+            border: grey(0x0e),
             border_strong: hsla(0.0, 0.0, 1.0, 0.14),
+            hairline: hsla(0.0, 0.0, 1.0, 0.06),
             text,
             text_muted,
             text_faint,
             text_dim: grey(0x98),
+            value: gpui::rgb(0x5aa8ff).into(),
             solid: neutral(0.922),
             on_solid: grey(0x0e),
             accent,
@@ -236,7 +265,7 @@ impl Theme {
             success: oklch(0.765, 0.177, 163.223),
             busy: oklch(0.718, 0.202, 349.761),
             success_muted: oklch(0.845, 0.143, 164.978),
-            surface_raised_hover: neutral(0.29),
+            surface_raised_hover: grey(0x33),
             band: band_for(Appearance::Dark),
             input_bg: hsla(0.0, 0.0, 1.0, 0.03),
             selection: hsla(0.66, 0.6, 0.55, 0.35),
@@ -250,7 +279,6 @@ impl Theme {
             track_video: oklch(0.65, 0.03, 270.0),
             track_audio: oklch(0.65, 0.03, 140.0),
             track_text: oklch(0.65, 0.03, 60.0),
-            track_shape: oklch(0.65, 0.03, 200.0),
             track_generator: oklch(0.65, 0.03, 0.0),
             playhead: accent,
             snap_guide: warning,
@@ -260,28 +288,32 @@ impl Theme {
         }
     }
 
+    /// The dark neutral ramp inverted, with the same hues.
     pub fn light() -> Self {
-        let text = neutral(0.25);
-        let text_muted = neutral(0.439);
-        let text_faint = neutral(0.535);
+        let text = grey(0x26);
+        let text_muted = grey(0x52);
+        let text_faint = grey(0x7d);
         let warning = oklch(0.555, 0.163, 48.998);
         let danger = oklch(0.577, 0.245, 27.325);
         Self {
             appearance: Appearance::Light,
-            bg: grey(0xff),
-            surface: neutral(0.968),
-            surface_raised: neutral(0.940),
-            surface_card: grey(0xff),
-            surface_dialog: grey(0xff),
-            surface_overlay: grey(0xff),
+            bg: grey(0xeb),
+            surface: grey(0xe3),
+            surface_header: grey(0xdc),
+            surface_raised: grey(0xd5),
+            surface_card: grey(0xe7),
+            surface_dialog: grey(0xd9),
+            surface_overlay: grey(0xd1),
             element_hover: hsla(0.0, 0.0, 0.10, 0.06),
             element_active: hsla(0.0, 0.0, 0.10, 0.10),
-            border: hsla(0.0, 0.0, 0.0, 0.10),
+            border: grey(0xf1),
             border_strong: hsla(0.0, 0.0, 0.0, 0.17),
+            hairline: hsla(0.0, 0.0, 0.0, 0.06),
             text,
             text_muted,
             text_faint,
             text_dim: neutral(0.50),
+            value: gpui::rgb(0x1a73d9).into(),
             solid: neutral(0.205),
             on_solid: neutral(0.985),
             accent: oklch(0.511, 0.262, 276.966),
@@ -294,7 +326,7 @@ impl Theme {
             success: oklch(0.596, 0.145, 163.225),
             busy: oklch(0.592, 0.249, 0.584),
             success_muted: oklch(0.508, 0.118, 165.612),
-            surface_raised_hover: neutral(0.900),
+            surface_raised_hover: grey(0xcc),
             band: band_for(Appearance::Light),
             input_bg: grey(0xff),
             selection: hsla(0.66, 0.75, 0.62, 0.28),
@@ -308,7 +340,6 @@ impl Theme {
             track_video: oklch(0.65, 0.03, 270.0),
             track_audio: oklch(0.65, 0.03, 140.0),
             track_text: oklch(0.65, 0.03, 60.0),
-            track_shape: oklch(0.65, 0.03, 200.0),
             track_generator: oklch(0.65, 0.03, 0.0),
             playhead: neutral(0.0),
             snap_guide: warning,
@@ -352,15 +383,25 @@ impl Theme {
         Self::for_appearance(appearance).with_choice(choice)
     }
 
-    /// Build the theme for this appearance and choice and install it as the
-    /// one the whole window reads.
+    /// Build the theme for this appearance, choice, and theme file, and install
+    /// it as the one the whole window reads.
     ///
     /// Built here and nowhere else: a render reads the installed value, so the
     /// token construction below runs once per appearance or choice change
     /// rather than once per panel per frame.
-    pub fn install(appearance: Appearance, choice: aria_settings::ThemeChoice, cx: &mut App) {
+    pub fn install(
+        appearance: Appearance,
+        choice: aria_settings::ThemeChoice,
+        file: Option<&file::ThemeFile>,
+        cx: &mut App,
+    ) {
         set_current_appearance(appearance);
-        cx.set_global(ThemeHandle::from(Self::for_choice(appearance, choice)));
+        let theme = Self::for_choice(appearance, choice);
+        let theme = match file {
+            Some(file) => theme.with_file(file),
+            None => theme,
+        };
+        cx.set_global(ThemeHandle::from(theme));
     }
 
     /// The installed theme, as a handle.
@@ -415,6 +456,36 @@ impl Theme {
             Appearance::Light => 0.46,
         };
         hsla(hue, 0.68, lightness, 1.0)
+    }
+
+    /// The fill of a clip or pool row with `label`, or the fill a selected
+    /// clip with that label draws.
+    ///
+    /// The same in both appearances: a label is the operator's colour, and a
+    /// clip keeps it when the appearance changes.
+    pub fn label(&self, label: aria_models::LabelColor, selected: bool) -> Hsla {
+        let [r, g, b] = if selected {
+            label.selected_rgb()
+        } else {
+            label.rgb()
+        };
+        gpui::rgb(u32::from_be_bytes([0, r, g, b])).into()
+    }
+
+    /// The text and glyph colour drawn on a `label` fill. See [`Theme::ink_on`].
+    pub fn label_ink(&self, label: aria_models::LabelColor, selected: bool) -> Hsla {
+        Self::ink_on(self.label(label, selected))
+    }
+
+    /// The text and glyph colour drawn on `fill`: near black on a light fill
+    /// and near white on a dark one, whichever contrasts more.
+    pub fn ink_on(fill: Hsla) -> Hsla {
+        let (dark, light) = (grey(0x14), grey(0xf4));
+        if contrast_ratio(dark, fill) >= contrast_ratio(light, fill) {
+            dark
+        } else {
+            light
+        }
     }
 }
 impl Default for Theme {
@@ -520,3 +591,7 @@ use system::{gamma_encode, retint, system_mono, system_sans};
 #[path = "theme_tokens.rs"]
 mod tokens;
 pub use tokens::*;
+
+/// Theme files read from `<data dir>/themes`.
+#[path = "theme_file.rs"]
+pub mod file;

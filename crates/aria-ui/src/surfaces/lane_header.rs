@@ -1,7 +1,7 @@
 //! The toggles a lane header draws.
 
 use aria_engine::EngineError;
-use aria_models::TrackId;
+use aria_models::{SourceChannel, TrackId};
 
 use super::Glyph;
 use crate::app::AppState;
@@ -16,6 +16,8 @@ use crate::types::UiTrack;
 pub struct LaneToggle {
     /// Element id prefix; the lane's own id is appended per row.
     pub id: &'static str,
+    /// Whether the lane draws this button at all.
+    pub shown: fn(LaneFlags) -> bool,
     /// Whether the button draws lit, given the lane it sits on.
     pub lit: fn(LaneFlags) -> bool,
     /// What the button draws in each state.
@@ -40,6 +42,10 @@ pub struct LaneFlags {
     pub collapsed: bool,
     pub targeted: bool,
     pub sync_lock: bool,
+    /// The source channel the lane takes, if it takes one.
+    pub channel: Option<SourceChannel>,
+    /// A Source tab's edit lands the lane's channel here.
+    pub patched: bool,
 }
 
 impl LaneFlags {
@@ -54,14 +60,31 @@ impl LaneFlags {
             collapsed: lane.collapsed,
             targeted: lane.targeted,
             sync_lock: lane.sync_lock,
+            channel: lane.channel,
+            patched: lane.patched,
         }
     }
 }
 
+/// A button every lane draws.
+const fn every_lane(_: LaneFlags) -> bool {
+    true
+}
+
 /// Every toggle a lane header offers, in the order it draws them.
 pub const LANE_TOGGLES: &[LaneToggle] = &[
+    // Source patching: the channel letter is lit on the lane a Source tab's
+    // picture or sound lands on. A lane that takes no source draws none.
+    LaneToggle {
+        id: "patch",
+        shown: |lane| lane.channel.is_some(),
+        lit: |lane| lane.patched,
+        glyph: Glyph::Channel,
+        run: |state, lane| state.toggle_source_patch(lane),
+    },
     LaneToggle {
         id: "mute",
+        shown: every_lane,
         lit: |lane| lane.muted,
         glyph: Glyph::Icons {
             on: crate::icons::VOLUME_X,
@@ -71,6 +94,7 @@ pub const LANE_TOGGLES: &[LaneToggle] = &[
     },
     LaneToggle {
         id: "solo",
+        shown: every_lane,
         lit: |lane| lane.solo,
         glyph: Glyph::Icons {
             on: crate::icons::HEADPHONES,
@@ -80,12 +104,14 @@ pub const LANE_TOGGLES: &[LaneToggle] = &[
     },
     LaneToggle {
         id: "collapse",
+        shown: every_lane,
         lit: |lane| lane.collapsed,
         glyph: Glyph::Chevron,
         run: |state, lane| state.toggle_lane_collapsed(lane.id),
     },
     LaneToggle {
         id: "lock",
+        shown: every_lane,
         lit: |lane| lane.locked,
         glyph: Glyph::Icons {
             on: crate::icons::LOCK,
@@ -97,6 +123,7 @@ pub const LANE_TOGGLES: &[LaneToggle] = &[
     // because a lane that is not drawing is what an operator is looking for.
     LaneToggle {
         id: "vis",
+        shown: every_lane,
         lit: |lane| !lane.enabled,
         glyph: Glyph::Icons {
             on: crate::icons::EYE_OFF,
@@ -108,6 +135,7 @@ pub const LANE_TOGGLES: &[LaneToggle] = &[
     // insert.
     LaneToggle {
         id: "target",
+        shown: every_lane,
         lit: |lane| lane.targeted,
         glyph: Glyph::Icons {
             on: crate::icons::CROSSHAIR,
@@ -117,6 +145,7 @@ pub const LANE_TOGGLES: &[LaneToggle] = &[
     },
     LaneToggle {
         id: "sync",
+        shown: every_lane,
         lit: |lane| lane.sync_lock,
         glyph: Glyph::Icons {
             on: crate::icons::LINK,

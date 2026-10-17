@@ -1,15 +1,14 @@
-//! Track-level commands: stack order, the duck-source flag, and the ripple
-//! primitives that open and close time on a lane.
+//! Track-level commands: stack order, the duck-source flag, and the lane
+//! shift that opens and closes time on a lane.
 //!
-//! `MoveTrack`, `SetTrackDuckSource`, `ShiftClips`, and `RippleInsert` had no
-//! operator path. The store holds tracks top-first (the projection reverses the
+//! `MoveTrack`, `SetTrackDuckSource`, and `ShiftClips` had no operator path. The store holds tracks top-first (the projection reverses the
 //! model's bottom-first order), so "move up" here means "raise in the composite",
 //! and the index sent to the engine is converted back at the boundary — one place,
 //! rather than every caller guessing which way the stack runs.
 
 use aria_commands::{Command, EditCommand};
 use aria_engine::EngineError;
-use aria_models::{MediaId, RationalTime, TrackId};
+use aria_models::{RationalTime, TrackId};
 
 use super::AppState;
 
@@ -101,14 +100,41 @@ impl AppState {
         self.move_track_to_row(track, row + 1)
     }
 
-    /// Move a track to a row of the projected list. `MoveTrack` counts from the
-    /// bottom layer, so the row is mirrored here.
+    /// Move a track to a row of the projected list. Visual lanes above the A/V
+    /// divider are projected top-first (`V3, V2, V1`), while audio lanes below
+    /// the divider are projected downward (`A1, A2, A3`).
     pub fn move_track_to_row(&mut self, track: TrackId, row: usize) -> Result<(), EngineError> {
         let count = self.store.sequence.tracks.len();
-        if count == 0 || row >= count || self.track_row(track) == Some(row) {
+        let Some(from_row) = self.track_row(track) else {
+            return Ok(());
+        };
+        if count == 0 || row >= count || from_row == row {
             return Ok(());
         }
-        let index = count - 1 - row;
+        let visual_count = self
+            .store
+            .sequence
+            .tracks
+            .iter()
+            .take_while(|lane| {
+                !matches!(
+                    lane.kind,
+                    crate::types::UiTrackKind::Audio | crate::types::UiTrackKind::Submix
+                )
+            })
+            .count();
+        let is_audio = from_row >= visual_count;
+        let index = if is_audio {
+            if row < visual_count {
+                return Ok(());
+            }
+            row - visual_count
+        } else {
+            if row >= visual_count {
+                return Ok(());
+            }
+            count - 1 - row
+        };
         self.apply_command(Command::Edit(EditCommand::MoveTrack { track, index }))?;
         Ok(())
     }
@@ -316,30 +342,6 @@ impl AppState {
             track,
             from: RationalTime::new(from, rate),
             delta: RationalTime::new(delta, rate),
-        }))?;
-        Ok(())
-    }
-
-    /// Insert media at the playhead, pushing everything at or after it right by
-    /// the new clip's length. This is the Ripple-mode drop: `drop_media_on_timeline`
-    /// overwrites, which is the Overwrite-mode behaviour.
-    pub fn ripple_insert_at_playhead(
-        &mut self,
-        track: TrackId,
-        media: MediaId,
-    ) -> Result<(), EngineError> {
-        let source = {
-            let engine = self.engine.lock();
-            let Some(item) = engine.project().media(media) else {
-                return Ok(());
-            };
-            item.full_range()
-        };
-        self.apply_command(Command::Edit(EditCommand::RippleInsert {
-            track,
-            media,
-            source,
-            at: self.playhead,
         }))?;
         Ok(())
     }

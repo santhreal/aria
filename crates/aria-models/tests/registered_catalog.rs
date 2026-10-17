@@ -25,6 +25,7 @@ fn scalar(name: &str, default: f32, min: f32, max: f32) -> EffectParamSpec {
         max,
         default_color: [0; 4],
         default_vec2: [0.0; 2],
+        ..Default::default()
     }
 }
 
@@ -38,15 +39,19 @@ fn color(name: &str, default: [u8; 4]) -> EffectParamSpec {
         max: 0.0,
         default_color: default,
         default_vec2: [0.0; 2],
+        ..Default::default()
     }
 }
 
 fn effect(id: &str, params: Vec<EffectParamSpec>) -> EffectSpec {
     EffectSpec {
         id: id.into(),
+        category: String::new(),
         label: format!("{id} label"),
         params,
         generator: false,
+        stateful: false,
+        ..Default::default()
     }
 }
 
@@ -54,6 +59,7 @@ fn transition(id: &str) -> TransitionSpec {
     TransitionSpec {
         id: id.into(),
         label: format!("{id} label"),
+        ..Default::default()
     }
 }
 
@@ -174,9 +180,12 @@ fn every_refusal_rule_rejects_and_leaves_the_catalog_unchanged() {
             "empty label",
             EffectSpec {
                 id: "test.unlabelled".into(),
+                category: String::new(),
                 label: String::new(),
                 params: Vec::new(),
                 generator: false,
+                stateful: false,
+                ..Default::default()
             },
             "no label",
         ),
@@ -224,6 +233,7 @@ fn every_refusal_rule_rejects_and_leaves_the_catalog_unchanged() {
             TransitionSpec {
                 id: "test.unlabelled_t".into(),
                 label: String::new(),
+                ..Default::default()
             },
             "no label",
         ),

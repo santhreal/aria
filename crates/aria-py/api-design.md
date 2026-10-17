@@ -270,6 +270,12 @@ incrementally; `clear_animation` flattens back to a constant. Batch pairs
 may be listed in any order (sorted internally); duplicate times within one
 call raise `ValueError`.
 
+A property is named by a short alias (`opacity`, `anchor`, `fill`) or by its
+registry id with underscores for hyphens (`anchor_point`, `filter_intensity`).
+A mask property includes the mask's index in the clip's stack, top first:
+`mask_0_feather`, `mask_1_center`. Naming a mask the clip does not have
+raises an error.
+
 `easing` names the curve of the segment *leaving* a keyframe (engine
 semantics — the last keyframe's easing is inert): `"linear"`, `"ease_in"`,
 `"ease_out"`, `"ease_in_out"`, or a CSS-style cubic bezier tuple
@@ -356,8 +362,10 @@ Plain values; construct them anywhere, place them with `track.add`.
 
 ```python
 Text(content, font="", size=90.0, color="white", bold=False, italic=False,
-     underline=False, case="normal", letter_spacing=0.0, line_spacing=1.2,
-     align=("center", "middle"), wrap=True,
+     underline=False, case="normal", letter_spacing=0.0, kerning=True,
+     line_spacing=1.2,
+     align=("center", "middle"),  # horizontal: left, center, right, justify
+     wrap=True,
      stroke=None,        # TextStroke(color, width)
      background=None,    # TextBackground(color, radius)
      shadow=None)        # TextShadow(color, blur, distance)

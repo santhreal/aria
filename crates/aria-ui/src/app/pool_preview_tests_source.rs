@@ -1,4 +1,4 @@
-//! Source: 6 of the cases in [`super`].
+//! Source: 8 of the cases in [`super`].
 //!
 //! Split out of `pool_preview_tests.rs` to stay under the file ceiling. A pure
 //! move: only `#[test]` fns live here. Every fixture and helper stays in the
@@ -10,28 +10,19 @@ use super::*;
 #[test]
 fn a_mark_past_a_shortened_source_is_dropped_rather_than_moved() {
     let (mut state, _media, frames) = with_monitor();
-    if let Some(view) = state.source_view.as_mut() {
+    if let Some(view) = state.sources.focused_mut() {
         view.mark_in = Some(frames + 500);
         view.mark_out = Some(frames + 900);
     }
 
     state.reconcile_source_view();
 
-    let view = state.source_view.as_ref().expect("still open");
+    let view = state.sources.focused().expect("still open");
     assert_eq!(
         view.mark_in, None,
         "a silently moved in point is a wrong edit"
     );
     assert_eq!(view.mark_out, None);
-}
-#[test]
-fn the_scrub_bar_rectangle_survives_a_relink() {
-    let mut store = PoolPreviewStore::default();
-    store.sync_media(1, 1);
-    store.record_source_bar(10.0, 300.0);
-    store.sync_media(1, 2);
-
-    assert_eq!(store.source_bar(), Some((10.0, 300.0)));
 }
 #[test]
 fn a_timeline_in_point_is_where_the_edit_lands() {
@@ -52,11 +43,15 @@ fn a_timeline_in_point_is_where_the_edit_lands() {
     );
 }
 #[test]
-fn a_marked_timeline_span_retimes_the_take_to_fill_it() {
-    let (mut state, _media, _frames) = with_monitor();
+fn four_points_retime_the_take_to_fill_the_marked_span() {
+    let (mut state, media) = with_video_monitor();
+    state.hover_pool_item(media, 0);
+    state.set_source_in();
+    state.hover_pool_item(media, 47);
+    state.set_source_out();
     state.playhead = aria_models::RationalTime::new(0, state.playhead.rate);
     state.set_mark_in();
-    state.playhead = aria_models::RationalTime::new(30, state.playhead.rate);
+    state.playhead = aria_models::RationalTime::new(24, state.playhead.rate);
     state.set_mark_out();
 
     state
@@ -65,10 +60,67 @@ fn a_marked_timeline_span_retimes_the_take_to_fill_it() {
 
     assert_eq!(
         spans(&state),
-        vec![(0, 30)],
-        "the clip occupies the marked span exactly"
+        vec![(0, 24), (0, 24)],
+        "picture and sound both occupy the marked span exactly"
     );
-    assert_eq!(state.status_message.as_deref(), Some("Fit to fill"));
+    assert_eq!(
+        state.status_message.as_deref(),
+        Some("Fit to fill at 200% speed"),
+        "forty-eight source frames in twenty-four sequence frames play at double speed"
+    );
+}
+#[test]
+fn a_source_in_and_a_marked_span_take_the_span_from_the_source() {
+    let (mut state, media) = with_video_monitor();
+    state.hover_pool_item(media, 10);
+    state.set_source_in();
+    state.playhead = aria_models::RationalTime::new(4, state.playhead.rate);
+    state.set_mark_in();
+    state.playhead = aria_models::RationalTime::new(24, state.playhead.rate);
+    state.set_mark_out();
+
+    state
+        .cut_source_in(crate::types::EditMode::Overwrite)
+        .expect("three-point overwrite");
+
+    assert_eq!(spans(&state), vec![(4, 24), (4, 24)]);
+    assert_eq!(
+        state.status_message.as_deref(),
+        Some("Overwrite"),
+        "no retime"
+    );
+    let sources: Vec<i64> = state
+        .store
+        .sequence
+        .tracks
+        .iter()
+        .flat_map(|lane| lane.clips.iter())
+        .map(|clip| clip.source_start_ticks)
+        .collect();
+    assert_eq!(
+        sources,
+        vec![10, 10],
+        "both channels start at the source In"
+    );
+}
+#[test]
+fn a_still_takes_the_marked_span_without_a_retime() {
+    let (mut state, media, _frames) = with_monitor();
+    state.hover_pool_item(media, 0);
+    state.set_source_in();
+    state.hover_pool_item(media, 1);
+    state.set_source_out();
+    state.playhead = aria_models::RationalTime::new(0, state.playhead.rate);
+    state.set_mark_in();
+    state.playhead = aria_models::RationalTime::new(30, state.playhead.rate);
+    state.set_mark_out();
+
+    state
+        .cut_source_in(crate::types::EditMode::Overwrite)
+        .expect("four-point overwrite of a still");
+
+    assert_eq!(spans(&state), vec![(0, 30)], "one picture, no sound");
+    assert_eq!(state.status_message.as_deref(), Some("Overwrite"));
 }
 #[test]
 fn match_frame_opens_the_source_of_the_clip_under_the_playhead() {
@@ -79,13 +131,13 @@ fn match_frame_opens_the_source_of_the_clip_under_the_playhead() {
     state
         .cut_source_in(crate::types::EditMode::Ripple)
         .expect("cut in");
-    state.close_source_monitor();
+    state.show_program();
     let (start, end) = spans(&state)[0];
     state.playhead = aria_models::RationalTime::new((start + end) / 2, state.playhead.rate);
 
     assert!(state.match_frame(), "the clip under the playhead is media");
 
-    let view = state.source_view.as_ref().expect("the monitor opened");
+    let view = state.sources.focused().expect("the monitor opened");
     assert_eq!(view.media, media);
     assert_eq!(
         view.mark_in,
@@ -97,7 +149,7 @@ fn match_frame_opens_the_source_of_the_clip_under_the_playhead() {
 #[test]
 fn match_frame_says_so_when_there_is_nothing_under_the_playhead() {
     let (mut state, _media, _frames) = with_monitor();
-    state.close_source_monitor();
+    state.show_program();
 
     assert!(!state.match_frame());
     assert_eq!(

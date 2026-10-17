@@ -1,4 +1,4 @@
-//! Contracts for the tool-strip clock.
+//! Contracts for the Viewer's playhead field as typed text.
 //!
 //! The class closed here is "the readout is paint": the playhead could be read
 //! but not typed, so a jump to an exact timecode meant scrubbing. The rules that
@@ -6,8 +6,7 @@
 //! the draft from what is on screen, and that the clock takes keys through the
 //! same field table as every other box rather than a block in the shell.
 //!
-//! Not covered: the click that takes focus, which needs a render surface. It
-//! calls `focus_clock(true)` and nothing else.
+//! The press, drag, and click on the drawn field are in `viewer_scrub_tests`.
 
 use super::premiere_tests::with_clip;
 use crate::keys::fields;
@@ -78,7 +77,7 @@ fn nonsense_restores_the_previous_value() {
         state
             .last_error
             .as_deref()
-            .is_some_and(|err| err.contains("not a timecode")),
+            .is_some_and(|err| err.starts_with("99:99 is not a time.")),
         "a refusal must say what it wanted: {:?}",
         state.last_error
     );
@@ -149,4 +148,50 @@ fn a_seek_past_the_end_is_clamped_not_refused() {
 
     assert_eq!(state.store.playhead_ticks, end);
     assert!(state.last_error.is_none(), "a clamp is not a refusal");
+}
+
+/// Each time display a sequence offers is how the clock reads and how it is
+/// typed: a picked display redraws the readout with the playhead where it was,
+/// a time typed in feet and frames lands where that display reads it, and an
+/// undo puts the previous display back on the clock.
+///
+/// The class: a display the model stores and the clock ignores. The displays
+/// are the model's own list, each mapped to its reading by an exhaustive match,
+/// so a new display without a reading does not compile.
+#[test]
+fn the_clock_reads_and_takes_the_sequence_time_display() {
+    use aria_models::TimeDisplay;
+    let reading = |display: TimeDisplay| match display {
+        TimeDisplay::Timecode => "00:00:01:16",
+        TimeDisplay::Frames => "40",
+        TimeDisplay::FeetFrames => "0002+08",
+    };
+    let (mut state, _) = with_clip();
+    state.set_playhead(40);
+    for display in TimeDisplay::ALL {
+        state
+            .set_time_display(display)
+            .expect("set the time display");
+        assert_eq!(state.clock_text(), reading(display), "{display:?}");
+    }
+
+    state
+        .set_time_display(TimeDisplay::FeetFrames)
+        .expect("feet");
+    state.focus_clock(true);
+    while state.clock_draft.as_deref().is_some_and(|d| !d.is_empty()) {
+        state.clock_pop();
+    }
+    // Three feet and four frames.
+    for ch in "3+04".chars() {
+        state.clock_push(ch);
+    }
+    state.commit_clock();
+    assert!(state.last_error.is_none(), "{:?}", state.last_error);
+    assert_eq!(state.store.playhead_ticks, 52);
+    assert_eq!(state.clock_text(), "0003+04");
+
+    assert!(state.undo(), "the display change is an undo step");
+    assert_eq!(state.store.sequence.time_display, TimeDisplay::Frames);
+    assert_eq!(state.clock_text(), "52");
 }

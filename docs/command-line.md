@@ -126,3 +126,91 @@ aria demo [out.png]
 Composite a text layer on a headless GPU and write the canvas. The one command
 that needs no project: it proves the GPU, the text rasterizer, and the readback
 path on a machine that has never opened the editor.
+
+## plugin
+
+```
+aria plugin new <id> [--tier wasm|native] [--dir PARENT] [--sdk PATH]
+aria plugin dev <dir> [--editor PATH] [--data-dir PATH]
+aria plugin check <dir|file.ariaplugin>
+aria plugin pack <dir> [--out FILE] [--no-build]
+```
+
+Create, run, validate, and package external plugins. Missing or unknown
+sub-commands and unknown flags exit `2`. Build, validation, and runtime
+failures exit `1`.
+
+### plugin new
+
+Create `<dir>/<id>/` (`<id>/` in the working directory when `--dir` is omitted)
+with `plugin.toml`, a sample declared effect shader at `shaders/<slug>.wgsl`, a
+sample palette command in `src/lib.rs`, `Cargo.toml`, and `.gitignore`. `--tier`
+defaults to `wasm` and also writes `wit/plugin.wit` from the host world
+definition. `--tier native` generates a crate against `aria-sdk`, resolved from
+`--sdk PATH` when given, then `crates/aria-sdk` from the build tree when
+present, then the repository git URL. Exits `1` without writing files if the
+target directory already exists or `<id>` fails manifest validation. Prints the
+created directory path and the `dev` and `pack` commands on stdout.
+
+```
+aria plugin new com.example.color-tools
+aria plugin new com.example.notes --tier native --dir plugins
+```
+
+### plugin dev
+
+When `<dir>/Cargo.toml` is present, build the plugin in debug mode and stage
+`plugin.wasm` or `lib/<os>-<arch>.<ext>` via a temporary file and atomic rename.
+Start the editor binary (`--editor PATH`, or `aria-desktop` beside the `aria`
+executable) with `ARIA_PLUGIN_DEV` set to the canonical package directory and,
+when `--data-dir` is given, `ARIA_DATA_DIR` set to that profile directory. Poll
+`Cargo.toml`, `src/`, and `wit/` every 500 ms and rebuild on change. A failed
+rebuild prints diagnostics on stderr and leaves the running editor and previous
+staged artifact in place. Data-only directories without `Cargo.toml` start the
+editor without a build loop. Exits with the editor process status code when the
+editor exits.
+
+```
+aria plugin dev com.example.color-tools --data-dir /var/tmp/aria-dev-profile
+```
+
+### plugin check
+
+Validate a package directory or `.ariaplugin` archive without starting the
+editor. Archives unpack to a temporary directory that is removed when the check
+completes. Checks run in order and print one status line per check on stdout:
+
+1. `manifest`: parse `plugin.toml` and resolve the package tier.
+2. `shaders`: compile declared effect, generator, and transition WGSL passes
+   through the compositor validator. On failure, stderr includes the effect id,
+   WGSL file path, 1-based line, and column.
+3. `permissions`: print `project`, `media`, `gpu`, `net`, `fs`, `process`, and
+   `clipboard` grants in full.
+4. `abi`: for WASM packages, compile and type-check `plugin.wasm` against
+   `aria:plugin/plugin@1.0.0`. For native packages, inspect every file in `lib/`
+   to verify its binary format (ELF, Mach-O, PE), CPU architecture, and exported
+   `aria_plugin_entry` symbol against its `<os>-<arch>.<ext>` filename, load the
+   current platform library, and print the unsandboxed native code warning. For
+   data packages, print `data (no code)`.
+
+An unbuilt source directory (`Cargo.toml` present without `plugin.wasm` or
+`lib/`) exits `1` and prints `aria plugin pack <dir>` and
+`aria plugin dev <dir>` on stderr.
+
+```
+aria plugin check com.example.color-tools
+aria plugin check com.example.color-tools-0.1.0.ariaplugin
+```
+
+### plugin pack
+
+Build the crate in release mode and stage the output when `<dir>/Cargo.toml`
+exists (skipped with `--no-build`), run the `plugin check` validations on
+`<dir>`, and write the `.ariaplugin` archive excluding crate build entries
+(`Cargo.toml`, `Cargo.lock`, `src`, `wit`, `target`). `--out` sets the archive
+path and defaults to `<dir>/<id>-<version>.ariaplugin`. Prints the check lines
+and the written archive path on stdout.
+
+```
+aria plugin pack com.example.color-tools --out dist/color-tools.ariaplugin
+```

@@ -6,11 +6,15 @@
 //! derived name — that last one is the case a plain `String` field would get
 //! wrong.
 //!
+//! The derived name is the source's own: the file a media clip places, as the
+//! pool lists it, and the group a multicam clip cuts between. An id the
+//! operator never sees anywhere else is not a name.
+//!
 //! Not covered: the double-click that opens the draft, which needs a render
 //! surface. The draft itself is exercised through `begin_rename` /
 //! `rename_push` / `commit_rename`, which is the state that gesture drives.
 
-use aria_models::ClipId;
+use aria_models::{ClipId, MediaId, MulticamAngle};
 
 use super::AppState;
 use super::premiere_tests::with_clip;
@@ -145,4 +149,31 @@ fn a_split_carries_the_name_to_both_halves() {
         2,
         "both halves keep the name: {names:?}"
     );
+}
+
+/// An unnamed clip reads as its source: a media clip as the file the pool
+/// lists, a multicam clip as its group. Both read as an id before.
+#[test]
+fn an_unnamed_clip_reads_as_its_source() {
+    let (mut state, clip) = with_clip();
+    assert_eq!(state.store.media[0].name, "texture");
+    assert_eq!(card_name(&state, clip), "texture");
+    let media = MediaId::from_raw(state.store.media[0].id);
+    let group = state
+        .create_multicam_group("Concert", vec![MulticamAngle::new(media, 0)])
+        .expect("the group is created")
+        .expect("the group has an id");
+    state
+        .place_multicam_group(group)
+        .expect("the group is placed");
+    let mut names: Vec<String> = state
+        .store
+        .sequence
+        .tracks
+        .iter()
+        .flat_map(|track| track.clips.iter())
+        .map(|clip| clip.name.to_string())
+        .collect();
+    names.sort_unstable();
+    assert_eq!(names, ["Concert", "texture"]);
 }

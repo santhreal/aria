@@ -28,6 +28,7 @@
 //!   yet handled — they surface as [`CompositorError::UnsupportedFormat`].
 
 mod compositor;
+mod cpu_effect;
 #[cfg(target_os = "windows")]
 mod dx12_import;
 mod effect_render;
@@ -41,7 +42,10 @@ mod metal_import;
 mod passes;
 mod passes_uniform;
 mod planes;
+mod plugin_textures;
+mod registered_graph;
 mod registered_passes;
+mod scopes;
 #[path = "track_feature.rs"]
 mod track_feature;
 #[cfg(target_os = "linux")]
@@ -51,17 +55,22 @@ pub use aria_core::RgbaImage;
 pub use aria_shapes::{SdfParams, SdfShape, Stroke};
 pub use compositor::{
     Compositor, FrameSink, ImageSink, PendingReadback, TexturePoolStats, check_frame_target,
-    identity_instances,
+    create_frame_target, identity_instances,
+};
+pub use cpu_effect::{
+    CpuEffect, CpuEffectDefinition, CpuFrameIn, CpuFrameOut, EffectCostSink, EffectFault,
+    EffectFaultKind, EffectFaultSink, EffectParams, EffectRender, F16_ONE, U8_TO_F16, f16_to_f32,
+    f16_to_u8, f32_to_f16,
 };
 pub use effect_render::PassStats;
 pub use error::CompositorError;
 pub use gpu::GpuContext;
 pub use grade::ColorGrade;
 pub use layer::{
-    BlendMode, CompositeLayer, CompositorConfig, CompositorLayer, FULL_UV, GlyphInstance,
-    GlyphsLayer, LayerBackground, LayerChromaKey, LayerContent, LayerEffects, LayerGlow, LayerLut,
-    LayerMask, LayerOutline, LayerPlacement, LayerShadow, LayerStyles, MatteRead, SdfLayer,
-    mask_kind,
+    BlendMode, CompositeLayer, CompositorConfig, CompositorLayer, CoverageMix, FULL_UV,
+    GlyphInstance, GlyphsLayer, LayerBackground, LayerChromaKey, LayerContent, LayerEffects,
+    LayerGlow, LayerLut, LayerMask, LayerOutline, LayerPlacement, LayerShadow, LayerStencil,
+    LayerStyles, MaskOp, MatteRead, SdfLayer, StencilCoverage, StencilMask, mask_kind,
 };
 pub use lut::{CubeLut, LutError, MAX_CUBE_SIZE};
 pub use passes::{
@@ -70,9 +79,19 @@ pub use passes::{
     shipped_effect_descriptors, shipped_transition_descriptors, shipped_transition_ids,
     transition_pass,
 };
+pub use plugin_textures::{
+    MAX_TEXTURE_SIDE, PluginTexture, TextureError, TextureRegistration, plugin_texture,
+    register_texture,
+};
 pub use registered_passes::{
     EffectDefinition, MAX_EFFECT_FLOATS, MAX_EFFECT_PASSES, PassRegistration, RegisterError,
-    RegisteredPass, TransitionDefinition, register_effect, register_transition,
+    RegisteredPass, TransitionDefinition, register_cpu_effect, register_effect,
+    register_effect_with_fault_sink, register_effect_with_sinks, register_transition,
+    register_transition_with_sinks, registered_effect,
+};
+pub use scopes::{
+    GpuScopes, MAX_SCOPE_CHANNELS, MAX_SCOPE_COLUMNS, MAX_SCOPE_GRID, ScopeChannel, ScopeCounts,
+    ScopeGrid,
 };
 pub use track_feature::{Match as TrackMatch, Patch as TrackPatch, track_patch};
 /// The `wgpu` the compositor's device and textures belong to, for a caller that

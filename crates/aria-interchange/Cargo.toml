@@ -1,0 +1,24 @@
+[package]
+name = "aria-interchange"
+description = "Timeline interchange for Aria: CMX 3600 EDL, Final Cut Pro XML and OpenTimelineIO importers and exporters"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+aria-commands = { path = "../aria-commands" }
+aria-models = { path = "../aria-models" }
+aria-plugin = { path = "../aria-plugin" }
+aria-render = { path = "../aria-render" }
+roxmltree = "0.21"
+serde_json = { workspace = true }
+
+[dev-dependencies]
+aria-engine = { path = "../aria-engine" }
+parking_lot = { workspace = true }
+tempfile = "3"
+
+[lints]
+workspace = true

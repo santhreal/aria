@@ -25,6 +25,44 @@ use crate::seek::SeekStats;
 pub(crate) const NS_PER_SEC: i64 = 1_000_000_000;
 const PULL_TIMEOUT: Duration = Duration::from_secs(8);
 
+/// Corrupt frames skipped after a seek before one is returned anyway, when no
+/// earlier seek point decodes clean. Past this many the stream is damaged.
+const MAX_CORRUPT_AFTER_SEEK: u32 = 300;
+
+fn is_corrupt(sample: &gst::Sample) -> bool {
+    sample
+        .buffer()
+        .is_some_and(|buffer| buffer.flags().contains(gst::BufferFlags::CORRUPTED))
+}
+
+/// Whether `sample` is a leading frame the seek's segment clipped: a frame
+/// that starts before the sync sample the seek landed on and overlaps it.
+/// GStreamer moves such a frame's start up to the segment start and cuts its
+/// duration by the same amount, so its time is no longer its own. Only one
+/// frame can straddle the segment start; frames wholly before it are dropped
+/// upstream.
+fn is_clipped_leading(sample: &gst::Sample, period_ns: Option<u64>) -> bool {
+    /// A duration shorter than the frame period by more than this was cut.
+    const CLIP_SLACK_NS: u64 = 1_000_000;
+    let (Some(buffer), Some(period)) = (sample.buffer(), period_ns) else {
+        return false;
+    };
+    let (Some(pts), Some(duration)) = (buffer.pts(), buffer.duration()) else {
+        return false;
+    };
+    let start = sample
+        .segment()
+        .and_then(|segment| segment.downcast_ref::<gst::ClockTime>())
+        .and_then(|segment| segment.start());
+    start == Some(pts) && duration.nseconds().saturating_add(CLIP_SLACK_NS) < period
+}
+
+/// One frame period of `rate` in nanoseconds, `None` without a valid rate.
+fn frame_period_ns(rate: Rational) -> Option<u64> {
+    let (num, den) = (u64::try_from(rate.num).ok()?, u64::try_from(rate.den).ok()?);
+    (num > 0 && den > 0).then(|| NS_PER_SEC as u64 * den / num)
+}
+
 static GST_INIT: Once = Once::new();
 
 pub(crate) fn ensure_init() -> Result<(), DecodeError> {
@@ -66,6 +104,11 @@ pub struct GstDecoder {
     pipeline: gst::Pipeline,
     sink: gst_app::AppSink,
     info: SourceInfo,
+    /// Whether a frame has been returned since the last seek. Until one has,
+    /// corrupt frames are skipped.
+    settled: bool,
+    /// The first sample after a seek, pulled to check that the seek landed on
+    /// a clean start point.
     pending: Option<gst::Sample>,
     last_pts: Option<RationalTime>,
     seek_stats: SeekStats,
@@ -89,7 +132,10 @@ impl GstDecoder {
             pipeline: opened.pipeline,
             sink: opened.sink,
             info: opened.info,
-            pending: Some(opened.preroll),
+            // The preroll sample is not kept: appsink hands it out again as
+            // the first `pull_sample` once the pipeline plays.
+            settled: true,
+            pending: None,
             last_pts: None,
             seek_stats: SeekStats::default(),
             mode: opened.mode,
@@ -97,9 +143,6 @@ impl GstDecoder {
     }
 
     fn pull_sample(&mut self) -> Result<Option<gst::Sample>, DecodeError> {
-        if let Some(sample) = self.pending.take() {
-            return Ok(Some(sample));
-        }
         match self
             .sink
             .try_pull_sample(gst::ClockTime::from_nseconds(PULL_TIMEOUT.as_nanos() as u64))
@@ -119,15 +162,13 @@ impl GstDecoder {
             }
         }
     }
-}
 
-impl VideoDecoder for GstDecoder {
-    fn info(&self) -> &SourceInfo {
-        &self.info
-    }
-
-    fn seek(&mut self, target: RationalTime) -> Result<(), DecodeError> {
+    /// One flushing key-unit seek to the sync sample at or before `target`.
+    fn seek_pipeline(&mut self, target: RationalTime) -> Result<(), DecodeError> {
         let ns = rational_to_ns(target);
+        self.pending = None;
+        self.settled = false;
+        self.last_pts = None;
         self.pipeline
             .seek_simple(
                 gst::SeekFlags::FLUSH | gst::SeekFlags::KEY_UNIT | gst::SeekFlags::SNAP_BEFORE,
@@ -141,16 +182,64 @@ impl VideoDecoder for GstDecoder {
                         ns as f64 / NS_PER_SEC as f64
                     )),
                 )
-            })?;
-        self.pending = None;
-        self.last_pts = None;
-        Ok(())
+            })
+    }
+}
+
+impl VideoDecoder for GstDecoder {
+    fn info(&self) -> &SourceInfo {
+        &self.info
+    }
+
+    /// Seek to the sync sample at or before `target`. When the first frame
+    /// after it decodes corrupt, the sync sample needs frames before it (an
+    /// open GOP without an IDR there), so the seek moves earlier, one second
+    /// then doubling, until the first frame decodes clean. A leading frame the
+    /// seek's segment clipped is skipped: its time was moved, so returning it
+    /// would show one frame under another's time.
+    fn seek(&mut self, target: RationalTime) -> Result<(), DecodeError> {
+        let mut backoff = crate::seek::Backoff::new(target);
+        let mut point = target;
+        let period = frame_period_ns(self.info.frame_rate);
+        loop {
+            self.seek_pipeline(point)?;
+            let Some(mut sample) = self.pull_sample()? else {
+                return Ok(());
+            };
+            if is_clipped_leading(&sample, period) {
+                let Some(next) = self.pull_sample()? else {
+                    return Ok(());
+                };
+                sample = next;
+            }
+            if is_corrupt(&sample)
+                && let Some((earlier, _)) = backoff.next()
+            {
+                point = earlier;
+                continue;
+            }
+            self.pending = Some(sample);
+            return Ok(());
+        }
     }
 
     fn next_frame(&mut self) -> Result<Option<VideoFrame>, DecodeError> {
-        let Some(sample) = self.pull_sample()? else {
-            return Ok(None);
+        let mut skipped = 0u32;
+        let sample = loop {
+            let sample = match self.pending.take() {
+                Some(sample) => sample,
+                None => match self.pull_sample()? {
+                    Some(sample) => sample,
+                    None => return Ok(None),
+                },
+            };
+            if is_corrupt(&sample) && !self.settled && skipped < MAX_CORRUPT_AFTER_SEEK {
+                skipped += 1;
+                continue;
+            }
+            break sample;
         };
+        self.settled = true;
         let frame = crate::gst_gpu::sample_to_frame(&sample, &self.info, self.mode)?;
         self.last_pts = Some(frame.pts);
         Ok(Some(frame))
@@ -244,9 +333,8 @@ pub(crate) fn sample_to_cpu_frame(
             crate::gst_gpu::nv12_from_bytes(map.as_slice(), width, height)?
         }
     };
-    let pts = buffer
-        .pts()
-        .map(|t| RationalTime::new(t.nseconds() as i64, Rational::new(NS_PER_SEC as i32, 1)))
+    let pts = stream_time_ns(sample, buffer)
+        .map(|ns| RationalTime::new(ns, Rational::new(NS_PER_SEC as i32, 1)))
         .unwrap_or_else(|| RationalTime::new(0, info.time_base));
     let duration = buffer
         .duration()
@@ -264,6 +352,29 @@ pub(crate) fn sample_to_cpu_frame(
         out = out.with_duration(d);
     }
     Ok(out)
+}
+
+/// A decoded buffer's presentation time in nanoseconds on the file's own
+/// timeline: the buffer timestamp mapped through the sample's segment.
+///
+/// An MP4 edit list starts buffer timestamps after zero (two frames for H.264
+/// with B-frames, the encoder delay for AAC), and the segment maps them back,
+/// so the first presented frame is at zero and frame times share one timeline
+/// with seek targets. Negative for a frame before the segment start.
+pub(crate) fn stream_time_ns(sample: &gst::Sample, buffer: &gst::BufferRef) -> Option<i64> {
+    let pts = i64::try_from(buffer.pts()?.nseconds()).ok()?;
+    let Some(segment) = sample
+        .segment()
+        .and_then(|segment| segment.downcast_ref::<gst::ClockTime>())
+    else {
+        return Some(pts);
+    };
+    let (Some(start), Some(time)) = (segment.start(), segment.time()) else {
+        return Some(pts);
+    };
+    let start = i64::try_from(start.nseconds()).ok()?;
+    let time = i64::try_from(time.nseconds()).ok()?;
+    pts.checked_sub(start)?.checked_add(time)
 }
 
 pub(crate) fn bus_error(pipeline: &gst::Pipeline) -> Option<DecodeError> {

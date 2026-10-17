@@ -28,6 +28,11 @@
 //! sequential and near-forward targets roll forward from the last emitted
 //! frame instead of seeking, so playback and forward scrubbing never pay a
 //! per-frame seek + GOP re-decode.
+//!
+//! [`AheadDecoder`] wraps any backend and decodes [`AHEAD_FRAMES`] frames
+//! ahead of its caller on a shared pool of decode threads; a backward request
+//! walks its GOP once and keeps the frames before it. [`open_ahead`] opens a
+//! decoder on that pool and decodes its first frame there.
 
 #[cfg(target_vendor = "apple")]
 mod apple;
@@ -77,19 +82,36 @@ mod gst_gpu;
 #[cfg(target_os = "linux")]
 pub use gst_audio::GstAudioReader;
 
-/// Shared `frame_at` roll-forward policy used by every backend.
-#[cfg(any(
-    target_vendor = "apple",
-    target_os = "windows",
-    target_os = "android",
-    target_os = "linux"
-))]
+/// Shared `frame_at` roll-forward policy used by every backend. Built on every
+/// platform because [`AheadDecoder`] reads its frame matching; its roll-forward
+/// half has no caller where no backend exists.
+#[cfg_attr(
+    not(any(
+        target_vendor = "apple",
+        target_os = "windows",
+        target_os = "android",
+        target_os = "linux"
+    )),
+    allow(dead_code)
+)]
 mod seek;
+pub use seek::{SeekStats, frame_at_nearest_rolling, frame_at_rolling};
+
+mod ahead;
+pub use ahead::{
+    AHEAD_FRAMES, AheadDecoder, BEHIND_BYTES, BEHIND_SURFACES, DECODE_THREAD_PREFIX,
+    OpeningDecoder, open_ahead,
+};
 
 mod pixel_map;
 
 mod probe;
 pub use probe::{MediaProbe, probe};
+
+mod external;
+pub use external::{
+    ExternalDecoder, ExternalDecoderHandle, external_decoder_extensions, register_external_decoder,
+};
 
 mod peaks;
 pub use peaks::{AudioPeaks, audio_peaks, audio_peaks_per_second};
@@ -208,8 +230,9 @@ pub fn decoder_capability() -> DecoderCapability {
     }
 }
 
-/// Open the platform-native video decoder for `path`, delivering frames in
-/// `mode`.
+/// Open the video decoder for `path`, delivering frames in `mode`: a
+/// registered decoder that claims the path's extension
+/// ([`register_external_decoder`]), else the platform-native one.
 ///
 /// Mirrors [`open_audio_reader`]: shared control flow, native codec only.
 /// Returns [`DecodeError::Unsupported`] on platforms without a backend, and for
@@ -217,7 +240,19 @@ pub fn decoder_capability() -> DecoderCapability {
 /// than reading the refusal. Apple, Windows, and Linux honor
 /// [`OutputMode::Gpu`] (zero-copy surfaces, with per-frame or per-open CPU
 /// fallback when the hardware path is unavailable); Android has CPU planes only.
+/// A registered decoder delivers CPU planes in either mode.
 pub fn open_video_decoder(
+    path: &Path,
+    mode: OutputMode,
+) -> Result<Box<dyn VideoDecoder>, DecodeError> {
+    external::dispatch(
+        path,
+        |decoder| decoder.open_video(path),
+        || open_native_video_decoder(path, mode),
+    )
+}
+
+fn open_native_video_decoder(
     path: &Path,
     mode: OutputMode,
 ) -> Result<Box<dyn VideoDecoder>, DecodeError> {
@@ -277,12 +312,25 @@ pub(crate) fn unsupported_mode(capability: DecoderCapability, mode: OutputMode) 
     )
 }
 
-/// Open the platform-native audio reader for `path`, decoding to interleaved
-/// `f32` at `out_rate` Hz and `channels` channels (the mixer's format).
+/// Open the audio reader for `path`, decoding to interleaved `f32` at
+/// `out_rate` Hz and `channels` channels (the mixer's format): a registered
+/// decoder that claims the path's extension, else the platform-native one.
 ///
 /// Mirrors the video decoder's platform dispatch; returns
 /// [`DecodeError::Unsupported`] on platforms without an audio backend.
 pub fn open_audio_reader(
+    path: &Path,
+    out_rate: u32,
+    channels: u16,
+) -> Result<Box<dyn AudioReader>, DecodeError> {
+    external::dispatch(
+        path,
+        |decoder| decoder.open_audio(path, out_rate, channels),
+        || open_native_audio_reader(path, out_rate, channels),
+    )
+}
+
+fn open_native_audio_reader(
     path: &Path,
     out_rate: u32,
     channels: u16,

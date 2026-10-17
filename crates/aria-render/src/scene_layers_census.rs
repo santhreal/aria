@@ -10,7 +10,7 @@ use aria_shapes::{BezierPath, SdfParams};
 use aria_text::TextStyle;
 
 use super::LayerSource;
-use crate::scene::{SceneLayer, SizeSpec};
+use crate::scene::{Scene, SceneLayer, SizeSpec};
 
 /// The media a census value names. Nothing decodes a census layer — the rows are
 /// read for their columns, and the conformance suite builds its own real
@@ -109,6 +109,15 @@ pub(super) fn census_matte() -> LayerSource {
     }
 }
 
+pub(super) fn census_nest() -> LayerSource {
+    let mut scene = Scene::empty(1, 1, [0, 0, 0, 0]);
+    scene.layers.push(census_layer());
+    LayerSource::Nest {
+        scene: Box::new(scene),
+        frame: [0.0, 0.0, 1.0, 1.0],
+    }
+}
+
 /// A placed layer for the wrapper census values to hold.
 pub(super) fn census_layer() -> SceneLayer {
     SceneLayer {
@@ -121,7 +130,7 @@ pub(super) fn census_layer() -> SceneLayer {
         opacity: 1.0,
         uv: [0.0, 0.0, 1.0, 1.0],
         effects: Vec::new(),
-        mask: None,
+        masks: Vec::new(),
         chroma_key: None,
         color_grade: None,
         lut: None,

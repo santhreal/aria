@@ -474,6 +474,7 @@ class TestAnimation:
 class TestText:
     def test_descriptor_validation(self) -> None:
         Text("ok", color=(255, 200, 100), align=("left", "top"))
+        Text("ok", kerning=False, align=("justify", "middle"))
         with pytest.raises(ValueError):
             Text("x", align=("diagonal", "top"))
         with pytest.raises(ValueError):
@@ -522,8 +523,9 @@ class TestText:
         c.set_style(size=160, color="#ffcc00", italic=True, align=("left", "bottom"))
         c.set_style(stroke=TextStroke("white", 2.0))
         c.set_style(stroke=None)  # clears
+        c.set_style(kerning=False, align=("justify", "top"))
         with pytest.raises(ValueError):
-            c.set_style(kerning=1.0)
+            c.set_style(spongebob=1.0)
         assert c.text == "hello"  # content untouched
 
     def test_set_style_on_media_less_clip_kinds_only(self, p: Project) -> None:

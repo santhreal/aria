@@ -37,10 +37,10 @@ use aria_models::{AudioBus, AudioEffectInstance, Rational, TrackId};
 
 use super::{
     BusNode, CHANNELS, DecodeError, EXPORT_AUDIO_RATE, ExportAudioMixer, Param, Span,
-    accumulate_span_samples, add_scaled, stereo_peak, ticks_to_samples,
+    accumulate_span_samples, add_scaled, apply_strip_gain_pan, stereo_peak, ticks_to_samples,
 };
 use crate::audio_processor::{
-    AudioBlock, AudioProcessor, FaultKind, FaultSink, ProcessorFault, create_processor,
+    AudioBlock, AudioProcessor, CostSink, FaultKind, FaultSink, ProcessorFault, create_processor,
     panic_message,
 };
 
@@ -153,6 +153,7 @@ struct Slot {
     automated: Vec<f32>,
     key: Option<Key>,
     on_fault: Option<FaultSink>,
+    on_cost: Option<CostSink>,
 }
 
 impl Slot {
@@ -172,6 +173,7 @@ impl Slot {
             automated: Vec::new(),
             key: None,
             on_fault: None,
+            on_cost: None,
         };
         if instance.bypass {
             return slot;
@@ -179,10 +181,12 @@ impl Slot {
         let Some(spec) = instance.spec() else {
             return slot;
         };
-        let Some((created, on_fault)) = create_processor(&spec.id, EXPORT_AUDIO_RATE) else {
+        let Some((created, on_fault, on_cost)) = create_processor(&spec.id, EXPORT_AUDIO_RATE)
+        else {
             return slot;
         };
         slot.on_fault = on_fault;
+        slot.on_cost = on_cost;
         slot.latency = i64::from(spec.latency);
         slot.params = spec
             .params
@@ -341,8 +345,9 @@ impl Slot {
             &self.automated,
             key,
         );
-        let started = deadline.map(|_| Instant::now());
+        let started = (deadline.is_some() || self.on_cost.is_some()).then(Instant::now);
         let outcome = catch_unwind(AssertUnwindSafe(|| processor.process(&mut block)));
+        let took = started.map(|at| at.elapsed());
         if let Err(payload) = outcome {
             // What a panicking processor left in the block is not audio.
             left.fill(0.0);
@@ -350,15 +355,17 @@ impl Slot {
             self.fault(FaultKind::Panicked(panic_message(payload.as_ref())));
             return;
         }
+        if let (Some(sink), Some(took)) = (&self.on_cost, took) {
+            sink(took);
+        }
         for sample in left.iter_mut().chain(right.iter_mut()) {
             if !sample.is_finite() {
                 *sample = 0.0;
             }
         }
-        let (Some(budget), Some(started)) = (deadline, started) else {
+        let (Some(budget), Some(took)) = (deadline, took) else {
             return;
         };
-        let took = started.elapsed();
         if took <= budget {
             *misses = 0;
             return;
@@ -573,6 +580,7 @@ fn read_raw(
     let fades = (span.fade_in, span.fade_out);
     span.fade_in = 0;
     span.fade_out = 0;
+    let crossfades = (span.crossfade_in.take(), span.crossfade_out.take());
     let read = ExportAudioMixer::mix_span_range(
         span,
         scratch,
@@ -585,6 +593,7 @@ fn read_raw(
     span.volume = volume;
     span.pan = pan;
     (span.fade_in, span.fade_out) = fades;
+    (span.crossfade_in, span.crossfade_out) = crossfades;
     read
 }
 
@@ -816,6 +825,14 @@ impl InsertGraph {
             warp_scratch,
             weight_scratch,
             peaks,
+            fps,
+            master_gain,
+            master_pan,
+            master_muted,
+            master_automation,
+            master_volume,
+            master_pan_envelope,
+            master_peak,
             ..
         } = mixer;
         for buffer in bus_buffers.iter_mut() {
@@ -883,12 +900,7 @@ impl InsertGraph {
                     );
                 }
             }
-            let gain = buses[lane].gain;
-            if gain != 1.0 {
-                for sample in sound.iter_mut() {
-                    *sample *= gain;
-                }
-            }
+            buses[lane].apply_fader_and_pan(sound, at - self.arrival[lane], *fps);
             peaks[lane] = stereo_peak(sound);
             for (index, &(target, level, pre_fader)) in sends.iter().enumerate() {
                 if !pre_fader {
@@ -915,6 +927,18 @@ impl InsertGraph {
         }
         self.master
             .run(out, at - self.master_arrival, &same, &self.taps, deadline);
+        apply_strip_gain_pan(
+            out,
+            at - self.master_arrival,
+            *fps,
+            *master_muted,
+            *master_gain,
+            *master_pan,
+            *master_automation,
+            master_volume,
+            master_pan_envelope,
+        );
+        *master_peak = stereo_peak(out);
         Ok(())
     }
 }

@@ -7,15 +7,21 @@
 use crate::app::DialogKind;
 
 pub(super) fn zoom_in(state: &mut crate::app::AppState) {
-    state.set_zoom(state.zoom * crate::transport::ZOOM_STEP, true);
+    state.zoom_around_playhead(crate::transport::ZOOM_STEP);
 }
 
 pub(super) fn zoom_out(state: &mut crate::app::AppState) {
-    state.set_zoom(state.zoom / crate::transport::ZOOM_STEP, true);
+    state.zoom_around_playhead(1.0 / crate::transport::ZOOM_STEP);
 }
 
-pub(super) fn delete_selected(state: &mut crate::app::AppState) {
-    if let Err(err) = state.delete_selected() {
+pub(super) fn clear_selected(state: &mut crate::app::AppState) {
+    if let Err(err) = state.clear_selected() {
+        state.report_error(&err);
+    }
+}
+
+pub(super) fn ripple_delete(state: &mut crate::app::AppState) {
+    if let Err(err) = state.ripple_delete_selected() {
         state.report_error(&err);
     }
 }
@@ -32,14 +38,30 @@ pub(super) fn open_settings(state: &mut crate::app::AppState) {
     state.open_dialog(DialogKind::Settings);
 }
 
-/// A step key nudges the selected clip, or moves the playhead when nothing is
-/// selected. One owner for both directions and both step sizes.
+/// Left, Right, Shift+Left and Shift+Right: the playhead by `frames`. A
+/// selected clip stays where it is; Ctrl+arrow moves or trims the selection.
 pub(super) fn step(state: &mut crate::app::AppState, frames: i64) {
-    if state.selected_clip().is_some() {
-        if let Err(err) = state.nudge_selected(frames) {
-            state.report_error(&err);
-        }
-    } else {
-        state.set_playhead(state.playhead.value + frames);
+    state.step_here(frames);
+}
+
+/// `]`, `[`, Shift+`]` and Shift+`[`: the selected clips' gain by `decibels`.
+pub(super) fn gain(state: &mut crate::app::AppState, decibels: f32) {
+    if let Err(err) = state.step_selected_gain(decibels) {
+        state.report_error(&err);
+    }
+}
+
+/// Ctrl+arrow and Ctrl+Shift+arrow: trim the selected edges, or move the
+/// selected clips, by `frames`.
+pub(super) fn trim_edges(state: &mut crate::app::AppState, frames: i64) {
+    if let Err(err) = state.trim_selected_edges(frames) {
+        state.report_error(&err);
+    }
+}
+
+/// An arrow in the Viewer: move the selected clips by `dx`, `dy` pixels.
+pub(super) fn viewer_arrow(state: &mut crate::app::AppState, dx: f32, dy: f32) {
+    if let Err(err) = state.viewer_arrow(dx, dy) {
+        state.report_error(&err);
     }
 }

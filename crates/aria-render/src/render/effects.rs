@@ -1,24 +1,25 @@
 use aria_compositor::{
-    BlendMode, LayerBackground, LayerChromaKey, LayerEffects, LayerGlow, LayerMask, LayerOutline,
-    LayerShadow, LayerStyles, mask_kind,
+    BlendMode, CoverageMix, LayerBackground, LayerChromaKey, LayerEffects, LayerGlow, LayerMask,
+    LayerOutline, LayerShadow, LayerStyles, mask_kind,
 };
 use aria_models::MaskKind;
 
-use crate::scene::SceneStyles;
+use crate::scene::{SceneLayer, SceneMask, SceneStyles};
 
 /// Floor for mask size axes (shader divides by size; avoid zeros).
 const MASK_SIZE_EPS: f32 = 1e-3;
 
-pub(super) fn layer_effects(layer: &crate::scene::SceneLayer) -> LayerEffects {
-    let mask = layer.mask.map(|m| LayerMask {
-        kind: mask_kind_id(m.kind),
-        feather: m.feather,
-        invert: u32::from(m.invert),
-        center: m.center,
-        size: [m.size[0].max(MASK_SIZE_EPS), m.size[1].max(MASK_SIZE_EPS)],
-        rotation_rad: m.rotation_rad,
-        roundness: m.roundness,
-    });
+/// The layer's look the fx pipeline draws with its pixels: its chroma key,
+/// and its mask when the stack is one shape mask. A path mask, or a stack of
+/// more than one, cuts through a stencil instead.
+pub(super) fn layer_effects(layer: &SceneLayer) -> LayerEffects {
+    let mask = match layer.masks.as_slice() {
+        [m] if m.kind != MaskKind::Path => Some(LayerMask {
+            mix: CoverageMix::single(m.op, m.opacity, m.invert),
+            ..shape_mask(m)
+        }),
+        _ => None,
+    };
     let chroma_key = layer.chroma_key.map(|c| LayerChromaKey {
         rgb: [
             f32::from(c.rgb[0]) / 255.0,
@@ -31,6 +32,23 @@ pub(super) fn layer_effects(layer: &crate::scene::SceneLayer) -> LayerEffects {
     LayerEffects { mask, chroma_key }
 }
 
+/// `m`'s shape for the compositor, before its inversion and its mix with the
+/// masks above it. Only a parametric kind reads it: a path mask draws from
+/// its raster.
+pub(super) fn shape_mask(m: &SceneMask) -> LayerMask {
+    LayerMask {
+        kind: mask_kind_id(m.kind),
+        feather: m.feather,
+        invert: 0,
+        center: m.center,
+        size: [m.size[0].max(MASK_SIZE_EPS), m.size[1].max(MASK_SIZE_EPS)],
+        rotation_rad: m.rotation_rad,
+        roundness: m.roundness,
+        expansion: m.expansion,
+        mix: CoverageMix::KEEP,
+    }
+}
+
 fn mask_kind_id(kind: MaskKind) -> u32 {
     match kind {
         MaskKind::Linear => mask_kind::LINEAR,
@@ -39,6 +57,7 @@ fn mask_kind_id(kind: MaskKind) -> u32 {
         MaskKind::Rectangle => mask_kind::RECTANGLE,
         MaskKind::Heart => mask_kind::HEART,
         MaskKind::Star => mask_kind::STAR,
+        MaskKind::Path => 0,
     }
 }
 

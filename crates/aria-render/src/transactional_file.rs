@@ -15,6 +15,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 const STAGING_DIRECTORY_PREFIX: &str = ".aria-export-";
 const MAX_ALLOCATION_ATTEMPTS: usize = 64;
 const MAX_EXTENSION_UNITS: usize = 64;
+#[cfg(test)]
 const MAX_GENERATED_DIRECTORY_BYTES: usize = 80;
 
 static NEXT_STAGING_ID: AtomicU64 = AtomicU64::new(0);
@@ -48,7 +49,7 @@ impl TransactionalFile {
             .unwrap_or_else(|error| error.duration())
             .as_nanos();
 
-        for attempt in 0..MAX_ALLOCATION_ATTEMPTS {
+        for _ in 0..MAX_ALLOCATION_ATTEMPTS {
             let sequence = NEXT_STAGING_ID.fetch_add(1, Ordering::Relaxed);
             let thread_hash = {
                 use std::hash::{Hash, Hasher};

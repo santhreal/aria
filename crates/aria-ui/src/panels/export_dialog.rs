@@ -25,19 +25,29 @@ pub fn render(
     let resolution = format!("{canvas_w} × {canvas_h}");
     // The file picker needs only the suggested name: where the Export button
     // writes is read again when it is pressed, from the one owner of that rule.
+    let ext = state.read(cx).export_extension();
+    let default_name = format!("export.{ext}");
     let suggested_name = dest
         .file_name()
         .and_then(|name| name.to_str())
-        .unwrap_or("export.mp4")
+        .unwrap_or(default_name.as_str())
         .to_owned();
+    let format_label = state.read(cx).export_format_label();
+    let encoder_label = state.read(cx).export_encoder_label();
+    let show_codec_bitrate = state.read(cx).export_shows_codec_and_bitrate();
+    let show_audio = state.read(cx).export_shows_audio_toggle();
+    let filter_label = format_label.clone();
+    let filter_ext = ext;
     let choose = components::ghost_button("export-dest", "Choose…", &theme).on_mouse_down(
         MouseButton::Left,
         cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+            let filter_label = filter_label.clone();
+            let filter_ext = filter_ext.clone();
             this.state.update(cx, |state, _| {
                 state.request_pick(
                     Ask::SaveFile(
                         FileSpec::new("Export video")
-                            .filter("MPEG-4", &["mp4"])
+                            .filter(filter_label, &[filter_ext.as_str()])
                             .file_name(suggested_name.as_str()),
                     ),
                     |state, answer| {
@@ -85,13 +95,22 @@ pub fn render(
             cx.notify();
         }),
     );
-    let options = state.read(cx).export_options;
+    let options = state.read(cx).export_options.clone();
     let (out_w, out_h) = state.read(cx).export_size();
     let range_label = state.read(cx).export_range_label();
     // The rows are built before the spinner: the spinner's element borrows the
     // context for as long as it lives, so anything else that needs `cx` has to
     // be finished first.
-    let picks: Vec<gpui::AnyElement> = vec![
+    let mut picks: Vec<gpui::AnyElement> = vec![
+        pick_row(
+            &theme,
+            "export-format",
+            "Format",
+            format_label,
+            cx,
+            |state| state.cycle_export_format(),
+        )
+        .into_any_element(),
         pick_row(
             &theme,
             "export-scale",
@@ -110,24 +129,32 @@ pub fn render(
             |state| state.cycle_export_rate(),
         )
         .into_any_element(),
-        pick_row(
-            &theme,
-            "export-codec",
-            "Codec",
-            options.codec.label().to_string(),
-            cx,
-            |state| state.cycle_export_codec(),
-        )
-        .into_any_element(),
-        pick_row(
-            &theme,
-            "export-bitrate",
-            "Bitrate",
-            options.bitrate.label(),
-            cx,
-            |state| state.cycle_export_bitrate(),
-        )
-        .into_any_element(),
+    ];
+    if show_codec_bitrate {
+        picks.push(
+            pick_row(
+                &theme,
+                "export-codec",
+                "Codec",
+                options.codec.label().to_string(),
+                cx,
+                |state| state.cycle_export_codec(),
+            )
+            .into_any_element(),
+        );
+        picks.push(
+            pick_row(
+                &theme,
+                "export-bitrate",
+                "Bitrate",
+                options.bitrate.label(),
+                cx,
+                |state| state.cycle_export_bitrate(),
+            )
+            .into_any_element(),
+        );
+    }
+    picks.push(
         pick_row(
             &theme,
             "export-gop",
@@ -137,24 +164,30 @@ pub fn render(
             |state| state.cycle_export_gop(),
         )
         .into_any_element(),
-        pick_row(
-            &theme,
-            "export-audio",
-            "Audio",
-            if options.audio {
-                "included".to_string()
-            } else {
-                "video only".to_string()
-            },
-            cx,
-            |state| state.toggle_export_audio(),
-        )
-        .into_any_element(),
+    );
+    if show_audio {
+        picks.push(
+            pick_row(
+                &theme,
+                "export-audio",
+                "Audio",
+                if options.audio {
+                    "included".to_string()
+                } else {
+                    "video only".to_string()
+                },
+                cx,
+                |state| state.toggle_export_audio(),
+            )
+            .into_any_element(),
+        );
+    }
+    picks.push(
         pick_row(&theme, "export-range", "Range", range_label, cx, |state| {
             state.toggle_export_range()
         })
         .into_any_element(),
-    ];
+    );
     // What is already rendering. Pressing Export twice is otherwise invisible
     // from this sheet until the Jobs board is opened, and the loader is what
     // separates a render that is still working from one that wedged.
@@ -206,12 +239,7 @@ pub fn render(
         .flex()
         .flex_col()
         .gap(px(Theme::SPACE_MD))
-        .child(row(
-            &theme,
-            "Format",
-            crate::app::export_options::format_label(options.codec),
-        ))
-        .child(row(&theme, "Encoder", aria_encoder::capability().backend))
+        .child(row(&theme, "Encoder", encoder_label))
         .child(row(&theme, "Canvas", resolution))
         .children(picks)
         .child(row(&theme, "Destination", dest_label))
@@ -258,37 +286,40 @@ fn pick_row(
                 cx.notify();
             }),
         )
-        .child(
-            div()
-                .text_size(px(13.))
-                .text_color(theme.text_muted)
-                .child(label),
-        )
-        .child(
-            div()
-                .text_size(px(13.))
-                .font_family(theme.font_mono.clone())
-                .text_color(theme.text)
-                .child(value),
-        )
+        .gap(px(Theme::SPACE_MD))
+        .child(label_cell(theme, label))
+        .child(value_cell(theme, label, value))
 }
 
-fn row(theme: &Theme, label: &str, value: impl Into<String>) -> impl IntoElement {
+/// A label and its value.
+fn row(theme: &Theme, label: &'static str, value: impl Into<String>) -> impl IntoElement {
     div()
         .flex()
         .flex_row()
         .justify_between()
-        .child(
-            div()
-                .text_size(px(13.))
-                .text_color(theme.text_muted)
-                .child(label.to_string()),
-        )
-        .child(
-            div()
-                .text_size(px(13.))
-                .font_family(theme.font_mono.clone())
-                .text_color(theme.text)
-                .child(value.into()),
-        )
+        .gap(px(Theme::SPACE_MD))
+        .child(label_cell(theme, label))
+        .child(value_cell(theme, label, value.into()))
+}
+
+fn label_cell(theme: &Theme, label: &'static str) -> impl IntoElement {
+    div()
+        .flex_none()
+        .text_size(Theme::TEXT_UI)
+        .text_color(theme.text_muted)
+        .child(label)
+}
+
+/// A row's value, on one line. A value wider than the card gives up its start,
+/// so a destination keeps its file name in view and an encoder its codec.
+fn value_cell(theme: &Theme, label: &'static str, value: String) -> impl IntoElement {
+    div()
+        .debug_selector(move || format!("export-row-{label}"))
+        .overflow_hidden()
+        .whitespace_nowrap()
+        .text_ellipsis_start()
+        .text_size(Theme::TEXT_UI)
+        .font_family(theme.font_mono.clone())
+        .text_color(theme.text)
+        .child(value)
 }

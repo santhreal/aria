@@ -524,6 +524,7 @@ pub(crate) fn migrate_document(doc: &mut serde_json::Value, from: u32) {
     for step in from..PROJECT_SCHEMA_VERSION {
         match step {
             1 => migrate_v1_to_v2(doc),
+            2 => migrate_v2_to_v3(doc),
             // `validate_schema` bounds `from` to supported versions, so a
             // missing arm is a bug: a version bump landed without its step.
             _ => unreachable!("no migration step for schema v{step} -> v{}", step + 1),
@@ -536,6 +537,55 @@ pub(crate) fn migrate_document(doc: &mut serde_json::Value, from: u32) {
 /// so every v1 document is already a valid v2 document — nothing to
 /// rewrite. The step exists to anchor the chain.
 fn migrate_v1_to_v2(_doc: &mut serde_json::Value) {}
+
+/// v2 → v3 (mask stacks): a clip's one `mask` becomes a one-mask `masks`
+/// stack, and a driver on a look-axis mask property (`mask_feather`, …) moves
+/// to the same property of mask 0.
+///
+/// Clips sit in tracks, in nested sequences' timelines and inside a bake's
+/// put-aside copy, so the walk visits every value and rewrites each object
+/// shaped like a clip: the only one carrying both `content` and `timeline`.
+fn migrate_v2_to_v3(doc: &mut serde_json::Value) {
+    match doc {
+        serde_json::Value::Array(items) => items.iter_mut().for_each(migrate_v2_to_v3),
+        serde_json::Value::Object(fields) => {
+            if fields.contains_key("content") && fields.contains_key("timeline") {
+                migrate_v2_clip(fields);
+            }
+            fields.values_mut().for_each(migrate_v2_to_v3);
+        }
+        serde_json::Value::Null
+        | serde_json::Value::Bool(_)
+        | serde_json::Value::Number(_)
+        | serde_json::Value::String(_) => {}
+    }
+}
+
+fn migrate_v2_clip(clip: &mut serde_json::Map<String, serde_json::Value>) {
+    match clip.remove("mask") {
+        None | Some(serde_json::Value::Null) => {}
+        Some(mask) => {
+            clip.insert("masks".into(), serde_json::Value::Array(vec![mask]));
+        }
+    }
+    let Some(serde_json::Value::Array(drivers)) = clip.get_mut("drivers") else {
+        return;
+    };
+    for driver in drivers {
+        let Some(param) = driver.get_mut("param") else {
+            continue;
+        };
+        let Some(name) = param
+            .pointer("/look/param")
+            .and_then(serde_json::Value::as_str)
+            .and_then(|name| name.strip_prefix("mask_"))
+        else {
+            continue;
+        };
+        let migrated = serde_json::json!({ "mask": { "mask": 0, "param": name } });
+        *param = migrated;
+    }
+}
 
 fn normalize_legacy_schema(schema: &mut ProjectSchema) {
     if schema.kind.is_empty() {
@@ -556,3 +606,6 @@ fn validate_schema(found: &ProjectSchema) -> Result<(), ModelError> {
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+#[path = "persist/tests_mask_stack.rs"]
+mod tests_mask_stack;

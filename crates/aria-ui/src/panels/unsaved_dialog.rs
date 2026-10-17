@@ -25,7 +25,7 @@ pub fn render(
         let state = state.read(cx);
         (
             state.unsaved_subject(),
-            state.pending_intent().map(PendingIntent::destination),
+            state.pending_intent().map(PendingIntent::outcome),
         )
     };
 
@@ -58,23 +58,19 @@ pub fn render(
         .gap(px(Theme::SPACE_MD))
         .child(
             div()
-                .text_size(px(13.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text)
                 .child(format!("{subject} has changes you have not saved.")),
         )
         .child(
             div()
-                .text_size(px(12.))
+                .text_size(Theme::TEXT_TITLE)
                 .text_color(theme.text_faint)
                 .child(match going {
-                    // The prompt says where it is going, because "Discard" and
-                    // "Save" both leave this project and the operator asked for
-                    // one specific elsewhere.
-                    Some(dest) => {
-                        format!(
-                            "Discard leaves them behind for good. Either answer goes to {dest}."
-                        )
-                    }
+                    // The prompt says what the answer does, because "Discard"
+                    // and "Save" both leave this project and the operator asked
+                    // for one specific elsewhere.
+                    Some(outcome) => format!("Discard leaves them behind for good. {outcome}"),
                     None => "Discard leaves them behind for good.".to_string(),
                 }),
         );

@@ -1,5 +1,6 @@
 //! What a drag on the preview's picture means: move it, scale it from a corner,
-//! pull a crop edge, or move, size and turn a mask.
+//! pull a crop edge, move, size and turn a mask, draw and reshape a mask path,
+//! move a clip type handle, or reshape a motion path.
 //!
 //! The three handle sets were three `cx.listener` closures calling three
 //! different `begin_*_drag` methods, and which set was live was decided by a
@@ -28,6 +29,7 @@
 use aria_engine::EngineError;
 
 use crate::app::AppState;
+use crate::app::canvas_overlay::motion_path::{PathKey, TangentSide};
 use crate::app::canvas_overlay::{CropHandle, MaskHandle, TransformHandle};
 use crate::types::OverlayMode;
 
@@ -45,6 +47,35 @@ pub enum Gesture {
     Crop(CropHandle),
     /// The mask's centre, its size, or its rotation.
     Mask(MaskHandle),
+    /// The selected clip's clip type handle at this index, which moves a vec2
+    /// parameter of the type's generator.
+    TypeHandle(usize),
+    /// A motion path keyframe's square, which moves the keyframe's value.
+    PathKey(PathKey),
+    /// One tangent handle of a smooth motion path keyframe, which bends the
+    /// path through the keyframe.
+    PathTangent(PathKey, TangentSide),
+    /// An Alt+click on a motion path keyframe, which turns it between corner
+    /// and smooth. The press is the edit.
+    PathCorner(PathKey),
+    /// A Ctrl+click on a motion path, which adds a keyframe at the frame under
+    /// the pointer. The press is the edit.
+    PathAdd,
+    /// A mask path vertex, which moves with its tangents.
+    MaskVertex(usize),
+    /// One tangent handle of a smooth mask path vertex, which bends the path
+    /// through the vertex.
+    MaskTangent(usize, TangentSide),
+    /// A Ctrl+click with the Pen on a mask path vertex, which deletes it. The
+    /// press is the edit.
+    MaskVertexDelete(usize),
+    /// An Alt+press with the Pen on a mask path vertex: a click turns it
+    /// between corner and smooth, and a drag pulls new tangents out of it.
+    MaskVertexConvert(usize),
+    /// A Pen press on the picture: the next vertex of a path being drawn, a
+    /// vertex inserted on a segment of the mask path, or the first vertex of a
+    /// new path.
+    MaskPathPen,
 }
 
 impl Gesture {
@@ -55,15 +86,38 @@ impl Gesture {
             Self::Scale(_) => "a corner dragged to scale the picture",
             Self::Crop(_) => "a crop edge dragged",
             Self::Mask(_) => "a mask handle dragged",
+            Self::TypeHandle(_) => "a clip type handle dragged",
+            Self::PathKey(_) => "a motion path keyframe dragged to a new value",
+            Self::PathTangent(..) => "a motion path tangent handle dragged to bend the path",
+            Self::PathCorner(_) => "a motion path keyframe turned between corner and smooth",
+            Self::PathAdd => "a motion path clicked to add a keyframe",
+            Self::MaskVertex(_) => "a mask path vertex dragged",
+            Self::MaskTangent(..) => "a mask path tangent handle dragged to bend the path",
+            Self::MaskVertexDelete(_) => {
+                "a mask path vertex Ctrl+clicked with the Pen to delete it"
+            }
+            Self::MaskVertexConvert(_) => "a mask path vertex Alt+dragged to pull new tangents",
+            Self::MaskPathPen => "a mask path segment pressed with the Pen to insert a vertex",
         }
     }
 
     /// The handle set this gesture belongs to, which is the mode that draws it.
     pub fn mode(&self) -> OverlayMode {
         match self {
-            Self::Move | Self::Scale(_) => OverlayMode::Transform,
+            Self::Move
+            | Self::Scale(_)
+            | Self::TypeHandle(_)
+            | Self::PathKey(_)
+            | Self::PathTangent(..)
+            | Self::PathCorner(_)
+            | Self::PathAdd => OverlayMode::Transform,
             Self::Crop(_) => OverlayMode::Crop,
-            Self::Mask(_) => OverlayMode::Mask,
+            Self::Mask(_)
+            | Self::MaskVertex(_)
+            | Self::MaskTangent(..)
+            | Self::MaskVertexDelete(_)
+            | Self::MaskVertexConvert(_)
+            | Self::MaskPathPen => OverlayMode::Mask,
         }
     }
 }
@@ -96,6 +150,18 @@ pub fn apply(state: &mut AppState, step: Step) -> Result<(), EngineError> {
         Step::Grab(Gesture::Scale(handle), at) => state.begin_transform_drag(Some(handle), at),
         Step::Grab(Gesture::Crop(handle), _) => state.begin_crop_drag(handle),
         Step::Grab(Gesture::Mask(handle), _) => state.begin_mask_drag(handle),
+        Step::Grab(Gesture::TypeHandle(index), _) => state.begin_type_handle_drag(index),
+        Step::Grab(Gesture::PathKey(key), at) => state.begin_path_key_drag(key, at),
+        Step::Grab(Gesture::PathTangent(key, side), _) => state.begin_path_tangent_drag(key, side),
+        Step::Grab(Gesture::PathCorner(key), _) => return state.toggle_path_key_smooth(key),
+        Step::Grab(Gesture::PathAdd, at) => return state.add_key_on_path(at).map(|_| ()),
+        Step::Grab(Gesture::MaskVertex(index), at) => return state.press_mask_vertex(index, at),
+        Step::Grab(Gesture::MaskTangent(index, side), at) => {
+            state.press_mask_tangent(index, side, at)
+        }
+        Step::Grab(Gesture::MaskVertexDelete(index), _) => return state.delete_mask_vertex(index),
+        Step::Grab(Gesture::MaskVertexConvert(index), at) => state.press_mask_convert(index, at),
+        Step::Grab(Gesture::MaskPathPen, at) => return state.press_mask_path(at),
         Step::Carry(at) => state.drag_overlay_to(at),
         Step::Release => return state.end_overlay_drag(),
     }

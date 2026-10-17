@@ -42,9 +42,12 @@ every clip edge and beat on each mouse move.
 
 A frame that takes longer than its share of a second is a frame playback cannot
 deliver on time. `aria_render::PlaybackMeter` counts those: give it the target
-rate, hand it each frame's duration, and it reports the achieved rate, how many
-frames were late, and the worst one. The preview panel reads the same report, so
-the number on screen and the number in the gate come from one counter.
+rate and each rendered frame's duration, and it reports the render rate, how
+many renders were over budget, and the worst one. During playback the editor
+also hands it each frame shown and each frame dropped with its cause, and the
+report adds the achieved rate (frames shown over the run's time) and the drops.
+The Render Cost panel reads the same report, so the number on screen and the
+number in the gate come from one counter.
 
 `cargo test -p aria-render playback_rate_report` renders 120 frames of a solid
 generator at 640x360, 24 fps, through the preview entry point, excluding four

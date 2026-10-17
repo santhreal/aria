@@ -1,16 +1,21 @@
-//! The codec-free sink and the two PNG boundaries around it.
+//! The codec-free sink, the two PNG boundaries around it, and the
+//! single-frame PNG export.
 //!
-//! Moved out of `export.rs` to stay under the file ceiling; nothing here
-//! changed. Re-exported from the parent, so `crate::export::PngSequenceEncoder`
-//! and `crate::export::decode_png` still name these.
+//! Re-exported from the parent, so `crate::export::PngSequenceEncoder` and
+//! `crate::export::decode_png` still name these.
 
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 
-use aria_core::{EncodeError, PixelFormat, Plane, RgbaImage, VideoEncoder, VideoFrame};
+use aria_core::{
+    EncodeError, PixelFormat, Plane, RationalTime, RgbaImage, VideoEncoder, VideoFrame,
+};
+use aria_models::Project;
 
 use crate::error::RenderError;
+use crate::render::Renderer;
+use crate::transactional_file::TransactionalFile;
 
 /// A portable [`VideoEncoder`] that writes each pushed frame as a numbered PNG
 /// (`frame_00000.png`, `frame_00001.png`, …) into a directory.
@@ -92,6 +97,32 @@ pub fn encode_png(image: &RgbaImage) -> Result<Vec<u8>, RenderError> {
             .map_err(|e| RenderError::Encode(EncodeError::Encode(e.to_string())))?;
     }
     Ok(bytes)
+}
+
+/// Render the frame `project` shows at `at`, at the canvas size, and write it
+/// to `path` as a PNG. Returns the image's width and height.
+///
+/// The frame matches what an export renders at that time, motion blur
+/// included. The file is published atomically: a failed render, encode, or
+/// write leaves whatever was at `path` as it was.
+pub fn export_frame_png(
+    renderer: &mut Renderer,
+    project: &Project,
+    at: RationalTime,
+    path: &Path,
+) -> Result<(u32, u32), RenderError> {
+    let prev_blur = renderer.apply_motion_blur;
+    renderer.set_apply_motion_blur(true);
+    let image = renderer
+        .resolve_frame(project, at)
+        .and_then(|scene| renderer.render_scene(project, &scene));
+    renderer.set_apply_motion_blur(prev_blur);
+    let image = image?;
+    let bytes = encode_png(&image)?;
+    let staged = TransactionalFile::new(path)?;
+    std::fs::write(staged.staging_path(), &bytes)?;
+    staged.publish()?;
+    Ok((image.width, image.height))
 }
 
 /// Decode one PNG into tightly packed straight-alpha RGBA8 pixels.

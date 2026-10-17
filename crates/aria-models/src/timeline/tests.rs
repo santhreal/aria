@@ -644,6 +644,106 @@ fn marker_color_cycles_through_the_palette() {
     }
 }
 
+#[test]
+fn clip_marker_moves_with_clip_and_validates_duration_against_source_and_sequence() {
+    let mut timeline = Timeline::new(R24);
+    let track = timeline.add_track(Track::new(TrackKind::Video, "V1"));
+    let clip = Clip::from_media(crate::MediaId::next(), tr(10, 80), tr(20, 80));
+    let clip_id = timeline.add_clip(track, clip).unwrap();
+
+    // Add a clip marker at source tick 35 (15 ticks into the clip -> timeline tick 35 + 10 = 45).
+    let marker_id = timeline
+        .add_clip_marker(
+            clip_id,
+            Marker::new(rt(35), "Cue", MarkerColor::Pink)
+                .with_duration(rt(20))
+                .with_kind(MarkerKind::Chapter),
+        )
+        .unwrap();
+    assert_eq!(timeline.marker_clip(marker_id), Some(clip_id));
+    assert_eq!(timeline.marker_count(), 1);
+    assert_eq!(
+        timeline
+            .clip(clip_id)
+            .unwrap()
+            .timeline_tick_for_clip_time(35),
+        Some(45)
+    );
+
+    // Move the clip from timeline start 20 to timeline start 120 (+100 ticks).
+    timeline
+        .clip_timeline_mut(clip_id)
+        .unwrap()
+        .timeline
+        .start
+        .value = 120;
+    // The clip marker's source tick is still 35, and its timeline position moved by +100 to 145.
+    assert_eq!(timeline.marker(marker_id).unwrap().tick, rt(35));
+    assert_eq!(
+        timeline
+            .clip(clip_id)
+            .unwrap()
+            .timeline_tick_for_clip_time(35),
+        Some(145)
+    );
+
+    // Refuses negative duration on clip marker.
+    let neg_err = timeline
+        .edit_marker(
+            marker_id,
+            rt(35),
+            rt(-1),
+            "Cue".into(),
+            MarkerColor::Pink,
+            String::new(),
+            MarkerKind::Chapter,
+        )
+        .unwrap_err();
+    assert!(
+        neg_err.to_string().contains("non-negative"),
+        "expected non-negative error, got: {neg_err}"
+    );
+
+    // Refuses duration running past clip source end (10 + 80 = 90; 35 + 60 = 95 > 90).
+    let past_clip_err = timeline
+        .edit_marker(
+            marker_id,
+            rt(35),
+            rt(60),
+            "Cue".into(),
+            MarkerColor::Pink,
+            String::new(),
+            MarkerKind::Chapter,
+        )
+        .unwrap_err();
+    assert!(
+        past_clip_err
+            .to_string()
+            .contains("exceeds clip source end"),
+        "expected clip source bound error, got: {past_clip_err}"
+    );
+
+    // Sequence marker duration past sequence end (120 + 80 = 200) is refused.
+    let seq_marker = timeline
+        .add_marker(Marker::new(rt(180), "Tail", MarkerColor::Teal))
+        .unwrap();
+    let past_seq_err = timeline
+        .edit_marker(
+            seq_marker,
+            rt(180),
+            rt(30),
+            "Tail".into(),
+            MarkerColor::Teal,
+            String::new(),
+            MarkerKind::Segmentation,
+        )
+        .unwrap_err();
+    assert!(
+        past_seq_err.to_string().contains("exceeds sequence end"),
+        "expected sequence end error, got: {past_seq_err}"
+    );
+}
+
 // --- canvas -------------------------------------------------------------
 
 #[test]

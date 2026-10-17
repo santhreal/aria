@@ -26,6 +26,8 @@ pub enum Verb {
     Inspect,
     /// Run a detector over a media file.
     Analyze,
+    /// Create, run, check, or pack a plugin package.
+    Plugin,
 }
 
 impl Verb {
@@ -33,13 +35,14 @@ impl Verb {
     ///
     /// One table, so a verb that parses is a verb the tests check for
     /// documentation and the parser finds without a second `match` to forget.
-    pub const ALL: [Verb; 6] = [
+    pub const ALL: [Verb; 7] = [
         Verb::Demo,
         Verb::New,
         Verb::Frame,
         Verb::Export,
         Verb::Inspect,
         Verb::Analyze,
+        Verb::Plugin,
     ];
 
     /// The verb spelled as it is typed.
@@ -51,6 +54,7 @@ impl Verb {
             Verb::Export => "export",
             Verb::Inspect => "inspect",
             Verb::Analyze => "analyze",
+            Verb::Plugin => "plugin",
         }
     }
 
@@ -239,6 +243,21 @@ COMMANDS
     analyze <media> [--beats] [--silence] [--loudness] [--shots]
         Run detectors over a media file and print what they found. With no
         detector flag, every audio detector runs.
+
+    plugin new <id> [--tier wasm|native] [--dir PARENT] [--sdk PATH]
+        Create a plugin package with a manifest, a sample effect, and a
+        sample command.
+
+    plugin dev <dir> [--editor PATH] [--data-dir PATH]
+        Build and stage the plugin, start Aria with it loaded, and rebuild
+        when its sources change.
+
+    plugin check <dir|file.ariaplugin>
+        Validate the manifest, shaders, permissions, and ABI or WIT world
+        without starting Aria.
+
+    plugin pack <dir> [--out FILE] [--no-build]
+        Build, check, and write a .ariaplugin archive.
 
 EXIT CODES
     0  success

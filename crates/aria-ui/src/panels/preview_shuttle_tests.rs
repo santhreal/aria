@@ -9,6 +9,7 @@
 //! is `AppState::audio_follows`, asserted in `app/shuttle_tests.rs`.
 
 use super::rate_label;
+use crate::transport::ShuttleSpeed;
 
 /// The ladder the transport clamps to, both directions.
 const RATES: &[i32] = &[-8, -4, -2, -1, 2, 4, 8];
@@ -16,7 +17,7 @@ const RATES: &[i32] = &[-8, -4, -2, -1, 2, 4, 8];
 #[test]
 fn a_rate_reads_back_as_the_rate_it_is() {
     for &rate in RATES {
-        let label = rate_label(rate);
+        let label = rate_label(ShuttleSpeed::steps(rate));
         let stripped = label
             .strip_suffix('x')
             .unwrap_or_else(|| panic!("{label} does not say what unit it is in"));
@@ -30,13 +31,15 @@ fn a_rate_reads_back_as_the_rate_it_is() {
 
 #[test]
 fn a_reversed_rate_says_so_before_the_number() {
-    assert_eq!(rate_label(-2), "-2x");
-    assert_eq!(rate_label(2), "2x");
+    assert_eq!(rate_label(ShuttleSpeed::steps(-2)), "-2x");
+    assert_eq!(rate_label(ShuttleSpeed::steps(2)), "2x");
+    assert_eq!(rate_label(ShuttleSpeed::hundredths(110)), "1.1x");
+    assert_eq!(rate_label(ShuttleSpeed::hundredths(-25)), "-0.25x");
 }
 
-/// 1x is the one rate the badge is never drawn at, and the label must not be the
+/// 1x is a rate the badge is never drawn at, and the label must not be the
 /// thing that decides that: it answers for any rate it is handed.
 #[test]
 fn the_label_answers_for_the_rate_the_badge_hides_too() {
-    assert_eq!(rate_label(1), "1x");
+    assert_eq!(rate_label(ShuttleSpeed::ONE), "1x");
 }

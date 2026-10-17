@@ -223,17 +223,24 @@ pub fn validate(command: &WireCommand, project: &Project) -> Result<Lowered, Rej
             let (index, slot, spec) = effect_param_slot(clip, args.index, &args.param, args.clip)?;
             let p = &spec.params[slot];
             match p.kind {
-                aria_models::EffectParamKind::Scalar => {
+                aria_models::EffectParamKind::Scalar
+                | aria_models::EffectParamKind::Angle
+                | aria_models::EffectParamKind::Int => {
                     let v = args.value.ok_or_else(|| {
                         Rejection::new(format!(
                             "effect param '{}' is a scalar; pass 'value' (a number)",
                             args.param
                         ))
                     })?;
-                    if !v.is_finite() || v < f64::from(p.min) || v > f64::from(p.max) {
+                    let (min, max) = if p.kind == aria_models::EffectParamKind::Int {
+                        (p.int_min as f64, p.int_max as f64)
+                    } else {
+                        (f64::from(p.min), f64::from(p.max))
+                    };
+                    if !v.is_finite() || v < min || v > max {
                         return Err(Rejection::new(format!(
                             "{} must be between {} and {} (got {})",
-                            args.param, p.min, p.max, v
+                            args.param, min, max, v
                         )));
                     }
                     EditCommand::SetEffectParam {
@@ -260,7 +267,7 @@ pub fn validate(command: &WireCommand, project: &Project) -> Result<Lowered, Rej
                         value: ParamValue::Color(rgba),
                     }
                 }
-                aria_models::EffectParamKind::Vec2 => {
+                aria_models::EffectParamKind::Vec2 | aria_models::EffectParamKind::Size => {
                     let position = args.position.ok_or_else(|| {
                         Rejection::new(format!(
                             "effect param '{}' is a vec2; pass 'position' as [x, y]",
@@ -289,18 +296,18 @@ pub fn validate(command: &WireCommand, project: &Project) -> Result<Lowered, Rej
                         value: ParamValue::Vec2(v),
                     }
                 }
+                other => {
+                    return Err(Rejection::new(format!(
+                        "effect param '{}' has kind '{}', which is not set via set_effect_param",
+                        args.param,
+                        other.as_str()
+                    )));
+                }
             }
         }
         WireCommand::AddTransition(args) => {
             let clip = clip_ref(project, args.clip)?;
-            reject_non_transition_lane(project, clip, args.clip)?;
-            if aria_models::transition_spec(&args.transition).is_none() {
-                return Err(Rejection::new(format!(
-                    "unknown transition '{}'; available transitions: {}",
-                    args.transition,
-                    transition_ids()
-                )));
-            }
+            reject_transition_on_lane(project, clip, args.clip, &args.transition)?;
             if !has_right_neighbor(project, clip) {
                 return Err(Rejection::new(format!(
                     "clip {} has no clip butting against its right edge to transition into",
@@ -368,7 +375,10 @@ pub fn validate(command: &WireCommand, project: &Project) -> Result<Lowered, Rej
         WireCommand::SetSpeedCurve(args) => set_speed_curve(project, args)?,
         WireCommand::SetClipPitch(args) => set_clip_pitch(project, args)?,
         WireCommand::SetDenoise(args) => set_denoise(project, args)?,
+        WireCommand::AddClipMask(args) => add_clip_mask(project, args)?,
         WireCommand::SetClipMask(args) => set_clip_mask(project, args)?,
+        WireCommand::RemoveClipMask(args) => remove_clip_mask(project, args)?,
+        WireCommand::MoveClipMask(args) => move_clip_mask(project, args)?,
         WireCommand::SetClipChroma(args) => set_clip_chroma(project, args)?,
         WireCommand::SetClipMatte(args) => set_clip_matte(project, args)?,
         WireCommand::SetClipStabilize(args) => set_clip_stabilize(project, args)?,
@@ -395,6 +405,25 @@ pub fn validate(command: &WireCommand, project: &Project) -> Result<Lowered, Rej
                 clip: clip.id,
                 param: clip_param(&args.param, clip, args.clip)?,
                 value,
+            }
+        }
+        WireCommand::SetParamDriver(args) => {
+            let clip = clip_ref(project, args.clip)?;
+            let code = args
+                .code
+                .as_ref()
+                .map(|source| {
+                    let language = args.language.as_deref().unwrap_or("aria.expressions");
+                    let code = aria_models::DriverCode::new(language, source.as_str());
+                    code.validate()
+                        .map(|()| code)
+                        .map_err(|err| Rejection::new(err.to_string()))
+                })
+                .transpose()?;
+            EditCommand::SetParamDriver {
+                clip: clip.id,
+                param: clip_param(&args.param, clip, args.clip)?,
+                code,
             }
         }
         WireCommand::ApplyEasingPreset(args) => {

@@ -38,7 +38,7 @@ fn every_builtin_plugin_has_a_row_that_matches_the_host() {
         assert!(!row.version.is_empty(), "{} has no version", row.id);
         assert_eq!(
             row.enabled,
-            mounted.iter().any(|id| row.id == *id),
+            mounted.iter().any(|id| *row.id == **id),
             "{} disagrees with the host about being mounted",
             row.id
         );
@@ -108,7 +108,7 @@ fn a_plugin_can_be_disabled_and_re_enabled() {
         row.services.is_empty(),
         "{id} still lists services while disabled"
     );
-    assert!(!state.ctx.plugins().iter().any(|live| id == *live));
+    assert!(!state.ctx.plugins().iter().any(|live| *id == **live));
 
     // Disabling twice is inert.
     assert!(!state.set_plugin_enabled(&id, false));
@@ -204,6 +204,51 @@ fn a_recovered_fault_and_a_failure_after_mount_show_on_the_row() {
     assert!(!failed.enabled);
     assert_eq!(failed.error.as_deref(), Some("a callback panicked"));
     assert_eq!(failed.fault, None);
+}
+
+/// WHY: a plugin's log is read in the Plugins list. The row counts the lines a
+/// plugin logged, opens its log by default once the plugin has an error or a
+/// fault, keeps the Log toggle's choice over that default, and Copy holds every
+/// line with its level. Not covered: the drawn colours.
+#[test]
+fn a_row_counts_its_log_and_opens_it_on_a_failure_until_toggled() {
+    let mut state = state();
+    let id = "aria.storage";
+    let row = |state: &AppState| {
+        state
+            .plugin_rows()
+            .into_iter()
+            .find(|row| row.id == id)
+            .expect("a row")
+    };
+    let quiet = row(&state);
+    assert_eq!((quiet.log_lines, quiet.log_open), (0, false));
+
+    state
+        .ctx
+        .log_for(id, aria_plugin::LogLevel::Info, "indexed 3 projects");
+    state.ctx.report_fault(id, "the index is stale");
+    let faulted = row(&state);
+    assert_eq!((faulted.log_lines, faulted.log_open), (2, true));
+    assert_eq!(
+        state.plugin_log_text(id),
+        "info indexed 3 projects\nwarn the index is stale\n"
+    );
+
+    state.toggle_plugin_log(id);
+    assert!(
+        !row(&state).log_open,
+        "the toggle closes a log opened by default"
+    );
+    assert!(state.ctx.fail(id, "a callback panicked"));
+    let failed = row(&state);
+    assert_eq!(failed.log_lines, 3);
+    assert!(
+        !failed.log_open,
+        "the toggle's choice outlasts a new failure"
+    );
+    state.toggle_plugin_log(id);
+    assert!(row(&state).log_open);
 }
 
 /// A plugin that registers a value nobody reads is a plugin that does not own it.
@@ -341,7 +386,7 @@ fn no_builtin_is_refused_a_service_it_asks_for() {
 #[test]
 fn the_builtin_mount_order_is_the_declared_order() {
     let plugins = builtin(Path::new(""));
-    let manifests: Vec<_> = plugins.iter().map(|p| *p.manifest()).collect();
+    let manifests: Vec<_> = plugins.iter().map(|p| p.manifest().clone()).collect();
     let order = aria_plugin::load_order(&manifests).expect("the built-ins are acyclic");
     assert_eq!(order, builtin_plugin_ids());
 }
@@ -420,5 +465,86 @@ fn a_body_slot_shows_exactly_the_entry_whose_predicate_holds() {
             1,
             "{panel:?} must select exactly one viewer body"
         );
+    }
+}
+
+/// WHY: `AppState::plugin_rows` must leave `frame_ms` and `block_ms` as `None`
+/// when a mounted plugin has not rendered a frame or processed an audio block,
+/// populate both mean and max fields from `PluginContext`'s cost ledger once
+/// work is recorded without mixing plugins, and clear them when a plugin is
+/// disabled and re-enabled.
+#[test]
+fn plugin_rows_carry_recorded_frame_and_block_costs_and_reset_on_disable() {
+    use std::time::Duration;
+
+    let mut state = state();
+    let row_of = |state: &AppState, id: &str| {
+        state
+            .plugin_rows()
+            .into_iter()
+            .find(|row| row.id == id)
+            .unwrap_or_else(|| panic!("missing row for {id}"))
+    };
+
+    let before = row_of(&state, "aria.storage");
+    assert!(before.mount_ms.is_some());
+    assert_eq!(before.frame_ms, None);
+    assert_eq!(before.frame_max_ms, None);
+    assert_eq!(before.block_ms, None);
+    assert_eq!(before.block_max_ms, None);
+
+    state
+        .ctx
+        .record_frame_cost("aria.storage", Duration::from_millis(2));
+    state
+        .ctx
+        .record_frame_cost("aria.storage", Duration::from_millis(10));
+    state
+        .ctx
+        .record_block_cost("aria.storage", Duration::from_micros(40));
+
+    let after = row_of(&state, "aria.storage");
+    let frame_ms = after.frame_ms.expect("frame_ms populated");
+    let frame_max_ms = after.frame_max_ms.expect("frame_max_ms populated");
+    let block_ms = after.block_ms.expect("block_ms populated");
+    let block_max_ms = after.block_max_ms.expect("block_max_ms populated");
+    assert!(
+        (frame_ms - 3.0).abs() < 0.05,
+        "expected smoothed frame_ms ~3.0 ms, got {frame_ms}"
+    );
+    assert!(
+        (frame_max_ms - 10.0).abs() < 0.05,
+        "expected frame_max_ms ~10.0 ms, got {frame_max_ms}"
+    );
+    assert!(
+        (block_ms - 0.04).abs() < 0.005,
+        "expected block_ms ~0.04 ms, got {block_ms}"
+    );
+    assert!(
+        (block_max_ms - 0.04).abs() < 0.005,
+        "expected block_max_ms ~0.04 ms, got {block_max_ms}"
+    );
+
+    // Unrelated mounted plugins remain untouched.
+    let settings_row = row_of(&state, "aria.settings");
+    assert_eq!(settings_row.frame_ms, None);
+    assert_eq!(settings_row.block_ms, None);
+
+    // If a toggleable built-in is mounted, disabling and re-enabling it clears
+    // its recorded costs.
+    if let Some(toggle_id) = state
+        .plugin_rows()
+        .into_iter()
+        .find(|row| row.enabled && state.plugin_can_toggle(&row.id))
+        .map(|row| row.id)
+    {
+        state
+            .ctx
+            .record_frame_cost(&toggle_id, Duration::from_millis(6));
+        assert!(row_of(&state, &toggle_id).frame_ms.is_some());
+        assert!(state.set_plugin_enabled(&toggle_id, false));
+        assert_eq!(row_of(&state, &toggle_id).frame_ms, None);
+        assert!(state.set_plugin_enabled(&toggle_id, true));
+        assert_eq!(row_of(&state, &toggle_id).frame_ms, None);
     }
 }

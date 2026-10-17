@@ -26,12 +26,14 @@ fn scalar(name: &str, default: f32, min: f32, max: f32) -> EffectParamSpec {
         max,
         default_color: [0; 4],
         default_vec2: [0.0; 2],
+        ..Default::default()
     }
 }
 
 fn spec(params: Vec<EffectParamSpec>, latency: u32) -> AudioEffectSpec {
     AudioEffectSpec {
         id: "example.comp".into(),
+        category: String::new(),
         label: "Comp".into(),
         params,
         latency,
@@ -459,6 +461,7 @@ fn an_override_keeps_each_shipped_effects_slots_latency_and_key() {
             let mut entries = shipped_entries();
             entries.push(AudioEffectSpec {
                 id: "house_gain".into(),
+                category: String::new(),
                 label: "House Gain".into(),
                 params: vec![scalar("drive", 0.0, 0.0, 1.0)],
                 latency: 12,
@@ -537,4 +540,17 @@ fn a_shipped_effect_takes_writes_in_range_and_keys_only_when_declared() {
             .is_err()
     );
     assert_eq!(gain.sample_param("gain", 0.0), Some(0.0));
+}
+
+/// Every shipped audio effect names the group it is listed under, and an entry
+/// that names none is listed under Other Audio. A shipped entry added without a
+/// category fails here.
+#[test]
+fn every_shipped_audio_effect_names_its_group_and_a_nameless_one_is_other_audio() {
+    for spec in shipped_audio_effect_catalog() {
+        assert!(!spec.category.is_empty(), "{} names no category", spec.id);
+        assert_eq!(spec.category(), spec.category);
+    }
+    let spec: AudioEffectSpec = toml::from_str("id = \"x\"\nlabel = \"X\"").expect("parses");
+    assert_eq!(spec.category(), OTHER_AUDIO_CATEGORY);
 }

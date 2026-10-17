@@ -65,7 +65,10 @@ fn workspace_row(
     let id = row.id;
     let element_id = gpui::ElementId::from(("settings-workspace", index));
     let fade = motion::MotionKey::new("settings-workspace", &element_id);
-    let numbers = measurements(&row);
+    let numbers = match row.plugin {
+        Some(plugin) => format!("{plugin} \u{b7} {}", measurements(&row)),
+        None => measurements(&row),
+    };
     let tone = if row.active {
         theme.accent
     } else {
@@ -79,7 +82,7 @@ fn workspace_row(
         .child(
             div()
                 .font_family(theme.font_mono.clone())
-                .text_size(px(11.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(tone)
                 .child(if row.active {
                     "in use".to_string()
@@ -136,13 +139,13 @@ fn workspace_row(
                 .flex_col()
                 .child(
                     div()
-                        .text_size(px(13.))
+                        .text_size(Theme::TEXT_UI)
                         .text_color(theme.text)
                         .child(row.name),
                 )
                 .child(
                     div()
-                        .text_size(px(10.))
+                        .text_size(Theme::TEXT_SMALL)
                         .text_color(theme.text_faint)
                         .child(numbers),
                 ),
@@ -178,17 +181,37 @@ fn save_row(
         .justify_between()
         .child(
             div()
-                .text_size(px(13.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_muted)
                 .child("Click a workspace to arrange the panes that way"),
         )
         .child(
-            components::ghost_button("settings-workspace-save", label, theme).on_mouse_down(
-                MouseButton::Left,
-                cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                    this.state.update(cx, |state, cx| state.save_workspace(cx));
-                    cx.notify();
-                }),
-            ),
+            div()
+                .flex()
+                .flex_row()
+                .items_center()
+                .gap(px(Theme::SPACE_XS))
+                .child(
+                    components::ghost_button("settings-workspace-reset", "Reset", theme)
+                        .on_mouse_down(
+                            MouseButton::Left,
+                            cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                                this.state.update(cx, |state, cx| {
+                                    state.reset_workspace_layout(cx);
+                                });
+                                cx.notify();
+                            }),
+                        ),
+                )
+                .child(
+                    components::ghost_button("settings-workspace-save", label, theme)
+                        .on_mouse_down(
+                            MouseButton::Left,
+                            cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                                this.state.update(cx, |state, cx| state.save_workspace(cx));
+                                cx.notify();
+                            }),
+                        ),
+                ),
         )
 }

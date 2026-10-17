@@ -20,7 +20,7 @@ keeps them while it stays open.
 
 ```
 +---------------------------------------------------------------+
-| Program  | Source: interview_02.mov  x               [menu]   |  tab row
+| Program | Source: take.mov x   Split Rulers Safe Guides Alpha |  tab row
 +---------------------------------------------------------------+
 |                                                               |
 |                  pasteboard (bg)                              |
@@ -31,7 +31,7 @@ keeps them while it stays open.
 |          +-------------------------------+                    |
 |                                                               |
 +---------------------------------------------------------------+
-| 00:00:12:04 | Fit v | Full v |  |< < [> > >| | In  Out | [] o  |  control row
+| 00:00:12:04 | Fit | Full |  |< < [> > >|  Loop  In Out Scopes |  control row
 +---------------------------------------------------------------+
 | mini time ruler with In/Out range and markers                  |  12 px
 +---------------------------------------------------------------+
@@ -43,16 +43,37 @@ The control row, left to right:
   forward, `-1.00` moves one second back.
 - Magnification: Fit, 10 % to 800 %. Ctrl+scroll zooms around the pointer;
   pressing the middle button pans; Shift+/ (`?`) fits.
-- Resolution: Full, 1/2, 1/4, 1/8, Auto. Paused resolution is set separately in
-  the Viewer menu. See [playback.md](playback.md#resolution).
-- Transport: go to In, step back, play/stop, step forward, go to Out. Holding
-  step repeats at the sequence rate.
-- Mark In, Mark Out (Source tabs also show Insert and Overwrite).
-- Overlay toggles: safe margins, guides, transparency grid, and the
-  dropped-frame indicator.
+- Resolution: Full, 1/2, 1/4, 1/8, Auto. The same list sets the paused
+  resolution, Full or 1/2, under its own heading. View > Playback Resolution
+  and View > Paused Resolution step through the same choices. See
+  [playback.md](playback.md#resolution).
+- Proxy: the Viewer reads proxies in place of the original files.
+- Transport: go to start, step back, play/stop, step forward, go to end. Each
+  acts on the tab in front of the Viewer. Holding step repeats once per frame
+  of the tab in front, after the press-and-hold pause.
+- Loop, and the shuttle speed while J or L runs above 1x.
+- Mark In, Mark Out, while Program is in front. A Source tab marks its take,
+  and inserts or overwrites with it, from its own bar under the picture.
+- Handles: the set of on-canvas handles that is live.
+- Scopes, and the output peak meter.
+
+A Viewer too narrow for one line wraps the row between three groups, each kept
+whole: the timecode through Proxy, the transport through Mark Out, and Handles
+through the meter. An error after the meter is shortened with an ellipsis and
+shown in full on hover.
+
+The view toggles sit at the right end of the tab row: Split, Rulers, Safe
+(title-safe and action-safe margins), Guides, and Alpha (the transparency
+grid). The dropped-frame indicator is in the status bar.
 
 The mini ruler under the control row spans the whole sequence or source. It
-draws the In/Out range, markers, and a draggable playhead.
+draws the In/Out range, markers, and a draggable playhead. A press puts the tab
+in front on the frame under the pointer; the drag continues off the ruler, and
+Escape puts the frame back.
+
+Dragging the playhead timecode moves the playhead one frame per two pixels, ten
+with Shift and a tenth of one with Ctrl. A click without a drag opens the field
+for typing.
 
 ## Overlays
 
@@ -85,11 +106,20 @@ in the property row.
 
 Effect parameters of type point, rectangle, and path draw their own handles in
 the Viewer while the effect is selected in Effect Controls. Masks draw their
-path with vertex and tangent handles, editable with the Pen tool.
+path with vertex and tangent handles, editable with the Pen tool. A keyframed
+path draws as it stands at the playhead; moving a vertex or a tangent keys the
+path there, and inserting or deleting a vertex changes every Path keyframe.
 
 A position property with keyframes draws its motion path: one dot per frame,
 spaced by speed, with the keyframes as squares and their spatial tangents as
 handles.
+
+A plugin's viewer overlay ([plugins.md](plugins.md#contribution-points)) draws
+lines, rectangles, ellipses, paths, text, and handles over the sequence frame,
+placed in canvas pixels through the same fit, zoom, and pan as the frame.
+Strokes and text keep their screen size. Dragging an overlay handle sends the
+press, each step, and the release to the plugin, which returns the scene drawn
+next.
 
 ## Comparison
 

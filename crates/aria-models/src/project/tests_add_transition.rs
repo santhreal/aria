@@ -178,6 +178,97 @@ fn set_and_remove_transition_duration() {
         Err(ModelError::InvalidParam(_))
     ));
 }
+#[test]
+fn transition_alignment_windows_limits_and_serde_round_trip() {
+    use crate::transition::{Transition, TransitionAlignment, transition_window};
+
+    let cut = 48;
+    let duration = 24;
+    assert_eq!(
+        transition_window(TransitionAlignment::Center, duration, cut),
+        (36, 60)
+    );
+    assert_eq!(
+        transition_window(TransitionAlignment::Start, duration, cut),
+        (48, 72)
+    );
+    assert_eq!(
+        transition_window(TransitionAlignment::End, duration, cut),
+        (24, 48)
+    );
+
+    // Old serialized transitions without `alignment` load as Center and round-trip
+    // byte-identically without writing an `alignment` field.
+    let legacy_json = r#"{"left":1,"right":2,"transition_id":"crossfade","duration":24}"#;
+    let loaded: Transition = serde_json::from_str(legacy_json).unwrap();
+    assert_eq!(loaded.alignment, TransitionAlignment::Center);
+    assert_eq!(loaded.window(cut), (36, 60));
+    assert_eq!(serde_json::to_string(&loaded).unwrap(), legacy_json);
+
+    for (align, expected_key, expected_window) in [
+        (TransitionAlignment::Start, "start", (48, 72)),
+        (TransitionAlignment::End, "end", (24, 48)),
+    ] {
+        let mut moved = loaded.clone();
+        moved.alignment = align;
+        assert_eq!(moved.window(cut), expected_window);
+        let text = serde_json::to_string(&moved).unwrap();
+        assert!(
+            text.contains(&format!(r#""alignment":"{expected_key}""#)),
+            "{text}"
+        );
+        let back: Transition = serde_json::from_str(&text).unwrap();
+        assert_eq!(back, moved);
+    }
+
+    // Asymmetric clip lengths: left is 16 ticks, right is 48 ticks.
+    let mut project = Project::new("test", R24);
+    let track = project.add_track(TrackKind::Sticker, "S1");
+    let left = project
+        .add_generated(
+            track,
+            Generator::SolidColor {
+                rgba: [255, 0, 0, 255],
+            },
+            tr(0, 16),
+        )
+        .unwrap();
+    let _right = project
+        .add_generated(
+            track,
+            Generator::SolidColor {
+                rgba: [0, 0, 255, 255],
+            },
+            tr(16, 48),
+        )
+        .unwrap();
+    project.add_transition(left, "crossfade").unwrap();
+    project.set_transition_duration(left, 16).unwrap();
+    assert_eq!(project.transition_duration_limit(left).unwrap(), 16);
+
+    // Start alignment sits in `right` (48 ticks), so a 32-tick window fits there
+    // and is refused when switched to Center or End (where `left` is 16 ticks).
+    project
+        .set_transition_alignment(left, TransitionAlignment::Start)
+        .unwrap();
+    assert_eq!(project.transition_duration_limit(left).unwrap(), 48);
+    project.set_transition_duration(left, 32).unwrap();
+    assert_eq!(project.transition_at(left).unwrap().window(16), (16, 48));
+    assert!(matches!(
+        project.set_transition_alignment(left, TransitionAlignment::Center),
+        Err(ModelError::InvalidParam(_))
+    ));
+    assert!(matches!(
+        project.set_transition_alignment(left, TransitionAlignment::End),
+        Err(ModelError::InvalidParam(_))
+    ));
+
+    project.set_transition_duration(left, 16).unwrap();
+    project
+        .set_transition_alignment(left, TransitionAlignment::End)
+        .unwrap();
+    assert_eq!(project.transition_at(left).unwrap().window(16), (0, 16));
+}
 
 #[test]
 fn prune_drops_transition_when_junction_breaks() {
@@ -203,6 +294,61 @@ fn transitions_snapshot_round_trips() {
 
     project.restore_transitions(snapshot);
     assert!(project.has_transitions());
+}
+
+/// Two abutting media clips on an audio lane; returns `(project, left, right)`.
+fn audio_cut() -> (Project, ClipId, ClipId) {
+    let mut project = Project::new("test", R24);
+    let media = project.add_media(sample_media(R24, 240));
+    let track = project.add_track(TrackKind::Audio, "A1");
+    let left = project.add_clip(track, media, tr(24, 48), rt(0)).unwrap();
+    let right = project.add_clip(track, media, tr(96, 48), rt(48)).unwrap();
+    (project, left, right)
+}
+
+/// A cut on an audio lane takes every audio transition and no picture one, and
+/// a picture lane the reverse; each refusal names the other set, so the
+/// message says what to use instead.
+#[test]
+fn each_lane_takes_only_its_own_kind_of_transition() {
+    let (mut project, left, right) = audio_cut();
+    for transition in crate::AudioTransition::ALL {
+        project.add_transition(left, transition.id()).unwrap();
+        let track = project.timeline().track_of(left).unwrap();
+        let stored = project
+            .timeline()
+            .track(track)
+            .unwrap()
+            .transition_at(left)
+            .unwrap()
+            .clone();
+        assert_eq!(stored.transition_id, transition.id());
+        assert_eq!(stored.right, right);
+    }
+    let refused = project.add_transition(left, "crossfade").unwrap_err();
+    assert_eq!(
+        refused.to_string(),
+        ModelError::InvalidParam(
+            "Cross Fade is a picture transition; a cut on an audio lane takes Constant Power, \
+             Constant Gain or Exponential Fade"
+                .into()
+        )
+        .to_string()
+    );
+
+    let (mut picture, left, _right, _track) = project_with_abutting_pair();
+    for transition in crate::AudioTransition::ALL {
+        let refused = picture.add_transition(left, transition.id()).unwrap_err();
+        assert_eq!(
+            refused.to_string(),
+            ModelError::InvalidParam(format!(
+                "{} is an audio transition; it goes on a cut between clips on an audio lane",
+                transition.label()
+            ))
+            .to_string()
+        );
+    }
+    assert!(!picture.has_transitions());
 }
 
 // --- Project::new -----------------------------------------------------

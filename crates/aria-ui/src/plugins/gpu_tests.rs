@@ -20,19 +20,13 @@ fn solid(rgba: [u8; 4]) -> RgbaImage {
 /// them, or `None` on a host with no GPU.
 fn mounted() -> Option<PluginContext> {
     let ctx = PluginContext::new();
-    let plugins: [&dyn Plugin; 5] = [
-        &crate::plugins::DecoderPlugin,
-        &CompositorPlugin,
-        &crate::plugins::RenderPlugin,
-        &EffectPlugin,
-        &TransitionPlugin,
-    ];
-    for plugin in plugins {
-        ctx.mount(plugin).expect("mounts");
-    }
-    if ctx.try_get::<GpuContext>().is_none() {
+    if crate::test_support::mounted_gpu(&ctx).is_none() {
         eprintln!("skipping: no GPU device mounted");
         return None;
+    }
+    let plugins: [&dyn Plugin; 2] = [&EffectPlugin, &TransitionPlugin];
+    for plugin in plugins {
+        ctx.mount(plugin).expect("mounts");
     }
     Some(ctx)
 }

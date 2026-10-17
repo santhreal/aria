@@ -58,7 +58,7 @@ pub(super) fn rows(
             .into_any_element()
         } else {
             div()
-                .text_size(px(11.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_muted)
                 .child(SharedString::from(hint))
                 .into_any_element()
@@ -145,7 +145,7 @@ fn model_row(
         .on_hover(crate::motion::hover_listener(key))
         .child(
             div()
-                .text_size(px(13.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(name_color)
                 .child(if row.selected {
                     SharedString::from(format!("{} \u{2713}", row.label))
@@ -155,7 +155,7 @@ fn model_row(
         )
         .child(
             div()
-                .text_size(px(11.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_faint)
                 .child(row.detail),
         )

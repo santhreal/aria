@@ -5,6 +5,11 @@
 # order — reordering `params` feeds the shader the wrong slots, so append rather
 # than reorder.
 #
+# `generator = true` makes the entry a generator: it is listed under
+# Generators and placed as a clip of its own, a transparent solid the size of
+# the frame with the effect first in its chain, and its shader draws without
+# reading its input.
+#
 # `kind` is `scalar`, `vec2`, or `color`. A scalar uses `default`, `min`, `max`;
 # a vec2 uses `default_vec2` with `min`/`max` bounding each component; a colour
 # uses `default_color` as RGBA 0 … 255 and ignores the range.
@@ -14,26 +19,31 @@
 [[entry]]
 id = "gaussian_blur"
 label = "Gaussian Blur"
+category = "Blur & Sharpen"
 params = [{ name = "radius", label = "Radius", default = 4.0, min = 0.0, max = 64.0 }]
 
 [[entry]]
 id = "vignette"
 label = "Vignette"
+category = "Stylize"
 params = [{ name = "amount", label = "Amount", default = 0.6, min = 0.0, max = 1.0 }]
 
 [[entry]]
 id = "sharpen"
 label = "Sharpen"
+category = "Blur & Sharpen"
 params = [{ name = "amount", label = "Amount", default = 0.5, min = 0.0, max = 3.0 }]
 
 [[entry]]
 id = "pixelate"
 label = "Pixelate"
+category = "Stylize"
 params = [{ name = "size", label = "Cell Size", default = 8.0, min = 1.0, max = 256.0 }]
 
 [[entry]]
 id = "glitch"
 label = "Glitch"
+category = "Stylize"
 params = [
   { name = "amount", label = "Amount", default = 0.5, min = 0.0, max = 1.0 },
   { name = "seed", label = "Seed", default = 0.0, min = 0.0, max = 1000.0 },
@@ -42,11 +52,13 @@ params = [
 [[entry]]
 id = "chromatic_aberration"
 label = "Chromatic Aberration"
+category = "Distort"
 params = [{ name = "amount", label = "Amount", default = 0.4, min = 0.0, max = 1.0 }]
 
 [[entry]]
 id = "grain"
 label = "Film Grain"
+category = "Noise & Grain"
 params = [
   { name = "amount", label = "Amount", default = 0.3, min = 0.0, max = 1.0 },
   { name = "seed", label = "Seed", default = 0.0, min = 0.0, max = 1000.0 },
@@ -55,6 +67,7 @@ params = [
 [[entry]]
 id = "glow"
 label = "Glow"
+category = "Stylize"
 params = [
   { name = "threshold", label = "Threshold", default = 0.7, min = 0.0, max = 1.0 },
   { name = "intensity", label = "Intensity", default = 0.8, min = 0.0, max = 4.0 },
@@ -63,16 +76,19 @@ params = [
 [[entry]]
 id = "zoom_blur"
 label = "Zoom Blur"
+category = "Blur & Sharpen"
 params = [{ name = "amount", label = "Amount", default = 0.5, min = 0.0, max = 1.0 }]
 
 [[entry]]
 id = "mirror"
 label = "Mirror"
+category = "Distort"
 params = [{ name = "mode", label = "Mode", default = 0.0, min = 0.0, max = 3.0 }]
 
 [[entry]]
 id = "color_overlay"
 label = "Color Overlay"
+category = "Color"
 params = [
   { name = "color", label = "Color", kind = "color", default_color = [255, 0, 0, 255] },
   { name = "offset", label = "Offset", kind = "vec2", default_vec2 = [0.0, 0.0], min = -1.0, max = 1.0 },
@@ -82,8 +98,79 @@ params = [
 [[entry]]
 id = "duotone"
 label = "Duotone"
+category = "Color"
 params = [
   { name = "shadow_color", label = "Shadow", kind = "color", default_color = [20, 16, 60, 255] },
   { name = "highlight_color", label = "Highlight", kind = "color", default_color = [255, 220, 160, 255] },
   { name = "intensity", label = "Intensity", default = 1.0, min = 0.0, max = 1.0 },
 ]
+
+[[entry]]
+id = "color_matte"
+label = "Color Matte"
+generator = true
+params = [{ name = "color", label = "Color", kind = "color", default_color = [128, 128, 128, 255] }]
+
+[[entry]]
+id = "linear_gradient"
+label = "Linear Gradient"
+generator = true
+params = [
+  { name = "start_color", label = "Start Color", kind = "color", default_color = [0, 0, 0, 255] },
+  { name = "end_color", label = "End Color", kind = "color", default_color = [255, 255, 255, 255] },
+  { name = "start", label = "Start", kind = "vec2", default_vec2 = [0.0, 0.5], min = -1.0, max = 2.0 },
+  { name = "end", label = "End", kind = "vec2", default_vec2 = [1.0, 0.5], min = -1.0, max = 2.0 },
+]
+
+[[entry]]
+id = "radial_gradient"
+label = "Radial Gradient"
+generator = true
+params = [
+  { name = "inner_color", label = "Inner Color", kind = "color", default_color = [255, 255, 255, 255] },
+  { name = "outer_color", label = "Outer Color", kind = "color", default_color = [0, 0, 0, 255] },
+  { name = "center", label = "Center", kind = "vec2", default_vec2 = [0.5, 0.5], min = -1.0, max = 2.0 },
+  { name = "radius", label = "Radius", default = 0.5, min = 0.0, max = 4.0 },
+]
+
+[[entry]]
+id = "checkerboard"
+label = "Checkerboard"
+generator = true
+params = [
+  { name = "color_a", label = "Color A", kind = "color", default_color = [255, 255, 255, 255] },
+  { name = "color_b", label = "Color B", kind = "color", default_color = [0, 0, 0, 255] },
+  { name = "size", label = "Cell Size", default = 60.0, min = 1.0, max = 1080.0 },
+  { name = "anchor", label = "Anchor", kind = "vec2", default_vec2 = [0.5, 0.5], min = -1.0, max = 2.0 },
+]
+
+[[entry]]
+id = "grid"
+label = "Grid"
+generator = true
+params = [
+  { name = "color", label = "Color", kind = "color", default_color = [255, 255, 255, 255] },
+  { name = "spacing", label = "Spacing", default = 100.0, min = 2.0, max = 1080.0 },
+  { name = "width", label = "Line Width", default = 2.0, min = 0.0, max = 100.0 },
+  { name = "anchor", label = "Anchor", kind = "vec2", default_vec2 = [0.5, 0.5], min = -1.0, max = 2.0 },
+]
+
+[[entry]]
+id = "fractal_noise"
+label = "Fractal Noise"
+generator = true
+params = [
+  { name = "dark_color", label = "Dark Color", kind = "color", default_color = [0, 0, 0, 255] },
+  { name = "light_color", label = "Light Color", kind = "color", default_color = [255, 255, 255, 255] },
+  { name = "scale", label = "Scale", default = 200.0, min = 4.0, max = 2000.0 },
+  { name = "evolution", label = "Evolution", default = 0.0, min = 0.0, max = 1000.0 },
+  { name = "complexity", label = "Complexity", default = 4.0, min = 1.0, max = 8.0 },
+  { name = "contrast", label = "Contrast", default = 1.0, min = 0.0, max = 4.0 },
+  { name = "offset", label = "Offset", kind = "vec2", default_vec2 = [0.0, 0.0], min = -10.0, max = 10.0 },
+]
+
+[[entry]]
+id = "color_bars"
+label = "Color Bars"
+generator = true
+params = [{ name = "level", label = "Bar Level", default = 0.75, min = 0.0, max = 1.0 }]

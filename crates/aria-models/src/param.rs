@@ -28,7 +28,10 @@ use crate::error::ModelError;
 mod easing;
 mod presets;
 
-pub use easing::{EASING_PRESETS, Easing, EasingPreset, easing_preset};
+pub use easing::{
+    EASING_PRESETS, EASY_EASE_INFLUENCE, Easing, EasingPreset, MAX_TEMPORAL_INFLUENCE,
+    MIN_TEMPORAL_INFLUENCE, TemporalEase, easing_preset,
+};
 pub use presets::{
     MIN_PRESET_SEGMENT_TICKS, PiecewiseEasingPreset, PiecewisePresetSpec, Waypoint, expand_preset,
     piecewise_preset_by_id, piecewise_presets,
@@ -48,6 +51,7 @@ pub trait Extrapolate: Lerp {}
 
 impl Extrapolate for f32 {}
 impl Extrapolate for [f32; 2] {}
+impl Extrapolate for [f32; 3] {}
 
 impl Lerp for f32 {
     fn lerp(a: Self, b: Self, t: f32) -> Self {
@@ -58,6 +62,27 @@ impl Lerp for f32 {
 impl Lerp for [f32; 2] {
     fn lerp(a: Self, b: Self, t: f32) -> Self {
         [f32::lerp(a[0], b[0], t), f32::lerp(a[1], b[1], t)]
+    }
+}
+
+impl Lerp for [f32; 3] {
+    fn lerp(a: Self, b: Self, t: f32) -> Self {
+        [
+            f32::lerp(a[0], b[0], t),
+            f32::lerp(a[1], b[1], t),
+            f32::lerp(a[2], b[2], t),
+        ]
+    }
+}
+
+impl Lerp for [f32; 4] {
+    fn lerp(a: Self, b: Self, t: f32) -> Self {
+        [
+            f32::lerp(a[0], b[0], t),
+            f32::lerp(a[1], b[1], t),
+            f32::lerp(a[2], b[2], t),
+            f32::lerp(a[3], b[3], t),
+        ]
     }
 }
 
@@ -90,10 +115,56 @@ pub trait SegmentSample: Lerp {
     fn segment_sample(a: &Keyframe<Self>, b: &Keyframe<Self>, eased_t: f32) -> Self {
         Lerp::lerp(a.value, b.value, eased_t)
     }
+
+    /// Signed scalar value change from `a` to `b` for temporal speed-to-Bezier
+    /// conversion, or arc/chord distance for multi-dimensional values.
+    fn segment_delta(_a: &Keyframe<Self>, _b: &Keyframe<Self>) -> f32 {
+        1.0
+    }
+
+    /// Non-negative spatial/value distance from `a` to `b`, used to distribute
+    /// roving keyframe ticks proportionally to segment length.
+    fn segment_distance(a: &Keyframe<Self>, b: &Keyframe<Self>) -> f32 {
+        Self::segment_delta(a, b).abs()
+    }
 }
 
-impl SegmentSample for f32 {}
-impl SegmentSample for [u8; 4] {}
+impl SegmentSample for f32 {
+    fn segment_delta(a: &Keyframe<Self>, b: &Keyframe<Self>) -> f32 {
+        b.value - a.value
+    }
+}
+
+impl SegmentSample for [u8; 4] {
+    fn segment_delta(a: &Keyframe<Self>, b: &Keyframe<Self>) -> f32 {
+        let mut sum = 0.0f32;
+        for (&x, &y) in a.value.iter().zip(b.value.iter()) {
+            let d = (f32::from(y) - f32::from(x)) / 255.0;
+            sum += d * d;
+        }
+        sum.sqrt()
+    }
+}
+
+impl SegmentSample for [f32; 3] {
+    fn segment_delta(a: &Keyframe<Self>, b: &Keyframe<Self>) -> f32 {
+        let dx = b.value[0] - a.value[0];
+        let dy = b.value[1] - a.value[1];
+        let dz = b.value[2] - a.value[2];
+        (dx * dx + dy * dy + dz * dz).sqrt()
+    }
+}
+
+impl SegmentSample for [f32; 4] {
+    fn segment_delta(a: &Keyframe<Self>, b: &Keyframe<Self>) -> f32 {
+        let mut sum = 0.0f32;
+        for (&x, &y) in a.value.iter().zip(b.value.iter()) {
+            let d = y - x;
+            sum += d * d;
+        }
+        sum.sqrt()
+    }
+}
 
 impl SegmentSample for [f32; 2] {
     fn segment_sample(a: &Keyframe<Self>, b: &Keyframe<Self>, eased_t: f32) -> Self {
@@ -108,6 +179,25 @@ impl SegmentSample for [f32; 2] {
         let p2 = [p3[0] + in_t[0], p3[1] + in_t[1]];
         let u = arc_length_parameter(p0, p1, p2, p3, eased_t.clamp(0.0, 1.0));
         eval_cubic_bezier2(p0, p1, p2, p3, u)
+    }
+
+    fn segment_delta(a: &Keyframe<Self>, b: &Keyframe<Self>) -> f32 {
+        Self::segment_distance(a, b)
+    }
+
+    fn segment_distance(a: &Keyframe<Self>, b: &Keyframe<Self>) -> f32 {
+        let out_t = a.tangents.map(|t| t.out_t).unwrap_or([0.0, 0.0]);
+        let in_t = b.tangents.map(|t| t.in_t).unwrap_or([0.0, 0.0]);
+        if is_zero_vec2(&out_t) && is_zero_vec2(&in_t) {
+            let dx = b.value[0] - a.value[0];
+            let dy = b.value[1] - a.value[1];
+            return (dx * dx + dy * dy).sqrt();
+        }
+        let p0 = a.value;
+        let p1 = [p0[0] + out_t[0], p0[1] + out_t[1]];
+        let p3 = b.value;
+        let p2 = [p3[0] + in_t[0], p3[1] + in_t[1]];
+        bezier2_arc_length(p0, p1, p2, p3)
     }
 }
 
@@ -171,6 +261,23 @@ fn eval_cubic_bezier2(p0: [f32; 2], p1: [f32; 2], p2: [f32; 2], p3: [f32; 2], u:
         mu3 * p0[0] + 3.0 * mu2 * u * p1[0] + 3.0 * mu * u2 * p2[0] + u3 * p3[0],
         mu3 * p0[1] + 3.0 * mu2 * u * p1[1] + 3.0 * mu * u2 * p2[1] + u3 * p3[1],
     ]
+}
+
+/// Arc length of a 2-d cubic bezier segment using the 17-point LUT.
+#[inline]
+fn bezier2_arc_length(p0: [f32; 2], p1: [f32; 2], p2: [f32; 2], p3: [f32; 2]) -> f32 {
+    const LUT_SIZE: usize = 17;
+    let mut total = 0.0f32;
+    let mut prev = p0;
+    for i in 1..LUT_SIZE {
+        let u = i as f32 / (LUT_SIZE - 1) as f32;
+        let pt = eval_cubic_bezier2(p0, p1, p2, p3, u);
+        let dx = pt[0] - prev[0];
+        let dy = pt[1] - prev[1];
+        total += (dx * dx + dy * dy).sqrt();
+        prev = pt;
+    }
+    total
 }
 
 /// Map eased progress `t` in `0..=1` to a cubic parameter `u` so that equal
@@ -319,15 +426,32 @@ impl<T: SegmentSample> Param<T> {
             }
         }
     }
-}
 
-impl<T: Copy> Param<T> {
-    /// The constant value, or `None` when keyframed.
-    pub fn constant(&self) -> Option<T> {
-        match self {
-            Param::Constant(value) => Some(*value),
-            Param::Keyframed { .. } => None,
+    /// Instantaneous rate of change (in value units per tick) at a fractional
+    /// clip-relative `tick`. Used by the timeline speed graph.
+    pub fn segment_speed_at(&self, tick: f64) -> f32 {
+        let Param::Keyframed { keyframes } = self else {
+            return 0.0;
+        };
+        if keyframes.len() < 2 {
+            return 0.0;
         }
+        let first = &keyframes[0];
+        let last = &keyframes[keyframes.len() - 1];
+        if tick < first.tick as f64 || tick > last.tick as f64 {
+            return 0.0;
+        }
+        let idx = if tick >= last.tick as f64 {
+            keyframes.len() - 1
+        } else {
+            keyframes.partition_point(|kf| (kf.tick as f64) <= tick)
+        };
+        let k0 = &keyframes[idx - 1];
+        let k1 = &keyframes[idx];
+        let dt = (k1.tick - k0.tick).max(1) as f32;
+        let dv = T::segment_delta(k0, k1);
+        let t = (((tick - k0.tick as f64) / f64::from(dt)) as f32).clamp(0.0, 1.0);
+        (dv / dt) * k0.easing.derivative(t)
     }
 
     /// Insert or replace the keyframe at `tick`. A constant param becomes a
@@ -355,6 +479,52 @@ impl<T: Copy> Param<T> {
                 }
             }
         }
+        self.sync_temporal_and_roving();
+    }
+
+    /// Insert or replace the keyframe at `tick` together with its spatial
+    /// `tangents` before solving roving ticks and temporal handles.
+    pub fn set_keyframe_with_tangents(
+        &mut self,
+        tick: i64,
+        value: T,
+        easing: Easing,
+        tangents: Option<SpatialTangents>,
+    ) {
+        match self {
+            Param::Constant(_) => {
+                *self = Param::Keyframed {
+                    keyframes: vec![Keyframe {
+                        tick,
+                        value,
+                        easing,
+                        tangents,
+                    }],
+                };
+            }
+            Param::Keyframed { keyframes } => {
+                match keyframes.binary_search_by_key(&tick, |kf| kf.tick) {
+                    Ok(i) => {
+                        keyframes[i] = Keyframe {
+                            tick,
+                            value,
+                            easing,
+                            tangents,
+                        };
+                    }
+                    Err(i) => keyframes.insert(
+                        i,
+                        Keyframe {
+                            tick,
+                            value,
+                            easing,
+                            tangents,
+                        },
+                    ),
+                }
+            }
+        }
+        self.sync_temporal_and_roving();
     }
 
     /// Set or clear spatial tangents on the keyframe at `tick`. Errors when
@@ -378,7 +548,144 @@ impl<T: Copy> Param<T> {
             t.validate()?;
         }
         keyframes[i].tangents = tangents;
+        self.sync_temporal_and_roving();
         Ok(())
+    }
+
+    /// Effective `(incoming, outgoing)` temporal ease handles for the keyframe
+    /// at `tick`, derived from explicit [`TemporalEase`] handles when present
+    /// or from the adjacent segment easings.
+    pub fn keyframe_temporal_ease(&self, tick: i64) -> Option<(TemporalEase, TemporalEase)> {
+        let Param::Keyframed { keyframes } = self else {
+            return None;
+        };
+        let i = keyframes.binary_search_by_key(&tick, |kf| kf.tick).ok()?;
+        let kf = &keyframes[i];
+        let in_ease = kf.easing.in_ease().unwrap_or_else(|| {
+            if i > 0 {
+                let prev = &keyframes[i - 1];
+                let dt = (kf.tick - prev.tick).max(1) as f32;
+                let dv = T::segment_delta(prev, kf);
+                TemporalEase::from_segment_easing(prev.easing, dt, dv).1
+            } else {
+                TemporalEase::EASY_EASE
+            }
+        });
+        let out_ease = kf.easing.out_ease().unwrap_or_else(|| {
+            if i + 1 < keyframes.len() {
+                let next = &keyframes[i + 1];
+                let dt = (next.tick - kf.tick).max(1) as f32;
+                let dv = T::segment_delta(kf, next);
+                TemporalEase::from_segment_easing(kf.easing, dt, dv).0
+            } else {
+                TemporalEase::EASY_EASE
+            }
+        });
+        Some((in_ease, out_ease))
+    }
+
+    /// Set incoming/outgoing temporal ease and/or hold state on the keyframe
+    /// at `tick`.
+    pub fn set_keyframe_temporal_ease(
+        &mut self,
+        tick: i64,
+        in_ease: Option<TemporalEase>,
+        out_ease: Option<TemporalEase>,
+        hold: bool,
+    ) -> Result<(), ModelError> {
+        if let Some(inp) = in_ease {
+            inp.validate()?;
+        }
+        if let Some(out) = out_ease {
+            out.validate()?;
+        }
+        let Param::Keyframed { keyframes } = self else {
+            return Err(ModelError::InvalidParam(format!(
+                "no keyframe at {tick} to set temporal ease"
+            )));
+        };
+        let Ok(i) = keyframes.binary_search_by_key(&tick, |kf| kf.tick) else {
+            return Err(ModelError::InvalidParam(format!(
+                "no keyframe at {tick} to set temporal ease"
+            )));
+        };
+        keyframes[i].easing = keyframes[i]
+            .easing
+            .with_temporal_ease(in_ease, out_ease, hold);
+        self.sync_temporal_and_roving();
+        Ok(())
+    }
+
+    /// Apply Easy Ease (`33.33%` influence, `0.0` speed on both sides) to the
+    /// keyframe at `tick`.
+    pub fn easy_ease_keyframe(&mut self, tick: i64) -> Result<(), ModelError> {
+        self.set_keyframe_temporal_ease(
+            tick,
+            Some(TemporalEase::EASY_EASE),
+            Some(TemporalEase::EASY_EASE),
+            false,
+        )
+    }
+
+    /// Apply Easy Ease In (`33.33%` incoming influence, `0.0` incoming speed)
+    /// to the keyframe at `tick`, preserving its outgoing temporal ease.
+    pub fn easy_ease_in_keyframe(&mut self, tick: i64) -> Result<(), ModelError> {
+        let out_ease = self
+            .keyframes()
+            .binary_search_by_key(&tick, |kf| kf.tick)
+            .ok()
+            .and_then(|i| self.keyframes()[i].easing.out_ease());
+        self.set_keyframe_temporal_ease(tick, Some(TemporalEase::EASY_EASE), out_ease, false)
+    }
+
+    /// Apply Easy Ease Out (`33.33%` outgoing influence, `0.0` outgoing speed)
+    /// to the keyframe at `tick`, preserving its incoming temporal ease.
+    pub fn easy_ease_out_keyframe(&mut self, tick: i64) -> Result<(), ModelError> {
+        let in_ease = self
+            .keyframes()
+            .binary_search_by_key(&tick, |kf| kf.tick)
+            .ok()
+            .and_then(|i| self.keyframes()[i].easing.in_ease());
+        self.set_keyframe_temporal_ease(tick, in_ease, Some(TemporalEase::EASY_EASE), false)
+    }
+
+    /// Toggle Hold interpolation on the keyframe at `tick`.
+    pub fn toggle_hold_keyframe(&mut self, tick: i64) -> Result<Easing, ModelError> {
+        let Param::Keyframed { keyframes } = self else {
+            return Err(ModelError::InvalidParam(format!(
+                "no keyframe at {tick} to toggle hold"
+            )));
+        };
+        let Ok(i) = keyframes.binary_search_by_key(&tick, |kf| kf.tick) else {
+            return Err(ModelError::InvalidParam(format!(
+                "no keyframe at {tick} to toggle hold"
+            )));
+        };
+        let current = keyframes[i].easing;
+        let next_hold = !current.is_hold();
+        keyframes[i].easing =
+            current.with_temporal_ease(current.in_ease(), current.out_ease(), next_hold);
+        self.sync_temporal_and_roving();
+        Ok(self.keyframes()[i].easing)
+    }
+
+    /// Set or clear roving on the keyframe at `tick` and return its solved
+    /// tick. Roving is ignored on the first and last keyframe of a curve.
+    pub fn set_keyframe_roving(&mut self, tick: i64, roving: bool) -> Result<i64, ModelError> {
+        let Param::Keyframed { keyframes } = self else {
+            return Err(ModelError::InvalidParam(format!(
+                "no keyframe at {tick} to set roving"
+            )));
+        };
+        let Ok(i) = keyframes.binary_search_by_key(&tick, |kf| kf.tick) else {
+            return Err(ModelError::InvalidParam(format!(
+                "no keyframe at {tick} to set roving"
+            )));
+        };
+        let effective_roving = roving && i > 0 && i + 1 < keyframes.len();
+        keyframes[i].easing = keyframes[i].easing.with_roving(effective_roving);
+        self.sync_temporal_and_roving();
+        Ok(self.keyframes()[i].tick)
     }
 
     /// Remove the keyframe at exactly `tick`. Removing the last keyframe
@@ -395,8 +702,121 @@ impl<T: Copy> Param<T> {
         let removed = keyframes.remove(i);
         if keyframes.is_empty() {
             *self = Param::Constant(removed.value);
+        } else {
+            self.sync_temporal_and_roving();
         }
         true
+    }
+
+    /// Re-solve interior roving keyframe ticks from spatial/value arc lengths
+    /// and recompute outgoing cubic-bezier control points from per-keyframe
+    /// temporal ease handles.
+    pub fn sync_temporal_and_roving(&mut self) {
+        let Param::Keyframed { keyframes } = self else {
+            return;
+        };
+        let len = keyframes.len();
+        if len < 2 {
+            return;
+        }
+
+        // 1. Solve contiguous runs of interior roving keyframes (1..len-1).
+        let mut idx = 1;
+        while idx + 1 < len {
+            if !keyframes[idx].easing.is_roving() {
+                idx += 1;
+                continue;
+            }
+            let run_start = idx;
+            while idx + 1 < len && keyframes[idx].easing.is_roving() {
+                idx += 1;
+            }
+            let run_end = idx - 1;
+            let anchor_a = run_start - 1;
+            let anchor_b = run_end + 1;
+            let t_a = keyframes[anchor_a].tick;
+            let t_b = keyframes[anchor_b].tick;
+            let seg_count = anchor_b - anchor_a;
+            let span = t_b - t_a;
+            if span >= seg_count as i64 {
+                let mut dists = Vec::with_capacity(seg_count);
+                for s in anchor_a..anchor_b {
+                    dists.push(T::segment_distance(&keyframes[s], &keyframes[s + 1]).max(0.0));
+                }
+                let total_dist: f32 = dists.iter().sum();
+                let mut cum = 0.0f32;
+                for k in run_start..=run_end {
+                    cum += dists[k - anchor_a - 1];
+                    let frac = if total_dist > 1e-6 {
+                        f64::from(cum / total_dist)
+                    } else {
+                        (k - anchor_a) as f64 / seg_count as f64
+                    };
+                    let raw_tick = t_a + (span as f64 * frac).round() as i64;
+                    let min_tick = keyframes[k - 1].tick + 1;
+                    let max_tick = t_b - (anchor_b - k) as i64;
+                    keyframes[k].tick = raw_tick.clamp(min_tick, max_tick);
+                }
+            }
+        }
+
+        // 2. Recompute cubic-bezier control points on segments driven by
+        //    explicit `in_ease` / `out_ease` handles.
+        for i in 0..(len - 1) {
+            let k0 = keyframes[i];
+            let k1 = keyframes[i + 1];
+            let out_ease = k0.easing.out_ease();
+            let next_in_ease = k1.easing.in_ease();
+            if out_ease.is_some() || next_in_ease.is_some() {
+                let dt = (k1.tick - k0.tick).max(1) as f32;
+                let dv = T::segment_delta(&k0, &k1);
+                let mut points =
+                    TemporalEase::control_points_for_segment(out_ease, next_in_ease, dt, dv);
+                if out_ease.is_none()
+                    && !matches!(k0.easing, Easing::Linear | Easing::Temporal { .. })
+                    && let Some([ox1, oy1, _, _]) = k0.easing.control_points()
+                {
+                    points[0] = ox1;
+                    points[1] = oy1;
+                }
+                keyframes[i].easing = Easing::Temporal {
+                    in_ease: k0.easing.in_ease(),
+                    out_ease,
+                    roving: k0.easing.is_roving(),
+                    hold: k0.easing.is_hold(),
+                    points,
+                };
+            } else if let Easing::Temporal {
+                in_ease,
+                out_ease: None,
+                roving,
+                hold,
+                ..
+            } = k0.easing
+            {
+                if !roving && in_ease.is_none() {
+                    keyframes[i].easing = if hold { Easing::Hold } else { Easing::Linear };
+                } else {
+                    keyframes[i].easing = Easing::Temporal {
+                        in_ease,
+                        out_ease: None,
+                        roving,
+                        hold,
+                        points: TemporalEase::control_points_for_segment(None, None, 1.0, 1.0),
+                    };
+                }
+            }
+        }
+    }
+}
+
+impl<T: Copy> Param<T> {
+    /// The constant value, or `None` when keyframed.
+    pub fn constant(&self) -> Option<T> {
+        match self {
+            Param::Constant(value) => Some(*value),
+            Param::Keyframed { .. } => None,
+        }
     }
 
     /// Replace the param (and any keyframes) with a constant.
@@ -405,7 +825,7 @@ impl<T: Copy> Param<T> {
     }
 }
 
-impl<T: Lerp + Extrapolate> Param<T> {
+impl<T: SegmentSample + Extrapolate> Param<T> {
     /// Expand the outgoing segment at `from_tick` with a piecewise easing
     /// preset. Requires a successor keyframe. Removes any intermediates
     /// strictly between `from` and `to`, then writes the expanded sequence.
@@ -542,6 +962,26 @@ impl<T> Param<T> {
         }
     }
 
+    /// The keyframe at exactly `tick`, if one sits there.
+    pub fn keyframe_at(&self, tick: i64) -> Option<&Keyframe<T>> {
+        let keyframes = self.keyframes();
+        keyframes
+            .binary_search_by_key(&tick, |kf| kf.tick)
+            .ok()
+            .map(|index| &keyframes[index])
+    }
+
+    /// Easing of the keyframe at exactly `tick`.
+    pub fn easing_at(&self, tick: i64) -> Option<Easing> {
+        self.keyframe_at(tick).map(|kf| kf.easing)
+    }
+
+    /// Spatial tangents stored on the keyframe at exactly `tick`. `None` both
+    /// when no keyframe sits there and when the keyframe has straight segments.
+    pub fn tangents_at(&self, tick: i64) -> Option<SpatialTangents> {
+        self.keyframe_at(tick).and_then(|kf| kf.tangents)
+    }
+
     /// Structural invariants: keyframed params are non-empty, strictly
     /// sorted by tick, with valid easings. Call after deserializing.
     pub fn validate_shape(&self) -> Result<(), ModelError> {
@@ -579,6 +1019,19 @@ impl<T> Param<T> {
                     f(&kf.value)?;
                 }
                 Ok(())
+            }
+        }
+    }
+
+    /// Replace every stored value (constant or per-keyframe) with `f` of it.
+    /// Ticks, easings, and tangents are kept.
+    pub fn map_values(&mut self, mut f: impl FnMut(&T) -> T) {
+        match self {
+            Param::Constant(value) => *value = f(value),
+            Param::Keyframed { keyframes } => {
+                for kf in keyframes {
+                    kf.value = f(&kf.value);
+                }
             }
         }
     }

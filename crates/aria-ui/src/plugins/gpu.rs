@@ -1,15 +1,21 @@
-//! GPU work: the compositor, and the effect and transition catalogs.
+//! GPU work: the compositor, the effect and transition catalogs, and the
+//! `.cube` grade importer.
 
+use std::io::{self, Read};
+use std::path::Path;
 use std::sync::Arc;
 
+use aria_commands::EditOutcome;
 use aria_compositor::{
-    CompositeLayer, Compositor, CompositorConfig, CompositorLayer, GpuContext, LayerPlacement,
-    PassInstance, pass_id, renders_effect, renders_transition,
+    CompositeLayer, Compositor, CompositorConfig, CompositorLayer, CubeLut, GpuContext,
+    LayerPlacement, PassInstance, pass_id, renders_effect, renders_transition,
 };
 use aria_core::RgbaImage;
+use aria_models::{Generator, Lut, TimeRange, TrackKind};
 use aria_plugin::{
-    DropAction, EffectService, Plugin, PluginContext, PluginError, PluginManifest,
-    ResolveDroppedPath, Service, TransitionService,
+    ApplyOutcome, Command, DropAction, EditCommand, EffectService, Importer, ImporterSpec,
+    InterchangeReport, Plugin, PluginContext, PluginError, PluginManifest, ResolveDropped, Service,
+    TransactError, Transaction, TransitionService,
 };
 use aria_render::RenderError;
 use parking_lot::Mutex;
@@ -24,13 +30,9 @@ impl Service for CompositorHost {}
 
 impl Plugin for CompositorPlugin {
     fn manifest(&self) -> &PluginManifest {
-        &PluginManifest {
-            id: "aria.compositor",
-            name: "Compositor",
-            version: "0.1.0",
-            requires: &[],
-            uses: &[],
-        }
+        static MANIFEST: PluginManifest =
+            PluginManifest::new("aria.compositor", "Compositor", "0.1.0", &[], &[]);
+        &MANIFEST
     }
 
     fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
@@ -121,24 +123,121 @@ impl EffectService for EffectCatalog {
 
 impl Plugin for EffectPlugin {
     fn manifest(&self) -> &PluginManifest {
-        &PluginManifest {
-            id: "aria.effects",
-            name: "Effects",
-            version: "0.1.0",
-            // `aria.render` brings up the device a plugin's render call draws on.
-            requires: &["aria.compositor", "aria.render"],
-            uses: &["GpuContext"],
-        }
+        // `aria.render` brings up the device a plugin's render call draws on.
+        static MANIFEST: PluginManifest = PluginManifest::new(
+            "aria.effects",
+            "Effects",
+            "0.1.0",
+            &["aria.compositor", "aria.render"],
+            &["GpuContext"],
+        );
+        &MANIFEST
     }
 
     fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
         register_dyn::<dyn EffectService>(ctx, Arc::new(EffectCatalog(OneShot::new(ctx))));
-        // A `.cube` file is a grade, not media.
-        ctx.on_serial::<ResolveDroppedPath, DropAction, _>(|event| {
-            has_extension(&event.path, &["cube"]).then_some(DropAction::ApplyLut)
+        // A `.cube` file is a grade, not media: dropped with a clip selected it
+        // grades that clip, and read by the importer it grades the sequence.
+        ctx.on_serial::<ResolveDropped, DropAction, _>(|event| {
+            event
+                .item
+                .as_path()
+                .is_some_and(|path| has_extension(path, &["cube"]))
+                .then_some(DropAction::ApplyLut)
         });
+        ctx.register_importer(
+            ImporterSpec {
+                id: "aria.effects.cube".to_owned(),
+                name: "Cube LUT".to_owned(),
+                extensions: vec!["cube".to_owned()],
+            },
+            CubeImporter,
+        )?;
         Ok(())
     }
+}
+
+/// The largest `.cube` file read. A 65³ table, the largest size parsed, is
+/// under 20 MiB.
+const MAX_CUBE_BYTES: u64 = 64 << 20;
+
+/// Reads a `.cube` grade as a LUT filter bar across the sequence, on a new
+/// filter track named after the file, as one undo step. An empty sequence
+/// gets a five-second bar.
+struct CubeImporter;
+
+impl Importer for CubeImporter {
+    fn import(
+        &self,
+        file: &Path,
+        tx: &mut Transaction<'_>,
+    ) -> Result<InterchangeReport, TransactError> {
+        let aborted =
+            |reason: String| TransactError::Aborted(format!("{} {reason}", file.display()));
+        let path = std::path::absolute(file)
+            .map_err(|err| aborted(format!("could not be read: {err}")))?;
+        let lut_path = path
+            .to_str()
+            .ok_or_else(|| aborted("could not be read: the path is not UTF-8".to_owned()))?
+            .to_owned();
+        let text = read_cube(&path).map_err(|err| aborted(format!("could not be read: {err}")))?;
+        CubeLut::parse(&text).map_err(|err| aborted(format!("is not a Cube LUT: {err}")))?;
+
+        let project = tx.project();
+        let timeline = project.timeline();
+        let rate = timeline.frame_rate;
+        let length = match timeline.duration().value {
+            0 => (5 * i64::from(rate.num) / i64::from(rate.den)).max(1),
+            ticks => ticks,
+        };
+        let name = file.file_stem().map_or_else(
+            || "LUT".to_owned(),
+            |stem| stem.to_string_lossy().into_owned(),
+        );
+        let track = match tx.apply(Command::Edit(EditCommand::AddTrack {
+            kind: TrackKind::Filter,
+            name,
+            index: None,
+            pinned: false,
+        }))? {
+            ApplyOutcome::Edited(EditOutcome::CreatedTrack(track)) => track,
+            other => return Err(aborted(format!("could not add its track: {other:?}"))),
+        };
+        let clip = match tx.apply(Command::Edit(EditCommand::AddGenerated {
+            track,
+            generator: Generator::Filter,
+            timeline: TimeRange::at_rate(0, length, rate),
+        }))? {
+            ApplyOutcome::Edited(EditOutcome::Created(clip)) => clip,
+            other => return Err(aborted(format!("could not add its filter: {other:?}"))),
+        };
+        tx.apply(Command::Edit(EditCommand::SetClipLut {
+            clip,
+            lut: Some(Lut::new(lut_path)),
+        }))?;
+        Ok(InterchangeReport::default())
+    }
+}
+
+/// The text of the `.cube` file at `path`, refused past [`MAX_CUBE_BYTES`].
+fn read_cube(path: &Path) -> io::Result<String> {
+    let too_large = || {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("LUT files over {} MiB are not read", MAX_CUBE_BYTES >> 20),
+        )
+    };
+    let file = std::fs::File::open(path)?;
+    if file.metadata()?.len() > MAX_CUBE_BYTES {
+        return Err(too_large());
+    }
+    // A pipe or device states no length; the read stops one byte past the limit.
+    let mut text = String::new();
+    file.take(MAX_CUBE_BYTES + 1).read_to_string(&mut text)?;
+    if text.len() as u64 > MAX_CUBE_BYTES {
+        return Err(too_large());
+    }
+    Ok(text)
 }
 
 pub struct TransitionPlugin;
@@ -186,13 +285,14 @@ impl TransitionService for TransitionCatalog {
 
 impl Plugin for TransitionPlugin {
     fn manifest(&self) -> &PluginManifest {
-        &PluginManifest {
-            id: "aria.transitions",
-            name: "Transitions",
-            version: "0.1.0",
-            requires: &["aria.compositor", "aria.render"],
-            uses: &["GpuContext"],
-        }
+        static MANIFEST: PluginManifest = PluginManifest::new(
+            "aria.transitions",
+            "Transitions",
+            "0.1.0",
+            &["aria.compositor", "aria.render"],
+            &["GpuContext"],
+        );
+        &MANIFEST
     }
 
     fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {

@@ -19,7 +19,7 @@ use crate::keys::{self, Chord, KeyRoute};
 use crate::plugins::UiPlugin;
 use crate::settings::UiSettings;
 
-fn state_in(dir: &std::path::Path) -> AppState {
+pub(in crate::app) fn state_in(dir: &std::path::Path) -> AppState {
     let ctx = PluginContext::new();
     ctx.mount(&UiPlugin).expect("the ui plugin needs nothing");
     AppState::new(ctx, dir.to_path_buf()).expect("state")
@@ -27,6 +27,15 @@ fn state_in(dir: &std::path::Path) -> AppState {
 
 fn state(prefix: &'static str) -> AppState {
     state_in(&crate::scratch_pool::scratch(prefix))
+}
+
+/// The chord `id` holds now. A label is display text, and a keystroke carries
+/// the key's own name, so a test that presses a binding's key presses this.
+fn chord_of(state: &AppState, id: &str) -> Chord {
+    state
+        .key_host()
+        .and_then(|host| host.chord_of(id))
+        .expect("the binding holds a chord")
 }
 
 /// A binding on the editor route whose chord is a plain letter, so a capture can
@@ -47,7 +56,7 @@ fn plain_binding() -> &'static str {
 
 /// A key no shipped binding uses on the editor route, so a capture cannot collide
 /// by accident.
-fn free_key() -> &'static str {
+pub(in crate::app) fn free_key() -> &'static str {
     ["f9", "f10", "f11", "f12", "insert"]
         .into_iter()
         .find(|key| {
@@ -64,14 +73,14 @@ fn free_key() -> &'static str {
 fn a_captured_key_is_the_key_that_dispatches() {
     let mut state = state("rebind-capture");
     let id = plain_binding();
-    let was = state.chord_label(id).expect("it starts with a chord");
+    let was = chord_of(&state, id);
     let key = free_key();
 
     state.begin_rebind(id);
     assert_eq!(state.rebinding(), Some(id), "the row is armed");
     state.capture_rebind(key, false, false, false);
     assert_eq!(state.rebinding(), None, "the capture ended");
-    assert_eq!(state.chord_label(id).as_deref(), Some(key));
+    assert_eq!(state.chord_label(id), Some(Chord::plain(key).label()));
 
     let host = keys::host_of(&state.ctx).expect("the ui plugin mounts the registry");
     assert_eq!(
@@ -81,13 +90,13 @@ fn a_captured_key_is_the_key_that_dispatches() {
         "the new key does not dispatch"
     );
     assert!(
-        host.resolve(KeyRoute::Editor, &was, false, false, false)
+        host.resolve(KeyRoute::Editor, was.key, false, false, false)
             .is_none(),
         "the old key still dispatches"
     );
     assert_eq!(
         state.ui_settings.keys.get(id),
-        Some(&Some(key.to_string())),
+        Some(&Some(Chord::plain(key).label())),
         "the choice was not recorded for the next launch"
     );
 }
@@ -101,8 +110,8 @@ fn a_capture_keeps_the_modifiers_it_was_pressed_with() {
     state.begin_rebind(id);
     state.capture_rebind(free_key(), true, true, true);
     assert_eq!(
-        state.chord_label(id).as_deref(),
-        Some(&*format!("Ctrl+Shift+Alt+{}", free_key()))
+        state.chord_label(id),
+        Some(Chord::ctrl_shift_alt(free_key()).label())
     );
 }
 
@@ -153,32 +162,34 @@ fn a_key_that_cannot_be_bound_leaves_the_capture_waiting() {
 /// GPUI on Linux reports Shift+2 as `@` with shift cleared. A capture that
 /// took the symbol as the key would refuse it, since `@` cannot carry a
 /// binding, and a Shift+digit chord could never be chosen from the keyboard.
+///
+/// The panels ship on Shift+digit chords, so each pass first clears the
+/// holder, if any: the chord is then free and the capture has to land on it.
 #[test]
 fn a_shifted_symbol_is_captured_as_shift_and_the_key_under_it() {
     let mut state = state("rebind-shifted");
     let id = plain_binding();
-    let (symbol, under) = [("@", "2"), ("#", "3"), ("%", "5"), ("&", "7")]
-        .into_iter()
-        .find(|&(_, under)| {
-            !SHIPPED_BINDINGS.iter().any(|binding| {
-                binding.route == KeyRoute::Editor && binding.chord == Chord::shift(under)
-            })
-        })
-        .expect("a Shift+digit chord is free");
-    state.begin_rebind(id);
-    state.capture_rebind(symbol, false, false, false);
-    assert_eq!(state.rebinding(), None, "{symbol} was refused");
-    assert_eq!(
-        state.chord_label(id).as_deref(),
-        Some(&*format!("Shift+{under}"))
-    );
     let host = keys::host_of(&state.ctx).expect("the registry is mounted");
-    assert_eq!(
-        host.resolve(KeyRoute::Editor, symbol, false, false, false)
-            .map(|binding| binding.id),
-        Some(id),
-        "the captured chord does not fire from the keystroke that captured it"
-    );
+    let digits = aria_plugin::keys::SHIFTED_SYMBOLS
+        .iter()
+        .filter(|(_, under)| under.bytes().all(|byte| byte.is_ascii_digit()));
+    for &(symbol, under) in digits {
+        if let Some(holder) = SHIPPED_BINDINGS.iter().find(|binding| {
+            binding.route == KeyRoute::Editor && binding.chord == Chord::shift(under)
+        }) {
+            state.clear_binding(holder.id);
+        }
+        state.begin_rebind(id);
+        state.capture_rebind(symbol, false, false, false);
+        assert_eq!(state.rebinding(), None, "{symbol} was refused");
+        assert_eq!(state.chord_label(id), Some(Chord::shift(under).label()));
+        assert_eq!(
+            host.resolve(KeyRoute::Editor, symbol, false, false, false)
+                .map(|binding| binding.id),
+            Some(id),
+            "the captured chord does not fire from {symbol}, the keystroke that captured it"
+        );
+    }
 }
 
 #[test]
@@ -255,7 +266,7 @@ fn a_rebinding_is_installed_from_the_saved_file() {
     saved.save(&dir).expect("settings write");
 
     let state = state_in(&dir);
-    assert_eq!(state.chord_label(id).as_deref(), Some(key));
+    assert_eq!(state.chord_label(id), Some(Chord::plain(key).label()));
     let host = keys::host_of(&state.ctx).expect("the registry is mounted");
     assert_eq!(
         host.resolve(KeyRoute::Editor, key, false, false, false)
@@ -364,26 +375,26 @@ fn two_bindings_can_trade_chords() {
         })
         .map(|binding| binding.id)
         .expect("a second plain editor binding");
-    let first_chord = state.chord_label(first).expect("a chord");
-    let second_chord = state.chord_label(second).expect("a chord");
+    let first_chord = chord_of(&state, first);
+    let second_chord = chord_of(&state, second);
 
     state.begin_rebind(first);
     state.capture_rebind(free_key(), false, false, false);
     state.begin_rebind(second);
-    state.capture_rebind(&first_chord, false, false, false);
+    state.capture_rebind(first_chord.key, false, false, false);
     state.begin_rebind(first);
-    state.capture_rebind(&second_chord, false, false, false);
+    state.capture_rebind(second_chord.key, false, false, false);
 
-    assert_eq!(state.chord_label(first).as_deref(), Some(&*second_chord));
-    assert_eq!(state.chord_label(second).as_deref(), Some(&*first_chord));
+    assert_eq!(state.chord_label(first), Some(second_chord.label()));
+    assert_eq!(state.chord_label(second), Some(first_chord.label()));
     let host = keys::host_of(&state.ctx).expect("the registry is mounted");
     assert_eq!(
-        host.resolve(KeyRoute::Editor, &second_chord, false, false, false)
+        host.resolve(KeyRoute::Editor, second_chord.key, false, false, false)
             .map(|binding| binding.id),
         Some(first)
     );
     assert_eq!(
-        host.resolve(KeyRoute::Editor, &first_chord, false, false, false)
+        host.resolve(KeyRoute::Editor, first_chord.key, false, false, false)
             .map(|binding| binding.id),
         Some(second)
     );

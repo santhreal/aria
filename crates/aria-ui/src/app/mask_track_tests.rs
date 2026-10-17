@@ -113,9 +113,13 @@ pub(super) fn tracked() -> AppState {
             resolution: Some([160, 90]),
         }))
         .expect("a canvas the size of the frames");
-    state
-        .set_selected_mask_kind(MaskKind::Rectangle)
-        .expect("draw a mask");
+    // The tracked mask sits between two others and is the active one, so a
+    // pass that reads or writes the first or the last mask of the stack
+    // misses it.
+    for kind in [MaskKind::Circle, MaskKind::Rectangle, MaskKind::Star] {
+        state.add_selected_mask(kind).expect("draw a mask");
+    }
+    state.set_active_mask(1);
     // The square the frames start with spans (40, 30)–(52, 42) in frame pixels,
     // so its centre is (46, 36) and its extent 12 x 12. A mask stores both as
     // fractions of the layer it sits on.
@@ -137,12 +141,22 @@ pub(super) fn quad(state: &AppState) -> ([f32; 2], [f32; 2]) {
         .expect("the still places a quad at the playhead")
 }
 
-/// The mask centre keyframes the selected clip carries, oldest first.
+/// The centre keyframes of the selected clip's active mask, oldest first.
+///
+/// The other masks of the stack carry none: a track that wrote to one of them
+/// fails here.
 pub(super) fn keyframes(state: &AppState) -> Vec<(i64, [f32; 2])> {
     let Some(clip) = state.selected_model() else {
         return Vec::new();
     };
-    let Some(mask) = clip.mask.as_ref() else {
+    let active = state.active_mask();
+    for (index, mask) in clip.masks.iter().enumerate() {
+        assert!(
+            Some(index as u32) == active || matches!(mask.center, Param::Constant(_)),
+            "the track wrote keyframes to mask {index}, which is not the active one"
+        );
+    }
+    let Some(mask) = state.active_model_mask() else {
         return Vec::new();
     };
     match &mask.center {

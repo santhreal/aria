@@ -1,4 +1,5 @@
 use super::*;
+use aria_models::TransitionMedia;
 
 // --- entity lookups (errors list what exists) ------------------------------
 
@@ -57,6 +58,12 @@ pub(super) fn transition_ids() -> String {
         .join(", ")
 }
 
+pub(super) fn audio_transition_ids() -> String {
+    aria_models::AudioTransition::ALL
+        .map(aria_models::AudioTransition::id)
+        .join(", ")
+}
+
 /// Whether a clip butts directly against a following clip on its track (the
 /// next clip starts exactly where this one ends) — the precondition for a
 /// transition at its right junction.
@@ -106,6 +113,18 @@ pub(super) fn effect_index(clip: &Clip, index: u32, raw_clip: u64) -> Result<usi
         )));
     }
     Ok(index)
+}
+
+/// Resolve a wire mask-stack index against a clip, rejecting out-of-range
+/// indices with the clip's current stack length.
+pub(super) fn mask_index(clip: &Clip, index: u32, raw_clip: u64) -> Result<usize, Rejection> {
+    match usize::try_from(index) {
+        Ok(at) if at < clip.masks.len() => Ok(at),
+        _ => Err(Rejection::new(format!(
+            "clip {raw_clip} has no mask at index {index} (stack length {})",
+            clip.masks.len()
+        ))),
+    }
 }
 
 /// Resolve `(effect index, param name)` to the chain index, the catalog slot,
@@ -160,36 +179,62 @@ pub(super) fn reject_audio_lane(
     Ok(())
 }
 
-/// Reject transitions on lanes whose clips don't composite as frames: audio
-/// has no frame, and effect/filter/adjustment segments resolve to canvas-wide
-/// passes the renderer can't nest inside a transition (mirrors the model's
-/// `TrackKind::supports_transitions`).
-pub(super) fn reject_non_transition_lane(
+/// Reject a transition the clip's lane does not take at a cut: a lane that
+/// composites frames takes a catalog blend, a sound lane an audio crossfade,
+/// and effect/filter/adjustment segments neither, because they resolve to
+/// canvas-wide passes the renderer can't nest inside a transition (mirrors the
+/// model's `TrackKind::transition_media`).
+pub(super) fn reject_transition_on_lane(
     project: &Project,
     clip: &Clip,
     raw_clip: u64,
+    transition: &str,
 ) -> Result<(), Rejection> {
     let timeline = project.timeline();
-    let kind = timeline
+    let Some(kind) = timeline
         .track_of(clip.id)
         .and_then(|id| timeline.track(id))
-        .map(|t| t.kind);
-    match kind {
-        Some(kind) if !kind.supports_transitions() => {
-            let lanes: Vec<&str> = aria_models::track_kind_specs()
+        .map(|t| t.kind)
+    else {
+        // A clip on no lane has no cut; the neighbour check refuses it.
+        return Ok(());
+    };
+    let Some(media) = kind.transition_media() else {
+        let lanes = |media| {
+            aria_models::track_kind_specs()
                 .iter()
-                .filter(|spec| spec.supports_transitions)
+                .filter(|spec| spec.kind.transition_media() == Some(media))
                 .map(|spec| spec.id)
-                .collect();
-            let lanes = lanes.join(", ");
-            Err(Rejection::new(format!(
-                "clip {raw_clip} is on a {kind:?} lane; transitions need a lane that composites frames ({lanes})"
-            )))
-        }
-        // Named rather than a catch-all: a clip on no lane at all is the only
-        // other case, and a lane that composites frames is not a refusal.
-        Some(_) | None => Ok(()),
+                .collect::<Vec<_>>()
+                .join(", ")
+        };
+        return Err(Rejection::new(format!(
+            "clip {raw_clip} is on a {kind:?} lane; picture transitions need a lane that \
+             composites frames ({}) and audio transitions a sound lane ({})",
+            lanes(TransitionMedia::Picture),
+            lanes(TransitionMedia::Audio),
+        )));
+    };
+    let picture = aria_models::transition_spec(transition).is_some();
+    let audio = aria_models::AudioTransition::from_id(transition).is_some();
+    let (takes, other) = match media {
+        TransitionMedia::Picture => (picture, audio.then_some("an audio")),
+        TransitionMedia::Audio => (audio, picture.then_some("a picture")),
+    };
+    if takes {
+        return Ok(());
     }
+    let (ids, lane) = match media {
+        TransitionMedia::Picture => (transition_ids(), format!("a {kind:?} lane")),
+        TransitionMedia::Audio => (audio_transition_ids(), "an audio lane".to_owned()),
+    };
+    Err(Rejection::new(match other {
+        Some(other) => format!(
+            "'{transition}' is {other} transition and clip {raw_clip} is on {lane}; \
+             available transitions: {ids}"
+        ),
+        None => format!("unknown transition '{transition}'; available transitions: {ids}"),
+    }))
 }
 
 pub(super) fn track_ref(project: &Project, raw: u64) -> Result<&aria_models::Track, Rejection> {

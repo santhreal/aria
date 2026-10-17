@@ -1,4 +1,4 @@
-//! Settings: 4 of the cases in [`super`].
+//! Settings: 3 of the cases in [`super`].
 //!
 //! Split out of `settings_tests.rs` to stay under the file ceiling. A pure
 //! move: only `#[test]` fns live here. Every fixture and helper stays in the
@@ -136,56 +136,4 @@ fn every_disk_cache_has_a_settings_key_and_the_reverse() {
             ),
         }
     }
-}
-/// A plugin declares a setting, the dialog offers it, and the value round-trips
-/// through the file the settings plugin owns.
-///
-/// The class closed: a plugin could read and write `config.toml` but had no way to
-/// show a field, so its configuration was hand-editing. The assertion is on the
-/// whole path — declared, listed, focused, typed, committed, read back — because
-/// each half alone would pass with the other missing.
-#[test]
-fn a_plugin_declared_setting_is_offered_and_round_trips() {
-    const FIELDS: &[aria_plugin::SettingSpec] = &[aria_plugin::SettingSpec {
-        key: "notes.directory",
-        label: "Notes directory",
-        placeholder: "the project directory",
-        secret: false,
-    }];
-    let ctx = aria_plugin::PluginContext::new();
-    let _ = crate::plugins::mount_all(&ctx, &crate::scratch_pool::scratch("settings-schema"));
-    let schema = aria_plugin::settings_schema::schema_of(&ctx)
-        .expect("the settings plugin registers the schema registry");
-    schema.declare(aria_plugin::SettingsSection {
-        plugin: "example.notes",
-        title: "Notes",
-        fields: FIELDS,
-    });
-
-    let mut state =
-        AppState::new(ctx, crate::scratch_pool::scratch("plugin-settings")).expect("state");
-    let sections = state.plugin_settings_sections();
-    assert_eq!(
-        sections.iter().map(|s| s.title).collect::<Vec<_>>(),
-        vec!["Notes"],
-        "a declared section is not offered"
-    );
-
-    let field = SettingsField::Plugin(FIELDS[0]);
-    assert_eq!(field.label(), "Notes directory");
-    assert_eq!(state.setting_draft(field).0, "", "a fresh key has no value");
-    retype(&mut state, field, "/tmp/notes");
-    state.commit_setting().expect("a plugin value is savable");
-    assert_eq!(state.settings_form.focused, None);
-    assert_eq!(
-        state.setting_draft(field).0,
-        "/tmp/notes",
-        "the value did not reach the settings service"
-    );
-
-    // Clearing it stores nothing rather than an empty string, so the plugin's own
-    // default applies again.
-    retype(&mut state, field, "");
-    state.commit_setting().expect("clearing is savable");
-    assert_eq!(state.setting_draft(field).0, "");
 }

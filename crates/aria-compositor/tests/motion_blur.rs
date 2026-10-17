@@ -49,7 +49,7 @@ fn moving_bar_supersamples_to_smear() {
         });
     }
     let mid = passes[3];
-    let layer = CompositeLayer::solid([255, 255, 255, 255], mid).with_blur_passes(passes);
+    let layer = CompositeLayer::solid([255, 255, 255, 255], mid).with_blur_passes(&passes);
 
     let smeared = comp.render(&gpu, &config, &[layer]).expect("render blur");
 

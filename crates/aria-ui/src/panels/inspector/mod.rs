@@ -1,6 +1,9 @@
 //! Inspector: properties for the selected clip.
 
 pub mod blocks;
+mod clip_type;
+#[cfg(test)]
+mod strip_tests;
 pub mod tab_host;
 mod tab_strip;
 pub mod tabs;
@@ -41,7 +44,6 @@ pub fn render(
         .bg(theme.surface)
         .border_l_1()
         .border_color(theme.border)
-        .child(header("Inspector", &theme))
         .child(match selected {
             Some(clip) => {
                 clip_body(&theme, clip, tab, rate.num, rate.den, state, cx).into_any_element()
@@ -60,25 +62,11 @@ pub fn render(
         )
 }
 
-fn header(title: &str, theme: &Theme) -> impl IntoElement {
-    div()
-        .h(px(Theme::HEADER_HEIGHT))
-        .px(px(Theme::SPACE_MD))
-        .flex()
-        .items_center()
-        .border_b_1()
-        .border_color(theme.border)
-        .text_size(px(14.))
-        .font_weight(gpui::FontWeight::SEMIBOLD)
-        .text_color(theme.text)
-        .child(title.to_string())
-}
-
 fn empty(theme: &Theme) -> impl IntoElement {
     div()
         .flex_1()
         .p(px(Theme::SPACE_MD))
-        .text_size(px(13.))
+        .text_size(Theme::TEXT_UI)
         .text_color(theme.text_faint)
         .child(SEQUENCE_PROMPT)
 }
@@ -112,7 +100,7 @@ fn sequence_body(
         .gap(px(Theme::SPACE_MD))
         .child(
             div()
-                .text_size(px(13.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_faint)
                 .child(SEQUENCE_PROMPT),
         )
@@ -152,6 +140,11 @@ fn clip_body(
         .min_h_0()
         .flex()
         .flex_col()
+        .children(
+            clip.clip_type
+                .as_ref()
+                .map(|clip_type| clip_type::clip_type_row(theme, clip_type, cx)),
+        )
         .child(tab_strip::tab_row(
             theme,
             &host,

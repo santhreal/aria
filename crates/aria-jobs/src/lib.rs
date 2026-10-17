@@ -43,18 +43,22 @@
 //!   successful structured outputs are validated against deliberately small
 //!   count/name/value caps. Finished jobs beyond the newest [`KEEP_FINISHED`]
 //!   are pruned (by *finish* time — a long export that just ended is recent
-//!   news even if it was spawned first). Running jobs are never pruned.
+//!   news even if it was spawned first). Running jobs are never pruned. At
+//!   most the manager's concurrency limit of jobs run at once; a job spawned
+//!   past it stays `Queued` and starts, in spawn order, when one finishes.
+//!   A job cancelled while it waits finishes `Cancelled` without running.
 //! - **Panic containment.** A panicking job is caught (`catch_unwind`) and
 //!   becomes [`JobState::Failed`] with a `panicked: …` detail — one bad
 //!   export must not take down the app. Panic wins over cancellation: a job
 //!   that blows up on the way out is a bug to surface, not a clean stop.
+
+mod admission;
 
 use std::any::Any;
 use std::fmt;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
-use std::thread;
 use std::time::Instant;
 
 /// How many finished (Done / Failed / Cancelled) jobs the registry keeps.
@@ -363,6 +367,18 @@ pub struct JobContext {
 }
 
 impl JobContext {
+    /// The id of the job this context reports for.
+    pub fn id(&self) -> JobId {
+        self.id
+    }
+
+    /// Replace the one-line status and leave the fraction as it is, `None`
+    /// for a job that never reported one.
+    pub fn set_detail(&self, detail: impl Into<String>) {
+        let detail = sanitize_detail(&detail.into());
+        self.shared.update(self.id, |job| job.snap.detail = detail);
+    }
+
     /// Report progress. `fraction` clamps to `0.0..=1.0` (NaN reads as 0);
     /// `detail` replaces the one-line status ("frame 1200/3600").
     pub fn set_progress(&self, fraction: f32, detail: impl Into<String>) {
@@ -450,7 +466,8 @@ impl std::fmt::Debug for JobManager {
 }
 
 impl JobManager {
-    /// Creates a manager bounded to the host's available parallelism.
+    /// Creates a manager that runs at most the host's available parallelism
+    /// of jobs at once.
     ///
     /// A caller may choose a tighter limit with
     /// [`Self::with_concurrency_limit`]. The shipped path is bounded so a
@@ -462,7 +479,9 @@ impl JobManager {
         Self::with_concurrency_limit(limit)
     }
 
-    /// Creates a job manager with an explicit concurrency limit.
+    /// Creates a job manager that runs at most `limit` jobs at once. A job
+    /// spawned while `limit` are running stays [`JobState::Queued`] until one
+    /// finishes, and waiting jobs start in spawn order.
     pub fn with_concurrency_limit(limit: usize) -> Self {
         Self {
             shared: Arc::new(Shared {
@@ -470,6 +489,7 @@ impl JobManager {
                 inner: Mutex::default(),
                 concurrency_limit: Some(limit.max(1)),
                 active_threads: AtomicUsize::new(0),
+                waiting: Mutex::default(),
             }),
         }
     }
@@ -505,11 +525,13 @@ impl JobManager {
         // built unconditionally either way, so ordering it first removes the
         // second copy of the label rather than adding work.
         let thread_name = thread_name(&label);
-        let id = JobId(self.shared.next_id.fetch_add(1, Ordering::Relaxed));
         let cancel = Arc::new(AtomicBool::new(false));
 
-        let (snapshot, subscribers) = {
+        let (id, snapshot, subscribers) = {
             let mut inner = self.shared.inner.lock().expect("job registry lock");
+            // Allocated under the lock so `jobs` stays sorted by id for
+            // `index_of`'s binary search when threads spawn concurrently.
+            let id = JobId(self.shared.next_id.fetch_add(1, Ordering::Relaxed));
             let snap = JobSnapshot {
                 id,
                 label,
@@ -527,88 +549,18 @@ impl JobManager {
                 cancel: Arc::clone(&cancel),
                 cancellation_open: true,
             });
-            (snap, inner.subscribers.clone())
+            (id, snap, inner.subscribers.clone())
         };
         // Deliver Queued before the thread exists, so a subscriber's event
         // stream for this job can never open with Running.
         deliver_to_subscribers(&snapshot, &subscribers);
 
-        if !self.shared.try_acquire_thread() {
-            self.shared.update(id, |job| {
-                job.snap.state = JobState::Failed;
-                job.snap.detail = "job concurrency limit reached".into();
-                job.snap.finished = Some(Instant::now());
-            });
-            return id;
-        }
-
-        let context = JobContext {
+        self.shared.admit(admission::Waiting {
             id,
-            shared: Arc::clone(&self.shared),
             cancellation: CancellationToken::new(cancel),
-        };
-        let shared = Arc::clone(&self.shared);
-        let spawned = thread::Builder::new().name(thread_name).spawn(move || {
-            shared.update(id, |job| job.snap.state = JobState::Running);
-            let result = catch_unwind(AssertUnwindSafe(|| work(&context)));
-            let (base_state, detail, outputs, panicked) = match result {
-                // Panic wins over cancellation: a job that blows up on
-                // the way out is a bug to surface, not a clean stop.
-                Err(payload) => (
-                    JobState::Failed,
-                    format!("panicked: {}", panic_message(&*payload)),
-                    Vec::new(),
-                    true,
-                ),
-                Ok(Ok(completion)) => {
-                    (JobState::Done, completion.detail, completion.outputs, false)
-                }
-                Ok(Err(reason)) => (JobState::Failed, reason, Vec::new(), false),
-            };
-            // Normalize caller-sized text before taking the global
-            // registry lock. The bounded result is still published
-            // atomically with terminal state and structured outputs.
-            let detail = sanitize_detail(&detail);
-            shared.update(id, |job| {
-                // Decide under the same registry lock as `cancel`: if
-                // cancellation wins the race before this terminal write,
-                // `cancel()` returned true and the terminal state must
-                // agree. If this write wins, cancel sees terminal and
-                // returns false. Panic remains a failure either way.
-                let state = if !panicked && job.cancel.load(Ordering::Relaxed) {
-                    JobState::Cancelled
-                } else {
-                    base_state
-                };
-                job.snap.state = state;
-                job.snap.detail = detail;
-                if state == JobState::Done {
-                    job.snap.outputs = outputs;
-                } else {
-                    job.snap.outputs.clear();
-                }
-                job.snap.finished = Some(Instant::now());
-                if state == JobState::Done {
-                    // A progress-reporting job that completed is 100%
-                    // done; indeterminate jobs stay indeterminate.
-                    job.snap.progress = job.snap.progress.map(|_| 1.0);
-                }
-            });
-            shared.release_thread();
+            thread_name,
+            work: Box::new(work),
         });
-
-        if let Err(err) = spawned {
-            // Thread spawn failure (resource exhaustion) is the one way a
-            // job dies without running; surface it like any other failure.
-            let detail = sanitize_detail(&format!("failed to spawn thread: {err}"));
-            self.shared.update(id, |job| {
-                job.snap.state = JobState::Failed;
-                job.snap.detail = detail;
-                job.snap.outputs.clear();
-                job.snap.finished = Some(Instant::now());
-            });
-            self.shared.release_thread();
-        }
         id
     }
 
@@ -698,7 +650,10 @@ struct Shared {
     next_id: AtomicU64,
     inner: Mutex<Inner>,
     concurrency_limit: Option<usize>,
+    /// Jobs running now. Changed only under `waiting`'s lock.
     active_threads: AtomicUsize,
+    /// Jobs spawned past the limit, waiting for a slot.
+    waiting: Mutex<admission::Queue>,
 }
 
 #[derive(Default)]
@@ -718,23 +673,6 @@ struct Job {
 }
 
 impl Shared {
-    fn try_acquire_thread(&self) -> bool {
-        let Some(limit) = self.concurrency_limit else {
-            return true;
-        };
-        self.active_threads
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |active| {
-                (active < limit).then_some(active + 1)
-            })
-            .is_ok()
-    }
-
-    fn release_thread(&self) {
-        if self.concurrency_limit.is_some() {
-            self.active_threads.fetch_sub(1, Ordering::AcqRel);
-        }
-    }
-
     /// Close cancellation under the same mutex used by `JobManager::cancel`,
     /// then publish the boundary snapshot after dropping the guard.
     fn try_begin_commit(&self, id: JobId) -> bool {

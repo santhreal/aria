@@ -202,6 +202,81 @@ fn center_align_without_wrap_width_centers_short_lines() {
     );
 }
 
+/// A subset of an OFL face with a `kern` table: "A" and "V" are a kerned pair.
+const KERN_FONT: &[u8] = include_bytes!("../assets/AriaKernTest-Regular.ttf");
+
+/// The kerned face's family, as its name table states it.
+const KERN_FAMILY: &str = "Aria Kern Test";
+
+/// Kerning on pulls kerned pairs together; off, every glyph advances by its
+/// own width, so the same run is wider. The memo keys on the flag, so the
+/// second call is shaped again rather than served the first answer.
+#[test]
+fn kerning_pulls_kerned_pairs_together_and_off_spaces_by_advance() {
+    let mut r = test_renderer();
+    assert!(
+        r.load_font(KERN_FONT.to_vec()) > 0,
+        "kern test face failed to parse"
+    );
+    let style = TextStyle::new(96.0).with_family(FontFamily::Named(KERN_FAMILY.into()));
+    let kerned = r.shape("AVAVAV", &style);
+    let plain = r.shape("AVAVAV", &style.clone().with_kerning(false));
+    assert!(kerned.has_ink() && plain.has_ink());
+    // Five kerned pairs at -152/2048 em each come to about 35 px at 96 px.
+    assert!(
+        plain.extent.0 > kerned.extent.0 + 20,
+        "kerning did not move the pairs: kerned={} plain={}",
+        kerned.extent.0,
+        plain.extent.0
+    );
+    // A run with no kerned pair is the same width either way.
+    let open = r.shape("He", &style);
+    let open_plain = r.shape("He", &style.clone().with_kerning(false));
+    assert_eq!(open.extent, open_plain.extent);
+}
+
+/// The right edge of the ink on visual line `line`.
+fn line_right(shaped: &ShapedText, line: usize) -> f32 {
+    shaped
+        .clusters
+        .iter()
+        .filter(|c| c.line == line && c.image.width > 0)
+        .map(|c| c.offset[0] + c.image.width as f32)
+        .fold(f32::MIN, f32::max)
+}
+
+/// Justify stretches a wrapped line's spaces until it fills the wrap width,
+/// and leaves the paragraph's last line where Left puts it.
+#[test]
+fn justify_fills_wrapped_lines_and_leaves_the_last_at_the_left() {
+    let mut r = test_renderer();
+    let base = TextStyle::new(40.0);
+    let long = r.shape("HHHHHHHHHH", &base).extent.0 as f32;
+    let wrap = long + 10.0;
+    let style = base.with_max_width(wrap);
+    let text = "H H HHHHHHHHHH";
+    let left = r.shape(text, &style);
+    let justified = r.shape(text, &style.clone().with_align(TextAlign::Justify));
+    assert_eq!(
+        left.clusters.iter().map(|c| c.line).max(),
+        Some(1),
+        "the run did not wrap"
+    );
+    // Left: "H H" ends far short of the long line under it.
+    let slack = line_right(&left, 1) - line_right(&left, 0);
+    assert!(slack > 40.0, "the first line was not short: slack={slack}");
+    // Justified: the first line's space takes up the slack, and the line
+    // stays inside the wrap width.
+    let first = line_right(&justified, 0);
+    assert!(
+        first > line_right(&left, 0) + slack * 0.5 && first <= wrap,
+        "the wrapped line was not stretched: left={} justified={first} wrap={wrap}",
+        line_right(&left, 0)
+    );
+    // The last line is not stretched.
+    assert_eq!(line_right(&justified, 1), line_right(&left, 1));
+}
+
 #[test]
 fn letter_spacing_changes_shaped_width() {
     let mut r = test_renderer();
@@ -324,6 +399,92 @@ fn memo_caches_repeat_calls_and_invalidate_on_font_load() {
     // Loading a font can change shaping for any string: memos must drop.
     assert!(r.load_font(TEST_FONT.to_vec()) > 0);
     assert_eq!(r.memo_sizes(), (0, 0));
+}
+
+/// **A size query is the raster's size, read from the raster memo.**
+///
+/// The editor sizes a title from `raster_size` and the renderer places the
+/// bitmap `rasterize` returns, so the two must agree for every input that
+/// changes the bitmap: padding, stroke, shadow, a wrap width, and tracking.
+/// The query fills the memo the raster then reuses, which is what keeps a
+/// selection box off the shaping path on every frame after the first.
+#[test]
+fn raster_size_is_the_raster_dimensions_and_shares_the_memo() {
+    let base = TextStyle::new(48.0);
+    let styles = [
+        base.clone(),
+        base.clone().with_padding(5),
+        base.clone().with_stroke(TextStroke {
+            rgba: [0, 0, 0, 255],
+            width: 6.0,
+        }),
+        base.clone().with_shadow(TextShadow {
+            rgba: [0, 0, 0, 200],
+            blur: 0.2,
+            distance: 8.0,
+        }),
+        base.clone().with_max_width(70.0),
+        base.clone().with_letter_spacing(12.0),
+    ];
+    let mut drawn = test_renderer();
+    for style in &styles {
+        let size = test_renderer().raster_size("HH HH", style);
+        let image = drawn.rasterize("HH HH", style);
+        assert!(size.0 > 0 && size.1 > 0, "{style:?}");
+        assert_eq!(size, (image.width, image.height), "{style:?}");
+    }
+
+    let mut r = test_renderer();
+    let first = r.raster_size("Hi", &base);
+    assert_eq!(r.memo_sizes(), (1, 1), "a size query fills the raster memo");
+    assert_eq!(r.raster_size("Hi", &base), first);
+    let image = r.rasterize("Hi", &base);
+    assert_eq!((image.width, image.height), first);
+    assert_eq!(r.memo_sizes(), (1, 1), "the raster reuses the sized entry");
+    assert_eq!(r.raster_size("   ", &base), (0, 0), "no ink, no size");
+}
+
+/// **An extent query is the shaped run's extent, read from the shape memo.**
+///
+/// Animated text is placed by its ink-tight shaped extent, so the editor sizes
+/// it from `shaped_extent`. Each style changes the extent: a wrap width and
+/// tracking. The query must not copy the clusters out and must leave the entry
+/// a later `shape` reuses.
+#[test]
+fn shaped_extent_is_the_shaped_extent_and_shares_the_memo() {
+    let base = TextStyle::new(48.0);
+    for style in [
+        base.clone(),
+        base.clone().with_max_width(70.0),
+        base.clone().with_letter_spacing(12.0),
+    ] {
+        let extent = test_renderer().shaped_extent("HH HH", &style);
+        assert!(extent.0 > 0 && extent.1 > 0, "{style:?}");
+        assert_eq!(
+            extent,
+            test_renderer().shape("HH HH", &style).extent,
+            "{style:?}"
+        );
+    }
+    let mut r = test_renderer();
+    let extent = r.shaped_extent("Hi", &base);
+    assert_eq!(
+        r.memo_sizes(),
+        (1, 0),
+        "an extent query fills the shape memo"
+    );
+    assert_eq!(r.shape("Hi", &base).extent, extent);
+    assert_eq!(
+        r.shaped_extent("Hi", &base),
+        extent,
+        "a memo hit is the extent the miss measured"
+    );
+    assert_eq!(
+        r.memo_sizes(),
+        (1, 0),
+        "the shape reuses the measured entry"
+    );
+    assert_eq!(r.shaped_extent("   ", &base), (0, 0), "no ink, no extent");
 }
 
 /// **The host font tree is parsed once, while custom faces stay isolated.**

@@ -1,0 +1,115 @@
+{
+  "scenario": "startup",
+  "machine": "Server",
+  "gpu": "llvmpipe (LLVM 20.1.2, 256 bits)",
+  "driver": "llvmpipe Mesa 25.2.8-0ubuntu0.24.04.2 (LLVM 20.1.2)",
+  "wgpu_adapter": "llvmpipe (LLVM 20.1.2, 256 bits) (Vulkan)",
+  "commit": "588a23f4c9cd809b89aa3b6b062964c53b7a977d",
+  "profile": "release",
+  "environment": {
+    "machine": "Server",
+    "hostname": "santhserver",
+    "os": "Linux 6.8.0-142-generic x86_64",
+    "cpu": "11th Gen Intel(R) Core(TM) i7-11700K @ 3.60GHz",
+    "gpu": "llvmpipe (LLVM 20.1.2, 256 bits)",
+    "driver": "llvmpipe Mesa 25.2.8-0ubuntu0.24.04.2 (LLVM 20.1.2)",
+    "wgpu_adapter": "llvmpipe (LLVM 20.1.2, 256 bits) (Vulkan)",
+    "commit": "588a23f4c9cd809b89aa3b6b062964c53b7a977d",
+    "profile": "release"
+  },
+  "verdict": "pass",
+  "reason": null,
+  "targets": [
+    {
+      "name": "cold_interactive_ms",
+      "description": "Window interactive in 1 s cold",
+      "comparison": "at_most",
+      "target": 1000.0,
+      "unit": "ms",
+      "measured": 65.021293,
+      "verdict": "pass",
+      "reason": null,
+      "required_on_machine": true
+    },
+    {
+      "name": "warm_interactive_ms",
+      "description": "Window interactive in 500 ms warm",
+      "comparison": "at_most",
+      "target": 500.0,
+      "unit": "ms",
+      "measured": 429.69645099999997,
+      "verdict": "pass",
+      "reason": null,
+      "required_on_machine": true
+    }
+  ],
+  "rules": [],
+  "samples": [
+    {
+      "name": "cold_process_window_ms",
+      "unit": "ms",
+      "values": [
+        302.240753,
+        65.021293,
+        44.252922
+      ],
+      "min": 44.252922,
+      "p50": 65.021293,
+      "p95": 302.240753,
+      "p99": 302.240753,
+      "max": 302.240753,
+      "mean": 137.17165599999998
+    },
+    {
+      "name": "warm_process_window_ms",
+      "unit": "ms",
+      "values": [
+        43.410083,
+        47.268217,
+        44.072587000000006
+      ],
+      "min": 43.410083,
+      "p50": 44.072587000000006,
+      "p95": 47.268217,
+      "p99": 47.268217,
+      "max": 47.268217,
+      "mean": 44.91696233333334
+    },
+    {
+      "name": "cold_inproc_interactive_ms",
+      "unit": "ms",
+      "values": [
+        437.732423,
+        383.111266,
+        338.244319
+      ],
+      "min": 338.244319,
+      "p50": 383.111266,
+      "p95": 437.732423,
+      "p99": 437.732423,
+      "max": 437.732423,
+      "mean": 386.3626693333333
+    },
+    {
+      "name": "warm_inproc_interactive_ms",
+      "unit": "ms",
+      "values": [
+        445.951409,
+        429.69645099999997,
+        442.77251099999995,
+        420.65893900000003,
+        361.976466
+      ],
+      "min": 361.976466,
+      "p50": 429.69645099999997,
+      "p95": 445.951409,
+      "p99": 445.951409,
+      "max": 445.951409,
+      "mean": 420.2111552
+    }
+  ],
+  "notes": [
+    "Measured full aria-desktop process spawn to mapped X11 window on private Xvfb :91",
+    "Warm process spawn-to-window p50=44.07 ms; warm in-process session+Shell draw p50=429.70 ms"
+  ]
+}

@@ -139,3 +139,150 @@ fn project_to_ui_projects_clip_audio() {
     assert_eq!(clip.speed_num, 1);
     assert_eq!(clip.speed_den, 1);
 }
+
+/// A clip with no label of its own is drawn in the label `docs/spec/look.md`
+/// gives its kind: Violet picture, Forest sound, Mango generators, Tan nested
+/// sequences, Lavender adjustments.
+///
+/// The class this closes: a clip kind drawn in a colour the look chapter does
+/// not give it, such as every unlabelled clip falling back to one hue. Not
+/// caught: the hue values themselves, which `theme_tests` pins.
+#[test]
+fn an_unlabelled_clip_takes_the_label_of_its_kind() {
+    use aria_models::{Generator, LabelColor, Sequence};
+
+    let (mut project, picture, _, sound) = sample_project();
+    let span = TimeRange::at_rate(0, 24, Rational::FPS_24);
+    let solid = Generator::SolidColor { rgba: [0; 4] };
+    let graphics = project.add_track(solid.spec().lane, "G1");
+    let generated = project.add_generated(graphics, solid, span).unwrap();
+    let fx = project.add_track(TrackKind::Adjustment, "FX");
+    let adjustment = project
+        .add_generated(fx, Generator::Adjustment, span)
+        .unwrap();
+    let inner = project.add_sequence(Sequence::new("Inner", Rational::FPS_24));
+    let nests = project.add_track(TrackKind::Video, "V2");
+    let nested = project
+        .add_sequence_clip(nests, inner, span, RationalTime::new(0, Rational::FPS_24))
+        .unwrap();
+
+    let store = project_to_ui(&project, RationalTime::new(0, Rational::FPS_24), &[]);
+    let drawn = |id: ClipId| {
+        let clip = store
+            .sequence
+            .tracks
+            .iter()
+            .flat_map(|track| track.clips.iter())
+            .find(|clip| clip.id == id.raw())
+            .expect("the clip is projected");
+        assert_eq!(clip.label, None, "{id:?} carries no label of its own");
+        clip.drawn_label()
+    };
+    assert_eq!(drawn(picture), LabelColor::Violet);
+    assert_eq!(drawn(sound), LabelColor::Forest);
+    assert_eq!(drawn(generated), LabelColor::Mango);
+    assert_eq!(drawn(adjustment), LabelColor::Lavender);
+    assert_eq!(drawn(nested), LabelColor::Tan);
+
+    project
+        .set_clip_label(sound, Some(LabelColor::Rose))
+        .unwrap();
+    let store = project_to_ui(&project, RationalTime::new(0, Rational::FPS_24), &[]);
+    let relabelled = store
+        .sequence
+        .tracks
+        .iter()
+        .flat_map(|track| track.clips.iter())
+        .find(|clip| clip.id == sound.raw())
+        .unwrap();
+    assert_eq!(
+        relabelled.drawn_label(),
+        LabelColor::Rose,
+        "the operator's label wins"
+    );
+}
+
+/// The badge text a clip projects while a plugin behind it is gone. Closes the
+/// class "a clip whose plugin is missing, failed, or disabled draws no badge,
+/// or a badge for a part that still has its plugin": every part kind the
+/// badge reads (clip type, effect, audio effect, transition) and the order
+/// between them. Uses only ids no catalog lists, so nothing registers into the
+/// process-global catalogs. Does not cover the paint; the timeline census does.
+#[test]
+fn a_clip_projects_the_first_part_whose_plugin_is_missing() {
+    use aria_models::{AudioEffectInstance, EffectInstance, Generator};
+
+    let rate = Rational::FPS_24;
+    let mut project = Project::new("Demo", rate);
+    let lane = project.add_track(TrackKind::Sticker, "S1");
+    let solid = |project: &mut Project, start| {
+        project
+            .add_generated(
+                lane,
+                Generator::SolidColor {
+                    rgba: [255, 0, 0, 255],
+                },
+                TimeRange::at_rate(start, 24, rate),
+            )
+            .unwrap()
+    };
+    let left = solid(&mut project, 0);
+    let right = solid(&mut project, 24);
+    project.add_transition(left, "crossfade").unwrap();
+    let badges = |project: &Project| -> Vec<Option<String>> {
+        let store = project_to_ui(project, RationalTime::new(0, rate), &[]);
+        [left, right]
+            .iter()
+            .map(|id| {
+                store
+                    .sequence
+                    .tracks
+                    .iter()
+                    .flat_map(|track| track.clips.iter())
+                    .find(|clip| clip.id == id.raw())
+                    .unwrap()
+                    .missing_plugin
+                    .as_ref()
+                    .map(ToString::to_string)
+            })
+            .collect()
+    };
+    assert_eq!(badges(&project), [None, None], "every part has its plugin");
+
+    // An audio lane's crossfades are built in, not plugins.
+    for audio in aria_models::AudioTransition::ALL {
+        let mut doc = serde_json::to_value(&project).unwrap();
+        doc["timeline"]["tracks"][0][1]["transitions"][0]["transition_id"] =
+            serde_json::json!(audio.id());
+        let built_in: Project = serde_json::from_value(doc).unwrap();
+        assert_eq!(
+            badges(&built_in),
+            [None, None],
+            "{} is built in",
+            audio.id()
+        );
+    }
+
+    // A transition id saved on another machine, loaded where no plugin lists it.
+    let mut doc = serde_json::to_value(&project).unwrap();
+    doc["timeline"]["tracks"][0][1]["transitions"][0]["transition_id"] =
+        serde_json::json!("com.example.gone.wipe");
+    let mut project: Project = serde_json::from_value(doc).unwrap();
+    let missing = |id: &str| Some(format!("Missing plugin: {id}"));
+    assert_eq!(
+        badges(&project),
+        [missing("com.example.gone.wipe"), None],
+        "the transition belongs to the clip on its left"
+    );
+
+    let clip = project.timeline_mut().clip_mut(left).unwrap();
+    clip.audio_effects = vec![AudioEffectInstance::new("com.example.gone.afx")];
+    assert_eq!(badges(&project)[0], missing("com.example.gone.afx"));
+    let clip = project.timeline_mut().clip_mut(left).unwrap();
+    clip.effects = vec![EffectInstance::new("com.example.gone.fx")];
+    assert_eq!(badges(&project)[0], missing("com.example.gone.fx"));
+
+    project.timeline_mut().clip_mut(right).unwrap().clip_type =
+        Some("com.example.gone.type".into());
+    assert_eq!(badges(&project)[1], missing("com.example.gone.type"));
+}

@@ -62,6 +62,7 @@ fn every_guarded_entry_point_asks() {
         PendingIntent::OpenProject(std::path::PathBuf::from("/nowhere.aria")),
         PendingIntent::OpenSample,
         PendingIntent::DropOnHome(vec![]),
+        PendingIntent::Quit,
     ] {
         let mut state = dirty();
         assert!(!state.request(intent.clone()));
@@ -80,6 +81,33 @@ fn closing_the_project_is_guarded() {
     state.close_project();
     assert_eq!(state.dialog, DialogKind::UnsavedChanges);
     assert_eq!(state.route, UiRoute::Editor);
+}
+
+/// Ctrl+Q, File > Quit and the window's close control share `request_quit`.
+/// A dirty session must not quit until the prompt is answered, Stay must keep
+/// it open, and a clean one must quit with no prompt at all.
+#[test]
+fn quitting_waits_for_the_answer_when_work_is_unsaved() {
+    let mut clean = AppState::new(PluginContext::new(), scratch("unsaved")).expect("state");
+    clean.new_project().expect("project");
+    clean.request_quit();
+    assert!(clean.quit_requested(), "a clean session quits at once");
+    assert_eq!(clean.dialog, DialogKind::None);
+
+    let mut state = dirty();
+    state.request_quit();
+    assert!(
+        !state.quit_requested(),
+        "quit before the prompt was answered"
+    );
+    assert_eq!(state.dialog, DialogKind::UnsavedChanges);
+    assert_eq!(state.pending_intent(), Some(&PendingIntent::Quit));
+    state.cancel_pending();
+    assert!(!state.quit_requested(), "Stay quit anyway");
+
+    state.request_quit();
+    state.discard_and_continue();
+    assert!(state.quit_requested(), "Discard did not quit");
 }
 
 #[test]

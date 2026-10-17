@@ -220,6 +220,10 @@ impl Project {
     /// Replace a generated clip's content (edit a title's text, recolor a
     /// shape, …). Errors if the clip is unknown, is media-backed, or the new
     /// generator isn't accepted by the clip's track.
+    ///
+    /// A text effect preset is baked when it is chosen: a title sent with the
+    /// preset it already holds keeps the stroke, shadow and card it was sent
+    /// with, so a treatment edited after the preset survives the next write.
     pub fn set_generator(
         &mut self,
         clip_id: ClipId,
@@ -245,8 +249,14 @@ impl Project {
                 kind,
             });
         }
+        let stored = match &clip.content {
+            ClipSource::Generated(stored) => text_preset(stored),
+            _ => None,
+        };
         let mut generator = generator;
-        generator.resolve_presets()?;
+        if text_preset(&generator) != stored {
+            generator.resolve_presets()?;
+        }
         generator.validate()?;
         let content = ClipSource::Generated(generator);
         if !kind.accepts_content(&content) {
@@ -392,5 +402,13 @@ impl Project {
         }
         clip.text_editable = editable;
         Ok(())
+    }
+}
+
+/// The text effect preset a generator names, when it is a title holding one.
+fn text_preset(generator: &Generator) -> Option<&str> {
+    match generator {
+        Generator::Text { style, .. } => style.effect_preset.as_deref(),
+        _ => None,
     }
 }

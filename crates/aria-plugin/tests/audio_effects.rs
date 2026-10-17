@@ -90,13 +90,7 @@ struct AudioPlugin {
 impl AudioPlugin {
     fn new(id: &'static str, effect: &'static str, make: fn() -> Box<dyn AudioProcessor>) -> Self {
         Self {
-            manifest: PluginManifest {
-                id,
-                name: id,
-                version: "1.0.0",
-                requires: &[],
-                uses: &[],
-            },
+            manifest: PluginManifest::new(id, id, "1.0.0", &[], &[]),
             effect,
             make,
         }
@@ -119,6 +113,7 @@ impl Plugin for AudioPlugin {
 fn spec(id: &str) -> AudioEffectSpec {
     AudioEffectSpec {
         id: id.into(),
+        category: String::new(),
         label: format!("{id} label"),
         params: vec![EffectParamSpec {
             name: "gain".into(),
@@ -129,6 +124,7 @@ fn spec(id: &str) -> AudioEffectSpec {
             max: 1.0,
             default_color: [0; 4],
             default_vec2: [0.0; 2],
+            ..Default::default()
         }],
         latency: 0,
         sidechain: false,
@@ -223,12 +219,11 @@ fn assert_close(got: &[f32], want: &[f32], case: &str) {
 
 /// The ids of every `PluginDeactivated` the context posts while the returned
 /// registration lives.
-fn deactivations(
-    ctx: &PluginContext,
-) -> (Arc<Mutex<Vec<&'static str>>>, aria_plugin::Registration) {
-    let seen: Arc<Mutex<Vec<&'static str>>> = Arc::default();
+fn deactivations(ctx: &PluginContext) -> (Arc<Mutex<Vec<String>>>, aria_plugin::Registration) {
+    let seen: Arc<Mutex<Vec<String>>> = Arc::default();
     let sink = Arc::clone(&seen);
-    let registration = ctx.on_event(move |event: &PluginDeactivated| sink.lock().push(event.id));
+    let registration =
+        ctx.on_event(move |event: &PluginDeactivated| sink.lock().push(event.id.to_string()));
     (seen, registration)
 }
 
@@ -290,7 +285,7 @@ fn a_refused_audio_effect_leaves_nothing_registered() {
     // Inside a mount the refusal fails the mount and drops what came before.
     let plugin = AudioPlugin::new("test.audio_refused", "plugin_audio.taken", gain);
     assert!(ctx.mount(&plugin).is_err());
-    assert!(!ctx.plugins().contains(&"test.audio_refused"));
+    assert!(!ctx.is_mounted("test.audio_refused"));
     assert!(ctx.try_get::<Marker>().is_none());
     let failure = ctx
         .failures()
@@ -336,7 +331,7 @@ fn a_processor_panic_fails_its_plugin_and_drops_every_registration() {
     // deactivation: two rounds.
     assert!(ctx.events().flush(FLUSH));
     assert!(ctx.events().flush(FLUSH));
-    assert!(!ctx.plugins().contains(&"test.audio_crash"));
+    assert!(!ctx.is_mounted("test.audio_crash"));
     assert_eq!(registered("plugin_audio.panics"), (false, false));
     assert!(ctx.try_get::<Marker>().is_none());
     assert_eq!(*seen.lock(), vec!["test.audio_crash"]);
@@ -382,12 +377,12 @@ fn missed_deadlines_report_a_fault_and_keep_the_plugin_mounted() {
     let [PluginFault { plugin, message }] = faults.as_slice() else {
         panic!("one fault, got {faults:?}");
     };
-    assert_eq!(*plugin, "test.audio_slow");
+    assert_eq!(plugin, "test.audio_slow");
     assert!(
         message.contains("plugin_audio.slow missed three playback deadlines"),
         "{message}"
     );
-    assert!(ctx.plugins().contains(&"test.audio_slow"));
+    assert!(ctx.is_mounted("test.audio_slow"));
     assert_eq!(registered("plugin_audio.slow"), (true, true));
 
     // A fault for a plugin that is not mounted is not kept.
@@ -485,5 +480,89 @@ fn the_audio_host_mixes_the_range_asked_for() {
     assert!(
         matches!(refused, Err(RenderError::Model(ModelError::UnknownClip(clip))) if clip == missing),
         "{refused:?}"
+    );
+}
+
+/// WHY: Each `AudioProcessor::process` call must record its duration in the
+/// owning plugin's `block` cost metric without mixing with another mounted
+/// audio plugin, and unmounting must clear the recorded cost.
+#[test]
+fn audio_processor_records_per_block_cost_and_clears_on_unmount() {
+    struct Sleep4Ms;
+
+    impl AudioProcessor for Sleep4Ms {
+        fn process(&mut self, block: &mut AudioBlock<'_>) {
+            std::thread::sleep(Duration::from_millis(4));
+            Gain.process(block);
+        }
+
+        fn reset(&mut self) {}
+    }
+
+    fn sleep_4ms() -> Box<dyn AudioProcessor> {
+        Box::new(Sleep4Ms)
+    }
+
+    let ctx = PluginContext::new();
+    let slow_plugin = AudioPlugin::new("test.audio_cost_slow", "plugin_audio.cost_slow", sleep_4ms);
+    let idle_plugin = AudioPlugin::new("test.audio_cost_idle", "plugin_audio.cost_idle", gain);
+    ctx.mount(&slow_plugin).expect("mounts slow audio plugin");
+    ctx.mount(&idle_plugin).expect("mounts idle audio plugin");
+
+    assert!(
+        ctx.cost_of("test.audio_cost_slow")
+            .expect("slow cost")
+            .block
+            .is_empty()
+    );
+    assert!(
+        ctx.cost_of("test.audio_cost_idle")
+            .expect("idle cost")
+            .block
+            .is_empty()
+    );
+
+    let base = session(&[440.0]);
+    let mut project = base.project;
+    project
+        .add_audio_effect(AudioInsertTarget::Master, "plugin_audio.cost_slow")
+        .expect("adds slow audio effect");
+
+    mix(&project, 0, 2 * BLOCK, false);
+
+    let slow_cost = ctx
+        .cost_of("test.audio_cost_slow")
+        .expect("slow cost")
+        .block;
+    assert_eq!(slow_cost.calls, 2);
+    assert!(
+        slow_cost.last >= Duration::from_millis(3),
+        "expected per-block cost >= 3 ms, got {:?}",
+        slow_cost.last
+    );
+    assert!(slow_cost.mean >= Duration::from_millis(3));
+    assert!(slow_cost.max >= Duration::from_millis(3));
+
+    let idle_cost = ctx
+        .cost_of("test.audio_cost_idle")
+        .expect("idle cost")
+        .block;
+    assert!(
+        idle_cost.is_empty(),
+        "uninvoked audio plugin must stay empty, got {idle_cost:?}"
+    );
+
+    ctx.unmount("test.audio_cost_slow")
+        .expect("unmounts slow audio plugin");
+    ctx.unmount("test.audio_cost_idle")
+        .expect("unmounts idle audio plugin");
+    assert!(ctx.cost_of("test.audio_cost_slow").is_none());
+
+    ctx.mount(&slow_plugin).expect("remounts slow audio plugin");
+    assert!(
+        ctx.cost_of("test.audio_cost_slow")
+            .expect("remounted cost")
+            .block
+            .is_empty()
     );
 }

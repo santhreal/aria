@@ -1,10 +1,10 @@
 //! Catalog entries added while the process runs.
 //!
 //! The shipped effect and transition catalogs are read once from data files. A
-//! plugin adds an effect, a transition or an audio effect here, and the live
-//! catalogs ([`crate::effect_catalog`], [`crate::transition_catalog`],
-//! [`crate::audio_effect_catalog`]) list the shipped entries first, then the
-//! registered ones in registration order.
+//! plugin adds an effect, a transition, an audio effect or a clip type here, and
+//! the live catalogs ([`crate::effect_catalog`], [`crate::transition_catalog`],
+//! [`crate::audio_effect_catalog`], [`crate::clip_type_catalog`]) list the
+//! shipped entries first, then the registered ones in registration order.
 //!
 //! Entries are shared, not borrowed: a lookup returns an `Arc`, so a caller that
 //! keeps a spec keeps it alive after the entry is removed, and nothing outlives
@@ -17,6 +17,7 @@
 use std::sync::{Arc, LazyLock, PoisonError, RwLock};
 
 use crate::audio_effects::{AudioEffectSpec, check_audio_effect};
+use crate::clip_types::{ClipTypeSpec, check_clip_type};
 use crate::effects::{EffectSpec, check_effect_params};
 use crate::transition::TransitionSpec;
 
@@ -142,7 +143,21 @@ impl Entry for TransitionSpec {
     }
 
     fn check(&self) -> Result<(), String> {
-        Ok(())
+        crate::effects::check_params(&self.id, &self.params)
+    }
+}
+
+impl Entry for ClipTypeSpec {
+    fn id(&self) -> &str {
+        &self.id
+    }
+
+    fn label(&self) -> &str {
+        &self.label
+    }
+
+    fn check(&self) -> Result<(), String> {
+        check_clip_type(self)
     }
 }
 
@@ -246,6 +261,9 @@ static AUDIO_EFFECTS: LazyLock<RwLock<Live<AudioEffectSpec>>> = LazyLock::new(||
     ))
 });
 
+static CLIP_TYPES: LazyLock<RwLock<Live<ClipTypeSpec>>> =
+    LazyLock::new(|| RwLock::new(Live::new(&[])));
+
 // A writer holds the lock only to push, remove, or rebuild a snapshot, none of
 // which leaves the table half-written, so a poisoned lock still holds a whole
 // table.
@@ -282,11 +300,20 @@ pub(crate) fn audio_effect_spec(id: &str) -> Option<Arc<AudioEffectSpec>> {
     read(&AUDIO_EFFECTS, |live| live.find(id))
 }
 
+pub(crate) fn clip_type_catalog() -> Catalog<ClipTypeSpec> {
+    read(&CLIP_TYPES, Live::catalog)
+}
+
+pub(crate) fn clip_type_spec(id: &str) -> Option<Arc<ClipTypeSpec>> {
+    read(&CLIP_TYPES, |live| live.find(id))
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Which {
     Effect,
     Transition,
     AudioEffect,
+    ClipType,
 }
 
 /// A registered catalog entry. Dropping it removes the entry from its catalog.
@@ -303,6 +330,7 @@ impl Drop for Registered {
             Which::Effect => write(&EFFECTS, |live| live.remove(self.token)),
             Which::Transition => write(&TRANSITIONS, |live| live.remove(self.token)),
             Which::AudioEffect => write(&AUDIO_EFFECTS, |live| live.remove(self.token)),
+            Which::ClipType => write(&CLIP_TYPES, |live| live.remove(self.token)),
         }
     }
 }
@@ -354,4 +382,64 @@ pub fn register_audio_effect(
         },
         entry,
     ))
+}
+
+/// Add `spec` to the clip type catalog until the returned guard drops. Refused
+/// by the same id and label rules as [`register_effect`], and when the id is
+/// longer than [`crate::CLIP_TYPE_ID_MAX_BYTES`] or holds a space, the name is
+/// longer than [`crate::CLIP_TYPE_NAME_MAX_BYTES`], no generator is named, or a
+/// handle is empty, repeated, or past [`crate::CLIP_TYPE_MAX_HANDLES`]. The
+/// generator is not looked up here: see [`ClipTypeSpec::unavailable`].
+pub fn register_clip_type(spec: ClipTypeSpec) -> Result<(Registered, Arc<ClipTypeSpec>), String> {
+    let (token, entry) = write(&CLIP_TYPES, |live| live.register(spec))?;
+    Ok((
+        Registered {
+            which: Which::ClipType,
+            token,
+        },
+        entry,
+    ))
+}
+
+/// Update `category` on a registered audio or video effect `id`.
+///
+/// Refused when `id` is not a currently registered effect or audio effect, or
+/// when `category` is blank.
+pub fn set_registered_effect_category(id: &str, category: impl Into<String>) -> Result<(), String> {
+    let category = category.into();
+    let trimmed = category.trim();
+    if trimmed.is_empty() {
+        return Err(format!("{id}: effect category must not be empty"));
+    }
+    let category = trimmed.to_owned();
+    let updated_audio = write(&AUDIO_EFFECTS, |live| {
+        if let Some((_, entry)) = live.registered.iter_mut().find(|(_, held)| held.id == id) {
+            let mut next = (**entry).clone();
+            next.category = category.clone();
+            *entry = Arc::new(next);
+            live.rebuild();
+            true
+        } else {
+            false
+        }
+    });
+    if updated_audio {
+        return Ok(());
+    }
+    let updated_video = write(&EFFECTS, |live| {
+        if let Some((_, entry)) = live.registered.iter_mut().find(|(_, held)| held.id == id) {
+            let mut next = (**entry).clone();
+            next.category = category;
+            *entry = Arc::new(next);
+            live.rebuild();
+            true
+        } else {
+            false
+        }
+    });
+    if updated_video {
+        Ok(())
+    } else {
+        Err(format!("{id}: no registered effect with that id"))
+    }
 }

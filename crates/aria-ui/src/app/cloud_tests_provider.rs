@@ -126,7 +126,7 @@ fn the_help_menu_offers_the_update_check() {
     // The check is reachable from the bar, not only from a palette string.
     let labels = crate::chrome::labels_for(crate::types::AppMenu::Help, &with_clip().0);
     assert!(
-        labels.contains(&"Check for updates"),
+        labels.contains(&"Check for Updates"),
         "Help lost the update check: {labels:?}"
     );
 }

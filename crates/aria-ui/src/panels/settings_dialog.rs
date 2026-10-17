@@ -1,4 +1,4 @@
-//! Settings dialog: Appearance, Provider keys, Storage, Transcription, Cloud, Plugins, Keys, Workspaces, Canvas.
+//! Settings dialog: Appearance, Playback, Provider keys, Storage, Transcription, Cloud, Plugins, Keys, Workspaces, Canvas.
 //!
 //! The dialog is a list of sections, each generated from a table rather than written
 //! out row by row, so a new provider, model, timeout, cache, or theme appears without
@@ -6,9 +6,12 @@
 
 mod ai;
 mod caches;
+mod keyboard;
 mod keys;
 mod layouts;
 mod pickers;
+mod plugin_limits;
+mod plugin_settings;
 mod plugins;
 mod providers;
 mod storage;
@@ -19,7 +22,7 @@ mod widgets;
 #[path = "settings_dialog/settings_dialog_tests.rs"]
 mod settings_dialog_tests;
 
-use aria_models::{AudioLayout, CanvasAspect, Rational};
+use aria_models::{AudioLayout, CanvasAspect, Rational, TimeDisplay};
 use gpui::{
     Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled,
     div, px,
@@ -54,6 +57,7 @@ pub fn render(
         };
     }
     push_visible!("Appearance", appearance_rows(&theme, state, mode, cx));
+    push_visible!("Playback", playback_rows(&theme, state, cx));
     push_visible!("AI", ai::ai_rows(&theme, state, cx));
     push_visible!("Provider keys", providers::provider_rows(&theme, state, cx));
     push_visible!("Storage", storage::storage_rows(&theme, state, cx));
@@ -63,8 +67,16 @@ pub fn render(
         transcription::model_rows(&theme, state, cx)
     );
     push_visible!("Cloud", cloud_rows(&theme, state, cx));
-    push_visible!("Plugins", plugins::plugin_rows(&theme, state, cx));
-    push_visible!("Keys", keys::binding_rows(&theme, state, cx));
+    push_visible!("Plugins", {
+        let mut rows = plugin_limits::limit_rows(&theme, state, cx);
+        rows.extend(plugins::plugin_rows(&theme, state, cx));
+        rows
+    });
+    // The Keys section lists its bindings under a filter that names one, so a
+    // search for a command finds its key without the section's title.
+    if let Some(rows) = keys::section(&theme, state, cx) {
+        sections.push(("Keys", rows));
+    }
     push_visible!("Workspaces", layouts::workspace_rows(&theme, state, cx));
     push_visible!("Catalogs", plugins::catalog_rows(&theme, state, cx));
     push_visible!("Configuration", ai::schema_rows(&theme, state, cx));
@@ -83,17 +95,9 @@ pub fn render(
     // plugin, drawn with the same row as a shipped field: a plugin that declares a
     // setting is configurable without an edit here.
     for declared in state.read(cx).plugin_settings_sections() {
-        if state.read(cx).settings_section_visible(declared.title) {
-            let mut rows = Vec::with_capacity(declared.fields.len());
-            for spec in declared.fields {
-                rows.push(ai::field_row(
-                    &theme,
-                    state,
-                    SettingsField::Plugin(*spec),
-                    cx,
-                ));
-            }
-            sections.push((declared.title, rows));
+        if state.read(cx).settings_section_visible(&declared.title) {
+            let rows = plugin_settings::section_rows(&theme, state, &declared, cx);
+            sections.push((crate::interned::intern(&declared.title), rows));
         }
     }
     // Canvas is a project setting, so the section is absent with no project open
@@ -130,9 +134,9 @@ pub fn render(
     )
 }
 
-/// Light/dark mode, the saved accent choice, then how much motion runs. Three
-/// questions: which appearance, which accent inside it, and whether the app
-/// animates the change at all.
+/// Light/dark mode, the saved accent choice, the theme file, then how much
+/// motion runs. Theme files are read from `<data dir>/themes`; one that cannot
+/// be read is listed with the reason and cannot be chosen.
 fn appearance_rows(
     theme: &Theme,
     state: &Entity<AppState>,
@@ -147,11 +151,106 @@ fn appearance_rows(
     for candidate in aria_settings::ThemeChoice::ALL {
         rows.push(pickers::theme_row(theme, candidate, current, cx).into_any_element());
     }
+    let files = &state.read(cx).theme_files;
+    let current_file = state.read(cx).ui_settings.theme_file.clone();
+    let candidates: Vec<_> = std::iter::once(None)
+        .chain(files.themes.iter().cloned().map(Some))
+        .collect();
+    let failed = files.failed.clone();
+    for candidate in candidates {
+        rows.push(
+            pickers::theme_file_row(theme, candidate, current_file.as_deref(), cx)
+                .into_any_element(),
+        );
+    }
+    for (file, reason) in &failed {
+        rows.push(pickers::theme_file_failure_row(theme, file, reason).into_any_element());
+    }
     let motion = state.read(cx).ui_settings.motion;
     for candidate in crate::motion::MotionPreference::ALL {
         rows.push(pickers::motion_row(theme, candidate, motion, cx).into_any_element());
     }
     rows
+}
+
+/// Playback toggles: audio scrubbing and dropped-frame logging, each drawn as a
+/// label with On and Off chips that save immediately.
+fn playback_rows(
+    theme: &Theme,
+    state: &Entity<AppState>,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> Vec<gpui::AnyElement> {
+    let (scrubbing, logging) = {
+        let s = &state.read(cx).ui_settings;
+        (s.audio_scrubbing, s.log_dropped_frames)
+    };
+    let mut scrub_row = div()
+        .id("settings-audio-scrubbing")
+        .flex()
+        .flex_row()
+        .items_center()
+        .gap(px(Theme::SPACE_SM))
+        .child(
+            div()
+                .w(px(140.0))
+                .text_size(Theme::TEXT_UI)
+                .text_color(theme.text_muted)
+                .child("Audio scrubbing"),
+        );
+    for (shown, on) in [("On", true), ("Off", false)] {
+        let id = crate::motion::MotionKey::new("audio-scrubbing", shown);
+        let chip = if scrubbing == on {
+            components::button(id, shown, theme)
+        } else {
+            components::ghost_button(id, shown, theme)
+        };
+        scrub_row = scrub_row.child(chip.on_mouse_down(
+            MouseButton::Left,
+            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                cx.stop_propagation();
+                this.state.update(cx, |state, cx| {
+                    state.ui_settings.audio_scrubbing = on;
+                    state.persist_settings_later(cx);
+                    state.status_message = Some(format!("Audio scrubbing: {shown}"));
+                });
+                cx.notify();
+            }),
+        ));
+    }
+    let mut log_row = div()
+        .id("settings-log-dropped-frames")
+        .flex()
+        .flex_row()
+        .items_center()
+        .gap(px(Theme::SPACE_SM))
+        .child(
+            div()
+                .w(px(140.0))
+                .text_size(Theme::TEXT_UI)
+                .text_color(theme.text_muted)
+                .child("Log dropped frames"),
+        );
+    for (shown, on) in [("On", true), ("Off", false)] {
+        let id = crate::motion::MotionKey::new("log-dropped-frames", shown);
+        let chip = if logging == on {
+            components::button(id, shown, theme)
+        } else {
+            components::ghost_button(id, shown, theme)
+        };
+        log_row = log_row.child(chip.on_mouse_down(
+            MouseButton::Left,
+            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                cx.stop_propagation();
+                this.state.update(cx, |state, cx| {
+                    state.ui_settings.log_dropped_frames = on;
+                    state.persist_settings_later(cx);
+                    state.status_message = Some(format!("Log dropped frames: {shown}"));
+                });
+                cx.notify();
+            }),
+        ));
+    }
+    vec![scrub_row.into_any_element(), log_row.into_any_element()]
 }
 
 /// The cloud endpoint. One field, because everything else about cloud access is a
@@ -245,6 +344,15 @@ fn canvas_rows(
     rows.push(kv(theme, "Audio layout", current_layout.label()).into_any_element());
     for layout in AudioLayout::ALL {
         rows.push(pickers::audio_layout_row(theme, layout, current_layout, cx).into_any_element());
+    }
+
+    // Time display
+    let current_display = state.read(cx).store.sequence.time_display;
+    rows.push(kv(theme, "Time display", current_display.label()).into_any_element());
+    for display in TimeDisplay::ALL {
+        rows.push(
+            pickers::time_display_row(theme, display, current_display, cx).into_any_element(),
+        );
     }
 
     rows

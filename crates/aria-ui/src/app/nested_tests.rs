@@ -102,7 +102,7 @@ fn an_edit_made_inside_a_nest_stays_inside_it() {
     state.open_selected_nest().expect("open the nest");
     let inside = clips(&state)[0].0;
     state.select_clip(aria_models::ClipId::from_raw(inside));
-    state.delete_selected().expect("delete inside the nest");
+    state.clear_selected().expect("delete inside the nest");
     assert!(clips(&state).is_empty(), "the nest's timeline is now empty");
 
     state.leave_sequence().expect("leave the nest");

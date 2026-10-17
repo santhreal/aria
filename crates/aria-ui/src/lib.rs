@@ -20,6 +20,7 @@ pub mod cloud;
 pub mod commands;
 pub mod components;
 pub mod datefmt;
+pub mod dock;
 pub mod drag_hint;
 pub mod edge_fade;
 pub mod filmstrips;
@@ -29,6 +30,7 @@ pub mod frost;
 pub mod handoff;
 pub mod icons;
 pub mod interaction;
+pub(crate) mod interned;
 pub mod keys;
 pub mod layouts;
 pub mod loaders;
@@ -38,7 +40,9 @@ pub mod panels;
 pub mod pending;
 pub mod plugins;
 pub mod popover;
+pub mod preview_worker;
 pub mod projection;
+pub mod resolution;
 pub mod scopes;
 pub mod settings;
 pub mod shell;
@@ -46,6 +50,7 @@ pub mod snap;
 pub mod surfaces;
 pub mod theme;
 pub mod timecode;
+pub mod timeline_display;
 pub mod tool_catalog;
 pub mod tooltip;
 pub mod transport;
@@ -152,19 +157,64 @@ pub fn run_app_with(config: UiConfig) {
         // before anything animates, not after the first frame.
         saved.motion.apply(cx);
         motion::seed_scale_from_env(cx);
-        appearance::init(saved.appearance, data_dir.clone(), cx);
+        let theme_file = saved.theme_file.as_deref().and_then(|stem| {
+            let found = state.theme_files.find(stem).cloned();
+            if found.is_none() {
+                tracing::warn!(
+                    theme = stem,
+                    "saved theme not applied: it is not in the data dir or a mounted plugin, or it failed to read (Settings lists the reason)"
+                );
+            }
+            found
+        });
+        appearance::init(saved.appearance, theme_file, data_dir.clone(), cx);
         open_main_window(state, cx);
         cx.activate(true);
     });
 }
 
 fn open_main_window(state: app::AppState, cx: &mut App) {
-    let bounds = Bounds::centered(None, size(px(1440.), px(900.)), cx);
+    let displays_vec = cx.displays();
+    let display_rects: Vec<[f32; 4]> = displays_vec
+        .iter()
+        .map(|d| {
+            let b = d.bounds();
+            [
+                f32::from(b.origin.x),
+                f32::from(b.origin.y),
+                f32::from(b.size.width),
+                f32::from(b.size.height),
+            ]
+        })
+        .collect();
+    let placement = state.ui_settings.resolve_window_placement(&display_rects);
+    let display_id = displays_vec.get(placement.display_index).map(|d| d.id());
+    let bounds = if display_rects.is_empty() {
+        Bounds::centered(
+            display_id,
+            size(px(placement.width), px(placement.height)),
+            cx,
+        )
+    } else {
+        Bounds::new(
+            gpui::point(px(placement.x), px(placement.y)),
+            size(px(placement.width), px(placement.height)),
+        )
+    };
+    let window_bounds = if placement.maximized {
+        WindowBounds::Maximized(bounds)
+    } else {
+        WindowBounds::Windowed(bounds)
+    };
     let theme = Theme::of(cx);
     cx.open_window(
         WindowOptions {
-            window_bounds: Some(WindowBounds::Windowed(bounds)),
-            window_min_size: Some(size(px(1024.), px(640.))),
+            window_bounds: Some(window_bounds),
+            display_id,
+            window_min_size: Some(size(
+                px(crate::settings::MIN_WINDOW_WIDTH),
+                px(crate::settings::MIN_WINDOW_HEIGHT),
+            )),
             titlebar: Some(TitlebarOptions {
                 title: None,
                 appears_transparent: true,
@@ -183,10 +233,65 @@ fn open_main_window(state: app::AppState, cx: &mut App) {
             // that opens native dialogs is installed: every pick a row, a chord
             // or a button asks for is answered through it.
             app::picker::watch_picks(&state, cx);
+            // The window manager's close request leaves the session too, so it
+            // goes through the unsaved prompt: a clean session closes at once,
+            // a dirty one stays open until the prompt is answered.
+            let closing = state.clone();
+            window.on_window_should_close(cx, move |win, cx| {
+                let wb = win.window_bounds();
+                let inner = wb.get_bounds();
+                let maximized =
+                    matches!(wb, WindowBounds::Maximized(_) | WindowBounds::Fullscreen(_));
+                let disp_rects: Vec<[f32; 4]> = cx
+                    .displays()
+                    .into_iter()
+                    .map(|d| {
+                        let b = d.bounds();
+                        [
+                            f32::from(b.origin.x),
+                            f32::from(b.origin.y),
+                            f32::from(b.size.width),
+                            f32::from(b.size.height),
+                        ]
+                    })
+                    .collect();
+                let cx_x = f32::from(inner.origin.x) + f32::from(inner.size.width) * 0.5;
+                let cx_y = f32::from(inner.origin.y) + f32::from(inner.size.height) * 0.5;
+                let display_index = disp_rects
+                    .iter()
+                    .position(|&[dx, dy, dw, dh]| {
+                        cx_x >= dx && cx_x <= dx + dw && cx_y >= dy && cx_y <= dy + dh
+                    })
+                    .unwrap_or(0);
+                closing.update(cx, |state, cx| {
+                    state.ui_settings.record_window_placement(
+                        &disp_rects,
+                        settings::WindowPlacement {
+                            x: f32::from(inner.origin.x),
+                            y: f32::from(inner.origin.y),
+                            width: f32::from(inner.size.width),
+                            height: f32::from(inner.size.height),
+                            maximized,
+                            display_index,
+                        },
+                    );
+                    let _ = state.ui_settings.save(&state.data_dir);
+                    if !state.quit_requested() {
+                        state.request_quit();
+                        cx.notify();
+                    }
+                    state.quit_requested()
+                })
+            });
             // After the state entity exists and before the first frame: the
             // platform bar is built from the mounted registry, and on Linux and
             // Windows this is a no-op because the CSD bar draws the same rows.
             chrome::native_menus::install(&state, cx);
+            // `App::activate` is a no-op on Linux, so the window requests the
+            // input focus itself: through the window manager's focus policy
+            // when one runs, directly when none does. A key pressed before the
+            // first click then reaches the editor.
+            window.activate_window();
             cx.new(|cx| shell::Shell::new(state, cx))
         },
     )

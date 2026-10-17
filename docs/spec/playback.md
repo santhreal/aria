@@ -83,16 +83,18 @@ and present path are created once per session.
 ## Rendering ranges
 
 Sequence > Render In to Out (Enter) renders the work area into the disk cache at
-full resolution so that heavy effects play without drops. The render bar turns
-green over rendered ranges. Delete Render Files clears them. Renders survive
-reopening the project as long as nothing that affects those frames changed.
+full resolution so that heavy effects play without drops. Sequence > Render
+Selection renders the frames the selected clips cover; a frame between two
+selected clips that neither covers is not rendered. The render bar turns green
+over rendered ranges. Delete Render Files clears them. Renders survive reopening
+the project as long as nothing that affects those frames changed.
 
 ## Proxies
 
 Right-click media > Proxy > Create Proxies transcodes to an intra-frame proxy at
-a chosen fraction of the source size, as a background job. The Toggle Proxies
-button in the Viewer switches playback between proxies and originals; export
-always uses originals. A proxy that is missing falls back to the original.
+a chosen fraction of the source size, as a background job. The Proxy button in
+the Viewer and View > Proxies switch playback between proxies and originals;
+export always uses originals. A proxy that is missing falls back to the original.
 
 ## Dropped frames
 

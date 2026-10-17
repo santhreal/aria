@@ -3,12 +3,14 @@
 //!
 //! # Why
 //!
-//! Three commands claimed this bar and nothing pressed it, and one of them
-//! claimed a control that was never drawn: there is no fit-to-fill button. A fit
-//! is what Insert and Overwrite do when the sequence carries a marked range of
-//! its own, so the state the row is pressed against decides which of three
-//! commands it sends. That makes the dressing part of the row
-//! ([`Dress`]), and it is why the same two picks appear twice in the table.
+//! Both edits send one command, `Source edit`, and the state the row is pressed
+//! against decides its payload: a ripple or a cover, and a span to fill when
+//! the sequence carries a marked range as well as the source. There is no
+//! fit-to-fill button; a fit is what Insert and Overwrite do with four points
+//! of different lengths. That
+//! makes the dressing part of the row ([`Dress`]), and it is why the same two
+//! picks appear twice in the table. Every edit is also asserted to land on the
+//! lanes the lane headers draw patched.
 //!
 //! The marking rows send nothing: a mark is the monitor's own view of the
 //! source, held in session state, and no project changes when one moves. They
@@ -17,6 +19,10 @@
 //! alone cannot see.
 
 use std::collections::BTreeSet;
+use std::sync::{Arc, Mutex};
+
+use aria_commands::{Command, EditCommand, Patch, SoundPlacement, SourceChannel};
+use aria_plugin::CommandProposed;
 
 use crate::app::AppState;
 use crate::app::fixtures::marked_source;
@@ -59,8 +65,9 @@ impl Dress {
 /// What a row does when it lands.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Lands {
-    /// One command on the timeline, by that label.
-    Command(&'static str),
+    /// One `Source edit`: a ripple or a cover, retimed to the sequence's
+    /// marked range or at the source's own length.
+    Edit { ripple: bool, fill: bool },
     /// Nothing on the project: the monitor's own marks move.
     Marks,
 }
@@ -75,13 +82,37 @@ const ROWS: &[(Pick, Dress, Lands)] = &[
     (Pick::MarkIn, Dress::Loaded, Lands::Marks),
     (Pick::MarkOut, Dress::Loaded, Lands::Marks),
     (Pick::ClearMarks, Dress::Loaded, Lands::Marks),
-    (Pick::Insert, Dress::Loaded, Lands::Command("Ripple insert")),
-    (Pick::Overwrite, Dress::Loaded, Lands::Command("Overwrite")),
-    (Pick::Insert, Dress::Fitted, Lands::Command("Fit to fill")),
+    (
+        Pick::Insert,
+        Dress::Loaded,
+        Lands::Edit {
+            ripple: true,
+            fill: false,
+        },
+    ),
+    (
+        Pick::Overwrite,
+        Dress::Loaded,
+        Lands::Edit {
+            ripple: false,
+            fill: false,
+        },
+    ),
+    (
+        Pick::Insert,
+        Dress::Fitted,
+        Lands::Edit {
+            ripple: true,
+            fill: true,
+        },
+    ),
     (
         Pick::Overwrite,
         Dress::Fitted,
-        Lands::Command("Fit to fill"),
+        Lands::Edit {
+            ripple: false,
+            fill: true,
+        },
     ),
 ];
 
@@ -92,11 +123,48 @@ fn press(state: &mut AppState, pick: Pick) {
         .unwrap_or_else(|err| panic!("pressing {what} was refused: {err}"));
 }
 
+/// Press one control and return every edit it asked for, payload and all.
+fn edits_sent(state: &mut AppState, pick: Pick) -> Vec<EditCommand> {
+    let seen: Arc<Mutex<Vec<EditCommand>>> = Arc::default();
+    let sink = Arc::clone(&seen);
+    let registration = state
+        .ctx
+        .on_waterfall::<CommandProposed, _>(move |proposed| {
+            if let Command::Edit(edit) = &proposed.command {
+                sink.lock()
+                    .expect("the recorder is not poisoned")
+                    .push(edit.clone());
+            }
+        });
+    press(state, pick);
+    drop(registration);
+    std::mem::take(&mut *seen.lock().expect("the recorder is not poisoned"))
+}
+
+/// The one `Source edit` among `sent`, as `(ripple, fill, track, sound)`.
+fn source_edit(sent: &[EditCommand]) -> (bool, bool, Option<u64>, SoundPlacement) {
+    let edits: Vec<_> = sent
+        .iter()
+        .filter_map(|edit| match edit {
+            EditCommand::SourceEdit {
+                ripple,
+                fill,
+                track,
+                sound,
+                ..
+            } => Some((*ripple, fill.is_some(), track.map(|id| id.raw()), *sound)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(edits.len(), 1, "one Source edit among {sent:?}");
+    edits[0]
+}
+
 /// The monitor's own marks, as the bar draws them.
 fn marks(state: &AppState) -> (Option<i64>, Option<i64>) {
     let view = state
-        .source_view
-        .as_ref()
+        .sources
+        .focused()
         .expect("the monitor stays open across a press");
     (view.mark_in, view.mark_out)
 }
@@ -134,22 +202,133 @@ fn every_control_the_bar_draws_is_pressed() {
 }
 
 #[test]
-fn an_edit_row_sends_the_command_the_table_names() {
-    // The whole point of the second dressing: the same button is three
-    // different edits depending on what is marked, and a fit that quietly
-    // became an overwrite would leave the clip at the wrong length.
+fn an_edit_row_sends_the_edit_the_table_names() {
+    // The whole point of the second dressing: the same button is a different
+    // edit depending on what is marked, and a fit that quietly became an
+    // overwrite would leave the clip at the wrong length.
     for (pick, dress, lands) in ROWS {
-        let Lands::Command(label) = lands else {
+        let Lands::Edit { ripple, fill } = *lands else {
             continue;
         };
         let (mut state, _) = dress.state();
-        let watch = Watch::on(&state);
         let what = pick.what();
-        press(&mut state, *pick);
-        let sent = watch.take();
+        let sent = edits_sent(&mut state, *pick);
+        let (sent_ripple, sent_fill, track, sound) = source_edit(&sent);
+        assert_eq!(
+            (sent_ripple, sent_fill),
+            (ripple, fill),
+            "{what} against {dress:?} sent {sent:?}"
+        );
+        // The picture lands on the lane its header draws lit. The fixture's
+        // sequence has no audio lane, so the shot's sound stays in the picture
+        // rather than growing a lane nobody asked for.
+        let sequence = &state.store.sequence;
+        assert!(track.is_some(), "{what} placed the picture");
+        assert_eq!(track, sequence.patched_lane(SourceChannel::Video), "{what}");
+        assert_eq!(sound, SoundPlacement::InPicture, "{what}");
         assert!(
-            sent.contains(label),
-            "{what} against {dress:?} sent {sent:?} rather than `{label}`"
+            sequence
+                .tracks
+                .iter()
+                .all(|lane| lane.channel != Some(SourceChannel::Audio)),
+            "{what} added an audio lane"
+        );
+    }
+}
+
+#[test]
+fn an_audio_lane_on_auto_takes_the_sound_as_a_linked_clip() {
+    let (mut state, _) = Dress::Loaded.state();
+    let sound_lane = state
+        .add_lane_of_kind(aria_models::TrackKind::Audio, None)
+        .expect("an audio lane");
+    let sent = edits_sent(&mut state, Pick::Overwrite);
+    let (_, _, track, sound) = source_edit(&sent);
+    assert_eq!(sound, SoundPlacement::Lane(sound_lane));
+    let picture = state
+        .store
+        .sequence
+        .tracks
+        .iter()
+        .find(|lane| Some(lane.id) == track)
+        .and_then(|lane| lane.clips.iter().max_by_key(|clip| clip.id))
+        .expect("the placed picture");
+    let sound_clip = state
+        .store
+        .sequence
+        .tracks
+        .iter()
+        .find(|lane| lane.id == sound_lane.raw())
+        .and_then(|lane| lane.clips.first())
+        .expect("the placed sound");
+    assert!(picture.linked_to.is_some(), "the picture is linked");
+    assert_eq!(
+        picture.linked_to, sound_clip.linked_to,
+        "picture and sound share one link"
+    );
+}
+
+#[test]
+fn an_edit_lands_on_the_patched_lane_and_leaves_an_off_channel_out() {
+    // Every patch the header can set, per channel: a lane of the channel's
+    // kind other than the one Auto picks, and off. The edit must follow it.
+    for channel in SourceChannel::ALL {
+        let (mut state, _) = Dress::Loaded.state();
+        let kind = channel.lane_kind();
+        let extra = state.add_lane_of_kind(kind, None).expect("a second lane");
+        state
+            .set_source_patch(channel, Patch::Track(extra))
+            .expect("patch");
+        let sent = edits_sent(&mut state, Pick::Overwrite);
+        let (_, _, track, sound) = source_edit(&sent);
+        let landed = match channel {
+            SourceChannel::Video => track,
+            SourceChannel::Audio => sound.lane().map(|id| id.raw()),
+        };
+        assert_eq!(
+            landed,
+            Some(extra.raw()),
+            "{channel:?} patched to {extra:?}"
+        );
+
+        state
+            .set_source_patch(channel, Patch::Off)
+            .expect("patch off");
+        let sent = edits_sent(&mut state, Pick::Overwrite);
+        let (_, _, track, sound) = source_edit(&sent);
+        match channel {
+            SourceChannel::Video => {
+                assert_eq!(track, None, "the picture patched off is left out");
+                assert!(
+                    sound.lane().is_some(),
+                    "the sound lands on a lane of its own, {sound:?}"
+                );
+            }
+            SourceChannel::Audio => {
+                assert_eq!(
+                    sound,
+                    SoundPlacement::Off,
+                    "the sound patched off is left out"
+                );
+                assert!(track.is_some(), "the picture still lands");
+            }
+        }
+    }
+}
+
+#[test]
+fn both_channels_off_sends_nothing() {
+    let (mut state, _) = Dress::Loaded.state();
+    for channel in SourceChannel::ALL {
+        state
+            .set_source_patch(channel, Patch::Off)
+            .expect("patch off");
+    }
+    for pick in [Pick::Insert, Pick::Overwrite] {
+        let what = pick.what();
+        assert!(
+            edits_sent(&mut state, pick).is_empty(),
+            "{what} with both channels off asked for an edit"
         );
     }
 }
@@ -206,7 +385,7 @@ fn the_marks_land_on_the_ends_they_name() {
 #[test]
 fn the_census_reaches_every_command_these_controls_claim() {
     let sent = dispatched();
-    for label in ["Ripple insert", "Overwrite", "Fit to fill"] {
+    for label in ["Source edit"] {
         assert!(
             sent.contains(label),
             "the monitor census pressed every control the bar draws and none of \
@@ -216,6 +395,9 @@ fn the_census_reaches_every_command_these_controls_claim() {
 }
 
 #[test]
-fn the_bar_calls_no_setter_itself() {
-    super::no_setter_escapes(REGISTRY, "preview_source.rs");
+fn the_monitor_calls_no_setter_itself() {
+    // The bar is drawn across `preview.rs` and its `preview_<part>.rs` splits;
+    // the stem reads every part, including any later split.
+    super::no_setter_escapes(REGISTRY, "preview.rs");
+    super::no_setter_escapes(REGISTRY, "preview_");
 }

@@ -7,6 +7,7 @@
 
 use super::*;
 use crate::app::pool_rows::PoolRows;
+use crate::theme::Theme;
 
 #[path = "sidebar_media_grid.rs"]
 mod grid;
@@ -120,7 +121,7 @@ pub(super) fn bin(
                 .gap(px(Theme::SPACE_XS))
                 .child(
                     div()
-                        .text_size(px(11.))
+                        .text_size(Theme::TEXT_UI)
                         .text_color(theme.text_muted)
                         .child(SharedString::from(count)),
                 )
@@ -151,7 +152,7 @@ pub(super) fn properties_block(
                 .flex()
                 .justify_between()
                 .gap(px(Theme::SPACE_SM))
-                .text_size(px(11.))
+                .text_size(Theme::TEXT_UI)
                 .child(
                     div()
                         .text_color(theme.text_faint)

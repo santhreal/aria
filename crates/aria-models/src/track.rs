@@ -6,9 +6,10 @@ use crate::clip::generator_catalog::generator_spec;
 use crate::clip::{Clip, ClipSource, Generator};
 use crate::error::ModelError;
 use crate::ids::{ClipId, TrackId};
+use crate::param::{Param, default_zero_param, is_zero_param};
 use crate::time::{RationalTime, TimeRange};
 use crate::track_catalog::{LaneZone, TrackKindSpec, track_kind_by_id, track_kind_spec};
-use crate::track_routing::{AudioSend, TrackOutput};
+use crate::track_routing::{AudioSend, AutomationMode, TrackOutput};
 use crate::transition::Transition;
 
 /// Lane category on the timeline. Drives drag targeting, clip placement rules,
@@ -61,6 +62,19 @@ impl TrackKind {
     /// can't nest inside a transition.
     pub const fn supports_transitions(self) -> bool {
         self.spec().supports_transitions
+    }
+
+    /// Which transitions this lane's cuts take: a catalog blend on a lane that
+    /// composites frames, an audio crossfade on a sound lane that holds clips,
+    /// none elsewhere.
+    pub const fn transition_media(self) -> Option<crate::TransitionMedia> {
+        if self.supports_transitions() {
+            Some(crate::TransitionMedia::Picture)
+        } else if self.is_audio() && !self.is_bus() {
+            Some(crate::TransitionMedia::Audio)
+        } else {
+            None
+        }
     }
 
     /// Whether a lane of this kind can be the main track.
@@ -167,8 +181,11 @@ impl TrackDisplay {
     pub const BUS_HEIGHT: u32 = 28;
     /// Accepted lane heights. Below the low end a clip label cannot be read;
     /// above the high end one lane fills the panel.
-    pub const HEIGHT: std::ops::RangeInclusive<u32> = 28..=200;
+    pub const HEIGHT: std::ops::RangeInclusive<u32> = 20..=200;
 
+    /// Named lane height presets `(label, height_px)` in ascending height order.
+    pub const PRESETS: [(&'static str, u32); 4] =
+        [("Mini", 20), ("Small", 32), ("Medium", 48), ("Large", 72)];
     /// Clamp a requested height into [`TrackDisplay::HEIGHT`].
     pub fn clamp_height(height: u32) -> u32 {
         height.clamp(*Self::HEIGHT.start(), *Self::HEIGHT.end())
@@ -208,6 +225,19 @@ fn unity_gain() -> f32 {
 #[allow(clippy::trivially_copy_pass_by_ref)]
 fn is_unity_gain(gain: &f32) -> bool {
     *gain == 1.0
+}
+
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn is_zero_pan(pan: &f32) -> bool {
+    *pan == 0.0
+}
+
+fn default_volume_envelope() -> Param<f32> {
+    Param::Constant(1.0)
+}
+
+fn is_default_volume_envelope(envelope: &Param<f32>) -> bool {
+    envelope.constant() == Some(1.0)
 }
 
 /// A single lane of the timeline holding non-overlapping [`Clip`]s.
@@ -277,6 +307,21 @@ pub struct Track {
     /// [`Timeline::set_track_gain`]: crate::Timeline::set_track_gain
     #[serde(default = "unity_gain", skip_serializing_if = "is_unity_gain")]
     pub gain: f32,
+    /// Stereo pan (`-1.0` hard left .. `1.0` hard right, `0.0` center).
+    #[serde(default, skip_serializing_if = "is_zero_pan")]
+    pub pan: f32,
+    /// How this strip handles its volume and pan automation curves.
+    #[serde(default, skip_serializing_if = "AutomationMode::is_off")]
+    pub automation: AutomationMode,
+    /// Sequence-tick volume automation curve (linear gain `0.0..=4.0`).
+    #[serde(
+        default = "default_volume_envelope",
+        skip_serializing_if = "is_default_volume_envelope"
+    )]
+    pub volume_envelope: Param<f32>,
+    /// Sequence-tick pan automation curve (`-1.0..=1.0`).
+    #[serde(default = "default_zero_param", skip_serializing_if = "is_zero_param")]
+    pub pan_envelope: Param<f32>,
     /// Where the lane's own sum goes: the master, or a bus lane.
     #[serde(default, skip_serializing_if = "TrackOutput::is_master")]
     pub output: TrackOutput,
@@ -323,6 +368,14 @@ struct TrackData {
     pub display: TrackDisplay,
     #[serde(default = "unity_gain", skip_serializing_if = "is_unity_gain")]
     pub gain: f32,
+    #[serde(default)]
+    pub pan: f32,
+    #[serde(default)]
+    pub automation: AutomationMode,
+    #[serde(default = "default_volume_envelope")]
+    pub volume_envelope: Param<f32>,
+    #[serde(default = "default_zero_param")]
+    pub pan_envelope: Param<f32>,
     #[serde(default, skip_serializing_if = "TrackOutput::is_master")]
     pub output: TrackOutput,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -356,6 +409,10 @@ impl<'de> Deserialize<'de> for Track {
             sync_lock: data.sync_lock,
             display: data.display,
             gain: data.gain,
+            pan: data.pan,
+            automation: data.automation,
+            volume_envelope: data.volume_envelope,
+            pan_envelope: data.pan_envelope,
             output: data.output,
             sends: data.sends,
             audio_effects: data.audio_effects,
@@ -385,6 +442,10 @@ impl Track {
             sync_lock: true,
             display: TrackDisplay::default(),
             gain: 1.0,
+            pan: 0.0,
+            automation: AutomationMode::default(),
+            volume_envelope: default_volume_envelope(),
+            pan_envelope: default_zero_param(),
             output: TrackOutput::default(),
             sends: Vec::new(),
             audio_effects: Vec::new(),
@@ -495,9 +556,21 @@ impl Track {
 
     /// Insert without overlap checking. Returns the displaced clip, if any.
     /// Prefer [`Timeline::add_clip`](crate::Timeline::add_clip) which validates.
+    ///
+    /// The clip takes its slot in the maintained order by binary search, so a
+    /// placement costs a lookup per halving and not a re-sort of the lane.
     pub(crate) fn insert_clip(&mut self, clip: Clip) -> Option<Clip> {
+        let key = (clip.timeline.start.value, clip.id);
         let old = self.clips.insert(clip.id, clip);
-        self.sort_order();
+        if old.is_some() {
+            self.order.retain(|&x| x != key.1);
+        }
+        let clips = &self.clips;
+        let at = self.order.partition_point(|id| {
+            let c = &clips[id];
+            (c.timeline.start.value, c.id) < key
+        });
+        self.order.insert(at, key.1);
         old
     }
 

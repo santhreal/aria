@@ -41,7 +41,7 @@ pub(super) fn home_body(
             HomeRail::Open => open_pane(theme, cx).into_any_element(),
             HomeRail::Recents => recents_pane(theme, recents, cx).into_any_element(),
             HomeRail::Samples => samples_pane(theme, state, cx).into_any_element(),
-            HomeRail::Learn => learn_pane(theme).into_any_element(),
+            HomeRail::Learn => learn_pane(theme, state.read(cx)).into_any_element(),
         })
 }
 
@@ -71,7 +71,7 @@ pub(super) fn recovery_banner(
             .bg(theme.surface_raised)
             .border_1()
             .border_color(theme.accent)
-            .child(div().flex_1().text_size(px(13.)).child(line))
+            .child(div().flex_1().text_size(Theme::TEXT_UI).child(line))
             .child(card_action(
                 crate::motion::MotionKey::new("recovery", "restore"),
                 "Restore",
@@ -181,7 +181,7 @@ pub(super) fn recents_pane(
         .child(section_title(theme, "Recents"))
         .child(if recents.is_empty() {
             div()
-                .text_size(px(13.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_faint)
                 .child("Start a new project or open a .aria file.")
                 .into_any_element()
@@ -230,15 +230,26 @@ pub(super) fn samples_pane(
         ))
 }
 
-pub(super) fn learn_pane(theme: &Theme) -> impl IntoElement {
+/// The Learn rail. Each chord is read from the key registry, so a rebinding
+/// or a change to the shipped map shows here without a second edit.
+pub(super) fn learn_pane(theme: &Theme, state: &AppState) -> impl IntoElement {
+    let chord = |id: &str| {
+        state
+            .chord_label(id)
+            .unwrap_or_else(|| "Unbound".to_string())
+    };
     div()
         .flex()
         .flex_col()
         .gap(px(Theme::SPACE_SM))
         .child(section_title(theme, "Learn"))
-        .child(learn_line(theme, "Ctrl+N", "New project"))
-        .child(learn_line(theme, "Ctrl+O", "Open a project"))
-        .child(learn_line(theme, "Ctrl+W", "Close project, return Home"))
+        .child(learn_line(theme, chord("key-home-new"), "New project"))
+        .child(learn_line(theme, chord("key-home-open"), "Open a project"))
+        .child(learn_line(
+            theme,
+            chord("key-close"),
+            "Close project, return Home",
+        ))
         .child(learn_line(theme, "Esc", "Does nothing on Home"))
         .child(learn_line(
             theme,

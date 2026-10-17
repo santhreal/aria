@@ -63,6 +63,7 @@ pub(super) fn transitions_guard(
         targets
             .clips
             .into_iter()
+            .flat_map(|clip| ctx.project.move_companions(clip))
             .filter_map(|clip| timeline.track_of(clip)),
     );
     tracks.sort_unstable();
@@ -274,6 +275,13 @@ fn updated_audio_layout(inverse: Box<dyn EditAction>) -> Applied {
     }
 }
 
+fn updated_time_display(inverse: Box<dyn EditAction>) -> Applied {
+    Applied {
+        outcome: EditOutcome::UpdatedTimeDisplay,
+        inverse,
+    }
+}
+
 /// What an insert chain edit reports: the clip or lane it sits on, or the
 /// master.
 fn updated_inserts(target: AudioInsertTarget, inverse: Box<dyn EditAction>) -> Applied {
@@ -284,10 +292,23 @@ fn updated_inserts(target: AudioInsertTarget, inverse: Box<dyn EditAction>) -> A
     };
     Applied { outcome, inverse }
 }
+fn updated_master(inverse: Box<dyn EditAction>) -> Applied {
+    Applied {
+        outcome: EditOutcome::UpdatedMaster,
+        inverse,
+    }
+}
 
 fn updated_project(inverse: Box<dyn EditAction>) -> Applied {
     Applied {
         outcome: EditOutcome::UpdatedProject,
+        inverse,
+    }
+}
+
+fn updated_source_patch(inverse: Box<dyn EditAction>) -> Applied {
+    Applied {
+        outcome: EditOutcome::UpdatedSourcePatch,
         inverse,
     }
 }

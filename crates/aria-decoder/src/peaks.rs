@@ -107,10 +107,6 @@ pub fn audio_peaks_per_second(
 
 /// Stream the source as mono f32 at [`PEAK_RATE`] and fold `|sample|` maxima
 /// per `chunk` samples, so memory stays O(duration / chunk).
-fn decode_coarse_peaks(path: &Path, chunk: usize) -> Result<Vec<f32>, DecodeError> {
-    decode_coarse_peaks_with_cancel(path, chunk, &|| false)
-}
-
 pub(crate) fn decode_coarse_peaks_with_cancel<C>(
     path: &Path,
     chunk: usize,

@@ -1,6 +1,5 @@
 //! Keyframe tools: the animation curve of any animatable clip property.
 
-
 tool_group! {
     "set_param_keyframe" => SetParamKeyframe(SetParamKeyframe),
         "Add or replace a keyframe on any animatable clip property at a timeline position in seconds. The `param` selector supports transform properties (position, anchor_point, scale, rotation, opacity), crop, volume, pan (−1 left … +1 right), speed, an effect `{effect:{index,param}}`, generated-shape `{shape:{param}}`, generated-text `{text:{param}}`, color-look `{look:{param}}`, and style `{style:{param}}` properties. Use `value` for scalars (including uniform scale), `position` for position/anchor_point/per-axis scale and other vec2 params, `rgba` for colors, and `rect` as [x,y,w,h] for crop. For curved position motion paths, pass optional `tangent_out` / `tangent_in` as canvas-fraction offsets from the keyframe value (After Effects–style bezier handles; position only). Effect names and valid properties are visible in describe_project.";
@@ -8,6 +7,8 @@ tool_group! {
         "Remove the keyframe at a timeline position (seconds) on any animatable clip property. Use the same `param` selector as set_param_keyframe. Removing the last keyframe freezes the property at that value.";
     "set_param_constant" => SetParamConstant(SetParamConstant),
         "Set any animatable clip property to a fixed value and remove all its keyframes (stops its animation). Use the same `param` selector as set_param_keyframe, with `value` for scalars (including uniform scale), `position` for position/anchor_point/per-axis scale and other vec2 params, `rgba` for colors, or `rect` as [x,y,w,h] for crop.";
+    "set_param_driver" => SetParamDriver(SetParamDriver),
+        "Attach a driver to any animatable clip property: code evaluated every frame that replaces the property's keyframed value, or omit `code` to remove it. Use the same `param` selector as set_param_keyframe. `code` is in `aria.expressions`, a JavaScript subset with the After Effects expression library: `time` (seconds), `value` (the keyframed value), `wiggle(freq, amp)`, `loopOut(\"cycle\")`, `linear(t, t0, t1, v0, v1)`, `ease`, `valueAtTime(t)`, `random`, `Math`, and references such as `thisComp.layer(\"Logo\").transform.position`. Position reads in canvas pixels from the top-left, scale and opacity in percent, rotation in degrees. Refused when the driver would read its own value back through other drivers.";
     "apply_easing_preset" => ApplyEasingPreset(ApplyEasingPreset),
         "Replace the outgoing keyframe segment at from_tick with a multi-keyframe bounce_out / elastic_out / back_out approximation. Requires a keyframe at from_tick and a following keyframe. Scalar and vec2 params only (not colors or crop). One undoable edit.";
 }
@@ -77,6 +78,27 @@ pub(super) const CASES: &[ToolCase] = &[
         // refusal names the argument that carries it.
         invalid: |f| serde_json::json!({ "clip": f.title, "param": "position", "value": 0.5 }),
         refusal: "need the 'position' argument as [x, y]",
+    },
+    ToolCase {
+        tool: "set_param_driver",
+        args: |f| serde_json::json!({ "clip": f.title, "param": "rotation", "code": "time * 30" }),
+        expect: Expect::Edit(|f| aria_commands::EditCommand::SetParamDriver {
+            clip: f.clip_id(f.title),
+            param: aria_models::ClipParam::Rotation,
+            code: Some(aria_models::DriverCode::new(
+                "aria.expressions",
+                "time * 30",
+            )),
+        }),
+        invalid: |f| {
+            serde_json::json!({
+                "clip": f.title,
+                "param": "rotation",
+                "code": "time",
+                "language": "not a language",
+            })
+        },
+        refusal: "is not an id of letters, digits",
     },
     ToolCase {
         tool: "apply_easing_preset",

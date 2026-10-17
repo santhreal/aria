@@ -120,6 +120,25 @@ impl AppState {
         Ok(())
     }
 
+    /// Effect > an audio category > `effect_id`: append it to the chain of
+    /// every selected clip with sound, as one undo step.
+    pub fn add_audio_effect_to_selection(&mut self, effect_id: &str) -> Result<(), EngineError> {
+        let clips = self.sounding_selection();
+        if clips.is_empty() {
+            self.status_message = Some("Select a clip with sound.".into());
+            return Ok(());
+        }
+        self.one_step(|this| {
+            for &clip in &clips {
+                this.apply_command(Command::Edit(EditCommand::AddAudioEffect {
+                    target: AudioInsertTarget::Clip(clip),
+                    effect_id: effect_id.to_owned(),
+                }))?;
+            }
+            Ok(())
+        })
+    }
+
     /// Take the insert at `index` out of its chain. Its open parameters close;
     /// an open insert after it follows it down one place.
     pub fn remove_audio_insert(

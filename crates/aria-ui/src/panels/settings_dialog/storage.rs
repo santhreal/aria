@@ -153,7 +153,7 @@ fn quota_row(
         .child(
             div()
                 .flex_1()
-                .text_size(px(12.))
+                .text_size(Theme::TEXT_TITLE)
                 .text_color(theme.text_muted)
                 .child(SharedString::from(format!("Quota {quota} MiB"))),
         )

@@ -23,7 +23,7 @@ use aria_jobs::{JobCompletion, JobId, JobManager, JobOutput, JobSnapshot, JobSta
 use gpui::AppContext;
 
 use super::AppState;
-use super::jobs::{UiJob, file_label};
+use super::jobs::{JobKind, UiJob, file_label};
 use super::premiere_tests::with_clip;
 use aria_plugin::PluginContext;
 
@@ -243,6 +243,92 @@ fn reveal_refuses_a_path_it_cannot_open() {
     assert_eq!(state.status_message, before);
 }
 
+/// The status line projects the time left from the rate so far, and only
+/// when there is a rate to project.
+///
+/// The class closed here is an estimate drawn from nothing: a queued job, a
+/// job that reports no fraction, one that has reported almost none of it, a
+/// finished one, and one being stopped all show the time spent and no more.
+/// A fraction at or past the end has nothing left to estimate either.
+#[test]
+fn the_status_line_estimates_time_left_only_for_measured_running_work() {
+    let job = |status: &'static str, progress: Option<f32>, elapsed: f32, terminal: bool| UiJob {
+        id: 1,
+        label: "Exporting draft.mp4".into(),
+        kind: JobKind::Export,
+        status,
+        progress,
+        detail: "".into(),
+        cancellable: !terminal,
+        terminal,
+        outputs: Vec::new(),
+        elapsed,
+    };
+    // 12.4 s for a quarter: three more quarters at that rate is 37.2 s,
+    // rounded up so the estimate never promises sooner than the rate says.
+    let running = job("Running", Some(0.25), 12.4, false);
+    assert_eq!(running.status_line(), "Running · 12.4s · 38s left");
+    assert_eq!(
+        job("Running", Some(0.5), 3.0, false).status_line(),
+        "Running · 3.0s · 3s left"
+    );
+    for (status, progress, terminal) in [
+        ("Queued", Some(0.25), false),
+        ("Running", None, false),
+        ("Running", Some(0.0), false),
+        ("Running", Some(0.005), false),
+        ("Running", Some(1.0), false),
+        ("Cancelling…", Some(0.25), false),
+        ("Done", Some(0.25), true),
+        ("Failed", Some(0.25), true),
+    ] {
+        let line = job(status, progress, 12.4, terminal).status_line();
+        assert_eq!(line, format!("{status} · 12.4s"), "{status} {progress:?}");
+    }
+    assert_eq!(
+        job("Running", Some(0.5), 0.0, false).status_line(),
+        "Running · 0.0s",
+        "no time spent is no rate"
+    );
+}
+
+/// Window > Jobs docks the board beside the editor rather than over it, so a
+/// render can be watched while the edit goes on, and a second press closes it.
+/// The check mark reads the dock, so it never claims a panel that is closed.
+#[test]
+fn window_jobs_toggles_the_docked_board() {
+    let (state, _clip) = with_clip();
+    let cx = gpui::TestAppContext::single();
+    let entity = cx.update(|app| app.new(|_| state));
+    let press = || {
+        cx.update(|app| {
+            entity.update(app, |state, cx| {
+                let row = crate::chrome::menu_items::items_of(crate::types::AppMenu::Window, state)
+                    .into_iter()
+                    .find(|item| item.id == "win-jobs")
+                    .expect("Window > Jobs");
+                (row.run)("win-jobs", state, cx);
+                let checked = row.checked.expect("a panel row is checkable");
+                (
+                    state.dock_tree.is_open(crate::dock::PANEL_JOBS),
+                    checked("win-jobs", state),
+                    state.dialog,
+                )
+            })
+        })
+    };
+    assert_eq!(
+        press(),
+        (true, true, super::DialogKind::None),
+        "the first press"
+    );
+    assert_eq!(
+        press(),
+        (false, false, super::DialogKind::None),
+        "the second press"
+    );
+}
+
 #[test]
 fn the_board_is_reachable_from_the_window_menu_and_the_palette() {
     let (state, _clip) = with_clip();
@@ -455,5 +541,42 @@ async fn a_progress_report_reaches_the_board(cx: &mut gpui::TestAppContext) {
             .map(|row| (row.progress, row.detail.clone()))
     });
     assert_eq!(row, Some((Some(0.5), "half way".into())));
+    release.send(()).expect("let the job finish");
+}
+
+/// A running job is drawn at the centre of the status bar, and a click on it
+/// brings the Jobs panel forward with the board drawn in it.
+#[gpui::test]
+fn a_running_job_in_the_status_bar_opens_the_jobs_panel(cx: &mut gpui::TestAppContext) {
+    cx.executor().allow_parking();
+    let (state, visual) = crate::test_support::drawn_shell(cx, "status-job");
+    let (release, wait) = crossbeam_channel::bounded::<()>(1);
+    visual.update(|_, app| {
+        state.update(app, |state, cx| {
+            state.spawn_job("Exporting held.mp4", move |_| {
+                let _ = wait.recv();
+                Ok(JobCompletion::new("done"))
+            });
+            cx.notify();
+        })
+    });
+    visual.run_until_parked();
+    assert!(
+        visual.debug_bounds("jobs-panel").is_none(),
+        "the Jobs panel starts closed"
+    );
+    let job = visual
+        .debug_bounds("status-job")
+        .expect("the running job is not drawn in the status bar");
+    visual.simulate_click(job.center(), gpui::Modifiers::none());
+    visual.run_until_parked();
+    assert!(
+        visual.read(|app| state.read(app).dock_tree.is_active(crate::dock::PANEL_JOBS)),
+        "the click did not bring the Jobs panel forward"
+    );
+    assert!(
+        visual.debug_bounds("jobs-panel").is_some(),
+        "the Jobs panel is not drawn"
+    );
     release.send(()).expect("let the job finish");
 }

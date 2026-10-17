@@ -5,15 +5,19 @@ use crate::audio_effects::AudioEffectInstance;
 use crate::clip::Clip;
 use crate::error::ModelError;
 use crate::ids::{ClipId, MarkerId, TrackId};
+use crate::param::{Param, default_zero_param, is_zero_param};
+use crate::source_patch::{Patch, SourceChannel, SourcePatching};
 use crate::time::{Rational, RationalTime, resample};
 use crate::track::{Track, TrackKind};
 use crate::track_catalog::LaneZone;
-use crate::track_routing::LaneRoute;
+use crate::track_routing::{AutomationMode, LaneRoute};
 
 #[path = "timeline_canvas.rs"]
 mod canvas;
 
-pub use canvas::{AudioLayout, CanvasAspect, CanvasSettings, Marker, MarkerColor};
+pub use canvas::{
+    AudioLayout, CanvasAspect, CanvasSettings, Marker, MarkerColor, MarkerKind, TimeDisplay,
+};
 
 /// What [`Timeline::remove_track`] took out: the lane, and the routing that
 /// pointed at it.
@@ -48,6 +52,33 @@ pub struct RemovedTrack {
 ///   main lane promotes the next bottom-most video lane).
 /// - `clip_index` maps every [`ClipId`] to the track containing it, so a clip
 ///   can be found across the whole timeline in O(1) without scanning tracks.
+fn unity_master_gain() -> f32 {
+    1.0
+}
+
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn is_unity_master_gain(gain: &f32) -> bool {
+    *gain == 1.0
+}
+
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn is_zero_master_pan(pan: &f32) -> bool {
+    *pan == 0.0
+}
+
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn is_false(flag: &bool) -> bool {
+    !*flag
+}
+
+fn default_master_volume_envelope() -> Param<f32> {
+    Param::Constant(1.0)
+}
+
+fn is_default_master_volume_envelope(envelope: &Param<f32>) -> bool {
+    envelope.constant() == Some(1.0)
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Timeline {
     /// Editing/playback frame rate. Clip `timeline` ranges are in these frames.
@@ -71,11 +102,44 @@ pub struct Timeline {
     /// saves stay byte-identical.
     #[serde(default, skip_serializing_if = "AudioLayout::is_default")]
     audio_layout: AudioLayout,
+    /// How the ruler counts time. Optional + defaulted so files saved before
+    /// it load on timecode, and a timecode sequence saves without it.
+    #[serde(default, skip_serializing_if = "TimeDisplay::is_default")]
+    time_display: TimeDisplay,
     /// The master insert chain: audio effects run over the programme mix, in
     /// order, before the output clamp. Keyframes are sequence ticks. Absent
     /// from saves while empty.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     master_audio_effects: Vec<AudioEffectInstance>,
+    /// Master strip fader, as linear gain.
+    #[serde(
+        default = "unity_master_gain",
+        skip_serializing_if = "is_unity_master_gain"
+    )]
+    master_gain: f32,
+    /// Master strip stereo pan (`-1.0..=1.0`).
+    #[serde(default, skip_serializing_if = "is_zero_master_pan")]
+    master_pan: f32,
+    /// Whether the master strip is muted.
+    #[serde(default, skip_serializing_if = "is_false")]
+    master_muted: bool,
+    /// Master strip automation mode.
+    #[serde(default, skip_serializing_if = "AutomationMode::is_off")]
+    master_automation: AutomationMode,
+    /// Sequence-tick master volume automation curve.
+    #[serde(
+        default = "default_master_volume_envelope",
+        skip_serializing_if = "is_default_master_volume_envelope"
+    )]
+    master_volume_envelope: Param<f32>,
+    /// Sequence-tick master pan automation curve.
+    #[serde(default = "default_zero_param", skip_serializing_if = "is_zero_param")]
+    master_pan_envelope: Param<f32>,
+    /// Which lanes a Source tab's picture and sound land on. Defaulted so a
+    /// file saved before source patching loads on `Auto`, and a sequence left
+    /// on `Auto` saves without it.
+    #[serde(default, skip_serializing_if = "SourcePatching::is_default")]
+    source_patching: SourcePatching,
 }
 
 impl Timeline {
@@ -88,8 +152,43 @@ impl Timeline {
             markers: Vec::new(),
             canvas: CanvasSettings::default(),
             audio_layout: AudioLayout::default(),
+            time_display: TimeDisplay::default(),
             master_audio_effects: Vec::new(),
+            master_gain: 1.0,
+            master_pan: 0.0,
+            master_muted: false,
+            master_automation: AutomationMode::default(),
+            master_volume_envelope: default_master_volume_envelope(),
+            master_pan_envelope: default_zero_param(),
+            source_patching: SourcePatching::default(),
         }
+    }
+
+    // --- source patching ----------------------------------------------------
+
+    /// The lane each source channel lands on in a three- or four-point edit.
+    pub fn source_patching(&self) -> SourcePatching {
+        self.source_patching
+    }
+
+    /// Patch one source channel. A lane patch must name a lane of the
+    /// channel's kind on this sequence.
+    pub fn set_source_patch(
+        &mut self,
+        channel: SourceChannel,
+        patch: Patch,
+    ) -> Result<(), ModelError> {
+        if let Patch::Track(id) = patch {
+            let lane = self.track(id).ok_or(ModelError::UnknownTrack(id))?;
+            if lane.kind != channel.lane_kind() {
+                return Err(ModelError::IncompatibleTrackKind {
+                    track: id,
+                    kind: lane.kind,
+                });
+            }
+        }
+        self.source_patching.set(channel, patch);
+        Ok(())
     }
 
     // --- canvas -------------------------------------------------------------
@@ -114,6 +213,17 @@ impl Timeline {
         self.audio_layout = layout;
     }
 
+    // --- time display -------------------------------------------------------
+
+    /// How the ruler counts time: timecode, frames, or feet and frames.
+    pub fn time_display(&self) -> TimeDisplay {
+        self.time_display
+    }
+
+    pub fn set_time_display(&mut self, display: TimeDisplay) {
+        self.time_display = display;
+    }
+
     /// The master insert chain, in signal order.
     pub fn master_audio_effects(&self) -> &[AudioEffectInstance] {
         &self.master_audio_effects
@@ -121,6 +231,74 @@ impl Timeline {
 
     pub(crate) fn master_audio_effects_mut(&mut self) -> &mut Vec<AudioEffectInstance> {
         &mut self.master_audio_effects
+    }
+
+    /// Master strip static fader, as linear gain.
+    pub fn master_gain(&self) -> f32 {
+        self.master_gain
+    }
+
+    /// Master strip static stereo pan (`-1.0..=1.0`).
+    pub fn master_pan(&self) -> f32 {
+        self.master_pan
+    }
+
+    /// Whether the master strip is muted.
+    pub fn master_muted(&self) -> bool {
+        self.master_muted
+    }
+
+    /// Master strip automation mode.
+    pub fn master_automation(&self) -> AutomationMode {
+        self.master_automation
+    }
+
+    /// Master strip sequence-tick volume automation curve.
+    pub fn master_volume_envelope(&self) -> &Param<f32> {
+        &self.master_volume_envelope
+    }
+
+    /// Master strip sequence-tick pan automation curve.
+    pub fn master_pan_envelope(&self) -> &Param<f32> {
+        &self.master_pan_envelope
+    }
+
+    /// Effective master linear gain at sequence `tick` (`0.0` when muted).
+    pub fn master_gain_at(&self, tick: i64) -> f32 {
+        if self.master_muted {
+            return 0.0;
+        }
+        if self.master_automation.reads_envelope() && self.master_volume_envelope.is_animated() {
+            self.master_volume_envelope.sample(tick)
+        } else {
+            self.master_gain
+        }
+    }
+
+    /// Effective master stereo pan (`-1.0..=1.0`) at sequence `tick`.
+    pub fn master_pan_at(&self, tick: i64) -> f32 {
+        if self.master_automation.reads_envelope() && self.master_pan_envelope.is_animated() {
+            self.master_pan_envelope.sample(tick)
+        } else {
+            self.master_pan
+        }
+    }
+
+    pub(crate) fn set_master_mix_unchecked(
+        &mut self,
+        gain: f32,
+        pan: f32,
+        muted: bool,
+        automation: AutomationMode,
+        volume: Param<f32>,
+        pan_envelope: Param<f32>,
+    ) {
+        self.master_gain = gain;
+        self.master_pan = pan;
+        self.master_muted = muted;
+        self.master_automation = automation;
+        self.master_volume_envelope = volume;
+        self.master_pan_envelope = pan_envelope;
     }
 
     // --- frame rate & resampling --------------------------------------------
@@ -146,6 +324,7 @@ impl Timeline {
         // 1. Resample markers
         for marker in &mut self.markers {
             marker.tick = resample(marker.tick, new_rate);
+            marker.duration = resample(marker.duration, new_rate);
         }
 
         // 2. Resample tracks (clips, transitions, insert keyframes)
@@ -153,6 +332,8 @@ impl Timeline {
             for insert in &mut track.audio_effects {
                 resample_insert(insert, old_rate, new_rate);
             }
+            track.volume_envelope.resample_ticks(old_rate, new_rate);
+            track.pan_envelope.resample_ticks(old_rate, new_rate);
             for transition in track.transitions_mut() {
                 transition.duration =
                     resample(RationalTime::new(transition.duration, old_rate), new_rate)
@@ -187,11 +368,20 @@ impl Timeline {
                 // 24 fps and four fifths of one at 30, so every animation on
                 // the sequence slides when the rate changes.
                 clip.resample_timeline_params(old_rate, new_rate);
+                if clip.source_range().is_none() {
+                    for marker in &mut clip.markers {
+                        marker.tick = resample(marker.tick, new_rate);
+                        marker.duration = resample(marker.duration, new_rate);
+                    }
+                }
             });
         }
         for insert in &mut self.master_audio_effects {
             resample_insert(insert, old_rate, new_rate);
         }
+        self.master_volume_envelope
+            .resample_ticks(old_rate, new_rate);
+        self.master_pan_envelope.resample_ticks(old_rate, new_rate);
 
         self.frame_rate = new_rate;
         Ok(())
@@ -329,7 +519,19 @@ impl Timeline {
     /// on another audio lane. The single owner of the solo rule, so the mixer, the
     /// exporter, and the UI cannot disagree about it.
     pub fn track_is_audible(&self, track: &Track) -> bool {
-        !track.muted && (track.solo || !self.has_solo(track.kind))
+        if track.muted {
+            return false;
+        }
+        if track.solo {
+            return true;
+        }
+        if track.kind.spec().carries_audio {
+            !self
+                .tracks_ordered()
+                .any(|other| other.kind.spec().carries_audio && other.solo)
+        } else {
+            !self.has_solo(track.kind)
+        }
     }
 
     /// Whether a visual lane contributes to the composite: enabled, and not
@@ -560,25 +762,65 @@ impl Timeline {
         &self.markers
     }
 
+    /// Find a marker by id across both sequence ruler markers and clip markers.
     pub fn marker(&self, id: MarkerId) -> Option<&Marker> {
-        self.markers.iter().find(|m| m.id == id)
+        self.markers.iter().find(|m| m.id == id).or_else(|| {
+            self.tracks
+                .values()
+                .flat_map(Track::clips)
+                .find_map(|clip| clip.marker(id))
+        })
     }
 
+    /// Return the owning [`ClipId`] when `id` is a clip marker, or `None` when
+    /// it is a sequence marker (or absent).
+    pub fn marker_clip(&self, id: MarkerId) -> Option<ClipId> {
+        self.tracks
+            .values()
+            .flat_map(Track::clips)
+            .find_map(|clip| clip.marker(id).map(|_| clip.id))
+    }
+
+    /// Total number of markers in the sequence (ruler markers plus clip markers).
     pub fn marker_count(&self) -> usize {
         self.markers.len()
+            + self
+                .tracks
+                .values()
+                .flat_map(Track::clips)
+                .map(|clip| clip.markers.len())
+                .sum::<usize>()
     }
 
-    /// Insert a marker, keeping `(tick, id)` order. The tick is resampled to
-    /// the timeline rate so every stored marker shares it. Rejects negative
-    /// positions and duplicate ids (undo restores must not double-insert).
+    /// Insert a sequence marker on the ruler, keeping `(tick, id)` order. The
+    /// tick and duration are resampled to the timeline rate so every stored
+    /// marker shares it. Rejects negative positions, negative durations, range
+    /// durations that run past [`Self::duration`], and duplicate ids.
     pub fn add_marker(&mut self, mut marker: Marker) -> Result<MarkerId, ModelError> {
-        if marker.tick.value < 0 || !marker.tick.rate.is_valid() {
+        if marker.tick.value < 0 || !marker.tick.rate.is_valid() || !marker.duration.rate.is_valid()
+        {
             return Err(ModelError::InvalidRange);
+        }
+        if marker.duration.value < 0 {
+            return Err(ModelError::InvalidParam(format!(
+                "marker duration must be non-negative (got {})",
+                marker.duration.value
+            )));
         }
         if self.marker(marker.id).is_some() {
             return Err(ModelError::InvalidRange);
         }
         marker.tick = resample(marker.tick, self.frame_rate);
+        marker.duration = resample(marker.duration, self.frame_rate);
+        if marker.duration.value > 0 {
+            let seq_end = self.duration().value;
+            let marker_end = marker.tick.value + marker.duration.value;
+            if marker_end > seq_end {
+                return Err(ModelError::InvalidParam(format!(
+                    "marker range end ({marker_end}) exceeds sequence end ({seq_end})"
+                )));
+            }
+        }
         let id = marker.id;
         let at = self
             .markers
@@ -587,15 +829,73 @@ impl Timeline {
         Ok(id)
     }
 
-    /// Remove a marker by id, returning it for undo capture.
-    pub fn remove_marker(&mut self, id: MarkerId) -> Option<Marker> {
-        let index = self.markers.iter().position(|m| m.id == id)?;
-        Some(self.markers.remove(index))
+    /// Insert a marker on `clip_id` in clip time, keeping `(tick, id)` order
+    /// and validating against the clip's source range.
+    pub fn add_clip_marker(
+        &mut self,
+        clip_id: ClipId,
+        marker: Marker,
+    ) -> Result<MarkerId, ModelError> {
+        if self.marker(marker.id).is_some() {
+            return Err(ModelError::InvalidRange);
+        }
+        let clip = self
+            .clip_mut(clip_id)
+            .ok_or(ModelError::UnknownClip(clip_id))?;
+        clip.add_marker(marker)
     }
 
-    /// Move / rename / recolor / re-annotate a marker in one shot (the
-    /// `SetMarker` command and its undo both funnel through here). Re-sorts on
-    /// tick change; rejects unknown ids and negative positions.
+    /// Attach an existing sequence marker at its timeline tick onto `clip_id`
+    /// in clip time.
+    pub fn attach_marker_to_clip(
+        &mut self,
+        id: MarkerId,
+        clip_id: ClipId,
+    ) -> Result<(), ModelError> {
+        let index = self
+            .markers
+            .iter()
+            .position(|m| m.id == id)
+            .ok_or(ModelError::UnknownMarker(id))?;
+        let marker = self.markers[index].clone();
+        let clip = self.clip(clip_id).ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip_tick = clip
+            .clip_time_at_timeline_tick(marker.tick.value)
+            .ok_or_else(|| {
+                ModelError::InvalidParam(format!(
+                    "marker tick ({}) is outside clip {clip_id:?} timeline span",
+                    marker.tick.value
+                ))
+            })?;
+        let clip_duration = resample(marker.duration, clip_tick.rate);
+        let mut clip_marker = marker.clone();
+        clip_marker.tick = clip_tick;
+        clip_marker.duration = clip_duration;
+        self.markers.remove(index);
+        if let Err(err) = self
+            .clip_mut(clip_id)
+            .expect("clip checked above")
+            .add_marker(clip_marker)
+        {
+            let restored = self.add_marker(marker);
+            debug_assert!(restored.is_ok(), "re-inserting sequence marker");
+            return Err(err);
+        }
+        Ok(())
+    }
+
+    /// Remove a marker by id (from the sequence ruler or from a clip),
+    /// returning it for undo capture.
+    pub fn remove_marker(&mut self, id: MarkerId) -> Option<Marker> {
+        if let Some(index) = self.markers.iter().position(|m| m.id == id) {
+            return Some(self.markers.remove(index));
+        }
+        let clip_id = self.marker_clip(id)?;
+        self.clip_mut(clip_id)?.remove_marker(id)
+    }
+
+    /// Move / rename / recolor / re-annotate a marker in one shot (preserving
+    /// its existing `duration` and `kind`).
     pub fn set_marker(
         &mut self,
         id: MarkerId,
@@ -604,26 +904,50 @@ impl Timeline {
         color: MarkerColor,
         comment: String,
     ) -> Result<(), ModelError> {
-        if tick.value < 0 || !tick.rate.is_valid() {
+        let current = self.marker(id).ok_or(ModelError::UnknownMarker(id))?;
+        let duration = current.duration;
+        let kind = current.kind;
+        self.edit_marker(id, tick, duration, name, color, comment, kind)
+    }
+
+    /// Update all fields (`tick`, `duration`, `name`, `color`, `comment`,
+    /// `kind`) of a sequence or clip marker in one atomic operation.
+    #[allow(clippy::too_many_arguments)]
+    pub fn edit_marker(
+        &mut self,
+        id: MarkerId,
+        tick: RationalTime,
+        duration: RationalTime,
+        name: String,
+        color: MarkerColor,
+        comment: String,
+        kind: MarkerKind,
+    ) -> Result<(), ModelError> {
+        if let Some(clip_id) = self.marker_clip(id) {
+            return self
+                .clip_mut(clip_id)
+                .ok_or(ModelError::UnknownClip(clip_id))?
+                .edit_marker(id, tick, duration, name, color, comment, kind);
+        }
+        if tick.value < 0 || !tick.rate.is_valid() || !duration.rate.is_valid() {
             return Err(ModelError::InvalidRange);
         }
-        let resampled_tick = resample(tick, self.frame_rate);
-        if let Some(m) = self.markers.iter_mut().find(|m| m.id == id) {
-            if m.tick == resampled_tick {
-                m.name = name;
-                m.color = color;
-                m.comment = comment;
-                return Ok(());
-            }
+        if duration.value < 0 {
+            return Err(ModelError::InvalidParam(format!(
+                "marker duration must be non-negative (got {})",
+                duration.value
+            )));
         }
         let mut marker = self
             .remove_marker(id)
             .ok_or(ModelError::UnknownMarker(id))?;
         let before = marker.clone();
         marker.tick = tick;
+        marker.duration = duration;
         marker.name = name;
         marker.color = color;
         marker.comment = comment;
+        marker.kind = kind;
         match self.add_marker(marker) {
             Ok(_) => Ok(()),
             Err(e) => {

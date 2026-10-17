@@ -16,6 +16,11 @@ use std::path::PathBuf;
 /// writing the same settings file would fight over it.
 const DATA_DIR_ENV: &str = "ARIA_DATA_DIR";
 
+/// A plugin package directory to load for development beside the installed
+/// plugins, over an installed one with the same id, reloading when its files
+/// change. `aria plugin dev` sets it.
+const PLUGIN_DEV_ENV: &str = "ARIA_PLUGIN_DEV";
+
 fn main() {
     bootstrap::setup_tracing();
     let ctx = aria_plugin::PluginContext::new();
@@ -39,6 +44,25 @@ fn main() {
             std::process::exit(1);
         }
     };
+    // Before the mount, which reads the development package beside the installed
+    // ones. Absolute, so the reload watch does not follow a later change of the
+    // working directory.
+    if let Some(dir) = std::env::var_os(PLUGIN_DEV_ENV).filter(|dir| !dir.is_empty()) {
+        let dir = match std::path::absolute(&dir) {
+            Ok(dir) => dir,
+            Err(err) => {
+                eprintln!(
+                    "aria cannot start: {PLUGIN_DEV_ENV}={}: {err}",
+                    PathBuf::from(dir).display()
+                );
+                std::process::exit(1);
+            }
+        };
+        if let Err(reason) = aria_ui::plugins::installed::develop(dir) {
+            eprintln!("aria cannot start: {reason}");
+            std::process::exit(1);
+        }
+    }
     // A failure per plugin, not one abort: the editor starts with whatever mounted
     // and the Plugins section in Settings shows the same reasons.
     for failure in aria_ui::plugins::mount_all(&ctx, &data_dir) {

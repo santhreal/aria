@@ -29,3 +29,7 @@ label = "Heart"
 [[entry]]
 kind = "star"
 label = "Star"
+
+[[entry]]
+kind = "path"
+label = "Path"

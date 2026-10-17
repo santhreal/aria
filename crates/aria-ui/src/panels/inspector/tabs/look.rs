@@ -67,7 +67,7 @@ pub fn look_tab(
         .when(clip.filter.is_none(), |el| {
             el.child(
                 div()
-                    .text_size(px(13.))
+                    .text_size(Theme::TEXT_UI)
                     .text_color(theme.text_faint)
                     .child("No look"),
             )
@@ -87,9 +87,14 @@ pub fn look_tab(
             theme, clip, state, cx,
         ))
         .child(crate::panels::inspector::blocks::animation::animation_block(theme, clip, state, cx))
-        .when(clip.can_transition, |el| {
-            el.child(
-                crate::panels::inspector::blocks::transition::transition_block(theme, clip, cx),
-            )
-        })
+        .when(
+            clip.transition_media == Some(aria_models::TransitionMedia::Picture),
+            |el| {
+                el.child(
+                    crate::panels::inspector::blocks::transition::transition_block(
+                        theme, clip, state, cx,
+                    ),
+                )
+            },
+        )
 }

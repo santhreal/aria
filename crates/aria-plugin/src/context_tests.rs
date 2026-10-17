@@ -54,13 +54,7 @@ impl Plugin for Consumer {
 
 fn consumer(uses: &'static [&'static str]) -> Consumer {
     Consumer {
-        manifest: PluginManifest {
-            id: "test.consumer",
-            name: "Consumer",
-            version: "0.1.0",
-            requires: &[],
-            uses,
-        },
+        manifest: PluginManifest::new("test.consumer", "Consumer", "0.1.0", &[], uses),
         saw: std::sync::Mutex::new(Vec::new()),
     }
 }
@@ -115,7 +109,13 @@ fn an_undeclared_service_is_recorded_against_the_plugin_that_asked() {
 fn a_clone_of_a_view_keeps_the_scope() {
     let ctx = PluginContext::new();
     let _a = ctx.register(TestService { value: 3 });
-    let scoped = ctx.view("test.scoped", &[]);
+    let scoped = ctx.view(&PluginManifest::new(
+        "test.scoped",
+        "Scoped",
+        "0.1.0",
+        &[],
+        &[],
+    ));
     let cloned = scoped.clone();
     assert!(scoped.try_get::<TestService>().is_none());
     assert!(cloned.try_get::<TestService>().is_none());
@@ -166,13 +166,7 @@ impl Plugin for PanickingPlugin {
 fn panicking_plugin_resets_pending_and_records_failure() {
     let ctx = PluginContext::new();
     let bad = PanickingPlugin {
-        manifest: PluginManifest {
-            id: "test.panic",
-            name: "Panicker",
-            version: "0.1.0",
-            requires: &[],
-            uses: &[],
-        },
+        manifest: PluginManifest::new("test.panic", "Panicker", "0.1.0", &[], &[]),
     };
     let err = ctx.mount(&bad);
     assert!(err.is_err());
@@ -204,28 +198,26 @@ fn unmount_prunes_denials_and_failures() {
 #[test]
 fn mounting_and_unmounting_announce_the_plugin() {
     let ctx = PluginContext::new();
-    let seen: std::sync::Arc<std::sync::Mutex<Vec<(&str, &str)>>> = Default::default();
+    let seen: std::sync::Arc<std::sync::Mutex<Vec<(&str, String)>>> = Default::default();
     let _activated = {
         let seen = std::sync::Arc::clone(&seen);
         ctx.on_event::<PluginActivated, _>(move |e| {
-            seen.lock().expect("seen").push(("activated", e.id));
+            seen.lock()
+                .expect("seen")
+                .push(("activated", e.id.to_string()));
         })
     };
     let _deactivated = {
         let seen = std::sync::Arc::clone(&seen);
         ctx.on_event::<PluginDeactivated, _>(move |e| {
-            seen.lock().expect("seen").push(("deactivated", e.id));
+            seen.lock()
+                .expect("seen")
+                .push(("deactivated", e.id.to_string()));
         })
     };
 
     let bad = PanickingPlugin {
-        manifest: PluginManifest {
-            id: "test.panic",
-            name: "Panicker",
-            version: "0.1.0",
-            requires: &[],
-            uses: &[],
-        },
+        manifest: PluginManifest::new("test.panic", "Panicker", "0.1.0", &[], &[]),
     };
     assert!(ctx.mount(&bad).is_err());
     let good = consumer(&[]);
@@ -236,8 +228,8 @@ fn mounting_and_unmounting_announce_the_plugin() {
     assert_eq!(
         *seen.lock().expect("seen"),
         [
-            ("activated", "test.consumer"),
-            ("deactivated", "test.consumer")
+            ("activated", "test.consumer".to_owned()),
+            ("deactivated", "test.consumer".to_owned())
         ]
     );
 }
@@ -267,6 +259,7 @@ fn effect_definition(id: &str, fs: &str) -> aria_compositor::EffectDefinition {
     aria_compositor::EffectDefinition {
         spec: aria_models::EffectSpec {
             id: id.into(),
+            category: String::new(),
             label: "Gain".into(),
             params: vec![aria_models::EffectParamSpec {
                 name: "gain".into(),
@@ -277,8 +270,11 @@ fn effect_definition(id: &str, fs: &str) -> aria_compositor::EffectDefinition {
                 max: 2.0,
                 default_color: [0; 4],
                 default_vec2: [0.0; 2],
+                ..Default::default()
             }],
             generator: false,
+            stateful: false,
+            ..Default::default()
         },
         passes: vec![fs.into()],
     }
@@ -289,6 +285,7 @@ fn transition_definition(id: &str) -> aria_compositor::TransitionDefinition {
         spec: aria_models::TransitionSpec {
             id: id.into(),
             label: "Mix".into(),
+            ..Default::default()
         },
         shader: TRANSITION_FS.into(),
     }
@@ -305,7 +302,7 @@ impl Plugin for Passes {
         ctx.register_transition(transition_definition(self.transition))?;
         if self.fail {
             return Err(PluginError::MountFailed(
-                self.manifest.id,
+                self.manifest.id.clone(),
                 "asked to".into(),
             ));
         }
@@ -315,13 +312,7 @@ impl Plugin for Passes {
 
 fn passes(id: &'static str, effect: &'static str, transition: &'static str, fail: bool) -> Passes {
     Passes {
-        manifest: PluginManifest {
-            id,
-            name: "Passes",
-            version: "0.1.0",
-            requires: &[],
-            uses: &[],
-        },
+        manifest: PluginManifest::new(id, "Passes", "0.1.0", &[], &[]),
         effect,
         transition,
         fail,
@@ -374,7 +365,7 @@ fn a_failed_mount_removes_what_it_registered() {
         .mount(&passes("test.failing", effect, transition, true))
         .expect_err("asked to fail");
     assert!(
-        matches!(err, PluginError::MountFailed("test.failing", _)),
+        matches!(&err, PluginError::MountFailed(id, _) if id == "test.failing"),
         "{err}"
     );
     assert!(!effect_listed(effect), "a failed mount left its effect");
@@ -431,7 +422,7 @@ fn faults_and_failures_follow_the_plugin() {
     assert_eq!(
         ctx.faults(),
         vec![PluginFault {
-            plugin: "test.consumer",
+            plugin: "test.consumer".into(),
             message: "second".into(),
         }]
     );
@@ -454,4 +445,75 @@ fn faults_and_failures_follow_the_plugin() {
 
     ctx.mount(&plugin).expect("mounts again");
     assert!(ctx.failures().is_empty());
+}
+
+/// Runtime frame and audio-block costs are tracked per plugin id without
+/// cross-talk and cleared when a plugin unmounts or fails.
+#[test]
+fn costs_record_per_plugin_do_not_mix_and_clear_on_unmount_and_fail() {
+    struct NoopPlugin {
+        manifest: PluginManifest,
+    }
+    impl Plugin for NoopPlugin {
+        fn manifest(&self) -> &PluginManifest {
+            &self.manifest
+        }
+        fn mount(&self, _ctx: &PluginContext) -> Result<(), PluginError> {
+            Ok(())
+        }
+    }
+
+    let ctx = PluginContext::new();
+    let alpha = NoopPlugin {
+        manifest: PluginManifest::new("test.cost.alpha", "Alpha", "0.1.0", &[], &[]),
+    };
+    let beta = NoopPlugin {
+        manifest: PluginManifest::new("test.cost.beta", "Beta", "0.1.0", &[], &[]),
+    };
+    ctx.mount(&alpha).expect("mounts alpha");
+    ctx.mount(&beta).expect("mounts beta");
+
+    let initial = ctx.costs();
+    assert_eq!(initial.len(), 2);
+    assert!(initial[0].frame.is_empty() && initial[0].block.is_empty());
+    assert!(initial[1].frame.is_empty() && initial[1].block.is_empty());
+
+    ctx.record_frame_cost("test.cost.alpha", Duration::from_millis(4));
+    ctx.record_frame_cost("test.cost.alpha", Duration::from_millis(12));
+    ctx.record_block_cost("test.cost.beta", Duration::from_micros(80));
+    ctx.record_frame_cost("test.cost.unmounted", Duration::from_millis(50));
+
+    let alpha_cost = ctx.cost_of("test.cost.alpha").expect("alpha cost");
+    assert_eq!(alpha_cost.frame.calls, 2);
+    assert_eq!(alpha_cost.frame.last, Duration::from_millis(12));
+    assert_eq!(alpha_cost.frame.mean, Duration::from_millis(5));
+    assert_eq!(alpha_cost.frame.max, Duration::from_millis(12));
+    assert!(alpha_cost.block.is_empty());
+
+    let beta_cost = ctx.cost_of("test.cost.beta").expect("beta cost");
+    assert!(beta_cost.frame.is_empty());
+    assert_eq!(beta_cost.block.calls, 1);
+    assert_eq!(beta_cost.block.last, Duration::from_micros(80));
+    assert_eq!(beta_cost.block.mean, Duration::from_micros(80));
+    assert_eq!(beta_cost.block.max, Duration::from_micros(80));
+
+    let mounted = ctx.mounted();
+    assert_eq!(mounted[0].frame_cost, alpha_cost.frame);
+    assert_eq!(mounted[0].block_cost, alpha_cost.block);
+    assert_eq!(mounted[1].frame_cost, beta_cost.frame);
+    assert_eq!(mounted[1].block_cost, beta_cost.block);
+
+    ctx.unmount("test.cost.alpha").expect("unmounts alpha");
+    assert!(ctx.cost_of("test.cost.alpha").is_none());
+    ctx.mount(&alpha).expect("remounts alpha");
+    let alpha_fresh = ctx.cost_of("test.cost.alpha").expect("fresh alpha cost");
+    assert!(alpha_fresh.frame.is_empty());
+    assert!(alpha_fresh.block.is_empty());
+
+    assert!(ctx.fail("test.cost.beta", "processor crashed"));
+    assert!(ctx.cost_of("test.cost.beta").is_none());
+    ctx.mount(&beta).expect("remounts beta");
+    let beta_fresh = ctx.cost_of("test.cost.beta").expect("fresh beta cost");
+    assert!(beta_fresh.frame.is_empty());
+    assert!(beta_fresh.block.is_empty());
 }

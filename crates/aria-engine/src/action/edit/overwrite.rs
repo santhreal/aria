@@ -161,7 +161,7 @@ pub(crate) fn clear(
         }
         Cover::Trim(clip, from, to) => {
             let keep = TimeRange::at_rate(from, to - from, tl_rate);
-            inverses.push(trim_clip::execute(ctx, clip, keep)?);
+            inverses.push(trim_clip::trim_one(ctx, clip, keep)?);
         }
         Cover::Straddle(clip) => {
             let original = ctx

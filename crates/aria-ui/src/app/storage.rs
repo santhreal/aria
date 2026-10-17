@@ -29,7 +29,7 @@ const MIB: u64 = 1024 * 1024;
 /// yields the defaults rather than failing startup, because a cache the operator
 /// cannot see is still better than an editor that will not open.
 pub(super) fn cache_for(data_dir: &Path) -> DownloadCache {
-    let settings = aria_settings::load(&data_dir.join("config.toml")).unwrap_or_default();
+    let settings = aria_settings::load(&aria_settings::config_in(data_dir)).unwrap_or_default();
     let root = settings
         .storage
         .root
@@ -45,7 +45,7 @@ pub(super) fn cache_for(data_dir: &Path) -> DownloadCache {
 impl AppState {
     /// The config file that owns the quota and the storage root.
     pub fn config_path(&self) -> PathBuf {
-        self.data_dir.join("config.toml")
+        aria_settings::config_in(&self.data_dir)
     }
 
     /// Where downloaded assets live.
@@ -175,6 +175,7 @@ impl AppState {
             )
         })?;
         self.status_message = Some(format!("Storage root is now {}", root.display()));
+        self.refresh_render_files();
         Ok(())
     }
 }

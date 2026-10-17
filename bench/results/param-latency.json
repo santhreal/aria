@@ -1,0 +1,127 @@
+{
+  "scenario": "param-latency",
+  "machine": "Server",
+  "gpu": "llvmpipe (LLVM 20.1.2, 256 bits)",
+  "driver": "llvmpipe Mesa 25.2.8-0ubuntu0.24.04.2 (LLVM 20.1.2)",
+  "wgpu_adapter": "llvmpipe (LLVM 20.1.2, 256 bits) (Vulkan)",
+  "commit": "588a23f4c9cd809b89aa3b6b062964c53b7a977d",
+  "profile": "release",
+  "environment": {
+    "machine": "Server",
+    "hostname": "santhserver",
+    "os": "Linux 6.8.0-142-generic x86_64",
+    "cpu": "11th Gen Intel(R) Core(TM) i7-11700K @ 3.60GHz",
+    "gpu": "llvmpipe (LLVM 20.1.2, 256 bits)",
+    "driver": "llvmpipe Mesa 25.2.8-0ubuntu0.24.04.2 (LLVM 20.1.2)",
+    "wgpu_adapter": "llvmpipe (LLVM 20.1.2, 256 bits) (Vulkan)",
+    "commit": "588a23f4c9cd809b89aa3b6b062964c53b7a977d",
+    "profile": "release"
+  },
+  "verdict": "fail",
+  "reason": "param_drag_display_frames: measured 28.976 frames, target <= 2.000 frames",
+  "targets": [
+    {
+      "name": "param_drag_display_frames",
+      "description": "Dragging an effect value while paused: the Viewer shows the new value within 2 display frames",
+      "comparison": "at_most",
+      "target": 2.0,
+      "unit": "frames",
+      "measured": 28.976240339999997,
+      "verdict": "fail",
+      "reason": "param_drag_display_frames: measured 28.976 frames, target <= 2.000 frames",
+      "required_on_machine": true
+    }
+  ],
+  "rules": [],
+  "samples": [
+    {
+      "name": "param_drag_display_frames",
+      "unit": "frames",
+      "values": [
+        5.942484839999999,
+        6.6502509,
+        15.42308208,
+        27.21632514,
+        13.903158119999999,
+        12.480382859999997,
+        13.14039438,
+        11.219808419999998,
+        28.976240339999997,
+        41.105954159999996,
+        9.447593939999997,
+        6.007185659999999,
+        5.9811342,
+        6.157810019999999,
+        6.09731826,
+        6.39667002,
+        6.46799712,
+        6.12879306,
+        6.23662668,
+        6.321335759999999
+      ],
+      "min": 5.942484839999999,
+      "p50": 6.6502509,
+      "p95": 28.976240339999997,
+      "p99": 41.105954159999996,
+      "max": 41.105954159999996,
+      "mean": 12.065027297999999
+    },
+    {
+      "name": "param_drag_ms",
+      "unit": "ms",
+      "values": [
+        99.04141399999999,
+        110.837515,
+        257.051368,
+        453.605419,
+        231.719302,
+        208.00638099999998,
+        219.006573,
+        186.996807,
+        482.937339,
+        685.099236,
+        157.45989899999998,
+        100.119761,
+        99.68557,
+        102.630167,
+        101.621971,
+        106.61116700000001,
+        107.799952,
+        102.146551,
+        103.943778,
+        105.35559599999999
+      ],
+      "min": 99.04141399999999,
+      "p50": 110.837515,
+      "p95": 482.937339,
+      "p99": 685.099236,
+      "max": 685.099236,
+      "mean": 201.08378829999998
+    },
+    {
+      "name": "stack_4k_param_drag_ms",
+      "unit": "ms",
+      "values": [
+        7247.654805,
+        8633.834082,
+        7064.541795,
+        8321.045257,
+        8237.176469,
+        7182.531575,
+        7992.496814,
+        7409.0399449999995,
+        8755.646004999999,
+        6884.378868
+      ],
+      "min": 6884.378868,
+      "p50": 7992.496814,
+      "p95": 8755.646004999999,
+      "p99": 8755.646004999999,
+      "max": 8755.646004999999,
+      "mean": 7772.8345615
+    }
+  ],
+  "notes": [
+    "1080p paused effect drag p50=110.84 ms (6.65 frames at 60 Hz), p95=482.94 ms (28.98 frames); stack-4k paused drag p50=7992.50 ms"
+  ]
+}

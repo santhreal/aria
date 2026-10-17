@@ -11,10 +11,9 @@ use crate::fluent::FluentBuilder;
 use crate::panels::insert_chain::{self, Chain};
 use crate::surfaces::clip_pick::{self, Pick};
 use crate::theme::Theme;
-use crate::timecode::format_ticks;
 use crate::types::UiClip;
 
-use crate::panels::inspector::blocks::widgets::{audio_row, param_rows, section_label};
+use crate::panels::inspector::blocks::widgets::{Readout, audio_row, param_rows, section_label};
 
 pub fn audio_tab(
     theme: &Theme,
@@ -33,10 +32,10 @@ pub fn audio_tab(
     rows.push(
         audio_row(
             theme,
+            state,
             crate::motion::MotionKey::new("insp.row", "aud-fi"),
             "Fade in",
-            format_ticks(fade_in, fps_num, fps_den),
-            1.0,
+            Readout::frames(fade_in, fps_num, fps_den),
             move |state, delta| {
                 clip_pick::apply(state, Pick::FadeIn((fade_in as f32 + delta).round() as i64))
             },
@@ -47,10 +46,10 @@ pub fn audio_tab(
     rows.push(
         audio_row(
             theme,
+            state,
             crate::motion::MotionKey::new("insp.row", "aud-fo"),
             "Fade out",
-            format_ticks(fade_out, fps_num, fps_den),
-            1.0,
+            Readout::frames(fade_out, fps_num, fps_den),
             move |state, delta| {
                 clip_pick::apply(
                     state,
@@ -106,7 +105,7 @@ pub fn audio_tab(
                 .py(px(Theme::SPACE_XS))
                 .child(
                     div()
-                        .text_size(px(13.))
+                        .text_size(Theme::TEXT_UI)
                         .text_color(theme.text_muted)
                         .child("Reverse"),
                 )
@@ -122,7 +121,7 @@ pub fn audio_tab(
                 .py(px(Theme::SPACE_XS))
                 .child(
                     div()
-                        .text_size(px(13.))
+                        .text_size(Theme::TEXT_UI)
                         .text_color(theme.text_muted)
                         .child("Pitch lock"),
                 )
@@ -148,10 +147,20 @@ pub fn audio_tab(
         .when_some(inserts, |el, chain| {
             el.child(section_label(theme, "Audio effects")).child(chain)
         })
+        .when(
+            clip.transition_media == Some(aria_models::TransitionMedia::Audio),
+            |el| {
+                el.child(
+                    crate::panels::inspector::blocks::transition::transition_block(
+                        theme, clip, state, cx,
+                    ),
+                )
+            },
+        )
         .child(section_label(theme, "Role"))
         .child(
             div()
-                .text_size(px(11.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_faint)
                 .child(match clip.audio_role {
                     Some(role) => role.label(),
@@ -191,7 +200,7 @@ pub fn audio_tab(
         .child(
             div()
                 .pt(px(Theme::SPACE_SM))
-                .text_size(px(11.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_faint)
                 .child("Left click raises, right click lowers."),
         )
@@ -243,7 +252,7 @@ fn duck_rows(
                 .py(px(Theme::SPACE_XS))
                 .child(
                     div()
-                        .text_size(px(13.))
+                        .text_size(Theme::TEXT_UI)
                         .text_color(theme.text_muted)
                         .child(SharedString::from(label)),
                 )
@@ -260,7 +269,7 @@ fn duck_rows(
     rows.push(
         div()
             .px(px(Theme::SPACE_XS))
-            .text_size(px(11.))
+            .text_size(Theme::TEXT_UI)
             .text_color(theme.text_faint)
             .child(match &lane {
                 Some(name) => format!("Listening to {name}"),
@@ -287,7 +296,7 @@ fn duck_rows(
         rows.push(
             div()
                 .px(px(Theme::SPACE_XS))
-                .text_size(px(11.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.warning)
                 .child(reason)
                 .into_any_element(),
@@ -312,7 +321,7 @@ fn loudness_rows(
     if contour.is_empty() {
         return vec![
             div()
-                .text_size(px(11.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_faint)
                 .child("Measure it in the Analysis tab")
                 .into_any_element(),
@@ -356,7 +365,7 @@ fn loudness_rows(
             .children(bars)
             .into_any_element(),
         div()
-            .text_size(px(11.))
+            .text_size(Theme::TEXT_UI)
             .text_color(if clipping {
                 theme.danger
             } else {

@@ -166,33 +166,36 @@ impl<'a> InterleavedPcm<'a> {
         );
         let exit_threshold = config.threshold_dbfs() + config.hysteresis_db();
         let mut raw_spans = Vec::new();
-        let mut silence_start = None;
+        let mut silence_span: Option<(usize, usize)> = None;
 
         for window in windows {
             let dbfs =
                 dbfs_from_mean_square(window.mean_square, config.loudness().silence_floor_dbfs());
-            let is_silent = if silence_start.is_some() {
+            let is_silent = if silence_span.is_some() {
                 dbfs <= exit_threshold
             } else {
                 dbfs <= config.threshold_dbfs()
             };
 
-            match (silence_start, is_silent) {
-                (None, true) => silence_start = Some(window.start_frame),
-                (Some(start_frame), false) => {
-                    if window.start_frame > start_frame {
+            match (silence_span, is_silent) {
+                (None, true) => silence_span = Some((window.start_frame, window.end_frame)),
+                (Some((start_frame, _)), true) => {
+                    silence_span = Some((start_frame, window.end_frame));
+                }
+                (Some((start_frame, end_frame)), false) => {
+                    if end_frame > start_frame {
                         raw_spans.push(FrameSpan {
                             start_frame,
-                            end_frame: window.start_frame,
+                            end_frame,
                         });
                     }
-                    silence_start = None;
+                    silence_span = None;
                 }
-                _ => {}
+                (None, false) => {}
             }
         }
 
-        if let Some(start_frame) = silence_start {
+        if let Some((start_frame, _)) = silence_span {
             raw_spans.push(FrameSpan {
                 start_frame,
                 end_frame: self.frame_count(),

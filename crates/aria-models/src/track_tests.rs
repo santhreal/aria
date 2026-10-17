@@ -59,6 +59,36 @@ fn a_height_is_clamped_into_the_accepted_range() {
     assert_eq!(TrackDisplay::clamp_height(64), 64);
 }
 
+#[test]
+fn height_presets_are_ordered_in_range_and_clamp_accepts_mini() {
+    assert_eq!(TrackDisplay::clamp_height(20), 20);
+    assert_eq!(TrackDisplay::clamp_height(19), 20);
+    assert_eq!(TrackDisplay::clamp_height(200), 200);
+    assert_eq!(TrackDisplay::clamp_height(201), 200);
+    assert!(
+        TrackDisplay::PRESETS
+            .windows(2)
+            .all(|pair| pair[0].1 < pair[1].1),
+        "presets must be in strictly ascending height order: {:?}",
+        TrackDisplay::PRESETS
+    );
+    for &(name, height) in &TrackDisplay::PRESETS {
+        assert!(
+            TrackDisplay::HEIGHT.contains(&height),
+            "preset {name} ({height} px) lies outside {:?}",
+            TrackDisplay::HEIGHT
+        );
+    }
+    assert!(
+        TrackDisplay::PRESETS
+            .iter()
+            .any(|&(_, h)| h == TrackDisplay::DEFAULT_HEIGHT),
+        "DEFAULT_HEIGHT ({}) must be one of {:?}",
+        TrackDisplay::DEFAULT_HEIGHT,
+        TrackDisplay::PRESETS
+    );
+}
+
 fn generated_clip(start: i64, duration: i64) -> Clip {
     Clip::generated(Generator::Adjustment, tr(start, duration))
 }
@@ -120,17 +150,24 @@ fn insert_replaces_same_id() {
     let first = generated_clip(0, 10);
     let id = first.id;
     assert!(track.insert_clip(first).is_none());
+    let other = generated_clip(40, 10);
+    let other_id = other.id;
+    assert!(track.insert_clip(other).is_none());
 
     let replacement = Clip {
         id,
         content: ClipSource::Generated(Generator::Adjustment),
-        timeline: tr(20, 30),
-        ..generated_clip(20, 30)
+        timeline: tr(60, 30),
+        ..generated_clip(60, 30)
     };
     let displaced = track.insert_clip(replacement).unwrap();
     assert_eq!(displaced.timeline, tr(0, 10));
-    assert_eq!(track.clip(id).unwrap().timeline, tr(20, 30));
-    assert_eq!(track.len(), 1);
+    assert_eq!(track.clip(id).unwrap().timeline, tr(60, 30));
+    assert_eq!(track.len(), 2);
+    // The replaced clip leaves its old slot in the order and takes the one its
+    // new start sorts to: one entry per clip, by start.
+    let ordered: Vec<_> = track.clips_ordered().iter().map(|c| c.id).collect();
+    assert_eq!(ordered, [other_id, id]);
 }
 
 #[test]

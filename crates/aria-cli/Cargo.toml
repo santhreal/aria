@@ -22,6 +22,17 @@ aria-encoder = { path = "../aria-encoder" }
 aria-models = { path = "../aria-models" }
 aria-render = { path = "../aria-render" }
 aria-text = { path = "../aria-text" }
+aria-plugin = { path = "../aria-plugin" }
+aria-plugin-abi = { path = "../aria-plugin-abi" }
+aria-plugin-wasm = { path = "../aria-plugin-wasm" }
+object = { version = "0.40", default-features = false, features = ["read_core", "elf", "macho", "pe", "std"] }
+serde_json = { workspace = true }
+tempfile = "3"
+wit-component = "0.258"
+
+[dev-dependencies]
+object = { version = "0.40", default-features = false, features = ["write"] }
+zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 
 [lints]
 workspace = true

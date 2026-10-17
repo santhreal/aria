@@ -17,6 +17,8 @@ struct Effects {
     half: vec4<f32>,
     // mask center xy, mask size xy
     mask_geo: vec4<f32>,
+    // coverage remap offset (x) and scale (y), mask expansion px (z), pad
+    mask_mix: vec4<f32>,
 }
 
 @group(0) @binding(0) var y_tex: texture_2d<f32>;
@@ -126,8 +128,9 @@ fn fs(in: VertexOutput) -> @location(0) vec4<f32> {
             fx.mask_geo.zw,
             fx.half.z,
             fx.half.w,
+            fx.mask_mix.z,
         );
-        alpha = alpha * malpha;
+        alpha = alpha * clamp(fx.mask_mix.x + fx.mask_mix.y * malpha, 0.0, 1.0);
     }
 
     return vec4(rgb, alpha);

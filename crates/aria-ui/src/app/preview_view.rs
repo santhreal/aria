@@ -1,10 +1,10 @@
-//! How the preview is looked at: guides, zoom, pan, and fullscreen.
+//! How the preview is looked at: guides, zoom, pan, fullscreen, and the
+//! transparency grid.
 //!
-//! None of this is an edit, so none of it goes through the engine or the undo
-//! stack: it is the operator's viewing position. One owner, because the panel,
-//! the View menu, and the palette all reach the same three toggles and the same
-//! zoom, and a second definition would let the menu tick disagree with the
-//! overlay on screen.
+//! None of this is an edit, so none of it goes through the undo stack: it is
+//! the viewing position. One owner, because the Viewer's chips, the View menu,
+//! and the palette all reach the same toggles and the same zoom, and a second
+//! definition would let the menu tick disagree with the overlay on screen.
 
 use super::AppState;
 
@@ -60,8 +60,44 @@ impl AppState {
         self.preview_view.action_safe = !self.preview_view.action_safe;
     }
 
+    /// Whether either safe margin is drawn.
+    pub fn safe_margins_on(&self) -> bool {
+        self.preview_view.title_safe || self.preview_view.action_safe
+    }
+
+    /// The Viewer's Safe chip: both margins off while either is drawn,
+    /// otherwise both on.
+    pub fn toggle_safe_margins(&mut self) {
+        let on = !self.safe_margins_on();
+        self.preview_view.title_safe = on;
+        self.preview_view.action_safe = on;
+    }
+
     pub fn toggle_preview_grid(&mut self) {
         self.preview_view.grid = !self.preview_view.grid;
+    }
+
+    /// Whether the Viewer shows the transparency grid where no layer covers
+    /// the canvas.
+    pub fn transparency_grid_on(&self) -> bool {
+        self.ui_settings.transparency_grid
+    }
+
+    /// Show the transparency grid where no layer covers the canvas, or the
+    /// sequence's background colour; save the choice and render the frame
+    /// again. Export, thumbnails, and Export Frame keep the background.
+    pub fn toggle_transparency_grid(&mut self, cx: &mut gpui::Context<Self>) {
+        let on = !self.ui_settings.transparency_grid;
+        self.ui_settings.transparency_grid = on;
+        self.engine.lock().set_preview_transparency(on);
+        self.persist_settings_later(cx);
+        // Frames rendered over the other background are stale.
+        self.picture_changed();
+        if self.playback_cadence.is_none() {
+            let state = cx.entity();
+            cx.defer(move |app| super::spawn_preview(state, app));
+        }
+        cx.notify();
     }
 
     /// Fill the window with the preview, or give the panels back.

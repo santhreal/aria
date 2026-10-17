@@ -60,7 +60,7 @@ pub(crate) fn generate_panel(
                 .border_1()
                 .border_color(border)
                 .cursor(CursorStyle::IBeam)
-                .text_size(px(12.))
+                .text_size(Theme::TEXT_TITLE)
                 .text_color(if form.prompt.is_empty() {
                     theme.text_muted
                 } else {
@@ -91,7 +91,7 @@ pub(crate) fn generate_panel(
         )
         .child(
             div()
-                .text_size(px(11.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_muted)
                 .child(SharedString::from(if !configured {
                     format!("Add a {GENERATE_PROVIDER} key in Settings to generate")

@@ -60,7 +60,7 @@ divider between them is draggable and sets how much height each side gets.
 
 | Column | Video track | Audio track |
 | --- | --- | --- |
-| Source patch | V source indicator, drag to patch a Source tab's video to this track | A source indicator |
+| Source patch | V source indicator: click to patch a Source tab's video to this track, click the lit one to leave video out | A source indicator, for the audio |
 | Target | Track targeted for paste, match frame, and up/down navigation | Same |
 | Name | Double-click to rename | Same |
 | Toggles | Visibility (eye), lock, sync lock | Mute (M), solo (S), lock, sync lock |
@@ -73,6 +73,11 @@ the header.
 Track heights: Mini (20 px), Small (32 px), Medium (48 px, default), Large
 (72 px). Shift+scroll over the headers changes the height of the track under
 the pointer.
+
+The header column, with the property rows under each track, is 300 px wide by
+default. Dragging its right border sets the width between 240 px and 480 px;
+Escape during the drag restores the width it started from. The width is saved
+with the UI settings.
 
 ## Clip bars
 
@@ -135,6 +140,18 @@ Each property row shows in the outline column:
 The time area of a property row draws its keyframes. In graph editor mode the
 time area of the opened clip shows the value or speed graph of the selected
 properties instead (see [animation.md](animation.md#graph-editor)).
+
+A path mask's group starts with its Path row (`Mask N Path`). A Path keyframe
+holds every vertex of the path, so the row has a stopwatch, the vertex count
+at the playhead in place of a value, and the navigator, and no driver, reset,
+or graph. The stopwatch and the navigator work as on a property row. A Path
+keyframe drags in time within the clip, snapping to the playhead and the path's
+other keyframes unless Alt is held; a click on one moves the playhead to it.
+Its right-click menu sets the easing of the segment leaving it (Linear, Ease In
+and Out, Ease In, Ease Out, Hold or Continuous) or deletes it. Deleting the last
+Path keyframe keeps its path. Each press is one `SetClipMask` edit. Alt+M opens
+the Path rows with the mask rows, the first Alt+U opens the Path rows of
+keyframed paths, and the second opens every Path row.
 
 ## Navigation
 

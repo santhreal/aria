@@ -259,6 +259,25 @@ fn silence_hysteresis_prevents_chatter_between_entry_and_exit_levels() {
 }
 
 #[test]
+fn overlapping_window_silence_retains_last_silent_window_end_frame() {
+    // Default LoudnessConfig uses a 50 ms window with a 25 ms hop.
+    // 0.0..0.5s loud, 0.5..1.5s silent, 1.5..2.0s loud: the last silent
+    // window covers 1.45..1.50s while the next window (1.475..1.525s) overlaps
+    // the resuming tone at 1.50s. Silence must end at 1.50s, not 1.475s.
+    let mut samples = Vec::with_capacity(2_000);
+    append_constant(&mut samples, 500, 0.5);
+    append_constant(&mut samples, 1_000, 0.0);
+    append_constant(&mut samples, 500, 0.5);
+
+    let spans = detect_silence(&samples, 1_000, 1, SilenceConfig::default()).expect("valid PCM");
+    assert_eq!(spans.len(), 1);
+    assert_eq!(
+        spans[0].span,
+        TimeSpan::new(0.5, 1.5).expect("valid expected span")
+    );
+}
+
+#[test]
 fn regular_pulse_train_recovers_one_event_per_pulse_with_tolerance() {
     let expected = [0.25, 0.75, 1.25, 1.75, 2.25, 2.75];
     let samples = pulse_train(1_000, 3_000, &expected, 0.02);

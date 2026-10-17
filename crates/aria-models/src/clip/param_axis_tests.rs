@@ -44,6 +44,7 @@ fn in_range_value(param: ClipParam, frac: f32) -> Option<ParamValue> {
     match param.kind()? {
         ParamKind::Scalar => Some(ParamValue::Scalar(v)),
         ParamKind::Vec2 => Some(ParamValue::Vec2([v, v])),
+        ParamKind::Vec3 => Some(ParamValue::Vec3([v, v, v])),
         ParamKind::Color => Some(ParamValue::Color([10, 20, 30, 255])),
         ParamKind::Rect => Some(ParamValue::Rect([0.0, 0.0, v, v])),
     }
@@ -54,6 +55,7 @@ fn sample(route: ParamRoute<'_>, tick: i64) -> Option<ParamValue> {
     Some(match route {
         ParamRoute::Scalar(p) => ParamValue::Scalar(p.sample(tick)),
         ParamRoute::Vec2(p) => ParamValue::Vec2(p.sample(tick)),
+        ParamRoute::Vec3(p) => ParamValue::Vec3(p.sample(tick)),
         ParamRoute::Scale(p) => {
             let s = p.sample(tick);
             ParamValue::Vec2([s.x, s.y])
@@ -265,11 +267,11 @@ fn the_registry_answers_what_the_catalog_declares() {
 
 /// A read accessor has to find the value on a clip that has the block, and
 /// report `Absent` on one that does not. Availability is the whole reason the
-/// route is an accessor rather than a field name: a mask feather has no route
-/// until a mask exists, and offering it would ship a dead control.
+/// route is an accessor rather than a field name: a mask's feather has no route
+/// until that mask exists, and offering it would ship a dead control.
 #[test]
 fn a_delegated_read_accessor_follows_the_block_it_needs() {
-    let bare = Clip::generated(
+    let mut bare = Clip::generated(
         Generator::SolidColor {
             rgba: [0, 0, 0, 255],
         },
@@ -277,10 +279,16 @@ fn a_delegated_read_accessor_follows_the_block_it_needs() {
     );
     // A bare generated clip has no mask, so the mask rows must go quiet while
     // the grade rows, which live on a struct every clip carries, must not.
-    let feather = ClipParam::Look {
-        param: crate::clip::LookParam::MaskFeather,
+    let feather = |mask| ClipParam::Mask {
+        mask,
+        param: crate::clip::MaskParam::Feather,
     };
-    assert!(matches!(feather.route(&bare), ParamRoute::Absent));
+    assert!(matches!(feather(0).route(&bare), ParamRoute::Absent));
+    // One mask gives mask 0 a route and leaves mask 1 without one.
+    bare.masks
+        .push(crate::look::Mask::new(crate::look::MaskKind::Circle));
+    assert!(matches!(feather(0).route(&bare), ParamRoute::Scalar(_)));
+    assert!(matches!(feather(1).route(&bare), ParamRoute::Absent));
     let brightness = ClipParam::Look {
         param: crate::clip::LookParam::AdjustBrightness,
     };

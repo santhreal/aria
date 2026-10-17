@@ -102,7 +102,7 @@ pub(crate) fn render(
 fn heading(theme: &Theme, label: &'static str) -> gpui::AnyElement {
     div()
         .pt(px(Theme::SPACE_XS))
-        .text_size(px(11.))
+        .text_size(Theme::TEXT_UI)
         .text_color(theme.text_muted)
         .child(label)
         .into_any_element()
@@ -116,7 +116,7 @@ fn readout(theme: &Theme, label: SharedString, value: SharedString, dim: bool) -
         .items_center()
         .justify_between()
         .gap(px(Theme::SPACE_SM))
-        .text_size(px(12.))
+        .text_size(Theme::TEXT_TITLE)
         .child(div().text_color(theme.text_muted).child(label))
         .child(
             div()
@@ -157,7 +157,7 @@ fn stage_row(theme: &Theme, row: FrameStageRow) -> gpui::AnyElement {
         ))
         .child(
             div()
-                .text_size(px(10.))
+                .text_size(Theme::TEXT_SMALL)
                 .text_color(theme.text_faint)
                 .child(row.note),
         )
@@ -183,7 +183,7 @@ fn clip_fact_row(
         .px(px(Theme::SPACE_XS))
         .py(px(Theme::SPACE_XXS))
         .rounded(px(Theme::CONTROL_RADIUS))
-        .text_size(px(12.))
+        .text_size(Theme::TEXT_TITLE)
         .bg(motion::hover_blend(
             key,
             theme.wash(0.0),

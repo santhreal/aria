@@ -23,7 +23,7 @@ pub(super) fn section(theme: &Theme, title: &str, rows: Vec<gpui::AnyElement>) -
         .border_color(theme.border)
         .child(
             div()
-                .text_size(px(11.))
+                .text_size(Theme::TEXT_UI)
                 .font_weight(gpui::FontWeight::SEMIBOLD)
                 .text_color(theme.text_faint)
                 .child(title.to_string()),
@@ -38,13 +38,13 @@ pub(super) fn kv(theme: &Theme, label: &str, value: impl Into<String>) -> impl I
         .justify_between()
         .child(
             div()
-                .text_size(px(13.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_muted)
                 .child(label.to_string()),
         )
         .child(
             div()
-                .text_size(px(13.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text)
                 .child(value.into()),
         )

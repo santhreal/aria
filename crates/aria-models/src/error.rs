@@ -46,6 +46,21 @@ pub enum ModelError {
     #[error("sequence {0} cannot contain itself, directly or transitively")]
     SequenceCycle(SequenceId),
 
+    #[error("clip {0} cannot be parented to itself or to a clip parented to it")]
+    ParentCycle(ClipId),
+
+    #[error("the parent clip {parent} is not on the same sequence as clip {child}")]
+    ParentElsewhere { child: ClipId, parent: ClipId },
+
+    #[error("the parent clip {parent} does not overlap clip {child} in time")]
+    ParentApart { child: ClipId, parent: ClipId },
+
+    #[error("the parent clip {0} is scaled to zero, so its child cannot keep its place")]
+    ParentFlattened(ClipId),
+
+    #[error("clip {0} would sit under more than {max} parents", max = crate::clip::MAX_PARENT_DEPTH)]
+    ParentTooDeep(ClipId),
+
     #[error("clip overlaps an existing clip on {0}")]
     Overlap(TrackId),
 

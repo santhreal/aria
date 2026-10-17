@@ -346,7 +346,7 @@ pub(crate) fn validate_style_value(param: StyleParam, value: f32) -> Result<(), 
 fn expect_scalar(value: ParamValue) -> Result<f32, ModelError> {
     match value {
         ParamValue::Scalar(v) => Ok(v),
-        ParamValue::Vec2(_) | ParamValue::Color(_) | ParamValue::Rect(_) => {
+        ParamValue::Vec2(_) | ParamValue::Vec3(_) | ParamValue::Color(_) | ParamValue::Rect(_) => {
             Err(ModelError::InvalidParam("expected a scalar value".into()))
         }
     }
@@ -355,16 +355,17 @@ fn expect_scalar(value: ParamValue) -> Result<f32, ModelError> {
 fn expect_vec2(value: ParamValue) -> Result<[f32; 2], ModelError> {
     match value {
         ParamValue::Vec2(v) => Ok(v),
-        ParamValue::Scalar(_) | ParamValue::Color(_) | ParamValue::Rect(_) => {
-            Err(ModelError::InvalidParam("expected a vec2 value".into()))
-        }
+        ParamValue::Scalar(_)
+        | ParamValue::Vec3(_)
+        | ParamValue::Color(_)
+        | ParamValue::Rect(_) => Err(ModelError::InvalidParam("expected a vec2 value".into())),
     }
 }
 
 fn expect_color(value: ParamValue) -> Result<[u8; 4], ModelError> {
     match value {
         ParamValue::Color(v) => Ok(v),
-        ParamValue::Scalar(_) | ParamValue::Vec2(_) | ParamValue::Rect(_) => {
+        ParamValue::Scalar(_) | ParamValue::Vec2(_) | ParamValue::Vec3(_) | ParamValue::Rect(_) => {
             Err(ModelError::InvalidParam("expected a color value".into()))
         }
     }

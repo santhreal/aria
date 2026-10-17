@@ -55,12 +55,20 @@ fn edit_outcome_wire_format() {
             EditOutcome::UpdatedAudioLayout,
             json!({"type": "UpdatedAudioLayout"}),
         ),
+        (
+            EditOutcome::UpdatedTimeDisplay,
+            json!({"type": "UpdatedTimeDisplay"}),
+        ),
         (EditOutcome::UpdatedMaster, json!({"type": "UpdatedMaster"})),
         (
             EditOutcome::CreatedBin(aria_models::BinId::from_raw(5)),
             json!({"type": "CreatedBin", "id": 5}),
         ),
         (EditOutcome::UpdatedPool, json!({"type": "UpdatedPool"})),
+        (
+            EditOutcome::UpdatedSourcePatch,
+            json!({"type": "UpdatedSourcePatch"}),
+        ),
     ];
     for (outcome, expected) in samples {
         assert_eq!(serde_json::to_value(outcome).unwrap(), expected);

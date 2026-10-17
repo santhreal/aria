@@ -155,7 +155,7 @@ fn playback_rate_report_measures_a_known_sequence() {
 
     if software {
         assert!(
-            report.achieved_fps >= report.target_fps * SOFTWARE_FLOOR,
+            report.render_fps >= report.target_fps * SOFTWARE_FLOOR,
             "a software rasterizer must still manage {:.0}% of {:.0} fps: {}",
             SOFTWARE_FLOOR * 100.0,
             report.target_fps,

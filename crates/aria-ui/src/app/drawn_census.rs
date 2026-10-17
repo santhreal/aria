@@ -24,14 +24,16 @@
 use std::collections::BTreeSet;
 use std::sync::LazyLock;
 
+use super::AppState;
 use super::premiere_tests::with_clip;
-use crate::surfaces::lane_header::{LANE_TOGGLES, LaneFlags};
+use crate::surfaces::lane_header::{LANE_TOGGLES, LaneFlags, LaneToggle};
 
 /// Every command a drawn surface dispatched, across every registry below.
 pub(super) fn dispatched() -> &'static BTreeSet<&'static str> {
     static CENSUS: LazyLock<BTreeSet<&'static str>> = LazyLock::new(|| {
         let mut out = BTreeSet::new();
         out.extend(lane_header());
+        out.extend(align::dispatched());
         out.extend(analysis::dispatched());
         out.extend(bins::dispatched());
         out.extend(menu::dispatched());
@@ -195,6 +197,8 @@ fn no_setter_escapes(registry: &str, under: &str) {
 // that say what that registry must hold. The dressed states they press against
 // live one level up in `crate::app::fixtures`, because a mixer strip, a menu row
 // and an inspector chip all want the same clip with sound.
+#[path = "drawn_census_align.rs"]
+mod align;
 #[path = "drawn_census_analysis.rs"]
 mod analysis;
 #[path = "drawn_census_bins.rs"]
@@ -249,10 +253,7 @@ fn lane_header() -> BTreeSet<&'static str> {
     let mut out = BTreeSet::new();
     for row in LANE_TOGGLES {
         let (mut state, _) = with_clip();
-        let Some(lane) = state.store.sequence.tracks.first() else {
-            panic!("the fixture projects no lane, so no header can be driven");
-        };
-        let flags = LaneFlags::of(lane);
+        let flags = drawn_on(&state, row);
         let watch = super::sent_census::Watch::on(&state);
         if let Err(err) = (row.run)(&mut state, flags) {
             panic!("the lane header's {} toggle was refused: {err}", row.id);
@@ -262,6 +263,21 @@ fn lane_header() -> BTreeSet<&'static str> {
     out
 }
 
+/// The first lane of `state` whose header draws `row`, as the header copies it.
+///
+/// A row a lane does not draw cannot be pressed there, so a census that pressed
+/// it anyway would measure a click no operator can make.
+fn drawn_on(state: &AppState, row: &LaneToggle) -> LaneFlags {
+    state
+        .store
+        .sequence
+        .tracks
+        .iter()
+        .map(LaneFlags::of)
+        .find(|lane| (row.shown)(*lane))
+        .unwrap_or_else(|| panic!("no lane in the fixture draws the {} toggle", row.id))
+}
+
 #[test]
 fn every_lane_header_toggle_sends_a_command() {
     // A toggle that asks for nothing is a dead control: it draws, it lights, and
@@ -269,14 +285,7 @@ fn every_lane_header_toggle_sends_a_command() {
     // names the toggle.
     for row in LANE_TOGGLES {
         let (mut state, _) = with_clip();
-        let lane = LaneFlags::of(
-            state
-                .store
-                .sequence
-                .tracks
-                .first()
-                .expect("the fixture projects a lane"),
-        );
+        let lane = drawn_on(&state, row);
         let watch = super::sent_census::Watch::on(&state);
         (row.run)(&mut state, lane).expect("a header toggle was refused");
         assert!(
@@ -361,14 +370,7 @@ fn pressing_a_toggle_flips_the_state_it_lights_on() {
     // is the failure an operator reads as the click not landing.
     for row in LANE_TOGGLES {
         let (mut state, _) = with_clip();
-        let before = LaneFlags::of(
-            state
-                .store
-                .sequence
-                .tracks
-                .first()
-                .expect("the fixture projects a lane"),
-        );
+        let before = drawn_on(&state, row);
         (row.run)(&mut state, before).expect("a header toggle was refused");
         state.sync_from_engine();
         let after = LaneFlags::of(
@@ -376,7 +378,8 @@ fn pressing_a_toggle_flips_the_state_it_lights_on() {
                 .store
                 .sequence
                 .tracks
-                .first()
+                .iter()
+                .find(|lane| lane.id == before.id)
                 .expect("the lane is still projected"),
         );
         assert_ne!(
@@ -402,8 +405,10 @@ fn each_toggle_lights_on_one_lane_flag() {
         collapsed: false,
         targeted: false,
         sync_lock: false,
+        channel: Some(aria_models::SourceChannel::Video),
+        patched: false,
     };
-    let flags: [(&str, fn(&mut LaneFlags)); 7] = [
+    let flags: [(&str, fn(&mut LaneFlags)); 8] = [
         ("muted", |lane| lane.muted = true),
         ("solo", |lane| lane.solo = true),
         ("locked", |lane| lane.locked = true),
@@ -411,6 +416,7 @@ fn each_toggle_lights_on_one_lane_flag() {
         ("collapsed", |lane| lane.collapsed = true),
         ("targeted", |lane| lane.targeted = true),
         ("sync_lock", |lane| lane.sync_lock = true),
+        ("patched", |lane| lane.patched = true),
     ];
     for row in LANE_TOGGLES {
         let mut read: Vec<&str> = Vec::new();
@@ -443,6 +449,8 @@ fn a_hidden_lane_lights_the_visibility_toggle() {
         collapsed: false,
         targeted: false,
         sync_lock: false,
+        channel: None,
+        patched: false,
     };
     let vis = LANE_TOGGLES
         .iter()

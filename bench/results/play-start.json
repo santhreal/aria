@@ -1,0 +1,113 @@
+{
+  "scenario": "play-start",
+  "machine": "Server",
+  "gpu": "llvmpipe (LLVM 20.1.2, 256 bits)",
+  "driver": "llvmpipe Mesa 25.2.8-0ubuntu0.24.04.2 (LLVM 20.1.2)",
+  "wgpu_adapter": "llvmpipe (LLVM 20.1.2, 256 bits) (Vulkan)",
+  "commit": "588a23f4c9cd809b89aa3b6b062964c53b7a977d",
+  "profile": "release",
+  "environment": {
+    "machine": "Server",
+    "hostname": "santhserver",
+    "os": "Linux 6.8.0-142-generic x86_64",
+    "cpu": "11th Gen Intel(R) Core(TM) i7-11700K @ 3.60GHz",
+    "gpu": "llvmpipe (LLVM 20.1.2, 256 bits)",
+    "driver": "llvmpipe Mesa 25.2.8-0ubuntu0.24.04.2 (LLVM 20.1.2)",
+    "wgpu_adapter": "llvmpipe (LLVM 20.1.2, 256 bits) (Vulkan)",
+    "commit": "588a23f4c9cd809b89aa3b6b062964c53b7a977d",
+    "profile": "release"
+  },
+  "verdict": "fail",
+  "reason": "cold_first_frame_ms: measured 903.442 ms, target <= 300.000 ms",
+  "targets": [
+    {
+      "name": "warm_first_frame_ms",
+      "description": "Space to the first new frame on screen: 100 ms warm",
+      "comparison": "at_most",
+      "target": 100.0,
+      "unit": "ms",
+      "measured": 96.624893,
+      "verdict": "pass",
+      "reason": null,
+      "required_on_machine": true
+    },
+    {
+      "name": "cold_first_frame_ms",
+      "description": "Space to the first new frame on screen: 300 ms with no decoder open",
+      "comparison": "at_most",
+      "target": 300.0,
+      "unit": "ms",
+      "measured": 903.442024,
+      "verdict": "fail",
+      "reason": "cold_first_frame_ms: measured 903.442 ms, target <= 300.000 ms",
+      "required_on_machine": true
+    }
+  ],
+  "rules": [],
+  "samples": [
+    {
+      "name": "warm_first_frame_ms",
+      "unit": "ms",
+      "values": [
+        52.641904000000004,
+        444.562835,
+        96.624893,
+        53.375023,
+        46.159149,
+        38.2305,
+        49.937008999999996,
+        34.566706,
+        48.454119,
+        23.631993,
+        30.136677,
+        42.279142,
+        17.491485,
+        18.920236,
+        16.505563000000002,
+        18.377113,
+        14.789814999999999,
+        48.305211,
+        61.763859,
+        54.208538,
+        45.702303,
+        48.331382,
+        39.911972,
+        39.873511,
+        53.440881000000005,
+        54.662871,
+        37.472946,
+        65.749904,
+        53.390516999999996,
+        22.825145000000003
+      ],
+      "min": 14.789814999999999,
+      "p50": 46.159149,
+      "p95": 96.624893,
+      "p99": 444.562835,
+      "max": 444.562835,
+      "mean": 55.744106733333325
+    },
+    {
+      "name": "cold_first_frame_ms",
+      "unit": "ms",
+      "values": [
+        903.442024,
+        650.883831,
+        592.724451,
+        534.566702,
+        535.277745,
+        519.260874,
+        520.783717
+      ],
+      "min": 519.260874,
+      "p50": 535.277745,
+      "p95": 903.442024,
+      "p99": 903.442024,
+      "max": 903.442024,
+      "mean": 608.1341920000001
+    }
+  ],
+  "notes": [
+    "warm p50=46.16 ms (p95=96.62 ms), cold p50=535.28 ms (p95=903.44 ms); last warm frame decode=0.01 ms composite=1.93 ms, GPU readbacks=0"
+  ]
+}

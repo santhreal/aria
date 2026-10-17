@@ -11,14 +11,21 @@
 //!   anti-aliased edges stay clean.
 //! - **solid fills** — a fast no-texture path; straight-alpha src-over.
 
+mod canvas_pass;
+mod draw_layer;
 mod frame_target;
 mod glyphs;
+mod items;
 mod layers;
 mod lru;
+mod pairs;
 mod pipelines;
 mod readback;
+mod reference;
 mod render;
+mod samples;
 mod scene;
+mod stencil;
 mod upload;
 
 use std::cell::RefCell;
@@ -27,11 +34,13 @@ use bytemuck::{Pod, Zeroable};
 
 use aria_core::RgbaImage;
 
-use crate::effect_render::{Bound, OffscreenPool, PassCache, PassRegistry, PassStats};
+use crate::effect_render::{
+    Bound, CanvasTargets, OffscreenPool, PassCache, PassRegistry, PassStats,
+};
 use crate::grade::ColorGrade;
 use crate::planes::PlaneSet;
 
-pub use frame_target::check_frame_target;
+pub use frame_target::{check_frame_target, create_frame_target};
 use glyphs::{CachedAtlas, GlyphInstanceGpu};
 use lru::FrameLru;
 pub use readback::PendingReadback;
@@ -55,6 +64,23 @@ pub trait FrameSink {
     /// `width * height * 4` bytes; the compositor fills them with tightly
     /// packed row-major RGBA. A failed render never calls this.
     fn pixels(&mut self, width: u32, height: u32) -> &mut [u8];
+
+    /// Optional replacement [`crate::gpu::GpuContext`] to adopt before encoding
+    /// the frame (e.g. when the window shares or recovers its `wgpu` device).
+    fn adopt_gpu(&mut self) -> Option<crate::gpu::GpuContext> {
+        None
+    }
+
+    /// Optional GPU texture destination on this renderer's device for a
+    /// `width`×`height` frame. When `Some`, the compositor copies the canvas
+    /// texture into that texture on the GPU and skips [`pixels`](Self::pixels),
+    /// `copy_texture_to_buffer`, and buffer mapping.
+    fn texture(&mut self, _width: u32, _height: u32) -> Option<&wgpu::Texture> {
+        None
+    }
+
+    /// Record the compositor's cumulative CPU readback count after the frame.
+    fn record_readbacks(&mut self, _count: u64) {}
 }
 
 /// The [`FrameSink`] behind the [`RgbaImage`]-returning render paths: it
@@ -92,6 +118,13 @@ impl Compositor {
         self.layer_passes.stats()
     }
 
+    /// Pipelines built for registered effect passes since this compositor was
+    /// created. A pass builds once per registration, however many frames draw
+    /// it.
+    pub fn registered_pipeline_builds(&self) -> u64 {
+        self.pass_registry.registered_pipeline_builds()
+    }
+
     /// CPU video-plane texture allocations and retained storage from the last composite.
     pub fn plane_pool_stats(&self) -> TexturePoolStats {
         self.plane_textures.borrow().stats()
@@ -100,6 +133,22 @@ impl Compositor {
     /// Static RGBA texture allocations and retained images from the last composite.
     pub fn rgba_cache_stats(&self) -> TexturePoolStats {
         self.rgba_textures.borrow().stats()
+    }
+
+    /// Cumulative number of GPU-to-CPU frame readbacks (`copy_texture_to_buffer`
+    /// + `map_async`) submitted by this compositor.
+    pub const fn readback_count(&self) -> u64 {
+        self.readback_count
+    }
+
+    /// Rebuild device-bound pipelines and caches on `gpu` while preserving the
+    /// cumulative [`readback_count`](Self::readback_count).
+    pub fn reset_gpu(&mut self, gpu: &crate::gpu::GpuContext) {
+        let readback_count = self.readback_count;
+        *self = Self {
+            readback_count,
+            ..Self::new(gpu)
+        };
     }
 
     /// Build one bind group per pass instead of reusing by descriptor.
@@ -179,6 +228,8 @@ pub(super) struct FxEffectsUniform {
     half: [f32; 4],
     /// mask center xy (fraction of layer size), mask size xy (fraction).
     mask_geo: [f32; 4],
+    /// Coverage remap offset and scale, mask expansion px, pad.
+    mask_mix: [f32; 4],
 }
 
 #[repr(C)]
@@ -276,6 +327,10 @@ pub struct Compositor {
     target: Option<TargetCache>,
     pass_registry: PassRegistry,
     offscreen: Option<OffscreenPool>,
+    /// Frames of clips that registered effects read through layer parameters.
+    references: CanvasTargets,
+    /// Pictures of nested sequences that layers sample as their content.
+    nests: CanvasTargets,
     /// Layer bindings and uniforms persist independently of canvas-size
     /// offscreens, so generated layers keep their descriptors across resizes.
     layer_passes: PassCache,
@@ -298,6 +353,8 @@ pub struct Compositor {
     /// Glyph instance staging buffer, reused across renders: animated text
     /// rebuilds one entry per visible cluster every frame.
     glyph_instances: RefCell<Vec<GlyphInstanceGpu>>,
+    /// Cumulative number of GPU-to-CPU frame readbacks submitted.
+    readback_count: u64,
     /// Maps Apple `CVPixelBuffer` GPU surfaces into `wgpu` textures with no CPU
     /// copy. `None` when the device isn't a Metal device (e.g. a software
     /// adapter) — GPU frames then fall back to [`CompositorError::UnsupportedFormat`]

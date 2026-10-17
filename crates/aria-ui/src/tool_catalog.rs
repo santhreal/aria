@@ -1,35 +1,11 @@
 //! Every timeline tool, as data.
 //!
-//! A tool used to be an enum variant plus a hand-written arm wherever something
-//! cared: its name, its control id, the key that selects it, the glyph in the
-//! strip, the cursor over the lanes, and what a drag with it means. Seven
-//! matches over one axis in five files, three of them wildcard-terminated. The
-//! cursor one gave `Hand` and `Zoom` a cursor and let the other seven fall
-//! through to an arrow; the glyph one shipped a bare letter for five tools,
-//! which the SVG-only icon path could not draw at all, so five buttons rendered
-//! blank.
-//!
-//! A row here carries the tool's identity and every predicate those arms were
-//! deciding, including the ones written as identity checks against a specific
-//! variant (`tool == EditorTool::Hand`) scattered over four files. Panning is a
-//! column, not a variant name, so a tool that pans says so once.
-//!
 //! # Fail-by-default
 //!
 //! `index_of` is an exhaustive match over [`EditorTool`], so a new tool cannot
 //! compile until it names a row, and [`ToolSpec`] has no `Default`, so the row
 //! cannot be written without deciding every column.
 //!
-//! The two gesture columns are sub-axes rather than booleans. A body drag is
-//! `Option<BodyDrag>` and an edge drag is `Option<EdgeDrag>`, so the handlers
-//! match exhaustively on the sub-axis with `None` meaning the plain gesture —
-//! no wildcard arm, and a new [`BodyDrag`] or [`EdgeDrag`] variant fails to
-//! compile until both handlers implement it.
-//!
-//! [`tool_specs`] is the only list of tools in the crate. The strip, the key
-//! audit, and the tooltip audit all read it, so a row appears in the UI by
-//! existing rather than by being copied into a second array that could disagree
-//! about how many tools there are.
 
 use gpui::CursorStyle;
 
@@ -47,6 +23,15 @@ pub enum BodyDrag {
     Slip,
     /// Move the clip and give the difference to its neighbours.
     Slide,
+}
+
+/// Direction a track-select tool reaches from the clicked position.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TrackSelectDir {
+    /// Select the clicked clip and every clip starting at or after it.
+    Forward,
+    /// Select the clicked clip and every clip ending at or before it.
+    Backward,
 }
 
 /// What a drag on a clip edge does, when it is not a plain trim.
@@ -69,7 +54,7 @@ pub enum EdgeDrag {
 pub struct ToolSpec {
     /// The tool this row describes.
     pub tool: EditorTool,
-    /// The control id in the tool strip, which is also the tooltip key.
+    /// The control id in the tool bar, which is also the tooltip key.
     pub id: &'static str,
     /// The name in the tooltip and the status line.
     pub label: &'static str,
@@ -94,6 +79,16 @@ pub struct ToolSpec {
     pub body: Option<BodyDrag>,
     /// What a drag on a clip edge does. `None` is a plain trim.
     pub edge: Option<EdgeDrag>,
+    /// What a click on a lane or clip selects along the timeline.
+    pub track_select: Option<TrackSelectDir>,
+    /// A click on a clip's rubber-band line adds a keyframe; in the Viewer, a
+    /// click or drag draws or edits masks and motion-path keyframes.
+    pub pens: bool,
+    /// A click in the Viewer creates a text clip or places a caret inside one.
+    pub types: bool,
+    /// Whether the tool button shows a 3 px corner triangle and opens a
+    /// variants popover on a 300 ms press-and-hold or triangle click.
+    pub has_variants: bool,
 }
 
 /// The shipped tools, in strip order.
@@ -115,12 +110,52 @@ const SHIPPED: &[ToolSpec] = &[
         cuts: false,
         body: None,
         edge: None,
+        track_select: None,
+        pens: false,
+        types: false,
+        has_variants: false,
+    },
+    ToolSpec {
+        tool: EditorTool::TrackSelectForward,
+        id: "tool-track-forward",
+        label: "Track Select Forward",
+        key: "a",
+        icon: icons::CHEVRON_RIGHT,
+        cursor: CursorStyle::PointingHand,
+        selects: false,
+        pans: false,
+        zooms: false,
+        cuts: false,
+        body: None,
+        edge: None,
+        track_select: Some(TrackSelectDir::Forward),
+        pens: false,
+        types: false,
+        has_variants: false,
+    },
+    ToolSpec {
+        tool: EditorTool::TrackSelectBackward,
+        id: "tool-track-backward",
+        label: "Track Select Backward",
+        key: "Shift+a",
+        icon: icons::CHEVRON_LEFT,
+        cursor: CursorStyle::PointingHand,
+        selects: false,
+        pans: false,
+        zooms: false,
+        cuts: false,
+        body: None,
+        edge: None,
+        track_select: Some(TrackSelectDir::Backward),
+        pens: false,
+        types: false,
+        has_variants: false,
     },
     ToolSpec {
         tool: EditorTool::Razor,
         id: "tool-razor",
         label: "Razor",
-        key: "b",
+        key: "c",
         icon: icons::SCISSORS,
         // The cut lands on one exact frame, so the cursor is the one that shows
         // a position rather than the one that shows a hit target.
@@ -131,6 +166,10 @@ const SHIPPED: &[ToolSpec] = &[
         cuts: true,
         body: None,
         edge: None,
+        track_select: None,
+        pens: false,
+        types: false,
+        has_variants: false,
     },
     ToolSpec {
         tool: EditorTool::Hand,
@@ -145,6 +184,10 @@ const SHIPPED: &[ToolSpec] = &[
         cuts: false,
         body: None,
         edge: None,
+        track_select: None,
+        pens: false,
+        types: false,
+        has_variants: false,
     },
     ToolSpec {
         tool: EditorTool::Zoom,
@@ -159,6 +202,10 @@ const SHIPPED: &[ToolSpec] = &[
         cuts: false,
         body: None,
         edge: None,
+        track_select: None,
+        pens: false,
+        types: false,
+        has_variants: false,
     },
     ToolSpec {
         tool: EditorTool::Slip,
@@ -175,6 +222,10 @@ const SHIPPED: &[ToolSpec] = &[
         cuts: false,
         body: Some(BodyDrag::Slip),
         edge: None,
+        track_select: None,
+        pens: false,
+        types: false,
+        has_variants: true,
     },
     ToolSpec {
         tool: EditorTool::Slide,
@@ -189,6 +240,10 @@ const SHIPPED: &[ToolSpec] = &[
         cuts: false,
         body: Some(BodyDrag::Slide),
         edge: None,
+        track_select: None,
+        pens: false,
+        types: false,
+        has_variants: true,
     },
     ToolSpec {
         tool: EditorTool::Roll,
@@ -205,6 +260,10 @@ const SHIPPED: &[ToolSpec] = &[
         cuts: false,
         body: None,
         edge: Some(EdgeDrag::Roll),
+        track_select: None,
+        pens: false,
+        types: false,
+        has_variants: true,
     },
     ToolSpec {
         tool: EditorTool::Rate,
@@ -219,12 +278,16 @@ const SHIPPED: &[ToolSpec] = &[
         cuts: false,
         body: None,
         edge: Some(EdgeDrag::Rate),
+        track_select: None,
+        pens: false,
+        types: false,
+        has_variants: true,
     },
     ToolSpec {
         tool: EditorTool::Ripple,
         id: "tool-ripple",
         label: "Ripple trim",
-        key: "p",
+        key: "b",
         icon: icons::RIPPLE,
         cursor: CursorStyle::ResizeLeftRight,
         selects: false,
@@ -233,6 +296,46 @@ const SHIPPED: &[ToolSpec] = &[
         cuts: false,
         body: None,
         edge: Some(EdgeDrag::Ripple),
+        track_select: None,
+        pens: false,
+        types: false,
+        has_variants: true,
+    },
+    ToolSpec {
+        tool: EditorTool::Pen,
+        id: "tool-pen",
+        label: "Pen",
+        key: "p",
+        icon: icons::PEN,
+        cursor: CursorStyle::Crosshair,
+        selects: false,
+        pans: false,
+        zooms: false,
+        cuts: false,
+        body: None,
+        edge: None,
+        track_select: None,
+        pens: true,
+        types: false,
+        has_variants: true,
+    },
+    ToolSpec {
+        tool: EditorTool::Type,
+        id: "tool-type",
+        label: "Type",
+        key: "t",
+        icon: icons::TYPE,
+        cursor: CursorStyle::IBeam,
+        selects: false,
+        pans: false,
+        zooms: false,
+        cuts: false,
+        body: None,
+        edge: None,
+        track_select: None,
+        pens: false,
+        types: true,
+        has_variants: false,
     },
 ];
 
@@ -243,14 +346,18 @@ const SHIPPED: &[ToolSpec] = &[
 const fn index_of(tool: EditorTool) -> usize {
     match tool {
         EditorTool::Pointer => 0,
-        EditorTool::Razor => 1,
-        EditorTool::Hand => 2,
-        EditorTool::Zoom => 3,
-        EditorTool::Slip => 4,
-        EditorTool::Slide => 5,
-        EditorTool::Roll => 6,
-        EditorTool::Rate => 7,
-        EditorTool::Ripple => 8,
+        EditorTool::TrackSelectForward => 1,
+        EditorTool::TrackSelectBackward => 2,
+        EditorTool::Razor => 3,
+        EditorTool::Hand => 4,
+        EditorTool::Zoom => 5,
+        EditorTool::Slip => 6,
+        EditorTool::Slide => 7,
+        EditorTool::Roll => 8,
+        EditorTool::Rate => 9,
+        EditorTool::Ripple => 10,
+        EditorTool::Pen => 11,
+        EditorTool::Type => 12,
     }
 }
 
@@ -297,7 +404,7 @@ impl EditorTool {
         self.spec().label
     }
 
-    /// The control id in the tool strip, which is also the tooltip key.
+    /// The control id in the tool bar, which is also the tooltip key.
     pub const fn control_id(self) -> &'static str {
         self.spec().id
     }
@@ -349,147 +456,42 @@ impl EditorTool {
     pub const fn edge_drag(self) -> Option<EdgeDrag> {
         self.spec().edge
     }
+
+    /// What a click on a lane or clip selects along the timeline.
+    pub const fn track_select(self) -> Option<TrackSelectDir> {
+        self.spec().track_select
+    }
+
+    /// A click on a clip's line adds a keyframe; in the Viewer, draws masks.
+    pub const fn pens(self) -> bool {
+        self.spec().pens
+    }
+
+    /// In the Viewer, creates or edits a text clip.
+    pub const fn types(self) -> bool {
+        self.spec().types
+    }
+
+    /// Whether the tool button shows a 3 px corner triangle for variants.
+    pub const fn has_variants(self) -> bool {
+        self.spec().has_variants
+    }
+
+    /// Sibling tools offered in the variants popover for a trim tool.
+    pub const fn trim_variants(self) -> &'static [Self] {
+        match self {
+            Self::Slip | Self::Slide | Self::Roll | Self::Rate | Self::Ripple => &[
+                Self::Ripple,
+                Self::Roll,
+                Self::Rate,
+                Self::Slip,
+                Self::Slide,
+            ],
+            _ => &[],
+        }
+    }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// The exhaustive `index_of` match is the compile-time gate; this is the
-    /// proof that each arm points at its *own* row rather than a neighbour's,
-    /// which would compile and silently give a tool another tool's cursor,
-    /// glyph, and key.
-    #[test]
-    fn a_row_per_tool() {
-        for (index, spec) in SHIPPED.iter().enumerate() {
-            assert_eq!(
-                index_of(spec.tool),
-                index,
-                "the '{}' row resolves to '{}' instead",
-                spec.id,
-                SHIPPED[index_of(spec.tool)].id
-            );
-            assert_eq!(
-                tool_spec(spec.tool).id,
-                spec.id,
-                "{:?} does not resolve to its own row",
-                spec.tool
-            );
-        }
-    }
-
-    /// Two tools sharing a key or a control id would make one of them
-    /// unreachable: the key table would bind the first and the strip would
-    /// mount two buttons with one id.
-    #[test]
-    fn keys_and_ids_are_unique() {
-        let count = SHIPPED.len();
-
-        let mut keys: Vec<&str> = SHIPPED.iter().map(|spec| spec.key).collect();
-        keys.sort_unstable();
-        keys.dedup();
-        assert_eq!(keys.len(), count, "two tools claim the same key");
-
-        let mut ids: Vec<&str> = SHIPPED.iter().map(|spec| spec.id).collect();
-        ids.sort_unstable();
-        ids.dedup();
-        assert_eq!(ids.len(), count, "two tools claim the same control id");
-    }
-
-    /// Every row has something to draw and something to say. An empty label
-    /// renders an unnamed button and an empty key binds nothing.
-    #[test]
-    fn every_row_is_drawable() {
-        for spec in SHIPPED {
-            assert!(!spec.label.is_empty(), "{:?} has no name", spec.tool);
-            assert!(!spec.key.is_empty(), "{:?} has no key", spec.tool);
-        }
-    }
-
-    /// Every glyph is a registered asset.
-    ///
-    /// The icon path is SVG-only — `icons::icon` builds `svg().path(..)` and an
-    /// unregistered path loads as `None`, which draws a blank button rather than
-    /// failing. Five tools shipped bare letters (`"Y"`, `"U"`, …) and rendered
-    /// as five empty squares in the strip, so this asserts the glyph is
-    /// something the renderer can actually find.
-    #[test]
-    fn every_glyph_is_a_loadable_asset() {
-        use gpui::AssetSource as _;
-
-        for spec in SHIPPED {
-            let bytes = crate::icons::Assets
-                .load(spec.icon)
-                .unwrap_or_else(|err| panic!("{:?} glyph {} errored: {err}", spec.tool, spec.icon));
-            assert!(
-                bytes.is_some(),
-                "{:?} glyph {} is not a registered asset, so its button renders blank",
-                spec.tool,
-                spec.icon
-            );
-        }
-    }
-
-    /// Two tools sharing a glyph would be indistinguishable in the strip.
-    #[test]
-    fn glyphs_are_unique() {
-        let mut icons: Vec<&str> = SHIPPED.iter().map(|spec| spec.icon).collect();
-        let count = icons.len();
-        icons.sort_unstable();
-        icons.dedup();
-        assert_eq!(icons.len(), count, "two tools draw the same glyph");
-    }
-
-    /// The gesture columns are mutually exclusive by construction: a press is
-    /// dispatched by asking these in order, so two set on one row would make the
-    /// later one dead.
-    #[test]
-    fn one_gesture_per_tool() {
-        for spec in SHIPPED {
-            let claimed = u8::from(spec.selects)
-                + u8::from(spec.pans)
-                + u8::from(spec.zooms)
-                + u8::from(spec.cuts)
-                + u8::from(spec.body.is_some())
-                + u8::from(spec.edge.is_some());
-            assert_eq!(
-                claimed, 1,
-                "{:?} claims {claimed} gestures; exactly one wins a press",
-                spec.tool
-            );
-        }
-    }
-
-    /// Exactly one tool starts a marquee, and it is the default, because Escape
-    /// returns to whichever tool this column names.
-    #[test]
-    fn exactly_one_tool_selects() {
-        let selecting: Vec<EditorTool> = SHIPPED
-            .iter()
-            .filter(|spec| spec.selects)
-            .map(|spec| spec.tool)
-            .collect();
-        assert_eq!(selecting, vec![EditorTool::default()]);
-    }
-
-    /// Each sub-axis member is claimed by exactly one tool. A member no tool
-    /// claims is a gesture the UI cannot reach; two tools claiming one member
-    /// would make the second unreachable.
-    #[test]
-    fn every_gesture_variant_has_one_tool() {
-        let body: Vec<BodyDrag> = SHIPPED.iter().filter_map(|spec| spec.body).collect();
-        assert_eq!(body, vec![BodyDrag::Slip, BodyDrag::Slide]);
-
-        let edge: Vec<EdgeDrag> = SHIPPED.iter().filter_map(|spec| spec.edge).collect();
-        assert_eq!(edge, vec![EdgeDrag::Roll, EdgeDrag::Rate, EdgeDrag::Ripple]);
-    }
-
-    #[test]
-    fn a_control_id_finds_its_row() {
-        assert_eq!(
-            tool_spec_by_id("tool-roll").map(|spec| spec.tool),
-            Some(EditorTool::Roll)
-        );
-        assert!(tool_spec_by_id("tool-nonesuch").is_none());
-    }
-}
+#[path = "tool_catalog_tests.rs"]
+mod tests;

@@ -18,9 +18,15 @@
 
 use std::collections::BTreeSet;
 
-use aria_models::{AnimationSlot, AudioRole, Generator, MediaId, SlotMedia};
+use aria_models::{
+    AnimationSlot, AudioRole, ClipId, Generator, MediaId, ParentKeep, SlotMedia, TextAlignH,
+    TextAlignV, TextCase, TextStyle,
+};
 
 use crate::app::AppState;
+use crate::app::clip_effects::PARAM_COLORS;
+use crate::app::clip_text::TextSwitch;
+use crate::app::fixtures::{the_pair, twin_selected};
 use crate::app::sent_census::Watch;
 use crate::surfaces::clip_pick::{self, Pick};
 
@@ -203,13 +209,97 @@ fn staged() -> Vec<Staged> {
     for forward in [true, false] {
         push(Pick::CycleFont { forward }, a_title);
     }
+    // Character and Paragraph. A choice equal to the one in force is inert, so
+    // the default case and alignments are pressed on a title moved off them.
+    let fresh = TextStyle::default();
+    for switch in TextSwitch::ALL {
+        push(Pick::TextSwitch(switch), a_title);
+    }
+    for case in TextCase::ALL {
+        let dress: fn() -> AppState = if case == fresh.case {
+            a_title_off_its_default_case
+        } else {
+            a_title
+        };
+        push(Pick::TextCase(case), dress);
+    }
+    for align in TextAlignH::ALL {
+        let dress: fn() -> AppState = if align == fresh.align_h {
+            a_title_off_its_default_align_h
+        } else {
+            a_title
+        };
+        push(Pick::TextAlignH(align), dress);
+    }
+    for align in TextAlignV::ALL {
+        let dress: fn() -> AppState = if align == fresh.align_v {
+            a_title_off_its_default_align_v
+        } else {
+            a_title
+        };
+        push(Pick::TextAlignV(align), dress);
+    }
+    // Colour swatches, one press per colour row, read the way the panel reads
+    // them off a title wearing every treatment and off a stroked shape. Each
+    // row is pressed with a swatch other than the colour in force, which is
+    // inert.
+    for (group, dress) in COLOR_GROUPS {
+        for row in dress().param_colors(group) {
+            let rgba = PARAM_COLORS
+                .iter()
+                .map(|(_, _, rgba)| *rgba)
+                .find(|rgba| *rgba != row.value)
+                .expect("the swatches hold more than one colour");
+            push(
+                Pick::ParamColor {
+                    param: row.param,
+                    rgba,
+                },
+                dress,
+            );
+        }
+    }
 
     // Transition. A junction needs a neighbour, so the fixture supplies one.
     for spec in aria_models::transition_catalog() {
         push(Pick::Transition(spec.id.clone()), a_junction);
     }
     push(Pick::TransitionLength(1), a_blended_junction);
+    for align in aria_models::TransitionAlignment::ALL {
+        let dress: fn() -> AppState = if align == aria_models::TransitionAlignment::Center {
+            a_blended_junction_off_center
+        } else {
+            a_blended_junction
+        };
+        push(Pick::TransitionAlignment(align), dress);
+    }
+    push(
+        Pick::TransitionParam {
+            slot: 0,
+            edit: crate::surfaces::clip_pick::TransitionSlotEdit::NudgeScalar(0.05),
+        },
+        a_parameterized_junction,
+    );
     push(Pick::ClearTransition, a_blended_junction);
+
+    // Parent. The menu's clips are read off the project the row is drawn from,
+    // because a clip id is process-unique; each is pressed kept in place and
+    // with Shift held.
+    push(Pick::ReleaseParent, a_parented_clip);
+    out.push(Staged {
+        pick: Staging::OfTheProject(|state| Pick::Parent {
+            parent: the_offered_parent(state),
+            keep: ParentKeep::Place,
+        }),
+        dress: Dressing::Plain(a_stacked_clip),
+    });
+    out.push(Staged {
+        pick: Staging::OfTheProject(|state| Pick::Parent {
+            parent: the_offered_parent(state),
+            keep: ParentKeep::Snap,
+        }),
+        dress: Dressing::Plain(a_stacked_clip),
+    });
 
     out
 }
@@ -269,6 +359,46 @@ fn every_pick_pressed_asks_the_model_for_something() {
     }
 }
 
+/// With a second clip selected that holds what the drawn clip holds, every
+/// pick leaves the two alike, in at most one undo step, and that step takes
+/// the pick back on both. The copy sits on a lane of the drawn clip's kind,
+/// with a copy of its junction and transition where it has one. The picks are
+/// the staged ones, so a pick added to these blocks that reaches the drawn clip
+/// alone is red here with no edit to this test.
+#[test]
+fn every_pick_reaches_a_second_selected_clip_holding_the_same_thing() {
+    for stage in staged() {
+        let mut state = stage.dress.build();
+        // Read before the copy exists, as the chip was drawn before it.
+        let pick = stage.pick.of(&state);
+        let (drawn, twin) = twin_selected(&mut state);
+        let before = the_pair(&state, drawn, twin);
+        let what = pick.what();
+        assert_eq!(
+            before.1, before.0,
+            "the copy for {what} differs from its clip"
+        );
+        let depth = state.history_depth();
+        clip_pick::apply(&mut state, pick)
+            .unwrap_or_else(|err| panic!("picking {what} on two clips was refused: {err}"));
+        let (after, twin_after) = the_pair(&state, drawn, twin);
+        assert_eq!(
+            twin_after, after,
+            "{what} reached the drawn clip and not the other selected clip"
+        );
+        let steps = state.history_depth() - depth;
+        assert!(steps <= 1, "{what} on two clips took {steps} undo steps");
+        if steps == 1 {
+            assert!(state.undo(), "{what} left nothing to undo");
+            assert_eq!(
+                the_pair(&state, drawn, twin),
+                before,
+                "one undo did not take {what} back on both clips"
+            );
+        }
+    }
+}
+
 #[test]
 fn the_census_reaches_every_command_these_blocks_claim() {
     let sent = dispatched();
@@ -286,6 +416,9 @@ fn the_census_reaches_every_command_these_blocks_claim() {
         "Add transition",
         "Remove transition",
         "Set transition length",
+        "Set transition alignment",
+        "Set transition parameters",
+        "Set parent",
     ] {
         assert!(
             sent.contains(label),
@@ -332,6 +465,11 @@ fn every_catalog_these_blocks_loop_over_has_members() {
         ("text effects", aria_models::text_effect_catalog().len()),
         ("transitions", aria_models::transition_catalog().len()),
         ("animation knobs", animation_knobs().len()),
+        ("text colours", a_dressed_title().param_colors("text").len()),
+        (
+            "shape colours",
+            super::inspector::a_shape().param_colors("shape").len(),
+        ),
     ] {
         assert!(count > 0, "the {label} these blocks loop over are empty");
     }
@@ -452,6 +590,27 @@ fn the_spare_source(state: &AppState) -> MediaId {
     MediaId::from_raw(spare)
 }
 
+/// A clip with another clip over the same span on the lane above, so the
+/// Parent row offers that one.
+fn a_stacked_clip() -> AppState {
+    crate::app::fixtures::stacked_pair().0
+}
+
+fn a_parented_clip() -> AppState {
+    crate::app::fixtures::parented_pair().0
+}
+
+/// The first clip the Parent row offers the selected clip, read the way the
+/// row reads it.
+fn the_offered_parent(state: &AppState) -> ClipId {
+    *state
+        .selected_parent_choices()
+        .expect("a selected clip")
+        .eligible
+        .first()
+        .expect("the Parent row offers a clip")
+}
+
 /// What a template slot may be restricted to, read out of the same choices the
 /// panel loops over: an audio clip is offered fewer kinds than a visual one, and
 /// a chip the model would refuse is never drawn.
@@ -496,6 +655,62 @@ fn a_title() -> AppState {
         .expect("the title is on the timeline")
         .id;
     state.select_clip(aria_models::ClipId::from_raw(placed));
+    state
+}
+
+/// The groups whose colour rows the swatches are pressed on, with the clip that
+/// has every colour of the group.
+const COLOR_GROUPS: [(&str, fn() -> AppState); 2] = [
+    ("text", a_dressed_title),
+    ("shape", super::inspector::a_shape),
+];
+
+/// A title wearing the outline, the shadow and the card, so every colour the
+/// Character panel draws has a row.
+fn a_dressed_title() -> AppState {
+    let mut state = a_title();
+    for switch in TextSwitch::TREATMENTS {
+        let face = state.selected_text_face().expect("a title is selected");
+        if !face.is_on(switch) {
+            state
+                .toggle_selected_text_switch(switch)
+                .expect("the treatment lands");
+        }
+    }
+    state
+}
+
+fn a_title_off_its_default_case() -> AppState {
+    let mut state = a_title();
+    let other = TextCase::ALL
+        .into_iter()
+        .find(|case| *case != TextStyle::default().case)
+        .expect("the model ships more than one case");
+    state.set_selected_text_case(other).expect("the case lands");
+    state
+}
+
+fn a_title_off_its_default_align_h() -> AppState {
+    let mut state = a_title();
+    let other = TextAlignH::ALL
+        .into_iter()
+        .find(|align| *align != TextStyle::default().align_h)
+        .expect("the model ships more than one alignment");
+    state
+        .set_selected_text_align_h(other)
+        .expect("the alignment lands");
+    state
+}
+
+fn a_title_off_its_default_align_v() -> AppState {
+    let mut state = a_title();
+    let other = TextAlignV::ALL
+        .into_iter()
+        .find(|align| *align != TextStyle::default().align_v)
+        .expect("the model ships more than one alignment");
+    state
+        .set_selected_text_align_v(other)
+        .expect("the alignment lands");
     state
 }
 
@@ -547,5 +762,25 @@ fn a_junction() -> AppState {
 fn a_blended_junction() -> AppState {
     let (mut state, clip) = crate::app::fixtures::blended_junction();
     state.select_clip(clip);
+    state
+}
+
+fn a_blended_junction_off_center() -> AppState {
+    let mut state = a_blended_junction();
+    state
+        .set_selected_transition_alignment(aria_models::TransitionAlignment::Start)
+        .expect("the start alignment lands");
+    state
+}
+
+fn a_parameterized_junction() -> AppState {
+    let mut state = a_blended_junction();
+    let spec = aria_models::transition_catalog()
+        .into_iter()
+        .find(|spec| !spec.params.is_empty())
+        .expect("the transition catalog ships a parameterized blend");
+    state
+        .set_selected_transition(&spec.id)
+        .expect("the parameterized blend lands");
     state
 }

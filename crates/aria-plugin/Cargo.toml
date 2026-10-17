@@ -13,19 +13,34 @@ tracing = { workspace = true }
 parking_lot = { workspace = true }
 rustc-hash = { workspace = true }
 aria-core = { path = "../aria-core" }
+aria-analysis = { path = "../aria-analysis" }
 aria-compositor = { path = "../aria-compositor" }
+aria-decoder = { path = "../aria-decoder" }
+aria-jobs = { path = "../aria-jobs" }
 aria-commands = { path = "../aria-commands" }
 aria-engine = { path = "../aria-engine" }
 aria-models = { path = "../aria-models" }
 aria-render = { path = "../aria-render" }
 serde_json = { workspace = true }
+# plugin.toml: the package manifest.
+serde = { workspace = true }
+toml = "0.8"
+# Package versions and the version ranges in `requires`.
+semver = "1"
 # Loading an external plugin means dlopen; there is no other mechanism.
 libloading = { workspace = true }
+aria-plugin-abi = { path = "../aria-plugin-abi" }
+# `.ariaplugin` archives. zlib-rs is the deflate backend that needs no C.
+zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+# Command icons: parsed, sanitized, and re-serialized at registration.
+usvg = { version = "0.46", default-features = false }
 
 [dev-dependencies]
 tempfile = "3"
 # Writes the tones the audio effect tests mix, through the export's own sink.
 aria-encoder = { path = "../aria-encoder" }
+aria-sdk = { path = "../aria-sdk" }
+aria-notes-plugin = { path = "../../examples/notes-plugin" }
 
 [lints]
 workspace = true

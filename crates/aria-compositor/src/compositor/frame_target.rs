@@ -7,6 +7,28 @@ use crate::layer::{CompositorConfig, CompositorLayer};
 use super::scene::Scene;
 use super::{CANVAS_FORMAT, Compositor};
 
+/// Allocate a `width`×`height` `Rgba8Unorm` texture on `device` with
+/// `COPY_DST | COPY_SRC | TEXTURE_BINDING` usage, ready for
+/// [`Compositor::submit_compositor_layers_to_texture`] and window sampling.
+pub fn create_frame_target(device: &wgpu::Device, width: u32, height: u32) -> wgpu::Texture {
+    device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("aria.preview_frame"),
+        size: wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: CANVAS_FORMAT,
+        usage: wgpu::TextureUsages::COPY_DST
+            | wgpu::TextureUsages::COPY_SRC
+            | wgpu::TextureUsages::TEXTURE_BINDING,
+        view_formats: &[],
+    })
+}
+
 /// Fails unless `texture` can receive a `width`×`height` frame: the canvas
 /// format (`Rgba8Unorm`), `COPY_DST` usage, and that size.
 pub fn check_frame_target(

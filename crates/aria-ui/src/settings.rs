@@ -9,6 +9,14 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+/// The smallest main window, in logical pixels (`docs/spec/layout.md:22-27`).
+///
+/// The platform holds the window at this size or larger and a restored
+/// placement opens no smaller. A window the window manager sizes below it in
+/// either direction shows the Viewer and the Timeline only.
+pub const MIN_WINDOW_WIDTH: f32 = 1024.0;
+pub const MIN_WINDOW_HEIGHT: f32 = 640.0;
+
 pub const SIDEBAR_MIN: f32 = 208.0;
 pub const SIDEBAR_MAX: f32 = 400.0;
 pub const SIDEBAR_DEFAULT: f32 = 256.0;
@@ -19,6 +27,13 @@ pub const INSPECTOR_DEFAULT: f32 = 520.0;
 
 pub const TIMELINE_MIN_HEIGHT: f32 = 120.0;
 pub const TIMELINE_DEFAULT_HEIGHT: f32 = 280.0;
+
+/// The Timeline's outline column, the track headers and property names to the
+/// left of the time area. The minimum holds a lane header's badge, every one
+/// of its toggles, and a few characters of its name.
+pub const OUTLINE_MIN: f32 = 240.0;
+pub const OUTLINE_MAX: f32 = 480.0;
+pub const OUTLINE_DEFAULT: f32 = 300.0;
 
 pub const SAVE_DEBOUNCE_MS: u64 = 400;
 
@@ -32,6 +47,9 @@ pub struct UiSettings {
     pub inspector_width: f32,
     pub inspector_collapsed: bool,
     pub timeline_height: f32,
+    /// The width of the Timeline's outline column, from [`OUTLINE_MIN`] to
+    /// [`OUTLINE_MAX`].
+    pub outline_width: f32,
     pub appearance: crate::appearance::AppearanceMode,
     pub home_rail: crate::types::HomeRail,
     /// How much motion runs. Persisted here rather than read from the
@@ -45,6 +63,10 @@ pub struct UiSettings {
     /// Sorted rather than insertion-ordered so the saved file does not churn
     /// when one binding changes.
     pub keys: BTreeMap<String, Option<String>>,
+    /// The named set in `<data dir>/keymaps` last loaded or saved. Settings
+    /// marks it; the keys in force are `keys` either way.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub keymap: Option<String>,
     /// The arrangement the operator saved, or nothing when they never did.
     ///
     /// One slot rather than a list: see [`crate::layouts`] for why a menu of
@@ -52,25 +74,103 @@ pub struct UiSettings {
     /// the Custom row is not offered at all, which is not the same as a slot that
     /// happens to match a shipped workspace.
     pub workspace: Option<crate::layouts::PaneLayout>,
+    /// Current dock tree layout persisted across restarts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dock_tree: Option<crate::dock::DockTree>,
+    /// Remembered dock tree edits per workspace id.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub workspace_trees: BTreeMap<String, crate::dock::DockTree>,
+    /// Most recently applied workspace id.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub active_workspace: Option<String>,
     /// How the pool draws itself. A view choice rather than a window size, but it
     /// lives here for the same reason: it is a preference about the app, not a
     /// fact about the project, and it has to survive the next launch.
     pub pool_view: crate::types::PoolView,
+    /// Write each dropped playback frame and its cause to the log, under the
+    /// `aria::playback` target.
+    pub log_dropped_frames: bool,
+    /// The theme file applied over the appearance, by file name without
+    /// `.toml`, from `<data dir>/themes`. `None` is the shipped theme.
+    pub theme_file: Option<String>,
+    /// The size the Viewer renders playback frames at.
+    pub playback_resolution: crate::resolution::PlaybackResolution,
+    /// The size the Viewer renders a paused or scrubbed frame at.
+    pub paused_resolution: crate::resolution::PausedResolution,
+    /// Whether the Viewer decodes through proxies where they exist. Export
+    /// reads the originals either way.
+    pub use_proxies: bool,
+    /// Whether the Viewer draws a transparency grid where no layer covers
+    /// the canvas, instead of the sequence's background colour.
+    pub transparency_grid: bool,
+    /// Play a 40 ms audio grain at each new pointer position while dragging
+    /// the playhead, the ruler, or a timeline scrub.
+    pub audio_scrubbing: bool,
+    /// Timeline Display Settings: thumbnails, waveform scale, and how the view
+    /// follows the playhead.
+    pub timeline_display: crate::timeline_display::TimelineDisplay,
+    /// What the scopes' waveform monitor shows: luma, or an RGB or YCbCr
+    /// parade.
+    pub waveform: crate::scopes::WaveformMode,
+    /// The Effects panel's favourites, as `kind:id` keys such as
+    /// `video:gaussian_blur`, in the order they were starred.
+    pub favourite_effects: Vec<String>,
+    /// Saved main window placement per display arrangement signature
+    /// (`docs/spec/layout.md:24-26`).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub window_placements: BTreeMap<String, WindowPlacement>,
+    /// Most recent display arrangement signature.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_display_arrangement: Option<String>,
 }
 
-/// The pane sizes a frame draws.
-///
-/// The five numbers the shell needs out of the settings, copied rather than
-/// borrowed because a panel cannot hold a borrow of the state across the
-/// listeners it attaches. Copying these is five words; copying the settings to
-/// read a width copied the whole key map with it, once a frame.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct PaneGeometry {
-    pub sidebar_width: f32,
-    pub sidebar_collapsed: bool,
-    pub inspector_width: f32,
-    pub inspector_collapsed: bool,
-    pub timeline_height: f32,
+/// Saved placement of the main editor window for a display arrangement
+/// (`docs/spec/layout.md:24-26`).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct WindowPlacement {
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+    pub maximized: bool,
+    pub display_index: usize,
+}
+
+impl Default for WindowPlacement {
+    fn default() -> Self {
+        Self {
+            x: 0.0,
+            y: 0.0,
+            width: 1440.0,
+            height: 900.0,
+            maximized: true,
+            display_index: 0,
+        }
+    }
+}
+
+/// Stable signature naming the current monitor layout (`[x, y, w, h]` per display).
+pub fn display_arrangement_signature(displays: &[[f32; 4]]) -> String {
+    use std::fmt::Write as _;
+    if displays.is_empty() {
+        return "primary".to_string();
+    }
+    let mut out = String::new();
+    for (idx, &[x, y, w, h]) in displays.iter().enumerate() {
+        if idx > 0 {
+            out.push(';');
+        }
+        let _ = write!(
+            out,
+            "{},{},{}x{}",
+            x.round() as i32,
+            y.round() as i32,
+            w.round() as i32,
+            h.round() as i32
+        );
+    }
+    out
 }
 
 impl Default for UiSettings {
@@ -81,26 +181,88 @@ impl Default for UiSettings {
             inspector_width: INSPECTOR_DEFAULT,
             inspector_collapsed: false,
             timeline_height: TIMELINE_DEFAULT_HEIGHT,
+            outline_width: OUTLINE_DEFAULT,
             appearance: crate::appearance::AppearanceMode::default(),
             home_rail: crate::types::HomeRail::default(),
             motion: crate::motion::MotionPreference::default(),
             keys: BTreeMap::new(),
+            keymap: None,
             workspace: None,
+            dock_tree: None,
+            workspace_trees: BTreeMap::new(),
+            active_workspace: None,
             pool_view: crate::types::PoolView::default(),
+            log_dropped_frames: false,
+            theme_file: None,
+            playback_resolution: crate::resolution::PlaybackResolution::default(),
+            paused_resolution: crate::resolution::PausedResolution::default(),
+            use_proxies: true,
+            transparency_grid: false,
+            audio_scrubbing: true,
+            timeline_display: crate::timeline_display::TimelineDisplay::default(),
+            waveform: crate::scopes::WaveformMode::default(),
+            favourite_effects: Vec::new(),
+            window_placements: BTreeMap::new(),
+            last_display_arrangement: None,
         }
     }
 }
 
 impl UiSettings {
-    /// The pane sizes, for a frame that needs nothing else from here.
-    pub fn panes(&self) -> PaneGeometry {
-        PaneGeometry {
-            sidebar_width: self.sidebar_width,
-            sidebar_collapsed: self.sidebar_collapsed,
-            inspector_width: self.inspector_width,
-            inspector_collapsed: self.inspector_collapsed,
-            timeline_height: self.timeline_height,
+    /// Resolve the main window placement for `displays` (`docs/spec/layout.md:24-26`).
+    ///
+    /// Restores the saved size, position, display, and maximized state for this
+    /// display arrangement when present; otherwise opens maximized on the
+    /// display it last closed on (or the primary display on first launch).
+    pub fn resolve_window_placement(&self, displays: &[[f32; 4]]) -> WindowPlacement {
+        let sig = display_arrangement_signature(displays);
+        let count = displays.len().max(1);
+        if let Some(&saved) = self.window_placements.get(&sig) {
+            let display_index = saved.display_index.min(count - 1);
+            let mut p = saved;
+            p.display_index = display_index;
+            p.width = p.width.max(MIN_WINDOW_WIDTH);
+            p.height = p.height.max(MIN_WINDOW_HEIGHT);
+            return p;
         }
+        let fallback_display = self
+            .last_display_arrangement
+            .as_ref()
+            .and_then(|last| self.window_placements.get(last))
+            .map(|p| p.display_index.min(count - 1))
+            .unwrap_or(0);
+        let (dx, dy, dw, dh) = displays
+            .get(fallback_display)
+            .map(|&[x, y, w, h]| (x, y, w, h))
+            .unwrap_or((0.0, 0.0, 1920.0, 1080.0));
+        let width = 1440.0_f32.min(dw.max(MIN_WINDOW_WIDTH));
+        let height = 900.0_f32.min(dh.max(MIN_WINDOW_HEIGHT));
+        WindowPlacement {
+            x: dx + ((dw - width) * 0.5).max(0.0),
+            y: dy + ((dh - height) * 0.5).max(0.0),
+            width,
+            height,
+            maximized: true,
+            display_index: fallback_display,
+        }
+    }
+
+    /// Record the main window placement for `displays`.
+    pub fn record_window_placement(
+        &mut self,
+        displays: &[[f32; 4]],
+        mut placement: WindowPlacement,
+    ) {
+        let sig = display_arrangement_signature(displays);
+        placement.width = placement.width.max(MIN_WINDOW_WIDTH);
+        placement.height = placement.height.max(MIN_WINDOW_HEIGHT);
+        if !displays.is_empty() {
+            placement.display_index = placement.display_index.min(displays.len() - 1);
+        } else {
+            placement.display_index = 0;
+        }
+        self.window_placements.insert(sig.clone(), placement);
+        self.last_display_arrangement = Some(sig);
     }
 
     pub fn load(data_dir: &Path) -> Self {
@@ -140,6 +302,23 @@ impl UiSettings {
         self.sidebar_width = self.sidebar_width.clamp(SIDEBAR_MIN, SIDEBAR_MAX);
         self.inspector_width = self.inspector_width.clamp(INSPECTOR_MIN, INSPECTOR_MAX);
         self.timeline_height = self.timeline_height.max(TIMELINE_MIN_HEIGHT);
+        self.outline_width = clamp_outline(self.outline_width);
+        if let Some(tree) = &mut self.dock_tree {
+            tree.normalize();
+        }
+        for tree in self.workspace_trees.values_mut() {
+            tree.normalize();
+        }
+    }
+}
+
+/// `width` as an outline column can be: inside [`OUTLINE_MIN`] and
+/// [`OUTLINE_MAX`], and the default for a width that is not a number.
+pub fn clamp_outline(width: f32) -> f32 {
+    if width.is_nan() {
+        OUTLINE_DEFAULT
+    } else {
+        width.clamp(OUTLINE_MIN, OUTLINE_MAX)
     }
 }
 
@@ -224,12 +403,41 @@ mod tests {
             sidebar_width: 10.0,
             inspector_width: 9000.0,
             timeline_height: 10.0,
+            outline_width: 10.0,
             ..UiSettings::default()
         };
         s.clamp();
         assert_eq!(s.sidebar_width, SIDEBAR_MIN);
         assert_eq!(s.inspector_width, INSPECTOR_MAX);
         assert_eq!(s.timeline_height, TIMELINE_MIN_HEIGHT);
+        assert_eq!(s.outline_width, OUTLINE_MIN);
+    }
+
+    /// The outline column is never narrower than a lane header's controls nor
+    /// wider than its range, and a width that is not a number is the default
+    /// rather than a column of no width. A file from before the setting opens
+    /// at the default.
+    #[test]
+    fn the_outline_width_stays_in_its_range() {
+        let cases = [
+            (0.0, OUTLINE_MIN),
+            (-1.0, OUTLINE_MIN),
+            (OUTLINE_MIN - 0.5, OUTLINE_MIN),
+            (OUTLINE_MIN, OUTLINE_MIN),
+            (OUTLINE_DEFAULT, OUTLINE_DEFAULT),
+            (OUTLINE_MAX, OUTLINE_MAX),
+            (OUTLINE_MAX + 0.5, OUTLINE_MAX),
+            (f32::INFINITY, OUTLINE_MAX),
+            (f32::NEG_INFINITY, OUTLINE_MIN),
+            (f32::NAN, OUTLINE_DEFAULT),
+        ];
+        for (width, wanted) in cases {
+            assert_eq!(clamp_outline(width), wanted, "{width}");
+        }
+        assert!((OUTLINE_MIN..=OUTLINE_MAX).contains(&UiSettings::default().outline_width));
+        let older = r#"{"sidebarWidth":300.0,"appearance":"dark"}"#;
+        let parsed: UiSettings = serde_json::from_str(older).expect("older settings file");
+        assert_eq!(parsed.outline_width, OUTLINE_DEFAULT);
     }
 
     /// A file written before this setting existed still opens the app, with the
@@ -305,5 +513,48 @@ mod tests {
         assert!(text.contains("\"route\":\"home\""), "{text}");
         let back: UiSettings = serde_json::from_str(&text).expect("deserialize");
         assert_eq!(back, settings);
+    }
+
+    #[test]
+    fn audio_scrubbing_defaults_to_on_for_older_files_and_round_trips() {
+        let older = r#"{"sidebarWidth":300.0}"#;
+        let parsed: UiSettings = serde_json::from_str(older).expect("older settings file");
+        assert!(parsed.audio_scrubbing);
+
+        let settings = UiSettings {
+            audio_scrubbing: false,
+            ..UiSettings::default()
+        };
+        let text = serde_json::to_string(&settings).expect("serialize");
+        assert!(text.contains("\"audioScrubbing\":false"), "{text}");
+        let back: UiSettings = serde_json::from_str(&text).expect("deserialize");
+        assert_eq!(back, settings);
+    }
+
+    #[test]
+    fn the_waveform_mode_defaults_to_luma_for_older_files_and_round_trips() {
+        let older = r#"{"sidebarWidth":300.0}"#;
+        let parsed: UiSettings = serde_json::from_str(older).expect("older settings file");
+        assert_eq!(parsed.waveform, crate::scopes::WaveformMode::Luma);
+
+        for mode in crate::scopes::WaveformMode::ALL {
+            // The saved spelling is a file format: a new mode names its own.
+            let spelled = match mode {
+                crate::scopes::WaveformMode::Luma => "luma",
+                crate::scopes::WaveformMode::RgbParade => "rgbParade",
+                crate::scopes::WaveformMode::YcbcrParade => "ycbcrParade",
+            };
+            let settings = UiSettings {
+                waveform: mode,
+                ..UiSettings::default()
+            };
+            let text = serde_json::to_string(&settings).expect("serialize");
+            assert!(
+                text.contains(&format!("\"waveform\":\"{spelled}\"")),
+                "{text}"
+            );
+            let back: UiSettings = serde_json::from_str(&text).expect("deserialize");
+            assert_eq!(back, settings);
+        }
     }
 }

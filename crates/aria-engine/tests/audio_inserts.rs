@@ -11,9 +11,9 @@
 use aria_commands::{Command, EditCommand, EditOutcome};
 use aria_engine::{ApplyOutcome, Engine, EngineConfig};
 use aria_models::{
-    AudioEffectInstance, AudioEffectSpec, AudioInsertTarget, ClipId, EffectParamKind,
-    EffectParamSpec, Easing, Keyframe, MediaSource, Param, Project, Rational, RationalTime,
-    Registered, TimeRange, TrackId, TrackKind, register_audio_effect,
+    AudioEffectInstance, AudioEffectSpec, AudioInsertTarget, ClipId, Easing, EffectParamKind,
+    EffectParamSpec, Keyframe, MediaSource, Param, Project, Rational, RationalTime, Registered,
+    TimeRange, TrackId, TrackKind, register_audio_effect,
 };
 
 const R24: Rational = Rational::FPS_24;
@@ -28,9 +28,11 @@ fn register(id: &str, sidechain: bool) -> Registered {
         max: 0.0,
         default_color: [0; 4],
         default_vec2: [0.0; 2],
+        ..Default::default()
     };
     register_audio_effect(AudioEffectSpec {
         id: id.into(),
+        category: String::new(),
         label: id.into(),
         params: vec![threshold],
         latency: 32,
@@ -106,7 +108,10 @@ fn round_trip(engine: &mut Engine, target: AudioInsertTarget, command: EditComma
     assert_ne!(after, before, "{command:?} changed nothing");
     assert_eq!(engine.history_depth(), depth + 1, "{command:?}");
     assert_eq!(
-        engine.history_entries().last().map(|entry| entry.label.to_string()),
+        engine
+            .history_entries()
+            .last()
+            .map(|entry| entry.label.to_string()),
         Some(label.to_owned()),
         "{command:?}"
     );
@@ -262,7 +267,11 @@ fn a_refused_insert_edit_changes_no_chain_and_records_no_step() {
             key: Some(voice),
         },
     ];
-    let lanes = [lane, AudioInsertTarget::Clip(clip), AudioInsertTarget::Master];
+    let lanes = [
+        lane,
+        AudioInsertTarget::Clip(clip),
+        AudioInsertTarget::Master,
+    ];
     for command in refusals {
         let before: Vec<_> = lanes.iter().map(|target| chain(&engine, *target)).collect();
         let depth = engine.history_depth();
@@ -301,7 +310,9 @@ fn undo_restores_an_insert_whose_effect_is_no_longer_registered() {
             index: 0,
         },
     ] {
-        engine.apply(Command::Edit(command)).expect("an insert edit");
+        engine
+            .apply(Command::Edit(command))
+            .expect("an insert edit");
     }
     drop(guard);
 
@@ -309,7 +320,10 @@ fn undo_restores_an_insert_whose_effect_is_no_longer_registered() {
     let back = chain(&engine, lane);
     assert_eq!(back.len(), 1);
     assert_eq!(back[0].effect_id, "engine.gone");
-    assert_eq!(back[0].params.get("threshold"), Some(&Param::Constant(-40.0)));
+    assert_eq!(
+        back[0].params.get("threshold"),
+        Some(&Param::Constant(-40.0))
+    );
     assert!(back[0].spec().is_none());
     assert!(engine.redo());
     assert!(chain(&engine, lane).is_empty());

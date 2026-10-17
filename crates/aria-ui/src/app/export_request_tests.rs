@@ -260,7 +260,55 @@ fn the_default_request_names_the_project_it_would_render() {
             },
             size: aria_render::even_export_size(state.canvas_size_tuple()),
             range: "Whole timeline".to_string(),
+            plugin_encoder: None,
         },
         "the sheet's defaults must describe the project's own output"
     );
+}
+
+#[test]
+fn selecting_a_plugin_encoder_updates_destination_extension_and_request_id() {
+    use aria_core::{EncodeError, EncoderConfig, VideoEncoder, VideoFrame};
+    use aria_plugin::{Encoder, EncoderSpec};
+    use std::path::Path;
+
+    struct DummyEncoder;
+    impl VideoEncoder for DummyEncoder {
+        fn push(&mut self, _frame: &VideoFrame) -> Result<(), EncodeError> {
+            Ok(())
+        }
+        fn finish(&mut self) -> Result<(), EncodeError> {
+            Ok(())
+        }
+    }
+    impl Encoder for DummyEncoder {
+        fn open(
+            &self,
+            _path: &Path,
+            _config: &EncoderConfig,
+        ) -> Result<Box<dyn VideoEncoder>, EncodeError> {
+            Ok(Box::new(DummyEncoder))
+        }
+    }
+
+    let (mut state, _) = with_clip();
+    let _reg = state
+        .ctx
+        .register_encoder(
+            EncoderSpec {
+                id: "webm.vp9".into(),
+                name: "WebM VP9".into(),
+                extension: "webm".into(),
+                audio: false,
+            },
+            DummyEncoder,
+        )
+        .expect("register webm.vp9");
+    state.select_export_plugin_encoder(Some("webm.vp9".into()));
+    state.project_path = Some(state.data_dir.join("edit.aria"));
+
+    let req = asked_for(&state);
+    assert_eq!(req.destination, state.data_dir.join("edit.webm"));
+    assert_eq!(req.plugin_encoder.as_deref(), Some("webm.vp9"));
+    assert_eq!(req.format.audio, Some(false));
 }

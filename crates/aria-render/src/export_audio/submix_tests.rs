@@ -53,6 +53,8 @@ fn flat_span(value: f32, bus: usize) -> Span {
         pan: Param::Constant(0.0),
         fade_in: 0,
         fade_out: 0,
+        crossfade_in: None,
+        crossfade_out: None,
         reader: Some(Box::new(FlatReader { pos: 0, value })),
         exhausted: false,
         bus,
@@ -370,4 +372,73 @@ fn a_lane_kept_in_the_mix_by_a_key_does_not_leak_through_the_muted_bus_it_feeds(
         .find(|(track, _)| *track == bus)
         .map(|(_, peak)| peak);
     assert_eq!(bus_peak, Some([0.0; 2]), "a dead bus meters silence");
+}
+#[test]
+fn lane_and_master_pan_mute_and_automation_envelopes_shape_the_mix_and_meters() {
+    let (mut project, a1, _bus) = audible_project();
+    // Pan A1 hard left (-1.0) at 0.5 gain; in Off mode, static gain/pan apply.
+    project.timeline_mut().set_track_gain(a1, 0.5).unwrap();
+    project.timeline_mut().set_track_pan(a1, -1.0).unwrap();
+    let mut vol = Param::Constant(0.5);
+    vol.set_keyframe(0, 0.25, aria_models::Easing::Linear);
+    let mut pan_env = Param::Constant(-1.0);
+    pan_env.set_keyframe(0, 1.0, aria_models::Easing::Linear);
+    project
+        .timeline_mut()
+        .set_track_automation(a1, AutomationMode::Off, vol.clone(), pan_env.clone())
+        .unwrap();
+
+    let mut mixer = ExportAudioMixer::for_project(&project).unwrap().unwrap();
+    for span in &mut mixer.spans {
+        span.reader = Some(Box::new(FlatReader { pos: 0, value: 0.5 }));
+    }
+    let mut out = vec![0.0; BLOCK * CHANNELS];
+    mixer.mix_into(0, &mut out).unwrap();
+    let want_left = 0.5 * 0.5 * std::f32::consts::SQRT_2;
+    assert!((out[0] - want_left).abs() < 1e-5, "left channel {}", out[0]);
+    assert!(out[1].abs() < 1e-5, "right channel {}", out[1]);
+    let a1_peak = mixer
+        .lane_peaks()
+        .find(|(id, _)| *id == a1)
+        .map(|(_, p)| p)
+        .unwrap();
+    assert!((a1_peak[0] - want_left).abs() < 1e-5);
+    assert!(a1_peak[1].abs() < 1e-5);
+
+    // Switching to Read plays the envelopes (0.25 gain, +1.0 full right pan),
+    // and muting the master silences the programme mix and master meter while
+    // leaving the channel strip's own post-fader meter live.
+    project
+        .timeline_mut()
+        .set_track_automation(a1, AutomationMode::Read, vol, pan_env)
+        .unwrap();
+    project
+        .timeline_mut()
+        .set_master_mix(
+            0.8,
+            0.0,
+            true,
+            AutomationMode::Off,
+            Param::Constant(0.8),
+            Param::Constant(0.0),
+        )
+        .unwrap();
+    let mut mixer = ExportAudioMixer::for_project(&project).unwrap().unwrap();
+    for span in &mut mixer.spans {
+        span.reader = Some(Box::new(FlatReader { pos: 0, value: 0.5 }));
+    }
+    mixer.mix_into(0, &mut out).unwrap();
+    assert!(
+        out.iter().all(|s| *s == 0.0),
+        "muted master outputs silence"
+    );
+    assert_eq!(mixer.master_peak(), [0.0; 2]);
+    let a1_peak = mixer
+        .lane_peaks()
+        .find(|(id, _)| *id == a1)
+        .map(|(_, p)| p)
+        .unwrap();
+    let want_right = 0.5 * 0.25 * std::f32::consts::SQRT_2;
+    assert!(a1_peak[0].abs() < 1e-5);
+    assert!((a1_peak[1] - want_right).abs() < 1e-5);
 }

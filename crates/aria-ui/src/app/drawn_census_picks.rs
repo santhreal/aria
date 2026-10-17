@@ -26,9 +26,10 @@
 
 use std::collections::BTreeSet;
 
-use aria_models::{BlendMode, MaskKind, MatteSource, StabilizeLevel, mask_catalog};
+use aria_models::{BlendMode, MaskKind, MaskMode, MatteSource, StabilizeLevel, mask_catalog};
 
 use crate::app::AppState;
+use crate::app::fixtures::{the_pair, twin_selected};
 use crate::app::sent_census::Watch;
 use crate::surfaces::inspector_pick::{self, KEY_COLORS, Pick, STYLE_COLORS};
 
@@ -59,8 +60,14 @@ fn staged() -> Vec<Staged> {
     for spec in mask_catalog() {
         push(Pick::Mask(spec.kind), a_clip);
     }
-    push(Pick::ToggleMaskInvert, a_masked_clip);
-    push(Pick::ClearMask, a_masked_clip);
+    // The second mask of two, so an index that never leaves the first mask
+    // edits the wrong one and the command it sends says so.
+    for mode in MaskMode::ALL {
+        push(Pick::MaskMode { mask: 1, mode }, a_masked_clip);
+    }
+    push(Pick::ToggleMaskInvert(1), a_masked_clip);
+    push(Pick::MoveMask { from: 1, to: 0 }, a_masked_clip);
+    push(Pick::RemoveMask(1), a_masked_clip);
 
     for (_, _, rgb) in KEY_COLORS {
         push(Pick::Chroma(*rgb), a_clip);
@@ -97,6 +104,7 @@ fn staged() -> Vec<Staged> {
     push(Pick::FlipVertical, a_clip);
     push(Pick::ClearCrop, a_clip);
     push(Pick::ToggleMotionBlur, a_clip);
+    push(Pick::DetachClipType, a_typed_clip);
 
     out
 }
@@ -153,12 +161,52 @@ fn every_pick_pressed_asks_the_model_for_something() {
     }
 }
 
+/// With a second clip selected that holds what the drawn clip holds, every
+/// pick leaves the two alike, in at most one undo step, and that step takes
+/// the pick back on both. The picks are the staged ones, so a pick added to the
+/// picture blocks that reaches the drawn clip alone is red here with no edit
+/// to this test.
+#[test]
+fn every_pick_reaches_a_second_selected_clip_holding_the_same_thing() {
+    for stage in staged() {
+        let mut state = (stage.dress)();
+        let (drawn, twin) = twin_selected(&mut state);
+        let before = the_pair(&state, drawn, twin);
+        let what = stage.pick.what();
+        assert_eq!(
+            before.1, before.0,
+            "the copy for {what} differs from its clip"
+        );
+        let depth = state.history_depth();
+        inspector_pick::apply(&mut state, stage.pick)
+            .unwrap_or_else(|err| panic!("picking {what} on two clips was refused: {err}"));
+        let (after, twin_after) = the_pair(&state, drawn, twin);
+        assert_eq!(
+            twin_after, after,
+            "{what} reached the drawn clip and not the other selected clip"
+        );
+        let steps = state.history_depth() - depth;
+        assert!(steps <= 1, "{what} on two clips took {steps} undo steps");
+        if steps == 1 {
+            assert!(state.undo(), "{what} left nothing to undo");
+            assert_eq!(
+                the_pair(&state, drawn, twin),
+                before,
+                "one undo did not take {what} back on both clips"
+            );
+        }
+    }
+}
+
 #[test]
 fn the_census_reaches_every_picture_command() {
     let sent = dispatched();
     for label in [
         "Set filter",
+        "Add mask",
         "Set mask",
+        "Remove mask",
+        "Reorder masks",
         "Set chroma key",
         "Set track matte",
         "Set layer styles",
@@ -169,6 +217,7 @@ fn the_census_reaches_every_picture_command() {
         "Set denoise",
         "Crop",
         "Set motion blur",
+        "Set clip type",
     ] {
         assert!(
             sent.contains(label),
@@ -250,11 +299,12 @@ fn a_graded_clip() -> AppState {
     state
 }
 
+/// Two masks, so a pick on the second one has a first one to leave alone.
 fn a_masked_clip() -> AppState {
     let mut state = a_clip();
-    state
-        .set_selected_mask_kind(MaskKind::Circle)
-        .expect("the mask lands");
+    for kind in [MaskKind::Circle, MaskKind::Rectangle] {
+        state.add_selected_mask(kind).expect("the mask lands");
+    }
     state
 }
 
@@ -301,5 +351,21 @@ fn a_stabilized_clip() -> AppState {
     state
         .set_selected_stabilize(Some(level))
         .expect("the level lands");
+    state
+}
+
+/// A clip holding a clip type. The model takes any well-formed id, and no
+/// plugin need list it: a project opened without the plugin holds one too.
+fn a_typed_clip() -> AppState {
+    let mut state = a_clip();
+    let clip = state.selected_clip().expect("a selected clip");
+    state
+        .apply_command(aria_commands::Command::Edit(
+            aria_commands::EditCommand::SetClipType {
+                clip,
+                clip_type: Some("test.census.lower-third".into()),
+            },
+        ))
+        .expect("a clip type");
     state
 }

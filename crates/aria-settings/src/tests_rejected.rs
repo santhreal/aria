@@ -213,6 +213,7 @@ fn a_plugin_value_that_is_not_a_string_is_rejected_by_its_declared_key() {
 /// An absent key is the normal state of a partially-written file and is not a
 /// rejection: nothing was dropped, so there is nothing to report. Neither is an
 /// unknown key, which belongs to a build this one is not.
+#[test]
 fn a_file_this_build_understands_leaves_nothing_rejected() {
     let media_root = crate::fixture_abs("mnt/media");
     for raw in [

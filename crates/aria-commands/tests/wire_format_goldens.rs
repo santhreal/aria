@@ -196,6 +196,39 @@ fn golden_move_effect() {
     );
 }
 
+/// A bypassed effect is a flag on the instance, and a chain saved before the
+/// flag existed loads with every effect on.
+#[test]
+fn golden_effect_bypass() {
+    let cmd = Command::Edit(EditCommand::SetEffectBypass {
+        clip: clip(4),
+        index: 1,
+        bypass: true,
+    });
+    assert_eq!(
+        serde_json::to_value(&cmd).unwrap(),
+        json!({"type": "SetEffectBypass", "clip": 4, "index": 1, "bypass": true})
+    );
+
+    let mut effect = aria_models::EffectInstance::new("gaussian_blur");
+    assert_eq!(
+        serde_json::to_value(&effect).unwrap(),
+        json!({"effect_id": "gaussian_blur"}),
+        "an effect that is on writes no flag"
+    );
+    effect.bypass = true;
+    assert_eq!(
+        serde_json::to_value(&effect).unwrap(),
+        json!({"effect_id": "gaussian_blur", "bypass": true})
+    );
+    let older: aria_models::EffectInstance =
+        serde_json::from_value(json!({"effect_id": "gaussian_blur"})).unwrap();
+    assert!(
+        !older.bypass,
+        "a chain saved before the flag renders every effect"
+    );
+}
+
 /// The chain is one field for all three kinds: a clip and a lane by id, the
 /// master by name.
 #[test]
@@ -346,6 +379,17 @@ fn golden_set_audio_layout() {
 }
 
 #[test]
+fn golden_set_time_display() {
+    let cmd = Command::Edit(EditCommand::SetTimeDisplay {
+        display: TimeDisplay::FeetFrames,
+    });
+    assert_eq!(
+        serde_json::to_value(&cmd).unwrap(),
+        json!({"type": "SetTimeDisplay", "display": "feet_frames"})
+    );
+}
+
+#[test]
 fn golden_add_generated_solid() {
     let cmd = Command::Edit(EditCommand::AddGenerated {
         track: track(1),
@@ -412,13 +456,53 @@ fn golden_clear_speed_curve_is_null() {
 #[test]
 fn golden_look_commands() {
     // Snake_case ids on the wire; zero/default sub-fields elided.
-    let mask = Command::Edit(EditCommand::SetClipMask {
+    let add = Command::Edit(EditCommand::AddClipMask {
         clip: clip(4),
-        mask: Some(Mask::new(MaskKind::Circle)),
+        mask: Mask::new(MaskKind::Circle),
     });
     assert_eq!(
-        serde_json::to_value(&mask).unwrap(),
-        json!({"type": "SetClipMask", "clip": 4, "mask": {"kind": "circle"}})
+        serde_json::to_value(&add).unwrap(),
+        json!({"type": "AddClipMask", "clip": 4, "mask": {"kind": "circle"}})
+    );
+
+    // A mode other than add, and non-default opacity and expansion, are on
+    // the wire by their snake_case names.
+    let mut subtract = Mask::new(MaskKind::Rectangle);
+    subtract.mode = MaskMode::Subtract;
+    subtract.opacity = 0.5f32.into();
+    subtract.expansion = (-12.0f32).into();
+    let set = Command::Edit(EditCommand::SetClipMask {
+        clip: clip(4),
+        index: 1,
+        mask: subtract,
+    });
+    assert_eq!(
+        serde_json::to_value(&set).unwrap(),
+        json!({
+            "type": "SetClipMask",
+            "clip": 4,
+            "index": 1,
+            "mask": {"kind": "rectangle", "mode": "subtract", "opacity": 0.5, "expansion": -12.0},
+        })
+    );
+
+    let remove = Command::Edit(EditCommand::RemoveClipMask {
+        clip: clip(4),
+        index: 0,
+    });
+    assert_eq!(
+        serde_json::to_value(&remove).unwrap(),
+        json!({"type": "RemoveClipMask", "clip": 4, "index": 0})
+    );
+
+    let reorder = Command::Edit(EditCommand::MoveClipMask {
+        clip: clip(4),
+        from_index: 0,
+        to_index: 2,
+    });
+    assert_eq!(
+        serde_json::to_value(&reorder).unwrap(),
+        json!({"type": "MoveClipMask", "clip": 4, "from_index": 0, "to_index": 2})
     );
 
     let blend = Command::Edit(EditCommand::SetClipBlendMode {
@@ -566,5 +650,34 @@ fn golden_look_commands() {
     assert_eq!(
         serde_json::to_value(&role).unwrap(),
         json!({"type": "SetAudioRole", "clip": 4, "role": "sfx"})
+    );
+}
+
+#[test]
+fn golden_apply_preset() {
+    let cmd = Command::Edit(EditCommand::ApplyPreset {
+        clip: clip(4),
+        preset: aria_commands::Preset::new(
+            "Warm Blur",
+            vec![aria_commands::EffectInstance::new("gaussian_blur")],
+            Vec::new(),
+            Vec::new(),
+        ),
+        at: t(15),
+    });
+    assert_eq!(
+        serde_json::to_value(&cmd).unwrap(),
+        json!({
+            "type": "ApplyPreset",
+            "clip": 4,
+            "preset": {
+                "version": 1,
+                "name": "Warm Blur",
+                "effects": [{"effect_id": "gaussian_blur"}],
+                "audio_effects": [],
+                "properties": [],
+            },
+            "at": {"value": 15, "rate": {"num": 30, "den": 1}},
+        })
     );
 }

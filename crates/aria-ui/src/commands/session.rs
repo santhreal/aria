@@ -28,7 +28,16 @@ pub(super) const SESSION_ROWS: &[CommandEntry] = &[
         id: "pal-delete",
         label: "Delete selected",
         run: |state| {
-            if let Err(err) = state.delete_selected() {
+            if let Err(err) = state.clear_selected() {
+                state.report_error(&err);
+            }
+        },
+    },
+    CommandEntry {
+        id: "pal-ripple-delete",
+        label: "Ripple delete selected",
+        run: |state| {
+            if let Err(err) = state.ripple_delete_selected() {
                 state.report_error(&err);
             }
         },
@@ -72,6 +81,11 @@ pub(super) const SESSION_ROWS: &[CommandEntry] = &[
         run: |state| state.open_dialog(DialogKind::Export),
     },
     CommandEntry {
+        id: "pal-export-frame",
+        label: "Export frame",
+        run: |state| state.pick_and_export_frame(),
+    },
+    CommandEntry {
         id: "pal-settings",
         label: "Settings",
         run: |state| state.open_dialog(DialogKind::Settings),
@@ -84,7 +98,7 @@ pub(super) const SESSION_ROWS: &[CommandEntry] = &[
     CommandEntry {
         id: "pal-history",
         label: "History",
-        run: |state| state.open_dialog(DialogKind::History),
+        run: |state| state.focus_dock_panel(crate::dock::PANEL_HISTORY),
     },
     CommandEntry {
         id: "pal-preview-fullscreen",
@@ -108,7 +122,7 @@ pub(super) const SESSION_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-preview-scopes",
-        label: "Scopes",
+        label: "Scope strip",
         run: |state| state.toggle_scopes(),
     },
     CommandEntry {

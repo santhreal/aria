@@ -58,8 +58,8 @@ fn a_dialog_with_no_primary_action_swallows_enter_and_changes_nothing() {
     for kind in [
         DialogKind::Settings,
         DialogKind::Jobs,
-        DialogKind::History,
         DialogKind::ProjectReport,
+        DialogKind::About,
         DialogKind::Plugin("nobody"),
     ] {
         state.open_dialog(kind);

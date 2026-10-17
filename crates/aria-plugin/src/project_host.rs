@@ -389,6 +389,52 @@ impl ProjectHost {
         }
     }
 
+    /// Look up `id` across the open sequence, root timeline, and nested sequences.
+    pub fn clip(&self, id: aria_models::ClipId) -> Option<crate::ClipRef> {
+        let snapshot = self.snapshot();
+        crate::clip(&snapshot, id)
+    }
+
+    /// Clips on `sequence` (`None` for the open sequence) overlapping the half-open
+    /// `range`, in track order then timeline start order.
+    pub fn clips_in_range(
+        &self,
+        sequence: Option<aria_models::SequenceId>,
+        range: aria_core::TimeRange,
+    ) -> Vec<crate::ClipRef> {
+        let snapshot = self.snapshot();
+        crate::clips_in_range(&snapshot, sequence, range)
+    }
+
+    /// Clips on `sequence` (`None` for the open sequence) covering `tick`,
+    /// in track order then timeline start order.
+    pub fn clips_at(
+        &self,
+        sequence: Option<aria_models::SequenceId>,
+        tick: aria_core::RationalTime,
+    ) -> Vec<crate::ClipRef> {
+        let snapshot = self.snapshot();
+        crate::clips_at(&snapshot, sequence, tick)
+    }
+
+    /// Resolve `selection` to [`ClipRef`](crate::ClipRef)s, dropping any clip
+    /// ids no longer in the project.
+    pub fn selected_clips(&self, selection: &[aria_models::ClipId]) -> Vec<crate::ClipRef> {
+        let snapshot = self.snapshot();
+        crate::selected_clips(&snapshot, selection)
+    }
+
+    /// Ruler markers on `sequence` (`None` for the open sequence) overlapping
+    /// the half-open `range`, in timeline order.
+    pub fn markers_in_range(
+        &self,
+        sequence: Option<aria_models::SequenceId>,
+        range: aria_core::TimeRange,
+    ) -> Vec<aria_models::Marker> {
+        let snapshot = self.snapshot();
+        crate::markers_in_range(&snapshot, sequence, range)
+    }
+
     /// Who holds the project from another thread, if anyone.
     pub fn holder(&self) -> Option<Origin> {
         let me = std::thread::current().id();

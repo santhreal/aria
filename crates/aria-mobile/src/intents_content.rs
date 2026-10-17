@@ -169,10 +169,10 @@ pub(super) fn duplicate(
 /// Carry the Phase I look fields onto a duplicated clip. Each setter runs only
 /// when the source had the property, so validation never trips on defaults.
 fn copy_look(engine: &mut Engine, snapshot: &Clip, new: ClipId) -> Result<(), EngineError> {
-    if snapshot.mask.is_some() {
-        engine.apply(Command::Edit(EditCommand::SetClipMask {
+    for mask in &snapshot.masks {
+        engine.apply(Command::Edit(EditCommand::AddClipMask {
             clip: new,
-            mask: snapshot.mask.clone(),
+            mask: mask.clone(),
         }))?;
     }
     if snapshot.chroma_key.is_some() {

@@ -267,7 +267,9 @@ public struct UiClip: Decodable, Sendable, Identifiable {
     public let link: UInt64?
 
     // Look properties (persist-only this milestone; absent = unset).
-    public let mask: UiMask?
+    private let masks: [UiMask]?
+    /// The mask stack, top first. (Absent on the wire when empty.)
+    public var maskStack: [UiMask] { masks ?? [] }
     public let chromaKey: UiChromaKey?
     /// `recommended | smooth | max_smooth`.
     public let stabilize: String?
@@ -287,19 +289,23 @@ public struct UiClip: Decodable, Sendable, Identifiable {
 
 // MARK: - Clip looks
 
-/// A shaped alpha mask over a clip. Fields at their defaults are elided on
-/// the wire, so decoding fills them back in.
+/// One shaped alpha mask in a clip's mask stack. Fields at their defaults are
+/// elided on the wire, so decoding fills them back in.
 public struct UiMask: Codable, Equatable, Sendable {
-    /// `linear | mirror | circle | rectangle | heart | star`.
+    /// `linear | mirror | circle | rectangle | heart | star | path`.
     public var kind: String
     /// Edge softness, 0 (hard) … 1.
     public var feather: Float
+    /// How the mask combines with the masks above it: `none | add | subtract |
+    /// intersect | lighten | darken | difference`.
+    public var mode: String
     /// Keep the outside instead of the inside.
     public var invert: Bool
 
-    public init(kind: String, feather: Float = 0, invert: Bool = false) {
+    public init(kind: String, feather: Float = 0, mode: String = "add", invert: Bool = false) {
         self.kind = kind
         self.feather = feather
+        self.mode = mode
         self.invert = invert
     }
 
@@ -307,6 +313,7 @@ public struct UiMask: Codable, Equatable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         kind = try container.decode(String.self, forKey: .kind)
         feather = try container.decodeIfPresent(Float.self, forKey: .feather) ?? 0
+        mode = try container.decodeIfPresent(String.self, forKey: .mode) ?? "add"
         invert = try container.decodeIfPresent(Bool.self, forKey: .invert) ?? false
     }
 }

@@ -1,188 +1,105 @@
-//! 3-way color wheels for the inspector: Lift (shadows), Gamma (midtones), Gain (highlights).
+//! Lift, Gamma and Gain colour wheels, drawn wherever the grade is.
 //!
-//! Each wheel provides 2D chromaticity balance (hue/saturation) via a draggable
-//! handle on a unit circle, a master slider for luminance/density, and a per-control
-//! reset button returning to documented neutral constants.
+//! A wheel paints a hue ring, crosshairs, and a puck at the offset its
+//! channels read as. A press anywhere on the wheel puts the puck under the
+//! pointer and hands the drag to the state (`crate::app::grade_controls`), and the
+//! shell routes the pointer there until the release. Under each wheel the
+//! master is a scrubbable value, and the reset button returns the channels and
+//! the master to neutral as one undo step.
+
+use std::cell::Cell;
+use std::rc::Rc;
 
 use gpui::{
-    InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled, div, px,
+    Bounds, CursorStyle, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
+    ParentElement, Pixels, Styled, canvas, div, hsla, point, px, size,
 };
 
-use aria_engine::EngineError;
-use aria_models::{ClipParam, GAIN_NEUTRAL, GAMMA_NEUTRAL, LIFT_NEUTRAL, LookParam};
+use aria_models::ClipParam;
 
-use crate::app::AppState;
+use crate::app::grade_controls::WheelControl;
+use crate::app::value_scrub::{ScrubTarget, ValueKind};
+use crate::app::{AppState, spawn_preview};
 use crate::components;
+use crate::motion::MotionKey;
+use crate::panels::value_readout::{self, Look};
 use crate::theme::Theme;
-use crate::types::UiClip;
 
 use super::widgets::section_label;
 
-/// Radius of the draggable color wheel in pixels.
+/// Radius of a drawn wheel in pixels.
 pub const WHEEL_RADIUS: f32 = 36.0;
 
-/// Map a pointer position in window coords to normalized unit-circle offset (-1.0..=1.0).
-/// Clamps to the wheel radius when the pointer moves outside the circle.
-pub fn pointer_to_wheel_offset(center: [f32; 2], radius: f32, pointer: [f32; 2]) -> [f32; 2] {
-    let dx = pointer[0] - center[0];
-    let dy = pointer[1] - center[1];
-    let dist = (dx * dx + dy * dy).sqrt();
-    if radius <= 0.0 {
-        return [0.0, 0.0];
-    }
-    if dist > radius {
-        [dx / dist, dy / dist]
-    } else {
-        [dx / radius, dy / radius]
-    }
-}
+/// Dots in the hue ring.
+const RING_DOTS: usize = 36;
 
-/// Convert normalized unit-circle offset (x, y) into RGB deltas with zero sum.
-///
-/// Places pure Red at 0°, Green at 120°, and Blue at 240°.
-/// The sum (ΔR + ΔG + ΔB) is identically zero for all offsets, isolating
-/// chromaticity from master luminance.
-pub fn wheel_offset_to_rgb_deltas(offset: [f32; 2]) -> [f32; 3] {
-    let sqrt3_over_2 = 0.8660254037844386;
-    let dr = offset[0];
-    let dg = -0.5 * offset[0] + sqrt3_over_2 * offset[1];
-    let db = -0.5 * offset[0] - sqrt3_over_2 * offset[1];
-    [dr, dg, db]
-}
+/// Diameter of one ring dot.
+const RING_DOT: f32 = 4.0;
 
-/// Convert RGB deltas back into normalized unit-circle offset (x, y).
-pub fn rgb_deltas_to_wheel_offset(deltas: [f32; 3]) -> [f32; 2] {
-    let sqrt3 = 1.7320508075688772;
-    let ux = deltas[0];
-    let uy = (deltas[1] - deltas[2]) / sqrt3;
-    let dist = (ux * ux + uy * uy).sqrt();
-    if dist > 1.0 {
-        [ux / dist, uy / dist]
-    } else {
-        [ux, uy]
-    }
-}
+/// Diameter of the puck.
+const PUCK: f32 = 9.0;
 
-/// The three primary grading wheel controls.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum WheelControl {
-    Lift,
-    Gamma,
-    Gain,
-}
-
-impl WheelControl {
-    pub const ALL: [Self; 3] = [Self::Lift, Self::Gamma, Self::Gain];
-
-    pub fn label(self) -> &'static str {
-        match self {
-            Self::Lift => "Lift",
-            Self::Gamma => "Gamma",
-            Self::Gain => "Gain",
-        }
-    }
-
-    pub fn neutral_master(self) -> f32 {
-        match self {
-            Self::Lift => LIFT_NEUTRAL,
-            Self::Gamma => GAMMA_NEUTRAL,
-            Self::Gain => GAIN_NEUTRAL,
-        }
-    }
-
-    pub fn rgb_params(self) -> (LookParam, LookParam, LookParam) {
-        match self {
-            Self::Lift => (
-                LookParam::AdjustLiftR,
-                LookParam::AdjustLiftG,
-                LookParam::AdjustLiftB,
-            ),
-            Self::Gamma => (
-                LookParam::AdjustGammaR,
-                LookParam::AdjustGammaG,
-                LookParam::AdjustGammaB,
-            ),
-            Self::Gain => (
-                LookParam::AdjustGainR,
-                LookParam::AdjustGainG,
-                LookParam::AdjustGainB,
-            ),
-        }
-    }
-
-    pub fn master_param(self) -> LookParam {
-        match self {
-            Self::Lift => LookParam::AdjustLiftMaster,
-            Self::Gamma => LookParam::AdjustGammaMaster,
-            Self::Gain => LookParam::AdjustGainMaster,
-        }
-    }
-
-    pub fn reset(self, state: &mut AppState) -> Result<(), EngineError> {
-        let (pr, pg, pb) = self.rgb_params();
-        let pm = self.master_param();
-        let neutral = self.neutral_master();
-        state.set_param_scalar(ClipParam::Look { param: pr }, None, neutral)?;
-        state.set_param_scalar(ClipParam::Look { param: pg }, None, neutral)?;
-        state.set_param_scalar(ClipParam::Look { param: pb }, None, neutral)?;
-        state.set_param_scalar(ClipParam::Look { param: pm }, None, neutral)?;
-        Ok(())
-    }
-
-    pub fn apply_offset(self, state: &mut AppState, offset: [f32; 2]) -> Result<(), EngineError> {
-        let [dr, dg, db] = wheel_offset_to_rgb_deltas(offset);
-        let (pr, pg, pb) = self.rgb_params();
-        let base = self.neutral_master();
-        state.set_param_scalar(ClipParam::Look { param: pr }, None, base + dr)?;
-        state.set_param_scalar(ClipParam::Look { param: pg }, None, base + dg)?;
-        state.set_param_scalar(ClipParam::Look { param: pb }, None, base + db)?;
-        Ok(())
-    }
-
-    pub fn current_offset(self, state: &AppState) -> [f32; 2] {
-        let (pr, pg, pb) = self.rgb_params();
-        let r = state
-            .param_scalar(ClipParam::Look { param: pr }, None)
-            .unwrap_or(self.neutral_master());
-        let g = state
-            .param_scalar(ClipParam::Look { param: pg }, None)
-            .unwrap_or(self.neutral_master());
-        let b = state
-            .param_scalar(ClipParam::Look { param: pb }, None)
-            .unwrap_or(self.neutral_master());
-        let base = self.neutral_master();
-        rgb_deltas_to_wheel_offset([r - base, g - base, b - base])
-    }
-
-    pub fn current_master(self, state: &AppState) -> f32 {
-        state
-            .param_scalar(
-                ClipParam::Look {
-                    param: self.master_param(),
-                },
-                None,
-            )
-            .unwrap_or(self.neutral_master())
-    }
-}
-
-/// Render one color wheel control with its handle, reset button, and master control.
-pub(super) fn single_wheel_widget(
+/// One wheel with its title, reset button, and master value. `place` is the
+/// surface drawing it, which the wheel's selector starts with.
+fn single_wheel_widget(
     control: WheelControl,
+    place: &'static str,
     theme: &Theme,
     state: &gpui::Entity<AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
-    let current_offset = state.read(cx).let_ref(|s| control.current_offset(s));
-    let current_master = state.read(cx).let_ref(|s| control.current_master(s));
-
+    let (offset, master, held) = {
+        let read = state.read(cx);
+        (
+            control.current_offset(read),
+            control.current_master(read),
+            read.wheel_held() == Some(control),
+        )
+    };
     let diameter = WHEEL_RADIUS * 2.0;
-    let handle_size = 8.0;
-    let handle_x = WHEEL_RADIUS + current_offset[0] * (WHEEL_RADIUS - handle_size * 0.5);
-    let handle_y = WHEEL_RADIUS + current_offset[1] * (WHEEL_RADIUS - handle_size * 0.5);
+    let travel = WHEEL_RADIUS - PUCK * 0.5;
+    let puck = [
+        WHEEL_RADIUS + offset[0] * travel - PUCK * 0.5,
+        WHEEL_RADIUS + offset[1] * travel - PUCK * 0.5,
+    ];
+    let key = MotionKey::new(place, control.label());
 
-    let reset_id = crate::motion::MotionKey::new("wheel-reset", control.label());
-    let wheel_id = crate::motion::MotionKey::new("wheel", control.label()).element_id("wheel");
+    // Where the wheel painted, in window pixels, for the press to read the
+    // pointer against. The ring canvas covers the whole wheel: the outline is
+    // an overlay rather than a border, so no inset shifts the canvas, the
+    // crosshairs, or the puck off the wheel's centre.
+    let frame = Rc::new(Cell::new([0.0_f32; 4]));
+    let pressed = Rc::clone(&frame);
+    let ring = canvas(
+        move |bounds: Bounds<Pixels>, _, _| {
+            frame.set([
+                f32::from(bounds.origin.x),
+                f32::from(bounds.origin.y),
+                f32::from(bounds.size.width),
+                f32::from(bounds.size.height),
+            ]);
+        },
+        |bounds: Bounds<Pixels>, _, window, _| paint_ring(bounds, window),
+    )
+    .absolute()
+    .size_full();
+
+    let master_param = control.master_param();
+    let target = ScrubTarget {
+        key: key.with("master"),
+        value: master,
+        unit: 0.01,
+        kind: ValueKind::Number { decimals: 2 },
+        write: Rc::new(move |state: &mut AppState, delta| {
+            state.nudge_shared_param(
+                ClipParam::Look {
+                    param: master_param,
+                },
+                None,
+                delta,
+            )
+        }),
+    };
 
     div()
         .flex()
@@ -197,25 +114,28 @@ pub(super) fn single_wheel_widget(
                 .items_center()
                 .child(
                     div()
-                        .text_size(px(12.0))
+                        .text_size(Theme::TEXT_TITLE)
                         .text_color(theme.text)
                         .font_weight(gpui::FontWeight::MEDIUM)
                         .child(control.label()),
                 )
                 .child(
                     components::icon_button(
-                        ("inspector-wheel-reset", reset_id),
+                        ("inspector-wheel-reset", key.with("reset")),
                         crate::icons::ROTATE_CCW,
                         theme,
                     )
+                    .debug_selector(move || format!("{place}-wheel-{}-reset", control.id()))
                     .on_mouse_down(
                         MouseButton::Left,
                         cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                            cx.stop_propagation();
                             this.state.update(cx, |state, _| {
                                 if let Err(err) = control.reset(state) {
                                     state.report_error(&err);
                                 }
                             });
+                            spawn_preview(this.state.clone(), cx);
                             cx.notify();
                         }),
                     ),
@@ -223,61 +143,65 @@ pub(super) fn single_wheel_widget(
         )
         .child(
             div()
-                .id(wheel_id)
+                .id(key.element_id("wheel"))
+                .debug_selector(move || format!("{place}-wheel-{}", control.id()))
                 .relative()
                 .w(px(diameter))
                 .h(px(diameter))
                 .rounded(px(WHEEL_RADIUS))
                 .bg(theme.surface_raised)
-                .border_1()
-                .border_color(theme.border)
-                // Center crosshairs
+                .cursor(CursorStyle::Crosshair)
+                .child(
+                    div()
+                        .absolute()
+                        .size_full()
+                        .rounded(px(WHEEL_RADIUS))
+                        .border_1()
+                        .border_color(if held { theme.accent } else { theme.border }),
+                )
+                .child(ring)
                 .child(
                     div()
                         .absolute()
                         .left(px(WHEEL_RADIUS - 0.5))
-                        .top(px(4.0))
+                        .top(px(RING_DOT * 2.5))
                         .w(px(1.0))
-                        .h(px(diameter - 8.0))
+                        .h(px(diameter - RING_DOT * 5.0))
                         .bg(theme.border),
                 )
                 .child(
                     div()
                         .absolute()
-                        .left(px(4.0))
+                        .left(px(RING_DOT * 2.5))
                         .top(px(WHEEL_RADIUS - 0.5))
-                        .w(px(diameter - 8.0))
+                        .w(px(diameter - RING_DOT * 5.0))
                         .h(px(1.0))
                         .bg(theme.border),
                 )
-                // Draggable handle
                 .child(
                     div()
                         .absolute()
-                        .left(px(handle_x - handle_size * 0.5))
-                        .top(px(handle_y - handle_size * 0.5))
-                        .w(px(handle_size))
-                        .h(px(handle_size))
-                        .rounded(px(handle_size * 0.5))
-                        .bg(theme.accent)
+                        .left(px(puck[0]))
+                        .top(px(puck[1]))
+                        .w(px(PUCK))
+                        .h(px(PUCK))
+                        .rounded(px(PUCK * 0.5))
+                        .bg(if held { theme.accent } else { theme.text })
                         .border_1()
-                        .border_color(theme.text),
+                        .border_color(theme.surface_raised),
                 )
                 .on_mouse_down(
                     MouseButton::Left,
                     cx.listener(move |this, event: &MouseDownEvent, _, cx| {
-                        let px_pos = [f32::from(event.position.x), f32::from(event.position.y)];
-                        // In tests and headless rendering, position is window/element relative
-                        let offset = pointer_to_wheel_offset(
-                            [WHEEL_RADIUS, WHEEL_RADIUS],
-                            WHEEL_RADIUS,
-                            px_pos,
-                        );
-                        this.state.update(cx, |state, _| {
-                            if let Err(err) = control.apply_offset(state, offset) {
-                                state.report_error(&err);
-                            }
-                        });
+                        cx.stop_propagation();
+                        let at = [f32::from(event.position.x), f32::from(event.position.y)];
+                        let frame = pressed.get();
+                        let changed = this
+                            .state
+                            .update(cx, |state, _| state.press_wheel(control, frame, at));
+                        if changed {
+                            spawn_preview(this.state.clone(), cx);
+                        }
                         cx.notify();
                     }),
                 ),
@@ -288,17 +212,53 @@ pub(super) fn single_wheel_widget(
                 .w_full()
                 .justify_between()
                 .items_center()
-                .text_size(px(11.0))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_faint)
                 .child("Master")
-                .child(format!("{:.2}", current_master)),
+                .child(value_readout::readout(
+                    theme,
+                    state,
+                    target,
+                    format!("{master:.2}"),
+                    Look {
+                        size: Theme::TEXT_UI,
+                        ink: theme.value,
+                    },
+                    cx,
+                )),
         )
 }
 
-/// Render the Lift, Gamma, and Gain color wheels section.
-pub(super) fn wheels_block(
+/// The hue ring: one dot per step around the rim, in the colour a press at
+/// that angle pushes the picture toward. Red is at 0°, green at 120° and blue
+/// at 240°, turning clockwise on screen.
+fn paint_ring(bounds: Bounds<Pixels>, window: &mut gpui::Window) {
+    let radius = f32::from(bounds.size.width).min(f32::from(bounds.size.height)) * 0.5;
+    let center = bounds.center();
+    let orbit = radius - RING_DOT;
+    for dot in 0..RING_DOTS {
+        let turn = dot as f32 / RING_DOTS as f32;
+        let angle = turn * std::f32::consts::TAU;
+        let x = f32::from(center.x) + orbit * angle.cos() - RING_DOT * 0.5;
+        let y = f32::from(center.y) + orbit * angle.sin() - RING_DOT * 0.5;
+        window.paint_quad(
+            gpui::fill(
+                Bounds {
+                    origin: point(px(x), px(y)),
+                    size: size(px(RING_DOT), px(RING_DOT)),
+                },
+                hsla(turn, 0.75, 0.55, 1.0),
+            )
+            .corner_radii(px(RING_DOT * 0.5)),
+        );
+    }
+}
+
+/// The Lift, Gamma, and Gain wheels under a section title. `place` is the
+/// surface drawing them: `color` or `inspector`.
+pub(crate) fn wheels_block(
     theme: &Theme,
-    _clip: &UiClip,
+    place: &'static str,
     state: &gpui::Entity<AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
@@ -308,7 +268,7 @@ pub(super) fn wheels_block(
             .flex_row()
             .justify_between()
             .gap(px(Theme::SPACE_SM)),
-        |row, control| row.child(single_wheel_widget(control, theme, state, cx)),
+        |row, control| row.child(single_wheel_widget(control, place, theme, state, cx)),
     );
     div()
         .flex()
@@ -316,89 +276,4 @@ pub(super) fn wheels_block(
         .gap(px(Theme::SPACE_XS))
         .child(section_label(theme, "Color Wheels"))
         .child(row)
-}
-
-trait RefHelper {
-    fn let_ref<R>(&self, f: impl FnOnce(&Self) -> R) -> R {
-        f(self)
-    }
-}
-
-impl<T> RefHelper for T {}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn wheel_pointer_to_offset_clamps_to_unit_circle() {
-        let center = [100.0, 100.0];
-        let radius = 50.0;
-
-        // Center maps to [0, 0]
-        let c = pointer_to_wheel_offset(center, radius, [100.0, 100.0]);
-        assert!((c[0].abs() < 1e-4) && (c[1].abs() < 1e-4));
-
-        // Right edge
-        let r = pointer_to_wheel_offset(center, radius, [150.0, 100.0]);
-        assert!((r[0] - 1.0).abs() < 1e-4);
-        assert!(r[1].abs() < 1e-4);
-
-        // Outside clamps to boundary with length 1.0
-        let out = pointer_to_wheel_offset(center, radius, [200.0, 100.0]);
-        assert!((out[0] - 1.0).abs() < 1e-4);
-        assert!(out[1].abs() < 1e-4);
-
-        // Diagonal
-        let diag = pointer_to_wheel_offset(center, radius, [150.0, 150.0]);
-        let len = (diag[0] * diag[0] + diag[1] * diag[1]).sqrt();
-        assert!((len - 1.0).abs() < 1e-4);
-    }
-
-    #[test]
-    fn wheel_offset_to_rgb_deltas_round_trips() {
-        let offsets = [
-            [0.0, 0.0],
-            [1.0, 0.0],
-            [0.0, 1.0],
-            [-0.5, 0.866],
-            [-0.5, -0.866],
-            [0.3, -0.7],
-        ];
-        for off in offsets {
-            let deltas = wheel_offset_to_rgb_deltas(off);
-            let back = rgb_deltas_to_wheel_offset(deltas);
-            assert!(
-                (off[0] - back[0]).abs() < 1e-3,
-                "offset x mismatch: {:?} vs {:?}",
-                off,
-                back
-            );
-            assert!(
-                (off[1] - back[1]).abs() < 1e-3,
-                "offset y mismatch: {:?} vs {:?}",
-                off,
-                back
-            );
-        }
-    }
-
-    #[test]
-    fn wheel_offset_deltas_sum_to_zero() {
-        let offsets = [
-            [0.0, 0.0],
-            [1.0, 0.0],
-            [-0.5, 0.866],
-            [0.45, -0.6],
-            [-0.8, -0.3],
-        ];
-        for off in offsets {
-            let [dr, dg, db] = wheel_offset_to_rgb_deltas(off);
-            let sum = dr + dg + db;
-            assert!(
-                sum.abs() < 1e-5,
-                "RGB deltas must sum to zero for chromaticity isolation: got {sum}"
-            );
-        }
-    }
 }

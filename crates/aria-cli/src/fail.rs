@@ -13,6 +13,8 @@ pub enum Failure {
     Usage(String),
     /// The command ran and could not finish.
     Failed(String),
+    /// A child process exited with a specific non-zero status code.
+    Exit { code: i32, message: String },
 }
 
 impl Failure {
@@ -21,13 +23,16 @@ impl Failure {
         match self {
             Failure::Usage(_) => 2,
             Failure::Failed(_) => 1,
+            Failure::Exit { code, .. } => *code,
         }
     }
 
     /// The one-line reason, as printed on stderr.
     pub fn message(&self) -> &str {
         match self {
-            Failure::Usage(message) | Failure::Failed(message) => message,
+            Failure::Usage(message) | Failure::Failed(message) | Failure::Exit { message, .. } => {
+                message
+            }
         }
     }
 }

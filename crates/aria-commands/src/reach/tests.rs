@@ -40,6 +40,12 @@ fn an_unreachable_command_states_why() {
     }
 }
 
+/// The commands no editor control sends. `Export` blocks, so the desktop
+/// queues background work instead; the three placements put one clip on one
+/// lane for the assistant, scripts, and the mobile app, while every desktop
+/// placement is a patched `Source edit`.
+const UNREACHABLE: [&str; 4] = ["Export", "Fit to fill", "Overwrite", "Ripple insert"];
+
 #[test]
 fn the_unreachable_set_is_locked() {
     // Promoting a command to an operator surface, or adding one that has no
@@ -50,7 +56,7 @@ fn the_unreachable_set_is_locked() {
         .map(|(label, _)| label)
         .collect();
     unreachable.sort_unstable();
-    assert_eq!(unreachable, ["Add clip", "Export"]);
+    assert_eq!(unreachable, UNREACHABLE);
 }
 
 #[test]
@@ -88,7 +94,7 @@ fn every_operator_command_names_its_surface() {
 fn every_other_command_claims_an_operator_surface() {
     let all = declared();
     let operator = all.iter().filter(|(_, r)| r.is_operator()).count();
-    assert_eq!(operator, all.len() - 2);
+    assert_eq!(operator, all.len() - UNREACHABLE.len());
 }
 
 #[test]

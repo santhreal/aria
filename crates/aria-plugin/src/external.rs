@@ -1,275 +1,266 @@
-//! Loading a plugin that was not compiled into the app.
+//! Native C-ABI plugin loader (`aria-plugin-abi` v1).
 //!
-//! A built-in plugin is a `Box<dyn Plugin>` the binary already contains. An
-//! external one is a shared library in a directory the host scans at boot. Both
-//! reach the same [`PluginContext::mount`], so an external plugin has every
-//! capability a built-in has and no separate path through the host.
+//! A native plugin package (`plugin.toml` + `lib/<os>-<arch>.<so|dylib|dll>`)
+//! exports `aria_plugin_entry(host, api_major) -> *const AriaPluginV1`. Both
+//! tables carry `struct_size` and `api_major` headers and their own allocator
+//! release functions (`free_string`, `free_bytes`), so a plugin compiled by a
+//! different `rustc` version or a C compiler loads without sharing Aria's Rust
+//! vtable layout or allocator.
 //!
-//! # ABI
+//! # Lifetime and Unload
 //!
-//! Rust has no stable ABI, so a library built by a different compiler cannot be
-//! trusted to hand back a `Box<dyn Plugin>`. Two symbols guard that:
-//!
-//! - `aria_plugin_abi_version() -> u32` must return [`ABI_VERSION`].
-//! - `aria_plugin_build() -> *const c_char` must return the same
-//!   `rustc`/crate build string the host was compiled with.
-//!
-//! Both come free from [`crate::export_plugin!`]. A mismatch is refused before
-//! the plugin's own code runs, because a mismatched vtable layout is a crash
-//! rather than an error.
-//!
-//! # Lifetime
-//!
-//! A loaded library stays mapped for the life of the process. A
-//! [`PluginManifest`] borrows `&'static str` out of the
-//! library's own data, and the context keeps a copy of that manifest, so
-//! unloading the code would leave those strings pointing at an unmapped page.
-//! Unmounting an external plugin therefore drops its registrations — its
-//! services and event handlers — and leaves the code loaded.
+//! [`PluginManifest`] and [`Package`] own their strings, so no `'static` slice
+//! borrows memory inside the mapped shared library. The loaded plugin's state
+//! holds the [`libloading::Library`] as its final field inside an [`Arc`]
+//! shared by the plugin handle and every closure or processor registered into
+//! [`PluginContext`]. Unmounting or failing the plugin drops its registrations;
+//! once no callback is in flight and the plugin handle is dropped, the `Arc`
+//! count reaches zero and the operating system unloads the shared library.
 
-use std::ffi::{CStr, OsStr, c_char, c_void};
+#![allow(unsafe_code)]
+
+mod ai_tools;
+mod contributions;
+mod decoders;
+mod events;
+mod host_table;
+mod scopes;
+
+use std::ffi::c_void;
+use std::panic::resume_unwind;
 use std::path::{Path, PathBuf};
-use std::sync::{LazyLock, Mutex};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, LazyLock};
 
-use libloading::{Library, Symbol};
-
-use crate::context::{MountFailure, PluginContext};
-use crate::plugin::{Plugin, PluginManifest};
-
-/// The loader contract's version. Bumped when the symbols, the `Plugin` trait,
-/// the event bus, or a shipped event type change shape; a library built against
-/// another one is refused. Version 8: `PluginContext` registers importers and
-/// exporters and holds their registry.
-pub const ABI_VERSION: u32 = 8;
-
-/// Identifies the compiler and crate version the host was built with. Two
-/// libraries agree on the `dyn Plugin` vtable only if this string matches.
-pub const BUILD_TAG: &str = concat!(
-    "aria-plugin ",
-    env!("CARGO_PKG_VERSION"),
-    " rustc ",
-    env!("ARIA_PLUGIN_RUSTC")
-);
-
-/// The file extension a plugin library has on this platform.
-pub const LIBRARY_EXTENSION: &str = if cfg!(target_os = "windows") {
-    "dll"
-} else if cfg!(target_os = "macos") {
-    "dylib"
-} else {
-    "so"
+use aria_plugin_abi::{
+    ARIA_API_MAJOR, ARIA_BYTES_FOUND, ARIA_BYTES_PANIC, ARIA_INSTANCE_OK, ARIA_INSTANCE_PANIC,
+    ARIA_PLUGIN_ENTRY_SYMBOL, ARIA_STATUS_OK, ARIA_STATUS_PANIC, AriaAudioBlock, AriaAudioParam,
+    AriaEncoderAudio, AriaEncoderConfig, AriaEncoderFrame, AriaInstanceResult, AriaJobStep,
+    AriaOwnedStr, AriaPluginEntryFn, AriaPluginV1, AriaResult, AriaStr, AriaTableHeader,
+    validate_plugin_table,
 };
+use libloading::{Library, Symbol};
+use parking_lot::Mutex;
 
-type AbiVersionFn = unsafe extern "C" fn() -> u32;
-type BuildTagFn = unsafe extern "C" fn() -> *const c_char;
-type CreateFn = unsafe extern "C" fn() -> *mut c_void;
+use self::events::UnmountSentinel;
+use self::host_table::{HOST_V1, register_native_command};
+use crate::context::{MountFailure, PluginContext};
+use crate::error::PluginError;
+use crate::package::{DataPlugin, Package, Tier, discover, register_declared};
+use crate::plugin::{Plugin, PluginManifest};
+use crate::project_host::TransactError;
+use crate::service::StorageService;
 
-/// Export a plugin from a `cdylib`. One line in the plugin's `lib.rs`:
-///
-/// ```ignore
-/// aria_plugin::export_plugin!(NotesPlugin);
-/// ```
-///
-/// The expression is evaluated once, when the host asks for the plugin.
-#[macro_export]
-macro_rules! export_plugin {
-    ($plugin:expr) => {
-        #[unsafe(no_mangle)]
-        pub extern "C" fn aria_plugin_abi_version() -> u32 {
-            $crate::external::ABI_VERSION
+/// Stable C ABI major version loaded by this build.
+pub const ABI_VERSION: u32 = ARIA_API_MAJOR;
+
+/// Platform file extension for a native plugin shared library (`so`, `dylib`, or `dll`).
+pub const LIBRARY_EXTENSION: &str = std::env::consts::DLL_EXTENSION;
+
+/// Maximum JSON byte size accepted from `panel_view` before parsing (`MAX_TREE_TEXT_BYTES + MAX_TREE_IMAGE_BYTES * 4`).
+pub const MAX_PANEL_VIEW_JSON_BYTES: usize =
+    crate::MAX_TREE_TEXT_BYTES + crate::MAX_TREE_IMAGE_BYTES * 4;
+
+/// Maximum JSON byte size accepted from `overlay_scene` before parsing: 256 bytes of JSON envelope per shape (`MAX_SHAPES`), 32 bytes per path point (`MAX_PATH_POINTS`), plus the scene text budget (`MAX_TREE_TEXT_BYTES`).
+pub const MAX_OVERLAY_SCENE_JSON_BYTES: usize = crate::viewer_overlay::MAX_SHAPES * 256
+    + crate::viewer_overlay::MAX_PATH_POINTS * 32
+    + crate::MAX_TREE_TEXT_BYTES;
+
+fn refused_tree(reason: impl std::fmt::Display) -> crate::UiNode {
+    crate::UiNode::Button {
+        id: format!("\0{reason}").into(),
+        label: Arc::from(""),
+        disabled: true,
+    }
+}
+
+fn refused_scene(reason: impl std::fmt::Display) -> crate::OverlayScene {
+    let raw = reason.to_string();
+    let mut sanitized = String::with_capacity(raw.len().min(crate::MAX_WIDGET_ID_BYTES));
+    for ch in raw.chars().filter(|c| !c.is_control()) {
+        if sanitized.len() + ch.len_utf8() > crate::MAX_WIDGET_ID_BYTES {
+            break;
         }
-
-        #[unsafe(no_mangle)]
-        pub extern "C" fn aria_plugin_build() -> *const ::core::ffi::c_char {
-            $crate::external::build_tag_ptr()
-        }
-
-        #[unsafe(no_mangle)]
-        pub extern "C" fn aria_plugin_create() -> *mut ::core::ffi::c_void {
-            let result = ::std::panic::catch_unwind(::std::panic::AssertUnwindSafe(|| {
-                let plugin: ::std::boxed::Box<dyn $crate::Plugin> = ::std::boxed::Box::new($plugin);
-                ::std::boxed::Box::into_raw(::std::boxed::Box::new(plugin))
-                    as *mut ::core::ffi::c_void
-            }));
-            match result {
-                ::core::result::Result::Ok(ptr) => ptr,
-                ::core::result::Result::Err(_) => ::core::ptr::null_mut(),
-            }
-        }
+        sanitized.push(ch);
+    }
+    let id: Arc<str> = if sanitized.trim().is_empty() {
+        Arc::from("malformed overlay scene JSON")
+    } else {
+        Arc::from(sanitized)
     };
-}
-
-/// The host's build tag as a C string, for [`export_plugin!`]. Not called
-/// directly.
-pub fn build_tag_ptr() -> *const c_char {
-    static TAG: LazyLock<std::ffi::CString> =
-        LazyLock::new(|| std::ffi::CString::new(BUILD_TAG).expect("build tag has no interior nul"));
-    TAG.as_ptr()
-}
-
-/// A plugin and the library it came from. The library field is last so the
-/// plugin is dropped before the code that defined it, on the one path that drops
-/// this at all.
-struct ExternalPlugin {
-    plugin: Box<dyn Plugin>,
-    _library: Library,
-}
-
-/// Every library loaded this process. Holds the code mapped for as long as the
-/// manifests taken out of it are readable, which is until exit.
-static LOADED: LazyLock<Mutex<Vec<ExternalPlugin>>> = LazyLock::new(|| Mutex::new(Vec::new()));
-
-/// The plugin libraries in `dir`, in path order.
-///
-/// Sorted so mount order is the same on every run: two plugins that both claim a
-/// file type must not elect a different winner because a directory listing came
-/// back in another order. A missing directory is not an error — most installs
-/// have no external plugins.
-pub fn library_paths(dir: &Path) -> Vec<PathBuf> {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return Vec::new();
+    let handle = crate::OverlayShape::Handle {
+        id,
+        at: [0.0, 0.0],
+        color: crate::OverlayColor::Accent,
+        look: crate::HandleLook::Dot,
     };
-    let mut paths: Vec<PathBuf> = entries
-        .filter_map(Result::ok)
-        .map(|entry| entry.path())
-        .filter(|path| path.extension() == Some(OsStr::new(LIBRARY_EXTENSION)))
-        .collect();
-    paths.sort();
-    paths
+    crate::OverlayScene {
+        shapes: vec![handle.clone(), handle],
+    }
 }
 
-/// Whether a library that declares `abi` and `tag` may be called.
+/// Registry of packages mounted through [`mount_dir`].
+static LOADED: LazyLock<Mutex<Vec<PluginManifest>>> = LazyLock::new(|| Mutex::new(Vec::new()));
+
+/// Return a reference to the static [`aria_plugin_abi::AriaHostV1`] callback
+/// table.
+pub fn host_table() -> &'static aria_plugin_abi::AriaHostV1 {
+    &HOST_V1
+}
+
+/// Check whether a plugin table declaring `api_major` and `struct_size` is
+/// compatible with this host build.
+pub fn check_compat(api_major: u32, struct_size: usize) -> Result<(), String> {
+    validate_plugin_table(api_major, struct_size)
+}
+
+/// Load a native plugin from `package`.
 ///
-/// Pulled out of [`load`] because it is the whole safety argument for the
-/// `Box<dyn Plugin>` that follows, and it is the one part that can be checked
-/// without building a library for every wrong answer. Both refusals name what the
-/// library says and what this build requires, because the fix is to rebuild
-/// against the named one.
-fn check_compat(abi: u32, tag: &str) -> Result<(), String> {
-    if abi != ABI_VERSION {
+/// Storage operations resolve `<data_root>/plugin-data/<id>` from the
+/// [`StorageService`] registered in the [`PluginContext`] when mounted, or
+/// fall back to the parent directory of `package.dir`.
+pub fn load(package: &Package) -> Result<Box<dyn Plugin>, String> {
+    load_optional_root(package, None)
+}
+
+/// Load a native plugin from `package` with an explicit `data_root` for
+/// `<data_root>/plugin-data/<id>`.
+pub fn load_with_data_root(package: &Package, data_root: &Path) -> Result<Box<dyn Plugin>, String> {
+    load_optional_root(package, Some(data_root))
+}
+
+fn load_optional_root(
+    package: &Package,
+    data_root: Option<&Path>,
+) -> Result<Box<dyn Plugin>, String> {
+    if package.manifest.api != ABI_VERSION {
         return Err(format!(
-            "built for plugin ABI {abi}, this build loads ABI {ABI_VERSION}"
+            "package `{}` declares api = {}, host requires api = {ABI_VERSION}",
+            package.manifest.id, package.manifest.api
         ));
     }
-    if tag != BUILD_TAG {
-        return Err(format!("built by {tag}, this build loads {BUILD_TAG}"));
-    }
-    Ok(())
-}
-
-#[cfg(test)]
-mod compat_tests {
-    use super::*;
-
-    /// A library built by this compiler against this crate is the only accepted
-    /// combination, and the exported constants are what a plugin reports.
-    #[test]
-    fn the_hosts_own_build_is_accepted() {
-        assert_eq!(check_compat(ABI_VERSION, BUILD_TAG), Ok(()));
-        assert!(BUILD_TAG.contains(env!("CARGO_PKG_VERSION")));
-    }
-
-    /// A stale plugin names both versions, so the reader knows what to rebuild
-    /// against rather than being told it is incompatible.
-    #[test]
-    fn a_stale_abi_is_refused_and_names_both_versions() {
-        for stale in [0, ABI_VERSION - 1, ABI_VERSION + 1, u32::MAX] {
-            let err = check_compat(stale, BUILD_TAG).expect_err("stale ABI must be refused");
-            assert!(err.contains(&stale.to_string()), "{err}");
-            assert!(err.contains(&ABI_VERSION.to_string()), "{err}");
-        }
-    }
-
-    /// The same ABI compiled by a different rustc is still a different vtable, so
-    /// the build tag is checked as well as the version number.
-    #[test]
-    fn a_matching_abi_from_another_compiler_is_refused() {
-        let err = check_compat(
-            ABI_VERSION,
-            "aria-plugin 0.7.0-alpha.0 rustc 1.0.0 (deadbeef)",
-        )
-        .expect_err("another compiler must be refused");
-        assert!(err.contains("1.0.0"), "{err}");
-        assert!(err.contains(BUILD_TAG), "{err}");
-    }
-}
-
-/// Load one plugin library and take the plugin out of it.
-///
-/// The ABI and build checks run before `aria_plugin_create`, so a library built
-/// against a different compiler is refused rather than called.
-fn load(path: &Path) -> Result<ExternalPlugin, String> {
-    // SAFETY: dlopen runs the library's initialisers. There is no way to load
-    // native code without trusting it; the guard below is against a stale build,
-    // not against a hostile one.
-    let library = unsafe { Library::new(path) }.map_err(|err| err.to_string())?;
-
-    // The symbols borrow the library, so they are resolved and dropped here,
-    // before the library moves into the returned value.
-    let plugin = {
-        let abi: Symbol<AbiVersionFn> = unsafe { library.get(b"aria_plugin_abi_version") }
-            .map_err(|_| "not an aria plugin: no aria_plugin_abi_version symbol".to_string())?;
-        let abi = unsafe { abi() };
-
-        let build: Symbol<BuildTagFn> = unsafe { library.get(b"aria_plugin_build") }
-            .map_err(|_| "not an aria plugin: no aria_plugin_build symbol".to_string())?;
-        let tag = unsafe { CStr::from_ptr(build()) }
-            .to_str()
-            .map_err(|_| "build tag is not UTF-8".to_string())?
-            .to_string();
-
-        check_compat(abi, &tag)?;
-
-        let create: Symbol<CreateFn> = unsafe { library.get(b"aria_plugin_create") }
-            .map_err(|_| "not an aria plugin: no aria_plugin_create symbol".to_string())?;
-        let raw = unsafe { create() } as *mut Box<dyn Plugin>;
-        if raw.is_null() {
-            return Err("aria_plugin_create returned nothing".to_string());
-        }
-        // SAFETY: `export_plugin!` produced this pointer with `Box::into_raw` on
-        // a `Box<Box<dyn Plugin>>`, and the ABI and build checks above establish
-        // that the library was compiled against this crate.
-        *unsafe { Box::from_raw(raw) }
+    let Tier::Native { library } = &package.tier else {
+        return Err(format!(
+            "package `{}` is not a native plugin",
+            package.manifest.id
+        ));
     };
-
-    Ok(ExternalPlugin {
-        plugin,
-        _library: library,
-    })
+    load_library(package, library, data_root)
 }
 
-/// Load and mount every plugin library in `dir`.
-///
-/// A library that will not load, or a plugin that will not mount, is one entry in
-/// the returned failures and does not stop the rest: a stale plugin file left in
-/// the directory must not keep the app from starting. Failures also land in the
-/// context's own ledger, so the plugin list shows them next to a built-in that
-/// failed.
+/// Load a native plugin library from `path` for `package`.
+pub fn load_library(
+    package: &Package,
+    path: &Path,
+    data_root: Option<&Path>,
+) -> Result<Box<dyn Plugin>, String> {
+    // SAFETY: `Library::new` calls `dlopen`/`LoadLibrary` on the package's shared object.
+    let library = unsafe { Library::new(path) }.map_err(|err| err.to_string())?;
+    let table = {
+        // SAFETY: Looking up the C entry function pointer symbol by name.
+        let entry: Symbol<AriaPluginEntryFn> = unsafe { library.get(ARIA_PLUGIN_ENTRY_SYMBOL) }
+            .map_err(|_| "not an aria plugin: no aria_plugin_entry symbol".to_owned())?;
+        // SAFETY: Passing a valid static `AriaHostV1` pointer and `ABI_VERSION` to the C entry point.
+        let table_ptr = unsafe { entry(&raw const HOST_V1, ABI_VERSION) };
+        if table_ptr.is_null() {
+            return Err(format!(
+                "aria_plugin_entry returned null for API major {ABI_VERSION}"
+            ));
+        }
+        // SAFETY: Every `AriaPluginV1` starts with `AriaTableHeader` (`struct_size`, `api_major`, `reserved`).
+        let header = unsafe { *(table_ptr as *const AriaTableHeader) };
+        check_compat(header.api_major, header.struct_size)?;
+        // SAFETY: `check_compat` verified `struct_size >= ARIA_PLUGIN_V1_MIN_SIZE` and `api_major == ABI_VERSION`.
+        unsafe { AriaPluginV1::copy_from_prefix(table_ptr, header.struct_size) }
+    };
+    from_table_with_library(package, &table, data_root, Some(library))
+}
+
+/// Construct a native [`Plugin`] from a validated [`AriaPluginV1`] table and [`Package`].
+pub fn from_table(
+    package: &Package,
+    table: AriaPluginV1,
+    data_root: Option<&Path>,
+) -> Result<Box<dyn Plugin>, String> {
+    check_compat(table.api_major, table.struct_size)?;
+    from_table_with_library(package, &table, data_root, None)
+}
+
+fn from_table_with_library(
+    package: &Package,
+    table: &AriaPluginV1,
+    data_root: Option<&Path>,
+    library: Option<Library>,
+) -> Result<Box<dyn Plugin>, String> {
+    let manifest = package.plugin_manifest();
+    let state = Arc::new(NativePluginState {
+        id: package.manifest.id.clone(),
+        package: package.clone(),
+        data_root: data_root.map(Path::to_path_buf),
+        table: *table,
+        mounted: AtomicBool::new(false),
+        failed: AtomicBool::new(false),
+        next_job: AtomicU64::new(1),
+        _library: library,
+    });
+    Ok(Box::new(NativePlugin {
+        package: package.clone(),
+        manifest,
+        state,
+    }))
+}
+
+/// Discover and mount every native or data package in `dir`.
 pub fn mount_dir(ctx: &PluginContext, dir: &Path) -> Vec<MountFailure> {
     let mut failures = Vec::new();
-    for path in library_paths(dir) {
-        let name = path
-            .file_name()
-            .unwrap_or(path.as_os_str())
-            .to_string_lossy()
-            .into_owned();
-        match load(&path) {
-            Ok(external) => {
-                let manifest = *external.plugin.manifest();
-                let mounted = ctx.mount(external.plugin.as_ref());
-                // Held whether or not the mount took: a refused plugin's code is
-                // still mapped, and the manifest copy above points into it.
-                LOADED.lock().expect("plugin registry").push(external);
-                if let Err(err) = mounted {
-                    failures.push(external_failure(
-                        manifest.id,
-                        manifest.name,
-                        err.to_string(),
-                    ));
+    for entry in discover(dir) {
+        match entry {
+            Ok(package) => match &package.tier {
+                Tier::Native { .. } => match load(&package) {
+                    Ok(plugin) => {
+                        let manifest = plugin.manifest().clone();
+                        let mounted = ctx.mount(plugin.as_ref());
+                        record_loaded(&manifest);
+                        if let Err(err) = mounted {
+                            failures.push(MountFailure {
+                                id: manifest.id.to_string(),
+                                name: manifest.name.to_string(),
+                                reason: err.to_string(),
+                            });
+                        }
+                    }
+                    Err(reason) => {
+                        let failure = ctx.record_external_failure(
+                            package.manifest.id.clone(),
+                            package.manifest.name.clone(),
+                            reason,
+                        );
+                        failures.push(failure);
+                    }
+                },
+                Tier::Data => {
+                    let plugin = DataPlugin::new(package);
+                    let manifest = plugin.manifest().clone();
+                    let mounted = ctx.mount(&plugin);
+                    record_loaded(&manifest);
+                    if let Err(err) = mounted {
+                        failures.push(MountFailure {
+                            id: manifest.id.to_string(),
+                            name: manifest.name.to_string(),
+                            reason: err.to_string(),
+                        });
+                    }
                 }
-            }
-            Err(reason) => {
-                let failure = ctx.record_external_failure(name.clone(), name, reason);
+                Tier::Wasm { .. } => {}
+            },
+            Err(err) => {
+                let name = err
+                    .path
+                    .file_name()
+                    .unwrap_or(err.path.as_os_str())
+                    .to_string_lossy()
+                    .into_owned();
+                let failure = ctx.record_external_failure(name.clone(), name, err.reason);
                 failures.push(failure);
             }
         }
@@ -277,117 +268,893 @@ pub fn mount_dir(ctx: &PluginContext, dir: &Path) -> Vec<MountFailure> {
     failures
 }
 
-fn external_failure(id: &str, name: &str, reason: String) -> MountFailure {
-    MountFailure {
-        id: id.to_string(),
-        name: name.to_string(),
-        reason,
+fn record_loaded(manifest: &PluginManifest) {
+    let mut list = LOADED.lock();
+    list.retain(|existing| existing.id != manifest.id);
+    list.push(manifest.clone());
+}
+
+/// Manifests of the external plugins loaded through [`mount_dir`], in load order.
+pub fn loaded() -> Vec<PluginManifest> {
+    LOADED.lock().clone()
+}
+
+pub(crate) struct HostCallContext<'a> {
+    pub(crate) state: &'a Arc<NativePluginState>,
+    pub(crate) scoped_ctx: &'a PluginContext,
+    pub(crate) unscoped_ctx: PluginContext,
+    pub(crate) in_mount: bool,
+}
+
+impl HostCallContext<'_> {
+    pub(crate) fn storage_dir(&self) -> PathBuf {
+        self.state.resolve_storage_dir(self.scoped_ctx)
     }
 }
 
-/// The manifests of the external plugins loaded this process, in load order.
-pub fn loaded() -> Vec<PluginManifest> {
-    LOADED
-        .lock()
-        .expect("plugin registry")
-        .iter()
-        .map(|external| *external.plugin.manifest())
-        .collect()
+pub(crate) enum ExportCallError {
+    Failed(String),
+    Panicked(String),
+}
+
+struct NativePlugin {
+    package: Package,
+    manifest: PluginManifest,
+    state: Arc<NativePluginState>,
+}
+
+impl std::fmt::Debug for NativePlugin {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NativePlugin")
+            .field("id", &self.manifest.id)
+            .field("version", &self.manifest.version)
+            .finish()
+    }
+}
+
+struct UnmountGuard {
+    state: Arc<NativePluginState>,
+    scoped_ctx: PluginContext,
+}
+
+impl Drop for UnmountGuard {
+    fn drop(&mut self) {
+        self.state.call_unmount(&self.scoped_ctx);
+    }
+}
+
+impl Plugin for NativePlugin {
+    fn manifest(&self) -> &PluginManifest {
+        &self.manifest
+    }
+
+    fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
+        if self.state.is_failed() {
+            return Err(PluginError::MountFailed(
+                self.manifest.id.clone(),
+                "plugin has faulted in this session".to_owned(),
+            ));
+        }
+        register_declared(ctx, &self.package)?;
+        let guard = UnmountGuard {
+            state: Arc::clone(&self.state),
+            scoped_ctx: ctx.clone(),
+        };
+        ctx.on_event(move |_ev: &UnmountSentinel| {
+            let _keep = &guard;
+        });
+        self.state.call_mount(ctx)?;
+        for cmd in &self.package.manifest.commands {
+            let already_registered = ctx.commands().iter().any(|existing| existing.id == cmd.id);
+            if !already_registered {
+                register_native_command(ctx, &self.state, cmd.id.clone(), cmd.title.clone())
+                    .map_err(|reason| PluginError::MountFailed(self.manifest.id.clone(), reason))?;
+            }
+        }
+        self.state.mounted.store(true, Ordering::Release);
+        Ok(())
+    }
+
+    fn unmount(&self, ctx: &PluginContext) {
+        self.state.call_unmount(ctx);
+    }
+}
+
+pub(crate) struct NativePluginState {
+    pub(crate) id: String,
+    pub(crate) package: Package,
+    pub(crate) data_root: Option<PathBuf>,
+    pub(crate) table: AriaPluginV1,
+    pub(crate) mounted: AtomicBool,
+    pub(crate) failed: AtomicBool,
+    /// The id the next `start_job` hands the plugin.
+    pub(crate) next_job: AtomicU64,
+    // Field order is load-bearing: `_library` drops last, after all state references release.
+    _library: Option<Library>,
+}
+
+impl NativePluginState {
+    pub(crate) fn is_failed(&self) -> bool {
+        self.failed.load(Ordering::Acquire)
+    }
+
+    pub(crate) fn resolve_storage_dir(&self, scoped_ctx: &PluginContext) -> PathBuf {
+        if let Some(root) = &self.data_root {
+            return self.package.data_dir(root);
+        }
+        let unscoped = scoped_ctx.scoped(None);
+        if let Some(storage) = unscoped.try_get::<dyn StorageService>() {
+            let cache = storage.cache_dir();
+            let root = cache.parent().unwrap_or(cache);
+            return self.package.data_dir(root);
+        }
+        let pkg_dir = &self.package.dir;
+        let inferred_root = pkg_dir
+            .parent()
+            .and_then(|parent| {
+                if parent.file_name().is_some_and(|name| name == "plugins") {
+                    parent.parent()
+                } else {
+                    Some(parent)
+                }
+            })
+            .unwrap_or(pkg_dir);
+        self.package.data_dir(inferred_root)
+    }
+
+    fn take_guest_string(&self, owned: AriaOwnedStr) -> String {
+        if owned.ptr.is_null() {
+            return String::new();
+        }
+        // SAFETY: `owned` was returned by the guest and is valid until `free_string` is called.
+        let text = unsafe {
+            let bytes = std::slice::from_raw_parts(owned.ptr, owned.len);
+            String::from_utf8_lossy(bytes).into_owned()
+        };
+        // SAFETY: `self.table.free_string` is the guest's allocator release function for `owned`.
+        unsafe { (self.table.free_string)(owned) };
+        text
+    }
+
+    fn decode_result(&self, result: AriaResult) -> Result<String, (bool, String)> {
+        let text = self.take_guest_string(result.value);
+        match result.status {
+            ARIA_STATUS_OK => Ok(text),
+            ARIA_STATUS_PANIC => Err((true, text)),
+            _ => Err((false, text)),
+        }
+    }
+
+    fn decode_instance(&self, result: AriaInstanceResult) -> Result<u64, (bool, String)> {
+        let err_text = self.take_guest_string(result.error);
+        match result.status {
+            ARIA_INSTANCE_OK => Ok(result.instance),
+            ARIA_INSTANCE_PANIC => Err((true, err_text)),
+            _ => Err((false, err_text)),
+        }
+    }
+
+    fn mark_faulted(&self, scoped_ctx: &PluginContext, reason: String) {
+        self.failed.store(true, Ordering::Release);
+        self.mounted.store(false, Ordering::Release);
+        let unscoped = scoped_ctx.scoped(None);
+        unscoped.fail(&self.id, reason);
+    }
+
+    pub(crate) fn call_mount(
+        self: &Arc<Self>,
+        scoped_ctx: &PluginContext,
+    ) -> Result<(), PluginError> {
+        let mut call_ctx = HostCallContext {
+            state: self,
+            scoped_ctx,
+            unscoped_ctx: scoped_ctx.scoped(None),
+            in_mount: true,
+        };
+        // SAFETY: `call_ctx` lives on the stack for the duration of `table.mount`.
+        let raw = unsafe { (self.table.mount)((&raw mut call_ctx).cast::<c_void>()) };
+        match self.decode_result(raw) {
+            Ok(_) => Ok(()),
+            Err((true, msg)) => {
+                self.failed.store(true, Ordering::Release);
+                Err(PluginError::MountFailed(
+                    self.id.clone().into(),
+                    format!("panic: {msg}"),
+                ))
+            }
+            Err((false, msg)) => Err(PluginError::MountFailed(self.id.clone().into(), msg)),
+        }
+    }
+
+    pub(crate) fn call_unmount(self: &Arc<Self>, scoped_ctx: &PluginContext) {
+        if !self.mounted.swap(false, Ordering::AcqRel) || self.is_failed() {
+            return;
+        }
+        let mut call_ctx = HostCallContext {
+            state: self,
+            scoped_ctx,
+            unscoped_ctx: scoped_ctx.scoped(None),
+            in_mount: false,
+        };
+        // SAFETY: `call_ctx` lives on the stack for the duration of `table.unmount`.
+        let raw = unsafe { (self.table.unmount)((&raw mut call_ctx).cast::<c_void>()) };
+        if let Err((true, msg)) = self.decode_result(raw) {
+            self.mark_faulted(scoped_ctx, format!("unmount panicked: {msg}"));
+        }
+    }
+
+    pub(crate) fn call_command_run(
+        self: &Arc<Self>,
+        scoped_ctx: &PluginContext,
+        id: &str,
+        args_json: &str,
+    ) -> Result<(), String> {
+        if self.is_failed() {
+            return Err(format!("plugin `{}` has faulted", self.id));
+        }
+        let mut call_ctx = HostCallContext {
+            state: self,
+            scoped_ctx,
+            unscoped_ctx: scoped_ctx.scoped(None),
+            in_mount: false,
+        };
+        // SAFETY: `call_ctx`, `id`, and `args_json` outlive `table.command_run`.
+        let raw = unsafe {
+            (self.table.command_run)(
+                (&raw mut call_ctx).cast::<c_void>(),
+                AriaStr::from_str(id),
+                AriaStr::from_str(args_json),
+            )
+        };
+        match self.decode_result(raw) {
+            Ok(_) => Ok(()),
+            Err((false, msg)) => Err(msg),
+            Err((true, msg)) => {
+                self.failed.store(true, Ordering::Release);
+                self.mounted.store(false, Ordering::Release);
+                resume_unwind(Box::new(msg));
+            }
+        }
+    }
+
+    pub(crate) fn call_event(
+        self: &Arc<Self>,
+        scoped_ctx: &PluginContext,
+        kind: &str,
+        event_json: &str,
+    ) -> Result<String, ()> {
+        if self.is_failed() {
+            return Err(());
+        }
+        let mut call_ctx = HostCallContext {
+            state: self,
+            scoped_ctx,
+            unscoped_ctx: scoped_ctx.scoped(None),
+            in_mount: false,
+        };
+        // SAFETY: `call_ctx`, `kind`, and `event_json` outlive `table.event`.
+        let raw = unsafe {
+            (self.table.event)(
+                (&raw mut call_ctx).cast::<c_void>(),
+                AriaStr::from_str(kind),
+                AriaStr::from_str(event_json),
+            )
+        };
+        match self.decode_result(raw) {
+            Ok(response) => Ok(response),
+            Err((false, msg)) => {
+                tracing::warn!(plugin = %self.id, kind = %kind, error = %msg, "plugin event handler returned error");
+                Err(())
+            }
+            Err((true, msg)) => {
+                self.mark_faulted(scoped_ctx, format!("event {kind} panicked: {msg}"));
+                Err(())
+            }
+        }
+    }
+
+    pub(crate) fn call_import(
+        self: &Arc<Self>,
+        scoped_ctx: &PluginContext,
+        importer_id: &str,
+        path: &str,
+    ) -> Result<String, TransactError> {
+        if self.is_failed() {
+            return Err(TransactError::Aborted(format!(
+                "plugin `{}` has faulted",
+                self.id
+            )));
+        }
+        let mut call_ctx = HostCallContext {
+            state: self,
+            scoped_ctx,
+            unscoped_ctx: scoped_ctx.scoped(None),
+            in_mount: false,
+        };
+        // SAFETY: `call_ctx`, `importer_id`, and `path` outlive `table.import`.
+        let raw = unsafe {
+            (self.table.import)(
+                (&raw mut call_ctx).cast::<c_void>(),
+                AriaStr::from_str(importer_id),
+                AriaStr::from_str(path),
+            )
+        };
+        match self.decode_result(raw) {
+            Ok(json) => Ok(json),
+            Err((false, msg)) => Err(TransactError::Aborted(msg)),
+            Err((true, msg)) => {
+                self.failed.store(true, Ordering::Release);
+                self.mounted.store(false, Ordering::Release);
+                Err(TransactError::Panicked(msg))
+            }
+        }
+    }
+
+    pub(crate) fn call_export(
+        self: &Arc<Self>,
+        scoped_ctx: &PluginContext,
+        exporter_id: &str,
+        project_json: &str,
+        path: &str,
+    ) -> Result<String, ExportCallError> {
+        if self.is_failed() {
+            return Err(ExportCallError::Failed(format!(
+                "plugin `{}` has faulted",
+                self.id
+            )));
+        }
+        let mut call_ctx = HostCallContext {
+            state: self,
+            scoped_ctx,
+            unscoped_ctx: scoped_ctx.scoped(None),
+            in_mount: false,
+        };
+        // SAFETY: `call_ctx`, `exporter_id`, `project_json`, and `path` outlive `table.export`.
+        let raw = unsafe {
+            (self.table.export)(
+                (&raw mut call_ctx).cast::<c_void>(),
+                AriaStr::from_str(exporter_id),
+                AriaStr::from_str(project_json),
+                AriaStr::from_str(path),
+            )
+        };
+        match self.decode_result(raw) {
+            Ok(json) => Ok(json),
+            Err((false, msg)) => Err(ExportCallError::Failed(msg)),
+            Err((true, msg)) => {
+                self.failed.store(true, Ordering::Release);
+                self.mounted.store(false, Ordering::Release);
+                Err(ExportCallError::Panicked(msg))
+            }
+        }
+    }
+
+    pub(crate) fn call_audio_create(
+        self: &Arc<Self>,
+        scoped_ctx: &PluginContext,
+        effect_id: &str,
+        sample_rate: u32,
+    ) -> Result<u64, String> {
+        if self.is_failed() {
+            return Err(format!("plugin `{}` has faulted", self.id));
+        }
+        let mut call_ctx = HostCallContext {
+            state: self,
+            scoped_ctx,
+            unscoped_ctx: scoped_ctx.scoped(None),
+            in_mount: false,
+        };
+        // SAFETY: `call_ctx` and `effect_id` outlive `table.audio_create`.
+        let raw = unsafe {
+            (self.table.audio_create)(
+                (&raw mut call_ctx).cast::<c_void>(),
+                AriaStr::from_str(effect_id),
+                sample_rate,
+            )
+        };
+        match self.decode_instance(raw) {
+            Ok(instance) => Ok(instance),
+            Err((is_panic, msg)) => {
+                if is_panic {
+                    self.failed.store(true, Ordering::Release);
+                    self.mounted.store(false, Ordering::Release);
+                }
+                Err(msg)
+            }
+        }
+    }
+
+    pub(crate) fn call_audio_process(
+        self: &Arc<Self>,
+        scoped_ctx: &PluginContext,
+        _effect_id: &str,
+        instance: u64,
+        params: &[AriaAudioParam],
+        block: &mut AriaAudioBlock,
+    ) -> Result<(), String> {
+        if self.is_failed() {
+            return Err(format!("plugin `{}` has faulted", self.id));
+        }
+        let mut call_ctx = HostCallContext {
+            state: self,
+            scoped_ctx,
+            unscoped_ctx: scoped_ctx.scoped(None),
+            in_mount: false,
+        };
+        // SAFETY: `call_ctx`, `params`, and `block` outlive `table.audio_process`.
+        let raw = unsafe {
+            (self.table.audio_process)(
+                (&raw mut call_ctx).cast::<c_void>(),
+                instance,
+                params.as_ptr(),
+                params.len(),
+                &raw mut *block,
+            )
+        };
+        match self.decode_result(raw) {
+            Ok(_) => Ok(()),
+            Err((is_panic, msg)) => {
+                if is_panic {
+                    self.failed.store(true, Ordering::Release);
+                    self.mounted.store(false, Ordering::Release);
+                }
+                Err(msg)
+            }
+        }
+    }
+
+    pub(crate) fn call_audio_reset(
+        self: &Arc<Self>,
+        scoped_ctx: &PluginContext,
+        _effect_id: &str,
+        instance: u64,
+    ) -> Result<(), String> {
+        if self.is_failed() {
+            return Err(format!("plugin `{}` has faulted", self.id));
+        }
+        let mut call_ctx = HostCallContext {
+            state: self,
+            scoped_ctx,
+            unscoped_ctx: scoped_ctx.scoped(None),
+            in_mount: false,
+        };
+        // SAFETY: `call_ctx` outlives `table.audio_reset`.
+        let raw =
+            unsafe { (self.table.audio_reset)((&raw mut call_ctx).cast::<c_void>(), instance) };
+        match self.decode_result(raw) {
+            Ok(_) => Ok(()),
+            Err((is_panic, msg)) => {
+                if is_panic {
+                    self.failed.store(true, Ordering::Release);
+                    self.mounted.store(false, Ordering::Release);
+                }
+                Err(msg)
+            }
+        }
+    }
+
+    pub(crate) fn call_audio_drop(self: &Arc<Self>, scoped_ctx: &PluginContext, instance: u64) {
+        if self.is_failed() {
+            return;
+        }
+        let mut call_ctx = HostCallContext {
+            state: self,
+            scoped_ctx,
+            unscoped_ctx: scoped_ctx.scoped(None),
+            in_mount: false,
+        };
+        // SAFETY: `call_ctx` outlives `table.audio_drop`.
+        let raw =
+            unsafe { (self.table.audio_drop)((&raw mut call_ctx).cast::<c_void>(), instance) };
+        if let Err((true, msg)) = self.decode_result(raw) {
+            self.mark_faulted(scoped_ctx, format!("audio_drop panicked: {msg}"));
+        }
+    }
+
+    pub(crate) fn call_panel_view(
+        self: &Arc<Self>,
+        scoped_ctx: &PluginContext,
+        panel_id: &str,
+    ) -> crate::UiNode {
+        if self.is_failed() {
+            return refused_tree(format!("plugin `{}` has faulted", self.id));
+        }
+        let mut call_ctx = HostCallContext {
+            state: self,
+            scoped_ctx,
+            unscoped_ctx: scoped_ctx.scoped(None),
+            in_mount: false,
+        };
+        // SAFETY: `call_ctx` and `panel_id` outlive `table.panel_view`.
+        let raw = unsafe {
+            (self.table.panel_view)(
+                (&raw mut call_ctx).cast::<c_void>(),
+                AriaStr::from_str(panel_id),
+            )
+        };
+        if raw.status == ARIA_BYTES_PANIC {
+            if !raw.bytes.ptr.is_null() {
+                // SAFETY: `raw.bytes` was allocated by the guest.
+                unsafe { (self.table.free_bytes)(raw.bytes) };
+            }
+            let msg = self.take_guest_string(raw.error);
+            self.failed.store(true, Ordering::Release);
+            self.mounted.store(false, Ordering::Release);
+            resume_unwind(Box::new(msg));
+        }
+        let err_text = self.take_guest_string(raw.error);
+        if raw.status != ARIA_BYTES_FOUND {
+            if !raw.bytes.ptr.is_null() {
+                // SAFETY: `raw.bytes` was allocated by the guest.
+                unsafe { (self.table.free_bytes)(raw.bytes) };
+            }
+            return refused_tree(format!("panel_view failed: {err_text}"));
+        }
+        if raw.bytes.len > MAX_PANEL_VIEW_JSON_BYTES {
+            let len = raw.bytes.len;
+            if !raw.bytes.ptr.is_null() {
+                // SAFETY: `raw.bytes` was allocated by the guest; freed before parsing oversized JSON.
+                unsafe { (self.table.free_bytes)(raw.bytes) };
+            }
+            return refused_tree(format!(
+                "panel JSON exceeds limit ({len} > {MAX_PANEL_VIEW_JSON_BYTES})"
+            ));
+        }
+        // SAFETY: `raw.bytes` was allocated by the guest and fits within `MAX_PANEL_VIEW_JSON_BYTES`.
+        let bytes = unsafe { raw.bytes.into_vec_with(self.table.free_bytes) };
+        match serde_json::from_slice::<crate::UiNode>(&bytes) {
+            Ok(tree) => tree,
+            Err(err) => refused_tree(format!("malformed panel tree JSON: {err}")),
+        }
+    }
+
+    pub(crate) fn call_panel_event(
+        self: &Arc<Self>,
+        scoped_ctx: &PluginContext,
+        panel_id: &str,
+        event: &crate::PanelEvent,
+    ) -> Result<(), String> {
+        if self.is_failed() {
+            return Err(format!("plugin `{}` has faulted", self.id));
+        }
+        let event_json = serde_json::to_string(event).map_err(|err| err.to_string())?;
+        let mut call_ctx = HostCallContext {
+            state: self,
+            scoped_ctx,
+            unscoped_ctx: scoped_ctx.scoped(None),
+            in_mount: false,
+        };
+        // SAFETY: `call_ctx`, `panel_id`, and `event_json` outlive `table.panel_event`.
+        let raw = unsafe {
+            (self.table.panel_event)(
+                (&raw mut call_ctx).cast::<c_void>(),
+                AriaStr::from_str(panel_id),
+                AriaStr::from_str(&event_json),
+            )
+        };
+        match self.decode_result(raw) {
+            Ok(_) => Ok(()),
+            Err((false, msg)) => Err(msg),
+            Err((true, msg)) => {
+                self.failed.store(true, Ordering::Release);
+                self.mounted.store(false, Ordering::Release);
+                resume_unwind(Box::new(msg));
+            }
+        }
+    }
+
+    pub(crate) fn call_encoder_open(
+        self: &Arc<Self>,
+        scoped_ctx: &PluginContext,
+        encoder_id: &str,
+        path: &str,
+        config: &AriaEncoderConfig,
+    ) -> Result<u64, String> {
+        if self.is_failed() {
+            return Err(format!("plugin `{}` has faulted", self.id));
+        }
+        let mut call_ctx = HostCallContext {
+            state: self,
+            scoped_ctx,
+            unscoped_ctx: scoped_ctx.scoped(None),
+            in_mount: false,
+        };
+        // SAFETY: `call_ctx`, `encoder_id`, `path`, and `config` outlive `table.encoder_open`.
+        let raw = unsafe {
+            (self.table.encoder_open)(
+                (&raw mut call_ctx).cast::<c_void>(),
+                AriaStr::from_str(encoder_id),
+                AriaStr::from_str(path),
+                &raw const *config,
+            )
+        };
+        match self.decode_instance(raw) {
+            Ok(instance) => Ok(instance),
+            Err((false, msg)) => Err(msg),
+            Err((true, msg)) => {
+                self.failed.store(true, Ordering::Release);
+                self.mounted.store(false, Ordering::Release);
+                resume_unwind(Box::new(msg));
+            }
+        }
+    }
+
+    pub(crate) fn call_encoder_push_frame(
+        self: &Arc<Self>,
+        scoped_ctx: &PluginContext,
+        instance: u64,
+        frame: &AriaEncoderFrame,
+    ) -> Result<(), String> {
+        if self.is_failed() {
+            return Err(format!("plugin `{}` has faulted", self.id));
+        }
+        let mut call_ctx = HostCallContext {
+            state: self,
+            scoped_ctx,
+            unscoped_ctx: scoped_ctx.scoped(None),
+            in_mount: false,
+        };
+        // SAFETY: `call_ctx` and `frame` outlive `table.encoder_push_frame`.
+        let raw = unsafe {
+            (self.table.encoder_push_frame)(
+                (&raw mut call_ctx).cast::<c_void>(),
+                instance,
+                &raw const *frame,
+            )
+        };
+        match self.decode_result(raw) {
+            Ok(_) => Ok(()),
+            Err((false, msg)) => Err(msg),
+            Err((true, msg)) => {
+                self.failed.store(true, Ordering::Release);
+                self.mounted.store(false, Ordering::Release);
+                resume_unwind(Box::new(msg));
+            }
+        }
+    }
+
+    pub(crate) fn call_encoder_push_audio(
+        self: &Arc<Self>,
+        scoped_ctx: &PluginContext,
+        instance: u64,
+        audio: &AriaEncoderAudio,
+    ) -> Result<(), String> {
+        if self.is_failed() {
+            return Err(format!("plugin `{}` has faulted", self.id));
+        }
+        let mut call_ctx = HostCallContext {
+            state: self,
+            scoped_ctx,
+            unscoped_ctx: scoped_ctx.scoped(None),
+            in_mount: false,
+        };
+        // SAFETY: `call_ctx` and `audio` outlive `table.encoder_push_audio`.
+        let raw = unsafe {
+            (self.table.encoder_push_audio)(
+                (&raw mut call_ctx).cast::<c_void>(),
+                instance,
+                &raw const *audio,
+            )
+        };
+        match self.decode_result(raw) {
+            Ok(_) => Ok(()),
+            Err((false, msg)) => Err(msg),
+            Err((true, msg)) => {
+                self.failed.store(true, Ordering::Release);
+                self.mounted.store(false, Ordering::Release);
+                resume_unwind(Box::new(msg));
+            }
+        }
+    }
+
+    pub(crate) fn call_encoder_finish(
+        self: &Arc<Self>,
+        scoped_ctx: &PluginContext,
+        instance: u64,
+    ) -> Result<(), String> {
+        if self.is_failed() {
+            return Err(format!("plugin `{}` has faulted", self.id));
+        }
+        let mut call_ctx = HostCallContext {
+            state: self,
+            scoped_ctx,
+            unscoped_ctx: scoped_ctx.scoped(None),
+            in_mount: false,
+        };
+        // SAFETY: `call_ctx` outlives `table.encoder_finish`.
+        let raw =
+            unsafe { (self.table.encoder_finish)((&raw mut call_ctx).cast::<c_void>(), instance) };
+        match self.decode_result(raw) {
+            Ok(_) => Ok(()),
+            Err((false, msg)) => Err(msg),
+            Err((true, msg)) => {
+                self.failed.store(true, Ordering::Release);
+                self.mounted.store(false, Ordering::Release);
+                resume_unwind(Box::new(msg));
+            }
+        }
+    }
+
+    pub(crate) fn call_encoder_drop(self: &Arc<Self>, scoped_ctx: &PluginContext, instance: u64) {
+        if self.is_failed() {
+            return;
+        }
+        let mut call_ctx = HostCallContext {
+            state: self,
+            scoped_ctx,
+            unscoped_ctx: scoped_ctx.scoped(None),
+            in_mount: false,
+        };
+        // SAFETY: `call_ctx` outlives `table.encoder_drop`.
+        let raw =
+            unsafe { (self.table.encoder_drop)((&raw mut call_ctx).cast::<c_void>(), instance) };
+        if let Err((true, msg)) = self.decode_result(raw) {
+            self.mark_faulted(scoped_ctx, format!("encoder_drop panicked: {msg}"));
+        }
+    }
+
+    /// Run one step of plugin job `job`. A panic faults the plugin and unwinds into the
+    /// job, which records it as failed.
+    pub(crate) fn call_job_step(
+        self: &Arc<Self>,
+        scoped_ctx: &PluginContext,
+        job: u64,
+    ) -> Result<crate::JobStep, String> {
+        if self.is_failed() {
+            return Err(format!("plugin `{}` has faulted", self.id));
+        }
+        let mut call_ctx = HostCallContext {
+            state: self,
+            scoped_ctx,
+            unscoped_ctx: scoped_ctx.scoped(None),
+            in_mount: false,
+        };
+        let mut step = AriaJobStep {
+            progress: -1.0,
+            done: 0,
+            commit: 0,
+        };
+        // SAFETY: `call_ctx` and `step` outlive `table.job_step`.
+        let raw = unsafe {
+            (self.table.job_step)((&raw mut call_ctx).cast::<c_void>(), job, &raw mut step)
+        };
+        match self.decode_result(raw) {
+            Ok(detail) => Ok(crate::JobStep {
+                progress: (step.progress >= 0.0).then_some(step.progress.min(1.0)),
+                detail,
+                done: step.done != 0,
+                commit: step.commit != 0,
+            }),
+            Err((false, msg)) => Err(msg),
+            Err((true, msg)) => {
+                self.failed.store(true, Ordering::Release);
+                self.mounted.store(false, Ordering::Release);
+                resume_unwind(Box::new(msg));
+            }
+        }
+    }
+
+    /// Report the end of plugin job `job`. An error is dropped: the job has already ended.
+    pub(crate) fn call_job_end(
+        self: &Arc<Self>,
+        scoped_ctx: &PluginContext,
+        job: u64,
+        cancelled: bool,
+    ) {
+        if self.is_failed() {
+            return;
+        }
+        let mut call_ctx = HostCallContext {
+            state: self,
+            scoped_ctx,
+            unscoped_ctx: scoped_ctx.scoped(None),
+            in_mount: false,
+        };
+        // SAFETY: `call_ctx` outlives `table.job_end`.
+        let raw = unsafe {
+            (self.table.job_end)(
+                (&raw mut call_ctx).cast::<c_void>(),
+                job,
+                u32::from(cancelled),
+            )
+        };
+        if let Err((true, msg)) = self.decode_result(raw) {
+            self.mark_faulted(scoped_ctx, format!("job_end panicked: {msg}"));
+        }
+    }
+
+    pub(crate) fn call_overlay_scene(
+        self: &Arc<Self>,
+        scoped_ctx: &PluginContext,
+        overlay_id: &str,
+    ) -> crate::OverlayScene {
+        if self.is_failed() {
+            return refused_scene(format!("plugin `{}` has faulted", self.id));
+        }
+        let mut call_ctx = HostCallContext {
+            state: self,
+            scoped_ctx,
+            unscoped_ctx: scoped_ctx.scoped(None),
+            in_mount: false,
+        };
+        // SAFETY: `call_ctx` and `overlay_id` outlive `table.overlay_scene`.
+        let raw = unsafe {
+            (self.table.overlay_scene)(
+                (&raw mut call_ctx).cast::<c_void>(),
+                AriaStr::from_str(overlay_id),
+            )
+        };
+        if raw.status == ARIA_BYTES_PANIC {
+            if !raw.bytes.ptr.is_null() {
+                // SAFETY: `raw.bytes` was allocated by the guest.
+                unsafe { (self.table.free_bytes)(raw.bytes) };
+            }
+            let msg = self.take_guest_string(raw.error);
+            self.failed.store(true, Ordering::Release);
+            self.mounted.store(false, Ordering::Release);
+            resume_unwind(Box::new(msg));
+        }
+        let err_text = self.take_guest_string(raw.error);
+        if raw.status != ARIA_BYTES_FOUND {
+            if !raw.bytes.ptr.is_null() {
+                // SAFETY: `raw.bytes` was allocated by the guest.
+                unsafe { (self.table.free_bytes)(raw.bytes) };
+            }
+            return refused_scene(format!("overlay_scene failed: {err_text}"));
+        }
+        if raw.bytes.len > MAX_OVERLAY_SCENE_JSON_BYTES {
+            let len = raw.bytes.len;
+            if !raw.bytes.ptr.is_null() {
+                // SAFETY: `raw.bytes` was allocated by the guest; freed before parsing oversized JSON.
+                unsafe { (self.table.free_bytes)(raw.bytes) };
+            }
+            return refused_scene(format!(
+                "overlay JSON exceeds limit ({len} > {MAX_OVERLAY_SCENE_JSON_BYTES})"
+            ));
+        }
+        // SAFETY: `raw.bytes` was allocated by the guest and fits within `MAX_OVERLAY_SCENE_JSON_BYTES`.
+        let bytes = unsafe { raw.bytes.into_vec_with(self.table.free_bytes) };
+        match serde_json::from_slice::<crate::OverlayScene>(&bytes) {
+            Ok(scene) => scene,
+            Err(err) => refused_scene(format!("malformed overlay scene JSON: {err}")),
+        }
+    }
+
+    pub(crate) fn call_overlay_event(
+        self: &Arc<Self>,
+        scoped_ctx: &PluginContext,
+        overlay_id: &str,
+        event: &crate::OverlayEvent,
+    ) -> Result<(), String> {
+        if self.is_failed() {
+            return Err(format!("plugin `{}` has faulted", self.id));
+        }
+        let event_json = serde_json::to_string(event).map_err(|err| err.to_string())?;
+        let mut call_ctx = HostCallContext {
+            state: self,
+            scoped_ctx,
+            unscoped_ctx: scoped_ctx.scoped(None),
+            in_mount: false,
+        };
+        // SAFETY: `call_ctx`, `overlay_id`, and `event_json` outlive `table.overlay_event`.
+        let raw = unsafe {
+            (self.table.overlay_event)(
+                (&raw mut call_ctx).cast::<c_void>(),
+                AriaStr::from_str(overlay_id),
+                AriaStr::from_str(&event_json),
+            )
+        };
+        match self.decode_result(raw) {
+            Ok(_) => Ok(()),
+            Err((false, msg)) => Err(msg),
+            Err((true, msg)) => {
+                self.failed.store(true, Ordering::Release);
+                self.mounted.store(false, Ordering::Release);
+                resume_unwind(Box::new(msg));
+            }
+        }
+    }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn scratch(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("aria-external-{name}"));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).expect("scratch dir");
-        dir
-    }
-
-    /// A directory with no plugins is the normal install, not an error.
-    #[test]
-    fn a_missing_directory_has_no_plugins() {
-        let dir = std::env::temp_dir().join("aria-external-absent");
-        let _ = std::fs::remove_dir_all(&dir);
-        assert!(library_paths(&dir).is_empty());
-    }
-
-    /// The scan takes libraries only, in a fixed order, so mount order does not
-    /// depend on how the filesystem lists a directory.
-    #[test]
-    fn only_libraries_are_candidates_and_the_order_is_stable() {
-        let dir = scratch("scan");
-        for name in [
-            format!("b.{LIBRARY_EXTENSION}"),
-            format!("a.{LIBRARY_EXTENSION}"),
-            "notes.txt".to_string(),
-            "a.so.disabled".to_string(),
-        ] {
-            std::fs::write(dir.join(name), b"x").expect("write candidate");
-        }
-        let found: Vec<String> = library_paths(&dir)
-            .iter()
-            .map(|path| path.file_name().unwrap().to_string_lossy().into_owned())
-            .collect();
-        assert_eq!(
-            found,
-            vec![
-                format!("a.{LIBRARY_EXTENSION}"),
-                format!("b.{LIBRARY_EXTENSION}")
-            ]
-        );
-    }
-
-    /// A file with the right extension and the wrong contents names itself in the
-    /// failure, and the app keeps going.
-    #[test]
-    fn a_file_that_is_not_a_library_is_one_named_failure() {
-        let dir = scratch("garbage");
-        let path = dir.join(format!("broken.{LIBRARY_EXTENSION}"));
-        std::fs::write(&path, b"not a shared object").expect("write candidate");
-
-        let ctx = PluginContext::new();
-        let failures = mount_dir(&ctx, &dir);
-        assert_eq!(failures.len(), 1);
-        assert_eq!(failures[0].id, format!("broken.{LIBRARY_EXTENSION}"));
-        assert!(
-            !failures[0].reason.is_empty(),
-            "a refused plugin gives a reason"
-        );
-        // The host's ledger has it too, so the plugin list can show it.
-        assert_eq!(ctx.failures().len(), 1);
-        assert!(ctx.plugins().is_empty());
-    }
-
-    /// A real library that is not an aria plugin is refused by symbol, not by
-    /// crashing on a missing entry point.
-    #[test]
-    fn a_library_without_the_entry_points_is_refused() {
-        let Some(path) = system_library() else {
-            return;
-        };
-        let err = match load(&path) {
-            Ok(_) => panic!("a system library must not load as an aria plugin"),
-            Err(err) => err,
-        };
-        assert!(
-            err.contains("not an aria plugin"),
-            "unexpected refusal: {err}"
-        );
-    }
-
-    /// A library every Linux and macOS host has, used only to prove the symbol
-    /// check refuses a real `.so` rather than trusting the extension.
-    fn system_library() -> Option<PathBuf> {
-        [
-            "/lib/x86_64-linux-gnu/libc.so.6",
-            "/lib64/libc.so.6",
-            "/usr/lib/libSystem.B.dylib",
-        ]
-        .into_iter()
-        .map(PathBuf::from)
-        .find(|path| path.exists())
-    }
-}
+mod tests;

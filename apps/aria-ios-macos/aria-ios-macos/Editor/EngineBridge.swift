@@ -271,7 +271,7 @@ nonisolated enum EngineBridge {
         result.animationIn = clip.animationIn
         result.animationOut = clip.animationOut
         result.animationCombo = clip.animationCombo
-        result.maskName = clip.mask?.kind
+        result.maskName = clip.maskStack.first?.kind
         if let chroma = clip.chromaKey {
             result.chromaColor = color(chroma.rgb)
             result.chromaStrength = Double(chroma.strength)

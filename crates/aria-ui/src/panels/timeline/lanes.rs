@@ -1,404 +1,358 @@
-//! Lane bodies: clips, the rubber band, and collapsed summaries.
+//! Virtualized lane-group rendering for the video and audio timeline zones.
 
-use crate::fluent::FluentBuilder;
+use std::cell::Cell;
+use std::ops::Range;
+use std::rc::Rc;
+use std::sync::Arc;
+
 use gpui::{
-    InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
-    StatefulInteractiveElement, Styled, div, px,
+    Bounds, Entity, HitboxBehavior, InteractiveElement, IntoElement, ParentElement, RenderImage,
+    ScrollDelta, ScrollWheelEvent, Styled, canvas, div, px,
 };
 
-use aria_models::TrackId;
-
-use super::clip as timeline_clip;
-use crate::motion;
-use crate::theme::Theme;
-use crate::types::{CatalogDrag, UiTrack};
-
+use super::COLLAPSED_H;
+use super::clip::{self, LaneGroupPaint, VisibleLane};
 use super::glide;
 use super::headers::track_header;
-use super::ruler::{playhead_line, snap_glow, snap_guide_line, transition_wedge};
-use super::{COLLAPSED_H, px_to_ticks, ticks_to_px};
-use crate::drag_hint::{self as drop_hint, DropHint};
+use super::media::visible_clips_slice;
+use crate::app::AppState;
+use crate::drag_hint as drop_hint;
+use crate::motion;
+use crate::shell::Shell;
+use crate::theme::Theme;
+use crate::types::{TimelinePaintStats, UiEditorStore};
 
-pub(super) fn lane(
+#[allow(clippy::too_many_arguments)]
+pub(super) fn lane_group(
     theme: &Theme,
-    track: &UiTrack,
-    row: usize,
-    dragging: bool,
+    state: &Entity<AppState>,
+    store: &Arc<UiEditorStore>,
+    row_range: Range<usize>,
+    is_audio: bool,
+    is_first_group: bool,
+    scroll_y: f32,
+    group_viewport_h: f32,
+    track_dragging: bool,
     drop_row: Option<usize>,
     pps: f32,
     fps: f32,
     scroll_x: f32,
     view_start: i64,
     view_end: i64,
-    // The panel's measured width. The right edge fades only while the sequence
-    // runs past what is on screen, so a guess here would soften an edge with
-    // nothing beyond it.
-    viewport: f32,
     playhead: f32,
     snap_guide: Option<crate::snap::SnapCandidate>,
-    // The rubber band's tick span, when it covers this lane.
-    band: Option<(i64, i64)>,
-    expanded: &[u64],
-    waves: &std::collections::HashMap<u64, Vec<f32>>,
-    strips: &std::collections::HashMap<u64, Vec<(f32, std::sync::Arc<gpui::RenderImage>)>>,
-    // A resize still under the pointer draws where the pointer is, so the height
-    // must not lag it; a collapse or a release is free to travel.
-    preview_height: Option<f32>,
+    waves: Arc<std::collections::HashMap<u64, Vec<f32>>>,
+    strips: Arc<std::collections::HashMap<u64, Vec<(f32, Arc<RenderImage>)>>>,
     reduced: bool,
-    // The clip an edit has just created, if it is still settling.
-    landing: Option<u64>,
-    cx: &mut gpui::Context<crate::shell::Shell>,
-) -> impl IntoElement {
-    // A collapsed lane draws one flat bar per clip instead of a card: the cut
-    // pattern is what a collapsed lane is for, and a 20px card would only be an
-    // unreadable label.
-    let clips: Vec<_> = if track.collapsed {
-        track
-            .clips
-            .iter()
-            .filter(|clip| {
-                clip.timeline_end_ticks > view_start && clip.timeline_start_ticks < view_end
-            })
-            .map(|clip| {
-                // A collapsed lane's bars replace the cards that were there a
-                // moment ago, so they arrive rather than appear.
-                motion::fade_in(
-                    motion::MotionKey::new("summary", clip.id),
-                    summary_bar(theme, clip, pps, fps, scroll_x, reduced),
-                )
-                .into_any_element()
-            })
-            .collect()
-    } else {
-        track
-            .clips
-            .iter()
-            .filter(|clip| {
-                clip.timeline_end_ticks > view_start && clip.timeline_start_ticks < view_end
-            })
-            .map(|clip| {
-                let is_expanded = expanded.contains(&clip.id);
-                let bars = waves.get(&clip.id).cloned().unwrap_or_default();
-                let cells = strips.get(&clip.id).cloned().unwrap_or_default();
-                let settling = landing == Some(clip.id);
-                timeline_clip::render(
+    cx: &mut gpui::Context<Shell>,
+) -> impl IntoElement + use<> {
+    let outline_w = state.read(cx).ui_settings.outline_width;
+    let mut y_cursor = -scroll_y;
+    let mut visible_lanes = Vec::new();
+    let mut headers = Vec::new();
+    let mut group_total_clips = 0usize;
+    let total_lanes_in_group = row_range.len();
+
+    for row in row_range {
+        let track = &store.sequence.tracks[row];
+        group_total_clips += track.clips.len();
+        let previewed = state.read(cx).lane_preview(track.id);
+        let target_h = if track.collapsed {
+            COLLAPSED_H
+        } else {
+            previewed
+                .unwrap_or(track.height)
+                .max(*aria_models::TrackDisplay::HEIGHT.start() as f32)
+        };
+        let clip_h = glide::glide(
+            motion::MotionKey::new("lane-h", track.id),
+            target_h,
+            glide::LANE,
+            reduced || previewed.is_some(),
+        );
+        let mut outline_rows = if track.collapsed {
+            Vec::new()
+        } else {
+            state.read(cx).track_outline_rows(track.id)
+        };
+        // A twirl opens and closes over the lane beat rather than in one step;
+        // the rows past the travelling edge are not drawn until it reaches them.
+        // The twirl button shows where the rows are going, not where they are.
+        let twirled = !outline_rows.is_empty();
+        let row_h = crate::app::property_rows::PROPERTY_ROW_H;
+        let outline_h = glide::glide(
+            motion::MotionKey::new("lane-outline-h", track.id),
+            outline_rows.len() as f32 * row_h,
+            glide::LANE,
+            reduced,
+        );
+        outline_rows.truncate((outline_h / row_h).ceil() as usize);
+        let height = clip_h + outline_h;
+        let y_top = y_cursor;
+        let clip_y_bottom = y_cursor + clip_h;
+        let y_bottom = y_cursor + height;
+        y_cursor = y_bottom;
+        if y_bottom < 0.0 || y_top > group_viewport_h {
+            continue;
+        }
+        let badge = state.read(cx).lane_badge_at(row);
+        headers.push(
+            track_header(
+                theme,
+                track,
+                badge,
+                row,
+                y_top,
+                outline_w,
+                clip_h,
+                target_h,
+                track_dragging,
+                drop_row,
+                cx,
+            )
+            .into_any_element(),
+        );
+        if !track.collapsed
+            && let Some(first_clip) = track.clips.first()
+        {
+            headers.push(
+                super::property_rows::track_outline_twirl_button(
                     theme,
-                    clip,
-                    pps,
-                    fps,
-                    scroll_x,
-                    is_expanded,
-                    reduced,
-                    settling,
-                    bars,
-                    cells,
-                    cx,
-                )
-                .into_any_element()
-            })
-            .collect()
-    };
-    let wedges: Vec<_> = track
-        .clips
-        .iter()
-        .filter_map(|clip| {
-            let transition = clip.transition.as_ref()?;
-            Some(
-                transition_wedge(
-                    theme,
-                    clip.id,
-                    clip.timeline_end_ticks,
-                    transition.duration_ticks,
-                    transition.label.clone(),
-                    pps,
-                    fps,
-                    scroll_x,
+                    track.id,
+                    first_clip.id,
+                    twirled,
+                    y_top,
+                    clip_h,
                     cx,
                 )
                 .into_any_element(),
-            )
-        })
-        .collect();
-    let collapsed = track.collapsed;
-    let target_h = if collapsed {
-        COLLAPSED_H
-    } else {
-        preview_height.unwrap_or(track.height).max(28.0)
+            );
+        }
+        for (idx, outline) in outline_rows.iter().enumerate() {
+            let row_y = clip_y_bottom + idx as f32 * row_h;
+            let slot = (track.id as usize).wrapping_mul(131).wrapping_add(idx);
+            headers.push(
+                super::property_rows::outline_row_header(theme, outline, row_y, slot, state, cx)
+                    .into_any_element(),
+            );
+        }
+        let band = state
+            .read(cx)
+            .marquee
+            .filter(|_| state.read(cx).marquee_covers_row(row))
+            .map(|b| b.ticks());
+        let clips = visible_clips_slice(&track.clips, view_start, view_end).to_vec();
+        visible_lanes.push(VisibleLane {
+            row,
+            track_id: track.id,
+            y_top,
+            clip_y_bottom,
+            y_bottom,
+            collapsed: track.collapsed,
+            locked: track.locked,
+            is_drop_row: drop_row == Some(row),
+            band,
+            drop_tick: drop_hint::lane_tick(track.id),
+            clips,
+            outline_rows,
+        });
+    }
+
+    let total_content_h = (y_cursor + scroll_y).max(0.0);
+    let (selected_edge, selected_gap, trim_feedback, tool) = {
+        let app = state.read(cx);
+        (
+            app.selected_edge,
+            app.selected_gap,
+            app.trim_feedback.clone(),
+            app.tool,
+        )
     };
-    let lane_id = track.id;
-    // The drawn height travels; the height a resize commits does not. A collapse
-    // and an expand are the same one value moving between its two ends, so both
-    // directions animate from the same key.
-    let height = glide::glide(
-        motion::MotionKey::new("lane-h", lane_id),
-        target_h,
-        glide::LANE,
-        reduced || preview_height.is_some(),
+
+    let drop_targets: Rc<Vec<(u64, f32, f32)>> = Rc::new(
+        visible_lanes
+            .iter()
+            .map(|l| (l.track_id, l.y_top, l.y_bottom))
+            .collect(),
     );
-    // The magnet breathes only while it holds something.
-    let glow = snap_guide.map(|_| snap_glow(cx)).unwrap_or_default();
-    // A pool or catalog drag over this lane draws where its clip would land.
-    let drop_tick = drop_hint::lane_tick(lane_id);
-    let fade_left = scroll_x > 0.0;
-    let sequence_px = track
-        .clips
-        .iter()
-        .map(|clip| ticks_to_px(clip.timeline_end_ticks, fps, pps))
-        .fold(0.0f32, f32::max);
-    let fade_right = sequence_px > scroll_x + viewport;
+    let shared_lanes = Rc::new(visible_lanes.clone());
+    let canvas_bounds = Rc::new(Cell::new(Bounds::default()));
+    let bounds_for_canvas = canvas_bounds.clone();
+    let badges: clip::FxBadges = Rc::default();
+    let badges_for_paint = badges.clone();
+    let state_for_prepaint = state.clone();
+    let state_for_paint = state.clone();
+    let paint_theme = theme.clone();
+    let paint_data = LaneGroupPaint {
+        is_first_group,
+        total_lanes: total_lanes_in_group,
+        total_clips: group_total_clips,
+        visible_lanes,
+        pps,
+        fps,
+        scroll_x,
+        playhead,
+        snap_guide,
+        selected_edge,
+        selected_gap,
+        trim_feedback,
+        waves,
+        strips,
+        reduced,
+    };
+
+    let group_id = if is_audio {
+        "timeline-audio-group"
+    } else {
+        "timeline-video-group"
+    };
+    let canvas_id = if is_audio {
+        "timeline-audio-canvas"
+    } else {
+        "timeline-video-canvas"
+    };
+
+    let time_area = super::drop::group_target(
+        div()
+            .flex_1()
+            .h_full()
+            .relative()
+            .overflow_hidden()
+            .bg(theme.bg),
+        drop_targets,
+        scroll_x,
+        fps,
+        pps,
+        theme.accent,
+        cx,
+    )
+    .id(canvas_id)
+    .debug_selector(move || canvas_id.into())
+    .child(
+        canvas(
+            move |bounds, window, cx| {
+                bounds_for_canvas.set(bounds);
+                let w = f32::from(bounds.size.width).max(1.0);
+                state_for_prepaint.update(cx, |state, _| {
+                    state.timeline_viewport_w = w;
+                });
+                window.insert_hitbox(bounds, HitboxBehavior::Normal)
+            },
+            move |bounds, hitbox, window, cx| {
+                let mut painted = badges_for_paint.borrow_mut();
+                painted.clear();
+                let (vis_lanes, vis_clips, calls) = clip::paint_lane_group(
+                    bounds,
+                    &paint_data,
+                    &paint_theme,
+                    &mut painted,
+                    window,
+                    cx,
+                );
+                // The cursor names what a press under the pointer does.
+                if hitbox.is_hovered(window) {
+                    let at = window.mouse_position();
+                    let cursor = if painted.iter().any(|(_, badge)| badge.contains(&at)) {
+                        gpui::CursorStyle::PointingHand
+                    } else {
+                        let local = at - bounds.origin;
+                        clip::finish::cursor_for(
+                            tool,
+                            clip::finish::hit_test(
+                                &paint_data.visible_lanes,
+                                f32::from(local.x).max(0.0),
+                                f32::from(local.y).max(0.0),
+                                fps,
+                                pps,
+                                scroll_x,
+                            ),
+                        )
+                    };
+                    window.set_cursor_style(cursor, &hitbox);
+                }
+                drop(painted);
+                let total_lanes = paint_data.total_lanes;
+                let total_clips = paint_data.total_clips;
+                let first = paint_data.is_first_group;
+                state_for_paint.update(cx, |state, _| {
+                    if first {
+                        state.timeline_paint_stats = TimelinePaintStats {
+                            total_lanes,
+                            visible_lanes: vis_lanes,
+                            total_clips,
+                            visible_clips: vis_clips,
+                            canvas_elements: 1,
+                            paint_calls: calls,
+                        };
+                    } else {
+                        state.timeline_paint_stats.total_lanes += total_lanes;
+                        state.timeline_paint_stats.visible_lanes += vis_lanes;
+                        state.timeline_paint_stats.total_clips += total_clips;
+                        state.timeline_paint_stats.visible_clips += vis_clips;
+                        state.timeline_paint_stats.canvas_elements += 1;
+                        state.timeline_paint_stats.paint_calls += calls;
+                    }
+                });
+            },
+        )
+        .size_full(),
+    );
+
+    let time_area = clip::finish::attach_group_mouse_listeners(
+        time_area,
+        canvas_bounds,
+        badges,
+        shared_lanes,
+        fps,
+        pps,
+        scroll_x,
+        tool,
+        cx,
+    );
     div()
-        .h(px(height))
+        .id(group_id)
         .w_full()
+        .h_full()
         .flex()
         .flex_row()
         .relative()
-        .border_b_1()
-        .border_color(theme.border)
-        // The lower border is the grab handle: 5px of it, over the border line,
-        // so the lane resizes from the edge the operator can already see. A
-        // collapsed lane has no height to drag — expanding restores the one it
-        // was given.
-        .when(!collapsed, |el| {
-            let grip = motion::MotionKey::new("lane-grip", lane_id);
-            el.child(
-                div()
-                    .id(("lane-grip", lane_id))
-                    .absolute()
-                    .bottom(px(-2.))
-                    .left_0()
-                    .right_0()
-                    .h(px(5.))
-                    .cursor(gpui::CursorStyle::ResizeUpDown)
-                    // The grip is invisible until the pointer is near it, and it
-                    // arrives rather than blinks on.
-                    .bg(motion::hover_blend(
-                        grip,
-                        theme.border_strong.opacity(0.0),
-                        theme.border_strong,
-                    ))
-                    .on_hover(motion::hover_listener(grip))
-                    .on_mouse_down(
-                        gpui::MouseButton::Left,
-                        cx.listener(move |this, event: &gpui::MouseDownEvent, _, cx| {
-                            this.start_lane_resize(lane_id, f32::from(event.position.y), target_h);
-                            cx.notify();
-                        }),
-                    ),
-            )
-        })
-        .child(track_header(theme, track, row, dragging, drop_row, cx))
-        .child({
-            let track_id = track.id;
-            let accent = theme.accent;
-            let area = div()
-                .flex_1()
+        .overflow_hidden()
+        .on_scroll_wheel(cx.listener(move |this, event: &ScrollWheelEvent, _, cx| {
+            let ctrl_or_alt =
+                event.modifiers.control || event.modifiers.platform || event.modifiers.alt;
+            if ctrl_or_alt || event.modifiers.shift {
+                return;
+            }
+            let delta = event.delta.pixel_delta(px(24.0));
+            let dx = f32::from(delta.x);
+            let dy = f32::from(delta.y);
+            let trackpad = matches!(event.delta, ScrollDelta::Pixels(_));
+            if trackpad && dx.abs() > dy.abs() {
+                return;
+            }
+            if dy.abs() > 0.01 {
+                cx.stop_propagation();
+                this.state.update(cx, |state, _| {
+                    let max_scroll = (total_content_h - group_viewport_h).max(0.0);
+                    if is_audio {
+                        state.scroll_audio_lanes(-dy, max_scroll);
+                    } else {
+                        state.scroll_video_lanes(-dy, max_scroll);
+                    }
+                });
+                cx.notify();
+            }
+        }))
+        .child(
+            div()
+                .w(px(outline_w))
                 .h_full()
                 .relative()
                 .overflow_hidden()
-                .bg(theme.bg)
-                .children(clips)
-                .children(wedges)
-                .child(playhead_line(theme, playhead, pps, fps, scroll_x))
-                .when_some(snap_guide, |el, guide| {
-                    el.child(snap_guide_line(theme, guide, pps, fps, scroll_x, glow))
-                })
-                // Where the drag in flight would put its clip. The line fades in
-                // on the frame the lane is entered, so a drag that crosses three
-                // lanes does not flicker a hard bar on each.
-                .when_some(drop_tick, |el, tick| {
-                    el.child(motion::fade_quick(
-                        motion::MotionKey::new("lane-drop", lane_id),
-                        insertion_line(theme, tick, pps, fps, scroll_x),
-                    ))
-                })
-                // A drop listener is not given the pointer, so the tick is captured
-                // while the drag moves over this lane.
-                .on_drag_move(cx.listener(
-                    move |this, event: &gpui::DragMoveEvent<CatalogDrag>, _, cx| {
-                        let x = f32::from(event.event.position.x - event.bounds.origin.x);
-                        let tick = px_to_ticks(x + scroll_x, fps, pps);
-                        this.set_catalog_drop(track_id, tick);
-                        if drop_hint::set(DropHint::Lane {
-                            track: track_id,
-                            tick,
-                        }) {
-                            cx.notify();
-                        }
-                    },
-                ))
-                .drag_over::<CatalogDrag>(move |style, _, _, _| style.bg(accent.opacity(0.12)))
-                .on_drop(cx.listener(move |this, drag: &CatalogDrag, _, cx| {
-                    drop_hint::clear();
-                    let target = this.take_catalog_drop();
-                    let tick = target
-                        .filter(|(id, _)| *id == track_id)
-                        .map_or(0, |(_, tick)| tick);
-                    this.state.update(cx, |state, _| {
-                        if let Err(err) = state.drop_catalog_on_track(
-                            drag,
-                            Some(TrackId::from_raw(track_id)),
-                            tick,
-                        ) {
-                            state.report_error(&err);
-                        }
-                    });
-                    crate::app::spawn_preview(this.state.clone(), cx);
-                    cx.notify();
-                }))
-                // Empty lane space is the rubber band's surface: a clip card stops
-                // propagation, so a press that reaches here is a press on nothing.
-                .on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(move |this, event: &MouseDownEvent, _, cx| {
-                        if !this.state.read(cx).tool.selects() {
-                            return;
-                        }
-                        let Some(left) = this.state.read(cx).timeline_content_left() else {
-                            return;
-                        };
-                        let tick = super::pointer_ticks(event.position.x, left, scroll_x, fps, pps);
-                        this.state.update(cx, |state, _| {
-                            state.clear_selection();
-                            state.begin_marquee(track_id, tick);
-                        });
-                        cx.notify();
-                    }),
-                )
-                .on_mouse_move(
-                    cx.listener(move |this, event: &gpui::MouseMoveEvent, _, cx| {
-                        if this.state.read(cx).marquee.is_none() {
-                            return;
-                        }
-                        let Some(left) = this.state.read(cx).timeline_content_left() else {
-                            return;
-                        };
-                        let tick = super::pointer_ticks(event.position.x, left, scroll_x, fps, pps);
-                        let changed = this
-                            .state
-                            .update(cx, |state, _| state.drag_marquee(track_id, tick));
-                        if changed {
-                            cx.notify();
-                        }
-                    }),
-                )
-                .on_mouse_up(
-                    MouseButton::Left,
-                    cx.listener(move |this, _: &gpui::MouseUpEvent, _, cx| {
-                        if this.state.read(cx).marquee.is_none() {
-                            return;
-                        }
-                        this.state.update(cx, |state, _| {
-                            let count = state.commit_marquee();
-                            if count > 0 {
-                                state.status_message = Some(format!("Selected {count} clip(s)"));
-                            }
-                        });
-                        cx.notify();
-                    }),
-                )
-                .when_some(band, |el, (low, high)| {
-                    el.child(marquee_band(theme, low, high, pps, fps, scroll_x))
-                });
-            // Dragged pool media lands on the lane it was released over, which
-            // is this one: the rule lives beside the edge strips it contrasts
-            // with rather than in this builder.
-            let target = super::drop::lane_target(area, track_id, scroll_x, fps, pps, accent, cx);
-            // Clips are drawn at an offset rather than scrolled, so the fade is
-            // told what the offset means: soft on the left once the view has
-            // moved off zero, soft on the right while this lane still has clip
-            // beyond the view.
-            crate::edge_fade::edge_faded(Theme::SPACE_LG, false, false, target)
-                .fade_left(fade_left)
-                .fade_right(fade_right)
-        })
-}
-
-/// Where the drag in flight would put its clip: the tick it would start at.
-///
-/// A hairline plus a cap at the top, so it reads as an insertion point rather
-/// than one more magnet guide — the guide says what a drag locked onto, this
-/// says where a drop would land.
-pub(super) fn insertion_line(
-    theme: &Theme,
-    tick: i64,
-    pps: f32,
-    fps: f32,
-    scroll_x: f32,
-) -> gpui::Div {
-    let x = ticks_to_px(tick, fps, pps) - scroll_x;
-    div()
-        .absolute()
-        .left(px(x))
-        .top_0()
-        .bottom_0()
-        .w(px(2.))
-        // A drop cursor, not a playhead: same shape, different promise, so it
-        // carries the cursor token rather than the accent.
-        .bg(theme.cursor)
-        .child(
-            div()
-                .absolute()
-                .left(px(-Theme::SPACE_XS / 2.0))
-                .top_0()
-                .w(px(Theme::SPACE_SM))
-                .h(px(Theme::SPACE_XS))
-                .rounded(px(1.))
-                .bg(theme.accent),
+                .border_r_1()
+                .border_color(theme.border)
+                .bg(theme.surface)
+                .children(headers),
         )
-}
-
-/// The rubber band, drawn on every lane it covers.
-pub(super) fn marquee_band(
-    theme: &Theme,
-    low: i64,
-    high: i64,
-    pps: f32,
-    fps: f32,
-    scroll_x: f32,
-) -> impl IntoElement {
-    let left = ticks_to_px(low, fps, pps) - scroll_x;
-    let width = ticks_to_px((high - low).max(0), fps, pps);
-    div()
-        .absolute()
-        .left(px(left))
-        .top_0()
-        .bottom_0()
-        .w(px(width.max(1.0)))
-        .bg(theme.selection)
-        .border_1()
-        .border_color(theme.accent)
-}
-
-/// One clip on a collapsed lane: its span and its colour, nothing else.
-///
-/// The colour comes from `timeline_clip::tint`, so a labelled clip reads the
-/// same collapsed as it does expanded.
-pub(super) fn summary_bar(
-    theme: &Theme,
-    clip: &crate::types::UiClip,
-    pps: f32,
-    fps: f32,
-    scroll_x: f32,
-    reduced: bool,
-) -> gpui::Div {
-    let span = (clip.timeline_end_ticks - clip.timeline_start_ticks).max(1);
-    let left = (clip.timeline_start_ticks as f32 / fps) * pps - scroll_x;
-    let width = ((span as f32 / fps) * pps).max(2.0);
-    // The ring strengthens instead of snapping on, the same way the card's does.
-    let ring = glide::glide(
-        motion::MotionKey::new("summary-ring", clip.id),
-        if clip.selected { 1.0 } else { 0.0 },
-        glide::EDIT,
-        reduced,
-    );
-    div()
-        .absolute()
-        .left(px(left))
-        .top(px(4.))
-        .h(px(COLLAPSED_H - 8.0))
-        .w(px(width))
-        .rounded(px(2.))
-        .bg(timeline_clip::tint(theme, clip))
-        .border_1()
-        .border_color(theme.text.opacity(ring))
+        .child(time_area)
 }

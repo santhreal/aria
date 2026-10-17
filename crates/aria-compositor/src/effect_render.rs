@@ -5,12 +5,13 @@ use bytemuck::{Pod, Zeroable};
 
 use crate::error::CompositorError;
 use crate::grade::ColorGrade;
-use crate::layer::MatteRead;
+use crate::layer::{CoverageMix, MaskOp, MatteRead};
 use crate::passes::{GAUSSIAN_BLUR, PassId, PassInstance, transition_pass};
 use crate::registered_passes::registered_transition;
 
 mod blend;
 mod blit;
+mod canvas_targets;
 mod lut;
 mod pass_cache;
 #[cfg(test)]
@@ -22,6 +23,7 @@ mod styles;
 
 pub(crate) use blend::run_blend_composite;
 pub(crate) use blit::{blit_premultiplied_to_canvas, blit_replace, blit_weighted_additive};
+pub(crate) use canvas_targets::CanvasTargets;
 pub(crate) use lut::run_lut_pass;
 pub use pass_cache::PassStats;
 pub(crate) use pass_cache::{Bound, PassCache};
@@ -96,13 +98,16 @@ struct GradeUniforms {
     grade: [[f32; 4]; ColorGrade::LANES],
 }
 
-/// Run an effect chain on `input` view, ping-ponging through `pool`.
+/// Run an effect chain on `input` view, ping-ponging through `pool`. A
+/// registered pass reading a layer parameter reads that clip's frame from
+/// `references`.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn run_effect_chain<'a>(
     device: &wgpu::Device,
     encoder: &mut wgpu::CommandEncoder,
     registry: &PassRegistry,
     pool: &'a OffscreenPool,
+    references: &CanvasTargets,
     input_view: &'a wgpu::TextureView,
     effects: &[PassInstance],
     width: u32,
@@ -132,6 +137,7 @@ pub(crate) fn run_effect_chain<'a>(
                     encoder,
                     registry,
                     pool,
+                    references,
                     current_input,
                     in_idx,
                     effect,
@@ -227,22 +233,29 @@ pub(crate) fn run_transition_pass(
     output: &wgpu::TextureView,
     transition_id: &str,
     progress: f32,
+    params: &[f32],
     width: u32,
     height: u32,
 ) {
     if !crate::passes::is_shipped_transition(transition_id)
         && let Some(pass) = registered_transition(transition_id)
         && registered::run_registered_transition(
-            device, encoder, registry, cache, &pass, outgoing, incoming, output, progress, width,
-            height,
+            device, encoder, registry, cache, &pass, outgoing, incoming, output, progress, params,
+            width, height,
         )
     {
         return;
     }
     let pipeline = registry.transition_pipeline(transition_id);
+    let feather = params.first().copied().unwrap_or(0.0);
     let uniforms = TransitionUniforms {
         texel_size: texel_size(width, height),
-        params: [progress, transition_pass(transition_id).mode(), 0.0, 0.0],
+        params: [
+            progress,
+            transition_pass(transition_id).mode(),
+            feather,
+            0.0,
+        ],
     };
     let bind_group = cache.bind_group(
         device,
@@ -277,8 +290,9 @@ pub(crate) fn run_transition_pass(
     pass.draw(0..6, 0..1);
 }
 
-/// Cut `content` by `stencil` into `output`. The stencil is read, never drawn,
-/// so the pass is a two-texture blend like a transition rather than a layer.
+/// Cut `content` by `stencil` into `output`, the stencil's coverage remapped
+/// by `mix`. The stencil is read, never drawn, so the pass is a two-texture
+/// blend like a transition rather than a layer.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn run_matte_pass(
     device: &wgpu::Device,
@@ -289,19 +303,14 @@ pub(crate) fn run_matte_pass(
     stencil: &wgpu::TextureView,
     output: &wgpu::TextureView,
     read: MatteRead,
-    invert: bool,
+    mix: CoverageMix,
     softness: f32,
     width: u32,
     height: u32,
 ) {
     let uniforms = TransitionUniforms {
         texel_size: texel_size(width, height),
-        params: [
-            read.mode(),
-            if invert { 1.0 } else { 0.0 },
-            softness.clamp(0.0, 1.0),
-            0.0,
-        ],
+        params: [read.mode(), mix.offset, softness.clamp(0.0, 1.0), mix.scale],
     };
     let bind_group = cache.bind_group(
         device,
@@ -332,6 +341,83 @@ pub(crate) fn run_matte_pass(
         multiview_mask: None,
     });
     pass.set_pipeline(&registry.matte);
+    pass.set_bind_group(0, &*bind_group, &[]);
+    pass.draw(0..6, 0..1);
+}
+
+/// One mask of a stack, as [`run_mask_stack_pass`] combines it.
+pub(crate) struct StackStep {
+    pub op: MaskOp,
+    pub opacity: f32,
+    pub softness: f32,
+    pub invert: bool,
+    /// The coverage the stack starts from, read in place of `stack` for the
+    /// stack's first mask.
+    pub start: f32,
+}
+
+/// Combine `mask`'s coverage with the coverage of the stack above it into
+/// `output`. `stack` is `None` for the stack's first mask, which combines
+/// with `step.start` instead.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn run_mask_stack_pass(
+    device: &wgpu::Device,
+    encoder: &mut wgpu::CommandEncoder,
+    registry: &PassRegistry,
+    cache: &PassCache,
+    stack: Option<&wgpu::TextureView>,
+    mask: &wgpu::TextureView,
+    output: &wgpu::TextureView,
+    step: &StackStep,
+    width: u32,
+    height: u32,
+) {
+    let [texel_x, texel_y, _, _] = texel_size(width, height);
+    let uniforms = TransitionUniforms {
+        texel_size: [
+            texel_x,
+            texel_y,
+            step.start,
+            if stack.is_some() { 1.0 } else { 0.0 },
+        ],
+        params: [
+            step.op.id() as f32,
+            step.opacity.clamp(0.0, 1.0),
+            step.softness.clamp(0.0, 1.0),
+            if step.invert { 1.0 } else { 0.0 },
+        ],
+    };
+    let bind_group = cache.bind_group(
+        device,
+        &registry.transition_layout,
+        "aria.mask_stack.bg",
+        &[
+            // The first mask reads no stack; its own coverage stands in for
+            // the binding and the shader selects the start over it.
+            Bound::Texture(stack.unwrap_or(mask)),
+            Bound::Texture(mask),
+            Bound::Sampler(&registry.sampler),
+            Bound::Uniform(bytemuck::bytes_of(&uniforms)),
+        ],
+    );
+
+    let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        label: Some("aria.mask_stack.pass"),
+        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+            view: output,
+            depth_slice: None,
+            resolve_target: None,
+            ops: wgpu::Operations {
+                load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                store: wgpu::StoreOp::Store,
+            },
+        })],
+        depth_stencil_attachment: None,
+        timestamp_writes: None,
+        occlusion_query_set: None,
+        multiview_mask: None,
+    });
+    pass.set_pipeline(&registry.mask_stack);
     pass.set_bind_group(0, &*bind_group, &[]);
     pass.draw(0..6, 0..1);
 }

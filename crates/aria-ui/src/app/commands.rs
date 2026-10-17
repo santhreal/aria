@@ -66,6 +66,7 @@ impl FilmstripImpact {
                             | EditCommand::ShiftClips { .. }
                             | EditCommand::RippleInsert { .. }
                             | EditCommand::FitToFill { ripple: true, .. }
+                            | EditCommand::SourceEdit { ripple: true, .. }
                             | EditCommand::SetTrackSolo { .. }
                     );
                     if matches!(
@@ -155,10 +156,12 @@ impl FilmstripImpact {
                 | aria_commands::EditOutcome::UpdatedMarker(_)
                 | aria_commands::EditOutcome::RemovedMarker(_)
                 | aria_commands::EditOutcome::UpdatedAudioLayout
+                | aria_commands::EditOutcome::UpdatedTimeDisplay
                 | aria_commands::EditOutcome::UpdatedMaster
                 | aria_commands::EditOutcome::UpdatedProject
                 | aria_commands::EditOutcome::CreatedBin(_)
-                | aria_commands::EditOutcome::UpdatedPool,
+                | aria_commands::EditOutcome::UpdatedPool
+                | aria_commands::EditOutcome::UpdatedSourcePatch,
             ) => {}
         }
         self.before.retain(|(start, end)| start < end);
@@ -258,6 +261,7 @@ fn picture_neutral_edit(edit: &EditCommand) -> bool {
         | EditCommand::SetClipAudio { .. }
         | EditCommand::SetClipDenoise { .. }
         | EditCommand::SetClipLabel { .. }
+        | EditCommand::SetClipType { .. }
         | EditCommand::SetAudioRole { .. }
         | EditCommand::SetTrackName { .. }
         | EditCommand::SetTrackMuted { .. }
@@ -267,19 +271,29 @@ fn picture_neutral_edit(edit: &EditCommand) -> bool {
         | EditCommand::SetTrackSyncLock { .. }
         | EditCommand::SetTrackDisplay { .. }
         | EditCommand::SetTrackGain { .. }
+        | EditCommand::SetTrackPan { .. }
+        | EditCommand::SetTrackAutomation { .. }
         | EditCommand::SetTrackOutput { .. }
         | EditCommand::AddSend { .. }
         | EditCommand::SetSend { .. }
         | EditCommand::RemoveSend { .. }
         | EditCommand::LinkClips { .. }
         | EditCommand::UnlinkClips { .. }
+        | EditCommand::GroupClips { .. }
+        | EditCommand::UngroupClips { .. }
         | EditCommand::SetClipBeats { .. }
         | EditCommand::ClearBeats { .. }
-        | EditCommand::SetAudioLayout { .. } => true,
+        | EditCommand::SetAudioLayout { .. }
+        | EditCommand::SetTimeDisplay { .. }
+        | EditCommand::SetMasterMix { .. }
+        | EditCommand::SetSourcePatch { .. } => true,
         EditCommand::SetParamKeyframe { param, .. }
         | EditCommand::RemoveParamKeyframe { param, .. }
         | EditCommand::SetParamConstant { param, .. }
-        | EditCommand::ApplyEasingPreset { param, .. } => {
+        | EditCommand::SetParamDriver { param, .. }
+        | EditCommand::ApplyEasingPreset { param, .. }
+        | EditCommand::SetKeyframeEase { param, .. }
+        | EditCommand::SetKeyframeRoving { param, .. } => {
             param.scope() == aria_models::ParamScope::Audio
         }
         _ => false,
@@ -429,6 +443,20 @@ impl AppState {
                 view
             }
         };
+        if plugin_ctx.analyzers().is_empty() && !plugin_ctx.is_mounted("aria.analysis") {
+            let tuning = plugin_ctx
+                .try_get::<crate::plugins::DetectorTuning>()
+                .map(|t| *t)
+                .unwrap_or_default();
+            if let Ok(regs) = aria_plugin::register_shipped_analyzers(
+                &plugin_ctx,
+                tuning.beats,
+                tuning.silence,
+                tuning.loudness,
+            ) {
+                services.extend(regs);
+            }
+        }
         {
             let mut engine = engine.lock();
             if engine
@@ -442,12 +470,9 @@ impl AppState {
             }
         }
         let snapshot = {
-            let engine = engine.lock();
-            Snapshot::from_engine(
-                &engine,
-                RationalTime::new(0, engine.project().timeline().frame_rate),
-                &[],
-            )
+            let mut engine = engine.lock();
+            let start = RationalTime::new(0, engine.project().timeline().frame_rate);
+            Snapshot::from_engine(&mut engine, start, &[])
         };
         let download_cache = storage::cache_for(&data_dir);
         // One registry per process: the plugin context already holds it, so a session
@@ -461,15 +486,34 @@ impl AppState {
                 manager
             }
         };
-        let export_queue = Arc::new(crate::app::export_queue::ExportQueue::new_with_device(
-            jobs.clone(),
-            super::render_device::shared_device(&plugin_ctx),
-            Arc::clone(plugin_ctx.event_bus()),
-        ));
+        let export_queue = Arc::new(
+            crate::app::export_queue::ExportQueue::new_with_device_and_plugins(
+                jobs.clone(),
+                super::render_device::shared_device(&plugin_ctx),
+                Some(plugin_ctx.clone()),
+                Arc::clone(plugin_ctx.event_bus()),
+            ),
+        );
         // Home is the first route, so the list it draws is read once here rather
         // than on the first frame that draws it.
         let recents: Arc<[crate::app::recents::RecentView]> =
             crate::app::recents::visible_recents(&data_dir).into();
+        let import_recents: Arc<[PathBuf]> = crate::app::import_recents::load(&data_dir).into();
+        let (presets, broken_presets) = crate::app::presets::load_presets(&data_dir);
+        let theme_files = crate::theme::file::scan(&data_dir, &plugin_ctx.themes());
+        let preview_worker = crate::preview_worker::PreviewWorker::spawn(
+            Arc::clone(&engine),
+            plugin_ctx.clone(),
+        )
+        .map_err(|err| {
+            EngineError::Refused(format!(
+                "couldn't start the preview thread: {err}. Free system resources and reopen."
+            ))
+        })?;
+        let render_files_handle = Arc::new(aria_render::RenderFiles::new(
+            data_dir.join("render-files"),
+            crate::app::render_files::render_files_environment(&plugin_ctx),
+        ));
         let mut state = Self {
             ctx: Arc::new(plugin_ctx),
             engine,
@@ -483,11 +527,20 @@ impl AppState {
             scroll_fling: false,
             zoom_eased: false,
             active_panel: ActivePanel::Preview,
-            effect_presets: crate::app::effect_presets::load_effect_presets(&data_dir),
-            effect_preset_draft: None,
+            presets,
+            broken_presets,
+            preset_draft: None,
+            driver_draft: None,
+            parent_whip: None,
             ui_settings: UiSettings::load(&data_dir),
+            dock_tree: crate::dock::DockTree::editing(),
+            active_workspace_id: crate::layouts::WORKSPACES[0].id.to_string(),
+            workspace_transition_epoch: 0,
+            plugin_installs: crate::app::plugin_install::PluginInstalls::open(&data_dir),
+            theme_files,
             data_dir,
             recents,
+            import_recents,
             store: std::sync::Arc::new(snapshot.store),
             // The first poll projects: a key built here would have to be kept
             // in step with the snapshot above by hand, and being wrong is worse
@@ -503,7 +556,9 @@ impl AppState {
             last_render: None,
             scopes_open: false,
             scope_textures: None,
-            scope_images: None,
+            shown_tick: None,
+            retired_images: Vec::new(),
+            preview_worker,
             playing: false,
             last_error: None,
             dialog: DialogKind::None,
@@ -523,14 +578,19 @@ impl AppState {
             palette_scroll: gpui::ScrollHandle::new(),
             rename: None,
             rename_draft: String::new(),
+            rename_caret: Default::default(),
             clock_draft: None,
+            clock_site: Default::default(),
             clock_display: gpui::SharedString::new_static("00:00:00:00"),
+            pointer_playhead: None,
+            prop_rows: Default::default(),
             marquee: None,
             preview_view: Default::default(),
             snap_guide: None,
             snap_index: crate::snap::SnapIndex::default(),
             lane_resize: None,
             expanded_clips: Default::default(),
+            expanded_models: Default::default(),
             track_drag: None,
             track_drop_row: None,
             ramp_drag: None,
@@ -538,31 +598,61 @@ impl AppState {
             curve_drag: None,
             fader_drag: None,
             insert_picker: None,
+            mixer_automation: Default::default(),
             open_insert: None,
             curve_frame: None,
             curve_param: None,
             curve_axis: 0,
             timeline_frame: None,
+            dock_frame_rects: Default::default(),
             transcript: Default::default(),
             clipboard: None,
+            copied_effect: None,
+            last_effect: None,
             tool: EditorTool::Pointer,
+            tool_session: Default::default(),
+            step_hold: Default::default(),
+            viewer_scrub: Default::default(),
             edit_mode: EditMode::Ripple,
             mark_in: None,
             mark_out: None,
+            work_area_press: None,
             export_options: Default::default(),
+            speed_duration: Default::default(),
+            audio_gain: Default::default(),
+            remove_attributes: Default::default(),
+            keyframe_velocity: Default::default(),
+            effects_browser: Default::default(),
+            follow_scroll: None,
             snap_enabled: true,
-            shuttle: 1,
+            linked_selection: true,
+            shuttle: crate::transport::ShuttleSpeed::ONE,
+            looping: false,
+            work_area_playback: false,
+            k_held: false,
+            k_crawl: 0,
             interaction: crate::interaction::InteractionGate::new(),
             save_generation: 0,
             open_menu: None,
+            menu_row: None,
+            menu_flyout: None,
+            menu_owner: None,
             preview_generation: 0,
             preview_decoding: false,
             preview_wanted: false,
+            still_stale: false,
             // Nothing is decoding, so nothing is cancellable.
             preview_cancel: aria_core::Cancel::never(),
             playback_generation: 0,
+            playback_vsyncs: std::rc::Rc::new(()),
             playback_anchor_tick: 0,
             playback_started: None,
+            playback_cadence: None,
+            playback_shown: 0,
+            last_present: None,
+            dropped: aria_render::DroppedFrames::default(),
+            auto_resolution: crate::resolution::AutoResolution::default(),
+            resolution_list_open: false,
             // Empty until playback runs, at the rate the project opens with.
             playback: aria_render::PlaybackMeter::at_rate(snapshot.playhead.rate),
             audio: crate::audio::AudioHandle::new(),
@@ -584,7 +674,9 @@ impl AppState {
             bin_trail: std::sync::Arc::from([]),
             pool_preview: pool_preview::PoolPreviewStore::default(),
             pool_hover: None,
-            source_view: None,
+            sources: Default::default(),
+            viewer_compare: Default::default(),
+            viewer_guides: Default::default(),
             waveforms: crate::waveforms::WaveformStore::default(),
             filmstrips: crate::filmstrips::FilmstripStore::default(),
             text_presets: Vec::new().into(),
@@ -594,7 +686,7 @@ impl AppState {
             edits_watch: None,
             editor_view,
             offline_announced: std::collections::HashSet::new(),
-            services,
+            _services: services,
             job_view: Vec::new().into(),
             generate: generate::GenerateForm::default(),
             generation_seq: 0,
@@ -603,13 +695,20 @@ impl AppState {
             analysis: analysis::AnalysisForm::default(),
             duck: duck::DuckForm::default(),
             media_reach: media_reach::MediaReachForm::default(),
+            timeline_report: None,
             assistant: assistant::AssistantForm::default(),
             caches: caches::CacheForm::default(),
             settings_form: settings_form::SettingsForm::default(),
+            key_form: super::keymaps::KeyForm::default(),
+            marker_edit: Default::default(),
+            marker_color_filter: None,
             ai_probe: ai_reach::AiProbe::default(),
             overlay_frame: canvas_overlay::FrameBox::default(),
             overlay_drag: None,
+            viewer_probe: info::ViewerProbe::default(),
+            align_to: align::AlignTo::default(),
             pending_intent: None,
+            quit_requested: false,
             last_autosave: None,
             overlay_mode: crate::types::OverlayMode::default(),
             rebinding: None,
@@ -618,13 +717,54 @@ impl AppState {
             strip_meters: Vec::new(),
             projections: 0,
             picks: picker::Picks::default(),
+            plugin_panels: plugin_panels::PluginPanels::default(),
+            plugin_overlays: crate::app::plugin_overlays::PluginOverlays::default(),
             landed: None,
+            selected_edge: None,
+            selected_gap: None,
+            trim_feedback: None,
+            timeline_av_split: 0.55,
+            video_scroll_y: 0.0,
+            audio_scroll_y: 0.0,
+            timeline_viewport_w: 800.0,
+            timeline_paint_stats: crate::types::TimelinePaintStats::default(),
+            render_bar: Arc::new(Vec::new()),
+            render_files_handle,
+            render_files_generation: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            render_bar_state: crate::app::render_files::RenderBarState::default(),
+            value_scrubs: crate::app::value_scrub::ValueScrubs::default(),
+            line_drag: None,
+            grade_controls: crate::app::grade_controls::GradeControls::default(),
         };
         // The registry is the only thing that resolves a chord, so the keys the
         // operator rebound are installed before the first keystroke rather than
         // consulted at dispatch.
         state.apply_key_overrides();
+        if let Some(ws_id) = state.ui_settings.active_workspace.clone() {
+            state.active_workspace_id = ws_id;
+        }
+        if let Some(saved_tree) = state.ui_settings.dock_tree.clone() {
+            let mut tree = saved_tree;
+            tree.normalize();
+            state.dock_tree = tree;
+        } else if state.ui_settings.sidebar_collapsed || state.ui_settings.inspector_collapsed {
+            state.dock_tree = state.panes().to_dock_tree();
+        }
+        // Before the first measurement, so it counts what the waveform showed
+        // when the app last closed.
+        state
+            .preview_worker
+            .set_waveform(state.ui_settings.waveform.trace());
+        // A restored tree can hold the Scopes panel in front, which measures
+        // from the first frame on.
+        state.sync_scope_demand();
+        {
+            let mut engine = state.engine.lock();
+            engine.set_preview_proxies(state.ui_settings.use_proxies);
+            engine.set_preview_transparency(state.ui_settings.transparency_grid);
+        }
         state.snap_index = state.build_snap_index();
+        state.refresh_render_files();
         Ok(state)
     }
 
@@ -645,13 +785,35 @@ impl AppState {
         &mut self,
         body: impl FnOnce(&mut Self) -> Result<T, EngineError>,
     ) -> Result<T, EngineError> {
+        self.grouped(None, body)
+    }
+
+    /// [`Self::one_step`], with the undo step named `label` rather than after
+    /// its first command: a duplicate that adds, writes and moves an effect is
+    /// one duplicate in the history, not an add.
+    pub(crate) fn one_step_as<T>(
+        &mut self,
+        label: &'static str,
+        body: impl FnOnce(&mut Self) -> Result<T, EngineError>,
+    ) -> Result<T, EngineError> {
+        self.grouped(Some(label), body)
+    }
+
+    fn grouped<T>(
+        &mut self,
+        label: Option<&'static str>,
+        body: impl FnOnce(&mut Self) -> Result<T, EngineError>,
+    ) -> Result<T, EngineError> {
         let group = self.host.group(&Origin::Editor)?;
         let result = body(self);
-        match &result {
-            Ok(_) => {
+        match (&result, label) {
+            (Ok(_), Some(label)) => {
+                group.commit_as(label);
+            }
+            (Ok(_), None) => {
                 group.commit();
             }
-            Err(_) => group.rollback(),
+            (Err(_), _) => group.rollback(),
         }
         self.sync_from_engine();
         result
@@ -745,7 +907,28 @@ impl AppState {
     }
 
     pub fn select_clip(&mut self, id: ClipId) {
-        self.selection = vec![id];
+        let group = self.ui_clip_ref(id).and_then(|clip| clip.grouped_to);
+        if let Some(group) = group {
+            let mut selected = vec![id];
+            for track in &self.store.sequence.tracks {
+                if track.locked {
+                    continue;
+                }
+                for clip in &track.clips {
+                    if !clip.locked && clip.grouped_to == Some(group) {
+                        let member = ClipId::from_raw(clip.id);
+                        if !selected.contains(&member) {
+                            selected.push(member);
+                        }
+                    }
+                }
+            }
+            self.selection = selected;
+        } else {
+            self.selection = vec![id];
+        }
+        self.selected_edge = None;
+        self.selected_gap = None;
         self.refresh_projected_selection();
         // The analysis rows belong to the selected clip's media, so they follow the
         // selection. A session that never analyzed anything reads nothing from disk.
@@ -756,6 +939,8 @@ impl AppState {
 
     pub fn clear_selection(&mut self) {
         self.selection.clear();
+        self.selected_edge = None;
+        self.selected_gap = None;
         self.refresh_projected_selection();
     }
 
@@ -825,11 +1010,31 @@ impl AppState {
         Ok(())
     }
 
+    /// Shift+Delete: remove the selected clips and close each gap, latest
+    /// first so an earlier removal never moves a later clip out from under its
+    /// own delete. A selected gap is closed.
     pub fn ripple_delete_selected(&mut self) -> Result<(), EngineError> {
-        let Some(clip) = self.selected_clip() else {
+        if let Some(gap) = self.selected_gap.take() {
+            return self.close_gap(gap);
+        }
+        let mut clips: Vec<(i64, ClipId)> = self
+            .selection
+            .iter()
+            .filter_map(|id| {
+                self.ui_clip_ref(*id)
+                    .map(|clip| (clip.timeline_start_ticks, *id))
+            })
+            .collect();
+        if clips.is_empty() {
             return Ok(());
-        };
-        self.apply_command(Command::Edit(EditCommand::RippleDelete { clip }))?;
+        }
+        clips.sort_unstable_by_key(|(start, _)| std::cmp::Reverse(*start));
+        self.one_step(|this| {
+            for (_, clip) in clips {
+                this.apply_command(Command::Edit(EditCommand::RippleDelete { clip }))?;
+            }
+            Ok(())
+        })?;
         self.clear_selection();
         Ok(())
     }

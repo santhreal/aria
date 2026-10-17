@@ -99,7 +99,9 @@ impl Shell {
     /// line draws an empty monitor until then.
     fn ready(&self, cx: &Context<Self>) -> bool {
         let state = self.state.read(cx);
-        state.route != UiRoute::Editor || state.last_render.is_some()
+        state.route != UiRoute::Editor
+            || state.last_render.is_some()
+            || state.preview_worker.shown_texture().is_some()
     }
 }
 

@@ -39,12 +39,15 @@ final class LookTests: XCTestCase {
         let result = try await session.run(.appendMain(paths: [sample.path]))
         let id = try XCTUnwrap(result.clips.first)
 
-        try await session.apply(.setClipMask(clip: id, mask: UiMask(kind: "circle")))
+        try await session.apply(.addClipMask(clip: id, mask: UiMask(kind: "circle")))
+        try await session.apply(
+            .addClipMask(clip: id, mask: UiMask(kind: "star", mode: "subtract")))
         try await session.apply(.setClipStabilize(clip: id, level: "smooth"))
         try await session.apply(.setClipAnimation(clip: id, slot: "in", animationID: "fade_in"))
 
         let state = try await clip(session, id)
-        XCTAssertEqual(state.mask?.kind, "circle")
+        XCTAssertEqual(state.maskStack.map(\.kind), ["circle", "star"])
+        XCTAssertEqual(state.maskStack.last?.mode, "subtract")
         XCTAssertEqual(state.stabilize, "smooth")
         XCTAssertEqual(state.animationIn, "fade_in")
     }

@@ -8,6 +8,132 @@ Notes for the latest release. For previous releases, see the
 
 ### Added
 
+- Editor panels are arranged in a dock tree of splits and tabbed frames with 24 px tab rows, draggable splitters, tab reordering, five drop zones for docking a dragged tab, floating panel windows, and frame maximize.
+- Each workspace remembers its dock arrangement, Window > Workspaces > Reset to Saved Layout restores it, named workspaces are stored as JSON files under `<data dir>/workspaces/` with import and export, an Effects workspace is added, and plugin workspaces can include a dock tree.
+- `` ` `` maximizes or restores the focused frame, Ctrl+Tab and Ctrl+Shift+Tab focus the next and previous frame, and Ctrl+W closes the focused panel tab, or the sequence tab when the Timeline has focus.
+- Double-clicking a splitter restores the workspace's saved ratio for that divider, double-clicking a tab or a tab row maximizes or restores its frame, and middle-clicking a tab closes it.
+- A tab dragged over a frame previews its drop zone after 80 ms, and a tab released outside every window opens its panel in a window of its own that docks again when dragged back.
+- The Editing workspace splits the window 55/45 between the panel row and the Timeline, Window > Workspaces > Save as New Workspace prompts for a name in the rename bar, and the Animation workspace opens the Timeline Graph Editor.
+- The main window's size, position, display, and maximized state are restored per display arrangement, and a window smaller than 1024×640 shows the Viewer above the Timeline only.
+- The **fx** toggle on each effect header in Effect Controls switches the effect off and back on, keeping its parameters and its place in the chain.
+- Each effect header has a reset button and a menu with Reset, Rename Effect, Duplicate, Copy, Paste Below, Save as Preset, and Remove Effect, and Effect > Paste Effect adds the copied effect to every selected clip that draws a picture.
+- Dragging an effect header moves the effect above the effect it is dropped on, or to the end of the chain, as one undo step.
+- Plugins can add rows to the effect header menu with the `Effect Header` menu location or a `MenuTarget::Effect` context-menu handler.
+- Effect parameters in Effect Controls have a stopwatch, and every animatable property in the inspector and on a timeline property row has a keyframe navigator and a reset button that returns it to its default, as a keyframe at the playhead when the property is animated.
+- Every animatable property in the inspector has a time area spanning the selected clip, where a press moves the playhead, a click selects a keyframe, and a drag moves the selected keyframes as one undo step.
+- With several clips selected, an edit in Effect Controls reaches every selected clip that has the property as one undo step, and a value the selected clips read differently at the playhead shows as a dash.
+- Every number in the inspector and in the timeline property rows is a scrubbable value: dragging it moves the value 1 unit per 2 px (Shift ×10, Ctrl ÷10) as one undo step, Escape during the drag restores it, and a click opens it as a text field where Enter commits, Escape reverts, Tab and Shift+Tab commit and open the next or previous value, and fades take timecode.
+- Dragging a scrubbable value hides the pointer and holds it in place, so the drag reads relative travel and never stops at a screen edge; the pointer reappears where the drag began.
+- A clip can be parented to an overlapping clip from the Transform tab's Parent row or its pick whip, with Shift to snap onto the parent's anchor, and released from the clip context menu; while the parent covers it the child is drawn in the parent's position, rotation, and scale, keeping its place on the canvas when the parent is set or cleared.
+- The Program view draws the selected clip's keyframed Position and Anchor Point as a motion path with one dot per frame; dragging a keyframe or a Position tangent handle edits it as one undo step, Alt+click turns a keyframe between corner and smooth, and Ctrl+click on the path with the Pen tool adds a keyframe there.
+- The Pen tool (`P`) adds a keyframe where it clicks on a clip's opacity or volume line in the Timeline.
+- The Pen tool draws a path mask in the Viewer: a click adds a corner vertex, a click-drag pulls a smooth one, clicking the first vertex or pressing Enter closes the path, and Escape drops it.
+- On a path mask the Pen inserts a vertex on a segment, Ctrl+click deletes a vertex, Alt+click turns one between corner and smooth, and any tool drags a vertex or a tangent handle, each gesture as one undo step.
+- A path mask animates by whole-path keyframes: its Mask N Path row in the timeline keys, unkeys, steps between, drags, eases, holds, and deletes them, a vertex or tangent drag in the Viewer keys the path at the playhead, and a vertex insert or delete changes every keyframe.
+- A drag of the Viewer mask handles starts where the mask is at the playhead, and on a keyframed centre, size, or rotation it adds a keyframe there instead of replacing the curve.
+- The stopwatch and keyframe navigator of each timeline property row and Path row name themselves on hover.
+- Escape closes an open keyframe menu in the timeline, and a press anywhere on the timeline canvas dismisses it.
+- A clip holds a stack of up to 32 masks, each with a mode (None, Add, Subtract, Intersect, Lighten, Darken, Difference), an opacity, an expansion in pixels, and an invert toggle, combined top to bottom in playback and export.
+- The Look tab lists every mask with its mode chips and Invert, Move up, Move down, and Remove buttons, and clicking a mask's header makes it the active mask that the Viewer handles, the Pen, and mask tracking edit.
+- The palette adds a mask of any shape by name, and a Pen press off the active path starts a new path mask.
+- The `add_clip_mask`, `set_clip_mask`, `remove_clip_mask`, and `move_clip_mask` agent tools edit a clip's mask stack by index.
+- The Python API animates a mask property by the mask's index in the stack, as `mask_0_feather` or `mask_1_center`.
+- The scopes' waveform shows luma, an RGB parade, or a YCbCr parade, chosen from the chips over it or View > Scope Waveform and saved with the UI settings.
+- The vectorscope draws a skin tone line and a target box for each primary and secondary at 75 % and 100 %.
+- Animation presets capture a mask's keyframed properties and write them onto the mask at the same index of each target clip.
+- The Type tool (`T`) creates a title at the click in the Viewer and selects it.
+- With the Type tool a click on a title in the Viewer places the caret at the nearest character boundary, a drag or Shift+click selects, the keys edit the text with one undo step per typing burst, and a new title's placeholder is selected so typing replaces it.
+- With characters of a title selected in the Viewer, Bold, Italic, Underline, the font, size, tracking, and fill colour in the Character panel and the Text tab apply to those characters and show their values.
+- Holding a tool's key switches to that tool until the key is released, a tap switches permanently, and with the Selection tool Ctrl over a clip edge switches to Ripple Edit and Ctrl+Alt to Rolling Edit while held.
+- A tool button with variants draws a corner triangle, and pressing it for 300 ms or clicking the triangle opens its variants: the trim tools, and the Pen's Add Vertex, Delete Vertex, and Convert Vertex.
+- Settings > Keys saves the keys in force as a named keymap in `<data dir>/keymaps/<name>.toml`, loads a keymap in place of every rebinding, and imports and exports keymap files, refusing a file with another version or an unbindable chord with the reason.
+- Settings > Keys draws a keyboard image with each key coloured by the kinds of command it holds under the Ctrl, Shift, and Alt caps clicked on it, and a binding row dropped on a key binds it there.
+- Rebinding to a chord another binding holds asks on the row, and Move or Enter gives the chord to the row and leaves the holder with no key.
+- The Settings filter lists the key bindings whose name or chord contains it.
+- Plugins granted `project` read query clips by id, by half-open time range, at a tick, or by selection, ruler markers in a range, and the sequence In and Out points, on the Rust, C ABI, and WebAssembly tiers.
+- Dropped files and `http`, `https`, and `file` URLs go through one `ResolveDropped` hook run in handler priority order, a handler can return `DropAction::Handled`, and a URL no plugin handles is reported in the status line.
+- Window > Jobs docks the Jobs board as a panel, and a running job that reports its progress states the time left at its rate so far.
+- Window > Character and Window > Paragraph dock the selected title's font, Bold, Italic, Underline, Kerning, case, stroke, shadow and card switches, size, tracking, leading, colours, horizontal alignment with Justify, vertical alignment, and wrapping, the same controls the inspector's Text tab draws.
+- The Window menu holds one row per registered dock panel, plugin panels and Audio Meters included, checked while the panel is open.
+- Window > Info (`Shift+8`) docks a panel showing the canvas pixel and colour under the pointer in the Viewer, read only while the Info tab is in front, the selected clip's In, Out, Duration, and source times, the trim or Viewer drag in progress, and driver, mount, and plugin faults.
+- Window > Align docks Align and Distribute, which align the selected clips' edges or centres to the selection, the frame, or the first selected clip and space three or more clips' centres evenly, measured on the bounds the compositor draws at the playhead and written as one undo step.
+- Titles justify their wrapped lines and turn pair kerning off per style, and the Python API takes `align="justify"` and a `kerning` argument.
+- Title and shape colours are set from swatch rows in the inspector, keyed at the playhead when the colour is animated.
+- The status bar shows the message line at the left, the first running job with its progress and a count of the others at the centre, opening the Jobs panel on a click, and the achieved playback rate, dropped frames, playback resolution, and GPU device name at the right.
+- View > Canvas Handles chooses the Transform, Crop, or Mask handles by name, and Sequence > Source > Insert Pool Selection is disabled with its reason while no online pool item is selected.
+- View > Compare shows the Program frame against the frame held at the playhead, a still image, or the Source monitor's frame, as a vertical wipe, a horizontal wipe, or side by side, with a draggable divider.
+- Window > Audio Meters (`Shift+9`) docks a panel with one bar per output channel on a −60 to 0 dBFS scale, drawing RMS and peak, a 1.5 s peak-hold line, and a clip light that stays lit until clicked.
+- Window > History (`Ctrl+Shift+H`), Window > Markers, Window > Scopes (`Shift+7`), and Window > Color dock as panels, and the scopes measure only while the Scopes panel is in front or the Viewer strip is open.
+- The Color panel lays the selected clip's grade out in Basic Correction, Creative, RGB Curves, Hue Curves, Color Wheels, HSL Secondary, and Vignette sections that open and close from their titles, with Reset grade at the top.
+- The grade adds whites, blacks, vibrance, faded film, master and per-channel RGB curves, hue-versus-saturation, hue-versus-hue, and hue-versus-luma curves, and an HSL secondary key with hue, saturation, and luma corrections, each keyframeable, rendered the same on the GPU and the CPU, and set by the assistant through `set_clip_adjustments`.
+- The Lift, Gamma, and Gain wheels drag: a press puts the puck under the pointer, the drag follows the pointer off the wheel and stops at the rim, the channels' level stays where the press found it, the release keeps one undo step, Escape restores the wheel, and the Master under each wheel is a scrubbable value.
+- The Generators group lists seven shipped generators, Color Matte, Linear Gradient, Radial Gradient, Checkerboard, Grid, Fractal Noise, and Color Bars, each placed as a clip whose parameters keyframe in the inspector.
+- WebAssembly and native C-ABI plugins can register WGSL effects, CPU effects, generators, transitions, clip types, driver languages, presets, themes, and workspaces during mount, with per-frame cost measurement, fault recording, and removal on unmount.
+- WebAssembly plugins set or update the Effect menu category of their registered video and audio effects with `set-effect-category`.
+- `aria-sdk` adds `Host::register_effect`, `register_cpu_effect`, `register_transition`, `register_generator`, `register_cpu_generator`, `register_clip_type`, `register_driver_language`, `register_preset`, `register_theme`, and `register_workspace`; `@1.0.0` WebAssembly components and shorter v1 C-ABI tables still load.
+- A cut between two clips on an audio lane takes a Constant Power, Constant Gain, or Exponential Fade crossfade from Ctrl+Shift+T, the Audio tab, the cut's context menu, the Effects panel's Audio Transitions group, or the `add_transition` tool; each side plays into its unused source media across the window in playback and export.
+- Sequence > Render Selection renders the frames the selected clips cover into the render-file cache as a background job.
+- View > Transparency Grid draws a grey grid where no layer covers the canvas in the Viewer, in place of the sequence background colour, and is saved with the settings.
+- Window > Effects & Presets (`Shift+5`) opens the sidebar's Effects tab: a searchable tree of every video effect, audio effect, transition, generator, clip type, and animation preset with favourites, each plugin's name in the tooltip, plugins that failed to load with their reason, double-click to apply to the selection, and drag onto a clip, cut, or lane.
+- Dragging a video effect onto the inspector's Effects tab inserts it above the effect it is dropped on, or at the end of the chain, as one undo step; other clip payloads apply to the selected clip and clip-placing entries are refused with a reason.
+- Effects & Presets can list one group alone under a caption with **Show All**, which the Audio workspace uses for audio effects.
+- The menu bar has File, Edit, Clip, Sequence, Markers, Effect, Animation, View, Window, and Help menus with submenus (Open Recent, Export, Label, Replace with Clip, Add Tracks, Keyframe Interpolation, Keyframe Assistant, Resolution, Safe Margins, Workspaces), check marks on toggles, each row's chord, and a disabled row's reason as its tooltip and on the status line when chosen anyway.
+- A menu row lit from the keyboard draws a 1 px accent focus ring, the ring follows the arrows into a submenu's flyout, and a drop opened with the pointer draws none.
+- Markers support clip attachment when a selected clip is under the playhead, range durations, Comment/Chapter/Segmentation kinds, the Edit Marker dialog (`M` on an existing marker or Markers > Edit Marker…), range bars on the timeline ruler and clip cards, and colour filtering in the Markers panel.
+- File > Open Recent lists each remembered project, File > Revert drops the edits made since the last save, and File > Export has one row per timeline exporter that writes only that format.
+- Edit > Label sets the label colour of the selected clips, Sequence > Trim Edit selects the nearest edit point, Extend Edit moves the selected edge to the playhead, and Delete Empty Tracks removes every lane with no clips, each as one undo step.
+- Clip > Replace with Clip > From Source Monitor swaps the selected clip's media for the focused Source tab, aligning the Source playhead frame with the sequence playhead, and refuses a source too short to fill the clip.
+- Effect > Apply re-applies the last added effect to the selection, Remove All Effects clears every effect of the selected clips as one undo step, and Animation > Keyframe Interpolation sets the selected or playhead keyframes to Linear, Bezier, or Hold.
+- Help > About shows the build version, plugin ABI, mounted plugin count, data folder, and license.
+- A plugin menu row placed in a group is drawn in a submenu named after the group, and the palette offers submenu rows as `Submenu: Row`.
+- Typing digits over the Timeline or the Program view opens the playhead timecode with them, and a keypad `+` or `-` duration moves the selected clips as one undo step, trims the selected edge, or moves the playhead when nothing is selected.
+- Added timeline property rows with collapsible Transform, Effects, Masks, and Audio groups, scrubbable value readouts, stopwatch and driver toggles, keyframe navigation, virtualized keyframe icons, marquee selection, snapping time drag, copy, paste, and delete.
+- Added the Timeline Graph Editor (`Shift+F3`) with Value and Speed graphs, draggable incoming and outgoing temporal influence and speed handles (`0.1%` to `100%`), and 2D spatial Bezier tangent handles.
+- Added per-keyframe incoming and outgoing temporal speed and influence (`TemporalEase`, `SetKeyframeEase`), Easy Ease (`F9`), Easy Ease In (`Shift+F9`), Easy Ease Out (`Ctrl+Shift+F9`), Toggle Hold (`Ctrl+Alt+H`), and roving keyframes (`SetKeyframeRoving`).
+- Added the `Alt` property reveal shortcuts (`Alt+P`, `Alt+S`, `Alt+R`, `Alt+T`, `Alt+A`, `Alt+E`, `Alt+M`, `Alt+L`, `Alt+U`, ``Alt+` ``, and `Shift` additive variants).
+- Video and audio lane headers draw a V or A source patch indicator; clicking a dark one patches that channel of a Source tab to the lane, clicking the lit one leaves the channel out, and each change is one undo step.
+- Insert, Overwrite, and pool drops place a shot's picture and sound on their patched lanes as linked clips, keep the sound in the picture when the sequence has no audio lane, and silence a picture whose sound is patched off.
+- Dragging the Source tab's frame onto the timeline drops its marked range with the source patching, covering, or inserting with Ctrl.
+- The Viewer holds Program and one Source tab per open take, each keeping its frame and marks; Shift+2 switches between Program and the last Source tab, and Split shows that tab beside Program.
+- Ctrl+Shift+R shows rulers on the Program view; guides dragged out of them snap moved layers and are deleted by dropping them back on a ruler.
+- View > Show Guides hides the Program view's guides without deleting them, and hidden guides do not snap.
+- Sequence > Linked Selection and the tool strip's chain button turn linked selection off, so a click, move, nudge, or edge trim applies to one clip of a linked pair; grouped clips still move together.
+- View > Timeline Display Settings and the tool strip's wrench button choose head, head and tail, or continuous video thumbnails, logarithmic, linear, or hidden waveforms, and page or smooth playhead follow, saved with the app settings.
+- Animation > Add Keyframe keys every selected property row at the playhead, Add Expression adds a driver to the selected property row, Keyframe Assistant > Time-Reverse Keyframes plays the selected keyframes backwards across their span, and Reveal Modified Properties opens the selected clip's changed property rows in the timeline; each edit is one undo step.
+- Animation > Keyframe Velocity…, or a double-click on a keyframe, sets the incoming and outgoing speed and influence of the selected keyframes in property units per second, with Continuous keeping both sides at one speed.
+- Edit > Remove Attributes… clears the ticked groups (motion, opacity, crop, time remapping, volume, pan, video and audio effects, grade, mask, chroma key) from the selected clips as one undo step.
+- Clip > Audio Channels plays the selected clips as Stereo, Swap Channels, Left to Both, Right to Both, or Mono by placing the matching channel tool first in each clip's audio effects, as one undo step.
+- File > Import Recent re-imports one of the last ten files imported through File > Import…, lists a deleted file disabled, and Clear Recent Imports empties the list.
+- The Effect menu lists every video and audio effect in one submenu per category, and video and audio effect specs, package `[[effects]]` declarations, and native audio effect specs set the category.
+- Double-clicking a media clip opens its take in a Source tab linked to the clip, where setting or clearing In and Out trims the clip as one undo step.
+- A focused Source tab has its own transport: Space, Shift+Space, J/K/L to 8x, K with J or L, the arrow steps, Home, End, Shift+I, and Shift+O move the take instead of the sequence while the Viewer has focus, and the Viewer play button plays the tab in front.
+- A Source edit with a sequence span and only a source In or Out takes the length from the span, a sequence Out alone backtimes the take, and Fit to Fill reports the new speed in the status line.
+- Add constant-power stereo pan, mute, solo-in-place, a full master strip, and Off/Read/Write/Touch/Latch volume and pan automation modes to the Audio Track Mixer across playback, scrub, and export, with each playback automation pass grouped into a single undo entry.
+- Paint the timeline time area as one virtualized gpui canvas element per lane group with binary-search time-range culling, vertical lane culling, and sub-pixel clip coalescing.
+- Split the timeline into a video lane group above a draggable divider (numbered upward from V1) and an audio lane group below (numbered downward from A1), keeping linked A/V companions in sync across trims, slips, speed changes, and ripple edits in one undo entry.
+- Add SMPTE timecode readout and adaptive zoom-aware ticks to the timeline ruler, playhead-anchored zoom keys (= and -), and draggable left/right zoom handles on the sequence overview bar.
+- Add a live on-canvas trim feedback HUD showing tool name, signed frame delta, and resulting timecode or speed percentage during ripple, roll, slip, slide, rate-stretch, and clip move drags.
+- Add Track Select Forward (A) and Track Select Backward (Shift+A) tools on one or all unlocked lanes, clickable clip-edge selection for frame-step trimming, and clickable gap selection with Delete / Backspace ripple-close.
+- Tint timeline clips from their plugin clip-type colour when no clip label colour is set, draw the 12px clip-type icon before the clip name, and show a warning badge when the clip type's plugin or generator is missing.
+- Keys for Lift (`;`), Extract (`'`), Add Edit to All Tracks (Ctrl+Shift+K), head and tail trims to the playhead that keep the gap (Alt+[ / Alt+]), Ripple Delete (Shift+Delete), Clear In and Out (Ctrl+Shift+X), Mark Clip (X), Select at Playhead (D), previous and next cut (Up / Down, Shift for every track), clip gain (`[` / `]`, Shift for 6 dB), Link (Ctrl+L), Snapping (S), Default Transition (Ctrl+T), previous and next keyframe (Shift+Alt+Left / Right), track heights (Ctrl+= / Ctrl+-), Cut (Ctrl+X), Import (Ctrl+I), Save a Copy (Ctrl+Alt+S), Find (Ctrl+F), Keyboard Shortcuts (Ctrl+Alt+K), Quit (Ctrl+Q), Clear All Markers (Ctrl+Shift+Alt+M), panel focus (Shift+1 to Shift+4, Ctrl+Tab, Ctrl+Shift+Tab, Ctrl+W), workspaces (Shift+Alt+1 to Shift+Alt+9), and Viewer nudges of the selected clip (arrows 1 px, Shift+arrows 10 px, Shift+/ to fit).
+- File > New Sequence, the palette, and Ctrl+N create and open an empty sequence with the open sequence's frame rate, canvas, and audio layout and one video and one audio track, as one undo step.
+- File > Export Frame, the palette, and Ctrl+Shift+E write the frame under the playhead to a PNG at the canvas size as a job, replacing an existing file only once the PNG is complete.
+- The palette has a Ripple delete selected row beside Delete selected, which now leaves the gap.
+- F10 and a lone Alt press open the menu bar at File with its first row lit, and an open menu answers Up, Down, Left, Right, Home, End, a row's first letter, Enter, Space, and Esc.
+- Property drivers replace a clip property's keyframed value with code evaluated per frame: `aria.expressions`, a JavaScript subset with the After Effects expression library (`wiggle`, `loopOut`, `valueAtTime`, `linear`, `ease`, `random`, references to other clips by name), ships built in, plugins register further languages with `PluginContext::register_driver_language`, and `aria frame` and `aria export` evaluate them and print each driver that failed.
+- Alt+click on an inspector stopwatch attaches a driver: its source shows under the row, a click edits it in place, the `@` pick whip inserts a reference to the next inspector property clicked, on the same clip or another one selected meanwhile, a failing driver turns the value red with the error in a tooltip, the edit and the `set_param_driver` assistant tool refuse a cycle, and each change is one undo step.
+- Plugins offer the assistant tools with `PluginContext::register_ai_tool`, `register-ai-tool` in WASM, and `register_ai_tool` in the C ABI: each is called as `plugin_<name>`, returns text and PNG images, runs at the tier its plugin registers when the call is made, and asks before a System call under Autonomy Ask.
+- Plugins add scopes to the scope strip with `PluginContext::register_scope`, `register-scope` in WebAssembly, and `register_scope` in the C ABI; each measures the Viewer frame on the preview thread and draws an image and one readout line below the built-in scopes.
+- Plugins add workspaces to the Window menu and Settings with `PluginContext::register_workspace` or `[[workspaces]]` in `plugin.toml`, setting pane sizes, collapsed panes, the scope strip, and the focused pane.
+- Plugins add clip types with `PluginContext::register_clip_type` or `[[clip_types]]` in `plugin.toml`: each is placed from the Generators tab or the palette as a generator clip with the type's name, timeline colour, and icon, shows in the inspector with Detach, and draws Viewer handles that move the generator's vec2 parameters as one undo step per drag.
+- `Shift+J` and `Shift+L` step shuttle speed down and up by 10% across `[-8x, 8x]` with fractional frame cadence in the Viewer.
+- Holding `K` and tapping `J` or `L` steps one frame backward or forward, and holding `K` with `J` or `L` held plays at 1/4 speed until release.
+- `Shift+Space` plays the active work area from its start, and `Ctrl+Shift+L`, the Viewer loop button, and `View > Loop Playback` toggle loop playback over the work area.
+- `Shift+Left` and `Shift+Right` step the playhead five frames backward and forward.
+- Shuttle playback plays pitch-held audio at every forward and reverse speed up to 4x with the audio device clock as master, and mutes above 4x.
+- Dragging the playhead or the timeline ruler plays 40 ms audio scrub grains when `Settings > Playback > Audio scrubbing` is on.
+- Animation presets (`.ariapreset`) save a selected clip's visual effects, audio inserts, and keyframed properties with per-part toggles, apply across the selection in one undo step anchored at the playhead, import on file drop or File > Import, and load from `<data dir>/presets/*.ariapreset`, plugin packages' `presets/*.ariapreset`, and `PluginContext::register_preset`.
+- Plugins register CPU effects and generators with `CpuEffect` callbacks over `RGBA16F` frames, with reused compositor staging buffers, passthrough fault reporting on error, and session plugin failure on panic.
 - Plugins read and edit the project through `ProjectHost`: immutable snapshots, single commands, and named transactions that land as one undo step or not at all.
 - Plugins receive `CommandApplied` after each command can no longer be rolled back, and the editor redraws when a plugin or the assistant edits.
 - `CommandProposed` carries the project the command applies to and its origin, and external plugins must be rebuilt for loader version 2.
@@ -18,15 +144,56 @@ Notes for the latest release. For previous releases, see the
 - Plugins add rows to every context menu through `ContextMenuRequested`; a clicked row runs off the UI thread.
 - Plugins register effects and transitions written in WGSL, which render on clips, in previews, and in exports like shipped ones, and `render_effect` and `render_transition` now draw images; external plugins must be rebuilt for loader version 4.
 - Plugins add generators, effects marked `generator: true` that the Generators tab and the palette place as clips in one undo step; external plugins must be rebuilt for loader version 5.
+- Plugin effects and generators are graphs of up to 8 named compute and fragment passes, each reading the source frame, earlier passes, the clip a layer parameter references, or plugin textures, and writing the input size, a scaled size, or a fixed size, on the Rust, C ABI, WebAssembly, and package tiers.
+- Plugins register RGBA images as textures that effect passes read, with `PluginContext::register_texture`, `register-texture` in WebAssembly, `register_texture` in the C ABI, or `[[textures]]` in `plugin.toml`.
+- An effect graph with a cycle, an unknown input, or a pass the last pass does not read is refused at registration with an error naming the pass.
+- A layer parameter that references its own clip, or closes a cycle through other clips' layer parameters, is refused and the reason is shown on the effect row.
+- A plugin effect states the margins it draws past its layer with `bounds`, and a click in the Viewer inside that margin selects the layer.
+- Plugins define clip types with fields of any effect parameter kind and a renderer of their own, WGSL passes or a CPU callback handed the field values, the time, and an `RGBA16F` frame, through `PluginContext::define_clip_type`, `define-clip-type` in WebAssembly, a `schema` object in the C ABI's `register_clip_type`, `Host::define_clip_type` and `Host::define_cpu_clip_type` in `aria-sdk`, or `shader` and `passes` on a `[[clip_types]]` entry.
+- A defined clip type's fields show as rows in the inspector and the timeline's Effects group, are saved with the clip, edit as one undo step each, and keyframe, and the Generators tab, the Effects panel, and the palette list the type without a second row for its generator.
 - Plugins render frames through `RenderHost`: the open sequence, any sequence, or one clip, at canvas, fitted, or exact size, as an image, per tick of a range, or into a GPU texture; external plugins must be rebuilt for loader version 6.
 - Clips, lanes, and the master carry audio effect chains, edited in the inspector's Audio tab and the mixer's Inserts rows, with fourteen shipped effects, keyframed parameters, sidechain keys, and latency compensation in preview and export.
 - Plugins add audio effects with `register_audio_effect` and mix project sound through `AudioHost`; a processor that panics or misses three playback deadlines is bypassed, and external plugins must be rebuilt for loader version 7.
 - Plugins add timeline importers and exporters with `register_importer` and `register_exporter`; an import is one undo step, an export never leaves a partial destination, and external plugins must be rebuilt for loader version 8.
+- Plugins add media decoders with `register_decoder`: probe, import, preview, export, and analysis read a claimed extension through the plugin before the platform decoder, and the import dialogs offer it.
+- Native C ABI and WebAssembly plugins register media decoders, and the example WebAssembly plugin reads YUV4MPEG2 files.
+- Plugins run background jobs on the Jobs board with progress, a detail line, Cancel, and a commit step that refuses Cancel, through `PluginContext::start_job` in process, `start-job` with `job-step` and `job-end` in WebAssembly, and `Host::start_job` with `Plugin::job_step` and `Plugin::job_end` through the native C ABI; unmounting a plugin cancels its jobs, and a panicking job fails the plugin.
+- Added plugin-contributed media encoders (`PluginContext::register_encoder`, `aria_sdk::Host::register_encoder`, and `aria:plugin/plugin@1.0.0` `register-encoder`) across in-process, native C-ABI, and WebAssembly plugins, with format selection in the Export dialog and transactional destination staging.
+- Settings > Plugins shows each plugin's per-frame render and per-audio-block cost, and an effect or transition slower than the sequence frame period is reported as a plugin fault with its measured time.
+- The plugin guide is split into chapters under `docs/plugins/`, and the WebAssembly tier guide moved to `docs/plugins/wasm.md`.
+- Plugins ship as `.ariaplugin` packages in three tiers: data packages of declared WGSL effects, transitions, and generators, WASM components under fuel, memory, and deadline limits, and native libraries on a stable C ABI written with `aria-sdk`.
+- An `.ariaplugin` installs from a drop, File > Install Plugin, or the Plugins section after a prompt with its tier and permissions, and an update that asks for more permissions prompts again.
+- The Plugins section enables, disables, reloads, uninstalls, and opens the folder of each installed package, and lists its permissions and contributions.
+- Packages add palette commands and docked panels drawn from a declarative UI tree, without linking `aria-ui`.
+- Packages add menu rows to the menu bar and the clip, track, transition, media, and viewer context menus, default keys that a taken chord refuses and Settings > Keys lists for rebinding, and typed settings fields drawn in Settings, through `[[menus]]`, `[[keys]]`, and `[[settings]]` in `plugin.toml` or `PluginContext`, without linking `aria-ui`.
+- A plugin command runs from the palette, a menu row, or its key, a failed or panicking command reports its reason in the status bar, and `aria plugin check` counts a package's commands, menu rows, keys, and settings.
+- Plugin commands take an SVG icon drawn in the palette and menus, and an enablement condition over the selection, In/Out, transport, and focused panel; a disabled command is dimmed in the palette, left out of menus, and refused with the condition it needs.
+- Plugins draw lines, rectangles, ellipses, paths, text, and draggable handles over the Viewer frame with `register_viewer_overlay`, placed in canvas pixels that follow the Viewer's zoom and pan, and receive each handle drag in canvas pixels.
+- WebAssembly component plugins and native C ABI plugins built with `aria-sdk` register viewer overlays, build `OverlayScene` shape lists, handle pointer drag events on handles, and schedule scene rebuilds (`register-viewer-overlay`, `refresh-viewer-overlay`, `overlay-scene`, `overlay-event`, `aria_sdk::Host::register_viewer_overlay`, `aria_sdk::Host::refresh_viewer_overlay`).
+- Transform, crop, and mask handles on a zoomed or panned Viewer sit on the picture instead of where the fitted frame would be, and dragging a handle no longer pans the view.
+- A WASM or data package reloads when its files change on disk, and the package named by `ARIA_PLUGIN_DEV` loads from its source folder and reloads at any tier.
+- Settings > Plugins shows each plugin's newest 256 log lines under a Log toggle, coloured by level with Copy, from `PluginContext::log`, the WASM `log` import, and the native `log` call, and logs each failure, fault, and caught panic with its backtrace.
+- A package with `[activation] on` events loads on the first command, file, effect, transition, generator, panel, or setting it names, while its declared contributions and `[[panels]]` cards are listed under its name and Settings > Plugins shows what it waits for.
+- A WASM component built for another WIT world is refused at load with the mismatch instead of failing on its first call.
+- Settings > Plugins sets the fuel per call and the memory of WASM plugins, saved in `[plugin_limits]`, and a change remounts the mounted WASM plugins under the new limits.
+- `aria plugin new`, `dev`, `check`, and `pack` create a WASM or native plugin crate, run it in the editor with a rebuild and reload on each change, validate a package's manifest, shaders, permissions, and binaries, and write the `.ariaplugin`.
+- File > Import Timeline and Export Timeline read and write CMX 3600 EDL, Final Cut Pro XML, and OpenTimelineIO; a timeline file picked in Import or dropped on the window lands on the timeline as one undo step, and what a format cannot hold is listed in the inspector's Timeline file panel.
+- File > Import Timeline and Export Timeline read and write SubRip and WebVTT subtitles: cues become text clips on new text tracks, overlapping cues take further tracks, and the shown text tracks export as cues.
+- A `.cube` dropped with no clip selected, or picked in File > Import Timeline, adds a LUT filter bar across the sequence on a new filter track, instead of doing nothing.
 - The engine, project host, and jobs services registered by a session started without the engine plugin stay registered for the session instead of being dropped at once.
 - Render and replace no longer hangs the editor when it swaps the rendered file in.
 - Every button, icon, card, and menu row dims while pressed, so clicks read on every control.
 - Shift-dragging a clip ripple-moves every sync-locked lane: the sound under the picture moves with it instead of staying behind.
 - Opening a video file on a busy machine retries once before reporting a decode failure, so a slow preroll no longer reads as a broken file.
+- The plugin guide adds `docs/plugins/packages.md` and `docs/plugins/native.md` in place of `docs/plugins/external.md`, the worked example builds an `.ariaplugin` package, and `examples/data-plugin` is a data package checked by the package tests.
+- Playback follows the audio device clock minus its output latency, shows the newest ready frame on each display refresh, and counts each frame it could not show as decode late, render late, or present late.
+- The status bar shows the achieved playback rate and a dropped-frame count, green at zero and yellow above it, which a click resets; Settings > Playback > Log dropped frames logs each drop with its cause.
+- Preview frames render on one worker thread that renders four frames ahead of playback and drops them on an edit, instead of one thread per frame, and scopes measure on that worker instead of the UI thread.
+- Shuttle at 2x, 4x, and 8x steps through the sequence at those speeds while presenting at the sequence rate.
+- The Viewer's resolution picker renders playback and paused frames at Full, 1/2, 1/4, or 1/8, and Auto lowers the playback resolution until frames render inside the frame period.
+- The Viewer's Proxy button and View > Proxies switch playback between proxies and original media, saved across launches; a missing proxy file plays the original, and exports always read the original.
+- Settings > Appearance lists theme files from `<data dir>/themes/*.toml` and themes plugins ship in `themes/*.toml` or register with `PluginContext::register_theme`, saved by name and applied at launch.
+- Linux decode labels each frame with its stream time, so an MP4 with an edit list no longer shows every frame two frames late, frame 0 no longer decodes twice, and a seek onto an open-GOP keyframe returns the frame at the target instead of a later one.
 
 - Shift+Z fits the timeline to the selection, the same action as Shift+F.
 - The timeline draws a sequence overview under the ruler; a click pans the view to that time.
@@ -1015,11 +1182,16 @@ Notes for the latest release. For previous releases, see the
   so the strip shows the picture with transform, grade, and effects applied.
   Cells sit on one grid shared by every clip, render one at a time in the
   background, and invalidate only the ticks whose picture changed.
-- **Label colours** on clips and media-pool rows. Right-click either for a row of
-  the eight marker colours plus a clear; a labelled clip is drawn in its label
-  colour rather than its kind colour, a labelled pool row carries a dot in it,
-  **Select same label** reaches the whole clip group again in timeline order, and
-  the pool filter matches a colour name.
+- **Label colours** on clips and media-pool rows. Right-click either, or use
+  Edit > Label, for the 16 label colours (Violet, Iris, Caribbean, Lavender,
+  Cerulean, Forest, Rose, Mango, Purple, Blue, Teal, Magenta, Tan, Green,
+  Brown, Yellow) plus a clear. A timeline clip is filled with its label colour;
+  an unlabelled clip takes Violet for picture, Forest for sound, Mango for a
+  generator, Tan for a nested sequence, and Lavender on an adjustment lane. A
+  labelled pool row carries a dot in it, the clip menu's label chips select
+  every clip of that label in timeline order, the pool filter matches a colour
+  name, and a project saved with the pink, red, or orange label opens with
+  Magenta, Rose, or Mango.
 - A **History** panel (**Window > History**, Ctrl+Shift+H): every step of the
   session, named after the command that made it, with the current point marked.
   **Go** on a row moves the project to the state after that step in either
@@ -1191,11 +1363,52 @@ Notes for the latest release. For previous releases, see the
   a re-encoded source cannot inherit the proxy of the frames it replaced, and a
   proxied row says `proxy` in its caption. Export is unaffected: it renders the
   originals, as it already did.
+- Holding the Viewer's step back or step forward button repeats the step once per frame of the tab in front after the press-and-hold pause.
+- Dragging the Viewer's playhead timecode scrubs the playhead two pixels a frame, ten frames with Shift and a tenth of one with Ctrl, and a click still opens it for typing.
+- A 12 px mini ruler under the Viewer's control row spans the tab in front with its In/Out range, the sequence markers, and a playhead that a press or drag moves.
+- Titles, shapes, stickers, animations, and adjustment layers take a mask from the Look tab and the `set_clip_mask` tool, and a mask on an adjustment layer limits its look to the masked area.
+- Each side of a transition and each clip of a matte draws its mask, effects, LUT, motion blur, and blend mode as it does alone, in playback and export.
+- Sequence Settings has a time display picker (Timecode, Frames, or Feet + Frames 35mm) that the timeline ruler, the timeline timecode, the Viewer's playhead field and the trim readout read in, and the playhead field accepts `feet+frames`.
+- The timeline ruler spaces its labels from their measured width at every zoom, so labels never overlap, and places them on whole frames that divide a second or on whole seconds, minutes and hours.
+- The timeline header holds the sequence timecode, which scrubs on a drag and opens for typing on a click, the playhead's frame number, and buttons for snapping, linked selection, adding a marker, the timeline display settings, and the graph editor.
+- The property search in the timeline header narrows the property rows of every opened clip to the properties whose names contain the typed text, ignoring case, and opens the groups that hold them.
+- A work area bar under the timeline ruler spans In to Out: dragging the bar moves both points, dragging an end moves one, Escape during the drag puts them back, and a double-click sets the work area to the whole sequence.
+- Added Mini (20 px), Small (32 px), Medium (48 px), and Large (72 px) track height presets to the track context menu and Shift+scroll on timeline track headers, lowering the minimum track height to 20 px.
+- Added Center at Cut, Start at Cut, and End at Cut transition alignment in the Transition inspector block and transition context menu, shifting the timeline transition band, video blend window, and audio crossfade window relative to the cut.
+- Timeline clip bars draw a 14 px name strip with the clip's speed when it is not 100 % (`120%`, `-100%`) and an fx badge that is grey with no changes, purple for changed clip properties, yellow for applied effects, and yellow with a purple underline for both.
+- Clicking a clip bar's fx badge opens a menu of the clip's properties, and the chosen property is the line the bar draws, with keyframe dots on Medium and taller lanes; dragging the line sets the value as one undo step and Ctrl+click on it adds a keyframe.
+- A clip bar whose media file is missing fills red with Media Offline and the file name, a generated clip's bar draws its name and colour swatch, and linked clips that drift apart show the frame offset on both bars.
+- Plugins can add rows to the fx badge menu through the `Clip Badge` menu location, and `ContextMenuRequested` reports it as `MenuTarget::ClipBadge`.
 
 ### Changed
 
+- The timeline's zoom scroll bar, the add-track button, and the zoom readout sit along the bottom of the timeline instead of under the ruler, the ruler header is 42 px high, and In and Out draw as the work area bar instead of two lines on the ruler.
+- A digit typed over the Timeline opens the timeline's timecode, and one typed over the Program view opens the Viewer's playhead field.
+- A click on an inspector stopwatch of an animated property deletes every keyframe and keeps the value at the playhead, as the timeline's stopwatch does; the navigator's diamond adds and removes the keyframe under the playhead.
+- During playback, hover fades and glides draw their end state at once and the timeline playhead stands on the frame shown instead of easing after it.
+- Twirling a lane's property rows open or closed slides them over 180 ms instead of appearing in one step, and a workspace change eases its frames into place on `ease_out`.
+- A control's tooltip shows after the pointer rests on it for 400 ms instead of 500 ms.
+- Scopes count a Viewer frame on the GPU and read back only the counts, so showing scopes no longer reads each frame back to the CPU, and during playback they update at most 30 times a second.
+- Projects save at schema version 3, which stores a clip's masks as a list; a version 2 project opens with its mask as the first mask of the stack and its mask drivers moved onto that mask.
+- A plugin effect reads `aria.time` as 0 unless its spec sets `time_dependent`.
+- UI text is 11 px instead of 13 px, menu and context-menu rows are 22 px, Viewer tab rows are 24 px, and text fields are 20 px high, following the density table in `docs/spec/look.md`.
+- The dark theme takes the surface values in `docs/spec/look.md`, and track headers, property-row names, the inspector tab strip, and the Viewer tabs are drawn on the new `surface_header` token with `hairline` separators; inspector numbers are drawn in the `value` colour, and the `track_shape` token is deleted.
+- A left click on an inspector number opens it for typing instead of stepping it up, and a right click no longer steps it down; dragging the number moves it.
+- The sidebar's top row lists five groups, Media, Graphics, Effects, Library, and Analyze, and a second row lists the open group's tabs in place of the fifteen-chip tab row.
+- The tool bar holds the tools, the snap, linked-selection, Timeline Display Settings, and edit-mode buttons, the workspace switcher, and Export; Settings and the panel toggles open from the menus.
+- The transport and the playhead timecode field are in the Viewer's control row, and the transport steps the tab in front of the Viewer, Program or a Source tab.
+- The Viewer's control row has In and Out buttons that mark the sequence while Program is in front.
+- The Viewer's tab row has Safe, Guides, and Alpha chips beside Split and Rulers for the safe margins, the guides, and the transparency grid.
+- The sidebar and the Effect Controls panel no longer draw a 44 px header, and Import sits at the right of the sidebar's group row.
+- A click on the timeline's zoom readout fits the sequence, in place of the fit button in the Viewer's control row.
+- A Source tab scrubs from the Viewer's mini ruler in place of the scrub bar drawn inside its picture.
+- Viewer frames on `wgpu` windows composite into pooled GPU textures shared with the window and present through `gpui::surface` with no GPU-to-CPU readback while the scopes are closed.
 - The `GeneratorService` trait and the `aria.text` and `aria.shapes` plugins that registered it are deleted; text and shape clips render as before, and startup no longer builds a text renderer that nothing read.
 - The `RenderInterceptorService` trait, which nothing called, is deleted.
+- The shipped key map follows `docs/spec/keyboard.md`: Ctrl+K splits, Ctrl+M exports, Ctrl+Alt+N starts a project, Ctrl+Shift+W closes it, F is Match Frame, `\` fits the sequence, C is the Razor and B the Ripple Edit tool, Ctrl+Shift+I and Ctrl+Shift+O clear In and Out, Ctrl+Alt+M deletes the marker at the playhead, Ctrl+Shift+M goes to the previous marker, Shift+0 toggles the assistant, Shift+Alt+C detects shots, and Ctrl+Alt+R resets effects.
+- Left and Right step only the playhead; Ctrl+Left and Ctrl+Right trim the selected edge, or move the selected clip when no edge is selected.
+- The Home Learn rail reads its chords from the key registry, so a rebound key shows there.
+- A mask cuts what a clip draws before its effects, LUT, and layer styles, so a shadow or glow follows the masked edge.
 
 - **GPUI builds from santh-gpui, the framework shared with iris and Veyyon.**
   The vendored copy of the `wingleeio/zed` fork is deleted, and building from
@@ -2030,6 +2243,63 @@ Notes for the latest release. For previous releases, see the
 
 ### Fixed
 
+- On a 23.976, 29.97 or 59.94 fps sequence the timeline places clips, the playhead, markers and the ruler at their real times instead of a thousand times too close together, and the timeline timecode counts 24, 30 or 60 frames a second instead of reading `00:00:00:36`.
+- Open Gap and Close Gap at Playhead move clips by one timecode second at 23.976, 29.97 and 59.94 fps instead of by 24000, 30000 or 60000 frames.
+- The playhead stays under the pointer while dragging in the timeline ruler, the Viewer's scrub strip or a property row's strip, instead of easing behind it.
+- Timeline ruler labels draw in the faint text colour instead of white.
+- Effect Controls reads effect parameters at the playhead instead of at the clip's first frame, and editing an animated effect parameter writes a keyframe there.
+- An edit made while paused, such as an effect added from the Effect Controls Add list, shows in the Viewer at once instead of when the playhead next moves.
+- A rename opens with the whole name selected, so typing replaces the name instead of appending to it, and the name field takes the arrows, Home, End, Shift selection, Ctrl word moves, Delete and Ctrl+Z.
+- A control's tooltip no longer opens over the menu its press opened; after a press the tooltip stays hidden until the pointer leaves the control.
+- A property row in Effect Controls keeps its keyframe navigator and time area on its own line, shortening a long name with an ellipsis and showing it in full on hover; values stand in one column, a colour row draws its swatches on the line under its name, and every row's time area starts and ends at the same place so keyframes line up in time.
+- A colour that is not a preset reads as six hex digits, `#ff0000`, when it is opaque, adding the alpha digits only when it is translucent.
+- The tool bar's Snapping button shows its chord, `S`, in its tooltip, as the timeline header's does.
+- The Timeline Display Settings button in the timeline header and in the tool bar opens its choices under itself instead of opening the View menu at the menu bar, and a second press closes them.
+- Pressing a submenu entry in a menu opens its flyout instead of closing the menu, and pressing a disabled row leaves the menu open with the reason on the status line.
+- The timeline's divider between video and audio lanes no longer draws a `V / A` label cut off by its borders.
+- The Window menu checks Effects & Presets, Assistant and Mixer while their panel is open, including behind another tab, and Window > Effects & Presets and Shift+5 bring the Effects & Presets panel forward instead of the Media panel's Effects tab.
+- Typing in the Effects & Presets panel's search box filters its tree while the Media panel shows another tab.
+- The workspace switcher, the Window menu and Settings > Workspaces mark the workspace last chosen, which stays marked at launch, after a click on another panel, and after a dragged divider, instead of losing the mark when the panes stop measuring like a shipped arrangement.
+- Menu rows, tooltips, Settings and the plugin list write a shortcut's key with an upper-case first letter, `Ctrl+N`, `Enter`, `PageUp`, as the documentation does, instead of `Ctrl+n` and `enter`.
+- With several clips selected, a property row's reset button lights when any of them holds something other than its default, not only the clip whose rows are drawn.
+- Resetting an animated effect parameter writes its default as a keyframe at the playhead instead of deleting its keyframes.
+- An edit to an animated property with the playhead outside the clip writes its keyframe on the clip's nearest frame, which is the frame the row shows.
+- On Linux the editor window takes the keyboard focus when it opens, so a shortcut typed before the first click reaches it.
+- On Linux under client-side decorations the window resizes from every edge and corner that is not maximized or tiled, and the menu bar's empty stretches move it, maximize it on a double click, and open the window menu on a right click.
+- The window title states the project name, with a leading `*` while it has unsaved changes, and a floating panel window states its panel's name.
+- Releasing the mouse button outside the window ends the drag in progress, so a colour wheel, splitter, lane height, or panel tab no longer stays held.
+- A drag carried past the window's edge keeps following the pointer, so a splitter, the timeline header border, a lane height, or a colour wheel reaches its limit instead of stopping where the pointer left the window.
+- A panel tab dragged out of the window floats where it was released on the screen instead of at the same offset from the screen's corner.
+- A frame with more tabs than its width narrows them and ends their names with an ellipsis, so its last tabs, their close crosses, and the panel menu button stay inside the frame.
+- In a narrow Effect Controls panel a property row's time area narrows, and is left blank below 32 px, before the property's name is shortened, so Anchor point X reads in full beside a narrowed time area instead of ending in an ellipsis beside a full one.
+- The Effect Controls tabs keep equal widths and shorten a long name with an ellipsis, so the underline stays under the tab in front and the last tab stays inside the panel.
+- A Viewer too narrow for its control row wraps the row between the picture controls, the transport, and the display controls, so every control stays inside the Viewer at the smallest window, and a long error at the row's end is shortened with an ellipsis and shown in full on hover.
+- Menu titles, panel tab names, button labels, and other text no longer disappear while a list beside them fades at its scrolled edge, as the Assistant transcript does in a short window.
+- The Project, Viewer, Effect Controls, and Audio Track Mixer panels carry those names on their tabs, their Window menu rows, and the panel menu's Add rows, where they read Media, Preview or Program Monitor, Inspector, and Mixer.
+- The Colour workspace is named Color, as the Color panel is.
+- The export sheet's Destination row ends at the sheet's edge and shortens a long path from its start, so the file name stays in view.
+- The timeline header column is 300 px wide and its right border resizes it between 240 px and 480 px, so the track name is no longer clipped by the toggles.
+- The grab band of the timeline header border lies inside the column, so a press on a clip's first pixel no longer resizes the column.
+- Space over the Effects panel, a sidebar tab that does not list the pool, or a pool with nothing selected plays the sequence instead of doing nothing.
+- Ctrl+W closes the focused frame's tab, so it closes Effects or Info instead of the first panel of the same key route.
+- A timeline clip with no name of its own shows its media's file name instead of `Media` and an id.
+- The vectorscope places every grey on its centre cell; greys such as code 198 landed one cell left of centre on an even grid.
+- A clip inside a transition or a track matte draws with its effects, LUT, motion blur, layer styles, and blend mode, which were dropped for the length of the transition and the whole of the matte.
+- A nested sequence clip draws every visible lane of its sequence, with the sequence's transitions, mattes, adjustment layers, and nests, instead of only the topmost clip under the playhead.
+- A nested sequence clip draws with its own effects, mask, chroma key, color grade, LUT, layer styles, crop, and motion blur, which were dropped.
+- A sequence that shows itself through another fails the frame with a sequence cycle error instead of recursing without bound.
+- A letterbox from a fitted export size moves the clips inside a transition or a track matte with the rest of the frame.
+- Two key bindings that traded chords keep the trade at the next launch instead of both reverting to their shipped chords.
+- A key rebound in Settings is written to `ui-settings.json` within half a second instead of only when the window closes.
+- The palette's Measure exposure of the frame on screen reads a Viewer frame shown only as a GPU texture instead of reporting that no frame is on screen.
+- On a clip with a keyframed transform, a Viewer arrow, a transform drag, and the canvas handles start from the pose at the playhead instead of the clip's first frame, and an arrow moves a parented clip along the canvas axes.
+- Titles and pen paths show selection handles in the viewer and are selected by a click on them there, a pen path only by a click on its outline or fill, and the handles of a layer with a moved anchor sit on its picture.
+- A text preset is written onto a title's style only when it is chosen, so an edited stroke, shadow, or card survives retyping the title.
+- A clip whose generator plugin is missing, failed, or disabled draws a slate stating the generator's id instead of nothing, an unknown transition plays as a cut, and the clip shows a `Missing plugin: <id>` badge for its first unknown clip type, effect, audio effect, or transition.
+- `rustls` is 0.23.46, which fixes RUSTSEC-2026-0346 through RUSTSEC-2026-0349.
+- Export on Linux uses the first H.264 or H.265 encoder that opens on the machine, so a registered NVENC or VAAPI encoder whose driver does not load no longer fails the export, and the error lists each encoder's reason when none opens.
+- A package effect's declared `category` was dropped at registration; it now sets the effect's Effect menu submenu.
+- The action safe and title safe overlays mark the inner 93 and 90 per cent of the frame, not 90 and 80.
 - A pool row and the properties block state a source's length in the sequence timecode, so a 2 s WAV reads 00:00:02:00 instead of 00:01:23:08, and the Duration sort orders by time across frame rates.
 - The properties block no longer states a frame rate for an audio-only source.
 - A parameter row in a mixer strip moves its value under the label when both do not fit, instead of pushing the value past the strip edge.

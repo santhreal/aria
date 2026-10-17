@@ -21,18 +21,46 @@ label = "Dip to White"
 [[entry]]
 id = "wipe_left"
 label = "Wipe Left"
+[[entry.params]]
+name = "feather"
+label = "Feather"
+min = 0.0
+max = 0.5
+default = 0.0
+step = 0.05
 
 [[entry]]
 id = "wipe_right"
 label = "Wipe Right"
+[[entry.params]]
+name = "feather"
+label = "Feather"
+min = 0.0
+max = 0.5
+default = 0.0
+step = 0.05
 
 [[entry]]
 id = "wipe_up"
 label = "Wipe Up"
+[[entry.params]]
+name = "feather"
+label = "Feather"
+min = 0.0
+max = 0.5
+default = 0.0
+step = 0.05
 
 [[entry]]
 id = "wipe_down"
 label = "Wipe Down"
+[[entry.params]]
+name = "feather"
+label = "Feather"
+min = 0.0
+max = 0.5
+default = 0.0
+step = 0.05
 
 [[entry]]
 id = "slide"

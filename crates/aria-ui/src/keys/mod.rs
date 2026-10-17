@@ -9,6 +9,9 @@
 //! Text routing is not a binding, but it is data too: `fields` holds every text
 //! box in precedence order, and the shell asks it before it asks this registry.
 
+use std::sync::atomic::AtomicU64;
+
+pub use aria_plugin::keys::{Chord, KeyRoute};
 use aria_plugin::{PluginContext, Service};
 use parking_lot::RwLock;
 
@@ -18,169 +21,17 @@ mod binding_actions;
 pub mod bindings;
 mod bindings_edit;
 mod bindings_reach;
+mod bindings_reveal;
 mod bindings_tools;
 pub mod fields;
+pub mod keyboard_image;
+pub mod keymap_sets;
+pub(crate) mod lone_alt;
 mod overrides;
-mod vocabulary;
+mod plugin_keys;
 
 #[cfg(test)]
 mod doc_tests;
-
-/// One chord, exactly as the shell sees it.
-///
-/// `ctrl` is control-or-command: the platform key is the same binding on macOS.
-/// A chord matches only when every modifier agrees, so Alt+I and I are separate
-/// bindings rather than one binding that inspects the modifier itself.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Chord {
-    pub key: &'static str,
-    pub ctrl: bool,
-    pub shift: bool,
-    pub alt: bool,
-}
-
-impl Chord {
-    pub const fn plain(key: &'static str) -> Self {
-        Self {
-            key,
-            ctrl: false,
-            shift: false,
-            alt: false,
-        }
-    }
-
-    pub const fn ctrl(key: &'static str) -> Self {
-        Self {
-            key,
-            ctrl: true,
-            shift: false,
-            alt: false,
-        }
-    }
-
-    pub const fn ctrl_shift(key: &'static str) -> Self {
-        Self {
-            key,
-            ctrl: true,
-            shift: true,
-            alt: false,
-        }
-    }
-
-    pub const fn ctrl_alt(key: &'static str) -> Self {
-        Self {
-            key,
-            ctrl: true,
-            shift: false,
-            alt: true,
-        }
-    }
-
-    pub const fn shift(key: &'static str) -> Self {
-        Self {
-            key,
-            ctrl: false,
-            shift: true,
-            alt: false,
-        }
-    }
-
-    pub const fn alt(key: &'static str) -> Self {
-        Self {
-            key,
-            ctrl: false,
-            shift: false,
-            alt: true,
-        }
-    }
-
-    pub const fn shift_alt(key: &'static str) -> Self {
-        Self {
-            key,
-            ctrl: false,
-            shift: true,
-            alt: true,
-        }
-    }
-
-    /// The chord a keystroke names. The key is matched against the table's
-    /// `&'static str` keys, so an unknown key resolves to nothing.
-    pub fn matches(&self, key: &str, ctrl: bool, shift: bool, alt: bool) -> bool {
-        self.key == key && self.ctrl == ctrl && self.shift == shift && self.alt == alt
-    }
-
-    /// How the binding reads in Settings and in the docs: `Ctrl+Shift+P`.
-    pub fn label(&self) -> String {
-        let mut out = String::new();
-        if self.ctrl {
-            out.push_str("Ctrl+");
-        }
-        if self.shift {
-            out.push_str("Shift+");
-        }
-        if self.alt {
-            out.push_str("Alt+");
-        }
-        out.push_str(self.key);
-        out
-    }
-
-    /// The chord a label names, or nothing when it names no bindable key.
-    ///
-    /// The reader for what [`Chord::label`] writes, so a rebinding survives a
-    /// restart through the same spelling Settings shows. The key must be one the
-    /// `keys_vocabulary` table holds: a chord is `Copy` and its key is
-    /// `&'static str`, so there is nowhere for a typed key to live otherwise.
-    pub fn parse(text: &str) -> Option<Self> {
-        let text = text.trim();
-        // `+` is a key and the separator both. Taken off the end first: "+" is
-        // the plus key, "Ctrl++" is the plus key with a modifier, and "Ctrl+"
-        // names no key at all.
-        let (modifiers, key) = match text.strip_suffix('+') {
-            Some("") => ("", "+"),
-            Some(head) if head.ends_with('+') => (&head[..head.len() - 1], "+"),
-            _ => match text.rsplit_once('+') {
-                Some((head, key)) => (head, key),
-                None => ("", text),
-            },
-        };
-        let mut chord = Self::plain(vocabulary::bindable(&key.trim().to_ascii_lowercase())?);
-        if modifiers.is_empty() {
-            return Some(chord);
-        }
-        for part in modifiers.split('+') {
-            match part.trim().to_ascii_lowercase().as_str() {
-                "ctrl" | "control" | "cmd" | "command" | "platform" => chord.ctrl = true,
-                "shift" => chord.shift = true,
-                "alt" | "option" => chord.alt = true,
-                _ => return None,
-            }
-        }
-        Some(chord)
-    }
-}
-
-/// Which surface a binding belongs to. Home shows no timeline, so its keys are a
-/// separate set rather than a set of guards inside each action.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum KeyRoute {
-    Editor,
-    Home,
-}
-
-impl KeyRoute {
-    /// Which surface the binding belongs to, as the rebinding list says it.
-    ///
-    /// The list has to say it: two bindings may hold the same chord on different
-    /// routes, and a row that did not name its surface would read as a conflict
-    /// the registry allowed.
-    pub fn label(self) -> &'static str {
-        match self {
-            KeyRoute::Editor => "Editor",
-            KeyRoute::Home => "Home",
-        }
-    }
-}
 
 /// What the shell does after the action ran.
 ///
@@ -205,6 +56,9 @@ pub enum After {
 pub enum KeyBody {
     Plain(fn(&mut AppState)),
     Windowed(crate::commands::host::WindowedRun),
+    /// A plugin command's default chord: the binding's id is the command id,
+    /// and the field is the command's title.
+    Command(&'static str),
 }
 
 /// One contributed binding.
@@ -290,8 +144,8 @@ pub enum KeyOverrideError {
 ///
 /// Derived rather than a fifth column on [`Binding`]: the id is the only name
 /// the registry holds, and a label table would be a second list to keep in step.
-/// A plugin's binding gets a readable name by naming its id the way the shipped
-/// rows do.
+/// A plugin's binding reads as its command's title, through
+/// [`KeyHost::label_of`].
 pub fn binding_label(id: &str) -> String {
     let stem = id.strip_prefix("key-").unwrap_or(id);
     let mut out = String::with_capacity(stem.len());
@@ -325,6 +179,14 @@ pub struct KeyHost {
     /// cleared, which is not the same as one that was never touched, so an
     /// absent row and a `None` row mean different things.
     overrides: RwLock<Vec<(&'static str, Option<Chord>)>>,
+    /// Every plugin key the last sync placed or refused, as `(command, title)`.
+    plugin_keys: RwLock<Vec<(&'static str, &'static str)>>,
+    /// The plugin keys the last sync refused because their chord was taken.
+    /// Listed and rebindable, never dispatched.
+    plugin_refused: RwLock<Vec<Binding>>,
+    /// The plugin context's command revision at the last sync, plus one: zero
+    /// is a host that has not synced.
+    plugin_revision: AtomicU64,
 }
 
 impl Service for KeyHost {}
@@ -378,6 +240,36 @@ impl KeyHost {
             .copied()
     }
 
+    /// The binding a keystroke runs with `focus` holding the keyboard.
+    ///
+    /// A panel context resolves first and the window second, so a Viewer
+    /// binding on an arrow outranks the window's arrow while the Viewer has
+    /// focus. Bare letters and digits reach the Timeline and the Viewer only:
+    /// with any other panel focused, the window's unmodified letter and digit
+    /// chords do not fire. Home resolves against its own set alone.
+    pub fn resolve_focused(
+        &self,
+        focus: KeyRoute,
+        key: &str,
+        ctrl: bool,
+        shift: bool,
+        alt: bool,
+    ) -> Option<Binding> {
+        match focus {
+            KeyRoute::Home => self.resolve(KeyRoute::Home, key, ctrl, shift, alt),
+            KeyRoute::Timeline | KeyRoute::Viewer => self
+                .resolve(focus, key, ctrl, shift, alt)
+                .or_else(|| self.resolve(KeyRoute::Editor, key, ctrl, shift, alt)),
+            KeyRoute::Editor => {
+                let (named, shifted) = chord_key(key, shift);
+                if is_bare(named, ctrl, shifted, alt) {
+                    return None;
+                }
+                self.resolve(KeyRoute::Editor, key, ctrl, shift, alt)
+            }
+        }
+    }
+
     /// Every binding, in registration order. For Settings and the tests.
     pub fn all(&self) -> Vec<Binding> {
         self.bindings.read().clone()
@@ -395,9 +287,33 @@ impl KeyHost {
 /// reads as Shift and the key under it on a US layout. Any other keystroke is
 /// unchanged. Text input does not pass through here: a text box wants the `^`.
 pub fn chord_key(key: &str, shift: bool) -> (&str, bool) {
-    match vocabulary::unshifted(key) {
+    match aria_plugin::keys::unshifted(key) {
         Some(base) => (base, true),
         None => (key, shift),
+    }
+}
+
+/// Whether a keystroke is a bare letter or digit: one alphanumeric key and no
+/// modifier.
+fn is_bare(key: &str, ctrl: bool, shift: bool, alt: bool) -> bool {
+    !(ctrl || shift || alt)
+        && key.len() == 1
+        && key.bytes().all(|byte| byte.is_ascii_alphanumeric())
+}
+
+/// The context a keystroke resolves against first: the focused panel's, or the
+/// window's when the focused panel has no context of its own.
+pub fn focus_route(state: &AppState) -> KeyRoute {
+    use crate::types::{ActivePanel, UiRoute};
+    if state.route == UiRoute::Home {
+        return KeyRoute::Home;
+    }
+    match state.active_panel {
+        ActivePanel::Timeline => KeyRoute::Timeline,
+        ActivePanel::Preview => KeyRoute::Viewer,
+        ActivePanel::Media | ActivePanel::Inspector | ActivePanel::Ai | ActivePanel::Mixer => {
+            KeyRoute::Editor
+        }
     }
 }
 
@@ -424,6 +340,62 @@ pub fn set_mounted(host: std::sync::Arc<KeyHost>, cx: &mut gpui::App) {
 /// The registry a bare `App` can see, or nothing before a shell published one.
 pub fn mounted(cx: &gpui::App) -> Option<&KeyHost> {
     cx.try_global::<MountedKeys>().map(|keys| &*keys.0)
+}
+
+/// Run a plain binding for a key-down event, forwarding `is_held` to the J/K/L
+/// transport handlers so `K` + `J`/`L` distinguishes a tap from a hold.
+pub fn dispatch_plain_key_down(
+    state: &mut AppState,
+    binding: &Binding,
+    is_held: bool,
+    run: fn(&mut AppState),
+) {
+    match binding.id {
+        "key-shuttle-stop" => state.k_down(is_held),
+        "key-shuttle-back" => state.shuttle_key_down(-1, is_held),
+        "key-shuttle-forward" => state.shuttle_key_down(1, is_held),
+        id if id.starts_with("key-tool-") => {
+            state.tool_key_down(binding.id, binding.chord.key, is_held, run);
+        }
+        _ => run(state),
+    }
+}
+
+/// Handle a key-up event on the editor route, releasing any held `K` or
+/// `K`+`J`/`L` slow-play hold. Returns `true` when transport state changed.
+pub fn dispatch_key_up(
+    state: &mut AppState,
+    route: KeyRoute,
+    key: &str,
+    ctrl: bool,
+    shift: bool,
+    alt: bool,
+) -> bool {
+    if route != KeyRoute::Editor {
+        return false;
+    }
+    let id = host_of(&state.ctx).and_then(|host| {
+        host.resolve(route, key, ctrl, shift, alt)
+            .or_else(|| host.resolve(route, key, false, false, false))
+            .map(|b| b.id)
+    });
+    if state.tool_key_up(id, key) {
+        return true;
+    }
+    let was_playing = state.playing;
+    let was_k = state.k_held;
+    match id.or(match key {
+        "k" => Some("key-shuttle-stop"),
+        "j" => Some("key-shuttle-back"),
+        "l" => Some("key-shuttle-forward"),
+        _ => None,
+    }) {
+        Some("key-shuttle-stop") => state.k_up(),
+        Some("key-shuttle-back") => state.shuttle_key_up(-1),
+        Some("key-shuttle-forward") => state.shuttle_key_up(1),
+        _ => return false,
+    }
+    state.playing != was_playing || state.k_held != was_k
 }
 
 #[cfg(test)]
@@ -478,6 +450,79 @@ mod tests {
         );
     }
 
+    /// A panel context outranks the window on a chord while that panel has
+    /// focus, and the window answers every chord the panel leaves unbound.
+    #[test]
+    fn the_focused_panel_resolves_before_the_window() {
+        let host = KeyHost::default();
+        assert!(host.add(binding(
+            "window-left",
+            Chord::plain("left"),
+            KeyRoute::Editor
+        )));
+        assert!(host.add(binding(
+            "viewer-left",
+            Chord::plain("left"),
+            KeyRoute::Viewer
+        )));
+        assert!(host.add(binding("window-save", Chord::ctrl("s"), KeyRoute::Editor)));
+        assert!(
+            host.conflicts().is_empty(),
+            "a panel chord is not a window conflict"
+        );
+        let left = |focus| {
+            host.resolve_focused(focus, "left", false, false, false)
+                .map(|b| b.id)
+        };
+        assert_eq!(left(KeyRoute::Viewer), Some("viewer-left"));
+        assert_eq!(left(KeyRoute::Timeline), Some("window-left"));
+        assert_eq!(left(KeyRoute::Editor), Some("window-left"));
+        assert_eq!(left(KeyRoute::Home), None, "Home resolves its own set only");
+        for focus in [KeyRoute::Viewer, KeyRoute::Timeline, KeyRoute::Editor] {
+            assert_eq!(
+                host.resolve_focused(focus, "s", true, false, false)
+                    .map(|b| b.id),
+                Some("window-save"),
+                "{focus:?} lost the window chord"
+            );
+        }
+    }
+
+    /// Bare letters and digits reach the Timeline and the Viewer only. Every
+    /// modified chord, and every bare key that is not a letter or a digit,
+    /// reaches the window from any panel.
+    #[test]
+    fn bare_letters_and_digits_reach_the_timeline_and_viewer_only() {
+        let host = KeyHost::default();
+        let rows = [
+            ("letter", Chord::plain("v"), "v", false, true),
+            ("digit", Chord::plain("1"), "1", false, true),
+            ("shift-digit", Chord::shift("1"), "1", true, false),
+            ("alt-letter", Chord::alt("p"), "p", false, false),
+            ("space", Chord::plain("space"), "space", false, false),
+            ("bracket", Chord::plain("]"), "]", false, false),
+        ];
+        for (id, chord, ..) in rows {
+            assert!(host.add(binding(id, chord, KeyRoute::Editor)));
+        }
+        for (id, chord, key, shift, bare) in rows {
+            for focus in [KeyRoute::Timeline, KeyRoute::Viewer, KeyRoute::Editor] {
+                let fired = host
+                    .resolve_focused(focus, key, chord.ctrl, shift, chord.alt)
+                    .map(|b| b.id);
+                let reaches = !bare || focus != KeyRoute::Editor;
+                assert_eq!(fired, reaches.then_some(id), "{id} with {focus:?} focused");
+            }
+        }
+        // Shift+6 arrives as `^`, and is not a bare key.
+        assert!(host.add(binding("mixer", Chord::shift("6"), KeyRoute::Editor)));
+        assert_eq!(
+            host.resolve_focused(KeyRoute::Editor, "^", false, false, false)
+                .map(|b| b.id),
+            Some("mixer")
+        );
+    }
+
     /// A second binding on a taken chord is refused, not silently preferred: a
     /// plugin must not be able to break Ctrl+S, and the reason has to be visible.
     #[test]
@@ -500,11 +545,106 @@ mod tests {
         );
     }
 
-    /// The label is what Settings and the docs show.
+    /// A shipped chord on a key the shared table does not hold could be cleared
+    /// and never typed back in. Read out of the shipped table at run time, so a
+    /// chord on a new key fails here rather than in a rebinding nobody tried.
     #[test]
-    fn a_chord_reads_as_its_shortcut() {
-        assert_eq!(Chord::ctrl_shift("p").label(), "Ctrl+Shift+p");
-        assert_eq!(Chord::alt("i").label(), "Alt+i");
-        assert_eq!(Chord::plain("space").label(), "space");
+    fn every_shipped_key_can_be_bound() {
+        for binding in bindings::SHIPPED_BINDINGS {
+            assert!(
+                aria_plugin::keys::bindable(binding.chord.key).is_some(),
+                "{} is bound to {:?}, which cannot be rebound",
+                binding.id,
+                binding.chord.key
+            );
+        }
+    }
+
+    /// The round trip a persisted override depends on: what Settings shows is
+    /// what a saved chord parses back into.
+    #[test]
+    fn every_shipped_chord_survives_its_own_label() {
+        for binding in bindings::SHIPPED_BINDINGS {
+            let label = binding.chord.label();
+            assert_eq!(
+                Chord::parse(&label),
+                Some(binding.chord),
+                "{} does not read back from {label:?}",
+                binding.id
+            );
+        }
+    }
+
+    #[test]
+    fn shift_arrows_step_five_frames_and_transport_chords_dispatch() {
+        let (mut state, _) = crate::app::premiere_tests::with_clip();
+        state.clear_selection();
+        state.set_playhead(10);
+
+        let host = KeyHost::default();
+        for binding in bindings::SHIPPED_BINDINGS {
+            host.add(*binding);
+        }
+        let fire = |state: &mut AppState, key: &str, ctrl: bool, shift: bool, is_held: bool| {
+            let binding = host
+                .resolve(KeyRoute::Editor, key, ctrl, shift, false)
+                .expect("binding exists");
+            if let KeyBody::Plain(run) = binding.run {
+                dispatch_plain_key_down(state, &binding, is_held, run);
+            }
+        };
+
+        // Shift+Right and Shift+Left step 5 frames.
+        fire(&mut state, "right", false, true, false);
+        assert_eq!(state.playhead.value, 15);
+        fire(&mut state, "left", false, true, false);
+        assert_eq!(state.playhead.value, 10);
+
+        // Ctrl+Shift+L toggles loop.
+        assert!(!state.looping);
+        fire(&mut state, "l", true, true, false);
+        assert!(state.looping);
+        fire(&mut state, "l", true, true, false);
+        assert!(!state.looping);
+
+        // Shift+L and Shift+J step by 10%.
+        fire(&mut state, "l", false, true, false);
+        assert_eq!(
+            state.shuttle,
+            crate::transport::ShuttleSpeed::hundredths(110)
+        );
+        fire(&mut state, "j", false, true, false);
+        assert_eq!(
+            state.shuttle,
+            crate::transport::ShuttleSpeed::hundredths(100)
+        );
+
+        // K held + L tapped steps 1 frame; K held + L held plays at 1/4x until key up.
+        state.set_playhead(10);
+        fire(&mut state, "k", false, false, false);
+        fire(&mut state, "l", false, false, false);
+        assert_eq!(state.playhead.value, 11);
+        assert!(!state.playing);
+
+        fire(&mut state, "l", false, false, true);
+        assert!(state.playing);
+        assert_eq!(state.shuttle, crate::transport::ShuttleSpeed::QUARTER);
+        assert!(dispatch_key_up(
+            &mut state,
+            KeyRoute::Editor,
+            "l",
+            false,
+            false,
+            false
+        ));
+        assert!(!state.playing);
+        assert!(dispatch_key_up(
+            &mut state,
+            KeyRoute::Editor,
+            "k",
+            false,
+            false,
+            false
+        ));
     }
 }

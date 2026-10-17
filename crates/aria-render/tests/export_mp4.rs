@@ -133,7 +133,7 @@ fn export_with_mask_and_chroma_differs_from_unmasked() {
         )
         .unwrap();
     masked
-        .set_clip_mask(clip, Some(Mask::new(MaskKind::Circle)))
+        .add_clip_mask(clip, Mask::new(MaskKind::Circle))
         .unwrap();
     masked
         .set_clip_chroma_key(

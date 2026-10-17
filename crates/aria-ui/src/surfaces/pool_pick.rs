@@ -1,39 +1,33 @@
 //! What a click on a pool card does.
 //!
-//! The card was the last drawn control whose behaviour lived entirely inside a
-//! mouse listener: select this item, then place it at the playhead unless its
-//! media is offline. Nothing could enumerate that, so the offline case read like
-//! an ordinary early return, and the selection it wrote could only ever hold one
-//! item. The sidebar's multicam button reads that selection, so the group it
-//! built always had exactly one angle.
-//!
-//! Three rows, one per way of clicking a card. The set they write is
+//! Four rows, one per way of clicking a card. Three of them write the set in
 //! [`PoolSelection`](crate::app::pool_selection::PoolSelection), which owns the
-//! order; whether the click also sends the clip to the timeline is
-//! [`Reach::places`] rather than a condition here, so a census presses the rows
-//! and asserts both halves.
+//! order. The fourth, a double-click, opens the card in a Source tab of the
+//! Viewer. No click edits the project: a card reaches the sequence by a drag,
+//! by Insert or Overwrite from its Source tab, or by Insert or Overwrite with
+//! the pool selection and no Source tab in front.
 //!
 //! The right-hand button is not a row: it selects the card outright and opens a
 //! context menu, which is an overlay the panel owns.
-
-use aria_engine::EngineError;
-use aria_models::MediaId;
 
 use crate::app::AppState;
 use crate::types::SidebarTab;
 
 /// What a click on a pool card asks for.
 ///
-/// The modifiers are read once, in [`Reach::of`], so the platform's own
-/// multi-select key is the panel's business and what it means is this table's.
+/// The modifiers and the click count are read once, in [`Reach::of`], so the
+/// platform's own multi-select key is the panel's business and what it means
+/// is this table's.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Reach {
-    /// This item alone, and on the timeline.
+    /// This item alone.
     Replace,
     /// Add this item to the selection, or drop it if it is already in.
     Toggle,
     /// Every card between the last one picked outright and this one.
     Span,
+    /// This item alone, opened in a Source tab, or its open tab focused.
+    Open,
 }
 
 impl Reach {
@@ -43,30 +37,25 @@ impl Reach {
             Self::Replace => "a pool card clicked",
             Self::Toggle => "a pool card added to the selection",
             Self::Span => "a run of pool cards picked from the last one",
+            Self::Open => "a pool card double-clicked",
         }
     }
 
-    /// Which row a click's modifiers ask for.
+    /// Which row a click's modifiers and click count ask for.
     ///
     /// Bools rather than a gpui event: which physical key is the platform's
-    /// multi-select modifier is the panel's business.
-    pub fn of(multi: bool, span: bool) -> Self {
+    /// multi-select modifier is the panel's business. A modified click never
+    /// opens, so a fast run of Ctrl-clicks builds a selection instead of
+    /// opening tabs.
+    pub fn of(multi: bool, span: bool, clicks: usize) -> Self {
         match (multi, span) {
             // A span wins a chord: extending is the more specific of the two,
             // and a range that toggled its own ends would be unpredictable.
             (_, true) => Self::Span,
             (true, false) => Self::Toggle,
+            (false, false) if clicks >= 2 => Self::Open,
             (false, false) => Self::Replace,
         }
-    }
-
-    /// Whether the click also sends the item to the timeline.
-    ///
-    /// Only a plain click does. Building a selection is not an edit, and a
-    /// modified click that dropped a clip per card would leave one undo entry
-    /// per angle behind a multicam group.
-    pub fn places(&self) -> bool {
-        matches!(self, Self::Replace)
     }
 }
 
@@ -78,46 +67,20 @@ fn visible(state: &AppState, tab: SidebarTab) -> Vec<u64> {
     state.pool_rows(tab).ids()
 }
 
-/// Whether the item's media has gone missing.
-///
-/// An offline item is still selectable, so its properties and its relink button
-/// stay reachable, and placing it would put a clip on the timeline with nothing
-/// to decode.
-fn offline(state: &AppState, media: u64) -> bool {
-    state
-        .store
-        .media
-        .iter()
-        .find(|item| item.id == media)
-        .is_some_and(|item| item.missing)
-}
-
-/// Where a placed clip lands.
-fn at(state: &AppState) -> i64 {
-    state.playhead.value
-}
-
-/// Run one click on a card.
-///
-/// Answers whether a clip landed on the timeline, which is what the panel needs
-/// in order to ask for a preview of it. A selection change is not worth a
-/// render, and neither is a click on an offline item.
-pub fn apply(
-    state: &mut AppState,
-    reach: Reach,
-    media: u64,
-    tab: SidebarTab,
-) -> Result<bool, EngineError> {
-    let list = visible(state, tab);
+/// Run one click on a card. An item that cannot be shown in the Viewer, such
+/// as a missing file or an audio-only source, stays selected and the status
+/// line reports why it did not open.
+pub fn apply(state: &mut AppState, reach: Reach, media: u64, tab: SidebarTab) {
     match reach {
         Reach::Replace => state.pool_selection.replace(media),
         Reach::Toggle => state.pool_selection.toggle(media),
-        Reach::Span => state.pool_selection.span(media, &list),
+        Reach::Span => {
+            let list = visible(state, tab);
+            state.pool_selection.span(media, &list);
+        }
+        Reach::Open => {
+            state.pool_selection.replace(media);
+            state.open_source(media);
+        }
     }
-    if !reach.places() || offline(state, media) {
-        return Ok(false);
-    }
-    let tick = at(state);
-    state.drop_media_on_timeline(MediaId::from_raw(media), None, tick)?;
-    Ok(true)
 }

@@ -78,6 +78,9 @@ mod effects;
 #[path = "inverse_edits_looks_and_audio_role.rs"]
 mod looks_and_audio_role;
 
+#[path = "inverse_edits_mask_stack.rs"]
+mod mask_stack;
+
 #[path = "inverse_edits_params_and_keyframes_1.rs"]
 mod params_and_keyframes_1;
 
@@ -86,6 +89,9 @@ mod params_and_keyframes_2;
 
 #[path = "inverse_edits_generators.rs"]
 mod generators;
+
+#[path = "inverse_edits_parent.rs"]
+mod parent;
 
 #[path = "inverse_edits_structural_undo_1.rs"]
 mod structural_undo_1;

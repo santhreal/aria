@@ -138,8 +138,9 @@ pub struct UiClip {
     pub link: Option<u64>,
 
     /// Look properties (persist-only this milestone; model wire shapes).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub mask: Option<Mask>,
+    /// The mask stack, top first.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub masks: Vec<Mask>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub chroma_key: Option<ChromaKey>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -335,7 +336,7 @@ fn build_clip(project: &Project, track: &Track, clip: &Clip, rate: Rational) -> 
         effects: clip.effects.iter().map(|e| e.effect_id.clone()).collect(),
         transition_after,
         link: clip.link.map(|l| l.raw()),
-        mask: clip.mask.clone(),
+        masks: clip.masks.clone(),
         chroma_key: clip.chroma_key.clone(),
         stabilize: clip.stabilize,
         filter: clip.filter.clone(),

@@ -30,7 +30,7 @@ use crate::theme::Theme;
 use crate::timecode::format_ticks;
 use crate::types::UiClip;
 
-use crate::panels::inspector::blocks::widgets::{audio_row, section_label};
+use crate::panels::inspector::blocks::widgets::{Readout, audio_row, section_label};
 
 /// Height of the curve graph. Tall enough for a log axis to read, short enough to
 /// leave the rest of the tab on screen.
@@ -107,11 +107,11 @@ pub fn speed_block(
                 .unwrap_or(0);
             audio_row(
                 theme,
+                &state,
                 crate::motion::MotionKey::new("insp.row", id),
                 label,
-                format!("{value:.2}x"),
-                0.25,
-                move |state, step| state.nudge_selected_ramp_point(tick, step),
+                Readout::printed(format!("{value:.2}x"), value, 2, 0.05),
+                move |state, by| state.nudge_selected_ramp_point(tick, by),
                 cx,
             )
             .into_any_element()
@@ -125,7 +125,7 @@ pub fn speed_block(
         .child(section_label(theme, "Speed"))
         .child(
             div()
-                .text_size(px(11.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_faint)
                 .child(if has_ramp {
                     format!("Ramp on a {flat:.2}x base")
@@ -138,7 +138,7 @@ pub fn speed_block(
         .when_some(length, |el, ticks| {
             el.child(
                 div()
-                    .text_size(px(11.))
+                    .text_size(Theme::TEXT_UI)
                     .text_color(theme.text_faint)
                     .child(format!("Length {}", format_ticks(ticks, fps_num, fps_den))),
             )

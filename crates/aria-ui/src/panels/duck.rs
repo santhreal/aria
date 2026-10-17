@@ -116,7 +116,7 @@ pub(crate) fn render(
             .border_color(theme.border)
             .child(
                 div()
-                    .text_size(px(12.))
+                    .text_size(Theme::TEXT_TITLE)
                     .text_color(theme.text_muted)
                     .child(SharedString::from(heading)),
             )
@@ -141,7 +141,7 @@ fn row(theme: &Theme, chip: Chip, cx: &mut gpui::Context<crate::shell::Shell>) -
         .py(px(Theme::SPACE_XS))
         .rounded(px(Theme::CONTROL_RADIUS))
         .bg(background)
-        .text_size(px(13.))
+        .text_size(Theme::TEXT_UI)
         .text_color(theme.text)
         .cursor(CursorStyle::PointingHand)
         .active(|style| style.opacity(0.92))

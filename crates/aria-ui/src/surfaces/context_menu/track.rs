@@ -43,13 +43,50 @@ impl TrackMenu {
     }
 }
 
-/// The lane heights the menu offers, in logical pixels.
-///
-/// A height is a row, so a fourth one is a row rather than a fourth branch.
-const LANE_HEIGHTS: [(&str, &str, f32); 3] = [
-    ("ctx-lane-small", "Lane Height: Small", 34.0),
-    ("ctx-lane-medium", "Lane Height: Medium", 48.0),
-    ("ctx-lane-large", "Lane Height: Large", 96.0),
+/// One lane-height preset row in the track context menu.
+struct LaneHeightRow {
+    id: &'static str,
+    unchecked: &'static str,
+    checked: &'static str,
+    height: u32,
+}
+
+impl LaneHeightRow {
+    const fn label(&self, lane: &TrackMenu) -> &'static str {
+        if lane.lane.height == self.height {
+            self.checked
+        } else {
+            self.unchecked
+        }
+    }
+}
+
+/// The lane heights the menu offers, derived from [`aria_models::TrackDisplay::PRESETS`].
+const LANE_HEIGHTS: [LaneHeightRow; aria_models::TrackDisplay::PRESETS.len()] = [
+    LaneHeightRow {
+        id: "ctx-lane-mini",
+        unchecked: "Lane Height: Mini",
+        checked: "• Lane Height: Mini",
+        height: aria_models::TrackDisplay::PRESETS[0].1,
+    },
+    LaneHeightRow {
+        id: "ctx-lane-small",
+        unchecked: "Lane Height: Small",
+        checked: "• Lane Height: Small",
+        height: aria_models::TrackDisplay::PRESETS[1].1,
+    },
+    LaneHeightRow {
+        id: "ctx-lane-medium",
+        unchecked: "Lane Height: Medium",
+        checked: "• Lane Height: Medium",
+        height: aria_models::TrackDisplay::PRESETS[2].1,
+    },
+    LaneHeightRow {
+        id: "ctx-lane-large",
+        unchecked: "Lane Height: Large",
+        checked: "• Lane Height: Large",
+        height: aria_models::TrackDisplay::PRESETS[3].1,
+    },
 ];
 
 /// A track menu, in the order it draws.
@@ -124,7 +161,7 @@ pub const TRACK_ITEMS: &[MenuItem<TrackMenu>] = &[
         when: always(),
         run: |state, lane| {
             // One second of gap, so the amount reads the same at any frame rate.
-            let delta = state.store.sequence.frame_rate.num.max(1) as i64;
+            let delta = state.store.sequence.frame_rate.nominal_fps();
             state.shift_clips_from_playhead(TrackId::from_raw(lane.track), delta)
         },
     }),
@@ -133,7 +170,7 @@ pub const TRACK_ITEMS: &[MenuItem<TrackMenu>] = &[
         label: |_| "Close Gap at Playhead",
         when: always(),
         run: |state, lane| {
-            let delta = state.store.sequence.frame_rate.num.max(1) as i64;
+            let delta = state.store.sequence.frame_rate.nominal_fps();
             state.shift_clips_from_playhead(TrackId::from_raw(lane.track), -delta)
         },
     }),
@@ -174,21 +211,27 @@ pub const TRACK_ITEMS: &[MenuItem<TrackMenu>] = &[
         run: |state, lane| state.set_lane_filmstrip(lane.track, !lane.lane.filmstrip),
     }),
     MenuItem::Row(MenuRow {
-        id: LANE_HEIGHTS[0].0,
-        label: |_| LANE_HEIGHTS[0].1,
+        id: LANE_HEIGHTS[0].id,
+        label: |lane| LANE_HEIGHTS[0].label(lane),
         when: always(),
-        run: |state, lane| state.set_lane_height(lane.track, LANE_HEIGHTS[0].2),
+        run: |state, lane| state.set_lane_height(lane.track, LANE_HEIGHTS[0].height as f32),
     }),
     MenuItem::Row(MenuRow {
-        id: LANE_HEIGHTS[1].0,
-        label: |_| LANE_HEIGHTS[1].1,
+        id: LANE_HEIGHTS[1].id,
+        label: |lane| LANE_HEIGHTS[1].label(lane),
         when: always(),
-        run: |state, lane| state.set_lane_height(lane.track, LANE_HEIGHTS[1].2),
+        run: |state, lane| state.set_lane_height(lane.track, LANE_HEIGHTS[1].height as f32),
     }),
     MenuItem::Row(MenuRow {
-        id: LANE_HEIGHTS[2].0,
-        label: |_| LANE_HEIGHTS[2].1,
+        id: LANE_HEIGHTS[2].id,
+        label: |lane| LANE_HEIGHTS[2].label(lane),
         when: always(),
-        run: |state, lane| state.set_lane_height(lane.track, LANE_HEIGHTS[2].2),
+        run: |state, lane| state.set_lane_height(lane.track, LANE_HEIGHTS[2].height as f32),
+    }),
+    MenuItem::Row(MenuRow {
+        id: LANE_HEIGHTS[3].id,
+        label: |lane| LANE_HEIGHTS[3].label(lane),
+        when: always(),
+        run: |state, lane| state.set_lane_height(lane.track, LANE_HEIGHTS[3].height as f32),
     }),
 ];

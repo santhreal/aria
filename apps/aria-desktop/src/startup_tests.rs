@@ -19,6 +19,7 @@
 //! device's, not the editor's, and on a host with no GPU it is the ceiling by
 //! design.
 
+use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
@@ -37,7 +38,7 @@ struct Start {
     /// Every mounted plugin and what it cost, dearest first. The mount is nearly
     /// the whole start, so a number for the start without this is a number with
     /// nothing to act on.
-    per_plugin: Vec<(&'static str, Duration)>,
+    per_plugin: Vec<(Cow<'static, str>, Duration)>,
 }
 
 impl Start {
@@ -70,7 +71,7 @@ fn start_in(data_dir: &Path) -> Start {
     let panels = aria_ui::plugins::panel_host::host_of(&ctx)
         .map(|host| host.ids().len())
         .unwrap_or_default();
-    let mut per_plugin: Vec<(&'static str, Duration)> = ctx
+    let mut per_plugin: Vec<(Cow<'static, str>, Duration)> = ctx
         .mounted()
         .into_iter()
         .map(|info| (info.manifest.id, info.mount))

@@ -1,0 +1,19 @@
+{
+  "schema": {
+    "version": 3,
+    "kind": "aria.project"
+  },
+  "id": 3,
+  "name": "schema-v3",
+  "metadata": {},
+  "media": [],
+  "timeline": {
+    "frame_rate": {
+      "num": 24,
+      "den": 1
+    },
+    "tracks": [],
+    "order": [],
+    "clip_index": []
+  }
+}

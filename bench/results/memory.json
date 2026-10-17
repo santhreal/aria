@@ -1,0 +1,72 @@
+{
+  "scenario": "memory",
+  "machine": "Server",
+  "gpu": "llvmpipe (LLVM 20.1.2, 256 bits)",
+  "driver": "llvmpipe Mesa 25.2.8-0ubuntu0.24.04.2 (LLVM 20.1.2)",
+  "wgpu_adapter": "llvmpipe (LLVM 20.1.2, 256 bits) (Vulkan)",
+  "commit": "588a23f4c9cd809b89aa3b6b062964c53b7a977d",
+  "profile": "release",
+  "environment": {
+    "machine": "Server",
+    "hostname": "santhserver",
+    "os": "Linux 6.8.0-142-generic x86_64",
+    "cpu": "11th Gen Intel(R) Core(TM) i7-11700K @ 3.60GHz",
+    "gpu": "llvmpipe (LLVM 20.1.2, 256 bits)",
+    "driver": "llvmpipe Mesa 25.2.8-0ubuntu0.24.04.2 (LLVM 20.1.2)",
+    "wgpu_adapter": "llvmpipe (LLVM 20.1.2, 256 bits) (Vulkan)",
+    "commit": "588a23f4c9cd809b89aa3b6b062964c53b7a977d",
+    "profile": "release"
+  },
+  "verdict": "pass",
+  "reason": null,
+  "targets": [
+    {
+      "name": "idle_project_10k_rss_mb",
+      "description": "Idle with project-10k open, frame cache excluded: 500 MB resident",
+      "comparison": "at_most",
+      "target": 500.0,
+      "unit": "mb",
+      "measured": 316.9140625,
+      "verdict": "pass",
+      "reason": null,
+      "required_on_machine": true
+    }
+  ],
+  "rules": [],
+  "samples": [
+    {
+      "name": "rss_checkpoints_mb",
+      "unit": "mb",
+      "values": [
+        219.01171875,
+        225.7890625,
+        316.9140625,
+        317.0390625,
+        317.0390625
+      ],
+      "min": 219.01171875,
+      "p50": 316.9140625,
+      "p95": 317.0390625,
+      "p99": 317.0390625,
+      "max": 317.0390625,
+      "mean": 279.15859375
+    },
+    {
+      "name": "memory_deltas_mb",
+      "unit": "mb",
+      "values": [
+        91.125,
+        0.125
+      ],
+      "min": 0.125,
+      "p50": 91.125,
+      "p95": 91.125,
+      "p99": 91.125,
+      "max": 91.125,
+      "mean": 45.625
+    }
+  ],
+  "notes": [
+    "VmRSS: baseline=219.0 MiB, empty AppState=225.8 MiB, idle project-10k open=316.9 MiB (+91.1 MiB), after 1,000 undoable edits=317.0 MiB (+0.1 MiB), after new_project=317.0 MiB"
+  ]
+}

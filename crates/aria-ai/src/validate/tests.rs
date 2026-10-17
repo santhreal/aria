@@ -61,6 +61,12 @@ fn reject(project: &Project, cmd: WireCommand) -> String {
         .message
 }
 
+/// A wire mask of `kind` with every optional field omitted, as a provider
+/// sends the shortest call.
+fn wire_mask(kind: &str) -> WireMask {
+    serde_json::from_value(serde_json::json!({ "kind": kind })).expect("a wire mask kind")
+}
+
 #[path = "tests_position_tangents.rs"]
 mod position_tangents;
 
@@ -75,6 +81,9 @@ mod set_clip;
 
 #[path = "tests_look_commands.rs"]
 mod look_commands;
+
+#[path = "tests_mask_stack.rs"]
+mod mask_stack;
 
 #[path = "tests_duplicate_clip.rs"]
 mod duplicate_clip;

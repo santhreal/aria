@@ -3,7 +3,8 @@ use aria_models::{
     BlendMode, Generator, Scale2, TextAlignH, TextAlignV, TextStyle as ModelTextStyle,
 };
 use aria_text::{
-    FontFamily, TextAlign, TextBackground, TextShadow, TextStroke, TextStyle, TextVerticalAlign,
+    FontFamily, TextAlign, TextBackground, TextRun, TextShadow, TextStroke, TextStyle,
+    TextVerticalAlign,
 };
 
 use super::REFERENCE_HEIGHT;
@@ -38,8 +39,8 @@ pub(crate) fn resolve_generator(
             Some(SceneLayer {
                 clip: None,
                 source: LayerSource::Text {
+                    style: map_text_style_for(&text, style, cw, ch, tick),
                     content: text,
-                    style: map_text_style(style, cw, ch, tick),
                     animation: None,
                 },
                 center,
@@ -50,7 +51,7 @@ pub(crate) fn resolve_generator(
                 opacity,
                 uv,
                 effects,
-                mask: None,
+                masks: Vec::new(),
                 chroma_key: None,
                 color_grade,
                 lut: None,
@@ -70,7 +71,7 @@ pub(crate) fn resolve_generator(
             opacity,
             uv,
             effects,
-            mask: None,
+            masks: Vec::new(),
             chroma_key: None,
             color_grade,
             lut: None,
@@ -133,7 +134,7 @@ pub(crate) fn resolve_generator(
                 opacity,
                 uv,
                 effects,
-                mask: None,
+                masks: Vec::new(),
                 chroma_key: None,
                 color_grade,
                 lut: None,
@@ -165,7 +166,7 @@ pub(crate) fn resolve_generator(
                 opacity,
                 uv,
                 effects,
-                mask: None,
+                masks: Vec::new(),
                 chroma_key: None,
                 color_grade,
                 lut: None,
@@ -196,7 +197,7 @@ fn canvas_pass(
         opacity: 1.0,
         uv: [0.0, 0.0, 1.0, 1.0],
         effects,
-        mask: None,
+        masks: Vec::new(),
         chroma_key: None,
         color_grade,
         lut: None,
@@ -231,6 +232,7 @@ pub(super) fn map_text_style(style: &ModelTextStyle, cw: f32, ch: f32, tick: i64
         TextAlignH::Left => TextAlign::Left,
         TextAlignH::Center => TextAlign::Center,
         TextAlignH::Right => TextAlign::Right,
+        TextAlignH::Justify => TextAlign::Justify,
     };
     let vertical_align = match style.align_v {
         TextAlignV::Top => TextVerticalAlign::Top,
@@ -244,6 +246,7 @@ pub(super) fn map_text_style(style: &ModelTextStyle, cw: f32, ch: f32, tick: i64
         .with_italic(style.italic)
         .with_underline(style.underline)
         .with_letter_spacing(letter_spacing)
+        .with_kerning(style.kerning)
         .with_align(align)
         .with_vertical_align(vertical_align)
         .with_line_height(quantize_layout_px(
@@ -272,5 +275,64 @@ pub(super) fn map_text_style(style: &ModelTextStyle, cw: f32, ch: f32, tick: i64
             distance: shadow.distance.sample(tick) * scale,
         });
     }
+    if !style.runs.is_empty() {
+        mapped.runs = style
+            .runs
+            .iter()
+            .map(|r| map_text_run(r.start..r.end, r, scale))
+            .collect();
+    }
     mapped
+}
+
+fn map_text_style_for(
+    text: &str,
+    style: &ModelTextStyle,
+    cw: f32,
+    ch: f32,
+    tick: i64,
+) -> TextStyle {
+    let mut mapped = map_text_style(style, cw, ch, tick);
+    if !style.runs.is_empty() {
+        let scale = ch / REFERENCE_HEIGHT;
+        mapped.runs = style
+            .runs
+            .iter()
+            .filter_map(|r| {
+                let start = char_to_byte(text, r.start);
+                let end = char_to_byte(text, r.end);
+                (start < end).then(|| map_text_run(start..end, r, scale))
+            })
+            .collect();
+    }
+    mapped
+}
+
+fn map_text_run(
+    range: std::ops::Range<usize>,
+    r: &aria_models::TextStyleRun,
+    scale: f32,
+) -> TextRun {
+    TextRun {
+        range,
+        family: r.font.as_ref().map(|f| {
+            if f.is_empty() {
+                FontFamily::SansSerif
+            } else {
+                FontFamily::Named(f.clone())
+            }
+        }),
+        font_size: r.size.map(|s| quantize_layout_px(s * scale)),
+        bold: r.bold,
+        italic: r.italic,
+        underline: r.underline,
+        color: r.fill,
+        letter_spacing: r.letter_spacing.map(|ls| quantize_layout_px(ls * scale)),
+    }
+}
+
+fn char_to_byte(text: &str, char_idx: usize) -> usize {
+    text.char_indices()
+        .nth(char_idx)
+        .map_or(text.len(), |(byte_idx, _)| byte_idx)
 }

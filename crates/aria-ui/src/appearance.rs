@@ -4,11 +4,13 @@
 //! MIT License — see LICENSES/comet-MIT.txt
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use gpui::{App, Global, Subscription, Window};
 use serde::{Deserialize, Serialize};
 
 use crate::settings::UiSettings;
+use crate::theme::file::ThemeFile;
 use crate::theme::{Appearance, Theme};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -39,6 +41,8 @@ pub struct AppearanceState {
     /// The saved accent choice. It lives here rather than in `UiSettings` because
     /// `config.toml` already owns it and the two files must not disagree.
     pub choice: aria_settings::ThemeChoice,
+    /// The theme file applied over the appearance, if one is chosen.
+    pub file: Option<Arc<ThemeFile>>,
 }
 
 impl Global for AppearanceState {}
@@ -64,23 +68,32 @@ pub fn preview(mode: AppearanceMode, cx: &App) -> Appearance {
     resolve(mode, system)
 }
 
-pub fn init(mode: AppearanceMode, data_dir: impl Into<PathBuf>, cx: &mut App) {
+/// Install the saved appearance, accent, and theme file. The caller resolves
+/// the saved theme name against the themes it listed; a theme that is not
+/// there is the shipped one.
+pub fn init(
+    mode: AppearanceMode,
+    file: Option<Arc<ThemeFile>>,
+    data_dir: impl Into<PathBuf>,
+    cx: &mut App,
+) {
     let system = Appearance::from_window(cx.window_appearance());
     let data_dir = data_dir.into();
     // A config that will not parse still has to open the window: the accent falls back
     // to the shipped one rather than blocking startup on a settings file.
-    let choice = aria_settings::load(&data_dir.join("config.toml"))
+    let choice = aria_settings::load(&aria_settings::config_in(&data_dir))
         .unwrap_or_default()
         .appearance
         .theme;
     tracing::debug!(?mode, ?system, ?choice, "appearance: initial");
+    Theme::install(resolve(mode, system), choice, file.as_deref(), cx);
     cx.set_global(AppearanceState {
         mode,
         system,
         data_dir,
         choice,
+        file,
     });
-    Theme::install(resolve(mode, system), choice, cx);
 }
 
 /// Install a new accent choice. The config file is written by `AppState`, which owns
@@ -95,9 +108,32 @@ pub fn set_theme_choice(choice: aria_settings::ThemeChoice, cx: &mut App) {
     }
     state.choice = choice;
     let appearance = resolve(state.mode, state.system);
-    Theme::install(appearance, choice, cx);
+    let file = state.file.clone();
+    Theme::install(appearance, choice, file.as_deref(), cx);
     cx.refresh_windows();
     reapply_window_background(cx);
+}
+
+/// Install a theme file over the appearance, or the shipped theme for `None`.
+/// The choice is saved by `AppState` in `ui-settings.json`; this only repaints.
+pub fn set_theme_file(file: Option<Arc<ThemeFile>>, cx: &mut App) {
+    if !cx.has_global::<AppearanceState>() {
+        return;
+    }
+    let state = cx.global_mut::<AppearanceState>();
+    state.file = file;
+    let appearance = resolve(state.mode, state.system);
+    let choice = state.choice;
+    let file = state.file.clone();
+    Theme::install(appearance, choice, file.as_deref(), cx);
+    cx.refresh_windows();
+    reapply_window_background(cx);
+}
+
+/// The theme file applied over the appearance.
+pub fn theme_file(cx: &App) -> Option<Arc<ThemeFile>> {
+    cx.try_global::<AppearanceState>()
+        .and_then(|state| state.file.clone())
 }
 
 /// The saved accent choice.
@@ -161,12 +197,13 @@ pub fn apply(cx: &mut App) {
     };
     let wanted = resolve(state.mode, state.system);
     let choice = state.choice;
+    let file = state.file.clone();
     let changed = !cx
         .try_global::<crate::theme::ThemeHandle>()
         .is_some_and(|t| t.appearance == wanted);
     if changed {
         tracing::debug!(?wanted, "appearance: installing palette");
-        Theme::install(wanted, choice, cx);
+        Theme::install(wanted, choice, file.as_deref(), cx);
         cx.refresh_windows();
     }
     reapply_window_background(cx);

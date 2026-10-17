@@ -65,16 +65,27 @@ pub fn open_for_insert(
     delta: RationalTime,
     inverses: &mut Vec<Box<dyn EditAction>>,
 ) -> Result<(), EngineError> {
+    open_lanes_for_insert(ctx, &[track], from, delta, inverses)
+}
+
+/// [`open_for_insert`] for an edit that lands on several lanes at once, such
+/// as a source edit placing picture and sound: every lane in `lanes` shifts,
+/// and so does every other sync-locked lane, each exactly once.
+pub fn open_lanes_for_insert(
+    ctx: &mut ApplyContext<'_>,
+    lanes: &[TrackId],
+    from: RationalTime,
+    delta: RationalTime,
+    inverses: &mut Vec<Box<dyn EditAction>>,
+) -> Result<(), EngineError> {
     let riders: Vec<TrackId> = ctx
         .project
         .timeline()
         .tracks_ordered()
-        .filter(|t| t.id != track && t.sync_lock)
+        .filter(|t| t.sync_lock && !lanes.contains(&t.id))
         .map(|t| t.id)
         .collect();
-    cut_at(ctx, track, from, inverses)?;
-    inverses.push(execute(ctx, track, from, delta)?);
-    for lane in riders {
+    for &lane in lanes.iter().chain(&riders) {
         cut_at(ctx, lane, from, inverses)?;
         inverses.push(execute(ctx, lane, from, delta)?);
     }

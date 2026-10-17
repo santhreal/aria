@@ -18,8 +18,8 @@
 //!
 //! # Fail-by-default
 //!
-//! `index_of` is an exhaustive match over [`LayerSource`], so a twelfth
-//! topology cannot compile until it names a row. `a_row_per_layer_topology`
+//! `index_of` is an exhaustive match over [`LayerSource`], so a new topology
+//! cannot compile until it names a row. `a_row_per_layer_topology`
 //! proves the arm points at that topology's own row rather than reusing a
 //! neighbour's, by round-tripping every row's own [`LayerSourceSpec::census`]
 //! sample.
@@ -29,7 +29,7 @@ use aria_models::{MatteSource, MediaId};
 use aria_shapes::{BezierPath, SdfParams, Stroke};
 use aria_text::TextStyle;
 
-use crate::scene::{SceneLayer, TextAnimation};
+use crate::scene::{Scene, SceneLayer, TextAnimation};
 
 /// The pixel source for a [`SceneLayer`].
 #[derive(Debug, Clone, PartialEq)]
@@ -125,6 +125,18 @@ pub enum LayerSource {
         /// Edge softness in `0.0..=1.0`; `0` uses the stencil's own edge.
         softness: f32,
     },
+    /// A nested sequence: its frame at this instant, resolved into a scene of
+    /// its own, drawn apart from the canvas, and placed as one picture. The
+    /// layer's UV rect is over the nest scene's canvas.
+    Nest {
+        /// The sequence's frame on a canvas the size of the one the nest is
+        /// placed on, over a transparent background: fitted inside it and
+        /// centered, at the time the nest's clip shows.
+        scene: Box<Scene>,
+        /// Where the sequence's own frame sits on that canvas, `[x0, y0, x1,
+        /// y1]` as fractions of its width and height.
+        frame: [f32; 4],
+    },
 }
 
 impl LayerSource {
@@ -200,11 +212,14 @@ pub struct LayerSourceSpec {
     /// partitioning, refuse a matte or transition pairing, and skip layer
     /// styles.
     pub is_canvas_pass: bool,
-    /// Whether the layer holds whole [`SceneLayer`]s inside it, so a canvas
-    /// rescale has to recurse into them.
+    /// Whether the layer holds whole [`SceneLayer`]s that draw on the canvas in
+    /// its place, so a canvas rescale has to recurse into them. A nest is not
+    /// a wrapper: its layers draw on a canvas of their own, and the nest
+    /// places that picture as one layer.
     pub wraps_layers: bool,
     /// Whether the layer is eligible for transform supersampling. A canvas pass
-    /// has no transform, and a transition already composites two transforms.
+    /// has no transform, and a wrapper takes none of its own: the layers inside
+    /// it are sampled instead.
     pub takes_motion_blur: bool,
     /// Whether the layer carries a blend mode and the quad styles (shadow,
     /// glow, outline, background). A canvas pass has no quad; a wrapper stays
@@ -354,8 +369,6 @@ pub const SHIPPED: &[LayerSourceSpec] = &[
         needs_media: false,
         is_canvas_pass: false,
         wraps_layers: true,
-        // Two transforms are already being crossfaded; supersampling the
-        // wrapper would blur the blend, not the motion.
         takes_motion_blur: false,
         takes_layer_styles: false,
         cpu_raster: CpuRaster::None,
@@ -369,12 +382,25 @@ pub const SHIPPED: &[LayerSourceSpec] = &[
         needs_media: false,
         is_canvas_pass: false,
         wraps_layers: true,
-        takes_motion_blur: true,
+        takes_motion_blur: false,
         takes_layer_styles: false,
         cpu_raster: CpuRaster::None,
         sprite_partitionable: true,
         nested: Nested::Refuses,
         census: census_matte,
+    },
+    LayerSourceSpec {
+        id: "nest",
+        paints: true,
+        needs_media: false,
+        is_canvas_pass: false,
+        wraps_layers: false,
+        takes_motion_blur: true,
+        takes_layer_styles: true,
+        cpu_raster: CpuRaster::None,
+        sprite_partitionable: true,
+        nested: Nested::Paints,
+        census: census_nest,
     },
 ];
 
@@ -395,6 +421,7 @@ const fn index_of(source: &LayerSource) -> usize {
         LayerSource::PathShape { .. } => 8,
         LayerSource::Transition { .. } => 9,
         LayerSource::Matte { .. } => 10,
+        LayerSource::Nest { .. } => 11,
     }
 }
 
@@ -431,8 +458,8 @@ pub use raster::CpuRaster;
 mod census;
 
 use census::{
-    census_canvas_pass, census_lottie, census_matte, census_media, census_path_shape, census_shape,
-    census_solid, census_sticker, census_still, census_text, census_transition,
+    census_canvas_pass, census_lottie, census_matte, census_media, census_nest, census_path_shape,
+    census_shape, census_solid, census_sticker, census_still, census_text, census_transition,
 };
 
 #[cfg(test)]

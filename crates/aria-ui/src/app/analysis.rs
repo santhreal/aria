@@ -241,22 +241,207 @@ impl AppState {
     /// A run that found nothing still writes: an empty grid is the honest result,
     /// and it clears a stale one from an earlier detector version.
     pub(crate) fn store_beats(&mut self, clip: ClipId, seconds: &[f64], media_rate: Rational) {
+        let snapshot = self.host.snapshot();
+        let seq_rate = snapshot.timeline().frame_rate;
+        let (clip_start_sample, source_start_ticks, source_rate) = snapshot
+            .timeline()
+            .clip(clip)
+            .and_then(|c| {
+                let src = c.source_range()?;
+                let start_sample = (i128::from(c.timeline.start.value)
+                    * i128::from(aria_render::EXPORT_AUDIO_RATE)
+                    * i128::from(seq_rate.den))
+                    / (i128::from(seq_rate.num).max(1));
+                Some((start_sample as i64, src.start.value, src.start.rate))
+            })
+            .unwrap_or((0, 0, media_rate));
         let beats: Vec<i64> = seconds
             .iter()
-            .map(|value| ticks_for_seconds(*value, media_rate))
+            .map(|value| {
+                let target_tick = ticks_for_seconds(*value, source_rate);
+                let delta_ticks = target_tick - source_start_ticks;
+                let num = i128::from(source_rate.num).max(1);
+                let delta_frames = (i128::from(delta_ticks)
+                    * i128::from(aria_render::EXPORT_AUDIO_RATE)
+                    * i128::from(source_rate.den)
+                    + (num - 1))
+                    / num;
+                clip_start_sample + delta_frames as i64
+            })
             .collect();
-        let found = beats.len();
-        if let Err(err) =
-            self.apply_command(Command::Edit(EditCommand::SetClipBeats { clip, beats }))
-        {
-            self.report_error(&err);
+        let result = aria_plugin::AnalyzerResult {
+            beats,
+            ..Default::default()
+        };
+        if let Err(err) = self.apply_analyzer_output(
+            aria_plugin::SHIPPED_BEAT_ANALYZER_ID,
+            aria_plugin::AudioSource::Clip(clip),
+            &result,
+        ) {
+            self.report_error(err);
             return;
         }
+        let found = self.ui_clip_ref(clip).map_or(0, |c| c.beat_ticks.len());
         self.status_message = Some(match found {
             0 => "No beats found in this clip".to_string(),
             1 => "Stored 1 beat on the clip".to_string(),
             count => format!("Stored {count} beats on the clip"),
         });
+    }
+
+    /// Apply an [`aria_plugin::AnalyzerResult`] to the project as one undo step
+    /// named after the analyzer, then refresh the editor projection.
+    pub fn apply_analyzer_output(
+        &mut self,
+        analyzer_id: &str,
+        source: aria_plugin::AudioSource,
+        result: &aria_plugin::AnalyzerResult,
+    ) -> Result<(), String> {
+        let mutates_project = result.has_edits()
+            || (matches!(source, aria_plugin::AudioSource::Clip(_)) && result.loudness.is_none());
+        if mutates_project {
+            self.ctx
+                .apply_analyzer(
+                    &self.host,
+                    aria_plugin::Origin::Editor,
+                    analyzer_id,
+                    source,
+                    result,
+                )
+                .map_err(|err| err.to_string())?;
+            self.sync_from_engine();
+            self.clear_error();
+            self.republish_audio();
+        }
+        self.status_message = Some(result.summary());
+        Ok(())
+    }
+
+    /// Run registered audio analyzer `analyzer_id` over `AudioHost::mix` on a
+    /// background job, streaming progress and applying its result on completion
+    /// as one undo step named after the analyzer.
+    pub fn run_registered_analyzer(
+        &mut self,
+        analyzer_id: &str,
+        cx: &mut Context<Self>,
+    ) -> Result<u64, String> {
+        let entry = self
+            .ctx
+            .analyzer(analyzer_id)
+            .ok_or_else(|| format!("Analyzer {analyzer_id} is not registered"))?;
+        let spec = entry.spec().clone();
+        let project = self.host.snapshot();
+        let seq_rate = project.timeline().frame_rate;
+        let (source, range) = match spec.scope {
+            aria_plugin::AnalyzerScope::Clip => {
+                let clip = self
+                    .sounding_selection()
+                    .into_iter()
+                    .next()
+                    .ok_or_else(|| "Select a clip with sound.".to_string())?;
+                let timeline = project
+                    .timeline()
+                    .clip(clip)
+                    .map(|c| c.timeline)
+                    .ok_or_else(|| "Select a clip with sound.".to_string())?;
+                (aria_plugin::AudioSource::Clip(clip), timeline)
+            }
+            aria_plugin::AnalyzerScope::Sequence => {
+                let duration = project
+                    .timeline()
+                    .duration()
+                    .value
+                    .max(self.store.sequence.duration_ticks);
+                if duration <= 0 {
+                    return Err("The sequence has no clips.".into());
+                }
+                (
+                    aria_plugin::AudioSource::Open,
+                    aria_core::TimeRange::at_rate(0, duration, seq_rate),
+                )
+            }
+            aria_plugin::AnalyzerScope::InOut => {
+                let (start, end) = self
+                    .work_area_or_sequence_range()
+                    .ok_or_else(|| "The sequence has no clips.".to_string())?;
+                if end <= start {
+                    return Err("The sequence has no clips.".into());
+                }
+                (
+                    aria_plugin::AudioSource::Open,
+                    aria_core::TimeRange::at_rate(start, end - start, seq_rate),
+                )
+            }
+        };
+
+        let (wake, wakes) = crate::handoff::wakes::<Result<aria_plugin::AnalyzerResult, String>>();
+        let ctx_clone = Arc::clone(&self.ctx);
+        let job_label = format!("Analyzing: {}", spec.label);
+        let analyzer_id_owned = spec.id.clone();
+        let id = self.spawn_job(job_label, move |context| {
+            let cancel = std::sync::atomic::AtomicBool::new(context.cancelled());
+            let res = entry.run_with_progress(
+                &ctx_clone,
+                &project,
+                source,
+                range,
+                &cancel,
+                |mixed, total| {
+                    if context.cancelled() {
+                        cancel.store(true, std::sync::atomic::Ordering::Release);
+                    } else {
+                        let frac = if total == 0 {
+                            1.0
+                        } else {
+                            mixed as f32 / total as f32
+                        };
+                        context.set_progress(frac, format!("frame {mixed}/{total}"));
+                    }
+                },
+            );
+            match res {
+                Ok(result) => {
+                    crate::app::jobs::CommitGuard::new(context, "the analyzer result").begin()?;
+                    let summary = result.summary();
+                    wake.wake(Ok(result));
+                    Ok(JobCompletion::new(summary))
+                }
+                Err(aria_plugin::AnalyzerError::Cancelled) if context.cancelled() => {
+                    wake.wake(Err(String::new()));
+                    Err(String::new())
+                }
+                Err(err) => {
+                    let msg = err.to_string();
+                    wake.wake(Err(msg.clone()));
+                    Err(msg)
+                }
+            }
+        });
+
+        cx.spawn(async move |this, cx| {
+            let outcome = wakes.next_from_a_thread(cx.background_executor()).await;
+            let _ = this.update(cx, |state, cx| {
+                match outcome {
+                    Some(Ok(result)) => {
+                        if let Err(err) =
+                            state.apply_analyzer_output(&analyzer_id_owned, source, &result)
+                        {
+                            state.report_error(err);
+                        }
+                    }
+                    Some(Err(reason)) if reason.is_empty() => {
+                        state.status_message = Some("Cancelled the analysis".into());
+                    }
+                    Some(Err(reason)) => state.report_error(reason),
+                    None => state.report_error("the analysis did not report"),
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+
+        self.status_message = Some(format!("Analyzing with {}…", spec.label));
+        Ok(id.raw())
     }
 
     /// Read the selected media's moments out of the index into panel rows.

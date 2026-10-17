@@ -10,6 +10,15 @@ use aria_shapes::SdfParams;
 use super::shapes::{canvas_pixel, layer_covers};
 use crate::app::canvas_overlay::Rect;
 
+/// The pick for a fixed-size layer on the quad the renderer measures for it:
+/// the anchor folded into the centre, the size as resolved.
+fn covers(layer: &SceneLayer, point: [f32; 2]) -> bool {
+    let SizeSpec::Fixed(size) = layer.size else {
+        panic!("the samples here are fixed-size layers");
+    };
+    layer_covers(layer, (layer.quad_center(size), size), point)
+}
+
 /// A layer with the fields a pick reads and defaults everywhere else.
 fn layer(source: LayerSource, center: [f32; 2], size: [f32; 2]) -> SceneLayer {
     SceneLayer {
@@ -22,7 +31,7 @@ fn layer(source: LayerSource, center: [f32; 2], size: [f32; 2]) -> SceneLayer {
         opacity: 1.0,
         uv: [0.0, 0.0, 1.0, 1.0],
         effects: Vec::new(),
-        mask: None,
+        masks: Vec::new(),
         chroma_key: None,
         color_grade: None,
         lut: None,
@@ -93,18 +102,18 @@ fn a_star_is_picked_by_its_ink_and_not_its_corners() {
         size,
     );
     assert!(
-        layer_covers(&star, [500.0, 500.0]),
+        covers(&star, [500.0, 500.0]),
         "the centre of a star is not inside it"
     );
     // A quad corner is outside every star: the outer vertices sit on the
     // inscribed circle, so the corners of the box are always empty.
     let corner = [500.0 + size[0] * 0.5 - 1.0, 500.0 + size[1] * 0.5 - 1.0];
     assert!(
-        !layer_covers(&star, corner),
+        !covers(&star, corner),
         "the empty corner of a star's quad selected it"
     );
     assert!(
-        !layer_covers(&star, [500.0 + size[0], 500.0]),
+        !covers(&star, [500.0 + size[0], 500.0]),
         "a point outside the quad selected the shape"
     );
 }
@@ -120,19 +129,16 @@ fn a_canvas_pass_is_never_picked_and_a_solid_fills_its_quad() {
         [100.0, 100.0],
         [50.0, 50.0],
     );
-    assert!(layer_covers(&solid, [100.0, 100.0]));
-    assert!(layer_covers(&solid, [124.0, 124.0]), "the quad edge is ink");
-    assert!(!layer_covers(&solid, [126.0, 100.0]), "outside the quad");
+    assert!(covers(&solid, [100.0, 100.0]));
+    assert!(covers(&solid, [124.0, 124.0]), "the quad edge is ink");
+    assert!(!covers(&solid, [126.0, 100.0]), "outside the quad");
 
     let pass = layer(LayerSource::CanvasPass, [100.0, 100.0], [50.0, 50.0]);
     assert!(
         !pass.source.spec().paints,
         "a canvas pass claims to place pixels"
     );
-    assert!(
-        !layer_covers(&pass, [100.0, 100.0]),
-        "a canvas pass was picked"
-    );
+    assert!(!covers(&pass, [100.0, 100.0]), "a canvas pass was picked");
 }
 
 /// Rotation moves the ink, so the pick has to unrotate before it compares.
@@ -144,13 +150,13 @@ fn a_rotated_quad_is_picked_where_it_is_drawn() {
         [200.0, 20.0],
     );
     // A point 60 px right of centre is inside the unrotated bar.
-    assert!(layer_covers(&bar, [160.0, 100.0]));
-    assert!(!layer_covers(&bar, [100.0, 160.0]));
+    assert!(covers(&bar, [160.0, 100.0]));
+    assert!(!covers(&bar, [100.0, 160.0]));
     // Quarter turn: the same offsets swap.
     bar.rotation = std::f32::consts::FRAC_PI_2;
-    assert!(layer_covers(&bar, [100.0, 160.0]), "the bar did not rotate");
+    assert!(covers(&bar, [100.0, 160.0]), "the bar did not rotate");
     assert!(
-        !layer_covers(&bar, [160.0, 100.0]),
+        !covers(&bar, [160.0, 100.0]),
         "the bar was picked where it no longer draws"
     );
 }

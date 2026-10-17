@@ -61,6 +61,19 @@ impl AppState {
         Ok(())
     }
 
+    /// New Sequence (Ctrl+N): an empty sequence with one video and one audio
+    /// lane, at the open timeline's rate and canvas, opened for editing.
+    ///
+    /// Named after the count of sequences the project holds, so two new
+    /// sequences never share a name.
+    pub fn new_sequence(&mut self) -> Result<(), EngineError> {
+        let name = format!("Sequence {}", self.store.sequences.len() + 1);
+        self.selection.clear();
+        self.apply_command(Command::Edit(EditCommand::CreateSequence { name }))?;
+        self.set_playhead(0);
+        Ok(())
+    }
+
     /// Open the nest the selection points at.
     ///
     /// Refused when the selection is not a nest: the alternative is opening

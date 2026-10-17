@@ -525,3 +525,7 @@ mod plan_render;
 #[cfg(test)]
 #[path = "assistant_plan_validation_tests.rs"]
 mod plan_validation;
+
+#[cfg(test)]
+#[path = "assistant_plugin_tools_tests.rs"]
+mod plugin_tools;

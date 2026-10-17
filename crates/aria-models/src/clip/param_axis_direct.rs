@@ -11,7 +11,8 @@
 use super::*;
 
 use crate::clip::transform::{
-    validate_anchor_point, validate_opacity, validate_position, validate_rotation, validate_scale,
+    ClipTransform, validate_anchor_point, validate_opacity, validate_position, validate_rotation,
+    validate_scale,
 };
 use crate::clip::{MAX_CLIP_PAN, MAX_CLIP_VOLUME, MAX_SPEED, MIN_CLIP_PAN, MIN_SPEED};
 
@@ -35,6 +36,7 @@ pub(super) static POSITION: ClipParamSpec = ClipParamSpec {
     constant: slot_constant,
     erase: slot_erase,
     ease: Some(slot_ease),
+    default: |_, _| Some(ParamValue::Vec2(ClipTransform::IDENTITY.position)),
 };
 
 pub(super) static ANCHOR_POINT: ClipParamSpec = ClipParamSpec {
@@ -55,6 +57,7 @@ pub(super) static ANCHOR_POINT: ClipParamSpec = ClipParamSpec {
     constant: slot_constant,
     erase: slot_erase,
     ease: Some(slot_ease),
+    default: |_, _| Some(ParamValue::Vec2(ClipTransform::IDENTITY.anchor_point)),
 };
 
 pub(super) static SCALE: ClipParamSpec = ClipParamSpec {
@@ -75,6 +78,7 @@ pub(super) static SCALE: ClipParamSpec = ClipParamSpec {
     constant: slot_constant,
     erase: slot_erase,
     ease: Some(slot_ease),
+    default: |_, _| Some(ParamValue::Vec2(ClipTransform::IDENTITY.scale.into())),
 };
 
 pub(super) static ROTATION: ClipParamSpec = ClipParamSpec {
@@ -95,6 +99,7 @@ pub(super) static ROTATION: ClipParamSpec = ClipParamSpec {
     constant: slot_constant,
     erase: slot_erase,
     ease: Some(slot_ease),
+    default: |_, _| Some(ParamValue::Scalar(ClipTransform::IDENTITY.rotation)),
 };
 
 pub(super) static OPACITY: ClipParamSpec = ClipParamSpec {
@@ -115,6 +120,7 @@ pub(super) static OPACITY: ClipParamSpec = ClipParamSpec {
     constant: slot_constant,
     erase: slot_erase,
     ease: Some(slot_ease),
+    default: |_, _| Some(ParamValue::Scalar(ClipTransform::IDENTITY.opacity)),
 };
 
 pub(super) static CROP: ClipParamSpec = ClipParamSpec {
@@ -135,6 +141,10 @@ pub(super) static CROP: ClipParamSpec = ClipParamSpec {
     constant: slot_constant,
     erase: slot_erase,
     ease: Some(slot_ease),
+    default: |_, _| {
+        let CropRect { x, y, w, h } = CropRect::FULL;
+        Some(ParamValue::Rect([x, y, w, h]))
+    },
 };
 
 pub(super) static VOLUME: ClipParamSpec = ClipParamSpec {
@@ -155,6 +165,7 @@ pub(super) static VOLUME: ClipParamSpec = ClipParamSpec {
     constant: slot_constant,
     erase: slot_erase,
     ease: Some(slot_ease),
+    default: |_, _| Some(ParamValue::Scalar(crate::clip::default_volume().sample(0))),
 };
 
 pub(super) static PAN: ClipParamSpec = ClipParamSpec {
@@ -175,6 +186,7 @@ pub(super) static PAN: ClipParamSpec = ClipParamSpec {
     constant: slot_constant,
     erase: slot_erase,
     ease: Some(slot_ease),
+    default: |_, _| Some(ParamValue::Scalar(crate::clip::default_pan().sample(0))),
 };
 
 /// The speed ramp reads like any other property and writes like none of them:
@@ -196,4 +208,5 @@ pub(super) static SPEED: ClipParamSpec = ClipParamSpec {
     constant: excluded_constant,
     erase: excluded_erase,
     ease: None,
+    default: |_, _| None,
 };

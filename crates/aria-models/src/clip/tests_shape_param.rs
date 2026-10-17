@@ -48,8 +48,9 @@ fn text_style_roundtrips_through_serde() {
         case: TextCase::Upper,
         fill: [10, 20, 30, 255].into(),
         letter_spacing: 3.0.into(),
+        kerning: false,
         line_spacing: 1.5.into(),
-        align_h: TextAlignH::Right,
+        align_h: TextAlignH::Justify,
         align_v: TextAlignV::Bottom,
         wrap: false,
         stroke: Some(TextStroke {
@@ -66,6 +67,7 @@ fn text_style_roundtrips_through_serde() {
             distance: 12.0.into(),
         }),
         effect_preset: None,
+        runs: Vec::new(),
     };
     let clip = Clip::generated(
         Generator::Text {
@@ -86,6 +88,23 @@ fn text_style_roundtrips_through_serde() {
         }
         other => panic!("expected text generator, got {other:?}"),
     }
+}
+
+/// A style saved before the kerning switch existed has no `kerning` key and
+/// loads with kerning on; a style with kerning on saves no key, so a file
+/// written now still opens in a build that predates the switch.
+#[test]
+fn kerning_is_on_when_absent_and_only_written_when_off() {
+    let loaded: TextStyle = serde_json::from_str("{}").expect("empty style");
+    assert!(loaded.kerning);
+    let on = serde_json::to_value(TextStyle::default()).expect("serialize");
+    assert!(on.get("kerning").is_none(), "kerning on was written: {on}");
+    let off = serde_json::to_value(TextStyle {
+        kerning: false,
+        ..TextStyle::default()
+    })
+    .expect("serialize");
+    assert_eq!(off.get("kerning"), Some(&serde_json::Value::Bool(false)));
 }
 
 #[test]

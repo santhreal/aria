@@ -32,7 +32,7 @@ pub enum ToolTier {
 /// One host-implemented tool. `name` is the full wire name and must be
 /// namespace-prefixed as `{namespace}_{tool}`, e.g.
 /// "app_set_theme", "media_screenshot_timeline". Namespaces are single
-/// words: app, project, system, media, analysis, python, job.
+/// words: app, project, system, media, analysis, python, job, plugin.
 #[derive(Debug, Clone)]
 pub struct HostToolSpec {
     /// Owned because analysis plugins and MCP catalogs can discover tools
@@ -132,7 +132,7 @@ pub fn is_host_tool_name(name: &str) -> bool {
     };
     matches!(
         prefix,
-        "app" | "project" | "system" | "media" | "analysis" | "python" | "job"
+        "app" | "project" | "system" | "media" | "analysis" | "python" | "job" | "plugin"
     ) && !tool.is_empty()
         && tool
             .bytes()
@@ -169,6 +169,7 @@ mod tests {
             "python_run",
             "job_status",
             "job_2",
+            "plugin_lut_preview",
         ] {
             assert!(is_host_tool_name(name), "{name}");
         }
@@ -180,6 +181,8 @@ mod tests {
             "unknown_ping",
             "app_SetTheme",
             "app_set-theme",
+            "plugin_",
+            "plugins_echo",
         ] {
             assert!(!is_host_tool_name(name), "{name}");
         }

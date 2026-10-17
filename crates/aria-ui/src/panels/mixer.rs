@@ -25,18 +25,18 @@ use gpui::{
 };
 
 use crate::app::AppState;
-use crate::app::mixer::{FaderTarget, MixerStrip, gain_label, gain_to_frac};
+use crate::app::mixer::{
+    FaderTarget, MixerStrip, gain_label, gain_to_frac, pan_label, pan_to_frac,
+};
 use crate::fluent::FluentBuilder;
 use crate::motion;
 use crate::panels::insert_chain::{self, Chain};
 use crate::surfaces::mixer_strip::{self, Gesture};
 use crate::theme::Theme;
-use aria_models::{AudioInsertTarget, TrackId};
+use aria_models::{AudioInsertTarget, AutomationMode, TrackId};
 
-/// How tall a fader's travel is, in pixels. Also the distance the pointer moves
-/// to cross the whole range, since the drag is relative to where it was grabbed.
 const FADER_HEIGHT: f32 = 132.0;
-/// How wide one strip is. Wide enough for a bus name and a dB readout.
+const PAN_WIDTH: f32 = 96.0;
 const STRIP_WIDTH: f32 = 124.0;
 
 /// Whether the mixer is the pane in front.
@@ -57,14 +57,14 @@ pub(crate) fn render(
             let refusal = SharedString::from(refusal.to_string());
             div()
                 .p(px(Theme::SPACE_MD))
-                .text_size(px(13.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.danger)
                 .child(refusal)
                 .into_any_element()
         }
         Ok(strips) if strips.is_empty() => div()
             .p(px(Theme::SPACE_MD))
-            .text_size(px(13.))
+            .text_size(Theme::TEXT_UI)
             .text_color(theme.text_muted)
             .child("No audio lanes yet. Add one, or add a submix bus, to mix.")
             .into_any_element(),
@@ -94,14 +94,22 @@ pub(crate) fn render(
             .flex_col()
             .size_full()
             .bg(theme.surface)
-            .child(header(&theme, cx))
+            .child(header(
+                &theme,
+                state.read(cx).dock_panel_title(crate::dock::PANEL_MIXER),
+                cx,
+            ))
             .child(body),
     )
     .into_any_element()
 }
 
-/// The panel's own row: what it is, and the one thing it can add.
-fn header(theme: &Theme, cx: &mut gpui::Context<crate::shell::Shell>) -> gpui::AnyElement {
+/// The panel's own row: its title, and the one thing it can add.
+fn header(
+    theme: &Theme,
+    title: &'static str,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> gpui::AnyElement {
     let key = motion::MotionKey::new("mixer", "add-bus");
     div()
         .flex()
@@ -114,9 +122,9 @@ fn header(theme: &Theme, cx: &mut gpui::Context<crate::shell::Shell>) -> gpui::A
         .border_color(theme.border)
         .child(
             div()
-                .text_size(px(13.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text)
-                .child("Mixer"),
+                .child(title),
         )
         .child(
             div()
@@ -129,7 +137,7 @@ fn header(theme: &Theme, cx: &mut gpui::Context<crate::shell::Shell>) -> gpui::A
                     theme.input_bg,
                     theme.surface_raised_hover,
                 ))
-                .text_size(px(12.))
+                .text_size(Theme::TEXT_TITLE)
                 .text_color(theme.text)
                 .cursor(CursorStyle::PointingHand)
                 .active(|style| style.opacity(0.92))
@@ -184,22 +192,49 @@ fn channel(
         })
         .child(
             div()
-                .text_size(px(12.))
-                .text_color(if strip.audible {
-                    theme.text
-                } else {
-                    theme.text_muted
-                })
-                .child(SharedString::from(name)),
+                .flex()
+                .items_center()
+                .justify_between()
+                .gap(px(Theme::SPACE_XXS))
+                .child(
+                    div()
+                        .text_size(Theme::TEXT_TITLE)
+                        .text_color(if strip.audible {
+                            theme.text
+                        } else {
+                            theme.text_muted
+                        })
+                        .child(SharedString::from(name)),
+                )
+                .child(
+                    div()
+                        .flex()
+                        .gap(px(2.))
+                        .child(mute_button(
+                            theme,
+                            Some(track),
+                            strip.track,
+                            strip.muted,
+                            cx,
+                        ))
+                        .child(solo_button(theme, track, strip.track, strip.solo, cx)),
+                ),
         )
         .when(!strip.reaches_master, |el| {
             el.child(
                 div()
-                    .text_size(px(10.))
+                    .text_size(Theme::TEXT_SMALL)
                     .text_color(theme.danger)
                     .child("not in the mix"),
             )
         })
+        .child(automation_row(
+            theme,
+            Some(track),
+            strip.track,
+            strip.automation,
+            cx,
+        ))
         .child(label_row(theme, "Inserts"))
         .child(insert_chain::render(
             theme,
@@ -214,6 +249,15 @@ fn channel(
         ))
         .child(outputs(theme, strip, track, cx))
         .child(sends(state, theme, strip, track, cx))
+        .child(pan_control(
+            state,
+            theme,
+            FaderTarget::LanePan(track),
+            strip.track,
+            strip.pan,
+            strip.audible,
+            cx,
+        ))
         .child(fader(state, theme, strip, track, cx))
         .into_any_element()
 }
@@ -239,10 +283,23 @@ fn master(
         .border_color(theme.border)
         .child(
             div()
-                .text_size(px(12.))
-                .text_color(theme.text)
-                .child("Master"),
+                .flex()
+                .items_center()
+                .justify_between()
+                .gap(px(Theme::SPACE_XXS))
+                .child(
+                    div()
+                        .text_size(Theme::TEXT_TITLE)
+                        .text_color(if chain.muted {
+                            theme.text_muted
+                        } else {
+                            theme.text
+                        })
+                        .child("Master"),
+                )
+                .child(mute_button(theme, None, 0, chain.muted, cx)),
         )
+        .child(automation_row(theme, None, 0, chain.automation, cx))
         .child(label_row(theme, "Inserts"))
         .child(insert_chain::render(
             theme,
@@ -255,6 +312,16 @@ fn master(
             state,
             cx,
         ))
+        .child(pan_control(
+            state,
+            theme,
+            FaderTarget::MasterPan,
+            0,
+            chain.pan,
+            !chain.muted,
+            cx,
+        ))
+        .child(master_fader(state, theme, &chain, cx))
         .into_any_element()
 }
 
@@ -378,6 +445,136 @@ fn sends(
 /// The lane's fader: a press grabs it, a move rides it, a release writes one
 /// command. The travel is relative to the grab, so the value never jumps to
 /// wherever the pointer happened to land.
+fn mute_button(
+    theme: &Theme,
+    track: Option<TrackId>,
+    raw_id: u64,
+    muted: bool,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> gpui::AnyElement {
+    chip(
+        theme,
+        motion::MotionKey::new("mixer-mute", raw_id).into(),
+        "M".to_string(),
+        muted,
+        true,
+        move |state| {
+            if let Err(err) = mixer_strip::apply(state, Gesture::ToggleMute { track }) {
+                state.report_error(&err);
+            }
+        },
+        cx,
+    )
+}
+
+fn solo_button(
+    theme: &Theme,
+    track: TrackId,
+    raw_id: u64,
+    solo: bool,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> gpui::AnyElement {
+    chip(
+        theme,
+        motion::MotionKey::new("mixer-solo", raw_id).into(),
+        "S".to_string(),
+        solo,
+        false,
+        move |state| {
+            if let Err(err) = mixer_strip::apply(state, Gesture::ToggleSolo { track }) {
+                state.report_error(&err);
+            }
+        },
+        cx,
+    )
+}
+
+fn automation_row(
+    theme: &Theme,
+    track: Option<TrackId>,
+    raw_id: u64,
+    current: AutomationMode,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> gpui::AnyElement {
+    let chips: Vec<gpui::AnyElement> = AutomationMode::ALL
+        .iter()
+        .copied()
+        .map(|mode| {
+            let text = mode.short_label().to_string();
+            chip(
+                theme,
+                motion::MotionKey::new("mixer-auto", raw_id)
+                    .with(mode.short_label())
+                    .into(),
+                text,
+                mode == current,
+                mode.writes_envelope() && mode == current,
+                move |state| {
+                    if let Err(err) =
+                        mixer_strip::apply(state, Gesture::SetAutomation { track, mode })
+                    {
+                        state.report_error(&err);
+                    }
+                },
+                cx,
+            )
+        })
+        .collect();
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(Theme::SPACE_XXS))
+        .child(label_row(theme, "Auto"))
+        .child(
+            div()
+                .flex()
+                .flex_row()
+                .flex_wrap()
+                .gap(px(2.))
+                .children(chips),
+        )
+        .into_any_element()
+}
+
+fn pan_control(
+    state: &Entity<AppState>,
+    theme: &Theme,
+    target: FaderTarget,
+    raw_id: u64,
+    stored_pan: f32,
+    audible: bool,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> gpui::AnyElement {
+    let pan = state.read(cx).fader_value(target, stored_pan);
+    let frac = pan_to_frac(pan);
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(2.))
+        .child(
+            div()
+                .flex()
+                .justify_between()
+                .child(label_row(theme, "Pan"))
+                .child(
+                    div()
+                        .text_size(Theme::TEXT_SMALL)
+                        .text_color(theme.text_muted)
+                        .child(SharedString::from(pan_label(pan))),
+                ),
+        )
+        .child(drag_track(
+            theme,
+            motion::MotionKey::new("mixer-pan", raw_id),
+            target,
+            frac,
+            audible,
+            true,
+            cx,
+        ))
+        .into_any_element()
+}
+
 fn fader(
     state: &Entity<AppState>,
     theme: &Theme,
@@ -387,8 +584,32 @@ fn fader(
 ) -> gpui::AnyElement {
     let target = FaderTarget::Lane(track);
     let gain = state.read(cx).fader_value(target, strip.gain);
-    let frac = gain_to_frac(gain);
     let level = state.read(cx).strip_meter(track);
+    fader_and_meter(theme, strip.track, target, gain, strip.audible, level, cx)
+}
+
+fn master_fader(
+    state: &Entity<AppState>,
+    theme: &Theme,
+    chain: &crate::app::mixer::MasterChain,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> gpui::AnyElement {
+    let target = FaderTarget::Master;
+    let gain = state.read(cx).fader_value(target, chain.gain);
+    let (level, _) = state.read(cx).master_meter();
+    fader_and_meter(theme, 0, target, gain, !chain.muted, level, cx)
+}
+
+fn fader_and_meter(
+    theme: &Theme,
+    raw_id: u64,
+    target: FaderTarget,
+    gain: f32,
+    audible: bool,
+    level: [f32; 2],
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> gpui::AnyElement {
+    let frac = gain_to_frac(gain);
     div()
         .flex()
         .flex_col()
@@ -399,29 +620,31 @@ fn fader(
                 .flex()
                 .gap(px(3.))
                 .items_end()
-                .child(fader_track(theme, strip, target, frac, cx))
-                .child(meter(theme, strip, level)),
+                .child(drag_track(
+                    theme,
+                    motion::MotionKey::new("mixer-fader", raw_id),
+                    target,
+                    frac,
+                    audible,
+                    false,
+                    cx,
+                ))
+                .child(meter(theme, raw_id, audible, level)),
         )
         .child(
             div()
-                .text_size(px(11.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_muted)
                 .child(SharedString::from(gain_label(gain))),
         )
         .into_any_element()
 }
 
-/// This lane's own level, post-fader: two bars beside the fader it belongs to.
-///
-/// Full scale is the top of the fader's travel, so a bar level with the fader's
-/// unity mark is not a coincidence to be read off — the two are the same height.
-/// Silence draws the trough alone, which is what a lane the mix is not carrying
-/// reads.
-fn meter(theme: &Theme, strip: &MixerStrip, level: [f32; 2]) -> gpui::AnyElement {
+fn meter(theme: &Theme, raw_id: u64, audible: bool, level: [f32; 2]) -> gpui::AnyElement {
     let bar = |peak: f32, side: &'static str| {
         div()
             .id(motion::MotionKey::new("mixer-meter", side)
-                .with(strip.track)
+                .with(raw_id)
                 .element_id("mixer-meter"))
             .relative()
             .w(px(4.))
@@ -438,7 +661,7 @@ fn meter(theme: &Theme, strip: &MixerStrip, level: [f32; 2]) -> gpui::AnyElement
                     .rounded(px(1.))
                     .bg(if peak >= 1.0 {
                         theme.danger
-                    } else if strip.audible {
+                    } else if audible {
                         theme.success
                     } else {
                         theme.text_muted
@@ -453,58 +676,72 @@ fn meter(theme: &Theme, strip: &MixerStrip, level: [f32; 2]) -> gpui::AnyElement
         .into_any_element()
 }
 
-/// The fader itself: a press grabs it, a move rides it, a release writes one
-/// command.
-fn fader_track(
+fn drag_track(
     theme: &Theme,
-    strip: &MixerStrip,
+    key: motion::MotionKey,
     target: FaderTarget,
     frac: f32,
+    audible: bool,
+    horizontal: bool,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
+    let (w, h, travel, cursor) = if horizontal {
+        (PAN_WIDTH, 10.0, PAN_WIDTH, CursorStyle::ResizeLeftRight)
+    } else {
+        (28.0, FADER_HEIGHT, FADER_HEIGHT, CursorStyle::ResizeUpDown)
+    };
+    let fill = if horizontal {
+        div()
+            .absolute()
+            .top(px(0.))
+            .left(px(0.))
+            .h_full()
+            .w(px((w * frac).round()))
+    } else {
+        div()
+            .absolute()
+            .bottom(px(0.))
+            .left(px(0.))
+            .w_full()
+            .h(px((h * frac).round()))
+    };
     div()
-        .id(motion::MotionKey::new("mixer-fader", strip.track).element_id("mixer-fader"))
+        .id(key.element_id("mixer-drag"))
         .relative()
-        .w(px(28.))
-        .h(px(FADER_HEIGHT))
+        .w(px(w))
+        .h(px(h))
         .rounded(px(Theme::CONTROL_RADIUS))
         .bg(theme.wash(0.12))
-        .cursor(CursorStyle::ResizeUpDown)
-        .child(
-            div()
-                .absolute()
-                .bottom(px(0.))
-                .left(px(0.))
-                .w_full()
-                .h(px((FADER_HEIGHT * frac).round()))
-                .rounded(px(Theme::CONTROL_RADIUS))
-                .bg(if strip.audible {
-                    theme.accent
-                } else {
-                    theme.text_muted
-                }),
-        )
+        .cursor(cursor)
+        .child(fill.rounded(px(Theme::CONTROL_RADIUS)).bg(if audible {
+            theme.accent
+        } else {
+            theme.text_muted
+        }))
         .on_mouse_down(
             MouseButton::Left,
             cx.listener(move |this, event: &MouseDownEvent, _, cx| {
-                let at = f32::from(event.position.y);
+                let at = if horizontal {
+                    f32::from(event.position.x)
+                } else {
+                    f32::from(event.position.y)
+                };
                 this.state.update(cx, |state, _| {
-                    if let Err(err) = mixer_strip::apply(
-                        state,
-                        Gesture::GrabFader {
-                            target,
-                            at,
-                            travel: FADER_HEIGHT,
-                        },
-                    ) {
+                    if let Err(err) =
+                        mixer_strip::apply(state, Gesture::GrabFader { target, at, travel })
+                    {
                         state.report_error(&err);
                     }
                 });
                 cx.notify();
             }),
         )
-        .on_mouse_move(cx.listener(|this, event: &MouseMoveEvent, _, cx| {
-            let at = f32::from(event.position.y);
+        .on_mouse_move(cx.listener(move |this, event: &MouseMoveEvent, _, cx| {
+            let at = if horizontal {
+                f32::from(event.position.x)
+            } else {
+                f32::from(event.position.y)
+            };
             let moved = this.state.update(cx, |state, _| {
                 match mixer_strip::apply(state, Gesture::RideFader { at }) {
                     Ok(moved) => moved,
@@ -540,7 +777,7 @@ fn fader_track(
 
 fn label_row(theme: &Theme, text: &'static str) -> gpui::AnyElement {
     div()
-        .text_size(px(10.))
+        .text_size(Theme::TEXT_SMALL)
         .text_color(theme.text_muted)
         .child(text)
         .into_any_element()
@@ -573,7 +810,7 @@ fn chip(
             resting,
             theme.surface_raised_hover,
         ))
-        .text_size(px(11.))
+        .text_size(Theme::TEXT_UI)
         .text_color(if live { theme.text } else { theme.text_muted })
         .cursor(CursorStyle::PointingHand)
         .active(|style| style.opacity(0.92))

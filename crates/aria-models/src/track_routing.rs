@@ -44,7 +44,17 @@ use serde::{Deserialize, Serialize};
 use crate::audio_effects::{AudioEffectInstance, AudioInsertTarget};
 use crate::error::ModelError;
 use crate::ids::TrackId;
+use crate::param::Param;
 use crate::timeline::Timeline;
+use crate::track::TrackKind;
+
+#[path = "track_automation.rs"]
+mod track_automation;
+
+pub use track_automation::{
+    AutomationMode, MAX_TRACK_PAN, MIN_TRACK_PAN, check_track_pan, check_track_pan_envelope,
+    check_track_volume_envelope,
+};
 
 /// Where a lane's own sum leaves it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -148,6 +158,14 @@ pub struct AudioBus<'a> {
     pub is_bus: bool,
     /// The lane's fader, as linear gain.
     pub gain: f32,
+    /// The lane's stereo pan (`-1.0..=1.0`).
+    pub pan: f32,
+    /// How this lane handles its volume and pan automation curves.
+    pub automation: AutomationMode,
+    /// The lane's sequence-tick volume automation curve.
+    pub volume_envelope: &'a Param<f32>,
+    /// The lane's sequence-tick pan automation curve.
+    pub pan_envelope: &'a Param<f32>,
     /// Where the lane's own sum goes.
     pub output: TrackOutput,
     /// Copies of the lane taken for other buses.
@@ -443,6 +461,10 @@ impl Timeline {
                 track: lane.id,
                 is_bus: lane.kind.spec().is_bus,
                 gain: lane.gain,
+                pan: lane.pan,
+                automation: lane.automation,
+                volume_envelope: &lane.volume_envelope,
+                pan_envelope: &lane.pan_envelope,
                 output: lane.output,
                 sends: lane.sends.as_slice(),
                 inserts: lane.audio_effects.as_slice(),
@@ -478,21 +500,26 @@ impl Timeline {
                 .iter()
                 .any(|fx| !fx.bypass && fx.sidechain == Some(id))
         };
+        let any_bus_solo = self.has_solo(TrackKind::Submix);
         for i in (0..buses.len()).rev() {
-            let reaches = |target: Option<TrackId>, buses: &[AudioBus<'_>]| match target {
-                None => true,
-                Some(id) => buses
-                    .iter()
-                    .skip(i + 1)
-                    .find(|bus| bus.track == id)
-                    .is_some_and(|bus| bus.reaches_master),
-            };
+            let reaches =
+                |target: Option<TrackId>, buses: &[AudioBus<'_>], from_bus_or_solo: bool| {
+                    match target {
+                        None => !any_bus_solo || from_bus_or_solo,
+                        Some(id) => buses
+                            .iter()
+                            .skip(i + 1)
+                            .find(|bus| bus.track == id)
+                            .is_some_and(|bus| bus.reaches_master),
+                    }
+                };
             let id = buses[i].track;
-            let out = reaches(buses[i].output.bus(), &buses);
+            let from_bus_or_solo = buses[i].is_bus || self.track(id).is_some_and(|lane| lane.solo);
+            let out = reaches(buses[i].output.bus(), &buses, from_bus_or_solo);
             let sent = buses[i]
                 .sends
                 .iter()
-                .any(|send| reaches(Some(send.to), &buses));
+                .any(|send| reaches(Some(send.to), &buses, from_bus_or_solo));
             let keyed = master_keys(id)
                 || buses[i + 1..].iter().any(|bus| {
                     bus.reaches_master

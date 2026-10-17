@@ -18,6 +18,8 @@
 
 use aria_models::{CropRect, MIN_CROP_FRACTION};
 
+use super::preview_view::PreviewView;
+
 /// A rectangle in window pixels: where something is drawn.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Rect {
@@ -97,6 +99,21 @@ pub fn fit_frame(container: Rect, canvas: [u32; 2]) -> Rect {
         w,
         h,
     )
+}
+
+/// Where the preview draws the canvas inside `container` under `view`. The
+/// frame image is the container scaled by the zoom and moved by the pan, and
+/// the canvas fits that image the way `ObjectFit::Contain` does.
+pub fn view_frame(container: Rect, view: PreviewView, canvas: [u32; 2]) -> Rect {
+    let scale = view.scale();
+    let (dx, dy) = view.pan;
+    let image = Rect::new(
+        container.x + dx,
+        container.y + dy,
+        container.w * scale,
+        container.h * scale,
+    );
+    fit_frame(image, canvas)
 }
 
 /// A clip's quad inside the canvas rectangle, from the resolved layer's center
@@ -431,6 +448,30 @@ pub enum OverlayDrag {
         grab: [f32; 2],
         draft: crate::types::UiClipTransform,
     },
+    /// The clip type handle at `index`, with the parameter it moves, the value
+    /// the drag started from, and the value it is building.
+    TypeHandle {
+        index: usize,
+        handle: crate::types::UiTypeHandle,
+        start: [f32; 2],
+        draft: [f32; 2],
+    },
+    /// A motion path keyframe, with the value it started from, where the press
+    /// landed, and the value the drag is building.
+    PathKey {
+        key: motion_path::PathKey,
+        start: [f32; 2],
+        grab: [f32; 2],
+        draft: [f32; 2],
+    },
+    /// One tangent handle of a smooth motion path keyframe, with the tangents
+    /// the drag started from and the tangents it is building.
+    PathTangent {
+        key: motion_path::PathKey,
+        side: motion_path::TangentSide,
+        start: aria_models::SpatialTangents,
+        draft: aria_models::SpatialTangents,
+    },
 }
 
 use super::AppState;
@@ -439,6 +480,11 @@ use aria_engine::EngineError;
 // Further methods live in sibling files; inherent methods keep their paths.
 #[path = "canvas_overlay_handles.rs"]
 mod canvas_overlay_handles;
+pub(crate) use canvas_overlay_handles::moved_on_canvas;
+#[path = "canvas_overlay_type_handles.rs"]
+mod canvas_overlay_type_handles;
+#[path = "canvas_overlay_motion_path.rs"]
+pub mod motion_path;
 
 // The selected layer's quad now comes from the projection, which resolves the
 // scene once per change instead of once per element per frame; see

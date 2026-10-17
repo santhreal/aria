@@ -31,6 +31,7 @@
 //! platform-independent output.
 
 mod animated;
+mod caret;
 mod effects;
 mod style;
 
@@ -43,13 +44,15 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use aria_core::RgbaImage;
 use cosmic_text::{
-    Align, Attrs, Buffer, CacheKey, Family, FontSystem, LineIter, Metrics, Shaping,
-    Style as FontStyle, SwashCache, SwashContent, SwashImage, Weight,
+    Align, Attrs, Buffer, CacheKey, Family, FeatureTag, FontFeatures, FontSystem, LineIter,
+    Metrics, Shaping, Style as FontStyle, SwashCache, SwashContent, SwashImage, Weight,
 };
 
 pub use animated::{AnimatedText, paint_animated};
+pub use caret::{caret_at, raster_padding};
 pub use style::{
-    FontFamily, TextAlign, TextBackground, TextShadow, TextStroke, TextStyle, TextVerticalAlign,
+    FontFamily, TextAlign, TextBackground, TextRun, TextShadow, TextStroke, TextStyle,
+    TextVerticalAlign,
 };
 
 struct SystemFonts {
@@ -148,6 +151,22 @@ pub struct ClusterBox {
     pub image: RgbaImage,
 }
 
+/// Where a text cursor between two characters is drawn: one boundary of a
+/// laid-out run, from [`TextRenderer::carets`].
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CaretStop {
+    /// Byte offset in the source string the caret sits before.
+    pub byte: usize,
+    /// Zero-based visual line, as [`ClusterBox::line`] counts them.
+    pub line: usize,
+    /// The caret's x in the ink box [`ShapedText::extent`] measures.
+    pub x: f32,
+    /// The top of the caret's line in the same space.
+    pub top: f32,
+    /// The bottom of the caret's line in the same space.
+    pub bottom: f32,
+}
+
 /// Shapes and rasterizes text. Holds the font set, a glyph cache, and memo
 /// caches of whole-run results, so reuse one renderer across many calls:
 /// repeating a `shape`/`rasterize` call with unchanged input costs a memo
@@ -162,6 +181,8 @@ pub struct TextRenderer {
     shape_memo: HashMap<ShapeKey, ShapedText>,
     /// Memoized [`rasterize`](Self::rasterize) results (padding folded in).
     raster_memo: HashMap<RasterKey, RgbaImage>,
+    /// Caret stops of each shaped run, filled by the same shaping pass.
+    caret_memo: HashMap<ShapeKey, Vec<CaretStop>>,
 }
 
 impl std::fmt::Debug for TextRenderer {
@@ -186,6 +207,33 @@ impl Default for TextRenderer {
 /// `f32`s are keyed by bit pattern, so styles that differ only in float
 /// encoding are simply distinct keys (never a wrong hit).
 #[derive(Clone, PartialEq, Eq, Hash)]
+struct RunKey {
+    range: Range<usize>,
+    family: Option<FontFamily>,
+    font_size: Option<u32>,
+    bold: Option<bool>,
+    italic: Option<bool>,
+    underline: Option<bool>,
+    color: Option<[u8; 4]>,
+    letter_spacing: Option<u32>,
+}
+
+impl RunKey {
+    fn from_run(r: &TextRun) -> Self {
+        Self {
+            range: r.range.clone(),
+            family: r.family.clone(),
+            font_size: r.font_size.map(f32::to_bits),
+            bold: r.bold,
+            italic: r.italic,
+            underline: r.underline,
+            color: r.color,
+            letter_spacing: r.letter_spacing.map(f32::to_bits),
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
 struct ShapeKey {
     text: String,
     font_size: u32,
@@ -195,8 +243,10 @@ struct ShapeKey {
     bold: bool,
     italic: bool,
     letter_spacing: u32,
+    kerning: bool,
     align: TextAlign,
     max_width: Option<u32>,
+    runs: Vec<RunKey>,
 }
 
 impl ShapeKey {
@@ -210,8 +260,10 @@ impl ShapeKey {
             bold: style.bold,
             italic: style.italic,
             letter_spacing: style.letter_spacing.to_bits(),
+            kerning: style.kerning,
             align: style.align,
             max_width: style.max_width.map(f32::to_bits),
+            runs: style.runs.iter().map(RunKey::from_run).collect(),
         }
     }
 }
@@ -276,8 +328,13 @@ struct PendingCluster {
     line: usize,
     range: Range<usize>,
     pen_x: f32,
+    /// The pen position after the cluster's last glyph advanced.
+    pen_right: f32,
     line_top: f32,
+    line_bottom: f32,
     baseline_y: f32,
+    /// Whether the cluster runs right to left.
+    rtl: bool,
     glyphs: Vec<PendingGlyph>,
     ink: Option<(i32, i32, i32, i32)>,
 }

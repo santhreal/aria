@@ -4,10 +4,12 @@
 //! refuses, or a duration edit silently replaces the blend". The catalog is
 //! enumerated from `aria_models::transition_catalog` at run time, so a new blend
 //! id is covered without a second list, and every one of them is applied,
-//! replaced, resized, and removed.
+//! replaced, resized, and removed. The crossfade curves are enumerated from
+//! `AudioTransition::ALL` the same way, on a cut between sounds.
 
-use aria_models::{ClipId, transition_catalog};
+use aria_models::{AudioTransition, ClipId, TransitionMedia, transition_catalog};
 
+use super::fixtures::with_audio;
 use super::premiere_tests::with_clip;
 use crate::app::AppState;
 use crate::app::clip_transitions::{MAX_TRANSITION_TICKS, MIN_TRANSITION_TICKS};
@@ -18,7 +20,15 @@ use crate::app::decline::Decline;
 /// A split is the only way to guarantee abutment, which is exactly the junction
 /// `AddTransition` accepts.
 fn with_cut() -> (AppState, ClipId, ClipId) {
-    let (mut state, left) = with_clip();
+    split_in_two(with_clip())
+}
+
+/// The same cut between two halves of a sound on an audio lane.
+fn with_sound_cut() -> (AppState, ClipId, ClipId) {
+    split_in_two(with_audio())
+}
+
+fn split_in_two((mut state, left): (AppState, ClipId)) -> (AppState, ClipId, ClipId) {
     let (_, end) = bounds(&state, left);
     state.set_playhead(end / 2);
     state.split_at_playhead().expect("split");
@@ -51,34 +61,37 @@ fn bounds(state: &AppState, clip: ClipId) -> (i64, i64) {
     (ui.timeline_start_ticks, ui.timeline_end_ticks)
 }
 
-/// Whether the selection's right junction can carry a blend, read where the
-/// surfaces read it: the projected flag on the selected clip.
-fn can_transition(state: &AppState) -> bool {
+/// Which kind of blend the selection's right junction takes, read where the
+/// surfaces read it: the projected field on the selected clip.
+fn junction_media(state: &AppState) -> Option<TransitionMedia> {
     state
         .selected_ui_clip_ref()
-        .is_some_and(|clip| clip.can_transition)
+        .and_then(|clip| clip.transition_media)
 }
 
 #[test]
 fn a_cut_can_carry_a_transition_and_a_lone_clip_cannot() {
     let (state, _) = with_clip();
-    assert!(
-        !can_transition(&state),
+    assert_eq!(
+        junction_media(&state),
+        None,
         "a clip with nothing to its right has no junction"
     );
 
     let (state, _, right) = with_cut();
-    assert!(
-        can_transition(&state),
-        "the left side of a cut must accept a transition"
+    assert_eq!(
+        junction_media(&state),
+        Some(TransitionMedia::Picture),
+        "the left side of a cut between pictures must accept a blend"
     );
 
     // The right clip of the cut has nothing after it, so its own junction is
     // not offered either.
     let mut state = state;
     state.select_clip(right);
-    assert!(
-        !can_transition(&state),
+    assert_eq!(
+        junction_media(&state),
+        None,
         "the last clip on a track has no right junction"
     );
 }
@@ -229,7 +242,7 @@ fn a_refused_transition_is_inert_and_names_the_reason() {
     // And with no selection at all.
     state.clear_selection();
     state.set_selected_transition("crossfade").expect("inert");
-    assert!(!can_transition(&state));
+    assert_eq!(junction_media(&state), None);
     assert_eq!(
         state.status_message.as_deref(),
         Some(Decline::NoSelection.reason())
@@ -246,14 +259,14 @@ fn breaking_the_abutment_drops_the_dead_junction() {
     // Deleting the incoming side leaves no junction, so the transition must not
     // survive as a phantom on the projected clip.
     state.select_clip(right);
-    state.delete_selected().expect("delete right");
+    state.clear_selected().expect("delete right");
     state.select_clip(left);
     assert_eq!(
         transitions_on_track(&state),
         0,
         "a transition outlived its junction"
     );
-    assert!(!can_transition(&state));
+    assert_eq!(junction_media(&state), None);
 
     // Undo restores both the clip and the transition.
     assert!(state.undo(), "undo did nothing");
@@ -273,46 +286,74 @@ fn breaking_the_abutment_drops_the_dead_junction() {
 #[test]
 fn dragging_either_wedge_edge_sets_the_window_symmetrically() {
     use crate::app::clip_transitions::transition_ticks_after_drag;
+    use aria_models::TransitionAlignment;
 
     let current = 48;
+    let center = TransitionAlignment::Center;
     assert_eq!(
-        transition_ticks_after_drag(current, 6, true),
+        transition_ticks_after_drag(current, 6, true, center),
         current + 12,
         "pulling the right edge outward must widen by twice the move"
     );
     assert_eq!(
-        transition_ticks_after_drag(current, -6, false),
+        transition_ticks_after_drag(current, -6, false, center),
         current + 12,
         "pulling the left edge outward must widen by the same amount"
     );
-    assert_eq!(transition_ticks_after_drag(current, -6, true), current - 12);
-    assert_eq!(transition_ticks_after_drag(current, 6, false), current - 12);
     assert_eq!(
-        transition_ticks_after_drag(current, 0, true),
+        transition_ticks_after_drag(current, -6, true, center),
+        current - 12
+    );
+    assert_eq!(
+        transition_ticks_after_drag(current, 6, false, center),
+        current - 12
+    );
+    for align in [TransitionAlignment::Start, TransitionAlignment::End] {
+        assert_eq!(
+            transition_ticks_after_drag(current, 6, true, align),
+            current + 6,
+            "{align:?}: pulling the right edge outward widens 1:1"
+        );
+        assert_eq!(
+            transition_ticks_after_drag(current, -6, false, align),
+            current + 6,
+            "{align:?}: pulling the left edge outward widens 1:1"
+        );
+        assert_eq!(
+            transition_ticks_after_drag(current, -6, true, align),
+            current - 6
+        );
+        assert_eq!(
+            transition_ticks_after_drag(current, 6, false, align),
+            current - 6
+        );
+    }
+    assert_eq!(
+        transition_ticks_after_drag(current, 0, true, center),
         current,
         "a drag that moved nothing must not change the window"
     );
     assert_eq!(
-        transition_ticks_after_drag(current, 10_000, true),
+        transition_ticks_after_drag(current, 10_000, true, center),
         MAX_TRANSITION_TICKS
     );
     assert_eq!(
-        transition_ticks_after_drag(current, -10_000, true),
+        transition_ticks_after_drag(current, -10_000, true, center),
         MIN_TRANSITION_TICKS
     );
     // Saturating, not panicking, at the ends of the tick domain. Widening from
     // `i64::MIN` by the largest possible move still lands below the floor, so the
     // floor is the answer; the point is that neither end overflows.
     assert_eq!(
-        transition_ticks_after_drag(i64::MAX, i64::MAX, true),
+        transition_ticks_after_drag(i64::MAX, i64::MAX, true, center),
         MAX_TRANSITION_TICKS
     );
     assert_eq!(
-        transition_ticks_after_drag(i64::MIN, i64::MIN, false),
+        transition_ticks_after_drag(i64::MIN, i64::MIN, false, center),
         MIN_TRANSITION_TICKS
     );
     assert_eq!(
-        transition_ticks_after_drag(i64::MIN, i64::MAX, false),
+        transition_ticks_after_drag(i64::MIN, i64::MAX, false, center),
         MIN_TRANSITION_TICKS
     );
 }
@@ -325,11 +366,15 @@ fn a_wedge_edits_its_own_junction_without_taking_the_selection() {
     let id = aria_models::shipped_transition_catalog()[0].id.as_str();
 
     state.select_clip(right);
-    assert!(
-        !state.clip_can_transition(right),
+    assert_eq!(
+        state.clip_transition_media(right),
+        None,
         "the fixture's right clip must have no junction of its own"
     );
-    assert!(state.clip_can_transition(left));
+    assert_eq!(
+        state.clip_transition_media(left),
+        Some(TransitionMedia::Picture)
+    );
 
     state.set_clip_transition(left, id).expect("apply");
     assert_eq!(state.clip_transition_id(left).as_deref(), Some(id));
@@ -366,4 +411,142 @@ fn a_wedge_edits_its_own_junction_without_taking_the_selection() {
     state.set_clip_transition_ticks(left, 100).expect("inert");
     state.set_clip_transition(right, id).expect("inert");
     assert_eq!(state.clip_transition_id(right), None);
+}
+
+/// A cut between sounds takes every crossfade curve and no picture blend, and a
+/// cut between pictures the reverse. Each refusal leaves the junction as it was
+/// and names the chord that fits the cut it hit.
+#[test]
+fn each_cut_takes_only_the_transitions_of_its_media() {
+    let (mut state, _, _) = with_sound_cut();
+    assert_eq!(junction_media(&state), Some(TransitionMedia::Audio));
+    for curve in AudioTransition::ALL {
+        state
+            .set_selected_transition(curve.id())
+            .unwrap_or_else(|err| panic!("apply {}: {err:?}", curve.id()));
+        assert_eq!(state.selected_transition_id().as_deref(), Some(curve.id()));
+        let ui = state.selected_ui_clip().expect("clip");
+        let projected = ui.transition.as_ref().expect("projected transition");
+        assert_eq!(&*projected.label, curve.label());
+        assert_eq!(transitions_on_track(&state), 1, "{} stacked", curve.id());
+    }
+    let last = AudioTransition::ALL[AudioTransition::ALL.len() - 1].id();
+    for spec in transition_catalog() {
+        state.set_selected_transition(&spec.id).expect("inert");
+        assert_eq!(
+            state.selected_transition_id().as_deref(),
+            Some(last),
+            "{} replaced a crossfade",
+            spec.id
+        );
+        assert_eq!(
+            state.status_message.as_deref(),
+            Some(Decline::SoundCut.reason())
+        );
+    }
+
+    let (mut state, _, _) = with_cut();
+    for curve in AudioTransition::ALL {
+        state.set_selected_transition(curve.id()).expect("inert");
+        assert_eq!(state.selected_transition_id(), None, "{}", curve.id());
+        assert_eq!(
+            state.status_message.as_deref(),
+            Some(Decline::PictureCut.reason())
+        );
+    }
+}
+
+/// Ctrl+T and Ctrl+Shift+T each find the nearest cut of their own media, and a
+/// selected edge on a cut of the other kind declines with the chord that fits.
+#[test]
+fn each_chord_puts_its_default_on_a_cut_of_its_own_media() {
+    const NO_CUT: &str = "No cut between two clips to put a transition on";
+
+    let (mut state, left, right) = with_sound_cut();
+    state.clear_selection();
+    state
+        .add_default_transition(TransitionMedia::Picture)
+        .expect("inert");
+    assert_eq!(state.clip_transition_id(left), None);
+    assert_eq!(state.status_message.as_deref(), Some(NO_CUT));
+    state
+        .add_default_transition(TransitionMedia::Audio)
+        .expect("crossfade");
+    assert_eq!(
+        state.clip_transition_id(left).as_deref(),
+        Some(AudioTransition::DEFAULT.id())
+    );
+    state.clear_clip_transition(left).expect("remove");
+
+    // The In edge of the right clip addresses the same cut.
+    state.select_edge(right, crate::types::TrimSide::In);
+    state
+        .add_default_transition(TransitionMedia::Picture)
+        .expect("inert");
+    assert_eq!(state.clip_transition_id(left), None);
+    assert_eq!(
+        state.status_message.as_deref(),
+        Some(Decline::SoundCut.reason())
+    );
+    state
+        .add_default_transition(TransitionMedia::Audio)
+        .expect("crossfade");
+    assert_eq!(
+        state.clip_transition_id(left).as_deref(),
+        Some(AudioTransition::DEFAULT.id())
+    );
+
+    let (mut state, left, _) = with_cut();
+    state.clear_selection();
+    state
+        .add_default_transition(TransitionMedia::Audio)
+        .expect("inert");
+    assert_eq!(state.clip_transition_id(left), None);
+    assert_eq!(state.status_message.as_deref(), Some(NO_CUT));
+    state
+        .add_default_transition(TransitionMedia::Picture)
+        .expect("blend");
+    assert_eq!(
+        state.clip_transition_id(left),
+        transition_catalog().first().map(|spec| spec.id.clone())
+    );
+}
+
+#[test]
+fn transition_alignment_projects_and_switches_from_menu_and_inspector() {
+    use crate::surfaces::clip_pick::{self, Pick};
+    use crate::surfaces::context_menu::{ClipMenu, TRANSITION_ITEMS};
+    use aria_models::TransitionAlignment;
+
+    let (mut state, left, _) = with_cut();
+    let id = aria_models::shipped_transition_catalog()[0].id.clone();
+    state.select_clip(left);
+    state.set_selected_transition(&id).expect("add transition");
+    assert_eq!(
+        state.selected_transition_alignment(),
+        Some(TransitionAlignment::Center)
+    );
+
+    for (align, expected_checked, expected_window) in [
+        (TransitionAlignment::Start, "• Start at Cut", (48, 72)),
+        (TransitionAlignment::End, "• End at Cut", (24, 48)),
+        (TransitionAlignment::Center, "• Center at Cut", (36, 60)),
+    ] {
+        clip_pick::apply(&mut state, Pick::TransitionAlignment(align)).expect("pick alignment");
+        assert_eq!(state.selected_transition_alignment(), Some(align));
+        let ui_tr = state
+            .ui_clip_ref(left)
+            .and_then(|c| c.transition.as_ref())
+            .expect("projected transition");
+        assert_eq!(ui_tr.window(48), expected_window);
+        let facts = ClipMenu::of(&state, left.raw());
+        let labels: Vec<&str> = TRANSITION_ITEMS
+            .iter()
+            .filter_map(|item| item.row().map(|row| (row.label)(&facts)))
+            .collect();
+        assert!(
+            labels.contains(&expected_checked),
+            "expected {expected_checked:?} in {labels:?}"
+        );
+    }
 }

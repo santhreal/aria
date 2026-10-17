@@ -22,6 +22,8 @@ fn lane(timeline: &mut Timeline, kind: TrackKind, name: &str) -> TrackId {
 }
 
 fn bus_of(buses: &[AudioBus<'_>], track: TrackId) -> AudioBus<'static> {
+    static UNITY: Param<f32> = Param::Constant(1.0);
+    static CENTER: Param<f32> = Param::Constant(0.0);
     let found = buses
         .iter()
         .find(|bus| bus.track == track)
@@ -30,6 +32,10 @@ fn bus_of(buses: &[AudioBus<'_>], track: TrackId) -> AudioBus<'static> {
         track: found.track,
         is_bus: found.is_bus,
         gain: found.gain,
+        pan: found.pan,
+        automation: found.automation,
+        volume_envelope: &UNITY,
+        pan_envelope: &CENTER,
         output: found.output,
         // The borrow is what makes the graph allocation-free; a test only needs
         // the shape, so the copy carries an empty slice rather than a lifetime.
@@ -612,3 +618,6 @@ fn insert_chains_are_additive_on_disk_and_round_trip() {
         timeline.master_audio_effects()
     );
 }
+
+#[path = "track_automation_tests.rs"]
+mod automation_tests;

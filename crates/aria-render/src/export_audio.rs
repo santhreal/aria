@@ -36,20 +36,25 @@ use std::f32::consts::{FRAC_PI_4, SQRT_2};
 use std::path::PathBuf;
 
 use aria_core::{AudioReader, DecodeError};
-use aria_models::{AudioEffectInstance, ModelError, Param, Project, TrackId, audio_gain_at};
+use aria_models::{
+    AudioEffectInstance, AutomationMode, ClipParam, ModelError, Param, Project, Rational, TrackId,
+    audio_gain_at,
+};
 
+use crate::driver::driven_envelope;
 use crate::error::RenderError;
 
 use crate::audio_dsp::{
-    DenoiseReader, OLA_FRAME, OLA_HOP, OLA_PAD, SpanWarp, ola_aligned_offset, ola_frames,
-    ola_window, warped_source_frame,
+    DenoiseReader, OLA_FRAME, OLA_HOP, OLA_PAD, OLA_WARMUP, SpanWarp, ola_aligned_offset,
+    ola_frames, ola_window, warped_source_frame,
 };
 
 /// Export audio sample rate: the broadcast/web standard for video files.
 pub const EXPORT_AUDIO_RATE: u32 = 48_000;
 /// Export channel count (interleaved stereo).
 pub const EXPORT_AUDIO_CHANNELS: u16 = 2;
-
+/// Highest shuttle multiple (`|speed| <= 4x`) at which preview audio plays.
+const MAX_SHUTTLE_AUDIO_SPEED: i32 = 4;
 const CHANNELS: usize = EXPORT_AUDIO_CHANNELS as usize;
 
 /// One audible clip resolved to output sample frames at [`EXPORT_AUDIO_RATE`].
@@ -81,6 +86,10 @@ pub struct Span {
     /// Fade ramp lengths in output sample frames, anchored at the span edges.
     pub fade_in: i64,
     pub fade_out: i64,
+    /// Crossfade ramps from audio transitions at this span's cuts. Each one
+    /// replaces the fade on its side.
+    pub crossfade_in: Option<Crossfade>,
+    pub crossfade_out: Option<Crossfade>,
     /// Opened on first overlap, dropped with the mixer.
     pub reader: Option<Box<dyn AudioReader>>,
     /// Source ran out before the span's out-point: the rest pads as silence.
@@ -104,6 +113,8 @@ impl std::fmt::Debug for Span {
             .field("warp", &self.warp)
             .field("preserve_pitch", &self.preserve_pitch)
             .field("denoise", &self.denoise)
+            .field("crossfade_in", &self.crossfade_in)
+            .field("crossfade_out", &self.crossfade_out)
             .field("has_reader", &self.reader.is_some())
             .field("exhausted", &self.exhausted)
             .field("bus", &self.bus)
@@ -139,6 +150,8 @@ impl Span {
             pan,
             fade_in,
             fade_out,
+            crossfade_in: None,
+            crossfade_out: None,
             reader,
             exhausted: false,
             bus,
@@ -179,6 +192,14 @@ fn size_overwritten_scratch(scratch: &mut Vec<f32>, len: usize) {
 pub struct BusNode {
     /// The lane's fader, as linear gain.
     pub gain: f32,
+    /// The lane's stereo pan (`-1.0..=1.0`).
+    pub pan: f32,
+    /// The lane's automation mode.
+    pub automation: AutomationMode,
+    /// Sequence-tick volume automation curve.
+    pub volume_envelope: Param<f32>,
+    /// Sequence-tick pan automation curve.
+    pub pan_envelope: Param<f32>,
     /// Where this lane's own sum goes: another bus, or the programme mix.
     pub output: Option<usize>,
     /// `(bus, level, pre_fader)` for each copy of this lane.
@@ -193,10 +214,28 @@ impl BusNode {
     pub fn new(gain: f32, output: Option<usize>, sends: Vec<(usize, f32, bool)>) -> Self {
         Self {
             gain,
+            pan: 0.0,
+            automation: AutomationMode::Off,
+            volume_envelope: Param::Constant(gain),
+            pan_envelope: Param::Constant(0.0),
             output,
             sends,
             live: true,
         }
+    }
+
+    pub(crate) fn apply_fader_and_pan(&self, buf: &mut [f32], start_sample: i64, fps: Rational) {
+        apply_strip_gain_pan(
+            buf,
+            start_sample,
+            fps,
+            false,
+            self.gain,
+            self.pan,
+            self.automation,
+            &self.volume_envelope,
+            &self.pan_envelope,
+        );
     }
 }
 
@@ -213,6 +252,8 @@ pub struct ExportAudioMixer {
     /// Per-output-sample window weight for a stretched block, so the overlap-add
     /// can be normalised at the block's edges.
     weight_scratch: Vec<f32>,
+    /// Decoded timeline window reused across varispeed shuttle blocks.
+    shuttle_scratch: Vec<f32>,
     /// The lane each bus position belongs to, in feed order: what a meter is a
     /// meter *of*. Read straight out of the mix graph, so a reading cannot be
     /// attributed to the wrong strip.
@@ -221,6 +262,16 @@ pub struct ExportAudioMixer {
     /// Sized once; the fold overwrites it in place, so metering costs no
     /// allocation per block.
     peaks: Vec<[f32; 2]>,
+    /// Sequence frame rate for converting sample positions to automation ticks.
+    fps: Rational,
+    /// Master strip fader, pan, mute, automation mode, envelopes, and peak.
+    master_gain: f32,
+    master_pan: f32,
+    master_muted: bool,
+    master_automation: AutomationMode,
+    master_volume: Param<f32>,
+    master_pan_envelope: Param<f32>,
+    master_peak: [f32; 2],
     /// The insert chains and their alignment, when any insert in the project
     /// processes. `None` mixes on the plain path.
     inserts: Option<Box<inserts::InsertGraph>>,
@@ -273,6 +324,10 @@ impl ExportAudioMixer {
             }
             buses.push(BusNode {
                 gain: node.gain,
+                pan: node.pan,
+                automation: node.automation,
+                volume_envelope: node.volume_envelope.clone(),
+                pan_envelope: node.pan_envelope.clone(),
                 output: node.output.bus().map(forward).transpose()?,
                 sends,
                 live: node.reaches_master,
@@ -281,6 +336,8 @@ impl ExportAudioMixer {
         let mut spans = Vec::new();
         // Each span's clip chain, by span.
         let mut clip_inserts: Vec<&[AudioEffectInstance]> = Vec::new();
+        // One lane's spans, for its crossfades.
+        let mut lane = Vec::new();
         for track in timeline.tracks_ordered() {
             let Some(bus) = index_of(track.id) else {
                 continue;
@@ -288,6 +345,7 @@ impl ExportAudioMixer {
             if !graph[bus].reaches_master {
                 continue;
             }
+            lane.clear();
             for clip in track.clips_ordered() {
                 if clip.is_silent() {
                     continue;
@@ -325,6 +383,10 @@ impl ExportAudioMixer {
                 } else {
                     SpanWarp::Linear
                 };
+                // A driven envelope replaces the keyframed one, evaluated once
+                // per frame of the clip.
+                let volume = driven_envelope(project, clip, ClipParam::Volume);
+                let pan = driven_envelope(project, clip, ClipParam::Pan);
                 spans.push(Span {
                     path: media.path().to_path_buf(),
                     start: ticks_to_samples(clip.timeline.start.value, fps.num, fps.den),
@@ -343,20 +405,34 @@ impl ExportAudioMixer {
                     warp,
                     preserve_pitch: clip.preserve_pitch,
                     denoise: clip.denoise,
-                    volume: clip
-                        .volume
+                    volume: volume
+                        .as_ref()
+                        .unwrap_or(&clip.volume)
                         .map_ticks(|tick| ticks_to_samples(tick, fps.num, fps.den)),
-                    pan: clip
-                        .pan
+                    pan: pan
+                        .as_ref()
+                        .unwrap_or(&clip.pan)
                         .map_ticks(|tick| ticks_to_samples(tick, fps.num, fps.den)),
                     fade_in: ticks_to_samples(clip.fade_in, fps.num, fps.den),
                     fade_out: ticks_to_samples(clip.fade_out, fps.num, fps.den),
+                    crossfade_in: None,
+                    crossfade_out: None,
                     reader: None,
                     exhausted: false,
                     bus,
                 });
+                lane.push(xfade::LaneSpan {
+                    clip: clip.id,
+                    span: spans.len() - 1,
+                    media_len: ticks_to_samples(
+                        media.duration.value,
+                        media.duration.rate.num,
+                        media.duration.rate.den,
+                    ),
+                });
                 clip_inserts.push(&clip.audio_effects);
             }
+            xfade::crossfade_lane(track, &lane, &mut spans, fps);
         }
         if spans.is_empty() {
             return Ok(None);
@@ -373,11 +449,20 @@ impl ExportAudioMixer {
             bus_buffers: vec![Vec::new(); buses.len()],
             lanes: graph.iter().map(|node| node.track).collect(),
             peaks: vec![[0.0; 2]; buses.len()],
+            fps,
+            master_gain: timeline.master_gain(),
+            master_pan: timeline.master_pan(),
+            master_muted: timeline.master_muted(),
+            master_automation: timeline.master_automation(),
+            master_volume: timeline.master_volume_envelope().clone(),
+            master_pan_envelope: timeline.master_pan_envelope().clone(),
+            master_peak: [0.0; 2],
             buses,
             spans,
             scratch: Vec::new(),
             warp_scratch: Vec::new(),
             weight_scratch: Vec::new(),
+            shuttle_scratch: Vec::new(),
             inserts,
         }))
     }
@@ -392,9 +477,18 @@ impl ExportAudioMixer {
             bus_buffers: vec![Vec::new()],
             lanes: vec![TrackId::from_raw(0)],
             peaks: vec![[0.0; 2]],
+            fps: Rational::FPS_30,
+            master_gain: 1.0,
+            master_pan: 0.0,
+            master_muted: false,
+            master_automation: AutomationMode::Off,
+            master_volume: Param::Constant(1.0),
+            master_pan_envelope: Param::Constant(0.0),
+            master_peak: [0.0; 2],
             scratch: Vec::new(),
             warp_scratch: Vec::new(),
             weight_scratch: Vec::new(),
+            shuttle_scratch: Vec::new(),
             inserts: None,
         }
     }
@@ -408,10 +502,19 @@ impl ExportAudioMixer {
                 .map(|at| TrackId::from_raw(at as u64))
                 .collect(),
             peaks: vec![[0.0; 2]; buses.len()],
+            fps: Rational::FPS_30,
+            master_gain: 1.0,
+            master_pan: 0.0,
+            master_muted: false,
+            master_automation: AutomationMode::Off,
+            master_volume: Param::Constant(1.0),
+            master_pan_envelope: Param::Constant(0.0),
+            master_peak: [0.0; 2],
             buses,
             spans,
             scratch: Vec::new(),
             warp_scratch: Vec::new(),
+            shuttle_scratch: Vec::new(),
             weight_scratch: Vec::new(),
             inserts: None,
         }
@@ -452,10 +555,114 @@ impl ExportAudioMixer {
             )?;
         }
 
-        self.fold_buses(out);
+        self.fold_buses(pos, out);
         for sample in out.iter_mut() {
             *sample = sample.clamp(-1.0, 1.0);
         }
+        Ok(())
+    }
+
+    /// Mix `out.len() / 2` stereo frames for shuttle playback anchored at
+    /// timeline sample `anchor_sample`, at output stream frame `stream_frame`,
+    /// and signed rational speed `speed_num / speed_den`.
+    ///
+    /// Holds pitch via WSOLA for forward and reverse speeds in `(0, 4x]`, and
+    /// writes silence when stopped or above `MAX_SHUTTLE_AUDIO_SPEED`.
+    pub fn mix_shuttle_into(
+        &mut self,
+        anchor_sample: i64,
+        stream_frame: i64,
+        speed_num: i32,
+        speed_den: i32,
+        out: &mut [f32],
+    ) -> Result<(), DecodeError> {
+        let out_frames = out.len() / CHANNELS;
+        if out_frames == 0
+            || speed_num == 0
+            || speed_den <= 0
+            || i64::from(speed_num).abs()
+                > i64::from(MAX_SHUTTLE_AUDIO_SPEED) * i64::from(speed_den)
+        {
+            out.fill(0.0);
+            self.peaks.fill([0.0; 2]);
+            self.master_peak = [0.0; 2];
+            return Ok(());
+        }
+        let rel_start = stream_frame.max(0);
+        if speed_num == speed_den {
+            return self.mix_into(anchor_sample.saturating_add(rel_start), out);
+        }
+        if speed_num == -speed_den {
+            out.fill(0.0);
+            for span in &mut self.spans {
+                span.exhausted = false;
+            }
+            let src_end = (anchor_sample - rel_start).max(0);
+            let src_start = (anchor_sample - rel_start - out_frames as i64).max(0);
+            let need = (src_end - src_start) as usize;
+            if need == 0 {
+                self.peaks.fill([0.0; 2]);
+                self.master_peak = [0.0; 2];
+                return Ok(());
+            }
+            let mut window = std::mem::take(&mut self.shuttle_scratch);
+            window.resize(need * CHANNELS, 0.0);
+            let mix_res = self.mix_into(src_start, &mut window);
+            if let Err(err) = mix_res {
+                self.shuttle_scratch = window;
+                return Err(err);
+            }
+            for i in 0..need {
+                let out_idx = (anchor_sample - 1 - rel_start - (src_start + i as i64)) as usize;
+                out[out_idx * CHANNELS] = window[i * CHANNELS];
+                out[out_idx * CHANNELS + 1] = window[i * CHANNELS + 1];
+            }
+            self.shuttle_scratch = window;
+            return Ok(());
+        }
+        let direction = if speed_num < 0 { -1 } else { 1 };
+        let abs_speed = (f64::from(speed_num) / f64::from(speed_den)).abs();
+        let rel_end = rel_start + out_frames as i64;
+        let mut anchor_at = |rel_out: i64| -> f64 {
+            if direction > 0 {
+                anchor_sample as f64 + (rel_out as f64) * abs_speed
+            } else {
+                (anchor_sample - 1) as f64 - (rel_out as f64) * abs_speed
+            }
+        };
+        let (src_floor, src_ceil) = ola_source_bounds(rel_start, rel_end, &mut anchor_at);
+        let need = (src_ceil - src_floor).max(0) as usize;
+        if need == 0 {
+            out.fill(0.0);
+            self.peaks.fill([0.0; 2]);
+            self.master_peak = [0.0; 2];
+            return Ok(());
+        }
+        for span in &mut self.spans {
+            span.exhausted = false;
+        }
+        let mut window = std::mem::take(&mut self.shuttle_scratch);
+        window.resize(need * CHANNELS, 0.0);
+        let mix_res = self.mix_into(src_floor, &mut window);
+        if let Err(err) = mix_res {
+            self.shuttle_scratch = window;
+            return Err(err);
+        }
+        ola_synthesize(
+            &window,
+            need,
+            src_floor,
+            rel_start,
+            rel_end,
+            direction,
+            &mut anchor_at,
+            &mut self.weight_scratch,
+            out,
+        );
+        for sample in out.iter_mut() {
+            *sample = sample.clamp(-1.0, 1.0);
+        }
+        self.shuttle_scratch = window;
         Ok(())
     }
 
@@ -497,7 +704,7 @@ impl ExportAudioMixer {
     /// a lane only ever writes forward and the split borrow is exact: the lane
     /// being folded is read out of `upstream`, everything it feeds is written
     /// through `downstream`.
-    fn fold_buses(&mut self, out: &mut [f32]) {
+    fn fold_buses(&mut self, pos: i64, out: &mut [f32]) {
         for i in 0..self.buses.len() {
             // Nothing a dead lane carries reaches the programme mix, including
             // what a live lane routed into it.
@@ -513,12 +720,7 @@ impl ExportAudioMixer {
                     add_scaled(&mut downstream[target - i - 1], &upstream[i], level);
                 }
             }
-            let gain = self.buses[i].gain;
-            if gain != 1.0 {
-                for sample in self.bus_buffers[i].iter_mut() {
-                    *sample *= gain;
-                }
-            }
+            self.buses[i].apply_fader_and_pan(&mut self.bus_buffers[i], pos, self.fps);
             // Post-fader, before anything this lane feeds is written: what the
             // lane is sending on, which is what a strip's meter is showing.
             self.peaks[i] = stereo_peak(&self.bus_buffers[i]);
@@ -534,6 +736,18 @@ impl ExportAudioMixer {
                 None => add_scaled(out, lane, 1.0),
             }
         }
+        apply_strip_gain_pan(
+            out,
+            pos,
+            self.fps,
+            self.master_muted,
+            self.master_gain,
+            self.master_pan,
+            self.master_automation,
+            &self.master_volume,
+            &self.master_pan_envelope,
+        );
+        self.master_peak = stereo_peak(out);
     }
 
     /// Each lane's post-fader peak from the last block, keyed by the lane it
@@ -543,6 +757,11 @@ impl ExportAudioMixer {
     /// reading with the wrong lane.
     pub fn lane_peaks(&self) -> impl Iterator<Item = (TrackId, [f32; 2])> + '_ {
         self.lanes.iter().copied().zip(self.peaks.iter().copied())
+    }
+
+    /// The master strip's post-fader peak from the last block folded.
+    pub fn master_peak(&self) -> [f32; 2] {
+        self.master_peak
     }
 
     fn mix_linear_span(
@@ -606,28 +825,15 @@ impl ExportAudioMixer {
         // touches is anchored on the frames that overlap this block, not on the
         // block's own samples.
         let stretch = span.preserve_pitch && !span.warp.is_unity();
-        let (first_frame, last_frame) = ola_frames(rel_start, rel_end);
-        let mut src_min = f64::MAX;
-        let mut src_max = f64::MIN;
-        if stretch {
-            // One frame earlier as well: the alignment search compares against
-            // where the previous frame would have carried on to.
-            for k in (first_frame - 1).max(0)..=last_frame {
-                let anchor = span_source_offset(span, k * OLA_HOP as i64, span_len);
-                src_min = src_min.min(anchor);
-                src_max = src_max.max(anchor);
-            }
-            src_min -= OLA_PAD as f64;
-            src_max += OLA_PAD as f64;
+        let (src_floor, src_ceil) = if stretch {
+            ola_source_bounds(rel_start, rel_end, &mut |rel| {
+                span_source_offset(span, rel, span_len)
+            })
         } else {
-            let (minimum, maximum, _evaluations) =
+            let (src_min, src_max, _evaluations) =
                 monotonic_source_bounds(span, rel_start, rel_end, span_len);
-            src_min = minimum;
-            src_max = maximum;
-        }
-
-        let src_floor = (src_min.floor() as i64).max(0);
-        let src_ceil = src_max.ceil() as i64 + 1;
+            ((src_min.floor() as i64).max(0), src_max.ceil() as i64 + 1)
+        };
         let need = (src_ceil - src_floor).max(0) as usize;
         if need == 0 {
             return Ok(());
@@ -654,60 +860,19 @@ impl ExportAudioMixer {
 
         size_overwritten_scratch(scratch, out_frames * CHANNELS);
         if stretch {
-            scratch.fill(0.0);
-            weight_scratch.resize(out_frames, 0.0);
-            weight_scratch.fill(0.0);
             let window = &warp_scratch[..got * CHANNELS];
-            // Reversed spans walk the source backward, so a frame plays backward
-            // at unit rate rather than forward from a receding anchor.
             let direction = if span.reversed { -1 } else { 1 };
-            let mut previous = None;
-            for k in (first_frame - 1).max(0)..=last_frame {
-                let anchor = span_source_offset(span, k * OLA_HOP as i64, span_len);
-                if k < first_frame {
-                    previous = Some(anchor);
-                    continue;
-                }
-                let aligned = ola_aligned_offset(anchor, previous, direction, &mut |pos| {
-                    mono_at(window, got, src_floor, pos)
-                });
-                previous = Some(anchor);
-                let base_out = k * OLA_HOP as i64;
-                for i in 0..OLA_FRAME {
-                    let rel = base_out + i as i64;
-                    if rel < rel_start || rel >= rel_end {
-                        continue;
-                    }
-                    let weight = ola_window(i);
-                    let pos = aligned + (direction * i as i64) as f64;
-                    let out_idx = (rel - rel_start) as usize;
-                    weight_scratch[out_idx] += weight;
-                    for ch in 0..CHANNELS {
-                        scratch[out_idx * CHANNELS + ch] +=
-                            weight * sample_at(window, got, src_floor, pos, ch);
-                    }
-                }
-            }
-            // Divide by the weight that actually landed, not by the ideal sum of
-            // two Hann halves. At the very start and end of a span only one
-            // frame overlaps, and dividing by the ideal would fade the first and
-            // last ten milliseconds of every retimed clip.
-            for (out_idx, &weight) in weight_scratch.iter().enumerate() {
-                if weight < 1e-4 {
-                    for ch in 0..CHANNELS {
-                        scratch[out_idx * CHANNELS + ch] = 0.0;
-                    }
-                    continue;
-                }
-                let inv = 1.0 / weight;
-                for ch in 0..CHANNELS {
-                    let s = &mut scratch[out_idx * CHANNELS + ch];
-                    *s *= inv;
-                    if s.is_subnormal() || !s.is_finite() {
-                        *s = 0.0;
-                    }
-                }
-            }
+            ola_synthesize(
+                window,
+                got,
+                src_floor,
+                rel_start,
+                rel_end,
+                direction,
+                &mut |rel| span_source_offset(span, rel, span_len),
+                weight_scratch,
+                scratch,
+            );
         } else {
             for (out_idx, rel) in (rel_start..rel_end).enumerate() {
                 let src = span_source_offset(span, rel, span_len);
@@ -793,6 +958,10 @@ pub use mix::*;
 #[path = "export_audio_inserts.rs"]
 mod inserts;
 
+#[path = "export_audio_xfade.rs"]
+mod xfade;
+pub use xfade::Crossfade;
+
 #[doc(hidden)]
 pub mod export_audio_bench {
     pub use super::{BusNode, ExportAudioMixer, Span};
@@ -804,3 +973,5 @@ mod pitch_tests;
 mod submix_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod xfade_tests;

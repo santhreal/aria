@@ -208,7 +208,7 @@ was the largest surface in the product with no coverage at all.
 
 ## Plugin system
 
-See [plugin-development.md](plugin-development.md). `aria-plugin` already
+See [plugins/README.md](plugins/README.md). `aria-plugin` already
 depends on compositor and render, so plugin impls that touch GPU live in
 `aria-ui/src/plugins/` rather than in those crates.
 
@@ -225,7 +225,10 @@ Everything the shell draws comes from a registry the shipped code registers into
 like any plugin: panels (`PanelHost`), dialogs and overlays (`OverlayHost`),
 palette commands (`CommandHost`), app-bar menu items (`MenuHost`), key bindings
 (`KeyHost`), plugin settings (`SettingsSchema`), and the effect/transition
-catalogs. The shell holds no panel or dialog module name.
+catalogs. The shell holds no panel or dialog module name. A plugin that does not
+link `aria-ui` registers commands, menu rows, default keys, and settings on
+`PluginContext` (`crates/aria-plugin/src/commands.rs`, `settings_schema.rs`), and
+the palette, the menus, `KeyHost`, and Settings draw them.
 
 Keyboard reach is part of that. A dialog's primary action is a row in
 `app/dialog_primary.rs`, so Enter commits the sheet the same way the button does

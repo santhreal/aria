@@ -118,7 +118,7 @@ pub enum Intent {
     },
     /// Duplicate a clip right after itself (ripple on main, free slot on a
     /// lane). Copies content, speed, transform, audio mix, crop, effect ids,
-    /// and look fields (mask/chroma/stabilize/filter/adjust/animations/role);
+    /// and look fields (masks/chroma/stabilize/filter/adjust/animations/role);
     /// keyframed animation flattens to its start value, speed curves reset.
     Duplicate { clip: ClipId },
     /// Swap a media clip's source for a new file, keeping its slot. The

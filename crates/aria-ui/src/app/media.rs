@@ -38,6 +38,33 @@ impl AppState {
             .ok_or_else(|| EngineError::Export("no track after add".into()))
     }
 
+    /// The first unlocked lane of `kind` with nothing on `start..end`, or a new
+    /// lane of that kind when every one holds a clip there.
+    pub(crate) fn free_kind_track(
+        &mut self,
+        kind: TrackKind,
+        start: i64,
+        end: i64,
+    ) -> Result<TrackId, EngineError> {
+        let ui_kind = crate::types::UiTrackKind::from_model(kind);
+        let free = self.store.sequence.tracks.iter().find(|lane| {
+            lane.kind == ui_kind
+                && !lane.locked
+                && lane.clips.iter().all(|clip| {
+                    clip.timeline_end_ticks <= start || clip.timeline_start_ticks >= end
+                })
+        });
+        if let Some(lane) = free {
+            return Ok(TrackId::from_raw(lane.id));
+        }
+        match self.add_track(kind, kind.default_name())? {
+            ApplyOutcome::Edited(aria_commands::EditOutcome::CreatedTrack(id)) => Ok(id),
+            other => Err(EngineError::Refused(format!(
+                "adding a lane produced {other:?}, not a lane"
+            ))),
+        }
+    }
+
     pub(crate) fn spans_on(&self, track: TrackId) -> Vec<(i64, i64)> {
         self.store
             .sequence
@@ -88,10 +115,41 @@ impl AppState {
         top: bool,
         at: i64,
     ) -> Result<(), EngineError> {
+        let Some(track) = self.new_lane_for(media, top)? else {
+            return Ok(());
+        };
+        self.drop_media_on_timeline(media, Some(track), at)
+    }
+
+    /// Drop the open Source tab's marked range on a new lane above or below
+    /// every other, covering unless `insert`.
+    pub fn drop_source_on_new_lane(
+        &mut self,
+        top: bool,
+        at: i64,
+        insert: bool,
+    ) -> Result<(), EngineError> {
+        let Some(media) = self
+            .sources
+            .focused()
+            .map(|view| MediaId::from_raw(view.media))
+        else {
+            return Ok(());
+        };
+        let Some(track) = self.new_lane_for(media, top)? else {
+            return Ok(());
+        };
+        self.drop_source_on_timeline(Some(track), at, insert)
+    }
+
+    /// A new lane for `media` at the top or the bottom: an audio lane for a
+    /// sound file, a video lane for anything with a picture. `None` when the
+    /// media is not in the pool.
+    fn new_lane_for(&mut self, media: MediaId, top: bool) -> Result<Option<TrackId>, EngineError> {
         let kind = {
             let engine = self.engine.lock();
             let Some(item) = engine.project().media(media) else {
-                return Ok(());
+                return Ok(None);
             };
             if item.kind() == aria_models::MediaKind::Audio {
                 TrackKind::Audio
@@ -100,8 +158,7 @@ impl AppState {
             }
         };
         let index = if top { Some(0) } else { None };
-        let track = self.add_lane_of_kind(kind, index)?;
-        self.drop_media_on_timeline(media, Some(track), at)
+        self.add_lane_of_kind(kind, index).map(Some)
     }
 
     pub(crate) fn add_lane_of_kind(
@@ -143,44 +200,33 @@ impl AppState {
         track: Option<TrackId>,
         start_ticks: i64,
     ) -> Result<(), EngineError> {
-        let (source, kind) = {
-            let engine = self.engine.lock();
-            let Some(item) = engine.project().media(media) else {
-                return Ok(());
-            };
-            (
-                item.full_range(),
-                if item.kind() == aria_models::MediaKind::Audio {
-                    TrackKind::Audio
-                } else {
-                    TrackKind::Video
-                },
-            )
+        let Some(source) = self
+            .engine
+            .lock()
+            .project()
+            .media(media)
+            .map(|item| item.full_range())
+        else {
+            return Ok(());
         };
-        let track = self.drop_target_track(kind, track)?;
-        let at = RationalTime::new(start_ticks.max(0), self.playhead.rate);
-        // Ripple pushes downstream clips right by the new clip's length;
-        // Overwrite covers whatever is already in the span it lands on.
-        let command = match self.edit_mode {
-            crate::types::EditMode::Ripple => EditCommand::RippleInsert {
-                track,
-                media,
-                source,
-                at,
-            },
-            crate::types::EditMode::Overwrite => EditCommand::OverwriteClip {
-                track,
-                media,
-                source,
-                at,
-            },
-        };
-        self.apply_command(Command::Edit(command))?;
+        // Ripple opens a hole on the patched and sync-locked lanes first;
+        // Overwrite covers whatever is already in the span.
+        self.place_source(super::source_patch::SourcePlacement {
+            media,
+            source,
+            at: RationalTime::new(start_ticks.max(0), self.playhead.rate),
+            fill: None,
+            ripple: self.edit_mode == crate::types::EditMode::Ripple,
+            aimed: track,
+        })?;
         Ok(())
     }
 
     pub fn focus_media_search(&mut self, focused: bool) {
         self.media_search_focus = focused;
+        if focused {
+            self.effects_browser.focused = false;
+        }
     }
 
     pub fn media_query_push(&mut self, ch: char) {
@@ -385,7 +431,7 @@ pub(super) fn media_matches(item: &crate::types::UiMediaItem, query: &str) -> bo
         return true;
     }
     if let Some(label) = item.label {
-        if label.name().contains(query) {
+        if label.id().contains(query) {
             return true;
         }
     }

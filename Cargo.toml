@@ -23,7 +23,12 @@ members = [
     "crates/aria-transcription",
     "crates/aria-ui-gallery",
     "crates/aria-plugin",
+    "crates/aria-plugin-abi",
+    "crates/aria-plugin-wasm",
+    "crates/aria-sdk",
+    "crates/aria-interchange",
     "crates/aria-ui",
+    "crates/aria-bench",
     "apps/aria-desktop",
     "examples/notes-plugin",
 ]
@@ -36,6 +41,8 @@ default-members = ["apps/aria-desktop"]
 exclude = [
     "crates/aria-py",
     "fuzz",
+    # A guest component: built for wasm32-wasip2 from its own directory.
+    "examples/wasm-plugin",
 ]
 resolver = "3"
 
@@ -70,13 +77,20 @@ missing_debug_implementations = "warn"
 
 [workspace.dependencies]
 thiserror = "2"
-serde = { version = "1.0.228", features = ["derive"] }
+serde = { version = "1.0.228", features = ["derive", "rc"] }
 serde_json = "1.0.150"
 rustc-hash = "2"
 tracing = "0.1"
 parking_lot = "0.12"
 # dlopen for external plugin libraries.
 libloading = "0.8"
+# Runtime for WebAssembly component plugins.
+wasmtime = { version = "49", default-features = false, features = [
+    "component-model",
+    "cranelift",
+    "runtime",
+    "std",
+] }
 # GPU compositor. Preview currently CPU-readbacks into GPUI textures;
 # wgpu stays pinned so the engine compositor does not drift.
 wgpu = "29"
@@ -87,8 +101,8 @@ bytemuck = { version = "1", features = ["derive"] }
 pollster = "0.4"
 # GPUI from santhreal/santh-gpui, the framework shared with iris and Veyyon.
 # License: Apache-2.0; text in LICENSES/zed-Apache-2.0.txt.
-gpui = { git = "https://github.com/santhreal/santh-gpui", rev = "3799b5f92fc783a999fecf03e73155e8741c7615" }
-gpui_platform = { git = "https://github.com/santhreal/santh-gpui", rev = "3799b5f92fc783a999fecf03e73155e8741c7615", features = [
+gpui = { git = "https://github.com/santhreal/santh-gpui", rev = "81bb19ec60c71ee904bc649655c9480ad7c28715" }
+gpui_platform = { git = "https://github.com/santhreal/santh-gpui", rev = "81bb19ec60c71ee904bc649655c9480ad7c28715", features = [
     "wayland",
     "x11",
     "font-kit",

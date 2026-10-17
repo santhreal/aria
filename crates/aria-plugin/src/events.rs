@@ -64,6 +64,7 @@ struct Handler {
 
 struct HandlerEntry {
     id: usize,
+    priority: i32,
     handler: Arc<Handler>,
 }
 
@@ -201,19 +202,33 @@ impl EventBus {
         call: Box<dyn Any + Send + Sync>,
         lane: Lane,
     ) -> Registration {
+        self.insert_with_priority(type_id, 0, call, lane)
+    }
+
+    fn insert_with_priority(
+        self: &Arc<Self>,
+        type_id: TypeId,
+        priority: i32,
+        call: Box<dyn Any + Send + Sync>,
+        lane: Lane,
+    ) -> Registration {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
-        self.handlers
-            .write()
-            .entry(type_id)
-            .or_default()
-            .push(HandlerEntry {
+        let mut map = self.handlers.write();
+        let entries = map.entry(type_id).or_default();
+        let at = entries.partition_point(|e| e.priority >= priority);
+        entries.insert(
+            at,
+            HandlerEntry {
                 id,
+                priority,
                 handler: Arc::new(Handler {
                     call,
                     lane,
                     live: AtomicBool::new(true),
                 }),
-            });
+            },
+        );
+        drop(map);
         Registration::handler(type_id, id, self)
     }
 
@@ -396,15 +411,30 @@ impl EventBus {
         WaterfallResult::Completed
     }
 
-    /// Subscribe to a serial (first-non-None-wins) event.
+    /// Subscribe to a serial (first-non-None-wins) event at default priority `0`.
     pub fn on_serial<E, R, F>(self: &Arc<Self>, handler: F) -> Registration
     where
         E: SerialEvent,
         R: Send + Sync + 'static,
         F: Fn(&E) -> Option<R> + Send + Sync + 'static,
     {
+        self.on_serial_with_priority(0, handler)
+    }
+
+    /// Subscribe to a serial (first-non-None-wins) event at `priority`.
+    /// Higher priorities run first; ties run in registration (mount) order.
+    pub fn on_serial_with_priority<E, R, F>(
+        self: &Arc<Self>,
+        priority: i32,
+        handler: F,
+    ) -> Registration
+    where
+        E: SerialEvent,
+        R: Send + Sync + 'static,
+        F: Fn(&E) -> Option<R> + Send + Sync + 'static,
+    {
         let boxed: Box<dyn Fn(&E) -> Option<R> + Send + Sync> = Box::new(handler);
-        self.insert(TypeId::of::<E>(), Box::new(boxed), Lane::Delivery)
+        self.insert_with_priority(TypeId::of::<E>(), priority, Box::new(boxed), Lane::Delivery)
     }
 
     /// First non-None wins, on this thread. Remaining handlers are not called.

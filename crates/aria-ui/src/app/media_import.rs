@@ -8,10 +8,25 @@
 
 use super::*;
 
-/// The extensions an import dialog offers, and a drop claim accepts.
+/// The extensions the platform decoders read, offered by every import dialog.
 pub const MEDIA_IMPORT_EXTENSIONS: &[&str] = &[
     "mp4", "mov", "mkv", "webm", "wav", "mp3", "png", "jpg", "jpeg", "webp",
 ];
+
+/// The extensions an import dialog offers and a drop claim accepts:
+/// [`MEDIA_IMPORT_EXTENSIONS`], then every extension a decoder plugin claims.
+pub fn media_import_extensions() -> Vec<String> {
+    let mut all: Vec<String> = MEDIA_IMPORT_EXTENSIONS
+        .iter()
+        .map(|ext| (*ext).to_owned())
+        .collect();
+    for ext in aria_decoder::external_decoder_extensions() {
+        if !all.contains(&ext) {
+            all.push(ext);
+        }
+    }
+    all
+}
 
 impl AppState {
     pub fn import_media(&mut self, path: PathBuf) -> Result<MediaId, EngineError> {
@@ -40,6 +55,7 @@ impl AppState {
         let mut video = Vec::new();
         let mut audio = Vec::new();
         for path in paths {
+            self.load_plugins_for_file(&path);
             let media = self.import_media(path)?;
             let Some(item) = self.store.media.iter().find(|item| item.id == media.raw()) else {
                 continue;
@@ -88,23 +104,94 @@ impl AppState {
             .ok_or_else(|| {
                 aria_models::ModelError::InvalidParam(format!("no generator `{effect_id}`"))
             })?;
+        self.place_effect_generator(&spec.id, &spec.label, None, track, at)
+    }
+
+    /// Place the plugin clip type `type_id` at the playhead.
+    pub fn add_clip_type(&mut self, type_id: &str) -> Result<(), EngineError> {
+        self.drop_clip_type_on_timeline(type_id, None, self.playhead.value.max(0))
+    }
+
+    /// Place the plugin clip type `type_id` on `track` at `at`: its generator,
+    /// placed as [`Self::drop_effect_generator_on_timeline`] places one, named
+    /// after the type and holding the type's id, as one undo step. Refused when
+    /// no plugin lists the type or its generator cannot draw it.
+    pub fn drop_clip_type_on_timeline(
+        &mut self,
+        type_id: &str,
+        track: Option<TrackId>,
+        at: i64,
+    ) -> Result<(), EngineError> {
+        let spec = aria_models::clip_type_spec(type_id).ok_or_else(|| {
+            aria_models::ModelError::InvalidParam(format!("no clip type `{type_id}`"))
+        })?;
+        if let Some(reason) = spec.unavailable() {
+            return Err(aria_models::ModelError::InvalidParam(format!(
+                "{} cannot be placed: {reason}",
+                spec.label
+            ))
+            .into());
+        }
+        self.place_effect_generator(&spec.generator, &spec.label, Some(&spec.id), track, at)
+    }
+
+    /// A transparent solid on `track` at `at`, with `effect_id` first in its
+    /// chain, named `name`, and holding `clip_type` when one is given, as one
+    /// undo step.
+    fn place_effect_generator(
+        &mut self,
+        effect_id: &str,
+        name: &str,
+        clip_type: Option<&str>,
+        track: Option<TrackId>,
+        at: i64,
+    ) -> Result<(), EngineError> {
         self.one_step(|state| {
             let clip = state.place_generated(Generator::SolidColor { rgba: [0; 4] }, track, at)?;
             state.apply_command(Command::Edit(EditCommand::AddEffect {
                 clip,
-                effect_id: spec.id.clone(),
+                effect_id: effect_id.to_owned(),
             }))?;
             state.apply_command(Command::Edit(EditCommand::SetClipName {
                 clip,
-                name: Some(spec.label.clone()),
+                name: Some(name.to_owned()),
             }))?;
+            if let Some(clip_type) = clip_type {
+                state.apply_command(Command::Edit(EditCommand::SetClipType {
+                    clip,
+                    clip_type: Some(clip_type.to_owned()),
+                }))?;
+            }
             Ok(())
         })
     }
 
-    /// Place `generator` on `track`, or on the first lane of its kind, at `at`,
-    /// and return the new clip.
-    fn place_generated(
+    /// Detach the selected clip from its clip type: the clip keeps its chain
+    /// and its name, and stops taking the type's colour, icon, and handles.
+    /// Inert with no selection or on a clip that holds no type.
+    pub fn detach_selected_clip_type(&mut self) -> Result<(), EngineError> {
+        let Some(clip) = self.selected_clip() else {
+            return Ok(());
+        };
+        let typed = self
+            .engine
+            .lock()
+            .project()
+            .clip(clip)
+            .is_some_and(|clip| clip.clip_type.is_some());
+        if !typed {
+            return Ok(());
+        }
+        self.apply_command(Command::Edit(EditCommand::SetClipType {
+            clip,
+            clip_type: None,
+        }))?;
+        Ok(())
+    }
+
+    /// Place `generator` on `track`, or on the first lane of its kind free at
+    /// `at` (a new lane when none is), and return the new clip.
+    pub(crate) fn place_generated(
         &mut self,
         generator: Generator,
         track: Option<TrackId>,
@@ -115,6 +202,9 @@ impl AppState {
         // generator landed there whatever its row said.
         let kind = generator.spec().lane;
         let ui_kind = crate::types::UiTrackKind::from_model(kind);
+        let rate = self.playhead.rate;
+        let duration = ((5 * i64::from(rate.num.max(1))) / i64::from(rate.den.max(1))).max(1);
+        let at = at.max(0);
         let track = match track.filter(|id| {
             self.store
                 .sequence
@@ -123,14 +213,12 @@ impl AppState {
                 .any(|lane| lane.id == id.raw() && lane.kind == ui_kind)
         }) {
             Some(id) => id,
-            None => self.ensure_kind_track(kind)?,
+            None => self.free_kind_track(kind, at, at + duration)?,
         };
-        let rate = self.playhead.rate;
-        let duration = (5 * i64::from(rate.num.max(1))) / i64::from(rate.den.max(1));
         match self.apply_command(Command::Edit(EditCommand::AddGenerated {
             track,
             generator,
-            timeline: TimeRange::at_rate(at.max(0), duration.max(1), rate),
+            timeline: TimeRange::at_rate(at, duration, rate),
         }))? {
             ApplyOutcome::Edited(aria_commands::EditOutcome::Created(clip)) => Ok(clip),
             other => Err(EngineError::Refused(format!(

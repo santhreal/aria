@@ -254,11 +254,16 @@ impl std::fmt::Display for ProcessorFault {
 /// Receives the faults of one registered processor.
 pub type FaultSink = Arc<dyn Fn(&ProcessorFault) + Send + Sync>;
 
+/// Receives the measured per-block execution duration of one registered
+/// processor.
+pub type CostSink = Arc<dyn Fn(Duration) + Send + Sync>;
+
 struct Entry {
     id: String,
     token: u64,
     factory: Arc<dyn AudioProcessorFactory>,
     on_fault: Option<FaultSink>,
+    on_cost: Option<CostSink>,
 }
 
 static PROCESSORS: RwLock<Vec<Entry>> = RwLock::new(Vec::new());
@@ -289,6 +294,18 @@ pub fn register_audio_processor(
     factory: Arc<dyn AudioProcessorFactory>,
     on_fault: Option<FaultSink>,
 ) -> Result<ProcessorRegistration, String> {
+    register_audio_processor_with_cost(id, factory, on_fault, None)
+}
+
+/// Register the factory for audio effect `id`, reporting processor faults to
+/// `on_fault` and per-block execution durations to `on_cost`. Refused for an
+/// empty id, a shipped id, and an id already registered.
+pub fn register_audio_processor_with_cost(
+    id: impl Into<String>,
+    factory: Arc<dyn AudioProcessorFactory>,
+    on_fault: Option<FaultSink>,
+    on_cost: Option<CostSink>,
+) -> Result<ProcessorRegistration, String> {
     let id = id.into();
     if id.is_empty() {
         return Err("an audio processor needs an id".into());
@@ -306,6 +323,7 @@ pub fn register_audio_processor(
         token,
         factory,
         on_fault,
+        on_cost,
     });
     Ok(ProcessorRegistration { token })
 }
@@ -320,31 +338,37 @@ pub fn audio_processor_registered(id: &str) -> bool {
         .any(|entry| entry.id == id)
 }
 
-/// A created processor, or the fault its factory raised, with its fault sink.
+/// A created processor, or the fault its factory raised, with its fault and
+/// cost sinks.
 type Created = (
     Result<Box<dyn AudioProcessor>, ProcessorFault>,
     Option<FaultSink>,
+    Option<CostSink>,
 );
 
-/// A new processor for `id` at `sample_rate`, with the sink its faults go to:
-/// the registered one, else the shipped one, which has no sink.
+/// A new processor for `id` at `sample_rate`, with the sinks its faults and
+/// per-block timings go to: the registered ones, else the shipped one, which
+/// has neither.
 ///
 /// `None` when there is neither. A factory that panics returns `Err` with the
 /// fault, for the caller to report.
 pub(crate) fn create_processor(id: &str, sample_rate: u32) -> Option<Created> {
     let registered = {
         let processors = PROCESSORS.read().unwrap_or_else(PoisonError::into_inner);
-        processors
-            .iter()
-            .find(|entry| entry.id == id)
-            .map(|entry| (Arc::clone(&entry.factory), entry.on_fault.clone()))
+        processors.iter().find(|entry| entry.id == id).map(|entry| {
+            (
+                Arc::clone(&entry.factory),
+                entry.on_fault.clone(),
+                entry.on_cost.clone(),
+            )
+        })
     };
-    let (factory, on_fault) = match registered {
+    let (factory, on_fault, on_cost) = match registered {
         Some(found) => found,
         None => {
             let shipped: Arc<dyn AudioProcessorFactory> =
                 Arc::new(crate::audio_fx::shipped(id)?.make);
-            (shipped, None)
+            (shipped, None, None)
         }
     };
     let created =
@@ -354,7 +378,7 @@ pub(crate) fn create_processor(id: &str, sample_rate: u32) -> Option<Created> {
                 kind: FaultKind::Panicked(panic_message(payload.as_ref())),
             }
         });
-    Some((created, on_fault))
+    Some((created, on_fault, on_cost))
 }
 
 /// The text of a panic payload, or a placeholder for a payload that is not

@@ -81,6 +81,25 @@ fn tracks_stack_bottom_to_top() {
     assert_eq!(scene.layers[1].source, LayerSource::Solid([0, 0, 255, 255]));
 }
 
+/// Every horizontal alignment the model has reaches the text style under the
+/// same name, and the kerning switch rides along with each. A model variant
+/// added without a renderer counterpart fails here by name.
+#[test]
+fn every_text_alignment_and_the_kerning_switch_reach_the_render_style() {
+    for align_h in aria_models::TextAlignH::ALL {
+        for kerning in [true, false] {
+            let model = ModelTextStyle {
+                align_h,
+                kerning,
+                ..ModelTextStyle::default()
+            };
+            let mapped = crate::resolve::generator::map_text_style(&model, 1920.0, 1080.0, 0);
+            assert_eq!(format!("{:?}", mapped.align), format!("{align_h:?}"));
+            assert_eq!(mapped.kerning, kerning, "{align_h:?}");
+        }
+    }
+}
+
 #[test]
 fn text_generator_maps_style_and_defers_size() {
     let mut project = Project::new("p", FPS_24);
@@ -424,4 +443,39 @@ fn a_crop_override_replaces_one_clip_s_crop_for_one_render() {
         approx(layer.uv[0], 0.75);
         approx(layer.uv[2], 0.25);
     }
+}
+
+#[test]
+fn disabled_clip_produces_no_layer_and_exposes_lower_track() {
+    let mut project = Project::new("p", FPS_24);
+    let bottom = project.add_track(TrackKind::Sticker, "S1");
+    let top = project.add_track(TrackKind::Sticker, "S2");
+    let low = project
+        .add_generated(
+            bottom,
+            Generator::SolidColor {
+                rgba: [255, 0, 0, 255],
+            },
+            tr(0, 100),
+        )
+        .unwrap();
+    let high = project
+        .add_generated(
+            top,
+            Generator::SolidColor {
+                rgba: [0, 0, 255, 255],
+            },
+            tr(0, 100),
+        )
+        .unwrap();
+    project.clip_mut(high).unwrap().enabled = false;
+
+    let scene = resolve(&project, rt(5)).unwrap();
+    assert_eq!(scene.layers.len(), 1);
+    assert_eq!(scene.layers[0].clip, Some(low));
+    assert_eq!(scene.layers[0].source, LayerSource::Solid([255, 0, 0, 255]));
+
+    project.clip_mut(low).unwrap().enabled = false;
+    let empty_scene = resolve(&project, rt(5)).unwrap();
+    assert!(empty_scene.layers.is_empty());
 }

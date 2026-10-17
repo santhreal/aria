@@ -11,14 +11,22 @@ use std::time::{Duration, Instant};
 use aria_plugin::PluginContext;
 
 use crate::app::AppState;
-use crate::app::meter::decay;
-use crate::audio::block_peaks;
+use crate::app::meter::{
+    METER_FLOOR_DBFS, MeterReading, PEAK_HOLD_SECONDS, decay, hold_peak, meter_fraction,
+};
+use crate::audio::{BlockLevels, block_levels};
 use crate::scratch_pool::scratch;
 
 fn state() -> AppState {
     let mut state = AppState::new(PluginContext::new(), scratch("meter")).expect("state");
     state.new_project().expect("project");
     state
+}
+
+/// The peaks and clip flag of a block.
+fn block_peaks(data: &[f32], channels: usize) -> ([f32; 2], bool) {
+    let levels = block_levels(data, channels);
+    (levels.peak, levels.clipped)
 }
 
 #[test]
@@ -156,15 +164,129 @@ fn a_clip_is_acknowledged_rather_than_forgotten_on_its_own() {
 fn stopping_playback_drops_the_bars_and_keeps_the_clip() {
     let handle = crate::audio::AudioHandle::new();
     handle.publish_block(&[0.8, 1.0], 2);
-    assert_eq!(handle.peaks(), ([0.8, 1.0], true));
+    let levels = handle.levels();
+    assert_eq!((levels.peak, levels.clipped), ([0.8, 1.0], true));
+    assert_eq!(levels.rms, [0.8, 1.0]);
     handle.publish_stop();
-    let (peaks, clipped) = handle.peaks();
+    let levels = handle.levels();
     assert_eq!(
-        peaks,
-        [0.0, 0.0],
+        (levels.peak, levels.rms),
+        ([0.0, 0.0], [0.0, 0.0]),
         "a stopped stream leaves no bars standing"
     );
-    assert!(clipped, "the clip is a receipt for what was heard");
+    assert!(levels.clipped, "the clip is a receipt for what was heard");
     handle.clear_clip();
-    assert!(!handle.peaks().1);
+    assert!(!handle.levels().clipped);
+}
+
+#[test]
+fn rms_is_the_root_mean_square_of_each_side() {
+    // Left 0.6 and -0.8: sqrt((0.36 + 0.64) / 2). Right one sample of 0.5 and
+    // one of zero: sqrt(0.25 / 2).
+    let levels = block_levels(&[0.6, 0.5, -0.8, 0.0], 2);
+    assert_eq!(levels.peak, [0.8, 0.5]);
+    assert!(
+        (levels.rms[0] - 0.5f32.sqrt()).abs() < 1e-6,
+        "{:?}",
+        levels.rms
+    );
+    assert!(
+        (levels.rms[1] - 0.125f32.sqrt()).abs() < 1e-6,
+        "{:?}",
+        levels.rms
+    );
+    assert!(levels.rms[0] <= levels.peak[0] && levels.rms[1] <= levels.peak[1]);
+}
+
+#[test]
+fn rms_skips_what_a_broken_decoder_sends_and_doubles_a_mono_side() {
+    let levels = block_levels(&[f32::NAN, 0.3, 0.3, f32::INFINITY], 2);
+    assert_eq!(levels.rms, [0.3, 0.3], "a non-finite sample is not counted");
+    let mono = block_levels(&[0.5, -0.5], 1);
+    assert_eq!(mono.rms, [0.5, 0.5]);
+    assert_eq!(block_levels(&[], 2), BlockLevels::default());
+    let unread = block_levels(&[f32::NAN, f32::NAN], 2);
+    assert_eq!(
+        unread.rms,
+        [0.0, 0.0],
+        "no finite sample reads silent, not NaN"
+    );
+}
+
+#[test]
+fn the_hold_line_stays_up_for_the_hold_time_then_follows_the_bar() {
+    assert_eq!(hold_peak(0.5, 1.0, 0.9, 0.02), (0.9, 0.0), "a rise re-arms");
+    assert_eq!(
+        hold_peak(0.9, 0.0, 0.2, 1.0),
+        (0.9, 1.0),
+        "held inside the time"
+    );
+    let (line, age) = hold_peak(0.9, 1.0, 0.2, 0.6);
+    assert_eq!(
+        (line, age),
+        (0.2, PEAK_HOLD_SECONDS),
+        "expired: follows the bar"
+    );
+    assert_eq!(
+        hold_peak(0.2, PEAK_HOLD_SECONDS, 0.1, 100.0),
+        (0.1, PEAK_HOLD_SECONDS),
+        "the age is capped, so a reading at rest is stable"
+    );
+    assert_eq!(
+        hold_peak(0.9, 0.0, 0.2, -5.0),
+        (0.9, 0.0),
+        "a backwards clock is inert"
+    );
+}
+
+#[test]
+fn the_scale_runs_from_the_floor_to_full_scale() {
+    assert_eq!(meter_fraction(1.0), 1.0, "0 dBFS is the top");
+    assert_eq!(meter_fraction(2.0), 1.0, "an over clamps to the top");
+    let floor = 10f32.powf(METER_FLOOR_DBFS / 20.0);
+    assert!(
+        meter_fraction(floor).abs() < 1e-4,
+        "{}",
+        meter_fraction(floor)
+    );
+    assert_eq!(
+        meter_fraction(floor / 10.0),
+        0.0,
+        "below the floor reads empty"
+    );
+    assert_eq!(meter_fraction(0.0), 0.0);
+    assert_eq!(meter_fraction(f32::NAN), 0.0);
+    // -6 dBFS sits a tenth of the way down a 60 dB scale.
+    assert!((meter_fraction(10f32.powf(-6.0 / 20.0)) - 0.9).abs() < 1e-4);
+}
+
+#[test]
+fn a_held_peak_outlives_the_bar_and_then_drops_with_one_repaint() {
+    let mut state = state();
+    let now = Instant::now();
+    state.audio.publish_block(&[1.0, 1.0], 2);
+    state.meter_tick(now);
+    state.audio.publish_block(&[0.0, 0.0], 2);
+    // The bar has fallen to silence while the line still holds.
+    assert!(state.meter_tick(now + Duration::from_millis(1_000)));
+    let reading = state.meter();
+    assert_eq!(reading.peaks, [0.0, 0.0]);
+    assert_eq!(reading.hold, [1.0, 1.0]);
+    assert!(
+        reading.active(),
+        "a standing hold line keeps the meter drawn"
+    );
+    // Ageing alone changes no pixel.
+    assert!(!state.meter_tick(now + Duration::from_millis(1_200)));
+    // The hold time runs out: one repaint takes the line down.
+    assert!(state.meter_tick(now + Duration::from_millis(1_600)));
+    assert_eq!(
+        state.meter(),
+        MeterReading {
+            hold_age: [PEAK_HOLD_SECONDS; 2],
+            clipped: true,
+            ..MeterReading::default()
+        }
+    );
+    assert!(!state.meter_tick(now + Duration::from_millis(2_000)));
 }

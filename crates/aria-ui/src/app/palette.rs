@@ -6,13 +6,14 @@
 //! that already exist:
 //!
 //! 1. every command in [`CommandHost`](crate::commands::host::CommandHost),
-//! 2. every item the [`MenuHost`](crate::chrome::menu_host::MenuHost) would draw
+//! 2. every command a plugin registered on the context, by its title,
+//! 3. every item the [`MenuHost`](crate::chrome::menu_host::MenuHost) would draw
 //!    in any menu, whose label the commands did not already offer,
-//! 3. every effect in the model's catalog, which is data read at run time and so
+//! 4. every effect in the model's catalog, which is data read at run time and so
 //!    cannot be a compiled row at all. Without it the whole effect catalog was
 //!    pointer-only: the rack's Add gesture and the sidebar catalog are clicks.
 //!
-//! Nothing is compiled into a fourth list, so a new menu row is offered by name
+//! Nothing is compiled into a fifth list, so a new menu row is offered by name
 //! without a second edit, a plugin's menu item is offered too, and an effect
 //! added to the data file is offered the moment the catalog loads it.
 //!
@@ -22,6 +23,9 @@
 //! `AppState` does not, and keeping it that way is what lets a headless state
 //! still run every other row.
 
+use std::sync::Arc;
+
+use aria_plugin::CommandSpec;
 use gpui::SharedString;
 
 use super::AppState;
@@ -46,6 +50,17 @@ pub enum Offered {
     /// A generator in the effect catalog, by its id: the row places it as a
     /// clip at the playhead.
     Generator(SharedString),
+    /// A plugin clip type, by its id: the row places it at the playhead. The
+    /// row draws the type's icon, and is dimmed while the type cannot be
+    /// placed; choosing it then reports why.
+    ClipType {
+        id: SharedString,
+        icon: Option<&'static str>,
+        placeable: bool,
+    },
+    /// A command a plugin registered. The row draws its icon, and is dimmed
+    /// while its enablement condition is false.
+    Plugin(Arc<CommandSpec>),
 }
 
 /// What the caller must still run, because it needs the entity context.
@@ -88,14 +103,32 @@ pub struct PaletteOffer {
     pub action: Offered,
 }
 
+/// What the palette shows for a menu row: its label, after its submenu's
+/// caption when it sits in one, so "Label: Red" and "Export: Media…" read as
+/// what they do out of the menu's context.
+pub(crate) fn offered_label(item: &crate::chrome::menu_items::MenuItem) -> SharedString {
+    match item.under {
+        Some(under) => SharedString::from(format!("{under}: {}", item.label)),
+        None => SharedString::new_static(item.label),
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct PaletteKey {
     project_report: bool,
     custom_workspace: bool,
+    /// The rest of what the shipped menus read from the session: the recent
+    /// projects, the mounted timeline exporters, and the effect applied last.
+    menu_state: u64,
     command_revision: Option<u64>,
     menu_revision: Option<u64>,
+    /// The plugin commands' revision: a plugin can add or remove a command or
+    /// place one in a menu.
+    plugin_revision: u64,
     /// The effect catalog's revision: a plugin can add or remove an effect.
     effects_revision: u64,
+    /// The clip type catalog's revision: a plugin can add or remove a type.
+    clip_types_revision: u64,
 }
 
 #[derive(Default)]
@@ -113,8 +146,26 @@ impl AppState {
     /// The registries are state-dependent, so this is what the palette could
     /// offer *now*. A menu that hides an item because no project is open does not
     /// offer it by name either.
+    /// A digest of the session state the shipped menus build rows from, other
+    /// than the two flags `PaletteKey` holds itself.
+    fn menu_fingerprint(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        for recent in self.recents().iter() {
+            recent.path.hash(&mut hasher);
+        }
+        for exporter in self.ctx.exporters() {
+            exporter.id.hash(&mut hasher);
+            exporter.name.hash(&mut hasher);
+        }
+        self.ctx.analyzer_revision().hash(&mut hasher);
+        self.last_effect.hash(&mut hasher);
+        hasher.finish()
+    }
+
     pub fn palette_catalog(&self) -> std::sync::Arc<[PaletteOffer]> {
         let effects = aria_models::effect_catalog();
+        let clip_types = aria_models::clip_type_catalog();
         let commands = host_of(&self.ctx);
         let menus = crate::chrome::menu_host::host_of(&self.ctx);
         // The shipped contributor's two state dependencies are represented in
@@ -124,9 +175,12 @@ impl AppState {
         let key = PaletteKey {
             project_report: self.project_report_available(),
             custom_workspace: self.ui_settings.workspace.is_some(),
+            menu_state: self.menu_fingerprint(),
             command_revision: commands.as_ref().map(|host| host.revision()),
             menu_revision: menus.as_ref().map(|host| host.revision()),
+            plugin_revision: self.ctx.command_revision(),
             effects_revision: effects.revision(),
+            clip_types_revision: clip_types.revision(),
         };
         {
             let cache = self.palette_cache.borrow();
@@ -149,23 +203,58 @@ impl AppState {
                 });
             }
         }
+        for spec in self.ctx.commands() {
+            if offers.iter().any(|offer| offer.id == spec.id.as_str()) {
+                continue;
+            }
+            offers.push(PaletteOffer {
+                id: SharedString::from(spec.id.as_str()),
+                label: SharedString::from(spec.title.as_str()),
+                source: None,
+                action: Offered::Plugin(spec),
+            });
+        }
         if let Some(menus) = menus {
             for menu in AppMenu::ALL {
                 for item in menus.items(menu, self).iter().copied() {
-                    let known = offers
-                        .iter()
-                        .any(|offer| offer.label == item.label || offer.id == item.id);
+                    let label = offered_label(&item);
+                    // Case aside: "Add cross fade at cut" and "Add Cross Fade at
+                    // Cut" are one row to the operator.
+                    let known = offers.iter().any(|offer| {
+                        offer.label.eq_ignore_ascii_case(item.label)
+                            || offer.label.eq_ignore_ascii_case(&label)
+                            || offer.id == item.id
+                    });
                     if known {
                         continue;
                     }
                     offers.push(PaletteOffer {
                         id: SharedString::new_static(item.id),
-                        label: SharedString::new_static(item.label),
+                        label,
                         source: Some(menu),
                         action: Offered::Menu(menu, item.id),
                     });
                 }
             }
+        }
+        for spec in &clip_types {
+            let (id, label) = (spec.id.as_str(), spec.label.as_str());
+            if offers
+                .iter()
+                .any(|offer| offer.label == label || offer.id == id)
+            {
+                continue;
+            }
+            offers.push(PaletteOffer {
+                id: SharedString::from(id),
+                label: SharedString::from(label),
+                source: None,
+                action: Offered::ClipType {
+                    id: SharedString::from(id),
+                    icon: spec.icon.as_ref().map(crate::icons::clip_type_icon_path),
+                    placeable: spec.unavailable().is_none(),
+                },
+            });
         }
         for spec in &effects {
             let (id, label) = (spec.id.as_str(), spec.label.as_str());
@@ -293,6 +382,16 @@ impl AppState {
                 if let Err(err) = self.add_effect_generator(id.as_str()) {
                     self.report_error(&err);
                 }
+                None
+            }
+            Offered::ClipType { id, .. } => {
+                if let Err(err) = self.add_clip_type(id.as_str()) {
+                    self.report_error(&err);
+                }
+                None
+            }
+            Offered::Plugin(spec) => {
+                self.run_plugin_command(&spec.id);
                 None
             }
         }

@@ -71,10 +71,18 @@ pub trait StorageService: Service {
 }
 
 /// User settings (`~/.aria/config.toml`).
+///
+/// Reading or writing a key loads a package that waits for its `setting:`
+/// event, in a store that defers packages.
 pub trait SettingsService: Service {
     fn get(&self, key: &str) -> Option<serde_json::Value>;
     fn set(&self, key: &str, value: serde_json::Value);
     fn save(&self) -> Result<(), PluginError>;
+    /// [`get`](Self::get) without loading a package that waits for `key`. For
+    /// a host surface that shows the value, such as Settings.
+    fn peek(&self, key: &str) -> Option<serde_json::Value> {
+        self.get(key)
+    }
 }
 
 /// Where a contributed panel lives in the shell.

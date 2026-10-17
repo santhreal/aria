@@ -1,43 +1,47 @@
 //! Mask, chroma-key, and track-matte commands for the selected clip.
 //!
-//! `SetClipMask`, `SetClipChroma`, and `SetClipMatte` each carry the whole
-//! value, so every setter here rebuilds the untouched fields from the
-//! projection. All three are `Option`, so clearing is the same command with
-//! `None`.
+//! A clip holds a stack of masks. `AddClipMask`, `SetClipMask`,
+//! `RemoveClipMask` and `MoveClipMask` address one mask by its index, and
+//! `SetClipMask` carries that whole mask, so every setter here starts from
+//! the model mask and changes one field: a keyframed property keeps its keys
+//! through an edit to another. `SetClipChroma` and `SetClipMatte` carry the
+//! whole value and are `Option`, so clearing is the same command with `None`.
 //!
-//! The numeric knobs are *not* here. Rebuilding a block to change one knob
-//! flattens every keyframe in it, which is exactly what this module's knob
-//! tables used to do; a scalar edit goes through `clip_params.rs`, which
-//! addresses the one property. What is left is the structural part — which
-//! shape, which key colour, which stencil — where carrying the whole value is
-//! the command's own shape.
+//! The numeric knobs are *not* here. A scalar edit goes through
+//! `clip_params.rs`, which addresses the one property. What is left is the
+//! structural part — which shape, which mode, which key colour, which stencil.
+//!
+//! One mask of the selected clip is active: the Viewer handles, the Pen, and
+//! the tracker edit it. A new mask becomes active; removing or moving masks
+//! keeps the active one pointing at the same mask.
 
 use aria_commands::{Command, EditCommand};
 use aria_engine::EngineError;
-use aria_models::{ChromaKey, Mask, MaskKind, MatteSource, Param, TrackMatte};
+use aria_models::{
+    ChromaKey, Easing, Mask, MaskKind, MaskMode, MatteSource, Param, SegmentSample, ShapePathPoint,
+    TrackMatte,
+};
 
 use super::AppState;
 use crate::types::{UiChroma, UiMask, UiMatte};
-
-/// Rebuild the full model mask from the projection, so one knob edit keeps the
-/// rest.
-fn mask_from_ui(ui: &UiMask) -> Mask {
-    Mask {
-        kind: ui.kind,
-        feather: Param::Constant(ui.feather),
-        center: Param::Constant(ui.center),
-        size: Param::Constant(ui.size),
-        rotation: Param::Constant(ui.rotation),
-        roundness: Param::Constant(ui.roundness),
-        invert: ui.invert,
-    }
-}
 
 fn chroma_from_ui(ui: &UiChroma) -> ChromaKey {
     ChromaKey {
         rgb: ui.rgb,
         strength: Param::Constant(ui.strength),
         shadow: Param::Constant(ui.shadow),
+    }
+}
+
+/// Write `value` into `param` at clip-relative `tick`: a keyframe there,
+/// keeping the easing of one already there, when the property is keyframed,
+/// and the value itself when it is not.
+fn land<T: SegmentSample>(param: &mut Param<T>, tick: i64, value: T) {
+    if param.is_animated() {
+        let easing = param.easing_at(tick).unwrap_or(Easing::Linear);
+        param.set_keyframe(tick, value, easing);
+    } else {
+        *param = Param::Constant(value);
     }
 }
 
@@ -50,78 +54,248 @@ fn matte_from_ui(ui: &UiMatte) -> TrackMatte {
 }
 
 impl AppState {
-    fn send_mask(&mut self, mask: Option<Mask>) -> Result<(), EngineError> {
+    /// The index of the selected clip's active mask, or `None` when the clip
+    /// has no mask. An index past the end of the stack reads as the last mask.
+    pub fn active_mask(&self) -> Option<u32> {
+        let clip = self.selected_clip()?;
+        let count = self.selected_model()?.masks.len();
+        let last = count.checked_sub(1)?;
+        let index = match self.tool_session.active_mask {
+            Some((owner, index)) if owner == clip => index as usize,
+            _ => 0,
+        };
+        Some(index.min(last) as u32)
+    }
+
+    /// Make the mask at `index` of the selected clip the one the Viewer
+    /// handles, the Pen, and the tracker edit.
+    pub fn set_active_mask(&mut self, index: u32) {
+        let Some(clip) = self.selected_clip() else {
+            return;
+        };
+        if self.tool_session.active_mask != Some((clip, index)) {
+            // A path edit belongs to the mask it started on.
+            self.tool_session.mask_path = None;
+        }
+        self.tool_session.active_mask = Some((clip, index));
+    }
+
+    /// The selected clip's active mask as projected.
+    pub fn active_ui_mask(&self) -> Option<UiMask> {
+        let index = self.active_mask()?;
+        self.selected_ui_clip_ref()?
+            .masks
+            .get(index as usize)
+            .copied()
+    }
+
+    /// The selected clip's active mask in the model.
+    pub(crate) fn active_model_mask(&self) -> Option<&Mask> {
+        let index = self.active_mask()?;
+        self.selected_model()?.masks.get(index as usize)
+    }
+
+    /// The selected clip's parameter tick under the playhead: where its masks
+    /// are read and where an edit to a keyframed mask property is keyed.
+    pub(crate) fn selected_param_tick(&self) -> Option<i64> {
+        Some(self.selected_model()?.param_tick(self.playhead.value))
+    }
+
+    /// The active mask's centre, size, and rotation at the playhead, which is
+    /// where the Viewer draws its handles and where a drag of them starts.
+    pub fn active_mask_pose(&self) -> Option<([f32; 2], [f32; 2], f32)> {
+        let mask = self.active_model_mask()?;
+        let tick = self.selected_param_tick()?;
+        Some((
+            mask.center.sample(tick),
+            mask.size.sample(tick),
+            mask.rotation.sample(tick),
+        ))
+    }
+
+    /// Send `mask` as the mask at `index` of the selected clip, starting from
+    /// the model mask so the fields `edit` leaves alone keep their keyframes.
+    fn edit_mask(&mut self, index: u32, edit: impl FnOnce(&mut Mask)) -> Result<(), EngineError> {
         let Some(clip) = self.selected_clip() else {
             return Ok(());
         };
-        self.apply_command(Command::Edit(EditCommand::SetClipMask { clip, mask }))?;
+        let Some(mut mask) = self
+            .selected_model()
+            .and_then(|model| model.masks.get(index as usize))
+            .cloned()
+        else {
+            return Ok(());
+        };
+        edit(&mut mask);
+        self.apply_command(Command::Edit(EditCommand::SetClipMask {
+            clip,
+            index,
+            mask,
+        }))?;
         Ok(())
     }
 
-    /// Apply a mask shape. Keeps the current knobs when only the shape changes.
-    pub fn set_selected_mask_kind(&mut self, kind: MaskKind) -> Result<(), EngineError> {
-        let Some(ui) = self.selected_ui_clip() else {
+    /// Put `mask` at the bottom of the selected clip's stack and make it the
+    /// active mask.
+    fn push_mask(&mut self, mask: Mask) -> Result<(), EngineError> {
+        let (Some(clip), Some(count)) = (
+            self.selected_clip(),
+            self.selected_model().map(|model| model.masks.len()),
+        ) else {
             return Ok(());
         };
-        let mask = match &ui.mask {
-            Some(existing) => {
-                let mut mask = mask_from_ui(existing);
-                mask.kind = kind;
-                mask
-            }
-            None => Mask::new(kind),
-        };
-        self.send_mask(Some(mask))
+        self.apply_command(Command::Edit(EditCommand::AddClipMask { clip, mask }))?;
+        self.tool_session.active_mask = Some((clip, count as u32));
+        self.tool_session.mask_path = None;
+        Ok(())
     }
 
+    /// Add a mask of `kind` to the selected clip.
+    pub fn add_selected_mask(&mut self, kind: MaskKind) -> Result<(), EngineError> {
+        self.push_mask(Mask::new(kind))
+    }
+
+    /// How the mask at `index` combines with the masks above it.
+    pub fn set_selected_mask_mode(
+        &mut self,
+        index: u32,
+        mode: MaskMode,
+    ) -> Result<(), EngineError> {
+        self.edit_mask(index, |mask| mask.mode = mode)
+    }
+
+    /// Keep the outside of the mask at `index` instead of the inside.
+    pub fn toggle_selected_mask_invert(&mut self, index: u32) -> Result<(), EngineError> {
+        self.edit_mask(index, |mask| mask.invert = !mask.invert)
+    }
+
+    /// Remove the mask at `index` from the selected clip.
+    pub fn remove_selected_mask(&mut self, index: u32) -> Result<(), EngineError> {
+        let (Some(clip), Some(active)) = (self.selected_clip(), self.active_mask()) else {
+            return Ok(());
+        };
+        self.apply_command(Command::Edit(EditCommand::RemoveClipMask { clip, index }))?;
+        // The active mask stays the same mask, or becomes the one above a
+        // removed active mask.
+        let active = match active.cmp(&index) {
+            std::cmp::Ordering::Greater => active - 1,
+            std::cmp::Ordering::Equal => index.saturating_sub(1),
+            std::cmp::Ordering::Less => active,
+        };
+        self.tool_session.active_mask = Some((clip, active));
+        self.tool_session.mask_path = None;
+        self.status_message = Some(format!("Removed mask {}", index + 1));
+        Ok(())
+    }
+
+    /// Move the mask at `from` to `to` in the selected clip's stack.
+    pub fn move_selected_mask(&mut self, from: u32, to: u32) -> Result<(), EngineError> {
+        let (Some(clip), Some(active)) = (self.selected_clip(), self.active_mask()) else {
+            return Ok(());
+        };
+        self.apply_command(Command::Edit(EditCommand::MoveClipMask {
+            clip,
+            from_index: from,
+            to_index: to,
+        }))?;
+        self.tool_session.active_mask = Some((clip, moved_index(active, from, to)));
+        Ok(())
+    }
+
+    /// Remove the active mask.
     pub fn clear_selected_mask(&mut self) -> Result<(), EngineError> {
-        if self.selected_clip().is_none() {
-            return Ok(());
+        match self.active_mask() {
+            Some(index) => self.remove_selected_mask(index),
+            None => Ok(()),
         }
-        self.send_mask(None)?;
-        self.status_message = Some("Cleared mask".into());
-        Ok(())
     }
 
-    /// Keep the outside of the mask instead of the inside.
-    pub fn toggle_selected_mask_invert(&mut self) -> Result<(), EngineError> {
-        let Some(ui) = self.selected_ui_clip() else {
-            return Ok(());
-        };
-        let Some(existing) = ui.mask.as_ref() else {
-            return Ok(());
-        };
-        let mut mask = mask_from_ui(existing);
-        mask.invert = !existing.invert;
-        self.send_mask(Some(mask))
+    /// Invert the active mask.
+    pub fn toggle_active_mask_invert(&mut self) -> Result<(), EngineError> {
+        match self.active_mask() {
+            Some(index) => self.toggle_selected_mask_invert(index),
+            None => Ok(()),
+        }
     }
 
-    /// Set the mask center, size, and rotation at once, keeping the shape and the
-    /// remaining knobs. The on-canvas handles build all three, so a drag is one
-    /// edit rather than one per pointer move.
+    /// Set the active mask's center, size, and rotation at the playhead,
+    /// keeping the shape and the remaining knobs. The on-canvas handles build
+    /// all three, so a drag is one edit rather than one per pointer move.
+    ///
+    /// Each of the three that changed is keyed at the playhead when it is
+    /// keyframed, so a tracked or animated mask keeps its curve, and replaced
+    /// when it is not. One that did not change keeps its keyframes untouched.
     pub fn set_selected_mask_geometry(
         &mut self,
         center: [f32; 2],
         size: [f32; 2],
         rotation: f32,
     ) -> Result<(), EngineError> {
-        let Some(ui) = self.selected_ui_clip() else {
-            return Ok(());
-        };
-        let Some(existing) = ui.mask.as_ref() else {
+        let (Some(index), Some(before), Some(tick)) = (
+            self.active_mask(),
+            self.active_mask_pose(),
+            self.selected_param_tick(),
+        ) else {
             return Ok(());
         };
         if !center.iter().chain(size.iter()).all(|v| v.is_finite()) || !rotation.is_finite() {
             return Ok(());
         }
-        if existing.center == center && existing.size == size && existing.rotation == rotation {
+        let size = [size[0].clamp(0.01, 10.0), size[1].clamp(0.01, 10.0)];
+        let rotation = rotation.clamp(-3600.0, 3600.0);
+        if before == (center, size, rotation) {
             return Ok(());
         }
-        let mut mask = mask_from_ui(existing);
-        mask.center = Param::Constant(center);
-        mask.size = Param::Constant([size[0].clamp(0.01, 10.0), size[1].clamp(0.01, 10.0)]);
-        mask.rotation = Param::Constant(rotation.clamp(-3600.0, 3600.0));
-        self.send_mask(Some(mask))
+        self.edit_mask(index, |mask| {
+            if center != before.0 {
+                land(&mut mask.center, tick, center);
+            }
+            if size != before.1 {
+                land(&mut mask.size, tick, size);
+            }
+            if rotation != before.2 {
+                land(&mut mask.rotation, tick, rotation);
+            }
+        })
+    }
+
+    /// Reshape the active mask to the path `points` and `closed` state at the
+    /// playhead: the keyframe there when the path is keyframed, added when none
+    /// sits there, or the path itself when it is not. The mask keeps everything
+    /// else: its feather, centre, rotation and their keyframes, its other path
+    /// keyframes, its mode, and its invert.
+    pub fn set_selected_mask_path(
+        &mut self,
+        points: Vec<ShapePathPoint>,
+        closed: bool,
+    ) -> Result<(), EngineError> {
+        self.reshape_selected_mask_path(closed, |mask, tick| mask.set_path_at(tick, points))
+    }
+
+    /// Change the active mask's path with `reshape`, handed the clip's
+    /// parameter tick under the playhead, as one edit that leaves it a path
+    /// mask, closed or open as `closed` says.
+    pub(super) fn reshape_selected_mask_path(
+        &mut self,
+        closed: bool,
+        reshape: impl FnOnce(&mut Mask, i64),
+    ) -> Result<(), EngineError> {
+        let (Some(index), Some(tick)) = (self.active_mask(), self.selected_param_tick()) else {
+            return Ok(());
+        };
+        self.edit_mask(index, |mask| {
+            mask.kind = MaskKind::Path;
+            reshape(mask, tick);
+            mask.path_closed = closed;
+        })
+    }
+
+    /// Add a closed path mask through `points` to the selected clip.
+    pub fn add_selected_mask_path(
+        &mut self,
+        points: Vec<ShapePathPoint>,
+    ) -> Result<(), EngineError> {
+        self.push_mask(Mask::from_path(points, true))
     }
 
     fn send_chroma(&mut self, chroma: Option<ChromaKey>) -> Result<(), EngineError> {
@@ -144,11 +318,7 @@ impl AppState {
                 chroma.rgb = rgb;
                 chroma
             }
-            None => ChromaKey {
-                rgb,
-                strength: Param::Constant(0.5),
-                shadow: Param::Constant(0.0),
-            },
+            None => ChromaKey::new(rgb),
         };
         self.send_chroma(Some(chroma))
     }
@@ -245,5 +415,18 @@ impl AppState {
         let mut matte = matte_from_ui(existing);
         matte.invert = !matte.invert;
         self.send_matte(Some(matte))
+    }
+}
+
+/// Where the mask at `index` sits after the mask at `from` moves to `to`.
+const fn moved_index(index: u32, from: u32, to: u32) -> u32 {
+    if index == from {
+        to
+    } else if from < index && index <= to {
+        index - 1
+    } else if to <= index && index < from {
+        index + 1
+    } else {
+        index
     }
 }

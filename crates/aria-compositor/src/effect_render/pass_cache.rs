@@ -36,8 +36,10 @@
 //! is dropped and rebuilt. Memory is therefore capped whatever the scene does,
 //! at the cost of rebuilding after a scene far larger than the cap.
 
-use std::cell::{RefCell, RefMut};
-
+use std::cell::{Cell, RefCell, RefMut};
+use std::sync::Arc;
+use std::sync::atomic::AtomicU8;
+use std::time::Duration;
 /// Live entries kept before the table is pruned.
 ///
 /// A frame draws one pass per effect per layer, plus a handful per layer for the
@@ -88,9 +90,10 @@ pub(crate) enum Bound<'a> {
     Uniform(&'a [u8]),
 }
 
-/// Maximum resources in one pass layout. YUV-with-effects uses six; keeping
-/// per-call preparation on the stack avoids a heap vector.
-const MAX_BOUND_SLOTS: usize = 6;
+/// Maximum resources in one pass layout. A registered pass binds four host
+/// globals, up to eight inputs, and a storage output; keeping per-call
+/// preparation on the stack avoids a heap vector.
+const MAX_BOUND_SLOTS: usize = 16;
 
 /// A resource retained by one bind-group entry.
 enum Slot {
@@ -147,9 +150,26 @@ struct Table {
     reuse: bool,
 }
 
+/// Reused staging buffers for [`crate::CpuEffect`] passes on one offscreen pool.
+///
+/// Allocated the first time a CPU effect runs at `(width, height)` and reused
+/// without per-frame allocation across subsequent frames of the same size.
+pub(crate) struct CpuStaging {
+    pub readback_buffer: wgpu::Buffer,
+    pub padded_bytes_per_row: u32,
+    pub input_f16: Vec<u16>,
+    pub output_f16: Vec<u16>,
+    pub upload_rgba8: Vec<u8>,
+    pub map_state: Arc<AtomicU8>,
+    pub width: u32,
+    pub height: u32,
+}
+
 /// Pass bind groups and uniform buffers, reused by what they bind.
 pub(crate) struct PassCache {
     table: RefCell<Table>,
+    cpu_staging: RefCell<Option<CpuStaging>>,
+    frame_budget: Cell<Option<Duration>>,
 }
 
 impl PassCache {
@@ -164,7 +184,62 @@ impl PassCache {
                 evictions: 0,
                 reuse: true,
             }),
+            cpu_staging: RefCell::new(None),
+            frame_budget: Cell::new(None),
         }
+    }
+
+    pub(crate) fn set_frame_budget(&self, budget: Option<Duration>) {
+        self.frame_budget.set(budget);
+    }
+
+    pub(crate) fn frame_budget(&self) -> Option<Duration> {
+        self.frame_budget.get()
+    }
+
+    pub(crate) fn queue(&self) -> wgpu::Queue {
+        self.table.borrow().queue.clone()
+    }
+
+    /// Acquire the reused CPU effect staging buffers for `(width, height)`,
+    /// allocating them only on the first CPU pass at this size.
+    pub(crate) fn take_cpu_staging(
+        &self,
+        device: &wgpu::Device,
+        width: u32,
+        height: u32,
+    ) -> CpuStaging {
+        match self.cpu_staging.borrow_mut().take() {
+            Some(staging) if staging.width == width && staging.height == height => {
+                return staging;
+            }
+            _ => {}
+        }
+        let unpadded = width * 4;
+        let padded_bytes_per_row = unpadded.div_ceil(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
+            * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+        let size = u64::from(padded_bytes_per_row) * u64::from(height);
+        let readback_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("aria.cpu_effect.readback"),
+            size,
+            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let channels = (width as usize) * (height as usize) * 4;
+        CpuStaging {
+            readback_buffer,
+            padded_bytes_per_row,
+            input_f16: vec![0u16; channels],
+            output_f16: vec![0u16; channels],
+            upload_rgba8: vec![0u8; channels],
+            map_state: Arc::new(AtomicU8::new(0)),
+            width,
+            height,
+        }
+    }
+
+    pub(crate) fn return_cpu_staging(&self, staging: CpuStaging) {
+        *self.cpu_staging.borrow_mut() = Some(staging);
     }
 
     /// Start a frame: the counts report this frame only, the entries carry over
@@ -330,7 +405,9 @@ impl Table {
                         buffer: device.create_buffer(&wgpu::BufferDescriptor {
                             label: Some("aria.pass.uniform"),
                             size: bytes.len().max(16).next_power_of_two() as u64,
-                            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                            usage: wgpu::BufferUsages::UNIFORM
+                                | wgpu::BufferUsages::STORAGE
+                                | wgpu::BufferUsages::COPY_DST,
                             mapped_at_creation: false,
                         }),
                         capacity: bytes.len().max(16).next_power_of_two() as u64,
@@ -353,7 +430,9 @@ impl Table {
                 self.uniforms[slot].buffer = device.create_buffer(&wgpu::BufferDescriptor {
                     label: Some("aria.pass.uniform"),
                     size: required,
-                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                    usage: wgpu::BufferUsages::UNIFORM
+                        | wgpu::BufferUsages::STORAGE
+                        | wgpu::BufferUsages::COPY_DST,
                     mapped_at_creation: false,
                 });
                 self.uniforms[slot].capacity = required;

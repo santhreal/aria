@@ -100,6 +100,11 @@ fn topology_predicates_do_not_contradict_each_other() {
             spec.id
         );
         assert!(
+            !spec.wraps_layers || !spec.takes_motion_blur,
+            "'{}' wraps layers and samples a shutter of its own over theirs",
+            spec.id
+        );
+        assert!(
             !spec.wraps_layers || spec.nested == Nested::Refuses,
             "'{}' wraps layers and would nest inside itself",
             spec.id

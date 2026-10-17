@@ -1,57 +1,68 @@
-//! Ruler, playhead, snap guide, and the transition wedge at a cut.
+//! The time half of the timeline header: the ruler and its markers, the work
+//! area bar under it, the render bar along the bottom, and the playhead and
+//! snap guide across all three.
+
+use std::cell::Cell;
 
 use crate::fluent::FluentBuilder;
 use gpui::motion::presets;
 use gpui::{
-    CursorStyle, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, MouseMoveEvent,
-    ParentElement, SharedString, StatefulInteractiveElement, Styled, div, px,
+    Bounds, CursorStyle, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
+    MouseMoveEvent, MouseUpEvent, ParentElement, SharedString, StatefulInteractiveElement, Styled,
+    TextAlign, TextRun, canvas, div, fill, point, px, size,
 };
 
-use aria_models::TrackKind;
+use aria_models::{Rational, TimeDisplay};
 
-use crate::components;
+use crate::app::work_area::WorkAreaGrip;
 use crate::motion;
-use crate::surfaces::timeline_gesture as gesture;
 use crate::theme::Theme;
-use crate::types::{ContextTarget, UiRulerTick};
+use crate::types::UiSequence;
 
-use super::{HEADER_W, RULER_H, ticks_to_px, ticks_to_px_f};
+use super::media::visible_clips_slice;
+use super::{RULER_H, RULER_TICKS_H, ruler_label_chars, ruler_scale, ticks_to_px, ticks_to_px_f};
+
+/// Height of an unlabelled tick, standing on the ticks' bottom edge.
+const MINOR_TICK_H: f32 = 6.0;
+/// Where the work area bar starts under the ticks, and how tall it is.
+const WORK_AREA_TOP: f32 = RULER_TICKS_H + 2.0;
+const WORK_AREA_H: f32 = 8.0;
+/// Width of the grip at each end of the work area bar.
+const WORK_AREA_GRIP_W: f32 = 4.0;
+
+thread_local! {
+    /// Whether the left button went down on the ruler. Only that press
+    /// scrubs: a drag that started on the work area bar, a marker, or a clip
+    /// and crosses the ruler leaves the playhead where it is.
+    static RULER_SCRUB: Cell<bool> = const { Cell::new(false) };
+}
 
 /// The magnet's confirmation, as a 0..1 breath.
-///
-/// Only worth asking for while a guide is on screen: the clock it leases
-/// repaints this view while it runs. Flat zero under reduced motion, so a held
-/// snap is then a still line.
 pub(super) fn snap_glow(cx: &mut gpui::Context<crate::shell::Shell>) -> f32 {
     let view = cx.entity_id();
     gpui::motion::loaders::pulse_wave(motion::pulse_delta(&presets::ZERON_PULSE, view, cx))
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn ruler(
     theme: &Theme,
-    ticks: &[UiRulerTick],
+    sequence: &UiSequence,
     playhead: f32,
     pps: f32,
     fps: f32,
     scroll_x: f32,
-    // The panel's measured width, so a tick, a marker, or a beat is built only
-    // when it lands inside the body that is on screen.
     viewport: f32,
+    view_start: i64,
+    view_end: i64,
     snap_guide: Option<crate::snap::SnapCandidate>,
-    add_name: String,
-    zoom: f32,
     state: &gpui::Entity<crate::app::AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
-    let add_label = add_name;
-    // The magnet breathes only while it holds something.
     let glow = snap_guide.map(|_| snap_glow(cx)).unwrap_or_default();
-    // Content runs off both ends of the body: the left edge is soft once the
-    // view has been scrolled, the right while the sequence still has length
-    // beyond the width the body was given.
-    let sequence_px = ticks_to_px(ticks.last().map_or(0, |tick| tick.position_ticks), fps, pps);
+    let sequence_px = ticks_to_px(sequence.duration_ticks, fps, pps);
     let fade_left = scroll_x > 0.0;
     let fade_right = sequence_px > scroll_x + viewport;
+
     div()
         .id("ruler")
         .h(px(RULER_H))
@@ -60,49 +71,29 @@ pub(super) fn ruler(
         .flex_row()
         .border_b_1()
         .border_color(theme.border)
+        .child(super::header::header_controls(theme, state, cx))
         .child(
-            div()
-                .w(px(HEADER_W))
-                .h_full()
-                .border_r_1()
-                .border_color(theme.border)
-                .flex()
-                .items_center()
-                .justify_between()
-                .px(px(Theme::SPACE_SM))
-                .child(
-                    div()
-                        .text_size(px(11.))
-                        .font_family(theme.font_mono.clone())
-                        .text_color(theme.text_muted)
-                        .child(format!("{:.0}%", zoom * 100.0)),
-                )
-                .child(
-                    components::icon_button("add-track", crate::icons::PLUS, theme).on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                            cx.stop_propagation();
-                            let name = add_label.clone();
-                            this.state.update(cx, |state, _| {
-                                if let Err(err) = state.add_track(TrackKind::Video, name) {
-                                    state.report_error(&err);
-                                }
-                            });
-                            cx.notify();
-                        }),
-                    ),
-                ),
-        )
-        .child(
-            // The body scrolls under the fixed header column, so its own edges
-            // are where content is cut: soft on the left once the view has
-            // scrolled, soft on the right while the sequence runs past it.
             crate::edge_fade::edge_faded(
                 Theme::SPACE_LG,
                 false,
                 false,
                 ruler_body(
-                    theme, ticks, playhead, pps, fps, scroll_x, viewport, snap_guide, glow, state,
+                    theme,
+                    RulerTime {
+                        rate: sequence.frame_rate,
+                        display: sequence.time_display,
+                        last_tick: sequence.duration_ticks,
+                    },
+                    playhead,
+                    pps,
+                    fps,
+                    scroll_x,
+                    viewport,
+                    view_start,
+                    view_end,
+                    snap_guide,
+                    glow,
+                    state,
                     cx,
                 ),
             )
@@ -111,18 +102,26 @@ pub(super) fn ruler(
         )
 }
 
-/// The ruler's scrolling half: the ticks, the flags, the playhead, and the
-/// guide the magnet draws. Split out so the frame that scrolls can be wrapped
-/// in an edge fade without indenting the whole ruler.
+/// How the ruler counts the sequence: its rate, its time display, and the
+/// last tick a label has to fit.
+#[derive(Clone, Copy)]
+struct RulerTime {
+    rate: Rational,
+    display: TimeDisplay,
+    last_tick: i64,
+}
+
 #[allow(clippy::too_many_arguments)]
 fn ruler_body(
     theme: &Theme,
-    ticks: &[UiRulerTick],
+    time: RulerTime,
     playhead: f32,
     pps: f32,
     fps: f32,
     scroll_x: f32,
     viewport: f32,
+    view_start: i64,
+    view_end: i64,
     snap_guide: Option<crate::snap::SnapCandidate>,
     glow: f32,
     state: &gpui::Entity<crate::app::AppState>,
@@ -130,6 +129,7 @@ fn ruler_body(
 ) -> impl IntoElement {
     div()
         .id("ruler-body")
+        .debug_selector(|| "timeline-ruler".into())
         .flex_1()
         .h_full()
         .relative()
@@ -137,23 +137,29 @@ fn ruler_body(
         .on_mouse_down(
             MouseButton::Left,
             cx.listener(move |this, event: &MouseDownEvent, _, cx| {
-                // No measurement means the panel has never been painted, and a
-                // pointer cannot be over an unpainted panel: nothing to convert
-                // rather than a conversion against a guessed origin.
                 let Some(left) = this.state.read(cx).timeline_content_left() else {
                     return;
                 };
+                RULER_SCRUB.set(true);
                 let ticks = super::pointer_ticks(event.position.x, left, scroll_x, fps, pps);
-                this.state.update(cx, |state, _| state.set_playhead(ticks));
+                this.state
+                    .update(cx, |state, _| state.scrub_playhead_to_pointer(ticks));
                 crate::app::spawn_preview(this.state.clone(), cx);
                 cx.notify();
             }),
         )
-        // Holding the button and moving keeps scrubbing. The pointer's own
-        // position is the only state a scrub needs, so there is none to keep:
-        // whichever tick it is over is the one the playhead follows to.
+        .on_mouse_up(MouseButton::Left, |_: &MouseUpEvent, _, _| {
+            RULER_SCRUB.set(false);
+        })
+        .on_mouse_up_out(MouseButton::Left, |_: &MouseUpEvent, _, _| {
+            RULER_SCRUB.set(false);
+        })
         .on_mouse_move(cx.listener(move |this, event: &MouseMoveEvent, _, cx| {
             if event.pressed_button != Some(MouseButton::Left) {
+                RULER_SCRUB.set(false);
+                return;
+            }
+            if !RULER_SCRUB.get() {
                 return;
             }
             let Some(left) = this.state.read(cx).timeline_content_left() else {
@@ -163,45 +169,14 @@ fn ruler_body(
             if this.state.read(cx).playhead.value == ticks {
                 return;
             }
-            this.state.update(cx, |state, _| state.set_playhead(ticks));
+            this.state
+                .update(cx, |state, _| state.scrub_playhead_to_pointer(ticks));
             crate::app::spawn_preview(this.state.clone(), cx);
             cx.notify();
         }))
-        .children(ticks.iter().filter_map(|tick| {
-            let x = ticks_to_px(tick.position_ticks, fps, pps) - scroll_x;
-            if x < -8.0 || x > viewport + 8.0 {
-                return None;
-            }
-            Some(
-                div()
-                    .absolute()
-                    .left(px(x))
-                    .h_full()
-                    .w(px(1.))
-                    .bg(if tick.major {
-                        theme.border_strong
-                    } else {
-                        theme.border
-                    })
-                    .when(tick.major, |el| {
-                        el.child(
-                            div()
-                                .ml(px(Theme::SPACE_XS))
-                                .text_size(px(11.))
-                                .font_family(theme.font_mono.clone())
-                                .text_color(theme.text_faint)
-                                .child(tick.label.clone()),
-                        )
-                    }),
-            )
-        }))
+        .child(ruler_ticks(theme, time, pps / fps.max(1.0), scroll_x))
         .children({
-            // The borrow ends before the listeners are built, which is why this
-            // reads values out rather than holding `app`. It reads only what a
-            // flag draws: the whole marker list used to be copied here, names
-            // and notes and all, once per frame of every scrub and every
-            // playback tick, to draw six pixels of colour.
-            let (visible, mark_in, mark_out, beats) = {
+            let (visible, beats) = {
                 let app = state.read(cx);
                 let visible: Vec<_> = app
                     .store
@@ -209,26 +184,29 @@ fn ruler_body(
                     .markers
                     .iter()
                     .filter_map(|marker| {
-                        let x = ticks_to_px(marker.tick, fps, pps) - scroll_x;
-                        (x >= -8.0 && x <= viewport + 8.0).then_some((
-                            x,
+                        let (left, width, is_range) = marker_ruler_span(
+                            marker.tick,
+                            marker.duration_ticks,
+                            fps,
+                            pps,
+                            scroll_x,
+                        );
+                        (left + width >= -8.0 && left <= viewport + 8.0).then_some((
+                            left,
+                            width,
+                            is_range,
                             marker.tick,
                             marker.id,
                             marker.color,
                         ))
                     })
                     .collect();
-                // Only the beats on screen: a project with beat grids on every
-                // clip holds tens of thousands of onsets, and sorting all of
-                // them to draw the dozen inside the viewport is work the frame
-                // pays and the operator never sees. The sort still runs, on
-                // what is visible, because two clips can share an onset.
                 let mut beats: Vec<i64> = app
                     .store
                     .sequence
                     .tracks
                     .iter()
-                    .flat_map(|track| track.clips.iter())
+                    .flat_map(|track| visible_clips_slice(&track.clips, view_start, view_end))
                     .flat_map(|clip| clip.beat_ticks.iter().copied())
                     .filter(|tick| {
                         let x = ticks_to_px(*tick, fps, pps) - scroll_x;
@@ -237,19 +215,25 @@ fn ruler_body(
                     .collect();
                 beats.sort_unstable();
                 beats.dedup();
-                (visible, app.mark_in, app.mark_out, beats)
+                (visible, beats)
             };
-            let mut flags = Vec::with_capacity(visible.len() + beats.len() + 2);
-            for (x, tick, id, color) in visible {
+            let mut flags = Vec::with_capacity(visible.len() + beats.len());
+            for (left, width, is_range, tick, id, color) in visible {
+                let swatch = theme.marker(color);
                 flags.push(
                     div()
                         .id(gpui::ElementId::named_usize("marker", id as usize))
                         .absolute()
-                        .left(px(x - 3.0))
+                        .left(px(left))
                         .top_0()
-                        .w(px(6.))
+                        .w(px(width))
                         .h(px(10.))
-                        .bg(theme.marker(color))
+                        .bg(if is_range {
+                            swatch.opacity(0.42)
+                        } else {
+                            swatch
+                        })
+                        .when(is_range, |el| el.border_1().border_color(swatch))
                         .cursor(CursorStyle::PointingHand)
                         .active(|style| style.opacity(0.92))
                         .on_mouse_down(
@@ -264,42 +248,14 @@ fn ruler_body(
                         .into_any_element(),
                 );
             }
-            if let Some(tick) = mark_in {
-                let x = ticks_to_px(tick, fps, pps) - scroll_x;
-                flags.push(
-                    div()
-                        .absolute()
-                        .left(px(x))
-                        .bottom_0()
-                        .w(px(2.))
-                        .h(px(12.))
-                        .bg(theme.success)
-                        .into_any_element(),
-                );
-            }
-            if let Some(tick) = mark_out {
-                let x = ticks_to_px(tick, fps, pps) - scroll_x;
-                flags.push(
-                    div()
-                        .absolute()
-                        .left(px(x))
-                        .bottom_0()
-                        .w(px(2.))
-                        .h(px(12.))
-                        .bg(theme.warning)
-                        .into_any_element(),
-                );
-            }
-            // Beats are drawn under the flags: a detected onset is a magnet and
-            // a reference, never a thing to click, so it gets a hairline rather
-            // than a hit target.
+            // Beats stand on the ticks' bottom edge, above the work area bar.
             for tick in beats {
                 let x = ticks_to_px(tick, fps, pps) - scroll_x;
                 flags.push(
                     div()
                         .absolute()
                         .left(px(x))
-                        .bottom_0()
+                        .top(px(RULER_TICKS_H - 6.0))
                         .w(px(1.))
                         .h(px(6.))
                         .bg(theme.text_faint)
@@ -308,16 +264,205 @@ fn ruler_body(
             }
             flags
         })
+        .children(work_area_bar(
+            theme, state, pps, fps, scroll_x, viewport, cx,
+        ))
+        .child(super::render_bar::render_bar(
+            theme,
+            &state.read(cx).render_bar(),
+            pps,
+            fps,
+            scroll_x,
+            viewport,
+        ))
         .child(playhead_line(theme, playhead, pps, fps, scroll_x))
         .when_some(snap_guide, |el, guide| {
             el.child(snap_guide_line(theme, guide, pps, fps, scroll_x, glow))
         })
 }
 
-/// The playhead, at a position that may sit between two frames.
+/// The work area under the ticks: the In to Out range as a bar, bright when
+/// either point is set and faint while the range falls back to the whole
+/// sequence. The bar moves both points, each end grip moves one, and a
+/// double-click on either sets the range to the sequence. `None` while the
+/// range is off screen.
+#[allow(clippy::too_many_arguments)]
+fn work_area_bar(
+    theme: &Theme,
+    state: &gpui::Entity<crate::app::AppState>,
+    pps: f32,
+    fps: f32,
+    scroll_x: f32,
+    viewport: f32,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> Option<gpui::AnyElement> {
+    let ((start, end), marked) = {
+        let app = state.read(cx);
+        (
+            app.work_area(),
+            app.mark_in.is_some() || app.mark_out.is_some(),
+        )
+    };
+    // Clamped just past the visible width, so a long sequence at a deep zoom
+    // never lays out a bar millions of pixels wide; a grip clamped there is
+    // drawn off screen, where its end is.
+    let reach = WORK_AREA_GRIP_W * 2.0;
+    let left = (ticks_to_px(start, fps, pps) - scroll_x).max(-reach);
+    let right = (ticks_to_px(end, fps, pps) - scroll_x).min(viewport + reach);
+    if right <= left {
+        return None;
+    }
+    let (fill, grip) = if marked {
+        (theme.accent.opacity(0.42), theme.accent)
+    } else {
+        (theme.text_faint.opacity(0.22), theme.text_faint)
+    };
+    let press = |grip: WorkAreaGrip| {
+        cx.listener(move |this, event: &MouseDownEvent, _, cx| {
+            cx.stop_propagation();
+            let x = f32::from(event.position.x);
+            this.state.update(cx, |state, _| {
+                if event.click_count >= 2 {
+                    state.release_work_area();
+                    state.work_area_to_sequence();
+                } else {
+                    state.press_work_area(grip, x);
+                }
+            });
+            cx.notify();
+        })
+    };
+    let (on_bar, on_start, on_end) = (
+        press(WorkAreaGrip::Bar),
+        press(WorkAreaGrip::Start),
+        press(WorkAreaGrip::End),
+    );
+    let end_grip = |id: &'static str, on_press| {
+        div()
+            .id(id)
+            .debug_selector(move || id.into())
+            .absolute()
+            .top_0()
+            .bottom_0()
+            .w(px(WORK_AREA_GRIP_W))
+            .rounded(px(1.0))
+            .bg(grip)
+            .cursor(CursorStyle::ResizeLeftRight)
+            .on_mouse_down(MouseButton::Left, on_press)
+    };
+    Some(
+        div()
+            .id("work-area")
+            .debug_selector(|| "timeline-work-area".into())
+            .absolute()
+            .left(px(left))
+            .top(px(WORK_AREA_TOP))
+            .w(px(right - left))
+            .h(px(WORK_AREA_H))
+            .rounded(px(2.0))
+            .bg(fill)
+            .cursor(CursorStyle::OpenHand)
+            .on_mouse_down(MouseButton::Left, on_bar)
+            .child(end_grip("work-area-start", on_start).left_0())
+            .child(end_grip("work-area-end", on_end).right_0())
+            .into_any_element(),
+    )
+}
+
+/// The ruler's ticks and labels, painted in one pass over the visible width.
 ///
-/// The caller passes a followed value rather than the model's tick, so playback
-/// and a scrub both read as travel instead of a step per frame.
+/// The spacing comes from [`ruler_scale`] with the label width measured in
+/// the ruler's own font, so labels never overlap at any zoom, and each label
+/// reads in the sequence's time display.
+fn ruler_ticks(
+    theme: &Theme,
+    time: RulerTime,
+    px_per_tick: f32,
+    scroll_x: f32,
+) -> impl IntoElement {
+    let major_color = theme.border_strong;
+    let minor_color = theme.border;
+    let label_color = theme.text_faint;
+    let font = gpui::Font {
+        family: theme.font_mono.clone(),
+        features: gpui::FontFeatures::default(),
+        fallbacks: None,
+        weight: gpui::FontWeight::NORMAL,
+        style: gpui::FontStyle::Normal,
+    };
+    canvas(
+        |_, _, _| (),
+        move |bounds: Bounds<gpui::Pixels>, (), window, cx| {
+            if px_per_tick <= 0.0 {
+                return;
+            }
+            let font_size = Theme::TEXT_UI;
+            let text_system = window.text_system().clone();
+            let font_id = text_system.resolve_font(&font);
+            let digit_px = text_system
+                .advance(font_id, font_size, '0')
+                .map_or(f32::from(font_size) * 0.6, |advance| {
+                    f32::from(advance.width)
+                });
+            let label_px =
+                ruler_label_chars(time.rate, time.display, time.last_tick) as f32 * digit_px;
+            let scale = ruler_scale(time.rate, time.display, px_per_tick, label_px);
+            let width = f32::from(bounds.size.width);
+            let height = f32::from(bounds.size.height);
+            // From the labelled tick at or before the left edge, so a label
+            // that straddles the edge still draws its visible part.
+            let first = (scroll_x / px_per_tick).floor() as i64;
+            let mut tick = (first.div_euclid(scale.major) * scale.major).max(0);
+            let last = ((scroll_x + width) / px_per_tick).ceil() as i64;
+            while tick <= last {
+                let x = tick as f32 * px_per_tick - scroll_x;
+                let major = tick % scale.major == 0;
+                let (top, tall, color) = if major {
+                    (0.0, height, major_color)
+                } else {
+                    (height - MINOR_TICK_H, MINOR_TICK_H, minor_color)
+                };
+                window.paint_quad(fill(
+                    Bounds::new(
+                        bounds.origin + point(px(x), px(top)),
+                        size(px(1.0), px(tall)),
+                    ),
+                    color,
+                ));
+                if major {
+                    let text = SharedString::from(
+                        crate::timecode::display_time(tick, time.rate, time.display).to_string(),
+                    );
+                    let run = TextRun {
+                        len: text.len(),
+                        font: font.clone(),
+                        color: label_color,
+                        background_color: None,
+                        underline: None,
+                        strikethrough: None,
+                        tracking: Default::default(),
+                    };
+                    let line = text_system.shape_line(text, font_size, &[run], None);
+                    let _ = line.paint(
+                        bounds.origin + point(px(x + Theme::SPACE_XS), px(1.0)),
+                        font_size + px(4.0),
+                        TextAlign::Left,
+                        None,
+                        window,
+                        cx,
+                    );
+                }
+                tick += scale.minor;
+            }
+        },
+    )
+    .absolute()
+    .top_0()
+    .left_0()
+    .w_full()
+    .h(px(RULER_TICKS_H))
+}
+
 pub(super) fn playhead_line(
     theme: &Theme,
     playhead: f32,
@@ -327,6 +472,7 @@ pub(super) fn playhead_line(
 ) -> impl IntoElement {
     let x = ticks_to_px_f(playhead, fps, pps) - scroll_x;
     div()
+        .debug_selector(|| "timeline-playhead".into())
         .absolute()
         .left(px(x - 5.0))
         .top_0()
@@ -344,14 +490,6 @@ pub(super) fn playhead_line(
         )
 }
 
-/// The magnet's guide: the line plus the name of what fired it, so a snap onto
-/// the wrong edge is visible instead of looking like a missed drag.
-///
-/// `glow` is the confirmation. The line fades in on the frame the magnet takes
-/// hold, and then breathes while it holds, so a snap that fired reads apart from
-/// a drag that merely passed over the same tick. Keyed by the candidate, so
-/// moving from one magnet to the next replays the confirmation rather than
-/// sliding a line that was already there.
 pub(super) fn snap_guide_line(
     theme: &Theme,
     guide: crate::snap::SnapCandidate,
@@ -369,8 +507,6 @@ pub(super) fn snap_guide_line(
         .w(px(1.))
         .bg(theme.snap_guide)
         .child(
-            // The confirmation itself: a wider, dimmer wash over the line whose
-            // strength is the breath.
             div()
                 .absolute()
                 .left(px(-Theme::SPACE_XS))
@@ -388,128 +524,48 @@ pub(super) fn snap_guide_line(
                 .px(px(3.))
                 .rounded(px(2.))
                 .bg(theme.surface_card)
-                .text_size(px(10.))
+                .text_size(Theme::TEXT_SMALL)
                 .text_color(theme.snap_guide)
                 .child(guide.kind.label()),
         ));
     motion::fade_quick(guide.guide_key(), line)
 }
 
-/// The blend window at a cut, drawn centred on the junction so its width reads as
-/// the transition's duration.
+/// Pixel geometry `(left_px, width_px, is_range)` for a marker on the timeline ruler.
 ///
-/// Right-clicking offers Remove and the blend catalog for that junction; dragging
-/// either edge sets the window length. Both address the wedge's own clip, so
-/// neither steals the selection.
-pub(super) fn transition_wedge(
-    theme: &Theme,
-    clip_id: u64,
-    center_ticks: i64,
+/// Point markers (`duration_ticks <= 0`) draw as a 6px flag centered on `tick`.
+/// Range markers (`duration_ticks > 0`) draw as a bar spanning `[tick, tick + duration_ticks]`.
+pub(crate) fn marker_ruler_span(
+    tick: i64,
     duration_ticks: i64,
-    label: impl Into<SharedString>,
-    pps: f32,
     fps: f32,
+    pps: f32,
     scroll_x: f32,
-    cx: &mut gpui::Context<crate::shell::Shell>,
-) -> impl IntoElement {
-    let half = duration_ticks.max(1) / 2;
-    let left = ticks_to_px(center_ticks - half, fps, pps) - scroll_x;
-    let width = (ticks_to_px(center_ticks + half, fps, pps) - scroll_x - left).max(4.0);
-    div()
-        .id(gpui::ElementId::named_usize("transition", clip_id as usize))
-        .absolute()
-        .left(px(left))
-        .top_0()
-        .bottom_0()
-        .w(px(width))
-        .bg(theme.accent.opacity(0.28))
-        .border_1()
-        .border_color(theme.accent)
-        .overflow_hidden()
-        .on_mouse_down(
-            MouseButton::Right,
-            cx.listener(move |this, event: &MouseDownEvent, _, cx| {
-                cx.stop_propagation();
-                this.state.update(cx, |state, _| {
-                    state.open_context(
-                        ContextTarget::Transition { clip: clip_id },
-                        f32::from(event.position.x),
-                        f32::from(event.position.y),
-                    );
-                });
-                cx.notify();
-            }),
-        )
-        .child(
-            div()
-                .text_size(px(9.))
-                .text_color(theme.text_faint)
-                .child(label.into()),
-        )
-        .child(wedge_edge(false, clip_id, duration_ticks, pps, fps, cx))
-        .child(wedge_edge(true, clip_id, duration_ticks, pps, fps, cx))
+) -> (f32, f32, bool) {
+    let x0 = ticks_to_px(tick, fps, pps) - scroll_x;
+    if duration_ticks > 0 {
+        let x1 = ticks_to_px(tick.saturating_add(duration_ticks), fps, pps) - scroll_x;
+        let w = (x1 - x0).max(6.0);
+        (x0, w, true)
+    } else {
+        (x0 - 3.0, 6.0, false)
+    }
 }
 
-/// Width of a wedge edge grab strip, in pixels.
-pub(super) const WEDGE_EDGE: f32 = 6.0;
+#[cfg(test)]
+mod tests {
+    use super::marker_ruler_span;
 
-/// One draggable edge of a wedge. The window is committed once on release, so a
-/// drag is one edit and a release that moved nothing writes nothing.
-pub(super) fn wedge_edge(
-    right: bool,
-    clip_id: u64,
-    duration_ticks: i64,
-    pps: f32,
-    fps: f32,
-    cx: &mut gpui::Context<crate::shell::Shell>,
-) -> impl IntoElement {
-    let origin: std::rc::Rc<std::cell::Cell<Option<f32>>> = Default::default();
-    let down = origin.clone();
-    let side = if right {
-        "transition-r"
-    } else {
-        "transition-l"
-    };
-    let handle = div()
-        .id(gpui::ElementId::named_usize(side, clip_id as usize))
-        .absolute()
-        .top_0()
-        .bottom_0()
-        .w(px(WEDGE_EDGE))
-        .cursor(CursorStyle::ResizeLeftRight)
-        .on_mouse_down(
-            MouseButton::Left,
-            cx.listener(move |_, event: &MouseDownEvent, _, cx| {
-                cx.stop_propagation();
-                down.set(Some(f32::from(event.position.x)));
-            }),
-        )
-        .on_mouse_up(
-            MouseButton::Left,
-            cx.listener(move |this, event: &gpui::MouseUpEvent, _, cx| {
-                let Some(origin_x) = origin.take() else {
-                    return;
-                };
-                let delta_px = f32::from(event.position.x) - origin_x;
-                let gesture = gesture::Gesture::Transition {
-                    right,
-                    duration: duration_ticks,
-                };
-                let drag = gesture::Drag {
-                    clip: aria_models::ClipId::from_raw(clip_id),
-                    delta: ((delta_px / pps.max(1.0)) * fps.max(1.0)).round() as i64,
-                };
-                this.state.update(cx, |state, _| {
-                    if let Err(err) = gesture::apply(state, gesture, drag) {
-                        state.report_error(&err);
-                    }
-                });
-                cx.notify();
-            }),
-        );
-    if right {
-        handle.right_0()
-    } else {
-        handle.left_0()
+    #[test]
+    fn duration_marker_draws_as_range_on_ruler() {
+        let (point_left, point_w, point_is_range) = marker_ruler_span(24, 0, 24.0, 120.0, 0.0);
+        assert!(!point_is_range);
+        assert_eq!(point_w, 6.0);
+        assert_eq!(point_left, 120.0 - 3.0);
+
+        let (range_left, range_w, range_is_range) = marker_ruler_span(24, 24, 24.0, 120.0, 0.0);
+        assert!(range_is_range);
+        assert_eq!(range_left, 120.0);
+        assert_eq!(range_w, 120.0);
     }
 }

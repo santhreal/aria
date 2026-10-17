@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::error::ModelError;
-use crate::param::{Lerp, SegmentSample};
+use crate::param::{Keyframe, Lerp, SegmentSample};
 
 /// Normalized crop window into a clip's content (CapCut crop, M1).
 ///
@@ -37,7 +37,15 @@ impl Lerp for CropRect {
     }
 }
 
-impl SegmentSample for CropRect {}
+impl SegmentSample for CropRect {
+    fn segment_delta(a: &Keyframe<Self>, b: &Keyframe<Self>) -> f32 {
+        let dx = b.value.x - a.value.x;
+        let dy = b.value.y - a.value.y;
+        let dw = b.value.w - a.value.w;
+        let dh = b.value.h - a.value.h;
+        (dx * dx + dy * dy + dw * dw + dh * dh).sqrt()
+    }
+}
 
 /// Smallest croppable extent per axis (1% of the content) — keeps the kept
 /// region non-degenerate so placement math and UV rects never collapse.

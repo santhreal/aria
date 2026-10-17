@@ -13,6 +13,9 @@ pub(crate) const MAX_TEXT_LINE_SPACING: f32 = 100.0;
 pub(crate) const MAX_TEXT_STROKE_WIDTH: f32 = 512.0;
 pub(crate) const MAX_TEXT_SHADOW_DISTANCE: f32 = 4096.0;
 
+#[path = "text_runs.rs"]
+mod runs;
+pub use runs::{MAX_TEXT_RUNS, TEXT_RUN_VERSION, TextStyleRun};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 pub enum TextCase {
     /// Render the text as authored.
@@ -27,6 +30,19 @@ pub enum TextCase {
 }
 
 impl TextCase {
+    /// Every case, in the order a picker lists them.
+    pub const ALL: [Self; 4] = [Self::Normal, Self::Upper, Self::Lower, Self::Title];
+
+    /// The case's name as a picker shows it.
+    pub fn label(self) -> &'static str {
+        match self {
+            TextCase::Normal => "As typed",
+            TextCase::Upper => "Upper",
+            TextCase::Lower => "Lower",
+            TextCase::Title => "Title",
+        }
+    }
+
     /// Apply the casing transform to `s`.
     pub fn apply(self, s: &str) -> String {
         match self {
@@ -63,6 +79,25 @@ pub enum TextAlignH {
     #[default]
     Center,
     Right,
+    /// Wrapped lines stretch their spaces to the canvas width; the last line
+    /// of each paragraph sits at the left, and the block sits at the left of
+    /// the canvas.
+    Justify,
+}
+
+impl TextAlignH {
+    /// Every alignment, in the order a picker lists them.
+    pub const ALL: [Self; 4] = [Self::Left, Self::Center, Self::Right, Self::Justify];
+
+    /// The alignment's name as a picker shows it.
+    pub fn label(self) -> &'static str {
+        match self {
+            TextAlignH::Left => "Left",
+            TextAlignH::Center => "Center",
+            TextAlignH::Right => "Right",
+            TextAlignH::Justify => "Justify",
+        }
+    }
 }
 
 /// Vertical alignment of the title block within the canvas.
@@ -72,6 +107,20 @@ pub enum TextAlignV {
     #[default]
     Middle,
     Bottom,
+}
+
+impl TextAlignV {
+    /// Every alignment, in the order a picker lists them.
+    pub const ALL: [Self; 3] = [Self::Top, Self::Middle, Self::Bottom];
+
+    /// The alignment's name as a picker shows it.
+    pub fn label(self) -> &'static str {
+        match self {
+            TextAlignV::Top => "Top",
+            TextAlignV::Middle => "Middle",
+            TextAlignV::Bottom => "Bottom",
+        }
+    }
 }
 
 /// Outline drawn around glyphs.
@@ -160,6 +209,13 @@ pub struct TextStyle {
     /// Extra space between glyphs, in reference pixels (can be negative).
     #[serde(default = "default_letter_spacing")]
     pub letter_spacing: Param<f32>,
+    /// Apply the font's kerning pairs. Absent from saves while on, so files
+    /// written before the switch existed load with kerning on, as they drew.
+    #[serde(
+        default = "super::default_true",
+        skip_serializing_if = "super::is_true"
+    )]
+    pub kerning: bool,
     /// Line-height multiplier (`1.2` ⇒ 120% of the font size).
     #[serde(default = "default_line_spacing")]
     pub line_spacing: Param<f32>,
@@ -190,6 +246,10 @@ pub struct TextStyle {
     /// unset, so old files load unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub effect_preset: Option<String>,
+    /// Per-range character style overrides (`start..end` in character indices).
+    /// Empty on clips styled as a whole.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub runs: Vec<TextStyleRun>,
 }
 
 /// Default font size in reference pixels — matches the legacy `height / 12`
@@ -266,7 +326,7 @@ impl TextStyle {
                 validate_range(*v, 0.0, MAX_TEXT_SHADOW_DISTANCE, "text shadow distance")
             })?;
         }
-        Ok(())
+        self.validate_runs()
     }
 }
 
@@ -290,6 +350,7 @@ impl Default for TextStyle {
             case: TextCase::Normal,
             fill: default_text_fill(),
             letter_spacing: default_letter_spacing(),
+            kerning: true,
             line_spacing: default_line_spacing(),
             align_h: TextAlignH::Center,
             align_v: TextAlignV::Middle,
@@ -298,6 +359,7 @@ impl Default for TextStyle {
             background: None,
             shadow: None,
             effect_preset: None,
+            runs: Vec::new(),
         }
     }
 }

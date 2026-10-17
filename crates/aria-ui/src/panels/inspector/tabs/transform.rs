@@ -1,4 +1,5 @@
-//! Transform tab: position, scale, rotation, anchor, opacity.
+//! Transform tab: position, scale, rotation, anchor, opacity, and the Parent
+//! row.
 //!
 //! Every row comes from the property catalog, so the block keeps no list of the
 //! properties it owns and every one of them is written the keyframe-aware way. A
@@ -6,11 +7,19 @@
 //! animated property with the constant the pointer left it at, and it silently
 //! lacked the anchor point the catalog has always carried.
 
+use crate::tooltip::WithTip as _;
 use gpui::{
-    InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled, div, px,
+    InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, SharedString,
+    Styled, div, px,
 };
 
-use crate::components;
+use aria_models::ClipId;
+
+use crate::app::clip_parent::keep_for;
+use crate::components::{self, ChipSize};
+use crate::fluent::FluentBuilder;
+use crate::motion::MotionKey;
+use crate::surfaces::clip_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::UiClip;
 
@@ -42,8 +51,9 @@ pub fn transform_tab(
         .child(section_label(theme, "Transform"))
         .children(rows)
         .child(div().pt(px(Theme::SPACE_SM)).child(reset))
+        .children(parent_row(theme, state, cx))
         .child(crate::panels::inspector::blocks::framing::framing_block(
-            theme, clip, cx,
+            theme, clip, state, cx,
         ))
         .child(crate::panels::inspector::blocks::keyframes::keyframes_block(theme, clip, state, cx))
         .child(
@@ -51,4 +61,143 @@ pub fn transform_tab(
                 theme, clip, state, cx,
             ),
         )
+}
+
+/// One clip the Parent row draws.
+struct ParentChip {
+    clip: ClipId,
+    name: SharedString,
+    /// The clip's parent now.
+    current: bool,
+    /// The model accepts it as the parent. A parent the clip no longer overlaps,
+    /// or one an edit took away, is still drawn so it reads as the parent, and
+    /// None releases it.
+    eligible: bool,
+}
+
+/// The Parent row: None, then every clip the model accepts as this clip's
+/// parent, and the pick whip that takes the next clip pressed on the timeline.
+/// A press keeps the clip where it is drawn at the playhead; Shift snaps it
+/// onto the parent's anchor.
+fn parent_row(
+    theme: &Theme,
+    state: &gpui::Entity<crate::app::AppState>,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> Option<impl IntoElement> {
+    let app = state.read(cx);
+    let choices = app.selected_parent_choices()?;
+    let current = choices.current;
+    let name_of = |clip: ClipId| -> SharedString {
+        app.ui_clip_ref(clip).map_or_else(
+            || SharedString::new_static("Missing clip"),
+            |ui| ui.name.clone(),
+        )
+    };
+    let stale = current.filter(|clip| !choices.eligible.contains(clip));
+    let chips: Vec<ParentChip> = stale
+        .into_iter()
+        .map(|clip| (clip, false))
+        .chain(choices.eligible.iter().map(|clip| (*clip, true)))
+        .map(|(clip, eligible)| ParentChip {
+            clip,
+            name: name_of(clip),
+            current: current == Some(clip),
+            eligible,
+        })
+        .collect();
+    let whip_armed = app.parent_whip().is_some();
+
+    let none = components::chip(
+        "parent-none",
+        "None",
+        current.is_none(),
+        ChipSize::Compact,
+        theme,
+    )
+    .when(current.is_some(), |el| {
+        el.on_mouse_down(
+            MouseButton::Left,
+            cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                pick_parent(this, Pick::ReleaseParent, cx);
+            }),
+        )
+    });
+    let chips: Vec<_> = chips
+        .into_iter()
+        .map(|chip| {
+            let ParentChip {
+                clip,
+                name,
+                current,
+                eligible,
+            } = chip;
+            components::chip(
+                MotionKey::new("parent-choice", clip.raw()),
+                name,
+                current,
+                ChipSize::Compact,
+                theme,
+            )
+            .when(eligible, |el| {
+                el.on_mouse_down(
+                    MouseButton::Left,
+                    cx.listener(move |this, event: &MouseDownEvent, _, cx| {
+                        // The parent again keeps the clip where it is; only a
+                        // snap onto it is an edit.
+                        if current && !event.modifiers.shift {
+                            return;
+                        }
+                        let keep = keep_for(event.modifiers.shift);
+                        pick_parent(this, Pick::Parent { parent: clip, keep }, cx);
+                    }),
+                )
+            })
+            .into_any_element()
+        })
+        .collect();
+    let whip = components::ghost_button("parent-whip", "@", theme)
+        .when(whip_armed, |el| el.bg(theme.accent).text_color(theme.text))
+        .when_some(
+            crate::tooltip::builder("inspector-parent-whip"),
+            |el, tip| el.with_tip(tip),
+        )
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                this.state.update(cx, |state, _| state.toggle_parent_whip());
+                cx.notify();
+            }),
+        );
+    Some(
+        div()
+            .flex()
+            .flex_col()
+            .gap(px(Theme::SPACE_XS))
+            .pt(px(Theme::SPACE_SM))
+            .child(section_label(theme, "Parent"))
+            .child(
+                div()
+                    .flex()
+                    .flex_row()
+                    .flex_wrap()
+                    .items_center()
+                    .gap(px(Theme::SPACE_XS))
+                    .child(none)
+                    .children(chips)
+                    .child(whip),
+            ),
+    )
+}
+
+fn pick_parent(
+    this: &mut crate::shell::Shell,
+    pick: Pick,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) {
+    this.state.update(cx, |state, _| {
+        if let Err(err) = clip_pick::apply(state, pick) {
+            state.report_error(&err);
+        }
+    });
+    cx.notify();
 }

@@ -55,3 +55,12 @@ mod gesture_partitions;
 
 #[path = "tests_resolve_with.rs"]
 mod resolve_with;
+
+#[path = "tests_missing_plugin.rs"]
+mod missing_plugin;
+
+#[path = "tests_effect_bypass.rs"]
+mod effect_bypass;
+
+#[path = "tests_nested_sequences.rs"]
+mod nested_sequences;

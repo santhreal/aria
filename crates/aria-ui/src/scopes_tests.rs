@@ -11,18 +11,28 @@ use super::*;
 
 /// Measure a flat frame of one colour.
 fn flat_scopes(rgba: [u8; 4]) -> FrameScopes {
+    traced_scopes(rgba, WaveformTrace::Luma)
+}
+
+/// Measure a flat frame of one colour with the waveform counting `trace`.
+fn traced_scopes(rgba: [u8; 4], trace: WaveformTrace) -> FrameScopes {
     let bytes: Vec<u8> = rgba.iter().copied().cycle().take(16 * 8 * 4).collect();
     let frame = Rgba8Frame::new(&bytes, 16, 8, 16 * 4, 0.0).expect("frame");
-    measure_scopes(frame, ScopeConfig::default())
+    measure_scopes(frame, ScopeConfig::default().with_waveform_trace(trace))
 }
 
 /// Rows carrying a trace in `channel`, thresholded above the graticule so a
 /// level line is not mistaken for a measurement.
 fn lit_rows(image: &RgbaImage, channel: usize) -> Vec<u32> {
+    lit_rows_in(image, channel, 0..image.width)
+}
+
+/// [`lit_rows`] over the columns `xs` alone.
+fn lit_rows_in(image: &RgbaImage, channel: usize, xs: std::ops::Range<u32>) -> Vec<u32> {
     let mut rows = Vec::new();
     for y in 0..image.height {
         let mut lit = false;
-        for x in 0..image.width {
+        for x in xs.clone() {
             let at = ((y * image.width + x) * 4) as usize;
             if image.pixels[at + channel] > GRATICULE[channel] + 40 {
                 lit = true;
@@ -201,8 +211,8 @@ fn repaint_reuses_every_scope_pixel_buffer() {
 
 #[test]
 fn vectorscope_graticules_are_rendered_once_per_geometry() {
-    let first = vectorscope_graticule((SCOPE_PX - 1) / 2);
-    let second = vectorscope_graticule((SCOPE_PX - 1) / 2);
+    let first = vectorscope_graticule(128);
+    let second = vectorscope_graticule(128);
     assert!(
         Arc::ptr_eq(&first, &second),
         "the static ring was recomputed for the next frame"
@@ -232,4 +242,114 @@ fn an_empty_measurement_paints_a_graticule_and_no_trace() {
         lit_rows(&image, 1).is_empty(),
         "nothing was measured, so nothing is traced"
     );
+}
+
+/// A parade lays each channel in its own third, left to right, with a
+/// graticule column between them, and each third traces its own channel's
+/// code. The class this closes: a parade drawn in the wrong order, or one
+/// channel drawn into another's third.
+#[test]
+fn a_parade_lays_each_channel_in_its_own_third() {
+    let columns = ScopeConfig::default().waveform_columns() as u32;
+    let thirds = [
+        0..columns,
+        columns + 1..2 * columns + 1,
+        2 * columns + 2..3 * columns + 2,
+    ];
+    let red = waveform_image(&traced_scopes([255, 0, 0, 255], WaveformTrace::RgbParade).waveform);
+    assert_eq!(red.width, 3 * columns + 2);
+    for gap in [columns, 2 * columns + 1] {
+        for y in 0..SCOPE_PX {
+            let at = ((y * red.width + gap) * 4) as usize;
+            assert_eq!(red.pixels[at..at + 4], GRATICULE, "gap {gap} row {y}");
+        }
+    }
+    // Red at code 255 in the red third; green and blue at code 0 in theirs.
+    let red_rows = lit_rows_in(&red, 0, thirds[0].clone());
+    assert_eq!(red_rows.first().copied(), Some(0), "red traces the top");
+    assert!(red_rows.iter().all(|y| *y < SCOPE_PX / 4), "{red_rows:?}");
+    for (third, channel) in [(1, 1), (2, 2)] {
+        let rows = lit_rows_in(&red, channel, thirds[third].clone());
+        assert_eq!(rows.last().copied(), Some(SCOPE_PX - 1), "third {third}");
+        assert!(rows.iter().all(|y| *y > SCOPE_PX * 3 / 4), "{rows:?}");
+    }
+    // The green and blue traces lift the bottom level line in every channel,
+    // so the top row is what tells red apart.
+    assert!(
+        !lit_rows_in(&red, 0, thirds[1].start..thirds[2].end).contains(&0),
+        "red traced outside its third"
+    );
+
+    // A grey's chroma is neutral: Cb and Cr trace the middle of their thirds.
+    let grey =
+        waveform_image(&traced_scopes([90, 90, 90, 255], WaveformTrace::YcbcrParade).waveform);
+    assert_eq!(grey.width, 3 * columns + 2);
+    let middle = (SCOPE_PX - 1) as f32 / 2.0;
+    for (third, channel) in [(1, 2), (2, 0)] {
+        let rows = lit_rows_in(&grey, channel, thirds[third].clone());
+        assert!(!rows.is_empty(), "third {third} traced nothing");
+        assert!(
+            rows.iter().all(|y| (*y as f32 - middle).abs() < 2.0),
+            "neutral chroma traced {rows:?} in third {third}"
+        );
+    }
+}
+
+/// Each primary and secondary at 75 % and at 100 % traces inside its target
+/// box, and the skin tone line runs from neutral at its angle. Enumerated from
+/// the target tables, so a target added without a box fails here.
+#[test]
+fn every_colour_target_holds_its_colour_and_the_skin_line_is_drawn() {
+    let empty = {
+        let bytes = vec![0u8; 8 * 8 * 4];
+        let frame = Rgba8Frame::new(&bytes, 8, 8, 32, 0.0).expect("frame");
+        vectorscope_image(&measure_scopes(frame, ScopeConfig::default()).vectorscope)
+    };
+    let graticule = |x: u32, y: u32| {
+        let at = ((y * empty.width + x) * 4) as usize;
+        empty.pixels[at..at + 4] == GRATICULE
+    };
+    for (level, half) in TARGET_LEVELS.into_iter().zip(TARGET_HALF) {
+        for [red, green, blue] in TARGET_COLOURS {
+            let scale = |code: u8| if code == 0 { 0 } else { level };
+            let rgba = [scale(red), scale(green), scale(blue), 255];
+            let (x, y) = brightest_trace(&vectorscope_image(&flat_scopes(rgba).vectorscope));
+            let size = ScopeConfig::default().vectorscope_size();
+            let (cell_x, cell_y) = vectorscope_cell(rgba[0], rgba[1], rgba[2], size);
+            let (box_x, box_y) = (cell_pixel(cell_x, size), cell_pixel(cell_y, size));
+            assert!(
+                x.abs_diff(box_x) <= half && y.abs_diff(box_y) <= half,
+                "{rgba:?} traced at ({x}, {y}), outside its box at ({box_x}, {box_y})"
+            );
+            // The box's edge is drawn wherever it is on the canvas.
+            let edges = [
+                (box_x.checked_sub(half), Some(box_y)),
+                (Some(box_x + half), Some(box_y)),
+                (Some(box_x), box_y.checked_sub(half)),
+                (Some(box_x), Some(box_y + half)),
+            ];
+            let drawn = edges
+                .into_iter()
+                .filter_map(|(x, y)| Some((x?, y?)))
+                .filter(|(x, y)| *x < SCOPE_PX && *y < SCOPE_PX)
+                .all(|(x, y)| graticule(x, y));
+            assert!(drawn, "the box of {rgba:?} is not drawn");
+        }
+    }
+    let centre = cell_pixel(64, 128) as f32;
+    let (sin, cos) = SKIN_TONE_DEGREES.to_radians().sin_cos();
+    for step in [10.0, 40.0, 80.0] {
+        let (x, y) = (centre + step * cos, centre - step * sin);
+        assert!(
+            graticule(x.round() as u32, y.round() as u32),
+            "the skin tone line misses ({x}, {y})"
+        );
+    }
+    // Red and yellow sit either side of the skin tone line.
+    let angle = |rgba: [u8; 3]| {
+        let (cb, cr) = aria_analysis::scopes::chroma709(rgba[0], rgba[1], rgba[2]);
+        cr.atan2(cb).to_degrees()
+    };
+    assert!(angle([255, 0, 0]) < SKIN_TONE_DEGREES);
+    assert!(angle([255, 255, 0]) > SKIN_TONE_DEGREES);
 }

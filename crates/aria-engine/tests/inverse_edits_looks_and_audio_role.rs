@@ -167,9 +167,9 @@ fn look_commands_undo_redo_roundtrip() {
 
     // Mask, chroma, stabilize, filter, adjust — five history entries.
     engine
-        .apply(Command::Edit(EditCommand::SetClipMask {
+        .apply(Command::Edit(EditCommand::AddClipMask {
             clip: clip_id,
-            mask: Some(Mask::new(MaskKind::Heart)),
+            mask: Mask::new(MaskKind::Heart),
         }))
         .expect("mask");
     engine
@@ -205,7 +205,7 @@ fn look_commands_undo_redo_roundtrip() {
         .expect("adjust");
 
     let styled = clip(&engine);
-    assert_eq!(styled.mask.as_ref().unwrap().kind, MaskKind::Heart);
+    assert_eq!(styled.masks[0].kind, MaskKind::Heart);
     assert_eq!(styled.chroma_key.as_ref().unwrap().rgb, [0, 255, 0]);
     assert_eq!(styled.stabilize, Some(StabilizeLevel::Recommended));
     assert_eq!(styled.filter.as_ref().unwrap().id, "noir");
@@ -221,7 +221,7 @@ fn look_commands_undo_redo_roundtrip() {
     assert!(engine.undo());
     assert!(clip(&engine).chroma_key.is_none());
     assert!(engine.undo());
-    assert!(clip(&engine).mask.is_none());
+    assert!(clip(&engine).masks.is_empty());
 
     // …and redo brings the whole look back.
     for _ in 0..5 {
@@ -280,23 +280,15 @@ fn look_commands_undo_redo_roundtrip() {
 
 #[test]
 fn look_commands_reject_invalid_targets_without_history() {
-    use aria_models::{AudioRole, Filter, Mask, MaskKind};
+    use aria_models::{AudioRole, Filter};
 
     let (_dir, mut engine) = temp_engine();
     let clip_id = text_clip(&mut engine);
     let before = engine.project().clip(clip_id).unwrap().clone();
     let history_before = (engine.can_undo(), engine.can_redo());
 
-    // Generated text: no pixels to mask, no audio lane for a role, unknown
-    // filter ids bounce.
-    assert!(
-        engine
-            .apply(Command::Edit(EditCommand::SetClipMask {
-                clip: clip_id,
-                mask: Some(Mask::new(MaskKind::Linear)),
-            }))
-            .is_err()
-    );
+    // Generated text: no audio lane for a role, and unknown filter ids
+    // bounce.
     assert!(
         engine
             .apply(Command::Edit(EditCommand::SetAudioRole {

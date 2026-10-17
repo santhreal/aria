@@ -8,6 +8,9 @@ pub enum TextAlign {
     Left,
     Center,
     Right,
+    /// Wrapped lines stretch their spaces to fill the wrap width; the last
+    /// line of each paragraph sits at the left.
+    Justify,
 }
 
 /// Vertical placement of an ink-tight text bitmap within its canvas.
@@ -64,6 +67,20 @@ pub struct TextShadow {
     pub distance: f32,
 }
 
+/// Per-byte-range style override within a shaped text string.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct TextRun {
+    /// Byte range `start..end` in the shaped text string.
+    pub range: std::ops::Range<usize>,
+    pub family: Option<FontFamily>,
+    pub font_size: Option<f32>,
+    pub bold: Option<bool>,
+    pub italic: Option<bool>,
+    pub underline: Option<bool>,
+    pub color: Option<[u8; 4]>,
+    pub letter_spacing: Option<f32>,
+}
+
 /// The styling for a rasterized text run.
 ///
 /// Construct with [`TextStyle::new`] (a size, white, left-aligned, sans-serif,
@@ -83,6 +100,9 @@ pub struct TextStyle {
     /// Extra tracking in pixels. The layout adapter converts this to the
     /// em-relative value expected by the shaping engine.
     pub letter_spacing: f32,
+    /// Apply the font's kerning pairs. Off, every glyph advances by its own
+    /// width alone.
+    pub kerning: bool,
     pub align: TextAlign,
     pub vertical_align: TextVerticalAlign,
     /// Wrap width in pixels. `None` lays each paragraph out on one line; `Some`
@@ -98,6 +118,8 @@ pub struct TextStyle {
     pub background: Option<TextBackground>,
     /// Optional drop shadow / glow behind the text.
     pub shadow: Option<TextShadow>,
+    /// Optional per-range character overrides (`range` in byte offsets).
+    pub runs: Vec<TextRun>,
 }
 
 impl TextStyle {
@@ -113,6 +135,7 @@ impl TextStyle {
             italic: false,
             underline: false,
             letter_spacing: 0.0,
+            kerning: true,
             align: TextAlign::Left,
             vertical_align: TextVerticalAlign::Middle,
             max_width: None,
@@ -120,6 +143,7 @@ impl TextStyle {
             stroke: None,
             background: None,
             shadow: None,
+            runs: Vec::new(),
         }
     }
 
@@ -150,6 +174,11 @@ impl TextStyle {
 
     pub fn with_letter_spacing(mut self, letter_spacing: f32) -> Self {
         self.letter_spacing = letter_spacing;
+        self
+    }
+
+    pub fn with_kerning(mut self, kerning: bool) -> Self {
+        self.kerning = kerning;
         self
     }
 
@@ -192,5 +221,75 @@ impl TextStyle {
     pub fn with_shadow(mut self, shadow: TextShadow) -> Self {
         self.shadow = Some(shadow);
         self
+    }
+
+    pub fn with_runs(mut self, runs: Vec<TextRun>) -> Self {
+        self.runs = runs;
+        self
+    }
+
+    /// Effective fill color at `byte` offset in the shaped string.
+    pub fn color_at(&self, byte: usize) -> [u8; 4] {
+        self.runs
+            .iter()
+            .rev()
+            .find(|r| r.range.contains(&byte))
+            .and_then(|r| r.color)
+            .unwrap_or(self.color)
+    }
+
+    /// Effective underline flag at `byte` offset in the shaped string.
+    pub fn underline_at(&self, byte: usize) -> bool {
+        self.runs
+            .iter()
+            .rev()
+            .find(|r| r.range.contains(&byte))
+            .and_then(|r| r.underline)
+            .unwrap_or(self.underline)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::TextRenderer;
+
+    #[test]
+    fn per_run_overrides_tint_clusters_and_scale_run_metrics() {
+        let mut r = TextRenderer::new();
+        if r.font_count() == 0 {
+            return;
+        }
+        let base = TextStyle::new(36.0).with_color([255, 255, 255, 255]);
+        let plain = r.shape("AB", &base);
+        let styled = base.with_runs(vec![TextRun {
+            range: 0..1,
+            family: None,
+            font_size: Some(72.0),
+            bold: Some(true),
+            italic: None,
+            underline: Some(true),
+            color: Some([255, 0, 0, 255]),
+            letter_spacing: None,
+        }]);
+        let shaped = r.shape("AB", &styled);
+        assert!(shaped.extent.1 > plain.extent.1, "72px run grows height");
+        let first_ink = shaped.clusters[0]
+            .image
+            .pixels
+            .chunks_exact(4)
+            .find(|px| px[3] == 255)
+            .expect("first cluster has opaque ink");
+        assert_eq!([first_ink[0], first_ink[1], first_ink[2]], [255, 0, 0]);
+        let second_ink = shaped.clusters[1]
+            .image
+            .pixels
+            .chunks_exact(4)
+            .find(|px| px[3] == 255)
+            .expect("second cluster has opaque ink");
+        assert_eq!(
+            [second_ink[0], second_ink[1], second_ink[2]],
+            [255, 255, 255]
+        );
     }
 }

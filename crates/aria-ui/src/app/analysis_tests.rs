@@ -424,3 +424,113 @@ fn beat_ticks(state: &AppState) -> Vec<i64> {
     ticks.sort_unstable();
     ticks
 }
+#[test]
+fn analyzer_menus_and_palette_reflect_registrations_and_unmount_and_apply_in_one_step() {
+    use crate::chrome::menu_items::items_of;
+    use crate::types::AppMenu;
+    use aria_plugin::{
+        AnalyzerMarker, AnalyzerResult, AnalyzerRun, AnalyzerScope, AnalyzerSpec, AudioSource,
+    };
+    use std::ops::ControlFlow;
+
+    let (mut state, clip) = with_clip();
+    // The palette lists menu rows only through the mounted menu host.
+    state
+        .ctx
+        .mount(&crate::plugins::UiPlugin)
+        .expect("the ui plugin needs nothing");
+    // Shipped analyzers are present on Clip > Analyze and Sequence > Analyze.
+    let clip_items = items_of(AppMenu::Clip, &state);
+    let beat_row = clip_items
+        .iter()
+        .find(|it| it.id == "clip-analyze:aria.beats")
+        .expect("shipped beat analyzer row in Clip > Analyze");
+    assert_eq!(beat_row.under, Some("Analyze"));
+    assert_eq!(beat_row.label, "Detect Beats");
+    // The fixture clip is a still without sound, so the row is disabled with
+    // the sound guard's reason.
+    assert_eq!(
+        beat_row.blocked_by(&state),
+        Some("Select a clip with sound.")
+    );
+
+    let seq_items = items_of(AppMenu::Sequence, &state);
+    assert!(
+        seq_items
+            .iter()
+            .any(|it| it.id == "seq-analyze:aria.silence" && it.under == Some("Analyze"))
+    );
+    assert!(
+        seq_items
+            .iter()
+            .any(|it| it.id == "seq-analyze:aria.loudness" && it.under == Some("Analyze"))
+    );
+
+    // Registering a custom clip and sequence analyzer adds rows to both menus
+    // and to the command palette; dropping the registrations removes them.
+    let clip_reg = state
+        .ctx
+        .register_analyzer(
+            AnalyzerSpec::new(
+                "test.custom_transients",
+                "Transient Peaks",
+                AnalyzerScope::Clip,
+            ),
+            |_rate: u32, _channels: u16| -> Box<dyn AnalyzerRun> {
+                struct DummyRun;
+                impl AnalyzerRun for DummyRun {
+                    fn block(&mut self, _: i64, _: &[f32]) -> ControlFlow<()> {
+                        ControlFlow::Continue(())
+                    }
+                    fn finish(self: Box<Self>) -> Result<AnalyzerResult, String> {
+                        Ok(AnalyzerResult::default())
+                    }
+                }
+                Box::new(DummyRun)
+            },
+        )
+        .expect("register custom clip analyzer");
+
+    assert!(
+        items_of(AppMenu::Clip, &state)
+            .iter()
+            .any(|it| it.id == "clip-analyze:test.custom_transients" && it.under == Some("Analyze"))
+    );
+    assert!(state.palette_catalog().iter().any(|offer| offer.id.as_ref()
+        == "clip-analyze:test.custom_transients"
+        && offer.label.as_ref() == "Analyze: Transient Peaks"));
+
+    // Applying a combined result from the custom analyzer commits one undo
+    // step named after the analyzer's label.
+    let combined = AnalyzerResult {
+        beats: vec![24_000, 72_000],
+        markers: vec![AnalyzerMarker::new(
+            24_000,
+            0,
+            "Transient",
+            aria_models::MarkerColor::Orange,
+        )],
+        ranges: Vec::new(),
+        loudness: None,
+    };
+    state
+        .apply_analyzer_output("test.custom_transients", AudioSource::Clip(clip), &combined)
+        .expect("apply custom analyzer output");
+    assert_eq!(beat_ticks(&state), vec![12, 36]);
+    assert_eq!(state.next_undo_label().as_deref(), Some("Transient Peaks"));
+    assert!(state.undo());
+    assert!(beat_ticks(&state).is_empty());
+
+    drop(clip_reg);
+    assert!(
+        !items_of(AppMenu::Clip, &state)
+            .iter()
+            .any(|it| it.id == "clip-analyze:test.custom_transients")
+    );
+    assert!(
+        !state
+            .palette_catalog()
+            .iter()
+            .any(|offer| offer.id.as_ref() == "clip-analyze:test.custom_transients")
+    );
+}

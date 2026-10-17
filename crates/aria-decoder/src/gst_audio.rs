@@ -115,8 +115,7 @@ impl GstAudioReader {
                 }
                 self.pending_cursor = 0;
                 if self.position.is_none() {
-                    if let Some(pts) = buffer.pts() {
-                        let ns = pts.nseconds() as i64;
+                    if let Some(ns) = crate::gst::stream_time_ns(&sample, buffer) {
                         self.position =
                             Some(ns.saturating_mul(i64::from(self.out_rate)) / 1_000_000_000);
                     }

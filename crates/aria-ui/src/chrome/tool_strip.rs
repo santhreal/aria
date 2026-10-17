@@ -1,5 +1,6 @@
-//! The editor tool strip: tools, transport, the timecode field, the edit mode,
-//! and the rail toggles.
+//! The editor tool bar: the tools, the snapping and linked-selection toggles,
+//! the timeline display settings, the edit mode, the workspace switcher, and
+//! Export.
 //!
 //! Moved out of `chrome.rs` so the bar's frame and the strip's contents are
 //! separate files. Every control here fades between its rest and hover colours
@@ -7,17 +8,17 @@
 //! never flips a colour under the pointer.
 
 use gpui::{
-    Context, CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
-    ParentElement, StatefulInteractiveElement, Styled, div, px,
+    AnyElement, Context, CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton,
+    MouseDownEvent, ParentElement, StatefulInteractiveElement, Styled, div, px,
 };
 
-use crate::app::{AppState, DialogKind, spawn_preview, start_playback};
+use crate::app::{AppState, DialogKind};
 use crate::fluent::FluentBuilder;
 use crate::motion;
 use crate::shell::Shell;
 use crate::theme::Theme;
 use crate::tool_catalog::tool_specs;
-use crate::types::EditMode;
+use crate::types::{AppMenu, EditMode};
 
 const TOOL_H: f32 = 36.0;
 
@@ -26,12 +27,17 @@ pub(super) fn tool_bar(
     state: &Entity<AppState>,
     cx: &mut Context<Shell>,
 ) -> impl IntoElement {
-    let tool = state.read(cx).tool;
-    let snap = state.read(cx).snap_enabled;
-    let mode = state.read(cx).edit_mode;
-    let playing = state.read(cx).playing;
-    let sidebar_on = !state.read(cx).ui_settings.sidebar_collapsed;
-    let inspector_on = !state.read(cx).ui_settings.inspector_collapsed;
+    let (tool, snap, variants_open, pen_variant, linked, mode) = {
+        let state = state.read(cx);
+        (
+            state.tool,
+            state.snap_enabled,
+            state.tool_variants_open(),
+            state.pen_variant(),
+            state.linked_selection,
+            state.edit_mode,
+        )
+    };
 
     // Drawn from `tool_catalog::tool_specs()`, so a new tool cannot exist
     // without a button, a glyph, or a tip: the strip is the table, not a copy of
@@ -39,10 +45,16 @@ pub(super) fn tool_bar(
     // cannot escape a `FnMut`.
     let mut tools = Vec::with_capacity(tool_specs().len());
     for spec in tool_specs() {
-        let item = spec.tool;
         tools.push(
-            tool_btn(spec.id, spec.icon, tool == item, cx, move |s| s.tool = item)
-                .into_any_element(),
+            spec_tool_btn(
+                theme,
+                spec,
+                tool == spec.tool,
+                variants_open == Some(spec.tool),
+                pen_variant,
+                cx,
+            )
+            .into_any_element(),
         );
     }
 
@@ -59,63 +71,20 @@ pub(super) fn tool_bar(
         .border_color(theme.border)
         .children(tools)
         .child(rule(theme))
-        .child(icon_act("go-start", crate::icons::SKIP_BACK, cx, |s| {
-            s.set_playhead(0)
-        }))
-        .child(icon_act(
-            "prev-frame",
-            crate::icons::CHEVRON_LEFT,
-            cx,
-            |s| {
-                s.set_playhead(s.playhead.value - 1);
-            },
-        ))
-        // The transport button names what it will do next, not what it did: the
-        // id carries the state, so its tip reads "Pause" while the sequence runs.
-        .child(tool_btn(
-            if playing { "pause" } else { "play" },
-            if playing {
-                crate::icons::PAUSE
-            } else {
-                crate::icons::PLAY
-            },
-            playing,
-            cx,
-            |s| s.toggle_playback(),
-        ))
-        .child(icon_act(
-            "next-frame",
-            crate::icons::CHEVRON_RIGHT,
-            cx,
-            |s| {
-                s.set_playhead(s.playhead.value + 1);
-            },
-        ))
-        .child(icon_act("go-end", crate::icons::SKIP_FORWARD, cx, |s| {
-            s.set_playhead(s.store.sequence.duration_ticks);
-        }))
-        .child({
-            let focused = state.read(cx).clock_focused();
-            let text = state.read(cx).clock_text();
-            crate::components::text_box("toolbar-tc", text, "00:00:00:00", focused, theme)
-                .font_family(theme.font_mono.clone())
-                .text_size(px(11.))
-                .when_some(crate::tooltip::builder("toolbar-tc"), |el, tip| {
-                    el.tooltip(tip)
-                })
-                .on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                        this.state.update(cx, |state, _| state.focus_clock(true));
-                        cx.notify();
-                    }),
-                )
-        })
-        .child(rule(theme))
         .child(tool_btn("snap", crate::icons::MAGNET, snap, cx, |s| {
-            s.snap_enabled = !s.snap_enabled;
+            s.toggle_snapping()
         }))
+        .child(tool_btn(
+            "linked-selection",
+            crate::icons::LINK,
+            linked,
+            cx,
+            |s| s.toggle_linked_selection(),
+        ))
+        .child(display_btn("timeline-display", theme, state, cx))
         .child(mode_btn(theme, mode, cx))
+        .child(div().flex_1())
+        .child(workspace_switcher(theme, state, cx))
         .child(div().flex_1())
         .child(word_icon(
             "export",
@@ -126,14 +95,193 @@ pub(super) fn tool_bar(
                 s.open_dialog(DialogKind::Export);
             },
         ))
-        .child(icon_act("settings", crate::icons::SETTINGS, cx, |s| {
-            s.open_dialog(DialogKind::Settings);
-        }))
-        .child(rail_toggle(sidebar_on, true, cx))
-        .child(rail_toggle(inspector_on, false, cx))
 }
 
-fn tool_btn(
+fn spec_tool_btn(
+    theme: &Theme,
+    spec: &crate::tool_catalog::ToolSpec,
+    on: bool,
+    popover_open: bool,
+    pen_variant: crate::types::PenVariant,
+    cx: &mut Context<Shell>,
+) -> impl IntoElement {
+    let id = spec.id;
+    let item = spec.tool;
+    let has_variants = spec.has_variants;
+    let key = motion::MotionKey::new("icon", id);
+    crate::components::icon_button(id, spec.icon, theme)
+        .relative()
+        .when(on, |el| {
+            el.bg(motion::hover_blend(
+                key,
+                theme.glass_selected_bg(),
+                theme.element_active,
+            ))
+            .text_color(theme.accent)
+        })
+        .when(has_variants, |el| {
+            el.child(
+                div()
+                    .id((id, 1usize))
+                    .absolute()
+                    .right(px(2.0))
+                    .bottom(px(2.0))
+                    .w(px(3.0))
+                    .h(px(3.0))
+                    .bg(if on { theme.accent } else { theme.text_muted })
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                            cx.stop_propagation();
+                            this.state.update(cx, |state, _| {
+                                if state.tool_variants_open() == Some(item) {
+                                    state.close_tool_variants();
+                                } else {
+                                    state.open_tool_variants(item);
+                                }
+                            });
+                            cx.notify();
+                        }),
+                    ),
+            )
+        })
+        .when(popover_open, |el| {
+            el.child(variants_popover(theme, spec, on, pen_variant, cx))
+        })
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                let seq = this.state.update(cx, |state, _| {
+                    state.tool = item;
+                    state.close_tool_variants();
+                    state.begin_tool_press(item)
+                });
+                if has_variants {
+                    cx.spawn(async move |this, cx| {
+                        cx.background_executor()
+                            .timer(std::time::Duration::from_millis(
+                                crate::app::clip_text::tool_hold::TOOL_HOLD_MS,
+                            ))
+                            .await;
+                        let _ = this.update(cx, |shell, cx| {
+                            let opened = shell
+                                .state
+                                .update(cx, |state, _| state.hold_open_tool_variants(item, seq));
+                            if opened {
+                                cx.notify();
+                            }
+                        });
+                    })
+                    .detach();
+                }
+                cx.notify();
+            }),
+        )
+        .on_mouse_up(
+            MouseButton::Left,
+            cx.listener(|this, _: &gpui::MouseUpEvent, _, cx| {
+                this.state.update(cx, |state, _| state.end_tool_press());
+            }),
+        )
+}
+
+fn variants_popover(
+    theme: &Theme,
+    spec: &crate::tool_catalog::ToolSpec,
+    tool_active: bool,
+    pen_variant: crate::types::PenVariant,
+    cx: &mut Context<Shell>,
+) -> impl IntoElement {
+    use crate::app::clip_text::tool_hold::ToolVariant;
+    let variants = spec.tool.variants();
+    let mut rows = Vec::with_capacity(variants.len());
+    for (idx, &variant) in variants.iter().enumerate() {
+        let active = match variant {
+            ToolVariant::Trim(t) => tool_active && t == spec.tool,
+            ToolVariant::Pen(pv) => tool_active && pv == pen_variant,
+        };
+        rows.push(
+            div()
+                .id((spec.id, idx))
+                .px(px(Theme::SPACE_SM))
+                .py(px(Theme::SPACE_XS))
+                .flex()
+                .flex_row()
+                .items_center()
+                .justify_between()
+                .gap(px(Theme::SPACE_MD))
+                .rounded(px(Theme::CONTROL_RADIUS))
+                .cursor(CursorStyle::PointingHand)
+                .bg(if active {
+                    theme.element_active
+                } else {
+                    theme.surface
+                })
+                .text_color(if active { theme.accent } else { theme.text })
+                .text_size(Theme::TEXT_UI)
+                .on_mouse_down(
+                    MouseButton::Left,
+                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                        cx.stop_propagation();
+                        this.state.update(cx, |state, _| {
+                            state.select_tool_variant(variant);
+                        });
+                        cx.notify();
+                    }),
+                )
+                .child(variant.label())
+                .when(!variant.shortcut().is_empty(), |el| {
+                    el.child(div().text_color(theme.text_muted).child(variant.shortcut()))
+                })
+                .into_any_element(),
+        );
+    }
+    div()
+        .id((spec.id, 2usize))
+        .occlude()
+        .absolute()
+        .top(px(TOOL_H - 2.0))
+        .left(px(0.0))
+        .w(px(168.0))
+        .p(px(4.0))
+        .flex()
+        .flex_col()
+        .gap(px(2.0))
+        .rounded(px(Theme::CONTROL_RADIUS))
+        .bg(theme.surface)
+        .border_1()
+        .border_color(theme.border)
+        .children(rows)
+}
+
+/// A toggle on a bar: an icon that reads lit while `on`, and runs `action` on
+/// a press. The tool bar and the timeline header draw their toggles with it.
+/// The Timeline Display Settings button `id`: a wrench that holds the View
+/// menu's Timeline Display Settings out under itself while pressed. The tool
+/// bar and the timeline header each draw one.
+pub(crate) fn display_btn(
+    id: &'static str,
+    theme: &Theme,
+    state: &Entity<AppState>,
+    cx: &mut Context<Shell>,
+) -> AnyElement {
+    let on = state.read(cx).menu_owner == Some(id);
+    let button = tool_btn(id, crate::icons::WRENCH, on, cx, move |s| {
+        s.toggle_timeline_display_menu(id)
+    })
+    .into_any_element();
+    super::menu_view::submenu_under(
+        id,
+        AppMenu::View,
+        super::menu_items::TIMELINE_DISPLAY,
+        button,
+        theme,
+        state,
+        cx,
+    )
+}
+
+pub(crate) fn tool_btn(
     id: &'static str,
     path: &'static str,
     on: bool,
@@ -146,6 +294,7 @@ fn tool_btn(
     // reads that fade rather than starting another.
     let key = motion::MotionKey::new("icon", id);
     crate::components::icon_button(id, path, &theme)
+        .debug_selector(move || id.into())
         .when(on, |el| {
             el.bg(motion::hover_blend(
                 key,
@@ -158,22 +307,9 @@ fn tool_btn(
             MouseButton::Left,
             cx.listener(move |this, _: &MouseDownEvent, _, cx| {
                 this.state.update(cx, |state, _| action(state));
-                if matches!(id, "play" | "pause") {
-                    start_playback(this.state.clone(), cx);
-                    spawn_preview(this.state.clone(), cx);
-                }
                 cx.notify();
             }),
         )
-}
-
-fn icon_act(
-    id: &'static str,
-    path: &'static str,
-    cx: &mut Context<Shell>,
-    action: impl Fn(&mut AppState) + 'static,
-) -> impl IntoElement {
-    tool_btn(id, path, false, cx, action)
 }
 
 fn word_icon(
@@ -206,7 +342,12 @@ fn word_icon(
         .active(move |style| style.opacity(0.92))
         .on_hover(motion::hover_listener(key))
         .child(crate::icons::icon(path))
-        .child(div().text_size(px(11.)).text_color(theme.text).child(label))
+        .child(
+            div()
+                .text_size(Theme::TEXT_UI)
+                .text_color(theme.text)
+                .child(label),
+        )
         .on_mouse_down(
             MouseButton::Left,
             cx.listener(move |this, _: &MouseDownEvent, _, cx| {
@@ -227,7 +368,7 @@ fn mode_btn(theme: &Theme, mode: EditMode, cx: &mut Context<Shell>) -> impl Into
         .px(px(Theme::SPACE_SM))
         .py(px(Theme::SPACE_XS))
         .rounded(px(Theme::CONTROL_RADIUS))
-        .text_size(px(11.))
+        .text_size(Theme::TEXT_UI)
         .text_color(theme.text)
         .cursor(CursorStyle::PointingHand)
         .active(|style| style.opacity(0.92))
@@ -252,45 +393,64 @@ fn mode_btn(theme: &Theme, mode: EditMode, cx: &mut Context<Shell>) -> impl Into
         )
 }
 
-fn rail_toggle(on: bool, sidebar: bool, cx: &mut Context<Shell>) -> impl IntoElement {
-    let theme = Theme::of(cx);
-    let id = if sidebar {
-        "rail-sidebar"
-    } else {
-        "rail-inspector"
-    };
-    let key = motion::MotionKey::new("icon", id);
-    crate::components::icon_button(
-        id,
-        if sidebar {
-            crate::icons::FOLDER_OPEN
-        } else {
-            crate::icons::SETTINGS
-        },
-        &theme,
-    )
-    .when(on, |el| {
-        el.bg(motion::hover_blend(
-            key,
-            theme.glass_selected_bg(),
-            theme.element_active,
-        ))
-        .text_color(theme.text)
-    })
-    .on_mouse_down(
-        MouseButton::Left,
-        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-            this.state.update(cx, |state, _| {
-                if sidebar {
-                    state.ui_settings.sidebar_collapsed = !state.ui_settings.sidebar_collapsed;
+fn workspace_switcher(
+    theme: &Theme,
+    state: &Entity<AppState>,
+    cx: &mut Context<Shell>,
+) -> impl IntoElement {
+    let rows: Vec<(&'static str, &'static str, bool)> = state
+        .read(cx)
+        .workspace_rows()
+        .into_iter()
+        .map(|row| (row.id, row.name, row.active))
+        .collect();
+    let mut pills = Vec::with_capacity(rows.len());
+    for (ws_id, name, active) in rows {
+        let key = motion::MotionKey::new("ws-pill", ws_id);
+        pills.push(
+            div()
+                .id(key.element_id("pill"))
+                .px(px(6.0))
+                .py(px(2.0))
+                .rounded(px(Theme::CONTROL_RADIUS))
+                .text_size(Theme::TEXT_UI)
+                .cursor(CursorStyle::PointingHand)
+                .bg(if active {
+                    theme.element_active
                 } else {
-                    state.ui_settings.inspector_collapsed = !state.ui_settings.inspector_collapsed;
-                }
-            });
-            this.persist(cx);
-            cx.notify();
-        }),
-    )
+                    motion::hover_blend(key, theme.wash(0.0), theme.element_hover)
+                })
+                .text_color(if active {
+                    theme.accent
+                } else {
+                    motion::hover_blend(key, theme.text_muted, theme.text)
+                })
+                .on_hover(motion::hover_listener(key))
+                .on_mouse_down(
+                    MouseButton::Left,
+                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                        this.state.update(cx, |state, cx| {
+                            state.apply_workspace(ws_id, cx);
+                        });
+                    }),
+                )
+                .child(name)
+                .into_any_element(),
+        );
+    }
+    div()
+        .id("workspace-switcher")
+        .flex()
+        .flex_row()
+        .items_center()
+        .gap(px(2.0))
+        .px(px(2.0))
+        .py(px(2.0))
+        .rounded(px(Theme::CONTROL_RADIUS))
+        .bg(theme.surface)
+        .border_1()
+        .border_color(theme.border)
+        .children(pills)
 }
 
 fn rule(theme: &Theme) -> impl IntoElement {

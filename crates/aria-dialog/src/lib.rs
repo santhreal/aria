@@ -36,10 +36,10 @@ impl FileSpec {
     /// Offer one named group of extensions, written without the dot. Groups
     /// accumulate in the order they are added, which is the order the dialog
     /// lists them in.
-    pub fn filter(mut self, name: impl Into<String>, extensions: &[&str]) -> Self {
+    pub fn filter<S: AsRef<str>>(mut self, name: impl Into<String>, extensions: &[S]) -> Self {
         let valid: Vec<String> = extensions
             .iter()
-            .map(|ext| ext.trim().trim_start_matches('.'))
+            .map(|ext| ext.as_ref().trim().trim_start_matches('.'))
             .filter(|ext| !ext.is_empty())
             .map(ToOwned::to_owned)
             .collect();
@@ -165,7 +165,7 @@ mod tests {
     #[test]
     fn empty_filter_extensions_are_ignored() {
         let spec = FileSpec::new("Open")
-            .filter("Empty", &[])
+            .filter("Empty", &[] as &[&str])
             .filter("Blank", &["", "  "])
             .filter("Valid", &[".mp4", "mov"]);
         assert_eq!(

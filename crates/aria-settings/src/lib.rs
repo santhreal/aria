@@ -61,6 +61,10 @@
 //! read_timeout_secs = 30           # per read; default 30
 //! total_timeout_secs = 1800        # whole request; default 30 min
 //!
+//! [plugin_limits]
+//! wasm_fuel_per_call = 500000000   # instructions per call into a WASM plugin
+//! wasm_memory_mib = 64             # linear memory per WASM plugin instance
+//!
 //! # BYOK provider keys (stock, generation, TTS) — same literal-or-env
 //! # pattern as [ai]. A configured key routes calls direct to the provider,
 //! # bypassing the Aria backend entirely.
@@ -467,6 +471,8 @@ pub struct StoragePathOverrides {
     pub proxies: Option<PathBuf>,
     /// Regenerable media-analysis state.
     pub analysis: Option<PathBuf>,
+    /// Content-addressed rendered timeline frames.
+    pub render_files: Option<PathBuf>,
     /// Downloaded AI model weights for transcription, vision, and embeddings.
     pub ai_models: Option<PathBuf>,
     /// Downloaded stock and generated assets.
@@ -487,10 +493,11 @@ impl StoragePathOverrides {
     /// A caller that edits overrides enumerates this rather than writing its own
     /// list, so a new override cannot be settable in one place and invisible in
     /// another.
-    pub const KEYS: [&'static str; 9] = [
+    pub const KEYS: [&'static str; 10] = [
         "library_thumbnails",
         "proxies",
         "analysis",
+        "render_files",
         "ai_models",
         "download",
         "catalog",
@@ -516,6 +523,7 @@ impl StoragePathOverrides {
             "library_thumbnails" => Some(&mut self.library_thumbnails),
             "proxies" => Some(&mut self.proxies),
             "analysis" => Some(&mut self.analysis),
+            "render_files" => Some(&mut self.render_files),
             "ai_models" => Some(&mut self.ai_models),
             "download" => Some(&mut self.download),
             "catalog" => Some(&mut self.catalog),
@@ -530,6 +538,7 @@ impl StoragePathOverrides {
         match key {
             "library_thumbnails" => Some(&self.library_thumbnails),
             "proxies" => Some(&self.proxies),
+            "render_files" => Some(&self.render_files),
             "analysis" => Some(&self.analysis),
             "ai_models" => Some(&self.ai_models),
             "download" => Some(&self.download),
@@ -613,6 +622,52 @@ impl Default for TranscriptionSettings {
     }
 }
 
+/// Default instruction fuel for one call into a WASM plugin.
+pub const DEFAULT_WASM_FUEL_PER_CALL: u64 = 500_000_000;
+/// Least fuel a WASM plugin call may be given.
+pub const MIN_WASM_FUEL_PER_CALL: u64 = 1_000_000;
+/// Most fuel a WASM plugin call may be given.
+pub const MAX_WASM_FUEL_PER_CALL: u64 = 100_000_000_000;
+/// Default linear memory for one WASM plugin instance, in MiB.
+pub const DEFAULT_WASM_MEMORY_MIB: u64 = 64;
+/// Least linear memory a WASM plugin instance may be given, in MiB.
+pub const MIN_WASM_MEMORY_MIB: u64 = 16;
+/// Most linear memory a WASM plugin instance may be given, in MiB: all a
+/// 32-bit memory addresses.
+pub const MAX_WASM_MEMORY_MIB: u64 = 4_096;
+
+/// The `[plugin_limits]` table: what one WebAssembly plugin may use. The
+/// defaults are the WASM host's own, so an absent table and an absent config
+/// behave identically.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PluginLimitSettings {
+    /// Instruction fuel granted to each call into a WASM plugin.
+    pub wasm_fuel_per_call: u64,
+    /// Linear memory one WASM plugin instance may grow to, in MiB.
+    pub wasm_memory_mib: u64,
+}
+
+impl PluginLimitSettings {
+    /// Whether `value` is usable as the fuel for one call.
+    pub fn is_valid_fuel_per_call(value: u64) -> bool {
+        (MIN_WASM_FUEL_PER_CALL..=MAX_WASM_FUEL_PER_CALL).contains(&value)
+    }
+
+    /// Whether `value` is usable as the memory of one instance, in MiB.
+    pub fn is_valid_memory_mib(value: u64) -> bool {
+        (MIN_WASM_MEMORY_MIB..=MAX_WASM_MEMORY_MIB).contains(&value)
+    }
+}
+
+impl Default for PluginLimitSettings {
+    fn default() -> Self {
+        Self {
+            wasm_fuel_per_call: DEFAULT_WASM_FUEL_PER_CALL,
+            wasm_memory_mib: DEFAULT_WASM_MEMORY_MIB,
+        }
+    }
+}
+
 /// The whole user config, one struct per table. [`Settings::default`] is the
 /// state of a fresh install (no file on disk).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -630,6 +685,8 @@ pub struct Settings {
     pub storage: StorageSettings,
     /// `[transcription]`.
     pub transcription: TranscriptionSettings,
+    /// `[plugin_limits]`.
+    pub plugin_limits: PluginLimitSettings,
     /// `[plugins]` — values a plugin declared, by the dotted key it named
     /// (`notes.directory`). This crate knows nothing about them beyond that they
     /// are strings: the plugin that declared a key is the only thing that reads
@@ -667,16 +724,25 @@ impl Settings {
     }
 }
 
+/// The config file's name.
+pub const CONFIG_FILE: &str = "config.toml";
+
+/// The config file of a session whose data directory is `data_dir`.
+pub fn config_in(data_dir: &Path) -> PathBuf {
+    data_dir.join(CONFIG_FILE)
+}
+
 /// `~/.aria/config.toml` — the user's home dir on every platform
 /// (`C:\Users\<name>\.aria\config.toml` on Windows, where `HOME` is
 /// unset). Falls back to the temp dir only if the home dir can't be resolved;
 /// never the working directory, which is the read-only install folder on
 /// Windows.
 pub fn default_config_path() -> PathBuf {
-    dirs::home_dir()
-        .unwrap_or_else(std::env::temp_dir)
-        .join(".aria")
-        .join("config.toml")
+    config_in(
+        &dirs::home_dir()
+            .unwrap_or_else(std::env::temp_dir)
+            .join(".aria"),
+    )
 }
 
 /// `~/.aria/agent/` — the user's AI-assistant extension dir

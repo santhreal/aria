@@ -253,8 +253,11 @@ pub fn apply(state: &mut AppState, gesture: Gesture, drag: Drag) -> Result<(), E
             state.ripple_trim(drag.clip, track, span.start, span.end, left, to - from)
         }
         Gesture::Transition { right, duration } => {
+            let alignment = state
+                .clip_transition_alignment(drag.clip)
+                .unwrap_or_default();
             let ticks = crate::app::clip_transitions::transition_ticks_after_drag(
-                duration, drag.delta, right,
+                duration, drag.delta, right, alignment,
             );
             state.set_clip_transition_ticks(drag.clip, ticks)
         }

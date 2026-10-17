@@ -119,3 +119,9 @@ mod unlink_rejections_cases;
 
 #[path = "mod_tests_routing.rs"]
 mod routing_cases;
+
+#[path = "mod_tests_history_generation.rs"]
+mod history_generation_cases;
+
+#[path = "mod_tests_markers.rs"]
+mod marker_cases;

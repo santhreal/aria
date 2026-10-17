@@ -1383,9 +1383,16 @@ final class EditorState {
     /// The Phase I look fields of the selected main clip, one command per
     /// changed property (each is its own engine undo step).
     private func commitLookDiff(_ clip: MockClip, before: MockClip, engineID: UInt64) {
-        if clip.maskName != before.maskName {
-            runCommand(
-                .setClipMask(clip: engineID, mask: clip.maskName.map { UiMask(kind: $0) }))
+        // The mask panel edits the top of the clip's mask stack.
+        switch (before.maskName, clip.maskName) {
+        case (nil, let kind?):
+            runCommand(.addClipMask(clip: engineID, mask: UiMask(kind: kind)))
+        case (let old?, let kind?) where old != kind:
+            runCommand(.setClipMask(clip: engineID, index: 0, mask: UiMask(kind: kind)))
+        case (_?, nil):
+            runCommand(.removeClipMask(clip: engineID, index: 0))
+        default:
+            break
         }
         let chromaChanged =
             clip.chromaColor != before.chromaColor

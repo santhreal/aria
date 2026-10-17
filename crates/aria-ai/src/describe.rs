@@ -187,9 +187,12 @@ pub struct ClipSummary {
     /// catalog id of the blend into the next clip.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub transition: Option<String>,
-    /// Mask kind plus non-default geometry (set_clip_mask); absent when no mask.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub mask: Option<Cow<'static, str>>,
+    /// The mask stack, top first: each entry's kind plus its non-default
+    /// mode and geometry. The index of each entry is what set_clip_mask,
+    /// remove_clip_mask, move_clip_mask and the `mask` keyframe param
+    /// address. Absent when empty.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub masks: Vec<Cow<'static, str>>,
     /// Filter preset id (set_clip_filter); absent when none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub filter: Option<String>,
@@ -296,14 +299,36 @@ fn summarize_adjust(adjust: &aria_models::ColorAdjustments) -> Option<String> {
     (!parts.is_empty()).then(|| parts.join(", "))
 }
 
-/// The mask kind, plus any geometry that differs from the default, e.g.
-/// `"circle"` or `"circle center=[0.25, 0.50] round=0.30"`. Borrowed in the
-/// bare-kind case, which is what most masked clips are.
+/// The mask kind, plus its mode and any geometry that differs from the
+/// default, e.g. `"circle"` or `"circle subtract opacity=0.50 center=[0.25,
+/// 0.50]"`. A keyframed property is left out. Borrowed in the bare-kind case,
+/// which is what most masks are.
 fn mask_summary(mask: &aria_models::Mask) -> Cow<'static, str> {
     use std::fmt::Write as _;
 
     let kind = mask.kind.id();
     let mut out = String::new();
+    if mask.mode != aria_models::MaskMode::Add {
+        let _ = write!(out, " {}", mask.mode.id());
+    }
+    if mask.invert {
+        out.push_str(" inverted");
+    }
+    if let Some(o) = mask.opacity.constant()
+        && o != 1.0
+    {
+        let _ = write!(out, " opacity={o:.2}");
+    }
+    if let Some(f) = mask.feather.constant()
+        && f != 0.0
+    {
+        let _ = write!(out, " feather={f:.2}");
+    }
+    if let Some(e) = mask.expansion.constant()
+        && e != 0.0
+    {
+        let _ = write!(out, " expansion={e:.0}");
+    }
     if let Some(c) = mask.center.constant()
         && c != [0.0, 0.0]
     {
@@ -524,7 +549,7 @@ fn build(project: &Project, plan: Option<Plan>) -> ProjectSummary {
                     transition: track
                         .transition_at(clip.id)
                         .map(|t| t.transition_id.clone()),
-                    mask: clip.mask.as_ref().map(mask_summary),
+                    masks: clip.masks.iter().map(mask_summary).collect(),
                     filter: clip.filter.as_ref().map(|f| f.id.clone()),
                     adjust: summarize_adjust(&clip.adjust),
                     blend: (!clip.blend_mode.is_normal())

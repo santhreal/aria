@@ -29,6 +29,7 @@ pub fn run(args: &Args) -> Result<(), Failure> {
         None => renderer.render_frame(&project, t),
     }
     .map_err(|err| err.to_string())?;
+    project::warn_driver_faults(&project);
 
     crate::demo::write_png(&image, &out)?;
     println!(

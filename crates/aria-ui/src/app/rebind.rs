@@ -11,6 +11,7 @@
 //! rebinding nothing.
 
 use super::AppState;
+use crate::keys::keymap_sets::KeySet;
 use crate::keys::{self, BindingRow, Chord, KeyOverrideError};
 
 impl AppState {
@@ -20,9 +21,24 @@ impl AppState {
     /// all — the surface then has nothing to list rather than a shipped table
     /// nothing would dispatch.
     pub fn binding_rows(&self) -> Vec<BindingRow> {
-        keys::host_of(&self.ctx)
-            .map(|host| host.rows())
-            .unwrap_or_default()
+        self.key_host().map(|host| host.rows()).unwrap_or_default()
+    }
+
+    /// The key registry with the plugin keys in place, or nothing when no host
+    /// is mounted. Every reader of the registry in the window goes through
+    /// this, so a plugin key that registered since the last read is listed and
+    /// dispatched.
+    pub(crate) fn key_host(&self) -> Option<std::sync::Arc<keys::KeyHost>> {
+        let host = keys::host_of(&self.ctx)?;
+        host.sync_plugin_keys(&self.ctx);
+        Some(host)
+    }
+
+    /// What a binding is called: a plugin command's title, or a shipped id read
+    /// as words.
+    pub fn binding_name(&self, id: &str) -> String {
+        self.key_host()
+            .map_or_else(|| keys::binding_label(id), |host| host.label_of(id))
     }
 
     /// Bindings a plugin asked for and did not get, in the order they were
@@ -32,7 +48,7 @@ impl AppState {
     /// which made a plugin's dead key indistinguishable from a plugin that never
     /// registered one.
     pub fn binding_conflicts(&self) -> Vec<keys::KeyConflict> {
-        keys::host_of(&self.ctx)
+        self.key_host()
             .map(|host| host.conflicts())
             .unwrap_or_default()
     }
@@ -43,34 +59,44 @@ impl AppState {
     }
 
     /// Arm a row: the next keystroke is its chord.
+    ///
+    /// A question left from an earlier capture ends here, so Enter is a chord
+    /// again until a taken chord asks a new one.
     pub fn begin_rebind(&mut self, id: &'static str) {
+        self.key_form.forget_move();
         self.rebinding = Some(id);
         self.status_message = Some(format!(
             "Press a key for {} · Esc to cancel",
-            keys::binding_label(id)
+            self.binding_name(id)
         ));
     }
 
     pub fn cancel_rebind(&mut self) {
         if let Some(id) = self.rebinding.take() {
-            self.status_message = Some(format!("{} is unchanged", keys::binding_label(id)));
+            self.status_message = Some(format!("{} is unchanged", self.binding_name(id)));
         }
     }
 
     /// Take a keystroke as the armed row's new chord.
     ///
-    /// Escape cancels, because a capture the operator cannot get out of would
-    /// leave the keyboard dead. A key that cannot carry a binding (a modifier on
-    /// its own, a key the vocabulary does not name) leaves the capture armed: the
-    /// operator is mid-gesture and has not chosen anything yet. A chord another
-    /// binding holds is refused with the holder named and the capture stays
-    /// armed, so the next attempt costs one keystroke instead of a second click.
+    /// Escape cancels, because a capture with no way out would leave the
+    /// keyboard dead. A key that cannot carry a binding (a modifier on its own, a
+    /// key the vocabulary does not name) leaves the capture armed: nothing has
+    /// been chosen yet. A chord another binding holds asks whether to move it,
+    /// with the holder named and the capture still armed: Enter moves it, Escape
+    /// ends the capture and leaves it where it is, and another key is another
+    /// try.
     pub fn capture_rebind(&mut self, key: &str, ctrl: bool, shift: bool, alt: bool) {
         let Some(id) = self.rebinding else {
             return;
         };
-        if key == "escape" && !ctrl && !shift && !alt {
+        let bare = !ctrl && !shift && !alt;
+        if key == "escape" && bare {
             self.cancel_rebind();
+            return;
+        }
+        if key == "enter" && bare && self.pending_key_move().is_some() {
+            self.move_key();
             return;
         }
         let (chord_key, shift) = keys::chord_key(key, shift);
@@ -78,27 +104,7 @@ impl AppState {
             self.status_message = Some(format!("{key} cannot carry a binding"));
             return;
         };
-        match self.set_binding(id, Some(chord)) {
-            Ok(()) => {
-                self.rebinding = None;
-                self.status_message = Some(format!(
-                    "{} is now {}",
-                    keys::binding_label(id),
-                    chord.label()
-                ));
-            }
-            Err(KeyOverrideError::Taken(conflict)) => {
-                self.status_message = Some(format!(
-                    "{} is held by {}",
-                    chord.label(),
-                    keys::binding_label(conflict.held_by)
-                ));
-            }
-            Err(KeyOverrideError::Unknown) => {
-                self.rebinding = None;
-                self.status_message = Some(format!("{id} is no longer a binding"));
-            }
-        }
+        self.take_chord(id, chord);
     }
 
     /// Leave a binding with no chord at all.
@@ -108,7 +114,7 @@ impl AppState {
     pub fn clear_binding(&mut self, id: &'static str) {
         self.rebinding = None;
         self.status_message = Some(match self.set_binding(id, None) {
-            Ok(()) => format!("{} has no key", keys::binding_label(id)),
+            Ok(()) => format!("{} has no key", self.binding_name(id)),
             Err(KeyOverrideError::Unknown) | Err(KeyOverrideError::Taken(_)) => {
                 format!("{id} is no longer a binding")
             }
@@ -118,13 +124,13 @@ impl AppState {
     /// Put one binding back to the chord it shipped with.
     pub fn revert_binding(&mut self, id: &'static str) {
         self.rebinding = None;
-        if let Some(host) = keys::host_of(&self.ctx) {
+        if let Some(host) = self.key_host() {
             host.remove_override(id);
         }
         self.mirror_overrides();
         self.status_message = Some(match self.chord_label(id) {
-            Some(label) => format!("{} is {label} again", keys::binding_label(id)),
-            None => format!("{} is unbound", keys::binding_label(id)),
+            Some(label) => format!("{} is {label} again", self.binding_name(id)),
+            None => format!("{} is unbound", self.binding_name(id)),
         });
     }
 
@@ -132,7 +138,7 @@ impl AppState {
     pub fn reset_bindings(&mut self) {
         self.rebinding = None;
         let restored = self.ui_settings.keys.len();
-        if let Some(host) = keys::host_of(&self.ctx) {
+        if let Some(host) = self.key_host() {
             host.reset_overrides();
         }
         self.mirror_overrides();
@@ -148,23 +154,26 @@ impl AppState {
     /// The surface draws from [`AppState::binding_rows`]; this is for the one
     /// place that names a single binding, which is what a revert reports.
     pub(crate) fn chord_label(&self, id: &str) -> Option<String> {
-        keys::host_of(&self.ctx)?
-            .chord_of(id)
-            .map(|chord| chord.label())
+        self.key_host()?.chord_of(id).map(|chord| chord.label())
     }
 
     /// Install the saved overrides on the mounted registry.
     ///
     /// Called once, on the way out of the constructor: the registry is the only
-    /// thing that resolves a chord, so the operator's choices are in place before
-    /// the first keystroke rather than consulted at dispatch. A saved row the
+    /// thing that resolves a chord, so the saved choices are in place before the
+    /// first keystroke rather than consulted at dispatch. A saved row the
     /// registry cannot place — a plugin that is gone, a key this build no longer
     /// names — is logged and dropped rather than kept as a chord that does
     /// nothing.
+    ///
+    /// The rows go in as one set, through [`keys::KeyHost::install_set`]: two
+    /// bindings that traded chords are saved as two rows, and installed one at a
+    /// time the first row meets the other binding still on its shipped chord.
     pub(crate) fn apply_key_overrides(&self) {
-        let Some(host) = keys::host_of(&self.ctx) else {
+        let Some(host) = self.key_host() else {
             return;
         };
+        let mut set = KeySet::new();
         for (id, saved) in &self.ui_settings.keys {
             let chord = match saved {
                 Some(text) => match Chord::parse(text) {
@@ -176,9 +185,10 @@ impl AppState {
                 },
                 None => None,
             };
-            if let Err(err) = host.set_override(id, chord) {
-                tracing::warn!(binding = %id, ?err, "saved key could not be applied");
-            }
+            set.insert(id.clone(), chord);
+        }
+        for skip in host.install_set(&set) {
+            tracing::warn!(binding = %skip.id, reason = ?skip.reason, "saved key could not be applied");
         }
     }
 
@@ -186,12 +196,12 @@ impl AppState {
     ///
     /// A refused rebinding must not be persisted, or a restart would install a
     /// chord this session already rejected.
-    fn set_binding(
+    pub(super) fn set_binding(
         &mut self,
         id: &'static str,
         chord: Option<Chord>,
     ) -> Result<(), KeyOverrideError> {
-        let host = keys::host_of(&self.ctx).ok_or(KeyOverrideError::Unknown)?;
+        let host = self.key_host().ok_or(KeyOverrideError::Unknown)?;
         host.set_override(id, chord)?;
         self.mirror_overrides();
         Ok(())
@@ -202,8 +212,8 @@ impl AppState {
     /// The registry owns them; the file is a projection of it. Kept that way so
     /// there is one place a rebinding can be refused, and so a reset cannot
     /// leave a row in the file that the running app no longer honours.
-    fn mirror_overrides(&mut self) {
-        let Some(host) = keys::host_of(&self.ctx) else {
+    pub(super) fn mirror_overrides(&mut self) {
+        let Some(host) = self.key_host() else {
             return;
         };
         self.ui_settings.keys = host
@@ -236,4 +246,4 @@ impl AppState {
 
 #[cfg(test)]
 #[path = "rebind_tests.rs"]
-mod tests;
+pub(super) mod tests;

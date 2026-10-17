@@ -175,6 +175,33 @@ impl AppState {
             "{queued} proxy job(s) started · {ready} already proxied · {refused} cannot be proxied"
         ));
     }
+
+    /// Whether the Viewer decodes through proxies where they exist.
+    pub fn proxies_on(&self) -> bool {
+        self.ui_settings.use_proxies
+    }
+
+    /// Switch the Viewer between proxies and the original files, save the
+    /// choice, and render the picture again from the files now in use. Export
+    /// reads the originals either way.
+    pub fn toggle_proxies(&mut self, cx: &mut gpui::Context<Self>) {
+        let on = !self.ui_settings.use_proxies;
+        self.ui_settings.use_proxies = on;
+        self.engine.lock().set_preview_proxies(on);
+        self.persist_settings_later(cx);
+        // Frames rendered ahead from the other files are stale.
+        self.picture_changed();
+        if self.playback_cadence.is_none() {
+            let state = cx.entity();
+            cx.defer(move |app| super::spawn_preview(state, app));
+        }
+        self.status_message = Some(if on {
+            "Viewer: proxies".to_string()
+        } else {
+            "Viewer: original media".to_string()
+        });
+        cx.notify();
+    }
 }
 
 #[cfg(test)]

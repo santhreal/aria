@@ -60,6 +60,7 @@ fn storage_paths_must_be_absolute() {
                  [storage.paths]\n\
                  proxies = \"relative/proxies\"\n\
                  analysis = \"relative/analysis\"\n\
+                 render_files = \"relative/render-files\"\n\
                  ai_models = \"relative/ai-models\"\n\
                  download = {:?}\n\
                  catalog = 3\n\
@@ -73,6 +74,7 @@ fn storage_paths_must_be_absolute() {
     assert_eq!(s.storage.root, None);
     assert_eq!(s.storage.paths.proxies, None);
     assert_eq!(s.storage.paths.analysis, None);
+    assert_eq!(s.storage.paths.render_files, None);
     assert_eq!(s.storage.paths.ai_models, None);
     assert_eq!(
         s.storage.paths.download.as_deref(),
@@ -191,6 +193,7 @@ fn clearing_storage_values_preserves_unknown_nested_values() {
                  [storage.paths]\n\
                  proxies = {absolute:?}\n\
                  analysis = {absolute:?}\n\
+                 render_files = {absolute:?}\n\
                  ai_models = {absolute:?}\n\
                  download = {absolute:?}\n\
                  catalog = {absolute:?}\n\
@@ -219,6 +222,7 @@ fn clearing_storage_values_preserves_unknown_nested_values() {
     for key in [
         "proxies",
         "analysis",
+        "render_files",
         "ai_models",
         "download",
         "catalog",

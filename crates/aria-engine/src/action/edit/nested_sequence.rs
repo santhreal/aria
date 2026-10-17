@@ -1,5 +1,6 @@
 use aria_models::{
     Clip, ClipId, ModelError, RationalTime, Sequence, SequenceId, TimeRange, Track, TrackId,
+    TrackKind,
 };
 
 use crate::action::edit::remove_clip::RemoveClipAction;
@@ -238,4 +239,85 @@ pub fn open_sequence(
     let previous = ctx.project.active_sequence();
     ctx.project.set_active_sequence(sequence)?;
     Ok(Box::new(OpenSequenceAction { previous }))
+}
+
+/// Undo of [`create_sequence`]: removes the created sequence and reopens the
+/// sequence that was open before it.
+pub struct UndoCreateSequenceAction {
+    pub sequence_id: SequenceId,
+    pub previous: Option<SequenceId>,
+}
+
+/// Redo of [`create_sequence`]: puts the removed sequence back under its own
+/// id and opens it again.
+pub struct RedoCreateSequenceAction {
+    pub sequence: Sequence,
+    pub previous: Option<SequenceId>,
+}
+
+impl EditAction for UndoCreateSequenceAction {
+    fn apply(
+        self: Box<Self>,
+        ctx: &mut ApplyContext<'_>,
+    ) -> Result<Box<dyn EditAction>, EngineError> {
+        let sequence = ctx
+            .project
+            .remove_sequence(self.sequence_id)
+            .ok_or(ModelError::UnknownSequence(self.sequence_id))?;
+        ctx.project.set_active_sequence(self.previous)?;
+        Ok(Box::new(RedoCreateSequenceAction {
+            sequence,
+            previous: self.previous,
+        }))
+    }
+}
+
+impl EditAction for RedoCreateSequenceAction {
+    fn apply(
+        self: Box<Self>,
+        ctx: &mut ApplyContext<'_>,
+    ) -> Result<Box<dyn EditAction>, EngineError> {
+        let sequence_id = ctx.project.add_sequence(self.sequence);
+        ctx.project.set_active_sequence(Some(sequence_id))?;
+        Ok(Box::new(UndoCreateSequenceAction {
+            sequence_id,
+            previous: self.previous,
+        }))
+    }
+}
+
+/// Create an empty sequence and open it.
+///
+/// The sequence takes the open timeline's frame rate, canvas, and audio
+/// layout, and starts with one video lane (`V1`) and one audio lane (`A1`), so
+/// media dropped on it lands without a lane being added first. A blank name
+/// becomes `Sequence`.
+pub fn create_sequence(
+    ctx: &mut ApplyContext<'_>,
+    name: String,
+) -> Result<Box<dyn EditAction>, EngineError> {
+    let trimmed = name.trim();
+    let name = if trimmed.is_empty() {
+        "Sequence".to_string()
+    } else {
+        trimmed.to_string()
+    };
+    let open = ctx.project.timeline();
+    let mut sequence = Sequence::new(name, open.frame_rate);
+    sequence.timeline.set_canvas(open.canvas());
+    sequence.timeline.set_audio_layout(open.audio_layout());
+    sequence.timeline.set_time_display(open.time_display());
+    sequence
+        .timeline
+        .add_track(Track::new(TrackKind::Video, "V1"));
+    sequence
+        .timeline
+        .add_track(Track::new(TrackKind::Audio, "A1"));
+    let previous = ctx.project.active_sequence();
+    let sequence_id = ctx.project.add_sequence(sequence);
+    ctx.project.set_active_sequence(Some(sequence_id))?;
+    Ok(Box::new(UndoCreateSequenceAction {
+        sequence_id,
+        previous,
+    }))
 }

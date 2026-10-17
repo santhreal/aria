@@ -14,15 +14,21 @@ use crate::app::{AppState, DialogKind};
 use crate::chrome::menu_host::MenuHost;
 use crate::commands::host::CommandHost;
 use crate::commands::{BUILTIN_COMMANDS, BUILTIN_JOB_COMMANDS};
+use crate::dock::DefaultFrame;
 use crate::keys::KeyHost;
 use crate::keys::bindings::SHIPPED_BINDINGS;
 use crate::panels::{
-    ai_panel, ai_tools, context_menu, duck, export_dialog, history_dialog, home, inspector,
-    jobs_dialog, look_picker, media_support, mixer, palette, preview, project_report, rename_bar,
-    render_cost, settings_dialog, sidebar, timeline, unsaved_dialog,
+    about_dialog, ai_panel, ai_tools, align_panel, audio_gain_dialog, audio_meters, color_panel,
+    context_menu, duck, effects_browser, export_dialog, history_panel, home, info_panel, inspector,
+    install_dialog, jobs_dialog, keyframe_velocity_dialog, look_picker, marker_edit_dialog,
+    markers, media_support, mixer, palette, preview, project_report, remove_attributes_dialog,
+    rename_bar, render_cost, settings_dialog, sidebar, speed_duration_dialog, text_panel, timeline,
+    timeline_report, unsaved_dialog,
 };
 use crate::plugins::overlay_host::{OverlayEntry, OverlayHost, OverlayRender, OverlayWhen};
-use crate::plugins::panel_host::{self, PanelEntry, PanelHost, PanelRender, PanelVisible};
+use crate::plugins::panel_host::{
+    self, DockSpec, PanelEntry, PanelHost, PanelRender, PanelVisible,
+};
 use crate::shell::Shell;
 use crate::types::{ActivePanel, UiRoute};
 
@@ -35,14 +41,27 @@ pub struct UiPlugin;
 /// carry a predicate, because the assistant replaces the preview, Home replaces the
 /// editor, and the duck tuner is only worth a column when a duck could run.
 /// `PanelLocation::Overlay` has no built-in entry — an overlay contribution is
-/// drawn over the viewer.
-const BUILTIN_PANELS: &[(&str, &str, PanelLocation, PanelRender, PanelVisible)] = &[
+/// drawn over the viewer. The second field is the panel's title, the one name its
+/// tab, its Window row and its frame menu's Add row draw.
+const BUILTIN_PANELS: &[(
+    &str,
+    &str,
+    PanelLocation,
+    PanelRender,
+    PanelVisible,
+    Option<DockSpec>,
+)] = &[
     (
         "aria.panel.media",
-        "Media",
+        "Project",
         PanelLocation::Sidebar,
         draw_sidebar,
         panel_host::ALWAYS,
+        Some(DockSpec::new(
+            DefaultFrame::Left,
+            DockSpec::DEFAULT_MIN_SIZE,
+            ActivePanel::Media,
+        )),
     ),
     (
         "aria.panel.timeline",
@@ -50,30 +69,179 @@ const BUILTIN_PANELS: &[(&str, &str, PanelLocation, PanelRender, PanelVisible)] 
         PanelLocation::Timeline,
         draw_timeline,
         panel_host::ALWAYS,
+        Some(DockSpec::new(
+            DefaultFrame::Bottom,
+            DockSpec::TIMELINE_MIN_SIZE,
+            ActivePanel::Timeline,
+        )),
     ),
     (
         "aria.panel.inspector",
-        "Inspector",
+        "Effect Controls",
         PanelLocation::Inspector,
         draw_inspector,
         panel_host::ALWAYS,
+        Some(DockSpec::new(
+            DefaultFrame::Left,
+            DockSpec::DEFAULT_MIN_SIZE,
+            ActivePanel::Inspector,
+        )),
     ),
     (
         "aria.panel.viewer",
-        "Preview",
+        "Viewer",
         PanelLocation::Viewer,
         draw_preview,
-        // The viewer is one rectangle, and the assistant and the mixer each draw
-        // themselves over it. Which panes do that is `ActivePanel`'s own
-        // exhaustive answer, so a pane added to that enum cannot forget to say.
-        |state| !state.active_panel.takes_over_viewer(),
+        |state| !matches!(state.active_panel, ActivePanel::Ai | ActivePanel::Mixer),
+        Some(DockSpec::new(
+            DefaultFrame::Center,
+            DockSpec::VIEWER_MIN_SIZE,
+            ActivePanel::Preview,
+        )),
     ),
     (
         "aria.panel.mixer",
-        "Mixer",
+        "Audio Track Mixer",
         PanelLocation::Viewer,
         draw_mixer,
         mixer::visible,
+        Some(DockSpec::new(
+            DefaultFrame::Center,
+            DockSpec::DEFAULT_MIN_SIZE,
+            ActivePanel::Mixer,
+        )),
+    ),
+    (
+        "aria.panel.audio_meters",
+        "Audio Meters",
+        PanelLocation::Inspector,
+        draw_audio_meters,
+        panel_host::ALWAYS,
+        Some(DockSpec::new(
+            DefaultFrame::Bottom,
+            (64.0, 80.0),
+            ActivePanel::Mixer,
+        )),
+    ),
+    (
+        "aria.panel.jobs",
+        "Jobs",
+        PanelLocation::Inspector,
+        draw_jobs_panel,
+        panel_host::ALWAYS,
+        Some(DockSpec::new(
+            DefaultFrame::Right,
+            DockSpec::DEFAULT_MIN_SIZE,
+            ActivePanel::Timeline,
+        )),
+    ),
+    (
+        crate::dock::PANEL_CHARACTER,
+        "Character",
+        PanelLocation::Inspector,
+        draw_character_panel,
+        panel_host::ALWAYS,
+        Some(DockSpec::new(
+            DefaultFrame::Right,
+            DockSpec::DEFAULT_MIN_SIZE,
+            ActivePanel::Inspector,
+        )),
+    ),
+    (
+        crate::dock::PANEL_PARAGRAPH,
+        "Paragraph",
+        PanelLocation::Inspector,
+        draw_paragraph_panel,
+        panel_host::ALWAYS,
+        Some(DockSpec::new(
+            DefaultFrame::Right,
+            DockSpec::DEFAULT_MIN_SIZE,
+            ActivePanel::Inspector,
+        )),
+    ),
+    (
+        crate::dock::PANEL_INFO,
+        "Info",
+        PanelLocation::Inspector,
+        draw_info_panel,
+        panel_host::ALWAYS,
+        Some(DockSpec::new(
+            DefaultFrame::Right,
+            DockSpec::DEFAULT_MIN_SIZE,
+            ActivePanel::Inspector,
+        )),
+    ),
+    (
+        crate::dock::PANEL_ALIGN,
+        "Align",
+        PanelLocation::Inspector,
+        draw_align_panel,
+        panel_host::ALWAYS,
+        Some(DockSpec::new(
+            DefaultFrame::Right,
+            DockSpec::DEFAULT_MIN_SIZE,
+            ActivePanel::Inspector,
+        )),
+    ),
+    (
+        crate::dock::PANEL_HISTORY,
+        "History",
+        PanelLocation::Inspector,
+        draw_history_panel,
+        panel_host::ALWAYS,
+        Some(DockSpec::new(
+            DefaultFrame::Right,
+            DockSpec::DEFAULT_MIN_SIZE,
+            ActivePanel::Timeline,
+        )),
+    ),
+    (
+        crate::dock::PANEL_MARKERS,
+        "Markers",
+        PanelLocation::Sidebar,
+        draw_markers_panel,
+        panel_host::ALWAYS,
+        Some(DockSpec::new(
+            DefaultFrame::Left,
+            DockSpec::DEFAULT_MIN_SIZE,
+            ActivePanel::Timeline,
+        )),
+    ),
+    (
+        crate::dock::PANEL_SCOPES,
+        "Scopes",
+        PanelLocation::Inspector,
+        draw_scopes_panel,
+        panel_host::ALWAYS,
+        Some(DockSpec::new(
+            DefaultFrame::Left,
+            DockSpec::DEFAULT_MIN_SIZE,
+            ActivePanel::Preview,
+        )),
+    ),
+    (
+        crate::dock::PANEL_COLOR,
+        "Color",
+        PanelLocation::Inspector,
+        draw_color_panel,
+        panel_host::ALWAYS,
+        Some(DockSpec::new(
+            DefaultFrame::Right,
+            DockSpec::DEFAULT_MIN_SIZE,
+            ActivePanel::Inspector,
+        )),
+    ),
+    (
+        "aria.panel.effects",
+        "Effects & Presets",
+        PanelLocation::Sidebar,
+        draw_effects_browser,
+        panel_host::ALWAYS,
+        Some(DockSpec::new(
+            DefaultFrame::Right,
+            DockSpec::DEFAULT_MIN_SIZE,
+            ActivePanel::Media,
+        )),
     ),
     (
         "aria.panel.assistant",
@@ -81,6 +249,11 @@ const BUILTIN_PANELS: &[(&str, &str, PanelLocation, PanelRender, PanelVisible)] 
         PanelLocation::Viewer,
         draw_assistant,
         |state| state.active_panel == ActivePanel::Ai,
+        Some(DockSpec::new(
+            DefaultFrame::Center,
+            DockSpec::DEFAULT_MIN_SIZE,
+            ActivePanel::Ai,
+        )),
     ),
     (
         "aria.panel.home",
@@ -88,53 +261,55 @@ const BUILTIN_PANELS: &[(&str, &str, PanelLocation, PanelRender, PanelVisible)] 
         PanelLocation::Home,
         draw_home,
         |state| state.route == UiRoute::Home,
+        None,
     ),
     (
         "aria.panel.duck",
         "Duck",
         PanelLocation::Inspector,
         draw_duck,
-        // Shows itself when a duck could actually run: music selected and a lane
-        // marked as the voice. The same precheck the job refuses on, so the
-        // panel is present exactly when its controls would mean something.
         |state| state.duck_precheck().is_ok(),
+        None,
     ),
     (
         "aria.panel.ai-tools",
         "Tools",
         PanelLocation::Inspector,
         draw_ai_tools,
-        // Beside the assistant rather than always on: the list answers "what can
-        // the model do here", which is only a question while the assistant is
-        // open. Its own module owns the predicate.
         ai_tools::visible,
+        None,
     ),
     (
         "aria.panel.looks",
         "Looks",
         PanelLocation::Inspector,
         draw_look_picker,
-        // Grading is a per-clip property: a picker with nothing to grade is a row
-        // of buttons that all refuse.
         |state| state.selected_clip().is_some(),
+        None,
     ),
     (
         "aria.panel.render-cost",
         "Last frame",
         PanelLocation::Inspector,
         draw_render_cost,
-        // A zeroed split reads as "nothing has been measured", never as "a frame
-        // was free", so this waits until a frame has actually been rendered.
         |state| state.last_render_stats().measured(),
+        None,
     ),
     (
         "aria.panel.media-support",
         "Media support",
         PanelLocation::Inspector,
         draw_media_support,
-        // Shows itself once a report exists, so the inspector column is not
-        // carrying a decoder listing during ordinary editing.
         media_support::has_report,
+        None,
+    ),
+    (
+        "aria.panel.timeline-report",
+        "Timeline file",
+        PanelLocation::Inspector,
+        draw_timeline_report,
+        timeline_report::has_report,
+        None,
     ),
 ];
 
@@ -163,19 +338,49 @@ const BUILTIN_OVERLAYS: &[(&str, OverlayWhen, OverlayRender)] = &[
         draw_jobs,
     ),
     (
-        "aria.dialog.history",
-        OverlayWhen::Dialog(DialogKind::History),
-        draw_history,
-    ),
-    (
         "aria.dialog.unsaved",
         OverlayWhen::Dialog(DialogKind::UnsavedChanges),
         draw_unsaved,
     ),
     (
+        "aria.dialog.install-plugin",
+        OverlayWhen::Dialog(DialogKind::InstallPlugin),
+        draw_install_plugin,
+    ),
+    (
         "aria.dialog.project-report",
         OverlayWhen::Dialog(DialogKind::ProjectReport),
         draw_project_report,
+    ),
+    (
+        "aria.dialog.speed-duration",
+        OverlayWhen::Dialog(DialogKind::SpeedDuration),
+        draw_speed_duration,
+    ),
+    (
+        "aria.dialog.audio-gain",
+        OverlayWhen::Dialog(DialogKind::AudioGain),
+        draw_audio_gain,
+    ),
+    (
+        "aria.dialog.about",
+        OverlayWhen::Dialog(DialogKind::About),
+        draw_about,
+    ),
+    (
+        "aria.dialog.remove-attributes",
+        OverlayWhen::Dialog(DialogKind::RemoveAttributes),
+        draw_remove_attributes,
+    ),
+    (
+        "aria.dialog.keyframe-velocity",
+        OverlayWhen::Dialog(DialogKind::KeyframeVelocity),
+        draw_keyframe_velocity,
+    ),
+    (
+        "aria.dialog.marker-edit",
+        OverlayWhen::Dialog(DialogKind::MarkerEdit),
+        draw_marker_edit,
     ),
     (
         "aria.overlay.context-menu",
@@ -201,12 +406,90 @@ fn draw_jobs(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElem
     jobs_dialog::render(state, cx).into_any_element()
 }
 
-fn draw_history(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {
-    history_dialog::render(state, cx).into_any_element()
+fn draw_jobs_panel(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {
+    jobs_dialog::render_panel(state, cx)
+}
+
+/// The ids of the built-in dockable panels, in registration order: what a
+/// session reads as registered when no ui plugin has mounted a panel host.
+pub(crate) fn builtin_dock_panel_ids() -> impl Iterator<Item = &'static str> {
+    BUILTIN_PANELS
+        .iter()
+        .filter(|(.., dock)| dock.is_some())
+        .map(|(id, ..)| *id)
+}
+
+/// The title of built-in panel `id`, or `None` when no built-in panel has that
+/// id: what a session reads as a panel's name when no ui plugin has mounted a
+/// panel host.
+pub(crate) fn builtin_panel_title(id: &str) -> Option<&'static str> {
+    BUILTIN_PANELS
+        .iter()
+        .find(|(panel, ..)| *panel == id)
+        .map(|(_, title, ..)| *title)
+}
+
+fn draw_character_panel(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {
+    text_panel::render_character(state, cx)
+}
+
+fn draw_paragraph_panel(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {
+    text_panel::render_paragraph(state, cx)
+}
+
+fn draw_info_panel(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {
+    info_panel::render(state, cx)
+}
+
+fn draw_align_panel(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {
+    align_panel::render(state, cx)
+}
+
+fn draw_history_panel(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {
+    history_panel::render(state, cx)
+}
+
+fn draw_markers_panel(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {
+    markers::render(state, cx)
+}
+
+fn draw_scopes_panel(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {
+    preview::scopes::panel(state, cx)
+}
+
+fn draw_color_panel(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {
+    color_panel::render(state, cx)
 }
 
 fn draw_unsaved(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {
     unsaved_dialog::render(state, cx).into_any_element()
+}
+
+fn draw_install_plugin(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {
+    install_dialog::render(state, cx).into_any_element()
+}
+
+fn draw_speed_duration(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {
+    speed_duration_dialog::render(state, cx).into_any_element()
+}
+
+fn draw_audio_gain(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {
+    audio_gain_dialog::render(state, cx).into_any_element()
+}
+
+fn draw_about(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {
+    about_dialog::render(state, cx).into_any_element()
+}
+
+fn draw_remove_attributes(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {
+    remove_attributes_dialog::render(state, cx).into_any_element()
+}
+
+fn draw_keyframe_velocity(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {
+    keyframe_velocity_dialog::render(state, cx).into_any_element()
+}
+fn draw_marker_edit(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {
+    marker_edit_dialog::render(state, cx).into_any_element()
 }
 
 fn draw_context_menu(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {
@@ -245,6 +528,14 @@ fn draw_mixer(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyEle
     mixer::render(state, cx).into_any_element()
 }
 
+fn draw_audio_meters(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {
+    audio_meters::render(state, cx)
+}
+
+fn draw_effects_browser(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {
+    effects_browser::effects_panel(&crate::theme::Theme::of(cx), state, cx)
+}
+
 fn draw_ai_tools(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {
     ai_tools::render(state, cx).into_any_element()
 }
@@ -261,6 +552,10 @@ fn draw_media_support(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -
     media_support::render(state, cx).into_any_element()
 }
 
+fn draw_timeline_report(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {
+    timeline_report::render(state, cx).into_any_element()
+}
+
 fn draw_project_report(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {
     project_report::render(state, cx).into_any_element()
 }
@@ -271,30 +566,29 @@ fn draw_home(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElem
 
 impl Plugin for UiPlugin {
     fn manifest(&self) -> &PluginManifest {
-        &PluginManifest {
-            id: "aria.ui",
-            name: "Editor panels",
-            version: "0.1.0",
-            // No dependency: a panel needs no GPU, and a shell with no panels at
-            // all would be a blank editor.
-            requires: &[],
-            uses: &[],
-        }
+        // No dependency: a panel needs no GPU, and a shell with no panels at all
+        // would be a blank editor.
+        static MANIFEST: PluginManifest =
+            PluginManifest::new("aria.ui", "Editor panels", "0.1.0", &[], &[]);
+        &MANIFEST
     }
 
     fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
         // Registered before the built-ins are added so a later plugin can reach the
         // same host and contribute or override a panel.
         let host = Arc::new(PanelHost::default());
-        for (id, title, location, render, visible) in BUILTIN_PANELS {
+        for (id, title, location, render, visible, dock) in BUILTIN_PANELS {
             host.add(PanelEntry {
                 id,
                 title,
                 location: *location,
                 render: *render,
                 visible: *visible,
+                dock: *dock,
             });
         }
+        host.set_declared(crate::panels::plugin_panel::render_at);
+        host.set_declared_one(crate::panels::plugin_panel::render_one);
         super::register_dyn(ctx, host);
 
         // The palette is a registry for the same reason the panels are: a plugin
@@ -346,7 +640,7 @@ mod tests {
     #[test]
     fn every_builtin_panel_is_registered_once_at_a_slot_the_shell_draws() {
         let host = PanelHost::default();
-        for (id, title, location, render, visible) in BUILTIN_PANELS {
+        for (id, title, location, render, visible, dock) in BUILTIN_PANELS {
             assert!(!id.is_empty() && !title.is_empty(), "{id} is unnamed");
             host.add(PanelEntry {
                 id,
@@ -354,6 +648,7 @@ mod tests {
                 location: *location,
                 render: *render,
                 visible: *visible,
+                dock: *dock,
             });
         }
         assert_eq!(host.ids().len(), BUILTIN_PANELS.len(), "duplicate panel id");
@@ -362,7 +657,7 @@ mod tests {
         // written down: a panel added above is asserted here with no edit, and a
         // hand-written count cannot drift away from what ships.
         let mut expected: Vec<(PanelLocation, usize)> = Vec::new();
-        for (_, _, location, _, _) in BUILTIN_PANELS {
+        for (_, _, location, _, _, _) in BUILTIN_PANELS {
             match expected.iter_mut().find(|(seen, _)| seen == location) {
                 Some((_, count)) => *count += 1,
                 None => expected.push((*location, 1)),
@@ -389,10 +684,11 @@ mod tests {
         let host = PanelHost::default();
         host.add(PanelEntry {
             id: "aria.panel.media",
-            title: "Media",
+            title: "Project",
             location: PanelLocation::Sidebar,
             render: draw_sidebar,
             visible: panel_host::ALWAYS,
+            dock: DockSpec::for_location(PanelLocation::Sidebar),
         });
         host.add(PanelEntry {
             id: "aria.panel.media",
@@ -400,6 +696,7 @@ mod tests {
             location: PanelLocation::Inspector,
             render: draw_inspector,
             visible: panel_host::ALWAYS,
+            dock: DockSpec::for_location(PanelLocation::Inspector),
         });
         assert_eq!(host.ids(), vec!["aria.panel.media"]);
         assert!(host.at(PanelLocation::Sidebar).is_empty());
@@ -467,8 +764,15 @@ mod tests {
             DialogKind::Settings,
             DialogKind::Palette,
             DialogKind::Jobs,
-            DialogKind::History,
             DialogKind::UnsavedChanges,
+            DialogKind::InstallPlugin,
+            DialogKind::SpeedDuration,
+            DialogKind::AudioGain,
+            DialogKind::ProjectReport,
+            DialogKind::About,
+            DialogKind::RemoveAttributes,
+            DialogKind::KeyframeVelocity,
+            DialogKind::MarkerEdit,
         ] {
             assert!(host.dialog(kind, true).is_some(), "{kind:?} has no overlay");
         }
@@ -501,7 +805,7 @@ mod tests {
             "primary inspector panel must be present"
         );
 
-        for (id, title, location, _render, _visible) in BUILTIN_PANELS {
+        for (id, title, location, _render, _visible, _dock) in BUILTIN_PANELS {
             if *location == PanelLocation::Inspector {
                 assert!(!id.is_empty(), "inspector panel has empty id");
                 assert!(!title.is_empty(), "inspector panel has empty title");

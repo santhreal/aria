@@ -162,3 +162,74 @@ fn marker_commands_reject_unknown_ids_without_history() {
     );
     assert!(!engine.can_undo(), "failed marker edits push no history");
 }
+
+#[test]
+fn edit_marker_updates_all_fields_in_one_undo_step_and_refuses_invalid_durations() {
+    let (_dir, mut engine) = temp_engine();
+    let track = common::add_track(&mut engine, TrackKind::Text, "T1");
+    engine
+        .apply(Command::Edit(EditCommand::AddGenerated {
+            track,
+            generator: Generator::text("title"),
+            timeline: tr(0, 120),
+        }))
+        .unwrap();
+
+    let outcome = engine
+        .apply(Command::Edit(EditCommand::AddMarker {
+            at: rt(24),
+            name: "Marker 1".into(),
+            color: Some(aria_models::MarkerColor::Teal),
+        }))
+        .unwrap();
+    let aria_engine::ApplyOutcome::Edited(aria_commands::EditOutcome::CreatedMarker(id)) = outcome
+    else {
+        panic!("expected CreatedMarker");
+    };
+
+    let depth_before = engine.history_depth();
+    engine
+        .edit_marker(
+            id,
+            rt(24),
+            rt(48),
+            "Chapter 1".into(),
+            aria_models::MarkerColor::Orange,
+            "Opening sequence".into(),
+            aria_models::MarkerKind::Chapter,
+        )
+        .expect("edit marker");
+    assert_eq!(
+        engine.history_depth(),
+        depth_before + 1,
+        "one dialog commit must record one undo step"
+    );
+    let m = engine.project().timeline().marker(id).unwrap();
+    assert_eq!(m.name, "Chapter 1");
+    assert_eq!(m.comment, "Opening sequence");
+    assert_eq!(m.color, aria_models::MarkerColor::Orange);
+    assert_eq!(m.duration, rt(48));
+    assert_eq!(m.kind, aria_models::MarkerKind::Chapter);
+
+    assert!(engine.undo());
+    let reverted = engine.project().timeline().marker(id).unwrap();
+    assert_eq!(reverted.name, "Marker 1");
+    assert_eq!(reverted.comment, "");
+    assert_eq!(reverted.color, aria_models::MarkerColor::Teal);
+    assert_eq!(reverted.duration, rt(0));
+    assert_eq!(reverted.kind, aria_models::MarkerKind::Comment);
+
+    // Refuses duration running past sequence end (120 ticks).
+    let err = engine
+        .edit_marker(
+            id,
+            rt(24),
+            rt(110),
+            "Too long".into(),
+            aria_models::MarkerColor::Orange,
+            String::new(),
+            aria_models::MarkerKind::Chapter,
+        )
+        .unwrap_err();
+    assert!(err.to_string().contains("exceeds sequence end"));
+}

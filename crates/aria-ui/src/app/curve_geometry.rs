@@ -159,6 +159,7 @@ pub fn sample_param_scalar(
     match (val, component) {
         (ParamValue::Scalar(v), None) => Some(v),
         (ParamValue::Vec2(v), Some(idx)) => v.get(idx as usize).copied(),
+        (ParamValue::Vec3(v), Some(idx)) => v.get(idx as usize).copied(),
         _ => None,
     }
 }

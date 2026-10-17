@@ -104,6 +104,7 @@ impl AppState {
         let spec = &self.key_param(param)?.spec;
         match spec.kind {
             aria_models::ParamKind::Vec2 => Some(self.curve_axis.min(1)),
+            aria_models::ParamKind::Vec3 => Some(self.curve_axis.min(2)),
             aria_models::ParamKind::Scalar
             | aria_models::ParamKind::Color
             | aria_models::ParamKind::Rect => None,

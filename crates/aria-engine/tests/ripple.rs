@@ -329,3 +329,48 @@ fn move_clip_takes_a_linked_companion_on_another_lane() {
     assert!(engine.redo());
     assert_eq!(starts(&engine, &[a, audio]), [80, 80]);
 }
+
+#[test]
+fn trim_clip_takes_a_linked_companion_on_another_lane() {
+    let (_dir, mut engine) = temp_engine();
+    let picture = add_track(&mut engine, TrackKind::Adjustment, "V1");
+    let sound = add_track(&mut engine, TrackKind::Adjustment, "A1");
+    let video = add_generated(&mut engine, picture, adjustment(), tr(0, 60));
+    let audio = add_generated(&mut engine, sound, adjustment(), tr(0, 60));
+    engine
+        .apply(Command::Edit(EditCommand::LinkClips {
+            clips: vec![video, audio],
+        }))
+        .expect("link");
+
+    engine
+        .apply(Command::Edit(EditCommand::TrimClip {
+            clip: video,
+            timeline: tr(12, 36),
+        }))
+        .expect("trim linked pair");
+    let v = engine.project().clip(video).expect("video clip");
+    let a = engine.project().clip(audio).expect("audio clip");
+    assert_eq!(
+        (v.start().value, v.timeline.end_tick()),
+        (12, 48),
+        "primary clip trimmed"
+    );
+    assert_eq!(
+        (a.start().value, a.timeline.end_tick()),
+        (12, 48),
+        "linked companion trimmed by the same start/end delta"
+    );
+
+    assert!(engine.undo(), "one undo restores both lanes");
+    let v = engine.project().clip(video).expect("video clip");
+    let a = engine.project().clip(audio).expect("audio clip");
+    assert_eq!((v.start().value, v.timeline.end_tick()), (0, 60));
+    assert_eq!((a.start().value, a.timeline.end_tick()), (0, 60));
+
+    assert!(engine.redo());
+    let v = engine.project().clip(video).expect("video clip");
+    let a = engine.project().clip(audio).expect("audio clip");
+    assert_eq!((v.start().value, v.timeline.end_tick()), (12, 48));
+    assert_eq!((a.start().value, a.timeline.end_tick()), (12, 48));
+}

@@ -62,6 +62,9 @@ pub(crate) fn param_name(param: &wire::WireClipParam) -> String {
         wire::WireClipParam::Shape { param } => format!("shape {param:?}").to_lowercase(),
         wire::WireClipParam::Text { param } => format!("text {param:?}").to_lowercase(),
         wire::WireClipParam::Look { param } => format!("look {param:?}").to_lowercase(),
+        wire::WireClipParam::Mask { index, param } => {
+            format!("mask {index} {param:?}").to_lowercase()
+        }
         wire::WireClipParam::Style { param } => format!("style {param:?}").to_lowercase(),
     }
 }
@@ -103,10 +106,18 @@ pub(crate) fn param_value_phrase(
     // `_` arm: a new selector has to say whether it is a percentage, an angle,
     // or a plain number, and until it does this file will not compile.
     match param {
-        wire::WireClipParam::Scale | wire::WireClipParam::Opacity | wire::WireClipParam::Volume => {
-            format!("{:.0}%", v * 100.0)
-        }
-        wire::WireClipParam::Rotation => format!("{v:.0}°"),
+        wire::WireClipParam::Scale
+        | wire::WireClipParam::Opacity
+        | wire::WireClipParam::Volume
+        | wire::WireClipParam::Mask {
+            param: wire::WireMaskParam::Opacity,
+            ..
+        } => format!("{:.0}%", v * 100.0),
+        wire::WireClipParam::Rotation
+        | wire::WireClipParam::Mask {
+            param: wire::WireMaskParam::Rotation,
+            ..
+        } => format!("{v:.0}°"),
         wire::WireClipParam::Pan => format!("{v:.2}"),
         wire::WireClipParam::Position
         | wire::WireClipParam::AnchorPoint
@@ -116,6 +127,7 @@ pub(crate) fn param_value_phrase(
         | wire::WireClipParam::Shape { .. }
         | wire::WireClipParam::Text { .. }
         | wire::WireClipParam::Look { .. }
+        | wire::WireClipParam::Mask { .. }
         | wire::WireClipParam::Style { .. } => v.to_string(),
     }
 }
@@ -257,6 +269,18 @@ pub fn describe_action(command: &WireCommand, outcome: Option<&EditOutcome>) -> 
             param_name(&a.param),
             param_value_phrase(&a.param, a.value, a.position, a.rgba, a.rect),
         ),
+        WireCommand::SetParamDriver(a) => match &a.code {
+            Some(code) => format!(
+                "drove clip {} {} with `{code}`",
+                a.clip,
+                param_name(&a.param)
+            ),
+            None => format!(
+                "removed the driver on clip {} {}",
+                a.clip,
+                param_name(&a.param)
+            ),
+        },
         WireCommand::ApplyEasingPreset(a) => format!(
             "applied {} easing preset on clip {} {} from {}",
             match a.preset {
@@ -303,21 +327,22 @@ pub fn describe_action(command: &WireCommand, outcome: Option<&EditOutcome>) -> 
             if a.denoise { "on" } else { "off" },
             a.clip
         ),
-        WireCommand::SetClipMask(a) => match &a.mask {
-            Some(mask) => format!(
-                "set {} mask on clip {}",
-                match mask.kind {
-                    crate::wire::WireMaskKind::Linear => "linear",
-                    crate::wire::WireMaskKind::Mirror => "mirror",
-                    crate::wire::WireMaskKind::Circle => "circle",
-                    crate::wire::WireMaskKind::Rectangle => "rectangle",
-                    crate::wire::WireMaskKind::Heart => "heart",
-                    crate::wire::WireMaskKind::Star => "star",
-                },
-                a.clip
-            ),
-            None => format!("cleared mask on clip {}", a.clip),
-        },
+        WireCommand::AddClipMask(a) => {
+            format!("added {} mask to clip {}", a.mask.kind.id(), a.clip)
+        }
+        WireCommand::SetClipMask(a) => format!(
+            "set mask {} on clip {} to {}",
+            a.index,
+            a.clip,
+            a.mask.kind.id()
+        ),
+        WireCommand::RemoveClipMask(a) => {
+            format!("removed mask {} from clip {}", a.index, a.clip)
+        }
+        WireCommand::MoveClipMask(a) => format!(
+            "moved mask {} to {} on clip {}",
+            a.from_index, a.to_index, a.clip
+        ),
         WireCommand::SetClipChroma(a) => match &a.chroma {
             Some(_) => format!("set chroma key on clip {}", a.clip),
             None => format!("cleared chroma key on clip {}", a.clip),
@@ -693,7 +718,9 @@ pub fn describe_action(command: &WireCommand, outcome: Option<&EditOutcome>) -> 
             | EditOutcome::UpdatedPool
             | EditOutcome::UpdatedSequenceRate
             | EditOutcome::UpdatedAudioLayout
+            | EditOutcome::UpdatedTimeDisplay
             | EditOutcome::UpdatedMaster
+            | EditOutcome::UpdatedSourcePatch
             // Navigation, not creation: the sequence already had a name before
             // it was opened, so there is no new id to hand back.
             | EditOutcome::OpenedSequence,

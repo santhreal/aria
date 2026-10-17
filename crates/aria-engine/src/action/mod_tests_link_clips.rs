@@ -143,6 +143,66 @@ fn add_transition_inverse_oscillates() {
             .is_some()
     );
 }
+#[test]
+fn set_transition_alignment_oscillates_and_checks_clip_bounds() {
+    use crate::action::edit::set_transition;
+    use aria_models::TransitionAlignment;
+
+    let mut project = setup();
+    let track = project.add_track(TrackKind::Sticker, "S1");
+    let left = project
+        .timeline_mut()
+        .add_clip(
+            track,
+            Clip::generated(
+                Generator::SolidColor {
+                    rgba: [255, 0, 0, 255],
+                },
+                tr(0, 16),
+            ),
+        )
+        .unwrap();
+    let _right = project
+        .timeline_mut()
+        .add_clip(
+            track,
+            Clip::generated(
+                Generator::SolidColor {
+                    rgba: [0, 0, 255, 255],
+                },
+                tr(16, 48),
+            ),
+        )
+        .unwrap();
+
+    let mut project_path = None;
+    let mut history = History::new(32);
+    let mut ctx = test_ctx(&mut project, &mut project_path, &mut history);
+
+    let _ = set_transition::add_transition(&mut ctx, left, "crossfade").unwrap();
+    let _ = set_transition::set_transition(&mut ctx, left, 16).unwrap();
+    let undo = set_transition::set_transition_alignment(&mut ctx, left, TransitionAlignment::Start)
+        .unwrap();
+    assert_eq!(
+        ctx.project.transition_at(left).unwrap().alignment,
+        TransitionAlignment::Start
+    );
+    let redo = undo.apply(&mut ctx).unwrap();
+    assert_eq!(
+        ctx.project.transition_at(left).unwrap().alignment,
+        TransitionAlignment::Center
+    );
+    let _ = redo.apply(&mut ctx).unwrap();
+    assert_eq!(
+        ctx.project.transition_at(left).unwrap().alignment,
+        TransitionAlignment::Start
+    );
+
+    let _ = set_transition::set_transition(&mut ctx, left, 32).unwrap();
+    assert!(
+        set_transition::set_transition_alignment(&mut ctx, left, TransitionAlignment::End).is_err()
+    );
+}
 
 #[test]
 fn structural_edit_prunes_dead_junction_and_undo_restores_it() {

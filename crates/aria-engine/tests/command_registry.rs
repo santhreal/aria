@@ -184,7 +184,19 @@ fn names_the_entity_it_claims(engine: &Engine, outcome: EditOutcome) -> bool {
         | EditOutcome::UpdatedPool
         | EditOutcome::UpdatedSequenceRate
         | EditOutcome::UpdatedAudioLayout
+        | EditOutcome::UpdatedTimeDisplay
         | EditOutcome::UpdatedMaster => true,
+        // A patch names a channel, not an entity; the claim is that the lane
+        // it names, if any, is still on the open sequence.
+        EditOutcome::UpdatedSourcePatch => {
+            let patching = project.timeline().source_patching();
+            aria_commands::SourceChannel::ALL
+                .iter()
+                .all(|channel| match patching.get(*channel) {
+                    aria_commands::Patch::Track(id) => project.timeline().track(id).is_some(),
+                    aria_commands::Patch::Auto | aria_commands::Patch::Off => true,
+                })
+        }
         // Navigation: whichever timeline the command opened is the one the
         // session now edits, and the root is a legitimate destination, so the
         // claim is that the active sequence (if any) exists.

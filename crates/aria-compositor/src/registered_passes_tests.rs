@@ -11,6 +11,7 @@
 //! floats and parameter names. Does not prove a shader the device rejects.
 
 use super::*;
+use crate::registered_graph::graph_prelude;
 
 fn param(name: &str, kind: EffectParamKind) -> EffectParamSpec {
     EffectParamSpec {
@@ -22,15 +23,19 @@ fn param(name: &str, kind: EffectParamKind) -> EffectParamSpec {
         max: 1.0,
         default_color: [0; 4],
         default_vec2: [0.0; 2],
+        ..Default::default()
     }
 }
 
 fn effect(id: &str, params: Vec<EffectParamSpec>) -> EffectSpec {
     EffectSpec {
         id: id.into(),
+        category: String::new(),
         label: format!("{id} label"),
         params,
         generator: false,
+        stateful: false,
+        ..Default::default()
     }
 }
 
@@ -41,8 +46,11 @@ fn fs(in: VsOut) -> @location(0) vec4<f32> {
 ";
 
 fn check_effect(source: &str, params: &[EffectParamSpec]) -> Result<String, Refusal> {
-    let floats = params.iter().map(|p| floats_of(p.kind)).sum();
-    check_pass(source, &effect_prelude(params, floats), Kind::Effect)
+    check_pass(
+        source,
+        &graph_prelude(params, &[], Entry::Fragment),
+        Kind::Effect,
+    )
 }
 
 fn refusal(source: &str) -> String {
@@ -62,7 +70,7 @@ fn fs(@location(0) uv: vec2<f32>, @builtin(position) pos: vec4<f32>) -> @locatio
     return mix(a, b, aria.progress);
 }
 ";
-    check_pass(transition, &transition_prelude(), Kind::Transition)
+    check_pass(transition, &transition_prelude(&[]), Kind::Transition)
         .expect("a transition reading both inputs validates");
 }
 
@@ -210,7 +218,7 @@ fn fs(in: VsOut) -> @location(0) vec4<f32> {
     return textureSample(input_tex, aria_sampler, in.uv);
 }
 ",
-        &transition_prelude(),
+        &transition_prelude(&[]),
         Kind::Transition,
     )
     .expect_err("a transition has no input_tex");
@@ -218,40 +226,62 @@ fn fs(in: VsOut) -> @location(0) vec4<f32> {
 }
 
 #[test]
-fn accessors_read_consecutive_components_across_vec4_slots() {
+fn accessors_read_consecutive_elements_from_storage_buffer() {
     let params = [
         param("a", EffectParamKind::Scalar),
         param("b", EffectParamKind::Vec2),
         param("c", EffectParamKind::Color),
         param("d", EffectParamKind::Scalar),
         param("e", EffectParamKind::Vec2),
+        param("f", EffectParamKind::Int),
+        param("g", EffectParamKind::Bool),
+        param("h", EffectParamKind::Choice),
+        param("p3", EffectParamKind::Point3),
+        param("sz", EffectParamKind::Size),
+        param("ang", EffectParamKind::Angle),
+        param("crv", EffectParamKind::Curve),
+        param("grd", EffectParamKind::Gradient),
+        param("txt", EffectParamKind::Text),
     ];
-    let prelude = effect_prelude(&params, 10);
+    let prelude = graph_prelude(&params, &[], Entry::Fragment);
     for line in [
-        "params: array<vec4<f32>, 3>,",
-        "fn param_a() -> f32 { return aria.params[0].x; }",
-        "fn param_b() -> vec2<f32> { return vec2<f32>(aria.params[0].y, aria.params[0].z); }",
-        "fn param_c() -> vec4<f32> { return vec4<f32>(aria.params[0].w, aria.params[1].x, \
-         aria.params[1].y, aria.params[1].z); }",
-        "fn param_d() -> f32 { return aria.params[1].w; }",
-        "fn param_e() -> vec2<f32> { return vec2<f32>(aria.params[2].x, aria.params[2].y); }",
+        "params: array<f32>,",
+        "@group(0) @binding(3) var<storage, read> aria: AriaPass;",
+        "fn param_a() -> f32 { return aria.params[0]; }",
+        "fn param_b() -> vec2<f32> { return vec2<f32>(aria.params[1], aria.params[2]); }",
+        "fn param_c() -> vec4<f32> { return vec4<f32>(aria.params[3], aria.params[4], \
+         aria.params[5], aria.params[6]); }",
+        "fn param_d() -> f32 { return aria.params[7]; }",
+        "fn param_e() -> vec2<f32> { return vec2<f32>(aria.params[8], aria.params[9]); }",
+        "fn param_f() -> i32 { return i32(round(aria.params[10])); }",
+        "fn param_g() -> bool { return aria.params[11] >= 0.5; }",
+        "fn param_h() -> u32 { return u32(max(round(aria.params[12]), 0.0)); }",
+        "fn param_p3() -> vec3<f32> { return vec3<f32>(aria.params[13], aria.params[14], aria.params[15]); }",
+        "fn param_sz() -> vec2<f32> { return vec2<f32>(aria.params[16], aria.params[17]); }",
+        "fn param_ang() -> f32 { return aria.params[18]; }",
     ] {
         assert!(prelude.contains(line), "missing `{line}` in\n{prelude}");
     }
     let source = "@fragment
 fn fs(in: VsOut) -> @location(0) vec4<f32> {
-    let s: f32 = param_a() + param_d();
-    let v: vec2<f32> = param_b() + param_e();
-    let c: vec4<f32> = param_c();
-    return c * s + vec4<f32>(v, 0.0, 0.0);
+    let s: f32 = param_a() + param_d() + param_ang() + f32(param_f()) + f32(param_h()) + param_crv(0.5);
+    let v: vec2<f32> = param_b() + param_e() + param_sz();
+    let p: vec3<f32> = param_p3();
+    let c: vec4<f32> = param_c() + param_grd(0.25);
+    if param_g() {
+        return c * s + vec4<f32>(v, p.z, 0.0);
+    }
+    return c;
 }
 ";
     check_effect(source, &params).expect("every accessor has the declared type");
 }
 
 #[test]
-fn an_effect_without_parameters_declares_one_vec4() {
-    assert!(effect_prelude(&[], 0).contains("params: array<vec4<f32>, 1>,"));
+fn an_effect_without_parameters_declares_a_storage_array() {
+    let prelude = graph_prelude(&[], &[], Entry::Fragment);
+    assert!(prelude.contains("params: array<f32>,"));
+    assert!(prelude.contains("@group(0) @binding(3) var<storage, read> aria: AriaPass;"));
     assert_eq!(param_vec4s(0), 1);
     assert_eq!(param_vec4s(4), 1);
     assert_eq!(param_vec4s(5), 2);
@@ -302,20 +332,16 @@ fn an_effect_needs_one_to_max_passes() {
 }
 
 #[test]
-fn parameters_may_not_flatten_past_the_float_limit() {
-    let colours = MAX_EFFECT_FLOATS / 4 + 1;
-    let params = (0..colours)
+fn parameters_may_flatten_past_the_old_uniform_float_limit() {
+    let colours = MAX_EFFECT_FLOATS / 4 + 4;
+    let params: Vec<EffectParamSpec> = (0..colours)
         .map(|i| param(&format!("c{i}"), EffectParamKind::Color))
         .collect();
-    let error = register_effect(EffectDefinition {
-        spec: effect("test.lib.wide", params),
-        passes: vec![PASSTHROUGH.into()],
-    })
-    .expect_err("too many floats");
-    assert!(
-        error.message.contains(&format!("{} floats", colours * 4)),
-        "{error}"
+    let source = format!(
+        "@fragment\nfn fs(in: VsOut) -> @location(0) vec4<f32> {{\n    return param_c0() + param_c{}();\n}}\n",
+        colours - 1
     );
+    check_effect(&source, &params).expect("storage buffer handles >256 floats");
 }
 
 #[test]
@@ -341,6 +367,7 @@ fn a_refused_transition_is_not_registered() {
         spec: TransitionSpec {
             id: "test.lib.badtransition".into(),
             label: "Bad".into(),
+            ..Default::default()
         },
         shader: "@fragment\nfn fs() -> @location(0) vec3<f32> { return vec3<f32>(0.0); }\n".into(),
     })

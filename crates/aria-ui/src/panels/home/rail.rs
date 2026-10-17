@@ -57,14 +57,14 @@ pub(super) fn home_rail(
                         .child(mark)
                         .child(
                             div()
-                                .text_size(px(16.))
+                                .text_size(Theme::TEXT_LARGE)
                                 .font_weight(gpui::FontWeight::SEMIBOLD)
                                 .child("Aria"),
                         ),
                 )
                 .child(
                     div()
-                        .text_size(px(13.))
+                        .text_size(Theme::TEXT_UI)
                         .text_color(theme.text_muted)
                         .child("Edit video. Keep the timeline honest."),
                 ),
@@ -93,7 +93,7 @@ pub(super) fn home_rail(
                 .bg(motion::hover_blend(fade, rest, theme.element_hover))
                 .on_hover(motion::hover_listener(fade))
                 .child(crate::icons::icon(icon))
-                .child(div().text_size(px(13.)).child(tab.label()))
+                .child(div().text_size(Theme::TEXT_UI).child(tab.label()))
                 .on_mouse_down(
                     MouseButton::Left,
                     cx.listener(move |this, _: &MouseDownEvent, _, cx| {

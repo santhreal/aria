@@ -9,7 +9,8 @@
 //! Handle and drag rules are enumerated from `CropHandle::ALL` and
 //! `MaskHandle::ALL` at run time, so a new handle fails until it is covered.
 
-use aria_models::{CropRect, MIN_CROP_FRACTION};
+use aria_commands::{Command, EditCommand};
+use aria_models::{CropRect, Easing, Keyframe, MIN_CROP_FRACTION, MaskKind, Param};
 
 use super::canvas_overlay::{
     CropHandle, MaskHandle, Rect, crop_handle_anchor, drag_crop, drag_mask_center,
@@ -329,9 +330,16 @@ fn a_mask_drag_commits_once_and_needs_a_mask_to_start() {
         "a clip with no mask must not start a mask drag"
     );
 
-    state
-        .set_selected_mask_kind(aria_models::MaskKind::Circle)
-        .expect("add a mask");
+    // Three masks with the middle one active: handles that edit the first or
+    // the last mask, rather than the active one, move the wrong mask.
+    for kind in [
+        aria_models::MaskKind::Circle,
+        aria_models::MaskKind::Rectangle,
+        aria_models::MaskKind::Star,
+    ] {
+        state.add_selected_mask(kind).expect("add a mask");
+    }
+    state.set_active_mask(1);
 
     let quad = state.overlay_frame.layer.expect("quad");
     let before = state.engine().lock().revision();
@@ -348,10 +356,96 @@ fn a_mask_drag_commits_once_and_needs_a_mask_to_start() {
     approx(center[1], -0.25, "the mask centre followed the pointer");
 
     state.end_overlay_drag().expect("commit");
-    let mask = state.selected_ui_clip().expect("clip").mask.expect("mask");
-    approx(mask.center[0], 0.25, "committed centre x");
-    approx(mask.center[1], -0.25, "committed centre y");
+    let masks = state.selected_ui_clip().expect("clip").masks;
+    approx(masks[1].center[0], 0.25, "committed centre x");
+    approx(masks[1].center[1], -0.25, "committed centre y");
+    for other in [0, 2] {
+        assert_eq!(
+            masks[other].center,
+            [0.0, 0.0],
+            "the drag moved mask {other}, which is not the active one"
+        );
+    }
     assert!(state.undo(), "the mask move is one undo entry");
-    let mask = state.selected_ui_clip().expect("clip").mask.expect("mask");
+    let mask = state.selected_ui_clip().expect("clip").masks[1];
     approx(mask.center[0], 0.0, "undo restored the centre");
+}
+
+/// A drag on a keyframed mask starts from the mask at the playhead and keys the
+/// property it changed there. The property's other keyframes stay, and so does
+/// the curve of every property the drag left alone. A drag that starts from the
+/// clip's first frame jumps the mask there on the first move, and one that
+/// writes constants throws a tracked or animated mask's motion away.
+#[test]
+fn a_drag_on_a_keyframed_mask_keys_the_playhead_and_keeps_the_curves() {
+    let (mut state, clip) = with_clip();
+    state.record_overlay_frame(Rect::new(0.0, 0.0, 200.0, 200.0));
+    state
+        .add_selected_mask(MaskKind::Circle)
+        .expect("add a mask");
+    let mut mask = state.active_model_mask().cloned().expect("the mask");
+    mask.center = Param::Keyframed {
+        keyframes: vec![
+            Keyframe::new(0, [0.0, 0.0], Easing::Linear),
+            Keyframe::new(20, [0.2, 0.0], Easing::Linear),
+        ],
+    };
+    let size_curve = Param::Keyframed {
+        keyframes: vec![
+            Keyframe::new(0, [1.0, 1.0], Easing::Linear),
+            Keyframe::new(20, [0.5, 0.5], Easing::Linear),
+        ],
+    };
+    mask.size = size_curve.clone();
+    state
+        .apply_command(Command::Edit(EditCommand::SetClipMask {
+            clip,
+            index: 0,
+            mask,
+        }))
+        .expect("animate the mask");
+    state.set_playhead(10);
+    assert_eq!(
+        state.selected_param_tick(),
+        Some(10),
+        "the clip starts at 0"
+    );
+
+    let (center, size, _) = state.overlay_mask().expect("the mask at the playhead");
+    approx(
+        center[0],
+        0.1,
+        "the handles sit on the centre at the playhead",
+    );
+    approx(size[0], 0.75, "the handles sit on the size at the playhead");
+    state.begin_mask_drag(MaskHandle::Center);
+    let (center, ..) = state.overlay_mask().expect("a live mask");
+    approx(
+        center[0],
+        0.1,
+        "the drag starts from the centre at the playhead",
+    );
+
+    let quad = state.overlay_frame.layer.expect("quad");
+    state.drag_overlay_to([quad.x + quad.w * 0.75, quad.y + quad.h * 0.25]);
+    state.end_overlay_drag().expect("commit");
+
+    let mask = state.active_model_mask().cloned().expect("the mask");
+    let keys: Vec<(i64, [f32; 2])> = mask
+        .center
+        .keyframes()
+        .iter()
+        .map(|key| (key.tick, key.value))
+        .collect();
+    assert_eq!(keys.len(), 3, "the drag did not key the centre: {keys:?}");
+    assert_eq!(keys[0], (0, [0.0, 0.0]), "the first keyframe moved");
+    assert_eq!(keys[2], (20, [0.2, 0.0]), "the last keyframe moved");
+    assert_eq!(keys[1].0, 10, "the key is not at the playhead");
+    approx(keys[1].1[0], 0.25, "the keyed centre x");
+    approx(keys[1].1[1], -0.25, "the keyed centre y");
+    assert_eq!(mask.size, size_curve, "a centre drag rewrote the size");
+
+    assert!(state.undo(), "the drag is one undo entry");
+    let mask = state.active_model_mask().cloned().expect("the mask");
+    assert_eq!(mask.center.keyframes().len(), 2, "undo kept the drag's key");
 }

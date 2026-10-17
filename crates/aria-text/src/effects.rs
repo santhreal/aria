@@ -85,7 +85,8 @@ pub(crate) fn effect_padding(style: &TextStyle) -> u32 {
         .stroke
         .map_or(0.0, |stroke| effect_extent(stroke.width));
     let mut need = (style.padding as f32).min(MAX_EFFECT_EXTENT_PX);
-    let underline_extent = if style.underline {
+    let has_underline = style.underline || style.runs.iter().any(|r| r.underline == Some(true));
+    let underline_extent = if has_underline {
         // The line sits just below the baseline. Capital-only runs otherwise
         // have no descender ink reserving that part of the bitmap.
         effect_extent(style.font_size * 0.18)
@@ -219,10 +220,10 @@ struct UnderlineRect {
     y0: u32,
     x1: u32,
     y1: u32,
+    color: [u8; 4],
 }
 
-/// One ink-width underline per visual line. Whitespace-only lines have no
-/// visible span and are deliberately skipped.
+/// Ink-width underline segments per visual line (or per underlined run).
 fn underline_rects(
     shaped: &ShapedText,
     style: &TextStyle,
@@ -230,34 +231,52 @@ fn underline_rects(
     width: u32,
     height: u32,
 ) -> Vec<UnderlineRect> {
-    if !style.underline {
+    if !style.underline && !style.runs.iter().any(|r| r.underline == Some(true)) {
         return Vec::new();
     }
-    let mut lines: Vec<(usize, f32, f32, f32)> = Vec::new();
+    let mut spans: Vec<(usize, f32, f32, f32, [u8; 4])> = Vec::new();
     for cluster in shaped.clusters.iter().filter(|c| c.image.width > 0) {
+        if !style.underline_at(cluster.text_range.start) {
+            continue;
+        }
+        let color = style.color_at(cluster.text_range.start);
         let left = cluster.offset[0];
         let right = left + cluster.image.width as f32;
-        if let Some((_, x0, x1, baseline)) = lines.iter_mut().find(|line| line.0 == cluster.line) {
+        if let Some((_, x0, x1, baseline, span_color)) = spans.last_mut().filter(|s| {
+            s.0 == cluster.line && s.4 == color && !style.runs.iter().any(|r| r.underline.is_some())
+        }) {
             *x0 = x0.min(left);
             *x1 = x1.max(right);
             *baseline = baseline.max(cluster.baseline);
+            let _ = span_color;
+        } else if let Some((_, _x0, x1, baseline, _)) = spans.last_mut().filter(|s| {
+            s.0 == cluster.line && s.4 == color && (left - s.2).abs() <= style.font_size * 0.6
+        }) {
+            *x1 = x1.max(right);
+            *baseline = baseline.max(cluster.baseline);
         } else {
-            lines.push((cluster.line, left, right, cluster.baseline));
+            spans.push((cluster.line, left, right, cluster.baseline, color));
         }
     }
 
     let offset = effect_extent(style.font_size * 0.08);
     let thickness = effect_extent(style.font_size * 0.06).round().max(1.0);
-    lines
+    spans
         .into_iter()
-        .filter_map(|(_, left, right, baseline)| {
+        .filter_map(|(_, left, right, baseline, color)| {
             let x0 = (left + pad as f32).floor().clamp(0.0, width as f32) as u32;
             let x1 = (right + pad as f32).ceil().clamp(0.0, width as f32) as u32;
             let y0 = (baseline + offset + pad as f32)
                 .round()
                 .clamp(0.0, height as f32) as u32;
             let y1 = (y0 as f32 + thickness).clamp(0.0, height as f32) as u32;
-            (x1 > x0 && y1 > y0).then_some(UnderlineRect { x0, y0, x1, y1 })
+            (x1 > x0 && y1 > y0).then_some(UnderlineRect {
+                x0,
+                y0,
+                x1,
+                y1,
+                color,
+            })
         })
         .collect()
 }
@@ -270,14 +289,14 @@ fn blit_underlines(
     style: &TextStyle,
     pad: u32,
 ) {
-    if style.color[3] == 0 {
-        return;
-    }
     for rect in underline_rects(shaped, style, pad, width, height) {
+        if rect.color[3] == 0 {
+            continue;
+        }
         for y in rect.y0..rect.y1 {
             for x in rect.x0..rect.x1 {
                 let index = ((y * width + x) * 4) as usize;
-                over_straight(&mut pixels[index..index + 4], style.color);
+                over_straight(&mut pixels[index..index + 4], rect.color);
             }
         }
     }

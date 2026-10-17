@@ -38,6 +38,14 @@ pub fn primary(kind: DialogKind) -> Primary {
         // Save is the affirmative answer: the prompt exists so the work
         // survives leaving the project, so the key meaning "yes" keeps it.
         DialogKind::UnsavedChanges => Primary::Run(AppState::save_and_continue),
+        DialogKind::SpeedDuration => Primary::Run(AppState::apply_speed_duration),
+        DialogKind::AudioGain => Primary::Run(AppState::apply_audio_gain),
+        DialogKind::RemoveAttributes => Primary::Run(AppState::apply_remove_attributes),
+        DialogKind::KeyframeVelocity => Primary::Run(AppState::apply_keyframe_velocity),
+        DialogKind::MarkerEdit => Primary::Run(AppState::apply_marker_edit),
+        DialogKind::InstallPlugin => Primary::Nothing(
+            "installing runs a stranger's code, so it takes a press on Install, not a stray Enter",
+        ),
         DialogKind::Settings => {
             Primary::Nothing("each row is its own control and there is no one setting to commit")
         }
@@ -45,10 +53,8 @@ pub fn primary(kind: DialogKind) -> Primary {
             Primary::Nothing("the palette answers Enter itself: it runs the highlighted command")
         }
         DialogKind::Jobs => Primary::Nothing("the board reports work that is already running"),
-        DialogKind::History => {
-            Primary::Nothing("an entry is jumped to by name, and no entry is highlighted")
-        }
         DialogKind::ProjectReport => Primary::Nothing("the report is read, not answered"),
+        DialogKind::About => Primary::Nothing("the card is read, not answered"),
         DialogKind::Plugin(_) => {
             Primary::Nothing("a plugin draws its own controls and the host cannot press them")
         }

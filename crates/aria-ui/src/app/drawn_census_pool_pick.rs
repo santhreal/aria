@@ -1,12 +1,14 @@
-//! Driving the pool card's own click: the plain one, the modified one, and the
-//! run between two cards.
+//! Driving the pool card's own click: the plain one, the modified one, the run
+//! between two cards, and the double-click that opens a Source tab.
 //!
 //! # Why
 //!
-//! The card's behaviour lived in a mouse listener: select this item, then place
-//! it unless its file is gone. Nothing could enumerate it, so the offline case
-//! read like an ordinary early return and the selection could hold one item at a
-//! time while the sidebar's multicam button claimed to read a set.
+//! A click on a card is a selection gesture and never an edit: browsing the
+//! pool must not put clips on the sequence. The selection is a set, because the
+//! sidebar's multicam button builds its group from it, and a double-click opens
+//! the card in the Viewer rather than placing it twice. The placement a click
+//! once made is Insert or Overwrite with the pool selection and no Source tab in
+//! front, pressed here as well.
 //!
 //! The registry is [`pool_pick`](crate::surfaces::pool_pick). The pool the rows
 //! are pressed against is stocked with three cards, because a run needs a middle
@@ -62,13 +64,27 @@ fn drawn(state: &AppState) -> Vec<u64> {
 /// Every way of clicking a card. One per arm of `Reach::what`, which
 /// `every_way_of_clicking_a_card_is_pressed` holds this list to.
 fn reaches() -> Vec<Reach> {
-    vec![Reach::Replace, Reach::Toggle, Reach::Span]
+    vec![Reach::Replace, Reach::Toggle, Reach::Span, Reach::Open]
 }
 
-/// Click one card, refusing to pass a refusal off as a click.
-fn click(state: &mut AppState, reach: Reach, card: u64) -> bool {
-    pool_pick::apply(state, reach, card, TAB)
-        .unwrap_or_else(|err| panic!("`{}` was refused: {err}", reach.what()))
+/// Click one card.
+fn click(state: &mut AppState, reach: Reach, card: u64) {
+    pool_pick::apply(state, reach, card, TAB);
+}
+
+/// The clips on the sequence as (start, end) timeline ticks, in start order.
+fn spans(state: &AppState) -> Vec<(i64, i64)> {
+    let mut spans: Vec<(i64, i64)> = state
+        .store
+        .sequence
+        .tracks
+        .iter()
+        .flat_map(|lane| lane.clips.iter())
+        .filter(|clip| clip.kind != crate::types::UiClipKind::Audio)
+        .map(|clip| (clip.timeline_start_ticks, clip.timeline_end_ticks))
+        .collect();
+    spans.sort_unstable();
+    spans
 }
 
 /// A pool holding one card whose file is gone, and that card's id.
@@ -110,7 +126,8 @@ fn with_offline_card() -> (AppState, u64) {
     (state, card)
 }
 
-/// Every command a click on a card asked for.
+/// Every command a click on a card asked for: none, which the census below
+/// holds every reach to.
 pub(super) fn dispatched() -> BTreeSet<&'static str> {
     let mut out = BTreeSet::new();
     // The count comes off a state that is dropped before the loop: a census
@@ -120,27 +137,17 @@ pub(super) fn dispatched() -> BTreeSet<&'static str> {
         let mut pool = stocked();
         let reach = reaches().swap_remove(index);
         let card = pool.cards[1];
-        pool.state.edit_mode = EditMode::Ripple;
         let watch = Watch::on(&pool.state);
         click(&mut pool.state, reach, card);
         out.extend(watch.take());
     }
-    // The one reach that places goes through the edit mode, so the other mode is
-    // pressed too: the command a click sends is the sequence's mode, not a
-    // property of the card.
-    let mut pool = stocked();
-    pool.state.edit_mode = EditMode::Overwrite;
-    let card = pool.cards[1];
-    let watch = Watch::on(&pool.state);
-    click(&mut pool.state, Reach::Replace, card);
-    out.extend(watch.take());
     out
 }
 
 #[test]
 fn every_way_of_clicking_a_card_is_pressed() {
     // Fail by default on a new arm: `what` is a total match, so the compiler
-    // forces prose for a fourth way of clicking and this forces a press.
+    // forces prose for a fifth way of clicking and this forces a press.
     let pressed: BTreeSet<String> = reaches()
         .into_iter()
         .map(|reach| reach.what().to_string())
@@ -156,44 +163,86 @@ fn every_way_of_clicking_a_card_is_pressed() {
 }
 
 #[test]
-fn a_plain_click_picks_one_card_and_places_it() {
+fn no_click_on_a_card_edits_the_project() {
+    // The defect this forbids: browsing the pool drops clips on the sequence,
+    // and picking four angles leaves four undo steps behind a multicam group.
+    assert_eq!(
+        dispatched(),
+        BTreeSet::new(),
+        "a click on a card sent commands to the project"
+    );
+    for reach in reaches() {
+        let mut pool = stocked();
+        let before = spans(&pool.state);
+        click(&mut pool.state, reach, pool.cards[0]);
+        assert!(
+            pool.state.pool_selection.contains(pool.cards[0]),
+            "{} left the card unpicked",
+            reach.what()
+        );
+        assert_eq!(spans(&pool.state), before, "{} placed a clip", reach.what());
+    }
+}
+
+#[test]
+fn the_click_count_and_modifiers_pick_the_row() {
+    assert_eq!(Reach::of(false, false, 1), Reach::Replace);
+    assert_eq!(Reach::of(false, false, 2), Reach::Open);
+    assert_eq!(Reach::of(false, false, 3), Reach::Open);
+    // A fast run of modified clicks builds a selection; it never opens tabs.
+    assert_eq!(Reach::of(true, false, 2), Reach::Toggle);
+    assert_eq!(Reach::of(false, true, 2), Reach::Span);
+    assert_eq!(Reach::of(true, true, 1), Reach::Span);
+}
+
+#[test]
+fn a_plain_click_picks_one_card() {
     let mut pool = stocked();
-    let watch = Watch::on(&pool.state);
     click(&mut pool.state, Reach::Toggle, pool.cards[0]);
-    let placed = click(&mut pool.state, Reach::Replace, pool.cards[2]);
-    assert!(placed, "a plain click no longer places the clip");
+    click(&mut pool.state, Reach::Replace, pool.cards[2]);
     assert_eq!(
         pool.state.pool_selection.ids(),
         [pool.cards[2]],
         "a plain click kept the card that was already picked"
     );
     assert!(
-        !watch.take().is_empty(),
-        "a plain click asked the project for nothing"
+        pool.state.sources.tabs().is_empty(),
+        "a single click opened a Source tab"
     );
 }
 
 #[test]
-fn a_modified_click_picks_without_touching_the_project() {
-    // The defect this forbids: picking four angles drops four clips on the
-    // sequence, and the operator undoes four times to get back.
-    for reach in [Reach::Toggle, Reach::Span] {
-        let mut pool = stocked();
-        let watch = Watch::on(&pool.state);
-        let placed = click(&mut pool.state, reach, pool.cards[0]);
-        assert!(!placed, "{} placed a clip", reach.what());
-        assert_eq!(
-            watch.take(),
-            Vec::<&'static str>::new(),
-            "{} edited the project",
-            reach.what()
-        );
-        assert!(
-            pool.state.pool_selection.contains(pool.cards[0]),
-            "{} left the card unpicked",
-            reach.what()
-        );
+fn a_double_click_opens_one_source_tab_per_card() {
+    let mut pool = stocked();
+    let focused = |state: &AppState| state.sources.focused().map(|view| view.media);
+    click(&mut pool.state, Reach::Open, pool.cards[0]);
+    assert_eq!(focused(&pool.state), Some(pool.cards[0]));
+    if let Some(view) = pool.state.sources.focused_mut() {
+        view.mark_in = Some(1);
     }
+    click(&mut pool.state, Reach::Open, pool.cards[1]);
+    assert_eq!(focused(&pool.state), Some(pool.cards[1]));
+    // A second double-click on the first card focuses its tab, marks intact.
+    click(&mut pool.state, Reach::Open, pool.cards[0]);
+    let open: Vec<u64> = pool
+        .state
+        .sources
+        .tabs()
+        .iter()
+        .map(|view| view.media)
+        .collect();
+    assert_eq!(
+        open,
+        vec![pool.cards[0], pool.cards[1]],
+        "a card opened twice"
+    );
+    assert_eq!(focused(&pool.state), Some(pool.cards[0]));
+    assert_eq!(
+        pool.state.sources.focused().and_then(|view| view.mark_in),
+        Some(1),
+        "refocusing a tab reset its marks"
+    );
+    assert_eq!(pool.state.pool_selection.ids(), [pool.cards[0]]);
 }
 
 #[test]
@@ -212,8 +261,7 @@ fn a_span_picks_the_run_the_list_drew_between_the_two_cards() {
 
 #[test]
 fn a_selection_of_several_is_what_a_multicam_group_is_built_from() {
-    // The surface the single selection broke. Two angles in pick order, which is
-    // the order the group carries them in.
+    // Two angles in pick order, which is the order the group carries them in.
     let mut pool = stocked();
     click(&mut pool.state, Reach::Replace, pool.cards[2]);
     click(&mut pool.state, Reach::Toggle, pool.cards[0]);
@@ -227,56 +275,93 @@ fn a_selection_of_several_is_what_a_multicam_group_is_built_from() {
 }
 
 #[test]
-fn a_card_whose_file_is_gone_is_picked_and_not_placed() {
-    // Offline is not a refusal: the properties and the relink button are on the
-    // card, so it has to be selectable. What it must not do is put a clip on the
-    // timeline with nothing behind it to decode.
+fn a_card_whose_file_is_gone_is_picked_and_not_opened() {
+    // Offline is not a refusal of the pick: the properties and the relink
+    // button are on the card, so it has to be selectable. What it must not do
+    // is open a Source tab with nothing behind it to decode.
     let (mut state, card) = with_offline_card();
     let watch = Watch::on(&state);
-    let placed = pool_pick::apply(&mut state, Reach::Replace, card, TAB)
-        .expect("an offline card is clickable");
-    assert!(!placed, "an offline card put a clip on the timeline");
-    assert_eq!(
-        watch.take(),
-        Vec::<&'static str>::new(),
-        "an offline card edited the project"
-    );
+    pool_pick::apply(&mut state, Reach::Open, card, TAB);
+    assert_eq!(watch.take(), Vec::<&'static str>::new());
     assert!(
         state.pool_selection.contains(card),
         "an offline card cannot be selected, so its relink button is unreachable"
     );
+    assert!(
+        state.sources.tabs().is_empty(),
+        "an offline card opened a tab"
+    );
+    assert_eq!(
+        state.status_message.as_deref(),
+        Some("that source cannot be previewed")
+    );
 }
 
 #[test]
-fn the_census_reaches_the_commands_a_click_claims() {
-    let sent = dispatched();
-    for label in ["Ripple insert", "Overwrite"] {
-        assert!(
-            sent.contains(label),
-            "a click on a card is the fallback for the drag and it sent {sent:?}"
-        );
-    }
-}
-
-#[test]
-fn a_click_places_through_the_edit_mode() {
-    // The card does not decide how a clip lands. The sequence's mode does, the
-    // same one a drag from the pool goes through.
-    for (mode, label) in [
-        (EditMode::Ripple, "Ripple insert"),
-        (EditMode::Overwrite, "Overwrite"),
-    ] {
+fn insert_and_overwrite_place_the_pool_selection_with_no_source_tab() {
+    // The click's old placement, now a key: the selection in pick order, end to
+    // end from the playhead, through the mode the key names and not the
+    // sequence's edit mode.
+    // Each item is one Source edit through the patching, as a drop is.
+    let label = "Source edit";
+    for mode in [EditMode::Ripple, EditMode::Overwrite] {
         let mut pool = stocked();
-        pool.state.edit_mode = mode;
+        pool.state.edit_mode = EditMode::Overwrite;
+        // Past the fixture's own clip, so the placement is all that lands there.
+        let before = spans(&pool.state);
+        let end = before.iter().map(|span| span.1).max().unwrap_or(0);
+        pool.state.playhead = aria_models::RationalTime::new(end, pool.state.playhead.rate);
+        click(&mut pool.state, Reach::Replace, pool.cards[2]);
+        click(&mut pool.state, Reach::Toggle, pool.cards[0]);
+        let applied =
+            |state: &AppState| state.history_entries().iter().filter(|e| e.applied).count();
+        let steps = applied(&pool.state);
         let watch = Watch::on(&pool.state);
-        let placed = click(&mut pool.state, Reach::Replace, pool.cards[1]);
-        assert!(placed, "a click in {mode:?} placed nothing");
+        pool.state.cut_source_in(mode).expect("place the selection");
+        // The two Source edits merge into one step, and the History panel's
+        // list shows that one step without waiting for another edit.
+        assert_eq!(
+            applied(&pool.state),
+            steps + 1,
+            "{mode:?}: the History list"
+        );
         assert_eq!(
             watch.take(),
-            vec![label],
-            "a click in {mode:?} sent the wrong command"
+            vec![label, label],
+            "{mode:?} sent the wrong commands"
+        );
+        let placed: Vec<(i64, i64)> = spans(&pool.state)
+            .into_iter()
+            .filter(|span| span.0 >= end)
+            .collect();
+        assert_eq!(placed.len(), 2, "{mode:?} placed {placed:?}");
+        assert_eq!(placed[0].0, end, "the first item starts at the playhead");
+        assert_eq!(
+            placed[1].0, placed[0].1,
+            "the second item follows the first"
+        );
+        assert!(pool.state.undo(), "the placement is undoable");
+        assert_eq!(
+            spans(&pool.state),
+            before,
+            "one undo removes the whole placement"
         );
     }
+}
+
+#[test]
+fn insert_with_nothing_to_place_says_so() {
+    let (mut state, _) = crate::app::fixtures::with_video();
+    state.pool_selection = Default::default();
+    let watch = Watch::on(&state);
+    state
+        .cut_source_in(EditMode::Ripple)
+        .expect("refused, not failed");
+    assert_eq!(watch.take(), Vec::<&'static str>::new());
+    assert_eq!(
+        state.status_message.as_deref(),
+        Some("Open a source in the Viewer, or select pool items, to place")
+    );
 }
 
 #[test]

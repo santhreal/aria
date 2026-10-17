@@ -47,6 +47,8 @@ fn resolve_with_substitutes_styles_for_one_clip() {
         styles: Some((clip, &live)),
         animation: None,
         crop: None,
+        effect_vec2: None,
+        transparent: false,
     };
     let scene = resolve_with(&project, rt(5), overrides).unwrap();
     approx(
@@ -158,6 +160,8 @@ fn resolve_with_substitutes_animation_slots_for_one_clip() {
             styles: None,
             animation: Some((clip, anims)),
             crop: None,
+            effect_vec2: None,
+            transparent: false,
         },
     )
     .unwrap();
@@ -194,6 +198,8 @@ fn resolve_with_substitutes_animation_slots_for_one_clip() {
             styles: None,
             animation: Some((other, anims)),
             crop: None,
+            effect_vec2: None,
+            transparent: false,
         },
     )
     .unwrap();
@@ -203,4 +209,40 @@ fn resolve_with_substitutes_animation_slots_for_one_clip() {
         resolve(&project, rt(1)).unwrap().layers[0].opacity,
         baseline.opacity
     );
+}
+
+/// A live vec2 value replaces one parameter of one effect on one clip, and
+/// nothing else: the same slot on another clip, another effect in the chain,
+/// and the committed project all keep their values.
+#[test]
+fn resolve_with_substitutes_one_vec2_effect_parameter() {
+    let mut project = Project::new("p", FPS_24);
+    let media = project.add_media(video(1920, 1080));
+    let track = project.add_track(TrackKind::Video, "V1");
+    let clip = project.add_clip(track, media, tr(0, 100), rt(0)).unwrap();
+    let other = project.add_clip(track, media, tr(0, 100), rt(100)).unwrap();
+    for id in [clip, other] {
+        project.add_effect(id, "color_overlay").unwrap();
+        project.add_effect(id, "color_overlay").unwrap();
+    }
+    // `color_overlay` packs its colour (four floats), then the `offset` vec2
+    // in slot 1, then `amount`.
+    let offset = |scene: &Scene, layer: usize, effect: usize| -> [f32; 2] {
+        let params = &scene.layers[layer].effects[effect].params;
+        [params[4], params[5]]
+    };
+    let point = |clip, effect| ResolveOverrides {
+        effect_vec2: Some((clip, effect, 1, [0.25, -0.5])),
+        ..ResolveOverrides::default()
+    };
+
+    let scene = resolve_with(&project, rt(5), point(clip, 1)).unwrap();
+    assert_eq!(offset(&scene, 0, 1), [0.25, -0.5]);
+    assert_eq!(offset(&scene, 0, 0), [0.0, 0.0], "the first effect moved");
+
+    let scene = resolve_with(&project, rt(105), point(clip, 1)).unwrap();
+    assert_eq!(offset(&scene, 0, 1), [0.0, 0.0], "another clip moved");
+
+    let committed = resolve(&project, rt(5)).unwrap();
+    assert_eq!(offset(&committed, 0, 1), [0.0, 0.0]);
 }

@@ -116,7 +116,7 @@ pub(crate) fn render(
     for section in sections {
         blocks.push(
             div()
-                .text_size(px(11.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_faint)
                 .child(SharedString::from(section))
                 .into_any_element(),
@@ -142,7 +142,7 @@ pub(crate) fn render(
             .border_color(theme.border)
             .child(
                 div()
-                    .text_size(px(12.))
+                    .text_size(Theme::TEXT_TITLE)
                     .text_color(theme.text_muted)
                     .child(SharedString::from(heading)),
             )
@@ -161,7 +161,7 @@ fn fact(theme: &Theme, row: &Row) -> gpui::AnyElement {
         .items_start()
         .justify_between()
         .gap(px(Theme::SPACE_SM))
-        .text_size(px(12.))
+        .text_size(Theme::TEXT_TITLE)
         .child(
             div()
                 .flex_none()
@@ -196,7 +196,7 @@ fn target_chip(
         .py(px(Theme::SPACE_XS))
         .rounded(px(Theme::CONTROL_RADIUS))
         .bg(background)
-        .text_size(px(13.))
+        .text_size(Theme::TEXT_UI)
         .text_color(theme.text)
         .cursor(CursorStyle::PointingHand)
         .active(|style| style.opacity(0.92))
@@ -279,7 +279,7 @@ fn exposure_block(theme: &Theme, exposure: Exposure) -> gpui::AnyElement {
     ];
     let mut block = div().flex().flex_col().gap(px(Theme::SPACE_XS)).child(
         div()
-            .text_size(px(11.))
+            .text_size(Theme::TEXT_UI)
             .text_color(theme.text_faint)
             .child("Exposure"),
     );

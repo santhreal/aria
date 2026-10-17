@@ -631,7 +631,7 @@ mod tests {
 
     #[test]
     fn slot_source_overflow_and_bounds() {
-        let mut slot = Clip::from_media(
+        let slot = Clip::from_media(
             crate::ids::MediaId::from_raw(1),
             TimeRange::at_rate(0, 24, R24),
             TimeRange::at_rate(0, 24, R24),

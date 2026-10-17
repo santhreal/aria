@@ -68,7 +68,10 @@ fn every_lane_answers_the_audio_guards() {
 
         let picture = verdict(
             &project,
-            WireCommand::SetClipMask(wire::SetClipMask { clip, mask: None }),
+            WireCommand::AddClipMask(wire::AddClipMask {
+                clip,
+                mask: wire_mask("circle"),
+            }),
         );
         let refused_for_sound = picture
             .as_deref()
@@ -126,13 +129,52 @@ fn every_lane_answers_the_crop_guard() {
     }
 }
 
+/// Every lane takes the transitions its catalog row names: a lane that
+/// composites frames takes a picture blend, a sound lane that holds clips an
+/// audio crossfade, and any other lane neither. A lone clip has no cut, so a
+/// transition the lane takes is refused only for the missing neighbour.
+#[test]
+fn every_lane_takes_the_transitions_its_row_names() {
+    let picture = ["crossfade".to_string()];
+    let audio = aria_models::AudioTransition::ALL.map(|t| t.id().to_string());
+    for spec in track_kind_specs() {
+        let Some((project, clip)) = lane_with_clip(spec.kind) else {
+            continue;
+        };
+        let takes_picture = spec.supports_transitions;
+        let takes_audio = spec.is_audio && !spec.is_bus;
+        for (ids, takes) in [(&picture[..], takes_picture), (&audio[..], takes_audio)] {
+            for id in ids {
+                let msg = verdict(
+                    &project,
+                    WireCommand::AddTransition(wire::AddTransition {
+                        clip,
+                        transition: id.clone(),
+                    }),
+                )
+                .expect("a lone clip has no cut to transition across");
+                let refused_for_lane = !msg.contains("has no clip butting against its right edge");
+                assert_eq!(
+                    refused_for_lane, !takes,
+                    "lane '{}' and transition '{id}': the refusal disagrees with the row: {msg}",
+                    spec.id
+                );
+            }
+        }
+    }
+}
+
+/// A lane that takes no transition says which lanes take each kind, from the
+/// same rows.
 #[test]
 fn the_transition_refusal_names_the_lanes_that_take_one() {
-    let audio = track_kind_specs()
+    let none = track_kind_specs()
         .iter()
-        .find(|spec| spec.is_audio && !spec.is_bus)
-        .expect("a sound lane ships");
-    let (project, clip) = lane_with_clip(audio.kind).expect("a sound lane takes a clip");
+        .find(|spec| {
+            !spec.supports_transitions && !spec.is_audio && lane_with_clip(spec.kind).is_some()
+        })
+        .expect("a lane that takes no transition ships");
+    let (project, clip) = lane_with_clip(none.kind).expect("checked above");
     let msg = verdict(
         &project,
         WireCommand::AddTransition(wire::AddTransition {
@@ -140,13 +182,51 @@ fn the_transition_refusal_names_the_lanes_that_take_one() {
             transition: "crossfade".to_string(),
         }),
     )
-    .expect("a transition on a sound lane is refused");
+    .expect("a transition on a canvas-pass lane is refused");
     for spec in track_kind_specs() {
+        let takes = spec.supports_transitions || (spec.is_audio && !spec.is_bus);
         assert_eq!(
             msg.contains(spec.id),
-            spec.supports_transitions,
-            "the refusal names '{}' but its supports_transitions column says otherwise: {msg}",
+            takes,
+            "the refusal and the '{}' row disagree: {msg}",
             spec.id
         );
     }
+}
+
+/// A transition of the other kind is refused with what the lane does take.
+#[test]
+fn a_transition_of_the_other_kind_lists_what_the_lane_takes() {
+    let (sound, clip) = lane_with_clip(TrackKind::Audio).expect("a sound lane takes a clip");
+    let msg = verdict(
+        &sound,
+        WireCommand::AddTransition(wire::AddTransition {
+            clip,
+            transition: "crossfade".to_string(),
+        }),
+    )
+    .expect("a picture blend on a sound lane is refused");
+    assert_eq!(
+        msg,
+        format!(
+            "'crossfade' is a picture transition and clip {clip} is on an audio lane; \
+             available transitions: constant_power, constant_gain, exponential_fade"
+        )
+    );
+    let (frames, clip) = lane_with_clip(TrackKind::Video).expect("a video lane takes a clip");
+    let msg = verdict(
+        &frames,
+        WireCommand::AddTransition(wire::AddTransition {
+            clip,
+            transition: "constant_gain".to_string(),
+        }),
+    )
+    .expect("an audio crossfade on a video lane is refused");
+    assert!(
+        msg.starts_with(&format!(
+            "'constant_gain' is an audio transition and clip {clip} is on a Video lane; \
+             available transitions: crossfade, "
+        )),
+        "{msg}"
+    );
 }

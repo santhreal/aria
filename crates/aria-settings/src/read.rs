@@ -25,8 +25,8 @@ use toml_edit::{DocumentMut, Item, TableLike};
 
 use crate::schema::{self, PersistedShape};
 use crate::{
-    AiApiProtocol, AiSource, Autonomy, ProviderSettings, ReasoningSummary, Settings,
-    StoragePathOverrides, StorageSettings, ThemeChoice, TranscriptionSettings,
+    AiApiProtocol, AiSource, Autonomy, PluginLimitSettings, ProviderSettings, ReasoningSummary,
+    Settings, StoragePathOverrides, StorageSettings, ThemeChoice, TranscriptionSettings,
 };
 
 /// A value the config file held that this build could not use.
@@ -194,6 +194,25 @@ impl Settings {
                     TranscriptionSettings::is_valid_timeout_secs,
                 ) {
                     *slot = secs;
+                }
+            }
+        }
+
+        if let Some(t) = section_at(doc, "plugin_limits", out) {
+            for (key, slot, ok) in [
+                (
+                    "wasm_fuel_per_call",
+                    &mut s.plugin_limits.wasm_fuel_per_call,
+                    PluginLimitSettings::is_valid_fuel_per_call as fn(u64) -> bool,
+                ),
+                (
+                    "wasm_memory_mib",
+                    &mut s.plugin_limits.wasm_memory_mib,
+                    PluginLimitSettings::is_valid_memory_mib,
+                ),
+            ] {
+                if let Some(value) = bounded_at(t, key, "plugin_limits", out, ok) {
+                    *slot = value;
                 }
             }
         }

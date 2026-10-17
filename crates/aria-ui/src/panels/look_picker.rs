@@ -64,7 +64,7 @@ pub(crate) fn render(
             .border_color(theme.border)
             .child(
                 div()
-                    .text_size(px(12.))
+                    .text_size(Theme::TEXT_TITLE)
                     .text_color(theme.text_muted)
                     .child("Looks"),
             )
@@ -99,7 +99,7 @@ fn row(
         } else {
             theme.border
         })
-        .text_size(px(13.))
+        .text_size(Theme::TEXT_UI)
         .text_color(theme.text)
         .cursor(CursorStyle::PointingHand)
         .active(|style| style.opacity(0.92))

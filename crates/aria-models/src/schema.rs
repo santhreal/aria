@@ -13,6 +13,10 @@ pub const PROJECT_SCHEMA_KIND: &str = "aria.project";
 ///   `{"kf": [...]}` keyframe curves instead of bare values. v2 readers
 ///   accept v1 files unchanged (constant params share the v1 shape); v1
 ///   builds refuse v2 files rather than half-parse keyframes.
+/// - **3** — mask stacks: a clip's single `mask` became the `masks` list, and
+///   a driver on a mask property is addressed as `{"mask": {"mask": <index>,
+///   "param": <name>}}` instead of through the look axis. v3 readers rewrite
+///   v2 files on load; v2 builds refuse v3 files rather than drop the stack.
 ///
 /// Versioning policy (v1 roadmap M0 — the rules for changing the format):
 ///
@@ -27,7 +31,7 @@ pub const PROJECT_SCHEMA_KIND: &str = "aria.project";
 /// - **Files newer than this build are refused** on load with
 ///   [`ModelError::UnsupportedProjectSchema`](crate::ModelError) — never
 ///   guessed at.
-pub const PROJECT_SCHEMA_VERSION: u32 = 2;
+pub const PROJECT_SCHEMA_VERSION: u32 = 3;
 
 /// Identifies the serialized shape of a [`Project`](crate::Project).
 ///

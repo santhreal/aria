@@ -10,9 +10,10 @@
 //! Presets are enumerated from `text_effect_catalog()` at run time, so a new entry
 //! is exercised without a second list here.
 
-use aria_models::text_effect_catalog;
+use aria_models::{ClipParam, TextAlignH, TextAlignV, TextCase, TextParam, text_effect_catalog};
 
 use super::AppState;
+use super::clip_text::TextSwitch;
 use super::premiere_tests::with_clip;
 
 /// A project whose selection is a title.
@@ -134,6 +135,185 @@ fn text_controls_are_inert_on_a_clip_that_is_not_a_title() {
         .unwrap();
     state.clear_selected_text_effect().unwrap();
     assert_eq!(state.selected_ui_clip().unwrap().text_effect, None);
+}
+
+/// Every switch the Character and Paragraph panels draw flips its own property
+/// and no other, and flips it back, read off the projected style. A switch
+/// wired to the wrong field reads back a neighbour changed. Enumerated from
+/// `TextSwitch::ALL`, so a new switch is covered here with no edit.
+#[test]
+fn every_type_switch_flips_its_own_property_and_flips_back() {
+    let mut state = with_title();
+    for switch in TextSwitch::ALL {
+        let before = state.selected_text_face().expect("a title is selected");
+        state.toggle_selected_text_switch(switch).unwrap();
+        let flipped = state.selected_text_face().expect("a title is selected");
+        for other in TextSwitch::ALL {
+            let expected = before.is_on(other) != (other == switch);
+            assert_eq!(
+                flipped.is_on(other),
+                expected,
+                "flipping {switch:?} left {other:?} wrong"
+            );
+        }
+        state.toggle_selected_text_switch(switch).unwrap();
+        assert_eq!(
+            state.selected_text_face(),
+            Some(before),
+            "{switch:?} did not flip back"
+        );
+    }
+}
+
+/// A treatment switch takes the preset mark off, because the treatments no
+/// longer read as that preset; a face or paragraph switch leaves it.
+#[test]
+fn a_treatment_switch_clears_the_preset_mark_and_no_other_switch_does() {
+    let first = text_effect_catalog()[0].id.as_str();
+    for switch in TextSwitch::ALL {
+        let mut state = with_title();
+        state.set_selected_text_effect(first).unwrap();
+        state.toggle_selected_text_switch(switch).unwrap();
+        let marked = state.selected_ui_clip().unwrap().text_effect.is_some();
+        assert_eq!(
+            marked,
+            !TextSwitch::TREATMENTS.contains(&switch),
+            "{switch:?}"
+        );
+    }
+}
+
+/// Case and both alignments read back every choice, and choosing the one in
+/// force pushes no undo entry: one undo after a repeat lands on the choice
+/// before it.
+#[test]
+fn case_and_alignment_read_back_and_a_repeat_is_inert() {
+    let mut state = with_title();
+    let face = |state: &AppState| state.selected_text_face().expect("a title is selected");
+    for case in TextCase::ALL {
+        state.set_selected_text_case(case).unwrap();
+        assert_eq!(face(&state).case, case);
+    }
+    for align in TextAlignH::ALL {
+        state.set_selected_text_align_h(align).unwrap();
+        assert_eq!(face(&state).align_h, align);
+    }
+    for align in TextAlignV::ALL {
+        state.set_selected_text_align_v(align).unwrap();
+        assert_eq!(face(&state).align_v, align);
+    }
+    let [.., earlier, last] = TextAlignV::ALL;
+    state.set_selected_text_align_v(last).unwrap();
+    assert!(state.undo());
+    assert_eq!(
+        face(&state).align_v,
+        earlier,
+        "a repeated alignment pushed an undo entry"
+    );
+}
+
+/// A swatch writes the colour through the catalog's property path and reads
+/// back through the rows the panel draws; the colour in force is inert, and the
+/// stroke's colour row arrives with the stroke.
+#[test]
+fn a_colour_swatch_sets_the_colour_and_a_repeat_is_inert() {
+    let mut state = with_title();
+    let colour = |state: &AppState, param: ClipParam| {
+        state
+            .param_colors("text")
+            .into_iter()
+            .find(|row| row.param == param)
+            .map(|row| row.value)
+    };
+    let fill = ClipParam::Text {
+        param: TextParam::Fill,
+    };
+    let stroke = ClipParam::Text {
+        param: TextParam::StrokeColor,
+    };
+    let held = colour(&state, fill).expect("a title draws its fill");
+    assert_eq!(colour(&state, stroke), None, "no stroke, no stroke colour");
+    let picked = crate::app::clip_effects::PARAM_COLORS
+        .iter()
+        .map(|(_, _, rgba)| *rgba)
+        .find(|rgba| *rgba != held)
+        .expect("a swatch other than the fill");
+    state.set_param_color(fill, picked).unwrap();
+    assert_eq!(colour(&state, fill), Some(picked));
+    state.set_param_color(fill, picked).unwrap();
+    assert!(state.undo());
+    assert_eq!(
+        colour(&state, fill),
+        Some(held),
+        "a repeated swatch pushed an undo entry"
+    );
+    state
+        .toggle_selected_text_switch(TextSwitch::Stroke)
+        .unwrap();
+    assert!(
+        colour(&state, stroke).is_some(),
+        "switching the stroke on drew no stroke colour"
+    );
+}
+
+/// Window > Character and Window > Paragraph dock panels that draw the
+/// selected title's controls, and a second press closes each.
+#[gpui::test]
+fn the_character_and_paragraph_panels_dock_from_the_window_menu(cx: &mut gpui::TestAppContext) {
+    cx.executor().allow_parking();
+    let (state, visual) = crate::test_support::drawn_shell(cx, "text-panels");
+    visual.update(|_, app| {
+        state.update(app, |state, cx| {
+            state
+                .add_generated(aria_models::Generator::text("Hello"))
+                .expect("place a title");
+            let title = state
+                .store
+                .sequence
+                .tracks
+                .iter()
+                .flat_map(|track| track.clips.iter())
+                .find(|clip| clip.generator.is_some())
+                .map(|clip| aria_models::ClipId::from_raw(clip.id))
+                .expect("the title landed");
+            state.select_clip(title);
+            cx.notify();
+        })
+    });
+    for (panel, drawn) in [
+        (crate::dock::PANEL_CHARACTER, "character-panel"),
+        (crate::dock::PANEL_PARAGRAPH, "paragraph-panel"),
+    ] {
+        let row = format!("{}{panel}", crate::chrome::menu_items::PANEL_PREFIX);
+        let press = |visual: &mut gpui::VisualTestContext| {
+            let found = visual.update(|_, app| {
+                state.update(app, |state, cx| {
+                    crate::chrome::menu_items::run_item(
+                        crate::types::AppMenu::Window,
+                        &row,
+                        state,
+                        cx,
+                    )
+                })
+            });
+            assert!(found, "Window has no row for {panel}");
+            visual.run_until_parked();
+            visual.read(|app| state.read(app).dock_tree.is_open(panel))
+        };
+        if visual.read(|app| state.read(app).dock_tree.is_open(panel)) {
+            assert!(!press(visual), "{panel} did not close");
+        }
+        assert!(press(visual), "{panel} did not open");
+        assert!(
+            visual.debug_bounds(drawn).is_some(),
+            "{panel} is open and not drawn"
+        );
+        assert!(!press(visual), "{panel} did not close");
+        assert!(
+            visual.debug_bounds(drawn).is_none(),
+            "{panel} is closed and still drawn"
+        );
+    }
 }
 
 #[test]

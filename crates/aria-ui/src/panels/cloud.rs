@@ -58,7 +58,7 @@ pub(crate) fn cloud_catalog_block(
                 crate::pending::settled(
                     crate::motion::MotionKey::new(feed.label(), &line),
                     div()
-                        .text_size(px(11.))
+                        .text_size(Theme::TEXT_UI)
                         .text_color(theme.text_faint)
                         .child(SharedString::from(line)),
                 )
@@ -105,8 +105,13 @@ pub(crate) fn cloud_card_row(
             theme.wash(0.06),
         ))
         .on_hover(crate::motion::hover_listener(key))
-        .child(div().text_size(px(13.)).text_color(text).child(name))
-        .child(div().text_size(px(11.)).text_color(muted).child(detail))
+        .child(div().text_size(Theme::TEXT_UI).text_color(text).child(name))
+        .child(
+            div()
+                .text_size(Theme::TEXT_UI)
+                .text_color(muted)
+                .child(detail),
+        )
         .on_mouse_down(
             MouseButton::Left,
             cx.listener(move |this, _: &MouseDownEvent, _, cx| {

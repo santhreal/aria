@@ -1,12 +1,13 @@
-//! Phase I look edits: mask, chroma key, stabilization, filter, adjustments,
-//! animations, and the audio role tag.
+//! Look edits: blend mode, motion blur, layer styles, chroma key, track
+//! matte, stabilization, filter, LUT, adjustments, animations, and the audio
+//! role tag.
 //!
 //! All look edits use fine-grained undo inverses restoring only the mutated
 //! property, preserving other concurrent or unrelated clip changes.
 
 use aria_models::{
     AnimationRef, AnimationSlot, AudioRole, BlendMode, ChromaKey, ClipId, ColorAdjustments, Filter,
-    LayerStyles, Lut, Mask, ModelError, MotionBlur, StabilizeLevel, TrackMatte,
+    LayerStyles, Lut, ModelError, MotionBlur, StabilizeLevel, TrackMatte,
 };
 
 use crate::action::{ApplyContext, EditAction};
@@ -46,7 +47,6 @@ impl AnimationSlots {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum LookProperty {
-    Mask(Option<Mask>),
     BlendMode(BlendMode),
     MotionBlur(MotionBlur),
     LayerStyles(LayerStyles),
@@ -78,11 +78,6 @@ impl EditAction for RestoreLookPropertyAction {
             .ok_or(ModelError::UnknownClip(clip_id))?;
 
         let current = match self.property {
-            LookProperty::Mask(mask) => {
-                let prev = clip.mask.clone();
-                clip.mask = mask;
-                LookProperty::Mask(prev)
-            }
             LookProperty::BlendMode(mode) => {
                 let prev = clip.blend_mode;
                 clip.blend_mode = mode;
@@ -145,23 +140,6 @@ impl EditAction for RestoreLookPropertyAction {
             property: current,
         }))
     }
-}
-
-pub fn set_mask(
-    ctx: &mut ApplyContext<'_>,
-    clip: ClipId,
-    mask: Option<Mask>,
-) -> Result<Box<dyn EditAction>, EngineError> {
-    let clip_obj = ctx
-        .project
-        .clip(clip)
-        .ok_or(ModelError::UnknownClip(clip))?;
-    let prev = clip_obj.mask.clone();
-    ctx.project.set_clip_mask(clip, mask)?;
-    Ok(Box::new(RestoreLookPropertyAction {
-        clip,
-        property: LookProperty::Mask(prev),
-    }))
 }
 
 pub fn set_blend_mode(

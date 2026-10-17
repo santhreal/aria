@@ -52,5 +52,10 @@ fn fs(in: VsOut) -> @location(0) vec4<f32> {
         case 2: { from_edge = 1.0 - in.uv.y; }
         default: { from_edge = in.uv.y; }
     }
-    return select(a, b, from_edge <= t);
+    let feather = clamp(u.params.z, 0.0, 0.5);
+    if feather <= 0.0 {
+        return select(a, b, from_edge <= t);
+    }
+    let w = smoothstep(t - feather, t + feather, from_edge);
+    return mix(b, a, w);
 }

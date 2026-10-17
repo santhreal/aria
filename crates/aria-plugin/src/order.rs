@@ -21,9 +21,9 @@ use crate::plugin::PluginManifest;
 /// impossible.
 ///
 /// Every id in the input appears exactly once in the output.
-pub fn load_order(manifests: &[PluginManifest]) -> Result<Vec<&'static str>, PluginError> {
-    let ids: Vec<&'static str> = manifests.iter().map(|m| m.id).collect();
-    let mut mounted: Vec<&'static str> = Vec::with_capacity(ids.len());
+pub fn load_order(manifests: &[PluginManifest]) -> Result<Vec<&str>, PluginError> {
+    let ids: Vec<&str> = manifests.iter().map(|m| m.id.as_ref()).collect();
+    let mut mounted: Vec<&str> = Vec::with_capacity(ids.len());
     let mut pending: Vec<&PluginManifest> = manifests.iter().collect();
 
     while !pending.is_empty() {
@@ -33,17 +33,17 @@ pub fn load_order(manifests: &[PluginManifest]) -> Result<Vec<&'static str>, Plu
             manifest
                 .requires
                 .iter()
-                .all(|dep| !ids.contains(dep) || mounted.contains(dep))
+                .all(|dep| !ids.contains(&dep) || mounted.contains(&dep))
         });
         match next {
             Some(index) => {
                 let manifest = pending.remove(index);
-                mounted.push(manifest.id);
+                mounted.push(manifest.id.as_ref());
             }
             // Nothing is ready and plugins remain: every one of them is waiting on
             // another that is also waiting. That is the cycle.
             None => {
-                let names: Vec<&str> = pending.iter().map(|m| m.id).collect();
+                let names: Vec<&str> = pending.iter().map(|m| m.id.as_ref()).collect();
                 return Err(PluginError::DependencyCycle(names.join(" -> ")));
             }
         }
@@ -56,25 +56,19 @@ mod tests {
     use super::*;
 
     fn manifest(id: &'static str, requires: &'static [&'static str]) -> PluginManifest {
-        PluginManifest {
-            id,
-            name: id,
-            version: "0.1.0",
-            requires,
-            uses: &[],
-        }
+        PluginManifest::new(id, id, "0.1.0", requires, &[])
     }
 
     /// The point of the function: a host lists plugins in any order and the one
     /// that is depended on still mounts first.
     #[test]
     fn a_dependency_mounts_before_the_plugin_that_declares_it() {
-        let order = load_order(&[
+        let declared = [
             manifest("app", &["engine"]),
             manifest("engine", &["storage"]),
             manifest("storage", &[]),
-        ])
-        .expect("orderable");
+        ];
+        let order = load_order(&declared).expect("orderable");
         assert_eq!(order, vec!["storage", "engine", "app"]);
     }
 
@@ -126,11 +120,11 @@ mod tests {
     /// must not swallow the plugin or refuse the whole batch over it.
     #[test]
     fn an_unknown_dependency_still_orders_the_rest() {
-        let order = load_order(&[
+        let declared = [
             manifest("needs_absent", &["not.here"]),
             manifest("plain", &[]),
-        ])
-        .expect("an absent dependency is not an ordering failure");
+        ];
+        let order = load_order(&declared).expect("an absent dependency is not an ordering failure");
         assert_eq!(order, vec!["needs_absent", "plain"]);
     }
 
@@ -156,8 +150,8 @@ mod tests {
         }
         for m in &declared {
             let at = order.iter().position(|id| *id == m.id).expect("present");
-            for dep in m.requires {
-                let dep_at = order.iter().position(|id| id == dep).expect("dep present");
+            for dep in m.requires.iter() {
+                let dep_at = order.iter().position(|id| *id == dep).expect("dep present");
                 assert!(dep_at < at, "{} mounted before its dependency {dep}", m.id);
             }
         }

@@ -396,6 +396,7 @@ fn pass_batching_covers_every_family_of_pass() {
             effects: &effects,
             grade: Some(grade),
             lut: None,
+            stencil: None,
         },
     ];
 

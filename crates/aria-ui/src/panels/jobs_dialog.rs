@@ -1,8 +1,9 @@
-//! The jobs board: one row per background job, with progress and cancel.
+//! The jobs board: one row per background job, with progress and cancel,
+//! drawn as the Jobs dialog and as the Jobs dock panel.
 //!
-//! Every row is drawn from a [`crate::app::jobs::UiJob`], so the panel never reasons
-//! about lifecycle. Three distinctions it must preserve, because each was a way for a
-//! job surface to lie:
+//! Every row is drawn from a [`crate::app::jobs::UiJob`], so neither surface
+//! reasons about lifecycle. Three distinctions the rows preserve, because each
+//! was a way for a job surface to lie:
 //!
 //! - Determinate and indeterminate progress are different. A job reporting nothing gets
 //!   no bar, not a bar stuck at zero.
@@ -11,10 +12,14 @@
 //! - Cancel appears only while the registry would accept it. Past the commit boundary
 //!   the work finishes regardless, and a button that does nothing is a bug the operator
 //!   has to discover.
+//!
+//! The dialog opens over the panel, so every element id a row builds includes
+//! the surface it is drawn on: one job drawn twice is two rows, not one row
+//! whose hover and press state the two copies share.
 
 use gpui::{
-    InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, SharedString,
-    StatefulInteractiveElement, Styled, div, px,
+    AnyElement, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
+    SharedString, StatefulInteractiveElement, Styled, div, px,
 };
 
 use crate::app::jobs::UiJob;
@@ -25,13 +30,17 @@ use crate::fluent::FluentBuilder;
 use crate::motion;
 use crate::theme::Theme;
 
+/// The surface name of the dialog's rows.
+const DIALOG: &str = "board";
+
+/// The surface name of the dock panel's rows.
+const PANEL: &str = "jobs-panel";
+
 pub fn render(
     state: &gpui::Entity<AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     let theme = Theme::of(cx);
-    // The handle: the board is a projection, rebuilt when a job reports.
-    let rows = state.read(cx).job_view.clone();
     let done = components::ghost_button("jobs-done", "Done", &theme).on_mouse_down(
         MouseButton::Left,
         cx.listener(|this, _: &MouseDownEvent, _, cx| {
@@ -40,22 +49,7 @@ pub fn render(
             cx.notify();
         }),
     );
-
-    let list: Vec<_> = rows.iter().map(|job| job_row(&theme, job, cx)).collect();
-
-    let body = div()
-        .flex()
-        .flex_col()
-        .gap(px(Theme::SPACE_SM))
-        .when(list.is_empty(), |el| {
-            el.child(
-                div()
-                    .text_size(px(13.))
-                    .text_color(theme.text_faint)
-                    .child("No background jobs."),
-            )
-        })
-        .children(list);
+    let body = job_list(&theme, state, DIALOG, cx);
     dialog_surface(
         "jobs",
         DialogKind::Jobs,
@@ -66,13 +60,58 @@ pub fn render(
     )
 }
 
+/// Window > Jobs: the same rows as the dialog, filling a dock frame.
+pub fn render_panel(
+    state: &gpui::Entity<AppState>,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> AnyElement {
+    let theme = Theme::of(cx);
+    div()
+        .id("jobs-panel")
+        .debug_selector(|| "jobs-panel".into())
+        .size_full()
+        .overflow_y_scroll()
+        .p(px(Theme::SPACE_SM))
+        .child(job_list(&theme, state, PANEL, cx))
+        .into_any_element()
+}
+
+/// Every job, newest first, or a line saying there are none.
+fn job_list(
+    theme: &Theme,
+    state: &gpui::Entity<AppState>,
+    surface: &'static str,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> gpui::Div {
+    // The handle: the board is a projection, rebuilt when a job reports.
+    let rows = state.read(cx).job_view.clone();
+    let list: Vec<_> = rows
+        .iter()
+        .map(|job| job_row(theme, job, surface, cx))
+        .collect();
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(Theme::SPACE_SM))
+        .when(list.is_empty(), |el| {
+            el.child(
+                div()
+                    .text_size(Theme::TEXT_UI)
+                    .text_color(theme.text_faint)
+                    .child("No background jobs."),
+            )
+        })
+        .children(list)
+}
+
 fn job_row(
     theme: &Theme,
     job: &UiJob,
+    surface: &'static str,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
     let id = job.id;
-    let status = SharedString::from(format!("{} · {:.1}s", job.status, job.elapsed));
+    let status = SharedString::from(job.status_line());
     let detail = job.detail.clone();
     // A running job's status line carries a loader, so "Running · 12.4s" that
     // stopped ticking is distinguishable from one that is still working. A
@@ -80,13 +119,13 @@ fn job_row(
     // worse than no row at all.
     let status_cell = if job.terminal {
         div()
-            .text_size(px(11.))
+            .text_size(Theme::TEXT_UI)
             .text_color(theme.text_muted)
             .child(status)
             .into_any_element()
     } else {
         crate::loaders::pending_row(
-            motion::MotionKey::new("job-status", id),
+            motion::MotionKey::new("job-status", id).with(surface),
             status,
             theme,
             cx.entity_id(),
@@ -111,8 +150,8 @@ fn job_row(
     });
     // The same control the panel rows draw, from the same owner: the board is
     // not a second place where a job's stoppability is decided.
-    let stop = crate::pending::stop_button("board", &job, theme, cx);
-    let key = motion::MotionKey::new("job-row", id);
+    let stop = crate::pending::stop_button(surface, job, theme, cx);
+    let key = motion::MotionKey::new("job-row", id).with(surface);
     // An output is a row plus, when it names a path, a way to get to it. Element ids
     // carry the job id: two rows sharing one id is a GPUI state collision, which shows
     // up as the wrong row's button reacting.
@@ -129,14 +168,14 @@ fn job_row(
                 .gap(px(Theme::SPACE_XS))
                 .child(
                     div()
-                        .text_size(px(11.))
+                        .text_size(Theme::TEXT_UI)
                         .text_color(theme.text_faint)
                         .child(SharedString::from(format!("{name}: {value}"))),
                 )
                 .when(is_path, |el| {
                     el.child(
                         components::ghost_button(
-                            motion::MotionKey::new("job-reveal", id),
+                            motion::MotionKey::new("job-reveal", id).with(surface),
                             "Reveal",
                             theme,
                         )
@@ -155,7 +194,7 @@ fn job_row(
         .collect();
 
     div()
-        .id(("job-row", id))
+        .id(key.element_id("job-row"))
         .flex()
         .flex_col()
         .gap(px(Theme::SPACE_XS))
@@ -177,7 +216,7 @@ fn job_row(
                 .gap(px(Theme::SPACE_SM))
                 .child(
                     div()
-                        .text_size(px(13.))
+                        .text_size(Theme::TEXT_UI)
                         .text_color(theme.text)
                         .child(job.label.clone()),
                 )
@@ -187,7 +226,7 @@ fn job_row(
         .when(!job.detail.is_empty(), |el| {
             el.child(
                 div()
-                    .text_size(px(11.))
+                    .text_size(Theme::TEXT_UI)
                     .text_color(theme.text_muted)
                     .child(detail),
             )

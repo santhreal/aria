@@ -8,10 +8,10 @@ use aria_decoder::{OutputMode, open_video_decoder, probe};
 use aria_encoder::open_encoder;
 use aria_plugin::{
     DecoderService, DropAction, EncoderService, Plugin, PluginContext, PluginError, PluginManifest,
-    ResolveDroppedPath, Service,
+    ResolveDropped, Service,
 };
 
-use super::{MEDIA_EXTENSIONS, has_extension, register_dyn};
+use super::{has_extension, register_dyn};
 
 pub struct DecoderPlugin;
 
@@ -31,23 +31,26 @@ impl DecoderService for NativeDecoder {
 
 impl Plugin for DecoderPlugin {
     fn manifest(&self) -> &PluginManifest {
-        &PluginManifest {
-            id: "aria.decoder",
-            name: "Decoder",
-            version: "0.1.0",
-            requires: &[],
-            uses: &[],
-        }
+        static MANIFEST: PluginManifest =
+            PluginManifest::new("aria.decoder", "Decoder", "0.1.0", &[], &[]);
+        &MANIFEST
     }
 
     fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
         register_dyn::<dyn DecoderService>(ctx, Arc::new(NativeDecoder));
-        // Claim dropped media by extension. Asked before the project and LUT
-        // plugins, so the list must not contain their file types: an extension
-        // test here is cheap, and probing every dropped path would open files the
-        // user only meant to hand to another plugin.
-        ctx.on_serial::<ResolveDroppedPath, DropAction, _>(|event| {
-            has_extension(&event.path, MEDIA_EXTENSIONS).then_some(DropAction::ImportMedia)
+        // Claim dropped media by extension, the list the import dialogs offer
+        // so a picker and a drop cannot disagree. Asked before the project and
+        // LUT plugins, so the list must not contain their file types: an
+        // extension test here is cheap, and probing every dropped path would
+        // open files the user only meant to hand to another plugin.
+        ctx.on_serial::<ResolveDropped, DropAction, _>(|event| {
+            event
+                .item
+                .as_path()
+                .is_some_and(|path| {
+                    has_extension(path, &crate::app::media::import::media_import_extensions())
+                })
+                .then_some(DropAction::ImportMedia)
         });
         Ok(())
     }
@@ -81,13 +84,9 @@ impl EncoderService for NativeEncoder {
 
 impl Plugin for EncoderPlugin {
     fn manifest(&self) -> &PluginManifest {
-        &PluginManifest {
-            id: "aria.encoder",
-            name: "Encoder",
-            version: "0.1.0",
-            requires: &[],
-            uses: &[],
-        }
+        static MANIFEST: PluginManifest =
+            PluginManifest::new("aria.encoder", "Encoder", "0.1.0", &[], &[]);
+        &MANIFEST
     }
 
     fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {

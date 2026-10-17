@@ -1,4 +1,4 @@
-use aria_models::ClipId;
+use aria_models::{ClipId, Transition, TransitionAlignment};
 
 use crate::action::edit::restore_transitions::RestoreTransitionsAction;
 use crate::action::{ApplyContext, EditAction};
@@ -35,5 +35,25 @@ pub fn set_transition(
 ) -> Result<Box<dyn EditAction>, EngineError> {
     let before = ctx.project.transitions_snapshot();
     ctx.project.set_transition_duration(clip, duration)?;
+    Ok(Box::new(RestoreTransitionsAction { snapshot: before }))
+}
+
+pub fn set_transition_alignment(
+    ctx: &mut ApplyContext<'_>,
+    clip: ClipId,
+    alignment: TransitionAlignment,
+) -> Result<Box<dyn EditAction>, EngineError> {
+    let before = ctx.project.transitions_snapshot();
+    ctx.project.set_transition_alignment(clip, alignment)?;
+    Ok(Box::new(RestoreTransitionsAction { snapshot: before }))
+}
+
+pub fn set_transition_state(
+    ctx: &mut ApplyContext<'_>,
+    clip: ClipId,
+    transition: Transition,
+) -> Result<Box<dyn EditAction>, EngineError> {
+    let before = ctx.project.transitions_snapshot();
+    ctx.project.set_transition_state(clip, transition)?;
     Ok(Box::new(RestoreTransitionsAction { snapshot: before }))
 }

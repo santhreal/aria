@@ -1,29 +1,26 @@
 use super::*;
+use crate::scene::SizeSpec;
 
 #[test]
 fn frame_scratch_retains_its_container_allocations() {
     let mut scratch = RealizeScratch::default();
     scratch.realized.reserve(8);
     scratch.scene_indices.reserve(8);
-    scratch.blur_for_realized.reserve(8);
-    scratch.occurrence.insert(MediaId::from_raw(1), 1);
+    scratch.levels.push(0..1);
+    scratch.item_levels.push(0..1);
     let realized = scratch.realized.as_ptr();
     let scene_indices = scratch.scene_indices.as_ptr();
-    let blur = scratch.blur_for_realized.as_ptr();
-    let occurrences = scratch.occurrence.capacity();
+    let levels = scratch.levels.as_ptr();
+    let item_levels = scratch.item_levels.as_ptr();
 
     scratch.begin_frame();
 
     assert_eq!(scratch.realized.as_ptr(), realized);
     assert_eq!(scratch.scene_indices.as_ptr(), scene_indices);
-    assert_eq!(scratch.blur_for_realized.as_ptr(), blur);
-    assert_eq!(scratch.occurrence.capacity(), occurrences);
-    assert!(
-        scratch.realized.is_empty()
-            && scratch.scene_indices.is_empty()
-            && scratch.blur_for_realized.is_empty()
-            && scratch.occurrence.is_empty()
-    );
+    assert_eq!(scratch.levels.as_ptr(), levels);
+    assert_eq!(scratch.item_levels.as_ptr(), item_levels);
+    assert!(scratch.realized.is_empty() && scratch.scene_indices.is_empty());
+    assert!(scratch.levels.is_empty() && scratch.item_levels.is_empty());
 }
 
 fn layer(source: LayerSource, effect: f32) -> SceneLayer {
@@ -40,7 +37,7 @@ fn layer(source: LayerSource, effect: f32) -> SceneLayer {
             "gaussian_blur",
             vec![effect],
         )],
-        mask: None,
+        masks: Vec::new(),
         chroma_key: None,
         color_grade: None,
         lut: None,
@@ -65,15 +62,21 @@ fn omitted_text_does_not_shift_the_next_plain_layers_effects() {
         1.0,
     );
     let visible = layer(LayerSource::Solid([255, 255, 255, 255]), 2.0);
-    let layers = [empty_text, visible];
+    let mut scene = crate::scene::Scene::empty(16, 16, [0, 0, 0, 255]);
+    scene.layers = vec![empty_text, visible];
 
-    let effects = realized_scene_layer(&layers, 1).effects.as_slice();
+    let effects = scene.drawn(1).effects.as_slice();
 
     assert_eq!(effect_value(effects), 2.0);
     assert_eq!(
         effects[0].params.as_ptr(),
-        layers[1].effects[0].params.as_ptr()
+        scene.layers[1].effects[0].params.as_ptr()
     );
+
+    // A reference draws first, so every canvas layer's draw index moves by one.
+    scene.references = vec![layer(LayerSource::Solid([0, 0, 0, 255]), 3.0)];
+    assert_eq!(effect_value(&scene.drawn(0).effects), 3.0);
+    assert_eq!(effect_value(&scene.drawn(2).effects), 2.0);
 }
 
 #[test]

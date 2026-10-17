@@ -15,8 +15,8 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use gpui::motion::{
-    Easing, FrameInstant, MotionDriver, MotionFrame, MotionSpec, Timestamp as _, TweenStore,
-    loaders, presets,
+    Easing, FrameInstant, MotionDriver, MotionFrame, MotionPolicy, MotionSpec, Timestamp as _,
+    TweenStore, loaders, presets,
 };
 use gpui::{
     Animation, AnimationElement, AnimationExt as _, App, EntityId, Global, IntoElement, Styled,
@@ -113,6 +113,16 @@ struct Chrome {
     frame: Option<MotionFrame>,
     hover: TweenStore<MotionKey, FrameInstant>,
     glide: TweenStore<MotionKey, FrameInstant>,
+    /// Set by [`hold_for_playback`] while playback runs.
+    held: bool,
+}
+
+impl Chrome {
+    /// The policy hover fades and glides run under: `policy`, or reduced while
+    /// playback holds them.
+    fn policy(&self, policy: MotionPolicy) -> MotionPolicy {
+        policy.with_reduced(policy.reduced() || self.held)
+    }
 }
 
 thread_local! {
@@ -144,6 +154,14 @@ pub fn begin_frame(cx: &App) {
         let chrome = &mut *chrome.borrow_mut();
         chrome.frame = Some(chrome.driver.begin(cx));
     });
+}
+
+/// Draws every hover fade and glide at its end state while `playing`, so a
+/// frame during playback spends its budget on the picture and the playhead
+/// stands on the frame being shown instead of chasing it. The window root calls
+/// this after [`begin_frame`]; one-shot entrances are not held.
+pub fn hold_for_playback(playing: bool) {
+    CHROME.with(|chrome| chrome.borrow_mut().held = playing);
 }
 
 /// The frame opened by the latest [`begin_frame`]: its instant and its motion
@@ -188,7 +206,7 @@ pub fn animation(spec: MotionSpec) -> Animation {
 /// on screen, so this is the contents arriving, not a curtain.
 pub const OPEN: MotionSpec = MotionSpec::new(320, Easing::EaseOutExpo);
 /// What each later stage of [`OPEN`] waits for the one before it, in
-/// milliseconds. Three stages of chrome, rails and timeline fit inside the
+/// milliseconds. The two stages, the bar and the docked panels, fit inside the
 /// splash's own exit.
 pub const OPEN_STAGE_MS: u64 = 80;
 /// A pan the hand let go of. The length of [`presets::SCROLL_GLIDE`], on the

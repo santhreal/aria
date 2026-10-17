@@ -117,7 +117,7 @@ impl AppState {
         self.route = UiRoute::Editor;
         self.dialog = DialogKind::None;
         self.context_menu = None;
-        self.open_menu = None;
+        self.close_menu();
     }
 
     pub fn go_home(&mut self) {
@@ -126,23 +126,32 @@ impl AppState {
         }
         self.dialog = DialogKind::None;
         self.context_menu = None;
-        self.open_menu = None;
+        self.close_menu();
         self.route = UiRoute::Home;
         // The list is about files on disk, and anything could have happened to
         // them while the editor was open.
         self.refresh_recents();
     }
 
+    /// A click on a title: open its drop with nothing lit, or close it. A drop
+    /// a button opened is not the title's drop, so the click opens the title's
+    /// own in its place.
     pub fn toggle_menu(&mut self, menu: AppMenu) {
-        self.open_menu = if self.open_menu == Some(menu) {
+        self.open_menu = if self.open_menu == Some(menu) && self.menu_owner.is_none() {
             None
         } else {
             Some(menu)
         };
+        self.menu_row = None;
+        self.menu_flyout = None;
+        self.menu_owner = None;
     }
 
     pub fn close_menu(&mut self) {
         self.open_menu = None;
+        self.menu_row = None;
+        self.menu_flyout = None;
+        self.menu_owner = None;
     }
 
     pub fn pick_and_open_project(&mut self) {
@@ -159,19 +168,38 @@ impl AppState {
         );
     }
 
+    /// Ask for files and add them: a file an importer reads is read into the
+    /// timeline, as one undo step each, and the rest go to the media pool.
     pub fn pick_and_import(&mut self) {
-        self.request_pick(
-            Ask::OpenFiles(FileSpec::new("Import media")),
-            |state, answer| {
-                let paths = answer.all();
-                if paths.is_empty() {
-                    return;
-                }
-                if let Err(err) = state.import_dropped_paths(paths) {
-                    state.report_error(&err);
-                }
-            },
-        );
+        self.request_pick(Ask::OpenFiles(FileSpec::new("Import")), |state, answer| {
+            let paths = state.take_preset_files(answer.all());
+            state.import_paths(paths);
+        });
+    }
+
+    /// Add `paths` as File > Import does: a file an importer reads is read into
+    /// the timeline, as one undo step each, and the rest go to the media pool
+    /// and the timeline. Every file that arrives heads File > Import Recent.
+    pub fn import_paths(&mut self, paths: Vec<PathBuf>) {
+        for path in &paths {
+            self.load_plugins_for_file(path);
+        }
+        let (timelines, media): (Vec<PathBuf>, Vec<PathBuf>) = paths
+            .into_iter()
+            .partition(|path| self.ctx.importer_for(path).is_some());
+        let mut arrived = Vec::with_capacity(timelines.len() + media.len());
+        for path in timelines {
+            if self.import_timeline(&path) {
+                arrived.push(path);
+            }
+        }
+        if !media.is_empty() {
+            match self.import_dropped_paths(media.clone()) {
+                Ok(()) => arrived.extend(media),
+                Err(err) => self.report_error(&err),
+            }
+        }
+        self.remember_imports(&arrived);
     }
 
     /// Relink every missing pool entry from one folder.
@@ -238,11 +266,45 @@ impl AppState {
     pub fn add_marker_at_playhead(&mut self) -> Result<(), EngineError> {
         let name = self.next_marker_name();
         let color = self.next_marker_color();
-        self.apply_command(Command::Edit(EditCommand::AddMarker {
-            at: self.playhead,
-            name: name.clone(),
-            color: Some(color),
-        }))?;
+        let at = self.playhead;
+        let target_clip = self
+            .selected_ui_clip()
+            .filter(|clip| {
+                clip.timeline_start_ticks <= at.value && at.value < clip.timeline_end_ticks
+            })
+            .map(|clip| ClipId::from_raw(clip.id));
+        if let Some(clip_id) = target_clip {
+            self.one_step(|this| {
+                let outcome = this.apply_command(Command::Edit(EditCommand::AddMarker {
+                    at,
+                    name: name.clone(),
+                    color: Some(color),
+                }))?;
+                if let aria_engine::ApplyOutcome::Edited(
+                    aria_commands::EditOutcome::CreatedMarker(marker_id),
+                ) = outcome
+                {
+                    let attached = {
+                        let mut engine = this.engine.lock();
+                        engine.attach_marker_to_clip(marker_id, clip_id)
+                    };
+                    match attached {
+                        Ok(()) => this.sync_from_engine(),
+                        Err(err) => {
+                            this.report_error(&err);
+                            return Err(err);
+                        }
+                    }
+                }
+                Ok(())
+            })?;
+        } else {
+            self.apply_command(Command::Edit(EditCommand::AddMarker {
+                at,
+                name: name.clone(),
+                color: Some(color),
+            }))?;
+        }
         self.status_message = Some(format!("Added {name}"));
         Ok(())
     }
@@ -278,12 +340,20 @@ impl AppState {
     }
 
     pub fn go_to_in(&mut self) {
+        if self.source_has_keys() {
+            self.source_to_in();
+            return;
+        }
         if let Some(tick) = self.mark_in {
             self.set_playhead(tick);
         }
     }
 
     pub fn go_to_out(&mut self) {
+        if self.source_has_keys() {
+            self.source_to_out();
+            return;
+        }
         if let Some(tick) = self.mark_out {
             self.set_playhead(tick);
         }
@@ -313,50 +383,77 @@ impl AppState {
         self.trim_clip(ClipId::from_raw(ui.id), start, end)
     }
 
-    pub fn delete_selected(&mut self) -> Result<(), EngineError> {
-        match self.edit_mode {
-            crate::types::EditMode::Ripple => self.ripple_delete_selected(),
-            crate::types::EditMode::Overwrite => {
-                let Some(clip) = self.selected_clip() else {
-                    return Ok(());
-                };
-                self.apply_command(Command::Edit(EditCommand::RemoveClip { clip }))?;
-                self.clear_selection();
-                Ok(())
-            }
-        }
-    }
-
     pub fn select_clip_linked(&mut self, id: ClipId, with_link: bool) {
         if !with_link {
-            self.select_clip(id);
+            self.selection = vec![id];
+            self.selected_edge = None;
+            self.selected_gap = None;
+            self.refresh_projected_selection();
+            if let Err(err) = self.refresh_moments() {
+                self.report_error(err);
+            }
             return;
         }
-        let Some(link) = self
-            .store
-            .sequence
-            .tracks
-            .iter()
-            .flat_map(|track| track.clips.iter())
-            .find(|clip| clip.id == id.raw())
-            .and_then(|clip| clip.linked_to)
-        else {
+        let Some(root) = self.ui_clip_ref(id) else {
             self.select_clip(id);
             return;
         };
-        self.selection = self
-            .store
-            .sequence
-            .tracks
-            .iter()
-            .flat_map(|track| track.clips.iter())
-            .filter(|clip| clip.id == id.raw() || clip.linked_to == Some(link))
-            .map(|clip| ClipId::from_raw(clip.id))
-            .collect();
-        if !self.selection.contains(&id) {
-            self.selection.insert(0, id);
+        // Links are followed only while linked selection is on; a group is
+        // the operator's own and always selects whole.
+        let follow_links = self.linked_selection;
+        let root_link = root.linked_to.filter(|_| follow_links);
+        if root_link.is_none() && root.grouped_to.is_none() {
+            self.select_clip(id);
+            return;
         }
-        self.rebuild_store();
+        let mut selected = vec![id];
+        let mut links: Vec<u64> = root_link.into_iter().collect();
+        let mut groups: Vec<u64> = root.grouped_to.into_iter().collect();
+        loop {
+            let mut grew = false;
+            for track in &self.store.sequence.tracks {
+                if track.locked {
+                    continue;
+                }
+                for clip in &track.clips {
+                    if clip.locked {
+                        continue;
+                    }
+                    let link = clip.linked_to.filter(|_| follow_links);
+                    let matches = link.is_some_and(|l| links.contains(&l))
+                        || clip.grouped_to.is_some_and(|g| groups.contains(&g));
+                    if matches {
+                        let member = ClipId::from_raw(clip.id);
+                        if !selected.contains(&member) {
+                            selected.push(member);
+                            grew = true;
+                        }
+                        if let Some(l) = link
+                            && !links.contains(&l)
+                        {
+                            links.push(l);
+                            grew = true;
+                        }
+                        if let Some(g) = clip.grouped_to
+                            && !groups.contains(&g)
+                        {
+                            groups.push(g);
+                            grew = true;
+                        }
+                    }
+                }
+            }
+            if !grew {
+                break;
+            }
+        }
+        self.selection = selected;
+        self.selected_edge = None;
+        self.selected_gap = None;
+        self.refresh_projected_selection();
+        if let Err(err) = self.refresh_moments() {
+            self.report_error(err);
+        }
     }
 
     pub fn set_selected_filter_amount(&mut self, amount: f32) -> Result<(), EngineError> {
@@ -427,10 +524,17 @@ impl AppState {
 
     pub fn reset_split(&mut self, which: &str) {
         match which {
-            "sidebar" => self.ui_settings.sidebar_width = crate::settings::SIDEBAR_DEFAULT,
-            "inspector" => self.ui_settings.inspector_width = crate::settings::INSPECTOR_DEFAULT,
+            "sidebar" => {
+                self.ui_settings.sidebar_width = crate::settings::SIDEBAR_DEFAULT;
+                self.dock_tree.set_weights(&[], &[0.25, 0.40, 0.35]);
+            }
+            "inspector" => {
+                self.ui_settings.inspector_width = crate::settings::INSPECTOR_DEFAULT;
+                self.dock_tree.set_weights(&[], &[0.25, 0.40, 0.35]);
+            }
             "timeline" => {
-                self.ui_settings.timeline_height = crate::settings::TIMELINE_DEFAULT_HEIGHT
+                self.ui_settings.timeline_height = crate::settings::TIMELINE_DEFAULT_HEIGHT;
+                self.dock_tree.set_weights(&[1], &[0.55, 0.45]);
             }
             _ => {}
         }
@@ -460,8 +564,10 @@ impl AppState {
     }
 
     /// A drop on Home. The plugins decide what each path is; a project opens, and
-    /// anything else needs a session to land in, so one is created first.
+    /// anything else needs a session to land in, so one is created first. A
+    /// plugin package installs into the app and needs no session.
     pub fn drop_on_home(&mut self, paths: Vec<PathBuf>) -> Result<(), EngineError> {
+        let paths = self.take_plugin_archives(paths);
         let project = paths
             .iter()
             .find(|path| matches!(self.classify_drop(path), DropAction::OpenProject))
@@ -484,7 +590,15 @@ impl AppState {
     }
 
     pub fn open_dialog(&mut self, kind: DialogKind) {
-        if self.route == UiRoute::Home && !matches!(kind, DialogKind::None | DialogKind::Settings) {
+        if self.route == UiRoute::Home
+            && !matches!(
+                kind,
+                DialogKind::None
+                    | DialogKind::Settings
+                    | DialogKind::InstallPlugin
+                    | DialogKind::About
+            )
+        {
             return;
         }
         if kind != DialogKind::Palette {
@@ -497,6 +611,15 @@ impl AppState {
         if kind != DialogKind::UnsavedChanges {
             self.pending_intent = None;
         }
+        // Likewise for the install prompt: a package left unanswered is not
+        // installed, and its unpacked files are removed.
+        if kind != DialogKind::InstallPlugin {
+            self.abandon_plugin_installs();
+        }
+        if kind != DialogKind::MarkerEdit {
+            self.marker_edit.focused = None;
+            self.marker_edit.error = None;
+        }
         self.dialog = kind;
         // The report's counts are walks of the whole project, so they are taken
         // when the operator asks for them and refreshed on any edit that lands
@@ -504,6 +627,13 @@ impl AppState {
         // session.
         if kind == DialogKind::ProjectReport {
             self.measure_project_report();
+        }
+        // A theme file written or a theme registered while the app runs is
+        // listed the next time Settings opens, and so is a key set copied into
+        // `<data dir>/keymaps`.
+        if kind == DialogKind::Settings {
+            self.theme_files = crate::theme::file::scan(&self.data_dir, &self.ctx.themes());
+            self.refresh_keymap_sets();
         }
     }
 }

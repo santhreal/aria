@@ -77,7 +77,8 @@ impl MediaProbe {
 /// still-image convention).
 const AUDIO_TICK_RATE: Rational = Rational::new(1000, 1);
 
-/// Probe `path` with the platform-native decoder.
+/// Probe `path`: through a registered decoder that claims its extension
+/// ([`crate::register_external_decoder`]), else the platform-native decoder.
 ///
 /// Still images are recognized first by magic bytes (a cheap 16-byte read)
 /// and probed via [`crate::probe_image`] — dimensions only, no timebase.
@@ -88,6 +89,10 @@ const AUDIO_TICK_RATE: Rational = Rational::new(1000, 1);
 /// audio track's duration. Returns [`DecodeError::Unsupported`] on platforms
 /// without a native decoder.
 pub fn probe(path: &Path) -> Result<MediaProbe, DecodeError> {
+    crate::external::dispatch(path, |decoder| decoder.probe(path), || probe_native(path))
+}
+
+fn probe_native(path: &Path) -> Result<MediaProbe, DecodeError> {
     if crate::image::sniff_image(path).is_some() {
         let info = crate::image::probe_image(path)?;
         return Ok(MediaProbe {

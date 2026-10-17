@@ -41,6 +41,7 @@ pub fn keyframes_block(
             let count = row.marks.len();
             let here = row.keyed_at(playhead);
             let preset_here = row.preset_at(playhead);
+            let driven = state.read(cx).selected_driver(param).is_some();
 
             let easing_chips: Vec<_> = easing_presets()
                 .iter()
@@ -117,7 +118,7 @@ pub fn keyframes_block(
                         .justify_between()
                         .child(
                             div()
-                                .text_size(px(11.))
+                                .text_size(Theme::TEXT_UI)
                                 .text_color(theme.text_faint)
                                 .child(format!("{label} — {count} keys")),
                         )
@@ -187,6 +188,28 @@ pub fn keyframes_block(
                                                     Row::Key { param, keyed: here },
                                                 );
                                                 if let Err(err) = result {
+                                                    state.report_error(&err);
+                                                }
+                                            });
+                                            cx.notify();
+                                        }),
+                                    ),
+                                )
+                                .child(
+                                    components::ghost_button(
+                                        "kf-driver",
+                                        if driven { "ƒ Remove" } else { "ƒ Driver" },
+                                        theme,
+                                    )
+                                    .id(crate::motion::MotionKey::new("kf-driver", &id)
+                                        .element_id("kf-driver"))
+                                    .on_mouse_down(
+                                        MouseButton::Left,
+                                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                                            this.state.update(cx, |state, _| {
+                                                if let Err(err) =
+                                                    keyframe_rows::apply(state, Row::Driver(param))
+                                                {
                                                     state.report_error(&err);
                                                 }
                                             });

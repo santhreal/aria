@@ -18,7 +18,7 @@ use crate::surfaces::clip_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::UiClip;
 
-use super::widgets::{audio_row, section_label};
+use super::widgets::{Readout, audio_row, section_label};
 
 fn slot_label(slot: AnimationSlot) -> &'static str {
     match slot {
@@ -93,10 +93,10 @@ pub fn animation_block(
                             let value = anim_knob(anim, knob);
                             audio_row(
                                 theme,
+                                &state,
                                 crate::motion::MotionKey::new("insp.row", knob),
                                 *label,
-                                format!("{value:.2}"),
-                                0.25,
+                                Readout::number(value, 2, 0.01),
                                 move |state, by| {
                                     clip_pick::apply(state, Pick::AnimationKnob { slot, knob, by })
                                 },
@@ -114,7 +114,7 @@ pub fn animation_block(
                 .gap(px(Theme::SPACE_XS))
                 .child(
                     div()
-                        .text_size(px(11.))
+                        .text_size(Theme::TEXT_UI)
                         .text_color(theme.text_faint)
                         .child(format!(
                             "{}: {}",

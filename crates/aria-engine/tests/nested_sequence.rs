@@ -344,7 +344,14 @@ fn scene_resolution_renders_nested_sequence() {
     let scene = resolve_with(engine.project(), rt(15), ResolveOverrides::default())
         .expect("resolve the nested scene");
     assert_eq!(scene.layers.len(), 1);
-    match &scene.layers[0].source {
+    let LayerSource::Nest { scene: nest, .. } = &scene.layers[0].source else {
+        panic!(
+            "expected the nested sequence's frame, got {:?}",
+            scene.layers[0].source
+        );
+    };
+    assert_eq!(nest.layers.len(), 1);
+    match &nest.layers[0].source {
         LayerSource::Media {
             media: resolved,
             source_time,
@@ -352,6 +359,102 @@ fn scene_resolution_renders_nested_sequence() {
             assert_eq!(*resolved, media);
             assert_eq!(*source_time, rt(5));
         }
-        other => panic!("expected a media layer from the nested sequence, got {other:?}"),
+        other => panic!("expected a media layer inside the nest, got {other:?}"),
     }
+}
+
+/// New Sequence: the open timeline's rate, canvas, and audio layout, one video
+/// and one audio lane, opened for editing. Undo removes it and reopens what was
+/// open; redo brings it back under the same id.
+///
+/// Closes the class where a created sequence is stored but not opened (Ctrl+N
+/// then edits the timeline the operator just left), or opened but left behind
+/// by undo as an orphan in the store.
+#[test]
+fn create_sequence_opens_an_empty_sequence_and_undo_redo_cycles() {
+    let mut project = Project::new("new-sequence", Rational::FPS_24);
+    let canvas = aria_models::CanvasSettings {
+        resolution: Some([1280, 720]),
+        ..Default::default()
+    };
+    project.timeline_mut().set_canvas(canvas);
+    project
+        .timeline_mut()
+        .set_audio_layout(aria_models::AudioLayout::Mono);
+    let root_lane = project.add_track(TrackKind::Video, "V1");
+    let mut engine = Engine::with_project(EngineConfig::default(), project).expect("engine");
+    let depth = engine.history_depth();
+
+    let outcome = engine
+        .apply(Command::Edit(EditCommand::CreateSequence {
+            name: "  Scene 3  ".into(),
+        }))
+        .expect("create a sequence");
+    assert_eq!(outcome, ApplyOutcome::Edited(EditOutcome::OpenedSequence));
+    assert_eq!(engine.history_depth(), depth + 1, "one undo entry");
+    let id = engine.active_sequence().expect("the new sequence is open");
+    let sequence = engine.project().sequence(id).expect("stored");
+    assert_eq!(sequence.name, "Scene 3");
+    assert_eq!(sequence.timeline.frame_rate, Rational::FPS_24);
+    assert_eq!(sequence.timeline.canvas(), canvas);
+    assert_eq!(
+        sequence.timeline.audio_layout(),
+        aria_models::AudioLayout::Mono
+    );
+    let lanes: Vec<(TrackKind, String)> = sequence
+        .timeline
+        .tracks_ordered()
+        .map(|lane| (lane.kind, lane.name.clone()))
+        .collect();
+    // Bottom to top: the model stacks audio lanes below picture lanes.
+    assert_eq!(
+        lanes,
+        vec![
+            (TrackKind::Audio, "A1".to_string()),
+            (TrackKind::Video, "V1".to_string()),
+        ]
+    );
+    assert_eq!(engine.project().root_timeline().order(), &[root_lane]);
+
+    assert!(engine.undo());
+    assert_eq!(engine.active_sequence(), None, "undo reopens the root");
+    assert!(
+        engine.project().sequence(id).is_none(),
+        "undo left the sequence in the store"
+    );
+
+    assert!(engine.redo());
+    assert_eq!(engine.active_sequence(), Some(id));
+    assert_eq!(
+        engine.project().sequence(id).map(|s| s.name.as_str()),
+        Some("Scene 3")
+    );
+}
+
+/// Created from inside another sequence, undo returns to that sequence rather
+/// than the root, and a blank name is stored as `Sequence`.
+#[test]
+fn create_sequence_inside_a_sequence_undoes_back_to_it() {
+    let mut project = Project::new("new-sequence", Rational::FPS_24);
+    let outer = project.add_sequence(aria_models::Sequence::new("Outer", Rational::FPS_24));
+    let mut engine = Engine::with_project(EngineConfig::default(), project).expect("engine");
+    engine
+        .open_sequence(Some(outer))
+        .expect("open the outer sequence");
+
+    engine
+        .apply(Command::Edit(EditCommand::CreateSequence {
+            name: "   ".into(),
+        }))
+        .expect("create a sequence");
+    let id = engine.active_sequence().expect("open");
+    assert_ne!(id, outer);
+    assert_eq!(
+        engine.project().sequence(id).map(|s| s.name.as_str()),
+        Some("Sequence")
+    );
+
+    assert!(engine.undo());
+    assert_eq!(engine.active_sequence(), Some(outer));
+    assert_eq!(engine.project().sequence_count(), 1);
 }

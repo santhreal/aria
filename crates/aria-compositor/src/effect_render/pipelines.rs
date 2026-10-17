@@ -31,6 +31,9 @@ pub(crate) struct PassRegistry {
     pub slide: wgpu::RenderPipeline,
     /// Track-matte cut: two textures in, the content cut by the stencil out.
     pub matte: wgpu::RenderPipeline,
+    /// One mask combined with the stack above it: two coverages in, the
+    /// combined coverage out.
+    pub mask_stack: wgpu::RenderPipeline,
     pub grade: wgpu::RenderPipeline,
     pub lut: wgpu::RenderPipeline,
     pub effect_layout: wgpu::BindGroupLayout,
@@ -58,8 +61,8 @@ pub(crate) struct PassRegistry {
     /// Harden blurred silhouette into an outside stroke (outline).
     pub harden_pipeline: wgpu::RenderPipeline,
     pub harden_layout: wgpu::BindGroupLayout,
-    /// Pipelines for passes registered while the process runs, built on first
-    /// draw against [`Self::transition_layout`].
+    /// Pipelines, layouts, and targets for passes registered while the process
+    /// runs, built the first time a frame draws each one.
     pub(super) runtime: super::registered::RuntimePipelines,
 }
 
@@ -202,6 +205,12 @@ impl PassRegistry {
             &transition_layout,
             include_str!("../../shaders/matte.wgsl"),
         );
+        let mask_stack = build_transition_pipeline(
+            device,
+            "aria.mask_stack",
+            &transition_layout,
+            include_str!("../../shaders/mask_stack.wgsl"),
+        );
         let grade = build_effect_pipeline(
             device,
             "aria.canvas_grade",
@@ -246,6 +255,7 @@ impl PassRegistry {
             wipe,
             slide,
             matte,
+            mask_stack,
             grade,
             lut,
             effect_layout,
@@ -267,6 +277,11 @@ impl PassRegistry {
             harden_layout,
             runtime: super::registered::RuntimePipelines::default(),
         }
+    }
+
+    /// Pipelines built for registered passes since this registry was created.
+    pub(crate) fn registered_pipeline_builds(&self) -> u64 {
+        self.runtime.builds()
     }
 
     /// The pipelines rendering `id`, in dispatch order; empty for an id with no

@@ -74,6 +74,7 @@ pub fn run(args: &Args) -> Result<(), Failure> {
     if !quiet {
         eprintln!();
     }
+    project::warn_driver_faults(&project);
     println!(
         "wrote {frames} frames of {}x{} {} to {}",
         settings.size.0,

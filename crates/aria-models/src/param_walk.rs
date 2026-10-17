@@ -92,11 +92,14 @@ impl ParamWalk for crate::look::ColorAdjustments {
 
 impl ParamWalk for crate::look::Mask {
     fn walk_params(&mut self, visit: Visit<'_>) -> Result<(), ModelError> {
+        visit(&mut self.path)?;
         visit(&mut self.feather)?;
         visit(&mut self.center)?;
         visit(&mut self.size)?;
         visit(&mut self.rotation)?;
-        visit(&mut self.roundness)
+        visit(&mut self.roundness)?;
+        visit(&mut self.opacity)?;
+        visit(&mut self.expansion)
     }
 }
 
@@ -158,7 +161,13 @@ impl ParamWalk for crate::effects::EffectInstance {
         for param in self.color_params.values_mut() {
             visit(param)?;
         }
+        for param in self.linear_color_params.values_mut() {
+            visit(param)?;
+        }
         for param in self.vec2_params.values_mut() {
+            visit(param)?;
+        }
+        for param in self.vec3_params.values_mut() {
             visit(param)?;
         }
         Ok(())
@@ -169,6 +178,21 @@ impl ParamWalk for crate::audio_effects::AudioEffectInstance {
     fn walk_params(&mut self, visit: Visit<'_>) -> Result<(), ModelError> {
         for param in self.params.values_mut() {
             visit(param)?;
+        }
+        Ok(())
+    }
+}
+
+impl ParamWalk for crate::preset::Preset {
+    fn walk_params(&mut self, visit: Visit<'_>) -> Result<(), ModelError> {
+        for effect in &mut self.effects {
+            effect.walk_params(visit)?;
+        }
+        for insert in &mut self.audio_effects {
+            insert.walk_params(visit)?;
+        }
+        for prop in &mut self.properties {
+            visit(&mut prop.curve)?;
         }
         Ok(())
     }
@@ -282,7 +306,7 @@ impl ParamWalk for crate::clip::Clip {
         }
         self.styles.walk_params(visit)?;
         self.adjust.walk_params(visit)?;
-        if let Some(mask) = &mut self.mask {
+        for mask in &mut self.masks {
             mask.walk_params(visit)?;
         }
         if let Some(chroma) = &mut self.chroma_key {

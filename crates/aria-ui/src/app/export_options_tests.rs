@@ -17,13 +17,13 @@ use crate::app::export_options::{ExportBitrate, ExportGop, ExportRate, ExportSca
 #[test]
 fn the_defaults_reproduce_the_project() {
     let (state, _) = with_clip();
-    let options = state.export_options;
+    let options = &state.export_options;
     assert_eq!(options.scale, ExportScale::Full);
     assert_eq!(options.rate, ExportRate::Project);
     assert_eq!(options.gop, ExportGop::Codec);
     assert!(options.audio);
     assert!(!options.marked_range);
-
+    assert_eq!(options.plugin_encoder, None);
     let settings = state.export_settings();
     assert_eq!(settings.frame_rate, state.store.sequence.frame_rate);
     assert_eq!(settings.keyframe_interval, None);
@@ -316,4 +316,94 @@ fn cycle_buttons_wraparound_invariants_and_custom_range_duration_math() {
     assert_eq!(state.marked_range(), Some((48, 120)));
     let range_span = 120 - 48;
     assert_eq!(range_span, 72); // 3 seconds at 24fps
+}
+
+#[test]
+fn plugin_encoders_list_in_format_cycle_and_control_dialog_visibility_and_extension() {
+    use aria_core::{EncodeError, EncoderConfig, VideoEncoder, VideoFrame};
+    use aria_plugin::{Encoder, EncoderSpec};
+    use std::path::Path;
+
+    struct DummyEncoder;
+    impl VideoEncoder for DummyEncoder {
+        fn push(&mut self, _frame: &VideoFrame) -> Result<(), EncodeError> {
+            Ok(())
+        }
+        fn finish(&mut self) -> Result<(), EncodeError> {
+            Ok(())
+        }
+    }
+    impl Encoder for DummyEncoder {
+        fn open(
+            &self,
+            _path: &Path,
+            _config: &EncoderConfig,
+        ) -> Result<Box<dyn VideoEncoder>, EncodeError> {
+            Ok(Box::new(DummyEncoder))
+        }
+    }
+
+    let (mut state, _) = with_clip();
+    let _prores = state
+        .ctx
+        .register_encoder(
+            EncoderSpec {
+                id: "prores.422".into(),
+                name: "Apple ProRes 422".into(),
+                extension: "mov".into(),
+                audio: true,
+            },
+            DummyEncoder,
+        )
+        .expect("register prores");
+    let _gif = state
+        .ctx
+        .register_encoder(
+            EncoderSpec {
+                id: "anim.gif".into(),
+                name: "Animated GIF".into(),
+                extension: "gif".into(),
+                audio: false,
+            },
+            DummyEncoder,
+        )
+        .expect("register gif");
+
+    // Platform encoder selected by default.
+    assert_eq!(state.export_options.plugin_encoder, None);
+    assert_eq!(state.export_extension(), "mp4");
+    assert!(state.export_shows_codec_and_bitrate());
+    assert!(state.export_shows_audio_toggle());
+
+    // Step 1 -> prores.422 (audio = true): hides codec/bitrate, keeps audio toggle, sets .mov.
+    state.cycle_export_format();
+    assert_eq!(
+        state.export_options.plugin_encoder.as_deref(),
+        Some("prores.422")
+    );
+    assert_eq!(state.export_extension(), "mov");
+    assert_eq!(state.export_format_label(), "Apple ProRes 422 (.mov)");
+    assert_eq!(state.export_encoder_label(), "prores.422");
+    assert!(!state.export_shows_codec_and_bitrate());
+    assert!(state.export_shows_audio_toggle());
+    assert!(state.export_settings().audio);
+
+    // Step 2 -> anim.gif (audio = false): hides codec/bitrate AND audio toggle, sets .gif, forces audio = false.
+    state.cycle_export_format();
+    assert_eq!(
+        state.export_options.plugin_encoder.as_deref(),
+        Some("anim.gif")
+    );
+    assert_eq!(state.export_extension(), "gif");
+    assert_eq!(state.export_format_label(), "Animated GIF (.gif)");
+    assert!(!state.export_shows_codec_and_bitrate());
+    assert!(!state.export_shows_audio_toggle());
+    assert!(!state.export_settings().audio);
+
+    // Step 3 -> wraps back to platform encoder (`None`).
+    state.cycle_export_format();
+    assert_eq!(state.export_options.plugin_encoder, None);
+    assert_eq!(state.export_extension(), "mp4");
+    assert!(state.export_shows_codec_and_bitrate());
+    assert!(state.export_shows_audio_toggle());
 }

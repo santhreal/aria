@@ -1,6 +1,6 @@
 //! The prompt that stands between unsaved work and the door.
 //!
-//! Home, New, Open and Close all replace the session. Each used to do it
+//! Home, New, Open, Close and Quit all leave the session. Each used to do it
 //! immediately, so an hour of edits went with one mis-click and no question
 //! asked. Every one of them now goes through [`AppState::request`], which either
 //! runs the intent (nothing to lose) or parks it behind the prompt.
@@ -34,21 +34,24 @@ pub enum PendingIntent {
     /// Take what was dropped on Home: a project file opens, anything else lands
     /// in a new project.
     DropOnHome(Vec<PathBuf>),
+    /// Close the window and end the session.
+    Quit,
 }
 
 impl PendingIntent {
-    /// Where answering the prompt goes, in the prompt's own words.
+    /// What answering the prompt does, as the prompt's second sentence.
     ///
     /// A row per variant rather than a sentence in the panel: a new way of
     /// leaving the project is one arm here, and the compiler asks for it before
     /// the prompt can be drawn without it.
-    pub fn destination(&self) -> &'static str {
+    pub fn outcome(&self) -> &'static str {
         match self {
-            Self::GoHome => "Home",
-            Self::NewProject => "a new project",
-            Self::OpenProject(_) | Self::PickProject => "another project",
-            Self::OpenSample => "the sample project",
-            Self::DropOnHome(_) => "what you dropped",
+            Self::GoHome => "Either answer goes to Home.",
+            Self::NewProject => "Either answer goes to a new project.",
+            Self::OpenProject(_) | Self::PickProject => "Either answer goes to another project.",
+            Self::OpenSample => "Either answer goes to the sample project.",
+            Self::DropOnHome(_) => "Either answer goes to what you dropped.",
+            Self::Quit => "Either answer quits Aria.",
         }
     }
 }
@@ -69,7 +72,7 @@ impl AppState {
         // loaded when the operator walks back to Home.
         self.dialog = DialogKind::UnsavedChanges;
         self.context_menu = None;
-        self.open_menu = None;
+        self.close_menu();
         false
     }
 
@@ -93,8 +96,24 @@ impl AppState {
         self.request(PendingIntent::OpenSample);
     }
 
+    /// Ctrl+Q, File > Quit, and the window's close control. The shell quits on
+    /// the frame after [`AppState::quit_requested`] is set.
+    pub fn request_quit(&mut self) {
+        self.request(PendingIntent::Quit);
+    }
+
+    /// Whether leaving has been answered, or needed no answer.
+    pub fn quit_requested(&self) -> bool {
+        self.quit_requested
+    }
+
+    /// A drop on Home. A plugin package installs without replacing the
+    /// session, so it is taken before the unsaved prompt is asked.
     pub fn request_drop_on_home(&mut self, paths: Vec<PathBuf>) {
-        self.request(PendingIntent::DropOnHome(paths));
+        let paths = self.take_plugin_archives(paths);
+        if !paths.is_empty() {
+            self.request(PendingIntent::DropOnHome(paths));
+        }
     }
 
     /// The intent waiting on an answer, if the prompt is up.
@@ -165,6 +184,7 @@ impl AppState {
                     self.report_error(&err);
                 }
             }
+            PendingIntent::Quit => self.quit_requested = true,
         }
     }
 }

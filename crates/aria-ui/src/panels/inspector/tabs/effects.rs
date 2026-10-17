@@ -1,18 +1,23 @@
 //! Effects tab: the compositor effect chain.
 
+#[path = "effects_params.rs"]
+pub(crate) mod effects_params;
+
+use crate::tooltip::WithTip as _;
 use gpui::{
-    InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
+    AppContext, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
     StatefulInteractiveElement, Styled, div, px,
 };
 
 use crate::components;
+use crate::panels::sidebar::DragGhost;
 use crate::surfaces::effects_rack::{self, Gesture};
 use crate::theme::Theme;
-use crate::types::UiClip;
+use crate::types::{CatalogDrag, ContextTarget, RenameTarget, UiClip};
 
 use crate::fluent::FluentBuilder;
 
-use crate::panels::inspector::blocks::widgets::{audio_row, section_label};
+use crate::panels::inspector::blocks::widgets::section_label;
 
 pub fn effects_tab(
     theme: &Theme,
@@ -21,6 +26,19 @@ pub fn effects_tab(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     let hover = theme.glass_hover();
+    let accent = theme.accent;
+    let sequence_clips: Vec<(aria_models::ClipId, gpui::SharedString)> = state
+        .read(cx)
+        .store
+        .sequence
+        .tracks
+        .iter()
+        .flat_map(|track| track.clips.iter())
+        .filter(|c| c.id != clip.id)
+        .map(|c| (aria_models::ClipId::from_raw(c.id), c.name.clone()))
+        .collect();
+    let font_families = state.read(cx).font_families();
+    let clip_id = clip.id;
     let remove_rows: Vec<_> = clip
         .effects
         .iter()
@@ -32,69 +50,43 @@ pub fn effects_tab(
                 effect.name.clone()
             };
             let last = index + 1 == clip.effects.len();
-            // Built in three passes rather than one chained iterator: every row
-            // needs `cx`, and chained closures would each want it at once.
-            let mut params: Vec<gpui::AnyElement> = Vec::new();
-            for (slot, spec) in &crate::app::clip_effects::scalar_params(&effect.id) {
-                let value = effect.scalar(slot).unwrap_or(spec.default);
-                let step = ((spec.max - spec.min) / 20.0).max(0.01);
-                params.push(
-                    audio_row(
-                        theme,
-                        crate::motion::MotionKey::new(&spec.name, index),
-                        spec.label.as_str(),
-                        format!("{value:.2}"),
-                        step,
-                        move |state, by| {
-                            effects_rack::apply(state, Gesture::NudgeScalar { index, slot, by })
-                        },
-                        cx,
-                    )
-                    .into_any_element(),
-                );
-            }
-            for (slot, spec) in &crate::app::clip_effects::vec2_params(&effect.id) {
-                let value = effect.vec2(slot).unwrap_or(spec.default_vec2);
-                let step = ((spec.max - spec.min) / 20.0).max(0.01);
-                for (axis, name) in [(0usize, "x"), (1usize, "y")] {
-                    params.push(
-                        audio_row(
-                            theme,
-                            crate::motion::MotionKey::new(&spec.name, index).with(name),
-                            &format!("{} {name}", spec.label),
-                            format!("{:.3}", value[axis]),
-                            step,
-                            move |state, by| {
-                                effects_rack::apply(
-                                    state,
-                                    Gesture::NudgeVec2 {
-                                        index,
-                                        slot,
-                                        axis,
-                                        by,
-                                    },
-                                )
-                            },
-                            cx,
-                        )
-                        .into_any_element(),
-                    );
-                }
-            }
-            for (slot, spec) in &crate::app::clip_effects::color_params(&effect.id) {
-                let value = effect.color(slot).unwrap_or(spec.default_color);
-                params.push(
-                    color_row(theme, index, slot, spec.label.as_str(), value, cx)
-                        .into_any_element(),
-                );
-            }
+            let bypass = effect.bypass;
+            let carried = EffectDrag {
+                clip: clip_id,
+                index,
+                label: name.clone(),
+            };
+            let params = effects_params::effect_param_rows(
+                theme,
+                state,
+                index,
+                effect,
+                &sequence_clips,
+                font_families,
+                cx,
+            );
             div()
                 .id(gpui::ElementId::named_usize("inspector-fx", index))
+                // A dragged effect lands above the effect it is dropped on.
+                .drag_over::<CatalogDrag>(move |style, _, _, _| {
+                    style.border_t_2().border_color(accent)
+                })
+                .on_drop(cx.listener(move |this, drag: &CatalogDrag, _, cx| {
+                    drop_on_chain(this, drag, Some(index), cx);
+                }))
+                // So does an effect dragged by its header.
+                .drag_over::<EffectDrag>(move |style, _, _, _| {
+                    style.border_t_2().border_color(accent)
+                })
+                .on_drop(cx.listener(move |this, drag: &EffectDrag, _, cx| {
+                    move_on_chain(this, drag, Some(index), cx);
+                }))
                 .flex()
                 .flex_col()
                 .gap(px(Theme::SPACE_XS))
                 .child(
                     div()
+                        .id(gpui::ElementId::named_usize("inspector-fx-header", index))
                         .flex()
                         .flex_row()
                         .items_center()
@@ -103,7 +95,87 @@ pub fn effects_tab(
                         .py(px(Theme::SPACE_XS))
                         .rounded(px(Theme::CONTROL_RADIUS))
                         .hover(move |el| el.bg(hover))
-                        .child(div().text_size(px(13.)).text_color(theme.text).child(name))
+                        .on_drag(carried, |drag, _offset, _window, cx| {
+                            let label = drag.label.clone();
+                            cx.new(|_| DragGhost { label })
+                        })
+                        .on_mouse_down(
+                            MouseButton::Right,
+                            cx.listener(move |this, event: &MouseDownEvent, _, cx| {
+                                cx.stop_propagation();
+                                open_effect_menu(this, clip_id, index, event, cx);
+                            }),
+                        )
+                        .child(
+                            div()
+                                .flex()
+                                .flex_row()
+                                .items_center()
+                                .gap(px(Theme::SPACE_XS))
+                                .min_w_0()
+                                .child(
+                                    components::chip(
+                                        crate::motion::MotionKey::new("inspector-fx-bypass", index),
+                                        "fx",
+                                        !bypass,
+                                        components::ChipSize::Compact,
+                                        theme,
+                                    )
+                                    .debug_selector(move || format!("inspector-fx-bypass-{index}"))
+                                    .when_some(
+                                        crate::tooltip::builder("inspector-fx-bypass"),
+                                        |el, tip| el.with_tip(tip),
+                                    )
+                                    .on_mouse_down(
+                                        MouseButton::Left,
+                                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                                            this.state.update(cx, |state, _| {
+                                                if let Err(err) = effects_rack::apply(
+                                                    state,
+                                                    Gesture::Bypass(index),
+                                                ) {
+                                                    state.report_error(&err);
+                                                }
+                                            });
+                                            cx.notify();
+                                        }),
+                                    ),
+                                )
+                                .child(
+                                    div()
+                                        .id(gpui::ElementId::named_usize(
+                                            "inspector-fx-name",
+                                            index,
+                                        ))
+                                        .min_w_0()
+                                        .truncate()
+                                        .text_size(Theme::TEXT_UI)
+                                        .text_color(if bypass {
+                                            theme.text_faint
+                                        } else {
+                                            theme.text
+                                        })
+                                        .on_mouse_down(
+                                            MouseButton::Left,
+                                            cx.listener(
+                                                move |this, event: &MouseDownEvent, _, cx| {
+                                                    if event.click_count < 2 {
+                                                        return;
+                                                    }
+                                                    cx.stop_propagation();
+                                                    this.state.update(cx, |state, _| {
+                                                        state.begin_rename(RenameTarget::Effect {
+                                                            clip: clip_id,
+                                                            index,
+                                                        });
+                                                    });
+                                                    cx.notify();
+                                                },
+                                            ),
+                                        )
+                                        .child(name),
+                                ),
+                        )
                         .child(
                             div()
                                 .flex()
@@ -118,7 +190,7 @@ pub fn effects_tab(
                                         )
                                         .when_some(
                                             crate::tooltip::builder("inspector-fx-up"),
-                                            |el, tip| el.tooltip(tip),
+                                            |el, tip| el.with_tip(tip),
                                         )
                                         .on_mouse_down(
                                             MouseButton::Left,
@@ -148,7 +220,7 @@ pub fn effects_tab(
                                         )
                                         .when_some(
                                             crate::tooltip::builder("inspector-fx-down"),
-                                            |el, tip| el.tooltip(tip),
+                                            |el, tip| el.with_tip(tip),
                                         )
                                         .on_mouse_down(
                                             MouseButton::Left,
@@ -166,6 +238,41 @@ pub fn effects_tab(
                                         ),
                                     )
                                 })
+                                .child(
+                                    components::icon_button(
+                                        ("inspector-fx-reset", index),
+                                        crate::icons::ROTATE_CCW,
+                                        theme,
+                                    )
+                                    .on_mouse_down(
+                                        MouseButton::Left,
+                                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                                            this.state.update(cx, |state, _| {
+                                                if let Err(err) = effects_rack::apply(
+                                                    state,
+                                                    Gesture::Reset(index),
+                                                ) {
+                                                    state.report_error(&err);
+                                                }
+                                            });
+                                            cx.notify();
+                                        }),
+                                    ),
+                                )
+                                .child(
+                                    components::icon_button(
+                                        ("inspector-fx-menu", index),
+                                        crate::icons::ELLIPSIS,
+                                        theme,
+                                    )
+                                    .on_mouse_down(
+                                        MouseButton::Left,
+                                        cx.listener(move |this, event: &MouseDownEvent, _, cx| {
+                                            cx.stop_propagation();
+                                            open_effect_menu(this, clip_id, index, event, cx);
+                                        }),
+                                    ),
+                                )
                                 .child(
                                     components::icon_button(
                                         ("inspector-fx-remove", index),
@@ -221,7 +328,7 @@ pub fn effects_tab(
         .collect();
     let presets: Vec<_> = state
         .read(cx)
-        .effect_presets()
+        .presets()
         .iter()
         .enumerate()
         .map(|(index, preset)| {
@@ -276,12 +383,78 @@ pub fn effects_tab(
                 .into_any_element()
         })
         .collect();
+    let plugin_presets: Vec<_> = state
+        .read(cx)
+        .plugin_presets()
+        .into_iter()
+        .enumerate()
+        .map(|(index, entry)| {
+            let apply_name = entry.preset.name.clone();
+            let plugin_label = entry.plugin.to_string();
+            div()
+                .flex()
+                .flex_row()
+                .items_center()
+                .justify_between()
+                .gap(px(Theme::SPACE_XS))
+                .child(
+                    components::ghost_button(
+                        crate::motion::MotionKey::new("inspector-fx-plugin-preset", index),
+                        entry.preset.name.clone(),
+                        theme,
+                    )
+                    .with_tip(crate::tooltip::text_builder(plugin_label.clone()))
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                            this.state.update(cx, |state, _| {
+                                if let Err(err) =
+                                    effects_rack::apply(state, Gesture::Preset(apply_name.clone()))
+                                {
+                                    state.report_error(&err);
+                                }
+                            });
+                            cx.notify();
+                        }),
+                    ),
+                )
+                .child(
+                    div()
+                        .text_size(Theme::TEXT_UI)
+                        .text_color(theme.text_muted)
+                        .child(plugin_label),
+                )
+                .into_any_element()
+        })
+        .collect();
+    let broken_presets: Vec<_> = state
+        .read(cx)
+        .broken_presets()
+        .iter()
+        .enumerate()
+        .map(|(index, broken)| {
+            let file_name = broken
+                .path
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_else(|| broken.path.display().to_string());
+            div()
+                .id(gpui::ElementId::named_usize(
+                    "inspector-fx-preset-broken",
+                    index,
+                ))
+                .text_size(Theme::TEXT_UI)
+                .text_color(theme.danger)
+                .child(format!("{file_name}: {}", broken.reason))
+                .into_any_element()
+        })
+        .collect();
 
-    // Saving needs a name, so the button opens a field and the field's Enter is
-    // the save. A refused name (empty, or one already taken) leaves the field
-    // open with what was typed still in it.
-    let naming = state.read(cx).effect_preset_draft_open();
-    let draft = state.read(cx).effect_preset_draft_text();
+    // Saving needs a name and part selection: the button opens a draft with one
+    // toggle per part (all on by default), and the field's Enter or the Save
+    // button commits. A refused name or empty selection leaves the draft open.
+    let open_draft = state.read(cx).preset_draft().cloned();
+    let naming = open_draft.is_some();
     let save = components::ghost_button(
         "inspector-fx-preset-save",
         if naming { "Save" } else { "Save as preset" },
@@ -296,26 +469,114 @@ pub fn effects_tab(
                         state.report_error(&err);
                     }
                 } else {
-                    state.open_effect_preset_draft();
+                    state.open_preset_draft();
                 }
             });
             cx.notify();
         }),
     );
-    let name_box = naming.then(|| {
-        components::text_box(
-            "inspector-fx-preset-name",
-            &draft,
-            "Name this preset",
-            true,
-            theme,
-        )
+    let draft_block = open_draft.map(|draft| {
+        let mut part_rows: Vec<gpui::AnyElement> = Vec::new();
+        for (fx_idx, label, on) in draft.effects {
+            let text = format!("{} {label}", if on { "✓" } else { "○" });
+            part_rows.push(
+                components::ghost_button(
+                    crate::motion::MotionKey::new("inspector-fx-preset-part-fx", fx_idx),
+                    text,
+                    theme,
+                )
+                .on_mouse_down(
+                    MouseButton::Left,
+                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                        this.state.update(cx, |state, _| {
+                            let _ = effects_rack::apply(state, Gesture::TogglePresetEffect(fx_idx));
+                        });
+                        cx.notify();
+                    }),
+                )
+                .into_any_element(),
+            );
+        }
+        if !draft.audio_effects.is_empty() {
+            let text = format!(
+                "{} Audio inserts ({})",
+                if draft.include_audio_effects {
+                    "✓"
+                } else {
+                    "○"
+                },
+                draft.audio_effects.len()
+            );
+            part_rows.push(
+                components::ghost_button("inspector-fx-preset-part-audio", text, theme)
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                            this.state.update(cx, |state, _| {
+                                let _ =
+                                    effects_rack::apply(state, Gesture::TogglePresetAudioEffects);
+                            });
+                            cx.notify();
+                        }),
+                    )
+                    .into_any_element(),
+            );
+        }
+        for (prop_id, label, on) in draft.properties {
+            let text = format!("{} {label}", if on { "✓" } else { "○" });
+            let id_for_click = prop_id.clone();
+            part_rows.push(
+                components::ghost_button(
+                    crate::motion::MotionKey::new(
+                        "inspector-fx-preset-part-prop",
+                        prop_id.as_str(),
+                    ),
+                    text,
+                    theme,
+                )
+                .on_mouse_down(
+                    MouseButton::Left,
+                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                        this.state.update(cx, |state, _| {
+                            let _ = effects_rack::apply(
+                                state,
+                                Gesture::TogglePresetProperty(id_for_click.clone()),
+                            );
+                        });
+                        cx.notify();
+                    }),
+                )
+                .into_any_element(),
+            );
+        }
+        div()
+            .flex()
+            .flex_col()
+            .gap(px(Theme::SPACE_XS))
+            .child(components::text_box(
+                "inspector-fx-preset-name",
+                &draft.name,
+                "Name this preset",
+                true,
+                theme,
+            ))
+            .children(part_rows)
     });
 
     div()
         .flex()
         .flex_col()
         .gap(px(Theme::SPACE_XS))
+        // Anywhere else in the tab, a dragged effect lands at the end of the
+        // chain.
+        .drag_over::<CatalogDrag>(move |style, _, _, _| style.bg(accent.opacity(0.06)))
+        .on_drop(cx.listener(|this, drag: &CatalogDrag, _, cx| {
+            drop_on_chain(this, drag, None, cx);
+        }))
+        .drag_over::<EffectDrag>(move |style, _, _, _| style.bg(accent.opacity(0.06)))
+        .on_drop(cx.listener(|this, drag: &EffectDrag, _, cx| {
+            move_on_chain(this, drag, None, cx);
+        }))
         .child(section_label(theme, "Effects"))
         .children(remove_rows)
         .child(section_label(theme, "Presets"))
@@ -325,7 +586,9 @@ pub fn effects_tab(
                 .flex_col()
                 .gap(px(Theme::SPACE_XS))
                 .children(presets)
-                .when_some(name_box, |el, field| el.child(field))
+                .children(plugin_presets)
+                .children(broken_presets)
+                .when_some(draft_block, |el, field| el.child(field))
                 .child(save),
         )
         .child(section_label(theme, "Add"))
@@ -338,108 +601,72 @@ pub fn effects_tab(
         )
 }
 
-/// One colour parameter: its current value as a swatch, then the palette.
-///
-/// A colour slot has no constant command, so each click writes a keyframe at the
-/// playhead — or at the clip start when the playhead is elsewhere.
-fn color_row(
-    theme: &Theme,
-    index: usize,
-    slot: usize,
-    label: &str,
-    value: [u8; 4],
+/// Land a catalog entry dragged onto the tab: before the effect at `at`, or at
+/// the end of the chain.
+fn drop_on_chain(
+    this: &mut crate::shell::Shell,
+    drag: &CatalogDrag,
+    at: Option<usize>,
     cx: &mut gpui::Context<crate::shell::Shell>,
-) -> impl IntoElement {
-    let swatches: Vec<_> = crate::app::clip_effects::PARAM_COLORS
-        .iter()
-        .map(|(name, _, rgba)| {
-            let rgba = *rgba;
-            let picked = rgba == value;
-            div()
-                .id(crate::motion::MotionKey::new("fx-slot", index)
-                    .with(slot)
-                    .with(name)
-                    .element_id("fx-slot"))
-                .w(px(16.))
-                .h(px(16.))
-                .rounded(px(Theme::CONTROL_RADIUS))
-                .bg(swatch(rgba))
-                .border_1()
-                .border_color(if picked { theme.accent } else { theme.border })
-                .on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                        this.state.update(cx, |state, _| {
-                            if let Err(err) =
-                                effects_rack::apply(state, Gesture::Color { index, slot, rgba })
-                            {
-                                state.report_error(&err);
-                            }
-                        });
-                        cx.notify();
-                    }),
-                )
-                .into_any_element()
-        })
-        .collect();
-
-    div()
-        .flex()
-        .flex_row()
-        .items_center()
-        .justify_between()
-        .px(px(Theme::SPACE_XS))
-        .py(px(Theme::SPACE_XS))
-        .child(
-            div()
-                .flex()
-                .flex_row()
-                .gap(px(Theme::SPACE_XS))
-                .items_center()
-                .child(
-                    div()
-                        .text_size(px(13.))
-                        .text_color(theme.text_muted)
-                        .child(label.to_string()),
-                )
-                .child(
-                    div()
-                        .text_size(px(11.))
-                        .text_color(theme.text_faint)
-                        .child(color_name(value)),
-                ),
-        )
-        .child(
-            div()
-                .flex()
-                .flex_row()
-                .gap(px(Theme::SPACE_XS))
-                .children(swatches),
-        )
+) {
+    this.state.update(cx, |state, _| {
+        if let Err(err) = state.drop_catalog_on_effect_controls(drag, at) {
+            state.report_error(&err);
+        }
+    });
+    crate::app::spawn_preview(this.state.clone(), cx);
+    cx.notify();
 }
 
-/// A colour parameter's bytes as a paint colour. Alpha 0 shows as the panel's own
-/// border tint rather than nothing, so a cleared slot is still a target.
-fn swatch(rgba: [u8; 4]) -> gpui::Hsla {
-    gpui::Hsla::from(gpui::Rgba {
-        r: rgba[0] as f32 / 255.0,
-        g: rgba[1] as f32 / 255.0,
-        b: rgba[2] as f32 / 255.0,
-        a: rgba[3] as f32 / 255.0,
-    })
+/// An effect carried by its header to another place in its chain.
+#[derive(Clone)]
+struct EffectDrag {
+    /// The clip whose chain the effect is in.
+    clip: u64,
+    /// Where the effect sits in the chain.
+    index: usize,
+    /// The name the header draws, for the ghost.
+    label: gpui::SharedString,
 }
 
-/// The palette name of a colour, or its hex when it is not one of the presets, so
-/// a value written by the agent or an older project still reads as something.
-fn color_name(rgba: [u8; 4]) -> String {
-    crate::app::clip_effects::PARAM_COLORS
-        .iter()
-        .find(|(_, _, preset)| *preset == rgba)
-        .map(|(_, label, _)| (*label).to_string())
-        .unwrap_or_else(|| {
-            format!(
-                "#{:02x}{:02x}{:02x}{:02x}",
-                rgba[0], rgba[1], rgba[2], rgba[3]
-            )
-        })
+/// Land an effect carried by its header: above the effect at `before`, or at
+/// the end of the chain. A header carried over another clip's chain lands
+/// nowhere.
+fn move_on_chain(
+    this: &mut crate::shell::Shell,
+    drag: &EffectDrag,
+    before: Option<usize>,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) {
+    let from = drag.index;
+    let clip = drag.clip;
+    this.state.update(cx, |state, _| {
+        if state.selected_clip().map(aria_models::ClipId::raw) != Some(clip) {
+            return;
+        }
+        if let Err(err) = effects_rack::apply(state, Gesture::Drop { from, before }) {
+            state.report_error(&err);
+        }
+    });
+    crate::app::spawn_preview(this.state.clone(), cx);
+    cx.notify();
+}
+
+/// Open the effect header's menu at the pointer, on the effect at `index` in
+/// `clip`'s chain.
+fn open_effect_menu(
+    this: &mut crate::shell::Shell,
+    clip: u64,
+    index: usize,
+    event: &MouseDownEvent,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) {
+    this.state.update(cx, |state, _| {
+        state.open_context(
+            ContextTarget::Effect { clip, index },
+            f32::from(event.position.x),
+            f32::from(event.position.y),
+        );
+    });
+    cx.notify();
 }

@@ -19,6 +19,12 @@
 //! - Notifications: each entry that starts posts `ExportStarted`, then
 //!   `ExportFinished` with how it ended, before the next entry starts; an entry
 //!   cancelled while queued posts neither.
+//! - Unmounted plugin encoder refusal: a queued export targeting a plugin encoder
+//!   that unmounts before running fails naming the format id and never falls back
+//!   to the platform encoder.
+//!
+//! What this does not catch: actual frame rendering or codec muxing on the GPU,
+//! which is covered by `aria-render`.
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -476,4 +482,99 @@ fn app_state_reaches_export_queue_and_cancels_entries() {
             .any(|e| e.id == id1 && e.state == ExportEntryState::Done)
     );
     assert!(snapshot.iter().all(|e| e.id != id2));
+}
+
+#[test]
+fn a_queued_plugin_encoder_that_unmounts_before_running_fails_naming_the_format_without_fallback() {
+    use aria_core::{EncodeError, EncoderConfig, VideoEncoder, VideoFrame};
+    use aria_plugin::{Encoder, EncoderSpec};
+    use std::path::Path;
+
+    struct DummyEncoder;
+    impl VideoEncoder for DummyEncoder {
+        fn push(&mut self, _frame: &VideoFrame) -> Result<(), EncodeError> {
+            Ok(())
+        }
+        fn finish(&mut self) -> Result<(), EncodeError> {
+            Ok(())
+        }
+    }
+    impl Encoder for DummyEncoder {
+        fn open(
+            &self,
+            _path: &Path,
+            _config: &EncoderConfig,
+        ) -> Result<Box<dyn VideoEncoder>, EncodeError> {
+            Ok(Box::new(DummyEncoder))
+        }
+    }
+
+    let (mut state, _clip) = with_clip();
+    let reg = state
+        .ctx
+        .register_encoder(
+            EncoderSpec {
+                id: "prores.422".into(),
+                name: "Apple ProRes 422".into(),
+                extension: "mov".into(),
+                audio: true,
+            },
+            DummyEncoder,
+        )
+        .expect("register prores.422");
+
+    let (started_tx, started_rx) = crossbeam_channel::bounded::<()>(1);
+    let (release_tx, release_rx) = crossbeam_channel::bounded::<()>(1);
+    let runner_called_for_second = Arc::new(AtomicBool::new(false));
+    let runner_called_clone = Arc::clone(&runner_called_for_second);
+    let runner: ExportRunner = Arc::new(move |context, _project, dest, _settings| {
+        let name = file_label(dest);
+        if name == "first.mp4" {
+            let _ = started_tx.send(());
+            let _ = release_rx.recv_timeout(Duration::from_secs(5));
+        } else {
+            runner_called_clone.store(true, Ordering::SeqCst);
+        }
+        let _ = context.try_begin_commit();
+        JobCompletion::new("done")
+            .with_output("path", dest.display().to_string())
+            .map_err(String::from)
+    });
+    state.export_queue.set_runner(runner);
+
+    let dir = crate::scratch_pool::scratch("export_queue_plugin_unmount");
+    let id1 = state
+        .export_job(dir.join("first.mp4"))
+        .expect("enqueue first");
+    started_rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("first job started");
+
+    // Enqueue second job using the plugin encoder while it is still mounted.
+    state.select_export_plugin_encoder(Some("prores.422".into()));
+    let id2 = state
+        .export_job(dir.join("second.mov"))
+        .expect("enqueue second with prores.422");
+
+    // Unmount the plugin encoder while job 2 is still Queued.
+    drop(reg);
+
+    // Let job 1 finish so job 2 is pumped.
+    let _ = release_tx.send(());
+    assert!(state.export_queue.settle_all(Duration::from_secs(10)));
+
+    let snapshot = state.export_queue.snapshot();
+    let e1 = snapshot.iter().find(|e| e.id == id1).expect("entry 1");
+    let e2 = snapshot.iter().find(|e| e.id == id2).expect("entry 2");
+    assert_eq!(e1.state, ExportEntryState::Done);
+    assert_eq!(e2.state, ExportEntryState::Failed);
+    let err = e2.error.as_deref().expect("error recorded");
+    assert!(
+        err.contains("prores.422"),
+        "failed export must name the unmounted format id: {err}"
+    );
+    assert!(
+        !runner_called_for_second.load(Ordering::SeqCst),
+        "unmounted plugin encoder must fail without falling back to the default runner"
+    );
 }

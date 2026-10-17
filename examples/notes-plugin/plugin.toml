@@ -1,0 +1,15 @@
+[plugin]
+id = "example.notes"
+name = "Notes"
+version = "0.1.0"
+api = "1"
+publisher = "Example"
+description = "Claims .srt files and refuses edits that touch more than eight tracks."
+license = "MIT OR Apache-2.0"
+
+[permissions]
+project = "read"
+
+[[commands]]
+id = "notes.count"
+title = "Record seen command count"

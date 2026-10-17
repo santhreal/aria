@@ -239,9 +239,10 @@ impl AppState {
     ///
     /// The scope strip paints textures and drops the measurement, so this takes
     /// its own pass. Same frame, same config: the numbers under the picture and
-    /// the picture agree because both come from `last_frame`.
+    /// the picture agree because both come from the frame on screen, read out
+    /// of its GPU texture when it has no CPU copy.
     pub fn measure_exposure(&mut self) {
-        let Some(frame) = self.last_frame.clone() else {
+        let Some(frame) = self.picture_on_screen() else {
             self.status_message = Some("No frame on screen to measure".into());
             return;
         };

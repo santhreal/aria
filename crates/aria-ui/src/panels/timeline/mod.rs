@@ -1,48 +1,61 @@
-//! Timeline: ruler, track headers, clip bodies.
+//! Timeline: header, split video/audio lane groups, clip bodies, and the zoom
+//! scroll bar.
 //!
-//! This module owns the panel's frame — geometry constants, the tick/pixel
-//! conversions, and the scroll handler — and composes the five surfaces that
-//! draw it.
+//! This module owns the panel's frame — geometry constants, tick/pixel
+//! conversions, the ruler's tick spacing, and scroll/zoom handlers — and
+//! composes the header (timecode, search and toggles over the outline column;
+//! ruler, work area and render bar over the time area), the video lane group,
+//! the draggable A/V divider, the audio lane group, and the zoom scroll bar
+//! along the bottom.
 
 mod clip;
 mod drop;
+mod header;
 mod headers;
 mod lanes;
 mod media;
 mod overview;
-mod ruler;
+mod property_rows;
+mod render_bar;
+pub(crate) mod ruler;
 
 #[cfg(test)]
 mod empty_timeline_tests;
 
+use std::cell::Cell;
+use std::sync::Arc;
+
 use crate::fluent::FluentBuilder;
 use gpui::{
-    Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
-    ScrollDelta, ScrollHandle, ScrollWheelEvent, StatefulInteractiveElement, Styled, div, px,
+    CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
+    MouseMoveEvent, MouseUpEvent, ParentElement, ScrollDelta, ScrollWheelEvent, Styled, div, px,
 };
 
 use crate::app::AppState;
 use crate::motion::glide;
 use crate::theme::Theme;
-use crate::types::{ActivePanel, UiRulerTick};
+use crate::types::ActivePanel;
 
-use lanes::lane;
+use lanes::lane_group;
 use media::{clip_bars, clip_cells};
 use overview::overview;
 use ruler::ruler;
 
 thread_local! {
-    /// The track stack's scroll offset. Held across renders because that is what
-    /// the edge fade reads: it softens the top edge only once there is something
-    /// above it, and the bottom only while there is more below.
-    static STACK_SCROLL: ScrollHandle = ScrollHandle::new();
+    static AV_DIVIDER_DRAG: Cell<Option<(f32, f32)>> = const { Cell::new(None) };
 }
 
-pub(super) const HEADER_W: f32 = crate::transport::TIMELINE_HEADER_W;
-pub(super) const RULER_H: f32 = 28.0;
+/// Height of the timeline header: the ruler's ticks, the work area bar under
+/// them, and the render bar along the bottom.
+pub(super) const RULER_H: f32 = 42.0;
+/// Height of the ruler's ticks and labels at the top of the header.
+pub(super) const RULER_TICKS_H: f32 = 26.0;
+pub(super) const AV_DIVIDER_H: f32 = 6.0;
+/// Width of the grab band on the outline column's right border. The band
+/// ends at the border, so the first pixel of the content is the content's.
+const OUTLINE_EDGE_W: f32 = 6.0;
 pub(super) const BASE_PPS: f32 = crate::transport::TIMELINE_BASE_PPS;
-/// Pixels per waveform bar. Wide enough that a long clip draws hundreds of
-/// bars rather than thousands, narrow enough to read as a wave.
+/// Pixels per waveform bar.
 pub(super) const BAR_STEP: f32 = 3.0;
 /// Width of a filmstrip cell: a 16:9 frame at the cell height.
 pub(super) const CELL_W: f32 = 60.0;
@@ -50,64 +63,71 @@ pub(super) const CELL_W: f32 = 60.0;
 /// a clip label.
 pub(super) const COLLAPSED_H: f32 = 20.0;
 
+/// The spec the drawn scroll offset travels on: the release spec after a pan
+/// was let go, and otherwise the zoom's, so a tick held in place across an
+/// eased zoom (the playhead under `=`) stays put while both travel.
+fn scroll_spec(fling: bool) -> gpui::motion::MotionSpec {
+    if fling { glide::FLING } else { glide::ZOOM }
+}
+
 pub fn render(
     state: &Entity<AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     let theme = Theme::of(cx);
-    // A handle on the projection, not a copy of it: the panel needs the store
-    // for the whole draw and cannot hold a borrow of the state across the
-    // listeners it attaches below.
     let store = state.read(cx).store.clone();
     let playhead = store.playhead_ticks;
     let reduced = cx.reduce_motion();
-    // A playhead is a whole tick in the model and a fraction of one on screen.
-    // Stepping it frame to frame reads as a stutter, so it follows its target
-    // instead — and a scrub stays continuous because the pointer never lands on
-    // a tick boundary either.
+    // A playhead a pointer placed is drawn where the pointer is; a keyed step
+    // or a jump eases.
     let playhead_at = glide::glide(
         crate::motion::MotionKey::new("playhead", ""),
         playhead as f32,
         glide::PLAYHEAD,
-        reduced,
+        reduced || state.read(cx).playhead_under_pointer(),
     );
-    let stack_scroll = STACK_SCROLL.with(ScrollHandle::clone);
-    // No clamp: `AppState::set_zoom` is the only writer and it clamps, so a
-    // second one here could only hide a writer that had bypassed it. The scale
-    // the editor chose travels there; the one a pointer anchored is already
-    // where the pointer put it.
     let zoom = glide::glide(
         crate::motion::MotionKey::new("timeline-zoom", ""),
         store.zoom,
         glide::ZOOM,
         reduced || !state.read(cx).zoom_eased,
     );
-    // The offset the operator moves by hand is theirs on the frame they move it;
-    // one the editor chose for them travels there instead. A pan that was thrown
-    // is a third case: it travels on the spring, so it carries the weight of the
-    // release past the target and back.
     let scroll_x = glide::glide(
         crate::motion::MotionKey::new("timeline-scroll", ""),
         store.scroll_x.max(0.0),
-        if state.read(cx).scroll_fling {
-            glide::FLING
-        } else {
-            glide::SCROLL
-        },
+        scroll_spec(state.read(cx).scroll_fling),
         reduced || !state.read(cx).scroll_eased,
     );
     let pps = BASE_PPS * zoom;
-    let rate = store.sequence.frame_rate;
-    let fps = rate.num.max(1) as f32;
-    let snap_guide = state.read(cx).snap_guide;
-    let expanded = state.read(cx).expanded_clips.clone();
-    let ticks = ruler_ticks(store.sequence.duration_ticks, rate.num.max(1) as i64, zoom);
-    // The width the panel actually has, from the same chrome the shell laid it
-    // out with. Culling and the edge fades read it, so a narrow window stops
-    // building rows it has no room for instead of building 2000px worth.
-    let visible_width = state.read(cx).timeline_viewport_px();
-    let view_start = ((scroll_x / pps) * fps).floor() as i64;
-    let view_end = (((scroll_x + visible_width) / pps) * fps).ceil() as i64;
+    let outline = state.read(cx).ui_settings.outline_width;
+    let fps = store.sequence.ticks_per_second();
+    let (
+        snap_guide,
+        visible_width,
+        tool,
+        track_dragging,
+        drop_row,
+        av_split,
+        video_scroll_y,
+        audio_scroll_y,
+        panel_h,
+    ) = {
+        let app = state.read(cx);
+        let h = app.timeline_frame.map(|f| f[3]).unwrap_or(320.0);
+        (
+            app.snap_guide,
+            app.timeline_viewport_px(),
+            app.tool,
+            app.track_dragging(),
+            app.track_drop_row,
+            app.timeline_av_split,
+            app.video_scroll_y,
+            app.audio_scroll_y,
+            h,
+        )
+    };
+    let view_start = ((scroll_x / pps.max(1.0)) * fps).floor() as i64;
+    let view_end = (((scroll_x + visible_width) / pps.max(1.0)) * fps).ceil() as i64;
     let next_video = store
         .sequence
         .tracks
@@ -121,56 +141,83 @@ pub fn render(
         .tracks
         .iter()
         .all(|track| track.clips.is_empty());
-    let tool = state.read(cx).tool;
     let cursor = tool.cursor();
-    let track_dragging = state.read(cx).track_dragging();
-    let drop_row = state.read(cx).track_drop_row;
-    // A resize in flight is not an edit yet, so the lane draws the previewed
-    // height and the command lands once, on mouse-up. The state answers which
-    // lane is being dragged, so the panel keeps no copy of that rule.
-    // Asked once per draw rather than per card: the answer is the same for all
-    // of them, and it expires on its own.
-    let landing = state.read(cx).landing_clip();
-    let waves = clip_bars(state, &store, pps, fps, view_start, view_end, cx);
-    let strips = clip_cells(state, &store, pps, fps, view_start, view_end, cx);
-    let lanes: Vec<_> = store
-        .sequence
-        .tracks
-        .iter()
-        .enumerate()
-        .map(|(row, track)| {
-            let previewed = state.read(cx).lane_preview(track.id);
-            let band = state
-                .read(cx)
-                .marquee
-                .filter(|_| state.read(cx).marquee_covers_row(row))
-                .map(|band| band.ticks());
-            lane(
-                &theme,
-                track,
-                row,
-                track_dragging,
-                drop_row,
-                pps,
-                fps,
-                scroll_x,
-                view_start,
-                view_end,
-                visible_width,
-                playhead_at,
-                snap_guide,
-                band,
-                &expanded,
-                &waves,
-                &strips,
-                previewed,
-                reduced,
-                landing,
-                cx,
-            )
-            .into_any_element()
-        })
-        .collect();
+    let total_rows = store.sequence.tracks.len();
+    let all_rows: Vec<usize> = (0..total_rows).collect();
+    let waves = Arc::new(clip_bars(
+        state, &store, &all_rows, pps, fps, view_start, view_end, cx,
+    ));
+    let strips = Arc::new(clip_cells(
+        state, &store, &all_rows, pps, fps, view_start, view_end, cx,
+    ));
+    let visual_rows = state.read(cx).visual_lane_count();
+    let (graph_open, kf_menu, path_menu) = {
+        let app = state.read(cx);
+        (
+            app.timeline_graph_open(),
+            app.keyframe_context_menu(),
+            app.mask_path_key_menu(),
+        )
+    };
+    let graph_h = if graph_open {
+        crate::app::property_rows::GRAPH_EDITOR_H
+    } else {
+        0.0
+    };
+    let stack_h =
+        (panel_h - RULER_H - overview::OVERVIEW_H - AV_DIVIDER_H - graph_h - 16.0).max(96.0);
+    let video_viewport_h = (stack_h * av_split).max(36.0);
+    let audio_viewport_h = (stack_h * (1.0 - av_split)).max(36.0);
+
+    let video_group = lane_group(
+        &theme,
+        state,
+        &store,
+        0..visual_rows,
+        false,
+        true,
+        video_scroll_y,
+        video_viewport_h,
+        track_dragging,
+        drop_row,
+        pps,
+        fps,
+        scroll_x,
+        view_start,
+        view_end,
+        playhead_at,
+        snap_guide,
+        waves.clone(),
+        strips.clone(),
+        reduced,
+        cx,
+    );
+    let audio_group = lane_group(
+        &theme,
+        state,
+        &store,
+        visual_rows..total_rows,
+        true,
+        false,
+        audio_scroll_y,
+        audio_viewport_h,
+        track_dragging,
+        drop_row,
+        pps,
+        fps,
+        scroll_x,
+        view_start,
+        view_end,
+        playhead_at,
+        snap_guide,
+        waves,
+        strips,
+        reduced,
+        cx,
+    );
+
+    let video_pct = (av_split * 100.0).clamp(15.0, 85.0);
+    let audio_pct = 100.0 - video_pct;
 
     div()
         .id("timeline")
@@ -185,21 +232,105 @@ pub fn render(
         .on_scroll_wheel(cx.listener(move |this, event: &ScrollWheelEvent, _, cx| {
             handle_scroll(this, event, cx);
         }))
+        .on_mouse_move(cx.listener(move |this, event: &MouseMoveEvent, _, cx| {
+            let Some((origin_y, start_split)) = AV_DIVIDER_DRAG.get() else {
+                return;
+            };
+            if !event.dragging() {
+                AV_DIVIDER_DRAG.set(None);
+                return;
+            }
+            let dy = f32::from(event.position.y) - origin_y;
+            let next = start_split + dy / stack_h.max(80.0);
+            this.state
+                .update(cx, |state, _| state.set_timeline_av_split(next));
+            cx.notify();
+        }))
+        .on_mouse_up(
+            MouseButton::Left,
+            cx.listener(|_, _: &MouseUpEvent, _, _| {
+                AV_DIVIDER_DRAG.set(None);
+            }),
+        )
+        .on_mouse_down(
+            MouseButton::Middle,
+            cx.listener(|this, event: &MouseDownEvent, _, cx| {
+                this.start_pan(f32::from(event.position.x), cx);
+            }),
+        )
         .child(measure(state))
         .child(ruler(
             &theme,
-            &ticks,
+            &store.sequence,
             playhead_at,
             pps,
             fps,
             scroll_x,
             visible_width,
+            view_start,
+            view_end,
             snap_guide,
-            add_name,
-            zoom,
             state,
             cx,
         ))
+        .child(
+            div()
+                .id("timeline-stack")
+                .flex_1()
+                .min_h_0()
+                .w_full()
+                .flex()
+                .flex_col()
+                .relative()
+                .overflow_hidden()
+                .child(drop::edge_strip(
+                    &theme, true, scroll_x, outline, fps, pps, cx,
+                ))
+                .child(
+                    div()
+                        .w_full()
+                        .h(gpui::relative(video_pct / 100.0))
+                        .min_h(px(28.))
+                        .overflow_hidden()
+                        .child(video_group),
+                )
+                .child(av_divider(&theme, outline, cx))
+                .child(
+                    div()
+                        .w_full()
+                        .h(gpui::relative(audio_pct / 100.0))
+                        .min_h(px(28.))
+                        .overflow_hidden()
+                        .child(audio_group),
+                )
+                .child(drop::edge_strip(
+                    &theme, false, scroll_x, outline, fps, pps, cx,
+                ))
+                .when(no_clips, |el| {
+                    el.child(
+                        div()
+                            .absolute()
+                            .inset_0()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .text_size(Theme::TEXT_UI)
+                            .text_color(theme.text_faint)
+                            .child("Drag media here to start."),
+                    )
+                }),
+        )
+        .when(graph_open, |el| {
+            el.child(property_rows::render_graph_editor(
+                &theme,
+                state,
+                pps,
+                fps,
+                scroll_x,
+                playhead_at,
+                cx,
+            ))
+        })
         .child(overview(
             &theme,
             &store,
@@ -207,51 +338,24 @@ pub fn render(
             fps,
             scroll_x,
             visible_width,
+            add_name,
+            zoom,
             state,
             cx,
         ))
-        .child(
-            // The stack scrolls under a fixed ruler, and its top and bottom
-            // edges fade rather than cut: a lane sliding out of view says so.
-            crate::edge_fade::edge_faded(
-                Theme::SPACE_LG,
-                true,
-                true,
-                div()
-                    .id("timeline-stack")
-                    .flex_1()
-                    .min_h_0()
-                    .overflow_y_scroll()
-                    .track_scroll(&stack_scroll)
-                    .flex()
-                    .flex_col()
-                    .when(no_clips, |el| {
-                        el.child(
-                            div()
-                                .flex_1()
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .text_size(px(13.))
-                                .text_color(theme.text_faint)
-                                .child("Drag media here to start."),
-                        )
-                    })
-                    // The strips above and below the stack are the only media
-                    // drop that adds a lane.
-                    .child(drop::edge_strip(&theme, true, scroll_x, fps, pps, cx))
-                    .children(lanes)
-                    .child(drop::edge_strip(&theme, false, scroll_x, fps, pps, cx)),
-            )
-            .fade_overflow_y(&stack_scroll),
-        )
+        .child(outline_edge(outline, cx))
+        .when_some(kf_menu, |el, menu| {
+            el.child(property_rows::render_keyframe_context_menu(
+                &theme, menu, cx,
+            ))
+        })
+        .when_some(path_menu, |el, menu| {
+            el.child(property_rows::render_mask_path_key_menu(&theme, menu, cx))
+        })
         .on_mouse_down(
             MouseButton::Left,
             cx.listener(|this, event: &MouseDownEvent, _, cx| {
                 let tool = this.state.read(cx).tool;
-                // Asked as capabilities, not as variant names: a tool that pans
-                // says so in its row. There is no fallthrough arm, so a new
-                // tool cannot silently inherit "does nothing on lane space".
                 if tool.pans() {
                     this.start_pan(f32::from(event.position.x), cx);
                 } else if tool.zooms() {
@@ -268,6 +372,62 @@ pub fn render(
         )
 }
 
+/// The grab band on the outline column's right border, inside the column. It
+/// spans the timeline's full height, so the ruler, the lanes, and the graph
+/// editor resize together.
+fn outline_edge(outline: f32, cx: &mut gpui::Context<crate::shell::Shell>) -> impl IntoElement {
+    div()
+        .id("timeline-outline-edge")
+        .absolute()
+        .top_0()
+        .bottom_0()
+        .left(px(outline - OUTLINE_EDGE_W))
+        .w(px(OUTLINE_EDGE_W))
+        .cursor(CursorStyle::ResizeLeftRight)
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(move |this, event: &MouseDownEvent, _, cx| {
+                cx.stop_propagation();
+                this.start_outline_resize(f32::from(event.position.x), outline);
+            }),
+        )
+}
+
+fn av_divider(
+    theme: &Theme,
+    outline: f32,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> impl IntoElement {
+    div()
+        .id("timeline-av-divider")
+        .w_full()
+        .h(px(AV_DIVIDER_H))
+        .bg(theme.surface_raised)
+        .border_t_1()
+        .border_b_1()
+        .border_color(theme.border_strong)
+        .cursor(CursorStyle::ResizeUpDown)
+        .flex()
+        .items_center()
+        // The bar is 6 px high, too short for a label; the rule marks the
+        // outline column's edge.
+        .child(
+            div()
+                .w(px(outline))
+                .h_full()
+                .border_r_1()
+                .border_color(theme.border),
+        )
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(|this, event: &MouseDownEvent, _, cx| {
+                cx.stop_propagation();
+                let split = this.state.read(cx).timeline_av_split;
+                AV_DIVIDER_DRAG.set(Some((f32::from(event.position.y), split)));
+            }),
+        )
+}
+
 fn handle_scroll(
     this: &mut crate::shell::Shell,
     event: &ScrollWheelEvent,
@@ -276,18 +436,15 @@ fn handle_scroll(
     let delta = event.delta.pixel_delta(px(24.0));
     let dx = f32::from(delta.x);
     let dy = f32::from(delta.y);
-    let ctrl = event.modifiers.control || event.modifiers.platform;
-    if ctrl {
+    let zoom_mod = event.modifiers.control || event.modifiers.platform || event.modifiers.alt;
+    if zoom_mod {
         let notches = if dy.abs() > 0.0 { -dy } else { -dx };
         let factor = if notches > 0.0 {
             crate::transport::ZOOM_WHEEL_STEP
         } else {
             1.0 / crate::transport::ZOOM_WHEEL_STEP
         };
-        this.state.update(cx, |state, _| {
-            state.set_zoom(state.zoom * factor, false);
-        });
-        cx.notify();
+        this.zoom_at(f32::from(event.position.x), factor, cx);
         return;
     }
     let trackpad = matches!(event.delta, ScrollDelta::Pixels(_));
@@ -306,15 +463,6 @@ fn handle_scroll(
     cx.notify();
 }
 
-/// Records where the panel is drawn every paint, so a pointer position can be
-/// turned into a tick. Draws nothing and takes no pointer.
-///
-/// The panel is not at the window's left edge and does not stay put: the media
-/// rail beside it is resizable and collapsible, and the window itself resizes.
-/// Measuring is the only way to know, which is what the ramp graph and the
-/// source monitor's scrub bar already do.
-///
-/// Repaints only when the rectangle moved; anything else is a repaint loop.
 fn measure(state: &Entity<AppState>) -> impl IntoElement {
     let state = state.clone();
     gpui::canvas(
@@ -337,12 +485,6 @@ fn measure(state: &Entity<AppState>) -> impl IntoElement {
     .size_full()
 }
 
-/// The tick under a pointer, from the position the platform reported.
-///
-/// `content_left` is where the scrolling content begins in window coordinates
-/// ([`AppState::timeline_content_left`]). Every gesture that reads a tick out of
-/// a pointer — a click on the ruler, a scrub, a rubber band — goes through here,
-/// so they cannot disagree about where tick zero is.
 pub(crate) fn pointer_ticks(
     x: gpui::Pixels,
     content_left: f32,
@@ -357,14 +499,10 @@ pub(super) fn ticks_to_px(ticks: i64, fps: f32, pps: f32) -> f32 {
     ticks_to_px_f(ticks as f32, fps, pps)
 }
 
-/// The same conversion for a position between two frames, which is where a
-/// followed playhead spends most of its time.
 pub(super) fn ticks_to_px_f(ticks: f32, fps: f32, pps: f32) -> f32 {
     (ticks / fps.max(1.0)) * pps
 }
 
-/// The tick a lane-relative x lands on, never negative. Rounds down, so a drop
-/// lands on the frame the pointer is inside rather than the next one.
 pub(crate) fn px_to_ticks(x: f32, fps: f32, pps: f32) -> i64 {
     if pps <= 0.0 {
         return 0;
@@ -372,56 +510,119 @@ pub(crate) fn px_to_ticks(x: f32, fps: f32, pps: f32) -> i64 {
     ((x.max(0.0) / pps) * fps.max(1.0)).floor() as i64
 }
 
-pub fn ruler_ticks(duration_ticks: i64, fps: i64, zoom: f32) -> Vec<UiRulerTick> {
-    let fps = fps.max(1);
-    let step = if zoom >= 4.0 {
-        1
-    } else if zoom >= 1.5 {
-        fps / 4
-    } else if zoom >= 0.6 {
-        fps
-    } else {
-        fps * 5
+/// The ruler's tick spacing at one zoom, in ticks: a labelled tick every
+/// `major`, an unlabelled one every `minor`. `minor` divides `major`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RulerScale {
+    pub major: i64,
+    pub minor: i64,
+}
+
+/// The closest two unlabelled ticks are drawn, in pixels.
+pub(crate) const RULER_MINOR_MIN_PX: f32 = 8.0;
+/// Clear space after a label before the next labelled tick, in pixels.
+pub(crate) const RULER_LABEL_GAP_PX: f32 = 12.0;
+/// Frame counts under one timecode second a timecode ruler steps by, where
+/// they divide the second.
+const TIMECODE_SUBSECOND: [i64; 13] = [1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30];
+/// Timecode steps from one second to half an hour, in seconds. Past that the
+/// ruler steps in hours.
+const TIMECODE_CLOCK: [i64; 12] = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800];
+/// Frame counts under one foot a feet-and-frames ruler steps by.
+const FEET_SUBFOOT: [i64; 4] = [1, 2, 4, 8];
+
+/// Every spacing `display` counts in at `rate`, in ticks, ascending: steps
+/// that divide its unit (a timecode second, a foot), then whole units on the
+/// 1-2-5 series (seconds, minutes and hours for timecode).
+fn ruler_steps(
+    rate: aria_models::Rational,
+    display: aria_models::TimeDisplay,
+) -> impl Iterator<Item = i64> {
+    use aria_models::TimeDisplay;
+    let (unit, below, clock, decade_unit): (i64, &'static [i64], &'static [i64], i64) =
+        match display {
+            TimeDisplay::Timecode => {
+                let second = rate.nominal_fps();
+                (second, &TIMECODE_SUBSECOND, &TIMECODE_CLOCK, second * 3600)
+            }
+            TimeDisplay::Frames => (1, &[], &[], 1),
+            TimeDisplay::FeetFrames => (
+                TimeDisplay::FRAMES_PER_FOOT,
+                &FEET_SUBFOOT,
+                &[],
+                TimeDisplay::FRAMES_PER_FOOT,
+            ),
+        };
+    below
+        .iter()
+        .copied()
+        .filter(move |step| *step < unit && unit % step == 0)
+        .chain(clock.iter().map(move |seconds| seconds * unit))
+        .chain(
+            (0..10_u32)
+                .flat_map(|power| [1_i64, 2, 5].map(|n| n * 10_i64.pow(power)))
+                .map(move |n| n * decade_unit),
+        )
+}
+
+/// The spacing that keeps every label clear of the next at `px_per_tick`.
+///
+/// `label_px` is the widest label's drawn width. The labelled step is the
+/// smallest one whose gap holds that label plus `RULER_LABEL_GAP_PX`, so two
+/// labels never overlap at any zoom; the unlabelled step is the smallest one
+/// that divides it and stays `RULER_MINOR_MIN_PX` apart.
+pub fn ruler_scale(
+    rate: aria_models::Rational,
+    display: aria_models::TimeDisplay,
+    px_per_tick: f32,
+    label_px: f32,
+) -> RulerScale {
+    let fits = |step: i64, min_px: f32| step as f32 * px_per_tick >= min_px;
+    let largest = ruler_steps(rate, display).last().unwrap_or(1);
+    let major = ruler_steps(rate, display)
+        .find(|step| fits(*step, label_px + RULER_LABEL_GAP_PX))
+        .unwrap_or(largest);
+    let minor = ruler_steps(rate, display)
+        .take_while(|step| *step < major)
+        .find(|step| major % step == 0 && fits(*step, RULER_MINOR_MIN_PX))
+        .unwrap_or(major);
+    RulerScale { major, minor }
+}
+
+/// Characters in the widest label a ruler over `[0, last_tick]` draws.
+pub fn ruler_label_chars(
+    rate: aria_models::Rational,
+    display: aria_models::TimeDisplay,
+    last_tick: i64,
+) -> usize {
+    struct Count(usize);
+    impl std::fmt::Write for Count {
+        fn write_str(&mut self, text: &str) -> std::fmt::Result {
+            self.0 += text.chars().count();
+            Ok(())
+        }
     }
-    .max(1);
-    let mut ticks = Vec::new();
-    let mut t = 0;
-    while t <= duration_ticks.max(0) {
-        let seconds = t / fps;
-        let frames = t % fps;
-        let major = t % (step * 4).max(step) == 0;
-        ticks.push(UiRulerTick {
-            position_ticks: t,
-            label: if major {
-                format!("{seconds}:{frames:02}").into()
-            } else {
-                gpui::SharedString::default()
-            },
-            major,
-        });
-        t += step;
-    }
-    ticks
+    let mut count = Count(0);
+    // Infallible: `Count` only ever returns `Ok`.
+    let _ = std::fmt::Write::write_fmt(
+        &mut count,
+        format_args!(
+            "{}",
+            crate::timecode::display_time(last_tick.max(0), rate, display)
+        ),
+    );
+    count.0
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// **A pointer is in window coordinates; a tick is not.**
-    ///
-    /// The conversion used to subtract the header column alone, which is only
-    /// right when the panel starts at x=0. It never does: the media rail and its
-    /// splitter are to its left, so a click on the first frame landed the whole
-    /// rail's width into the sequence — three seconds at the default zoom. The
-    /// panel measures where it is drawn and every gesture reads that.
     #[test]
     fn a_pointer_tick_is_measured_from_where_the_panel_was_drawn() {
-        // 24fps, 80px per second: one second of sequence is 80px and 24 ticks.
         let (fps, pps) = (24.0, 80.0);
-        // The panel drawn at x=264 (a 260px rail plus its 4px splitter), so its
-        // content starts at 264 + 132.
-        let left = 264.0 + HEADER_W;
+        let outline = crate::settings::OUTLINE_DEFAULT;
+        let left = 264.0 + outline;
 
         assert_eq!(
             pointer_ticks(px(left), left, 0.0, fps, pps),
@@ -443,40 +644,151 @@ mod tests {
             72,
             "a scrolled view adds its offset: 160px is two more seconds"
         );
-        // The bug this closes, stated as the number it produced: subtracting the
-        // header width alone from the same pointer.
         assert_eq!(
-            px_to_ticks(left + 80.0 - HEADER_W, fps, pps),
+            px_to_ticks(left + 80.0 - outline, fps, pps),
             103,
             "the old conversion put a click on the first second at 103 ticks"
         );
     }
 
+    /// An eased zoom around the playhead keeps the playhead where it is drawn
+    /// on every frame of the travel, not only at the two ends.
+    ///
+    /// The class: the scale and the offset riding two specs, so a zoom that
+    /// lands on the right frame drifts the anchored tick sideways on the way
+    /// there. Sampled from the glide store across the whole span, so a spec or
+    /// curve that disagrees with the zoom's at any instant is red. It does not
+    /// cover a release, whose overshoot is the point of the fling spec.
     #[test]
-    fn ruler_ticks_at_unit_zoom_steps_by_fps() {
-        let ticks = ruler_ticks(48, 24, 1.0);
-        assert_eq!(
-            ticks.iter().map(|t| t.position_ticks).collect::<Vec<_>>(),
-            vec![0, 24, 48]
-        );
-        assert!(ticks[0].major);
-        assert_eq!(ticks[0].label, "0:00");
-        assert!(!ticks[1].major);
-        assert_eq!(ticks[1].label, "");
-        assert!(!ticks[2].major);
-        assert_eq!(ticks[2].label, "");
-    }
+    fn an_eased_zoom_holds_its_anchor_on_every_frame() {
+        use crate::motion::{MotionKey, TestFrames};
 
-    #[test]
-    fn ruler_ticks_at_high_zoom_are_per_frame() {
-        let ticks = ruler_ticks(3, 24, 4.0);
-        assert_eq!(ticks.len(), 4);
-        assert_eq!(ticks[1].position_ticks, 1);
+        let frames = TestFrames::new();
+        let (zoom_key, scroll_key) = (
+            MotionKey::new("anchor-test", "zoom"),
+            MotionKey::new("anchor-test", "scroll"),
+        );
+        let (anchor_s, from_zoom, to_zoom) = (5.0_f32, 1.0_f32, 2.0_f32);
+        let from_scroll = 120.0_f32;
+        let anchor_px = anchor_s * BASE_PPS * from_zoom - from_scroll;
+        let to_scroll = anchor_s * BASE_PPS * to_zoom - anchor_px;
+        glide::glide(zoom_key, from_zoom, glide::ZOOM, false);
+        glide::glide(scroll_key, from_scroll, scroll_spec(false), false);
+
+        let steps = 20;
+        let step = glide::ZOOM.total().max(scroll_spec(false).total()) / steps;
+        let mut moved = false;
+        for _ in 0..=steps + 1 {
+            let zoom = glide::glide(zoom_key, to_zoom, glide::ZOOM, false);
+            let scroll = glide::glide(scroll_key, to_scroll, scroll_spec(false), false);
+            moved |= zoom != from_zoom && zoom != to_zoom;
+            let drawn = anchor_s * BASE_PPS * zoom - scroll;
+            assert!(
+                (drawn - anchor_px).abs() < 0.5,
+                "the anchor drew at {drawn} px instead of {anchor_px} px (zoom {zoom}, scroll {scroll})"
+            );
+            frames.advance(step);
+        }
+        assert!(
+            moved,
+            "the zoom never travelled, so the anchor was never tested"
+        );
     }
 
     #[test]
     fn ticks_to_px_uses_fps_not_seconds_as_pixels() {
         assert!((ticks_to_px(24, 24.0, 80.0) - 80.0).abs() < f32::EPSILON);
         assert!((ticks_to_px(12, 24.0, 80.0) - 40.0).abs() < f32::EPSILON);
+    }
+
+    /// Labels never overlap at any zoom, in any time display, at any rate the
+    /// settings dialog offers, and they are as dense as that allows.
+    ///
+    /// The class: a ruler whose spacing came from fixed zoom bands, so a label
+    /// wider than its band (full timecode, a long frame count) ran into the
+    /// next, and a band chosen by the rate's numerator put 23.976 on a grid of
+    /// 24000 ticks. The sweep covers the whole zoom range; the rates are the
+    /// dialog's, and the displays are the model's own list.
+    #[test]
+    fn ruler_labels_never_overlap_and_stay_as_dense_as_they_fit() {
+        use aria_models::TimeDisplay;
+        let digit_px = 6.6_f32;
+        for rate in crate::surfaces::settings_pick::RATES {
+            for display in TimeDisplay::ALL {
+                let steps: Vec<i64> = ruler_steps(rate, display).collect();
+                assert!(
+                    steps.windows(2).all(|pair| pair[0] < pair[1]),
+                    "{display:?} at {rate:?} steps out of order: {steps:?}"
+                );
+                let label_px = ruler_label_chars(rate, display, 3 * 3600 * 60) as f32 * digit_px;
+                let mut previous_major = i64::MAX;
+                let mut px_per_tick = 0.0005_f32;
+                while px_per_tick < 400.0 {
+                    let scale = ruler_scale(rate, display, px_per_tick, label_px);
+                    let need = label_px + RULER_LABEL_GAP_PX;
+                    assert!(
+                        scale.major as f32 * px_per_tick >= need
+                            || scale.major == *steps.last().unwrap(),
+                        "{display:?} at {rate:?}, {px_per_tick} px a tick: labels {} ticks \
+                         apart overlap",
+                        scale.major
+                    );
+                    if let Some(smaller) = steps.iter().rev().find(|step| **step < scale.major) {
+                        assert!(
+                            (*smaller as f32) * px_per_tick < need,
+                            "{display:?} at {rate:?}: {smaller} ticks would have fit but the \
+                             ruler labelled every {}",
+                            scale.major
+                        );
+                    }
+                    assert_eq!(scale.major % scale.minor, 0, "{scale:?}");
+                    assert!(
+                        scale.minor == scale.major
+                            || scale.minor as f32 * px_per_tick >= RULER_MINOR_MIN_PX,
+                        "{scale:?} draws unlabelled ticks closer than they read"
+                    );
+                    assert!(
+                        scale.major <= previous_major,
+                        "zooming in widened the label spacing to {scale:?}"
+                    );
+                    previous_major = scale.major;
+                    px_per_tick *= 1.07;
+                }
+            }
+        }
+    }
+
+    /// A timecode label lands on a whole second, or on a frame that divides
+    /// the second evenly, so its frame field reads a round value.
+    #[test]
+    fn timecode_labels_land_on_round_frames() {
+        use aria_models::{Rational, TimeDisplay};
+        for rate in crate::surfaces::settings_pick::RATES {
+            let second = rate.nominal_fps();
+            for step in ruler_steps(rate, TimeDisplay::Timecode) {
+                assert!(
+                    second % step == 0 || step % second == 0,
+                    "{rate:?}: a label every {step} ticks drifts off the second"
+                );
+            }
+        }
+        let scale = ruler_scale(Rational::FPS_23_976, TimeDisplay::Timecode, 4.0, 72.6);
+        assert_eq!(
+            scale,
+            RulerScale {
+                major: 24,
+                minor: 2
+            }
+        );
+    }
+
+    #[test]
+    fn the_widest_label_is_measured_in_the_display() {
+        use aria_models::{Rational, TimeDisplay};
+        let rate = Rational::FPS_24;
+        assert_eq!(ruler_label_chars(rate, TimeDisplay::Timecode, 292), 11);
+        assert_eq!(ruler_label_chars(rate, TimeDisplay::Frames, 292), 3);
+        assert_eq!(ruler_label_chars(rate, TimeDisplay::Frames, 120_000), 6);
+        assert_eq!(ruler_label_chars(rate, TimeDisplay::FeetFrames, 292), 7);
     }
 }

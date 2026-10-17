@@ -56,40 +56,40 @@ pub(super) fn render_into(
             Some((root, path))
         })
         .flatten();
+    // On the session's preview worker, after every Viewer and render-ahead
+    // frame waiting there: a codec that panics costs the picture, not the
+    // window, and a hover over a pool tile never holds up playback.
+    let rendered = state
+        .read(cx)
+        .preview_worker
+        .run(cx.background_executor(), move || {
+            // The content key is a `stat` of the source, so it is taken here
+            // rather than on the window's thread.
+            let cached = poster.and_then(|(root, path)| {
+                let key = crate::app::analysis::content_key_for(&path).ok()?;
+                Some(disk::poster_path(&root, key, max_w, max_h))
+            });
+            if let Some(image) = cached
+                .as_deref()
+                .and_then(disk::read)
+                .and_then(|frame| crate::frame::rgba_to_render(&frame))
+            {
+                return Some(image);
+            }
+            let frame = engine
+                .lock()
+                .media_frame_fit(MediaId::from_raw(media), tick, max_w, max_h)
+                .ok()?;
+            if let Some(path) = cached.as_deref() {
+                // A cache that cannot be written is not a failed render: the
+                // picture is already decoded and the tile still gets it.
+                let _ = disk::write(path, &frame);
+            }
+            crate::frame::rgba_to_render(&frame)
+        });
     let state = state.clone();
     cx.spawn(async move |cx| {
-        // Its own thread, so a codec that panics cannot take the window with it,
-        // and the wait is as long as the decode: waiting on the foreground
-        // executor would stop the window for it, which is what a hover over a
-        // pool tile used to cost.
-        let rendered =
-            crate::handoff::on_a_thread(cx.background_executor(), "aria-pool-preview", move || {
-                // The content key is a `stat` of the source, so it is taken here
-                // rather than on the window's thread.
-                let cached = poster.and_then(|(root, path)| {
-                    let key = crate::app::analysis::content_key_for(&path).ok()?;
-                    Some(disk::poster_path(&root, key, max_w, max_h))
-                });
-                if let Some(image) = cached
-                    .as_deref()
-                    .and_then(disk::read)
-                    .and_then(|frame| crate::frame::rgba_to_render(&frame))
-                {
-                    return Some(image);
-                }
-                let frame = engine
-                    .lock()
-                    .media_frame_fit(MediaId::from_raw(media), tick, max_w, max_h)
-                    .ok()?;
-                if let Some(path) = cached.as_deref() {
-                    // A cache that cannot be written is not a failed render: the
-                    // picture is already decoded and the tile still gets it.
-                    let _ = disk::write(path, &frame);
-                }
-                crate::frame::rgba_to_render(&frame)
-            })
-            .await
-            .flatten();
+        let rendered = rendered.await.flatten();
         let _ = state.update(cx, |state, cx| {
             if monitor {
                 state

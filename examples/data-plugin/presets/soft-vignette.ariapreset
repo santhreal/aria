@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "name": "Soft Vignette",
+  "effects": [
+    {
+      "effect_id": "vignette"
+    }
+  ],
+  "audio_effects": [],
+  "properties": []
+}

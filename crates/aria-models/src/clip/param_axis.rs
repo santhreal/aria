@@ -20,7 +20,7 @@
 
 use crate::effects::EffectInstance;
 use crate::error::ModelError;
-use crate::param::{Easing, Param, PiecewiseEasingPreset};
+use crate::param::{Easing, Param, PiecewiseEasingPreset, TemporalEase};
 
 use super::param_catalog::{ParamKind, ParamRange, ParamRoute, ParamScope, param_spec};
 use super::transform::{
@@ -140,6 +140,11 @@ pub(crate) struct ClipParamSpec {
     /// the model reads the row instead of restating the variant list.
     pub ease:
         Option<fn(&mut Clip, ClipParam, i64, PiecewiseEasingPreset) -> Result<(), ModelError>>,
+    /// The value a reset returns the property to on `clip`: what the block
+    /// holds when it is first made. `None` where nothing resets, which is a
+    /// row with no write verb of its own (the speed ramp) or an effect slot
+    /// whose kind no curve carries.
+    pub default: fn(&Clip, ClipParam) -> Option<ParamValue>,
 }
 
 impl ClipParam {
@@ -161,6 +166,7 @@ impl ClipParam {
             Self::Volume => &direct::VOLUME,
             Self::Pan => &direct::PAN,
             Self::Effect { .. } => &delegated::EFFECT,
+            Self::Mask { .. } => &delegated::MASK,
             Self::Shape { .. } => &delegated::SHAPE,
             Self::Text { .. } => &delegated::TEXT,
             Self::Look { .. } => &delegated::LOOK,
@@ -196,10 +202,20 @@ impl ClipParam {
 
     /// Where this parameter's value lives on `clip`, borrowed for reading.
     ///
-    /// [`ParamRoute::Absent`] is the availability rule: a mask feather has no
-    /// route until a mask exists.
+    /// [`ParamRoute::Absent`] is the availability rule: a mask's feather has no
+    /// route until that mask exists.
     pub(crate) fn route(self, clip: &Clip) -> ParamRoute<'_> {
         (self.spec().read)(clip, self)
+    }
+
+    /// This parameter's curve on `clip` when it is a keyframed point: the
+    /// curve a motion path draws. `None` for any other value kind, and for a
+    /// point with no keyframes.
+    pub fn motion_path(self, clip: &Clip) -> Option<&Param<[f32; 2]>> {
+        match self.route(clip) {
+            ParamRoute::Vec2(curve) if !curve.keyframes().is_empty() => Some(curve),
+            _ => None,
+        }
     }
 
     /// Kind and range check for a candidate value, before anything is written.
@@ -224,6 +240,15 @@ impl ClipParam {
         easing.validate()?;
         self.validate_value(value)?;
         (self.spec().keyframe)(clip, self, tick, value, easing)
+    }
+
+    /// The value a reset returns this parameter to on `clip`: what its block
+    /// holds when it is first made. `None` when nothing resets it.
+    ///
+    /// Not gated on the property being reachable on `clip`;
+    /// [`crate::ParamSpec::default_value`] is.
+    pub fn default_value(self, clip: &Clip) -> Option<ParamValue> {
+        (self.spec().default)(clip, self)
     }
 
     /// Replace this parameter with a constant, dropping its keyframes.
@@ -262,6 +287,43 @@ impl ClipParam {
             _ => Err(no_easing_preset(self)),
         }
     }
+
+    /// Set incoming/outgoing temporal ease and/or hold state on the keyframe
+    /// at `tick`.
+    pub fn set_keyframe_temporal_ease(
+        self,
+        clip: &mut Clip,
+        tick: i64,
+        in_ease: Option<TemporalEase>,
+        out_ease: Option<TemporalEase>,
+        hold: bool,
+    ) -> Result<(), ModelError> {
+        if let Some(inp) = in_ease {
+            inp.validate()?;
+        }
+        if let Some(out) = out_ease {
+            out.validate()?;
+        }
+        let (_, _, value, easing) = keyframe_entry_at(self, clip, tick)?;
+        let next = easing.with_temporal_ease(in_ease, out_ease, hold);
+        self.set_keyframe(clip, tick, value, next)
+    }
+
+    /// Set or clear roving on the keyframe at `tick` and return its solved
+    /// clip-local tick. Roving is ignored on the first and last keyframe of a
+    /// property.
+    pub fn set_keyframe_roving(
+        self,
+        clip: &mut Clip,
+        tick: i64,
+        roving: bool,
+    ) -> Result<i64, ModelError> {
+        let (idx, len, value, easing) = keyframe_entry_at(self, clip, tick)?;
+        let effective_roving = roving && idx > 0 && idx + 1 < len;
+        let next = easing.with_roving(effective_roving);
+        self.set_keyframe(clip, tick, value, next)?;
+        Ok(keyframe_tick_at_index(self, clip, idx).unwrap_or(tick))
+    }
 }
 
 /// Every row, paired with the variant it belongs to, in declaration order.
@@ -289,6 +351,44 @@ fn no_easing_preset_for_rect() -> ModelError {
     ModelError::InvalidParam(
         "easing presets are not supported on crop (no safe extrapolation)".into(),
     )
+}
+
+fn keyframe_entry_at(
+    param: ClipParam,
+    clip: &Clip,
+    tick: i64,
+) -> Result<(usize, usize, ParamValue, Easing), ModelError> {
+    fn find<T: Copy>(
+        p: &Param<T>,
+        tick: i64,
+        wrap: impl FnOnce(T) -> ParamValue,
+    ) -> Option<(usize, usize, ParamValue, Easing)> {
+        let kfs = p.keyframes();
+        let i = kfs.binary_search_by_key(&tick, |kf| kf.tick).ok()?;
+        Some((i, kfs.len(), wrap(kfs[i].value), kfs[i].easing))
+    }
+    let found = match param.route(clip) {
+        ParamRoute::Scalar(p) => find(p, tick, ParamValue::Scalar),
+        ParamRoute::Vec2(p) => find(p, tick, ParamValue::Vec2),
+        ParamRoute::Vec3(p) => find(p, tick, ParamValue::Vec3),
+        ParamRoute::Scale(p) => find(p, tick, |s| ParamValue::Vec2([s.x, s.y])),
+        ParamRoute::Color(p) => find(p, tick, ParamValue::Color),
+        ParamRoute::Rect(p) => find(p, tick, |r| ParamValue::Rect([r.x, r.y, r.w, r.h])),
+        ParamRoute::Const(_) | ParamRoute::Absent => None,
+    };
+    found.ok_or_else(|| ModelError::InvalidParam(format!("no {param:?} keyframe at tick {tick}")))
+}
+
+fn keyframe_tick_at_index(param: ClipParam, clip: &Clip, idx: usize) -> Option<i64> {
+    match param.route(clip) {
+        ParamRoute::Scalar(p) => p.keyframes().get(idx).map(|kf| kf.tick),
+        ParamRoute::Vec2(p) => p.keyframes().get(idx).map(|kf| kf.tick),
+        ParamRoute::Vec3(p) => p.keyframes().get(idx).map(|kf| kf.tick),
+        ParamRoute::Scale(p) => p.keyframes().get(idx).map(|kf| kf.tick),
+        ParamRoute::Color(p) => p.keyframes().get(idx).map(|kf| kf.tick),
+        ParamRoute::Rect(p) => p.keyframes().get(idx).map(|kf| kf.tick),
+        ParamRoute::Const(_) | ParamRoute::Absent => None,
+    }
 }
 
 /// A parameter whose value is one [`Param`] on the clip: the write verbs are
@@ -381,6 +481,9 @@ fn not_writable(param: ClipParam) -> ModelError {
         ClipParamClass::Excluded(ParamExclusion::EffectSlot) => {
             "an effect slot is addressed through the clip's effect chain"
         }
+        ClipParamClass::Excluded(ParamExclusion::MaskSlot) => {
+            "a mask property is addressed through the clip's mask stack"
+        }
         ClipParamClass::Direct(_) | ClipParamClass::Delegated(_) => "the row declares no slot",
     };
     ModelError::InvalidParam(format!(
@@ -416,6 +519,7 @@ fn delegated_validate(param: ClipParam, value: ParamValue) -> Result<(), ModelEr
     let got = match value {
         ParamValue::Scalar(_) => ParamKind::Scalar,
         ParamValue::Vec2(_) => ParamKind::Vec2,
+        ParamValue::Vec3(_) => ParamKind::Vec3,
         ParamValue::Color(_) => ParamKind::Color,
         ParamValue::Rect(_) => ParamKind::Rect,
     };

@@ -90,23 +90,26 @@ pub struct Project {
     largest_used_video: std::sync::OnceLock<Option<(u32, u32)>>,
 }
 
+mod attributes;
 mod audio_inserts;
 mod bake;
 mod edit;
 mod helpers;
 mod layout;
 mod link;
+mod link_drift;
 mod look;
 mod media;
 #[path = "multicam.rs"]
 mod multicam;
 mod params;
+mod parent;
 mod placement;
 #[path = "sequence.rs"]
 mod sequence;
 mod transitions;
 
-pub use link::LinkAssignment;
+pub use link::{EnableAssignment, GroupAssignment, LinkAssignment};
 
 #[cfg(test)]
 mod tests;
@@ -149,30 +152,34 @@ impl Project {
     /// The first read after a timeline, sequence, or media mutation computes
     /// the value. Frame resolution then reads the `OnceLock` in O(1).
     pub fn largest_used_video_dimensions(&self) -> Option<(u32, u32)> {
-        *self.largest_used_video.get_or_init(|| {
-            let mut best: Option<(u32, u32)> = None;
-            for track in self.timeline().tracks_ordered() {
-                if !track.kind.is_visual() {
+        *self
+            .largest_used_video
+            .get_or_init(|| self.largest_video_dimensions_on(self.timeline()))
+    }
+
+    /// Largest video dimensions referenced by `timeline`, the open one or a
+    /// nested sequence's, computed on every call.
+    pub fn largest_video_dimensions_on(&self, timeline: &Timeline) -> Option<(u32, u32)> {
+        let mut best: Option<(u32, u32)> = None;
+        for track in timeline.tracks_ordered() {
+            if !track.kind.is_visual() {
+                continue;
+            }
+            for clip in track.clips() {
+                let Some(id) = clip.media() else { continue };
+                let Some(media) = self.media(id) else {
+                    continue;
+                };
+                if media.kind() != MediaKind::Video {
                     continue;
                 }
-                for clip in track.clips() {
-                    let Some(id) = clip.media() else { continue };
-                    let Some(media) = self.media(id) else {
-                        continue;
-                    };
-                    if media.kind() != MediaKind::Video {
-                        continue;
-                    }
-                    let area = u64::from(media.width) * u64::from(media.height);
-                    if best
-                        .is_none_or(|(width, height)| area > u64::from(width) * u64::from(height))
-                    {
-                        best = Some((media.width, media.height));
-                    }
+                let area = u64::from(media.width) * u64::from(media.height);
+                if best.is_none_or(|(width, height)| area > u64::from(width) * u64::from(height)) {
+                    best = Some((media.width, media.height));
                 }
             }
-            best
-        })
+        }
+        best
     }
 
     fn invalidate_largest_used_video(&mut self) {

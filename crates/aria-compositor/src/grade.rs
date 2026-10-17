@@ -15,6 +15,8 @@
 
 use std::sync::LazyLock;
 
+mod secondary;
+
 /// The value a slider of each shape sits at when it changes nothing.
 ///
 /// The shape column of the row list is the only place a neutral is stated, so
@@ -232,7 +234,7 @@ impl ColorGrade {
             }
         }
 
-        c.map(|ch| ch.clamp(0.0, 1.0))
+        self.apply_secondary(c).map(|ch| ch.clamp(0.0, 1.0))
     }
 
     /// Full-image CPU mirror of the textured grade path: per-pixel [`Self::apply`],

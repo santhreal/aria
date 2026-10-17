@@ -221,25 +221,222 @@ impl AppState {
             return Ok(());
         }
         let rate = self.playhead.rate;
+        let tracks = self.linked_tracks_of(clip, track);
         self.one_step(|this| {
             if left {
                 if delta > 0 {
                     // The head moves right, then the clip and everything after it
                     // slides back to where the head used to be.
-                    this.trim_to(clip, start + delta, end, rate)
-                        .and_then(|()| this.shift_after(track, start + delta, -delta, rate))
+                    this.trim_to(clip, start + delta, end, rate)?;
+                    for lane in tracks {
+                        this.shift_after(lane, start + delta, -delta, rate)?;
+                    }
+                    Ok(())
                 } else {
-                    this.shift_after(track, start, -delta, rate)
-                        .and_then(|()| this.trim_to(clip, start, end - delta, rate))
+                    for lane in tracks {
+                        this.shift_after(lane, start, -delta, rate)?;
+                    }
+                    this.trim_to(clip, start, end - delta, rate)
                 }
             } else if delta > 0 {
-                this.shift_after(track, end, delta, rate)
-                    .and_then(|()| this.trim_to(clip, start, end + delta, rate))
-            } else {
+                for lane in tracks {
+                    this.shift_after(lane, end, delta, rate)?;
+                }
                 this.trim_to(clip, start, end + delta, rate)
-                    .and_then(|()| this.shift_after(track, end, delta, rate))
+            } else {
+                this.trim_to(clip, start, end + delta, rate)?;
+                for lane in tracks {
+                    this.shift_after(lane, end, delta, rate)?;
+                }
+                Ok(())
             }
         })
+    }
+
+    /// Every track holding `clip` or one of its linked companions, starting with `primary`.
+    fn linked_tracks_of(
+        &self,
+        clip: ClipId,
+        primary: aria_models::TrackId,
+    ) -> Vec<aria_models::TrackId> {
+        let mut out = vec![primary];
+        // With linked selection off a ripple trim moves only the trimmed lane.
+        let Some(link) = self
+            .ui_clip_ref(clip)
+            .and_then(|ui| ui.linked_to)
+            .filter(|_| self.linked_selection)
+        else {
+            return out;
+        };
+        for lane in &self.store.sequence.tracks {
+            if lane.locked {
+                continue;
+            }
+            if lane.clips.iter().any(|item| item.linked_to == Some(link)) {
+                let id = aria_models::TrackId::from_raw(lane.id);
+                if !out.contains(&id) {
+                    out.push(id);
+                }
+            }
+        }
+        out
+    }
+
+    /// Compute live on-screen trim feedback for an in-flight timeline gesture.
+    pub fn compute_trim_feedback(
+        &self,
+        gesture: crate::surfaces::timeline_gesture::Gesture,
+        drag: crate::surfaces::timeline_gesture::Drag,
+    ) -> Option<crate::types::TrimFeedback> {
+        use crate::surfaces::timeline_gesture::Gesture;
+        use crate::tool_catalog::{BodyDrag, EdgeDrag};
+        let ui = self.ui_clip_ref(drag.clip)?;
+        let rate = self.store.sequence.frame_rate;
+        let display = self.store.sequence.time_display;
+        let tc = |ticks: i64| crate::timecode::format_time(ticks.max(0), rate, display);
+        let signed_tc = |delta: i64| {
+            let sign = if delta >= 0 { "+" } else { "-" };
+            let body = crate::timecode::format_time(delta.abs(), rate, display);
+            format!("{sign}{body} ({sign}{}f)", delta.abs())
+        };
+        match gesture {
+            Gesture::Edge {
+                drag: edge_drag,
+                left,
+                span,
+            } => {
+                let delta = drag.delta;
+                let (tool_label, detail) = match edge_drag {
+                    Some(EdgeDrag::Ripple) => {
+                        let new_dur = if left {
+                            (span.end - (span.start + delta)).max(1)
+                        } else {
+                            (span.end + delta - span.start).max(1)
+                        };
+                        ("Ripple Trim", format!("Dur {}", tc(new_dur)))
+                    }
+                    Some(EdgeDrag::Roll) => {
+                        let cut = if left {
+                            span.start + delta
+                        } else {
+                            span.end + delta
+                        };
+                        ("Roll Edit", format!("Cut {}", tc(cut)))
+                    }
+                    Some(EdgeDrag::Rate) => {
+                        let old_dur = (span.end - span.start).max(1);
+                        let new_dur = if left {
+                            (span.end - (span.start + delta)).max(1)
+                        } else {
+                            (span.end + delta - span.start).max(1)
+                        };
+                        let current = Rational::new(ui.speed_num.max(1), ui.speed_den.max(1));
+                        let pct = stretch_speed(current, old_dur, new_dur)
+                            .map(|s| s.as_f64() * 100.0)
+                            .unwrap_or_else(|| current.as_f64() * 100.0);
+                        ("Rate Stretch", format!("{pct:.1}% · Dur {}", tc(new_dur)))
+                    }
+                    None => {
+                        let edge_tc = if left {
+                            format!("In {}", tc(span.start + delta))
+                        } else {
+                            format!("Out {}", tc(span.end + delta))
+                        };
+                        ("Trim", edge_tc)
+                    }
+                };
+                Some(crate::types::TrimFeedback {
+                    tool_label: tool_label.into(),
+                    clip_name: ui.name.clone(),
+                    delta_ticks: delta,
+                    delta_label: signed_tc(delta).into(),
+                    detail_label: detail.into(),
+                })
+            }
+            Gesture::Body {
+                drag: Some(BodyDrag::Slip),
+                ..
+            } => {
+                let shift = -drag.delta;
+                let new_in = (ui.source_start_ticks + shift).max(0);
+                let span = (ui.timeline_end_ticks - ui.timeline_start_ticks).max(1);
+                Some(crate::types::TrimFeedback {
+                    tool_label: "Slip".into(),
+                    clip_name: ui.name.clone(),
+                    delta_ticks: shift,
+                    delta_label: signed_tc(shift).into(),
+                    detail_label: format!("In {} · Out {}", tc(new_in), tc(new_in + span)).into(),
+                })
+            }
+            Gesture::Body {
+                drag: Some(BodyDrag::Slide),
+                span,
+                ..
+            } => {
+                let (before, after) = self.abutting(drag.clip);
+                let actual = slide_room(span.start, span.end, drag.delta, before, after);
+                Some(crate::types::TrimFeedback {
+                    tool_label: "Slide".into(),
+                    clip_name: ui.name.clone(),
+                    delta_ticks: actual,
+                    delta_label: signed_tc(actual).into(),
+                    detail_label: format!(
+                        "{} -> {}",
+                        tc(span.start + actual),
+                        tc(span.end + actual)
+                    )
+                    .into(),
+                })
+            }
+            Gesture::Body {
+                drag: None, span, ..
+            }
+            | Gesture::RippleBody { span, .. } => {
+                let label = if matches!(gesture, Gesture::RippleBody { .. }) {
+                    "Ripple Move"
+                } else {
+                    "Move"
+                };
+                Some(crate::types::TrimFeedback {
+                    tool_label: label.into(),
+                    clip_name: ui.name.clone(),
+                    delta_ticks: drag.delta,
+                    delta_label: signed_tc(drag.delta).into(),
+                    detail_label: format!("At {}", tc(span.start + drag.delta)).into(),
+                })
+            }
+            Gesture::Transition { duration, right } => {
+                let alignment = ui
+                    .transition
+                    .as_ref()
+                    .map(|t| t.alignment)
+                    .unwrap_or_default();
+                let next = crate::app::clip_transitions::transition_ticks_after_drag(
+                    duration, drag.delta, right, alignment,
+                );
+                Some(crate::types::TrimFeedback {
+                    tool_label: "Transition".into(),
+                    clip_name: ui.name.clone(),
+                    delta_ticks: next - duration,
+                    delta_label: signed_tc(next - duration).into(),
+                    detail_label: format!("Len {}", tc(next)).into(),
+                })
+            }
+            Gesture::Fade { left, current } => {
+                let next = if left {
+                    (current + drag.delta).max(0)
+                } else {
+                    (current - drag.delta).max(0)
+                };
+                Some(crate::types::TrimFeedback {
+                    tool_label: if left { "Fade In" } else { "Fade Out" }.into(),
+                    clip_name: ui.name.clone(),
+                    delta_ticks: next - current,
+                    delta_label: signed_tc(next - current).into(),
+                    detail_label: format!("Len {}", tc(next)).into(),
+                })
+            }
+        }
     }
 
     fn shift_after(
@@ -266,10 +463,9 @@ impl AppState {
     ) -> Result<(), EngineError> {
         let start = start.max(0);
         let end = end.max(start + 1);
-        self.apply_command(Command::Edit(EditCommand::TrimClip {
-            clip,
-            timeline: TimeRange::at_rate(start, end - start, rate),
-        }))?;
+        self.apply_command(Command::Edit(
+            self.trim_command(clip, TimeRange::at_rate(start, end - start, rate)),
+        ))?;
         Ok(())
     }
 
@@ -290,11 +486,11 @@ impl AppState {
                 "that clip is no longer on the timeline".into(),
             ));
         };
-        self.apply_command(Command::Edit(EditCommand::MoveClip {
+        self.apply_command(Command::Edit(self.move_command(
             clip,
-            to_track: track,
-            start: RationalTime::new(start.max(0), rate),
-        }))?;
+            track,
+            RationalTime::new(start.max(0), rate),
+        )))?;
         Ok(())
     }
 }

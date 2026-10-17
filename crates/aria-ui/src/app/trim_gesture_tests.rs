@@ -460,11 +460,11 @@ fn every_tool_is_bound_to_the_key_its_row_declares() {
 
     for tool in EditorTool::all() {
         let key = tool.key();
+        let chord =
+            Chord::parse(key).unwrap_or_else(|| panic!("{tool:?} declares invalid chord {key:?}"));
         let bound: Vec<_> = SHIPPED_BINDINGS
             .iter()
-            .filter(|binding| {
-                binding.route == KeyRoute::Editor && binding.chord == Chord::plain(key)
-            })
+            .filter(|binding| binding.route == KeyRoute::Editor && binding.chord == chord)
             .collect();
         assert_eq!(
             bound.len(),
@@ -485,7 +485,9 @@ fn every_tool_is_bound_to_the_key_its_row_declares() {
             crate::keys::KeyBody::Plain(run) => run(&mut state),
             // A tool binding is a state change and nothing else. One that needed
             // the entity context would not be a tool.
-            crate::keys::KeyBody::Windowed(_) => panic!("{tool:?} binds a windowed body"),
+            crate::keys::KeyBody::Windowed(_) | crate::keys::KeyBody::Command(_) => {
+                panic!("{tool:?} binds a body that is not a state change")
+            }
         }
         assert_eq!(
             state.tool, tool,

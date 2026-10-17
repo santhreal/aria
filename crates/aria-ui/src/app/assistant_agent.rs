@@ -136,6 +136,7 @@ impl AppState {
         // Taken on this thread: a screenshot renders on the process's device, not
         // on one the turn brings up for itself.
         let gpu = crate::app::render_device::shared_device(&self.ctx);
+        let plugins = aria_plugin::PluginContext::clone(&self.ctx);
         self.spawn_job(label, move |context| {
             let Ready {
                 provider,
@@ -158,8 +159,13 @@ impl AppState {
             );
             // The tool host reads the same session engine the bridge edits: a
             // screenshot taken after two edits must show those edits.
-            let mut host =
-                ShellHost::new(engine, crate::handoff::Wake::clone(&wake), autonomy, gpu);
+            let mut host = ShellHost::new(
+                engine,
+                crate::handoff::Wake::clone(&wake),
+                autonomy,
+                gpu,
+                plugins,
+            );
             let mut edits = 0_usize;
             let outcome = {
                 let tx = crate::handoff::Wake::clone(&wake);

@@ -1,7 +1,7 @@
 //! Command dispatch: undoable timeline edits and session project commands.
 
 mod dispatch;
-mod edit;
+pub(crate) mod edit;
 pub(crate) mod project;
 
 pub use dispatch::{ApplyOutcome, dispatch};
@@ -93,6 +93,8 @@ pub struct History {
     redo: Vec<HistoryStep>,
     limit: usize,
     pending: Option<Vec<HistoryStep>>,
+    /// Advanced by every change to `undo` or `redo`; see [`Self::generation`].
+    generation: u64,
 }
 
 impl History {
@@ -102,7 +104,23 @@ impl History {
             redo: Vec::new(),
             limit: limit.max(1),
             pending: None,
+            generation: 0,
         }
+    }
+
+    /// A number that changes whenever the applied or undone steps change: a
+    /// recorded step, a committed group, an undo, a redo, a merge, or a clear.
+    /// Two equal generations list the same steps under the same labels, so a
+    /// reader holding a copy of the list compares this instead of the list.
+    ///
+    /// A committed group or a merge changes the list without changing the
+    /// project, so a project revision does not stand in for this.
+    pub fn generation(&self) -> u64 {
+        self.generation
+    }
+
+    fn advance(&mut self) {
+        self.generation = self.generation.wrapping_add(1);
     }
 
     pub fn can_undo(&self) -> bool {
@@ -235,10 +253,15 @@ impl History {
         }
         self.undo.push(step);
         self.redo.clear();
+        self.advance();
     }
 
     pub fn pop_undo(&mut self) -> Option<HistoryStep> {
-        self.undo.pop()
+        let step = self.undo.pop();
+        if step.is_some() {
+            self.advance();
+        }
+        step
     }
 
     pub fn push_redo(&mut self, step: HistoryStep) {
@@ -246,10 +269,15 @@ impl History {
             self.redo.remove(0);
         }
         self.redo.push(step);
+        self.advance();
     }
 
     pub fn pop_redo(&mut self) -> Option<HistoryStep> {
-        self.redo.pop()
+        let step = self.redo.pop();
+        if step.is_some() {
+            self.advance();
+        }
+        step
     }
 
     pub fn push_undo(&mut self, step: HistoryStep) {
@@ -257,12 +285,38 @@ impl History {
             self.undo.remove(0);
         }
         self.undo.push(step);
+        self.advance();
+    }
+    /// Merge the two newest undo steps into one compound step keeping the
+    /// earlier step's label.
+    pub fn coalesce_top_two(&mut self) {
+        let grouped = self.pending.is_some();
+        let stack = self.pending.as_mut().unwrap_or(&mut self.undo);
+        if stack.len() < 2 {
+            return;
+        }
+        let newer = stack.pop().expect("len >= 2");
+        let older = stack.pop().expect("len >= 2");
+        stack.push(HistoryStep {
+            label: older.label,
+            action: Box::new(CompoundAction {
+                actions: vec![older.action, newer.action],
+            }),
+        });
+        // A merge inside an open group changes nothing a reader lists.
+        if !grouped {
+            self.advance();
+        }
     }
 
     pub fn clear(&mut self) {
+        let listed = !self.undo.is_empty() || !self.redo.is_empty();
         self.undo.clear();
         self.redo.clear();
         self.pending = None;
+        if listed {
+            self.advance();
+        }
     }
 }
 

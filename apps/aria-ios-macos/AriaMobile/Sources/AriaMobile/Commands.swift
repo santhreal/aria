@@ -124,16 +124,34 @@ public struct Command: Sendable {
 
     // Clip looks (persist-only this milestone; ids come from `Catalogs`).
 
-    /// Set or clear (`nil`) a clip's mask. Visual clips only.
-    public static func setClipMask(clip: UInt64, mask: UiMask?) -> Command {
-        var fields: [String: JSONValue] = ["clip": .int(Int64(clip))]
-        if let mask {
-            var object: [String: JSONValue] = ["kind": .string(mask.kind)]
-            if mask.feather != 0 { object["feather"] = .number(Double(mask.feather)) }
-            if mask.invert { object["invert"] = .bool(true) }
-            fields["mask"] = .object(object)
-        }
-        return Command(type: "SetClipMask", fields)
+    /// Append a mask to the bottom of a visual clip's mask stack.
+    public static func addClipMask(clip: UInt64, mask: UiMask) -> Command {
+        Command(type: "AddClipMask", ["clip": .int(Int64(clip)), "mask": maskObject(mask)])
+    }
+
+    /// Replace the mask at `index` in a clip's mask stack.
+    public static func setClipMask(clip: UInt64, index: UInt32, mask: UiMask) -> Command {
+        Command(
+            type: "SetClipMask",
+            [
+                "clip": .int(Int64(clip)),
+                "index": .int(Int64(index)),
+                "mask": maskObject(mask),
+            ])
+    }
+
+    /// Remove the mask at `index` from a clip's mask stack.
+    public static func removeClipMask(clip: UInt64, index: UInt32) -> Command {
+        Command(type: "RemoveClipMask", ["clip": .int(Int64(clip)), "index": .int(Int64(index))])
+    }
+
+    /// A mask on the wire, with the fields at their defaults left out.
+    private static func maskObject(_ mask: UiMask) -> JSONValue {
+        var object: [String: JSONValue] = ["kind": .string(mask.kind)]
+        if mask.feather != 0 { object["feather"] = .number(Double(mask.feather)) }
+        if mask.mode != "add" { object["mode"] = .string(mask.mode) }
+        if mask.invert { object["invert"] = .bool(true) }
+        return .object(object)
     }
 
     /// Set or clear (`nil`) green-screen keying. Media-backed visual clips.

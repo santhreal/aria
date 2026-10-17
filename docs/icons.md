@@ -45,7 +45,7 @@ produced them.
 
 ## Source
 
-Primary: **[Lucide](https://lucide.dev)** (MIT, single-stroke, 2 px default
+Primary: **[Lucide](https://lucide.dev)** (ISC, single-stroke, 2 px default
 stroke). Fallback: **[Tabler](https://tabler.io/icons)** (MIT).
 
 ## Already shipped
@@ -59,13 +59,20 @@ stroke). Fallback: **[Tabler](https://tabler.io/icons)** (MIT).
 
 ## Registry
 
-### Titlebar — `crates/aria-ui/src/chrome/tool_strip.rs`
+### Tool bar — `crates/aria-ui/src/chrome/tool_strip.rs`
 
 - [x] `upload` — `assets/icon/shell/upload.svg` — export.
-- [x] `settings` — `assets/icon/shell/settings.svg` — settings.
 - [x] `scissors` — `assets/icon/timeline/scissors.svg` — razor tool.
-- [x] `zoom-in` / `zoom-out` — `assets/icon/timeline/zoom-in.svg` — zoom tool and transport.
+- [x] `zoom-in` — `assets/icon/timeline/zoom-in.svg` — zoom tool.
+- [x] `fullscreen` — `assets/icon/fullscreen.svg` — hand tool.
 - [x] `magnet` — `assets/icon/timeline/magnet.svg` — snap toggle.
+- [x] `link` — `assets/icon/timeline/link.svg` — linked selection toggle.
+- [x] `wrench` — `assets/icon/timeline/wrench.svg` — timeline display settings.
+- [x] `move-horizontal` — `assets/icon/timeline/move-horizontal.svg` — slip tool.
+- [x] `columns-3` — `assets/icon/timeline/columns-3.svg` — slide tool.
+- [x] `grip-vertical` — `assets/icon/timeline/grip-vertical.svg` — rolling edit tool.
+- [x] `gauge` — `assets/icon/timeline/gauge.svg` — rate stretch tool.
+- [x] `fold-horizontal` — `assets/icon/timeline/fold-horizontal.svg` — ripple trim tool.
 - [x] `aria-icon.png` — `assets/icon/aria-icon.png` — the titlebar mark, drawn by `icons::brand_mark`.
 
 ### Chat — `crates/aria-ui/src/panels/assistant.rs`
@@ -73,10 +80,11 @@ stroke). Fallback: **[Tabler](https://tabler.io/icons)** (MIT).
 - [x] `send` — `assets/icon/chat/send.svg` — submit a message.
 - [x] `circle-stop` — `assets/icon/chat/stop.svg` — stop generation.
 
-### Preview — `crates/aria-ui/src/panels/preview.rs`
+### Viewer — `crates/aria-ui/src/panels/preview.rs` and `preview_source.rs`
 
 - [x] `play` / `pause` — `assets/icon/play.svg` — transport.
-- [x] `fullscreen` — `assets/icon/fullscreen.svg` — fit timeline.
+- [x] `skip-back` / `skip-forward` — `assets/icon/skip-back.svg` and `assets/icon/skip-forward.svg` — go to start and go to end.
+- [x] `chevron-left` / `chevron-right` — `assets/icon/chevron-left.svg` and `assets/icon/chevron-right.svg` — step one frame.
 - [x] `zoom-in` / `zoom-out` — `assets/icon/timeline/zoom-in.svg` and `assets/icon/timeline/zoom-out.svg` — preview zoom step, replacing the `"+"` and `"−"` text glyphs.
 
 ### Home — `crates/aria-ui/src/panels/home/rail.rs` and `panes.rs`
@@ -85,9 +93,13 @@ stroke). Fallback: **[Tabler](https://tabler.io/icons)** (MIT).
 - [x] `folder-open` — `assets/icon/folder-open.svg` — Open tile.
 - [x] `clapperboard` / `image` / `sparkles` — `assets/icon/clapperboard.svg`, `assets/icon/library/image.svg`, and `assets/icon/shell/sparkles.svg` — Recents, Samples, and Learn rail tabs.
 
-### Timeline — `crates/aria-ui/src/surfaces/lane_header.rs` and `panels/timeline/ruler.rs`
+### Timeline — `crates/aria-ui/src/surfaces/lane_header.rs`, `panels/timeline/header.rs`, and `panels/timeline/overview.rs`
 
-- [x] `plus` — `assets/icon/plus.svg` — add video track.
+- [x] `plus` — `assets/icon/plus.svg` — add video track, at the left of the zoom bar.
+- [x] `magnet` / `link` / `wrench` — `assets/icon/timeline/magnet.svg`, `link.svg`, and `wrench.svg` — snapping, linked selection, and timeline display settings in the timeline header.
+- [x] `flag` — `assets/icon/timeline/flag.svg`, registered as `FLAG` — add a marker at the playhead.
+- [x] `chart-spline` — `assets/icon/timeline/chart-spline.svg`, registered as `GRAPH` — open or close the graph editor.
+- [x] `x` — `assets/icon/shell/x.svg`, registered as `CLOSE` — clear the property search.
 - [x] `eye` / `eye-off` — `assets/icon/timeline/eye.svg` — track enabled.
 - [x] `volume-2` / `volume-x` — `assets/icon/timeline/volume-2.svg` — track mute.
 - [x] `lock` / `lock-open` — `assets/icon/timeline/lock.svg` — track lock.
@@ -95,14 +107,6 @@ stroke). Fallback: **[Tabler](https://tabler.io/icons)** (MIT).
 - [x] `chevron-down` — `assets/icon/ui/chevron-down.svg`, registered as `CHEVRON_DOWN`. One glyph for every disclosure: `components::chevron` turns it a quarter turn for a shut row — collapse and expand a lane.
 - [x] `crosshair` — `assets/icon/timeline/crosshair.svg` — lane target.
 - [x] `link` / `unlink` — `assets/icon/timeline/link.svg` and `assets/icon/timeline/unlink.svg` — lane sync lock.
-
-### Tool strip — `crates/aria-ui/src/chrome/tool_strip.rs`
-
-- [x] `move-horizontal` — `assets/icon/timeline/move-horizontal.svg` — slip tool.
-- [x] `columns-3` — `assets/icon/timeline/columns-3.svg` — slide tool.
-- [x] `grip-vertical` — `assets/icon/timeline/grip-vertical.svg` — rolling edit tool.
-- [x] `gauge` — `assets/icon/timeline/gauge.svg` — rate stretch tool.
-- [x] `fold-horizontal` — `assets/icon/timeline/fold-horizontal.svg` — ripple trim tool.
 
 ### Media pool — `crates/aria-ui/src/panels/sidebar/bins.rs`
 

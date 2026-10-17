@@ -257,10 +257,7 @@ fn image_byte_budget_keeps_the_newest_payload_that_fits() {
     assert!(!content.contains("no longer attached"));
 
     enforce_image_budget(&mut messages, 8, 3);
-    let Message::ToolResult {
-        content, images, ..
-    } = &messages[1]
-    else {
+    let Message::ToolResult { images, .. } = &messages[1] else {
         panic!("tool result");
     };
     assert!(

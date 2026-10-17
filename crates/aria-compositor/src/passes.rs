@@ -72,11 +72,7 @@ impl PassParam {
     /// The slot a catalog parameter occupies. Exhaustive, so a new
     /// [`EffectParamKind`] cannot ship without a width here.
     fn from_kind(name: &'static str, kind: EffectParamKind, offset: u8) -> Self {
-        let floats = match kind {
-            EffectParamKind::Scalar => 1,
-            EffectParamKind::Vec2 => 2,
-            EffectParamKind::Color => 4,
-        };
+        let floats = kind.shader_floats() as u8;
         Self {
             name,
             floats,
@@ -131,6 +127,22 @@ impl PassId {
             PassId::Registered(pass) => pass.id(),
         }
     }
+
+    /// Whether this pass holds state across frames.
+    pub fn is_stateful(&self) -> bool {
+        match self {
+            PassId::Shipped(_) => false,
+            PassId::Registered(pass) => pass.is_stateful(),
+        }
+    }
+
+    /// Whether this pass runs a CPU callback rather than a WGSL shader.
+    pub fn is_cpu(&self) -> bool {
+        match self {
+            PassId::Shipped(_) => false,
+            PassId::Registered(pass) => pass.is_cpu(),
+        }
+    }
 }
 
 impl From<&'static str> for PassId {
@@ -169,6 +181,9 @@ pub struct PassInstance {
     /// `aria.time`. Shipped passes do not read it, and scene resolution leaves
     /// it 0 for them so equal frames compare equal.
     pub time: f32,
+    /// Full effect instance state for CPU effects reading non-float parameters
+    /// (text, font, file, layer references, exact curve/gradient control points).
+    pub instance: Option<aria_models::EffectInstance>,
 }
 
 impl PassInstance {
@@ -177,6 +192,7 @@ impl PassInstance {
             id: id.into(),
             params,
             time: 0.0,
+            instance: None,
         }
     }
 
@@ -187,6 +203,12 @@ impl PassInstance {
         self
     }
 
+    /// Attach the full [`aria_models::EffectInstance`] for CPU effect callbacks.
+    #[must_use]
+    pub fn with_instance(mut self, instance: aria_models::EffectInstance) -> Self {
+        self.instance = Some(instance);
+        self
+    }
     /// Whether drawing this instance changes nothing; see [`effect_is_noop`].
     /// A registration that was dropped draws nothing.
     pub fn is_noop(&self) -> bool {
@@ -196,15 +218,25 @@ impl PassInstance {
         }
     }
 
+    /// Whether this effect holds state across frames.
+    pub fn is_stateful(&self) -> bool {
+        self.id.is_stateful()
+    }
+
+    /// Whether this effect runs a CPU callback rather than a WGSL shader.
+    pub fn is_cpu(&self) -> bool {
+        self.id.is_cpu()
+    }
+
     /// Offscreen slots the chain needs to draw this instance without writing
-    /// the texture it reads: three for a pass chain that keeps its input
-    /// readable across passes, two otherwise.
+    /// the texture it reads: three for the shipped blur, which keeps its input
+    /// readable across passes, two otherwise. A registered graph draws its
+    /// passes before the last into targets of its own.
     pub(crate) fn slot_demand(&self) -> usize {
-        let multi_pass = match &self.id {
-            PassId::Shipped(id) => *id == GAUSSIAN_BLUR,
-            PassId::Registered(pass) => pass.pass_count() > 1,
-        };
-        if multi_pass { 3 } else { 2 }
+        match &self.id {
+            PassId::Shipped(id) if *id == GAUSSIAN_BLUR => 3,
+            PassId::Shipped(_) | PassId::Registered(_) => 2,
+        }
     }
 }
 
@@ -395,6 +427,43 @@ const EFFECTS: &[EffectPass] = &[
             param: "intensity",
             value: 0.0,
         }),
+    },
+    // Generators: each draws a picture of its own over the transparent solid
+    // that carries it, so no setting leaves the layer as it was.
+    EffectPass {
+        id: "color_matte",
+        shaders: &[include_str!("../shaders/effect_color_matte.wgsl")],
+        inert: None,
+    },
+    EffectPass {
+        id: "linear_gradient",
+        shaders: &[include_str!("../shaders/effect_linear_gradient.wgsl")],
+        inert: None,
+    },
+    EffectPass {
+        id: "radial_gradient",
+        shaders: &[include_str!("../shaders/effect_radial_gradient.wgsl")],
+        inert: None,
+    },
+    EffectPass {
+        id: "checkerboard",
+        shaders: &[include_str!("../shaders/effect_checkerboard.wgsl")],
+        inert: None,
+    },
+    EffectPass {
+        id: "grid",
+        shaders: &[include_str!("../shaders/effect_grid.wgsl")],
+        inert: None,
+    },
+    EffectPass {
+        id: "fractal_noise",
+        shaders: &[include_str!("../shaders/effect_fractal_noise.wgsl")],
+        inert: None,
+    },
+    EffectPass {
+        id: "color_bars",
+        shaders: &[include_str!("../shaders/effect_color_bars.wgsl")],
+        inert: None,
     },
 ];
 
@@ -677,19 +746,12 @@ pub(crate) fn effect_passes() -> &'static [EffectPass] {
     EFFECTS
 }
 
-/// The row for `id`, or `None` when no pass renders it: either no row carries
-/// the id, or its slots were refused and dispatching it would feed the shader
-/// floats it does not read.
+/// Every registry row, by effect id.
 static EFFECT_PASS_BY_ID: LazyLock<HashMap<&'static str, &'static EffectPass>> =
     LazyLock::new(|| EFFECTS.iter().map(|pass| (pass.id, pass)).collect());
 
 static TRANSITION_PASS_BY_ID: LazyLock<HashMap<&'static str, TransitionPass>> =
     LazyLock::new(|| TRANSITIONS.iter().map(|row| (row.id, row.pass)).collect());
-
-pub(crate) fn effect_pass(id: &str) -> Option<&'static EffectPass> {
-    effect_descriptor(id)?;
-    EFFECT_PASS_BY_ID.get(id).copied()
-}
 
 /// Whether a shipped pass renders the transition `id`.
 pub(crate) fn is_shipped_transition(id: &str) -> bool {

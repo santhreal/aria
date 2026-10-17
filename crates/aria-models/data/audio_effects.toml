@@ -15,11 +15,13 @@
 [[entry]]
 id = "gain"
 label = "Gain"
+category = "Amplitude & Compression"
 params = [{ name = "gain", label = "Gain (dB)", default = 0.0, min = -60.0, max = 24.0 }]
 
 [[entry]]
 id = "parametric_eq"
 label = "Parametric EQ"
+category = "Filter & EQ"
 params = [
   { name = "band1_freq", label = "Low Shelf (Hz)", default = 80.0, min = 20.0, max = 20000.0 },
   { name = "band1_gain", label = "Low Shelf Gain (dB)", default = 0.0, min = -24.0, max = 24.0 },
@@ -53,6 +55,7 @@ params = [
 [[entry]]
 id = "compressor"
 label = "Compressor"
+category = "Amplitude & Compression"
 sidechain = true
 params = [
   { name = "threshold", label = "Threshold (dB)", default = -18.0, min = -60.0, max = 0.0 },
@@ -66,6 +69,7 @@ params = [
 [[entry]]
 id = "limiter"
 label = "Limiter"
+category = "Amplitude & Compression"
 latency = 240
 params = [
   { name = "ceiling", label = "Ceiling (dB)", default = -1.0, min = -24.0, max = 0.0 },
@@ -76,6 +80,7 @@ params = [
 [[entry]]
 id = "deesser"
 label = "De-esser"
+category = "Filter & EQ"
 params = [
   { name = "frequency", label = "Frequency (Hz)", default = 6000.0, min = 2000.0, max = 12000.0 },
   { name = "threshold", label = "Threshold (dB)", default = -30.0, min = -60.0, max = 0.0 },
@@ -85,12 +90,14 @@ params = [
 [[entry]]
 id = "noise_reduction"
 label = "Noise Reduction"
+category = "Noise Reduction"
 latency = 960
 params = [{ name = "amount", label = "Amount", default = 1.0, min = 0.0, max = 1.0 }]
 
 [[entry]]
 id = "reverb"
 label = "Reverb"
+category = "Reverb"
 params = [
   { name = "size", label = "Room Size", default = 0.5, min = 0.0, max = 1.0 },
   { name = "damping", label = "Damping", default = 0.5, min = 0.0, max = 1.0 },
@@ -102,6 +109,7 @@ params = [
 [[entry]]
 id = "delay"
 label = "Delay"
+category = "Delay & Echo"
 params = [
   { name = "time", label = "Time (ms)", default = 250.0, min = 1.0, max = 2000.0 },
   { name = "feedback", label = "Feedback", default = 0.35, min = 0.0, max = 0.95 },
@@ -111,6 +119,7 @@ params = [
 [[entry]]
 id = "pitch_shifter"
 label = "Pitch Shifter"
+category = "Time & Pitch"
 latency = 1024
 params = [
   { name = "semitones", label = "Semitones", default = 0.0, min = -12.0, max = 12.0 },
@@ -120,22 +129,27 @@ params = [
 [[entry]]
 id = "swap_channels"
 label = "Swap Channels"
+category = "Channels"
 
 [[entry]]
 id = "fill_left"
 label = "Fill Left with Right"
+category = "Channels"
 
 [[entry]]
 id = "fill_right"
 label = "Fill Right with Left"
+category = "Channels"
 
 [[entry]]
 id = "mono"
 label = "Mono"
+category = "Channels"
 
 [[entry]]
 id = "loudness_normalizer"
 label = "Loudness Normalizer"
+category = "Amplitude & Compression"
 params = [
   { name = "target", label = "Target (LUFS)", default = -16.0, min = -36.0, max = -6.0 },
   { name = "max_gain", label = "Max Gain (dB)", default = 12.0, min = 0.0, max = 24.0 },

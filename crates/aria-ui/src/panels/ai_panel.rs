@@ -160,7 +160,7 @@ fn header(
         .border_color(theme.border)
         .child(
             div()
-                .text_size(px(14.))
+                .text_size(Theme::TEXT_HEADING)
                 .font_weight(gpui::FontWeight::SEMIBOLD)
                 .child("Assistant"),
         )
@@ -194,7 +194,7 @@ fn plan_card(
     for step in plan {
         steps.push(
             div()
-                .text_size(px(11.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text)
                 .child(gpui::SharedString::from(format!("· {}", step.description)))
                 .into_any_element(),
@@ -206,7 +206,7 @@ fn plan_card(
         // for.
         steps.push(
             div()
-                .text_size(px(10.))
+                .text_size(Theme::TEXT_SMALL)
                 .text_color(theme.text_faint)
                 .child(gpui::SharedString::from(format!(
                     "   {}",
@@ -223,9 +223,15 @@ fn plan_card(
         .flex()
         .flex_col()
         .gap(px(Theme::SPACE_XS))
-        .child(div().text_size(px(11.)).text_color(theme.text_faint).child(
-            gpui::SharedString::from(format!("planned · {} edit(s), nothing applied", plan.len())),
-        ))
+        .child(
+            div()
+                .text_size(Theme::TEXT_UI)
+                .text_color(theme.text_faint)
+                .child(gpui::SharedString::from(format!(
+                    "planned · {} edit(s), nothing applied",
+                    plan.len()
+                ))),
+        )
         .children(steps)
         .child(
             div()
@@ -294,7 +300,7 @@ fn composer(
                 .justify_between()
                 .child(
                     div()
-                        .text_size(px(11.))
+                        .text_size(Theme::TEXT_UI)
                         .text_color(theme.text_faint)
                         .child(gpui::SharedString::from(target)),
                 )
@@ -345,7 +351,7 @@ fn composer(
             // What the next prompt is pointed at. An agent whose scope is
             // invisible produces edits that look arbitrary.
             div()
-                .text_size(px(11.))
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_muted)
                 .child(gpui::SharedString::from(scope)),
         )
@@ -356,7 +362,7 @@ fn composer(
         .when_some(slash, |el, hint| {
             el.child(
                 div()
-                    .text_size(px(11.))
+                    .text_size(Theme::TEXT_UI)
                     .text_color(theme.text_faint)
                     .child(gpui::SharedString::from(hint)),
             )

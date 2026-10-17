@@ -73,6 +73,56 @@ fn abutting_clips_crossfade_at_midpoint() {
         other => panic!("expected transition layer, got {other:?}"),
     }
 }
+#[test]
+fn transition_alignment_shifts_resolved_blend_window() {
+    use aria_models::TransitionAlignment;
+
+    let mut project = Project::new("p", FPS_24);
+    let track = project.add_track(TrackKind::Sticker, "S1");
+    let left = project
+        .add_generated(
+            track,
+            Generator::SolidColor {
+                rgba: [255, 0, 0, 255],
+            },
+            tr(0, 48),
+        )
+        .unwrap();
+    project
+        .add_generated(
+            track,
+            Generator::SolidColor {
+                rgba: [0, 0, 255, 255],
+            },
+            tr(48, 48),
+        )
+        .unwrap();
+    project.add_transition(left, "crossfade").unwrap();
+    project.set_transition_duration(left, 24).unwrap();
+
+    for (align, before_tick, mid_tick, after_tick) in [
+        (TransitionAlignment::Center, 35, 48, 60),
+        (TransitionAlignment::Start, 47, 60, 72),
+        (TransitionAlignment::End, 23, 36, 48),
+    ] {
+        project.set_transition_alignment(left, align).unwrap();
+        let before = resolve(&project, rt(before_tick)).unwrap();
+        assert!(
+            !matches!(before.layers[0].source, LayerSource::Transition { .. }),
+            "{align:?} should not blend at tick {before_tick}"
+        );
+        let mid = resolve(&project, rt(mid_tick)).unwrap();
+        match &mid.layers[0].source {
+            LayerSource::Transition { progress, .. } => approx(*progress, 0.5),
+            other => panic!("{align:?}: expected transition at {mid_tick}, got {other:?}"),
+        }
+        let after = resolve(&project, rt(after_tick)).unwrap();
+        assert!(
+            !matches!(after.layers[0].source, LayerSource::Transition { .. }),
+            "{align:?} should not blend at tick {after_tick}"
+        );
+    }
+}
 
 #[test]
 fn transition_between_canvas_passes_falls_back_to_plain_clip() {

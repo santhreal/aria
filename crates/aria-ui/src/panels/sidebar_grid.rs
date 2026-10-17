@@ -1,22 +1,20 @@
-//! Grid: 9 helpers from [`super`].
+//! The sidebar's chip rows and its grids: the group and tab chips with
+//! Import, the generator tiles, the catalog rows, and the cloud cards.
 //!
-//! Split out of `sidebar.rs` to stay under the file ceiling. A pure
-//! move. Each item is `pub(super)` so the parent and its other children can
-//! reach it by name; nothing else changed.
+//! Split out of `sidebar.rs` to stay under the file ceiling. The items the
+//! parent draws are `pub(super)`.
 
 use super::*;
 
-pub(super) fn header(
-    theme: &Theme,
-    cx: &mut gpui::Context<crate::shell::Shell>,
-) -> impl IntoElement {
-    let import = components::ghost_button("media-import", "Import", theme).on_mouse_down(
+/// Import, at the right end of the group row.
+fn import_button(theme: &Theme, cx: &mut gpui::Context<crate::shell::Shell>) -> impl IntoElement {
+    components::ghost_button("media-import", "Import", theme).on_mouse_down(
         MouseButton::Left,
         cx.listener(|this, _: &MouseDownEvent, _, cx| {
             this.state.update(cx, |state, _| {
                 state.request_pick(
                     Ask::OpenFiles(
-                        FileSpec::new("Import media").filter("Media", MEDIA_IMPORT_EXTENSIONS),
+                        FileSpec::new("Import media").filter("Media", &media_import_extensions()),
                     ),
                     |state, answer| {
                         let paths = answer.all();
@@ -31,59 +29,104 @@ pub(super) fn header(
             });
             cx.notify();
         }),
-    );
-    div()
-        .h(px(Theme::HEADER_HEIGHT))
-        .px(px(Theme::SPACE_MD))
-        .flex()
-        .items_center()
-        .justify_between()
-        .border_b_1()
-        .border_color(theme.border)
-        .child(
-            div()
-                .text_size(px(14.))
-                .font_weight(gpui::FontWeight::SEMIBOLD)
-                .text_color(theme.text)
-                .child("Media"),
-        )
-        .child(import)
+    )
 }
 
+/// The sidebar's chip rows: the groups, then the open group's tabs when it
+/// lists more than one.
 pub(super) fn filter_chips(
     theme: &Theme,
     tab: SidebarTab,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
+    let open = tab.group();
+    let tabs = open.tabs();
     div()
         .px(px(Theme::SPACE_MD))
         .py(px(Theme::SPACE_XS))
         .flex()
-        .flex_wrap()
+        .flex_col()
         .gap(px(Theme::SPACE_XS))
-        .children(
-            SidebarTab::ALL
-                .iter()
-                .map(|target| chip(theme, target.label(), *target, tab, cx)),
+        .border_b_1()
+        .border_color(theme.border)
+        .child(
+            div()
+                .flex()
+                .items_start()
+                .gap(px(Theme::SPACE_XS))
+                .child(
+                    div()
+                        .flex_1()
+                        .flex()
+                        .flex_wrap()
+                        .gap(px(Theme::SPACE_XS))
+                        .children(
+                            SidebarGroup::ALL
+                                .iter()
+                                .map(|group| group_chip(theme, *group, open, cx)),
+                        ),
+                )
+                .child(import_button(theme, cx)),
         )
+        .when(tabs.len() > 1, |rows| {
+            rows.child(
+                div()
+                    .flex()
+                    .flex_wrap()
+                    .gap(px(Theme::SPACE_XXS))
+                    .children(tabs.iter().map(|target| tab_chip(theme, *target, tab, cx))),
+            )
+        })
 }
 
-/// One tab, as a chip. The look belongs to [`components::chip`]; this carries
-/// only the click, because that is the one thing the tab row knows.
-pub(super) fn chip(
+/// One group, as a chip. Choosing another group opens its first tab; the open
+/// group's chip keeps the tab in front.
+fn group_chip(
     theme: &Theme,
-    label: &'static str,
+    group: SidebarGroup,
+    open: SidebarGroup,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> gpui::AnyElement {
+    components::chip(
+        motion::MotionKey::new("sidebar-group", group.label()),
+        group.label(),
+        group == open,
+        components::ChipSize::Regular,
+        theme,
+    )
+    .debug_selector(move || format!("sidebar-group-{}", group.label()))
+    .on_mouse_down(
+        MouseButton::Left,
+        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+            this.state.update(cx, |state, _| {
+                if state.sidebar_tab.group() != group
+                    && let Some(first) = group.tabs().first()
+                {
+                    state.sidebar_tab = *first;
+                }
+            });
+            cx.notify();
+        }),
+    )
+    .into_any_element()
+}
+
+/// One tab of the open group, as a compact chip. The look belongs to
+/// [`components::chip`]; this adds the click.
+fn tab_chip(
+    theme: &Theme,
     target: SidebarTab,
     current: SidebarTab,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
     components::chip(
-        label,
-        label,
+        target.label(),
+        target.label(),
         target == current,
-        components::ChipSize::Regular,
+        components::ChipSize::Compact,
         theme,
     )
+    .debug_selector(move || format!("sidebar-tab-{}", target.label()))
     .on_mouse_down(
         MouseButton::Left,
         cx.listener(move |this, _: &MouseDownEvent, _, cx| {
@@ -199,7 +242,7 @@ pub(super) fn cloud_grid(
             .gap(px(Theme::SPACE_XS))
             .child(
                 div()
-                    .text_size(px(11.))
+                    .text_size(Theme::TEXT_UI)
                     .text_color(theme.text_muted)
                     .child(caption),
             )
@@ -213,7 +256,7 @@ pub(super) fn cloud_grid(
                     .border_1()
                     .border_color(box_border)
                     .cursor(CursorStyle::IBeam)
-                    .text_size(px(12.))
+                    .text_size(Theme::TEXT_TITLE)
                     .text_color(if query.is_empty() {
                         theme.text_muted
                     } else {
@@ -242,7 +285,7 @@ pub(super) fn cloud_grid(
             ))
             .child(
                 div()
-                    .text_size(px(11.))
+                    .text_size(Theme::TEXT_UI)
                     .text_color(theme.text_muted)
                     .child(SharedString::from(if focused {
                         "Enter searches, Esc leaves the box".to_string()
@@ -281,7 +324,7 @@ pub(super) fn cloud_grid(
         .when_some(load.placeholder(), |el, line| {
             el.child(
                 div()
-                    .text_size(px(11.))
+                    .text_size(Theme::TEXT_UI)
                     .text_color(theme.text_muted)
                     .child(SharedString::from(line)),
             )
@@ -348,12 +391,22 @@ pub(super) fn catalog_row(
         // by their text, the lift is what says which one the click will hit.
         .relative()
         .top(px(-gpui::motion::lerp(0.0, 2.0, lit)))
-        .child(div().text_size(px(13.)).text_color(text).child(if applied {
-            gpui::SharedString::from(format!("• {}", choice.label))
-        } else {
-            choice.label.clone()
-        }))
-        .child(div().text_size(px(11.)).text_color(muted).child(caption))
+        .child(
+            div()
+                .text_size(Theme::TEXT_UI)
+                .text_color(text)
+                .child(if applied {
+                    gpui::SharedString::from(format!("• {}", choice.label))
+                } else {
+                    choice.label.clone()
+                }),
+        )
+        .child(
+            div()
+                .text_size(Theme::TEXT_UI)
+                .text_color(muted)
+                .child(caption),
+        )
         .on_hover(cx.listener(move |this, hovered: &bool, window, cx| {
             let hovered = *hovered;
             motion::set_hover(hover_key, hovered, cx.motion_policy(), cx.frame_instant());
@@ -424,10 +477,15 @@ pub(super) fn generator_tile(
         .relative()
         .top(px(-gpui::motion::lerp(0.0, 2.0, lit)))
         .on_hover(motion::hover_listener(key))
-        .child(div().text_size(px(13.)).text_color(text).child(label))
         .child(
             div()
-                .text_size(px(11.))
+                .text_size(Theme::TEXT_UI)
+                .text_color(text)
+                .child(label),
+        )
+        .child(
+            div()
+                .text_size(Theme::TEXT_UI)
                 .text_color(muted)
                 .child("Click to place at the playhead"),
         )

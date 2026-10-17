@@ -94,6 +94,68 @@ fn transcription_timeouts_round_trip_and_reject_unusable_values() {
     assert_eq!(load(&path).unwrap().transcription, defaults);
 }
 
+/// WASM plugin limits reach the WASM host, so the class closed here is a limit
+/// that reaches it unusable: zero, beyond a 32-bit memory, negative, or not a
+/// number. Each keeps the default on load and is refused on save, at both ends
+/// of each range.
+#[test]
+fn plugin_limits_round_trip_and_reject_unusable_values() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+
+    save(&path, &Settings::default()).unwrap();
+    let raw = std::fs::read_to_string(&path).unwrap();
+    assert!(!raw.contains("plugin_limits"), "{raw}");
+
+    let mut settings = Settings::default();
+    settings.plugin_limits.wasm_fuel_per_call = MIN_WASM_FUEL_PER_CALL;
+    settings.plugin_limits.wasm_memory_mib = MAX_WASM_MEMORY_MIB;
+    save(&path, &settings).unwrap();
+    assert_eq!(load(&path).unwrap().plugin_limits, settings.plugin_limits);
+
+    let fuel = |value| PluginLimitSettings {
+        wasm_fuel_per_call: value,
+        ..settings.plugin_limits
+    };
+    let memory = |value| PluginLimitSettings {
+        wasm_memory_mib: value,
+        ..settings.plugin_limits
+    };
+    for (bad, key) in [
+        (fuel(MIN_WASM_FUEL_PER_CALL - 1), "wasm_fuel_per_call"),
+        (fuel(MAX_WASM_FUEL_PER_CALL + 1), "wasm_fuel_per_call"),
+        (memory(MIN_WASM_MEMORY_MIB - 1), "wasm_memory_mib"),
+        (memory(MAX_WASM_MEMORY_MIB + 1), "wasm_memory_mib"),
+    ] {
+        let mut broken = settings.clone();
+        broken.plugin_limits = bad;
+        let err = save(&path, &broken).expect_err("an unusable limit was written");
+        assert!(err.contains(key), "{err}");
+        assert_eq!(load(&path).unwrap().plugin_limits, settings.plugin_limits);
+    }
+
+    std::fs::write(
+        &path,
+        "[plugin_limits]\nwasm_fuel_per_call = 0\nwasm_memory_mib = 1048576\n",
+    )
+    .unwrap();
+    let loaded = load(&path).unwrap();
+    assert_eq!(loaded.plugin_limits, PluginLimitSettings::default());
+    let keys: Vec<&str> = loaded.rejected.iter().map(|r| r.key.as_str()).collect();
+    assert_eq!(
+        keys,
+        [
+            "plugin_limits.wasm_fuel_per_call",
+            "plugin_limits.wasm_memory_mib"
+        ]
+    );
+    std::fs::write(&path, "[plugin_limits]\nwasm_memory_mib = \"lots\"\n").unwrap();
+    assert_eq!(
+        load(&path).unwrap().plugin_limits,
+        PluginLimitSettings::default()
+    );
+}
+
 /// A plugin's declared value is stored under `[plugins]` and read back verbatim.
 ///
 /// The class: a key this crate does not own used to be dropped on write and

@@ -329,6 +329,7 @@ pub(super) fn atlas_key(content: &str, style: &TextStyle) -> u64 {
     style.bold.hash(&mut h);
     style.italic.hash(&mut h);
     style.letter_spacing.to_bits().hash(&mut h);
+    style.kerning.hash(&mut h);
     style.align.hash(&mut h);
     style.max_width.map(f32::to_bits).unwrap_or(0).hash(&mut h);
     // Effects folded into cluster images change atlas contents.
@@ -341,6 +342,17 @@ pub(super) fn atlas_key(content: &str, style: &TextStyle) -> u64 {
         .shadow
         .map(|s| (s.rgba, s.blur.to_bits(), s.distance.to_bits()))
         .hash(&mut h);
+    style.runs.len().hash(&mut h);
+    for r in &style.runs {
+        r.range.hash(&mut h);
+        r.family.hash(&mut h);
+        r.font_size.map(f32::to_bits).hash(&mut h);
+        r.bold.hash(&mut h);
+        r.italic.hash(&mut h);
+        r.underline.hash(&mut h);
+        r.color.hash(&mut h);
+        r.letter_spacing.map(f32::to_bits).hash(&mut h);
+    }
     h.finish()
 }
 
@@ -487,5 +499,13 @@ mod tests {
         let mut underlined = style.clone();
         underlined.underline = true;
         assert_ne!(atlas_key("Aria", &style), atlas_key("Aria", &underlined));
+
+        let run = aria_text::TextRun {
+            range: 0..2,
+            color: Some([255, 0, 0, 255]),
+            ..Default::default()
+        };
+        let with_run = style.clone().with_runs(vec![run]);
+        assert_ne!(atlas_key("Aria", &style), atlas_key("Aria", &with_run));
     }
 }

@@ -35,6 +35,44 @@ fn renders_a_solid_generator_to_a_red_canvas() {
     );
 }
 
+/// A shipped generator placed the way the Generators tab places one, a
+/// transparent solid with the generator first in its chain, draws its picture
+/// across the frame through the project path.
+#[test]
+fn a_shipped_generator_draws_over_the_transparent_solid_that_carries_it() {
+    let mut project = Project::new("p", FPS_24);
+    let track = project.add_track(TrackKind::Sticker, "S1");
+    let clip = project
+        .add_generated(
+            track,
+            Generator::SolidColor { rgba: [0; 4] },
+            TimeRange::at_rate(0, 100, FPS_24),
+        )
+        .unwrap();
+    project
+        .add_effect(clip, "linear_gradient")
+        .expect("a shipped generator is in the catalog");
+    assert!(
+        project.clip(clip).expect("the clip").effects[0].generator,
+        "the instance records that it was placed as a generator"
+    );
+
+    let Ok(mut renderer) = Renderer::new_headless() else {
+        eprintln!("skipping: no headless GPU available");
+        return;
+    };
+    let image = renderer.render_frame(&project, rt(0)).expect("render");
+    // The default ramp runs from black at the left edge to white at the right.
+    assert_near(image.pixel(0, 540), [0, 0, 0, 255], 2, "the left edge");
+    assert_near(image.pixel(960, 540), [128, 128, 128, 255], 2, "the middle");
+    assert_near(
+        image.pixel(1919, 540),
+        [255, 255, 255, 255],
+        2,
+        "the right edge",
+    );
+}
+
 #[test]
 fn gesture_sprite_contains_unwrapped_text_pixels() {
     let mut project = Project::new("text-gesture", FPS_24);

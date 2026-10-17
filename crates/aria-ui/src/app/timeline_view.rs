@@ -1,0 +1,88 @@
+//! The Timeline Display Settings: thumbnails, waveform scale, playhead
+//! follow, and the outline column's width.
+//!
+//! Each choice is a view preference saved with the UI settings, not an edit,
+//! so none of them enters the undo history. The View menu rows and the
+//! timeline header's display button call these setters; the timeline reads
+//! [`crate::timeline_display::TimelineDisplay`] when it draws and when the
+//! transport follows the playhead.
+
+use super::AppState;
+use crate::chrome::menu_items::{DropEntry, TIMELINE_DISPLAY, drop_entries};
+use crate::timeline_display::{Follow, Thumbnails, WaveformScale};
+use crate::types::AppMenu;
+
+impl AppState {
+    /// Open the View menu's Timeline Display Settings under the button
+    /// `owner`, the first choice lit so the arrows and Enter walk the choices,
+    /// or close it when `owner` already holds it out. The timeline header's
+    /// display button and the tool bar's run this.
+    pub fn toggle_timeline_display_menu(&mut self, owner: &'static str) {
+        if self.menu_owner == Some(owner) {
+            self.close_menu();
+            return;
+        }
+        let entries = drop_entries(&self.menu_rows(AppMenu::View));
+        let Some(at) = entries.iter().position(
+            |entry| matches!(entry, DropEntry::Sub { caption, .. } if *caption == TIMELINE_DISPLAY),
+        ) else {
+            return;
+        };
+        self.close_context();
+        self.open_menu = Some(AppMenu::View);
+        self.menu_row = Some(at);
+        self.menu_flyout = Some((at, Some(0)));
+        self.menu_owner = Some(owner);
+    }
+
+    /// Whether the Timeline Display Settings submenu is out.
+    pub fn timeline_display_menu_open(&self) -> bool {
+        self.open_menu == Some(AppMenu::View)
+            && self.menu_flyout.is_some_and(|(at, _)| {
+                matches!(
+                    drop_entries(&self.menu_rows(AppMenu::View)).get(at),
+                    Some(DropEntry::Sub { caption, .. }) if *caption == TIMELINE_DISPLAY
+                )
+            })
+    }
+
+    /// Draw video clips with `thumbnails`.
+    pub fn set_timeline_thumbnails(
+        &mut self,
+        thumbnails: Thumbnails,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        self.ui_settings.timeline_display.thumbnails = thumbnails;
+        self.status_message = Some(format!("Timeline thumbnails: {}", thumbnails.label()));
+        self.persist_settings_later(cx);
+        cx.notify();
+    }
+
+    /// Draw audio waveforms on `scale`.
+    pub fn set_waveform_scale(&mut self, scale: WaveformScale, cx: &mut gpui::Context<Self>) {
+        self.ui_settings.timeline_display.waveform = scale;
+        self.status_message = Some(format!("Timeline waveforms: {}", scale.label()));
+        self.persist_settings_later(cx);
+        cx.notify();
+    }
+
+    /// Follow the playhead during playback with `follow`.
+    pub fn set_timeline_follow(&mut self, follow: Follow, cx: &mut gpui::Context<Self>) {
+        self.ui_settings.timeline_display.follow = follow;
+        // The next follow measures from wherever the view is now.
+        self.follow_scroll = None;
+        self.status_message = Some(format!("Timeline follow: {}", follow.label()));
+        self.persist_settings_later(cx);
+        cx.notify();
+    }
+
+    /// Draw the outline column `width` pixels wide, held to the settings range.
+    /// A drag calls this per frame and saves the settings once, on release.
+    pub fn set_outline_width(&mut self, width: f32) {
+        self.ui_settings.outline_width = crate::settings::clamp_outline(width);
+    }
+}
+
+#[cfg(test)]
+#[path = "timeline_view_tests.rs"]
+mod tests;

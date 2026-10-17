@@ -40,6 +40,10 @@ pub struct AudioEffectSpec {
     /// shipped id is not.
     pub id: String,
     pub label: String,
+    /// The group the Effect menu and the Effects browser list the effect
+    /// under. Empty lists it under [`OTHER_AUDIO_CATEGORY`].
+    #[serde(default)]
+    pub category: String,
     /// Scalar parameters in slot order. A processor reads them by slot.
     #[serde(default)]
     pub params: Vec<EffectParamSpec>,
@@ -53,7 +57,19 @@ pub struct AudioEffectSpec {
     pub sidechain: bool,
 }
 
+/// The group of an audio effect that names none.
+pub const OTHER_AUDIO_CATEGORY: &str = "Other Audio";
+
 impl AudioEffectSpec {
+    /// The group the effect is listed under.
+    pub fn category(&self) -> &str {
+        if self.category.is_empty() {
+            OTHER_AUDIO_CATEGORY
+        } else {
+            &self.category
+        }
+    }
+
     /// The parameter named `name`, or `None`.
     pub fn param(&self, name: &str) -> Option<&EffectParamSpec> {
         self.params.iter().find(|p| p.name == name)
@@ -289,6 +305,29 @@ impl AudioEffectInstance {
             )));
         }
         self.sidechain = key;
+        Ok(())
+    }
+
+    /// `Ok` iff the id is registered, every set parameter names a real slot,
+    /// every curve is structurally sound, and every value lies in range.
+    pub fn validate(&self) -> Result<(), ModelError> {
+        let spec = self.require_spec()?;
+        if self.sidechain.is_some() && !spec.sidechain {
+            return Err(ModelError::InvalidParam(format!(
+                "audio effect '{}' reads no sidechain",
+                self.effect_id
+            )));
+        }
+        for (name, param) in &self.params {
+            let pspec = spec.param(name).ok_or_else(|| {
+                ModelError::InvalidParam(format!(
+                    "audio effect '{}' has no parameter '{name}'",
+                    self.effect_id
+                ))
+            })?;
+            param.validate_shape()?;
+            param.for_each_value(|v| range_check(pspec, *v))?;
+        }
         Ok(())
     }
 }

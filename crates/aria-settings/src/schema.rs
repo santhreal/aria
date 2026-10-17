@@ -51,6 +51,8 @@ pub enum PersistedShape {
     Appearance,
     /// The `[cloud]` table.
     Cloud,
+    /// The `[plugin_limits]` table.
+    PluginLimits,
     /// The `[plugins]` table.
     Plugins,
     /// The `[providers]` table and its per-provider children.
@@ -74,7 +76,8 @@ impl PersistedShape {
         Some(match self {
             Self::Ai => Self::Appearance,
             Self::Appearance => Self::Cloud,
-            Self::Cloud => Self::Plugins,
+            Self::Cloud => Self::PluginLimits,
+            Self::PluginLimits => Self::Plugins,
             Self::Plugins => Self::Providers,
             Self::Providers => Self::Storage,
             Self::Storage => Self::Transcription,
@@ -94,6 +97,7 @@ impl PersistedShape {
             Self::Ai => "ai",
             Self::Appearance => "appearance",
             Self::Cloud => "cloud",
+            Self::PluginLimits => "plugin_limits",
             Self::Plugins => "plugins",
             Self::Providers => "providers",
             Self::Storage => "storage",
@@ -114,6 +118,7 @@ impl PersistedShape {
             // longer exist.
             Self::Cloud => 2,
             Self::Appearance
+            | Self::PluginLimits
             | Self::Plugins
             | Self::Providers
             | Self::Storage
@@ -128,6 +133,7 @@ impl PersistedShape {
             Self::Ai
             | Self::Appearance
             | Self::Cloud
+            | Self::PluginLimits
             | Self::Plugins
             | Self::Providers
             | Self::Storage

@@ -1,5 +1,6 @@
 //! Driving the settings dialog's project pickers: every aspect, every delivery
-//! size, every frame rate and every channel layout the dialog draws.
+//! size, every frame rate, every channel layout and every time display the
+//! dialog draws.
 //!
 //! # Why
 //!
@@ -19,7 +20,7 @@
 
 use std::collections::BTreeSet;
 
-use aria_models::{AudioLayout, CanvasAspect, Rational};
+use aria_models::{AudioLayout, CanvasAspect, Rational, TimeDisplay};
 
 use crate::app::AppState;
 use crate::app::premiere_tests::with_clip;
@@ -45,6 +46,7 @@ fn picks(state: &AppState) -> Vec<Pick> {
     );
     out.extend(RATES.into_iter().map(Pick::Rate));
     out.extend(AudioLayout::ALL.into_iter().map(Pick::Layout));
+    out.extend(TimeDisplay::ALL.into_iter().map(Pick::Display));
     out
 }
 
@@ -83,6 +85,13 @@ fn away_from(state: &mut AppState, pick: Pick) {
                 .find(|candidate| *candidate != layout)
                 .expect("the model ships more than one layout");
             install(state, Pick::Layout(other));
+        }
+        Pick::Display(display) => {
+            let other = TimeDisplay::ALL
+                .into_iter()
+                .find(|candidate| *candidate != display)
+                .expect("the model ships more than one time display");
+            install(state, Pick::Display(other));
         }
     }
 }
@@ -168,7 +177,12 @@ fn a_second_press_of_the_same_row_asks_for_nothing() {
 #[test]
 fn the_census_reaches_every_command_these_pickers_claim() {
     let sent = dispatched();
-    for label in ["Set canvas", "Set sequence frame rate", "Set audio layout"] {
+    for label in [
+        "Set canvas",
+        "Set sequence frame rate",
+        "Set audio layout",
+        "Set time display",
+    ] {
         assert!(
             sent.contains(label),
             "the settings census reached every row it draws and none of them sent \

@@ -4,6 +4,7 @@ pub mod animation;
 pub mod curve_editor;
 pub mod framing;
 pub mod grade;
+pub mod key_strip;
 pub mod keyframes;
 pub mod mask;
 pub mod matte;

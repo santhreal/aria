@@ -812,3 +812,122 @@ fn validate_shape_rejects_unsorted_and_empty() {
     assert!(ok.validate_shape().is_ok());
     assert!(Param::Constant(1.0f32).validate_shape().is_ok());
 }
+// --- temporal ease (influence + speed) and roving keyframes ----------------
+
+#[test]
+fn temporal_ease_validation_enforces_influence_bounds_and_finiteness() {
+    assert!(
+        TemporalEase::new(0.0, MIN_TEMPORAL_INFLUENCE)
+            .validate()
+            .is_ok()
+    );
+    assert!(
+        TemporalEase::new(-5.0, MAX_TEMPORAL_INFLUENCE)
+            .validate()
+            .is_ok()
+    );
+    assert!(TemporalEase::new(0.0, 0.0005).validate().is_err());
+    assert!(TemporalEase::new(0.0, 1.001).validate().is_err());
+    assert!(TemporalEase::new(f32::NAN, 0.5).validate().is_err());
+    assert!(TemporalEase::new(0.0, f32::INFINITY).validate().is_err());
+}
+
+#[test]
+fn easy_ease_in_out_and_hold_shape_adjacent_segments() {
+    let mut p = Param::Constant(0.0f32);
+    p.set_keyframe(0, 0.0, Easing::Linear);
+    p.set_keyframe(30, 30.0, Easing::Linear);
+    p.set_keyframe(60, 60.0, Easing::Linear);
+
+    // Easy Ease on the middle keyframe decelerates into tick 30 and accelerates
+    // out of tick 30 with zero velocity on both sides.
+    p.easy_ease_keyframe(30).unwrap();
+    assert!(p.segment_speed_at(0.0) > 0.9);
+    assert!(p.segment_speed_at(29.999).abs() < 1e-2);
+    assert!(p.segment_speed_at(30.001).abs() < 1e-2);
+    assert!(p.segment_speed_at(60.0) > 0.9);
+
+    // Easy Ease Out on keyframe 0 sets zero departure speed at tick 0.
+    p.easy_ease_out_keyframe(0).unwrap();
+    assert!(p.segment_speed_at(0.0).abs() < 1e-4);
+    assert!((p.sample(15) - 15.0).abs() < 1e-3);
+
+    // Easy Ease In on keyframe 60 sets zero arrival speed at tick 60.
+    p.easy_ease_in_keyframe(60).unwrap();
+    assert!(p.segment_speed_at(60.0).abs() < 1e-4);
+
+    // Toggle Hold on keyframe 0 holds 0.0 until tick 30, then toggles back.
+    let held = p.toggle_hold_keyframe(0).unwrap();
+    assert!(held.is_hold());
+    assert_eq!(p.sample(15), 0.0);
+    assert_eq!(p.sample(29), 0.0);
+    assert_eq!(p.sample(30), 30.0);
+
+    let unheld = p.toggle_hold_keyframe(0).unwrap();
+    assert!(!unheld.is_hold());
+    assert!(p.sample(15) > 1.0);
+}
+
+#[test]
+fn incoming_and_outgoing_influence_shift_curve_pull_and_roundtrip_serde() {
+    let mut low = Param::Constant(0.0f32);
+    low.set_keyframe(0, 0.0, Easing::Linear);
+    low.set_keyframe(100, 100.0, Easing::Linear);
+    low.set_keyframe_temporal_ease(0, None, Some(TemporalEase::new(0.0, 0.15)), false)
+        .unwrap();
+
+    let mut high = Param::Constant(0.0f32);
+    high.set_keyframe(0, 0.0, Easing::Linear);
+    high.set_keyframe(100, 100.0, Easing::Linear);
+    high.set_keyframe_temporal_ease(0, None, Some(TemporalEase::new(0.0, 0.85)), false)
+        .unwrap();
+
+    // Stronger zero-speed outgoing influence holds the curve closer to 0 longer.
+    assert!(high.sample(25) < low.sample(25));
+    let (_, out_high) = high.keyframe_temporal_ease(0).unwrap();
+    assert!((out_high.influence - 0.85).abs() < 1e-5);
+    assert!(out_high.speed.abs() < 1e-5);
+
+    let json = serde_json::to_string(&high).unwrap();
+    let decoded: Param<f32> = serde_json::from_str(&json).unwrap();
+    decoded.validate_shape().unwrap();
+    assert_eq!(decoded, high);
+}
+
+#[test]
+fn roving_keyframe_retimes_from_neighbours_and_ignores_endpoints() {
+    let mut p = Param::Constant([0.0f32, 0.0]);
+    p.set_keyframe(0, [0.0, 0.0], Easing::Linear);
+    p.set_keyframe(10, [1.0, 0.0], Easing::Linear);
+    p.set_keyframe(100, [4.0, 0.0], Easing::Linear);
+
+    // Endpoints ignore roving.
+    assert_eq!(p.set_keyframe_roving(0, true).unwrap(), 0);
+    assert!(!p.keyframes()[0].easing.is_roving());
+    assert_eq!(p.set_keyframe_roving(100, true).unwrap(), 100);
+    assert!(!p.keyframes()[2].easing.is_roving());
+
+    // Middle keyframe sits 1/4 of the total path (1.0 out of 4.0) -> tick 25.
+    let solved = p.set_keyframe_roving(10, true).unwrap();
+    assert_eq!(solved, 25);
+    assert!(p.keyframes()[1].easing.is_roving());
+    assert_eq!(p.keyframes()[1].tick, 25);
+
+    // Moving the last keyframe to tick 200 automatically re-solves the roving
+    // keyframe to tick 50.
+    p.remove_keyframe(100);
+    p.set_keyframe(200, [4.0, 0.0], Easing::Linear);
+    assert_eq!(p.keyframes()[1].tick, 50);
+
+    // Adding spatial tangents to the first segment lengthens its arc, shifting
+    // the roving keyframe later than tick 50.
+    p.set_keyframe_tangents(
+        0,
+        Some(SpatialTangents {
+            out_t: [0.0, 2.0],
+            in_t: [0.0, 0.0],
+        }),
+    )
+    .unwrap();
+    assert!(p.keyframes()[1].tick > 50);
+}

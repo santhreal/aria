@@ -13,7 +13,7 @@ fn mask_and_chroma_key_reach_media_layer() {
     let track = project.add_track(TrackKind::Video, "V1");
     let clip = project.add_clip(track, media, tr(0, 100), rt(0)).unwrap();
     project
-        .set_clip_mask(clip, Some(Mask::new(MaskKind::Circle)))
+        .add_clip_mask(clip, Mask::new(MaskKind::Circle))
         .unwrap();
     project
         .set_clip_chroma_key(
@@ -29,7 +29,7 @@ fn mask_and_chroma_key_reach_media_layer() {
     let scene = resolve(&project, rt(5)).unwrap();
     assert_eq!(scene.layers.len(), 1);
     let layer = &scene.layers[0];
-    let mask = layer.mask.unwrap();
+    let mask = &layer.masks[0];
     assert_eq!(mask.kind, MaskKind::Circle);
     approx2(mask.center, [0.0, 0.0]);
     approx2(mask.size, [1.0, 1.0]);
@@ -41,17 +41,18 @@ fn mask_and_chroma_key_reach_media_layer() {
 
 #[test]
 fn keyframed_mask_center_samples_per_tick() {
-    use aria_models::{LookParam, Mask, MaskKind};
+    use aria_models::{Mask, MaskKind, MaskParam};
 
     let mut project = Project::new("p", FPS_24);
     let media = project.add_media(video(1920, 1080));
     let track = project.add_track(TrackKind::Video, "V1");
     let clip = project.add_clip(track, media, tr(0, 100), rt(0)).unwrap();
     project
-        .set_clip_mask(clip, Some(Mask::new(MaskKind::Circle)))
+        .add_clip_mask(clip, Mask::new(MaskKind::Circle))
         .unwrap();
-    let center = ClipParam::Look {
-        param: LookParam::MaskCenter,
+    let center = ClipParam::Mask {
+        mask: 0,
+        param: MaskParam::Center,
     };
     project
         .set_param_keyframe(
@@ -75,29 +76,30 @@ fn keyframed_mask_center_samples_per_tick() {
         .unwrap();
 
     let start = resolve(&project, rt(0)).unwrap();
-    approx2(start.layers[0].mask.unwrap().center, [0.0, 0.0]);
+    approx2(start.layers[0].masks[0].center, [0.0, 0.0]);
     let mid = resolve(&project, rt(20)).unwrap();
-    approx2(mid.layers[0].mask.unwrap().center, [0.25, -0.125]);
+    approx2(mid.layers[0].masks[0].center, [0.25, -0.125]);
     let end = resolve(&project, rt(40)).unwrap();
-    approx2(end.layers[0].mask.unwrap().center, [0.5, -0.25]);
+    approx2(end.layers[0].masks[0].center, [0.5, -0.25]);
 }
 
 #[test]
 fn mask_rotation_degrees_resolve_to_radians() {
-    use aria_models::{LookParam, Mask, MaskKind};
+    use aria_models::{Mask, MaskKind, MaskParam};
 
     let mut project = Project::new("p", FPS_24);
     let media = project.add_media(video(1920, 1080));
     let track = project.add_track(TrackKind::Video, "V1");
     let clip = project.add_clip(track, media, tr(0, 100), rt(0)).unwrap();
     project
-        .set_clip_mask(clip, Some(Mask::new(MaskKind::Rectangle)))
+        .add_clip_mask(clip, Mask::new(MaskKind::Rectangle))
         .unwrap();
     project
         .set_param_constant(
             clip,
-            ClipParam::Look {
-                param: LookParam::MaskRotation,
+            ClipParam::Mask {
+                mask: 0,
+                param: MaskParam::Rotation,
             },
             ParamValue::Scalar(90.0),
         )
@@ -105,9 +107,62 @@ fn mask_rotation_degrees_resolve_to_radians() {
 
     let scene = resolve(&project, rt(5)).unwrap();
     approx(
-        scene.layers[0].mask.unwrap().rotation_rad,
+        scene.layers[0].masks[0].rotation_rad,
         std::f32::consts::FRAC_PI_2,
     );
+}
+
+#[test]
+fn path_mask_and_text_style_runs_resolve_onto_scene_layers() {
+    use aria_models::{Mask, MaskKind, ShapePathPoint, TextStyle};
+
+    let mut project = Project::new("p", FPS_24);
+    let media = project.add_media(video(1920, 1080));
+    let track = project.add_track(TrackKind::Video, "V1");
+    let clip = project.add_clip(track, media, tr(0, 48), rt(0)).unwrap();
+    project
+        .add_clip_mask(
+            clip,
+            Mask::from_path(
+                vec![
+                    ShapePathPoint::corner([0.1, 0.2]),
+                    ShapePathPoint::corner([0.8, 0.2]),
+                    ShapePathPoint::corner([0.5, 0.9]),
+                ],
+                true,
+            ),
+        )
+        .unwrap();
+
+    let t_track = project.add_track(TrackKind::Text, "T1");
+    let mut style = TextStyle::default();
+    style.apply_range_override(0, 2, |r| {
+        r.bold = Some(true);
+        r.fill = Some([255, 0, 0, 255]);
+    });
+    project
+        .add_generated(
+            t_track,
+            Generator::Text {
+                content: "Hello".into(),
+                style,
+            },
+            tr(0, 48),
+        )
+        .unwrap();
+
+    let scene = resolve(&project, rt(0)).unwrap();
+    let mask = &scene.layers[0].masks[0];
+    assert_eq!(mask.kind, MaskKind::Path);
+    assert_eq!(mask.path.len(), 3);
+    assert_eq!(mask.path[0].anchor, [0.1, 0.2]);
+    let LayerSource::Text { style: mapped, .. } = &scene.layers[1].source else {
+        panic!("expected text layer");
+    };
+    assert_eq!(mapped.runs.len(), 1);
+    assert_eq!(mapped.runs[0].range, 0..2);
+    assert_eq!(mapped.runs[0].bold, Some(true));
+    assert_eq!(mapped.runs[0].color, Some([255, 0, 0, 255]));
 }
 
 #[test]
@@ -126,12 +181,62 @@ fn generated_clip_has_no_look_fields() {
 
     let scene = resolve(&project, rt(5)).unwrap();
     assert_eq!(scene.layers.len(), 1);
-    assert!(scene.layers[0].mask.is_none());
+    assert!(scene.layers[0].masks.is_empty());
     assert!(scene.layers[0].chroma_key.is_none());
 }
 
+/// A mask on a generated clip reaches its layer as one on footage does: a
+/// solid on a sticker lane, a title, and an adjustment layer's canvas pass.
 #[test]
-fn cleared_mask_is_none_on_layer() {
+fn a_generated_clips_mask_resolves_onto_its_layer() {
+    use aria_models::{Mask, MaskKind};
+
+    let title = Generator::Text {
+        content: "Hi".into(),
+        style: Default::default(),
+    };
+    let solid = Generator::SolidColor {
+        rgba: [255, 0, 0, 255],
+    };
+    for (kind, generator) in [
+        (TrackKind::Sticker, solid),
+        (TrackKind::Text, title),
+        (TrackKind::Adjustment, Generator::Adjustment),
+    ] {
+        let mut project = Project::new("p", FPS_24);
+        let lane = project.add_track(kind, "G1");
+        let clip = project.add_generated(lane, generator, tr(0, 100)).unwrap();
+        // An adjustment layer with nothing to do resolves to no pass at all.
+        project
+            .set_clip_adjustments(
+                clip,
+                ColorAdjustments {
+                    saturation: (-1.0).into(),
+                    ..ColorAdjustments::default()
+                },
+            )
+            .unwrap();
+        let mut mask = Mask::new(MaskKind::Rectangle);
+        mask.invert = true;
+        project.add_clip_mask(clip, mask).unwrap();
+
+        let scene = resolve(&project, rt(5)).unwrap();
+        let layer = scene
+            .layers
+            .iter()
+            .find(|layer| layer.clip == Some(clip))
+            .unwrap_or_else(|| panic!("{kind:?}: the clip resolved to no layer"));
+        let resolved = layer
+            .masks
+            .first()
+            .unwrap_or_else(|| panic!("{kind:?}: the mask did not reach the layer"));
+        assert_eq!(resolved.kind, MaskKind::Rectangle, "{kind:?}");
+        assert!(resolved.invert, "{kind:?}");
+    }
+}
+
+#[test]
+fn a_removed_mask_leaves_the_layer() {
     use aria_models::{Mask, MaskKind};
 
     let mut project = Project::new("p", FPS_24);
@@ -139,12 +244,12 @@ fn cleared_mask_is_none_on_layer() {
     let track = project.add_track(TrackKind::Video, "V1");
     let clip = project.add_clip(track, media, tr(0, 100), rt(0)).unwrap();
     project
-        .set_clip_mask(clip, Some(Mask::new(MaskKind::Rectangle)))
+        .add_clip_mask(clip, Mask::new(MaskKind::Rectangle))
         .unwrap();
-    project.set_clip_mask(clip, None).unwrap();
+    project.remove_clip_mask(clip, 0).unwrap();
 
     let scene = resolve(&project, rt(5)).unwrap();
-    assert!(scene.layers[0].mask.is_none());
+    assert!(scene.layers[0].masks.is_empty());
 }
 
 #[test]
@@ -429,4 +534,45 @@ fn identity_or_inactive_lane_passes_are_elided() {
         scene.layers.is_empty(),
         "disabled pass track should not render"
     );
+}
+
+/// A keyframed path reaches the scene as the shape at the frame, measured from
+/// the clip's own start: a clip placed a second in shows its first keyframe at
+/// its first frame, not at the timeline's.
+#[test]
+fn a_keyframed_path_mask_resolves_to_its_shape_at_the_frame() {
+    use aria_models::{Easing, Keyframe, Mask, Param, ShapePathPoint};
+
+    let triangle = |x: f32| {
+        vec![
+            ShapePathPoint::corner([x, 0.2]),
+            ShapePathPoint::corner([0.8, 0.5]),
+            ShapePathPoint::corner([x, 0.8]),
+        ]
+    };
+    let mut mask = Mask::from_path(triangle(0.1), true);
+    mask.path = Param::Keyframed {
+        keyframes: vec![
+            Keyframe::new(0, triangle(0.1), Easing::Linear),
+            Keyframe::new(12, triangle(0.5), Easing::Linear),
+        ],
+    };
+    let mut project = Project::new("p", FPS_24);
+    let media = project.add_media(video(1920, 1080));
+    let track = project.add_track(TrackKind::Video, "V1");
+    let clip = project.add_clip(track, media, tr(0, 48), rt(24)).unwrap();
+    project.add_clip_mask(clip, mask).unwrap();
+
+    for (frame, x) in [(24, 0.1), (27, 0.2), (30, 0.3), (36, 0.5), (60, 0.5)] {
+        let scene = resolve(&project, rt(frame)).unwrap();
+        let anchors: Vec<[f32; 2]> = scene.layers[0].masks[0]
+            .path
+            .iter()
+            .map(|point| point.anchor)
+            .collect();
+        assert_eq!(anchors.len(), 3, "frame {frame}");
+        approx2(anchors[0], [x, 0.2]);
+        approx2(anchors[1], [0.8, 0.5]);
+        approx2(anchors[2], [x, 0.8]);
+    }
 }
