@@ -31,6 +31,8 @@ const CHANNELS: usize = 2;
 const BLOCK: usize = RATE as usize / 100;
 const R24: Rational = Rational::FPS_24;
 const MS: Rational = Rational::new(1000, 1);
+/// Bound on waiting for the event delivery thread to run queued work.
+const FLUSH: Duration = Duration::from_secs(10);
 
 fn write_tone(path: &Path, duration_ms: i64, hz: f32) {
     let frames = (duration_ms as usize * RATE as usize) / 1000;
@@ -296,6 +298,10 @@ fn native_abi_audio_processor_panic_fails_plugin_and_drops_registrations() {
         "subsequent blocks bypass",
     );
 
+    // The audio thread defers the failure to the event delivery thread, which
+    // fails the plugin and then posts its deactivation: two rounds.
+    assert!(ctx.events().flush(FLUSH));
+    assert!(ctx.events().flush(FLUSH));
     assert!(!ctx.is_mounted("com.test.native-panic"));
     assert!(
         !ctx.commands()
