@@ -348,42 +348,68 @@ fn live_rows() -> Vec<(AppMenu, String)> {
     }
     out
 }
-/// Run one menu row against a fresh state and report the history labels it
-/// added, newest last.
-fn labels_from(menu: AppMenu, id: &str, dress: Dress) -> Vec<String> {
-    driven(menu, id, dress).0
+/// One menu row's outcome when run against its declared dressing.
+///
+/// # Why
+///
+/// Every `Dress::state()` constructs an `AppState` and a headless `Renderer`
+/// (`~240 ms` wall and `66` Lavapipe threads per call). Recording each row's
+/// history labels, disabled-guard reading, form state, and file-picker request
+/// during the single `CENSUS` pass lets `menu_reach_tests_row` and
+/// `menu_reach_tests_verbs` check every row's contract without repeating four
+/// full-menu passes (`~800` redundant `AppState::new` calls).
+pub(super) struct RowOutcome {
+    pub(super) id: String,
+    pub(super) kind: Kind,
+    pub(super) dress: Dress,
+    pub(super) wrote: Vec<String>,
+    pub(super) blocked: Option<&'static str>,
+    pub(super) opened_form: bool,
 }
-/// Run one menu row against the state it declares and report both the history
-/// labels it added and every command it dispatched: a row that saves, exports or
-/// opens asks for a command and writes no history, so the surface census reads
-/// the second.
-fn driven(menu: AppMenu, id: &str, dress: Dress) -> (Vec<String>, Vec<&'static str>) {
-    dispatch(menu, id, dress.state(), false)
+
+struct Probe {
+    wrote: Vec<String>,
+    asked: Vec<&'static str>,
+    blocked: Option<&'static str>,
+    opened_form: bool,
+    asked_pick: bool,
 }
-/// The same, against a state the caller built: a row that asks for a path is
-/// driven against one carrying the answer, and a row that opens a form is driven
-/// with Enter pressed on the form (`enter`).
+
+pub(super) struct MenuCensus {
+    pub(super) labels: BTreeSet<String>,
+    pub(super) sent: BTreeSet<&'static str>,
+    pub(super) rows: Vec<RowOutcome>,
+    pub(super) asking_picks: Vec<String>,
+}
+
+/// Run one menu row against a state the caller built: a row that asks for a
+/// path is driven against one carrying the answer, and a row that opens a form
+/// is driven with Enter pressed on the form (`enter`).
 fn dispatch(
     menu: AppMenu,
     id: &str,
     state: AppState,
     enter: bool,
 ) -> (Vec<String>, Vec<&'static str>) {
+    let probe = probe(menu, id, state, enter);
+    (probe.wrote, probe.asked)
+}
+
+fn probe(menu: AppMenu, id: &str, state: AppState, enter: bool) -> Probe {
     let cx = gpui::TestAppContext::single();
     let before = history_labels(&state);
     let watch = super::sent_census::Watch::on(&state);
     let entity = cx.update(|app| app.new(|_| state));
-    let found = cx.update(|app| {
+    let (found, blocked) = cx.update(|app| {
         entity.update(app, |state: &mut AppState, cx| {
             // The item list is read from the immutable state, then the row runs
             // against the mutable one: two borrows, in order.
-            let run = items_of(menu, &*state)
-                .into_iter()
-                .find(|it| it.id == id)
-                .map(|it| it.run);
-            let Some(run) = run else {
-                return false;
+            let item = items_of(menu, &*state).into_iter().find(|it| it.id == id);
+            let Some(item) = item else {
+                return (false, None);
             };
+            let blocked = item.blocked_by(&*state);
+            let run = item.run;
             run(id, state, cx);
             if enter {
                 assert!(
@@ -391,12 +417,25 @@ fn dispatch(
                     "{id} opened no form Enter commits"
                 );
             }
-            true
+            (true, blocked)
         })
     });
     assert!(found, "{id} vanished between enumeration and running");
-    let after = cx.update(|app| history_labels(entity.read(app)));
-    (after.into_iter().skip(before.len()).collect(), watch.take())
+    let (after, opened_form, asked_pick) = cx.update(|app| {
+        let state = entity.read(app);
+        let opened_form = matches!(
+            crate::app::dialog_primary::primary(state.dialog),
+            crate::app::dialog_primary::Primary::Run(_)
+        );
+        (history_labels(state), opened_form, state.picks_asked() > 0)
+    });
+    Probe {
+        wrote: after.into_iter().skip(before.len()).collect(),
+        asked: watch.take(),
+        blocked,
+        opened_form,
+        asked_pick,
+    }
 }
 fn history_labels(state: &AppState) -> Vec<String> {
     state
@@ -412,52 +451,75 @@ fn history_labels(state: &AppState) -> Vec<String> {
 /// Shared with the operator-surface census: the bar is one of the surfaces a
 /// command may be reached from.
 pub(super) fn measured() -> &'static BTreeSet<String> {
-    &CENSUS.0
+    &CENSUS.labels
 }
 /// Every command the bar's rows dispatched, whether or not it edited.
 pub(super) fn dispatched() -> &'static BTreeSet<&'static str> {
-    &CENSUS.1
+    &CENSUS.sent
 }
-/// The bar's census: history labels, then commands sent, from one pass.
-static CENSUS: std::sync::LazyLock<(BTreeSet<String>, BTreeSet<&'static str>)> =
-    std::sync::LazyLock::new(|| {
-        let mut labels = BTreeSet::new();
-        let mut sent = BTreeSet::new();
-        let rows = live_rows();
-        for (menu, id) in &rows {
-            // A row with no declaration is named by
-            // `the_table_names_every_menu_row_and_nothing_else`; measuring it
-            // against the plain clip here would hide it behind a second failure.
-            let Some((_, dress)) = row_of(id) else {
-                continue;
-            };
-            let (wrote, asked) = driven(*menu, id, dress);
-            labels.extend(wrote);
-            sent.extend(asked);
+/// The bar's census: history labels, commands sent, and per-row outcomes from
+/// one pass.
+pub(super) static CENSUS: std::sync::LazyLock<MenuCensus> = std::sync::LazyLock::new(|| {
+    let mut labels = BTreeSet::new();
+    let mut sent = BTreeSet::new();
+    let mut row_outcomes = Vec::new();
+    let mut asking_picks = Vec::new();
+    let rows = live_rows();
+    for (menu, id) in &rows {
+        // A row with no declaration is named by
+        // `the_table_names_every_menu_row_and_nothing_else`; measuring its
+        // labels against the plain clip here would hide it behind a second
+        // failure, though a path pick is still recorded so an undeclared
+        // picking row goes red in `every_row_that_asks_for_a_path_is_driven_with_an_answer`.
+        let Some((kind, dress)) = row_of(id) else {
+            if probe(*menu, id, with_clip().0, false).asked_pick {
+                asking_picks.push(id.clone());
+            }
+            continue;
+        };
+        let outcome = probe(*menu, id, dress.state(), false);
+        if outcome.asked_pick {
+            asking_picks.push(id.clone());
         }
-        // A row that opens a file dialog is driven a second time, answered. The
-        // menu it lives on is read off the live bar rather than written here
-        // twice.
-        for (id, answered) in PICK_ROWS {
-            let Some((menu, _)) = rows.iter().find(|(_, live)| live == id) else {
-                continue;
-            };
-            let (wrote, asked) = dispatch(*menu, id, answered.state().0, false);
-            labels.extend(wrote);
-            sent.extend(asked);
-        }
-        // A row that opens a form is driven a second time with the form
-        // committed, which is the press that sends its command.
-        for (id, dress) in FORM_ROWS {
-            let Some((menu, _)) = rows.iter().find(|(_, live)| live == id) else {
-                continue;
-            };
-            let (wrote, asked) = dispatch(*menu, id, dress.state(), true);
-            labels.extend(wrote);
-            sent.extend(asked);
-        }
-        (labels, sent)
-    });
+        labels.extend(outcome.wrote.iter().cloned());
+        sent.extend(outcome.asked);
+        row_outcomes.push(RowOutcome {
+            id: id.clone(),
+            kind,
+            dress,
+            wrote: outcome.wrote,
+            blocked: outcome.blocked,
+            opened_form: outcome.opened_form,
+        });
+    }
+    // A row that opens a file dialog is driven a second time, answered. The
+    // menu it lives on is read off the live bar rather than written here
+    // twice.
+    for (id, answered) in PICK_ROWS {
+        let Some((menu, _)) = rows.iter().find(|(_, live)| live == id) else {
+            continue;
+        };
+        let (wrote, asked) = dispatch(*menu, id, answered.state().0, false);
+        labels.extend(wrote);
+        sent.extend(asked);
+    }
+    // A row that opens a form is driven a second time with the form
+    // committed, which is the press that sends its command.
+    for (id, dress) in FORM_ROWS {
+        let Some((menu, _)) = rows.iter().find(|(_, live)| live == id) else {
+            continue;
+        };
+        let (wrote, asked) = dispatch(*menu, id, dress.state(), true);
+        labels.extend(wrote);
+        sent.extend(asked);
+    }
+    MenuCensus {
+        labels,
+        sent,
+        rows: row_outcomes,
+        asking_picks,
+    }
+});
 /// Every menu row that asks the operator for a path, with the state and the
 /// answer it is driven with. Checked against the live menus at run time by
 /// `every_row_that_asks_for_a_path_is_driven_with_an_answer`.

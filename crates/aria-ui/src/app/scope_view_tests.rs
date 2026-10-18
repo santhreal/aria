@@ -618,7 +618,7 @@ fn the_chips_over_the_waveform_choose_its_mode(cx: &mut gpui::TestAppContext) {
             cx.notify();
         })
     });
-    visual.run_until_parked();
+    crate::test_support::refresh_panels(visual);
     for (place, mode) in [
         ("preview-scopes", WaveformMode::YcbcrParade),
         ("preview-scopes", WaveformMode::Luma),
@@ -629,7 +629,7 @@ fn the_chips_over_the_waveform_choose_its_mode(cx: &mut gpui::TestAppContext) {
             .debug_bounds(intern(&selector))
             .unwrap_or_else(|| panic!("the strip draws no {selector} chip"));
         visual.simulate_click(bounds.center(), gpui::Modifiers::none());
-        visual.run_until_parked();
+        crate::test_support::refresh_panels(visual);
         assert_eq!(
             visual.read(|app| state.read(app).waveform_mode()),
             mode,

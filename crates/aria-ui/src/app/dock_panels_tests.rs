@@ -85,7 +85,7 @@ fn each_panel_docks_from_its_window_row_and_draws(cx: &mut gpui::TestAppContext)
                 state.update(app, |state, cx| run_item(AppMenu::Window, &row, state, cx))
             });
             assert!(found, "Window has no row for {panel}");
-            visual.run_until_parked();
+            crate::test_support::refresh_panels(visual);
             visual.read(|app| state.read(app).dock_tree.is_open(panel))
         };
         if visual.read(|app| state.read(app).dock_tree.is_open(panel)) {
@@ -258,7 +258,7 @@ fn a_click_on_a_history_row_moves_the_project_to_that_step(cx: &mut gpui::TestAp
             before
         })
     });
-    visual.run_until_parked();
+    crate::test_support::refresh_panels(visual);
     let read = |visual: &mut gpui::VisualTestContext| {
         visual.read(|app| {
             let state = state.read(app);
@@ -273,7 +273,7 @@ fn a_click_on_a_history_row_moves_the_project_to_that_step(cx: &mut gpui::TestAp
             .debug_bounds(selector)
             .unwrap_or_else(|| panic!("History draws no row for step {depth}"));
         visual.simulate_click(row.center(), gpui::Modifiers::none());
-        visual.run_until_parked();
+        crate::test_support::refresh_panels(visual);
         assert_eq!(
             read(visual),
             (depth, markers),
@@ -298,7 +298,7 @@ fn the_color_panel_resets_the_selected_clips_grade(cx: &mut gpui::TestAppContext
             cx.notify();
         })
     });
-    visual.run_until_parked();
+    crate::test_support::refresh_panels(visual);
     assert!(
         visual.debug_bounds("color-panel").is_some(),
         "the Color panel is in front and not drawn"
@@ -322,7 +322,7 @@ fn the_color_panel_resets_the_selected_clips_grade(cx: &mut gpui::TestAppContext
             neutral
         })
     });
-    visual.run_until_parked();
+    crate::test_support::refresh_panels(visual);
     let graded = visual.read(|app| state.read(app).param_scalar(exposure, None));
     assert!(neutral.is_some(), "exposure is not a property of the clip");
     assert_ne!(graded, neutral, "the nudge did not grade the clip");

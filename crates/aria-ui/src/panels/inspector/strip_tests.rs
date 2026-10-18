@@ -21,7 +21,7 @@ use crate::dock::{Axis, FrameId, Node, PANEL_INSPECTOR};
 use crate::panels::inspector::blocks::key_strip::{STRIP_MIN, STRIP_W};
 use crate::panels::inspector::blocks::widgets::LABEL_RESERVE;
 use crate::surfaces::effects_rack::{self, Gesture};
-use crate::test_support::drawn_shell;
+use crate::test_support::{drawn_shell, panel_bounds, refresh_panels};
 
 /// The blur's radius: the first slot of the first effect.
 const RADIUS: ClipParam = ClipParam::Effect {
@@ -48,9 +48,7 @@ fn fixture() -> PathBuf {
 /// Where the inspector painted `control` on the row of `param`.
 fn painted(visual: &mut VisualTestContext, control: &str, param: ClipParam) -> Bounds<Pixels> {
     let selector: &'static str = format!("insp-{control}-{param:?}").leak();
-    visual
-        .debug_bounds(selector)
-        .unwrap_or_else(|| panic!("Effect Controls draws no {selector}"))
+    panel_bounds(visual, selector).unwrap_or_else(|| panic!("Effect Controls draws no {selector}"))
 }
 
 /// Where the inspector painted `control` on the radius row.
@@ -89,15 +87,12 @@ fn drawn_on<'a>(
     cx.executor().allow_parking();
     let (state, visual) = drawn_shell(cx, tag);
     visual.update(|_, app| {
-        // Notified, so the shell builds every panel body again; a window
-        // refresh alone replays each body's last drawing.
-        state.update(app, |state, cx| {
+        state.update(app, |state, _| {
             select_the_texture(state, tab);
             then(state);
-            cx.notify();
         });
     });
-    visual.run_until_parked();
+    refresh_panels(visual);
     (state, visual)
 }
 
@@ -486,12 +481,11 @@ fn narrow_the_inspector(
             })
             .collect();
         visual.update(|_, app| {
-            state.update(app, |state, cx| {
+            state.update(app, |state, _| {
                 assert!(state.dock_tree.set_weights(&split, &weights));
-                cx.notify();
             });
         });
-        visual.run_until_parked();
+        refresh_panels(visual);
         let right = visual.read(|app| {
             let state = state.read(app);
             let id = state.dock_tree.find(PANEL_INSPECTOR).expect("docked");

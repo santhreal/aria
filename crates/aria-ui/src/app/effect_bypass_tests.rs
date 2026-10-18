@@ -13,7 +13,7 @@ use aria_models::ClipId;
 use gpui::{Modifiers, TestAppContext, VisualTestContext};
 
 use crate::app::AppState;
-use crate::test_support::drawn_shell;
+use crate::test_support::{drawn_shell, panel_bounds, refresh_panels};
 
 fn fixture() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/texture.png")
@@ -43,9 +43,7 @@ async fn the_drawn_fx_toggle_switches_its_own_effect_and_undo_takes_it_back(
     cx.executor().allow_parking();
     let (state, visual) = drawn_shell(cx, "effect-bypass");
     visual.update(|_, app| {
-        // Notified, so the shell builds every panel body again; a window
-        // refresh alone replays each body's last drawing.
-        state.update(app, |state, cx| {
+        state.update(app, |state, _| {
             let media = state.import_media(fixture()).expect("import the fixture");
             state
                 .drop_media_on_timeline(media, None, 0)
@@ -67,10 +65,9 @@ async fn the_drawn_fx_toggle_switches_its_own_effect_and_undo_takes_it_back(
             }
             state.inspector_tab = "effects".to_string();
             state.dock_tree.open(crate::dock::PANEL_INSPECTOR);
-            cx.notify();
         });
     });
-    visual.run_until_parked();
+    refresh_panels(visual);
     let off = vec![false, false];
     assert_eq!(
         flags(&state, visual),
@@ -85,8 +82,7 @@ async fn the_drawn_fx_toggle_switches_its_own_effect_and_undo_takes_it_back(
         (0, [false, false]),
     ] {
         let selector: &'static str = format!("inspector-fx-bypass-{index}").leak();
-        let toggle = visual
-            .debug_bounds(selector)
+        let toggle = panel_bounds(visual, selector)
             .unwrap_or_else(|| panic!("the header of effect {index} draws no fx toggle"));
         visual.simulate_click(toggle.center(), Modifiers::none());
         visual.run_until_parked();
