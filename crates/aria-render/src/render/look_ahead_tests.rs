@@ -482,3 +482,231 @@ fn a_repeat_render_takes_the_shown_frame_back_without_decoding() {
         "a snapped frame answered an exact request"
     );
 }
+
+fn av_fixture() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/fixture-640x360-24fps-3s-av.mp4")
+}
+
+fn stacked_cut_project(lanes: usize, clips_per_lane: i64) -> (Project, MediaId, Vec<ClipId>) {
+    let mut project = Project::new("stacked cut", FPS_24);
+    let path = av_fixture();
+    let media = project.add_media(MediaSource::new(path, 640, 360, FPS_24, 72, false));
+    let range = |start, duration| TimeRange::at_rate(start, duration, FPS_24);
+    let at = |tick| RationalTime::new(tick, FPS_24);
+    let mut first_col_clips = Vec::with_capacity(lanes);
+    for lane in 0..lanes {
+        let track = project.add_track(TrackKind::Video, format!("V{}", lane + 1));
+        for col in 0..clips_per_lane {
+            let clip = project
+                .add_clip(track, media, range(0, 12), at(col * 12))
+                .unwrap();
+            if col == 0 {
+                first_col_clips.push(clip);
+            }
+        }
+    }
+    (project, media, first_col_clips)
+}
+
+#[cfg(target_os = "linux")]
+fn proc_status_metrics() -> (f64, f64, usize, usize, usize) {
+    let status = std::fs::read_to_string("/proc/self/status").unwrap_or_default();
+    let mut rss_kib = 0usize;
+    let mut hwm_kib = 0usize;
+    let mut threads = 0usize;
+    for line in status.lines() {
+        if let Some(rest) = line.strip_prefix("VmRSS:") {
+            rss_kib = rest
+                .split_whitespace()
+                .next()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(0);
+        } else if let Some(rest) = line.strip_prefix("VmHWM:") {
+            hwm_kib = rest
+                .split_whitespace()
+                .next()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(0);
+        } else if let Some(rest) = line.strip_prefix("Threads:") {
+            threads = rest
+                .split_whitespace()
+                .next()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(0);
+        }
+    }
+    let mut av_threads = 0usize;
+    let mut mq_threads = 0usize;
+    if let Ok(entries) = std::fs::read_dir("/proc/self/task") {
+        for entry in entries.flatten() {
+            if let Ok(comm) = std::fs::read_to_string(entry.path().join("comm")) {
+                let name = comm.trim();
+                if name.starts_with("av:") {
+                    av_threads += 1;
+                } else if name.starts_with("multiqueue") {
+                    mq_threads += 1;
+                }
+            }
+        }
+    }
+    (
+        rss_kib as f64 / 1024.0,
+        hwm_kib as f64 / 1024.0,
+        threads,
+        av_threads,
+        mq_threads,
+    )
+}
+
+#[cfg(not(target_os = "linux"))]
+fn proc_status_metrics() -> (f64, f64, usize, usize, usize) {
+    (0.0, 0.0, 0, 0, 0)
+}
+
+/// WHY: 30 stacked clips of one media file at the same source time each opened
+/// their own GStreamer pipeline in `Renderer::decode` and again for every
+/// upcoming entrance in `Renderer::look_ahead`, reaching 240 open decoders and
+/// >5,000 libav threads across five 8-tick filmstrip/viewer steps. Closes the
+/// class of stacked clips at one source time multiplying decoders or decodes,
+/// and of look-ahead/active decoders exceeding `MAX_DECODERS`.
+#[test]
+fn stacked_clips_of_one_media_at_one_source_time_share_one_decoder_and_stay_within_cap() {
+    let (single_project, _, _) = stacked_cut_project(1, 80);
+    let (stacked_project, media, first_col_clips) = stacked_cut_project(30, 80);
+    let ticks = [0i64, 8, 16, 24, 32];
+
+    let single_frames: Vec<RgbaImage> = {
+        let Ok(mut single_renderer) = Renderer::new_headless() else {
+            return;
+        };
+        ticks
+            .iter()
+            .map(|&tick| {
+                single_renderer
+                    .render_frame_fit(&single_project, RationalTime::new(tick, FPS_24), 96, 34)
+                    .unwrap_or_else(|e| panic!("single frame {tick}: {e}"))
+            })
+            .collect()
+    };
+
+    let Ok(mut renderer) = Renderer::new_headless() else {
+        return;
+    };
+    let (base_rss, base_hwm, base_threads, base_av, base_mq) = proc_status_metrics();
+    println!(
+        "STACK_REPRO_BASE rss_mib={base_rss:.1} hwm_mib={base_hwm:.1} threads={base_threads} av_threads={base_av} mq_threads={base_mq}"
+    );
+
+    let mut open_counts = Vec::new();
+    let mut rendered_frames = Vec::new();
+    for &tick in &ticks {
+        let started = std::time::Instant::now();
+        let img = renderer
+            .render_frame_fit(&stacked_project, RationalTime::new(tick, FPS_24), 96, 34)
+            .unwrap_or_else(|e| panic!("stacked frame {tick}: {e}"));
+        let wall_ms = started.elapsed().as_secs_f64() * 1000.0;
+        let open = renderer.decoders.len();
+        let (rss_mib, hwm_mib, threads, av_threads, mq_threads) = proc_status_metrics();
+        println!(
+            "STACK_REPRO tick={tick} open_decoders={open} wall_ms={wall_ms:.2} rss_mib={rss_mib:.1} hwm_mib={hwm_mib:.1} threads={threads} av_threads={av_threads} mq_threads={mq_threads}"
+        );
+        open_counts.push(open);
+        rendered_frames.push(img);
+    }
+
+    for ((&tick, got), expected) in ticks.iter().zip(&rendered_frames).zip(&single_frames) {
+        assert_same(got, expected, tick, "30-lane stacked vs 1-lane");
+    }
+
+    assert_eq!(
+        open_counts[0], 1,
+        "30 stacked clips of one media at tick 0 opened {} decoders instead of sharing 1",
+        open_counts[0]
+    );
+    let max_open = open_counts.iter().copied().max().unwrap_or(0);
+    assert!(
+        max_open <= MAX_DECODERS,
+        "open decoders across stacked ticks {ticks:?} reached {max_open} (counts={open_counts:?}), exceeding MAX_DECODERS={MAX_DECODERS}"
+    );
+
+    // Also verify direct single-frame decode sharing + repeat redraw call count
+    // with a Counting decoder on a fresh renderer.
+    let Ok(mut counted) = Renderer::new_headless() else {
+        return;
+    };
+    let calls = Arc::new(AtomicUsize::new(0));
+    let inner = open_video_decoder(&av_fixture(), aria_decoder::OutputMode::Cpu)
+        .unwrap_or_else(|e| panic!("av fixture: {e}"));
+    let decoder = AheadDecoder::new(Box::new(Counting {
+        inner,
+        calls: Arc::clone(&calls),
+    }));
+    let first_key = DecoderKey {
+        media,
+        clip: Some(first_col_clips[0]),
+    };
+    counted
+        .decoders
+        .insert(first_key, DecoderSlot::new(Some(decoder), None, 0));
+    counted
+        .render_frame_fit(&stacked_project, RationalTime::new(0, FPS_24), 96, 34)
+        .expect("counted tick 0");
+    if let Some(d) = &counted.decoders[&first_key].decoder {
+        d.idle();
+    }
+    let after_first = calls.load(Ordering::SeqCst);
+    assert_eq!(
+        counted.decoders.len(),
+        1,
+        "30 stacked layers opened extra decoders when first layer already had one"
+    );
+    counted
+        .render_frame_fit(&stacked_project, RationalTime::new(0, FPS_24), 96, 34)
+        .expect("counted tick 0 repeat");
+    if let Some(d) = &counted.decoders[&first_key].decoder {
+        d.idle();
+    }
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        after_first,
+        "a repeat render of 30 stacked clips decoded again"
+    );
+}
+
+/// WHY: `retire_decoders` exempted every decoder touched within `RELEASE_AFTER`
+/// scenes from `MAX_DECODERS`, so a scene with more than `MAX_DECODERS`
+/// distinct-offset video layers (or successive scenes within `RELEASE_AFTER`)
+/// grew `renderer.decoders` without bound. Closes the sibling variant where
+/// stacked layers have distinct `source_time`s and cannot share a single frame.
+#[test]
+fn stacked_layers_at_distinct_source_times_never_exceed_max_decoders() {
+    let mut project = Project::new("distinct offsets", FPS_24);
+    let path = av_fixture();
+    let media = project.add_media(MediaSource::new(path, 640, 360, FPS_24, 72, false));
+    let lanes = MAX_DECODERS + 6;
+    for lane in 0..lanes {
+        let track = project.add_track(TrackKind::Video, format!("V{}", lane + 1));
+        project
+            .add_clip(
+                track,
+                media,
+                TimeRange::at_rate(lane as i64, 24, FPS_24),
+                RationalTime::new(0, FPS_24),
+            )
+            .unwrap();
+    }
+    let Ok(mut renderer) = Renderer::new_headless() else {
+        return;
+    };
+    for tick in [0i64, 1] {
+        renderer
+            .render_frame_fit(&project, RationalTime::new(tick, FPS_24), 96, 34)
+            .unwrap_or_else(|e| panic!("distinct-offset tick {tick}: {e}"));
+        let open = renderer.decoders.len();
+        assert!(
+            open <= MAX_DECODERS,
+            "tick {tick} with {lanes} distinct-offset layers left {open} decoders open (cap is {MAX_DECODERS})"
+        );
+    }
+}

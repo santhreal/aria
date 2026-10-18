@@ -58,16 +58,21 @@ decode workers  ->  frame cache  ->  render (GPU)  ->  present (GPU, no copy)
 ```
 
 1. **Decode-ahead.** Each clip that will be visible in the next two seconds has
-   a decoder on the shared decode pool. A decoder runs ahead of the playhead by
-   a window sized by frame size and codec (at least 8 frames). Reverse playback
-   decodes each GOP forward once and serves its frames backward from the cache.
-   A paused frame redrawn at the same source time, for a parameter drag or a
-   selection change, shows the CPU frame its last draw decoded; a GPU surface
-   and a new source time decode again. A scrub snaps to the sync frame before
-   the target when one seek and one decode cost less than decoding forward from
-   the decoder's position. After a seek the video decoder starts at the latest
-   video keyframe at or before the target, including in an MP4 whose audio
-   packets would place the segment start before that keyframe.
+   a decoder on the shared decode pool, up to 16 open decoders per renderer.
+   Stacked clips of one media file at the same source time share one decoder and
+   one decoded CPU frame. Video decode pipelines expose only raw video pads
+   (`expose-all-streams=false`, `video/x-raw(ANY)`) and bound software video
+   decoder thread pools across active pipelines (`max-threads` scaled from `16`
+   down to `8` as concurrent pipelines open). A decoder runs ahead of the playhead by a window sized
+   by frame size and codec (at least 8 frames). Reverse playback decodes each
+   GOP forward once and serves its frames backward from the cache. A paused
+   frame redrawn at the same source time, for a parameter drag or a selection
+   change, shows the CPU frame its last draw decoded; a GPU surface and a new
+   source time decode again. A scrub snaps to the sync frame before the target
+   when one seek and one decode cost less than decoding forward from the
+   decoder's position. After a seek the video decoder starts at the latest video
+   keyframe at or before the target, including in an MP4 whose audio packets
+   would place the segment start before that keyframe.
 2. **Frame cache.** Decoded and rendered frames are stored in a GPU-resident
    cache bounded by a size in Settings (default: 25 % of video memory) and a
    system memory spill tier (default: 4 GB). Frames are keyed by sequence,

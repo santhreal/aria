@@ -116,6 +116,9 @@ pub struct GstDecoder {
     mode: OutputMode,
     /// Starts the video decoder at the video keyframe after a key-unit seek.
     snap: std::sync::Arc<crate::gst_key_snap::KeySnap>,
+    /// Keeps this decoder registered in the process-wide active video pipeline
+    /// count until after `Drop` sets the pipeline to `Null`.
+    _slot: crate::gst_gpu::VideoPipelineSlot,
 }
 
 // SAFETY: pipeline and sink are owned by one decode worker. `VideoDecoder: Send`
@@ -143,6 +146,7 @@ impl GstDecoder {
             seek_stats: SeekStats::default(),
             mode: opened.mode,
             snap: opened.snap,
+            _slot: opened.slot,
         })
     }
 

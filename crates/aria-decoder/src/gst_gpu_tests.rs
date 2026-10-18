@@ -269,3 +269,131 @@ fn only_a_file_the_cpu_path_opens_turns_dmabuf_off() {
         "an unreadable file turned DMABuf off for the process"
     );
 }
+
+/// WHY: `uridecodebin` defaulted to `expose-all-streams = true` with unbounded
+/// caps and left `avdec_*` `max-threads` at `0` (auto = one frame thread per
+/// logical CPU), so every stacked video decoder on an A/V container also
+/// demuxed audio into `multiqueue` and spawned 16 libav frame threads + frame
+/// pools on a 16-core host, while an audio-only `.wav` prerolled the audio pad
+/// and stalled video preroll for `PREROLL_WAIT`. Closes the class of video
+/// decode pipelines exposing non-video branches or spawning unbounded software
+/// decoder thread pools under concurrency.
+#[test]
+fn video_pipeline_ignores_audio_streams_and_bounds_decoder_threads() {
+    let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let av_fixture = manifest.join("../../tests/fixtures/fixture-640x360-24fps-3s-av.mp4");
+    let wav_fixture = manifest.join("../../tests/fixtures/fixture-stereo-48k-2s.wav");
+    crate::gst::ensure_init().expect("GStreamer initializes");
+
+    let wav_started = Instant::now();
+    let wav_res = crate::gst::GstDecoder::open(&wav_fixture, OutputMode::Cpu);
+    let wav_ms = wav_started.elapsed().as_secs_f64() * 1000.0;
+    println!(
+        "DECODER_WAV_REJECT wav_ok={} wav_ms={wav_ms:.2}",
+        wav_res.is_ok()
+    );
+
+    let inspect_pipeline = |pipeline: &gst::Pipeline| -> (bool, u32, Vec<(String, i32)>) {
+        let src = pipeline.by_name("src").expect("uridecodebin src");
+        let expose_all: bool = src.property("expose-all-streams");
+        let pads = src.num_src_pads() as u32;
+        let mut max_threads = Vec::new();
+        let mut iter = pipeline.iterate_recurse();
+        while let Ok(Some(element)) = iter.next() {
+            let Some(factory) = element.factory() else {
+                continue;
+            };
+            let klass = factory
+                .metadata(gst::ELEMENT_METADATA_KLASS)
+                .unwrap_or_default();
+            if klass.contains("Decoder")
+                && klass.contains("Video")
+                && element.find_property("max-threads").is_some()
+            {
+                max_threads.push((
+                    factory.name().to_string(),
+                    element.property::<i32>("max-threads"),
+                ));
+            }
+        }
+        if max_threads.is_empty()
+            && let Ok(src_bin) = src.downcast::<gst::Bin>()
+            && let Ok(avdec) = gst::ElementFactory::make("avdec_h264").build()
+        {
+            src_bin.add(&avdec).expect("attach probe avdec_h264");
+            max_threads.push((
+                "avdec_h264".to_string(),
+                avdec.property::<i32>("max-threads"),
+            ));
+            let _ = src_bin.remove(&avdec);
+        }
+        (expose_all, pads, max_threads)
+    };
+
+    let mut opened = Vec::new();
+    let mut thread_budgets = Vec::new();
+    for idx in 0..8 {
+        let pipe = open_pipeline(&av_fixture, OutputMode::Cpu).expect("av fixture opens");
+        let (expose_all, pads, threads) = inspect_pipeline(&pipe.pipeline);
+        println!("DECODER_PIPE idx={idx} expose_all={expose_all} pads={pads} threads={threads:?}");
+        opened.push(pipe);
+        thread_budgets.push((expose_all, pads, threads));
+    }
+
+    for pipe in opened.drain(..) {
+        let _ = pipe.pipeline.set_state(gst::State::Null);
+        drop(pipe);
+    }
+    let settle_deadline = Instant::now() + Duration::from_secs(2);
+    while ACTIVE_VIDEO_PIPELINES.load(Ordering::Relaxed) > 0 && Instant::now() < settle_deadline {
+        std::thread::yield_now();
+    }
+    let after_drop = open_pipeline(&av_fixture, OutputMode::Cpu).expect("av fixture reopens");
+    let (_, _, restored_threads) = inspect_pipeline(&after_drop.pipeline);
+    let _ = after_drop.pipeline.set_state(gst::State::Null);
+    drop(after_drop);
+
+    assert!(wav_res.is_err(), "audio-only wav must not open as video");
+    assert!(
+        wav_ms < 1000.0,
+        "audio-only wav rejection took {wav_ms:.1} ms (expected < 1000 ms without audio pad preroll)"
+    );
+    for (idx, (expose_all, pads, threads)) in thread_budgets.iter().enumerate() {
+        assert!(
+            !expose_all,
+            "pipeline {idx} left expose-all-streams enabled on uridecodebin"
+        );
+        assert_eq!(
+            *pads, 1,
+            "pipeline {idx} exposed {pads} pads on an A/V file instead of 1 video pad"
+        );
+        assert!(
+            !threads.is_empty(),
+            "pipeline {idx} plugged no video decoder with max-threads"
+        );
+        for (name, mt) in threads {
+            assert!(
+                (1..=MAX_DECODER_THREADS as i32).contains(mt),
+                "pipeline {idx} decoder {name} has unbounded max-threads={mt} (expected 1..={MAX_DECODER_THREADS})"
+            );
+        }
+    }
+    let cpus = std::thread::available_parallelism()
+        .map(usize::from)
+        .unwrap_or(4);
+    let single_budget = cpus.clamp(1, MAX_DECODER_THREADS) as i32;
+    let multi_floor = cpus.clamp(1, MIN_DECODER_THREADS) as i32;
+    let eighth_cap = (cpus / 8).clamp(multi_floor as usize, MAX_DECODER_THREADS) as i32;
+    let last_mt = thread_budgets[7].2[0].1;
+    assert!(
+        last_mt <= eighth_cap,
+        "eighth concurrent decoder max-threads={last_mt} exceeded cap={eighth_cap} on {cpus}-CPU host"
+    );
+    if single_budget > multi_floor {
+        assert!(
+            restored_threads[0].1 > last_mt,
+            "dropping concurrent pipelines did not restore a larger thread budget: eighth={last_mt}, restored={}",
+            restored_threads[0].1
+        );
+    }
+}

@@ -332,6 +332,7 @@ impl Renderer {
     /// Workers run concurrently with media decode and rasterization. Realization
     /// waits only if it reaches a LUT before that worker has completed.
     pub(super) fn preload_scene_luts(&mut self, scene: &Scene) {
+        self.note_scene_media(scene);
         for layer in scene.draw_order() {
             queue_layer_luts(&mut self.luts, layer);
         }

@@ -19,6 +19,7 @@
 
 use std::os::raw::c_int;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
 use aria_core::{
@@ -50,6 +51,9 @@ pub(crate) struct OpenedPipeline {
     pub mode: OutputMode,
     /// Corrects where the video decoder starts after a key-unit seek.
     pub snap: Arc<KeySnap>,
+    /// Counts this pipeline while it is open so concurrent software video
+    /// decoders share the host's CPU thread budget.
+    pub slot: VideoPipelineSlot,
 }
 
 /// Why the DMA-BUF pipeline failed the first time it failed on a file the CPU
@@ -130,12 +134,93 @@ fn wait_preroll(
 /// `0`).
 const CONVERT_THREADS: u32 = 0;
 
+/// Maximum `max-threads` assigned to a single software video decoder element
+/// (matching libavcodec's `FF_MAX_AUTO_THREADS = 16` ceiling when one pipeline
+/// is open).
+pub(crate) const MAX_DECODER_THREADS: usize = 16;
+
+/// Minimum `max-threads` floor when multiple pipelines are open on a host with
+/// enough CPUs: with `appsink` `max-buffers = 2` and `avdec` frame-thread delay
+/// `max_threads - 1`, `8` frame threads preroll all [`crate::ahead::AHEAD_FRAMES`]
+/// (`8`) frames during pipeline open instead of spilling background decode into
+/// subsequent UI frames.
+pub(crate) const MIN_DECODER_THREADS: usize = 8;
+
+/// Live video decode pipelines in this process, used to bound the host CPU
+/// thread budget across concurrent software decoders.
+static ACTIVE_VIDEO_PIPELINES: AtomicUsize = AtomicUsize::new(0);
+
+/// RAII registration of one open (or opening) video decode pipeline.
+pub(crate) struct VideoPipelineSlot {
+    active_at_open: usize,
+}
+
+impl VideoPipelineSlot {
+    fn acquire() -> Self {
+        let active_at_open = ACTIVE_VIDEO_PIPELINES.fetch_add(1, Ordering::Relaxed) + 1;
+        Self { active_at_open }
+    }
+
+    fn thread_budget(&self) -> i32 {
+        let cpus = std::thread::available_parallelism()
+            .map(usize::from)
+            .unwrap_or(4);
+        let active = ACTIVE_VIDEO_PIPELINES
+            .load(Ordering::Relaxed)
+            .max(self.active_at_open)
+            .max(1);
+        let floor = cpus.clamp(1, MIN_DECODER_THREADS);
+        let ceiling = cpus.clamp(1, MAX_DECODER_THREADS);
+        (cpus / active).clamp(floor, ceiling) as i32
+    }
+}
+
+impl Drop for VideoPipelineSlot {
+    fn drop(&mut self) {
+        ACTIVE_VIDEO_PIPELINES.fetch_sub(1, Ordering::Relaxed);
+    }
+}
+
+/// Restrict `uridecodebin` to raw video output so non-video tracks (audio,
+/// subtitles) are not demuxed or queued, and bound software video decoder
+/// thread pools (`max-threads`) as decoders are plugged.
+fn configure_video_uridecodebin(bin: &gst::Bin, thread_budget: i32) {
+    if bin.find_property("expose-all-streams").is_some() {
+        bin.set_property("expose-all-streams", false);
+    }
+    if bin.find_property("caps").is_some() {
+        let video_caps = gst::Caps::builder_full_with_any_features()
+            .structure(gst::Structure::builder("video/x-raw").build())
+            .build();
+        bin.set_property("caps", &video_caps);
+    }
+    bin.connect("deep-element-added", false, move |values| {
+        let Ok(element) = values[2].get::<gst::Element>() else {
+            return None;
+        };
+        let Some(factory) = element.factory() else {
+            return None;
+        };
+        let klass = factory
+            .metadata(gst::ELEMENT_METADATA_KLASS)
+            .unwrap_or_default();
+        if klass.contains("Decoder")
+            && klass.contains("Video")
+            && element.find_property("max-threads").is_some()
+        {
+            element.set_property("max-threads", thread_budget);
+        }
+        None
+    });
+}
+
 /// Open `uri` for DMABuf output when `watch` is set, recording the video
 /// decoders plugged into it; for CPU NV12 otherwise.
 fn try_open(
     uri: &glib::GString,
     watch: Option<&Arc<DmabufWatch>>,
 ) -> Result<OpenedPipeline, DecodeError> {
+    let slot = VideoPipelineSlot::acquire();
     let dmabuf = watch.is_some();
     let desc = if dmabuf {
         format!(
@@ -164,6 +249,7 @@ fn try_open(
         .by_name("src")
         .and_then(|src| src.downcast::<gst::Bin>().ok())
     {
+        configure_video_uridecodebin(&bin, slot.thread_budget());
         snap_video_to_keyframes(&bin, &snap);
         if let Some(watch) = watch {
             watch_video_decoders(&bin, watch);
@@ -242,6 +328,7 @@ fn try_open(
             OutputMode::Cpu
         },
         snap,
+        slot,
     })
 }
 

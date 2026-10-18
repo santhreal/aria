@@ -99,6 +99,8 @@ impl Renderer {
             stickers: HashMap::new(),
             lottie: HashMap::new(),
             scene_stamp: 0,
+            shared_check_stamp: u64::MAX,
+            scene_shares_frames: false,
             last_tick: None,
             look_uses: Vec::new(),
             look_ticks: Vec::new(),
