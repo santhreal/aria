@@ -145,6 +145,12 @@ pub struct Renderer {
     /// alias mid-frame, and a decoder no recent scene used drops its held
     /// frames.
     scene_stamp: u64,
+    /// The `scene_stamp` of the last [`Renderer::note_scene_media`] check, or
+    /// `u64::MAX` before any scene check runs.
+    shared_check_stamp: u64,
+    /// Whether the scene at `shared_check_stamp` draws more than one video
+    /// layer of the same media at the same source time.
+    scene_shares_frames: bool,
     /// The tick of the last timeline frame rendered, which the next one's
     /// look-ahead reads its playback step from.
     last_tick: Option<RationalTime>,

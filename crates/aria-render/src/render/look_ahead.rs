@@ -1,16 +1,19 @@
 //! Decoders for the media on screen and the media about to come on screen.
 //!
-//! The renderer keeps one [`AheadDecoder`] per use of a media file, keyed by
-//! the media and the clip that shows it ([`DecoderKey`]), so two clips of one
-//! file sit at their own source times without moving one cursor between them,
-//! and a clip keeps its decoder when the stack above it changes.
+//! The renderer keeps at most [`MAX_DECODERS`] [`AheadDecoder`]s, keyed by the
+//! media and the clip that shows it ([`DecoderKey`]), so two clips of one file
+//! at different source times keep independent cursors. When multiple layers in
+//! one scene request the same media at the same source time, the first layer's
+//! decoded CPU frame serves the remaining layers without opening another
+//! decoder or decoding again.
 //!
 //! After each timeline frame, [`Renderer::look_ahead`] reads the step from the
 //! previous timeline frame. At a playback step (forward or reverse, up to
-//! [`MAX_STEP`] frames) it asks each decoder for the frame the next step shows,
-//! and opens and decodes on the decode pool the first frame of every clip that
-//! comes on screen in the next [`LOOK_AHEAD_SECONDS`]. A decoder that no frame
-//! used for [`RELEASE_AFTER`] scenes drops its held frames; past
+//! [`MAX_STEP`] frames) it requests each distinct `(media, source_time)` the
+//! next step shows, and opens and decodes on the decode pool the first frame of
+//! each distinct `(media, source_time)` entering in the next
+//! [`LOOK_AHEAD_SECONDS`], up to [`MAX_DECODERS`] total decoders. A decoder
+//! unused for [`RELEASE_AFTER`] scenes drops its held frames; past
 //! [`MAX_DECODERS`], the least recently used close.
 //!
 //! A CPU frame returns to its slot after the composite that drew it
@@ -49,8 +52,9 @@ const MAX_ENTRANCES: usize = 8;
 /// clip between two of its own gesture frames.
 pub(super) const RELEASE_AFTER: u64 = 4;
 
-/// Open decoders kept, counting only those no recent scene used. The least
-/// recently used close first.
+/// Maximum open or opening decoders held by [`Renderer`] at one time.
+/// Idle decoders (`RELEASE_AFTER` scenes unused) close first; when active or
+/// speculative decoders alone exceed the cap, the least recently used close.
 pub(super) const MAX_DECODERS: usize = 16;
 
 /// One use of a media file on screen: the media and the clip showing it.
@@ -85,6 +89,58 @@ impl Shown {
         self.source_time == source_time
             && (self.policy == policy || self.policy == SeekPolicy::Exact)
     }
+}
+
+fn clone_cpu_frame(frame: &VideoFrame) -> Option<VideoFrame> {
+    let FrameData::Cpu(image) = &frame.data else {
+        return None;
+    };
+    let cloned_planes = image
+        .planes
+        .iter()
+        .map(|plane| aria_core::Plane {
+            data: plane.data.clone(),
+            stride: plane.stride,
+            rows: plane.rows,
+        })
+        .collect();
+    let mut out = VideoFrame::new(
+        frame.pts,
+        frame.format,
+        frame.color,
+        frame.coded_size,
+        frame.visible,
+        frame.rotation,
+        FrameData::Cpu(aria_core::CpuImage::new(cloned_planes)),
+    );
+    out.duration = frame.duration;
+    Some(out)
+}
+
+fn clone_shown(shown: &Shown) -> Option<Shown> {
+    Some(Shown {
+        key: shown.key,
+        source_time: shown.source_time,
+        policy: shown.policy,
+        frame: clone_cpu_frame(&shown.frame)?,
+    })
+}
+
+/// Append `(key, time)` to `uses` unless the slice `uses[scene_start..]`
+/// already contains a request for `key.media` at `time`.
+fn push_unique_media_time(
+    uses: &mut Vec<(DecoderKey, RationalTime)>,
+    scene_start: usize,
+    key: DecoderKey,
+    time: RationalTime,
+) {
+    if uses[scene_start..]
+        .iter()
+        .any(|&(existing, existing_time)| existing.media == key.media && existing_time == time)
+    {
+        return;
+    }
+    uses.push((key, time));
 }
 
 /// An open decoder, or one opening on the decode pool, and the last scene that
@@ -210,6 +266,37 @@ pub(super) fn entrances(timeline: &Timeline, tick: i64, step: i64, into: &mut Ve
 }
 
 impl Renderer {
+    /// Check on the stack whether `scene` draws more than one video layer of
+    /// the same media at the same source time. Single-track and distinct-media
+    /// scenes set `scene_shares_frames = false` with zero heap allocations.
+    pub(super) fn note_scene_media(&mut self, scene: &crate::scene::Scene) {
+        const INLINE_CAP: usize = 16;
+        let mut seen: [Option<(DecoderKey, RationalTime)>; INLINE_CAP] = [None; INLINE_CAP];
+        let mut len = 0usize;
+        let mut shared = false;
+        let mut visit = |key: DecoderKey, time: RationalTime| {
+            if shared {
+                return;
+            }
+            for &(prev_key, prev_time) in seen[..len].iter().flatten() {
+                if prev_key.media == key.media && prev_time == time && prev_key != key {
+                    shared = true;
+                    return;
+                }
+            }
+            if len < INLINE_CAP {
+                seen[len] = Some((key, time));
+                len += 1;
+            } else {
+                shared = true;
+            }
+        };
+        media_uses(&scene.references, &mut visit);
+        media_uses(&scene.layers, &mut visit);
+        self.shared_check_stamp = self.scene_stamp;
+        self.scene_shares_frames = shared;
+    }
+
     /// Decode the frame of `key.media` at `source_time` for the clip in `key`,
     /// opening (and keeping) its decoder on first sight, over the media's
     /// proxy file when one is registered (see [`set_proxy`](Self::set_proxy)).
@@ -225,9 +312,38 @@ impl Renderer {
         policy: SeekPolicy,
     ) -> Result<Shown, RenderError> {
         let stamp = self.scene_stamp;
+        let share_in_scene = self.shared_check_stamp != stamp || self.scene_shares_frames;
+        if let Some(slot) = self.decoders.get_mut(&key) {
+            slot.used = stamp;
+            slot.released = false;
+            if let Some(shown) = slot.shown.take()
+                && shown.serves(source_time, policy)
+            {
+                if share_in_scene {
+                    slot.shown = clone_shown(&shown);
+                }
+                return Ok(shown);
+            }
+        }
+        if share_in_scene {
+            for slot in self.decoders.values_mut() {
+                let matches = slot
+                    .shown
+                    .as_ref()
+                    .is_some_and(|s| s.key.media == key.media && s.serves(source_time, policy));
+                if matches && let Some(shown) = slot.shown.as_ref().and_then(clone_shown) {
+                    slot.used = stamp;
+                    slot.released = false;
+                    return Ok(shown);
+                }
+            }
+        }
         if !self.decoders.contains_key(&key) {
             let path = self.decoder_path(project, key.media)?;
             let decoder = AheadDecoder::new(open_video_decoder(&path, self.decode_mode)?);
+            if self.decoders.len() >= MAX_DECODERS {
+                self.evict_decoders_to(MAX_DECODERS - 1, true);
+            }
             self.decoders
                 .insert(key, DecoderSlot::new(Some(decoder), None, stamp));
         }
@@ -236,10 +352,6 @@ impl Renderer {
         };
         slot.used = stamp;
         slot.released = false;
-        match slot.shown.take() {
-            Some(shown) if shown.serves(source_time, policy) => return Ok(shown),
-            _ => {}
-        }
         let opened = slot.ready();
         let decoder = match opened {
             Ok(decoder) => decoder,
@@ -268,12 +380,19 @@ impl Renderer {
             media: key.media,
             time: source_time,
         })?;
-        Ok(Shown {
+        let shown = Shown {
             key,
             source_time,
             policy,
             frame,
-        })
+        };
+        if share_in_scene
+            && let Some(cloned) = clone_shown(&shown)
+            && let Some(slot) = self.decoders.get_mut(&key)
+        {
+            slot.shown = Some(cloned);
+        }
+        Ok(shown)
     }
 
     /// Return `shown` to its decoder slot after the composite that drew it, so
@@ -316,6 +435,12 @@ impl Renderer {
             }
             return;
         }
+        if self.decoders.len() >= MAX_DECODERS {
+            self.evict_decoders_to(MAX_DECODERS - 1, false);
+            if self.decoders.len() >= MAX_DECODERS {
+                return;
+            }
+        }
         let Ok(path) = self.decoder_path(project, key.media) else {
             return;
         };
@@ -357,9 +482,11 @@ impl Renderer {
         .is_ok()
         {
             media_uses(&look_scene.references, &mut |key, time| {
-                uses.push((key, time))
+                push_unique_media_time(&mut uses, 0, key, time);
             });
-            media_uses(&look_scene.layers, &mut |key, time| uses.push((key, time)));
+            media_uses(&look_scene.layers, &mut |key, time| {
+                push_unique_media_time(&mut uses, 0, key, time);
+            });
         }
         let next_uses = uses.len();
         let mut ticks = std::mem::take(&mut self.look_ticks);
@@ -376,10 +503,13 @@ impl Renderer {
             {
                 continue;
             }
+            let entrance_start = uses.len();
             media_uses(&look_scene.references, &mut |key, time| {
-                uses.push((key, time))
+                push_unique_media_time(&mut uses, entrance_start, key, time);
             });
-            media_uses(&look_scene.layers, &mut |key, time| uses.push((key, time)));
+            media_uses(&look_scene.layers, &mut |key, time| {
+                push_unique_media_time(&mut uses, entrance_start, key, time);
+            });
         }
         self.look_ahead_pool.recycle_scene(&mut look_scene);
         self.look_ahead_scene = look_scene;
@@ -404,12 +534,10 @@ impl Renderer {
     /// least recently used past [`MAX_DECODERS`].
     pub(super) fn retire_decoders(&mut self) {
         let stamp = self.scene_stamp;
-        let mut idle = 0;
         for slot in self.decoders.values_mut() {
             if slot.used.saturating_add(RELEASE_AFTER) >= stamp {
                 continue;
             }
-            idle += 1;
             if !slot.released {
                 slot.released = true;
                 slot.shown = None;
@@ -418,17 +546,33 @@ impl Renderer {
                 }
             }
         }
-        if idle <= MAX_DECODERS {
-            return;
+        if self.decoders.len() > MAX_DECODERS {
+            self.evict_decoders_to(MAX_DECODERS, true);
         }
-        let mut stale: Vec<(u64, DecoderKey)> = self
-            .decoders
-            .iter()
-            .filter(|(_, slot)| slot.released)
-            .map(|(key, slot)| (slot.used, *key))
-            .collect();
-        stale.sort_unstable_by_key(|(used, _)| *used);
-        for (_, key) in stale.into_iter().take(idle - MAX_DECODERS) {
+    }
+
+    /// Close decoders until at most `cap` remain. Released decoders close
+    /// first (oldest `used` first), then decoders from earlier scenes, then
+    /// speculative unopened slots when `allow_current_scene` holds.
+    fn evict_decoders_to(&mut self, cap: usize, allow_current_scene: bool) {
+        let stamp = self.scene_stamp;
+        while self.decoders.len() > cap {
+            let victim = self
+                .decoders
+                .iter()
+                .filter(|(_, slot)| allow_current_scene || slot.used < stamp)
+                .min_by_key(|(_, slot)| {
+                    (
+                        !slot.released,
+                        slot.used == stamp,
+                        slot.decoder.is_some(),
+                        slot.used,
+                    )
+                })
+                .map(|(key, _)| *key);
+            let Some(key) = victim else {
+                break;
+            };
             self.decoders.remove(&key);
         }
     }
