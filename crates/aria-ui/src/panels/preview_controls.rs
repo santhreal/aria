@@ -127,6 +127,7 @@ pub(super) fn clock_field(
     crate::components::text_box("playhead-tc", text, "00:00:00:00", focused, theme)
         .h(px(Theme::ICON_HIT))
         .text_size(Theme::TEXT_UI)
+        .font_features(crate::theme::tabular_figures())
         .debug_selector(|| "playhead-tc".into())
         .when_some(crate::tooltip::builder("playhead-tc"), |el, tip| {
             el.with_tip(tip)

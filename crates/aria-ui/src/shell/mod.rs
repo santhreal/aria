@@ -667,7 +667,6 @@ impl Render for Shell {
             .bg(theme.bg)
             .text_color(theme.text)
             .font_family(theme.font_sans.clone())
-            .font_features(crate::theme::text_features())
             .text_size(Theme::TEXT_UI)
             // A release outside the window ends a gesture as one inside it
             // does: the press began in this window, so its release is this

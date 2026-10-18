@@ -54,9 +54,10 @@ A row of ghost buttons, chips or clickable rows steps out by its controls'
 side padding, so the first label stands on the text edge of the column that
 holds the row. Menu and palette rows stand with no gap between them.
 
-Text uses Inter. Every run is shaped with tabular figures, so timecode, values,
-and frame counts keep their digit widths while they change and align in
-columns. A monospace face is used only for expression text and plugin logs.
+Text uses Inter with proportional figures. Readouts are shaped with tabular
+figures, so timecode, values, and frame counts keep their digit widths while
+they change and align in columns; names and labels keep proportional figures,
+because Inter's tabular one and hyphen are as wide as a zero. A monospace face is used only for expression text and plugin logs.
 
 ## Controls
 

@@ -59,8 +59,8 @@ dropped-frame count only after a drop (`crates/aria-ui/src/shell/strip.rs`).
 
 Dark and Light themes from one token set (`docs/theme-tokens.md`), System
 mode, four accent families (Blue, Ember, Teal, Graphite in
-`crates/aria-ui/src/theme_accent.rs`), UI text in the embedded Inter with
-tabular figures (`crates/aria-ui/src/theme_type.rs`), four motion levels, and
+`crates/aria-ui/src/theme_accent.rs`), UI text in the embedded Inter, with
+tabular figures on readouts only (`crates/aria-ui/src/theme_type.rs`), four motion levels, and
 theme files read from
 `<data dir>/themes/` and from plugins (`crates/aria-ui/src/theme_file.rs`,
 `crates/aria-plugin/src/themes.rs`). The dark surfaces, text, `surface_header`,

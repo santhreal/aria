@@ -171,8 +171,8 @@ pub(super) fn recents_pane(
                 .child(hero_tile(
                     "home-sample",
                     crate::icons::CLAPPERBOARD,
-                    "Stills sequence",
-                    "Opens a bundled still so the first run is not empty.",
+                    "Sample Project",
+                    "A new project with a bundled still in Media.",
                     2,
                     theme,
                     cx,
@@ -205,8 +205,8 @@ pub(super) fn samples_pane(
         .child(hero_tile(
             "home-sample",
             crate::icons::CLAPPERBOARD,
-            "Stills sequence",
-            "Opens a bundled still so the first run is not empty.",
+            "Sample Project",
+            "A new project with a bundled still in Media.",
             0,
             theme,
             cx,
@@ -231,30 +231,77 @@ pub(super) fn samples_pane(
         ))
 }
 
+/// The Home chords the Learn pane lists: key id, then what the chord does.
+const HOME_CHORDS: [(&str, &str); 2] = [
+    ("key-home-new", "New project"),
+    ("key-home-open", "Open a project"),
+];
+
+/// The editor chords the Learn pane lists: key id, then what the chord does.
+const EDITOR_CHORDS: [(&str, &str); 9] = [
+    ("key-import", "Import media"),
+    ("key-play", "Play or pause"),
+    ("key-mark-in", "Mark in"),
+    ("key-mark-out", "Mark out"),
+    ("key-split", "Split at the playhead"),
+    ("key-undo", "Undo"),
+    ("key-palette", "Find any command"),
+    ("key-export", "Export"),
+    ("key-close", "Close the project and return Home"),
+];
+
 /// The Learn rail. Each chord is read from the key registry, so a rebinding
 /// or a change to the shipped map shows here without a second edit.
 pub(super) fn learn_pane(theme: &Theme, state: &AppState) -> impl IntoElement {
-    let chord = |id: &str| {
-        state
+    let line = |(id, what): (&str, &'static str)| {
+        let chord = state
             .chord_label(id)
-            .unwrap_or_else(|| "Unbound".to_string())
+            .unwrap_or_else(|| "Unbound".to_string());
+        learn_line(theme, chord, what)
     };
     div()
         .flex()
         .flex_col()
         .gap(px(Theme::SPACE_SM))
         .child(section_title(theme, "Learn"))
-        .child(learn_line(theme, chord("key-home-new"), "New project"))
-        .child(learn_line(theme, chord("key-home-open"), "Open a project"))
-        .child(learn_line(
-            theme,
-            chord("key-close"),
-            "Close project, return Home",
-        ))
-        .child(learn_line(theme, "Esc", "Does nothing on Home"))
+        .children(HOME_CHORDS.map(line))
         .child(learn_line(
             theme,
             "Drop",
-            ".aria opens. Media starts a project.",
+            "A .aria file opens; media starts a project",
         ))
+        .child(
+            div()
+                .pt(px(Theme::SPACE_MD))
+                .child(section_title(theme, "In the editor")),
+        )
+        .children(EDITOR_CHORDS.map(line))
+}
+
+#[cfg(test)]
+mod learn_tests {
+    /// Every chord the Learn pane lists is bound in the shipped key map.
+    ///
+    /// WHY: the pane reads each chord by key id and draws "Unbound" for an id
+    /// the registry does not have, so a mistyped or renamed id ships a Learn
+    /// row that teaches nothing, and no other test draws the pane. Covers both
+    /// tables the pane draws from. Does not cover the wording of each row.
+    #[test]
+    fn every_learn_chord_is_bound() {
+        let ctx = aria_plugin::PluginContext::new();
+        ctx.mount(&crate::plugins::UiPlugin)
+            .unwrap_or_else(|err| panic!("the ui plugin needs nothing: {err:?}"));
+        let state = crate::app::AppState::new(ctx, crate::scratch_pool::scratch("learn"))
+            .unwrap_or_else(|err| panic!("editor state: {err:?}"));
+        let unbound: Vec<&str> = super::HOME_CHORDS
+            .iter()
+            .chain(super::EDITOR_CHORDS.iter())
+            .map(|(id, _)| *id)
+            .filter(|id| state.chord_label(id).is_none())
+            .collect();
+        assert!(
+            unbound.is_empty(),
+            "the Learn pane lists key ids the registry does not bind: {unbound:?}"
+        );
+    }
 }

@@ -583,6 +583,10 @@ mod accent;
 mod typeface;
 pub use typeface::*;
 
+#[cfg(test)]
+#[path = "theme_figures_tests.rs"]
+mod figures_tests;
+
 // Moved to a sibling file to stay under the file ceiling; re-exported so
 // every existing path keeps resolving.
 #[path = "theme_tokens.rs"]

@@ -1464,7 +1464,6 @@ impl Shell {
             .bg(theme.bg)
             .text_color(theme.text)
             .font_family(theme.font_sans.clone())
-            .font_features(crate::theme::text_features())
             .text_size(Theme::TEXT_UI)
             .child(self.render_frame(&fl.frame, true, false, theme, cx))
             .into_any_element()

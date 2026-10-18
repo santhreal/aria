@@ -383,7 +383,8 @@ fn ruler_ticks(
     let major_color = theme.border_strong;
     let minor_color = theme.border;
     let label_color = theme.text_faint;
-    let font = theme.ui_font(gpui::FontWeight::NORMAL);
+    // Tabular: the label width below is a count of digit advances.
+    let font = theme.figures_font(gpui::FontWeight::NORMAL);
     canvas(
         |_, _, _| (),
         move |bounds: Bounds<gpui::Pixels>, (), window, cx| {

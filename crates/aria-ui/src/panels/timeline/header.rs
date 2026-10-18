@@ -79,6 +79,7 @@ pub(super) fn header_controls(
         .px(px(Theme::SPACE_XXS))
         .flex_shrink_0()
         .text_size(timecode_size(outline))
+        .font_features(crate::theme::tabular_figures())
         // The line stands inside the field's 1 px border: the font's own line
         // height would run past the row above and below it.
         .line_height(px(HEADER_ROW_H - 2.0))

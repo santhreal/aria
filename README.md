@@ -19,7 +19,7 @@ project format that hasn't settled.
 
 The chrome is neutral grey with one accent: a blue playhead and selection, an
 amber snap guide, a pink busy spinner. A clip bar is filled with its label
-colour. UI text is Inter with tabular figures.
+colour. UI text is Inter.
 
 ## What works today
 

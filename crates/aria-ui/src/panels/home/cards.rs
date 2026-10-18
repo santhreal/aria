@@ -147,7 +147,6 @@ pub(super) fn hero_tile(
     let card = div()
         .id(id.element("hero-tile"))
         .w(px(320.))
-        .min_h(px(160.))
         .px(px(Theme::SPACE_LG))
         .py(px(Theme::SPACE_LG))
         .rounded(px(Theme::PANEL_RADIUS))

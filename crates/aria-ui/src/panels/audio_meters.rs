@@ -39,7 +39,8 @@ const MARKS: [(f32, &str); 8] = [
 /// The channel names under the bars, in reading order.
 const CHANNELS: [&str; 2] = ["L", "R"];
 
-const SCALE_WIDTH: f32 = 26.0;
+/// Wide enough for the widest mark, `-60`, at [`MARK_TEXT`].
+const SCALE_WIDTH: f32 = 20.0;
 const BAR_MAX_WIDTH: f32 = 22.0;
 const MARK_TEXT: gpui::Pixels = Theme::TEXT_SMALL;
 
@@ -68,7 +69,8 @@ pub fn render(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyEle
         .size_full()
         .min_h(px(80.))
         .gap(px(Theme::SPACE_XS))
-        .p(px(Theme::SPACE_SM))
+        .px(px(Theme::SPACE_XS))
+        .py(px(Theme::SPACE_SM))
         .bg(theme.surface)
         .child(clip_light(&theme, reading.clipped, cx))
         .child(
@@ -92,7 +94,8 @@ pub fn render(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyEle
         .into_any_element()
 }
 
-/// The clip light: lit from the first full-scale block until clicked. Its wash
+/// The clip light: lit from the first full-scale block until clicked. It spans
+/// the panel's width, so its label fits at the frame's narrowest. Its wash
 /// fades under the pointer as every pressable control's does.
 fn clip_light(theme: &Theme, clipped: bool, cx: &mut gpui::Context<Shell>) -> impl IntoElement {
     let key = motion::MotionKey::new("audio-meters-clip", "light");
@@ -103,8 +106,8 @@ fn clip_light(theme: &Theme, clipped: bool, cx: &mut gpui::Context<Shell>) -> im
     };
     div()
         .id("audio-meters-clip")
+        .debug_selector(|| "audio-meters-clip".into())
         .h(px(14.))
-        .ml(px(SCALE_WIDTH + Theme::SPACE_XS))
         .rounded(px(Theme::CONTROL_RADIUS))
         .flex()
         .items_center()
@@ -132,6 +135,7 @@ fn clip_light(theme: &Theme, clipped: bool, cx: &mut gpui::Context<Shell>) -> im
 /// The dBFS marks down the left edge, each beside the level it names.
 fn scale(theme: &Theme) -> impl IntoElement {
     div()
+        .debug_selector(|| "audio-meters-scale".into())
         .relative()
         .w(px(SCALE_WIDTH))
         .h_full()
@@ -157,6 +161,7 @@ fn bar(theme: &Theme, reading: &MeterReading, side: usize) -> impl IntoElement {
     let fill = |fraction: f32| div().absolute().bottom_0().h(relative(fraction));
     div()
         .id(("audio-meter-bar", side))
+        .debug_selector(move || format!("audio-meter-bar-{side}"))
         .relative()
         .flex_1()
         .max_w(px(BAR_MAX_WIDTH))
@@ -196,3 +201,7 @@ fn bar(theme: &Theme, reading: &MeterReading, side: usize) -> impl IntoElement {
             )
         })
 }
+
+#[cfg(test)]
+#[path = "audio_meters_tests.rs"]
+mod tests;

@@ -45,28 +45,16 @@ pub(super) fn home_rail(
         .child(
             div()
                 .flex()
-                .flex_col()
-                .gap(px(Theme::SPACE_XS))
+                .flex_row()
+                .items_center()
+                .gap(px(Theme::SPACE_SM))
                 .mb(px(Theme::SPACE_MD))
+                .child(mark)
                 .child(
                     div()
-                        .flex()
-                        .flex_row()
-                        .items_center()
-                        .gap(px(Theme::SPACE_SM))
-                        .child(mark)
-                        .child(
-                            div()
-                                .text_size(Theme::TEXT_LARGE)
-                                .font_weight(gpui::FontWeight::SEMIBOLD)
-                                .child("Aria"),
-                        ),
-                )
-                .child(
-                    div()
-                        .text_size(Theme::TEXT_UI)
-                        .text_color(theme.text_muted)
-                        .child("Edit video. Keep the timeline honest."),
+                        .text_size(Theme::TEXT_LARGE)
+                        .font_weight(gpui::FontWeight::SEMIBOLD)
+                        .child("Aria"),
                 ),
         )
         .children(tabs.into_iter().map(|(tab, icon)| {

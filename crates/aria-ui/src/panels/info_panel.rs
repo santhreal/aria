@@ -58,6 +58,8 @@ pub fn render(
         .id(SURFACE)
         .debug_selector(|| SURFACE.into())
         .size_full()
+        // Every row is a readout that changes with the pointer or the drag.
+        .font_features(crate::theme::tabular_figures())
         .overflow_y_scroll()
         .p(px(Theme::SPACE_SM))
         .flex()

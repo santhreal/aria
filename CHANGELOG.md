@@ -1383,7 +1383,7 @@ Notes for the latest release. For previous releases, see the
 ### Changed
 
 - The default accent, playhead, selection, and caret are blue instead of indigo, and Settings > Appearance > Accent offers the Blue, Ember, Teal, and Graphite families; a saved `default` or `dark-blue` accent reads as Blue.
-- UI text is set in the embedded Inter with tabular figures, replacing Geist and Geist Mono, so timecode, values, and frame counts keep their digit widths in the same face as the labels around them.
+- UI text is set in the embedded Inter, replacing Geist and Geist Mono; timecodes, the ruler, scrubbable values, and playback counters use tabular figures, and names keep proportional figures.
 - Video clips without a label default to Teal instead of Violet, and adjustment clips to Yellow instead of Lavender.
 - The tool bar draws seven grouped buttons (Selection, Track Select, the trim tools, Razor, Pen, Hand and Zoom, Type) instead of thirteen; a group's button shows its armed tool, a 300 ms hold or the corner triangle lists the group, and every tool key is unchanged.
 - Hovering a dock tab, a tab's close control, a frame header control, a frame menu row, the timeline splitter, or a palette row fades its colour and redraws the window chrome alone instead of rebuilding every panel body.
@@ -1441,6 +1441,7 @@ Notes for the latest release. For previous releases, see the
 - The shipped key map follows `docs/spec/keyboard.md`: Ctrl+K splits, Ctrl+M exports, Ctrl+Alt+N starts a project, Ctrl+Shift+W closes it, F is Match Frame, `\` fits the sequence, C is the Razor and B the Ripple Edit tool, Ctrl+Shift+I and Ctrl+Shift+O clear In and Out, Ctrl+Alt+M deletes the marker at the playhead, Ctrl+Shift+M goes to the previous marker, Shift+0 toggles the assistant, Shift+Alt+C detects shots, and Ctrl+Alt+R resets effects.
 - Left and Right step only the playhead; Ctrl+Left and Ctrl+Right trim the selected edge, or move the selected clip when no edge is selected.
 - The Home Learn rail reads its chords from the key registry, so a rebound key shows there.
+- The Home Learn pane lists the editor's essential chords (import, play, In, Out, split, undo, palette, export, close) instead of a row for Esc, and the Home rail drops its tagline.
 - A mask cuts what a clip draws before its effects, LUT, and layer styles, so a shadow or glow follows the masked edge.
 
 - **GPUI builds from santh-gpui, the framework shared with iris and Veyyon.**
@@ -2197,7 +2198,7 @@ Notes for the latest release. For previous releases, see the
   ruler draws a marker flag and the In and Out ticks, each seekable.
 - Inspector Look tab browses the filter catalog, sets filter amount, and
   clears the filter.
-- Home opens on a Start section: New Project, Open, and Stills sequence.
+- Home opens on a Start section: New Project, Open, and Sample Project.
 - Markers carry a name and a colour, are deletable at the playhead (Alt+M),
   navigable (Shift+M, Shift+Alt+M), renameable, movable, and recolourable.
 - Extract Audio, Freeze Frame, Link Clips, and Unlink Clips reach the clip
@@ -2276,6 +2277,7 @@ Notes for the latest release. For previous releases, see the
 
 ### Fixed
 
+- The Audio Meters clip light spans the panel, so its `CLIP` label stays inside the light in the 64 px launch frame, and the bars take the width the narrower scale gives up.
 - A file that opens neither through DMABuf nor to CPU memory, such as an unreadable or audio-only file, no longer turns DMABuf decode off for every later file in the process.
 - A DMABuf open whose decoder has no DMABuf output stops before that decoder opens a hardware session and falls back to CPU decode.
 - Playback with a few dozen decoded layers no longer fails with "Element failed to change its state": the first GStreamer start in a process raises the open-file soft limit from 1024 to the hard limit, at most 65,536.

@@ -124,7 +124,14 @@ pub(super) fn status_strip(
                 .items_center()
                 .justify_end()
                 .gap(px(Theme::SPACE_MD))
-                .when_some(achieved, |el, achieved| el.child(achieved))
+                // The rate and the count change while playback runs.
+                .when_some(achieved, |el, achieved| {
+                    el.child(
+                        div()
+                            .font_features(crate::theme::tabular_figures())
+                            .child(achieved),
+                    )
+                })
                 .when_some(drops, |el, drops| el.child(drops))
                 .when_some(resolution, |el, resolution| {
                     el.child(
@@ -234,6 +241,7 @@ fn dropped_indicator(
     )
     .debug_selector(|| "status-dropped-frames".into())
     .text_color(theme.warning)
+    .font_features(crate::theme::tabular_figures())
     .on_mouse_down(
         MouseButton::Left,
         cx.listener(|this, _: &MouseDownEvent, _, cx| {

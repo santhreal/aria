@@ -41,9 +41,11 @@ Helpers: `ink(alpha)` for fills, `hairline(alpha)` for borders,
 | `value` | `#5aa8ff` | `#1a73d9` | Editable numbers |
 | `caret` | accent family | accent family | The blinking caret in a text field |
 
-Fonts: Inter (Regular, Medium, SemiBold, Bold, embedded) for all UI text,
-shaped with tabular figures (`tnum`) so digits keep one width; `font_mono` is
-the system monospace face, used for expressions and plugin logs. Sizes are
+Fonts: Inter (Regular, Medium, SemiBold, Bold, embedded) for all UI text, with
+proportional figures; readouts (the playhead fields, the ruler, scrubbable
+values, the Info panel, the playback rate and drop count) are shaped with
+tabular figures (`tnum`) so digits keep one width. `font_mono` is the system
+monospace face, used for expressions and plugin logs. Sizes are
 28 px (display), 18 px (timeline timecode), 16 px, 14 px (headings), 12 px
 (panel titles), 11 px (UI text), 10 px, and 9 px (micro labels).
 
