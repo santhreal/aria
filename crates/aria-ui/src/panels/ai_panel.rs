@@ -114,8 +114,6 @@ pub fn render(
         .child(
             crate::edge_fade::edge_faded(
                 24.0,
-                true,
-                true,
                 div()
                     .id("ai-transcript")
                     .flex_1()

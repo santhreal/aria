@@ -547,7 +547,13 @@ impl AppState {
         self.request_go_home();
     }
 
+    /// Show `rail`'s pane from its top. The panes share one scroll position,
+    /// so a long pane left scrolled would open the next long one part way
+    /// down.
     pub fn set_home_rail(&mut self, rail: HomeRail) {
+        if self.ui_settings.home_rail != rail {
+            self.home_scroll.set_offset(gpui::Point::default());
+        }
         self.ui_settings.home_rail = rail;
     }
 

@@ -232,6 +232,7 @@ fn recent_card(
     let fade = motion::MotionKey::new("recent-card", index);
     let card = div()
         .id(key)
+        .debug_selector(move || format!("recent-card-{index}"))
         .w(px(280.))
         .px(px(Theme::SPACE_MD))
         .py(px(Theme::SPACE_MD))

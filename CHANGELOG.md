@@ -1388,7 +1388,7 @@ Notes for the latest release. For previous releases, see the
 - The tool bar draws seven grouped buttons (Selection, Track Select, the trim tools, Razor, Pen, Hand and Zoom, Type) instead of thirteen; a group's button shows its armed tool, a 300 ms hold or the corner triangle lists the group, and every tool key is unchanged.
 - Hovering a dock tab, a tab's close control, a frame header control, a frame menu row, the timeline splitter, or a palette row fades its colour and redraws the window chrome alone instead of rebuilding every panel body.
 - The Selection, Track Select, and Hand tools draw the Lucide pointer, double chevron, and hand glyphs, and tool buttons are 28 px with a 16 px glyph.
-- Stacked clips of one media file at the same source time share one decoder and one decoded frame, and software video decoders bound their thread pools across open pipelines, so 30 stacked layers of one file open 1 decoder instead of 30 and peak at 419 MiB instead of 1557 MiB on the first frame.
+- Stacked clips of one media file at the same source time share one decoder and one decoded frame, and software video decoders bound their thread pools across open pipelines, so 30 stacked layers of one file open 1 decoder instead of 30 and peak at 499 MiB instead of 1557 MiB on the first frame.
 - The tool bar's Ripple/Overwrite chip has a tooltip stating what each drop mode does.
 - The Editing workspace opens with six panels; Audio Track Mixer, Assistant, Info, and Character open from the Window menu into their usual frames.
 - The status bar's right side is empty at rest: the achieved frame rate, playback resolution, and GPU show during playback, and the dropped-frame count shows in the warning colour only after a frame drops.
@@ -2284,6 +2284,7 @@ Notes for the latest release. For previous releases, see the
 - The Audio Meters clip light spans the panel, so its `CLIP` label stays inside the light in the 64 px launch frame, and the bars take the width the narrower scale gives up.
 - The Project panel's properties state a still's frame rate as `still image` instead of the 1000.000 fps tick base it was probed in.
 - The Project panel's group chips take the compact padding when their labels at the regular padding do not fit the panel, measured in the drawn face, so the launch layout reads Graphics, Effects, Library, and Analyze in full instead of cutting them at a fixed 260 px threshold.
+- Home's recent-project cards draw their top and bottom edges whole instead of under a fade, and Home scrolls a pane longer than the window, fading an edge only while the pane continues past it.
 - A file that opens neither through DMABuf nor to CPU memory, such as an unreadable or audio-only file, no longer turns DMABuf decode off for every later file in the process.
 - A DMABuf open whose decoder has no DMABuf output stops before that decoder opens a hardware session and falls back to CPU decode.
 - Playback with a few dozen decoded layers no longer fails with "Element failed to change its state": the first GStreamer start in a process raises the open-file soft limit from 1024 to the hard limit, at most 65,536.

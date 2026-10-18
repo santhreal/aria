@@ -181,9 +181,9 @@ fn every_group_reads_whole_while_the_compact_padding_holds_the_row(cx: &mut Test
         SidebarGroup::ALL
             .iter()
             .map(|group| {
-                let advance = app
-                    .text_system()
-                    .advance_for_text(group.label(), &font, Theme::TEXT_UI);
+                let advance =
+                    app.text_system()
+                        .advance_for_text(group.label(), &font, Theme::TEXT_UI);
                 (group.label(), f32::from(advance))
             })
             .collect()
@@ -209,8 +209,8 @@ fn every_group_reads_whole_while_the_compact_padding_holds_the_row(cx: &mut Test
         for (label, _) in &labels {
             let chip = bounds(visual, &format!("sidebar-group-{label}"));
             assert!(
-                runs.iter().any(|run| run.text.as_ref() == *label
-                    && chip.contains(&run.bounds.center())),
+                runs.iter()
+                    .any(|run| run.text.as_ref() == *label && chip.contains(&run.bounds.center())),
                 "in a {width} px panel the {row} px group row holds the labels at the \
                  compact padding ({compact} px), and the {label} chip {chip:?} does not \
                  read its label whole"

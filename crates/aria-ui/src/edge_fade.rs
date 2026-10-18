@@ -1,6 +1,12 @@
 //! [`edge_faded`] — wraps a child so its whole subtree paints inside a
 //! [`gpui::EdgeFade`] scope.
 //!
+//! An edge fades only while content continues past it. The top and bottom
+//! edges read that from a tracked [`ScrollHandle`]; the left and right edges
+//! read it from a handle or from the caller, which states it for a view that
+//! scrolls by its own model. There is no unconditional fade: a band over an
+//! edge with nothing past it cuts the first or last row of a list that fits.
+//!
 //! Ported from Comet (<https://github.com/zeronsh/comet>)
 //! MIT License — see LICENSES/comet-MIT.txt
 
@@ -9,14 +15,10 @@ use gpui::{
     IntoElement, LayoutId, Pixels, ScrollHandle, Window, px,
 };
 
-pub fn edge_faded(band: f32, top: bool, bottom: bool, child: impl IntoElement) -> EdgeFaded {
+/// `child`, faded `band` px deep at each edge a builder reports content past.
+pub fn edge_faded(band: f32, child: impl IntoElement) -> EdgeFaded {
     EdgeFaded {
         band,
-        band_top: None,
-        band_bottom: None,
-        inset_top: 0.0,
-        top,
-        bottom,
         left: false,
         right: false,
         scroll_y: None,
@@ -27,11 +29,6 @@ pub fn edge_faded(band: f32, top: bool, bottom: bool, child: impl IntoElement) -
 
 pub struct EdgeFaded {
     band: f32,
-    band_top: Option<f32>,
-    band_bottom: Option<f32>,
-    inset_top: f32,
-    top: bool,
-    bottom: bool,
     left: bool,
     right: bool,
     scroll_y: Option<ScrollHandle>,
@@ -40,40 +37,51 @@ pub struct EdgeFaded {
 }
 
 impl EdgeFaded {
-    pub fn fade_left(mut self, on: bool) -> Self {
-        self.left = on;
+    /// Content continues past the left edge.
+    pub fn fade_left(mut self, continues: bool) -> Self {
+        self.left = continues;
         self
     }
 
-    pub fn fade_right(mut self, on: bool) -> Self {
-        self.right = on;
+    /// Content continues past the right edge.
+    pub fn fade_right(mut self, continues: bool) -> Self {
+        self.right = continues;
         self
     }
 
-    pub fn band_top(mut self, px: f32) -> Self {
-        self.band_top = Some(px);
-        self
-    }
-
-    pub fn band_bottom(mut self, px: f32) -> Self {
-        self.band_bottom = Some(px);
-        self
-    }
-
+    /// Fade the top and bottom edges while `handle`'s content continues past
+    /// them.
     pub fn fade_overflow_y(mut self, handle: &ScrollHandle) -> Self {
         self.scroll_y = Some(handle.clone());
         self
     }
 
+    /// Fade the left and right edges while `handle`'s content continues past
+    /// them.
     pub fn fade_overflow_x(mut self, handle: &ScrollHandle) -> Self {
         self.scroll_x = Some(handle.clone());
         self
     }
+}
 
-    pub fn inset_top(mut self, px: f32) -> Self {
-        self.inset_top = px;
-        self
-    }
+/// Whether content continues before and after the view on one axis of
+/// `handle`. A pixel of slack absorbs layout rounding at either end.
+fn continues(scroll: &ScrollHandle, axis: fn(gpui::Point<Pixels>) -> Pixels) -> (bool, bool) {
+    let scrolled = -f32::from(axis(scroll.offset()));
+    let max_scroll = f32::from(axis(scroll.max_offset()));
+    (scrolled > 1.0, scrolled < max_scroll - 1.0)
+}
+
+#[cfg(test)]
+thread_local! {
+    static PAINTED: std::cell::RefCell<Vec<EdgeFade>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Every fade painted on this thread since the last call, in paint order.
+/// Fades with no band are left out: they paint nothing.
+#[cfg(test)]
+pub(crate) fn take_painted() -> Vec<EdgeFade> {
+    PAINTED.with(|painted| std::mem::take(&mut *painted.borrow_mut()))
 }
 
 impl Element for EdgeFaded {
@@ -120,33 +128,30 @@ impl Element for EdgeFaded {
         window: &mut Window,
         cx: &mut App,
     ) {
-        let (mut top, mut bottom) = (self.top, self.bottom);
-        if let Some(scroll) = &self.scroll_y {
-            let scrolled = -f32::from(scroll.offset().y);
-            let max_scroll = f32::from(scroll.max_offset().y);
-            top &= scrolled > 1.0;
-            bottom &= scrolled < max_scroll - 1.0;
-        }
-        let (mut left, mut right) = (self.left, self.right);
-        if let Some(scroll) = &self.scroll_x {
-            let scrolled = -f32::from(scroll.offset().x);
-            let max_scroll = f32::from(scroll.max_offset().x);
-            left &= scrolled > 1.0;
-            right &= scrolled < max_scroll - 1.0;
-        }
-        let band = |on: bool, width: f32| px(if on { width } else { 0.0 });
-        let bands = Edges {
-            top: band(top, self.band_top.unwrap_or(self.band)),
-            bottom: band(bottom, self.band_bottom.unwrap_or(self.band)),
-            left: band(left, self.band),
-            right: band(right, self.band),
+        // The child's prepaint has run, so a handle holds this frame's offset
+        // and extent.
+        let (top, bottom) = self
+            .scroll_y
+            .as_ref()
+            .map_or((false, false), |scroll| continues(scroll, |at| at.y));
+        let (left, right) = self
+            .scroll_x
+            .as_ref()
+            .map_or((false, false), |scroll| continues(scroll, |at| at.x));
+        let band = |on: bool| px(if on { self.band } else { 0.0 });
+        let fade = EdgeFade {
+            bounds,
+            bands: Edges {
+                top: band(top),
+                bottom: band(bottom),
+                left: band(left || self.left),
+                right: band(right || self.right),
+            },
         };
-        let fade = {
-            let mut bounds = bounds;
-            bounds.origin.y += px(self.inset_top);
-            bounds.size.height -= px(self.inset_top);
-            EdgeFade { bounds, bands }
-        };
+        #[cfg(test)]
+        if fade.fades() {
+            PAINTED.with(|painted| painted.borrow_mut().push(fade));
+        }
         window.with_edge_fade(Some(fade), |window| self.child.paint(window, cx));
     }
 }

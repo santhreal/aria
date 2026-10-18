@@ -540,6 +540,7 @@ impl AppState {
             theme_files,
             data_dir,
             recents,
+            home_scroll: gpui::ScrollHandle::new(),
             import_recents,
             store: std::sync::Arc::new(snapshot.store),
             // The first poll projects: a key built here would have to be kept

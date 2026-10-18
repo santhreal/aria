@@ -93,6 +93,9 @@ pub struct AppState {
     /// list changes and when Home is entered, which is when it can have changed
     /// under the editor.
     pub(super) recents: Arc<[crate::app::recents::RecentView]>,
+    /// The Home body's scroll position, shared by every rail's pane. Choosing
+    /// a rail puts it back at the top.
+    pub(crate) home_scroll: gpui::ScrollHandle,
     /// File > Import Recent, newest first. Read once at startup and written
     /// through on every change; see `app::import_recents`.
     pub(super) import_recents: Arc<[PathBuf]>,

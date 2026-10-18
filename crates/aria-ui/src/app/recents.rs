@@ -29,7 +29,7 @@ use super::AppState;
 use crate::app::picker::{Ask, FileSpec};
 
 const RECENTS_FILE: &str = "recents.json";
-const MAX_RECENTS: usize = 12;
+pub(crate) const MAX_RECENTS: usize = 12;
 const RECENTS_VERSION: u32 = 1;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

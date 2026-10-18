@@ -12,6 +12,8 @@
 mod cards;
 mod panes;
 mod rail;
+#[cfg(test)]
+mod scroll_tests;
 
 use gpui::{Entity, InteractiveElement, IntoElement, ParentElement, Styled, div};
 

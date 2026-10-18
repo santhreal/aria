@@ -4,7 +4,10 @@
 //! offer is presented across all panes as a floating frosted banner.
 
 use crate::components::Wraps as _;
-use gpui::{Entity, InteractiveElement, IntoElement, ParentElement, Styled, div, px};
+use gpui::{
+    Entity, InteractiveElement, IntoElement, ParentElement, StatefulInteractiveElement, Styled,
+    div, px,
+};
 
 use crate::app::AppState;
 use crate::app::recents::RecentView;
@@ -16,6 +19,10 @@ use crate::types::HomeRail;
 use super::cards::{card_action, hero_tile, learn_line, press, recents_grid, section_title};
 
 /// Render the main content body of Home based on the selected rail tab.
+///
+/// The body scrolls, so every pane reads whole in a short window, as twelve
+/// recents do in the smallest one. Its top and bottom fade
+/// only while the pane continues past them.
 pub(super) fn home_body(
     theme: &Theme,
     rail: HomeRail,
@@ -24,26 +31,34 @@ pub(super) fn home_body(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     let offer = state.read(cx).pending_recovery();
-    div()
-        .id("home-body")
-        .flex_1()
-        .h_full()
-        .min_w_0()
-        .px(px(Theme::SPACE_LG * 2.))
-        .py(px(Theme::SPACE_LG * 2.))
-        .flex()
-        .flex_col()
-        .gap(px(Theme::SPACE_MD))
-        .when_some(offer, |el, offer| {
-            el.child(recovery_banner(theme, offer, cx))
-        })
-        .child(match rail {
-            HomeRail::New => new_pane(theme, cx).into_any_element(),
-            HomeRail::Open => open_pane(theme, cx).into_any_element(),
-            HomeRail::Recents => recents_pane(theme, recents, cx).into_any_element(),
-            HomeRail::Samples => samples_pane(theme, state, cx).into_any_element(),
-            HomeRail::Learn => learn_pane(theme, state.read(cx)).into_any_element(),
-        })
+    let scroll = state.read(cx).home_scroll.clone();
+    crate::edge_fade::edge_faded(
+        24.0,
+        div()
+            .id("home-body")
+            .debug_selector(|| "home-body".into())
+            .flex_1()
+            .h_full()
+            .min_w_0()
+            .overflow_y_scroll()
+            .track_scroll(&scroll)
+            .px(px(Theme::SPACE_LG * 2.))
+            .py(px(Theme::SPACE_LG * 2.))
+            .flex()
+            .flex_col()
+            .gap(px(Theme::SPACE_MD))
+            .when_some(offer, |el, offer| {
+                el.child(recovery_banner(theme, offer, cx))
+            })
+            .child(match rail {
+                HomeRail::New => new_pane(theme, cx).into_any_element(),
+                HomeRail::Open => open_pane(theme, cx).into_any_element(),
+                HomeRail::Recents => recents_pane(theme, recents, cx).into_any_element(),
+                HomeRail::Samples => samples_pane(theme, state, cx).into_any_element(),
+                HomeRail::Learn => learn_pane(theme, state.read(cx)).into_any_element(),
+            }),
+    )
+    .fade_overflow_y(&scroll)
 }
 
 /// The offer to take back work a crash interrupted.
@@ -187,8 +202,7 @@ pub(super) fn recents_pane(
                 .child("Start a new project or open a .aria file.")
                 .into_any_element()
         } else {
-            crate::edge_fade::edge_faded(24.0, true, true, recents_grid(theme, recents, cx))
-                .into_any_element()
+            recents_grid(theme, recents, cx).into_any_element()
         })
 }
 

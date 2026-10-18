@@ -75,8 +75,6 @@ pub(super) fn ruler(
         .child(
             crate::edge_fade::edge_faded(
                 Theme::SPACE_LG,
-                false,
-                false,
                 ruler_body(
                     theme,
                     RulerTime {
