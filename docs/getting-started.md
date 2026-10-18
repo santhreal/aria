@@ -56,7 +56,7 @@ no longer exists is listed disabled. **Clear Recent Imports** empties the list.
 The list is saved as `import-recents.json` in the data folder.
 
 An import adds lanes and clips to the open project as one undo step, and
-imports the media the file names. The export format follows the extension of the
+imports the media files listed in it. The export format follows the extension of the
 name you give; a name with no extension takes the first format listed. An
 export that fails leaves an existing file at that path as it was.
 
@@ -90,12 +90,12 @@ folder and repair every missing row from it.
 Relink All searches the folder and up to four levels below it, matching by file
 name, then checks each same-named file against what the project recorded for
 that row: frame size, duration, and whether it has audio. A row is repaired
-only when exactly one file matches. Anything else leaves the row missing and
+only when one file matches. Anything else leaves the row missing and
 states why on it:
 
-| Row says | Meaning |
+| Row text | Meaning |
 | --- | --- |
-| not in that folder | No file there carries that name |
+| not in that folder | No file there has that name |
 | N files there match | Several files match everything recorded; relink that row by hand |
 | the file there has a different frame size / duration / audio | The name matched, the file is another source |
 | could not read the file there | The file exists and did not open |
@@ -106,8 +106,8 @@ The Project panel's top row holds five groups: **Media**, **Graphics**, **Effect
 **Library**, and **Analyze**. Choosing a group opens its first tab, and a group
 with more than one tab lists its tabs in a smaller row underneath:
 
-- **Media**: **Media**, every imported file, and **Audio**, the audio files
-  only.
+- **Media**: every imported file. **Audio only**, the icon beside the search
+  box, lists the audio files only; see [Media pool](#media-pool).
 - **Graphics**: **Titles**, **Shapes**, and **Stickers** place a generated
   clip at the playhead on a click. **Masks** applies a mask to the selected
   clip.
@@ -123,7 +123,7 @@ with more than one tab lists its tabs in a smaller row underneath:
   [Captions](#captions). **Analysis** detects shots, silences, and beats on the
   selected clip; see [Analysis](#analysis).
 
-With no clip selected, or on a clip that refuses the entry, a click that
+With no clip selected, or on a clip that rejects the entry, a click that
 applies an entry reports why. Markers are listed in the Markers panel; see
 [Markers](#markers).
 
@@ -166,7 +166,8 @@ entry to apply it to the selection:
 
 Drag an entry onto a clip to apply it to that clip, a transition onto a cut, and
 a generator or clip type onto a lane to place it there. Hover an entry to show
-where it comes from: Built in, Saved preset, or the plugin's name.
+where it comes from (Built in, Saved preset, or the plugin's name) and the two
+gestures: double-click and drag.
 
 Drag a video effect onto the Effects tab of Effect Controls to add it to the selected
 clip's chain: dropped on an effect, it goes above that effect; dropped anywhere
@@ -179,8 +180,8 @@ Click it again to remove it. Favourites are saved with the settings.
 
 Type in the search box to filter the tree. The search ignores case and matches
 the name, the id, and the category. Every folder holding a match opens, and a
-group with no match is hidden. **Clear** empties the search. Esc returns keys to
-the editor.
+group with no match is hidden. The `×` at the right of the box empties the
+search. Esc returns keys to the editor.
 
 **Failed to Load**, the last folder, lists each plugin that did not mount and
 each preset file that did not read, with the reason.
@@ -234,8 +235,8 @@ and the block Top, Middle, or Bottom down it; **Wrap** breaks long lines at the
 frame edge.
 
 **Window > Character** and **Window > Paragraph** dock the same controls as
-panels, Character in the right frame beside Effects & Presets in the Editing
-workspace. They edit whichever title is selected.
+panels, in the right frame beside Effects & Presets in the Editing workspace.
+They edit whichever title is selected.
 
 With the Type tool (T), click empty picture to place a new title; its
 placeholder text is selected, so typing replaces it. Click a title to place the
@@ -258,9 +259,9 @@ Retyping a title keeps its font, size, colour, alignment, and effect.
 - Drag a clip to move it. Drag a clip edge to trim. Nearby clips magnet
   at 8 px. The magnet also takes the playhead, the sequence start and end, the
   In and Out points, markers, and detected beats. While a drag is in flight the
-  guide line names what it locked onto, so a snap onto the wrong edge is
-  visible. Hold Alt to suspend the magnet for that one drag; the tool bar's
-  magnet stays on.
+  guide line states what it locked onto. Hold Alt to suspend the magnet for
+  that one drag; the Timeline
+  header's magnet stays on.
 - Drag on empty timeline space to rubber-band: every unlocked clip the band
   touches is selected, in either direction, across every lane between the two
   corners. A press with no drag clears the selection. Esc abandons the band and
@@ -292,10 +293,11 @@ Retyping a title keeps its font, size, colour, alignment, and effect.
   group, while trimming an edge trims only that clip (or its linked A/V pair).
   Hold Alt while clicking to select one member alone. **Clip > Ungroup**
   dissolves the group.
-- **Sequence > Linked Selection**, or the chain button in the tool bar, turns
-  linked selection on or off. On, a click selects a clip with the clips linked
-  to it, and a move or a trim carries them. Off, a click, a move, a nudge, and an
-  edge trim apply to the one clip; grouped clips still move together.
+- **Sequence > Linked Selection**, or the chain button in the Timeline header,
+  turns linked selection on or off. On, a click selects a clip with the clips
+  linked to it, and a move or a trim moves them together. Off, a click, a move, a
+  nudge, and an edge trim apply to the one clip; grouped clips still move
+  together.
 - **Clip > Audio Gain…** opens Audio Gain for the selected audio-bearing clips.
   It reports the measured peak in dBFS across the selection and offers four
   modes: **Set Gain to** sets clip volume in dB (`-60` to `+12` dB), **Adjust
@@ -317,7 +319,7 @@ Retyping a title keeps its font, size, colour, alignment, and effect.
   overwrites with it. The sequence's own In point is where the clip lands, and
   the playhead stands in when there is none; a sequence Out alone backtimes the
   take to end there. With In and Out on the sequence and only an In or an Out on
-  the source, the sequence span decides how much of the source is taken. With
+  the source, the sequence span sets how much of the source is taken. With
   all four points set and the two lengths different, the edit is Fit to Fill:
   the take is retimed to the sequence span and the status line shows the new
   speed. A still takes the sequence span without a retime.
@@ -345,6 +347,10 @@ edges the way a plain drag does. Each keeps something fixed:
   lane follows. Trimming the head slides the clip back to where it started, so
   the lane keeps its own start.
 
+The five share one tool bar button, which shows the armed trim tool, or Ripple
+trim when none is armed. Hold the button for 300 ms, or click its corner
+triangle, to list the five; each key selects its tool directly.
+
 Slide, a rolling edit, and a ripple trim each issue two edits and cost one undo.
 If the second edit is refused the first is rolled back, so the timeline never
 keeps half a gesture.
@@ -360,8 +366,8 @@ Ctrl+C copies the selected clip, and there are four pastes:
   audio levels are unchanged. The target's existing effects are replaced, not
   added to, so pasting from a clip with no effects clears them.
 - **Paste To Fit**, on the Edit menu, drops the copy into the marked range and
-  retimes it to fill the range exactly. The copy lands at the In point, not at
-  the playhead. Mark In and Out first: with no range marked the row says so and
+  retimes it to fill the range. The copy lands at the In point, not at
+  the playhead. Mark In and Out first: with no range marked the row reports it and
   changes nothing.
 
 The clipboard holds a reference, not a copy: deleting the copied clip makes the
@@ -371,7 +377,7 @@ The Effect Controls panel shows transform, look, effects, audio, text, and
 info for the selected clip. Tabs hide when they do not apply.
 
 The strip along the bottom shows the timecode, the frame rate, the track count,
-and the last message. A status is a receipt for what just happened and clears
+and the last message. A status is a receipt for the last action and clears
 after four seconds. An error stays until an action succeeds: an edit, an undo, or
 a redo replaces it.
 
@@ -403,20 +409,19 @@ selected it trims the edge. With nothing selected it moves the playhead.
 
 ## Timeline header
 
-The header over the track headers holds, top to bottom:
+The header over the track headers has two columns. The left one holds the
+sequence timecode, a playhead field like the Viewer's (see above), drawn as
+figures until the pointer is over it. The right one holds, top to bottom:
 
-- The sequence timecode, a playhead field like the Viewer's (see above), with
-  the property search to its right. Typing in the search narrows the property
-  rows of every opened clip to the properties whose names contain the text,
-  ignoring case, and opens the groups that hold them; a group with no match is
-  hidden. Enter, Esc, or a press anywhere else leaves the field and keeps the
-  filter; the **×** button clears it, and each clip shows the groups it had open
-  before.
-- The playhead's frame number, then five buttons: snapping (`S`), linked
-  selection, add a marker at the playhead or edit the one there (`M`), timeline
-  display settings (see [Timeline display settings](#timeline-display-settings)),
-  and the graph editor (Shift+F3). Snapping, linked selection, and display
-  settings are the same as the tool bar's buttons.
+- The property search. Typing in it narrows the property rows of every opened
+  clip to the properties whose names contain the text, ignoring case, and
+  opens the groups that hold them; a group with no match is hidden. Enter,
+  Esc, or a press anywhere else leaves the field and keeps the filter; the
+  **×** button clears it, and each clip shows the groups it had open before.
+- Five buttons: snapping (`S`), linked selection, add a marker at the playhead
+  or edit the one there (`M`), timeline display settings (see
+  [Timeline display settings](#timeline-display-settings)), and the graph
+  editor (Shift+F3).
 
 The ruler to the right labels its ticks in the sequence's time display. The
 spacing follows the zoom: labels sit as close as their width allows and never
@@ -440,7 +445,7 @@ zoom readout fits the sequence on a click.
 
 ## Tracks
 
-Each track header carries a collapse chevron and six toggles: mute, solo (`S`),
+Each track header holds a collapse chevron and six toggles: mute, solo (`S`),
 lock, visibility, target (`T`), and sync lock (`⇄`). Drag the right border of
 the header column to widen or narrow it.
 
@@ -481,14 +486,16 @@ The chevron collapses a lane to a 20-pixel strip: each clip is drawn as a flat
 bar in its own colour, so the cut pattern stays readable while the lane takes
 almost no room. The height is kept, so expanding restores the lane you sized.
 
-**Shift selection…**, in a clip's context menu or the command palette, asks for a
+**Shift selection…**, in a clip's context menu or the command palette, prompts for a
 signed frame count. The offset moves the selection on every lane it spans, from
 the earliest selected clip on each, carrying everything later on those lanes with
 it. A leading `+` is accepted. An offset that would move a clip before the start
 of the sequence is refused whole, and anything that is not a whole number of
 frames is reported rather than guessed at.
 
-Dropping media on the timeline follows the edit mode. In Ripple mode the drop
+Dropping media on the timeline follows the edit mode, which the chip after the
+tool bar's tools shows as **Ripple** or **Overwrite**; click it to switch, or
+rest the pointer on it for what each does. In Ripple mode the drop
 opens a hole first and pushes the clips at or after that point right on the
 patched and sync-locked lanes, so nothing is covered. Otherwise the clip lands
 where it was dropped. See [Routing](#routing) for the lanes the picture and the
@@ -544,15 +551,15 @@ picture placed with its sound patched off is silent. A drop aims at the lane
 under the pointer: that lane takes the channel of its kind, whatever the patch,
 and the other channel follows the patching.
 
-Sync lock decides which other lanes follow a ripple edit. A lane with sync lock
+Sync lock sets which other lanes follow a ripple edit. A lane with sync lock
 set moves by the same amount as the lane being edited, so picture and sound stay
 in step. Clearing it pins that lane: a ripple edit elsewhere then slides past it.
-The lane being edited always moves, whatever its own sync lock says, and the
+The lane being edited always moves, regardless of its own sync lock, and the
 whole ride-along is one Undo.
 
 An insert opens a hole and keeps every clip: a sync-locked clip lying across the
 insert point is cut there and both halves survive. A ripple delete removes a
-stretch of timeline, so a sync-locked lane loses that stretch as well — a clip of
+stretch of timeline, so a sync-locked lane loses that stretch as well: a clip of
 its own inside the deleted span goes, and a clip lying across either edge is cut
 so only the part inside the span is lost. One Undo brings the lane back whole.
 A ripple move does both halves on every sync-locked lane at once: it closes the
@@ -575,7 +582,7 @@ clip in their place on the lane the first of them came from.
 Select that clip and use **Sequence > Open Nested Sequence** to work inside it.
 The timeline, the lanes, the markers and the preview are then the nest's own,
 and every edit lands there rather than on the sequence you came from. The
-status strip carries the nest's name while it is open; clicking that chip
+status strip holds the nest's name while it is open; clicking that chip
 leaves it, as does **Sequence > Leave Nested Sequence**.
 
 **Sequence > Place Nest At Playhead** puts a second clip playing the same nest
@@ -612,7 +619,7 @@ a fade in or out ramps it. A muted clip draws a flat line.
 
 ### Fade handles
 
-Each clip card carries a small square in its top left and top right corner. The
+Each clip card has a small square in its top left and top right corner. The
 square sits where the fade currently ends, so its position is the fade length.
 Drag it along the card to set the fade in or the fade out; Effect Controls shows
 the same numbers. A drag past either end of the card stops at zero or at the
@@ -633,8 +640,8 @@ borrowing a neighbouring frame.
 
 ## Timeline display settings
 
-**View > Timeline Display Settings**, or the wrench button in the tool bar or
-the timeline header, sets how the timeline draws clips and follows the
+**View > Timeline Display Settings**, or the wrench button in the timeline
+header, sets how the timeline draws clips and follows the
 playhead. A wrench opens the choices under itself, and a second press closes
 them. The choices are saved with the app settings, apply to every project, and
 are not edits.
@@ -657,16 +664,18 @@ view.
 ## Viewing the preview
 
 The control row under the Viewer holds, left to right: the playhead timecode
-field, the zoom controls, the resolution and **Proxy** chips, the transport (go
-to start, step back, play, step forward, go to end), **Loop**, the shuttle
-readout, **In** and **Out** while Program is in front, the **Handles** picker,
-**Scopes**, and the peak meter. The transport acts on the tab in front of the
-Viewer: with a Source tab in front, the buttons move its take and the sequence
-playhead stays where it was. **In** and **Out** mark the sequence at the
-playhead; a Source tab marks its take from its own bar. In a narrow Viewer the
-row wraps onto a second line before the transport or before **Handles**.
+field, the zoom controls, the resolution menu, the Proxies toggle, the transport
+(go to start, step back, play, step forward, go to end), the Loop toggle, the
+shuttle readout, **In** and **Out** while Program is in front, the Transform,
+Crop and Mask handle toggles, the Scopes toggle, and the peak meter. The toggles
+are icons; hover one for its name, and a lit icon is on. The transport acts on
+the tab in front of the Viewer: with a Source tab in front, the buttons move its
+take and the sequence playhead stays where it was. **In** and **Out** mark the
+sequence at the playhead; a Source tab marks its take from its own bar. In a
+narrow Viewer the row wraps onto a second line before the transport or before
+the handle toggles.
 
-The Viewer fits the frame to the panel by default. The control row carries
+The Viewer fits the frame to the panel by default. The control row holds
 `−`, the zoom readout, and `+`. The readout shows `Fit` or a whole percentage;
 clicking it returns to fit. The buttons walk a fixed ladder: 25, 50, 75, 100,
 150, 200, 400 per cent, and stop at either end.
@@ -675,7 +684,7 @@ Above 100 per cent the frame can be panned: the cursor becomes an open hand and
 dragging moves the picture. Returning to fit, or zooming back to 100 per cent or
 below, re-centres it.
 
-**Scopes** opens a strip beside the Viewer with the waveform, the vectorscope,
+The Scopes toggle opens a strip beside the Viewer with the waveform, the vectorscope,
 and the histogram of the frame on screen; the Scopes panel lays the same
 readings across its frame. The chips over the waveform choose what it counts:
 **Luma**, **RGB** for a red, green, and blue parade, or **YCbCr** for a luma,
@@ -683,10 +692,11 @@ Cb, and Cr parade. **View > Scope Waveform** makes the same choice, and the
 choice is saved. The vectorscope draws a skin tone line and a target box for
 each primary and secondary at 75 and 100 per cent.
 
-**View** carries the overlays, each independent of the others. The chips at the
-right of the Viewer's tab row toggle them too: **Safe** turns both safe margins
-on, or off while either is drawn, **Guides** shows or hides the guides, and
-**Alpha** toggles the transparency grid.
+**View > Viewer Display Settings** holds the overlays, each independent of
+the others. The wrench at the right of the Viewer's tab row opens the same
+submenu under itself: **Split Viewer**, **Show Rulers**, **Show Guides**, **Snap
+to Guides**, **Clear Guides**, **Title Safe**, **Action Safe**, **Transparency
+Grid**, and **Grid**. A check mark shows each overlay that is on.
 
 - **Title safe** marks the inner 90 per cent of the frame.
 - **Action safe** marks the inner 93 per cent.
@@ -698,27 +708,26 @@ on, or off while either is drawn, **Guides** shows or hides the guides, and
   While the grid is on, each Viewer frame is read back from the GPU, as with
   Scopes open. The setting is saved.
 
-**Rulers** at the right of the Viewer's tab row, **View > Rulers**, or
-Ctrl+Shift+R draws rulers along the top and left of the Program view, numbered in
+**Show Rulers** under the wrench or **View > Viewer Display Settings**, or
+Ctrl+Shift+R, draws rulers along the top and left of the Program view, numbered in
 canvas pixels and following the zoom and pan. Drag from the top ruler for a
 horizontal guide and from the left ruler for a vertical one; drag a guide to move
-it, and drop it back on its ruler or off the frame to delete it. With **View >
-Snap to Guides** on, a layer moved by its transform handle snaps its edges or its
-centre onto a guide within 6 pixels. **View > Show Guides** off hides the guides
+it, and drop it back on its ruler or off the frame to delete it. With **Snap to Guides** on, a layer moved by its transform handle snaps its edges or its
+centre onto a guide within 6 pixels. **Show Guides** off hides the guides
 and stops snapping to them without deleting them; pulling a new guide shows them
-again. **View > Clear Guides** deletes every guide. Guides are not saved with the
+again. **Clear Guides** deletes every guide. Guides are not saved with the
 project and are not edits.
 
 **View > Compare** holds a reference beside the Program frame. **Current
 Frame** holds the sequence frame at the playhead; move the playhead to compare
-another frame with it. **Still…** asks for an image file. **Source Tab** shows
+another frame with it. **Still…** prompts for an image file. **Source Tab** shows
 the Source monitor's frame at its own playhead, and is disabled with no source
 open. **Vertical Wipe** draws the reference left of a divider and Program right
 of it, **Horizontal Wipe** draws the reference above and Program below, and
 **Side by Side** draws the reference in a pane of its own left of Program. Drag
 the divider to move it. The reference keeps the Program view's zoom and pan, and
-a caption names it. **Stop Comparing** returns to Program alone. A still that
-cannot be read stops the comparison with an error that names the file.
+a caption states its name. **Stop Comparing** returns to Program alone. A still that
+cannot be read stops the comparison with an error that states the file.
 
 **View > Fullscreen Preview** fills the window with the viewer, hiding the
 other panels. Escape gives them back. A dialog opened by a
@@ -745,9 +754,9 @@ at the sequence size.
 
 Right-click a pool item and choose **Decode through a proxy** to render a
 smaller intra-frame copy as a background job; the command palette's **Proxy
-every pool item** does the same for the whole pool. The **Proxy** chip in the
+every pool item** does the same for the whole pool. The Proxies toggle in the
 control row, and **View > Proxies**, switch the viewer between proxies and the
-original files. The chip shows in the accent color while proxies are on. The
+original files. The toggle is lit while proxies are on. The
 choice is saved with the other UI settings. Export always reads the original
 files, and a proxy missing from disk reads the original.
 
@@ -877,9 +886,9 @@ The Transform tab carries the framing block below the transform rows:
   restores the whole frame and clears both mirrors.
 - Motion blur, with a shutter angle in degrees and a sub-frame sample count.
 
-The Viewer's control row carries a **Handles** control naming which set of on-canvas
-handles is live: Transform, Crop, or Mask. Click it to step to the next set, or
-choose one under **View > Canvas Handles**. Only one set is drawn at a time, because a
+The Viewer's control row carries three icon toggles, Transform, Crop, and Mask,
+one per set of on-canvas handles; the lit one is the live set. Click one to make
+it live, or choose one under **View > Canvas Handles**. Only one set is drawn at a time, because a
 crop corner and a scale corner sit on the same pixel when the crop is full.
 
 In Transform mode, dragging the picture moves it and dragging a corner scales it.
@@ -1524,14 +1533,18 @@ tab bar at the top. Click a tab to activate it, click `×` or middle-click to
 close it, drag a tab within its bar to reorder it, drag a tab onto another
 frame's centre or edge (`Left`, `Right`, `Top`, `Bottom`) to dock or split it,
 or drag a tab outside the main window (or choose **Undock Panel** from the frame
-menu `≡`) to float it in a separate window. Double-click a tab bar or press
-`` ` `` to maximize the focused frame, and repeat to restore the split tree.
+menu `≡`) to float it in a separate window. A floating window's **Dock** puts
+its panels back in their default frames; **Close Window**, or the window
+manager's close control, closes them, and **Window** opens each one again.
+Double-click a tab bar or press `` ` `` to maximize the focused frame, and
+repeat to restore the split tree. **Add Panel** in the frame menu adds a panel
+the frame does not hold as a new tab.
 
 A workspace is a named arrangement of frames, tabs, and pane sizes. Five ship:
 
 | Workspace | What it arranges |
 | --- | --- |
-| Editing | The default. Upper row: `Project \| Effect Controls` (320 px) on the left, `Viewer \| Audio Track Mixer \| Assistant` in the centre, `Info \| Effects & Presets \| Character` (300 px) on the right. Lower row: `Timeline` and `Audio Meters` (64 px). |
+| Editing | The default, six panels. Upper row: `Project \| Effect Controls` (320 px) on the left, `Viewer` in the centre, `Effects & Presets` (300 px) on the right. Lower row: `Timeline` and `Audio Meters` (64 px). Audio Track Mixer and Assistant open from **Window** beside the Viewer; Info and Character open beside Effects & Presets. |
 | Animation | `Effect Controls \| Effects & Presets` on the left, `Viewer` in the centre, `Info \| Scopes` on the right, and `Timeline` at 50% height with the graph editor open. |
 | Color | `Viewer` at 55% width, `Color \| Scopes \| Effect Controls` at 45% width, and a compact `Timeline` below. |
 | Audio | `Viewer` at 30% width, `Audio Track Mixer` at 45% width, `Effects & Presets` (filtered to Audio Effects) and `Audio Meters` at 25% width, with `Project` and `Timeline` below. |
@@ -1559,8 +1572,9 @@ The box at the top of Settings filters the sections by name. It narrows as you t
 Escape clears it, and it is never written to the config file.
 
 In the Appearance section, **System**, **Light**, and **Dark** choose the
-appearance, **Accent** chooses the hue used for the accent, the playhead, and the
-caret, and **Theme** chooses a theme file from `~/.aria/themes`, a theme a
+appearance, **Accent** chooses the family used for the accent, the playhead,
+the selection, and the caret (Blue, Ember, Teal, or Graphite), and **Theme**
+chooses a theme file from `~/.aria/themes`, a theme a
 plugin installed, or the shipped palette (see [Theme files](theme-tokens.md#theme-files)). The accent choice
 persists in `[appearance]`, the theme in `ui-settings.json`, and both apply
 immediately.
@@ -1747,20 +1761,26 @@ returns to is the top of whatever is on the clip now.
 
 ## Media pool
 
-The filter box above the list matches an item's name, its path, its kind, its
-frame size, and its label colour, so a search for `1920`, `wav`, or `teal` finds
-media whose name says none of them. The line under it reports how many of the
-pool the filter leaves. The
-order is **Name**, **Duration**, **Resolution**, or **Date added**; duration and
+The Media tab has one row above the list and one below it. Above: the
+**Search** box, **Audio only** (the icon beside it, which lists the pool's audio
+sources), and **Import**. Below: how many of the pool the filter leaves, then the
+views, the order, **New bin**, and **New multicam**. Hover an icon for its
+name.
+
+The search box matches an item's name, its path, its kind, its frame size, and
+its label colour, so a search for `1920`, `wav`, or `teal` finds media whose name
+includes none of them. The order button reads the current order; click it for
+**Name**, **Duration**, **Resolution**, or **Date added**. Duration and
 resolution sort largest first, and date added sorts newest first. An item from a
 project saved before import times were recorded has none and sorts last. Neither
 the filter nor the order is saved with the project.
 
-The chips beside the order choose how the pool draws itself. **Tiles** puts each
+The view buttons set the pool layout; in a narrow Project frame one button cycles the four. **Tiles** puts each
 item on its own row with its picture above its facts. **List** drops the picture
 and reads each item as one line, name on the left and facts on the right, which
 is the view to use on a pool of hundreds: no picture means no decode. **Icons**
-wraps the pictures into a 96px grid with the name underneath and no facts. The
+wraps the pictures into a 96px grid with the name underneath and no facts.
+**Freeform** places the pictures where you drag them. The
 view is saved with your settings, not with the project, so it is the same in the
 next project you open.
 
@@ -1768,7 +1788,7 @@ Click an item to select it; double-click it to open it in a Source tab (see
 [Previewing a source](#previewing-a-source)). Each row states the
 frame size, the length, the video codec, and either the audio codec or that the
 file is silent, so a silent video is visible before it is cut in. The block under
-the list reports what the pool knows about the selected item: container, frame
+the list reports what the pool has for the selected item: container, frame
 size, frame rate, duration, video codec, audio, when it was imported (UTC),
 whether it is still linked, and its path.
 
@@ -1783,15 +1803,15 @@ a multicam group built from it. Opening another folder drops the selection.
 
 The container is the file extension. A codec name is what the platform's demuxer
 reported at import: on Linux, GStreamer's description of the track's caps. Where
-a backend names no codec, the row reads `unknown` rather than guessing from the
-extension, which would name the container again. Stills carry no codec track and
+a backend reports no codec, the row reads `unknown` rather than guessing from the
+extension, which would repeat the container. Stills have no codec track and
 read `unknown`.
 
 Drag an item onto the timeline to place it where you drop it:
 
 - Dropped on a lane, it lands on that lane at the tick under the pointer. The
   magnet applies, so a drop near a cut, a marker, or the playhead takes that
-  position. A lane that cannot hold the media — audio on a video lane — passes
+  position. A lane that cannot hold the media (audio on a video lane) passes
   it to a lane of the right kind at the same tick.
 - Dropped on the thin strip above the top lane or below the bottom one, it
   creates a lane of its own kind and lands there. This is the only drop that
@@ -1810,12 +1830,13 @@ alongside it.
 
 ### Bins
 
-The pool holds folders. The strip under the filter box shows where you are —
-`Pool / Footage / Day 1` — and lists the folders inside the one that is open.
+The pool holds folders. The folders inside the open one are listed above its
+items. While a folder is open, a breadcrumb above them shows the open path
+(`Pool / Footage / Day 1`) with **Rename** and **Delete bin** at its right.
 
-- **New bin** makes a folder inside the open one, opens it, and starts its name
-  in a text field. Type the name and press Enter; Esc leaves the field without
-  renaming. An empty name is refused.
+- **New bin**, in the row below the list, makes a folder inside the open one,
+  opens it, and starts its name in a text field. Type the name and press Enter;
+  Esc leaves the field without renaming. An empty name is refused.
 - Click a folder to open it. Double-click it to rename it. Click a crumb to go
   back out; `Pool` is the root.
 - **Rename** and **Delete bin** act on the open folder. Deleting one moves its
@@ -1825,14 +1846,14 @@ The pool holds folders. The strip under the filter box shows where you are —
   onto another folder or a crumb to move it. A folder cannot be dropped into
   itself or into one of its own folders.
 
-The list shows what is directly in the open folder. Typing in the filter box
+The list shows what is directly in the open folder. Typing in the search box
 searches the open folder and everything under it, so a file one level down is
-still findable, and the count beside the box describes that same scope. Bins are
+still findable, and the count below the list describes that same scope. Bins are
 saved with the project; which folder is open is not.
 
 ### Previewing a source
 
-Each pool row carries a picture of its source. Move the pointer across that
+Each pool row holds a picture of its source. Move the pointer across that
 picture to scrub the file: the left edge is its first frame and the right edge
 its last. Nothing is placed and nothing is edited; a still shows its one frame.
 A row shows a glyph until its first frame is decoded, and an audio-only file has
@@ -1850,10 +1871,11 @@ and `Space` over any other panel, including Effects and the Project panel tabs t
 not list the pool, or over a pool with nothing selected, shows Program and plays
 the sequence. Opening a source stops playback. Safe areas and the transform
 handles belong to the sequence and are not drawn over a source. An audio-only
-item has no picture and opens no tab.
+item has no picture and opens no tab. In a narrow Viewer a long name ends in an
+ellipsis on its tab and on the name in the corner.
 
-**Split** at the right of the tab row shows the Source tab shown last on the left
-and Program on the right. The keys reach whichever tab is focused.
+**Split Viewer**, under the wrench at the right of the tab row, shows the Source
+tab shown last on the left and Program on the right. The keys reach whichever tab is focused.
 
 Double-click a media clip on the timeline to open its take in a Source tab linked
 to that clip. The tab opens at the frame the sequence shows under the playhead,
@@ -1898,7 +1920,7 @@ patched lanes and pushes the rest of every sync-locked lane right. **Overwrite**
 dropped, material reaching into the span is trimmed to the edge it crosses, and a
 clip that spans the whole window survives on both sides of it. Mark the sequence
 at both ends as well as the source and either button becomes a four-point edit:
-the sequence's span decides the length and the take is retimed to fill it. Drag
+the sequence's span sets the length and the take is retimed to fill it. Drag
 the frame onto the timeline to drop the marked range where you let go, covering
 what is there; hold Ctrl to insert instead. Each is one undo entry. The tab stays
 open, so takes can be cut in one after another.
@@ -1907,13 +1929,13 @@ open, so takes can be cut in one after another.
 
 A multicam group is several cameras of the same take, cut between as one clip.
 
-Select the camera files in the pool and press **+ Multicam Group**. The group
-takes one angle per selected item, in the order you clicked them, and appears as
-a row below the button. With nothing selected the button groups the whole pool,
-which is what an import of a card's worth of angles wants. An empty pool says so
-and builds nothing.
+Select the camera files in the pool and press **New multicam**, beside **New
+bin**. The group takes one angle per selected item, in the order you clicked
+them, and appears as a row below the folder strip. With nothing selected the
+button groups the whole pool, which is what an import of a card's worth of
+angles wants. An empty pool reports that and builds nothing.
 
-The row names the group, counts its angles, and carries one row per camera. The
+The row names the group, counts its angles, and holds one row per camera. The
 lit chip is the camera live at the playhead, read from the group's cut list as
 you scrub. Clicking a chip cuts to that camera at the playhead.
 
@@ -1940,7 +1962,7 @@ shows at every tick that camera is live.
 
 The waveform button measures it instead. The peaks already decoded for the strips
 are correlated against the first camera's, and every other camera is placed
-where its sound says it belongs. The first camera is the clock and does not
+where its sound matches. The first camera is the clock and does not
 move, so syncing a group twice gives the same answer, and the whole group is one
 undo entry however many cameras moved.
 
@@ -1979,13 +2001,13 @@ card, and snapping targets both ends of a range marker.
 A label colour groups clips that belong together. The sixteen labels are
 Violet, Iris, Caribbean, Lavender, Cerulean, Forest, Rose, Mango, Purple, Blue,
 Teal, Magenta, Tan, Green, Brown, and Yellow. Right-click a clip: the menu
-carries their swatches and an `×`. **Edit > Label** lists the same sixteen and
+holds their swatches and an `×`. **Edit > Label** lists the same sixteen and
 **None**. Clicking a swatch labels every selected clip, `×` clears the label,
 and each is one undo entry per clip.
 
 A clip bar is filled with its label colour. A clip with no label takes its
-kind's label: Violet for video, Forest for audio, Mango for generators, titles
-and shapes, Tan for nested sequences, and Lavender for clips on adjustment,
+kind's label: Teal for video, Forest for audio, Mango for generators, titles
+and shapes, Tan for nested sequences, and Yellow for clips on adjustment,
 effect, and filter tracks. A selected clip is drawn in a lighter fill of its
 label with a 1 px white border.
 

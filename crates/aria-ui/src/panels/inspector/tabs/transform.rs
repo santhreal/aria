@@ -7,6 +7,7 @@
 //! animated property with the constant the pointer left it at, and it silently
 //! lacked the anchor point the catalog has always carried.
 
+use crate::components::Wraps as _;
 use crate::tooltip::WithTip as _;
 use gpui::{
     InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, SharedString,
@@ -179,7 +180,7 @@ fn parent_row(
                 div()
                     .flex()
                     .flex_row()
-                    .flex_wrap()
+                    .wraps()
                     .items_center()
                     .gap(px(Theme::SPACE_XS))
                     .child(none)

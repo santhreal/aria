@@ -9,9 +9,10 @@
 //!
 //! Sizes are fixed per layout. A scope read at a varying size is a scope whose
 //! graticule moves, and exposure is judged against a 50% line that stays where
-//! it was.
+//! it was. In the panel, a frame narrower than a scope narrows it to the frame;
+//! the vectorscope stays square.
 
-use crate::tooltip::WithTip as _;
+use crate::components::Wraps as _;
 use gpui::{
     Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ObjectFit, ParentElement,
     SharedString, StatefulInteractiveElement, Styled, StyledImage, div, img, px,
@@ -78,7 +79,6 @@ pub(super) fn strip(
             div()
                 .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_muted)
-                .font_family(theme.font_mono.clone())
                 .child(summary),
         );
 
@@ -155,10 +155,11 @@ pub(crate) fn panel(
             "scopes-panel-body",
             div()
                 .flex()
-                .flex_wrap()
+                .wraps()
                 .gap(px(Theme::SPACE_MD))
                 .child(
                     div()
+                        .debug_selector(|| "scopes-panel-waveform-card".into())
                         .flex()
                         .flex_col()
                         .gap(px(Theme::SPACE_XS))
@@ -169,21 +170,20 @@ pub(crate) fn panel(
                             PANEL_SCOPE_H,
                             &theme,
                         ))
+                        // Laid out at this width before the row wraps, and
+                        // narrower alone in a frame narrower than that.
                         .flex_1()
-                        .min_w(px(PANEL_SCOPE_MIN_W)),
+                        .flex_basis(px(PANEL_SCOPE_MIN_W))
+                        .min_w_0(),
                 )
                 .child(
                     card(
                         "Vectorscope",
-                        scope_image(
-                            "scopes-panel-vector",
-                            vectorscope.clone(),
-                            PANEL_SCOPE_H,
-                            &theme,
-                        ),
+                        square_scope_image("scopes-panel-vector", vectorscope.clone(), &theme),
                         &theme,
                     )
-                    .flex_none()
+                    .debug_selector(|| "scopes-panel-vector-card".into())
+                    .min_w_0()
                     .w(px(PANEL_SCOPE_H)),
                 )
                 .child(
@@ -197,8 +197,10 @@ pub(crate) fn panel(
                         ),
                         &theme,
                     )
+                    .debug_selector(|| "scopes-panel-histogram-card".into())
                     .flex_1()
-                    .min_w(px(PANEL_SCOPE_MIN_W)),
+                    .flex_basis(px(PANEL_SCOPE_MIN_W))
+                    .min_w_0(),
                 )
                 .children(plugins.iter().map(|reading| {
                     div()
@@ -229,7 +231,6 @@ pub(crate) fn panel(
             div()
                 .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_muted)
-                .font_family(theme.font_mono.clone())
                 .child(summary),
         )
         .child(body)
@@ -256,7 +257,7 @@ fn waveform_modes(
     let shown = state.waveform_mode();
     let row = div()
         .flex()
-        .flex_wrap()
+        .wraps()
         .items_center()
         .gap(px(Theme::SPACE_XXS))
         .child(labelled("Waveform", theme))
@@ -312,7 +313,6 @@ fn plugin_scope(reading: &PluginScopeTexture, theme: &Theme) -> gpui::AnyElement
         div()
             .text_size(Theme::TEXT_UI)
             .text_color(color)
-            .font_family(theme.font_mono.clone())
             .child(text)
     };
     div()
@@ -353,34 +353,49 @@ fn scope_image(
         .overflow_hidden()
         .border_1()
         .border_color(theme.border)
-        .child(
+        .child(crate::components::picture(
             img(image)
                 .id(id.element("scope-image"))
                 .object_fit(ObjectFit::Fill)
                 .w_full()
                 .h(px(height)),
-        )
+        ))
 }
 
-/// The Viewer row's Scopes toggle. Reads as on or off, because a scope strip that is
-/// closed is indistinguishable from one that has nothing to show.
+/// The vectorscope in the panel: square at the card's width, `PANEL_SCOPE_H`
+/// wide where the frame has room, so its circle stays a circle in a frame
+/// narrower than that.
+fn square_scope_image(
+    id: impl Into<crate::motion::ControlId>,
+    image: std::sync::Arc<gpui::RenderImage>,
+    theme: &Theme,
+) -> impl IntoElement {
+    let id = id.into();
+    div()
+        .w_full()
+        .aspect_ratio(1.0)
+        .rounded(px(Theme::CONTROL_RADIUS))
+        .overflow_hidden()
+        .border_1()
+        .border_color(theme.border)
+        .child(crate::components::picture(
+            img(image)
+                .id(id.element("scope-image"))
+                .object_fit(ObjectFit::Fill)
+                .size_full(),
+        ))
+}
+
+/// The Viewer row's Scopes toggle, lit while the scope strip is open, because a
+/// scope strip that is closed is indistinguishable from one that has nothing to
+/// show.
 pub(super) fn toggle(
     state: &Entity<AppState>,
     theme: &Theme,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     let open = state.read(cx).scopes_open;
-    div()
-        .id("preview-scopes-toggle")
-        .px(px(Theme::SPACE_XS))
-        .text_size(Theme::TEXT_UI)
-        .text_color(if open { theme.accent } else { theme.text_muted })
-        .cursor(gpui::CursorStyle::PointingHand)
-        .active(|style| style.opacity(0.92))
-        .when_some(
-            crate::tooltip::builder("preview-scopes-toggle"),
-            |el, tip| el.with_tip(tip),
-        )
+    crate::chrome::tool_strip::lit_icon("preview-scopes-toggle", crate::icons::SCOPES, open, theme)
         .on_mouse_down(
             MouseButton::Left,
             cx.listener(|this, _: &MouseDownEvent, _, cx| {
@@ -388,5 +403,4 @@ pub(super) fn toggle(
                 cx.notify();
             }),
         )
-        .child("Scopes")
 }

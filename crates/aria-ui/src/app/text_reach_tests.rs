@@ -171,7 +171,9 @@ fn a_rotated_quad_is_picked_where_it_is_drawn() {
 #[test]
 fn the_font_preflight_reports_on_the_file_it_was_handed() {
     let (mut state, _) = crate::app::premiere_tests::with_clip();
-    state.supply_pick(crate::app::picker::Answer::file(asset("fonts/Geist.ttf")));
+    state.supply_pick(crate::app::picker::Answer::file(asset(
+        "fonts/Inter-Regular.ttf",
+    )));
 
     font_row(&mut state);
 
@@ -181,7 +183,7 @@ fn the_font_preflight_reports_on_the_file_it_was_handed() {
         .take()
         .expect("the row reported nothing");
     assert!(
-        line.starts_with("Geist.ttf"),
+        line.starts_with("Inter-Regular.ttf"),
         "the report must name the file that was picked: {line}"
     );
     assert!(

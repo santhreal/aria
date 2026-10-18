@@ -12,6 +12,7 @@
 //! something for a keyframe to be written against. A row whose caller has
 //! neither still fades under the pointer and reads the same.
 
+use crate::components::Wraps as _;
 use crate::tooltip::WithTip as _;
 use aria_engine::EngineError;
 use aria_models::ClipParam;
@@ -47,11 +48,12 @@ const THUMB: f32 = 7.0;
 const DOT: f32 = 8.0;
 
 /// The room a label holds on a row with a time area before it shrinks, in
-/// pixels: the width of Anchor point X at `TEXT_UI` in Geist. The label grows
-/// into any room the row has past it. In a frame too narrow for every control,
-/// the strip narrows first and is left blank below its minimum, and the label
-/// ends in an ellipsis only once the strip has no width left.
-pub const LABEL_RESERVE: f32 = 76.0;
+/// pixels: the width of Anchor point X at `TEXT_UI` in Inter (77.4 px) plus a
+/// little air. The label grows into any room the row has past it. In a frame
+/// too narrow for every control, the strip narrows first and is left blank
+/// below its minimum, and the label ends in an ellipsis only once the strip has
+/// no width left.
+pub const LABEL_RESERVE: f32 = 80.0;
 
 /// The narrowest the value column is drawn on a row with a time area, in
 /// pixels. A value narrower than it stands at its right edge, so the controls
@@ -312,7 +314,7 @@ pub fn stepper_row(
     let mut head = div()
         .flex()
         .flex_row()
-        .when(!timed, |head| head.flex_wrap())
+        .when(!timed, |head| head.wraps())
         .items_center()
         .gap(px(Theme::SPACE_XS));
     let mut controls = None;
@@ -689,7 +691,7 @@ fn key_controls(
         ))
         .child(
             crate::components::icon_button(("prop-reset", key), crate::icons::ROTATE_CCW, theme)
-                .flex_none()
+                .size(px(Theme::ICON_HIT_ROW))
                 .debug_selector(move || format!("insp-prop-reset-{param:?}"))
                 .when(!watch.off_default, |button| button.opacity(0.35))
                 .on_mouse_down(
@@ -1016,7 +1018,7 @@ pub fn swatch_row(
     let head = div()
         .flex()
         .flex_row()
-        .when(!timed, |head| head.flex_wrap())
+        .when(!timed, |head| head.wraps())
         .items_center()
         .gap(px(Theme::SPACE_XS))
         .children(dot)
@@ -1040,7 +1042,7 @@ pub fn swatch_row(
             div()
                 .flex()
                 .flex_row()
-                .flex_wrap()
+                .wraps()
                 .gap(px(Theme::SPACE_XXS))
                 .children(swatches),
         )
@@ -1137,12 +1139,7 @@ pub fn kv_row(theme: &Theme, label: &str, value: impl Into<String>) -> impl Into
         .justify_between()
         .text_size(Theme::TEXT_UI)
         .child(div().text_color(theme.text_muted).child(label.to_string()))
-        .child(
-            div()
-                .font_family(theme.font_mono.clone())
-                .text_color(theme.text)
-                .child(value.into()),
-        )
+        .child(div().text_color(theme.text).child(value.into()))
 }
 
 pub fn kind_label(kind: UiClipKind) -> &'static str {

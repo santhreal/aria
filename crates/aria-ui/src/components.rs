@@ -11,6 +11,9 @@ use crate::motion;
 use crate::motion::glide;
 use crate::theme::Theme;
 
+pub mod drawn;
+pub use drawn::{Picture, Wraps, picture};
+
 /// A disclosure chevron, sized to sit beside 12px row text.
 const CHEVRON_PX: f32 = 12.;
 
@@ -156,6 +159,8 @@ pub fn chip(
     let (pad_x, pad_y) = size.pad();
     div()
         .id(id.element("chip"))
+        .flex()
+        .items_center()
         .px(px(pad_x))
         .py(px(pad_y))
         .rounded(px(Theme::CONTROL_RADIUS))
@@ -174,7 +179,7 @@ pub fn chip(
         // Press feedback: dim while held, since GPUI Div styles expose no scale.
         .active(move |style| style.opacity(0.92))
         .on_hover(motion::hover_listener(key))
-        .child(label)
+        .child(div().min_w_0().truncate().child(label))
 }
 /// A compact tab strip for static surface catalogs and galleries.
 ///
@@ -263,6 +268,7 @@ pub fn text_box(
         .id(id.element("field"))
         .px(px(Theme::SPACE_SM))
         .min_h(px(Theme::INPUT_HEIGHT))
+        .min_w_0()
         .flex()
         .items_center()
         .rounded(px(Theme::CONTROL_RADIUS))
@@ -277,19 +283,21 @@ pub fn text_box(
         .text_size(Theme::TEXT_UI)
         .text_color(if empty { theme.text_muted } else { theme.text })
         .on_hover(motion::hover_listener(key))
-        .child(if empty && !focused {
+        // A field narrower than its text ends it in an ellipsis inside the
+        // border rather than drawing past it.
+        .child(div().min_w_0().truncate().child(if empty && !focused {
             placeholder.into()
         } else if focused {
             SharedString::from(format!("{value}|"))
         } else {
             value
-        })
+        }))
 }
 
 /// How an icon control identifies itself: the element id it takes this frame,
 /// and the name the tooltip table knows it by.
 ///
-/// A control that exists once is a plain `"snap"`, which is both. A control drawn
+/// A control that exists once is a plain `"timeline-snap"`, which is both. A control drawn
 /// once per row is `("inspector-fx-remove", index)`: each row needs its own
 /// element id, and its own hover fade with it, while one tip names them all. A
 /// control drawn once per model entity is `("nudge-multicam-back", key)`, where
@@ -329,7 +337,9 @@ impl IconId for (&'static str, motion::MotionKey) {
     }
 }
 
-/// Square icon control.
+/// Square icon control: a 16 px glyph in a 24 px hit box (look.md Density).
+/// A control inside a 22 px row sets `.size(px(Theme::ICON_HIT_ROW))`; the tool
+/// bar sets `ICON_HIT_LARGE`.
 ///
 /// Names itself on hover when [`crate::tooltip`] knows the id. A glyph is not a
 /// name, so the tip is attached here rather than at each call site: every icon
@@ -344,8 +354,8 @@ pub fn icon_button(id: impl IconId, path: &'static str, theme: &Theme) -> Statef
     div()
         .id(id)
         .active(move |style| style.bg(pressed).opacity(0.92))
-        .w(px(Theme::SPACE_LG))
-        .h(px(Theme::SPACE_LG))
+        .flex_none()
+        .size(px(Theme::ICON_HIT))
         .rounded(px(Theme::SPACE_XS))
         .flex()
         .items_center()
@@ -424,7 +434,6 @@ pub fn slider_row(
             div()
                 .w(px(48.))
                 .text_size(Theme::TEXT_UI)
-                .font_family(theme.font_mono.clone())
                 .text_color(theme.text)
                 .child(display.into()),
         )

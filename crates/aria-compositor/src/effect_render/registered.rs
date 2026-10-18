@@ -254,7 +254,7 @@ fn upload(device: &wgpu::Device, queue: &wgpu::Queue, texture: &Arc<PluginTextur
 /// texel its shader skips holds no earlier frame.
 fn clear(encoder: &mut wgpu::CommandEncoder, output: &wgpu::TextureView) {
     let _clear = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: Some("aria.registered.clear"),
+        label: None,
         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
             view: output,
             depth_slice: None,
@@ -285,7 +285,7 @@ fn encode(
     match &built.pipeline {
         PassPipeline::Render(pipeline) => {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("aria.registered.pass"),
+                label: None,
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: output,
                     depth_slice: None,
@@ -309,7 +309,7 @@ fn encode(
             workgroup: [x, y],
         } => {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("aria.registered.compute"),
+                label: None,
                 timestamp_writes: None,
             });
             pass.set_pipeline(pipeline);

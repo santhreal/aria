@@ -159,7 +159,7 @@ pub struct AvfDecoder {
     /// failure (the rebuilt reader is not at that position).
     last_pts: Option<RationalTime>,
     /// Observed seek/decode costs driving the adaptive roll window.
-    seek_stats: crate::seek::SeekStats,
+    seek_stats: crate::seek_cost::SeekStats,
 }
 
 // SAFETY: AVFoundation/CoreVideo objects here are owned and touched by a single

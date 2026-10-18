@@ -16,7 +16,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use aria_models::RationalTime;
-use gpui::{App, Entity, RenderImage};
+use gpui::{App, Context, Entity, RenderImage};
 
 use crate::app::AppState;
 
@@ -164,25 +164,24 @@ pub fn cell_ticks(start_ticks: i64, end_ticks: i64, width_px: f32, cell_w: f32) 
 }
 
 /// Render one cell if the store wants it. Safe to call from a render: the tick
-/// is marked in flight before the thread starts.
+/// is marked in flight before the thread starts, and nothing here takes the
+/// engine lock, which the cell render holds for as long as its decode runs.
 pub fn request(state: &Entity<AppState>, cx: &mut App, tick: i64) {
-    let revision = {
-        let app = state.read(cx);
-        app.engine().lock().revision()
-    };
     let wanted = state.update(cx, |state, _| {
+        // The revision the drawn timeline was projected from. An engine edit
+        // not yet projected reaches the store through `sync_from_engine`,
+        // which drops what was rendered before it.
+        let revision = state.revision;
         state.filmstrips.sync_revision(revision);
         if !state.filmstrips.wants(tick) {
-            return false;
+            return None;
         }
         state.filmstrips.start(tick);
-        true
+        Some((revision, state.engine().clone(), state.playhead.rate))
     });
-    if !wanted {
+    let Some((revision, engine, rate)) = wanted else {
         return;
-    }
-    let engine = state.read(cx).engine().clone();
-    let rate = state.read(cx).playhead.rate;
+    };
     let state = state.clone();
     cx.spawn(async move |cx| {
         let at = RationalTime::new(tick, rate);
@@ -201,13 +200,41 @@ pub fn request(state: &Entity<AppState>, cx: &mut App, tick: i64) {
             .await
             .flatten();
         let _ = state.update(cx, |state, cx| {
-            state
-                .filmstrips
-                .finish(revision, tick, rendered.map(|image| Cell { image }));
-            cx.notify();
+            land(
+                state,
+                revision,
+                tick,
+                rendered.map(|image| Cell { image }),
+                cx,
+            );
         });
     })
     .detach();
+}
+
+/// Store the cell rendered for `tick` at `revision` and redraw the panel
+/// bodies that draw filmstrips, through [`crate::app::FilmstripChanged`].
+pub(crate) fn land(
+    state: &mut AppState,
+    revision: u64,
+    tick: i64,
+    cell: Option<Cell>,
+    cx: &mut Context<AppState>,
+) {
+    state.filmstrips.finish(revision, tick, cell);
+    cx.emit(crate::app::FilmstripChanged);
+}
+
+/// A one-pixel cell, for tests that land a rendered cell.
+#[cfg(test)]
+pub(crate) fn test_cell() -> Cell {
+    let buffer = image::ImageBuffer::<image::Rgba<u8>, _>::from_raw(1, 1, vec![0u8, 0, 0, 255])
+        .expect("a one-pixel buffer");
+    Cell {
+        image: Arc::new(RenderImage::new(smallvec::SmallVec::from_const([
+            image::Frame::new(buffer),
+        ]))),
+    }
 }
 
 #[cfg(test)]

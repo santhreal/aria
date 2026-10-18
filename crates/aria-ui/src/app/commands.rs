@@ -472,7 +472,7 @@ impl AppState {
         let snapshot = {
             let mut engine = engine.lock();
             let start = RationalTime::new(0, engine.project().timeline().frame_rate);
-            Snapshot::from_engine(&mut engine, start, &[])
+            Snapshot::from_engine(&mut engine, start, &[], None)
         };
         let download_cache = storage::cache_for(&data_dir);
         // One registry per process: the plugin context already holds it, so a session
@@ -666,6 +666,7 @@ impl AppState {
             media_query: String::new(),
             media_search_focus: false,
             media_sort: crate::types::MediaSort::default(),
+            media_sort_list_open: false,
             pool_selection: crate::app::pool_selection::PoolSelection::default(),
             current_bin: None,
             bin_rename: None,
@@ -726,12 +727,11 @@ impl AppState {
             timeline_av_split: 0.55,
             video_scroll_y: 0.0,
             audio_scroll_y: 0.0,
-            timeline_viewport_w: 800.0,
             timeline_paint_stats: crate::types::TimelinePaintStats::default(),
             render_bar: Arc::new(Vec::new()),
             render_files_handle,
             render_files_generation: Arc::new(std::sync::atomic::AtomicU64::new(0)),
-            render_bar_state: crate::app::render_files::RenderBarState::default(),
+            render_bar_state: crate::app::render_bar::RenderBarState::default(),
             value_scrubs: crate::app::value_scrub::ValueScrubs::default(),
             line_drag: None,
             grade_controls: crate::app::grade_controls::GradeControls::default(),

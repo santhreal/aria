@@ -182,25 +182,96 @@ pub(super) fn sample_text_animation(
 /// reads as `aria.time`. A bypassed effect and an effect no pass renders are
 /// dropped. `point` is a live vec2 value for one parameter (see
 /// [`ResolveOverrides::effect_vec2`]).
-pub(super) fn resolve_effects(
+/// Reusable heap buffers harvested from a resolved [`Scene`] before it is
+/// refilled for the next frame.
+#[derive(Default)]
+pub(crate) struct ResolvePool {
+    effects: Vec<Vec<ResolvedPass>>,
+    params: Vec<Vec<f32>>,
+    strings: Vec<String>,
+}
+
+impl ResolvePool {
+    pub(crate) fn recycle_scene(&mut self, scene: &mut Scene) {
+        for layer in scene.layers.drain(..).chain(scene.references.drain(..)) {
+            self.recycle_layer(layer);
+        }
+    }
+
+    fn recycle_layer(&mut self, mut layer: SceneLayer) {
+        for mut pass in layer.effects.drain(..) {
+            if pass.params.capacity() > 0 && self.params.len() < 32 {
+                pass.params.clear();
+                self.params.push(pass.params);
+            }
+        }
+        if layer.effects.capacity() > 0 && self.effects.len() < 32 {
+            self.effects.push(layer.effects);
+        }
+        match layer.source {
+            LayerSource::Text {
+                mut content, style, ..
+            } => {
+                if content.capacity() > 0 && self.strings.len() < 16 {
+                    content.clear();
+                    self.strings.push(content);
+                }
+                if let aria_text::FontFamily::Named(mut font) = style.family
+                    && font.capacity() > 0
+                    && self.strings.len() < 16
+                {
+                    font.clear();
+                    self.strings.push(font);
+                }
+            }
+            LayerSource::Transition {
+                outgoing, incoming, ..
+            } => {
+                self.recycle_layer(*outgoing);
+                self.recycle_layer(*incoming);
+            }
+            LayerSource::Matte { layers, .. } => {
+                let [a, b] = *layers;
+                self.recycle_layer(a);
+                self.recycle_layer(b);
+            }
+            _ => {}
+        }
+    }
+
+    pub(crate) fn take_string(&mut self) -> String {
+        self.strings.pop().unwrap_or_default()
+    }
+}
+
+pub(super) fn resolve_effects_pooled(
     clip: &aria_models::Clip,
     tick: i64,
     seconds: f32,
     point: Option<(aria_models::ClipId, usize, usize, [f32; 2])>,
+    pool: &mut ResolvePool,
 ) -> Vec<ResolvedPass> {
+    if clip.effects.iter().all(|fx| fx.bypass) {
+        return Vec::new();
+    }
     let tick_f = tick as f64;
-    clip.effects
-        .iter()
-        .enumerate()
-        .filter(|(_, fx)| !fx.bypass)
-        .filter_map(|(index, fx)| {
-            let id = aria_compositor::pass_id(&fx.effect_id)?;
-            let point = point
-                .filter(|(owner, effect, ..)| *owner == clip.id && *effect == index)
-                .map(|(_, _, slot, value)| (slot, value));
-            pack_effect(fx, tick_f, id, seconds, point).ok()
-        })
-        .collect()
+    let mut out = pool.effects.pop().unwrap_or_default();
+    out.clear();
+    for (index, fx) in clip.effects.iter().enumerate() {
+        if fx.bypass {
+            continue;
+        }
+        let Some(id) = aria_compositor::pass_id(&fx.effect_id) else {
+            continue;
+        };
+        let point = point
+            .filter(|(owner, effect, ..)| *owner == clip.id && *effect == index)
+            .map(|(_, _, slot, value)| (slot, value));
+        if let Ok(pass) = pack_effect(fx, tick_f, id, seconds, point, pool) {
+            out.push(pass);
+        }
+    }
+    out
 }
 
 fn pack_effect(
@@ -209,8 +280,10 @@ fn pack_effect(
     id: aria_compositor::PassId,
     seconds: f32,
     point: Option<(usize, [f32; 2])>,
+    pool: &mut ResolvePool,
 ) -> Result<ResolvedPass, aria_models::ModelError> {
-    let params = fx.sample_flattened_floats(tick, point)?;
+    let mut params = pool.params.pop().unwrap_or_default();
+    sample_flattened_floats_into(fx, tick, point, &mut params)?;
     // Shipped passes do not read the time or CPU instance, and a registered
     // effect that does not declare `time_dependent` reads time 0; leaving
     // them empty keeps equal frames equal so the scene cache holds across them.
@@ -225,6 +298,109 @@ fn pack_effect(
     Ok(ResolvedPass::new(id, params)
         .with_time(seconds)
         .with_instance(fx.clone()))
+}
+
+fn sample_flattened_floats_into(
+    fx: &EffectInstance,
+    tick: f64,
+    point: Option<(usize, [f32; 2])>,
+    out: &mut Vec<f32>,
+) -> Result<(), aria_models::ModelError> {
+    use aria_models::{EffectParamKind, evaluate_effect_curve_lut, evaluate_effect_gradient_lut};
+    let spec = fx.spec()?;
+    let total: usize = spec.params.iter().map(|p| p.kind.shader_floats()).sum();
+    out.clear();
+    out.reserve(total);
+    for (slot, pspec) in spec.params.iter().enumerate() {
+        match pspec.kind {
+            EffectParamKind::Scalar | EffectParamKind::Angle => {
+                let v = fx
+                    .params
+                    .get(&pspec.name)
+                    .map(|p| p.sample_at(tick))
+                    .unwrap_or(pspec.default);
+                out.push(v);
+            }
+            EffectParamKind::Int => {
+                let v = fx
+                    .params
+                    .get(&pspec.name)
+                    .map(|p| p.sample_at(tick).round())
+                    .unwrap_or(pspec.default_int as f32);
+                out.push(v);
+            }
+            EffectParamKind::Bool => {
+                let b = fx
+                    .bool_params
+                    .get(&pspec.name)
+                    .copied()
+                    .unwrap_or(pspec.default_bool);
+                out.push(if b { 1.0 } else { 0.0 });
+            }
+            EffectParamKind::Choice => {
+                let idx = pspec
+                    .choice_or_default(fx.choice_params.get(&pspec.name).map(String::as_str))
+                    .and_then(|s| pspec.choice_index(s))
+                    .unwrap_or(0);
+                out.push(idx as f32);
+            }
+            EffectParamKind::Color => {
+                let rgba = if let Some(p) = fx.linear_color_params.get(&pspec.name) {
+                    p.sample_at(tick)
+                } else if let Some(p) = fx.color_params.get(&pspec.name) {
+                    p.sample_at(tick).map(|c| f32::from(c) / 255.0)
+                } else {
+                    pspec.default_color_linear()
+                };
+                out.extend_from_slice(&rgba);
+            }
+            EffectParamKind::Vec2 | EffectParamKind::Size => {
+                let v = match point {
+                    Some((override_slot, override_val)) if override_slot == slot => override_val,
+                    _ => fx
+                        .vec2_params
+                        .get(&pspec.name)
+                        .map(|p| p.sample_at(tick))
+                        .unwrap_or(pspec.default_vec2),
+                };
+                out.extend_from_slice(&v);
+            }
+            EffectParamKind::Point3 => {
+                let v = fx
+                    .vec3_params
+                    .get(&pspec.name)
+                    .map(|p| p.sample_at(tick))
+                    .unwrap_or(pspec.default_vec3);
+                out.extend_from_slice(&v);
+            }
+            EffectParamKind::Curve => {
+                let pts = fx
+                    .curve_params
+                    .get(&pspec.name)
+                    .map(Vec::as_slice)
+                    .unwrap_or(&pspec.default_curve);
+                let lut = evaluate_effect_curve_lut(pts);
+                out.extend_from_slice(&lut);
+            }
+            EffectParamKind::Gradient => {
+                let stops = fx
+                    .gradient_params
+                    .get(&pspec.name)
+                    .map(Vec::as_slice)
+                    .unwrap_or(&pspec.default_gradient);
+                let lut = evaluate_effect_gradient_lut(stops);
+                for rgba in lut {
+                    out.extend_from_slice(&rgba);
+                }
+            }
+            EffectParamKind::Layer => {
+                let raw = fx.layer_params.get(&pspec.name).copied().unwrap_or(0);
+                out.push(raw as f32);
+            }
+            EffectParamKind::Text | EffectParamKind::Font | EffectParamKind::File => {}
+        }
+    }
+    Ok(())
 }
 
 /// UV rect from a clip's crop sampled at a clip-relative tick, with axes

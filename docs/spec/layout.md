@@ -7,9 +7,9 @@
 | Menu bar                                                          28 px      |
 | Tool bar                                                          36 px      |
 +----------------------+--------------------------------+----------------------+
-| Project | Effect     | Program | Source               | Info                 |
-| Controls             |                                | Effects & Presets    |
-|                      |           Viewer               | Character            |
+| Project | Effect     | Viewer                         | Effects & Presets    |
+| Controls             |                                |                      |
+|                      |                                |                      |
 |   left frame         |                                |   right column       |
 |   320 px             |                                |   300 px             |
 +----------------------+--------------------------------+----------------------+
@@ -30,13 +30,28 @@ grows past that size.
 The upper area takes 55 % of the height between the tool bar and the status
 bar. The Timeline takes the rest.
 
+The Editing workspace opens with six panels: Project, Effect Controls, Viewer,
+Effects & Presets, Timeline, and Audio Meters. Every other panel opens from
+the Window menu as a tab in its default frame: Markers and Scopes on the left,
+Audio Track Mixer and Assistant beside the Viewer, and Info, Character, Jobs,
+History, and the rest in the right column. Audio Meters opens right of the
+Timeline. When a panel's default frame has closed, such as the right column
+after its last panel floats, opening the panel re-creates that frame at its
+shipped edge: the left or right column at that end of the Viewer's row, at
+320 px or 300 px of a 1440 px window; the Timeline frame as a lower row, left
+of Audio Meters when docked; Audio Meters at 64 px right of the Timeline. A
+panel opens as a tab of the largest frame when its default frame is the
+Viewer's, or when its column has no docked Viewer frame to sit beside.
+
 ## Frames and panels
 
 A frame holds one or more panels. Each panel has a tab. The tab row is 24 px
-high and shows the panel name, a close cross on hover, and a panel menu
-button at the right end of the frame's tab row. Tabs wider than the frame
-narrow together and end their names with an ellipsis; the close cross and the
-panel menu button keep their width.
+high and shows the panel name, a 16 px close cross, and a panel menu button at
+its right end. The cross shows on the visible tab and under the pointer, and keeps its place while hidden. Tabs wider than the frame narrow, the menu button
+does not: when the tabs have no room for their whole names, every cross is hidden, then the names take an ellipsis, and a tab's tooltip shows its full name. A tab narrows no further than the first three letters of its name and an ellipsis.
+When the frame's tabs do not fit at that width, the row draws as many as fit, always including the visible tab, and ends in a chevron button, More panels, whose menu lists the other tabs on 22 px rows; picking one makes it the visible panel.
+In a frame narrower than 120 px the tabs and the menu button take 4 px of padding instead of 8.
+The menu button and a right-click on a tab open the frame menu under the tab row, inside the window: Close Panel, Close Other Tabs in Frame, Undock Panel, Maximize Frame, and Add Panel, whose flyout lists the panels the frame does not hold. Its rows are 22 px, as the menu bar's are.
 
 | Gesture | Result |
 | --- | --- |
@@ -45,6 +60,7 @@ panel menu button keep their width.
 | Drag a tab over another frame | Shows drop zones: centre (add as tab), top, bottom, left, right (split the frame). Releasing on a zone docks the panel there. |
 | Drag a tab outside the window | Opens the panel in a floating window. |
 | Drag a floating window's tab back over a frame | Docks it, with the same drop zones. |
+| Close a floating window (Close Window, or the window manager's close) | Closes its panels. The Window menu opens each one again in its default frame. |
 | Grave accent (`` ` ``) | Maximizes the frame under the pointer to the whole area between the tool bar and the status bar. Pressed again, restores it. |
 | Double-click a tab | Same as grave accent. |
 | Middle-click a tab | Closes the panel. |
@@ -59,6 +75,10 @@ shows the resize cursor and brightens the line to the accent colour.
 Double-clicking a splitter restores the workspace's saved ratio for it. A frame
 never shrinks below its panel's minimum size: 160 px wide and 80 px high for
 most panels, 320 x 180 for the Viewer, and 400 x 120 for the Timeline.
+Project, Effect Controls, Effects & Presets, Assistant, Audio Track Mixer, and
+Audio Meters are laid out at least as tall as their fixed rows and a few lines
+of their lists (112 to 280 px). A frame shorter than that scrolls the panel
+with the wheel.
 
 The focused frame draws a 1 px accent outline. Keyboard shortcuts resolve
 against the focused panel first, then the window (see
@@ -80,7 +100,7 @@ windows. The shipped workspaces are:
 | Effects | Effects & Presets and Effect Controls enlarged, Viewer centre. |
 
 The workspace switcher sits in the tool bar. Changing workspace rearranges the
-frames over 180 ms; panel contents are not rebuilt. A workspace remembers
+frames over 180 ms; panel contents are not rebuilt. A workspace keeps
 changes made to it. Window > Workspaces > Reset to Saved Layout restores the
 saved arrangement, and Save as New Workspace stores the current arrangement
 under a new name. Workspaces are stored in `<data dir>/workspaces/<name>.json`
@@ -93,14 +113,14 @@ plugin panel docks, floats, and tabs the same way a shipped panel does.
 
 | Menu | Contents |
 | --- | --- |
-| File | New Project, New Sequence, Open, Use Template, Open Recent (one row per remembered project, then All Recent Projects), Close, Rename Project, Save, Save As, Save a Copy, Save as Template, Revert, Import, Import Recent (one row per recently imported file, then Clear Recent Imports), Import Timeline, Relink All, Export (Media, Frame, Timeline, then one row per timeline exporter: EDL, OTIO, FCPXML), Install Plugin, Project Settings, Quit |
+| File | New Project, New Sequence, Open, Use Template, Open Recent (one row per recent project, then All Recent Projects), Close, Rename Project, Save, Save As, Save a Copy, Save as Template, Revert, Import, Import Recent (one row per recently imported file, then Clear Recent Imports), Import Timeline, Relink All, Export (Media, Frame, Timeline, then one row per timeline exporter: EDL, OTIO, FCPXML), Install Plugin, Project Settings, Quit |
 | Edit | Undo, Redo, Cut, Copy, Paste, Paste Insert, Paste Attributes, Remove Attributes, Paste To Fit, Clear, Ripple Delete, Duplicate, Select All, Deselect All, Find, Label (one row per label colour, then None), Keyboard Shortcuts, Preferences |
 | Clip | Rename, Make Subclip, Speed/Duration, Time Remapping, Enable, Link, Unlink, Group, Ungroup, Nest, Replace with Clip (From Source Monitor), Freeze Frame, Render and Replace, Restore Unrendered, Audio Gain, Audio Channels (Stereo, Swap Channels, Left to Both, Right to Both, Mono), Extract Audio, Transform (Flip Horizontal, Flip Vertical, Reset Framing), Track Matte (Luma, Alpha, Remove) |
 | Sequence | Sequence Settings, Render In to Out, Render Selection, Delete Render Files, Add Edit, Add Edit to All Tracks, Trim Edit, Extend Edit, Apply Default Transitions, Lift, Extract, Snap, Linked Selection, Add Tracks (Video Track, Audio Track), Delete Empty Tracks, Add Adjustment Layer, Match Frame, Source (Insert, Overwrite, Insert Pool Selection), Ripple Trim In, Ripple Trim Out, Add Cross Fade at Cut, Remove Transition at Cut, lane shifts, Ducking, Nested Sequence |
 | Markers | Mark In, Mark Out, Mark Clip, Go to In, Go to Out, Clear In, Clear Out, Clear In and Out, Add Marker, Go to Next Marker, Go to Previous Marker, Clear Marker, Clear All Markers, Edit Marker, Move Nearest Marker to Playhead |
 | Effect | Effect Controls, Apply (the last applied effect), Paste Effect, Remove All Effects, Reset Effect Parameters, Reset Grade, Remove Mask, Remove Chroma Key, then one submenu per effect category |
 | Animation | Add Keyframe, Toggle Hold Keyframe, Keyframe Interpolation (Linear, Bezier, Hold), Keyframe Velocity, Keyframe Assistant (Easy Ease, Easy Ease In, Easy Ease Out, Time-Reverse Keyframes), Add Expression, Reveal Properties with Keyframes, Reveal Modified Properties, Graph Editor |
-| View | Zoom In, Zoom Out, Fit, Fit Selection, Resolution (Playback, Paused), Show Rulers, Show Guides, Clear Guides, Safe Margins (Title Safe, Action Safe), Snap to Guides, Transparency Grid, Proxies, Grid, Split Viewer, Compare (Current Frame, Still, Source Tab, Vertical Wipe, Horizontal Wipe, Side by Side, Stop Comparing), Scopes, Scope Waveform (Luma, RGB Parade, YCbCr Parade), Fit Preview, Preview 100%, Canvas Handles, Fullscreen Preview, Loop Playback, Timeline Display Settings (Head Thumbnails, Head and Tail Thumbnails, Continuous Thumbnails, Logarithmic Waveforms, Linear Waveforms, Hide Waveforms, Page Scroll, Smooth Scroll) |
+| View | Zoom In, Zoom Out, Fit, Fit Selection, Resolution (Playback, Paused), Viewer Display Settings (Split Viewer, Show Rulers, Show Guides, Snap to Guides, Clear Guides, Title Safe, Action Safe, Transparency Grid, Grid), Proxies, Compare (Current Frame, Still, Source Tab, Vertical Wipe, Horizontal Wipe, Side by Side, Stop Comparing), Scopes, Scope Waveform (Luma, RGB Parade, YCbCr Parade), Fit Preview, Preview 100%, Canvas Handles, Fullscreen Preview, Loop Playback, Timeline Display Settings (Head Thumbnails, Head and Tail Thumbnails, Continuous Thumbnails, Logarithmic Waveforms, Linear Waveforms, Hide Waveforms, Page Scroll, Smooth Scroll) |
 | Window | Workspaces (one row per workspace, then Save Workspace), then one item per panel, checked when open, Command Palette, Home, Project Report |
 | Help | Keyboard Shortcuts, Plugin Development, Open Data Folder, Check for Updates, About |
 
@@ -108,8 +128,8 @@ A row with a parenthesised list is a submenu. Plugin menu rows follow the
 shipped rows of their menu; a plugin row placed in a group sits in a submenu
 named after the group ([plugins/menus.md](../plugins/menus.md)).
 
-Every menu item shows its current chord, right-aligned, and a toggle shows a
-check mark while it is on. A disabled item is drawn at 40 % opacity and states
+Every menu row is 22 px. A 16 px lead column holds a toggle's check mark while
+it is on, or a plugin row's icon; the row's current chord is right-aligned. A disabled item is drawn at 40 % opacity and states
 why in its tooltip; chosen from the keyboard or the palette anyway, it runs
 nothing and the reason goes to the status line, and a press on it leaves the
 drop open. Pointing at a submenu entry or pressing it opens its flyout. A
@@ -145,23 +165,28 @@ with the system's drag, snap, and double-click behaviour.
 ## Tool bar
 
 Left to right: the tools ([editing.md](editing.md#tools)), a separator, the
-snapping and linked-selection toggles, the Timeline Display Settings button,
-the edit-mode button, the workspace switcher centred, then the Export button on
-the right. The Timeline Display Settings button opens the View menu's Timeline
-Display Settings choices under itself; a second press, a choice, Escape, or a
-press elsewhere closes them.
+edit-mode button, the workspace switcher centred, then the Export button on
+the right. Snapping, linked selection, and Timeline Display Settings are in
+the Timeline header ([timeline.md](timeline.md)), not in the tool bar.
 The transport and the playhead timecode are in the Viewer's control
 row ([viewer.md](viewer.md#anatomy)). Settings opens from Edit > Preferences
 and Ctrl+,; panels open from the Window menu.
 
-Each tool button is 28 x 28 px with a 16 px icon. The active tool has the
-`element_active` plate and an accent icon. A tool with variants (the trim
-tools, the pen tools) shows a 3 px corner triangle; pressing and holding for
-300 ms, or clicking the triangle, opens its variants.
+Each tool button is 28 x 28 px with a 16 px icon. Tools share a button by
+group: Selection; Track Select Forward and Backward; the trim tools (Ripple
+Edit, Rolling Edit, Rate Stretch, Slip, Slide); Razor; Pen and its vertex
+variants; Hand and Zoom; Type. A group's button shows the active tool when it
+belongs to the group, otherwise the group's first tool. The active tool has
+the `element_active` plate and an accent icon. A group with more than one
+entry shows a 3 px corner triangle; pressing and holding for 300 ms, or
+clicking the triangle, opens its list. A tool's key selects it whether or not
+its group's button shows it.
 
 ## Status bar
 
 Left: the message line (the last action, an error in `danger`, a refusal
-reason). Centre: background jobs with progress. Right: the dropped-frame
-indicator, the playback resolution, and the GPU device name. Clicking a job
-opens the Jobs panel.
+reason). Centre: background jobs with progress. Clicking a job opens the Jobs
+panel. Right, during playback: the achieved frame rate against the sequence's,
+the playback resolution, and the GPU device name. Once a frame drops, the
+dropped-frame count shows in `warning` until it is clicked. At rest with no
+dropped frame, the right side is empty.

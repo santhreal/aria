@@ -109,7 +109,9 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
             .add_clip(
                 track,
                 media,
-                TimeRange::at_rate(0, duration_ticks, rate),
+                // One second past the timed 60 s, so the last timed block,
+                // which starts one block after the warm-up, still mixes audio.
+                TimeRange::at_rate(0, duration_ticks + 60, rate),
                 RationalTime::new(0, rate),
             )
             .map_err(|err| format!("failed to add audio clip on track {idx}: {err}"))?;
@@ -130,7 +132,10 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     let mut out = vec![0.0f32; block_frames * 2];
 
     // Warm the first block so all 32 GStreamer audio readers are open and
-    // prerolled before the 60 s real-time callback loop begins.
+    // prerolled before the 60 s real-time loop begins. The loop continues
+    // from the next block, as the playback feeder does: timing block 0 again
+    // would flush-seek all 32 readers back to sample 0, a 10 ms cost no
+    // playback path pays, and count it as an underrun.
     mixer
         .mix_into(0, &mut out)
         .map_err(|err| format!("warmup mix_into failed: {err}"))?;
@@ -139,7 +144,7 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     let mut block_ms_samples = Vec::with_capacity(total_blocks);
     let mut underruns = 0u64;
     for block_idx in 0..total_blocks {
-        let pos = (block_idx * block_frames) as i64;
+        let pos = ((block_idx + 1) * block_frames) as i64;
         let t0 = Instant::now();
         mixer
             .mix_into(pos, &mut out)

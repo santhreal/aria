@@ -11,6 +11,7 @@
 //! section heading. The rows come from the report and the headings come from the
 //! rows, so a catalog row added anywhere upstream draws itself.
 
+use crate::components::Wraps as _;
 use gpui::{
     CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
     ParentElement, SharedString, StatefulInteractiveElement, Styled, div, px,
@@ -299,11 +300,7 @@ fn exposure_block(theme: &Theme, exposure: Exposure) -> gpui::AnyElement {
 
 /// The buttons, built from [`ACTIONS`].
 fn action_bar(theme: &Theme, cx: &mut gpui::Context<crate::shell::Shell>) -> gpui::AnyElement {
-    let mut bar = div()
-        .flex()
-        .flex_wrap()
-        .items_center()
-        .gap(px(Theme::SPACE_XS));
+    let mut bar = div().flex().wraps().items_center().gap(px(Theme::SPACE_XS));
     for action in ACTIONS {
         let run = action.run;
         bar = bar.child(ghost_button(action.id, action.label, theme).on_mouse_down(

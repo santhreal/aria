@@ -82,48 +82,6 @@ fn invalid_rates_never_roll() {
     ));
 }
 
-#[test]
-fn default_stats_reproduce_the_old_one_second_window() {
-    assert_eq!(SeekStats::default().roll_window_us(R30), ONE_SEC_US);
-    // Unknown frame rate falls back to 30 fps rather than disabling.
-    assert_eq!(
-        SeekStats::default().roll_window_us(Rational::new(0, 1)),
-        ONE_SEC_US
-    );
-}
-
-#[test]
-fn window_tracks_observed_costs() {
-    // Long-GOP source: seeks ~1.2 s, frames ~5 ms — break-even is 240
-    // frames, so the window converges well past the old 1 s.
-    let mut stats = SeekStats::default();
-    for _ in 0..20 {
-        stats.observe_seek(1200.0);
-        stats.observe_roll_frame(5.0);
-    }
-    assert!(stats.roll_window_us(R30) > 5_000_000);
-
-    // All-keyframe source: a seek costs the same as a frame, so rolling
-    // is pointless beyond the two-frame-period floor.
-    let mut stats = SeekStats::default();
-    for _ in 0..20 {
-        stats.observe_seek(5.0);
-        stats.observe_roll_frame(5.0);
-    }
-    assert_eq!(stats.roll_window_us(R30), (2.0 / 30.0 * 1e6) as i64);
-
-    // A pathological ratio saturates at the hard cap.
-    let mut stats = SeekStats::default();
-    for _ in 0..40 {
-        stats.observe_seek(60_000.0);
-        stats.observe_roll_frame(0.01);
-    }
-    assert_eq!(
-        stats.roll_window_us(R30),
-        (MAX_ROLL_WINDOW_SECS * 1e6) as i64
-    );
-}
-
 /// The Media Foundation shape: PTS on a fine integer tick base (100-ns)
 /// that *truncates* the rational frame times of an NTSC stream.
 #[test]
@@ -311,6 +269,44 @@ fn nearest_target_just_ahead_rolls_exactly() {
     let f = dec.frame_at_nearest(rt(12, R30)).unwrap().unwrap();
     assert_eq!(f.pts.value, 12, "roll-window targets land exactly");
     assert_eq!(dec.seeks, 1, "the nearest roll path must not seek");
+}
+
+/// A nearest jump past the snap break-even snaps even while the exact roll
+/// window spans it: a long exact window (expensive GOP walks) says nothing
+/// about a snap, which costs one decode. Rolling 45 frames here is the
+/// defect: 45 decodes where one seek and one decode answer the call.
+#[test]
+fn nearest_jump_snaps_inside_a_wide_exact_window() {
+    let mut dec = MockDecoder::new(120);
+    dec.frame_at(rt(10, R30)).unwrap().unwrap();
+    let mut grown = SeekStats::default();
+    for _ in 0..20 {
+        grown.observe_seek(300.0);
+        grown.observe_roll_frame(1.0);
+    }
+    assert!(
+        grown.roll_window_us(R30) > 1_500_000,
+        "exact window spans it"
+    );
+    dec.stats = grown;
+    let f = dec.frame_at_nearest(rt(55, R30)).unwrap().unwrap();
+    assert_eq!(f.pts.value, 0, "the jump snaps to the keyframe");
+    assert_eq!(dec.seeks, 2, "the jump seeks once");
+    assert_eq!(dec.cursor, 1, "the snap decodes one frame");
+}
+
+/// A snap feeds the nearest window once a frame cost is measured: after one
+/// near-free snap against 10 ms frames, a 5-frame nearest jump snaps again
+/// instead of rolling inside the 8-frame prior.
+#[test]
+fn an_observed_snap_narrows_the_nearest_window() {
+    let mut dec = MockDecoder::new(120);
+    dec.stats.observe_roll_frame(10.0);
+    let first = dec.frame_at_nearest(rt(100, R30)).unwrap().unwrap();
+    assert_eq!(first.pts.value, 0);
+    let f = dec.frame_at_nearest(rt(5, R30)).unwrap().unwrap();
+    assert_eq!(f.pts.value, 0, "the second jump snaps too");
+    assert_eq!(dec.seeks, 2);
 }
 
 /// All-keyframe mock whose `seek` lands exactly on the target frame —

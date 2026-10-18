@@ -28,20 +28,25 @@ mod project;
 use args::{Args, ArgsError, Verb};
 use fail::Failure;
 
-fn main() -> std::process::ExitCode {
-    let argv: Vec<String> = std::env::args().skip(1).collect();
-    let args = match Args::parse(argv) {
-        Ok(args) => args,
-        Err(ArgsError::NoVerb | ArgsError::Help) => {
-            print!("{}", args::USAGE);
-            return std::process::ExitCode::SUCCESS;
+fn main() -> ! {
+    let code = {
+        let argv: Vec<String> = std::env::args().skip(1).collect();
+        match Args::parse(argv) {
+            Ok(args) => match run(&args) {
+                Ok(()) => 0,
+                Err(failure) => report(failure),
+            },
+            Err(ArgsError::NoVerb | ArgsError::Help) => {
+                print!("{}", args::USAGE);
+                0
+            }
+            Err(err) => report(Failure::from(err)),
         }
-        Err(err) => return report(Failure::from(err)),
     };
-    match run(&args) {
-        Ok(()) => std::process::ExitCode::SUCCESS,
-        Err(failure) => report(failure),
-    }
+    // An export decodes its sources, and a process that decoded on NVDEC must
+    // not end through `exit` (see `exit_process`). Every value of the command
+    // is dropped by here.
+    aria_decoder::exit_process(code)
 }
 
 fn run(args: &Args) -> Result<(), Failure> {
@@ -82,11 +87,11 @@ fn run(args: &Args) -> Result<(), Failure> {
 
 /// Print a failure the way a shell expects: the reason on stderr, the usage
 /// block only when the command line itself was wrong, and the matching code.
-fn report(failure: Failure) -> std::process::ExitCode {
+fn report(failure: Failure) -> u8 {
     eprintln!("aria: {}", failure.message());
     if matches!(failure, Failure::Usage(_)) {
         eprintln!();
         eprint!("{}", args::USAGE);
     }
-    std::process::ExitCode::from(u8::try_from(failure.code()).unwrap_or(1))
+    u8::try_from(failure.code()).unwrap_or(1)
 }

@@ -74,6 +74,54 @@ fn a_row_whose_block_is_absent_is_unavailable_and_samples_nothing() {
     );
 }
 
+/// An audio row is offered only on a media clip, so on a generated clip it
+/// lists no keyframes even when the clip stores some on its route. Every audio
+/// row in the catalog is checked; volume and pan are the fields keyed here.
+#[test]
+fn an_audio_row_lists_keyframes_only_on_a_media_clip() {
+    fn keyed(clip: &mut Clip) {
+        for param in [&mut clip.volume, &mut clip.pan] {
+            param.set_keyframe(0, 0.5, Easing::Linear);
+            param.set_keyframe(24, 0.25, Easing::EaseIn);
+        }
+    }
+    let mut generated = Clip::generated(
+        Generator::SolidColor {
+            rgba: [0, 0, 0, 255],
+        },
+        tr(0, 48),
+    );
+    keyed(&mut generated);
+    let mut media = dressed_media_clip();
+    keyed(&mut media);
+
+    let audio_rows: Vec<&ParamSpec> = clip_param_catalog()
+        .iter()
+        .filter(|spec| matches!(spec.scope, ParamScope::Audio))
+        .collect();
+    assert!(!audio_rows.is_empty(), "the catalog has no audio row");
+    for spec in &audio_rows {
+        assert_eq!(
+            spec.keyframes(&generated),
+            Vec::new(),
+            "{} on a generated clip",
+            spec.id
+        );
+    }
+    let volume = param_spec(ClipParam::Volume).expect("volume row");
+    let stored: Vec<(i64, Easing)> = media
+        .volume
+        .keyframes()
+        .iter()
+        .map(|k| (k.tick, k.easing))
+        .collect();
+    assert_eq!(
+        stored.iter().map(|(tick, _)| *tick).collect::<Vec<_>>(),
+        [0, 24]
+    );
+    assert_eq!(volume.keyframes(&media), stored);
+}
+
 #[test]
 fn a_row_reports_the_keyframes_written_on_its_route() {
     // Written through the model's own write path, so the route the catalog reads

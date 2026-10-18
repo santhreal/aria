@@ -439,21 +439,25 @@ fn stale_cloud_account_host_is_migrated_and_a_current_file_ignores_account() {
     assert_eq!(load(&path).unwrap().cloud.base_url, "https://api.aria.sh");
 }
 
-/// The theme key was spelled `dark_blue` before it was spelled `dark-blue`. The
-/// value did not change, so this is tolerance rather than a version bump: the
-/// old spelling still reads, and a save writes the canonical one.
+/// Keys from before the accent families read as their successor and a save
+/// writes the current key. `dark_blue` was the first spelling of `dark-blue`,
+/// and both, like `default`, named hues that no longer exist. The stored
+/// value is a name, not a colour, so this is tolerance rather than a version
+/// bump: no reader is served a colour a key no longer means.
 #[test]
-fn stale_appearance_theme_spelling_is_read_and_rewritten_canonically() {
-    let dir = tempfile::tempdir().unwrap();
-    let path = write_config(dir.path(), "[appearance]\ntheme = \"dark_blue\"\n");
+fn legacy_appearance_theme_keys_are_read_and_rewritten_canonically() {
+    for legacy in ["dark_blue", "dark-blue", "default"] {
+        let dir = tempfile::tempdir().unwrap();
+        let path = write_config(dir.path(), &format!("[appearance]\ntheme = \"{legacy}\"\n"));
 
-    let loaded = load(&path).unwrap();
-    assert_eq!(loaded.appearance.theme, ThemeChoice::DarkBlue);
+        let loaded = load(&path).unwrap();
+        assert_eq!(loaded.appearance.theme, ThemeChoice::Blue, "{legacy}");
 
-    save(&path, &loaded).unwrap();
-    let raw = std::fs::read_to_string(&path).unwrap();
-    assert!(raw.contains("theme = \"dark-blue\""), "{raw}");
-    assert!(!raw.contains("dark_blue"), "{raw}");
+        save(&path, &loaded).unwrap();
+        let raw = std::fs::read_to_string(&path).unwrap();
+        assert!(raw.contains("theme = \"blue\""), "{legacy}: {raw}");
+        assert!(!raw.contains(legacy), "{legacy}: {raw}");
+    }
 }
 
 /// Versioning gates a changed meaning, not an absent key. A current-version

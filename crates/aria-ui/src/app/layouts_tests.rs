@@ -950,14 +950,7 @@ fn unregistered_panels_are_filtered_and_all_unregistered_frame_is_omitted_from_d
             .dock_tree
             .frame(crate::dock::FrameId::RIGHT)
             .expect("RIGHT frame");
-        assert_eq!(
-            right.tabs,
-            vec![
-                crate::dock::PANEL_INFO,
-                crate::dock::PANEL_EFFECTS,
-                crate::dock::PANEL_CHARACTER,
-            ]
-        );
+        assert_eq!(right.tabs, vec![crate::dock::PANEL_EFFECTS]);
         assert!(state.node_has_registered_panel(&crate::dock::Node::Frame(right.clone())));
 
         let only_unregistered = crate::dock::Node::Frame(crate::dock::Frame::new(

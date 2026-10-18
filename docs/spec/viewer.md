@@ -14,13 +14,15 @@ closed.
 | Viewer menu > Split | Shows Source on the left and Program on the right in the same frame, each with its own transport. Split again returns to tabs. |
 
 A Source tab has its own playhead, In, Out, markers, zoom, and resolution. It
-keeps them while it stays open.
+keeps them while it stays open. At the foot of its picture, on a backing, a
+row shows the marked range at the left and In, Out, Clear, Insert, and
+Overwrite at the right. In a narrow Viewer the buttons move below the range.
 
 ## Anatomy
 
 ```
 +---------------------------------------------------------------+
-| Program | Source: take.mov x   Split Rulers Safe Guides Alpha |  tab row
+| Program | Source: take.mov x                               [wr] |  tab row
 +---------------------------------------------------------------+
 |                                                               |
 |                  pasteboard (bg)                              |
@@ -31,11 +33,14 @@ keeps them while it stays open.
 |          +-------------------------------+                    |
 |                                                               |
 +---------------------------------------------------------------+
-| 00:00:12:04 | Fit | Full |  |< < [> > >|  Loop  In Out Scopes |  control row
+| 00:00:12:04 - Fit + Full [px] |< < [> > >| [lp] In Out [h][s] |  control row
 +---------------------------------------------------------------+
 | mini time ruler with In/Out range and markers                  |  12 px
 +---------------------------------------------------------------+
 ```
+
+`[wr]` is the display wrench, `[px]` the Proxies toggle, `[lp]` the Loop
+toggle, `[h]` the three handle toggles, and `[s]` the Scopes toggle.
 
 The control row, left to right:
 
@@ -47,24 +52,36 @@ The control row, left to right:
   resolution, Full or 1/2, under its own heading. View > Playback Resolution
   and View > Paused Resolution step through the same choices. See
   [playback.md](playback.md#resolution).
-- Proxy: the Viewer reads proxies in place of the original files.
+- Proxies: an icon toggle, lit while the Viewer reads proxies in place of the
+  original files.
 - Transport: go to start, step back, play/stop, step forward, go to end. Each
   acts on the tab in front of the Viewer. Holding step repeats once per frame
   of the tab in front, after the press-and-hold pause.
-- Loop, and the shuttle speed while J or L runs above 1x.
+- Loop, an icon toggle, and the shuttle speed while J or L runs above 1x.
 - Mark In, Mark Out, while Program is in front. A Source tab marks its take,
   and inserts or overwrites with it, from its own bar under the picture.
-- Handles: the set of on-canvas handles that is live.
-- Scopes, and the output peak meter.
+- Transform, Crop, Mask: icon toggles, one per set of on-canvas handles; the
+  lit one is live.
+- Scopes, an icon toggle, and the output peak meter.
+
+Every control in the row is 24 px high: the icon buttons are 24 px squares,
+and the worded controls (the magnification, In, Out) are 24 px with 4 px side
+padding. Words appear only where the word is the control: the timecode, the
+magnification, the resolution menu, In, and Out. Each icon names itself on
+hover. Controls in a group stand 4 px apart.
 
 A Viewer too narrow for one line wraps the row between three groups, each kept
-whole: the timecode through Proxy, the transport through Mark Out, and Handles
-through the meter. An error after the meter is shortened with an ellipsis and
+whole: the timecode through Proxies, the transport through Mark Out, and the handle
+toggles through the meter. An error after the meter is shortened with an ellipsis and
 shown in full on hover.
 
-The view toggles sit at the right end of the tab row: Split, Rulers, Safe
-(title-safe and action-safe margins), Guides, and Alpha (the transparency
-grid). The dropped-frame indicator is in the status bar.
+The playhead timecode closes on a press anywhere else, without applying the
+typed value.
+
+The display button, a wrench at the right end of the tab row, opens View >
+Viewer Display Settings under itself: Split Viewer, Show Rulers, Show Guides,
+Snap to Guides, Clear Guides, Title Safe, Action Safe, Transparency Grid, and
+Grid. A second press on the wrench, a press elsewhere, or Escape closes it. The dropped-frame indicator is in the status bar.
 
 The mini ruler under the control row spans the whole sequence or source. It
 draws the In/Out range, markers, and a draggable playhead. A press puts the tab

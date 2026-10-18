@@ -54,7 +54,7 @@ pub use cancel::Cancel;
 pub use color::{ColorPrimaries, ColorRange, ColorSpace, MatrixCoefficients, TransferFunction};
 pub use decode::{DecodeError, SourceInfo, VideoDecoder};
 pub use encode::{
-    AudioEncoder, EncodeError, EncoderConfig, ExportFormat, VideoCodec, VideoEncoder,
+    AudioEncoder, EncodeError, EncoderChoice, EncoderConfig, ExportFormat, VideoCodec, VideoEncoder,
 };
 pub use frame::{
     CpuImage, D3d11SharedSurface, DmaBufSurface, FrameData, GpuSurface, GpuSurfaceKind, Plane,

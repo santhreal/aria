@@ -13,8 +13,9 @@ use crate::fluent::FluentBuilder;
 use crate::resolution::{PausedResolution, PlaybackResolution};
 use crate::theme::Theme;
 
-/// Height of the chip, which the list opens above.
-const CHIP_H: f32 = 22.0;
+/// Height of the chip, which the list opens above: the control height every
+/// control in the Viewer's row shares.
+const CHIP_H: f32 = Theme::ICON_HIT;
 
 /// The chip, and the list above it while it is open.
 pub(super) fn picker(
@@ -49,6 +50,7 @@ pub(super) fn picker(
                 theme,
             )
             .h(px(CHIP_H))
+            .debug_selector(|| "preview-resolution".into())
             .when_some(crate::tooltip::builder("preview-resolution"), |el, tip| {
                 el.with_tip(tip)
             })
@@ -66,25 +68,15 @@ pub(super) fn picker(
         .when_some(list, |el, list| el.child(list))
 }
 
-/// The proxy switch: accent while the Viewer reads proxies, muted while it
-/// reads the original files.
+/// The proxy switch: lit while the Viewer reads proxies, unlit while it reads
+/// the original files.
 pub(super) fn proxy_toggle(
     state: &Entity<AppState>,
     theme: &Theme,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     let on = state.read(cx).proxies_on();
-    div()
-        .id("preview-proxies-toggle")
-        .px(px(Theme::SPACE_XS))
-        .text_size(Theme::TEXT_UI)
-        .text_color(if on { theme.accent } else { theme.text_muted })
-        .cursor(gpui::CursorStyle::PointingHand)
-        .active(|style| style.opacity(0.92))
-        .when_some(
-            crate::tooltip::builder("preview-proxies-toggle"),
-            |el, tip| el.with_tip(tip),
-        )
+    crate::chrome::tool_strip::lit_icon("preview-proxies-toggle", crate::icons::PROXY, on, theme)
         .on_mouse_down(
             MouseButton::Left,
             cx.listener(|this, _: &MouseDownEvent, _, cx| {
@@ -92,7 +84,6 @@ pub(super) fn proxy_toggle(
                 cx.notify();
             }),
         )
-        .child("Proxy")
 }
 
 /// The open list: the playback choices, then the paused ones.

@@ -7,6 +7,7 @@
 //! lift under the pointer instead of switching colour, and they sit on frosted
 //! glass instead of a flat fill.
 
+use crate::components::Wraps as _;
 use gpui::motion::{loaders, presets};
 use gpui::{
     AnimationExt, CursorStyle, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
@@ -119,7 +120,6 @@ pub(super) fn learn_line(
             div()
                 .w(px(96.))
                 .text_size(Theme::TEXT_UI)
-                .font_family(theme.font_mono.clone())
                 .text_color(theme.text_muted)
                 .child(key.into()),
         )
@@ -200,7 +200,7 @@ pub(super) fn recents_grid(
     div()
         .flex()
         .flex_row()
-        .flex_wrap()
+        .wraps()
         .gap(px(Theme::SPACE_MD))
         .children(
             recents

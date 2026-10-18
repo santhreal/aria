@@ -28,7 +28,12 @@ pub fn render(
     let theme = Theme::of(cx);
     let selected = state.read(cx).active_panel == ActivePanel::Media;
     let tab = state.read(cx).sidebar_tab;
-    // The rows the pool tabs draw: a view over the projection, computed only
+    let width = state
+        .read(cx)
+        .dock_tree
+        .find(crate::dock::PANEL_PROJECT)
+        .and_then(|id| state.read(cx).dock_frame_rect(id))
+        .map(|[_, _, w, _]| w);
     // for the two tabs that draw one.
     let rows = tab.shows_pool().then(|| state.read(cx).pool_rows(tab));
     // What the selection already carries, so the browsable catalogs can say so.
@@ -58,13 +63,14 @@ pub fn render(
 
     div()
         .id("sidebar")
+        .debug_selector(|| "sidebar".into())
         .size_full()
         .flex()
         .flex_col()
         .bg(theme.surface)
         .border_r_1()
         .border_color(if selected { theme.accent } else { theme.border })
-        .child(filter_chips(&theme, tab, cx))
+        .child(filter_chips(&theme, tab, width, cx))
         .child(
             div()
                 .flex_1()
@@ -267,3 +273,7 @@ pub(crate) mod multicam;
 mod subclip;
 use grid::{catalog_grid, cloud_grid, filter_chips, generator_grid};
 use media::bin;
+
+#[cfg(test)]
+#[path = "sidebar_layout_tests.rs"]
+mod layout_tests;

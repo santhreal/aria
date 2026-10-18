@@ -498,6 +498,9 @@ fn a_queued_plugin_encoder_that_unmounts_before_running_fails_naming_the_format_
         fn finish(&mut self) -> Result<(), EncodeError> {
             Ok(())
         }
+        fn choice(&self) -> aria_core::EncoderChoice {
+            aria_core::EncoderChoice::only("dummy", None)
+        }
     }
     impl Encoder for DummyEncoder {
         fn open(

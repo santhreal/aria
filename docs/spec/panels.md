@@ -5,6 +5,13 @@ has a panel menu, and keeps its state per project. The Viewer and Timeline have
 their own chapters; Audio Meters and Audio Track Mixer are in
 [audio.md](audio.md).
 
+Down to its frame's minimum width (160 px for most panels), a panel keeps its
+text inside the frame: a row of buttons or chips wraps, a label or field ends
+in an ellipsis, and a paragraph wraps. The Audio Track Mixer's strips scroll
+sideways instead, and down in a frame shorter than the strips. In Effect
+Controls, the tab's body and the panels stacked under it scroll below the tab
+row.
+
 ## Project
 
 The media bin. Views: list (columns: name, label, frame rate, media start,
@@ -24,6 +31,29 @@ in the panel footer sets thumbnail size.
 - Items not used in any sequence draw their name in `text_muted` when the
   "Show usage" option is on; the usage count column counts uses.
 - Offline items have a red icon and offer Link Media.
+
+The panel's rows, from the top: the group chips (Media, Graphics, Effects,
+Library, Analyze) on one line, where the active group reads whole and the
+others shorten with an ellipsis in a narrow panel; and the open group's tab
+chips on one line, when it has more than one and they are not the pool's.
+
+The Media tab draws one row above its items and one below them. Above: the
+search field, with the placeholder `Search`; Audio only, which lists the
+pool's audio sources; and Import. Below: the item count at the left; at the
+right the four views (Tiles, List, Icons, Freeform) as icon toggles, the order
+as a button reading the current order (`Name`, `Duration`, `Resolution`,
+`Date added`) that opens the list of orders above itself, New bin, and New
+multicam. Every icon control states its name in its tip. In a narrow panel
+the active view icon stands for the four views and cycles through them on
+click, and the count shortens with an ellipsis so the footer stays on one line.
+An item's name with
+no room ends in an ellipsis.
+
+Between the two rows: the breadcrumb, while a bin is open, with Rename and
+Delete bin at the right, which move to a line of their own when the
+breadcrumbs would be narrower than 96 px; the bins inside the open one; the
+multicam groups, when the project has any; and the items, which scroll. A
+field narrower than its placeholder ends it in an ellipsis.
 
 ## Effect Controls
 
@@ -48,11 +78,13 @@ the shared properties of all of them; differing values show as a dash.
 
 A searchable tree of every effect, transition, generator, and animation preset,
 grouped by category, including plugin contributions with their plugin's name
-in the tooltip. Typing filters the tree and opens the matching categories.
-Double-click applies to the selection; dragging applies to the drop target (a
-clip on the timeline, an edit point for transitions, Effect Controls).
+in the tooltip. Typing filters the tree and opens the matching categories;
+the `×` at the right of the search field clears it. Double-click applies to
+the selection; dragging applies to the drop target (a clip on the timeline, an
+edit point for transitions, Effect Controls). An entry's tooltip states both.
 Favourites (star) appear in a top group. A contribution whose plugin failed to
-load is listed with its failure.
+load is listed with its failure. Docked on its own, the panel's contents stand
+12 px inside the frame, as on the Project panel's Effects tab.
 
 ## Info
 
@@ -110,7 +142,9 @@ sequence, custom), frame size, rate, bitrate, and audio settings, shows the
 estimated file size, and either exports now or queues. Formats come from
 encoder plugin contributions. The shipped set is H.264, HEVC, ProRes on macOS,
 AV1 where the platform encoder exists, image sequences (PNG, TIFF, EXR), WAV,
-and AAC; exporters for EDL, FCPXML, and OTIO export the timeline itself.
+and AAC; exporters for EDL, FCPXML, and OTIO export the timeline itself. Each
+setting is one 22 px row with its label at the left and its value at the right;
+a click on a setting's row steps to its next value.
 
 ## Plugins
 

@@ -10,6 +10,7 @@ mod seek;
 mod text_caret;
 use crate::app::pool_preview::{self, SourceView};
 use crate::app::{AppState, spawn_preview, start_playback};
+use crate::components::Wraps as _;
 use crate::fluent::FluentBuilder;
 use crate::motion;
 use crate::theme::Theme;
@@ -85,7 +86,7 @@ pub fn render(
                 .py(px(Theme::SPACE_XS))
                 .px(px(Theme::SPACE_MD))
                 .flex()
-                .flex_wrap()
+                .wraps()
                 .items_center()
                 .justify_between()
                 .gap(px(Theme::SPACE_SM))
@@ -102,27 +103,16 @@ pub fn render(
                             |state| state.preview_zoom_out(),
                         ))
                         .child(
-                            div()
-                                .id("preview-zoom-label")
-                                .px(px(Theme::SPACE_XS))
-                                .text_size(Theme::TEXT_UI)
-                                .text_color(theme.text_muted)
-                                .cursor(gpui::CursorStyle::PointingHand)
-                                .active(|style| style.opacity(0.92))
-                                .when_some(
-                                    crate::tooltip::builder("preview-zoom-label"),
-                                    |el, tip| el.with_tip(tip),
-                                )
+                            // The label is the fit control: clicking the
+                            // number is how an operator gets back to whole.
+                            row_text("preview-zoom-label", zoom_label, theme.text_muted, &theme)
                                 .on_mouse_down(
                                     MouseButton::Left,
                                     cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                                        // The label is the fit control: clicking the
-                                        // number is how an operator gets back to whole.
                                         this.state.update(cx, |state, _| state.preview_zoom_fit());
                                         cx.notify();
                                     }),
-                                )
-                                .child(zoom_label),
+                                ),
                         )
                         .child(zoom_btn(
                             "preview-zoom-in",
@@ -176,13 +166,6 @@ pub fn render(
                 )
                 .child(
                     row_group("viewer-row-display")
-                        .child(
-                            div()
-                                .px(px(Theme::SPACE_XS))
-                                .text_size(Theme::TEXT_UI)
-                                .text_color(theme.text_faint)
-                                .child("Handles"),
-                        )
                         .child(handles::mode_picker(state, &theme, cx))
                         .child(scopes::toggle(state, &theme, cx))
                         .child(peak_meter(state, &theme, cx)),
@@ -346,7 +329,7 @@ fn row_group(selector: &'static str) -> gpui::Div {
         .flex_none()
         .flex()
         .items_center()
-        .gap(px(Theme::SPACE_SM))
+        .gap(px(Theme::SPACE_XS))
 }
 
 // Helpers live in sibling files, declared here. Each is `pub(super)`, so the
@@ -367,6 +350,14 @@ mod shuttle;
 mod source;
 #[path = "preview_tabs.rs"]
 mod tabs;
-use controls::{clock_field, jump_btn, loop_btn, mark_btn, step_btn, transport_btn, zoom_btn};
+#[cfg(test)]
+#[path = "viewer_row_height_tests.rs"]
+mod viewer_row_height_tests;
+#[cfg(test)]
+#[path = "viewer_words_tests.rs"]
+mod viewer_words_tests;
+use controls::{
+    clock_field, jump_btn, loop_btn, mark_btn, row_text, step_btn, transport_btn, zoom_btn,
+};
 use peak::peak_meter;
 use source::{frame_view, guides, source_stage};

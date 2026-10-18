@@ -10,6 +10,7 @@
 //! command: it cannot drift from the model, and a slider here cannot flatten
 //! the block's keyframes.
 
+use crate::components::Wraps as _;
 use gpui::{
     InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled, div, px,
 };
@@ -114,7 +115,7 @@ pub fn mask_block(
         .child(
             div()
                 .flex()
-                .flex_wrap()
+                .wraps()
                 .gap(px(Theme::SPACE_XS))
                 .children(shapes),
         )
@@ -258,14 +259,14 @@ fn mask_header(
         .child(
             div()
                 .flex()
-                .flex_wrap()
+                .wraps()
                 .gap(px(Theme::SPACE_XS))
                 .children(modes),
         )
         .child(
             div()
                 .flex()
-                .flex_wrap()
+                .wraps()
                 .gap(px(Theme::SPACE_XS))
                 .children(actions),
         )

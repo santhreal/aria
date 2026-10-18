@@ -235,14 +235,23 @@ pub fn render(
         // control as the board's, from the same owner.
         in_flight.extend(crate::pending::stop_button("export", job, &theme, cx));
     }
+    // Every row is one box, read-only or clickable, so the labels share one
+    // left edge and the rows one pitch. The column steps out by the rows'
+    // inset so the labels align with the sheet's title.
+    let rows = div()
+        .flex()
+        .flex_col()
+        .gap(px(Theme::SPACE_XXS))
+        .mx(px(-Theme::SPACE_XS))
+        .child(row(&theme, "Encoder", encoder_label))
+        .child(row(&theme, "Canvas", resolution))
+        .children(picks)
+        .child(row(&theme, "Destination", dest_label));
     let body = div()
         .flex()
         .flex_col()
         .gap(px(Theme::SPACE_MD))
-        .child(row(&theme, "Encoder", encoder_label))
-        .child(row(&theme, "Canvas", resolution))
-        .children(picks)
-        .child(row(&theme, "Destination", dest_label))
+        .child(rows)
         .children(in_flight);
     let body = DialogBody::new(body)
         .action(cancel)
@@ -263,15 +272,8 @@ fn pick_row(
 ) -> impl IntoElement {
     let id = id.into();
     let fade = id.motion("export-pick");
-    div()
+    row_box(theme, label, value)
         .id(id.element("export-pick"))
-        .flex()
-        .flex_row()
-        .justify_between()
-        .items_center()
-        .px(px(Theme::SPACE_XS))
-        .py(px(Theme::SPACE_XXS))
-        .rounded(px(Theme::CONTROL_RADIUS))
         .cursor(gpui::CursorStyle::PointingHand)
         .active(|style| style.opacity(0.92))
         // The element id is already unique per row, so it doubles as the hover
@@ -286,20 +288,28 @@ fn pick_row(
                 cx.notify();
             }),
         )
-        .gap(px(Theme::SPACE_MD))
-        .child(label_cell(theme, label))
-        .child(value_cell(theme, label, value))
 }
 
 /// A label and its value.
 fn row(theme: &Theme, label: &'static str, value: impl Into<String>) -> impl IntoElement {
+    row_box(theme, label, value.into())
+}
+
+/// The box every export row shares: one row height, the label at the left,
+/// the value at the right.
+fn row_box(theme: &Theme, label: &'static str, value: String) -> gpui::Div {
     div()
+        .debug_selector(move || format!("export-line-{label}"))
         .flex()
         .flex_row()
         .justify_between()
+        .items_center()
         .gap(px(Theme::SPACE_MD))
+        .h(px(Theme::ROW_HEIGHT))
+        .px(px(Theme::SPACE_XS))
+        .rounded(px(Theme::CONTROL_RADIUS))
         .child(label_cell(theme, label))
-        .child(value_cell(theme, label, value.into()))
+        .child(value_cell(theme, label, value))
 }
 
 fn label_cell(theme: &Theme, label: &'static str) -> impl IntoElement {
@@ -319,7 +329,10 @@ fn value_cell(theme: &Theme, label: &'static str, value: String) -> impl IntoEle
         .whitespace_nowrap()
         .text_ellipsis_start()
         .text_size(Theme::TEXT_UI)
-        .font_family(theme.font_mono.clone())
         .text_color(theme.text)
         .child(value)
 }
+
+#[cfg(test)]
+#[path = "export_dialog_tests.rs"]
+mod tests;

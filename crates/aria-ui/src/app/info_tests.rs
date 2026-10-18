@@ -68,6 +68,9 @@ fn shown() -> (AppState, [u32; 2], Rect) {
     state.overlay_frame.canvas = Some(rect);
     state.last_frame = Some(Arc::new(picture(canvas.map(|side| side / 4))));
     state.shown_tick = Some(3);
+    // Info opens beside Effects & Presets, which stays in front.
+    state.dock_tree.open(crate::dock::PANEL_INFO);
+    state.dock_tree.activate(crate::dock::PANEL_EFFECTS);
     (state, canvas, rect)
 }
 

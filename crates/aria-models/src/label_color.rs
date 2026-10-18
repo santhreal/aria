@@ -60,7 +60,7 @@ impl LabelColor {
     ];
 
     /// The default label of a video clip.
-    pub const VIDEO: LabelColor = LabelColor::Violet;
+    pub const VIDEO: LabelColor = LabelColor::Teal;
     /// The default label of an audio clip.
     pub const AUDIO: LabelColor = LabelColor::Forest;
     /// The default label of a generator, title, or shape clip.
@@ -68,7 +68,7 @@ impl LabelColor {
     /// The default label of a nested sequence clip.
     pub const NESTED: LabelColor = LabelColor::Tan;
     /// The default label of a clip on an adjustment lane.
-    pub const ADJUSTMENT: LabelColor = LabelColor::Lavender;
+    pub const ADJUSTMENT: LabelColor = LabelColor::Yellow;
 
     /// The saved name: `"violet"`, `"iris"`, ...
     pub fn id(self) -> &'static str {

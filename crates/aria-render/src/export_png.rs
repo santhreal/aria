@@ -9,7 +9,8 @@ use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 
 use aria_core::{
-    EncodeError, PixelFormat, Plane, RationalTime, RgbaImage, VideoEncoder, VideoFrame,
+    EncodeError, EncoderChoice, PixelFormat, Plane, RationalTime, RgbaImage, VideoEncoder,
+    VideoFrame,
 };
 use aria_models::Project;
 
@@ -67,6 +68,10 @@ impl VideoEncoder for PngSequenceEncoder {
 
     fn finish(&mut self) -> Result<(), EncodeError> {
         Ok(())
+    }
+
+    fn choice(&self) -> EncoderChoice {
+        EncoderChoice::only("png", Some(false))
     }
 }
 

@@ -99,6 +99,10 @@ gstreamer-video = { version = "0.23", features = ["v1_24"] }
 gstreamer-audio = "0.23"
 gstreamer-pbutils = "0.23"
 glib = "0.20"
+# The open-file limit a decoding process raises (`gst_fds`).
+rustix = { version = "1.1", features = ["process"] }
+# `_exit` for `exit_process`.
+libc = "0.2"
 
 [lints]
 workspace = true

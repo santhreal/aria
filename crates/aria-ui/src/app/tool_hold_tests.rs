@@ -146,7 +146,7 @@ fn tool_variants_open_on_triangle_or_300ms_hold_and_select_variant() {
         let variants = spec.tool.variants();
         assert_eq!(
             !variants.is_empty(),
-            spec.has_variants,
+            spec.tool.has_variants(),
             "variants() and has_variants must agree for {}",
             spec.id
         );
@@ -172,7 +172,7 @@ fn tool_variants_open_on_triangle_or_300ms_hold_and_select_variant() {
     // Selecting a Trim variant switches tool and closes the popover.
     state.open_tool_variants(EditorTool::Ripple);
     assert_eq!(state.tool_variants_open(), Some(EditorTool::Ripple));
-    state.select_tool_variant(ToolVariant::Trim(EditorTool::Slip));
+    state.select_tool_variant(ToolVariant::Tool(EditorTool::Slip));
     assert_eq!(state.tool, EditorTool::Slip);
     assert_eq!(state.tool_variants_open(), None);
 }

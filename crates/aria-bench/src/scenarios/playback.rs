@@ -400,7 +400,7 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
             unit: "allocs_per_frame".to_string(),
             reason: (h264_res.allocs_per_frame_after_1s > 0.0).then(|| {
                 format!(
-                    "render thread performed {:.1} heap allocations/frame after 1 s (resolve_with / GStreamer sample mapping)",
+                    "render thread performed {:.1} heap allocations/frame after 1 s; ARIA_BENCH_ALLOC_SITES=<n> prints their call stacks",
                     h264_res.allocs_per_frame_after_1s
                 )
             }),

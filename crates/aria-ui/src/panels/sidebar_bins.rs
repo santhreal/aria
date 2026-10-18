@@ -1,14 +1,17 @@
 //! Pool folders: the breadcrumb, the folder rows, and the drops onto them.
 //!
 //! One folder is open at a time and the pool below shows what is in it, so this
-//! strip is the only way through the tree. That is why the root crumb is always
-//! drawn: a folder you cannot leave is worse than no folders.
+//! strip is the only way through the tree. The breadcrumb is drawn while a
+//! folder is open, with the buttons that act on that folder; its root crumb
+//! leads back to the pool. At the pool root there is nothing to leave, and the
+//! button that makes a folder is in the pool's footer.
 //!
 //! A row is a drop target for both payloads the pool can produce — a source and
 //! another folder — because dragging is the gesture a file tree teaches. The
 //! project refuses a folder dropped into its own subtree; this file does not
 //! duplicate that rule, it only reports the refusal.
 
+use crate::components::Wraps as _;
 use gpui::{
     AppContext, CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
     ParentElement, SharedString, StatefulInteractiveElement, Styled, div, px,
@@ -23,7 +26,11 @@ use crate::surfaces::pool_drop::{self, Dropped};
 use crate::theme::Theme;
 use crate::types::{BinDrag, MediaDrag};
 
-/// The folder strip: where you are, what is inside, and how to make more.
+/// The breadcrumb's least width before the folder's buttons wrap below it.
+const CRUMBS_MIN: f32 = 96.0;
+
+/// The folder strip: while a folder is open, where you are and the buttons
+/// that act on it on one row; then the folders inside the open one.
 pub fn strip(
     theme: &Theme,
     state: &Entity<AppState>,
@@ -71,13 +78,98 @@ pub fn strip(
         rows.push(row(theme, item.id, item.name.clone(), editing, index, cx));
     }
 
+    let buttons = actions(theme, strip, false, cx);
+
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(Theme::SPACE_XXS))
+        .when(open.is_some(), |el| {
+            el.child(
+                div()
+                    .id("bin-crumb-row")
+                    .debug_selector(|| "bin-crumb-row".into())
+                    .min_h(px(Theme::ICON_HIT))
+                    .flex()
+                    .flex_row()
+                    .wraps()
+                    .items_center()
+                    .gap(px(Theme::SPACE_SM))
+                    .child(
+                        div()
+                            .id("bin-crumbs")
+                            .flex_1()
+                            // Narrower than this, the buttons take the next line.
+                            .min_w(px(CRUMBS_MIN))
+                            .overflow_hidden()
+                            .flex()
+                            .flex_row()
+                            .items_center()
+                            .gap(px(Theme::SPACE_XS))
+                            .children(crumbs),
+                    )
+                    // The buttons' labels end on the column's edge: the row
+                    // steps out by a ghost button's padding. Narrower than the
+                    // buttons, they wrap.
+                    .child(
+                        div()
+                            .id("pool-actions")
+                            .debug_selector(|| "pool-actions".into())
+                            .min_w_0()
+                            .ml_auto()
+                            .flex()
+                            .flex_row()
+                            .wraps()
+                            .justify_end()
+                            .items_center()
+                            .mr(px(-Theme::SPACE_SM))
+                            .children(buttons),
+                    ),
+            )
+        })
+        .when(!rows.is_empty(), |el| {
+            el.child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap(px(Theme::SPACE_XXS))
+                    .children(rows),
+            )
+        })
+        .into_any_element()
+}
+
+/// The folder buttons the pool's footer draws: each offered row with an icon.
+pub fn footer_buttons(
+    theme: &Theme,
+    state: &Entity<AppState>,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> Vec<gpui::AnyElement> {
+    let strip = BinStrip::of(state.read(cx));
+    actions(theme, strip, true, cx)
+}
+
+/// The offered rows of [`BIN_ACTIONS`] that are drawn as icons (`icons`) or as
+/// labels (`!icons`), each pressing its own `run`.
+fn actions(
+    theme: &Theme,
+    strip: BinStrip,
+    icons: bool,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> Vec<gpui::AnyElement> {
     let mut buttons: Vec<gpui::AnyElement> = Vec::with_capacity(BIN_ACTIONS.len());
     for action in BIN_ACTIONS {
-        if !(action.when)(&strip) {
+        if !(action.when)(&strip) || action.icon.is_some() != icons {
             continue;
         }
+        let button = match action.icon {
+            Some(path) => components::icon_button(action.id, path, theme)
+                .size(px(Theme::ICON_HIT_ROW))
+                .debug_selector(move || action.id.into()),
+            None => components::ghost_button(action.id, action.label, theme),
+        };
         buttons.push(
-            components::ghost_button(action.id, action.label, theme)
+            button
                 .on_mouse_down(
                     MouseButton::Left,
                     cx.listener(move |this, _: &MouseDownEvent, _, cx| {
@@ -92,38 +184,7 @@ pub fn strip(
                 .into_any_element(),
         );
     }
-
-    div()
-        .flex()
-        .flex_col()
-        .gap(px(Theme::SPACE_XS))
-        .child(
-            div()
-                .id("bin-crumbs")
-                .flex()
-                .flex_row()
-                .items_center()
-                .gap(px(Theme::SPACE_XS))
-                .children(crumbs),
-        )
-        .when(!rows.is_empty(), |el| {
-            el.child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .gap(px(Theme::SPACE_XXS))
-                    .children(rows),
-            )
-        })
-        .child(
-            div()
-                .flex()
-                .flex_row()
-                .items_center()
-                .gap(px(Theme::SPACE_XS))
-                .children(buttons),
-        )
-        .into_any_element()
+    buttons
 }
 
 /// One step of the breadcrumb. Also a drop target, so a source can be moved up

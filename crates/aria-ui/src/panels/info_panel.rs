@@ -106,7 +106,6 @@ fn color_row(theme: &Theme, color: Option<[u8; 4]>) -> AnyElement {
                         )
                         .child(
                             div()
-                                .font_family(theme.font_mono.clone())
                                 .text_color(theme.text)
                                 .child(format!("#{r:02X}{g:02X}{b:02X}")),
                         ),

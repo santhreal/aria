@@ -15,13 +15,14 @@
 use std::path::Path;
 
 use aria_core::{
-    AudioEncoderConfig, ColorSpace, CpuImage, EncodeError, EncoderConfig, ExportFormat, FrameData,
-    PixelFormat, Plane, Rational, RationalTime, Rect, RgbaImage, Rotation, VideoCodec,
-    VideoEncoder, VideoFrame, resample,
+    AudioEncoderConfig, ColorSpace, CpuImage, EncodeError, EncoderChoice, EncoderConfig,
+    ExportFormat, FrameData, PixelFormat, Plane, Rational, RationalTime, Rect, RgbaImage, Rotation,
+    VideoCodec, VideoEncoder, VideoFrame, resample,
 };
 use aria_models::Project;
 
 use crate::error::{EmptyExport, ExportFormatError, MIN_EXPORT_DIM, RenderError};
+use crate::export_audio::feed::AudioFeed;
 use crate::export_audio::{
     EXPORT_AUDIO_CHANNELS, EXPORT_AUDIO_RATE, ExportAudioMixer, sample_boundary,
 };
@@ -298,10 +299,19 @@ pub fn export_to_file_observed(
         &mut aria_encoder::open_encoder,
         observer,
     )
+    .map(|exported| exported.frames)
+}
+
+/// A finished file export: the frames written and the encoder that wrote them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Exported {
+    pub frames: u64,
+    pub encoder: EncoderChoice,
 }
 
 /// [`export_to_file_observed`] with a caller-supplied encoder opener (such as a
-/// registered plugin encoder).
+/// registered plugin encoder). Returns the frame count and the encoder the
+/// opener opened.
 ///
 /// Encoding writes to the same sibling `TransactionalFile` staging directory
 /// as [`export_to_file_observed`], and atomically replaces `path` only after
@@ -314,7 +324,7 @@ pub fn export_to_file_with_encoder_observed(
     settings: ExportSettings,
     open_encoder: EncoderOpener<'_>,
     observer: ExportObserver<'_>,
-) -> Result<u64, RenderError> {
+) -> Result<Exported, RenderError> {
     let settings = settings.evened();
     export_frame_count(project, settings)?;
     let staging = TransactionalFile::new(path)?;
@@ -322,10 +332,14 @@ pub fn export_to_file_with_encoder_observed(
         staging.staging_path(),
         export_config_with(project, settings),
     )?;
+    let choice = encoder.choice();
     let frames = export_observed(renderer, project, encoder.as_mut(), settings, observer)?;
     drop(encoder);
     staging.publish()?;
-    Ok(frames)
+    Ok(Exported {
+        frames,
+        encoder: choice,
+    })
 }
 
 /// Composite every frame of `project` and push it to `encoder`, returning the
@@ -400,97 +414,91 @@ fn export_observed_inner(
     native: bool,
     rate: Rational,
 ) -> Result<u64, RenderError> {
-    let mut mixer = if settings.audio {
+    let mixer = if settings.audio {
         ExportAudioMixer::for_project(project)?
     } else {
         None
     };
-    let audio_rate = Rational::new(EXPORT_AUDIO_RATE as i32, 1);
-    let mut block = Vec::new();
-
+    let timing = FrameTiming {
+        start,
+        rate,
+        audio_rate: Rational::new(EXPORT_AUDIO_RATE as i32, 1),
+    };
     let output_size = (!native).then_some(settings.size);
-    let mut pending: Option<(PendingFrame, u64)> = None;
-    for i in 0..frames {
-        if !observer(i, frames) {
-            if let Some((ready, ready_index)) = pending.take() {
-                finish_export_frame(
-                    renderer,
-                    ready,
-                    ready_index,
-                    start,
-                    rate,
-                    audio_rate,
-                    encoder,
-                    &mut mixer,
-                    &mut block,
-                )?;
+    std::thread::scope(|scope| {
+        let mut audio = match mixer {
+            Some(mixer) => Some(AudioFeed::start(scope, mixer, start, frames, rate)?),
+            None => None,
+        };
+        let mut pending: Option<(PendingFrame, u64)> = None;
+        for i in 0..frames {
+            if !observer(i, frames) {
+                if let Some((ready, ready_index)) = pending.take() {
+                    finish_export_frame(renderer, ready, ready_index, timing, encoder, &mut audio)?;
+                }
+                return Err(RenderError::Cancelled);
             }
-            return Err(RenderError::Cancelled);
+            let source = RationalTime::new(start + i as i64, rate);
+            let next = renderer.submit_export_frame(project, source, output_size)?;
+            if let Some((ready, ready_index)) = pending.replace((next, i)) {
+                finish_export_frame(renderer, ready, ready_index, timing, encoder, &mut audio)?;
+            }
         }
-        let source = RationalTime::new(start + i as i64, rate);
-        let next = renderer.submit_export_frame(project, source, output_size)?;
-        if let Some((ready, ready_index)) = pending.replace((next, i)) {
-            finish_export_frame(
-                renderer,
-                ready,
-                ready_index,
-                start,
-                rate,
-                audio_rate,
-                encoder,
-                &mut mixer,
-                &mut block,
-            )?;
+        if let Some((ready, ready_index)) = pending {
+            finish_export_frame(renderer, ready, ready_index, timing, encoder, &mut audio)?;
         }
-    }
-    if let Some((ready, ready_index)) = pending {
-        finish_export_frame(
-            renderer,
-            ready,
-            ready_index,
-            start,
-            rate,
-            audio_rate,
-            encoder,
-            &mut mixer,
-            &mut block,
-        )?;
-    }
-    encoder.finish()?;
-    observer(frames, frames);
-    Ok(frames)
+        encoder.finish()?;
+        observer(frames, frames);
+        Ok(frames)
+    })
 }
 
-#[allow(clippy::too_many_arguments)]
+/// Where an exported frame sits: the first timeline frame rendered, the
+/// timeline rate, and the audio sample rate.
+///
+/// A ranged export renders from `start` but writes presentation times from
+/// zero, so the file plays from its own start rather than carrying a timeline
+/// offset no player would honour.
+#[derive(Clone, Copy)]
+struct FrameTiming {
+    start: i64,
+    rate: Rational,
+    audio_rate: Rational,
+}
+
+/// Reads back frame `index`, encodes it, and encodes its mixed audio when the
+/// export has any.
+///
+/// An encoder without an audio track reports [`EncodeError::Unsupported`] from
+/// its first `push_audio`; the audio feed is then dropped, which ends its mix.
 fn finish_export_frame(
     renderer: &mut Renderer,
     pending: PendingFrame,
     index: u64,
-    start: i64,
-    rate: Rational,
-    audio_rate: Rational,
+    timing: FrameTiming,
     encoder: &mut dyn VideoEncoder,
-    mixer: &mut Option<ExportAudioMixer>,
-    block: &mut Vec<f32>,
+    audio: &mut Option<AudioFeed>,
 ) -> Result<(), RenderError> {
+    let FrameTiming {
+        start,
+        rate,
+        audio_rate,
+    } = timing;
     let image = renderer.finish_pending(pending)?;
     let out = RationalTime::new(index as i64, rate);
     let frame = rgba_to_frame(image, out);
     encoder.push(&frame)?;
-
-    if let Some(mix) = mixer.as_mut() {
-        let from = sample_boundary(start + index as i64, rate.num, rate.den);
-        let to = sample_boundary(start + index as i64 + 1, rate.num, rate.den);
-        let count = (to - from).max(0) as usize;
-        block.resize(count * EXPORT_AUDIO_CHANNELS as usize, 0.0);
-        mix.mix_into(from, block)?;
-        let offset = sample_boundary(start, rate.num, rate.den);
-        let pts = RationalTime::new(from - offset, audio_rate);
-        match encoder.push_audio(block, pts) {
-            Ok(()) => {}
-            Err(EncodeError::Unsupported(_)) => *mixer = None,
-            Err(error) => return Err(error.into()),
-        }
+    let Some(feed) = audio.as_ref() else {
+        return Ok(());
+    };
+    let block = feed.next()?;
+    let from = sample_boundary(start + index as i64, rate.num, rate.den);
+    let offset = sample_boundary(start, rate.num, rate.den);
+    let pts = RationalTime::new(from - offset, audio_rate);
+    match encoder.push_audio(&block, pts) {
+        Ok(()) => feed.recycle(block),
+        Err(EncodeError::Unsupported(_)) => *audio = None,
+        Err(error) => return Err(error.into()),
     }
     Ok(())
 }

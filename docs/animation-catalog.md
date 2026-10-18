@@ -41,7 +41,7 @@ catalog rides, by the name `Easing::name` returns.
 
 | Curve | Bezier | Use |
 | --- | --- | --- |
-| `ease_out_expo` | 0.16, 1.0, 0.3, 1.0 | Long fades, the editor opening |
+| `ease_out_expo` | 0.16, 1.0, 0.3, 1.0 | Long fades, the loader wait |
 | `ease_out` | 0.0, 0.0, 0.58, 1.0 | Resize, tab slide, collapse |
 | `ease` | 0.25, 0.1, 0.25, 1.0 | Menus, dialogs, splash, chevron, loaders |
 | `ease_in_out` | 0.42, 0.0, 0.58, 1.0 | Scroll glide |
@@ -66,7 +66,7 @@ that hull, so the overshoot is bounded by construction. `ease_out_back` peaks
 | `MENU_OUT` | `presets` | 100 ms | 0 | `ease` | `plugins::overlay_host::exit_window`: every overlay leaving, and `motion::glide::PLAYHEAD` |
 | `DIALOG_IN` | `presets` | 180 ms | 0 | `ease` | `motion::dialog_in`: dialog surfaces; and `motion::glide::ROUTE`, the route the shell is drawing |
 | `SPLASH_OUT` | `presets` | 500 ms | 150 ms | `ease` | `motion::splash_out`: the boot mark |
-| `OPEN` | `motion` | 320 ms | 0 | `ease_out_expo` | `shell::opening`: the editor arriving in two stages, the bar and then the docked panels, `OPEN_STAGE_MS` (80 ms) apart; and `motion::glide::WAIT`, the span a wait must outlast before a loader appears |
+| `LOADER_WAIT` | `motion` | 320 ms | 0 | `ease_out_expo` | `motion::glide::WAIT`: the span a wait must outlast before a loader appears |
 | `RESIZE` | `presets` | 200 ms | 0 | `ease_out` | `motion::glide::EDIT`, `ZOOM`, and `PROGRESS`: rippled clips, the horizontal scale and scroll offset when the editor chose them, and a progress fill catching up with a report |
 | `TAB_SLIDE` | `presets` | 150 ms | 0 | `ease_out` | `inspector::tab_strip`: the tab indicator |
 | `COLLAPSE` | `presets` | 180 ms | 0 | `ease_out` | `motion::glide::LANE`: lane heights and the property rows a twirl opens |
@@ -81,14 +81,22 @@ that hull, so the overshoot is bounded by construction. `ease_out_back` peaks
 A list that arrives at once staggers its rows by `motion::ROW_STAGGER_MS`
 (16 ms, one frame at 60 Hz) times the row's place in the list.
 
+The editor opening has no spec of its own. `shell::opening` draws the bar and
+the docked panels at `motion::open_stage` of the route value, which travels
+on `glide::ROUTE` (`DIALOG_IN`, 180 ms). The panels start
+`motion::OPEN_STAGE_LAG` (a quarter) of the route behind the bar. The opening
+ends when the route lands, a route change during it continues from the
+value on screen, and reduced motion draws every stage at rest.
+
 ## Stores
 
 Two stores hold motion that is not a one-shot transition. Both are
 `gpui::motion::TweenStore`s keyed by `MotionKey`, a hashed `(kind, id)` pair, so
 a per-frame key costs no allocation.
 
-The hover store holds hover blends. `motion::hover_listener` sets a key's toggle
-and `motion::hover_blend` reads how far its fade has come.
+The hover store holds hover blends. `motion::hover_listener` sets a key's toggle,
+notifies the cached panel body (or shell chrome beacon) that drew the key, and
+`motion::hover_blend` reads how far its fade has come.
 
 `motion::glide` holds travelling `f32` geometry (the playhead, lane heights,
 clip positions, pane widths, the timeline scroll offset, the horizontal scale, a
@@ -100,14 +108,15 @@ root, calls `motion::begin_frame` first in its render: the frame is the app's
 `frame_instant` under its `motion_policy`. A zero-size canvas mounted by the
 shell calls `motion::end_frame` during prepaint, after every element that read
 the stores. It drops the keys no element read during the previous full frame
-and requests the next animation frame while a value is still moving. There is
+and notifies each moving panel body (or the shell chrome beacon) on the next
+frame while a value is still moving. There is
 one such canvas, because a second would advance the stores' frame counter twice
 and drop the values the first drew in the same frame.
 
 The glide store also reports how old a wait is. `motion::glide::since` starts a
 key at zero instead of at its target and reports how far through a span it has
 got, which is what `loaders::worth_showing` reads: a loader appears only once
-its wait has lasted one `OPEN`, and a wait that ends sooner leaves no entry
+its wait has lasted one `LOADER_WAIT`, and a wait that ends sooner leaves no entry
 behind.
 
 `PulseClock` parks when no spinner is mounted.

@@ -228,7 +228,7 @@ fn every_glide_spec_is_a_catalog_spec() {
     assert_eq!(STATE, presets::HOVER_FADE);
     assert_eq!(ROUTE, presets::DIALOG_IN);
     assert_eq!(PROGRESS, presets::RESIZE);
-    assert_eq!(WAIT, crate::motion::OPEN);
+    assert_eq!(WAIT, crate::motion::LOADER_WAIT);
 }
 
 /// Playback holds every glide and hover fade at its end state, and the hold

@@ -35,7 +35,10 @@ pub(super) fn kv(theme: &Theme, label: &str, value: impl Into<String>) -> impl I
     div()
         .flex()
         .flex_row()
+        .items_center()
         .justify_between()
+        .gap(px(Theme::SPACE_MD))
+        .min_h(px(Theme::ROW_HEIGHT))
         .child(
             div()
                 .text_size(Theme::TEXT_UI)

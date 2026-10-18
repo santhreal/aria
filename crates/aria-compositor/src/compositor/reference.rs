@@ -29,7 +29,7 @@ pub(super) fn draws_content_direct(layer: &CompositeLayer<'_>) -> bool {
 /// Draw `built` into `view`, clearing it first when `clear` is set.
 pub(super) fn draw_layer_into(
     encoder: &mut wgpu::CommandEncoder,
-    label: &'static str,
+    _label: &'static str,
     view: &wgpu::TextureView,
     clear: bool,
     pipeline: &wgpu::RenderPipeline,
@@ -41,7 +41,7 @@ pub(super) fn draw_layer_into(
         wgpu::LoadOp::Load
     };
     let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: Some(label),
+        label: None,
         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
             view,
             depth_slice: None,

@@ -1,5 +1,6 @@
 //! The Audio Gain dialog (`G`).
 
+use crate::components::Wraps as _;
 use gpui::{
     Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled,
     div, px,
@@ -61,25 +62,28 @@ pub fn render(
         }),
     );
 
-    let mode_row = div().flex().flex_wrap().gap(px(Theme::SPACE_XS)).children(
-        AudioGainMode::ALL.into_iter().map(|mode| {
-            let active = form.mode == mode;
-            let id = match mode {
-                AudioGainMode::SetGain => "audio-gain-mode-set",
-                AudioGainMode::AdjustGain => "audio-gain-mode-adjust",
-                AudioGainMode::NormalizeMaxPeak => "audio-gain-mode-norm-max",
-                AudioGainMode::NormalizeAllPeaks => "audio-gain-mode-norm-all",
-            };
-            components::chip(id, mode.label(), active, ChipSize::Regular, &theme).on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                    this.state
-                        .update(cx, |state, _| state.set_audio_gain_mode(mode));
-                    cx.notify();
-                }),
-            )
-        }),
-    );
+    let mode_row =
+        div()
+            .flex()
+            .wraps()
+            .gap(px(Theme::SPACE_XS))
+            .children(AudioGainMode::ALL.into_iter().map(|mode| {
+                let active = form.mode == mode;
+                let id = match mode {
+                    AudioGainMode::SetGain => "audio-gain-mode-set",
+                    AudioGainMode::AdjustGain => "audio-gain-mode-adjust",
+                    AudioGainMode::NormalizeMaxPeak => "audio-gain-mode-norm-max",
+                    AudioGainMode::NormalizeAllPeaks => "audio-gain-mode-norm-all",
+                };
+                components::chip(id, mode.label(), active, ChipSize::Regular, &theme).on_mouse_down(
+                    MouseButton::Left,
+                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                        this.state
+                            .update(cx, |state, _| state.set_audio_gain_mode(mode));
+                        cx.notify();
+                    }),
+                )
+            }));
 
     let (active_db, unit) = match form.mode {
         AudioGainMode::SetGain => (form.set_db, "dB"),
@@ -95,35 +99,34 @@ pub fn render(
     };
 
     let mode = form.mode;
-    let preset_row =
-        div()
-            .flex()
-            .flex_wrap()
-            .gap(px(Theme::SPACE_XS))
-            .children(presets.iter().map(|&(val, id, label)| {
-                let active = (active_db - val).abs() < 0.05;
-                components::chip(id, label, active, ChipSize::Compact, &theme).on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                        this.state.update(cx, |state, _| match mode {
-                            AudioGainMode::SetGain => {
-                                let _ = state.set_audio_gain_set_db(val);
-                            }
-                            AudioGainMode::AdjustGain => {
-                                let _ = state.set_audio_gain_adjust_db(val);
-                            }
-                            AudioGainMode::NormalizeMaxPeak | AudioGainMode::NormalizeAllPeaks => {
-                                let _ = state.set_audio_gain_target_db(val);
-                            }
-                        });
-                        cx.notify();
-                    }),
-                )
-            }));
+    let preset_row = div()
+        .flex()
+        .wraps()
+        .gap(px(Theme::SPACE_XS))
+        .children(presets.iter().map(|&(val, id, label)| {
+            let active = (active_db - val).abs() < 0.05;
+            components::chip(id, label, active, ChipSize::Compact, &theme).on_mouse_down(
+                MouseButton::Left,
+                cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                    this.state.update(cx, |state, _| match mode {
+                        AudioGainMode::SetGain => {
+                            let _ = state.set_audio_gain_set_db(val);
+                        }
+                        AudioGainMode::AdjustGain => {
+                            let _ = state.set_audio_gain_adjust_db(val);
+                        }
+                        AudioGainMode::NormalizeMaxPeak | AudioGainMode::NormalizeAllPeaks => {
+                            let _ = state.set_audio_gain_target_db(val);
+                        }
+                    });
+                    cx.notify();
+                }),
+            )
+        }));
 
     let step_row = div()
         .flex()
-        .flex_wrap()
+        .wraps()
         .gap(px(Theme::SPACE_XS))
         .children(DB_STEPS.iter().map(|&(delta, id, label)| {
             let next = active_db + delta;

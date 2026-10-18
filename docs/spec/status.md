@@ -31,7 +31,8 @@ Recursive split and tab-group tree (`DockTree` in `crates/aria-ui/src/dock/`),
 with 24 px frame tab bars, draggable splitters, tab reordering, five-zone
 docking (`Center`, `Left`, `Right`, `Top`, `Bottom`), floating panel windows,
 frame maximize (`key-pane-maximize`, `` ` ``), focused-frame accent border, and
-a two-row vertical fallback below `960x540`. Five workspaces ship (`Editing`,
+a Viewer-over-Timeline fallback below `1024x640` (`MIN_WINDOW_WIDTH` and
+`MIN_WINDOW_HEIGHT` in `crates/aria-ui/src/settings.rs`). Five workspaces ship (`Editing`,
 `Animation`, `Color`, `Audio`, `Effects` in `crates/aria-ui/src/layouts.rs`),
 with per-workspace remembered dock trees, `Window > Reset to Saved Layout`,
 named workspace files under `<data dir>/workspaces/<name>.json`, JSON import and
@@ -39,14 +40,28 @@ export, and optional serialized `tree` definitions on plugin `WorkspacePanes`.
 Project, Viewer, Timeline, Effect Controls, Audio Track Mixer, Assistant,
 Scopes, Color, Info, Effects & Presets, Align, Character, Paragraph, Audio
 Meters, Jobs, History, and Markers are dock panels (`default_title_for` in
-`crates/aria-ui/src/dock/mod.rs`). The Window menu holds
+`crates/aria-ui/src/dock/mod.rs`). The Editing workspace opens with six of them
+(`DockTree::editing_for_width`). The Window menu holds
 one row per registered dock panel, plugin panels included, checked while the
-panel is open.
+panel is open. The tool bar draws one button per `ToolGroup`, showing the
+group's armed tool or its first tool, and none of the Timeline header's
+toggles (`crates/aria-ui/src/tool_catalog.rs`,
+`crates/aria-ui/src/chrome/tool_strip.rs`). Closing a floating window, from
+Close Window or from the window manager, closes its panels and takes its frame
+out of the tree (`AppState::close_floating_frame` in
+`crates/aria-ui/src/app/layouts.rs`). Opening a panel whose default frame has
+closed re-creates that frame at its shipped edge, and Audio Meters opens right
+of the Timeline (`crates/aria-ui/src/dock/restore.rs`). The status bar's right side draws the
+frame rate, playback resolution, and GPU only during playback, and the
+dropped-frame count only after a drop (`crates/aria-ui/src/shell/strip.rs`).
 
 ## Look ([look.md](look.md))
 
 Dark and Light themes from one token set (`docs/theme-tokens.md`), System
-mode, three accent choices, four motion levels, and theme files read from
+mode, four accent families (Blue, Ember, Teal, Graphite in
+`crates/aria-ui/src/theme_accent.rs`), UI text in the embedded Inter with
+tabular figures (`crates/aria-ui/src/theme_type.rs`), four motion levels, and
+theme files read from
 `<data dir>/themes/` and from plugins (`crates/aria-ui/src/theme_file.rs`,
 `crates/aria-plugin/src/themes.rs`). The dark surfaces, text, `surface_header`,
 `hairline`, and `value` tokens take the values in the Dark surfaces table
@@ -101,9 +116,9 @@ keyframe drag, and keyframe menu each send one `SetClipMask` edit
 Video and audio lanes sit in separate groups above (`V1..Vn` upward) and below
 (`A1..An` downward) a draggable divider (`crates/aria-ui/src/panels/timeline/`),
 each group painted in a single virtualized canvas element culled to the visible
-lanes and time range. A 42 px header over the outline column
+lanes and time range. A 49 px header over the outline column
 (`crates/aria-ui/src/panels/timeline/header.rs`) holds the sequence timecode,
-scrubbable and editable, with the playhead's frame count under it; the property
+scrubbable and editable; the property
 search, which filters the property rows of every opened clip to the names that
 match and opens the groups holding them
 (`crates/aria-ui/src/app/property_rows_search.rs`); and the snapping, linked
@@ -207,8 +222,8 @@ the window when its span is linear, and a retimed side ramps over its own half.
 ## Panels ([panels.md](panels.md))
 
 Six panes (`ActivePanel` in `crates/aria-ui/src/types_editor.rs`): Media,
-Preview, Timeline, Inspector, Assistant, and Mixer; the Assistant and Mixer
-replace the preview while open. The Markers panel lists markers with colour filtering and opens the Edit Marker dialog (`DialogKind::MarkerEdit`), the History panel lists every undo step and jumps to one on a click, the Scopes panel lays the waveform, vectorscope, histogram, and plugin scopes across its frame, and the Color panel groups the selected clip's grade into Basic Correction, Creative, RGB Curves, Hue Curves, Color Wheels, HSL Secondary, and Vignette sections that open and close from their titles, with draggable Lift, Gamma, and Gain wheels. Effect Controls (the inspector's Effects tab, `crates/aria-ui/src/panels/inspector/tabs/effects_params.rs`) reads every effect parameter at the playhead. Each animatable parameter, and each catalog property row in the inspector and the timeline, has a stopwatch, a `<` / `◆` / `>` navigator, and a reset that writes the property's default (`ClipParam::default_value` in `crates/aria-models/src/clip/param_axis.rs`) as a keyframe at the playhead when the property is animated; the inspector rows add, right of a value column shared by every row, a time area over the clip with its own playhead and keyframes, lined up down the panel, whose press and drag are the timeline's keyframe drag (`crates/aria-ui/src/app/key_strip.rs`). With several clips selected, an edit in Effect Controls reaches every selected clip that has the property as one undo step, and a value the clips read differently at the playhead draws as a dash (`crates/aria-ui/src/app/shared_edits.rs`, `crates/aria-ui/src/app/selected_detail.rs`). The plugin
+Preview, Timeline, Inspector, Assistant, and Mixer, each a dock
+panel. The Markers panel lists markers with colour filtering and opens the Edit Marker dialog (`DialogKind::MarkerEdit`), the History panel lists every undo step and jumps to one on a click, the Scopes panel lays the waveform, vectorscope, histogram, and plugin scopes across its frame, and the Color panel groups the selected clip's grade into Basic Correction, Creative, RGB Curves, Hue Curves, Color Wheels, HSL Secondary, and Vignette sections that open and close from their titles, with draggable Lift, Gamma, and Gain wheels. Effect Controls (the inspector's Effects tab, `crates/aria-ui/src/panels/inspector/tabs/effects_params.rs`) reads every effect parameter at the playhead. Each animatable parameter, and each catalog property row in the inspector and the timeline, has a stopwatch, a `<` / `◆` / `>` navigator, and a reset that writes the property's default (`ClipParam::default_value` in `crates/aria-models/src/clip/param_axis.rs`) as a keyframe at the playhead when the property is animated; the inspector rows add, right of a value column shared by every row, a time area over the clip with its own playhead and keyframes, lined up down the panel, whose press and drag are the timeline's keyframe drag (`crates/aria-ui/src/app/key_strip.rs`). With several clips selected, an edit in Effect Controls reaches every selected clip that has the property as one undo step, and a value the clips read differently at the playhead draws as a dash (`crates/aria-ui/src/app/shared_edits.rs`, `crates/aria-ui/src/app/selected_detail.rs`). The plugin
 list is a Settings page with each plugin's version, tier, state, permissions,
 contributions, and measured cost, and the command palette and the
 export dialog exist. Window > Jobs docks the Jobs panel, and the status bar's
@@ -242,16 +257,16 @@ headless software Vulkan `llvmpipe` Mesa 25.2.8):
 
 | Scenario | Target | Measured on Server | Status |
 | --- | --- | --- | --- |
-| `startup` | Cold $\le 1\text{ s}$, warm $\le 500\text{ ms}$ | Cold process-to-window p50 $65.0\text{ ms}$, warm in-process session+Shell draw p50 $429.7\text{ ms}$ (warm process-to-window p50 $44.1\text{ ms}$) | Pass |
-| `project-io` | `project-10k` open $\le 500\text{ ms}$, save $\le 200\text{ ms}$ | Open to interactive p50 $160.8\text{ ms}$ (deserialize p50 $131.2\text{ ms}$); save p50 $337.0\text{ ms}$ | Fail (`save_ms`) |
-| `play-start` | Warm $\le 100\text{ ms}$, cold $\le 300\text{ ms}$ | Warm first frame p95 $96.6\text{ ms}$ (p50 $18.7\text{ ms}$); cold first frame p95 $903.4\text{ ms}$ (p50 $301.9\text{ ms}$) | Fail (`cold_first_frame_ms`) |
-| `playback` (`reverse`) | `h264-1080p60` Full, `hevc-2160p60` Full, `stack-4k` 1/2, `long-gop-scrub` reverse 1x: 0 dropped frames | Dropped frames over 300 frames: `h264-1080p60` 48 (frame p50 $6.4\text{ ms}$), `hevc-2160p60` 117 (p50 $63.1\text{ ms}$), `stack-4k` 987 over 1,200 frames (p50 $263.8\text{ ms}$), reverse `long-gop-scrub` 0 to 4 (p50 $4.0\text{ ms}$); render thread performs $86.1$ heap allocations per frame after $1\text{ s}$ | Fail |
-| `av-sync` | Presentation within $\pm 0.5\text{ frame}$ of audio clock | Max absolute offset $2.88\text{ frames}$ over 180 frames at $48\text{ kHz}$ | Fail |
-| `scrub` | Warm scrub $\le 16.67\text{ ms}$, cold seek $\le 150\text{ ms}$ | Warm scrub p95 $152.1\text{ ms}$ (p50 $19.7\text{ ms}$); cold seek p50 $593.9\text{ ms}$; `long-gop-scrub` exact seek p50 $107.4\text{ ms}$ | Fail |
-| `param-latency` | Paused effect drag visible within 2 display frames ($\le 33.33\text{ ms}$) | 1080p paused effect drag p95 $29.0\text{ frames}$ ($483.0\text{ ms}$, p50 $6.6\text{ frames}$ / $110.0\text{ ms}$) | Fail |
-| `timeline-frame` | `project-10k` scroll, zoom, drag UI frame build $\le 4\text{ ms}$ | `Shell` `window.draw()` p95 $27.9\text{ ms}$ (scroll p50 $42.4\text{ ms}$, zoom p50 $44.7\text{ ms}$, drag p50 $43.8\text{ ms}$; 50 lanes, 8 visible lanes, 10,000 clips, 2 canvas elements) | Fail |
-| `edit-apply` | Single edit or undo on `project-10k`: $\le 1\text{ ms}$ in engine, $\le 16.67\text{ ms}$ visible on next frame | Engine edit/undo p95 $0.51\text{ ms}$ (edit p50 $0.013\text{ ms}$, undo/redo p50 $0.009\text{ ms}$); full `AppState::apply_command` + `UiEditorStore` re-projection + `window.draw()` p95 $44.0\text{ ms}$ to $123.9\text{ ms}$ | Fail (`visible_next_frame_ms`) |
-| `export` | `h264-1080p60` to H.264 1080p on hardware encoder $\ge 4\times$ real time | `export_to_file_observed` fails on headless Server because `crates/aria-encoder/src/gst.rs:253` (`pick_encoder`) selects `nvh264enc` via `gst::ElementFactory::find` without probing `ElementFactory::make("nvh264enc").build()` or falling back to `x264enc`; render-only pass across 120 frames runs at $0.19\times$ real time (frame p50 $22.5\text{ ms}$) | Skipped |
-| `audio-load` | 32 tracks $\times$ 4 shipped effects at $48\text{ kHz}$, 256-sample blocks: 0 underruns in $60\text{ s}$ | 11,250 blocks ($5.333\text{ ms}$ budget): block p50 $1.12\text{ ms}$, p95 $3.28\text{ ms}$, p99 $4.85\text{ ms}$, max $31.60\text{ ms}$, 80 to 99 underruns in $60\text{ s}$ | Fail |
-| `memory` | Idle with `project-10k` open (frame cache excluded) $\le 500\text{ MB}$ RSS | Isolated `VmRSS` $315.0\text{ MiB}$ ($+89.8\text{ MiB}$ over empty `AppState` at $225.1\text{ MiB}$; $+0.1\text{ MiB}$ across 1,000 undo steps) | Pass |
-| `plugin-cost` | Host call $\le 1\ \mu\text{s}$ native / $\le 5\ \mu\text{s}$ WASM; WASM activation $\le 50\text{ ms}$; plugin WGSL within $5\%$ of shipped effect | Native host call p50 $0.06\ \mu\text{s}$; WASM host call p50 $1.09\text{ to }2.45\ \mu\text{s}$; WASM activation p50 $0.51\text{ ms}$; 4-pass 1080p vignette plugin WGSL vs shipped effect overhead $0.0\%$ to $24.6\%$ on software Vulkan | Pass / Fail |
+| `startup` | Cold $\le 1\text{ s}$, warm $\le 500\text{ ms}$ | Cold process-to-window p50 $22.4\text{ ms}$, warm in-process session+Shell draw p50 $208.5\text{ ms}$ (warm process-to-window p50 $22.3\text{ ms}$) | Pass |
+| `project-io` | `project-10k` open $\le 500\text{ ms}$, save $\le 200\text{ ms}$ | Open to interactive p50 $95.4\text{ ms}$ (deserialize p50 $75.3\text{ ms}$); save p50 $151.0\text{ ms}$ | Pass |
+| `play-start` | Warm $\le 100\text{ ms}$, cold $\le 300\text{ ms}$ | Warm first frame p95 $25.0\text{ ms}$ (p50 $18.0\text{ ms}$); cold first frame p95 $54.6\text{ ms}$ (p50 $44.9\text{ ms}$); Desktop (RTX 5090) cold p95 $230.5\text{ ms}$ | Pass |
+| `playback` (`reverse`) | `h264-1080p60` Full, `hevc-2160p60` Full, `stack-4k` 1/2, `long-gop-scrub` reverse 1x: 0 dropped frames | Dropped frames over two runs: `h264-1080p60` 1 and 1 (frame p50 $5.5\text{ ms}$), `hevc-2160p60` 62 and 62 (p50 $25.5\text{ ms}$), `stack-4k` 138 and 138 (p50 $101.5\text{ ms}$), reverse `long-gop-scrub` 0 and 0 (p50 $4.4\text{ ms}$); every drop is a late render on software Vulkan, none a late decode; Desktop (RTX 5090) 0 / 0 / 1 / 0, the `stack-4k` drop one warm-up frame of $18.1\text{ ms}$ (p50 $12.8\text{ ms}$, p95 $16.7\text{ ms}$) decoding and compositing three 4K HEVC Main 10 layers and a text layer in series; in the editor on Desktop `nvh265dec` offers no DMABuf output, so each layer is decoded to system memory and converted to NV12 on the CPU, which runs three concurrent `hevc-2160p60` streams at $66\text{ fps}$ each ($95\text{ fps}$ each without the conversion); render thread performs $65$ heap allocations per frame after $1\text{ s}$ | Fail |
+| `av-sync` | Presentation within $\pm 0.5\text{ frame}$ of audio clock | Max absolute offset $0.00\text{ frames}$ over 180 frames at $48\text{ kHz}$ | Pass |
+| `scrub` | Warm scrub $\le 16.67\text{ ms}$, cold seek $\le 150\text{ ms}$ | Warm scrub p95 $11.4\text{ ms}$ (p50 $10.3\text{ ms}$, renderer p50 $4.2\text{ ms}$); cold seek p50 $130.7\text{ ms}$; `long-gop-scrub` exact seek p50 $36.1\text{ ms}$ | Pass |
+| `param-latency` | Paused effect drag visible within 2 display frames ($\le 33.33\text{ ms}$) | 1080p paused effect drag p95 $0.68\text{ frames}$ ($11.4\text{ ms}$, p50 $0.50\text{ frames}$); `stack-4k` drag p50 $82.1\text{ ms}$ | Pass |
+| `timeline-frame` | `project-10k` scroll, zoom, drag UI frame build $\le 4\text{ ms}$ | `Shell` `window.draw()` p95 $4.82\text{ ms}$ and $4.98\text{ ms}$ over two runs (scroll p50 $4.41\text{ ms}$, zoom p50 $4.40\text{ ms}$, drag p50 $4.64\text{ ms}$; the window chrome with every panel body replaying its last drawing p50 $3.14\text{ ms}$; 50 lanes, 9 visible lanes, 10,000 clips, 27 visible clips); the time over the target is gpui layout and hit-test bounds insertion for the timeline body and the menu bar, tool bar, and dock tab bars rebuilt each frame; the zoom frames that first draw waveforms and filmstrips take $996\text{ ms}$ and $109\text{ ms}$ because the bench's test executor waits for the decode threads those frames start; Desktop (RTX 5090) p95 $3.00\text{ ms}$ and $3.07\text{ ms}$ (scroll p50 $2.74\text{ ms}$, zoom p50 $2.79\text{ ms}$, drag p50 $2.88\text{ ms}$) | Fail (Server); Pass (Desktop) |
+| `edit-apply` | Single edit or undo on `project-10k`: $\le 1\text{ ms}$ in engine, $\le 16.67\text{ ms}$ visible on next frame | Engine edit/undo p95 $0.52\text{ ms}$ (edit p50 $0.010\text{ ms}$, undo/redo p50 $0.009\text{ ms}$); full `AppState::apply_command` + `UiEditorStore` re-projection + `window.draw()` p95 $23.9\text{ ms}$ and $23.7\text{ ms}$ over two runs (p50 $23.6\text{ ms}$), of which `window.draw()` is two thirds and re-projecting the edited lanes a quarter; Desktop (RTX 5090) visible p95 $11.3\text{ ms}$ and $9.9\text{ ms}$, engine p95 $0.36\text{ ms}$ | Fail (Server, `visible_next_frame_ms`); Pass (Desktop) |
+| `export` | `h264-1080p60` to H.264 1080p on hardware encoder $\ge 4\times$ real time | No hardware H.264 encoder opens on Server (`nvh264enc` and `nvcudah264enc` fail to load; no VAAPI); `pick_encoder` tries NVENC, VAAPI, then `x264enc`, logs each skipped encoder with its cause, and exports at $0.98\times$ real time with `x264enc`; Desktop (RTX 5090) `nvh264enc` $4.30\times$ to $5.23\times$ real time over 5 runs (p50 $4.66\times$, frame p50 $2.4\text{ ms}$ to $2.7\text{ ms}$) | Skipped (Server); Pass (Desktop) |
+| `audio-load` | 32 tracks $\times$ 4 shipped effects at $48\text{ kHz}$, 256-sample blocks: 0 underruns in $60\text{ s}$ | 11,250 blocks ($5.333\text{ ms}$ budget): block p50 $0.64\text{ ms}$, p95 $0.82\text{ ms}$, p99 $0.84\text{ ms}$, max $2.51\text{ ms}$, 0 underruns in $60\text{ s}$ | Pass |
+| `memory` | Idle with `project-10k` open (frame cache excluded) $\le 500\text{ MB}$ RSS | Isolated `VmRSS` $346.1\text{ MiB}$ ($+113.3\text{ MiB}$ over empty `AppState` at $232.8\text{ MiB}$; $+0.1\text{ MiB}$ across 1,000 undo steps) | Pass |
+| `plugin-cost` | Host call $\le 1\ \mu\text{s}$ native / $\le 5\ \mu\text{s}$ WASM; WASM activation $\le 50\text{ ms}$; plugin WGSL within $5\%$ of shipped effect | Native host call p50 $0.06\ \mu\text{s}$; WASM host call p50 $0.84\ \mu\text{s}$; WASM activation p50 $0.16\text{ ms}$; 4-pass 1080p vignette plugin WGSL vs shipped effect overhead $0.0\%$ | Pass |

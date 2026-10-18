@@ -39,6 +39,14 @@ pub fn run(args: &Args) -> Result<(), Failure> {
     let rate = rate_from(args)?;
 
     let mut engine = Engine::new(EngineConfig::default()).map_err(|err| err.to_string())?;
+    // Clips are placed in ticks of `rate`, so the timeline counts in it first.
+    if engine.project().timeline().frame_rate != rate {
+        engine
+            .apply(Command::Edit(EditCommand::SetSequenceRate {
+                frame_rate: rate,
+            }))
+            .map_err(|err| err.to_string())?;
+    }
     engine
         .apply(Command::Edit(EditCommand::AddTrack {
             kind: TrackKind::Video,
@@ -202,5 +210,45 @@ mod tests {
             assert!(rate.is_valid(), "{key} is not a valid rate");
             assert!(rate.as_f64() > 0.0, "{key} is not positive");
         }
+    }
+
+    /// WHY: `aria new out.aria clip.mp4 --fps 60` failed with "rate mismatch:
+    /// expected 24/1, got 60/1": the timeline stayed at the default rate while
+    /// the clips were placed in ticks of the requested one. The written project
+    /// counts in the requested rate and its clip spans the file at that rate.
+    #[test]
+    fn a_project_with_media_is_written_at_the_requested_rate() {
+        let media = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/fixture-640x360-30fps-3s.mp4");
+        let dir = std::env::temp_dir().join("aria-cli-new-rate");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("scratch directory");
+        let out = dir.join("rate.aria");
+        let args = Args::parse([
+            "new",
+            out.to_str().expect("utf-8 path"),
+            media.to_str().expect("utf-8 path"),
+            "--fps",
+            "60",
+        ])
+        .expect("arguments parse");
+        let result = run(&args);
+        let project = result.map(|()| aria_models::Project::load_from_file(&out));
+        let _ = std::fs::remove_dir_all(&dir);
+        let project = project
+            .unwrap_or_else(|err| panic!("aria new failed: {}", err.message()))
+            .expect("the written project loads");
+        let timeline = project.timeline();
+        assert_eq!(timeline.frame_rate, Rational::new(60, 1));
+        let clip = timeline
+            .tracks_ordered()
+            .flat_map(|track| track.clips_ordered())
+            .next()
+            .expect("the clip was placed");
+        assert_eq!(clip.timeline.start.value, 0);
+        assert_eq!(
+            clip.timeline.duration,
+            RationalTime::new(180, Rational::new(60, 1))
+        );
     }
 }

@@ -8,9 +8,10 @@ pub mod tab_host;
 mod tab_strip;
 pub mod tabs;
 
+use aria_plugin::PanelLocation;
 use gpui::{
-    Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled,
-    div, px,
+    AnyElement, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
+    ParentElement, StatefulInteractiveElement as _, Styled, div, px,
 };
 
 use crate::app::AppState;
@@ -36,6 +37,18 @@ pub fn render(
         )
     };
 
+    // The stacked sub panels (look picker, render cost, reports) scroll with
+    // the body, so a short frame reaches them.
+    let subs: Vec<AnyElement> = {
+        let read = state.read(cx);
+        crate::plugins::panel_host::host_of(&read.ctx)
+            .map(|host| host.sub_entries_at(PanelLocation::Inspector, read))
+            .unwrap_or_default()
+    }
+    .into_iter()
+    .map(|sub| sub(state, cx))
+    .collect();
+
     div()
         .id("inspector")
         .size_full()
@@ -46,11 +59,18 @@ pub fn render(
         .border_color(theme.border)
         .child(match selected {
             Some(clip) => {
-                clip_body(&theme, clip, tab, rate.num, rate.den, state, cx).into_any_element()
+                clip_body(&theme, clip, tab, rate.num, rate.den, subs, state, cx).into_any_element()
             }
-            None => {
-                sequence_body(&theme, duration_ticks, rate.num, rate.den, canvas).into_any_element()
-            }
+            None => scroller()
+                .child(sequence_body(
+                    &theme,
+                    duration_ticks,
+                    rate.num,
+                    rate.den,
+                    canvas,
+                ))
+                .children(subs)
+                .into_any_element(),
         })
         .on_mouse_down(
             MouseButton::Left,
@@ -92,8 +112,6 @@ fn sequence_body(
     use crate::timecode::format_ticks;
 
     div()
-        .flex_1()
-        .min_h_0()
         .flex()
         .flex_col()
         .p(px(Theme::SPACE_MD))
@@ -118,12 +136,24 @@ fn sequence_body(
         ))
 }
 
+/// The region under the tab row that scrolls: the tab's body, then the
+/// stacked sub panels.
+fn scroller() -> gpui::Stateful<gpui::Div> {
+    div()
+        .id("inspector-body")
+        .flex_1()
+        .min_h_0()
+        .overflow_y_scroll()
+}
+
+#[allow(clippy::too_many_arguments)]
 fn clip_body(
     theme: &Theme,
     clip: UiClip,
     requested: String,
     fps_num: i32,
     fps_den: i32,
+    subs: Vec<AnyElement>,
     state: &Entity<AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
@@ -153,25 +183,26 @@ fn clip_body(
             cx,
         ))
         .child(
-            div()
-                .flex_1()
-                .min_h_0()
-                .p(px(Theme::SPACE_MD))
-                .child(match active_body {
-                    // The tab's id is the animation's id, so switching tabs is a
-                    // new element and the incoming body fades up instead of
-                    // replacing the outgoing one between two frames.
-                    Some(body) => motion::fade_quick(
-                        motion::MotionKey::new("insp-body", &active_id),
-                        div()
-                            .flex()
-                            .flex_col()
-                            .gap(px(Theme::SPACE_MD))
-                            .child(body(&theme, &clip, fps_num, fps_den, state, cx)),
-                    )
-                    .into_any_element(),
-                    None => empty(&theme).into_any_element(),
-                }),
+            // A tab taller than its frame scrolls under the tab row.
+            scroller()
+                .child(
+                    div().p(px(Theme::SPACE_MD)).child(match active_body {
+                        // The tab's id is the animation's id, so switching tabs is a
+                        // new element and the incoming body fades up instead of
+                        // replacing the outgoing one between two frames.
+                        Some(body) => motion::fade_quick(
+                            motion::MotionKey::new("insp-body", &active_id),
+                            div()
+                                .flex()
+                                .flex_col()
+                                .gap(px(Theme::SPACE_MD))
+                                .child(body(&theme, &clip, fps_num, fps_den, state, cx)),
+                        )
+                        .into_any_element(),
+                        None => empty(&theme).into_any_element(),
+                    }),
+                )
+                .children(subs),
         )
 }
 

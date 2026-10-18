@@ -324,13 +324,11 @@ impl GpuScopes {
         });
         let mut encoder = self
             .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("aria.scopes"),
-            });
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
         encoder.clear_buffer(&counts.storage, 0, None);
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("aria.scopes"),
+                label: None,
                 timestamp_writes: None,
             });
             pass.set_pipeline(&self.pipeline);

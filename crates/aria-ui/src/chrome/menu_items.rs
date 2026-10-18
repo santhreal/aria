@@ -816,42 +816,49 @@ static VIEW_ITEMS: &[MenuItem] = &[
         s.toggle_paused_resolution(cx)
     })
     .under("Resolution"),
+    MenuItem::new("view-split", "Split Viewer", |_, s, _| {
+        s.toggle_viewer_split()
+    })
+    .checked(|_, s| s.sources.split())
+    .under(VIEWER_DISPLAY),
     MenuItem::new("view-rulers", "Show Rulers", |_, s, _| s.toggle_rulers())
         .key("key-rulers")
-        .checked(|_, s| s.viewer_guides.rulers),
+        .checked(|_, s| s.viewer_guides.rulers)
+        .under(VIEWER_DISPLAY),
     MenuItem::new("view-guides-show", "Show Guides", |_, s, _| {
         s.toggle_guides_shown()
     })
-    .checked(|_, s| !s.viewer_guides.hidden),
+    .checked(|_, s| !s.viewer_guides.hidden)
+    .under(VIEWER_DISPLAY),
+    MenuItem::new("view-guide-snap", "Snap to Guides", |_, s, _| {
+        s.toggle_guide_snap()
+    })
+    .checked(|_, s| s.viewer_guides.snap)
+    .under(VIEWER_DISPLAY),
     MenuItem::new("view-guides-clear", "Clear Guides", |_, s, _| {
         s.clear_guides()
-    }),
+    })
+    .under(VIEWER_DISPLAY),
     MenuItem::new("view-title-safe", "Title Safe", |_, s, _| {
         s.toggle_title_safe()
     })
     .checked(|_, s| s.preview_view.title_safe)
-    .under("Safe Margins"),
+    .under(VIEWER_DISPLAY),
     MenuItem::new("view-action-safe", "Action Safe", |_, s, _| {
         s.toggle_action_safe()
     })
     .checked(|_, s| s.preview_view.action_safe)
-    .under("Safe Margins"),
-    MenuItem::new("view-guide-snap", "Snap to Guides", |_, s, _| {
-        s.toggle_guide_snap()
-    })
-    .checked(|_, s| s.viewer_guides.snap),
+    .under(VIEWER_DISPLAY),
     MenuItem::new("view-transparency-grid", "Transparency Grid", |_, s, cx| {
         s.toggle_transparency_grid(cx)
     })
-    .checked(|_, s| s.transparency_grid_on()),
+    .checked(|_, s| s.transparency_grid_on())
+    .under(VIEWER_DISPLAY),
+    MenuItem::new("view-grid", "Grid", |_, s, _| s.toggle_preview_grid())
+        .checked(|_, s| s.preview_view.grid)
+        .under(VIEWER_DISPLAY),
     MenuItem::new("view-proxies", "Proxies", |_, s, cx| s.toggle_proxies(cx))
         .checked(|_, s| s.proxies_on()),
-    MenuItem::new("view-grid", "Grid", |_, s, _| s.toggle_preview_grid())
-        .checked(|_, s| s.preview_view.grid),
-    MenuItem::new("view-split", "Split Viewer", |_, s, _| {
-        s.toggle_viewer_split()
-    })
-    .checked(|_, s| s.sources.split()),
     MenuItem::new("view-compare-frame", "Current Frame", |_, s, cx| {
         s.compare_with_frame(cx)
     })
@@ -970,6 +977,10 @@ static VIEW_ITEMS: &[MenuItem] = &[
 /// The View submenu holding the timeline's thumbnail, waveform, and follow
 /// choices.
 pub(crate) const TIMELINE_DISPLAY: &str = "Timeline Display Settings";
+
+/// The View submenu holding the Viewer's split, rulers, guides, safe margins
+/// and grids.
+pub(crate) const VIEWER_DISPLAY: &str = "Viewer Display Settings";
 
 /// The View submenu choosing what the scopes' waveform monitor shows.
 pub(crate) const SCOPE_WAVEFORM: &str = "Scope Waveform";

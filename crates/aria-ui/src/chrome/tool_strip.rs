@@ -1,6 +1,6 @@
-//! The editor tool bar: the tools, the snapping and linked-selection toggles,
-//! the timeline display settings, the edit mode, the workspace switcher, and
-//! Export.
+//! The editor tool bar: the tools, the edit mode, the workspace switcher, and
+//! Export. Snapping, linked selection and the timeline display settings are
+//! the Timeline header's (`panels/timeline/header.rs`), drawn there only.
 //!
 //! Moved out of `chrome.rs` so the bar's frame and the strip's contents are
 //! separate files. Every control here fades between its rest and hover colours
@@ -17,7 +17,8 @@ use crate::fluent::FluentBuilder;
 use crate::motion;
 use crate::shell::Shell;
 use crate::theme::Theme;
-use crate::tool_catalog::tool_specs;
+use crate::tool_catalog::ToolGroup;
+use crate::tooltip::WithTip as _;
 use crate::types::{AppMenu, EditMode};
 
 const TOOL_H: f32 = 36.0;
@@ -27,30 +28,31 @@ pub(super) fn tool_bar(
     state: &Entity<AppState>,
     cx: &mut Context<Shell>,
 ) -> impl IntoElement {
-    let (tool, snap, variants_open, pen_variant, linked, mode) = {
+    let (tool, variants_open, pen_variant, mode) = {
         let state = state.read(cx);
         (
             state.tool,
-            state.snap_enabled,
             state.tool_variants_open(),
             state.pen_variant(),
-            state.linked_selection,
             state.edit_mode,
         )
     };
 
-    // Drawn from `tool_catalog::tool_specs()`, so a new tool cannot exist
-    // without a button, a glyph, or a tip: the strip is the table, not a copy of
-    // it. A loop rather than `map` because each button borrows `cx`, which
-    // cannot escape a `FnMut`.
-    let mut tools = Vec::with_capacity(tool_specs().len());
-    for spec in tool_specs() {
+    // One button per group, drawn from `tool_catalog::ToolGroup::ALL` and the
+    // rows behind it, so a new tool cannot exist without a button, a glyph, or
+    // a tip: the strip is the table, not a copy of it. A button shows the armed
+    // tool when it is in the group, else the group's first row. A loop rather
+    // than `map` because each button borrows `cx`, which cannot escape a
+    // `FnMut`.
+    let mut tools = Vec::with_capacity(ToolGroup::ALL.len());
+    for group in ToolGroup::ALL {
+        let shown = group.shown(tool);
         tools.push(
             spec_tool_btn(
                 theme,
-                spec,
-                tool == spec.tool,
-                variants_open == Some(spec.tool),
+                shown.spec(),
+                tool == shown,
+                variants_open == Some(shown),
                 pen_variant,
                 cx,
             )
@@ -60,6 +62,7 @@ pub(super) fn tool_bar(
 
     div()
         .id("tool-bar")
+        .debug_selector(|| "tool-bar".into())
         .h(px(TOOL_H))
         .w_full()
         .flex()
@@ -71,17 +74,6 @@ pub(super) fn tool_bar(
         .border_color(theme.border)
         .children(tools)
         .child(rule(theme))
-        .child(tool_btn("snap", crate::icons::MAGNET, snap, cx, |s| {
-            s.toggle_snapping()
-        }))
-        .child(tool_btn(
-            "linked-selection",
-            crate::icons::LINK,
-            linked,
-            cx,
-            |s| s.toggle_linked_selection(),
-        ))
-        .child(display_btn("timeline-display", theme, state, cx))
         .child(mode_btn(theme, mode, cx))
         .child(div().flex_1())
         .child(workspace_switcher(theme, state, cx))
@@ -107,9 +99,11 @@ fn spec_tool_btn(
 ) -> impl IntoElement {
     let id = spec.id;
     let item = spec.tool;
-    let has_variants = spec.has_variants;
+    let has_variants = item.has_variants();
     let key = motion::MotionKey::new("icon", id);
     crate::components::icon_button(id, spec.icon, theme)
+        .size(px(Theme::ICON_HIT_LARGE))
+        .debug_selector(move || id.into())
         .relative()
         .when(on, |el| {
             el.bg(motion::hover_blend(
@@ -197,9 +191,13 @@ fn variants_popover(
     let mut rows = Vec::with_capacity(variants.len());
     for (idx, &variant) in variants.iter().enumerate() {
         let active = match variant {
-            ToolVariant::Trim(t) => tool_active && t == spec.tool,
+            ToolVariant::Tool(t) => tool_active && t == spec.tool,
             ToolVariant::Pen(pv) => tool_active && pv == pen_variant,
         };
+        let shortcut = variant
+            .shortcut_control()
+            .and_then(crate::tooltip::tip_for)
+            .and_then(|tip| crate::tooltip::chord_label(&tip, cx));
         rows.push(
             div()
                 .id((spec.id, idx))
@@ -230,9 +228,7 @@ fn variants_popover(
                     }),
                 )
                 .child(variant.label())
-                .when(!variant.shortcut().is_empty(), |el| {
-                    el.child(div().text_color(theme.text_muted).child(variant.shortcut()))
-                })
+                .children(shortcut.map(|chord| div().text_color(theme.text_muted).child(chord)))
                 .into_any_element(),
         );
     }
@@ -254,33 +250,26 @@ fn variants_popover(
         .children(rows)
 }
 
-/// A toggle on a bar: an icon that reads lit while `on`, and runs `action` on
-/// a press. The tool bar and the timeline header draw their toggles with it.
-/// The Timeline Display Settings button `id`: a wrench that holds the View
-/// menu's Timeline Display Settings out under itself while pressed. The tool
-/// bar and the timeline header each draw one.
+/// The display button `id`: a wrench that holds the View menu's submenu
+/// `caption` out under itself while pressed. The Timeline header draws one
+/// for Timeline Display Settings, the Viewer one for Viewer Display Settings.
 pub(crate) fn display_btn(
     id: &'static str,
+    caption: &'static str,
     theme: &Theme,
     state: &Entity<AppState>,
     cx: &mut Context<Shell>,
 ) -> AnyElement {
     let on = state.read(cx).menu_owner == Some(id);
     let button = tool_btn(id, crate::icons::WRENCH, on, cx, move |s| {
-        s.toggle_timeline_display_menu(id)
+        s.toggle_display_menu(id, caption)
     })
     .into_any_element();
-    super::menu_view::submenu_under(
-        id,
-        AppMenu::View,
-        super::menu_items::TIMELINE_DISPLAY,
-        button,
-        theme,
-        state,
-        cx,
-    )
+    super::menu_view::submenu_under(id, AppMenu::View, caption, button, theme, state, cx)
 }
 
+/// A toggle on a bar: an icon that reads lit while `on`, and runs `action` on
+/// a press. The Timeline header draws its toggles with it.
 pub(crate) fn tool_btn(
     id: &'static str,
     path: &'static str,
@@ -288,28 +277,35 @@ pub(crate) fn tool_btn(
     cx: &mut Context<Shell>,
     action: impl Fn(&mut AppState) + 'static,
 ) -> impl IntoElement {
-    let theme = Theme::of(cx);
+    lit_icon(id, path, on, &Theme::of(cx)).on_mouse_down(
+        MouseButton::Left,
+        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+            this.state.update(cx, |state, _| action(state));
+            cx.notify();
+        }),
+    )
+}
+
+/// The look of a toggle: an icon control `id` that reads lit while `on`. The
+/// caller adds the press.
+pub(crate) fn lit_icon(
+    id: &'static str,
+    path: &'static str,
+    on: bool,
+    theme: &Theme,
+) -> gpui::Stateful<gpui::Div> {
     // The same key `icon_button` fades on: it owns the hover listener, and a
     // second one on the same element is not supported, so the selected look
     // reads that fade rather than starting another.
     let key = motion::MotionKey::new("icon", id);
-    crate::components::icon_button(id, path, &theme)
+    let (selected, active) = (theme.glass_selected_bg(), theme.element_active);
+    let text = theme.text;
+    crate::components::icon_button(id, path, theme)
         .debug_selector(move || id.into())
         .when(on, |el| {
-            el.bg(motion::hover_blend(
-                key,
-                theme.glass_selected_bg(),
-                theme.element_active,
-            ))
-            .text_color(theme.text)
+            el.bg(motion::hover_blend(key, selected, active))
+                .text_color(text)
         })
-        .on_mouse_down(
-            MouseButton::Left,
-            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                this.state.update(cx, |state, _| action(state));
-                cx.notify();
-            }),
-        )
 }
 
 fn word_icon(
@@ -365,6 +361,10 @@ fn mode_btn(theme: &Theme, mode: EditMode, cx: &mut Context<Shell>) -> impl Into
     let key = motion::MotionKey::new("mode", "edit-mode");
     div()
         .id("edit-mode")
+        .debug_selector(|| "edit-mode".into())
+        .when_some(crate::tooltip::builder("edit-mode"), |el, tip| {
+            el.with_tip(tip)
+        })
         .px(px(Theme::SPACE_SM))
         .py(px(Theme::SPACE_XS))
         .rounded(px(Theme::CONTROL_RADIUS))

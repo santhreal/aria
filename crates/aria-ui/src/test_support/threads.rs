@@ -165,6 +165,11 @@ const THREAD_OWNERS: &[(&str, &str)] = &[
         "the preview worker: one render thread per session, fed by a job queue \
          and stopped when the session drops its handle",
     ),
+    (
+        "crates/aria-ui/src/app/render_bar.rs",
+        "the render bar: at most one thread drains the latest segment request, \
+         is never joined, and reports through a handoff wake",
+    ),
 ];
 
 /// **Handing work to a thread belongs to one module.**

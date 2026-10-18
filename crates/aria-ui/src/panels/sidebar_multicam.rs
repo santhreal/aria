@@ -99,13 +99,33 @@ fn offset_label(offset: i64) -> String {
     }
 }
 
-/// Render the multicam section in the pool sidebar: button to create from selected items,
-/// list of multicam groups with their angle count, and angle switch buttons.
+/// The pool action that makes a multicam group from the selected items. The
+/// pool's footer draws it beside the folder button.
+pub fn create_button(
+    theme: &Theme,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> gpui::AnyElement {
+    components::icon_button("create-multicam-group", crate::icons::LAYERS, theme)
+        .size(px(Theme::ICON_HIT_ROW))
+        .debug_selector(|| "create-multicam-group".into())
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                this.state
+                    .update(cx, |state, _| press(state, Pick::MulticamGroup));
+                cx.notify();
+            }),
+        )
+        .into_any_element()
+}
+
+/// The pool's multicam groups, each with its angle count and angle switch
+/// buttons, or `None` while the project has none.
 pub fn multicam_section(
     theme: &Theme,
     state: &Entity<AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
-) -> gpui::AnyElement {
+) -> Option<gpui::AnyElement> {
     // The projection carries the groups and their cuts, so this panel never
     // reaches past it into the engine. Taken by value: the listeners below
     // need `cx` mutably, so no borrow of the entity may outlive this line.
@@ -145,15 +165,9 @@ pub fn multicam_section(
         groups.iter().map(|group| rows(read, group, fps)).collect()
     };
 
-    let create_button =
-        components::ghost_button("create-multicam-group", "+ Multicam Group", theme).on_mouse_down(
-            MouseButton::Left,
-            cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                this.state
-                    .update(cx, |state, _| press(state, Pick::MulticamGroup));
-                cx.notify();
-            }),
-        );
+    if groups.is_empty() {
+        return None;
+    }
 
     let mut group_elements = Vec::new();
     for (group, angles) in groups.iter().zip(strips) {
@@ -362,27 +376,13 @@ pub fn multicam_section(
         );
     }
 
-    div()
-        .id("sidebar-multicam")
-        .flex()
-        .flex_col()
-        .gap(px(Theme::SPACE_XS))
-        .child(
-            div()
-                .flex()
-                .flex_row()
-                .justify_between()
-                .items_center()
-                .child(create_button),
-        )
-        .when(!group_elements.is_empty(), |el| {
-            el.child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .gap(px(Theme::SPACE_XS))
-                    .children(group_elements),
-            )
-        })
-        .into_any_element()
+    Some(
+        div()
+            .id("sidebar-multicam")
+            .flex()
+            .flex_col()
+            .gap(px(Theme::SPACE_XS))
+            .children(group_elements)
+            .into_any_element(),
+    )
 }

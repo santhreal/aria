@@ -502,7 +502,7 @@ pub enum LayerContent<'a> {
     Nest(u64),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct CompositeLayer<'a> {
     pub content: LayerContent<'a>,
     pub placement: LayerPlacement,
@@ -555,6 +555,21 @@ pub struct LayerStencil<'a> {
     /// Motion-blur sample placements of the coverage, drawn and averaged as a
     /// layer's are; empty draws it once at `placement`.
     pub blur_passes: &'a [LayerPlacement],
+}
+
+impl LayerStencil<'static> {
+    /// An empty stencil with zero-sized placement.
+    pub const EMPTY: Self = Self {
+        masks: &[],
+        images: &[],
+        placement: LayerPlacement {
+            center: [0.0, 0.0],
+            size: [0.0, 0.0],
+            rotation: 0.0,
+            opacity: 0.0,
+        },
+        blur_passes: &[],
+    };
 }
 
 /// One mask of a [`LayerStencil`].
@@ -693,6 +708,33 @@ impl<'a> CompositorLayer<'a> {
     pub fn layer(layer: &'a CompositeLayer<'a>) -> Self {
         Self::Layer(layer)
     }
+}
+
+impl CompositeLayer<'static> {
+    /// An empty transparent solid layer with zero-sized placement.
+    pub const EMPTY: Self = Self {
+        content: LayerContent::Solid([0, 0, 0, 0]),
+        placement: LayerPlacement {
+            center: [0.0, 0.0],
+            size: [0.0, 0.0],
+            rotation: 0.0,
+            opacity: 0.0,
+        },
+        uv: FULL_UV,
+        effects: &[],
+        fx: LayerEffects::IDENTITY,
+        color_grade: None,
+        lut: None,
+        blend_mode: BlendMode::Normal,
+        styles: LayerStyles {
+            shadow: None,
+            glow: None,
+            outline: None,
+            background: None,
+        },
+        blur_passes: &[],
+        stencil: None,
+    };
 }
 
 impl<'a> CompositeLayer<'a> {

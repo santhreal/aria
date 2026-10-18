@@ -157,6 +157,7 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
         });
         window.draw();
         visible_frame_samples.push(t0.elapsed().as_secs_f64() * 1000.0);
+        settle(&mut app, &mut window);
 
         let t_undo = Instant::now();
         app.update(|cx| {
@@ -167,6 +168,7 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
         });
         window.draw();
         visible_frame_samples.push(t_undo.elapsed().as_secs_f64() * 1000.0);
+        settle(&mut app, &mut window);
     }
 
     drop(state);
@@ -226,4 +228,17 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
         ],
         notes,
     ))
+}
+
+/// Run the work an edit left behind outside the timed window: the still frame
+/// the drawn change asked the preview worker for, and the draw that shows it.
+///
+/// The test app runs background tasks on its one thread, so without this the
+/// next sample's `update` waits for the previous change's preview render. In the
+/// editor that render runs on a pool thread and the next edit does not wait for
+/// it. Each sample therefore starts from a settled editor and measures one edit.
+fn settle(app: &mut gpui::TestApp, window: &mut gpui::TestAppWindow<Shell>) {
+    app.run_until_parked();
+    window.draw();
+    app.run_until_parked();
 }

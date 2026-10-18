@@ -7,6 +7,7 @@
 //! it: under every insert in the inspector, and under the open one on a strip.
 //! An insert whose effect reads a key lists the lanes that may key it.
 
+use crate::components::Wraps as _;
 use crate::tooltip::WithTip as _;
 use gpui::{
     Div, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
@@ -209,7 +210,7 @@ fn header(
     div()
         .flex()
         .flex_row()
-        .flex_wrap()
+        .wraps()
         .items_center()
         .justify_between()
         .gap(px(Theme::SPACE_XXS))
@@ -298,7 +299,7 @@ fn keys(
             div()
                 .flex()
                 .flex_row()
-                .flex_wrap()
+                .wraps()
                 .gap(px(Theme::SPACE_XXS))
                 .children(chips),
         )
@@ -338,7 +339,7 @@ fn add_list(
     div()
         .flex()
         .flex_row()
-        .flex_wrap()
+        .wraps()
         .gap(px(Theme::SPACE_XXS))
         .px(px(Theme::SPACE_XS))
         .children(chips)

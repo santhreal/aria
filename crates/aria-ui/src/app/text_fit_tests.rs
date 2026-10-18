@@ -7,8 +7,9 @@
 //!
 //! The export sheet is drawn with a destination longer than the card, and
 //! every value row on it draws through the one cell this proves. Every docked
-//! frame is drawn with more tabs than fit, and each keeps its menu, its tabs
-//! and each tab's close button inside it.
+//! frame is drawn with more tabs than fit, and each keeps its menu, the tabs
+//! it draws, each drawn tab's close button, and the overflow control that
+//! lists the rest inside it.
 //!
 //! Not covered: the glyphs, which the test text system does not raster, where
 //! the ellipsis lands, and text outside the export sheet and the tab bar.
@@ -114,17 +115,30 @@ fn a_frame_holding_more_tabs_than_fit_keeps_its_menu_and_its_tabs(cx: &mut TestA
                 .map(|held| held.tabs.clone())
                 .unwrap_or_default()
         });
+        // A tab the row has no room for is listed by the overflow control,
+        // which `shell/tab_overflow_tests.rs` opens and reads.
+        let mut hidden = false;
         for panel in panels {
             let tab = format!("{id:?}: the {panel} tab");
+            let Some(bounds) = visual.debug_bounds(format!("dock-tab-{panel}").leak()) else {
+                hidden = true;
+                continue;
+            };
             offenders.extend(misplaced(visual, format!("dock-tab-{panel}"), frame, &tab));
-            if let Some(bounds) = visual.debug_bounds(format!("dock-tab-{panel}").leak()) {
-                offenders.extend(misplaced(
-                    visual,
-                    format!("dock-tab-close-{panel}"),
-                    bounds,
-                    &format!("{tab}'s close button"),
-                ));
-            }
+            offenders.extend(misplaced(
+                visual,
+                format!("dock-tab-close-{panel}"),
+                bounds,
+                &format!("{tab}'s close button"),
+            ));
+        }
+        if hidden {
+            offenders.extend(misplaced(
+                visual,
+                format!("dock-tab-more-button-{}", id.0),
+                frame,
+                &format!("{id:?}: the overflow control"),
+            ));
         }
     }
     assert!(offenders.is_empty(), "{}", offenders.join("\n"));

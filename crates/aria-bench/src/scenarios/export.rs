@@ -4,29 +4,27 @@ use std::time::Instant;
 
 use aria_compositor::GpuContext;
 use aria_models::{MediaSource, Project, Rational, RationalTime, TimeRange, TrackKind};
-use aria_render::{ExportSettings, Renderer, export_to_file_observed};
+use aria_render::{ExportSettings, Renderer, export_to_file_with_encoder_observed};
 
 use crate::fixtures::{FixtureId, ensure_fixture};
 use crate::scenarios::BenchContext;
 use crate::{Comparison, SampleSeries, ScenarioId, ScenarioReport, TargetEvaluation};
 
-const HW_H264_ENCODERS: &[&str] = &[
-    "nvh264enc",
-    "vaapih264enc",
-    "vah264enc",
-    "qsvh264enc",
-    "amfh264enc",
-    "vtenc_h264_hw",
-];
-
-fn probe_hw_h264_encoder() -> Option<&'static str> {
-    HW_H264_ENCODERS
-        .iter()
-        .copied()
-        .find(|&elem| crate::process::has_gst_element(elem))
-}
+const TARGET: &str =
+    "h264-1080p60 timeline to H.264 1080p on the hardware encoder: at least 4x real time";
 
 pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
+    // The app starts the decode device warm-up with its preview worker at
+    // startup, so an export from it opens a warm device. Without this the
+    // timed export carries the process's first CUDA initialisation (1.8 s on
+    // the Desktop machine), a startup cost `play-start` measures cold. The
+    // warm-up is awaited, not only started: a warm-up still running when the
+    // timer starts contends with the encoder's own device open.
+    #[cfg(target_os = "linux")]
+    {
+        aria_decoder::warm_up();
+        aria_decoder::await_warm_up();
+    }
     let h264 = ensure_fixture(&ctx.fixtures_dir, FixtureId::H264_1080p60)?;
     let scratch = ctx.ensure_scratch_subdir("export")?;
     let out_path = scratch.join("export-h264-1080p60.mp4");
@@ -64,13 +62,12 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     let mut frame_step_ms = Vec::with_capacity(export_frames as usize);
     let started = Instant::now();
     let mut last_tick = started;
-
-    let hw_elem = probe_hw_h264_encoder();
-    match export_to_file_observed(
+    match export_to_file_with_encoder_observed(
         &mut renderer,
         &project,
         &out_path,
         settings,
+        &mut aria_encoder::open_encoder,
         &mut |_done, _total| {
             let now = Instant::now();
             frame_step_ms.push(now.duration_since(last_tick).as_secs_f64() * 1000.0);
@@ -78,7 +75,9 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
             true
         },
     ) {
-        Ok(written_frames) => {
+        Ok(exported) => {
+            let written_frames = exported.frames;
+            let chosen = exported.encoder.to_string().replace('\n', "; ");
             let elapsed_secs = started.elapsed().as_secs_f64();
             let realtime_x = if elapsed_secs > 0.0 {
                 exported_duration_secs / elapsed_secs
@@ -90,31 +89,30 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
             let ratio_series =
                 SampleSeries::from_values("export_realtime_x", "x_realtime", vec![realtime_x]);
 
-            let target = match hw_elem {
-                Some(_elem) => TargetEvaluation::measured(
+            let target = match exported.encoder.hardware {
+                Some(true) => TargetEvaluation::measured(
                     "hw_export_realtime_x",
-                    "h264-1080p60 timeline to H.264 1080p on the hardware encoder: at least 4x real time",
+                    TARGET,
                     Comparison::AtLeast,
                     4.0,
                     "x_realtime",
                     realtime_x,
                 ),
-                None => TargetEvaluation::skipped(
+                _ => TargetEvaluation::skipped(
                     "hw_export_realtime_x",
-                    "h264-1080p60 timeline to H.264 1080p on the hardware encoder: at least 4x real time",
+                    TARGET,
                     Comparison::AtLeast,
                     4.0,
                     "x_realtime",
                     format!(
-                        "No GStreamer hardware H.264 encoder element ({}) is installed on this host; software x264enc exported at {realtime_x:.2}x realtime",
-                        HW_H264_ENCODERS.join(", ")
+                        "No hardware H.264 encoder opens on this host; exported with {chosen} at {realtime_x:.2}x realtime"
                     ),
                     false,
                 ),
             };
 
             let notes = vec![format!(
-                "Exported {written_frames} frames ({exported_duration_secs:.2} s) of h264-1080p60 in {elapsed_secs:.2} s ({realtime_x:.2}x realtime, frame p50={:.2} ms)",
+                "Exported {written_frames} frames ({exported_duration_secs:.2} s) of h264-1080p60 with {chosen} in {elapsed_secs:.2} s ({realtime_x:.2}x realtime, frame p50={:.2} ms)",
                 frame_series.p50
             )];
 
@@ -148,19 +146,16 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
 
             let target = TargetEvaluation::skipped(
                 "hw_export_realtime_x",
-                "h264-1080p60 timeline to H.264 1080p on the hardware encoder: at least 4x real time",
+                TARGET,
                 Comparison::AtLeast,
                 4.0,
                 "x_realtime",
-                format!(
-                    "export_to_file_observed failed with '{export_err}': crates/aria-encoder/src/gst.rs:253 fn pick_encoder(codec: VideoCodec) -> Result<String, EncodeError> selects the first element present in gst::ElementFactory::find (here {:?}) without probing gst::ElementFactory::make(name).build() or falling back to x264enc when hardware encoder initialization is unavailable in the headless session",
-                    hw_elem.unwrap_or("nvh264enc")
-                ),
+                format!("export_to_file_with_encoder_observed failed: {export_err}"),
                 false,
             );
 
             let notes = vec![format!(
-                "export_to_file_observed returned '{export_err}'; render-only pass across {export_frames} frames completed in {render_elapsed:.2} s ({render_realtime_x:.2}x realtime, frame p50={:.2} ms)",
+                "export_to_file_with_encoder_observed returned '{export_err}'; render-only pass across {export_frames} frames completed in {render_elapsed:.2} s ({render_realtime_x:.2}x realtime, frame p50={:.2} ms)",
                 render_series.p50
             )];
 

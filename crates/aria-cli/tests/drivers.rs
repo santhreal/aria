@@ -6,20 +6,16 @@
 //! keyframed value in the frame. Does not cover drivers in plugin languages,
 //! which the command line does not load.
 
-use std::path::{Path, PathBuf};
-use std::process::Command;
+mod support;
+
+use std::ffi::OsStr;
+use std::path::Path;
 
 use aria_models::{ClipParam, DriverCode, Generator, Project, Rational, TimeRange, TrackKind};
 use aria_render::{Renderer, decode_png};
+use support::{aria, scratch};
 
 const FAILED: &str = "aria: warning: the driver on Backdrop opacity failed";
-
-fn scratch(tag: &str) -> PathBuf {
-    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("aria-cli-drivers-{tag}"));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).expect("create the scratch directory");
-    dir
-}
 
 /// A red solid named "Backdrop" on 0..2 s, its opacity driven by `driver`.
 fn project(driver: Option<&str>) -> Project {
@@ -57,13 +53,15 @@ fn frame(dir: &Path, name: &str, project: &Project) -> ([u8; 4], String) {
     let path = dir.join(format!("{name}.aria"));
     project.save_to_file(&path).expect("save the project");
     let out = dir.join(format!("{name}.png"));
-    let output = Command::new(env!("CARGO_BIN_EXE_aria"))
-        .arg("frame")
-        .arg(&path)
-        .arg(&out)
-        .args(["--at", "0.5", "--fit", "64x36"])
-        .output()
-        .expect("run aria");
+    let output = aria([
+        OsStr::new("frame"),
+        path.as_os_str(),
+        out.as_os_str(),
+        OsStr::new("--at"),
+        OsStr::new("0.5"),
+        OsStr::new("--fit"),
+        OsStr::new("64x36"),
+    ]);
     let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
     assert!(output.status.success(), "{name}: {stderr}");
     let image = decode_png(&std::fs::read(&out).expect("read the frame")).expect("decode it");
@@ -79,7 +77,7 @@ fn the_command_line_evaluates_expression_drivers_and_reports_failures() {
     if Renderer::new_headless().is_err() {
         return;
     }
-    let dir = scratch("evaluates");
+    let dir = scratch("drivers-evaluates");
     let (plain, stderr) = frame(&dir, "plain", &project(None));
     assert!(!stderr.contains("aria: warning"), "{stderr}");
 

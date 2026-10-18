@@ -40,17 +40,6 @@ pub(crate) fn run_ffmpeg(args: &[&str], label: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Check whether a GStreamer element is installed via `gst-inspect-1.0`.
-pub(crate) fn has_gst_element(elem: &str) -> bool {
-    Command::new("gst-inspect-1.0")
-        .arg(elem)
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
-}
-
 /// Run `aria-bench memory` in an isolated child process so earlier scenarios
 /// in `aria-bench all` do not inflate `/proc/self/status` `VmRSS`.
 pub(crate) fn run_isolated_memory_child(

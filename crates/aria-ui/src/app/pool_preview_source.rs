@@ -10,13 +10,36 @@ impl AppState {
     /// The pointer is over `media` at `tick`. Drives the tile thumbnail, and the
     /// monitor too when it is open on that source — scrubbing a tile with its
     /// source loaded moves the big picture, as it does in the pool of every
-    /// editor that has one.
-    pub fn hover_pool_item(&mut self, media: u64, tick: i64) {
+    /// editor that has one. Returns whether the monitor moved.
+    pub fn hover_pool_item(&mut self, media: u64, tick: i64) -> bool {
         self.pool_hover = Some((media, tick));
-        if let Some(view) = self.sources.focused_mut()
-            && view.media == media
-        {
-            view.tick = tick.clamp(0, view.duration_ticks.saturating_sub(1).max(0));
+        let Some(view) = self.sources.focused_mut() else {
+            return false;
+        };
+        if view.media != media {
+            return false;
+        }
+        let before = view.tick;
+        view.tick = tick.clamp(0, view.duration_ticks.saturating_sub(1).max(0));
+        view.tick != before
+    }
+
+    /// The pointer moved over the tile of `media` to `tick`, or off every tile
+    /// with `None`. A moved monitor redraws every window in full; a tile alone
+    /// raises [`crate::app::PoolTileChanged`], which redraws only the bodies
+    /// that draw tiles.
+    pub fn hover_pool_tile(&mut self, hover: Option<(u64, i64)>, cx: &mut gpui::Context<AppState>) {
+        let monitor = match hover {
+            Some((media, tick)) => self.hover_pool_item(media, tick),
+            None => {
+                self.clear_pool_hover();
+                false
+            }
+        };
+        if monitor {
+            cx.notify();
+        } else {
+            cx.emit(crate::app::PoolTileChanged);
         }
     }
 

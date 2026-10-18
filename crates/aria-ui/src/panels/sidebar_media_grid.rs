@@ -6,6 +6,8 @@
 
 use super::*;
 use crate::app::pool_rows::PoolRows;
+use crate::components::Wraps as _;
+use crate::motion::RiseOnHover as _;
 use crate::surfaces::pool_pick;
 
 pub(super) fn media_grid(
@@ -102,7 +104,7 @@ pub(super) fn media_grid(
                 .flex()
                 .gap(px(Theme::SPACE_XS))
                 .flex_row()
-                .flex_wrap()
+                .wraps()
                 .children(tiles)
                 .into_any_element()
         }
@@ -193,6 +195,7 @@ pub(super) fn media_tile(
     });
     let tile = div()
         .id(gpui::ElementId::named_usize("media", id as usize))
+        .debug_selector(move || format!("pool-item-{index}"))
         .flex()
         // The compact view reads left to right, so the name and the facts share
         // one line instead of stacking into two.
@@ -223,9 +226,7 @@ pub(super) fn media_tile(
         // The tile rises under the pointer. A pool of near-identical
         // thumbnails needs the one that is about to be placed to stand out
         // from the ones beside it, and colour alone does not do it.
-        .relative()
-        .top(px(-gpui::motion::lerp(0.0, 2.0, lit)))
-        .on_hover(motion::hover_listener(key))
+        .rise_on_hover(2.0, lit, motion::hover_listener(key))
         // Drawing the picture is what asks for a decode, so a view that does not
         // show one costs nothing per item beyond its text.
         .when(
@@ -233,7 +234,10 @@ pub(super) fn media_tile(
             |el| el.child(thumbnail(&theme, state, item.id, item.duration_ticks, cx)),
         )
         .child(
+            // A name with no space to wrap at ends in an ellipsis at the
+            // tile's edge rather than drawing past the panel.
             div()
+                .min_w_0()
                 .flex()
                 .flex_row()
                 .items_center()
@@ -241,6 +245,7 @@ pub(super) fn media_tile(
                 .when_some(item.label, |el, label| {
                     el.child(
                         div()
+                            .flex_none()
                             .w(px(8.))
                             .h(px(8.))
                             .rounded(px(4.))
@@ -249,6 +254,8 @@ pub(super) fn media_tile(
                 })
                 .child(
                     div()
+                        .min_w_0()
+                        .truncate()
                         .text_size(Theme::TEXT_UI)
                         .text_color(theme.text)
                         .child(item.name.clone()),
@@ -372,7 +379,7 @@ pub(super) fn thumbnail(
             )
         })
         .when_some(image, |el, image| {
-            el.child(
+            el.child(crate::components::picture(
                 img(image)
                     .id(gpui::ElementId::named_usize(
                         "media-thumb-img",
@@ -380,7 +387,7 @@ pub(super) fn thumbnail(
                     ))
                     .object_fit(ObjectFit::Contain)
                     .size_full(),
-            )
+            ))
         })
         .on_mouse_move(cx.listener(move |this, event: &MouseMoveEvent, _, cx| {
             let Some((left, width)) = this.state.read(cx).pool_preview.rect(media) else {
@@ -391,9 +398,9 @@ pub(super) fn thumbnail(
             if this.state.read(cx).pool_hover == Some((media, tick)) {
                 return;
             }
-            this.state
-                .update(cx, |state, _| state.hover_pool_item(media, tick));
-            cx.notify();
+            this.state.update(cx, |state, cx| {
+                state.hover_pool_tile(Some((media, tick)), cx)
+            });
         }))
         .on_hover(cx.listener(move |this, hovered: &bool, _, cx| {
             if *hovered {
@@ -403,8 +410,8 @@ pub(super) fn thumbnail(
             if !ours {
                 return;
             }
-            this.state.update(cx, |state, _| state.clear_pool_hover());
-            cx.notify();
+            this.state
+                .update(cx, |state, cx| state.hover_pool_tile(None, cx));
         }))
         .into_any_element()
 }

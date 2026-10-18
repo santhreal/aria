@@ -349,6 +349,12 @@ impl VideoEncoder for WmfEncoder {
         unsafe { self.writer.Finalize() }
             .map_err(|e| EncodeError::Encode(format!("Finalize failed: {e}")))
     }
+
+    fn choice(&self) -> aria_core::EncoderChoice {
+        // The sink writer selects the H.264 transform (hardware transforms
+        // enabled) and does not report which one it loaded.
+        aria_core::EncoderChoice::only("Media Foundation sink writer", None)
+    }
 }
 
 /// Configure the writer's AAC output stream and its 16-bit PCM input type,

@@ -6,7 +6,6 @@
 //! placed element is offset from its parent: a measuring element records the
 //! picture area during paint, and the handles are placed from that record.
 
-use crate::tooltip::WithTip as _;
 use gpui::{
     Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, MouseMoveEvent,
     MouseUpEvent, ParentElement, StatefulInteractiveElement, Styled, canvas, div, px,
@@ -55,11 +54,9 @@ pub(super) fn measure(state: &Entity<AppState>) -> impl IntoElement {
                 f32::from(bounds.size.width),
                 f32::from(bounds.size.height),
             );
-            state.update(cx, |state, cx| {
-                if state.record_overlay_frame(rect) {
-                    cx.notify();
-                }
-            });
+            if state.update(cx, |state, _| state.record_overlay_frame(rect)) {
+                crate::shell::notify_after_draw(&state, cx);
+            }
         },
         |_, _, _, _| {},
     )
@@ -67,12 +64,13 @@ pub(super) fn measure(state: &Entity<AppState>) -> impl IntoElement {
     .size_full()
 }
 
-/// The handle-set picker: one chip per mode, the live one plated.
+/// The handle-set picker: one icon toggle per mode, the live one lit.
 ///
-/// Three chips rather than one cycling label, because the sets are mutually
-/// exclusive and an operator reaching for the mask handles should not have to
-/// read a label and press it twice to get there. The list comes from
-/// [`OverlayMode::ALL`], so a fourth handle set arrives with a chip.
+/// Three toggles rather than one cycling control, because the sets are
+/// mutually exclusive and an operator reaching for the mask handles should not
+/// have to press twice to get there. The list comes from
+/// [`OverlayMode::ALL`], and the match below has no default arm, so a fourth
+/// handle set does not build until it has an icon and a tip.
 pub(super) fn mode_picker(
     state: &Entity<AppState>,
     theme: &Theme,
@@ -80,52 +78,25 @@ pub(super) fn mode_picker(
 ) -> impl IntoElement {
     let live = state.read(cx).overlay_mode();
     let mut row = div()
-        .id("preview-handles")
         .flex()
         .flex_row()
         .items_center()
-        .gap(px(Theme::SPACE_XXS))
-        .when_some(crate::tooltip::builder("preview-handles"), |el, tip| {
-            el.with_tip(tip)
-        });
-    for (index, mode) in OverlayMode::ALL.into_iter().enumerate() {
-        let id = gpui::ElementId::from(("preview-handle-mode", index));
-        let key = crate::motion::MotionKey::new("handles", &id);
-        let selected = mode == live;
-        let (rest, hot) = if selected {
-            (theme.glass_selected_bg(), theme.element_active)
-        } else {
-            (theme.wash(0.0), theme.element_hover)
+        .gap(px(Theme::SPACE_XXS));
+    for mode in OverlayMode::ALL {
+        let (id, path) = match mode {
+            OverlayMode::Transform => ("preview-handles-transform", crate::icons::TRANSFORM),
+            OverlayMode::Crop => ("preview-handles-crop", crate::icons::CROP),
+            OverlayMode::Mask => ("preview-handles-mask", crate::icons::MASK),
         };
         row = row.child(
-            div()
-                .id(id)
-                .px(px(Theme::SPACE_XS))
-                .py(px(Theme::SPACE_XXS))
-                .rounded(px(Theme::CONTROL_RADIUS))
-                .text_size(Theme::TEXT_UI)
-                .text_color(crate::motion::hover_blend(
-                    key,
-                    if selected {
-                        theme.text
-                    } else {
-                        theme.text_muted
-                    },
-                    theme.text,
-                ))
-                .bg(crate::motion::hover_blend(key, rest, hot))
-                .cursor(gpui::CursorStyle::PointingHand)
-                .active(|style| style.opacity(0.92))
-                .on_hover(crate::motion::hover_listener(key))
-                .on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                        this.state
-                            .update(cx, |state, _| state.set_overlay_mode(mode));
-                        cx.notify();
-                    }),
-                )
-                .child(mode.label()),
+            crate::chrome::tool_strip::lit_icon(id, path, mode == live, theme).on_mouse_down(
+                MouseButton::Left,
+                cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                    this.state
+                        .update(cx, |state, _| state.set_overlay_mode(mode));
+                    cx.notify();
+                }),
+            ),
         );
     }
     row

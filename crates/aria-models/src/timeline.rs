@@ -329,6 +329,7 @@ impl Timeline {
 
         // 2. Resample tracks (clips, transitions, insert keyframes)
         for track in self.tracks.values_mut() {
+            track.touch();
             for insert in &mut track.audio_effects {
                 resample_insert(insert, old_rate, new_rate);
             }
@@ -395,8 +396,9 @@ impl Timeline {
     /// so an audio lane sinks to the audio floor, a text lane rises to the
     /// top, and the first video lane ever added becomes the main track and
     /// lands directly above the audio block.
-    pub fn add_track(&mut self, track: Track) -> TrackId {
+    pub fn add_track(&mut self, mut track: Track) -> TrackId {
         let id = track.id;
+        track.touch();
         self.tracks.insert(id, track);
         self.order.push(id);
         self.designate_main();
@@ -413,8 +415,9 @@ impl Timeline {
     /// track is lifted just above them, a text lane rises above the overlay
     /// block, and an audio track requested above visual lanes sinks back
     /// down.
-    pub fn insert_track(&mut self, track: Track, order_index: usize) -> TrackId {
+    pub fn insert_track(&mut self, mut track: Track, order_index: usize) -> TrackId {
         let id = track.id;
+        track.touch();
         self.tracks.insert(id, track);
         let idx = order_index.min(self.order.len());
         self.order.insert(idx, id);
@@ -451,7 +454,10 @@ impl Timeline {
                 continue;
             };
             if !track.kind.can_be_main() {
-                track.main = false;
+                if track.main {
+                    track.main = false;
+                    track.touch();
+                }
                 continue;
             }
             if first_video.is_none() {
@@ -460,13 +466,17 @@ impl Timeline {
             if track.main {
                 if seen_main {
                     track.main = false;
+                    track.touch();
                 } else {
                     seen_main = true;
                 }
             }
         }
-        if !seen_main && let Some(id) = first_video {
-            self.tracks.get_mut(&id).expect("track exists").main = true;
+        if !seen_main
+            && let Some(id) = first_video
+            && let Some(track) = self.lane_mut(&id)
+        {
+            track.main = true;
         }
     }
 
@@ -495,7 +505,16 @@ impl Timeline {
     }
 
     pub fn track_mut(&mut self, id: TrackId) -> Option<&mut Track> {
-        self.tracks.get_mut(&id)
+        self.lane_mut(&id)
+    }
+
+    /// The lane `id` for writing. Every `&mut Track` the timeline hands out
+    /// comes from here or touches the lane itself, so a lane's
+    /// [`revision`](Track::revision) moves with every write.
+    fn lane_mut(&mut self, id: &TrackId) -> Option<&mut Track> {
+        let track = self.tracks.get_mut(id)?;
+        track.touch();
+        Some(track)
     }
 
     /// Track IDs from bottom to top of the stack.
@@ -599,7 +618,10 @@ impl Timeline {
         removed: RemovedTrack,
         order_index: usize,
     ) -> Result<TrackId, ModelError> {
-        let RemovedTrack { track, detached } = removed;
+        let RemovedTrack {
+            mut track,
+            detached,
+        } = removed;
         let id = track.id;
         if self.tracks.contains_key(&id) {
             return Err(ModelError::InvalidRange);
@@ -612,6 +634,7 @@ impl Timeline {
         let clip_ids: Vec<ClipId> = track.clips().map(|c| c.id).collect();
         let idx = order_index.min(self.order.len());
         self.order.insert(idx, id);
+        track.touch();
         self.tracks.insert(id, track);
         // A restored main lane may collide with an interim promotion (undo of
         // remove-main); `designate_main` keeps the bottom-most claim and
@@ -647,11 +670,13 @@ impl Timeline {
             });
         }
 
-        let track = self.tracks.get_mut(&track_id).expect("track exists");
-
         if track.has_overlap(clip.timeline, None)? {
             return Err(ModelError::Overlap(track_id));
         }
+
+        let Some(track) = self.lane_mut(&track_id) else {
+            return Err(ModelError::UnknownTrack(track_id));
+        };
 
         let clip_id = clip.id;
         track.insert_clip(clip);
@@ -662,7 +687,7 @@ impl Timeline {
     /// Remove a clip by ID from wherever it lives.
     pub fn remove_clip(&mut self, clip_id: ClipId) -> Option<Clip> {
         let track_id = self.clip_index.remove(&clip_id)?;
-        self.tracks.get_mut(&track_id)?.remove_clip(clip_id)
+        self.lane_mut(&track_id)?.remove_clip(clip_id)
     }
     /// Replace an existing clip in place, preserving its id and lane.
     ///
@@ -675,7 +700,7 @@ impl Timeline {
             .ok_or(ModelError::UnknownClip(clip.id))?;
         let track = self
             .tracks
-            .get_mut(&track_id)
+            .get(&track_id)
             .ok_or(ModelError::UnknownTrack(track_id))?;
         if !track.kind.accepts_clip(&clip) {
             return Err(ModelError::IncompatibleTrackKind {
@@ -686,6 +711,9 @@ impl Timeline {
         if track.has_overlap(clip.timeline, Some(clip.id))? {
             return Err(ModelError::Overlap(track_id));
         }
+        let track = self
+            .lane_mut(&track_id)
+            .ok_or(ModelError::UnknownTrack(track_id))?;
         let old = track
             .insert_clip(clip)
             .expect("the clip index and track storage agree");
@@ -701,12 +729,12 @@ impl Timeline {
 
     pub fn clip_mut(&mut self, clip_id: ClipId) -> Option<&mut Clip> {
         let track_id = *self.clip_index.get(&clip_id)?;
-        self.tracks.get_mut(&track_id)?.clip_mut(clip_id)
+        self.lane_mut(&track_id)?.clip_mut(clip_id)
     }
 
     pub fn clip_timeline_mut(&mut self, clip_id: ClipId) -> Option<crate::ClipMut<'_>> {
         let track_id = *self.clip_index.get(&clip_id)?;
-        self.tracks.get_mut(&track_id)?.clip_timeline_mut(clip_id)
+        self.lane_mut(&track_id)?.clip_timeline_mut(clip_id)
     }
 
     /// The track that contains `clip_id`, if any.

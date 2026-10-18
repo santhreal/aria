@@ -10,7 +10,7 @@ mod pass_one;
 mod text;
 
 use composite::{Caches, composite_card, composite_leaf};
-use layers::{Nests, Realized};
+use layers::{Leaf, Nests, Pixels, Realized};
 
 use aria_compositor::{
     ColorGrade, CompositeLayer, CompositorConfig, CompositorLayer, FrameSink, ImageSink,
@@ -23,6 +23,7 @@ use crate::error::RenderError;
 use crate::scene::{LayerSource, Scene, SceneLayer, SceneLut};
 
 use super::effects::layer_effects;
+use super::look_ahead::Shown;
 use super::media_cache::layer_lut;
 use super::{FrameStats, PendingFrame, Renderer, SLOW_FRAME_LOG_MS, SeekPolicy};
 
@@ -80,6 +81,105 @@ impl RealizeScratch {
         self.levels.clear();
         self.item_levels.clear();
     }
+
+    /// Move every decoded frame out of `realized`, for its decoder to keep.
+    fn take_shown(&mut self, mut keep: impl FnMut(Shown)) {
+        let mut leaf = |leaf: Leaf| {
+            if let Pixels::Frame(shown) = leaf.pixels {
+                keep(shown);
+            }
+        };
+        for realized in self.realized.drain(..) {
+            match realized {
+                Realized::Layer(layer) => leaf(layer),
+                Realized::Transition {
+                    outgoing, incoming, ..
+                } => {
+                    leaf(*outgoing);
+                    leaf(*incoming);
+                }
+                Realized::Matte {
+                    content, stencil, ..
+                } => {
+                    leaf(*content);
+                    leaf(*stencil);
+                }
+                Realized::CanvasPass { .. } => {}
+            }
+        }
+    }
+}
+
+/// Fixed-capacity stack buffer with transparent `Vec` spill for per-frame
+/// realization tables, avoiding heap allocation on typical timelines while
+/// supporting arbitrary layer counts.
+struct InlineVec<T: Copy, const N: usize> {
+    inline: [T; N],
+    len: usize,
+    heap: Vec<T>,
+}
+
+impl<T: Copy, const N: usize> InlineVec<T, N> {
+    fn new(empty: T) -> Self {
+        Self {
+            inline: [empty; N],
+            len: 0,
+            heap: Vec::new(),
+        }
+    }
+
+    fn len(&self) -> usize {
+        if self.heap.is_empty() {
+            self.len
+        } else {
+            self.heap.len()
+        }
+    }
+
+    fn push(&mut self, item: T) {
+        if !self.heap.is_empty() {
+            self.heap.push(item);
+        } else if self.len < N {
+            self.inline[self.len] = item;
+            self.len += 1;
+        } else {
+            self.heap.reserve(N * 2);
+            self.heap.extend_from_slice(&self.inline[..self.len]);
+            self.heap.push(item);
+        }
+    }
+
+    fn as_slice(&self) -> &[T] {
+        if self.heap.is_empty() {
+            &self.inline[..self.len]
+        } else {
+            &self.heap
+        }
+    }
+}
+
+impl<T: Copy, const N: usize> std::ops::Index<usize> for InlineVec<T, N> {
+    type Output = T;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.as_slice()[index]
+    }
+}
+
+impl<T: Copy, const N: usize> std::ops::Index<Range<usize>> for InlineVec<T, N> {
+    type Output = [T];
+
+    fn index(&self, index: Range<usize>) -> &Self::Output {
+        &self.as_slice()[index]
+    }
+}
+
+impl<T: Copy, const N: usize> Extend<T> for InlineVec<T, N> {
+    fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
+        for item in iter {
+            self.push(item);
+        }
+    }
 }
 
 impl Renderer {
@@ -125,6 +225,9 @@ impl Renderer {
         // placement. Held in `realized` so the borrowed `CompositeLayer`s built
         // below stay valid through the composite call.
         scratch.begin_frame();
+        if self.text_memo.len() > 32 {
+            self.text_memo.clear();
+        }
         let mut nests = Nests::new(scene);
         let decode_ms =
             self.realize_scene_layers(project, scene, policy, &cancel, &mut nests, scratch)?;
@@ -135,11 +238,14 @@ impl Renderer {
             stickers: &self.stickers,
             lottie: &self.lottie,
             luts: &self.luts,
+            text_memo: &self.text_memo,
         };
-        let mut layer_storage: Vec<CompositeLayer<'_>> = Vec::new();
+        let mut layer_storage: InlineVec<CompositeLayer<'_>, 16> =
+            InlineVec::new(CompositeLayer::EMPTY);
         // The masks of canvas passes, which a pass holds by reference.
-        let mut stencils: Vec<LayerStencil<'_>> = Vec::new();
+        let mut stencils: InlineVec<LayerStencil<'_>, 8> = InlineVec::new(LayerStencil::EMPTY);
         // Phase 1: build all composite layers (indices only for transitions).
+        #[derive(Clone, Copy)]
         enum LayerJob<'a> {
             Plain {
                 storage_idx: usize,
@@ -167,8 +273,8 @@ impl Renderer {
         }
         // Each job with the clip whose reference target it draws into, `None`
         // for a job drawn onto the canvas.
-        let mut jobs: Vec<(Option<u64>, LayerJob<'_>)> = Vec::new();
-
+        let mut jobs: InlineVec<(Option<u64>, LayerJob<'_>), 16> =
+            InlineVec::new((None, LayerJob::Plain { storage_idx: 0 }));
         let level_scenes = std::iter::once(scene).chain(nests.scenes.iter().copied());
         for (level_scene, level) in level_scenes.zip(&scratch.levels) {
             let start = jobs.len();
@@ -275,9 +381,10 @@ impl Renderer {
         }
 
         // Phase 2: borrow storage immutably for compositor dispatch.
-        let items: Vec<CompositorLayer<'_>> = jobs
-            .iter()
-            .map(|(_, job)| match job {
+        let mut items: InlineVec<CompositorLayer<'_>, 16> =
+            InlineVec::new(CompositorLayer::Layer(&CompositeLayer::EMPTY));
+        for (_, job) in jobs.as_slice() {
+            let item = match job {
                 LayerJob::Plain { storage_idx } => {
                     CompositorLayer::layer(&layer_storage[*storage_idx])
                 }
@@ -318,12 +425,14 @@ impl Renderer {
                     invert: *invert,
                     softness: *softness,
                 },
-            })
-            .collect();
+            };
+            items.push(item);
+        }
         // A reference wraps the item it draws into a clip's target, and every
         // reference of a level is submitted before the items whose effects
         // read it. A level keeps the range its jobs hold.
-        let mut ordered: Vec<CompositorLayer<'_>> = Vec::with_capacity(items.len());
+        let mut ordered: InlineVec<CompositorLayer<'_>, 16> =
+            InlineVec::new(CompositorLayer::Layer(&CompositeLayer::EMPTY));
         for level in &scratch.item_levels {
             let level = || jobs[level.clone()].iter().zip(&items[level.clone()]);
             ordered.extend(level().filter_map(|((reference, _), item)| {
@@ -338,22 +447,24 @@ impl Renderer {
         // Each nest draws before the level that shows it. A nest is realized
         // after every nest before it, so the nests a nest shows come later in
         // the list and are submitted first.
-        let nested: Vec<CompositorLayer<'_>>;
+        let mut nested: InlineVec<CompositorLayer<'_>, 16> =
+            InlineVec::new(CompositorLayer::Layer(&CompositeLayer::EMPTY));
         let compositor_layers: &[CompositorLayer<'_>] = match scratch.item_levels.split_first() {
             Some((top, inner)) if !inner.is_empty() => {
-                nested = inner
-                    .iter()
-                    .enumerate()
-                    .rev()
-                    .map(|(nest, level)| CompositorLayer::Nest {
-                        nest: nest as u64,
-                        items: &ordered[level.clone()],
-                    })
-                    .chain(ordered[top.clone()].iter().copied())
-                    .collect();
-                &nested
+                nested.extend(
+                    inner
+                        .iter()
+                        .enumerate()
+                        .rev()
+                        .map(|(nest, level)| CompositorLayer::Nest {
+                            nest: nest as u64,
+                            items: &ordered[level.clone()],
+                        })
+                        .chain(ordered[top.clone()].iter().copied()),
+                );
+                nested.as_slice()
             }
-            _ => &ordered,
+            _ => ordered.as_slice(),
         };
 
         // Submission is the last cancellation boundary. The pending copy owns
@@ -412,7 +523,7 @@ impl Renderer {
             .expect("a frame submitted for readback retains its readback")
             .read_into(sink);
         if let Some(scratch) = pending.scratch.take() {
-            self.realize_scratch = scratch;
+            self.return_scratch(scratch);
         }
         result?;
         let composite_ms = pending.submitted_at.elapsed().as_secs_f64() * 1000.0;
@@ -424,10 +535,17 @@ impl Renderer {
     /// returns and the stats record the submission.
     pub(super) fn finish_pending_on_gpu(&mut self, mut pending: PendingFrame) {
         if let Some(scratch) = pending.scratch.take() {
-            self.realize_scratch = scratch;
+            self.return_scratch(scratch);
         }
         let composite_ms = pending.submitted_at.elapsed().as_secs_f64() * 1000.0;
         self.record_pending_stats(&pending, composite_ms);
+    }
+
+    /// Take back the scratch of a finished frame, returning the frames it drew
+    /// to their decoders (see [`Renderer::keep_shown`]).
+    fn return_scratch(&mut self, mut scratch: RealizeScratch) {
+        scratch.take_shown(|shown| self.keep_shown(shown));
+        self.realize_scratch = scratch;
     }
 
     pub(crate) fn finish_pending(

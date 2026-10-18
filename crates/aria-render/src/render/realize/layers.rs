@@ -11,7 +11,6 @@ use aria_compositor::{
     BlendMode, ColorGrade, FULL_UV, GlyphInstance, LayerEffects, LayerPlacement, LayerStencil,
     LayerStyles, RgbaImage, SdfLayer, StencilCoverage, StencilMask,
 };
-use aria_core::VideoFrame;
 use aria_models::{MaskKind, MatteSource, MediaId, Project};
 
 use crate::error::RenderError;
@@ -19,7 +18,7 @@ use crate::motion_blur::blur_placements;
 use crate::scene::{LayerSource, Scene, SceneLayer, SceneLut, SizeSpec};
 
 use super::super::effects::{blend_mode, layer_effects, layer_styles, shape_mask};
-use super::super::look_ahead::DecoderKey;
+use super::super::look_ahead::{DecoderKey, Shown};
 use super::super::{Renderer, SeekPolicy};
 use super::text;
 
@@ -67,7 +66,8 @@ pub(super) struct Leaf {
 
 /// What a [`Leaf`] draws: owned pixels, or a key into a renderer cache.
 pub(super) enum Pixels {
-    Frame(VideoFrame),
+    /// A decoded frame, returned to its decoder after the composite.
+    Frame(Shown),
     Still(MediaId),
     Sticker {
         asset: String,
@@ -78,6 +78,8 @@ pub(super) enum Pixels {
         frame_index: usize,
     },
     Bitmap(RgbaImage),
+    /// Static text bitmap cached in `Renderer::text_memo`.
+    CachedText(u64),
     Solid([u8; 4]),
     Sdf(SdfLayer),
     /// Per-character text: cluster bitmaps and instanced placements.
@@ -102,6 +104,7 @@ impl Pixels {
             | Self::Sticker { .. }
             | Self::Lottie { .. }
             | Self::Bitmap(_)
+            | Self::CachedText(_)
             | Self::Nest(_) => true,
             Self::Solid(_) | Self::Sdf(_) | Self::Glyphs { .. } => false,
         }
@@ -218,7 +221,15 @@ impl Renderer {
             } => {
                 // A side draws its text as one bitmap.
                 let animation = animation.as_ref().filter(|_| !side);
-                match text::realize_text(&mut self.text, layer, content, style, animation, canvas) {
+                match text::realize_text(
+                    &mut self.text,
+                    &mut self.text_memo,
+                    layer,
+                    content,
+                    style,
+                    animation,
+                    canvas,
+                ) {
                     Some(text) => text,
                     None => return Ok(None),
                 }
@@ -226,9 +237,9 @@ impl Renderer {
             LayerSource::Media { media, source_time } => {
                 let decode_started = std::time::Instant::now();
                 let key = DecoderKey::of(*media, layer);
-                let frame = self.decode(project, key, *source_time, policy)?;
+                let shown = self.decode(project, key, *source_time, policy)?;
                 *decode_ms += decode_started.elapsed().as_secs_f64() * 1000.0;
-                (Pixels::Frame(frame), fixed())
+                (Pixels::Frame(shown), fixed())
             }
             LayerSource::Still { media } => {
                 self.ensure_still(project, *media)?;

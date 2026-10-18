@@ -17,6 +17,7 @@ aria-commands = { path = "../aria-commands" }
 aria-compositor = { path = "../aria-compositor" }
 aria-engine = { path = "../aria-engine" }
 aria-core = { path = "../aria-core" }
+aria-decoder = { path = "../aria-decoder" }
 aria-detect = { path = "../aria-detect" }
 aria-encoder = { path = "../aria-encoder" }
 aria-models = { path = "../aria-models" }

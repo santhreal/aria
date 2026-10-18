@@ -312,6 +312,16 @@ impl VideoEncoder for GuardedEncoder {
             ))
         })
     }
+
+    /// The plugin encoder's own report; a panic in it fails the plugin and
+    /// reports the contribution id with the processor unknown.
+    fn choice(&self) -> aria_core::EncoderChoice {
+        let inner = &self.inner;
+        catch_unwind(AssertUnwindSafe(|| inner.choice())).unwrap_or_else(|payload| {
+            self.fail_on_panic("choice", payload.as_ref());
+            aria_core::EncoderChoice::only(self.id.clone(), None)
+        })
+    }
 }
 
 /// The lowercase extension of `path`, if it has one.

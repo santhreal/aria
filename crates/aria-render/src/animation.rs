@@ -62,9 +62,13 @@ pub(crate) fn apply_look_animations(
     local_tick_f: f64,
     rate: Rational,
 ) -> ClipTransform {
+    if anims.combo.is_none() && anims.entrance.is_none() && anims.exit.is_none() {
+        return base;
+    }
     let duration = duration_ticks.max(1);
     let base_window = look_animation_window_ticks(duration, rate);
-    let mut deltas = Vec::with_capacity(2);
+    let mut deltas = [AnimationDelta::IDENTITY; 2];
+    let mut delta_len = 0usize;
 
     if let Some(combo) = anims.combo {
         // Per-character (text_only) presets are sampled into TextAnimation at
@@ -72,7 +76,8 @@ pub(crate) fn apply_look_animations(
         if !is_per_character(&combo.id) {
             let phase = combo_phase(local_tick_f, rate, combo.speed);
             if let Some(delta) = sample_combo(&combo.id, phase) {
-                deltas.push(delta.with_intensity(combo.intensity));
+                deltas[delta_len] = delta.with_intensity(combo.intensity);
+                delta_len += 1;
             }
         }
     } else {
@@ -84,7 +89,8 @@ pub(crate) fn apply_look_animations(
                 let raw = (local_tick_f / window as f64).clamp(0.0, 1.0);
                 let eased = f64::from(Easing::EaseOut.apply(raw as f32));
                 if let Some(delta) = sample_entrance(&anim.id, eased) {
-                    deltas.push(delta.with_intensity(anim.intensity));
+                    deltas[delta_len] = delta.with_intensity(anim.intensity);
+                    delta_len += 1;
                 }
             }
         }
@@ -98,16 +104,17 @@ pub(crate) fn apply_look_animations(
                     .clamp(0.0, 1.0);
                 let eased = f64::from(Easing::EaseIn.apply(raw as f32));
                 if let Some(delta) = sample_exit(&anim.id, eased) {
-                    deltas.push(delta.with_intensity(anim.intensity));
+                    deltas[delta_len] = delta.with_intensity(anim.intensity);
+                    delta_len += 1;
                 }
             }
         }
     }
 
-    if deltas.is_empty() {
+    if delta_len == 0 {
         return base;
     }
-    compose_transform(base, &deltas)
+    compose_transform(base, &deltas[..delta_len])
 }
 
 fn compose_transform(base: ClipTransform, deltas: &[AnimationDelta]) -> ClipTransform {

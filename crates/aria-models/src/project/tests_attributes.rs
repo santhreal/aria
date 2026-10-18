@@ -239,3 +239,55 @@ fn the_intrinsic_groups_are_the_properties_every_clip_has() {
         ]
     );
 }
+
+fn clip_mut(project: &mut Project, id: ClipId) -> &mut crate::Clip {
+    project.timeline_mut().clip_mut(id).unwrap()
+}
+
+/// Every grade slider counts toward the grade group: moved off neutral, or
+/// keyed even at its neutral value. Back at neutral it no longer does. The
+/// opacity value counts the same way beside the blend mode.
+#[test]
+fn each_grade_slider_and_the_opacity_value_count_as_set() {
+    let (mut project, id) = media_clip();
+    for slider in crate::look::ColorAdjustments::SLIDERS {
+        let off = if slider.neutral == slider.max {
+            slider.min
+        } else {
+            slider.max
+        };
+        (slider.get_mut)(&mut clip_mut(&mut project, id).adjust).set_constant(off);
+        assert_eq!(
+            held(&project, id),
+            [ClipAttribute::Grade],
+            "{} off neutral",
+            slider.name
+        );
+        (slider.get_mut)(&mut clip_mut(&mut project, id).adjust).set_keyframe(
+            0,
+            slider.neutral,
+            crate::Easing::Linear,
+        );
+        assert_eq!(
+            held(&project, id),
+            [ClipAttribute::Grade],
+            "{} keyed",
+            slider.name
+        );
+        (slider.get_mut)(&mut clip_mut(&mut project, id).adjust).set_constant(slider.neutral);
+        assert_eq!(
+            held(&project, id),
+            Vec::<ClipAttribute>::new(),
+            "{} back at neutral",
+            slider.name
+        );
+    }
+    let fresh = AnimatedTransform::identity().opacity;
+    clip_mut(&mut project, id)
+        .transform
+        .opacity
+        .set_constant(0.5);
+    assert_eq!(held(&project, id), [ClipAttribute::Opacity]);
+    clip_mut(&mut project, id).transform.opacity = fresh;
+    assert_eq!(held(&project, id), Vec::<ClipAttribute>::new());
+}

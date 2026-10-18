@@ -105,9 +105,13 @@ impl CanvasTargets {
     }
 }
 
-fn clear_target(encoder: &mut wgpu::CommandEncoder, label: &'static str, view: &wgpu::TextureView) {
+fn clear_target(
+    encoder: &mut wgpu::CommandEncoder,
+    _label: &'static str,
+    view: &wgpu::TextureView,
+) {
     let _clear = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: Some(label),
+        label: None,
         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
             view,
             depth_slice: None,

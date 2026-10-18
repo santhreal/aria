@@ -1,6 +1,7 @@
 //! The Keyframe Velocity dialog: incoming and outgoing speed and influence of
 //! the selected keyframes, with Continuous to keep one speed on both sides.
 
+use crate::components::Wraps as _;
 use gpui::{
     Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled,
     div, px,
@@ -56,7 +57,6 @@ fn readout(theme: &Theme, label: &'static str, value: String) -> impl IntoElemen
         .child(
             div()
                 .text_size(Theme::TEXT_UI)
-                .font_family(theme.font_mono.clone())
                 .text_color(theme.text)
                 .child(value),
         )
@@ -90,7 +90,7 @@ fn side_block(
     );
     let speed_steps = div()
         .flex()
-        .flex_wrap()
+        .wraps()
         .gap(px(Theme::SPACE_XS))
         .child(zero)
         .children(SPEED_STEPS.iter().enumerate().map(|(i, &(delta, label))| {
@@ -111,7 +111,7 @@ fn side_block(
         }));
     let influence_presets = div()
         .flex()
-        .flex_wrap()
+        .wraps()
         .gap(px(Theme::SPACE_XS))
         .children(
             INFLUENCE_PRESETS

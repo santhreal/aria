@@ -3,10 +3,11 @@
 ## Themes
 
 Two themes from one token set: Dark (default) and Light. Settings >
-Appearance switches between them, or follows the operating system. A theme is a
+Appearance switches between them, or follows the operating system, and picks
+the accent family: Blue (default), Ember, Teal, or Graphite. A theme is a
 TOML file of token values; plugins and users add themes by dropping a file in
 `<data dir>/themes/`. [theme-tokens.md](../theme-tokens.md) lists the current
-tokens.
+tokens and each family's values.
 
 ### Dark surfaces
 
@@ -23,13 +24,16 @@ tokens.
 | `text_muted` | `#9a9a9a` | Labels, column headers |
 | `text_faint` | `#6b6b6b` | Disabled, hints |
 | `value` | `#5aa8ff` | Editable numbers (scrubbable values) |
-| `accent` | indigo, oklch 0.673 0.182 277 | Playhead, focus outline, selection, active tool |
+| `accent` | Blue: oklch 0.71 0.15 253 (`#57a5fc`) | Playhead, focus outline, selection, active tool |
 
-Light inverts the neutral ramp and keeps the hues. Clip colours come from the
-label set (Violet, Iris, Caribbean, Lavender, Cerulean, Forest, Rose, Mango,
-Purple, Blue, Teal, Magenta, Tan, Green, Brown, Yellow), each with a fill
-and a selected fill. Video clips default to Violet, audio clips to Forest,
-generators to Mango, nested sequences to Tan, adjustment clips to Lavender.
+Light inverts the neutral ramp and keeps the hues. No accent, label default, or
+track tint is violet. Graphite has no accent hue; its playhead is red.
+
+Clip colours come from the label set (Violet, Iris, Caribbean, Lavender,
+Cerulean, Forest, Rose, Mango, Purple, Blue, Teal, Magenta, Tan, Green, Brown,
+Yellow), each with a fill and a selected fill. Video clips default to Teal,
+audio clips to Forest, generators to Mango, nested sequences to Tan,
+adjustment clips to Yellow.
 
 ## Density
 
@@ -37,15 +41,22 @@ generators to Mango, nested sequences to Tan, adjustment clips to Lavender.
 | --- | --- |
 | UI text | 11 px |
 | Panel tab and title text | 12 px |
-| Timecode in the timeline header | 18 px tabular figures |
-| Row height (lists, properties, menus) | 22 px |
+| Timecode in the timeline header | 18 px tabular figures; 14 px under a 272 px outline column |
+| Row height (lists, properties, menus, palette, picker and export rows) | 22 px |
 | Tab row | 24 px |
-| Icon | 16 px in a 24 or 28 px hit box |
+| Icon | 16 px glyph in a 24 px hit box; 28 px in the tool bar; 20 px in a 22 px row |
+| Worded control in a 24 px control row | 24 px high, 4 px side padding |
 | Inputs | 20 px high |
 | Spacing grid | 4 px; 2 px for icon-to-text gaps |
+| Panel inset | 12 px |
 
-Text uses Geist; timecode, values, and frame counts use Geist Mono with
-tabular figures, so digits do not shift while a value changes.
+A row of ghost buttons, chips or clickable rows steps out by its controls'
+side padding, so the first label stands on the text edge of the column that
+holds the row. Menu and palette rows stand with no gap between them.
+
+Text uses Inter. Every run is shaped with tabular figures, so timecode, values,
+and frame counts keep their digit widths while they change and align in
+columns. A monospace face is used only for expression text and plugin logs.
 
 ## Controls
 
@@ -61,6 +72,11 @@ disabled control is drawn at 40 % opacity, keeps the arrow cursor, and states
 the reason in its tooltip. Every icon-only control has a tooltip naming the
 action and its chord, shown after 400 ms and hidden on press. After a press the
 tooltip stays hidden until the pointer leaves the control.
+
+A track header toggle that is on is drawn in the accent colour, with no plate;
+a Timeline header toggle lights as an armed tool in the tool bar does. A selected row in a list of choices holds the selected
+fill and shadow. A control that is shown only under the pointer keeps its
+place while hidden, so nothing moves when the pointer arrives.
 
 Keyboard focus draws a 1 px accent ring around the focused control. A pointer
 click does not leave a focus ring.

@@ -226,7 +226,7 @@ fn a_mask_cuts_every_content_kind_as_it_cuts_a_bitmap() {
             &gpu,
             &[lead, &[CompositorLayer::layer(layer)][..]].concat(),
         );
-        let cut = layer.clone().with_stencil(full_stencil(&masks, &[]));
+        let cut = (*layer).with_stencil(full_stencil(&masks, &[]));
         let got = render(
             &mut comp,
             &gpu,
@@ -281,7 +281,7 @@ fn a_mask_cuts_before_the_layers_styles() {
         .expect("render cut plate");
     let silhouette = straight(&silhouette);
 
-    let styled = cut.clone().with_styles(styles);
+    let styled = cut.with_styles(styles);
     let got = render(&mut comp, &gpu, &[CompositorLayer::layer(&styled)]);
     // A plate corner, outside the ellipse and its outline.
     assert_px("plate corner", &got, 12, 12, BLACK, 0);

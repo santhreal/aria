@@ -3,7 +3,7 @@
 //!
 //! The specs are plain consts: the reference presets in
 //! [`gpui::motion::presets`], and the editor's own in [`super`]. A caller writes
-//! `presets::FADE_IN` or `motion::OPEN`, not a lookup. This table makes the
+//! `presets::FADE_IN` or `motion::LOADER_WAIT`, not a lookup. This table makes the
 //! catalog reviewable: a spec that nothing spends is dead timing, a spec whose
 //! duration moved retimes the whole app, and a spec that no document mentions
 //! is a number nobody can look up. The tests below hold all three, and the row
@@ -11,7 +11,7 @@
 
 use gpui::motion::{Easing, MotionSpec, presets};
 
-use super::{CARET_BLINK, FLING, OPEN};
+use super::{CARET_BLINK, FLING, LOADER_WAIT};
 
 /// One spec, and the claims made about it.
 pub struct SpecRow {
@@ -101,16 +101,15 @@ pub const CATALOG: &[SpecRow] = &[
         symbol: "fn splash_out",
     },
     SpecRow {
-        name: "OPEN",
-        spec: OPEN,
+        name: "LOADER_WAIT",
+        spec: LOADER_WAIT,
         easing: Easing::EaseOutExpo,
         delay_ms: 0,
         duration_ms: 320,
-        purpose: "One stage of the editor opening: the bar, then the docked panels. \
-                  Staged by OPEN_STAGE_MS so the layout resolves in reading order \
-                  instead of all at once.",
-        file: "crates/aria-ui/src/shell/mod.rs",
-        symbol: "fn opening",
+        purpose: "The span a wait must outlast before a loader appears. Only the \
+                  span is read: a wait shorter than this leaves no loader on screen.",
+        file: "crates/aria-ui/src/motion_glide.rs",
+        symbol: "pub(crate) const WAIT",
     },
     SpecRow {
         name: "RESIZE",

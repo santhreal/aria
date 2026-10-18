@@ -50,6 +50,8 @@ pub(super) fn clip_bars(
         clip_ticks: i64,
     }
     let mut out = std::collections::HashMap::new();
+    #[cfg(test)]
+    super::lanes::built::media_rows(visible_rows);
     let scale = state.read(cx).ui_settings.timeline_display.waveform;
     if scale == crate::timeline_display::WaveformScale::Hidden {
         return out;
@@ -129,6 +131,8 @@ pub(super) fn clip_cells(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> std::collections::HashMap<u64, Vec<(f32, std::sync::Arc<gpui::RenderImage>)>> {
     let mut out = std::collections::HashMap::new();
+    #[cfg(test)]
+    super::lanes::built::media_rows(visible_rows);
     let visible: Vec<(u64, i64, i64, f32)> = visible_rows
         .iter()
         .filter_map(|row| store.sequence.tracks.get(*row))

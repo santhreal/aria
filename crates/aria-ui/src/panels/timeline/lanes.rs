@@ -6,8 +6,8 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use gpui::{
-    Bounds, Entity, HitboxBehavior, InteractiveElement, IntoElement, ParentElement, RenderImage,
-    ScrollDelta, ScrollWheelEvent, Styled, canvas, div, px,
+    Bounds, Entity, HitboxBehavior, InteractiveElement, IntoElement, ParentElement, ScrollDelta,
+    ScrollWheelEvent, Styled, canvas, div, px,
 };
 
 use super::COLLAPSED_H;
@@ -41,18 +41,19 @@ pub(super) fn lane_group(
     view_end: i64,
     playhead: f32,
     snap_guide: Option<crate::snap::SnapCandidate>,
-    waves: Arc<std::collections::HashMap<u64, Vec<f32>>>,
-    strips: Arc<std::collections::HashMap<u64, Vec<(f32, Arc<RenderImage>)>>>,
     reduced: bool,
     cx: &mut gpui::Context<Shell>,
 ) -> impl IntoElement + use<> {
-    let outline_w = state.read(cx).ui_settings.outline_width;
-    let mut y_cursor = -scroll_y;
+    let outline_w = state.read(cx).outline_drawn_width();
     let mut visible_lanes = Vec::new();
     let mut headers = Vec::new();
     let mut group_total_clips = 0usize;
     let total_lanes_in_group = row_range.len();
+    let row_h = crate::app::property_rows::PROPERTY_ROW_H;
 
+    // Every lane's height before any is placed: the video lanes stand on the
+    // divider, so where the first one starts depends on all of them.
+    let mut sized = Vec::with_capacity(row_range.len());
     for row in row_range {
         let track = &store.sequence.tracks[row];
         group_total_clips += track.clips.len();
@@ -79,7 +80,6 @@ pub(super) fn lane_group(
         // the rows past the travelling edge are not drawn until it reaches them.
         // The twirl button shows where the rows are going, not where they are.
         let twirled = !outline_rows.is_empty();
-        let row_h = crate::app::property_rows::PROPERTY_ROW_H;
         let outline_h = glide::glide(
             motion::MotionKey::new("lane-outline-h", track.id),
             outline_rows.len() as f32 * row_h,
@@ -87,6 +87,28 @@ pub(super) fn lane_group(
             reduced,
         );
         outline_rows.truncate((outline_h / row_h).ceil() as usize);
+        sized.push(SizedLane {
+            row,
+            target_h,
+            clip_h,
+            outline_h,
+            twirled,
+            outline_rows,
+        });
+    }
+    let total_content_h: f32 = sized.iter().map(|lane| lane.clip_h + lane.outline_h).sum();
+    let mut y_cursor = first_lane_top(is_audio, group_viewport_h, total_content_h) - scroll_y;
+
+    for SizedLane {
+        row,
+        target_h,
+        clip_h,
+        outline_h,
+        twirled,
+        outline_rows,
+    } in sized
+    {
+        let track = &store.sequence.tracks[row];
         let height = clip_h + outline_h;
         let y_top = y_cursor;
         let clip_y_bottom = y_cursor + clip_h;
@@ -106,28 +128,13 @@ pub(super) fn lane_group(
                 outline_w,
                 clip_h,
                 target_h,
+                track.clips.first().map(|clip| (clip.id, twirled)),
                 track_dragging,
                 drop_row,
                 cx,
             )
             .into_any_element(),
         );
-        if !track.collapsed
-            && let Some(first_clip) = track.clips.first()
-        {
-            headers.push(
-                super::property_rows::track_outline_twirl_button(
-                    theme,
-                    track.id,
-                    first_clip.id,
-                    twirled,
-                    y_top,
-                    clip_h,
-                    cx,
-                )
-                .into_any_element(),
-            );
-        }
         for (idx, outline) in outline_rows.iter().enumerate() {
             let row_y = clip_y_bottom + idx as f32 * row_h;
             let slot = (track.id as usize).wrapping_mul(131).wrapping_add(idx);
@@ -158,7 +165,41 @@ pub(super) fn lane_group(
         });
     }
 
-    let total_content_h = (y_cursor + scroll_y).max(0.0);
+    #[cfg(test)]
+    built::lanes(
+        &visible_lanes,
+        group_viewport_h,
+        built::View {
+            ticks: (view_start, view_end),
+            scroll_x,
+            pps,
+            fps,
+        },
+    );
+    // Waveform bars and filmstrip cells are built, and decodes asked for, for
+    // the lanes drawn in this group and no others: a lane scrolled out of the
+    // viewport costs nothing and takes none of the per-frame budget.
+    let drawn_rows: Vec<usize> = visible_lanes.iter().map(|lane| lane.row).collect();
+    let waves = Arc::new(super::media::clip_bars(
+        state,
+        store,
+        &drawn_rows,
+        pps,
+        fps,
+        view_start,
+        view_end,
+        cx,
+    ));
+    let strips = Arc::new(super::media::clip_cells(
+        state,
+        store,
+        &drawn_rows,
+        pps,
+        fps,
+        view_start,
+        view_end,
+        cx,
+    ));
     let (selected_edge, selected_gap, trim_feedback, tool) = {
         let app = state.read(cx);
         (
@@ -180,7 +221,6 @@ pub(super) fn lane_group(
     let bounds_for_canvas = canvas_bounds.clone();
     let badges: clip::FxBadges = Rc::default();
     let badges_for_paint = badges.clone();
-    let state_for_prepaint = state.clone();
     let state_for_paint = state.clone();
     let paint_theme = theme.clone();
     let paint_data = LaneGroupPaint {
@@ -230,12 +270,10 @@ pub(super) fn lane_group(
     .debug_selector(move || canvas_id.into())
     .child(
         canvas(
-            move |bounds, window, cx| {
+            move |bounds, window, _| {
                 bounds_for_canvas.set(bounds);
-                let w = f32::from(bounds.size.width).max(1.0);
-                state_for_prepaint.update(cx, |state, _| {
-                    state.timeline_viewport_w = w;
-                });
+                #[cfg(test)]
+                built::canvas(f32::from(bounds.size.width));
                 window.insert_hitbox(bounds, HitboxBehavior::Normal)
             },
             move |bounds, hitbox, window, cx| {
@@ -340,7 +378,7 @@ pub(super) fn lane_group(
                         state.scroll_video_lanes(-dy, max_scroll);
                     }
                 });
-                cx.notify();
+                this.redraw(crate::shell::Moved::View, cx);
             }
         }))
         .child(
@@ -355,4 +393,117 @@ pub(super) fn lane_group(
                 .children(headers),
         )
         .child(time_area)
+}
+
+/// One lane's drawn heights, measured before the group places any lane.
+struct SizedLane {
+    row: usize,
+    target_h: f32,
+    clip_h: f32,
+    outline_h: f32,
+    twirled: bool,
+    outline_rows: Vec<crate::app::property_rows::TimelineOutlineRow>,
+}
+
+/// Where a group's first lane starts in a viewport `viewport_h` tall whose
+/// lanes take `content_h`, before scrolling.
+///
+/// Audio lanes hang from the A/V divider at the top of their side. Video lanes
+/// number upward from V1 on the divider, so lanes shorter than their side stand
+/// at its bottom and the empty space is above the top lane.
+fn first_lane_top(is_audio: bool, viewport_h: f32, content_h: f32) -> f32 {
+    if is_audio {
+        0.0
+    } else {
+        (viewport_h - content_h).max(0.0)
+    }
+}
+
+#[cfg(test)]
+#[path = "lanes_anchor_tests.rs"]
+mod anchor_tests;
+
+/// What a draw built for each lane group, for a test that holds a lane or a
+/// clip outside the viewport to zero work.
+#[cfg(test)]
+pub(super) mod built {
+    use std::cell::RefCell;
+
+    use super::VisibleLane;
+
+    /// One lane a group built.
+    #[derive(Debug)]
+    pub(crate) struct Lane {
+        pub row: usize,
+        pub y_top: f32,
+        pub y_bottom: f32,
+        /// The height of the group's viewport the lane was built in.
+        pub viewport_h: f32,
+        /// The `[start, end)` ticks of each clip built in the lane.
+        pub clips: Vec<(i64, i64)>,
+        /// The view the lane was built for.
+        pub view: View,
+    }
+
+    /// The horizontal view a group was built for.
+    #[derive(Debug, Clone, Copy)]
+    pub(crate) struct View {
+        /// The `[start, end)` ticks the group took as on screen.
+        pub ticks: (i64, i64),
+        /// The pixel of the sequence at the canvas's left edge.
+        pub scroll_x: f32,
+        /// Pixels per second.
+        pub pps: f32,
+        /// Ticks per second.
+        pub fps: f32,
+    }
+
+    thread_local! {
+        static LANES: RefCell<Vec<Lane>> = const { RefCell::new(Vec::new()) };
+        static MEDIA_ROWS: RefCell<Vec<usize>> = const { RefCell::new(Vec::new()) };
+        static CANVASES: RefCell<Vec<f32>> = const { RefCell::new(Vec::new()) };
+    }
+
+    pub(in crate::panels::timeline) fn lanes(lanes: &[VisibleLane], viewport_h: f32, view: View) {
+        LANES.with_borrow_mut(|built| {
+            built.extend(lanes.iter().map(|lane| {
+                Lane {
+                    row: lane.row,
+                    y_top: lane.y_top,
+                    y_bottom: lane.y_bottom,
+                    viewport_h,
+                    clips: lane
+                        .clips
+                        .iter()
+                        .map(|clip| (clip.timeline_start_ticks, clip.timeline_end_ticks))
+                        .collect(),
+                    view,
+                }
+            }))
+        });
+    }
+
+    /// Records the rows waveform bars or filmstrip cells were built for.
+    pub(in crate::panels::timeline) fn media_rows(rows: &[usize]) {
+        MEDIA_ROWS.with_borrow_mut(|built| built.extend_from_slice(rows));
+    }
+
+    /// Records the width a lane group's canvas was laid out at.
+    pub(in crate::panels::timeline) fn canvas(width: f32) {
+        CANVASES.with_borrow_mut(|laid| laid.push(width));
+    }
+
+    /// The widths lane group canvases were laid out at since the last call.
+    pub(crate) fn take_canvases() -> Vec<f32> {
+        CANVASES.with_borrow_mut(std::mem::take)
+    }
+
+    /// The lanes, and the rows given waveform bars or filmstrip cells, built
+    /// since the last call.
+    pub(crate) fn take() -> (Vec<Lane>, Vec<usize>) {
+        (
+            LANES.with_borrow_mut(std::mem::take),
+            MEDIA_ROWS.with_borrow_mut(std::mem::take),
+        )
+    }
 }

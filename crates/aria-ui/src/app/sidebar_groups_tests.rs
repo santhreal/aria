@@ -4,10 +4,12 @@
 //! the panel to a tab of another group. What is asserted, for every group:
 //!
 //! - A click on the group chip opens the group's first tab.
-//! - The second row lists exactly the group's tabs when it has more than one,
-//!   and is not drawn when it has one.
+//! - The second row lists exactly the group's tabs when it has more than one
+//!   and they are not the pool's, and is not drawn otherwise.
 //! - A click on each listed tab opens it, and a click on the open group's
 //!   chip keeps that tab.
+//! - A group of pool tabs reaches each of them through the Media tab's Audio
+//!   only switch, so a third pool tab, which the switch cannot reach, fails.
 //!
 //! Not covered: the chip look, which `components::chip` draws.
 
@@ -37,18 +39,29 @@ fn each_group_opens_its_first_tab_and_lists_only_its_tabs(cx: &mut gpui::TestApp
         click(visual, &format!("sidebar-group-{}", group.label()));
         assert_eq!(open(visual), tabs[0], "{group:?} opened another tab");
 
+        let pool = tabs.iter().all(|tab| tab.shows_pool());
         for &tab in SidebarTab::ALL {
             let drawn = visual
                 .debug_bounds(intern(&format!("sidebar-tab-{}", tab.label())))
                 .is_some();
-            let listed = tabs.len() > 1 && tab.group() == group;
+            let listed = tabs.len() > 1 && !pool && tab.group() == group;
             assert_eq!(
                 drawn, listed,
                 "with {group:?} open, the {tab:?} chip drawn is {drawn}"
             );
         }
 
-        if tabs.len() > 1 {
+        if pool {
+            let mut reached = vec![open(visual)];
+            for _ in 1..tabs.len() {
+                click(visual, "pool-audio-only");
+                reached.push(open(visual));
+            }
+            reached.sort_by_key(|tab| tab.label());
+            let mut listed = tabs.to_vec();
+            listed.sort_by_key(|tab| tab.label());
+            assert_eq!(reached, listed, "the Audio only switch reached other tabs");
+        } else if tabs.len() > 1 {
             for &tab in tabs {
                 click(visual, &format!("sidebar-tab-{}", tab.label()));
                 assert_eq!(open(visual), tab, "a click on {tab:?} opened another tab");

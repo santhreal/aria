@@ -1,12 +1,13 @@
 //! The Viewer's tab row: Program first, one tab per open source with its close
-//! button, and the view toggles at the right end: Split, Rulers, the safe
-//! margins, the guides, and the transparency grid.
+//! button, and at the right end the display button, a wrench holding View >
+//! Viewer Display Settings (split, rulers, guides, safe margins, grids) under
+//! itself.
 
 use super::*;
-use crate::components::{ChipSize, chip};
 use crate::theme::Theme;
 
-/// One tab: an underline and full-strength text when it has the keys.
+/// One tab: an underline and full-strength text when it has the keys. A tab
+/// with no room for its label ends it in an ellipsis.
 fn tab(
     key: motion::MotionKey,
     label: gpui::SharedString,
@@ -16,6 +17,7 @@ fn tab(
     let lit = motion::hover_t(key);
     div()
         .id(key.element_id("viewer-tab"))
+        .min_w_0()
         .h_full()
         .flex()
         .items_center()
@@ -41,7 +43,7 @@ fn tab(
         .cursor(gpui::CursorStyle::PointingHand)
         .active(|style| style.opacity(0.92))
         .on_hover(motion::hover_listener(key))
-        .child(label)
+        .child(div().min_w_0().truncate().child(label))
 }
 
 /// The tab row over the Viewer's picture.
@@ -67,13 +69,10 @@ pub(super) fn tab_row(
             format!("{kind}: {}", view.name).into()
         })
         .collect();
-    let split = read.sources.split();
-    let rulers = read.viewer_guides.rulers;
-    let safe = read.safe_margins_on();
-    let guides = !read.viewer_guides.hidden;
-    let alpha = read.transparency_grid_on();
     let program_key = motion::MotionKey::new("viewer-tab", "program");
     let program = tab(program_key, "Program".into(), focus.is_none(), theme)
+        .flex_none()
+        .debug_selector(|| "viewer-tab-program".into())
         .when_some(crate::tooltip::builder("viewer-tab-program"), |el, tip| {
             el.with_tip(tip)
         })
@@ -88,6 +87,7 @@ pub(super) fn tab_row(
     let sources = labels.into_iter().enumerate().map(|(index, label)| {
         let key = motion::MotionKey::new("viewer-tab", index);
         tab(key, label, focus == Some(index), theme)
+            .debug_selector(move || format!("viewer-tab-source-{index}"))
             .when_some(crate::tooltip::builder("viewer-tab-source"), |el, tip| {
                 el.with_tip(tip)
             })
@@ -114,6 +114,7 @@ pub(super) fn tab_row(
                     crate::icons::CLOSE,
                     theme,
                 )
+                .flex_none()
                 .on_mouse_down(
                     MouseButton::Left,
                     cx.listener(move |this, _: &MouseDownEvent, _, cx| {
@@ -127,6 +128,7 @@ pub(super) fn tab_row(
             .into_any_element()
     });
     div()
+        .debug_selector(|| "viewer-tab-row".into())
         .h(px(Theme::TAB_ROW_HEIGHT))
         .flex_none()
         .flex()
@@ -139,65 +141,11 @@ pub(super) fn tab_row(
         .child(program)
         .children(sources)
         .child(div().flex_1())
-        .child(toggle_chip(
-            "viewer-split",
-            "Split",
-            split,
+        .child(crate::chrome::tool_strip::display_btn(
+            "viewer-display-settings",
+            crate::chrome::menu_items::VIEWER_DISPLAY,
             theme,
+            state,
             cx,
-            |state, _| state.toggle_viewer_split(),
         ))
-        .child(toggle_chip(
-            "viewer-rulers",
-            "Rulers",
-            rulers,
-            theme,
-            cx,
-            |state, _| state.toggle_rulers(),
-        ))
-        .child(toggle_chip(
-            "viewer-safe",
-            "Safe",
-            safe,
-            theme,
-            cx,
-            |state, _| state.toggle_safe_margins(),
-        ))
-        .child(toggle_chip(
-            "viewer-guides",
-            "Guides",
-            guides,
-            theme,
-            cx,
-            |state, _| state.toggle_guides_shown(),
-        ))
-        .child(toggle_chip(
-            "viewer-alpha",
-            "Alpha",
-            alpha,
-            theme,
-            cx,
-            |state, cx| state.toggle_transparency_grid(cx),
-        ))
-}
-
-/// One view toggle at the right end of the row, lit while it is on.
-fn toggle_chip(
-    id: &'static str,
-    label: &'static str,
-    on: bool,
-    theme: &Theme,
-    cx: &mut gpui::Context<crate::shell::Shell>,
-    toggle: fn(&mut AppState, &mut gpui::Context<AppState>),
-) -> impl IntoElement {
-    chip(id, label, on, ChipSize::Compact, theme)
-        .debug_selector(move || id.to_string())
-        .when_some(crate::tooltip::builder(id), |el, tip| el.with_tip(tip))
-        .on_mouse_down(
-            MouseButton::Left,
-            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                this.state.update(cx, toggle);
-                cx.notify();
-            }),
-        )
 }

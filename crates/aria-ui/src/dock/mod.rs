@@ -295,16 +295,19 @@ impl DockTree {
     pub const EDITING_RIGHT_PX: f32 = 300.0;
     /// Default width of the Audio Meters frame in the Editing workspace (`64 px`).
     pub const EDITING_METERS_PX: f32 = 64.0;
+    /// Share of the Editing column the lower row takes (`45 %`).
+    pub const EDITING_TIMELINE_SHARE: f32 = 0.45;
 
-    /// The shipped Editing layout (`docs/spec/layout.md` window diagram):
+    /// The shipped Editing layout (`docs/spec/layout.md` window diagram), six
+    /// panels:
     /// - Column split: upper area `55 %`, lower area `45 %`.
     /// - Upper row: left frame `320 px` (`Project | Effect Controls`), centre
-    ///   frame (`Viewer`, with `Audio Track Mixer` and `Assistant` tabs), and
-    ///   right column `300 px` (`Info | Effects & Presets | Character` as one
-    ///   tabbed frame per `docs/spec/layout.md`: "A frame holds one or more
-    ///   panels. Each panel has a tab.").
+    ///   frame (`Viewer`), and right column `300 px` (`Effects & Presets`).
     /// - Lower row: `Timeline` on the left, `Audio Meters` at `64 px` on the
     ///   right.
+    ///
+    /// Every other panel opens from the Window menu into its
+    /// [`default_frame_for`] frame.
     pub fn editing() -> Self {
         Self::editing_for_width(Self::DEFAULT_WINDOW_WIDTH)
     }
@@ -321,7 +324,7 @@ impl DockTree {
                 axis: Axis::Column,
                 children: vec![
                     (
-                        0.55,
+                        1.0 - Self::EDITING_TIMELINE_SHARE,
                         Node::Split {
                             axis: Axis::Row,
                             children: vec![
@@ -334,24 +337,17 @@ impl DockTree {
                                 ),
                                 (
                                     center_w,
-                                    Node::Frame(Frame::new(
-                                        FrameId::CENTER,
-                                        vec![PANEL_VIEWER, PANEL_MIXER, PANEL_ASSISTANT],
-                                    )),
+                                    Node::Frame(Frame::new(FrameId::CENTER, vec![PANEL_VIEWER])),
                                 ),
                                 (
                                     right_w,
-                                    Node::Frame(Frame::with_active(
-                                        FrameId::RIGHT,
-                                        vec![PANEL_INFO, PANEL_EFFECTS, PANEL_CHARACTER],
-                                        1,
-                                    )),
+                                    Node::Frame(Frame::new(FrameId::RIGHT, vec![PANEL_EFFECTS])),
                                 ),
                             ],
                         },
                     ),
                     (
-                        0.45,
+                        Self::EDITING_TIMELINE_SHARE,
                         Node::Split {
                             axis: Axis::Row,
                             children: vec![
@@ -706,29 +702,36 @@ impl DockTree {
         true
     }
 
-    /// Open `panel` if closed (into `default_frame_for(panel)` when that frame
-    /// exists in `root`, or into the largest frame in `root` otherwise), and
-    /// make it the active focused tab.
+    /// Open `panel` if closed and make it the active focused tab, placed as
+    /// [`Self::open_in`] places it for `default_frame_for(panel)`.
     pub fn open(&mut self, panel: PanelId) -> FrameId {
-        if panel == PANEL_AUDIO_METERS
-            && self.find(panel).is_none()
-            && self.frame(FrameId::METERS).is_some()
-        {
-            self.add_tab(FrameId::METERS, panel);
-            return FrameId::METERS;
-        }
         self.open_in(panel, default_frame_for(panel))
     }
 
-    /// Open `panel` using an explicit [`DefaultFrame`] preference.
+    /// Open `panel` if closed and make it the active focused tab. A closed
+    /// panel opens into the first of these that applies:
+    /// - Audio Meters with a `Bottom` preference: [`FrameId::METERS`],
+    ///   re-created right of the Timeline frame when closed.
+    /// - The frame `preferred.frame()` when `root` holds it.
+    /// - That frame re-created where the shipped layouts put it, when no frame
+    ///   holds its id (`dock/restore.rs`).
+    /// - The largest frame in `root`.
     pub fn open_in(&mut self, panel: PanelId, preferred: DefaultFrame) -> FrameId {
         let interned = intern(panel);
         if let Some(existing) = self.find(interned) {
             self.activate(interned);
             return existing;
         }
-        let target_id = if find_frame_ref(&self.root, preferred.frame()).is_some() {
-            preferred.frame()
+        if interned == PANEL_AUDIO_METERS && preferred == DefaultFrame::Bottom {
+            return self.open_meters(interned);
+        }
+        let preferred_id = preferred.frame();
+        let target_id = if find_frame_ref(&self.root, preferred_id).is_some() {
+            preferred_id
+        } else if self.frame(preferred_id).is_none()
+            && let Some(restored) = self.restore_frame(interned, preferred)
+        {
+            return restored;
         } else {
             self.largest_frame()
         };
@@ -833,7 +836,7 @@ impl DockTree {
 
         self.remove_panel_internal(interned);
         let fresh_id = self.fresh_frame_id();
-        if !split_frame_in_node(&mut self.root, target, fresh_id, interned, zone) {
+        if !split_frame_in_node(&mut self.root, target, fresh_id, interned, zone, 0.5) {
             self.normalize();
             return None;
         }
@@ -1357,22 +1360,25 @@ fn remove_from_node(node: &mut Node, panel: PanelId) -> bool {
     }
 }
 
+/// Split the frame `target` in `node` by `zone`, adding a frame `fresh` holding
+/// `panel` at weight `share`; the existing frame keeps `1 - share`.
 fn split_frame_in_node(
     node: &mut Node,
     target: FrameId,
     fresh: FrameId,
     panel: PanelId,
     zone: Zone,
+    share: f32,
 ) -> bool {
     match node {
         Node::Frame(frame) if frame.id == target => {
-            let existing = Node::Frame(frame.clone());
-            let added = Node::Frame(Frame::new(fresh, vec![panel]));
+            let existing = (1.0 - share, Node::Frame(frame.clone()));
+            let added = (share, Node::Frame(Frame::new(fresh, vec![panel])));
             let (axis, children) = match zone {
-                Zone::Left => (Axis::Row, vec![(0.5, added), (0.5, existing)]),
-                Zone::Right => (Axis::Row, vec![(0.5, existing), (0.5, added)]),
-                Zone::Top => (Axis::Column, vec![(0.5, added), (0.5, existing)]),
-                Zone::Bottom => (Axis::Column, vec![(0.5, existing), (0.5, added)]),
+                Zone::Left => (Axis::Row, vec![added, existing]),
+                Zone::Right => (Axis::Row, vec![existing, added]),
+                Zone::Top => (Axis::Column, vec![added, existing]),
+                Zone::Bottom => (Axis::Column, vec![existing, added]),
                 Zone::Center => return false,
             };
             *node = Node::Split { axis, children };
@@ -1381,7 +1387,7 @@ fn split_frame_in_node(
         Node::Frame(_) => false,
         Node::Split { children, .. } => {
             for (_, child) in children {
-                if split_frame_in_node(child, target, fresh, panel, zone) {
+                if split_frame_in_node(child, target, fresh, panel, zone, share) {
                     return true;
                 }
             }
@@ -1530,6 +1536,8 @@ fn retain_in_node(node: &mut Node, keep: &mut impl FnMut(PanelId) -> bool) {
         }
     }
 }
+
+mod restore;
 
 #[cfg(test)]
 mod tests;

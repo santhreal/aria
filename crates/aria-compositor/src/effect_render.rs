@@ -270,7 +270,7 @@ pub(crate) fn run_transition_pass(
     );
 
     let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: Some("aria.transition.pass"),
+        label: None,
         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
             view: output,
             depth_slice: None,
@@ -325,7 +325,7 @@ pub(crate) fn run_matte_pass(
     );
 
     let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: Some("aria.matte.pass"),
+        label: None,
         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
             view: output,
             depth_slice: None,
@@ -402,7 +402,7 @@ pub(crate) fn run_mask_stack_pass(
     );
 
     let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: Some("aria.mask_stack.pass"),
+        label: None,
         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
             view: output,
             depth_slice: None,
@@ -445,7 +445,7 @@ pub(crate) fn run_grade_pass<'a>(
     );
 
     let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: Some("aria.canvas_grade.pass"),
+        label: None,
         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
             view: output,
             depth_slice: None,
@@ -496,7 +496,7 @@ pub(super) fn draw_effect_pass(
         ],
     );
     let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: Some("aria.effect.pass"),
+        label: None,
         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
             view: output,
             depth_slice: None,

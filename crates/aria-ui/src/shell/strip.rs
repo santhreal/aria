@@ -6,6 +6,7 @@
 use super::*;
 use crate::theme::Theme;
 use crate::tooltip::WithTip as _;
+use gpui::StatefulInteractiveElement as _;
 
 pub(super) fn status_strip(
     theme: &Theme,
@@ -44,15 +45,18 @@ pub(super) fn status_strip(
         .into_any_element()
     });
     let job = live_job(theme, state, cx);
-    let drops = dropped_indicator(theme, state.read(cx).dropped_frames().total(), cx);
+    // A dropped frame is news until it is acknowledged with a click; none
+    // dropped is the normal state and draws nothing.
+    let dropped = state.read(cx).dropped_frames().total();
+    let drops = (dropped > 0).then(|| dropped_indicator(theme, dropped, cx));
     let read = state.read(cx);
-    let resolution = format!("Playback {}", read.playback_resolution_text());
-    let gpu = read.preview_worker.device_name();
-    // During playback, the rate achieved against the sequence's. At rest the
-    // sequence's own rate is in the Viewer and the timeline, so the strip
-    // shows nothing.
+    // During playback: the rate achieved against the sequence's, the
+    // resolution it plays at, and the device drawing it. At rest the rate is
+    // in the Viewer and the timeline and the resolution in the Viewer's
+    // control row, so the strip's right side is empty.
     let report = read.playback_report();
-    let achieved = (read.playing && report.presented > 0).then(|| {
+    let playing = read.playing;
+    let achieved = (playing && report.presented > 0).then(|| {
         let rate = read.store.sequence.frame_rate;
         let fps = if rate.den == 0 {
             0.0
@@ -61,6 +65,8 @@ pub(super) fn status_strip(
         };
         format!("{:.1}/{fps:.3} fps", report.achieved_fps)
     });
+    let resolution = playing.then(|| format!("Playback {}", read.playback_resolution_text()));
+    let gpu = read.preview_worker.device_name().filter(|_| playing);
     let has_err = err.is_some();
     let note = err.or(status).unwrap_or_default();
     // A status line that replaced another one has to be seen to have changed:
@@ -85,7 +91,6 @@ pub(super) fn status_strip(
         .border_t_1()
         .border_color(theme.border)
         .text_size(Theme::TEXT_UI)
-        .font_family(theme.font_mono.clone())
         .text_color(theme.text_muted)
         // Left: where edits land, and the last thing that happened.
         .child(
@@ -120,17 +125,25 @@ pub(super) fn status_strip(
                 .justify_end()
                 .gap(px(Theme::SPACE_MD))
                 .when_some(achieved, |el, achieved| el.child(achieved))
-                .child(drops)
-                .child(
-                    div()
-                        .id("status-playback-resolution")
-                        .when_some(crate::tooltip::builder("preview-resolution"), |el, tip| {
-                            el.with_tip(tip)
-                        })
-                        .child(resolution),
-                )
+                .when_some(drops, |el, drops| el.child(drops))
+                .when_some(resolution, |el, resolution| {
+                    el.child(
+                        div()
+                            .id("status-playback-resolution")
+                            .debug_selector(|| "status-playback-resolution".into())
+                            .when_some(crate::tooltip::builder("preview-resolution"), |el, tip| {
+                                el.with_tip(tip)
+                            })
+                            .child(resolution),
+                    )
+                })
                 .when_some(gpu, |el, gpu| {
-                    el.child(div().text_color(theme.text_faint).child(gpu))
+                    el.child(
+                        div()
+                            .debug_selector(|| "status-gpu".into())
+                            .text_color(theme.text_faint)
+                            .child(gpu),
+                    )
                 }),
         )
 }
@@ -205,26 +218,22 @@ fn live_job(
     )
 }
 
-/// The dropped-frame indicator: green while no playback frame has dropped since
-/// the last reset, yellow with the count otherwise. A click resets it.
+/// The dropped-frame indicator, drawn once a playback frame has dropped since
+/// the last reset: the count in `warning`. A click resets it.
 fn dropped_indicator(
     theme: &Theme,
     dropped: u32,
     cx: &mut Context<Shell>,
 ) -> impl IntoElement + use<> {
-    let (label, color): (gpui::SharedString, _) = if dropped == 0 {
-        ("0 dropped".into(), theme.success)
-    } else {
-        (format!("{dropped} dropped").into(), theme.warning)
-    };
     crate::components::chip(
         "status-dropped-frames",
-        label,
+        gpui::SharedString::from(format!("{dropped} dropped")),
         false,
         crate::components::ChipSize::Compact,
         theme,
     )
-    .text_color(color)
+    .debug_selector(|| "status-dropped-frames".into())
+    .text_color(theme.warning)
     .on_mouse_down(
         MouseButton::Left,
         cx.listener(|this, _: &MouseDownEvent, _, cx| {
@@ -237,13 +246,17 @@ fn dropped_indicator(
 
 pub(super) fn split_row(cx: &mut Context<Shell>, kind: DragKind) -> impl IntoElement {
     let theme = Theme::of(cx);
+    let key = motion::MotionKey::new("split-timeline", "row");
     div()
         .id("split-timeline")
+        .debug_selector(|| "split-timeline".into())
         .h(px(SPLIT))
         .w_full()
         .cursor(CursorStyle::ResizeUpDown)
-        .bg(theme.bg)
-        .hover(|el| el.bg(theme.border_strong))
+        // A fade redraws the window chrome alone; a gpui hover style would
+        // notify the Shell, which rebuilds every panel body.
+        .bg(motion::hover_blend(key, theme.bg, theme.border_strong))
+        .on_hover(motion::hover_listener(key))
         .on_mouse_down(
             MouseButton::Left,
             cx.listener(move |this, event: &MouseDownEvent, _, cx| {

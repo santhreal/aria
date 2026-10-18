@@ -17,7 +17,7 @@ pub(crate) fn blit_premultiplied_to_canvas(
         &[Bound::Texture(source), Bound::Sampler(&registry.sampler)],
     );
     let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: Some("aria.blit.pass"),
+        label: None,
         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
             view: canvas_view,
             depth_slice: None,
@@ -53,7 +53,7 @@ pub(crate) fn blit_replace(
         &[Bound::Texture(source), Bound::Sampler(&registry.sampler)],
     );
     let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: Some("aria.blit_replace.pass"),
+        label: None,
         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
             view: output,
             depth_slice: None,
@@ -164,7 +164,7 @@ pub(crate) fn blit_weighted_additive(
         ],
     );
     let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: Some("aria.accumulate.pass"),
+        label: None,
         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
             view: accum,
             depth_slice: None,

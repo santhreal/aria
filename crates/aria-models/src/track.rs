@@ -341,6 +341,41 @@ pub struct Track {
     /// while its pair still abuts; structural edits prune dead ones.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     transitions: Vec<Transition>,
+    /// See [`Track::revision`]. Not saved: a loaded lane takes a fresh one.
+    #[serde(skip)]
+    revision: Revision,
+}
+
+#[derive(Debug, Default)]
+struct Revision(std::sync::atomic::AtomicU64);
+
+impl Clone for Revision {
+    fn clone(&self) -> Self {
+        Self(std::sync::atomic::AtomicU64::new(
+            self.0.load(std::sync::atomic::Ordering::Relaxed),
+        ))
+    }
+}
+
+/// Feeds serialized bytes to a hasher, so a lane hashes without building its
+/// JSON in memory.
+struct HashWriter(std::collections::hash_map::DefaultHasher);
+
+impl std::io::Write for HashWriter {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        std::hash::Hasher::write(&mut self.0, bytes);
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Lanes [`Track::revision`] hashed on this thread.
+    static HASHED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 #[derive(Deserialize)]
@@ -419,6 +454,7 @@ impl<'de> Deserialize<'de> for Track {
             clips: data.clips,
             order: Vec::new(),
             transitions: data.transitions,
+            revision: Revision::default(),
         };
         track.sort_order();
         Ok(track)
@@ -452,7 +488,41 @@ impl Track {
             clips: Map::default(),
             order: Vec::new(),
             transitions: Vec::new(),
+            revision: Revision::default(),
         }
+    }
+
+    /// A hash of everything the lane saves, so two lanes with one revision
+    /// hold the same content, and a write that leaves the content as it was
+    /// (a refused edit, a pass over every lane that moves one) leaves it too.
+    /// A view of the timeline rebuilds a lane only when this moved.
+    ///
+    /// The hash is computed on the first read and kept: each `&mut Track` a
+    /// [`Timeline`](crate::Timeline) hands out, and each lane it takes in,
+    /// drops the kept value, and a clone keeps it. Reading the revision of a
+    /// lane nothing wrote to since the last read costs one load.
+    pub fn revision(&self) -> u64 {
+        use std::hash::Hasher;
+        use std::sync::atomic::Ordering;
+        let kept = self.revision.0.load(Ordering::Relaxed);
+        if kept != 0 {
+            return kept;
+        }
+        let mut hasher = HashWriter(std::collections::hash_map::DefaultHasher::new());
+        // Writing to a hasher cannot fail, and every field serializes.
+        let _ = serde_json::to_writer(&mut hasher, self);
+        // Zero marks a revision not computed yet.
+        let hashed = hasher.0.finish().max(1);
+        #[cfg(test)]
+        HASHED.with(|count| count.set(count.get() + 1));
+        self.revision.0.store(hashed, Ordering::Relaxed);
+        hashed
+    }
+
+    /// Drop the kept [`revision`](Self::revision), so the next read hashes
+    /// the lane again.
+    pub(crate) fn touch(&mut self) {
+        *self.revision.0.get_mut() = 0;
     }
 
     pub(crate) fn sort_order(&mut self) {
@@ -809,3 +879,7 @@ impl<'a> std::ops::Index<usize> for ClipsOrdered<'a> {
 #[cfg(test)]
 #[path = "track_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "track_revision_tests.rs"]
+mod revision_tests;

@@ -32,7 +32,7 @@ fn bench_blend_modes_solid(c: &mut Criterion) {
             let layer = CompositeLayer::solid([200, 120, 60, 220], placement).with_blend_mode(m);
             b.iter(|| {
                 let image = comp
-                    .render(&gpu, &config, black_box(&[layer.clone()]))
+                    .render(&gpu, &config, black_box(&[layer]))
                     .expect("render");
                 black_box(image);
             });
@@ -89,7 +89,7 @@ fn bench_blend_modes_bitmap(c: &mut Criterion) {
             let layer = CompositeLayer::rgba(&bitmap, placement).with_blend_mode(m);
             b.iter(|| {
                 let image = comp
-                    .render(&gpu, &config, black_box(&[layer.clone()]))
+                    .render(&gpu, &config, black_box(&[layer]))
                     .expect("render");
                 black_box(image);
             });

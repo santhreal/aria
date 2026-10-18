@@ -7,11 +7,12 @@
 //! render bar stale after an edit, motion-blur toggle, or cache relocation.
 
 use std::path::Path;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use aria_commands::{Command, EditCommand};
 use aria_jobs::{JobId, JobSnapshot, JobState};
-use aria_models::{ClipId, Easing, Keyframe, MotionBlur, Param};
+use aria_models::{ClipId, Easing, Keyframe, MotionBlur, Param, Rational, RationalTime};
 use aria_plugin::PluginContext;
 
 use super::{RenderQuality, RenderSegment};
@@ -342,5 +343,158 @@ fn render_selection_renders_only_the_frames_the_selected_clips_cover() {
             segment(4, 6, RenderQuality::Green),
             segment(6, duration, RenderQuality::Yellow),
         ]
+    );
+}
+
+/// The render bar is computed off the `aria-preview` thread: with that thread
+/// held busy, the segments for the current revision still arrive. Closes the
+/// class where the whole-timeline segment pass queued on the preview worker
+/// and every Viewer frame after an edit waited behind it. Does not measure how
+/// long the pass takes.
+#[test]
+fn render_bar_completes_while_the_preview_worker_is_busy() {
+    let (mut state, _) = animated_clip_state();
+    let duration = state.store.sequence.duration_ticks;
+    let (release, held) = std::sync::mpsc::channel::<()>();
+    let (entered, busy) = std::sync::mpsc::channel::<()>();
+    state.preview_worker.occupy(move || {
+        let _ = entered.send(());
+        let _ = held.recv();
+    });
+    busy.recv_timeout(JOB_BOUND)
+        .expect("the preview worker took the holding job");
+
+    // A work area the bar has not seen yet, so this asks for a new pass.
+    state.mark_in = Some(1);
+    state.mark_out = Some(3);
+    let _ = state.render_bar();
+    let seq = state.render_bar_state.latest_seq();
+    let segments = state
+        .render_bar_state
+        .wait_within(seq, JOB_BOUND)
+        .expect("render bar segments arrive while the preview worker is busy");
+    drop(release);
+    assert_eq!(
+        *segments,
+        vec![RenderSegment {
+            start_tick: 0,
+            end_tick: duration,
+            quality: RenderQuality::Yellow,
+        }]
+    );
+}
+
+/// A segment pass stops at the first frame after a newer request arrives, so
+/// a run of edits costs one full pass, not one per edit. Does not cover the
+/// thread hand-off between requests.
+#[test]
+fn a_superseded_segment_pass_stops_at_the_next_frame() {
+    let (state, _) = animated_clip_state();
+    let duration = state.store.sequence.duration_ticks;
+    assert!(duration > 4, "fixture clip must span more than 4 frames");
+    let project = state.host.snapshot();
+    let files = state.render_files();
+
+    let checks = std::cell::Cell::new(0);
+    let abandoned = crate::app::render_bar::segments_unless(&project, &files, || {
+        checks.set(checks.get() + 1);
+        checks.get() > 3
+    });
+    assert_eq!(abandoned, None);
+    assert_eq!(checks.get(), 4, "the pass ran past the superseding request");
+
+    let full = crate::app::render_bar::segments_unless(&project, &files, || false);
+    assert_eq!(
+        full.as_deref(),
+        Some(&*crate::app::render_bar::compute_render_segments(
+            &project, &files
+        ))
+    );
+}
+
+/// A sequence whose segment pass outlasts the edit a test makes after
+/// requesting it: 9600 frames over 4 lanes.
+fn long_sequence() -> AppState {
+    crate::app::premiere_tests::with_sequence(2, 200)
+}
+
+fn add_marker() -> Command {
+    Command::Edit(EditCommand::AddMarker {
+        at: RationalTime::new(24, Rational::FPS_24),
+        name: "during the pass".into(),
+        color: None,
+    })
+}
+
+/// An edit made while a render-bar pass runs changes the project in place.
+/// The pass reads the project under the engine lock one frame at a time and
+/// keeps no snapshot, so the edit's copy-on-write finds the project unshared.
+/// The project is sampled for 20 ms after the pass thread takes its request,
+/// so a pass that holds a snapshot is seen holding it whatever the thread's
+/// timing. Closes the class where the always-running segment pass held an
+/// `Arc<Project>` across every edit and each edit of a long sequence copied
+/// the whole project. Does not cover a render or export job, which keeps the
+/// snapshot it renders until it ends.
+#[test]
+fn an_edit_during_a_render_bar_pass_changes_the_project_in_place() {
+    let mut state = long_sequence();
+    let _ = state.render_bar();
+    let seq = state.render_bar_state.latest_seq();
+    let deadline = Instant::now() + JOB_BOUND;
+    while state.render_bar_state.is_pending() {
+        assert!(
+            Instant::now() < deadline,
+            "no render-bar thread took the request within {JOB_BOUND:?}"
+        );
+        std::thread::yield_now();
+    }
+    let sampled = Instant::now() + Duration::from_millis(20);
+    while Instant::now() < sampled {
+        let holders = Arc::strong_count(&state.engine.lock().snapshot());
+        assert_eq!(
+            holders, 2,
+            "the project is held beside the engine and this sample while the pass runs"
+        );
+    }
+    let before = Arc::as_ptr(&state.host.snapshot());
+    state.apply_command(add_marker()).expect("the marker lands");
+    let after = Arc::as_ptr(&state.host.snapshot());
+    assert!(
+        state
+            .render_bar_state
+            .wait_within(seq, Duration::ZERO)
+            .is_none(),
+        "the pass completed before the edit, so the edit did not run during it"
+    );
+    assert_eq!(
+        before, after,
+        "the edit copied the project: the render-bar pass held a snapshot of it"
+    );
+}
+
+/// A segment pass abandons once the engine moves past the revision it was
+/// requested at, rather than record segments read from two projects. Does not
+/// cover how soon the next request replaces it.
+#[test]
+fn a_render_bar_pass_abandons_once_the_project_moves_on() {
+    let mut state = long_sequence();
+    let _ = state.render_bar();
+    let seq = state.render_bar_state.latest_seq();
+    state
+        .engine
+        .lock()
+        .apply(add_marker())
+        .expect("the marker lands");
+    let bar = state.render_bar_state;
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = tx.send(bar.wait_for(seq).is_some());
+    });
+    let completed = rx
+        .recv_timeout(JOB_BOUND)
+        .unwrap_or_else(|_| panic!("the pass did not end within {JOB_BOUND:?}"));
+    assert!(
+        !completed,
+        "a pass recorded segments after the engine moved past its revision"
     );
 }

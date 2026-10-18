@@ -1211,6 +1211,7 @@ impl Encoder for WasmEncoder {
             shared: Arc::clone(&self.shared),
             ctx: self.ctx.clone(),
             path: path.to_path_buf(),
+            id: self.id.clone(),
             instance,
             audio_sample_rate,
             audio_channels,
@@ -1223,6 +1224,7 @@ struct WasmEncoderSession {
     shared: Arc<WasmPluginShared>,
     ctx: PluginContext,
     path: PathBuf,
+    id: String,
     instance: u64,
     audio_sample_rate: u32,
     audio_channels: u32,
@@ -1279,6 +1281,10 @@ impl VideoEncoder for WasmEncoderSession {
         self.shared
             .call_encoder_finish(&self.ctx, &self.path, self.instance)
             .map_err(EncodeError::Encode)
+    }
+
+    fn choice(&self) -> aria_plugin::EncoderChoice {
+        aria_plugin::EncoderChoice::only(self.id.clone(), None)
     }
 }
 

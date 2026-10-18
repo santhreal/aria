@@ -17,8 +17,9 @@ project format that hasn't settled.
 | --- | --- |
 | ![Home](assets/screenshots/launch.png) | ![Editor](assets/screenshots/editor.png) |
 
-The chrome is monochrome: indigo playhead, amber snap guide, pink busy
-spinner. Clip bodies stay neutral; track type is a 2 px left border.
+The chrome is neutral grey with one accent: a blue playhead and selection, an
+amber snap guide, a pink busy spinner. A clip bar is filled with its label
+colour. UI text is Inter with tabular figures.
 
 ## What works today
 

@@ -52,13 +52,15 @@ mod shape;
 
 use canvas::timeline_canvas;
 pub use canvas::{canvas_size, derived_canvas_size};
-use clip::resolve_clip;
+use clip::{resolve_clip, resolve_clip_pooled};
 #[cfg(test)]
 use generator::map_text_style;
-pub(crate) use generator::resolve_generator;
+pub(crate) use generator::{resolve_generator, resolve_generator_pooled};
 use matte::{MatteRequest, fold_mattes, matte_request};
 use nest::Nesting;
-use sample::{crop_flip_uv, fit_scale, resolve_effects, resolve_styles, sample_text_animation};
+use sample::{
+    crop_flip_uv, fit_scale, resolve_effects_pooled, resolve_styles, sample_text_animation,
+};
 
 /// Vertical reference height that a generator's reference-pixel sizes (text
 /// `size`, shape `width`/`height`) are authored against. Matches the model's
@@ -229,6 +231,8 @@ fn partition_gesture_scene(mut scene: Scene, clip_id: ClipId) -> Option<GestureS
     })
 }
 
+pub(crate) use sample::ResolvePool;
+
 /// Resolve `project` at timeline instant `t` into a [`Scene`].
 ///
 /// `t` is interpreted at the timeline frame rate (it is resampled to it first),
@@ -243,6 +247,19 @@ pub fn resolve_with(
     t: RationalTime,
     overrides: ResolveOverrides<'_>,
 ) -> Result<Scene, aria_models::ModelError> {
+    let mut scene = Scene::empty(0, 0, [0, 0, 0, 255]);
+    let mut pool = ResolvePool::default();
+    resolve_with_into(project, t, overrides, &mut scene, &mut pool)?;
+    Ok(scene)
+}
+
+pub(crate) fn resolve_with_into(
+    project: &Project,
+    t: RationalTime,
+    overrides: ResolveOverrides<'_>,
+    scene: &mut Scene,
+    pool: &mut ResolvePool,
+) -> Result<(), aria_models::ModelError> {
     let timeline = project.timeline();
     let (width, height) = canvas_size(project);
     let bg = timeline.canvas().background;
@@ -251,7 +268,7 @@ pub fn resolve_with(
     } else {
         [bg[0], bg[1], bg[2], 255]
     };
-    resolve_timeline(
+    resolve_timeline_into(
         project,
         timeline,
         t,
@@ -259,6 +276,8 @@ pub fn resolve_with(
         background,
         overrides,
         &Nesting::root(project),
+        scene,
+        pool,
     )
 }
 
@@ -274,8 +293,39 @@ fn resolve_timeline<'p>(
     overrides: ResolveOverrides<'_>,
     nesting: &Nesting<'_>,
 ) -> Result<Scene, aria_models::ModelError> {
-    let t = resample(t, timeline.frame_rate);
     let mut scene = Scene::empty(width, height, background);
+    let mut pool = ResolvePool::default();
+    resolve_timeline_into(
+        project,
+        timeline,
+        t,
+        [width, height],
+        background,
+        overrides,
+        nesting,
+        &mut scene,
+        &mut pool,
+    )?;
+    Ok(scene)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn resolve_timeline_into<'p>(
+    project: &'p Project,
+    timeline: &'p Timeline,
+    t: RationalTime,
+    [width, height]: [u32; 2],
+    background: [u8; 4],
+    overrides: ResolveOverrides<'_>,
+    nesting: &Nesting<'_>,
+    scene: &mut Scene,
+    pool: &mut ResolvePool,
+) -> Result<(), aria_models::ModelError> {
+    let t = resample(t, timeline.frame_rate);
+    pool.recycle_scene(scene);
+    scene.width = width;
+    scene.height = height;
+    scene.background = background;
     scene.tick = t;
 
     let cw = width as f32;
@@ -287,14 +337,29 @@ fn resolve_timeline<'p>(
         if !track.kind.is_visual() || !timeline.track_is_visible(track) {
             continue;
         }
-        if let Some(layer) =
-            resolve_track_at(project, track, t, cw, ch, overrides, nesting, &mut drivers)?
-        {
-            requests.push(matte_request(project, &layer, t, &mut drivers));
+        if let Some(layer) = resolve_track_at(
+            project,
+            track,
+            t,
+            cw,
+            ch,
+            overrides,
+            nesting,
+            &mut drivers,
+            pool,
+        )? {
+            if let Some(req) = matte_request(project, &layer, t, &mut drivers) {
+                requests.resize_with(scene.layers.len(), || None);
+                requests.push(Some(req));
+            } else if !requests.is_empty() {
+                requests.push(None);
+            }
             scene.layers.push(layer);
         }
     }
-    scene.layers = fold_mattes(std::mem::take(&mut scene.layers), requests, cw, ch);
+    if !requests.is_empty() {
+        scene.layers = fold_mattes(std::mem::take(&mut scene.layers), requests, cw, ch);
+    }
     scene.references = reference::resolve_references(
         project,
         timeline,
@@ -306,7 +371,7 @@ fn resolve_timeline<'p>(
         &mut drivers,
     )?;
 
-    Ok(scene)
+    Ok(())
 }
 
 /// Resolve one visual track at timeline instant `t`, its clips after their
@@ -321,6 +386,7 @@ fn resolve_track_at<'p>(
     overrides: ResolveOverrides<'_>,
     nesting: &Nesting<'_>,
     drivers: &mut DriverFrame<'p>,
+    pool: &mut ResolvePool,
 ) -> Result<Option<SceneLayer>, aria_models::ModelError> {
     // Transition window takes precedence over single-clip resolve.
     for transition in track.transitions() {
@@ -367,8 +433,11 @@ fn resolve_track_at<'p>(
             // preview keeps updating instead of erroring every frame.
             let left = drivers.apply(left, outgoing_t.value as f64);
             let right = drivers.apply(right, incoming_t.value as f64);
-            let outgoing = resolve_clip(project, &left, outgoing_t, cw, ch, overrides, nesting)?;
-            let incoming = resolve_clip(project, &right, incoming_t, cw, ch, overrides, nesting)?;
+            let outgoing =
+                resolve_clip_pooled(project, &left, outgoing_t, cw, ch, overrides, nesting, pool)?;
+            let incoming = resolve_clip_pooled(
+                project, &right, incoming_t, cw, ch, overrides, nesting, pool,
+            )?;
             let (Some(outgoing), Some(incoming)) = (outgoing, incoming) else {
                 break;
             };
@@ -417,7 +486,7 @@ fn resolve_track_at<'p>(
         return Ok(None);
     };
     let clip = drivers.apply(clip, t.value as f64);
-    resolve_clip(project, &clip, t, cw, ch, overrides, nesting)
+    resolve_clip_pooled(project, &clip, t, cw, ch, overrides, nesting, pool)
 }
 
 #[cfg(test)]

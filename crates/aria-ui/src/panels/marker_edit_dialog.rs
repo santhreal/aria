@@ -1,5 +1,6 @@
 //! The Marker Edit dialog (`DialogKind::MarkerEdit`).
 
+use crate::components::Wraps as _;
 use aria_models::{MarkerColor, MarkerKind};
 use gpui::{
     Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled,
@@ -74,7 +75,7 @@ pub fn render(
                 .text_color(theme.text_muted)
                 .child("Colour"),
         )
-        .child(div().flex().flex_wrap().gap(px(Theme::SPACE_XS)).children(
+        .child(div().flex().wraps().gap(px(Theme::SPACE_XS)).children(
             MarkerColor::ALL.into_iter().map(|color| {
                 let active = form.color == color;
                 let (id, label) = color_meta(color);
@@ -129,7 +130,7 @@ pub fn render(
                 .text_color(theme.text_muted)
                 .child("Kind"),
         )
-        .child(div().flex().flex_wrap().gap(px(Theme::SPACE_XS)).children(
+        .child(div().flex().wraps().gap(px(Theme::SPACE_XS)).children(
             MarkerKind::ALL.into_iter().map(|kind| {
                 let active = form.kind == kind;
                 let id = match kind {

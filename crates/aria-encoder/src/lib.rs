@@ -313,6 +313,8 @@ pub fn available_codecs() -> Vec<VideoCodec> {
     }
 }
 
+pub use aria_core::EncoderChoice;
+
 #[cfg(test)]
 mod capability_tests {
     use super::*;

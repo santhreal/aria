@@ -739,6 +739,10 @@ impl VideoEncoder for TestEncoderSession {
         )
         .map_err(|err| EncodeError::Encode(err.to_string()))
     }
+
+    fn choice(&self) -> aria_core::EncoderChoice {
+        aria_core::EncoderChoice::only(format!("test {}", self.header), Some(false))
+    }
 }
 
 struct EncoderPlugin {
@@ -786,6 +790,11 @@ fn an_encoder_registers_opens_writes_frames_and_audio_and_unregisters() {
         .ctx
         .open_encoder("lanes.enc", &out, &test_encoder_config())
         .expect("opens");
+    assert_eq!(
+        session.choice().to_string(),
+        "encoder test 4x2 (software)",
+        "the guarded session reports the plugin encoder's own choice"
+    );
     let frame = test_video_frame(4, 2);
     session.push(&frame).expect("push 1");
     session.push(&frame).expect("push 2");

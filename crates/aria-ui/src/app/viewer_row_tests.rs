@@ -1,5 +1,5 @@
-//! Contracts for the Viewer's control row, the view chips over the picture,
-//! and the timeline's zoom readout.
+//! Contracts for the Viewer's control row, the display button over the
+//! picture, and the timeline's zoom readout.
 //!
 //! The class closed here: a Viewer control that acts on a tab other than the
 //! one in front of the Viewer. Every transport button is clicked with Program
@@ -9,9 +9,9 @@
 //! Viewer already having the keys goes red.
 //!
 //! Also asserted: the In and Out buttons mark the sequence and are drawn only
-//! while Program is in front, each view chip flips the state it is drawn
-//! from and flips it back, and a click on the timeline's zoom readout fits the
-//! sequence.
+//! while Program is in front, each switch under the display button flips the
+//! state its check mark is read from and flips it back, and a click on the
+//! timeline's zoom readout fits the sequence.
 //!
 //! The row's fit is a second class: a control drawn past the Viewer's edge,
 //! where the pointer does not reach it. At the smallest window the row wraps
@@ -22,20 +22,21 @@
 //! asserted on both sides of it.
 //!
 //! Not covered: the play button, whose click starts the vsync loop a test
-//! window does not run, the lit look of a chip, which `components::chip`
-//! draws, and widths under real glyph metrics, which the test text system
-//! does not have.
+//! window does not run, the lit look of a toggle, which
+//! `chrome::tool_strip::lit_icon` draws, and widths under real glyph metrics,
+//! which the test text system does not have.
 
 use std::path::PathBuf;
 
 use aria_models::MediaId;
 
 use super::AppState;
+use crate::chrome::menu_items::VIEWER_DISPLAY;
 use crate::dock::{PANEL_INSPECTOR, PANEL_TIMELINE, PANEL_VIEWER};
 use crate::interned::intern;
 use crate::settings::{MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH};
 use crate::test_support::{bounds_inside, drawn_shell_at};
-use crate::types::ActivePanel;
+use crate::types::{ActivePanel, AppMenu};
 
 /// The three groups of the control row, left to right.
 const GROUPS: [&str; 3] = [
@@ -53,7 +54,17 @@ fn window(width: f32, height: f32) -> gpui::Bounds<gpui::Pixels> {
 }
 
 /// The bounds drawn under `selector`, or a failure naming it.
-fn bounds_of(visual: &mut gpui::VisualTestContext, selector: &str) -> gpui::Bounds<gpui::Pixels> {
+///
+/// WHY: a hover in one panel body notifies that cached view alone, and a
+/// cached replay keeps hitboxes without recording test-only `debug_bounds` for
+/// the other bodies; refreshing the window first makes every view prepaint and
+/// record its debug bounds.
+pub(super) fn bounds_of(
+    visual: &mut gpui::VisualTestContext,
+    selector: &str,
+) -> gpui::Bounds<gpui::Pixels> {
+    visual.update(|window, _| window.refresh());
+    visual.run_until_parked();
     visual
         .debug_bounds(intern(selector))
         .unwrap_or_else(|| panic!("the shell draws no {selector}"))
@@ -76,15 +87,15 @@ fn landing(button: &str, from: i64, end: i64) -> i64 {
 
 /// Click the centre of the element drawn under `selector`.
 fn click(visual: &mut gpui::VisualTestContext, selector: &str) {
-    let bounds = visual
-        .debug_bounds(intern(selector))
-        .unwrap_or_else(|| panic!("the shell draws no {selector}"));
+    let bounds = bounds_of(visual, selector);
     visual.simulate_click(bounds.center(), gpui::Modifiers::none());
     visual.run_until_parked();
 }
 
 /// Whether the shell draws an element under `selector`.
 fn drawn(visual: &mut gpui::VisualTestContext, selector: &str) -> bool {
+    visual.update(|window, _| window.refresh());
+    visual.run_until_parked();
     visual.debug_bounds(intern(selector)).is_some()
 }
 
@@ -224,59 +235,55 @@ fn the_in_and_out_buttons_mark_the_sequence_while_program_is_in_front(
 }
 
 #[gpui::test]
-fn each_view_chip_flips_the_state_it_is_drawn_from(cx: &mut gpui::TestAppContext) {
-    let (state, visual, media) = shell_with_take(cx, "viewer-row-chips");
+fn each_viewer_display_row_flips_the_state_it_is_checked_from(cx: &mut gpui::TestAppContext) {
+    let (state, visual, media) = shell_with_take(cx, "viewer-row-display");
+    visual.update(|_, app| app.set_reduce_motion(true));
     // Split needs a Source tab to put beside Program.
     change(visual, &state, |state| {
         assert!(state.open_source(media.raw()), "the Source tab opens");
+        state.show_program();
     });
-    let chips: [(&str, fn(&AppState) -> bool); 5] = [
-        ("viewer-split", |state| state.sources.split()),
-        ("viewer-rulers", |state| state.viewer_guides.rulers),
-        ("viewer-safe", AppState::safe_margins_on),
-        ("viewer-guides", |state| !state.viewer_guides.hidden),
-        ("viewer-alpha", AppState::transparency_grid_on),
-    ];
-    for (chip, on) in chips {
-        let before = visual.read(|app| on(state.read(app)));
-        click(visual, chip);
-        let after = visual.read(|app| on(state.read(app)));
-        assert_eq!(after, !before, "{chip} did not flip its state");
-        click(visual, chip);
-        let back = visual.read(|app| on(state.read(app)));
-        assert_eq!(back, before, "{chip} did not flip back");
+    // The rows are the registry's, so a row added to the submenu is pressed
+    // here on the run that adds it. A row with no check mark is a command,
+    // not a switch.
+    let rows: Vec<(usize, &'static str)> = visual.read(|app| {
+        state
+            .read(app)
+            .menu_rows(AppMenu::View)
+            .iter()
+            .filter(|item| item.under == Some(VIEWER_DISPLAY))
+            .enumerate()
+            .filter(|(_, item)| item.checked.is_some())
+            .map(|(at, item)| (at, item.id))
+            .collect()
+    });
+    assert!(rows.len() >= 8, "the submenu holds {rows:?}");
+    let checked = |visual: &mut gpui::VisualTestContext, id: &str| {
+        visual.read(|app| {
+            let state = state.read(app);
+            state
+                .menu_rows(AppMenu::View)
+                .iter()
+                .find(|item| item.id == id)
+                .is_some_and(|item| item.is_checked(state))
+        })
+    };
+    for (at, id) in rows {
+        let before = checked(visual, id);
+        for pass in [!before, before] {
+            click(visual, "viewer-display-settings");
+            for _ in 0..at {
+                visual.simulate_keystrokes("down");
+            }
+            visual.run_until_parked();
+            click(visual, "focus-ring");
+            assert_eq!(
+                checked(visual, id),
+                pass,
+                "pressing {id} under the Viewer's display button"
+            );
+        }
     }
-}
-
-#[test]
-fn the_safe_chip_clears_both_margins_while_either_is_drawn() {
-    let mut state = AppState::new(
-        aria_plugin::PluginContext::new(),
-        crate::scratch_pool::scratch("safe-chip"),
-    )
-    .expect("state");
-    for (title, action) in [(true, false), (false, true), (true, true)] {
-        state.preview_view.title_safe = title;
-        state.preview_view.action_safe = action;
-        state.toggle_safe_margins();
-        assert_eq!(
-            (
-                state.preview_view.title_safe,
-                state.preview_view.action_safe
-            ),
-            (false, false),
-            "Safe with title {title} and action {action} left a margin drawn"
-        );
-    }
-    state.toggle_safe_margins();
-    assert_eq!(
-        (
-            state.preview_view.title_safe,
-            state.preview_view.action_safe
-        ),
-        (true, true),
-        "Safe with neither drawn did not draw both"
-    );
 }
 
 #[gpui::test]

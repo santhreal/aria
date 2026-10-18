@@ -75,3 +75,8 @@ scenario by counters, not by inspection:
 - No allocation per frame on the render thread after the first second.
 - Scopes and meters do not run on the UI thread.
 - The UI thread never waits for decode or render.
+
+`ARIA_BENCH_ALLOC_SITES=<n>` prints the call stacks of the first `n`
+allocations the render-thread counter records, after the measured window, to
+standard error. Capturing a stack slows the frame it lands in; do not read
+frame times from a run with it set.

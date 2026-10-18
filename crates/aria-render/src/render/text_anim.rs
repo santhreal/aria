@@ -356,6 +356,21 @@ pub(super) fn atlas_key(content: &str, style: &TextStyle) -> u64 {
     h.finish()
 }
 
+/// Stable raster cache key for a static text bitmap (all [`TextStyle`] fields
+/// that affect [`aria_text::TextRenderer::rasterize`]).
+pub(super) fn static_raster_key(content: &str, style: &TextStyle) -> u64 {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    let mut h = DefaultHasher::new();
+    atlas_key(content, style).hash(&mut h);
+    style.padding.hash(&mut h);
+    style
+        .background
+        .map(|b| (b.rgba, b.radius.to_bits()))
+        .hash(&mut h);
+    h.finish()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

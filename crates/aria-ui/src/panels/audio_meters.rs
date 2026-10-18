@@ -20,6 +20,7 @@ use gpui::{
 use crate::app::AppState;
 use crate::app::meter::{METER_FLOOR_DBFS, MeterReading, meter_fraction};
 use crate::fluent::FluentBuilder;
+use crate::motion;
 use crate::shell::Shell;
 use crate::theme::Theme;
 
@@ -91,8 +92,15 @@ pub fn render(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyEle
         .into_any_element()
 }
 
-/// The clip light: lit from the first full-scale block until clicked.
+/// The clip light: lit from the first full-scale block until clicked. Its wash
+/// fades under the pointer as every pressable control's does.
 fn clip_light(theme: &Theme, clipped: bool, cx: &mut gpui::Context<Shell>) -> impl IntoElement {
+    let key = motion::MotionKey::new("audio-meters-clip", "light");
+    let (rest, hover) = if clipped {
+        (theme.danger, theme.danger_strong)
+    } else {
+        (theme.wash(0.08), theme.element_hover)
+    };
     div()
         .id("audio-meters-clip")
         .h(px(14.))
@@ -102,11 +110,8 @@ fn clip_light(theme: &Theme, clipped: bool, cx: &mut gpui::Context<Shell>) -> im
         .items_center()
         .justify_center()
         .text_size(MARK_TEXT)
-        .bg(if clipped {
-            theme.danger
-        } else {
-            theme.wash(0.08)
-        })
+        .bg(motion::hover_blend(key, rest, hover))
+        .on_hover(motion::hover_listener(key))
         .text_color(if clipped {
             theme.on_accent
         } else {

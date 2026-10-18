@@ -52,8 +52,8 @@ pub use driver::{
 };
 pub use error::{EmptyExport, ExportFormatError, MIN_EXPORT_DIM, RenderError};
 pub use export::{
-    EncoderOpener, ExportObserver, ExportSettings, PngSequenceEncoder, decode_png, encode_png,
-    even_export_size, export, export_config, export_config_with, export_frame_count,
+    EncoderOpener, ExportObserver, ExportSettings, Exported, PngSequenceEncoder, decode_png,
+    encode_png, even_export_size, export, export_config, export_config_with, export_frame_count,
     export_frame_png, export_observed, export_to_file, export_to_file_observed,
     export_to_file_with_encoder_observed,
 };

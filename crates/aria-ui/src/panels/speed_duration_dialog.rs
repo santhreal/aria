@@ -1,5 +1,6 @@
 //! The Speed/Duration dialog (`Ctrl+R`).
 
+use crate::components::Wraps as _;
 use gpui::{
     Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled,
     div, px,
@@ -69,7 +70,7 @@ pub fn render(
     let speed_presets =
         div()
             .flex()
-            .flex_wrap()
+            .wraps()
             .gap(px(Theme::SPACE_XS))
             .children(SPEED_PRESETS.iter().map(|&(pct, id, label)| {
                 let active = (form.speed_percent - pct).abs() < 0.05;
@@ -87,7 +88,7 @@ pub fn render(
     let speed_steppers =
         div()
             .flex()
-            .flex_wrap()
+            .wraps()
             .gap(px(Theme::SPACE_XS))
             .children(SPEED_STEPS.iter().map(|&(delta, id, label)| {
                 let current = form.speed_percent;
@@ -105,7 +106,7 @@ pub fn render(
     let duration_steppers =
         div()
             .flex()
-            .flex_wrap()
+            .wraps()
             .gap(px(Theme::SPACE_XS))
             .children(DURATION_STEPS.iter().map(|&(delta, id, label)| {
                 let current = form.duration_ticks;

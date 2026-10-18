@@ -210,6 +210,48 @@ fn save_preserves_pretty_json_with_trailing_newline() {
     assert_no_transaction_artifacts(dir.path());
 }
 
+/// A project still carrying the schema it was loaded with is written with this
+/// build's version and kind, and the extensions it declares are kept. The
+/// current-schema case writes the project as it is, so each field of the stamp
+/// is checked on its own.
+#[test]
+fn save_restamps_an_older_version_or_a_foreign_kind() {
+    let stale = [
+        (1, crate::schema::PROJECT_SCHEMA_KIND),
+        (PROJECT_SCHEMA_VERSION, "aria.legacy"),
+    ];
+    for (version, kind) in stale {
+        let mut project = Project::new("stale", R24);
+        project.schema.version = version;
+        project.schema.kind = kind.into();
+        project.schema.extensions = vec!["nested_timelines".into()];
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("stale.aria");
+        project.save_to_file(&path).unwrap();
+        let saved: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+
+        assert_eq!(
+            saved["schema"]["version"], PROJECT_SCHEMA_VERSION,
+            "v{version} {kind}"
+        );
+        assert_eq!(
+            saved["schema"]["kind"],
+            crate::schema::PROJECT_SCHEMA_KIND,
+            "v{version} {kind}"
+        );
+        assert_eq!(
+            saved["schema"]["extensions"],
+            serde_json::json!(["nested_timelines"])
+        );
+        assert_eq!(
+            project.schema.version, version,
+            "saving changed the project in memory"
+        );
+    }
+}
+
 #[test]
 fn atomic_save_replaces_and_roundtrips_without_artifacts() {
     let dir = tempfile::tempdir().unwrap();

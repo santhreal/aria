@@ -35,7 +35,10 @@ fn a_tile_shows_its_first_frame_until_it_is_hovered() {
     let (mut state, media) = with_selection();
     assert_eq!(state.pool_tile_tick(media), 0);
 
-    state.hover_pool_item(media, 12);
+    assert!(
+        !state.hover_pool_item(media, 12),
+        "with no monitor open, a hover moves the tile alone"
+    );
     assert_eq!(state.pool_tile_tick(media), 12);
     assert_eq!(
         state.pool_tile_tick(media + 1_000),
@@ -51,7 +54,10 @@ fn a_loaded_source_keeps_its_tick_on_the_tile_after_the_pointer_leaves() {
     let (mut state, media) = with_selection();
     assert!(state.toggle_source_monitor(), "the monitor opens");
 
-    state.hover_pool_item(media, 7);
+    assert!(
+        state.hover_pool_item(media, 7),
+        "a hover over the loaded source moves the monitor"
+    );
     state.clear_pool_hover();
 
     assert_eq!(
@@ -75,8 +81,17 @@ fn a_hover_past_the_end_of_the_source_clamps_the_monitor() {
         .map(|view| view.duration_ticks - 1)
         .expect("a monitor is open");
 
-    state.hover_pool_item(media, last + 500);
+    assert!(state.hover_pool_item(media, last + 500));
 
+    assert_eq!(state.sources.focused().map(|view| view.tick), Some(last));
+    assert!(
+        !state.hover_pool_item(media, last + 900),
+        "a hover that clamps to the frame already shown leaves the monitor where it was"
+    );
+    assert!(
+        !state.hover_pool_item(media + 1_000, 3),
+        "a hover over another source's tile leaves the monitor where it was"
+    );
     assert_eq!(state.sources.focused().map(|view| view.tick), Some(last));
 }
 // --- the monitor -------------------------------------------------------------

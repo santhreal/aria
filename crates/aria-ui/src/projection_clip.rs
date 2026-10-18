@@ -57,14 +57,15 @@ pub(super) fn invalidate_media_statuses() {
     MEDIA_STATUS.lock().by_path.clear();
 }
 
-pub(super) fn track_to_ui(
+/// The clips of `track`, as its lane draws them.
+pub(super) fn lane_clips(
     project: &Project,
     track: &Track,
     selection: &[ClipId],
     drifts: &std::collections::HashMap<ClipId, i64>,
-) -> UiTrack {
+) -> UiClips {
     let ordered = track.clips_ordered();
-    let clips = ordered
+    ordered
         .iter()
         .enumerate()
         .map(|(index, clip)| {
@@ -74,7 +75,12 @@ pub(super) fn track_to_ui(
             let drift = drifts.get(&clip.id).copied();
             clip_to_ui(project, clip, track, selection, abuts_right, drift)
         })
-        .collect();
+        .collect()
+}
+
+/// `track` as a lane holding `clips`. Everything but the clips is read from the
+/// lane itself, so a lane whose clips carry over is still drawn as it is now.
+pub(super) fn lane_to_ui(track: &Track, clips: UiClips) -> UiTrack {
     UiTrack {
         id: track_id(track.id),
         kind: UiTrackKind::from_model(track.kind),
@@ -108,9 +114,9 @@ fn media_clip_kind(kind: TrackKind) -> UiClipKind {
     }
 }
 
-/// The label `docs/spec/look.md` gives a clip with none of its own: Lavender on
+/// The label `docs/spec/look.md` gives a clip with none of its own: Yellow on
 /// an adjustment, effect, or filter lane, Tan for a nested sequence, Mango for
-/// a generator, Forest for sound, and Violet for picture.
+/// a generator, Forest for sound, and Teal for picture.
 fn default_label(content: &ClipSource, track: TrackKind) -> LabelColor {
     let adjustment = match track {
         TrackKind::Effect | TrackKind::Filter | TrackKind::Adjustment => true,
@@ -533,12 +539,11 @@ pub(super) fn animation_to_ui(animation: &aria_models::AnimationRef) -> UiAnimat
 /// mark on the strip.
 pub(super) fn keyframe_ticks(clip: &Clip) -> Vec<i64> {
     let mut ticks = Vec::new();
+    let start = clip.timeline.start.value;
     aria_models::visit_clip_params(clip, |spec| {
-        ticks.extend(
-            spec.keyframes(clip)
-                .into_iter()
-                .map(|(tick, _)| clip.param_timeline_tick(tick) - clip.timeline.start.value),
-        );
+        spec.visit_keyframes(clip, |tick, _| {
+            ticks.push(clip.param_timeline_tick(tick) - start);
+        });
     });
     ticks.sort_unstable();
     ticks.dedup();

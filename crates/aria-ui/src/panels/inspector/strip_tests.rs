@@ -88,13 +88,13 @@ fn drawn_on<'a>(
 ) -> (gpui::Entity<AppState>, &'a mut VisualTestContext) {
     cx.executor().allow_parking();
     let (state, visual) = drawn_shell(cx, tag);
-    visual.update(|window, app| {
-        // A state change made outside the shell notifies nothing, so the window
-        // is asked to draw again.
-        window.refresh();
-        state.update(app, |state, _| {
+    visual.update(|_, app| {
+        // Notified, so the shell builds every panel body again; a window
+        // refresh alone replays each body's last drawing.
+        state.update(app, |state, cx| {
             select_the_texture(state, tab);
             then(state);
+            cx.notify();
         });
     });
     visual.run_until_parked();
@@ -485,10 +485,10 @@ fn narrow_the_inspector(
                 }
             })
             .collect();
-        visual.update(|window, app| {
-            window.refresh();
-            state.update(app, |state, _| {
+        visual.update(|_, app| {
+            state.update(app, |state, cx| {
                 assert!(state.dock_tree.set_weights(&split, &weights));
+                cx.notify();
             });
         });
         visual.run_until_parked();

@@ -6,6 +6,7 @@
 //! strip reads how many the property has, which one sits under the playhead and
 //! which curve leaves it without asking the model again per row.
 
+use crate::components::Wraps as _;
 use gpui::{
     InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled, div, px,
 };
@@ -247,7 +248,7 @@ pub fn keyframes_block(
                         div()
                             .flex()
                             .flex_row()
-                            .flex_wrap()
+                            .wraps()
                             .gap(px(Theme::SPACE_XS))
                             .children(easing_chips)
                             .children(piecewise_chips),

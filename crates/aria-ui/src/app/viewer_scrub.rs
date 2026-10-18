@@ -164,7 +164,9 @@ impl AppState {
                 self.program_to(from);
             }
             ViewerPress::Ruler { from } => match self.sources.focused().map(|view| view.media) {
-                Some(media) => self.hover_pool_item(media, from),
+                Some(media) => {
+                    self.hover_pool_item(media, from);
+                }
                 None => {
                     self.program_to(from);
                 }

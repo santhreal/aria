@@ -1,7 +1,6 @@
 //! CLI entry point for `aria-bench`, the Aria performance harness.
 
 use std::path::PathBuf;
-use std::process::ExitCode;
 
 use aria_bench::env_probe::probe_environment;
 use aria_bench::fixtures::{FixtureId, ensure_all_fixtures, ensure_fixture};
@@ -141,13 +140,21 @@ fn run_one_and_save(ctx: &BenchContext, scenario: ScenarioId) -> Result<Scenario
     Ok(report)
 }
 
-fn main() -> ExitCode {
+fn main() -> ! {
+    let code = run();
+    // A scenario decodes, and a process that decoded on NVDEC must not end
+    // through `exit` (see `exit_process`); the bench's values are dropped by
+    // here. A device warm-up still running ends with the process.
+    aria_decoder::exit_process(code)
+}
+
+fn run() -> u8 {
     let raw_args: Vec<String> = std::env::args().skip(1).collect();
     let cli = match parse_args(raw_args) {
         Ok(c) => c,
         Err(msg) => {
             eprintln!("{msg}");
-            return ExitCode::from(2);
+            return 2;
         }
     };
 
@@ -155,7 +162,7 @@ fn main() -> ExitCode {
         if let Some(name) = cli.fixture_filter {
             let Some(id) = FixtureId::parse(&name) else {
                 eprintln!("unknown fixture '{name}'");
-                return ExitCode::from(2);
+                return 2;
             };
             match ensure_fixture(&cli.fixtures_dir, id) {
                 Ok(out) => {
@@ -167,11 +174,11 @@ fn main() -> ExitCode {
                         out.generation_ms,
                         out.path.display()
                     );
-                    return ExitCode::SUCCESS;
+                    return 0;
                 }
                 Err(err) => {
                     eprintln!("fixture {} failed: {err}", id.as_str());
-                    return ExitCode::from(1);
+                    return 1;
                 }
             }
         }
@@ -188,11 +195,11 @@ fn main() -> ExitCode {
                         out.path.display()
                     );
                 }
-                return ExitCode::SUCCESS;
+                return 0;
             }
             Err(err) => {
                 eprintln!("fixtures generation failed: {err}");
-                return ExitCode::from(1);
+                return 1;
             }
         }
     }
@@ -204,7 +211,7 @@ fn main() -> ExitCode {
     if cli.target == "all" {
         if let Err(err) = ensure_all_fixtures(&ctx.fixtures_dir) {
             eprintln!("failed to prepare fixtures before running all: {err}");
-            return ExitCode::from(1);
+            return 1;
         }
         let mut reports = Vec::with_capacity(ScenarioId::ALL.len());
         for scenario in ScenarioId::ALL {
@@ -212,33 +219,33 @@ fn main() -> ExitCode {
                 Ok(report) => reports.push(report),
                 Err(err) => {
                     eprintln!("scenario {} failed with error: {err}", scenario.as_str());
-                    return ExitCode::from(1);
+                    return 1;
                 }
             }
         }
         let code = all_exit_code(&reports);
-        return ExitCode::from(code as u8);
+        return code as u8;
     }
 
     let scenario = match ScenarioId::parse(&cli.target) {
         Ok(s) => s,
         Err(err) => {
             eprintln!("{err}\n\n{}", usage());
-            return ExitCode::from(2);
+            return 2;
         }
     };
 
     match run_one_and_save(&ctx, scenario) {
         Ok(report) => {
             if report.contributes_failure() {
-                ExitCode::from(1)
+                1
             } else {
-                ExitCode::SUCCESS
+                0
             }
         }
         Err(err) => {
             eprintln!("scenario {} failed: {err}", scenario.as_str());
-            ExitCode::from(1)
+            1
         }
     }
 }

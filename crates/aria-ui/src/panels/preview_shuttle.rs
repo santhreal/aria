@@ -50,7 +50,6 @@ pub(super) fn badge(
         .rounded(px(Theme::CONTROL_RADIUS))
         .bg(motion::hover_blend(key, theme.warning_muted, theme.warning))
         .text_size(Theme::TEXT_UI)
-        .font_family(theme.font_mono.clone())
         .text_color(motion::hover_blend(key, theme.warning, theme.on_solid))
         .cursor(gpui::CursorStyle::PointingHand)
         .active(|style| style.opacity(0.92))

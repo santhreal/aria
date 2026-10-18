@@ -5,7 +5,7 @@ use std::time::Instant;
 
 use aria_plugin::PluginContext;
 use aria_ui::app::AppState;
-use aria_ui::shell::Shell;
+use aria_ui::shell::{Moved, Shell};
 use gpui::AppContext as _;
 
 use crate::fixtures::{FixtureId, ensure_fixture};
@@ -50,23 +50,27 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     });
     window.draw();
 
+    // Each step below changes what the matching pointer listener changes and
+    // redraws the way that listener does: `Shell::redraw` with what moved.
+
     // 1. Scroll 30 frames across horizontal and vertical lanes on project-10k.
     let mut scroll_samples = Vec::with_capacity(30);
     for step in 0..30usize {
         let t0 = Instant::now();
-        app.update(|cx| {
-            state.update(cx, |s, cx| {
+        window.update(|shell, _, cx| {
+            shell.state.update(cx, |s, _| {
                 s.zoom_bar_pan(0.025);
                 s.video_scroll_y = ((step % 15) as f32) * 24.0;
                 s.audio_scroll_y = ((step % 15) as f32) * 24.0;
-                cx.notify();
             });
+            shell.redraw(Moved::View, cx);
         });
         window.draw();
         scroll_samples.push(t0.elapsed().as_secs_f64() * 1000.0);
     }
 
-    // 2. Zoom 30 frames on project-10k.
+    // 2. Zoom 30 frames on project-10k: ctrl+wheel notches under a pointer a
+    // third of the way into the lanes.
     let mut zoom_samples = Vec::with_capacity(30);
     for step in 0..30usize {
         let factor = if (step / 5).is_multiple_of(2) {
@@ -75,11 +79,15 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
             1.0 / 1.15
         };
         let t0 = Instant::now();
-        app.update(|cx| {
-            state.update(cx, |s, cx| {
-                s.zoom_around_playhead(factor);
-                cx.notify();
-            });
+        window.update(|shell, _, cx| {
+            let (left, width) = {
+                let s = shell.state.read(cx);
+                (
+                    s.timeline_content_left().unwrap_or(0.0),
+                    s.timeline_viewport_px(),
+                )
+            };
+            shell.zoom_at(left + width / 3.0, factor, cx);
         });
         window.draw();
         zoom_samples.push(t0.elapsed().as_secs_f64() * 1000.0);
@@ -91,15 +99,25 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     for step in 0..30i64 {
         let desired = (step * 73) % 4_800;
         let t0 = Instant::now();
-        app.update(|cx| {
-            state.update(cx, |s, cx| {
+        window.update(|shell, _, cx| {
+            shell.state.update(cx, |s, _| {
                 let (snapped, _) = s.snap_at(desired, Some(1), threshold, false);
                 s.set_playhead(snapped);
-                cx.notify();
             });
+            shell.redraw(Moved::Playhead, cx);
         });
         window.draw();
         drag_samples.push(t0.elapsed().as_secs_f64() * 1000.0);
+    }
+
+    // 4. The floor under every frame above: the window chrome redrawn with
+    // every panel body replaying its last drawing. Not part of the target.
+    let mut chrome_samples = Vec::with_capacity(30);
+    for _ in 0..30 {
+        let t0 = Instant::now();
+        window.update(|shell, _, cx| shell.redraw_chrome(cx));
+        window.draw();
+        chrome_samples.push(t0.elapsed().as_secs_f64() * 1000.0);
     }
 
     let paint_stats = app.update(|cx| state.read(cx).timeline_paint_stats);
@@ -118,6 +136,7 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     let scroll_series = SampleSeries::from_values("scroll_frame_ms", "ms", scroll_samples);
     let zoom_series = SampleSeries::from_values("zoom_frame_ms", "ms", zoom_samples);
     let drag_series = SampleSeries::from_values("drag_frame_ms", "ms", drag_samples);
+    let chrome_series = SampleSeries::from_values("chrome_frame_ms", "ms", chrome_samples);
 
     let targets = vec![TargetEvaluation::measured(
         "ui_frame_build_ms",
@@ -129,11 +148,12 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     )];
 
     let notes = vec![format!(
-        "project-10k GPUI Shell window.draw(): scroll p50={:.2} ms, zoom p50={:.2} ms, drag p50={:.2} ms, overall p95={:.2} ms; TimelinePaintStats: total_lanes={}, visible_lanes={}, total_clips={}, visible_clips={}, canvas_elements={}, paint_calls={}",
+        "project-10k GPUI Shell window.draw(): scroll p50={:.2} ms, zoom p50={:.2} ms, drag p50={:.2} ms, overall p95={:.2} ms, chrome alone p50={:.2} ms; TimelinePaintStats: total_lanes={}, visible_lanes={}, total_clips={}, visible_clips={}, canvas_elements={}, paint_calls={}",
         scroll_series.p50,
         zoom_series.p50,
         drag_series.p50,
         all_series.p95,
+        chrome_series.p50,
         paint_stats.total_lanes,
         paint_stats.visible_lanes,
         paint_stats.total_clips,
@@ -147,7 +167,13 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
         ctx.env.clone(),
         targets,
         Vec::new(),
-        vec![all_series, scroll_series, zoom_series, drag_series],
+        vec![
+            all_series,
+            scroll_series,
+            zoom_series,
+            drag_series,
+            chrome_series,
+        ],
         notes,
     ))
 }

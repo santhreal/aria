@@ -6,6 +6,7 @@
 //! armed is the same answer as pressing it. A key another binding holds asks
 //! before it moves, through the same question a pressed key asks.
 
+use crate::components::Wraps as _;
 use crate::tooltip::WithTip as _;
 use gpui::{
     Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
@@ -63,7 +64,7 @@ pub(super) fn keymap_rows(
     let mut chips = div()
         .flex()
         .flex_row()
-        .flex_wrap()
+        .wraps()
         .items_center()
         .gap(px(Theme::SPACE_XS))
         .child(
@@ -170,7 +171,7 @@ pub(super) fn keyboard(
     let mut legend = div()
         .flex()
         .flex_row()
-        .flex_wrap()
+        .wraps()
         .items_center()
         .gap(px(Theme::SPACE_SM));
     for kind in CommandKind::ALL {

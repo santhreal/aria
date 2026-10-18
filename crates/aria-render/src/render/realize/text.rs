@@ -1,11 +1,15 @@
 //! Text / glyph realize arms — bitmap (static) and per-character GPU glyphs.
 
+use std::collections::HashMap;
+
 use aria_compositor::{LayerPlacement, RgbaImage};
 use aria_text::{ClusterBox, TextRenderer, TextStyle};
 
 use crate::scene::{SceneLayer, SizeSpec, TextAnimation};
 
-use super::super::text_anim::{atlas_key, cluster_deltas, extent_origin, place_clusters};
+use super::super::text_anim::{
+    atlas_key, cluster_deltas, extent_origin, place_clusters, static_raster_key,
+};
 use super::layers::Pixels;
 
 /// The pixels and placement of a text layer: instanced glyphs under an
@@ -14,6 +18,7 @@ use super::layers::Pixels;
 /// Returns `None` when the run has no ink (empty text, or no fonts).
 pub(super) fn realize_text(
     text: &mut TextRenderer,
+    text_memo: &mut HashMap<u64, RgbaImage>,
     layer: &SceneLayer,
     content: &str,
     style: &TextStyle,
@@ -25,7 +30,10 @@ pub(super) fn realize_text(
         SizeSpec::Fixed(_) => [1.0, 1.0],
     };
     let Some(anim) = animation else {
-        let image = text.rasterize(content, style);
+        let key = static_raster_key(content, style);
+        let image = text_memo
+            .entry(key)
+            .or_insert_with(|| text.rasterize(content, style));
         if image.width == 0 || image.height == 0 {
             return None;
         }
@@ -39,7 +47,7 @@ pub(super) fn realize_text(
             rotation: layer.rotation,
             opacity: layer.opacity,
         };
-        return Some((Pixels::Bitmap(image), placement));
+        return Some((Pixels::CachedText(key), placement));
     };
     let shaped = text.shape(content, style);
     if !shaped.has_ink() {

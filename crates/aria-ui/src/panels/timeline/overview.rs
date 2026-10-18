@@ -7,7 +7,9 @@
 //! overview segments. Under the outline column the bar holds the add-track
 //! button and the zoom readout, which fits the sequence on a click.
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
+use std::sync::Arc;
 
 use gpui::{
     CursorStyle, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, MouseMoveEvent,
@@ -18,13 +20,19 @@ use aria_models::TrackKind;
 
 use crate::app::AppState;
 use crate::fluent::FluentBuilder;
+use crate::motion;
 use crate::theme::Theme;
 use crate::tooltip::WithTip as _;
 use crate::types::UiEditorStore;
 
 use super::ticks_to_px;
 
-pub(super) const OVERVIEW_H: f32 = 18.0;
+/// Height of the footer: one 24 px control row plus the 1 px rule above it.
+pub(super) const OVERVIEW_H: f32 = Theme::ICON_HIT + 1.0;
+/// Inset of a footer control's label inside its hit box: the control steps
+/// out by this much so its glyph stands on the column's edge, as the header's
+/// timecode does.
+const CONTROL_INSET: f32 = Theme::SPACE_XS;
 const HANDLE_W: f32 = 6.0;
 const MAX_OVERVIEW_SPANS: usize = 64;
 
@@ -37,6 +45,47 @@ enum OverviewDrag {
 
 thread_local! {
     static OVERVIEW_DRAG: Cell<Option<OverviewDrag>> = const { Cell::new(None) };
+    static SPANS: RefCell<Option<(SpanKey, Rc<[(f32, f32)]>)>> = const { RefCell::new(None) };
+}
+
+/// What the coalesced overview spans are a function of. Clip times are written
+/// only when a store is projected, so a store that kept its allocation and its
+/// projection count kept its spans.
+#[derive(Clone, Copy, PartialEq)]
+struct SpanKey {
+    store: *const UiEditorStore,
+    projections: u64,
+    tracks: usize,
+    clips: usize,
+    duration: i64,
+    view_w: u32,
+}
+
+/// [`coalesce_overview_spans`] for `store`, walked again only when the store
+/// was re-projected or the strip changed width: a scroll, zoom or playhead
+/// frame reads the last result.
+fn overview_spans(
+    store: &Arc<UiEditorStore>,
+    projections: u64,
+    duration: i64,
+    view_w: f32,
+) -> Rc<[(f32, f32)]> {
+    let key = SpanKey {
+        store: Arc::as_ptr(store),
+        projections,
+        tracks: store.sequence.tracks.len(),
+        clips: store.sequence.tracks.iter().map(|t| t.clips.len()).sum(),
+        duration,
+        view_w: view_w.to_bits(),
+    };
+    SPANS.with_borrow_mut(|memo| match memo {
+        Some((held, spans)) if *held == key => spans.clone(),
+        _ => {
+            let spans: Rc<[(f32, f32)]> = coalesce_overview_spans(store, duration, view_w).into();
+            *memo = Some((key, spans.clone()));
+            spans
+        }
+    })
 }
 
 /// Tick under `x` on a strip that maps `[0, duration]` onto `[0, width]`.
@@ -113,7 +162,7 @@ pub(super) fn coalesce_overview_spans(
 
 pub(super) fn overview(
     theme: &Theme,
-    store: &UiEditorStore,
+    store: &Arc<UiEditorStore>,
     pps: f32,
     fps: f32,
     scroll_x: f32,
@@ -123,18 +172,20 @@ pub(super) fn overview(
     state: &gpui::Entity<AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
-    let outline = state.read(cx).ui_settings.outline_width;
+    let outline = state.read(cx).outline_drawn_width();
     let duration = store.sequence.duration_ticks;
-    let spans = coalesce_overview_spans(store, duration, view_w);
+    let spans = overview_spans(store, state.read(cx).projections, duration, view_w);
     let full_px = ticks_to_px(duration, fps, pps).max(1.0);
     let (window_x, window_w) = window_on_strip(scroll_x, full_px, view_w);
     let accent = theme.accent;
     let raised = theme.surface_raised;
     let wash = theme.wash(0.35);
     let border = theme.border;
+    let fit_key = motion::MotionKey::new("timeline-zoom-fit", "");
 
     div()
         .id("sequence-overview")
+        .debug_selector(|| "sequence-overview".into())
         .h(px(OVERVIEW_H))
         .w_full()
         .flex()
@@ -155,6 +206,8 @@ pub(super) fn overview(
                 .justify_between()
                 .child(
                     crate::components::icon_button("add-track", crate::icons::PLUS, theme)
+                        .debug_selector(|| "add-track".into())
+                        .ml(px(-CONTROL_INSET))
                         .on_mouse_down(
                             MouseButton::Left,
                             cx.listener(move |this, _: &MouseDownEvent, _, cx| {
@@ -173,9 +226,20 @@ pub(super) fn overview(
                     div()
                         .id("timeline-zoom-fit")
                         .debug_selector(|| "timeline-zoom-fit".into())
+                        .h(px(Theme::ICON_HIT))
+                        .mr(px(-CONTROL_INSET))
+                        .px(px(CONTROL_INSET))
+                        .flex()
+                        .items_center()
+                        .rounded(px(Theme::SPACE_XS))
                         .text_size(Theme::TEXT_SMALL)
-                        .font_family(theme.font_mono.clone())
-                        .text_color(theme.text_muted)
+                        .text_color(motion::hover_blend(fit_key, theme.text_muted, theme.text))
+                        .bg(motion::hover_blend(
+                            fit_key,
+                            theme.wash(0.0),
+                            theme.element_hover,
+                        ))
+                        .on_hover(motion::hover_listener(fit_key))
                         .cursor(CursorStyle::PointingHand)
                         .active(|style| style.opacity(0.92))
                         .when_some(crate::tooltip::builder("fit-timeline"), |el, tip| {
@@ -219,7 +283,7 @@ pub(super) fn overview(
                         this.state.update(cx, |state, _| {
                             state.scroll_timeline_to(to, true);
                         });
-                        cx.notify();
+                        this.redraw(crate::shell::Moved::View, cx);
                     }),
                 )
                 .on_mouse_move(cx.listener(move |this, event: &MouseMoveEvent, _, cx| {
@@ -240,7 +304,7 @@ pub(super) fn overview(
                         OverviewDrag::LeftHandle => state.zoom_bar_drag_handle(true, norm),
                         OverviewDrag::RightHandle => state.zoom_bar_drag_handle(false, norm),
                     });
-                    cx.notify();
+                    this.redraw(crate::shell::Moved::View, cx);
                 }))
                 .on_mouse_up(
                     MouseButton::Left,
@@ -248,7 +312,7 @@ pub(super) fn overview(
                         OVERVIEW_DRAG.set(None);
                     }),
                 )
-                .children(spans.into_iter().map(|(x, w)| {
+                .children(spans.iter().map(|&(x, w)| {
                     div()
                         .absolute()
                         .left(px(x))

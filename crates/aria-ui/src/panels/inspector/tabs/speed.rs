@@ -175,11 +175,9 @@ fn measure(state: &gpui::Entity<crate::app::AppState>) -> impl IntoElement {
                 f32::from(bounds.size.width),
                 f32::from(bounds.size.height),
             ];
-            state.update(cx, |state, cx| {
-                if state.record_ramp_frame(frame) {
-                    cx.notify();
-                }
-            });
+            if state.update(cx, |state, _| state.record_ramp_frame(frame)) {
+                crate::shell::notify_after_draw(&state, cx);
+            }
         },
         |_, _, _, _| {},
     )

@@ -43,7 +43,7 @@ pub(crate) fn run_blend_composite(
     );
 
     let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: Some("aria.blend.pass"),
+        label: None,
         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
             view: output,
             depth_slice: None,

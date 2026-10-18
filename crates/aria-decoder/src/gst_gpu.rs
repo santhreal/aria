@@ -4,14 +4,22 @@
 //! (`video/x-raw(memory:DMABuf)`). LINEAR NV12 fds become a
 //! [`DmaBufSurface`]. Tiled modifiers, missing fds, or a pipeline that
 //! never negotiates DMABuf fall back to CPU NV12 so preview still works.
-//! That fallback is per-open, not silent per-frame, and a tiled modifier is
-//! named once per session ([`report_tiled_fallback`]) so the reason a machine
-//! decodes on the CPU is on the record rather than inferred from a frame rate.
+//! The first DMA-BUF open that fails on a file the CPU path then opens is
+//! logged with its cause ([`dmabuf_cause`]: each video decoder plugged and the
+//! memory it can output, such as `nvh264dec` with CUDA, GL, and system memory)
+//! and later opens in the process go straight to CPU NV12. A file neither path
+//! opens leaves DMA-BUF on. A decoder with no DMABuf output stops the
+//! attempt before it opens ([`crate::gst_dmabuf_watch`]). A
+//! tiled modifier is named once per session ([`report_tiled_fallback`]) so the
+//! reason a machine decodes on the CPU is on the record rather than inferred
+//! from a frame rate.
 //!
 //! The GPU path must not force `videoconvert`: that downloads the hardware
 //! surface. `uridecodebin` is asked for a DMABuf pad directly.
 
 use std::os::raw::c_int;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use aria_core::{
     DecodeError, DmaBufSurface, FrameData, GpuSurface, GpuSurfaceKind, PixelFormat, Plane,
@@ -24,7 +32,9 @@ use gstreamer_video as gst_video;
 use gstreamer_video::prelude::VideoFrameExt;
 
 use crate::OutputMode;
-use crate::gst::{bus_error, bus_or, gst_err, path_uri};
+use crate::gst::{PipelineGuard, bus_error, bus_or, gst_err, path_uri};
+use crate::gst_dmabuf_watch::{DmabufWatch, dmabuf_cause, watch_video_decoders};
+use crate::gst_key_snap::{KeySnap, snap_video_to_keyframes};
 
 #[link(name = "gstallocators-1.0")]
 unsafe extern "C" {
@@ -38,48 +48,127 @@ pub(crate) struct OpenedPipeline {
     pub sink: gst_app::AppSink,
     pub info: SourceInfo,
     pub mode: OutputMode,
+    /// Corrects where the video decoder starts after a key-unit seek.
+    pub snap: Arc<KeySnap>,
 }
 
-/// Try DMABuf first when the caller asked for GPU; otherwise CPU NV12.
+/// Why the DMA-BUF pipeline failed the first time it failed on a file the CPU
+/// path opens in this process. Set once; every later GPU open skips the
+/// attempt.
+static DMABUF_FAILED: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+/// Try DMABuf first when the caller asked for GPU and no DMABuf open has
+/// failed in this process; otherwise CPU NV12.
 pub(crate) fn open_pipeline(
     path: &std::path::Path,
     mode: OutputMode,
 ) -> Result<OpenedPipeline, DecodeError> {
     let uri = path_uri(path)?;
-    if matches!(mode, OutputMode::Gpu) {
-        match try_open(&uri, true) {
-            Ok(opened) => return Ok(opened),
-            Err(err) => {
-                tracing::info!(
-                    error = %err,
-                    "DMABuf decode pipeline failed; falling back to CPU NV12"
-                );
-            }
-        }
-    }
-    try_open(&uri, false)
+    crate::gst_context::await_warm_up();
+    open_latched(&DMABUF_FAILED, matches!(mode, OutputMode::Gpu), |watch| {
+        try_open(&uri, watch)
+    })
 }
 
-fn try_open(uri: &glib::GString, dmabuf: bool) -> Result<OpenedPipeline, DecodeError> {
+/// Open through `open` with a DMABuf watch when `gpu` holds and `latch` is
+/// empty, and with none otherwise or after that attempt fails.
+///
+/// A failed DMABuf attempt sets `latch` only when the CPU attempt then opens
+/// the same file. An unreadable, empty, or audio-only source fails both, says
+/// nothing about DMABuf, and leaves every later GPU open its DMABuf attempt.
+fn open_latched<T>(
+    latch: &std::sync::OnceLock<String>,
+    gpu: bool,
+    open: impl Fn(Option<&Arc<DmabufWatch>>) -> Result<T, DecodeError>,
+) -> Result<T, DecodeError> {
+    if !gpu || latch.get().is_some() {
+        return open(None);
+    }
+    let watch = Arc::new(DmabufWatch::default());
+    let failed = match open(Some(&watch)) {
+        Ok(opened) => return Ok(opened),
+        Err(err) => err,
+    };
+    let opened = open(None)?;
+    let reason = format!("{} ({failed})", dmabuf_cause(&watch.decoders()));
+    tracing::warn!(
+        cause = %reason,
+        "DMABuf decode is unavailable; this process decodes to CPU NV12 from now on"
+    );
+    let _ = latch.set(reason);
+    Ok(opened)
+}
+
+/// The error a starved DMABuf attempt returns.
+pub(crate) const STOPPED: &str = "the DMABuf attempt stopped before its decoder opened, because the decoder has no DMABuf output";
+
+/// How long one preroll wait lasts before the retry.
+const PREROLL_WAIT: Duration = Duration::from_secs(8);
+
+/// How often a preroll wait checks `stopped`.
+const STOP_POLL: gst::ClockTime = gst::ClockTime::from_mseconds(5);
+
+/// Wait up to [`PREROLL_WAIT`] for `pipeline` to finish its state change,
+/// returning early with `Async` once `stopped` holds.
+fn wait_preroll(
+    pipeline: &gst::Pipeline,
+    stopped: &dyn Fn() -> bool,
+) -> Result<gst::StateChangeSuccess, gst::StateChangeError> {
+    let deadline = Instant::now() + PREROLL_WAIT;
+    loop {
+        let (res, ..) = pipeline.state(STOP_POLL);
+        if res != Ok(gst::StateChangeSuccess::Async) || stopped() || Instant::now() >= deadline {
+            return res;
+        }
+    }
+}
+
+/// `n-threads` for the CPU path's `videoconvert` and `videoscale`: `0` is one
+/// thread per logical CPU. The default of one thread halves 4K HEVC Main10
+/// throughput, because the 10-bit to NV12 conversion then takes as long as
+/// the decode (600 frames on an i7-11700K: 10.3 s with one thread, 4.7 s with
+/// `0`).
+const CONVERT_THREADS: u32 = 0;
+
+/// Open `uri` for DMABuf output when `watch` is set, recording the video
+/// decoders plugged into it; for CPU NV12 otherwise.
+fn try_open(
+    uri: &glib::GString,
+    watch: Option<&Arc<DmabufWatch>>,
+) -> Result<OpenedPipeline, DecodeError> {
+    let dmabuf = watch.is_some();
     let desc = if dmabuf {
         format!(
-            "uridecodebin uri=\"{uri}\" ! video/x-raw(memory:DMABuf) ! appsink name=out sync=false max-buffers=4 drop=false"
+            "uridecodebin name=src uri=\"{uri}\" ! video/x-raw(memory:DMABuf) ! appsink name=out sync=false max-buffers=4 drop=false"
         )
     } else {
         format!(
-            "uridecodebin uri=\"{uri}\" ! videoconvert ! videoscale ! video/x-raw,format=NV12 ! appsink name=out sync=false max-buffers=4 drop=false"
+            "uridecodebin name=src uri=\"{uri}\" ! videoconvert n-threads={CONVERT_THREADS} ! videoscale n-threads={CONVERT_THREADS} ! video/x-raw,format=NV12 ! appsink name=out sync=false max-buffers=4 drop=false"
         )
     };
-    let pipeline = gst::parse::launch(&desc)
-        .map_err(|e| {
-            DecodeError::Open(format!(
-                "couldn't build the GStreamer decode pipeline: {e}. Install gstreamer1.0-plugins-base."
-            ))
-        })?
-        .downcast::<gst::Pipeline>()
-        .map_err(|_| {
-            DecodeError::Open("GStreamer did not return a pipeline. Retry the install.".into())
-        })?;
+    let pipeline = PipelineGuard::new(
+        gst::parse::launch(&desc)
+            .map_err(|e| {
+                DecodeError::Open(format!(
+                    "couldn't build the GStreamer decode pipeline: {e}. Install gstreamer1.0-plugins-base."
+                ))
+            })?
+            .downcast::<gst::Pipeline>()
+            .map_err(|_| {
+                DecodeError::Open("GStreamer did not return a pipeline. Retry the install.".into())
+            })?,
+    );
+    crate::gst_context::share(&pipeline);
+    let snap = Arc::new(KeySnap::default());
+    if let Some(bin) = pipeline
+        .by_name("src")
+        .and_then(|src| src.downcast::<gst::Bin>().ok())
+    {
+        snap_video_to_keyframes(&bin, &snap);
+        if let Some(watch) = watch {
+            watch_video_decoders(&bin, watch);
+        }
+    }
     let sink = pipeline
         .by_name("out")
         .ok_or_else(|| DecodeError::Open("decode pipeline is missing appsink.".into()))?
@@ -89,20 +178,25 @@ fn try_open(uri: &glib::GString, dmabuf: bool) -> Result<OpenedPipeline, DecodeE
     pipeline
         .set_state(gst::State::Paused)
         .map_err(|e| gst_err(DecodeError::Open, e))?;
+    let stopped = || watch.is_some_and(|watch| watch.stopped());
     // One clean retry: `Async` after the wait means the pipeline was still
     // prerolling when it expired — on a host busy with other work (a full test
     // run, a cold codec plugin), not necessarily a broken file. A real defect
     // posts a bus error, and `bus_or` names it instead of this path; a retry
     // that still has not prerolled fails like the single wait did.
-    let (state_res, ..) = pipeline.state(gst::ClockTime::from_seconds(8));
-    let state_res =
-        if state_res == Ok(gst::StateChangeSuccess::Async) && bus_error(&pipeline).is_none() {
-            let _ = pipeline.set_state(gst::State::Paused);
-            let (retry, ..) = pipeline.state(gst::ClockTime::from_seconds(8));
-            retry
-        } else {
-            state_res
-        };
+    let state_res = wait_preroll(&pipeline, &stopped);
+    let state_res = if state_res == Ok(gst::StateChangeSuccess::Async)
+        && !stopped()
+        && bus_error(&pipeline).is_none()
+    {
+        let _ = pipeline.set_state(gst::State::Paused);
+        wait_preroll(&pipeline, &stopped)
+    } else {
+        state_res
+    };
+    if stopped() {
+        return Err(DecodeError::Open(STOPPED.into()));
+    }
     if !matches!(
         state_res,
         Ok(gst::StateChangeSuccess::Success) | Ok(gst::StateChangeSuccess::NoPreroll)
@@ -113,7 +207,6 @@ fn try_open(uri: &glib::GString, dmabuf: bool) -> Result<OpenedPipeline, DecodeE
                 "GStreamer could not open this file. Install codec plugins (gstreamer1.0-plugins-good, -bad, -libav) or pick another file.".into(),
             ),
         );
-        let _ = pipeline.set_state(gst::State::Null);
         return Err(err);
     }
 
@@ -121,12 +214,10 @@ fn try_open(uri: &glib::GString, dmabuf: bool) -> Result<OpenedPipeline, DecodeE
         Ok(opened) => opened,
         Err(err) => {
             let err = bus_or(&pipeline, err);
-            let _ = pipeline.set_state(gst::State::Null);
             return Err(err);
         }
     };
     if dmabuf && sample_to_dmabuf(&preroll).is_none() {
-        let _ = pipeline.set_state(gst::State::Null);
         return Err(DecodeError::Open(
             "DMABuf preroll is not a LINEAR NV12 fd. Falling back to CPU.".into(),
         ));
@@ -142,7 +233,7 @@ fn try_open(uri: &glib::GString, dmabuf: bool) -> Result<OpenedPipeline, DecodeE
         .map_err(|e| gst_err(DecodeError::Open, e))?;
 
     Ok(OpenedPipeline {
-        pipeline,
+        pipeline: pipeline.take(),
         sink,
         info,
         mode: if dmabuf {
@@ -150,6 +241,7 @@ fn try_open(uri: &glib::GString, dmabuf: bool) -> Result<OpenedPipeline, DecodeE
         } else {
             OutputMode::Cpu
         },
+        snap,
     })
 }
 
@@ -384,103 +476,5 @@ pub(crate) fn nv12_from_bytes(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn packed_nv12_bytes_split() {
-        let w = 4u32;
-        let h = 4u32;
-        let mut bytes = vec![16u8; (w * h) as usize];
-        bytes.extend(std::iter::repeat(128u8).take((w * h / 2) as usize));
-        let planes = nv12_from_bytes(&bytes, w, h).expect("split");
-        assert_eq!(planes.len(), 2);
-        assert_eq!(planes[0].rows, 4);
-        assert_eq!(planes[1].rows, 2);
-    }
-
-    #[test]
-    fn linear_nv12_surface_is_importable() {
-        let s = DmaBufSurface {
-            fourcc: DmaBufSurface::NV12,
-            modifier: DmaBufSurface::LINEAR,
-            plane_count: 1,
-            fds: [5, 0, 0, 0],
-            strides: [64, 64, 0, 0],
-            offsets: [0, 256, 0, 0],
-        };
-        assert!(s.is_linear_nv12());
-    }
-
-    /// A tiled modifier must be named, not called unknown, and a vendor byte
-    /// Aria has no name for must still print its number: a new GPU family is
-    /// the case where this report matters most.
-    #[test]
-    fn every_drm_vendor_byte_gets_a_name() {
-        // Vendor byte is the top byte; the low bits are the layout.
-        assert_eq!(modifier_vendor(0), "none");
-        assert_eq!(modifier_vendor(0x01 << 56 | 0x9), "Intel");
-        assert_eq!(modifier_vendor(0x02 << 56 | 0x1a), "AMD");
-        assert_eq!(modifier_vendor(0x03 << 56 | 0x10), "NVIDIA");
-        assert_eq!(modifier_vendor(0x08 << 56 | 0x1), "Arm");
-        assert_eq!(modifier_vendor(0xfe << 56), "DRM vendor 254");
-        // Every byte resolves to something non-empty, so no modifier can be
-        // reported as a blank vendor.
-        for byte in 0u8..=255 {
-            let name = modifier_vendor(u64::from(byte) << 56);
-            assert!(!name.is_empty(), "vendor byte {byte} has no name");
-        }
-    }
-
-    /// The report is once per session because the same pipeline negotiates the
-    /// same modifier for every sample: per-frame logging would bury it.
-    #[test]
-    fn the_tiled_fallback_is_reported_once() {
-        let tiled = DmaBufSurface {
-            fourcc: DmaBufSurface::NV12,
-            modifier: 0x03 << 56 | 0x10,
-            plane_count: 2,
-            fds: [7, 8, 0, 0],
-            strides: [64, 64, 0, 0],
-            offsets: [0, 256, 0, 0],
-        };
-        assert!(!tiled.is_linear_nv12(), "fixture must be unimportable");
-
-        assert!(
-            report_tiled_fallback_for_source(&tiled, "test_session_1"),
-            "the first tiled surface must be reported"
-        );
-        assert!(
-            !report_tiled_fallback_for_source(&tiled, "test_session_1"),
-            "the same fallback was reported twice"
-        );
-    }
-
-    #[test]
-    fn two_tiled_sources_both_log() {
-        let tiled = DmaBufSurface {
-            fourcc: DmaBufSurface::NV12,
-            modifier: 0x03 << 56 | 0x10,
-            plane_count: 2,
-            fds: [7, 8, 0, 0],
-            strides: [64, 64, 0, 0],
-            offsets: [0, 256, 0, 0],
-        };
-        assert!(
-            report_tiled_fallback_for_source(&tiled, "stream_alpha"),
-            "first source must log"
-        );
-        assert!(
-            !report_tiled_fallback_for_source(&tiled, "stream_alpha"),
-            "first source must not duplicate log"
-        );
-        assert!(
-            report_tiled_fallback_for_source(&tiled, "stream_beta"),
-            "second source must also log"
-        );
-        assert!(
-            !report_tiled_fallback_for_source(&tiled, "stream_beta"),
-            "second source must not duplicate log"
-        );
-    }
-}
+#[path = "gst_gpu_tests.rs"]
+mod tests;

@@ -5,6 +5,7 @@
 
 use super::*;
 use crate::catalog_text::ClipTypeChoice;
+use crate::motion::RiseOnHover as _;
 use crate::theme::Theme;
 
 pub(super) fn clip_type_grid(
@@ -60,9 +61,7 @@ fn clip_type_row(
         .rounded(px(Theme::CONTROL_RADIUS))
         .cursor(CursorStyle::PointingHand)
         .bg(motion::hover_blend(key, theme.wash(0.0), theme.wash(0.06)))
-        .relative()
-        .top(px(-gpui::motion::lerp(0.0, 2.0, lit)))
-        .on_hover(motion::hover_listener(key))
+        .rise_on_hover(2.0, lit, motion::hover_listener(key))
         .child(
             div()
                 .flex()

@@ -104,7 +104,7 @@ fn every_gesture_variant_has_one_tool() {
     assert_eq!(body, vec![BodyDrag::Slip, BodyDrag::Slide]);
 
     let edge: Vec<EdgeDrag> = SHIPPED.iter().filter_map(|spec| spec.edge).collect();
-    assert_eq!(edge, vec![EdgeDrag::Roll, EdgeDrag::Rate, EdgeDrag::Ripple]);
+    assert_eq!(edge, vec![EdgeDrag::Ripple, EdgeDrag::Roll, EdgeDrag::Rate]);
 
     let track_select: Vec<TrackSelectDir> = SHIPPED
         .iter()

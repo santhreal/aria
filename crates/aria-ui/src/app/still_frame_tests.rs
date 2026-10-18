@@ -23,14 +23,14 @@ fn requests(state: &gpui::Entity<AppState>, visual: &VisualTestContext) -> u64 {
 /// Place the generator `id` at the playhead without asking for a frame, then
 /// draw.
 fn place(state: &gpui::Entity<AppState>, visual: &mut VisualTestContext, id: &str) {
-    visual.update(|window, app| {
-        // A state change made outside the shell notifies nothing, so the window
-        // is asked to draw again.
-        window.refresh();
-        state.update(app, |state, _| {
+    visual.update(|_, app| {
+        // Notified, so the shell builds every panel body again; a window
+        // refresh alone replays each body's last drawing.
+        state.update(app, |state, cx| {
             state
                 .add_effect_generator(id)
                 .unwrap_or_else(|err| panic!("place {id}: {err:?}"));
+            cx.notify();
         });
     });
     visual.run_until_parked();

@@ -327,3 +327,59 @@ fn short_buffers_are_refused_rather_than_panicking() {
         "a sub-2×2 picture has no chroma sample"
     );
 }
+
+/// NV12 of `src` written in one pass over every row, the way a frame too
+/// small to split is converted.
+fn one_pass<const SWAP: bool>(src: &[u8], width: u32, height: u32, stride: usize) -> Vec<u8> {
+    let mut out = vec![0u8; yuv420_len(width, height)];
+    let plan = Plan::new(width, height, stride, src.len(), out.len()).expect("valid geometry");
+    let coeffs = YuvMatrix::Bt709.coefficients();
+    let (y, uv) = out[..plan.frame_len()].split_at_mut(plan.y_len());
+    write_luma::<SWAP>(&src[..plan.src_len()], y, &plan, &coeffs);
+    write_chroma_interleaved::<SWAP>(&src[..plan.src_len()], uv, &plan, &coeffs);
+    out
+}
+
+/// A frame large enough to be converted in bands gives the bytes one pass
+/// over its rows gives, in both channel orders, with a padded stride and an
+/// odd size. A band that started on the wrong row, or a chroma row written
+/// into another band's place, changes bytes here.
+#[test]
+fn banded_conversion_matches_one_pass() {
+    let (width, height) = (1923u32, 1083u32);
+    let stride = width as usize * 4 + 64;
+    let src: Vec<u8> = (0..stride * height as usize)
+        .map(|i| (i.wrapping_mul(2_654_435_761) >> 11) as u8)
+        .collect();
+    let plan = Plan::new(width, height, stride, src.len(), yuv420_len(width, height))
+        .expect("valid geometry");
+    let cores = std::thread::available_parallelism().map_or(1, |n| n.get());
+    assert!(
+        cores == 1 || bands(&plan) > 1,
+        "a 1080p frame on {cores} cores is converted in one band"
+    );
+    for (order, expected) in [
+        (
+            ChannelOrder::Rgba,
+            one_pass::<false>(&src, width, height, stride),
+        ),
+        (
+            ChannelOrder::Bgra,
+            one_pass::<true>(&src, width, height, stride),
+        ),
+    ] {
+        let mut got = vec![0u8; yuv420_len(width, height)];
+        rgba_to_nv12_into(
+            &src,
+            width,
+            height,
+            stride,
+            YuvMatrix::Bt709,
+            order,
+            &mut got,
+        )
+        .expect("conversion sized correctly");
+        let first = got.iter().zip(&expected).position(|(a, b)| a != b);
+        assert_eq!(first, None, "{order:?}: the first differing byte");
+    }
+}

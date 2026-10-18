@@ -624,6 +624,7 @@ impl AppState {
     /// Selection changes no model data. Re-walking every track and clip would
     /// reproduce the same store except for its selected ids and flags.
     pub(crate) fn refresh_projected_selection(&mut self) {
+        let held = self.projected.take();
         let (selected, key) = {
             let mut engine = self.engine.lock();
             let rate = engine.project().timeline().frame_rate;
@@ -632,24 +633,20 @@ impl AppState {
             let mut key = ProjectionKey::of(&engine, self.playhead, &self.selection);
             // The store keeps the names it was built with, so the key keeps
             // the catalog revisions they were read at.
-            if let Some(held) = &self.projected {
+            if let Some(held) = &held {
                 key.catalogs = held.catalogs;
             }
             (selected, key)
         };
-        let ordered: Vec<u64> = self.selection.iter().map(|id| id.raw()).collect();
-        let ids: std::collections::HashSet<u64> = ordered.iter().copied().collect();
-        {
-            let store = self.store_mut();
-            store.selection.clone_from(&ordered);
-            for track in &mut store.sequence.tracks {
-                for clip in &mut track.clips {
-                    clip.selected = ids.contains(&clip.id);
-                }
-            }
-        }
+        let mut basis = held.and_then(|held| held.basis);
+        let store = std::sync::Arc::make_mut(&mut self.store);
+        store.selection.clear();
+        store
+            .selection
+            .extend(self.selection.iter().map(|id| id.raw()));
+        crate::projection::reselect(store, &self.selection, basis.as_mut());
         self.selected = selected;
-        self.projected = Some(key);
+        self.projected = Some(ProjectionKey { basis, ..key });
     }
 
     /// Take a fresh projection as the one the panels draw.
@@ -672,6 +669,9 @@ impl AppState {
         store.zoom = self.zoom;
         store.scroll_x = self.scroll_x;
         self.store = std::sync::Arc::new(store);
+        if let Some(key) = &mut self.projected {
+            key.basis = Some(snapshot.basis);
+        }
         self.refresh_clock_text();
         self.selected = snapshot.selected;
         self.facts = snapshot.facts;
@@ -792,11 +792,16 @@ impl AppState {
             };
             Poll::Moved(at, selected)
         } else {
+            let previous = self.projected.take().and_then(|key| key.basis);
             self.projected = Some(ProjectionKey::of(&engine, self.playhead, &self.selection));
             Poll::Rebuilt(Snapshot::from_engine(
                 &mut engine,
                 self.playhead,
                 &self.selection,
+                previous.as_ref().map(|basis| crate::projection::Previous {
+                    store: &self.store,
+                    basis,
+                }),
             ))
         })
     }
@@ -809,8 +814,17 @@ impl AppState {
     pub(crate) fn rebuild_store(&mut self) {
         let snapshot = {
             let mut engine = self.engine.lock();
+            let previous = self.projected.take().and_then(|key| key.basis);
             self.projected = Some(ProjectionKey::of(&engine, self.playhead, &self.selection));
-            Snapshot::from_engine(&mut engine, self.playhead, &self.selection)
+            Snapshot::from_engine(
+                &mut engine,
+                self.playhead,
+                &self.selection,
+                previous.as_ref().map(|basis| crate::projection::Previous {
+                    store: &self.store,
+                    basis,
+                }),
+            )
         };
         self.adopt(snapshot);
     }
@@ -838,6 +852,9 @@ pub(crate) struct ProjectionKey {
     /// changes the list without moving `revision`.
     history: u64,
     catalogs: CatalogRevisions,
+    /// The lanes the store was built from, for the next projection to take
+    /// what did not move. `None` until the store it describes is adopted.
+    basis: Option<crate::projection::LaneBasis>,
 }
 
 impl ProjectionKey {
@@ -850,6 +867,7 @@ impl ProjectionKey {
             dirty: engine.is_dirty(),
             history: engine.history_generation(),
             catalogs: CatalogRevisions::of(engine.project()),
+            basis: None,
         }
     }
 

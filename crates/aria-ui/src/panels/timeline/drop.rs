@@ -146,10 +146,13 @@ pub(crate) fn group_target(
     )
 }
 
-fn lane_at_y(lanes: &[(u64, f32, f32)], y: f32) -> Option<u64> {
+/// The lane under `y`; above the first lane, the first; below the last, the
+/// last. `lanes` run top to bottom.
+pub(super) fn lane_at_y(lanes: &[(u64, f32, f32)], y: f32) -> Option<u64> {
     lanes
         .iter()
         .find(|(_, top, bottom)| y >= *top && y < *bottom)
+        .or_else(|| lanes.first().filter(|(_, top, _)| y < *top))
         .or_else(|| lanes.last())
         .map(|(id, _, _)| *id)
 }
@@ -175,6 +178,14 @@ pub(crate) fn edge_strip(
             "lane-edge-top"
         } else {
             "lane-edge-bottom"
+        })
+        .debug_selector(move || {
+            if top {
+                "lane-edge-top"
+            } else {
+                "lane-edge-bottom"
+            }
+            .into()
         })
         .w_full()
         .h(px(Theme::SPACE_SM))

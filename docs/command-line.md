@@ -71,7 +71,17 @@ zero regardless of where the span begins.
 A codec this machine cannot write is refused by name, with the list of codecs it
 can. A `--bitrate` an encoder ignores is refused too: a file at the encoder's own
 rate is not the file that was asked for. `aria export` prints what it wrote,
-including the codec and container.
+including the codec and container, then the encoder it opened and whether it
+runs on hardware or software, then one `skipped` line for each encoder tried
+before it that did not open, with the reason:
+
+```
+wrote 120 frames of 1920x1080 MP4 · H.264 / AAC to out.mp4
+encoder x264enc (software)
+skipped nvh264enc is not installed
+skipped nvcudah264enc is not installed
+skipped vaapih264enc could not open its device
+```
 
 The flags are the same request the app's export sheet makes, resolved by the same
 code, so a scripted export and a sheet with the same choices write the same file

@@ -25,7 +25,7 @@ use aria_plugin::PluginContext;
 use crate::app::AppState;
 use crate::app::menu_keys::MenuNav;
 use crate::app::premiere_tests::with_clip;
-use crate::chrome::menu_items::items_of;
+use crate::chrome::menu_items::{TIMELINE_DISPLAY, items_of};
 use crate::plugins::UiPlugin;
 use crate::settings::UiSettings;
 use crate::timeline_display::{Follow, Thumbnails, TimelineDisplay, WaveformScale};
@@ -216,14 +216,18 @@ fn the_display_button_opens_the_submenu_and_the_keys_pick_a_choice() {
     let mut state =
         AppState::new(ctx, crate::scratch_pool::scratch("timeline-display")).expect("state");
     state.enter_editor();
-    assert!(!state.timeline_display_menu_open());
+    assert_eq!(state.display_menu(), None);
     let cx = gpui::TestAppContext::single();
     let entity = cx.update(|app| app.new(|_| state));
     let picked = cx.update(|app| {
         entity.update(app, |state: &mut AppState, cx| {
-            state.toggle_timeline_display_menu("timeline-display-settings");
+            state.toggle_display_menu("timeline-display-settings", TIMELINE_DISPLAY);
             assert_eq!(state.open_menu, Some(AppMenu::View));
-            assert!(state.timeline_display_menu_open(), "the submenu is out");
+            assert_eq!(
+                state.display_menu(),
+                Some(TIMELINE_DISPLAY),
+                "the submenu is out"
+            );
             assert_eq!(state.menu_owner, Some("timeline-display-settings"));
             // The first choice is lit, so Down then Enter picks the second.
             assert!(state.menu_key(MenuNav::Down, cx));

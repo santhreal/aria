@@ -235,10 +235,9 @@ pub fn typography(theme: &Theme) -> AnyElement {
             ))
             .child(caption(
                 theme,
-                "Geist is embedded in aria-ui and registered by a private \
-                 `register_fonts`, so this crate loads the same .ttf bytes itself; \
-                 if a family here renders as the system face, that registration \
-                 failed.",
+                "Inter is embedded in aria-ui and registered by \
+                 `aria_ui::register_fonts`; if a family here renders as the \
+                 system face, that registration failed.",
             ))
             .into_any_element(),
     )

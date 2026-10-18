@@ -239,11 +239,10 @@ fn fixture() -> PathBuf {
 async fn alt_click_on_a_drawn_stopwatch_adds_a_driver_the_keys_edit(cx: &mut TestAppContext) {
     cx.executor().allow_parking();
     let (state, visual) = drawn_shell(cx, "driver-drawn");
-    let clip = visual.update(|window, app| {
-        // A state change made outside the shell notifies nothing, so the window
-        // is asked to draw again or it keeps the frame with no clip selected.
-        window.refresh();
-        state.update(app, |state, _| {
+    let clip = visual.update(|_, app| {
+        // Notified, so the shell builds every panel body again; a window
+        // refresh alone replays each body's last drawing, with no clip selected.
+        state.update(app, |state, cx| {
             expressions(state);
             let media = state.import_media(fixture()).expect("import the fixture");
             state
@@ -260,6 +259,7 @@ async fn alt_click_on_a_drawn_stopwatch_adds_a_driver_the_keys_edit(cx: &mut Tes
                 .expect("a clip");
             state.select_clip(clip);
             state.dock_tree.open(crate::dock::PANEL_INSPECTOR);
+            cx.notify();
             clip
         })
     });

@@ -24,11 +24,7 @@ fn app_controls_use_fresh_state_for_a_looped_playback_workflow() {
                 "app_panel",
                 serde_json::json!({ "panel": "library", "action": "hide" }),
             ),
-            (
-                "theme",
-                "app_theme",
-                serde_json::json!({ "theme": "dark-blue" }),
-            ),
+            ("theme", "app_theme", serde_json::json!({ "theme": "blue" })),
             (
                 "play",
                 "app_playback",
@@ -59,7 +55,7 @@ fn app_controls_use_fresh_state_for_a_looped_playback_workflow() {
             Ok(ToolOutput::text(
                 r#"{"state":{"panels":{"library":false}}}"#,
             )),
-            Ok(ToolOutput::text(r#"{"state":{"theme":"dark-blue"}}"#)),
+            Ok(ToolOutput::text(r#"{"state":{"theme":"blue"}}"#)),
             Ok(ToolOutput::text(
                 r#"{"state":{"transport":{"playing":true}}}"#,
             )),
@@ -93,10 +89,7 @@ fn app_controls_use_fresh_state_for_a_looped_playback_workflow() {
                 "app_panel".into(),
                 serde_json::json!({ "panel": "library", "action": "hide" }),
             ),
-            (
-                "app_theme".into(),
-                serde_json::json!({ "theme": "dark-blue" }),
-            ),
+            ("app_theme".into(), serde_json::json!({ "theme": "blue" }),),
             (
                 "app_playback".into(),
                 serde_json::json!({ "action": "play" }),

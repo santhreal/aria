@@ -195,7 +195,8 @@ pub fn dialog_layer(
         None => crate::motion::dialog_in(id, card).into_any_element(),
     };
     // The padding is the edge clearance, and the card's `max_*_full` resolves
-    // against the box inside it.
+    // against the box inside it. The scrim takes the pointer: a dialog is
+    // modal, so neither a hover nor a press reaches the editor behind it.
     div()
         .absolute()
         .inset_0()
@@ -204,6 +205,7 @@ pub fn dialog_layer(
         .justify_center()
         .p(px(EDGE_CLEARANCE))
         .bg(theme.scrim().opacity(1.0 - exit.unwrap_or(0.0)))
+        .occlude()
         .child(crate::frost::frost(card))
         .into_any_element()
 }

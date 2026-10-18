@@ -28,6 +28,7 @@ const MIRRORS: &[&str] = &[
     "types_clip.rs",
     "types_clip_bar.rs",
     "types_editor.rs",
+    "types_lane.rs",
     "types_pool.rs",
     "types_target.rs",
     "app/clip_params.rs",

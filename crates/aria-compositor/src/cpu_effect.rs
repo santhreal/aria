@@ -957,9 +957,8 @@ pub(crate) fn execute_cpu_effect<'a>(
         },
         size,
     );
-    let next_encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-        label: Some("aria.compositor.encoder"),
-    });
+    let next_encoder =
+        device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
     let submitted = std::mem::replace(encoder, next_encoder).finish();
     let queue = pool.passes().queue();
     queue.submit(std::iter::once(submitted));

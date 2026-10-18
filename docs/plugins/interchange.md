@@ -117,8 +117,8 @@ A plugin adds an output format to the media Export dialog by registering an
 ```rust
 use std::path::Path;
 use aria_plugin::{
-    EncodeError, Encoder, EncoderConfig, EncoderSpec, PluginContext, PluginError, RationalTime,
-    VideoEncoder, VideoFrame,
+    EncodeError, Encoder, EncoderChoice, EncoderConfig, EncoderSpec, PluginContext, PluginError,
+    RationalTime, VideoEncoder, VideoFrame,
 };
 
 struct WebmVp9;
@@ -140,6 +140,10 @@ impl VideoEncoder for WebmSession {
 
     fn finish(&mut self) -> Result<(), EncodeError> {
         Ok(())
+    }
+
+    fn choice(&self) -> EncoderChoice {
+        EncoderChoice::only("example.webm-vp9", Some(false))
     }
 }
 
@@ -188,9 +192,15 @@ failure discards the staging file and leaves an existing destination untouched.
 If a plugin encoder unmounts while an export job is queued, that job fails
 naming the encoder id instead of falling back to the platform encoder.
 
+`VideoEncoder::choice` returns the `EncoderChoice` an export reports: the
+encoder name, `Some(true)` for a GPU or media engine, `Some(false)` for the
+CPU, `None` when unknown, and the reasons earlier candidates were skipped.
+`aria export` prints it.
+
 A panic in `Encoder::open`, `VideoEncoder::push`, `VideoEncoder::push_audio`,
-or `VideoEncoder::finish` is caught, fails the owning plugin for the session,
-drops its registrations, and returns `EncodeError`.
+`VideoEncoder::finish` or `VideoEncoder::choice` is caught and fails the owning
+plugin for the session, dropping its registrations. `choice` then reports the
+encoder id with the processor unknown; the others return `EncodeError`.
 
 `register_encoder` returns `PluginError::EncoderRefused(message)` when:
 

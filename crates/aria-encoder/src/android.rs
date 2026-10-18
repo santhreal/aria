@@ -541,6 +541,12 @@ impl VideoEncoder for MediaCodecEncoder {
         }
         Ok(())
     }
+
+    fn choice(&self) -> aria_core::EncoderChoice {
+        // `AMediaCodec_createEncoderByType` lets the platform pick the codec
+        // component; this session does not query which one it took.
+        aria_core::EncoderChoice::only("MediaCodec", None)
+    }
 }
 
 impl Drop for MediaCodecEncoder {

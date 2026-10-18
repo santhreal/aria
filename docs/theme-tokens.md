@@ -39,10 +39,13 @@ Helpers: `ink(alpha)` for fills, `hairline(alpha)` for borders,
 | `text_faint` | `#6b6b6b` | `#7d7d7d` | Disabled, hints |
 | `text_dim` | `#989898` | `neutral(0.50)` | Context rather than content: file paths |
 | `value` | `#5aa8ff` | `#1a73d9` | Editable numbers |
-| `caret` | oklch blue | oklch blue | The blinking caret in a rename bar |
+| `caret` | accent family | accent family | The blinking caret in a text field |
 
-Fonts: Geist and Geist Mono. Sizes in the UI are 14 px (titles), 13 px
-(body), 11 px (captions / timecode).
+Fonts: Inter (Regular, Medium, SemiBold, Bold, embedded) for all UI text,
+shaped with tabular figures (`tnum`) so digits keep one width; `font_mono` is
+the system monospace face, used for expressions and plugin logs. Sizes are
+28 px (display), 18 px (timeline timecode), 16 px, 14 px (headings), 12 px
+(panel titles), 11 px (UI text), 10 px, and 9 px (micro labels).
 
 ## Accents
 
@@ -50,7 +53,7 @@ Use each hue only in its role. No sixth accent.
 
 | Token | Dark (oklch) | Light (oklch) | Role |
 | --- | --- | --- | --- |
-| `accent` | 0.673, 0.182, 276.935 | 0.511, 0.262, 276.966 | Focus, links, dark playhead |
+| `accent` | accent family | accent family | Focus, links, playhead, active tool |
 | `danger` | 0.704, 0.191, 22.216 | 0.577, 0.245, 27.325 | Errors, destructive, recording |
 | `warning` | 0.828, 0.189, 84.429 | 0.555, 0.163, 48.998 | Snap guide, missing media |
 | `success` | 0.765, 0.177, 163.223 | 0.596, 0.145, 163.225 | Export done, AI approve |
@@ -64,23 +67,48 @@ is the glyph colour on an accent fill, as `on_solid` is on the solid one.
 Primary buttons use `solid` / `on_solid` (neutral maximum contrast), not
 `accent`.
 
+### Accent families
+
+Settings > Appearance > **Accent** selects one family. A family sets
+`accent`, `accent_strong`, `caret`, `selection`, and `playhead` for each
+appearance; `on_accent` is near black or near white, whichever contrasts more
+with `accent`. Neutrals, track tints, and status colours do not change. Values
+are oklch `l, c, h`; `selection` adds an alpha.
+
+| Family | Appearance | `accent` | `accent_strong` | `caret` | `selection` | `playhead` |
+| --- | --- | --- | --- | --- | --- | --- |
+| Blue (default) | Dark | 0.71, 0.15, 253 | 0.62, 0.17, 255 | 0.80, 0.11, 253 | 0.62, 0.15, 253 @ 0.35 | `accent` |
+| Blue (default) | Light | 0.47, 0.17, 257 | 0.41, 0.17, 258 | 0.45, 0.17, 257 | 0.65, 0.14, 253 @ 0.28 | `accent` |
+| Ember | Dark | 0.74, 0.15, 52 | 0.66, 0.17, 45 | 0.82, 0.11, 55 | 0.66, 0.14, 52 @ 0.32 | `accent` |
+| Ember | Light | 0.49, 0.15, 42 | 0.43, 0.14, 40 | 0.47, 0.15, 42 | 0.72, 0.12, 55 @ 0.28 | `accent` |
+| Teal | Dark | 0.77, 0.12, 190 | 0.68, 0.12, 192 | 0.84, 0.09, 190 | 0.66, 0.11, 190 @ 0.32 | `accent` |
+| Teal | Light | 0.45, 0.09, 202 | 0.39, 0.08, 204 | 0.43, 0.09, 202 | 0.72, 0.09, 195 @ 0.28 | `accent` |
+| Graphite | Dark | 0.93, 0, 0 | 0.82, 0, 0 | 0.95, 0, 0 | 0.80, 0, 0 @ 0.22 | 0.66, 0.21, 27 |
+| Graphite | Light | 0.26, 0, 0 | 0.20, 0, 0 | 0.22, 0, 0 | 0.40, 0, 0 @ 0.18 | 0.57, 0.21, 27 |
+
+In every family, `accent` text contrasts at least 4.5:1 with `bg`, `surface`,
+and `surface_header`, the playhead at least 3:1 with `bg`, `on_accent` at
+least 4.5:1 with `accent` and `accent_strong`, the caret at least 3:1 with an
+input field, and `text` at least 4.5:1 on `selection`. No family token has a
+hue between 232 and 335 degrees (HSL).
+
 ## Editor tokens
 
 Track tints are chroma 0.03 and paint the kind badge in a track header.
 
 | Token | Value | Use |
 | --- | --- | --- |
-| `track_video` | oklch 0.65 / 0.03 / 270 | Video track badge |
+| `track_video` | oklch 0.65 / 0.03 / 250 | Video track badge |
 | `track_audio` | oklch 0.65 / 0.03 / 140 | Audio and submix track badge |
 | `track_text` | oklch 0.65 / 0.03 / 60 | Text track badge |
 | `track_generator` | oklch 0.65 / 0.03 / 0 | Generator and adjustment track badge |
-| `playhead` | `accent` dark / black light | 1 px playhead |
+| `playhead` | accent family | 1 px playhead |
 | `snap_guide` | `warning` | 1 px magnet line |
 | `waveform_peak` | `text_muted` @ 0.6 | Waveform peaks |
 | `waveform_rms` | `text_faint` @ 0.4 | Waveform RMS |
 | `recording_dot` | `danger` | Live-work dot in the status strip |
-| `cursor` | `accent` | Drop insertion cursor in the timeline |
-| `selection` | `accent` @ 0.14 | Rubber-band fill, selected text in a title and in a name field |
+| `cursor` | white 35 % dark / black 55 % light | Drop insertion cursor in the timeline |
+| `selection` | accent family | Rubber-band fill, selected text in a title and in a name field |
 | `band` | ink 0.16 dark / 0.045 light | Every other row of a long list |
 
 ## Labels
@@ -89,7 +117,9 @@ A clip bar is filled with its label colour, and a selected clip with the
 label's selected fill: each channel moved a third of the way to white. Both are
 the same in either appearance. The name, icon, and waveform on a fill are drawn
 in near black (`#141414`) or near white (`#f4f4f4`), whichever contrasts more.
-Labels are not theme tokens; a theme file does not set them.
+Labels are not theme tokens; a theme file does not set them. A clip with no
+label takes its kind's: Teal for video, Forest for audio, Mango for generators,
+Tan for nested sequences, Yellow for adjustment clips.
 
 | Label | Fill | Label | Fill |
 | --- | --- | --- | --- |

@@ -11,22 +11,23 @@ use std::sync::atomic::{AtomicUsize, Ordering as Atomic};
 use std::time::{Duration, Instant};
 
 use aria_core::{
-    ColorSpace, CpuImage, GpuSurface, GpuSurfaceKind, PixelFormat, Plane, Rect, Rotation,
+    ColorSpace, CpuImage, FrameData, GpuSurface, GpuSurfaceKind, PixelFormat, Plane, Rect, Rotation,
 };
 
 use super::*;
-use crate::seek::{SeekStats, frame_at_nearest_rolling, frame_at_rolling};
+use crate::seek::{frame_at_nearest_rolling, frame_at_rolling};
+use crate::seek_cost::SeekStats;
 
-const R30: Rational = Rational::FPS_30;
+pub(crate) const R30: Rational = Rational::FPS_30;
 
-fn rt(value: i64) -> RationalTime {
+pub(crate) fn rt(value: i64) -> RationalTime {
     RationalTime::new(value, R30)
 }
 
 /// What a [`Mock`] did, readable after the mock moved into an
 /// [`AheadDecoder`].
 #[derive(Default)]
-struct Counts {
+pub(crate) struct Counts {
     decoded: AtomicUsize,
     seeks: AtomicUsize,
     dropped: AtomicUsize,
@@ -34,19 +35,19 @@ struct Counts {
 }
 
 impl Counts {
-    fn decoded(&self) -> usize {
+    pub(crate) fn decoded(&self) -> usize {
         self.decoded.load(Atomic::SeqCst)
     }
 
-    fn seeks(&self) -> usize {
+    pub(crate) fn seeks(&self) -> usize {
         self.seeks.load(Atomic::SeqCst)
     }
 
-    fn dropped(&self) -> usize {
+    pub(crate) fn dropped(&self) -> usize {
         self.dropped.load(Atomic::SeqCst)
     }
 
-    fn threads(&self) -> Vec<String> {
+    pub(crate) fn threads(&self) -> Vec<String> {
         self.threads
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
@@ -55,14 +56,14 @@ impl Counts {
 }
 
 #[derive(Clone, Copy)]
-enum Fault {
+pub(crate) enum Fault {
     Panic,
     Error,
 }
 
 /// `count` frames at 30 fps with a keyframe every `gop` frames, wired to the
 /// shared roll-forward policy like the real backends.
-struct Mock {
+pub(crate) struct Mock {
     info: SourceInfo,
     cursor: i64,
     count: i64,
@@ -77,7 +78,7 @@ struct Mock {
 }
 
 impl Mock {
-    fn new(count: i64, gop: i64) -> (Self, Arc<Counts>) {
+    pub(crate) fn new(count: i64, gop: i64) -> (Self, Arc<Counts>) {
         let counts = Arc::new(Counts::default());
         let mock = Self {
             info: SourceInfo {
@@ -102,12 +103,12 @@ impl Mock {
         (mock, counts)
     }
 
-    fn with_open_gops(mut self, open: &[i64]) -> Self {
+    pub(crate) fn with_open_gops(mut self, open: &[i64]) -> Self {
         self.open = open.to_vec();
         self
     }
 
-    fn failing_at(mut self, frame: i64, fault: Fault) -> Self {
+    pub(crate) fn failing_at(mut self, frame: i64, fault: Fault) -> Self {
         self.fault = Some((frame, fault));
         self
     }
@@ -119,7 +120,7 @@ impl Drop for Mock {
     }
 }
 
-fn cpu_frame(pts: i64, bytes: usize) -> VideoFrame {
+pub(crate) fn cpu_frame(pts: i64, bytes: usize) -> VideoFrame {
     VideoFrame::new(
         rt(pts),
         PixelFormat::Nv12,
@@ -131,7 +132,7 @@ fn cpu_frame(pts: i64, bytes: usize) -> VideoFrame {
     )
 }
 
-fn gpu_frame(pts: i64) -> VideoFrame {
+pub(crate) fn gpu_frame(pts: i64) -> VideoFrame {
     VideoFrame::new(
         rt(pts),
         PixelFormat::Nv12,
@@ -204,11 +205,11 @@ impl VideoDecoder for Mock {
     }
 }
 
-fn ahead(mock: Mock) -> AheadDecoder {
+pub(crate) fn ahead(mock: Mock) -> AheadDecoder {
     AheadDecoder::new(Box::new(mock))
 }
 
-fn pts(result: Result<Option<VideoFrame>, DecodeError>) -> Option<i64> {
+pub(crate) fn pts(result: Result<Option<VideoFrame>, DecodeError>) -> Option<i64> {
     result
         .unwrap_or_else(|error| panic!("decode failed: {error}"))
         .map(|frame| frame.pts.value)
@@ -216,7 +217,7 @@ fn pts(result: Result<Option<VideoFrame>, DecodeError>) -> Option<i64> {
 
 /// Wait for `done`, failing after five seconds: what a stalled decoder looks
 /// like in this suite.
-fn within_deadline(what: &str, mut done: impl FnMut() -> bool) {
+pub(crate) fn within_deadline(what: &str, mut done: impl FnMut() -> bool) {
     let deadline = Instant::now() + Duration::from_secs(5);
     while !done() {
         assert!(
@@ -303,73 +304,6 @@ fn a_skip_forward_drops_the_frames_it_passes() {
     assert_eq!(decoder.ahead(), AHEAD_FRAMES);
     assert_eq!(counts.decoded(), 6 + AHEAD_FRAMES);
     assert_eq!(counts.seeks(), 1);
-}
-
-#[test]
-fn reverse_walks_each_gop_once() {
-    let (mock, counts) = Mock::new(40, 10);
-    let mut decoder = ahead(mock);
-    for frame in (0..40).rev() {
-        assert_eq!(
-            pts(decoder.frame_at(rt(frame))),
-            Some(frame),
-            "frame {frame}"
-        );
-    }
-    decoder.idle();
-    // The cold seek for 39, then one walk per GOP: 38, 29, 19, and 9.
-    assert_eq!(counts.seeks(), 5);
-    // 30..=39, then 30..=38, 20..=29, 10..=19, and 0..=9.
-    assert_eq!(counts.decoded(), 49);
-    assert_eq!(decoder.ahead(), 0, "nothing decodes ahead while reversing");
-}
-
-/// A backward request whose sync sample cannot start a decode backs off to
-/// an earlier one, exactly as the wrapped decoder's `frame_at` does, and
-/// returns the requested frame instead of the next sync sample.
-///
-/// Closes the class "decode-ahead walks back without the open-GOP back-off":
-/// the backward walk landed on the next GOP and returned its first frame for
-/// every target in the open GOP. Does not cover a decoder that emits
-/// corrupt frames instead of skipping them.
-#[test]
-fn a_backward_walk_over_an_open_gop_backs_off_to_the_exact_frame() {
-    let (mock, _) = Mock::new(60, 10);
-    let mut decoder = ahead(mock.with_open_gops(&[20, 40]));
-    for frame in (0..60).rev() {
-        assert_eq!(
-            pts(decoder.frame_at(rt(frame))),
-            Some(frame),
-            "frame {frame}"
-        );
-    }
-    let (bare, _) = Mock::new(60, 10);
-    let mut bare = bare.with_open_gops(&[20, 40]);
-    let (mock, _) = Mock::new(60, 10);
-    let mut decoder = ahead(mock.with_open_gops(&[20, 40]));
-    for target in [45, 44, 41, 40, 25, 21, 20, 19, 59, 58, 3] {
-        assert_eq!(
-            pts(decoder.frame_at(rt(target))),
-            pts(bare.frame_at(rt(target))),
-            "target {target}"
-        );
-    }
-}
-
-#[test]
-fn reverse_then_forward_returns_the_frames_in_order() {
-    let (bare, _) = Mock::new(40, 10);
-    let mut bare = bare;
-    let (mock, _) = Mock::new(40, 10);
-    let mut decoder = ahead(mock);
-    let targets = [25, 24, 23, 15, 16, 17, 30, 2, 1, 3, 39];
-    for target in targets {
-        assert_eq!(
-            pts(decoder.frame_at(rt(target))),
-            pts(bare.frame_at(rt(target))),
-            "target {target}"
-        );
-    }
 }
 
 #[test]
@@ -522,36 +456,4 @@ fn open_ahead_reports_a_failed_or_panicking_open() {
     let panicked = open_ahead(|| panic!("open fault"), rt(0), false);
     let error = panicked.wait().err().unwrap_or_else(|| panic!("opened"));
     assert!(error.to_string().contains("panicked"), "{error}");
-}
-
-#[test]
-fn behind_keeps_the_newest_frames_within_its_byte_budget() {
-    let mut behind = Behind::default();
-    let size = BEHIND_BYTES / 3 + 1;
-    for frame in 0..5 {
-        behind.push(cpu_frame(frame, size));
-        assert!(behind.bytes <= BEHIND_BYTES, "{} bytes held", behind.bytes);
-    }
-    let held: Vec<i64> = behind.frames.iter().map(|frame| frame.pts.value).collect();
-    assert_eq!(held, [3, 4]);
-    assert_eq!(behind.bytes, 2 * size);
-    // The oldest held frame lies past 2: an earlier frame no longer held may
-    // cover it, so it is not answered from here.
-    assert!(behind.take(rt(2), R30).is_none());
-    assert_eq!(
-        behind.take(rt(3), R30).map(|frame| frame.pts.value),
-        Some(3)
-    );
-    assert_eq!(behind.bytes, 0, "taking 3 drops the passed frame 4");
-}
-
-#[test]
-fn behind_keeps_at_most_its_surface_budget() {
-    let mut behind = Behind::default();
-    for frame in 0..BEHIND_SURFACES as i64 + 3 {
-        behind.push(gpu_frame(frame));
-    }
-    assert_eq!(behind.surfaces, BEHIND_SURFACES);
-    assert_eq!(behind.frames.len(), BEHIND_SURFACES);
-    assert_eq!(behind.frames.front().map(|frame| frame.pts.value), Some(3));
 }

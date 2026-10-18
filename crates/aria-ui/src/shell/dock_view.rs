@@ -11,22 +11,42 @@ use gpui::{
 use aria_plugin::PanelLocation;
 
 use crate::dock::{
-    Axis, FloatRect, Frame, FrameId, Node, PANEL_INSPECTOR, PANEL_TIMELINE, PANEL_VIEWER, PanelId,
-    Zone,
+    Axis, FloatRect, Frame, FrameId, Node, PANEL_TIMELINE, PANEL_VIEWER, PanelId, Zone,
 };
 use crate::fluent::FluentBuilder;
 use crate::motion::{self, MotionKey};
 use crate::plugins::panel_host::host_of;
 use crate::settings::{MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH};
 use crate::theme::Theme;
+use crate::tooltip::WithTip as _;
 use crate::types::ActivePanel;
 
 use super::Shell;
 use super::drag::{Drag, DragKind};
 use super::strip::split_row;
 
+#[path = "frame_menu.rs"]
+pub(super) mod frame_menu;
+#[path = "frame_page.rs"]
+mod frame_page;
+#[path = "tab_fit.rs"]
+mod tab_fit;
+
 const SPLITTER_HIT_PX: f32 = 6.0;
 const SPLITTER_LINE_PX: f32 = 1.0;
+
+/// A dock tab's close: its box and its glyph.
+const DOCK_TAB_CLOSE: f32 = 16.0;
+const DOCK_TAB_CLOSE_GLYPH: f32 = 12.0;
+/// How much faster a tab's close shrinks than its title. The close is
+/// `DOCK_TAB_CLOSE` px against a title of several times that, so a factor this
+/// large hands it all of a narrow tab's deficit until it is gone.
+const DOCK_TAB_CLOSE_SHRINK: f32 = 64.0;
+/// Frame width under which the tab row is compact: tabs and the menu button
+/// keep `SPACE_XS` of padding instead of `SPACE_SM`, and a title stands with no
+/// gap before its close, so a frame as narrow as the 64 px Audio Meters frame
+/// still reads the start of its title.
+const DOCK_TAB_COMPACT_W: f32 = 120.0;
 
 /// Drop-zone preview fade-in (`docs/spec/layout.md:51-53`: appears 80 ms after
 /// the pointer enters the frame, with a 120 ms fade).
@@ -38,6 +58,30 @@ pub const MAXIMIZE_SPEC: MotionSpec = MotionSpec::new(160, Easing::EaseOut);
 /// Workspace switch split weight morph (`docs/spec/layout.md:81`: 180 ms;
 /// `docs/spec/look.md` Motion: panel docking and workspace changes on `ease_out`).
 pub const WORKSPACE_MORPH_SPEC: MotionSpec = MotionSpec::new(180, Easing::EaseOut);
+
+/// A frame header control that fades from `rest` text on no wash to `hover`
+/// text on the hover wash under the pointer. The fade redraws the window
+/// chrome alone, where a gpui hover style on Shell-drawn chrome notifies the
+/// Shell and rebuilds every panel body.
+trait HoverFade: Styled + gpui::StatefulInteractiveElement + Sized {
+    fn hover_fade(
+        self,
+        key: MotionKey,
+        rest: gpui::Hsla,
+        hover: gpui::Hsla,
+        theme: &Theme,
+    ) -> Self {
+        self.text_color(motion::hover_blend(key, rest, hover))
+            .bg(motion::hover_blend(
+                key,
+                theme.wash(0.0),
+                theme.element_hover,
+            ))
+            .on_hover(motion::hover_listener(key))
+    }
+}
+
+impl<E: Styled + gpui::StatefulInteractiveElement> HoverFade for E {}
 
 std::thread_local! {
     static ACTIVE_SPLIT_DRAG_PATH: std::cell::RefCell<Vec<usize>> =
@@ -158,7 +202,9 @@ pub fn clamp_float_rect_to_displays(
 }
 
 impl Shell {
-    /// Render a single dockable panel's content by id.
+    /// Render a single dockable panel's content by id, on its page when it
+    /// has one (see [`frame_page`]). The page's scroller is drawn inside the
+    /// panel's body, so a scroll redraws that body alone.
     pub(super) fn render_panel_body(
         &self,
         panel: PanelId,
@@ -176,23 +222,15 @@ impl Shell {
             out.push((entry.render)(&self.state, cx));
             if panel == PANEL_VIEWER {
                 out.extend(self.slot(PanelLocation::Overlay, cx));
-            } else if panel == PANEL_INSPECTOR {
-                let subs = {
-                    let read = self.state.read(cx);
-                    host.sub_entries_at(PanelLocation::Inspector, read)
-                };
-                for sub in subs {
-                    out.push(sub(&self.state, cx));
-                }
             }
-            return out;
+            return frame_page::page(panel, out);
         }
         if let Some(declared_one) = host.declared_one()
             && let Some(el) = declared_one(panel, &self.state, cx)
         {
             out.push(el);
         }
-        out
+        frame_page::page(panel, out)
     }
 
     /// Render the editor's docked workspace area (maximized frame, small-window
@@ -608,16 +646,19 @@ impl Shell {
 
         let rects = self.state.read(cx).dock_frame_rects.clone();
         let measure = gpui::canvas(
-            move |bounds, _, _| {
-                rects.lock().insert(
-                    frame_id,
-                    [
-                        (f32::from(bounds.origin.x) - 1.0).max(0.0),
-                        (f32::from(bounds.origin.y) - 1.0).max(0.0),
-                        f32::from(bounds.size.width) + 2.0,
-                        f32::from(bounds.size.height) + 2.0,
-                    ],
-                );
+            move |bounds, window, _| {
+                let rect = [
+                    (f32::from(bounds.origin.x) - 1.0).max(0.0),
+                    (f32::from(bounds.origin.y) - 1.0).max(0.0),
+                    f32::from(bounds.size.width) + 2.0,
+                    f32::from(bounds.size.height) + 2.0,
+                ];
+                let was = rects.lock().insert(frame_id, rect);
+                // The tab row fits its tabs to the width drawn last, so a frame
+                // drawn at a new width draws once more.
+                if was.is_none_or(|was| (was[2] - rect[2]).abs() > 0.5) {
+                    window.request_animation_frame();
+                }
             },
             |_, _, _, _| {},
         )
@@ -632,12 +673,13 @@ impl Shell {
             theme,
             cx,
         );
-        let body_children = self.render_panel_body(active_panel, cx);
-        let menu_overlay = if self.frame_menu.map(|(fid, _)| fid) == Some(frame_id) {
-            let target_panel = self.frame_menu.map(|(_, p)| p).unwrap_or(active_panel);
-            Some(self.render_frame_menu(frame_id, target_panel, theme, cx))
-        } else {
-            None
+        let frame_slot = MotionKey::new("dock-frame", frame_id);
+        let body_children = vec![self.panel_body(active_panel, cx)];
+        let menu_overlay = match self.frame_menu {
+            Some(frame_menu::FrameMenu::Panel { frame, panel, .. }) if frame == frame_id => {
+                Some(self.render_frame_menu(frame_id, panel, theme, cx))
+            }
+            _ => None,
         };
         let zones_overlay = if tab_drag_active {
             Some(self.render_drop_zones(frame_id, hovered_zone, theme, cx))
@@ -645,7 +687,6 @@ impl Shell {
             None
         };
 
-        let frame_slot = MotionKey::new("dock-frame", frame_id);
         div()
             .id(frame_slot.element_id("box"))
             .flex()
@@ -700,34 +741,114 @@ impl Shell {
     ) -> AnyElement {
         let frame_id = frame.id;
         let active_panel = frame.active_panel();
-        let mut tabs_out = Vec::with_capacity(frame.tabs.len());
+        // The width the frame drew at last; a frame not drawn yet is not
+        // compact and draws every tab.
+        let width = self
+            .state
+            .read(cx)
+            .dock_frame_rect(frame_id)
+            .map(|[_, _, w, _]| w);
+        let compact = width.is_some_and(|w| w < DOCK_TAB_COMPACT_W);
+        let pad = if compact {
+            Theme::SPACE_XS
+        } else {
+            Theme::SPACE_SM
+        };
+        let titles: Vec<&'static str> = {
+            let read = self.state.read(cx);
+            frame
+                .tabs
+                .iter()
+                .map(|&p| read.dock_panel_title(p))
+                .collect()
+        };
+        let font = tab_fit::tab_font(theme);
+        let gap = if compact { 0.0 } else { Theme::SPACE_XS };
+        let least: Vec<f32> = titles
+            .iter()
+            .map(|title| tab_fit::least_width(title, pad, gap, &font, cx))
+            .collect();
+        // The row less the frame's border and the controls after the tabs:
+        // the menu button, and a floating or maximized frame's own buttons.
+        let avail = width.map(|w| {
+            let button = |label: &str, pad: f32| tab_fit::label_width(label, &font, cx) + 2.0 * pad;
+            let mut controls = button("≡", pad);
+            if is_floating {
+                controls += button("Dock", 6.0) + button("Close Window", 6.0);
+            }
+            if is_maximized {
+                controls += button("Restore", 6.0);
+            }
+            w - 2.0 - controls
+        });
+        let drawn = match avail {
+            Some(avail) if frame.tabs.len() > 1 => tab_fit::fit(avail, &least, active_idx),
+            _ => vec![true; frame.tabs.len()],
+        };
+        let hidden: Vec<PanelId> = frame
+            .tabs
+            .iter()
+            .zip(&drawn)
+            .filter(|&(_, &shown)| !shown)
+            .map(|(&panel, _)| panel)
+            .collect();
+        // Short of room for the drawn tabs whole, every close gives up its
+        // width before a title gives up a letter. Shrinking in proportion, an
+        // active close would stay a sliver and a short title lose a lead letter.
+        let squeezed = avail.is_some_and(|avail| {
+            let more = if hidden.is_empty() {
+                0.0
+            } else {
+                tab_fit::MORE_W
+            };
+            let whole: f32 = titles
+                .iter()
+                .zip(&drawn)
+                .filter(|&(_, &shown)| shown)
+                .map(|(title, _)| tab_fit::whole_width(title, pad, gap, DOCK_TAB_CLOSE, &font, cx))
+                .sum();
+            whole > avail - more
+        });
+        let mut tabs_out = Vec::with_capacity(frame.tabs.len() - hidden.len());
         for (tab_idx, &panel) in frame.tabs.iter().enumerate() {
+            if !drawn[tab_idx] {
+                continue;
+            }
             let is_active = tab_idx == active_idx;
-            let title = self.state.read(cx).dock_panel_title(panel);
+            let title = titles[tab_idx];
             let tab_slot = MotionKey::new("dock-tab", panel);
             let close_slot = MotionKey::new("dock-tab-close", panel);
             tabs_out.push(
                 div()
                     .id(tab_slot.element_id("tab"))
                     .debug_selector(move || format!("dock-tab-{panel}"))
+                    // A tab narrower than its title still reads it under the
+                    // pointer.
+                    .with_tip(crate::tooltip::text_builder(title))
                     .h_full()
-                    .min_w_0()
+                    // A tab shrinks to its title's first letters and stops:
+                    // narrower than that, the row lists it behind the overflow
+                    // control instead.
+                    .min_w(px(least[tab_idx]))
                     .flex()
                     .items_center()
-                    .gap(px(6.0))
-                    .px(px(10.0))
+                    .when(!compact, |el| el.gap(px(Theme::SPACE_XS)))
+                    .px(px(pad))
                     .cursor(CursorStyle::PointingHand)
                     .bg(if is_active { theme.bg } else { theme.surface })
                     .border_r_1()
                     .border_color(theme.border)
                     .when(is_active, |el| el.border_b_2().border_color(theme.accent))
                     .text_size(Theme::TEXT_UI)
+                    // A hover fade notifies the window chrome alone; a gpui
+                    // hover style here would notify the Shell, which rebuilds
+                    // every panel body.
                     .text_color(if is_active {
                         theme.text
                     } else {
-                        theme.text_muted
+                        motion::hover_blend(tab_slot, theme.text_muted, theme.text)
                     })
-                    .hover(|s| s.text_color(theme.text))
+                    .on_hover(motion::hover_listener(tab_slot))
                     .on_mouse_down(
                         MouseButton::Left,
                         cx.listener(move |this, event: &MouseDownEvent, window, cx| {
@@ -772,11 +893,7 @@ impl Shell {
                         MouseButton::Right,
                         cx.listener(move |this, _: &MouseDownEvent, _, cx| {
                             cx.stop_propagation();
-                            if this.frame_menu == Some((frame_id, panel)) {
-                                this.frame_menu = None;
-                            } else {
-                                this.frame_menu = Some((frame_id, panel));
-                            }
+                            this.toggle_frame_menu(frame_id, panel);
                             cx.notify();
                         }),
                     )
@@ -785,12 +902,33 @@ impl Shell {
                         div()
                             .id(close_slot.element_id("close"))
                             .debug_selector(move || format!("dock-tab-close-{panel}"))
-                            .flex_none()
-                            .px(px(2.0))
-                            .rounded(px(2.0))
-                            .text_size(Theme::TEXT_SMALL)
-                            .text_color(theme.text_faint)
-                            .hover(|s| s.text_color(theme.text).bg(theme.element_hover))
+                            // The close gives up its width before the title
+                            // gives up a character, so a narrow tab reads as
+                            // its name rather than as a lone close.
+                            .flex_shrink(DOCK_TAB_CLOSE_SHRINK)
+                            .min_w_0()
+                            .w(px(if squeezed { 0.0 } else { DOCK_TAB_CLOSE }))
+                            .h(px(DOCK_TAB_CLOSE))
+                            .overflow_hidden()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .rounded(px(Theme::CONTROL_RADIUS))
+                            .text_color(motion::hover_blend(
+                                close_slot,
+                                theme.text_faint,
+                                theme.text,
+                            ))
+                            .bg(motion::hover_blend(
+                                close_slot,
+                                theme.wash(0.0),
+                                theme.element_hover,
+                            ))
+                            .on_hover(motion::hover_listener(close_slot))
+                            // Only the active tab shows its close at rest; the
+                            // others fade it in under the pointer, in a place
+                            // already laid out, so no title moves.
+                            .when(!is_active, |el| el.opacity(motion::hover_t(tab_slot)))
                             .on_mouse_down(
                                 MouseButton::Left,
                                 cx.listener(move |this, _: &MouseDownEvent, _, cx| {
@@ -801,7 +939,11 @@ impl Shell {
                                     });
                                 }),
                             )
-                            .child("×"),
+                            .child(
+                                crate::icons::icon(crate::icons::CLOSE)
+                                    .flex_none()
+                                    .size(px(DOCK_TAB_CLOSE_GLYPH)),
+                            ),
                     )
                     .into_any_element(),
             );
@@ -847,6 +989,10 @@ impl Shell {
                     .overflow_hidden()
                     .children(tabs_out),
             )
+            // The tabs that did not fit, behind one control at the row's end.
+            .when(!hidden.is_empty(), |el| {
+                el.child(self.render_tab_overflow(frame_id, &hidden, theme, cx))
+            })
             // A floating window's own bar: the empty stretch moves the window
             // when the app draws its frame.
             .child(if is_floating {
@@ -864,9 +1010,8 @@ impl Shell {
                         .flex()
                         .items_center()
                         .text_size(Theme::TEXT_UI)
-                        .text_color(theme.text_muted)
                         .cursor(CursorStyle::PointingHand)
-                        .hover(|s| s.text_color(theme.text).bg(theme.element_hover))
+                        .hover_fade(redock_slot, theme.text_muted, theme.text, theme)
                         .on_mouse_down(
                             MouseButton::Left,
                             cx.listener(move |this, _: &MouseDownEvent, window, cx| {
@@ -888,23 +1033,14 @@ impl Shell {
                         .flex()
                         .items_center()
                         .text_size(Theme::TEXT_UI)
-                        .text_color(theme.text_muted)
                         .cursor(CursorStyle::PointingHand)
-                        .hover(|s| s.text_color(theme.text).bg(theme.element_hover))
+                        .hover_fade(close_float_slot, theme.text_muted, theme.text, theme)
                         .on_mouse_down(
                             MouseButton::Left,
                             cx.listener(move |this, _: &MouseDownEvent, window, cx| {
                                 cx.stop_propagation();
                                 this.state.update(cx, |state, cx| {
-                                    if let Some(pos) = state
-                                        .dock_tree
-                                        .floating
-                                        .iter()
-                                        .position(|fl| fl.frame.id == frame_id)
-                                    {
-                                        state.dock_tree.floating.remove(pos);
-                                        state.record_dock_edit(cx);
-                                    }
+                                    state.close_floating_frame(frame_id, cx);
                                 });
                                 window.remove_window();
                             }),
@@ -922,9 +1058,8 @@ impl Shell {
                         .flex()
                         .items_center()
                         .text_size(Theme::TEXT_UI)
-                        .text_color(theme.accent)
                         .cursor(CursorStyle::PointingHand)
-                        .hover(|s| s.bg(theme.element_hover))
+                        .hover_fade(restore_slot, theme.accent, theme.accent, theme)
                         .on_mouse_down(
                             MouseButton::Left,
                             cx.listener(move |this, _: &MouseDownEvent, _, cx| {
@@ -943,205 +1078,24 @@ impl Shell {
                     .id(menu_btn_slot.element_id("btn"))
                     .debug_selector(move || format!("dock-frame-menu-{}", frame_id.0))
                     .flex_none()
-                    .px(px(8.0))
+                    .px(px(pad))
                     .h_full()
                     .flex()
                     .items_center()
                     .text_size(Theme::TEXT_UI)
-                    .text_color(theme.text_muted)
                     .cursor(CursorStyle::PointingHand)
-                    .hover(|s| s.text_color(theme.text).bg(theme.element_hover))
+                    .hover_fade(menu_btn_slot, theme.text_muted, theme.text, theme)
                     .on_mouse_down(
                         MouseButton::Left,
                         cx.listener(move |this, _: &MouseDownEvent, _, cx| {
                             cx.stop_propagation();
-                            if this.frame_menu == Some((frame_id, active_panel)) {
-                                this.frame_menu = None;
-                            } else {
-                                this.frame_menu = Some((frame_id, active_panel));
-                            }
+                            this.toggle_frame_menu(frame_id, active_panel);
                             cx.notify();
                         }),
                     )
                     .child("≡"),
             )
             .into_any_element()
-    }
-
-    fn render_frame_menu(
-        &self,
-        frame_id: FrameId,
-        panel: PanelId,
-        theme: &Theme,
-        cx: &mut Context<Self>,
-    ) -> AnyElement {
-        let close_slot = MotionKey::new("dock-menu-close", panel);
-        let others_slot = MotionKey::new("dock-menu-close-others", panel);
-        let undock_slot = MotionKey::new("dock-menu-undock", panel);
-        let max_slot = MotionKey::new("dock-menu-maximize", panel);
-
-        let openable: Vec<(PanelId, &'static str)> = {
-            let read = self.state.read(cx);
-            let ids = read.registered_panel_ids();
-            let in_frame: Vec<PanelId> = read
-                .dock_tree
-                .frame(frame_id)
-                .map(|f| f.tabs.clone())
-                .unwrap_or_default();
-            ids.into_iter()
-                .filter(|id| !in_frame.contains(id))
-                .map(|id| (id, read.dock_panel_title(id)))
-                .collect()
-        };
-
-        let mut add_rows = Vec::with_capacity(openable.len());
-        for (add_panel, title) in openable {
-            let row_slot = MotionKey::new("dock-menu-open", add_panel);
-            add_rows.push(
-                div()
-                    .id(row_slot.element_id("row"))
-                    .px(px(10.0))
-                    .py(px(4.0))
-                    .text_size(Theme::TEXT_TITLE)
-                    .text_color(theme.text)
-                    .cursor(CursorStyle::PointingHand)
-                    .hover(|s| s.bg(theme.element_hover))
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                            cx.stop_propagation();
-                            this.frame_menu = None;
-                            this.state.update(cx, |state, cx| {
-                                state.dock_tree.dock(add_panel, frame_id, Zone::Center);
-                                state.record_dock_edit(cx);
-                            });
-                        }),
-                    )
-                    .flex()
-                    .flex_row()
-                    .gap(px(4.0))
-                    .child("Add")
-                    .child(title)
-                    .into_any_element(),
-            );
-        }
-
-        motion::fade_quick(
-            MotionKey::new("dock-frame-menu-pop", frame_id),
-            div()
-                .id(MotionKey::new("dock-menu-card", frame_id).element_id("card"))
-                .absolute()
-                .top(px(4.0))
-                .right(px(4.0))
-                .w(px(200.0))
-                .py(px(4.0))
-                .rounded(px(Theme::CONTROL_RADIUS))
-                .bg(theme.surface_card)
-                .border_1()
-                .border_color(theme.border_strong)
-                .flex()
-                .flex_col()
-                .child(
-                    div()
-                        .id(close_slot.element_id("row"))
-                        .px(px(10.0))
-                        .py(px(4.0))
-                        .text_size(Theme::TEXT_TITLE)
-                        .text_color(theme.text)
-                        .cursor(CursorStyle::PointingHand)
-                        .hover(|s| s.bg(theme.element_hover))
-                        .on_mouse_down(
-                            MouseButton::Left,
-                            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                                cx.stop_propagation();
-                                this.frame_menu = None;
-                                this.state.update(cx, |state, cx| {
-                                    state.close_dock_panel(panel, cx);
-                                });
-                            }),
-                        )
-                        .child("Close Panel"),
-                )
-                .child(
-                    div()
-                        .id(others_slot.element_id("row"))
-                        .px(px(10.0))
-                        .py(px(4.0))
-                        .text_size(Theme::TEXT_TITLE)
-                        .text_color(theme.text)
-                        .cursor(CursorStyle::PointingHand)
-                        .hover(|s| s.bg(theme.element_hover))
-                        .on_mouse_down(
-                            MouseButton::Left,
-                            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                                cx.stop_propagation();
-                                this.frame_menu = None;
-                                this.state.update(cx, |state, cx| {
-                                    state.close_other_dock_tabs(frame_id, panel, cx);
-                                });
-                            }),
-                        )
-                        .child("Close Other Tabs in Frame"),
-                )
-                .child(
-                    div()
-                        .id(undock_slot.element_id("row"))
-                        .px(px(10.0))
-                        .py(px(4.0))
-                        .text_size(Theme::TEXT_TITLE)
-                        .text_color(theme.text)
-                        .cursor(CursorStyle::PointingHand)
-                        .hover(|s| s.bg(theme.element_hover))
-                        .on_mouse_down(
-                            MouseButton::Left,
-                            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                                cx.stop_propagation();
-                                this.frame_menu = None;
-                                this.state.update(cx, |state, cx| {
-                                    state.float_dock_panel(
-                                        panel,
-                                        FloatRect {
-                                            x: 120.0,
-                                            y: 120.0,
-                                            w: 520.0,
-                                            h: 360.0,
-                                        },
-                                        cx,
-                                    );
-                                });
-                                this.sync_floating_windows(cx);
-                            }),
-                        )
-                        .child("Undock Panel"),
-                )
-                .child(
-                    div()
-                        .id(max_slot.element_id("row"))
-                        .px(px(10.0))
-                        .py(px(4.0))
-                        .text_size(Theme::TEXT_TITLE)
-                        .text_color(theme.text)
-                        .cursor(CursorStyle::PointingHand)
-                        .hover(|s| s.bg(theme.element_hover))
-                        .on_mouse_down(
-                            MouseButton::Left,
-                            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                                cx.stop_propagation();
-                                this.frame_menu = None;
-                                this.state.update(cx, |state, cx| {
-                                    state.dock_tree.toggle_maximize(frame_id);
-                                    state.record_dock_edit(cx);
-                                });
-                            }),
-                        )
-                        .child("Maximize Frame"),
-                )
-                .when(!add_rows.is_empty(), |el| {
-                    el.child(div().h(px(1.0)).w_full().my(px(3.0)).bg(theme.border))
-                        .children(add_rows)
-                }),
-        )
-        .into_any_element()
     }
 
     fn render_drop_zones(
@@ -1347,7 +1301,19 @@ impl Shell {
                     kind: WindowKind::Normal,
                     ..Default::default()
                 },
-                move |_, app| app.new(|cx| Shell::new_floating(state, frame_id, cx)),
+                move |window, app| {
+                    // The window manager's close control closes the frame's
+                    // panels, as Close Window does. Without it the frame stays
+                    // floating with no window, and its panels cannot be reached.
+                    let closing = state.clone();
+                    window.on_window_should_close(app, move |_, cx| {
+                        closing.update(cx, |state, cx| {
+                            state.close_floating_frame(frame_id, cx);
+                        });
+                        true
+                    });
+                    app.new(|cx| Shell::new_floating(state, frame_id, cx))
+                },
             ) {
                 Ok(handle) => {
                     self.floating_windows.push((frame_id, handle.into()));
@@ -1498,8 +1464,24 @@ impl Shell {
             .bg(theme.bg)
             .text_color(theme.text)
             .font_family(theme.font_sans.clone())
+            .font_features(crate::theme::text_features())
             .text_size(Theme::TEXT_UI)
             .child(self.render_frame(&fl.frame, true, false, theme, cx))
             .into_any_element()
     }
 }
+
+#[cfg(test)]
+#[path = "dock_tab_tests.rs"]
+mod dock_tab_tests;
+
+#[cfg(test)]
+#[path = "panel_fit_tests.rs"]
+mod panel_fit_tests;
+
+#[cfg(test)]
+#[path = "frame_height_tests.rs"]
+mod frame_height_tests;
+#[cfg(test)]
+#[path = "tab_overflow_tests.rs"]
+mod tab_overflow_tests;

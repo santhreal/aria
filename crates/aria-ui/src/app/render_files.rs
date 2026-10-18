@@ -1,10 +1,8 @@
-//! Render In to Out cache wiring and timeline render-bar segment computation.
+//! Render In to Out cache wiring.
 //!
 //! [`RenderFiles`] is owned by `aria-render` and shared between the session's
-//! `aria_engine::Engine` and background render jobs. Computing
-//! [`RenderSegment`] runs off the UI thread on the session's preview worker or
-//! at the tail of a render-file job, because resolving every frame's scene and
-//! checking disk presence must never run on the ruler's paint path.
+//! `aria_engine::Engine` and background render jobs. The ruler's render bar
+//! is computed in `super::render_bar`.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -12,14 +10,12 @@ use std::sync::atomic::Ordering;
 
 use aria_core::RationalTime;
 use aria_jobs::JobCompletion;
-use aria_models::Project;
-use aria_plugin::{PluginContext, ProjectHost};
-use aria_render::{RenderFiles, Scene};
+use aria_plugin::PluginContext;
+use aria_render::RenderFiles;
 use aria_storage::CacheId;
-use parking_lot::{Condvar, Mutex};
 
 use super::AppState;
-use crate::preview_worker::PreviewWorker;
+use super::render_bar::{BarStamp, compute_render_segments};
 
 /// Playback readiness of a timeline frame range in the ruler's `3px` render bar.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -78,261 +74,6 @@ pub(crate) fn render_files_environment(ctx: &PluginContext) -> String {
         .collect();
     plugins.sort();
     plugins.join(";")
-}
-
-/// Classify every frame of `project` against `files` and coalesce contiguous
-/// runs of equal [`RenderQuality`]. Empty frames (no layers) produce no segment.
-pub fn compute_render_segments(project: &Project, files: &RenderFiles) -> Vec<RenderSegment> {
-    let rate = project.timeline().frame_rate;
-    let duration_frames = project.timeline().duration().value.max(0);
-    if duration_frames <= 0 {
-        return Vec::new();
-    }
-    let mut segments: Vec<RenderSegment> = Vec::new();
-    for f in 0..duration_frames {
-        let start_tick = f;
-        let end_tick = f + 1;
-        let at = RationalTime::new(f, rate);
-        let Ok(mut scene) = aria_render::resolve(project, at) else {
-            continue;
-        };
-        if scene.layers.is_empty() {
-            continue;
-        }
-        let quality = if files
-            .key(project, &scene)
-            .is_some_and(|key| files.contains(&key))
-        {
-            RenderQuality::Green
-        } else if is_red_scene(project, &mut scene) {
-            RenderQuality::Red
-        } else {
-            RenderQuality::Yellow
-        };
-        match segments.last_mut() {
-            Some(last) if last.end_tick == start_tick && last.quality == quality => {
-                last.end_tick = end_tick;
-            }
-            _ => segments.push(RenderSegment {
-                start_tick,
-                end_tick,
-                quality,
-            }),
-        }
-    }
-    segments
-}
-
-fn is_red_scene(project: &Project, scene: &mut Scene) -> bool {
-    if scene
-        .layers
-        .iter()
-        .any(|layer| layer_has_heavy_or_nested(project, layer))
-    {
-        return true;
-    }
-    let picture_layers: usize = scene.layers.iter().map(picture_layer_count).sum();
-    if picture_layers > 4 {
-        return true;
-    }
-    aria_render::attach_motion_blur_passes(project, scene);
-    scene.layers.iter().any(layer_has_motion_blur)
-}
-
-fn layer_has_heavy_or_nested(project: &Project, layer: &aria_render::SceneLayer) -> bool {
-    if layer.effects.iter().any(|p| p.is_cpu() || p.is_stateful()) {
-        return true;
-    }
-    if layer
-        .clip
-        .and_then(|id| project.clip(id))
-        .is_some_and(|c| matches!(c.content, aria_models::ClipSource::Sequence { .. }))
-    {
-        return true;
-    }
-    match &layer.source {
-        aria_render::LayerSource::Transition {
-            outgoing, incoming, ..
-        } => {
-            layer_has_heavy_or_nested(project, outgoing)
-                || layer_has_heavy_or_nested(project, incoming)
-        }
-        aria_render::LayerSource::Matte { layers, .. } => {
-            layer_has_heavy_or_nested(project, &layers[0])
-                || layer_has_heavy_or_nested(project, &layers[1])
-        }
-        _ => false,
-    }
-}
-
-fn picture_layer_count(layer: &aria_render::SceneLayer) -> usize {
-    match &layer.source {
-        aria_render::LayerSource::Transition {
-            outgoing, incoming, ..
-        } => picture_layer_count(outgoing) + picture_layer_count(incoming),
-        aria_render::LayerSource::Matte { layers, .. } => {
-            picture_layer_count(&layers[0]) + picture_layer_count(&layers[1])
-        }
-        source => usize::from(source.spec().paints),
-    }
-}
-
-fn layer_has_motion_blur(layer: &aria_render::SceneLayer) -> bool {
-    if !layer.blur_passes.is_empty() {
-        return true;
-    }
-    match &layer.source {
-        aria_render::LayerSource::Transition {
-            outgoing, incoming, ..
-        } => layer_has_motion_blur(outgoing) || layer_has_motion_blur(incoming),
-        aria_render::LayerSource::Matte { layers, .. } => {
-            layer_has_motion_blur(&layers[0]) || layer_has_motion_blur(&layers[1])
-        }
-        _ => false,
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct BarStamp {
-    pub revision: u64,
-    pub mark_in: Option<i64>,
-    pub mark_out: Option<i64>,
-    pub generation: u64,
-    pub env: String,
-    pub dir: PathBuf,
-}
-
-#[derive(Debug)]
-struct WorkerState {
-    observed: bool,
-    pending: Option<(u64, Arc<Project>, Arc<RenderFiles>)>,
-    submitted_stamp: Option<BarStamp>,
-    latest_seq: u64,
-    completed_seq: u64,
-    completed: Arc<Vec<RenderSegment>>,
-}
-
-#[derive(Debug)]
-pub(crate) struct RenderBarShared {
-    state: Mutex<WorkerState>,
-    cv: Condvar,
-}
-
-impl RenderBarShared {
-    fn drain_pending(&self) -> bool {
-        let mut updated = false;
-        loop {
-            let next = {
-                let mut state = self.state.lock();
-                state.pending.take()
-            };
-            let Some((seq, project, files)) = next else {
-                break;
-            };
-            let segments = Arc::new(compute_render_segments(&project, &files));
-            let mut state = self.state.lock();
-            if seq >= state.completed_seq {
-                state.completed_seq = seq;
-                state.completed = segments;
-                updated = true;
-            }
-            self.cv.notify_all();
-        }
-        updated
-    }
-
-    fn record_from_job(&self, job_stamp: BarStamp, segments: Arc<Vec<RenderSegment>>) {
-        let mut state = self.state.lock();
-        let compatible = state.submitted_stamp.as_ref().is_none_or(|s| {
-            s.revision == job_stamp.revision
-                && s.mark_in == job_stamp.mark_in
-                && s.mark_out == job_stamp.mark_out
-                && s.env == job_stamp.env
-                && s.dir == job_stamp.dir
-        });
-        if compatible && state.pending.is_none() {
-            state.latest_seq += 1;
-            let seq = state.latest_seq;
-            state.completed_seq = seq;
-            state.completed = segments;
-            state.submitted_stamp = Some(job_stamp);
-            self.cv.notify_all();
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct RenderBarState {
-    pub(crate) shared: Arc<RenderBarShared>,
-}
-
-impl Default for RenderBarState {
-    fn default() -> Self {
-        Self {
-            shared: Arc::new(RenderBarShared {
-                state: Mutex::new(WorkerState {
-                    observed: false,
-                    pending: None,
-                    submitted_stamp: None,
-                    latest_seq: 0,
-                    completed_seq: 0,
-                    completed: Arc::new(Vec::new()),
-                }),
-                cv: Condvar::new(),
-            }),
-        }
-    }
-}
-
-impl RenderBarState {
-    fn is_observed(&self) -> bool {
-        self.shared.state.lock().observed
-    }
-
-    fn ensure_submitted(
-        &self,
-        preview_worker: &PreviewWorker,
-        host: &ProjectHost,
-        files: &Arc<RenderFiles>,
-        stamp: BarStamp,
-    ) -> u64 {
-        let mut state = self.shared.state.lock();
-        state.observed = true;
-        if state.submitted_stamp.as_ref() == Some(&stamp) {
-            return state.latest_seq;
-        }
-        state.latest_seq += 1;
-        let seq = state.latest_seq;
-        state.submitted_stamp = Some(stamp);
-        let project = host.snapshot();
-        if project.timeline().duration().value <= 0 {
-            state.pending = None;
-            state.completed_seq = seq;
-            state.completed = Arc::new(Vec::new());
-            self.shared.cv.notify_all();
-            return seq;
-        }
-        let need_schedule = state.pending.is_none();
-        state.pending = Some((seq, project, Arc::clone(files)));
-        drop(state);
-        if need_schedule {
-            let shared = Arc::clone(&self.shared);
-            preview_worker.schedule_mail(move || shared.drain_pending());
-        }
-        seq
-    }
-
-    fn latest_nonblocking(&self) -> Arc<Vec<RenderSegment>> {
-        Arc::clone(&self.shared.state.lock().completed)
-    }
-
-    fn wait_for(&self, target_seq: u64) -> Arc<Vec<RenderSegment>> {
-        let mut state = self.shared.state.lock();
-        while state.completed_seq < target_seq {
-            self.shared.cv.wait(&mut state);
-        }
-        Arc::clone(&state.completed)
-    }
 }
 
 impl AppState {
@@ -438,13 +179,24 @@ impl AppState {
     /// Wait for the background worker to finish computing the render-bar
     /// segments for the current revision, work area, and render-file generation,
     /// update [`Self::render_bar`], and return the result.
-    pub fn render_bar_segments(&mut self) -> Arc<Vec<RenderSegment>> {
+    ///
+    /// # Panics
+    ///
+    /// Panics when the pass ends without completing the request: its thread
+    /// panicked or could not be started.
+    #[cfg(test)]
+    pub(crate) fn render_bar_segments(&mut self) -> Arc<Vec<RenderSegment>> {
         let files = self.sync_render_files_handle();
         let stamp = self.current_bar_stamp(&files);
         let seq =
             self.render_bar_state
                 .ensure_submitted(&self.preview_worker, &self.host, &files, stamp);
-        let completed = self.render_bar_state.wait_for(seq);
+        let completed = self.render_bar_state.wait_for(seq).unwrap_or_else(|| {
+            panic!(
+                "the render-bar pass ended without completing request {seq}: its thread \
+                 panicked or could not be started"
+            )
+        });
         self.render_bar = Arc::clone(&completed);
         completed
     }

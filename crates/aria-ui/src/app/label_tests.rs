@@ -78,11 +78,11 @@ fn selecting_by_label_reaches_every_clip_that_carries_it() {
     assert_eq!(state.selection, vec![first], "exactly the labelled clip");
     assert_eq!(
         state.label_counts(),
-        vec![(LabelColor::Violet, 1), (LabelColor::Blue, 1)],
+        vec![(LabelColor::Blue, 1), (LabelColor::Teal, 1)],
         "the unlabelled half counts under the label it is drawn in"
     );
 
-    state.select_by_label(LabelColor::Violet);
+    state.select_by_label(LabelColor::Teal);
     assert_eq!(
         state.selection,
         vec![second],

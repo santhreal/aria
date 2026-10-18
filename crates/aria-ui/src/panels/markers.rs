@@ -11,6 +11,7 @@
 //! the projected markers in projection order (by tick), which is the order the
 //! ruler draws them in.
 
+use crate::components::Wraps as _;
 use gpui::{
     CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
     ParentElement, SharedString, StatefulInteractiveElement, Styled, div, px,
@@ -115,7 +116,7 @@ fn filter_bar(
     );
     div()
         .flex()
-        .flex_wrap()
+        .wraps()
         .items_center()
         .gap(px(Theme::SPACE_XXS))
         .child(all_chip)

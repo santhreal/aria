@@ -114,27 +114,25 @@ impl ClipAttribute {
 
     /// Whether `clip` holds anything in this group that a new clip does not.
     pub fn is_set(self, clip: &Clip) -> bool {
-        let fresh = AnimatedTransform::identity();
         let t = &clip.transform;
         let held = match self {
             Self::Motion => {
+                let fresh = AnimatedTransform::identity();
                 t.position != fresh.position
                     || t.anchor_point != fresh.anchor_point
                     || t.scale != fresh.scale
                     || t.rotation != fresh.rotation
             }
-            Self::Opacity => t.opacity != fresh.opacity || !clip.blend_mode.is_normal(),
+            Self::Opacity => {
+                t.opacity != AnimatedTransform::identity().opacity || !clip.blend_mode.is_normal()
+            }
             Self::Crop => clip.crop != super::default_crop() || clip.flip_h || clip.flip_v,
             Self::TimeRemapping => clip.has_speed_curve(),
             Self::Volume => clip.volume != super::default_volume(),
             Self::Pan => clip.pan != super::default_pan(),
             Self::Effects => !clip.effects.is_empty(),
             Self::AudioEffects => !clip.audio_effects.is_empty(),
-            Self::Grade => {
-                clip.filter.is_some()
-                    || clip.lut.is_some()
-                    || clip.adjust != crate::look::ColorAdjustments::default()
-            }
+            Self::Grade => clip.filter.is_some() || clip.lut.is_some() || !clip.adjust.is_neutral(),
             Self::Mask => !clip.masks.is_empty(),
             Self::ChromaKey => clip.chroma_key.is_some(),
         };

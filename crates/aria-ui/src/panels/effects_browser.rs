@@ -4,7 +4,8 @@
 //! The rows are [`crate::app::effects_browser::tree`]; this file draws them. A
 //! click on a folder opens or closes it, a click on an entry picks it, a
 //! double-click applies it to the selection, and a drag carries it to a clip,
-//! a cut or a lane. The star saves the entry under Favourites.
+//! a cut or a lane. The star saves the entry under Favourites. An entry's tip
+//! states its name and those two gestures.
 
 use crate::tooltip::WithTip as _;
 use gpui::{
@@ -16,6 +17,7 @@ use crate::app::effects_browser::{self, Entry, EntryKind, Failed, FolderKey, Gro
 use crate::app::{AppState, spawn_preview};
 use crate::components;
 use crate::fluent::FluentBuilder;
+use crate::icons;
 use crate::motion;
 use crate::panels::sidebar::DragGhost;
 use crate::theme::Theme;
@@ -23,6 +25,28 @@ use crate::types::CatalogDrag;
 
 /// Indent per tree level, in pixels.
 const INDENT: f32 = 12.;
+
+/// The two gestures an entry answers, under its origin in its tip.
+const GESTURES: &str = "Double-click applies to the selection.\nDrag onto a clip, a cut, a lane \
+                        or the Effects tab of Effect Controls.";
+
+/// The Effects & Presets panel docked on its own: the tab inside the same
+/// inset the Project panel gives its tabs, so the filter and the tree stand
+/// off the frame's edges.
+pub(crate) fn effects_dock_panel(
+    theme: &Theme,
+    state: &Entity<AppState>,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> gpui::AnyElement {
+    div()
+        .debug_selector(|| "effects-dock".into())
+        .size_full()
+        .flex()
+        .flex_col()
+        .p(px(Theme::SPACE_MD))
+        .child(effects_panel(theme, state, cx))
+        .into_any_element()
+}
 
 pub(crate) fn effects_panel(
     theme: &Theme,
@@ -116,27 +140,22 @@ pub(crate) fn effects_panel(
                 .items_center()
                 .gap(px(Theme::SPACE_XS))
                 .child(
-                    components::text_box(
-                        "effects-query",
-                        query,
-                        "Click, then type to filter",
-                        focused,
-                        theme,
-                    )
-                    .flex_1()
-                    .min_w_0()
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                            this.state
-                                .update(cx, |state, _| state.focus_effects_search(true));
-                            cx.notify();
-                        }),
-                    ),
+                    components::text_box("effects-query", query, "Search", focused, theme)
+                        .flex_1()
+                        .min_w_0()
+                        .on_mouse_down(
+                            MouseButton::Left,
+                            cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                                this.state
+                                    .update(cx, |state, _| state.focus_effects_search(true));
+                                cx.notify();
+                            }),
+                        ),
                 )
                 .when(searching, |el| {
                     el.child(
-                        components::ghost_button("effects-query-clear", "Clear", theme)
+                        components::icon_button("effects-query-clear", icons::CLOSE, theme)
+                            .debug_selector(|| "effects-query-clear".into())
                             .on_mouse_down(
                                 MouseButton::Left,
                                 cx.listener(|this, _: &MouseDownEvent, _, cx| {
@@ -177,24 +196,19 @@ pub(crate) fn effects_panel(
         })
         .child(
             div()
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text_faint)
-                .child(
-                    "Double-click applies to the selection. Drag onto a clip, a cut, a lane \
-                     or the Effects tab of Effect Controls.",
-                ),
-        )
-        .child(
-            div()
                 .id("effects-tree")
                 .flex()
                 .flex_col()
                 .flex_1()
                 .min_h_0()
+                // The rows step out by their inset so a folder's chevron stands
+                // on the filter's edge.
+                .mx(px(-Theme::SPACE_XS))
                 .overflow_y_scroll()
                 .when(empty, |el| {
                     el.child(
                         div()
+                            .px(px(Theme::SPACE_XS))
                             .text_size(Theme::TEXT_UI)
                             .text_color(theme.text_faint)
                             .child("Nothing matches the search."),
@@ -338,7 +352,7 @@ fn entry_row(
         // mounted plugins' registrations.
         .with_tip(move |window, cx| {
             let origin = tip_state.read(cx).effects_entry_origin(kind, &tip_entry);
-            crate::tooltip::text_builder(origin)(window, cx)
+            crate::tooltip::text_builder(format!("{origin}\n{GESTURES}"))(window, cx)
         })
         .on_drag(
             CatalogDrag {
@@ -449,3 +463,7 @@ fn failed_row(theme: &Theme, failed: &Failed) -> gpui::AnyElement {
         )
         .into_any_element()
 }
+
+#[cfg(test)]
+#[path = "effects_browser_tests.rs"]
+mod tests;

@@ -638,7 +638,7 @@ fn paint_trim_hud(
         pill_y + 4.0,
         11.0,
         theme.text,
-        &theme.font_mono,
+        theme,
     );
 }
 
@@ -697,7 +697,7 @@ pub(super) fn paint_label(
     y: f32,
     font_px: f32,
     color: Hsla,
-    family: &SharedString,
+    theme: &Theme,
 ) {
     if text.is_empty() {
         return;
@@ -705,13 +705,7 @@ pub(super) fn paint_label(
     let shared = SharedString::from(text.to_owned());
     let run = TextRun {
         len: shared.len(),
-        font: gpui::Font {
-            family: family.clone(),
-            features: gpui::FontFeatures::default(),
-            fallbacks: None,
-            weight: gpui::FontWeight::NORMAL,
-            style: gpui::FontStyle::Normal,
-        },
+        font: theme.ui_font(gpui::FontWeight::NORMAL),
         color,
         background_color: None,
         underline: None,

@@ -107,6 +107,19 @@ icon_assets![
     (RIPPLE, "timeline/fold-horizontal.svg", "icon/ripple.svg"),
     (PEN, "inspector/spline.svg", "icon/pen.svg"),
     (TYPE, "library/text.svg", "icon/type.svg"),
+    // The selection, track select and hand tools.
+    (POINTER, "timeline/mouse-pointer-2.svg", "icon/pointer.svg"),
+    (HAND, "timeline/hand.svg", "icon/hand.svg"),
+    (
+        CHEVRONS_RIGHT,
+        "timeline/chevrons-right.svg",
+        "icon/chevrons-right.svg"
+    ),
+    (
+        CHEVRONS_LEFT,
+        "timeline/chevrons-left.svg",
+        "icon/chevrons-left.svg"
+    ),
     // Transport. The strip previously drew the two zoom magnifiers for
     // "go to start/end" and for frame stepping, which read as zoom controls
     // in the one place an operator looks for playback.
@@ -119,6 +132,30 @@ icon_assets![
     (CHEVRON_DOWN, "ui/chevron-down.svg", "icon/chevron-down.svg"),
     // A favourite: lit when the entry is starred, faint when it is not.
     (STAR, "ui/star.svg", "icon/star.svg"),
+    // The Project panel's pool: Import, the views, and the folder and
+    // multicam makers.
+    (IMPORT, "library/import.svg", "icon/import.svg"),
+    (LIST, "library/list.svg", "icon/list.svg"),
+    (
+        LAYOUT_GRID,
+        "library/layout-grid.svg",
+        "icon/layout-grid.svg"
+    ),
+    (MOVE, "library/move.svg", "icon/move.svg"),
+    (
+        FOLDER_PLUS,
+        "library/folder-plus.svg",
+        "icon/folder-plus.svg"
+    ),
+    (LAYERS, "library/layers.svg", "icon/layers.svg"),
+    // The Viewer's control row: the three handle sets, the scope strip, loop
+    // playback and the proxy switch.
+    (TRANSFORM, "preview/scaling.svg", "icon/transform.svg"),
+    (CROP, "preview/crop.svg", "icon/crop.svg"),
+    (MASK, "preview/square-dashed.svg", "icon/mask.svg"),
+    (SCOPES, "preview/activity.svg", "icon/scopes.svg"),
+    (LOOP, "timeline/repeat.svg", "icon/loop.svg"),
+    (PROXY, "preview/replace.svg", "icon/proxy.svg"),
 ];
 
 /// Where plugin command icons are served.
@@ -169,13 +206,18 @@ fn plugin_icon(path: &str) -> Option<Cow<'static, [u8]>> {
     (*served == path).then(|| Cow::Owned(svg.as_bytes().to_vec()))
 }
 
-/// An icon element for an embedded asset path, 14px unless the caller sets
-/// `.size(..)`.
+/// An icon element for an embedded asset path, `Theme::ICON_SIZE` (16 px)
+/// unless the caller sets `.size(..)`.
 ///
 /// The glyph paints in the colour set with `.text_color(..)` on the icon, and
 /// otherwise in the text colour inherited from its parent.
 pub fn icon(path: &'static str) -> Icon {
-    Icon(svg().path(path).flex_none().size(px(14.)))
+    Icon(
+        svg()
+            .path(path)
+            .flex_none()
+            .size(px(crate::theme::Theme::ICON_SIZE)),
+    )
 }
 
 /// An embedded glyph, painted in its own text colour or its parent's.
@@ -239,6 +281,7 @@ impl Element for Icon {
         window: &mut Window,
         cx: &mut App,
     ) -> Self::PrepaintState {
+        crate::components::drawn::record(crate::components::drawn::Drawn::Image, bounds);
         self.0
             .prepaint(global_id, inspector_id, bounds, request_layout, window, cx)
     }

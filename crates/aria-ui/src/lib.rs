@@ -75,23 +75,23 @@ pub use projection::project_to_ui;
 pub use theme::{Appearance, Theme};
 pub use types::{ActivePanel, UiEditorStore};
 
-/// Embedded UI fonts — Geist and Geist Mono (variable), © Vercel Inc.,
-/// licensed under the SIL Open Font License 1.1 (https://openfontlicense.org).
-static FONT_GEIST: &[u8] = include_bytes!("../assets/fonts/Geist.ttf");
-static FONT_GEIST_MONO: &[u8] = include_bytes!("../assets/fonts/GeistMono.ttf");
-static FONT_GEIST_MEDIUM: &[u8] = include_bytes!("../assets/fonts/Geist-Medium.ttf");
-static FONT_GEIST_SEMIBOLD: &[u8] = include_bytes!("../assets/fonts/Geist-SemiBold.ttf");
-static FONT_GEIST_BOLD: &[u8] = include_bytes!("../assets/fonts/Geist-Bold.ttf");
+/// Embedded UI typeface: Inter in four static weights, © The Inter Project
+/// Authors, licensed under the SIL Open Font License 1.1 (text in
+/// `LICENSES/Inter-OFL-1.1.txt`). Static faces, because the text system picks
+/// a weight by face and does not instance a variable font.
+static FONT_INTER: &[u8] = include_bytes!("../assets/fonts/Inter-Regular.ttf");
+static FONT_INTER_MEDIUM: &[u8] = include_bytes!("../assets/fonts/Inter-Medium.ttf");
+static FONT_INTER_SEMIBOLD: &[u8] = include_bytes!("../assets/fonts/Inter-SemiBold.ttf");
+static FONT_INTER_BOLD: &[u8] = include_bytes!("../assets/fonts/Inter-Bold.ttf");
 
 pub fn register_fonts(cx: &App) {
     if let Err(err) = cx.text_system().add_fonts(vec![
-        Cow::Borrowed(FONT_GEIST),
-        Cow::Borrowed(FONT_GEIST_MONO),
-        Cow::Borrowed(FONT_GEIST_MEDIUM),
-        Cow::Borrowed(FONT_GEIST_SEMIBOLD),
-        Cow::Borrowed(FONT_GEIST_BOLD),
+        Cow::Borrowed(FONT_INTER),
+        Cow::Borrowed(FONT_INTER_MEDIUM),
+        Cow::Borrowed(FONT_INTER_SEMIBOLD),
+        Cow::Borrowed(FONT_INTER_BOLD),
     ]) {
-        tracing::warn!(error = %err, "failed to register embedded Geist fonts");
+        tracing::warn!(error = %err, "failed to register the embedded Inter fonts");
     }
 }
 
@@ -103,8 +103,9 @@ pub struct UiConfig {
     pub open_paths: Vec<PathBuf>,
 }
 
-/// Run the headed app on the default data directory, opening nothing.
-pub fn run_app(ctx: PluginContext) {
+/// Run the headed app on the default data directory, opening nothing, and end
+/// the process when it quits.
+pub fn run_app(ctx: PluginContext) -> ! {
     run_app_with(UiConfig {
         data_dir: settings::default_data_dir(),
         ctx,
@@ -112,7 +113,9 @@ pub fn run_app(ctx: PluginContext) {
     });
 }
 
-pub fn run_app_with(config: UiConfig) {
+/// Run the headed app until it quits, then end the process with
+/// [`aria_decoder::exit_process`].
+pub fn run_app_with(config: UiConfig) -> ! {
     // This process is the editor, in front of the operator, so a reveal may open
     // their file manager. Nothing else in the crate switches this on: a test
     // process that reveals a path records the request instead of opening a
@@ -131,7 +134,7 @@ pub fn run_app_with(config: UiConfig) {
                  directory ({}).",
                 config.data_dir.display()
             );
-            std::process::exit(1);
+            aria_decoder::exit_process(1);
         }
     };
     // Paths from the command line are the same question a drop on Home asks, so
@@ -171,6 +174,9 @@ pub fn run_app_with(config: UiConfig) {
         open_main_window(state, cx);
         cx.activate(true);
     });
+    // A process that decoded on NVDEC must not end through `exit` (see
+    // `exit_process`); a device warm-up still running ends with the process.
+    aria_decoder::exit_process(0)
 }
 
 fn open_main_window(state: app::AppState, cx: &mut App) {
@@ -275,7 +281,14 @@ fn open_main_window(state: app::AppState, cx: &mut App) {
                             display_index,
                         },
                     );
-                    let _ = state.ui_settings.save(&state.data_dir);
+                    // The session is ending, so a status line would never be
+                    // read: the failure goes to the log with the path to fix.
+                    if let Err(err) = state.ui_settings.save(&state.data_dir) {
+                        tracing::warn!(
+                            dir = %state.data_dir.display(),
+                            "window placement not saved for the next launch: {err}"
+                        );
+                    }
                     if !state.quit_requested() {
                         state.request_quit();
                         cx.notify();

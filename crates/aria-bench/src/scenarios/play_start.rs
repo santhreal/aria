@@ -11,6 +11,11 @@ use crate::scenarios::{BenchContext, GpuTextureSink};
 use crate::{Comparison, SampleSeries, ScenarioId, ScenarioReport, TargetEvaluation};
 
 pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
+    // The app starts the decode device warm-up with its preview worker, before
+    // the GPU context and the window; the paused frame below then measures
+    // what a session waits for after the warm-up had the GPU set-up to run in.
+    #[cfg(target_os = "linux")]
+    aria_decoder::warm_up();
     let h264 = ensure_fixture(&ctx.fixtures_dir, FixtureId::H264_1080p60)?;
     let rate = Rational::FPS_60;
     let mut project = Project::new("play-start", rate);
@@ -38,6 +43,22 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
         .map_err(|err| format!("failed to create GpuContext: {err}"))?;
     let mut sink = GpuTextureSink::new(gpu.share());
     sink.preallocate(1920, 1080);
+
+    // The paused frame a session shows after opening the project, before any
+    // Space. It opens the process's first decoder and with it the hardware
+    // decode device, which every later pipeline shares; reported on its own
+    // so the cold samples below measure Space, not device bring-up.
+    let opened = Instant::now();
+    Renderer::with_gpu(gpu.share())
+        .render_frame_into_with(
+            &project,
+            RationalTime::new(0, rate),
+            ResolveOverrides::default(),
+            SeekPolicy::Exact,
+            &mut sink,
+        )
+        .map_err(|err| format!("paused-frame render failed: {err}"))?;
+    let paused_frame_ms = opened.elapsed().as_secs_f64() * 1000.0;
 
     // Cold play-start ("with no decoder open"): each sample constructs a fresh
     // Renderer (no open video decoder in its pool) and renders the first frame
@@ -101,6 +122,8 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
 
     let warm_series = SampleSeries::from_values("warm_first_frame_ms", "ms", warm_samples);
     let cold_series = SampleSeries::from_values("cold_first_frame_ms", "ms", cold_samples);
+    let paused_series =
+        SampleSeries::from_values("paused_frame_after_open_ms", "ms", vec![paused_frame_ms]);
 
     let targets = vec![
         TargetEvaluation::measured(
@@ -123,7 +146,7 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
 
     let stats = renderer.last_frame_stats();
     let notes = vec![format!(
-        "warm p50={:.2} ms (p95={:.2} ms), cold p50={:.2} ms (p95={:.2} ms); last warm frame decode={:.2} ms composite={:.2} ms, GPU readbacks={}",
+        "warm p50={:.2} ms (p95={:.2} ms), cold p50={:.2} ms (p95={:.2} ms), paused frame after open {paused_frame_ms:.2} ms; last warm frame decode={:.2} ms composite={:.2} ms, GPU readbacks={}",
         warm_series.p50,
         warm_series.p95,
         cold_series.p50,
@@ -138,7 +161,7 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
         ctx.env.clone(),
         targets,
         Vec::new(),
-        vec![warm_series, cold_series],
+        vec![warm_series, cold_series, paused_series],
         notes,
     ))
 }

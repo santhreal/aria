@@ -41,8 +41,10 @@ pub fn render(
     if rows.is_empty() {
         rows.push(
             div()
+                .flex()
+                .items_center()
+                .h(px(Theme::ROW_HEIGHT))
                 .px(px(Theme::SPACE_SM))
-                .py(px(Theme::SPACE_XS))
                 .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_faint)
                 .child("No command matches")
@@ -61,8 +63,10 @@ pub fn render(
     };
     let query_row = div()
         .id("palette-query")
+        .flex()
+        .items_center()
         .px(px(Theme::SPACE_SM))
-        .py(px(Theme::SPACE_XS))
+        .min_h(px(Theme::INPUT_HEIGHT))
         .rounded(px(Theme::CONTROL_RADIUS))
         .bg(theme.input_bg)
         .border_1()
@@ -71,11 +75,9 @@ pub fn render(
         .text_color(query_color)
         .cursor(CursorStyle::IBeam)
         .child(query_label);
-    let list = div()
-        .flex()
-        .flex_col()
-        .gap(px(Theme::SPACE_XS))
-        .children(rows);
+    // One row height and no gap, as a menu's rows: the palette is the menus
+    // filtered, and reads at their pitch.
+    let list = div().flex().flex_col().children(rows);
     dialog_surface(
         "palette",
         DialogKind::Palette,
@@ -110,6 +112,14 @@ fn row(
         } => (*icon, *placeable),
         _ => (None, true),
     };
+    // The palette is drawn by the Shell: a gpui hover style here would notify
+    // it and rebuild every panel body, where a fade redraws the chrome alone.
+    let key = crate::motion::MotionKey::new("palette-row", index);
+    let rest = if highlighted {
+        theme.surface_raised_hover
+    } else {
+        theme.wash(0.0)
+    };
     div()
         .id(offer.id)
         .flex()
@@ -117,11 +127,11 @@ fn row(
         .justify_between()
         .gap(px(Theme::SPACE_SM))
         .px(px(Theme::SPACE_SM))
-        .py(px(Theme::SPACE_XS))
+        .h(px(Theme::ROW_HEIGHT))
+        .flex_none()
         .rounded(px(Theme::CONTROL_RADIUS))
         .when(highlighted, |el| {
-            el.bg(theme.surface_raised_hover)
-                .debug_selector(|| "palette-highlight".into())
+            el.debug_selector(|| "palette-highlight".into())
         })
         .text_size(Theme::TEXT_UI)
         .text_color(if enabled {
@@ -131,7 +141,8 @@ fn row(
         })
         .cursor(CursorStyle::PointingHand)
         .active(|style| style.opacity(0.92))
-        .hover(|el| el.bg(theme.glass_hover()))
+        .bg(crate::motion::hover_blend(key, rest, theme.glass_hover()))
+        .on_hover(crate::motion::hover_listener(key))
         .on_mouse_down(
             MouseButton::Left,
             cx.listener(move |this, _: &MouseDownEvent, window, cx| {
@@ -142,14 +153,20 @@ fn row(
             div()
                 .flex()
                 .items_center()
+                .min_w_0()
                 .gap(px(Theme::SPACE_SM))
                 .children(icon.map(crate::icons::icon))
-                .child(offer.label),
+                .child(div().min_w_0().truncate().child(offer.label)),
         )
         .children(source.map(|menu| {
             div()
+                .flex_none()
                 .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_faint)
                 .child(menu)
         }))
 }
+
+#[cfg(test)]
+#[path = "rows_tests.rs"]
+mod rows_tests;

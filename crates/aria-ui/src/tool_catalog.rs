@@ -45,6 +45,52 @@ pub enum EdgeDrag {
     Ripple,
 }
 
+/// The tool bar button a tool shares with its siblings.
+///
+/// The bar draws one button per group, in [`ToolGroup::ALL`] order. A group of
+/// more than one tool lists the rest in the button's variants popover, and each
+/// tool keeps its own key whichever member the button shows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ToolGroup {
+    Select,
+    TrackSelect,
+    Trim,
+    Razor,
+    Pen,
+    Navigate,
+    Type,
+}
+
+impl ToolGroup {
+    /// Every group, in tool bar order.
+    pub const ALL: [Self; 7] = [
+        Self::Select,
+        Self::TrackSelect,
+        Self::Trim,
+        Self::Razor,
+        Self::Pen,
+        Self::Navigate,
+        Self::Type,
+    ];
+
+    /// The tools that share this group's button, in table order.
+    pub fn tools(self) -> impl Iterator<Item = EditorTool> {
+        tool_specs()
+            .iter()
+            .filter(move |spec| spec.group == self)
+            .map(|spec| spec.tool)
+    }
+
+    /// The tool the button shows while `active` is armed: `active` when it is
+    /// in the group, otherwise the group's first tool.
+    pub fn shown(self, active: EditorTool) -> EditorTool {
+        if active.group() == self {
+            return active;
+        }
+        self.tools().next().unwrap_or(active)
+    }
+}
+
 /// What one tool is and what a drag with it means.
 ///
 /// Every column is a question some surface used to answer with its own match
@@ -86,23 +132,23 @@ pub struct ToolSpec {
     pub pens: bool,
     /// A click in the Viewer creates a text clip or places a caret inside one.
     pub types: bool,
-    /// Whether the tool button shows a 3 px corner triangle and opens a
-    /// variants popover on a 300 ms press-and-hold or triangle click.
-    pub has_variants: bool,
+    /// The tool bar button this tool shares with its siblings.
+    pub group: ToolGroup,
 }
 
-/// The shipped tools, in strip order.
+/// The shipped tools, in tool bar order.
 ///
-/// Order is left-to-right in the strip and top-to-bottom in every list derived
-/// from it. `Pointer` is first because it is the default and Escape returns to
-/// it.
+/// Rows are grouped in [`ToolGroup::ALL`] order, and a group's rows are in the
+/// order its variants popover lists them; the first row of a group is the tool
+/// its button shows while another group's tool is armed. `Pointer` is first
+/// because it is the default and Escape returns to it.
 const SHIPPED: &[ToolSpec] = &[
     ToolSpec {
         tool: EditorTool::Pointer,
         id: "tool-pointer",
         label: "Select",
         key: "v",
-        icon: icons::PLUS,
+        icon: icons::POINTER,
         cursor: CursorStyle::Arrow,
         selects: true,
         pans: false,
@@ -113,14 +159,14 @@ const SHIPPED: &[ToolSpec] = &[
         track_select: None,
         pens: false,
         types: false,
-        has_variants: false,
+        group: ToolGroup::Select,
     },
     ToolSpec {
         tool: EditorTool::TrackSelectForward,
         id: "tool-track-forward",
         label: "Track Select Forward",
         key: "a",
-        icon: icons::CHEVRON_RIGHT,
+        icon: icons::CHEVRONS_RIGHT,
         cursor: CursorStyle::PointingHand,
         selects: false,
         pans: false,
@@ -131,14 +177,14 @@ const SHIPPED: &[ToolSpec] = &[
         track_select: Some(TrackSelectDir::Forward),
         pens: false,
         types: false,
-        has_variants: false,
+        group: ToolGroup::TrackSelect,
     },
     ToolSpec {
         tool: EditorTool::TrackSelectBackward,
         id: "tool-track-backward",
         label: "Track Select Backward",
         key: "Shift+a",
-        icon: icons::CHEVRON_LEFT,
+        icon: icons::CHEVRONS_LEFT,
         cursor: CursorStyle::PointingHand,
         selects: false,
         pans: false,
@@ -149,101 +195,25 @@ const SHIPPED: &[ToolSpec] = &[
         track_select: Some(TrackSelectDir::Backward),
         pens: false,
         types: false,
-        has_variants: false,
+        group: ToolGroup::TrackSelect,
     },
     ToolSpec {
-        tool: EditorTool::Razor,
-        id: "tool-razor",
-        label: "Razor",
-        key: "c",
-        icon: icons::SCISSORS,
-        // The cut lands on one exact frame, so the cursor is the one that shows
-        // a position rather than the one that shows a hit target.
-        cursor: CursorStyle::Crosshair,
-        selects: false,
-        pans: false,
-        zooms: false,
-        cuts: true,
-        body: None,
-        edge: None,
-        track_select: None,
-        pens: false,
-        types: false,
-        has_variants: false,
-    },
-    ToolSpec {
-        tool: EditorTool::Hand,
-        id: "tool-hand",
-        label: "Hand",
-        key: "h",
-        icon: icons::FIT,
-        cursor: CursorStyle::OpenHand,
-        selects: false,
-        pans: true,
-        zooms: false,
-        cuts: false,
-        body: None,
-        edge: None,
-        track_select: None,
-        pens: false,
-        types: false,
-        has_variants: false,
-    },
-    ToolSpec {
-        tool: EditorTool::Zoom,
-        id: "tool-zoom",
-        label: "Zoom",
-        key: "z",
-        icon: icons::ZOOM_IN,
-        cursor: CursorStyle::Crosshair,
-        selects: false,
-        pans: false,
-        zooms: true,
-        cuts: false,
-        body: None,
-        edge: None,
-        track_select: None,
-        pens: false,
-        types: false,
-        has_variants: false,
-    },
-    ToolSpec {
-        tool: EditorTool::Slip,
-        id: "tool-slip",
-        label: "Slip",
-        key: "y",
-        icon: icons::SLIP,
-        // Horizontal both ways: the take can move either direction inside a
-        // clip whose edges do not move.
+        tool: EditorTool::Ripple,
+        id: "tool-ripple",
+        label: "Ripple trim",
+        key: "b",
+        icon: icons::RIPPLE,
         cursor: CursorStyle::ResizeLeftRight,
         selects: false,
         pans: false,
         zooms: false,
         cuts: false,
-        body: Some(BodyDrag::Slip),
-        edge: None,
+        body: None,
+        edge: Some(EdgeDrag::Ripple),
         track_select: None,
         pens: false,
         types: false,
-        has_variants: true,
-    },
-    ToolSpec {
-        tool: EditorTool::Slide,
-        id: "tool-slide",
-        label: "Slide",
-        key: "u",
-        icon: icons::SLIDE,
-        cursor: CursorStyle::ResizeLeftRight,
-        selects: false,
-        pans: false,
-        zooms: false,
-        cuts: false,
-        body: Some(BodyDrag::Slide),
-        edge: None,
-        track_select: None,
-        pens: false,
-        types: false,
-        has_variants: true,
+        group: ToolGroup::Trim,
     },
     ToolSpec {
         tool: EditorTool::Roll,
@@ -263,7 +233,7 @@ const SHIPPED: &[ToolSpec] = &[
         track_select: None,
         pens: false,
         types: false,
-        has_variants: true,
+        group: ToolGroup::Trim,
     },
     ToolSpec {
         tool: EditorTool::Rate,
@@ -281,25 +251,65 @@ const SHIPPED: &[ToolSpec] = &[
         track_select: None,
         pens: false,
         types: false,
-        has_variants: true,
+        group: ToolGroup::Trim,
     },
     ToolSpec {
-        tool: EditorTool::Ripple,
-        id: "tool-ripple",
-        label: "Ripple trim",
-        key: "b",
-        icon: icons::RIPPLE,
+        tool: EditorTool::Slip,
+        id: "tool-slip",
+        label: "Slip",
+        key: "y",
+        icon: icons::SLIP,
+        // Horizontal both ways: the take can move either direction inside a
+        // clip whose edges do not move.
         cursor: CursorStyle::ResizeLeftRight,
         selects: false,
         pans: false,
         zooms: false,
         cuts: false,
-        body: None,
-        edge: Some(EdgeDrag::Ripple),
+        body: Some(BodyDrag::Slip),
+        edge: None,
         track_select: None,
         pens: false,
         types: false,
-        has_variants: true,
+        group: ToolGroup::Trim,
+    },
+    ToolSpec {
+        tool: EditorTool::Slide,
+        id: "tool-slide",
+        label: "Slide",
+        key: "u",
+        icon: icons::SLIDE,
+        cursor: CursorStyle::ResizeLeftRight,
+        selects: false,
+        pans: false,
+        zooms: false,
+        cuts: false,
+        body: Some(BodyDrag::Slide),
+        edge: None,
+        track_select: None,
+        pens: false,
+        types: false,
+        group: ToolGroup::Trim,
+    },
+    ToolSpec {
+        tool: EditorTool::Razor,
+        id: "tool-razor",
+        label: "Razor",
+        key: "c",
+        icon: icons::SCISSORS,
+        // The cut lands on one exact frame, so the cursor is the one that shows
+        // a position rather than the one that shows a hit target.
+        cursor: CursorStyle::Crosshair,
+        selects: false,
+        pans: false,
+        zooms: false,
+        cuts: true,
+        body: None,
+        edge: None,
+        track_select: None,
+        pens: false,
+        types: false,
+        group: ToolGroup::Razor,
     },
     ToolSpec {
         tool: EditorTool::Pen,
@@ -317,7 +327,43 @@ const SHIPPED: &[ToolSpec] = &[
         track_select: None,
         pens: true,
         types: false,
-        has_variants: true,
+        group: ToolGroup::Pen,
+    },
+    ToolSpec {
+        tool: EditorTool::Hand,
+        id: "tool-hand",
+        label: "Hand",
+        key: "h",
+        icon: icons::HAND,
+        cursor: CursorStyle::OpenHand,
+        selects: false,
+        pans: true,
+        zooms: false,
+        cuts: false,
+        body: None,
+        edge: None,
+        track_select: None,
+        pens: false,
+        types: false,
+        group: ToolGroup::Navigate,
+    },
+    ToolSpec {
+        tool: EditorTool::Zoom,
+        id: "tool-zoom",
+        label: "Zoom",
+        key: "z",
+        icon: icons::ZOOM_IN,
+        cursor: CursorStyle::Crosshair,
+        selects: false,
+        pans: false,
+        zooms: true,
+        cuts: false,
+        body: None,
+        edge: None,
+        track_select: None,
+        pens: false,
+        types: false,
+        group: ToolGroup::Navigate,
     },
     ToolSpec {
         tool: EditorTool::Type,
@@ -335,7 +381,7 @@ const SHIPPED: &[ToolSpec] = &[
         track_select: None,
         pens: false,
         types: true,
-        has_variants: false,
+        group: ToolGroup::Type,
     },
 ];
 
@@ -348,15 +394,15 @@ const fn index_of(tool: EditorTool) -> usize {
         EditorTool::Pointer => 0,
         EditorTool::TrackSelectForward => 1,
         EditorTool::TrackSelectBackward => 2,
-        EditorTool::Razor => 3,
-        EditorTool::Hand => 4,
-        EditorTool::Zoom => 5,
+        EditorTool::Ripple => 3,
+        EditorTool::Roll => 4,
+        EditorTool::Rate => 5,
         EditorTool::Slip => 6,
         EditorTool::Slide => 7,
-        EditorTool::Roll => 8,
-        EditorTool::Rate => 9,
-        EditorTool::Ripple => 10,
-        EditorTool::Pen => 11,
+        EditorTool::Razor => 8,
+        EditorTool::Pen => 9,
+        EditorTool::Hand => 10,
+        EditorTool::Zoom => 11,
         EditorTool::Type => 12,
     }
 }
@@ -472,23 +518,9 @@ impl EditorTool {
         self.spec().types
     }
 
-    /// Whether the tool button shows a 3 px corner triangle for variants.
-    pub const fn has_variants(self) -> bool {
-        self.spec().has_variants
-    }
-
-    /// Sibling tools offered in the variants popover for a trim tool.
-    pub const fn trim_variants(self) -> &'static [Self] {
-        match self {
-            Self::Slip | Self::Slide | Self::Roll | Self::Rate | Self::Ripple => &[
-                Self::Ripple,
-                Self::Roll,
-                Self::Rate,
-                Self::Slip,
-                Self::Slide,
-            ],
-            _ => &[],
-        }
+    /// The tool bar button this tool shares with its siblings.
+    pub const fn group(self) -> ToolGroup {
+        self.spec().group
     }
 }
 

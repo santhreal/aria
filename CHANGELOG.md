@@ -59,7 +59,7 @@ Notes for the latest release. For previous releases, see the
 - Window > Align docks Align and Distribute, which align the selected clips' edges or centres to the selection, the frame, or the first selected clip and space three or more clips' centres evenly, measured on the bounds the compositor draws at the playhead and written as one undo step.
 - Titles justify their wrapped lines and turn pair kerning off per style, and the Python API takes `align="justify"` and a `kerning` argument.
 - Title and shape colours are set from swatch rows in the inspector, keyed at the playhead when the colour is animated.
-- The status bar shows the message line at the left, the first running job with its progress and a count of the others at the centre, opening the Jobs panel on a click, and the achieved playback rate, dropped frames, playback resolution, and GPU device name at the right.
+- The status bar shows the message line at the left, the first running job with its progress and a count of the others at the centre, opening the Jobs panel on a click, and, during playback, the achieved playback rate, playback resolution, and GPU device name at the right.
 - View > Canvas Handles chooses the Transform, Crop, or Mask handles by name, and Sequence > Source > Insert Pool Selection is disabled with its reason while no online pool item is selected.
 - View > Compare shows the Program frame against the frame held at the playhead, a still image, or the Source monitor's frame, as a vertical wipe, a horizontal wipe, or side by side, with a draggable divider.
 - Window > Audio Meters (`Shift+9`) docks a panel with one bar per output channel on a −60 to 0 dBFS scale, drawing RMS and peak, a 1.5 s peak-hold line, and a clip light that stays lit until clicked.
@@ -187,7 +187,7 @@ Notes for the latest release. For previous releases, see the
 - Opening a video file on a busy machine retries once before reporting a decode failure, so a slow preroll no longer reads as a broken file.
 - The plugin guide adds `docs/plugins/packages.md` and `docs/plugins/native.md` in place of `docs/plugins/external.md`, the worked example builds an `.ariaplugin` package, and `examples/data-plugin` is a data package checked by the package tests.
 - Playback follows the audio device clock minus its output latency, shows the newest ready frame on each display refresh, and counts each frame it could not show as decode late, render late, or present late.
-- The status bar shows the achieved playback rate and a dropped-frame count, green at zero and yellow above it, which a click resets; Settings > Playback > Log dropped frames logs each drop with its cause.
+- The status bar shows a dropped-frame count in the warning colour once a frame drops, which a click resets; Settings > Playback > Log dropped frames logs each drop with its cause.
 - Preview frames render on one worker thread that renders four frames ahead of playback and drops them on an edit, instead of one thread per frame, and scopes measure on that worker instead of the UI thread.
 - Shuttle at 2x, 4x, and 8x steps through the sequence at those speeds while presenting at the sequence rate.
 - The Viewer's resolution picker renders playback and paused frames at Full, 1/2, 1/4, or 1/8, and Auto lowers the playback resolution until frames render inside the frame period.
@@ -1370,7 +1370,7 @@ Notes for the latest release. For previous releases, see the
 - Each side of a transition and each clip of a matte draws its mask, effects, LUT, motion blur, and blend mode as it does alone, in playback and export.
 - Sequence Settings has a time display picker (Timecode, Frames, or Feet + Frames 35mm) that the timeline ruler, the timeline timecode, the Viewer's playhead field and the trim readout read in, and the playhead field accepts `feet+frames`.
 - The timeline ruler spaces its labels from their measured width at every zoom, so labels never overlap, and places them on whole frames that divide a second or on whole seconds, minutes and hours.
-- The timeline header holds the sequence timecode, which scrubs on a drag and opens for typing on a click, the playhead's frame number, and buttons for snapping, linked selection, adding a marker, the timeline display settings, and the graph editor.
+- The timeline header holds the sequence timecode, which scrubs on a drag and opens for typing on a click, and buttons for snapping, linked selection, adding a marker, the timeline display settings, and the graph editor.
 - The property search in the timeline header narrows the property rows of every opened clip to the properties whose names contain the typed text, ignoring case, and opens the groups that hold them.
 - A work area bar under the timeline ruler spans In to Out: dragging the bar moves both points, dragging an end moves one, Escape during the drag puts them back, and a double-click sets the work area to the whole sequence.
 - Added Mini (20 px), Small (32 px), Medium (48 px), and Large (72 px) track height presets to the track context menu and Shift+scroll on timeline track headers, lowering the minimum track height to 20 px.
@@ -1382,7 +1382,38 @@ Notes for the latest release. For previous releases, see the
 
 ### Changed
 
-- The timeline's zoom scroll bar, the add-track button, and the zoom readout sit along the bottom of the timeline instead of under the ruler, the ruler header is 42 px high, and In and Out draw as the work area bar instead of two lines on the ruler.
+- The default accent, playhead, selection, and caret are blue instead of indigo, and Settings > Appearance > Accent offers the Blue, Ember, Teal, and Graphite families; a saved `default` or `dark-blue` accent reads as Blue.
+- UI text is set in the embedded Inter with tabular figures, replacing Geist and Geist Mono, so timecode, values, and frame counts keep their digit widths in the same face as the labels around them.
+- Video clips without a label default to Teal instead of Violet, and adjustment clips to Yellow instead of Lavender.
+- The tool bar draws seven grouped buttons (Selection, Track Select, the trim tools, Razor, Pen, Hand and Zoom, Type) instead of thirteen; a group's button shows its armed tool, a 300 ms hold or the corner triangle lists the group, and every tool key is unchanged.
+- Hovering a dock tab, a tab's close control, a frame header control, a frame menu row, the timeline splitter, or a palette row fades its colour and redraws the window chrome alone instead of rebuilding every panel body.
+- The Selection, Track Select, and Hand tools draw the Lucide pointer, double chevron, and hand glyphs, and tool buttons are 28 px with a 16 px glyph.
+- The tool bar's Ripple/Overwrite chip has a tooltip stating what each drop mode does.
+- The Editing workspace opens with six panels; Audio Track Mixer, Assistant, Info, and Character open from the Window menu into their usual frames.
+- The status bar's right side is empty at rest: the achieved frame rate, playback resolution, and GPU show during playback, and the dropped-frame count shows in the warning colour only after a frame drops.
+- The Timeline header draws the timecode alone, centred on its two 24 px rows, with no frame count under it; the field's border shows only under the pointer, and the property search sits above the five toggles at their width.
+- A track header shows only the toggles its track calls for (the source patch, mute and solo on audio tracks, any toggle that is on) until the pointer is over it.
+- Video tracks that take less height than their side stand on the A/V divider, so the spare height is above the top video track instead of between V1 and the divider, and a media drag over it lands on the top track.
+- The property outline under a lane starts on the lane header's text edge, and its property rows start one spacing step in from their group.
+- The graph editor band puts the property name on its first row and the Value and Speed chips, Easy Ease, and Hold on its second, and draws its value labels in the UI face beside the grid lines they mark instead of as a monospace stack.
+- The frame menu lists the panels a frame does not hold under one Add Panel row.
+- A tab in a narrow frame reads the start of its title, and every tab shows its full name in a tooltip.
+- A dock tab row keeps the active tab first down to a 160 px frame and lists the tabs it has no room for in a More panels menu.
+- Warm scrubbing of 1080p60 media takes at most 11 ms per frame on software Vulkan, down from 104 ms.
+- The first play after opening media on an NVIDIA GPU starts in 230 ms instead of 2.3 s.
+- Dragging an effect parameter while paused updates the Viewer within one display frame.
+- A single edit or undo on a 10,000-clip project reaches the screen in 24 ms (p95) on software Vulkan instead of 44 to 124 ms, and in 11 ms on an RTX 5090: an edit re-projects only the lanes whose content changed.
+- Scrolling, zooming, and dragging the playhead on a 10,000-clip timeline builds each frame in 4.8 ms (p95) on software Vulkan instead of 27.9 ms, and in 3.1 ms on an RTX 5090.
+- Saving a project no longer copies the project first and writes the same bytes in fewer writes; a 10,000-clip save takes 151 ms instead of 166 ms.
+- Timeline render-bar segments are computed on their own thread, so Viewer frames never wait behind them.
+- The editor's opening fade runs on one 180 ms clock instead of two animations totalling 400 ms, and it no longer restarts when the window state changes.
+- Export on Linux tries NVENC, then VAAPI, then `x264enc` or `x265enc`, and logs why each skipped encoder could not open.
+- `aria export` prints the encoder it opened, as `encoder <name> (hardware)` or `(software)`, and one `skipped <reason>` line for each encoder tried before it.
+- An H.264 1080p export with NVENC on an RTX 5090 runs at 4.3x to 5.2x real time instead of 1.5x.
+- Steady playback makes no heap allocations in timeline resolution, look-ahead scheduling, text raster memoization, or compositor pass encoding, 65 per frame on the render thread instead of 84.
+- Reverse playback pre-walks the preceding GOP on the decode pool, so crossing a long-GOP keyframe boundary no longer stalls the render thread, and reverse `long-gop-scrub` drops no frames instead of 9 on software Vulkan.
+- The decode-ahead pool serves requests without boxing a closure per call and keeps a running forward fill across nearby look-ahead requests.
+- The timeline's zoom scroll bar, the add-track button, and the zoom readout sit along the bottom of the timeline instead of under the ruler, the ruler header is 49 px high, and In and Out draw as the work area bar instead of two lines on the ruler.
 - A digit typed over the Timeline opens the timeline's timecode, and one typed over the Program view opens the Viewer's playhead field.
 - A click on an inspector stopwatch of an animated property deletes every keyframe and keeps the value at the playhead, as the timeline's stopwatch does; the navigator's diamond adds and removes the keyframe under the playhead.
 - During playback, hover fades and glides draw their end state at once and the timeline playhead stands on the frame shown instead of easing after it.
@@ -1395,10 +1426,12 @@ Notes for the latest release. For previous releases, see the
 - The dark theme takes the surface values in `docs/spec/look.md`, and track headers, property-row names, the inspector tab strip, and the Viewer tabs are drawn on the new `surface_header` token with `hairline` separators; inspector numbers are drawn in the `value` colour, and the `track_shape` token is deleted.
 - A left click on an inspector number opens it for typing instead of stepping it up, and a right click no longer steps it down; dragging the number moves it.
 - The sidebar's top row lists five groups, Media, Graphics, Effects, Library, and Analyze, and a second row lists the open group's tabs in place of the fifteen-chip tab row.
-- The tool bar holds the tools, the snap, linked-selection, Timeline Display Settings, and edit-mode buttons, the workspace switcher, and Export; Settings and the panel toggles open from the menus.
+- The Project panel keeps its group tabs, search header, and pool footer on one row each down to a 160 px frame, and below 248 px one button cycles the four pool views.
+- The Effects & Presets panel and the Project panel's Effects tab share one 24 px search row with an inline clear button and no instructions in the panel body.
+- The tool bar holds the tools, the edit-mode button, the workspace switcher, and Export; snapping, linked selection, and Timeline Display Settings are in the Timeline header, and Settings and the panel toggles open from the menus.
 - The transport and the playhead timecode field are in the Viewer's control row, and the transport steps the tab in front of the Viewer, Program or a Source tab.
 - The Viewer's control row has In and Out buttons that mark the sequence while Program is in front.
-- The Viewer's tab row has Safe, Guides, and Alpha chips beside Split and Rulers for the safe margins, the guides, and the transparency grid.
+- The Viewer's tab row ends in a wrench button that opens View > Viewer Display Settings, which holds Split, Rulers, the guides, the safe margins, and the grids, and a Source tab in front draws a bar under its picture with the marked range, Insert, and Overwrite.
 - The sidebar and the Effect Controls panel no longer draw a 44 px header, and Import sits at the right of the sidebar's group row.
 - A click on the timeline's zoom readout fits the sequence, in place of the fit button in the Viewer's control row.
 - A Source tab scrubs from the Viewer's mini ruler in place of the scrub bar drawn inside its picture.
@@ -2243,6 +2276,21 @@ Notes for the latest release. For previous releases, see the
 
 ### Fixed
 
+- A file that opens neither through DMABuf nor to CPU memory, such as an unreadable or audio-only file, no longer turns DMABuf decode off for every later file in the process.
+- A DMABuf open whose decoder has no DMABuf output stops before that decoder opens a hardware session and falls back to CPU decode.
+- Playback with a few dozen decoded layers no longer fails with "Element failed to change its state": the first GStreamer start in a process raises the open-file soft limit from 1024 to the hard limit, at most 65,536.
+- A GStreamer plugin that fails to load, such as a CUDA plugin listed in the registry after its driver changed, is recorded under the user cache directory, and later processes on the same boot with the same plugin file neither load it nor autoplug its elements.
+- Opening the sound of a video file plugs no video decoder.
+- An export opens its hardware encoder on the device context the decoders keep instead of creating a CUDA context of its own.
+- Closing a floating panel window with the window manager's close control closes its panels, instead of leaving them listed as open with no window, so the Window menu opens them again with one click.
+- A panel reopened after its column closed, such as Effects & Presets after its floating window closes, returns to its own column instead of opening as a tab over the Timeline, and Audio Meters returns right of the Timeline.
+- The frame menu and its Add Panel list stay inside the window instead of running past its bottom edge.
+- Every panel keeps its text inside a 160 px frame: button and chip rows wrap, fields end in an ellipsis, and the Scopes panel narrows its scopes.
+- In a short Timeline frame each side places its tracks in the height it is drawn at, so scrolling a side reaches its last track and V1 stays on the A/V divider, instead of the sides being laid out for a stack of at least 96 px.
+- Export with audio no longer hangs on its first frames: each coded branch reaches the MP4 muxer through its own queue, so video waiting on the first AAC frame no longer blocks the audio push.
+- Launch no longer prints GStreamer CRITICAL lines for decode plugins that cannot load; each skipped device is logged once with its cause.
+- `aria-bench` ends after a scenario that decoded on an NVIDIA GPU instead of hanging or aborting in the NVDEC library's exit handler, and the editor and `aria` end through the same `_exit` path.
+- `aria new out.aria clip.mp4 --fps 60` writes a 60 fps sequence instead of failing with `rate mismatch: expected 24/1, got 60/1`.
 - On a 23.976, 29.97 or 59.94 fps sequence the timeline places clips, the playhead, markers and the ruler at their real times instead of a thousand times too close together, and the timeline timecode counts 24, 30 or 60 frames a second instead of reading `00:00:00:36`.
 - Open Gap and Close Gap at Playhead move clips by one timecode second at 23.976, 29.97 and 59.94 fps instead of by 24000, 30000 or 60000 frames.
 - The playhead stays under the pointer while dragging in the timeline ruler, the Viewer's scrub strip or a property row's strip, instead of easing behind it.
@@ -2253,8 +2301,7 @@ Notes for the latest release. For previous releases, see the
 - A control's tooltip no longer opens over the menu its press opened; after a press the tooltip stays hidden until the pointer leaves the control.
 - A property row in Effect Controls keeps its keyframe navigator and time area on its own line, shortening a long name with an ellipsis and showing it in full on hover; values stand in one column, a colour row draws its swatches on the line under its name, and every row's time area starts and ends at the same place so keyframes line up in time.
 - A colour that is not a preset reads as six hex digits, `#ff0000`, when it is opaque, adding the alpha digits only when it is translucent.
-- The tool bar's Snapping button shows its chord, `S`, in its tooltip, as the timeline header's does.
-- The Timeline Display Settings button in the timeline header and in the tool bar opens its choices under itself instead of opening the View menu at the menu bar, and a second press closes them.
+- The Timeline Display Settings button in the timeline header opens its choices under itself instead of opening the View menu at the menu bar, and a second press closes them.
 - Pressing a submenu entry in a menu opens its flyout instead of closing the menu, and pressing a disabled row leaves the menu open with the reason on the status line.
 - The timeline's divider between video and audio lanes no longer draws a `V / A` label cut off by its borders.
 - The Window menu checks Effects & Presets, Assistant and Mixer while their panel is open, including behind another tab, and Window > Effects & Presets and Shift+5 bring the Effects & Presets panel forward instead of the Media panel's Effects tab.

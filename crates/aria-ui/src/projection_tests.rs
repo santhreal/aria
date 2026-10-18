@@ -141,8 +141,8 @@ fn project_to_ui_projects_clip_audio() {
 }
 
 /// A clip with no label of its own is drawn in the label `docs/spec/look.md`
-/// gives its kind: Violet picture, Forest sound, Mango generators, Tan nested
-/// sequences, Lavender adjustments.
+/// gives its kind: Teal picture, Forest sound, Mango generators, Tan nested
+/// sequences, Yellow adjustments.
 ///
 /// The class this closes: a clip kind drawn in a colour the look chapter does
 /// not give it, such as every unlabelled clip falling back to one hue. Not
@@ -178,10 +178,10 @@ fn an_unlabelled_clip_takes_the_label_of_its_kind() {
         assert_eq!(clip.label, None, "{id:?} carries no label of its own");
         clip.drawn_label()
     };
-    assert_eq!(drawn(picture), LabelColor::Violet);
+    assert_eq!(drawn(picture), LabelColor::Teal);
     assert_eq!(drawn(sound), LabelColor::Forest);
     assert_eq!(drawn(generated), LabelColor::Mango);
-    assert_eq!(drawn(adjustment), LabelColor::Lavender);
+    assert_eq!(drawn(adjustment), LabelColor::Yellow);
     assert_eq!(drawn(nested), LabelColor::Tan);
 
     project
@@ -285,4 +285,44 @@ fn a_clip_projects_the_first_part_whose_plugin_is_missing() {
     project.timeline_mut().clip_mut(right).unwrap().clip_type =
         Some("com.example.gone.type".into());
     assert_eq!(badges(&project)[1], missing("com.example.gone.type"));
+}
+
+/// WHY: the keyframe strip on a clip bar draws at clip-local ticks. A clip that
+/// does not start at zero shows whether the union is offset by the clip start.
+/// Two properties whose keys interleave (Opacity at 6 and 30, Position at 6
+/// and 18) leave the union unsorted and duplicated whichever is visited first,
+/// so it shows the union is sorted and deduped.
+/// Does not cover a sequence-timed clip (`ParamTime::Sequence`).
+#[test]
+fn the_strip_lists_each_keyed_tick_once_relative_to_the_clip_start() {
+    let (mut project, _, later, _) = sample_project();
+    let at = |tick: i64| RationalTime::new(48 + tick, Rational::FPS_24);
+    let keys = [
+        (ClipParam::Opacity, 30, ParamValue::Scalar(0.5)),
+        (ClipParam::Opacity, 6, ParamValue::Scalar(1.0)),
+        (ClipParam::Position, 18, ParamValue::Vec2([0.3, 0.4])),
+        (ClipParam::Position, 6, ParamValue::Vec2([0.1, 0.2])),
+    ];
+    for (param, tick, value) in keys {
+        project
+            .set_param_keyframe(
+                later,
+                param,
+                at(tick),
+                value,
+                aria_models::Easing::Linear,
+                None,
+            )
+            .unwrap();
+    }
+    let store = project_to_ui(&project, RationalTime::new(0, Rational::FPS_24), &[]);
+    let clip = store
+        .sequence
+        .tracks
+        .iter()
+        .flat_map(|t| t.clips.iter())
+        .find(|c| c.id == later.raw())
+        .unwrap();
+    assert_eq!(clip.timeline_start_ticks, 48);
+    assert_eq!(clip.keyframe_ticks, vec![6, 18, 30]);
 }

@@ -153,7 +153,7 @@ fn track_tints_are_near_neutral() {
 #[test]
 fn idle_screen_uses_at_most_three_meaning_colors() {
     // WHY: PLAN 8.2 / 8.8 screenshot test. An idle editor may show
-    // playhead (accent/indigo), snap guide (warning/amber), and busy
+    // playhead (accent/blue), snap guide (warning/amber), and busy
     // (pink) at most. Track tints stay near-neutral (chroma 0.03) and
     // do not count. A fourth saturated token on screen is decorative.
     let dark = Theme::dark();
@@ -328,7 +328,7 @@ fn the_installed_theme_is_read_not_rebuilt() {
     let (first, second) = cx.update(|app| {
         Theme::install(
             Appearance::Dark,
-            aria_settings::ThemeChoice::Default,
+            aria_settings::ThemeChoice::Blue,
             None,
             app,
         );
@@ -357,14 +357,14 @@ fn installing_a_theme_replaces_the_one_readers_get() {
     let (dark, light) = cx.update(|app| {
         Theme::install(
             Appearance::Dark,
-            aria_settings::ThemeChoice::Default,
+            aria_settings::ThemeChoice::Blue,
             None,
             app,
         );
         let dark = Theme::of(app);
         Theme::install(
             Appearance::Light,
-            aria_settings::ThemeChoice::Default,
+            aria_settings::ThemeChoice::Blue,
             None,
             app,
         );

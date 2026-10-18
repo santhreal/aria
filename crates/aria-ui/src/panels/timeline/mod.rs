@@ -10,6 +10,7 @@
 
 mod clip;
 mod drop;
+mod graph;
 mod header;
 mod headers;
 mod lanes;
@@ -18,12 +19,15 @@ mod overview;
 mod property_rows;
 mod render_bar;
 pub(crate) mod ruler;
+mod sides;
 
 #[cfg(test)]
 mod empty_timeline_tests;
+#[cfg(test)]
+#[path = "offscreen_tests.rs"]
+mod offscreen_tests;
 
 use std::cell::Cell;
-use std::sync::Arc;
 
 use crate::fluent::FluentBuilder;
 use gpui::{
@@ -37,7 +41,6 @@ use crate::theme::Theme;
 use crate::types::ActivePanel;
 
 use lanes::lane_group;
-use media::{clip_bars, clip_cells};
 use overview::overview;
 use ruler::ruler;
 
@@ -45,11 +48,15 @@ thread_local! {
     static AV_DIVIDER_DRAG: Cell<Option<(f32, f32)>> = const { Cell::new(None) };
 }
 
-/// Height of the timeline header: the ruler's ticks, the work area bar under
-/// them, and the render bar along the bottom.
-pub(super) const RULER_H: f32 = 42.0;
+/// Height of the timeline header: two 24 px rows over the outline column, and
+/// over the time area the ruler's ticks, the work area bar under them, and the
+/// render bar along the bottom; plus the 1 px rule under the header.
+pub(super) const RULER_H: f32 = 2.0 * header::HEADER_ROW_H + 1.0;
 /// Height of the ruler's ticks and labels at the top of the header.
-pub(super) const RULER_TICKS_H: f32 = 26.0;
+pub(super) const RULER_TICKS_H: f32 = 30.0;
+/// Height of a lane group that has no lanes: one empty-lane strip that names
+/// the missing side, so the other side takes the panel.
+pub(super) const EMPTY_SIDE_H: f32 = Theme::ROW_HEIGHT;
 pub(super) const AV_DIVIDER_H: f32 = 6.0;
 /// Width of the grab band on the outline column's right border. The band
 /// ends at the border, so the first pixel of the content is the content's.
@@ -99,7 +106,7 @@ pub fn render(
         reduced || !state.read(cx).scroll_eased,
     );
     let pps = BASE_PPS * zoom;
-    let outline = state.read(cx).ui_settings.outline_width;
+    let outline = state.read(cx).outline_drawn_width();
     let fps = store.sequence.ticks_per_second();
     let (
         snap_guide,
@@ -143,13 +150,6 @@ pub fn render(
         .all(|track| track.clips.is_empty());
     let cursor = tool.cursor();
     let total_rows = store.sequence.tracks.len();
-    let all_rows: Vec<usize> = (0..total_rows).collect();
-    let waves = Arc::new(clip_bars(
-        state, &store, &all_rows, pps, fps, view_start, view_end, cx,
-    ));
-    let strips = Arc::new(clip_cells(
-        state, &store, &all_rows, pps, fps, view_start, view_end, cx,
-    ));
     let visual_rows = state.read(cx).visual_lane_count();
     let (graph_open, kf_menu, path_menu) = {
         let app = state.read(cx);
@@ -164,10 +164,20 @@ pub fn render(
     } else {
         0.0
     };
+    // `panel_h` is the panel inside its top border. The sides share what the
+    // header, the two drop strips, the divider, the graph editor and the
+    // overview leave of it; a frame too short for those leaves the sides
+    // nothing, never a stack taller than the panel.
     let stack_h =
-        (panel_h - RULER_H - overview::OVERVIEW_H - AV_DIVIDER_H - graph_h - 16.0).max(96.0);
-    let video_viewport_h = (stack_h * av_split).max(36.0);
-    let audio_viewport_h = (stack_h * (1.0 - av_split)).max(36.0);
+        (panel_h - RULER_H - 2.0 * Theme::SPACE_SM - AV_DIVIDER_H - graph_h - overview::OVERVIEW_H)
+            .max(0.0);
+    let (video_side, audio_side) = sides::sides(
+        visual_rows,
+        total_rows.saturating_sub(visual_rows),
+        av_split,
+    );
+    let video_viewport_h = video_side.viewport(stack_h);
+    let audio_viewport_h = audio_side.viewport(stack_h);
 
     let video_group = lane_group(
         &theme,
@@ -187,8 +197,6 @@ pub fn render(
         view_end,
         playhead_at,
         snap_guide,
-        waves.clone(),
-        strips.clone(),
         reduced,
         cx,
     );
@@ -210,14 +218,11 @@ pub fn render(
         view_end,
         playhead_at,
         snap_guide,
-        waves,
-        strips,
         reduced,
         cx,
     );
 
-    let video_pct = (av_split * 100.0).clamp(15.0, 85.0);
-    let audio_pct = 100.0 - video_pct;
+    let one_sided = video_side.is_empty() || audio_side.is_empty();
 
     div()
         .id("timeline")
@@ -287,21 +292,19 @@ pub fn render(
                     &theme, true, scroll_x, outline, fps, pps, cx,
                 ))
                 .child(
-                    div()
-                        .w_full()
-                        .h(gpui::relative(video_pct / 100.0))
-                        .min_h(px(28.))
-                        .overflow_hidden()
-                        .child(video_group),
+                    sides::frame(video_viewport_h)
+                        .child(video_group)
+                        .when(video_side.is_empty(), |el| {
+                            el.child(sides::empty_label(&theme, false))
+                        }),
                 )
-                .child(av_divider(&theme, outline, cx))
+                .child(av_divider(&theme, outline, !one_sided, cx))
                 .child(
-                    div()
-                        .w_full()
-                        .h(gpui::relative(audio_pct / 100.0))
-                        .min_h(px(28.))
-                        .overflow_hidden()
-                        .child(audio_group),
+                    sides::frame(audio_viewport_h)
+                        .child(audio_group)
+                        .when(audio_side.is_empty(), |el| {
+                            el.child(sides::empty_label(&theme, true))
+                        }),
                 )
                 .child(drop::edge_strip(
                     &theme, false, scroll_x, outline, fps, pps, cx,
@@ -310,7 +313,10 @@ pub fn render(
                     el.child(
                         div()
                             .absolute()
-                            .inset_0()
+                            .top_0()
+                            .bottom_0()
+                            .left(px(outline))
+                            .right_0()
                             .flex()
                             .items_center()
                             .justify_center()
@@ -321,7 +327,7 @@ pub fn render(
                 }),
         )
         .when(graph_open, |el| {
-            el.child(property_rows::render_graph_editor(
+            el.child(graph::render_graph_editor(
                 &theme,
                 state,
                 pps,
@@ -393,20 +399,24 @@ fn outline_edge(outline: f32, cx: &mut gpui::Context<crate::shell::Shell>) -> im
         )
 }
 
+/// The bar between the video and audio sides. It drags the split while both
+/// sides have lanes; with one side empty there is no split and it is a rule.
 fn av_divider(
     theme: &Theme,
     outline: f32,
+    draggable: bool,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     div()
         .id("timeline-av-divider")
         .w_full()
         .h(px(AV_DIVIDER_H))
+        .flex_none()
         .bg(theme.surface_raised)
         .border_t_1()
         .border_b_1()
         .border_color(theme.border_strong)
-        .cursor(CursorStyle::ResizeUpDown)
+        .when(draggable, |el| el.cursor(CursorStyle::ResizeUpDown))
         .flex()
         .items_center()
         // The bar is 6 px high, too short for a label; the rule marks the
@@ -418,14 +428,16 @@ fn av_divider(
                 .border_r_1()
                 .border_color(theme.border),
         )
-        .on_mouse_down(
-            MouseButton::Left,
-            cx.listener(|this, event: &MouseDownEvent, _, cx| {
-                cx.stop_propagation();
-                let split = this.state.read(cx).timeline_av_split;
-                AV_DIVIDER_DRAG.set(Some((f32::from(event.position.y), split)));
-            }),
-        )
+        .when(draggable, |el| {
+            el.on_mouse_down(
+                MouseButton::Left,
+                cx.listener(|this, event: &MouseDownEvent, _, cx| {
+                    cx.stop_propagation();
+                    let split = this.state.read(cx).timeline_av_split;
+                    AV_DIVIDER_DRAG.set(Some((f32::from(event.position.y), split)));
+                }),
+            )
+        })
 }
 
 fn handle_scroll(
@@ -460,7 +472,7 @@ fn handle_scroll(
         let next = state.scroll_x + scroll_dx;
         state.scroll_timeline_to(next, false);
     });
-    cx.notify();
+    this.redraw(crate::shell::Moved::View, cx);
 }
 
 fn measure(state: &Entity<AppState>) -> impl IntoElement {
@@ -473,11 +485,9 @@ fn measure(state: &Entity<AppState>) -> impl IntoElement {
                 f32::from(bounds.size.width),
                 f32::from(bounds.size.height),
             ];
-            state.update(cx, |state, cx| {
-                if state.record_timeline_frame(frame) {
-                    cx.notify();
-                }
-            });
+            if state.update(cx, |state, _| state.record_timeline_frame(frame)) {
+                crate::shell::notify_after_draw(&state, cx);
+            }
         },
         |_, _, _, _| {},
     )
@@ -792,3 +802,7 @@ mod tests {
         assert_eq!(ruler_label_chars(rate, TimeDisplay::FeetFrames, 292), 7);
     }
 }
+
+#[cfg(test)]
+#[path = "layout_tests.rs"]
+mod layout_tests;

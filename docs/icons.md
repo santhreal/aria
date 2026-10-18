@@ -62,12 +62,11 @@ stroke). Fallback: **[Tabler](https://tabler.io/icons)** (MIT).
 ### Tool bar — `crates/aria-ui/src/chrome/tool_strip.rs`
 
 - [x] `upload` — `assets/icon/shell/upload.svg` — export.
+- [x] `mouse-pointer-2` — `assets/icon/timeline/mouse-pointer-2.svg` — selection tool.
+- [x] `chevrons-right` / `chevrons-left` — `assets/icon/timeline/chevrons-right.svg` and `chevrons-left.svg` — track select forward and backward tools.
 - [x] `scissors` — `assets/icon/timeline/scissors.svg` — razor tool.
 - [x] `zoom-in` — `assets/icon/timeline/zoom-in.svg` — zoom tool.
-- [x] `fullscreen` — `assets/icon/fullscreen.svg` — hand tool.
-- [x] `magnet` — `assets/icon/timeline/magnet.svg` — snap toggle.
-- [x] `link` — `assets/icon/timeline/link.svg` — linked selection toggle.
-- [x] `wrench` — `assets/icon/timeline/wrench.svg` — timeline display settings.
+- [x] `hand` — `assets/icon/timeline/hand.svg` — hand tool.
 - [x] `move-horizontal` — `assets/icon/timeline/move-horizontal.svg` — slip tool.
 - [x] `columns-3` — `assets/icon/timeline/columns-3.svg` — slide tool.
 - [x] `grip-vertical` — `assets/icon/timeline/grip-vertical.svg` — rolling edit tool.
@@ -80,12 +79,17 @@ stroke). Fallback: **[Tabler](https://tabler.io/icons)** (MIT).
 - [x] `send` — `assets/icon/chat/send.svg` — submit a message.
 - [x] `circle-stop` — `assets/icon/chat/stop.svg` — stop generation.
 
-### Viewer — `crates/aria-ui/src/panels/preview.rs` and `preview_source.rs`
+### Viewer — `crates/aria-ui/src/panels/preview.rs`, `preview_source.rs`, `preview_tabs.rs`, `preview_controls.rs`, `preview_resolution.rs`, `preview/handles.rs`, and `preview/scopes.rs`
 
 - [x] `play` / `pause` — `assets/icon/play.svg` — transport.
 - [x] `skip-back` / `skip-forward` — `assets/icon/skip-back.svg` and `assets/icon/skip-forward.svg` — go to start and go to end.
 - [x] `chevron-left` / `chevron-right` — `assets/icon/chevron-left.svg` and `assets/icon/chevron-right.svg` — step one frame.
 - [x] `zoom-in` / `zoom-out` — `assets/icon/timeline/zoom-in.svg` and `assets/icon/timeline/zoom-out.svg` — preview zoom step, replacing the `"+"` and `"−"` text glyphs.
+- [x] `wrench` — `assets/icon/timeline/wrench.svg` — Viewer display settings, at the right end of the tab row: holds View > Viewer Display Settings under itself.
+- [x] `repeat` — `assets/icon/timeline/repeat.svg`, registered as `LOOP` — loop playback.
+- [x] `replace` — `assets/icon/preview/replace.svg`, registered as `PROXY` — play proxies or the original media.
+- [x] `scaling` / `crop` / `square-dashed` — `assets/icon/preview/scaling.svg`, `crop.svg`, and `square-dashed.svg`, registered as `TRANSFORM`, `CROP`, and `MASK` — the Transform, Crop, and Mask handle sets.
+- [x] `activity` — `assets/icon/preview/activity.svg`, registered as `SCOPES` — open or close the scope strip.
 
 ### Home — `crates/aria-ui/src/panels/home/rail.rs` and `panes.rs`
 
@@ -99,7 +103,7 @@ stroke). Fallback: **[Tabler](https://tabler.io/icons)** (MIT).
 - [x] `magnet` / `link` / `wrench` — `assets/icon/timeline/magnet.svg`, `link.svg`, and `wrench.svg` — snapping, linked selection, and timeline display settings in the timeline header.
 - [x] `flag` — `assets/icon/timeline/flag.svg`, registered as `FLAG` — add a marker at the playhead.
 - [x] `chart-spline` — `assets/icon/timeline/chart-spline.svg`, registered as `GRAPH` — open or close the graph editor.
-- [x] `x` — `assets/icon/shell/x.svg`, registered as `CLOSE` — clear the property search.
+- [x] `x` — `assets/icon/shell/x.svg`, registered as `CLOSE` — clear the property search, and clear the Effects & Presets search (`panels/effects_browser.rs`).
 - [x] `eye` / `eye-off` — `assets/icon/timeline/eye.svg` — track enabled.
 - [x] `volume-2` / `volume-x` — `assets/icon/timeline/volume-2.svg` — track mute.
 - [x] `lock` / `lock-open` — `assets/icon/timeline/lock.svg` — track lock.
@@ -108,8 +112,13 @@ stroke). Fallback: **[Tabler](https://tabler.io/icons)** (MIT).
 - [x] `crosshair` — `assets/icon/timeline/crosshair.svg` — lane target.
 - [x] `link` / `unlink` — `assets/icon/timeline/link.svg` and `assets/icon/timeline/unlink.svg` — lane sync lock.
 
-### Media pool — `crates/aria-ui/src/panels/sidebar/bins.rs`
+### Media pool — `crates/aria-ui/src/panels/sidebar_bins.rs` and `sidebar_pool_bars.rs`
 
+- [x] `import` — `assets/icon/library/import.svg`, registered as `IMPORT` — Import, at the right end of the Media tab's filter row.
+- [x] `audio-lines` — `assets/icon/timeline/audio-lines.svg` — Audio only, beside Import: the pool lists its audio sources.
+- [x] `image` / `list` / `layout-grid` / `move` — `assets/icon/library/image.svg`, `list.svg`, `layout-grid.svg`, and `move.svg`, registered as `IMAGE`, `LIST`, `LAYOUT_GRID`, and `MOVE` — the Tiles, List, Icons, and Freeform views in the footer.
+- [x] `folder-plus` — `assets/icon/library/folder-plus.svg`, registered as `FOLDER_PLUS` — New bin, in the footer.
+- [x] `layers` — `assets/icon/library/layers.svg`, registered as `LAYERS` — New multicam, in the footer (`sidebar_multicam.rs`).
 - [x] `folder` — a bin row draws `components::chevron` (`CHEVRON_DOWN`), which leans toward the click as the row lights.
 - [x] `chevron-left` — `assets/icon/chevron-left.svg` — `crates/aria-ui/src/panels/sidebar_multicam.rs` — move a multicam angle one frame earlier on the group's clock.
 - [x] `chevron-right` — `assets/icon/chevron-right.svg` — `crates/aria-ui/src/panels/sidebar_multicam.rs` — move a multicam angle one frame later.

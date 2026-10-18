@@ -16,11 +16,12 @@ pub(super) struct Caches<'a> {
     pub(super) stickers: &'a HashMap<String, StickerSequence>,
     pub(super) lottie: &'a HashMap<String, LottieState>,
     pub(super) luts: &'a HashMap<String, CubeLutState>,
+    pub(super) text_memo: &'a HashMap<u64, RgbaImage>,
 }
 
 fn content<'a>(pixels: &'a Pixels, caches: &Caches<'a>) -> LayerContent<'a> {
     match pixels {
-        Pixels::Frame(frame) => LayerContent::Frame(frame),
+        Pixels::Frame(shown) => LayerContent::Frame(&shown.frame),
         Pixels::Still(media) => LayerContent::Rgba(&caches.stills[media]),
         Pixels::Sticker { asset, frame_index } => {
             LayerContent::Rgba(&caches.stickers[asset].frames[*frame_index])
@@ -35,6 +36,7 @@ fn content<'a>(pixels: &'a Pixels, caches: &Caches<'a>) -> LayerContent<'a> {
             LayerContent::Rgba(&player.frames[frame_index].0)
         }
         Pixels::Bitmap(image) => LayerContent::Rgba(image),
+        Pixels::CachedText(key) => LayerContent::Rgba(&caches.text_memo[key]),
         Pixels::Solid(rgba) => LayerContent::Solid(*rgba),
         Pixels::Sdf(shape) => LayerContent::Sdf(*shape),
         Pixels::Glyphs {

@@ -4,6 +4,7 @@
 //! Every button hands a pick to [`align_pick`].
 //! The Align To row is a view setting, so it writes the state directly.
 
+use crate::components::Wraps as _;
 use gpui::{
     AnyElement, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
     StatefulInteractiveElement, Styled, div, px,
@@ -112,7 +113,7 @@ fn row(controls: Vec<AnyElement>) -> AnyElement {
     div()
         .flex()
         .flex_row()
-        .flex_wrap()
+        .wraps()
         .gap(px(Theme::SPACE_XXS))
         .children(controls)
         .into_any_element()

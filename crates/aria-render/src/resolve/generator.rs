@@ -1,6 +1,6 @@
 use aria_compositor::ColorGrade;
 use aria_models::{
-    BlendMode, Generator, Scale2, TextAlignH, TextAlignV, TextStyle as ModelTextStyle,
+    BlendMode, Generator, Scale2, TextAlignH, TextAlignV, TextCase, TextStyle as ModelTextStyle,
 };
 use aria_text::{
     FontFamily, TextAlign, TextBackground, TextRun, TextShadow, TextStroke, TextStyle,
@@ -28,18 +28,61 @@ pub(crate) fn resolve_generator(
     local_seconds: f64,
     effects: Vec<ResolvedPass>,
 ) -> Option<SceneLayer> {
+    resolve_generator_pooled(
+        generator,
+        center,
+        anchor_point,
+        rotation,
+        opacity,
+        uv,
+        color_grade,
+        lut,
+        cw,
+        ch,
+        scale,
+        tick,
+        local_seconds,
+        effects,
+        &mut super::sample::ResolvePool::default(),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn resolve_generator_pooled(
+    generator: &Generator,
+    center: [f32; 2],
+    anchor_point: [f32; 2],
+    rotation: f32,
+    opacity: f32,
+    uv: [f32; 4],
+    color_grade: Option<ColorGrade>,
+    lut: Option<SceneLut>,
+    cw: f32,
+    ch: f32,
+    scale: Scale2,
+    tick: i64,
+    local_seconds: f64,
+    effects: Vec<ResolvedPass>,
+    pool: &mut super::sample::ResolvePool,
+) -> Option<SceneLayer> {
     let ref_scale = ch / REFERENCE_HEIGHT;
     let has_lut = lut.is_some();
     let mut layer = match generator {
         Generator::Text { content, style } => {
-            let text = style.case.apply(content);
+            let mut text = pool.take_string();
+            apply_text_case_into(style.case, content, &mut text);
             if text.trim().is_empty() {
                 return None;
             }
+            let font_buf = if style.font.is_empty() {
+                String::new()
+            } else {
+                pool.take_string()
+            };
             Some(SceneLayer {
                 clip: None,
                 source: LayerSource::Text {
-                    style: map_text_style_for(&text, style, cw, ch, tick),
+                    style: map_text_style_for(&text, style, cw, ch, tick, font_buf),
                     content: text,
                     animation: None,
                 },
@@ -207,6 +250,30 @@ fn canvas_pass(
     })
 }
 
+fn apply_text_case_into(case: TextCase, src: &str, out: &mut String) {
+    out.clear();
+    out.reserve(src.len());
+    match case {
+        TextCase::Normal => out.push_str(src),
+        TextCase::Upper => out.extend(src.chars().flat_map(char::to_uppercase)),
+        TextCase::Lower => out.extend(src.chars().flat_map(char::to_lowercase)),
+        TextCase::Title => {
+            let mut start_of_word = true;
+            for ch in src.chars() {
+                if ch.is_whitespace() {
+                    start_of_word = true;
+                    out.push(ch);
+                } else if start_of_word {
+                    start_of_word = false;
+                    out.extend(ch.to_uppercase());
+                } else {
+                    out.extend(ch.to_lowercase());
+                }
+            }
+        }
+    }
+}
+
 /// Map a model [`ModelTextStyle`] onto a [`aria_text`] render style.
 ///
 /// Quantize layout-affecting metrics so slow keyframe ramps reuse shape /
@@ -220,13 +287,25 @@ fn quantize_layout_px(v: f32) -> f32 {
 /// The raster remains ink-tight even when wrapping uses the canvas width;
 /// alignment is applied later to the finished bitmap's placement.
 pub(super) fn map_text_style(style: &ModelTextStyle, cw: f32, ch: f32, tick: i64) -> TextStyle {
+    map_text_style_pooled(style, cw, ch, tick, String::new())
+}
+
+fn map_text_style_pooled(
+    style: &ModelTextStyle,
+    cw: f32,
+    ch: f32,
+    tick: i64,
+    mut font_buf: String,
+) -> TextStyle {
     let scale = ch / REFERENCE_HEIGHT;
     let font_size = quantize_layout_px(style.size.sample(tick) * scale);
     let letter_spacing = quantize_layout_px(style.letter_spacing.sample(tick) * scale);
     let family = if style.font.is_empty() {
         FontFamily::SansSerif
     } else {
-        FontFamily::Named(style.font.clone())
+        font_buf.clear();
+        font_buf.push_str(&style.font);
+        FontFamily::Named(font_buf)
     };
     let align = match style.align_h {
         TextAlignH::Left => TextAlign::Left,
@@ -291,8 +370,9 @@ fn map_text_style_for(
     cw: f32,
     ch: f32,
     tick: i64,
+    font_buf: String,
 ) -> TextStyle {
-    let mut mapped = map_text_style(style, cw, ch, tick);
+    let mut mapped = map_text_style_pooled(style, cw, ch, tick, font_buf);
     if !style.runs.is_empty() {
         let scale = ch / REFERENCE_HEIGHT;
         mapped.runs = style

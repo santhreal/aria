@@ -53,6 +53,21 @@ pub(super) fn resolve_clip(
     overrides: ResolveOverrides<'_>,
     nesting: &Nesting<'_>,
 ) -> Result<Option<SceneLayer>, aria_models::ModelError> {
+    let mut pool = super::sample::ResolvePool::default();
+    resolve_clip_pooled(project, clip, t, cw, ch, overrides, nesting, &mut pool)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn resolve_clip_pooled(
+    project: &Project,
+    clip: &aria_models::Clip,
+    t: RationalTime,
+    cw: f32,
+    ch: f32,
+    overrides: ResolveOverrides<'_>,
+    nesting: &Nesting<'_>,
+    pool: &mut super::sample::ResolvePool,
+) -> Result<Option<SceneLayer>, aria_models::ModelError> {
     if !clip.enabled {
         return Ok(None);
     }
@@ -107,7 +122,7 @@ pub(super) fn resolve_clip(
     let opacity = xf.opacity.clamp(0.0, 1.0);
     let uv = crop_flip_uv(clip, local_tick, overrides);
     let seconds = RationalTime::new(clip.animation_tick(t.value), t.rate).seconds() as f32;
-    let effects = resolve_effects(clip, local_tick, seconds, overrides.effect_vec2);
+    let effects = resolve_effects_pooled(clip, local_tick, seconds, overrides.effect_vec2, pool);
     let (filter, adjust) = match overrides.look {
         Some((id, filter, adjust)) if id == clip.id => (filter, adjust),
         _ => (clip.filter.as_ref(), &clip.adjust),
@@ -208,7 +223,7 @@ pub(super) fn resolve_clip(
                 .find(|fx| !fx.bypass && fx.is_missing_generator())
                 .map(|fx| missing_generator_slate(&fx.effect_id));
             let generator = slate.as_ref().unwrap_or(generator);
-            Ok(resolve_generator(
+            Ok(resolve_generator_pooled(
                 generator,
                 center,
                 anchor_point,
@@ -223,6 +238,7 @@ pub(super) fn resolve_clip(
                 local_tick,
                 local_tick as f64 * t.rate.seconds_per_unit(),
                 effects,
+                pool,
             )
             .map(|mut layer| {
                 layer.clip = Some(clip.id);

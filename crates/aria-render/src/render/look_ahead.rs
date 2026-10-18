@@ -12,15 +12,23 @@
 //! comes on screen in the next [`LOOK_AHEAD_SECONDS`]. A decoder that no frame
 //! used for [`RELEASE_AFTER`] scenes drops its held frames; past
 //! [`MAX_DECODERS`], the least recently used close.
+//!
+//! A CPU frame returns to its slot after the composite that drew it
+//! ([`Renderer::keep_shown`]). The next request with the same source time
+//! takes it back with no decode: a paused preview redrawn for a parameter
+//! change, a gesture, or a selection change shows its media frame again
+//! instead of seeking and walking the GOP to it. A request for any other time
+//! drops it. A GPU surface does not return: it belongs to the decoder's
+//! surface pool.
 
 use std::path::PathBuf;
 
-use aria_core::{RationalTime, VideoDecoder, VideoFrame};
+use aria_core::{FrameData, RationalTime, VideoDecoder, VideoFrame};
 use aria_decoder::{AheadDecoder, OpeningDecoder, open_ahead, open_video_decoder};
 use aria_models::{ClipId, MediaId, Project, Timeline};
 
 use crate::error::RenderError;
-use crate::resolve::resolve;
+use crate::resolve::ResolveOverrides;
 use crate::scene::{LayerSource, SceneLayer};
 
 use super::{Renderer, SeekPolicy};
@@ -62,6 +70,23 @@ impl DecoderKey {
     }
 }
 
+/// A decoded frame and the request that produced it.
+pub(super) struct Shown {
+    pub(super) key: DecoderKey,
+    pub(super) source_time: RationalTime,
+    pub(super) policy: SeekPolicy,
+    pub(super) frame: VideoFrame,
+}
+
+impl Shown {
+    /// Whether this frame answers a request for `source_time` under `policy`:
+    /// an exact frame answers either policy, a snapped one only a snap.
+    fn serves(&self, source_time: RationalTime, policy: SeekPolicy) -> bool {
+        self.source_time == source_time
+            && (self.policy == policy || self.policy == SeekPolicy::Exact)
+    }
+}
+
 /// An open decoder, or one opening on the decode pool, and the last scene that
 /// used it.
 pub(super) struct DecoderSlot {
@@ -73,6 +98,8 @@ pub(super) struct DecoderSlot {
     used: u64,
     /// Its held frames were dropped after it went unused.
     released: bool,
+    /// The CPU frame the last composite drew from this decoder.
+    shown: Option<Shown>,
 }
 
 impl DecoderSlot {
@@ -82,6 +109,7 @@ impl DecoderSlot {
             opening,
             used,
             released: false,
+            shown: None,
         }
     }
 
@@ -186,14 +214,16 @@ impl Renderer {
     /// opening (and keeping) its decoder on first sight, over the media's
     /// proxy file when one is registered (see [`set_proxy`](Self::set_proxy)).
     /// Under [`SeekPolicy::NearestSync`] the frame may be the sync point before
-    /// `source_time` rather than the exact frame (see [`SeekPolicy`]).
+    /// `source_time` rather than the exact frame (see [`SeekPolicy`]). The
+    /// frame the last composite drew for `key` answers with no decode when it
+    /// [`serves`](Shown::serves) the request.
     pub(super) fn decode(
         &mut self,
         project: &Project,
         key: DecoderKey,
         source_time: RationalTime,
         policy: SeekPolicy,
-    ) -> Result<VideoFrame, RenderError> {
+    ) -> Result<Shown, RenderError> {
         let stamp = self.scene_stamp;
         if !self.decoders.contains_key(&key) {
             let path = self.decoder_path(project, key.media)?;
@@ -206,6 +236,10 @@ impl Renderer {
         };
         slot.used = stamp;
         slot.released = false;
+        match slot.shown.take() {
+            Some(shown) if shown.serves(source_time, policy) => return Ok(shown),
+            _ => {}
+        }
         let opened = slot.ready();
         let decoder = match opened {
             Ok(decoder) => decoder,
@@ -230,10 +264,28 @@ impl Renderer {
         if frame.is_none() {
             frame = decoder.frame_at_nearest(source_time)?;
         }
-        frame.ok_or(RenderError::NoFrame {
+        let frame = frame.ok_or(RenderError::NoFrame {
             media: key.media,
             time: source_time,
+        })?;
+        Ok(Shown {
+            key,
+            source_time,
+            policy,
+            frame,
         })
+    }
+
+    /// Return `shown` to its decoder slot after the composite that drew it, so
+    /// a repeat request takes it back. A GPU surface, or a frame whose decoder
+    /// closed since, is dropped.
+    pub(super) fn keep_shown(&mut self, shown: Shown) {
+        if !matches!(shown.frame.data, FrameData::Cpu(_)) {
+            return;
+        }
+        if let Some(slot) = self.decoders.get_mut(&shown.key) {
+            slot.shown = Some(shown);
+        }
     }
 
     /// The file decoders for `media` read: its proxy while proxies are in use
@@ -291,20 +343,46 @@ impl Renderer {
         }
         let mut uses = std::mem::take(&mut self.look_uses);
         uses.clear();
-        if let Ok(next) = resolve(project, RationalTime::new(tick.value + step, tick.rate)) {
-            media_uses(&next.references, &mut |key, time| uses.push((key, time)));
-            media_uses(&next.layers, &mut |key, time| uses.push((key, time)));
+        let mut look_scene = std::mem::replace(
+            &mut self.look_ahead_scene,
+            crate::scene::Scene::empty(0, 0, [0, 0, 0, 255]),
+        );
+        if crate::resolve::resolve_with_into(
+            project,
+            RationalTime::new(tick.value + step, tick.rate),
+            ResolveOverrides::default(),
+            &mut look_scene,
+            &mut self.look_ahead_pool,
+        )
+        .is_ok()
+        {
+            media_uses(&look_scene.references, &mut |key, time| {
+                uses.push((key, time))
+            });
+            media_uses(&look_scene.layers, &mut |key, time| uses.push((key, time)));
         }
         let next_uses = uses.len();
         let mut ticks = std::mem::take(&mut self.look_ticks);
         entrances(project.timeline(), tick.value, step, &mut ticks);
         for &at in &ticks {
-            let Ok(scene) = resolve(project, RationalTime::new(at, tick.rate)) else {
+            if crate::resolve::resolve_with_into(
+                project,
+                RationalTime::new(at, tick.rate),
+                ResolveOverrides::default(),
+                &mut look_scene,
+                &mut self.look_ahead_pool,
+            )
+            .is_err()
+            {
                 continue;
-            };
-            media_uses(&scene.references, &mut |key, time| uses.push((key, time)));
-            media_uses(&scene.layers, &mut |key, time| uses.push((key, time)));
+            }
+            media_uses(&look_scene.references, &mut |key, time| {
+                uses.push((key, time))
+            });
+            media_uses(&look_scene.layers, &mut |key, time| uses.push((key, time)));
         }
+        self.look_ahead_pool.recycle_scene(&mut look_scene);
+        self.look_ahead_scene = look_scene;
         // The next frame's uses are always requested. An entrance is skipped
         // for a clip this frame or the next one already uses: it is on screen,
         // and its decoder's position belongs to that use.
@@ -334,6 +412,7 @@ impl Renderer {
             idle += 1;
             if !slot.released {
                 slot.released = true;
+                slot.shown = None;
                 if let Some(decoder) = &slot.decoder {
                     decoder.release();
                 }

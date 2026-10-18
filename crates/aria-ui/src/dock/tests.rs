@@ -42,11 +42,11 @@ fn shipped_editing_tree_satisfies_invariants_and_reading_order() {
     );
     assert_eq!(
         tree.frame(FrameId::CENTER).map(|f| f.tabs.as_slice()),
-        Some(&[PANEL_VIEWER, PANEL_MIXER, PANEL_ASSISTANT][..])
+        Some(&[PANEL_VIEWER][..])
     );
     assert_eq!(
         tree.frame(FrameId::RIGHT).map(|f| f.tabs.as_slice()),
-        Some(&[PANEL_INFO, PANEL_EFFECTS, PANEL_CHARACTER][..])
+        Some(&[PANEL_EFFECTS][..])
     );
     assert_eq!(
         tree.frame(FrameId::BOTTOM).map(|f| f.tabs.as_slice()),
@@ -57,9 +57,19 @@ fn shipped_editing_tree_satisfies_invariants_and_reading_order() {
         Some(&[PANEL_AUDIO_METERS][..])
     );
     assert_eq!(tree.split_weights(&[]), Some(vec![0.55, 0.45]));
+    // Six panels at first glance; every other one opens from the Window menu.
+    let open: usize = tree
+        .frame_ids()
+        .iter()
+        .filter_map(|&id| tree.frame(id))
+        .map(|frame| frame.tabs.len())
+        .sum();
+    assert_eq!(open, 6, "the Editing workspace opens with six panels");
+    for closed in [PANEL_MIXER, PANEL_ASSISTANT, PANEL_INFO, PANEL_CHARACTER] {
+        assert_eq!(tree.find(closed), None, "{closed} is open at first glance");
+    }
     assert!(tree.is_active(PANEL_PROJECT));
     assert!(tree.is_active(PANEL_VIEWER));
-    assert!(!tree.is_active(PANEL_MIXER));
     assert!(tree.is_active(PANEL_EFFECTS));
     assert!(tree.is_active(PANEL_TIMELINE));
     assert!(tree.is_active(PANEL_AUDIO_METERS));
@@ -95,11 +105,8 @@ fn dock_to_each_zone_produces_expected_tree_and_flattens_same_axis() {
             Zone::Center => {
                 assert_eq!(resulting_frame, target);
                 let frame = tree.frame(target).expect("target frame");
-                assert_eq!(
-                    frame.tabs,
-                    vec![PANEL_INFO, PANEL_EFFECTS, PANEL_CHARACTER, PANEL_MIXER]
-                );
-                assert_eq!(frame.active, 3);
+                assert_eq!(frame.tabs, vec![PANEL_EFFECTS, PANEL_MIXER]);
+                assert_eq!(frame.active, 1);
             }
             Zone::Left | Zone::Right => {
                 assert_ne!(resulting_frame, target);
@@ -185,12 +192,11 @@ fn closing_last_tab_removes_frame_collapses_split_and_clears_maximized() {
     tree.check_invariants()
         .expect("invariants after closing lower row");
 
-    // Close Left and Right frames too; the root collapses to the single Center frame.
+    // Close Left and Right frames too; the root collapses to the single Center
+    // frame, whose last tab refuses to close so the root never becomes empty.
     assert!(tree.close(PANEL_PROJECT));
     assert!(tree.close(PANEL_INSPECTOR));
-    assert!(tree.close(PANEL_INFO));
     assert!(tree.close(PANEL_EFFECTS));
-    assert!(tree.close(PANEL_CHARACTER));
     tree.check_invariants()
         .expect("invariants after collapsing to 1 frame");
     assert!(
@@ -198,46 +204,28 @@ fn closing_last_tab_removes_frame_collapses_split_and_clears_maximized() {
         "root collapsed to single frame: {:?}",
         tree.root
     );
-
-    // Close two of the three tabs in the Center frame; the last tab in root
-    // refuses to close so the root never becomes empty.
-    assert!(tree.close(PANEL_ASSISTANT));
-    assert!(tree.close(PANEL_MIXER));
     assert!(!tree.close(PANEL_VIEWER), "last panel in root cannot close");
     tree.check_invariants().expect("invariants with sole panel");
 }
 
 #[test]
-fn open_places_into_default_frame_or_largest_frame_when_default_was_closed() {
+fn open_places_a_closed_panel_into_its_default_frame() {
     let mut tree = DockTree::editing();
-    // `PANEL_JOBS` defaults to `Right` (`FrameId::RIGHT`), which exists.
+    // `PANEL_JOBS` defaults to `Right` (`FrameId::RIGHT`), which exists. A
+    // closed default frame is re-created: `dock/restore_tests.rs`.
     let placed = tree.open(PANEL_JOBS);
     assert_eq!(placed, FrameId::RIGHT);
     assert_eq!(tree.find(PANEL_JOBS), Some(FrameId::RIGHT));
     assert!(tree.is_active(PANEL_JOBS));
     tree.check_invariants().expect("invariants after open");
-
-    // Close all tabs in `FrameId::RIGHT` so `FrameId::RIGHT` is removed.
-    assert!(tree.close(PANEL_JOBS));
-    assert!(tree.close(PANEL_INFO));
-    assert!(tree.close(PANEL_EFFECTS));
-    assert!(tree.close(PANEL_CHARACTER));
-    assert!(tree.frame(FrameId::RIGHT).is_none());
-
-    // Re-opening `PANEL_INFO` when `FrameId::RIGHT` is gone places it into
-    // the largest remaining frame (`FrameId::BOTTOM`).
-    let largest = tree.largest_frame();
-    assert_eq!(largest, FrameId::BOTTOM);
-    let reopened = tree.open(PANEL_INFO);
-    assert_eq!(reopened, largest);
-    assert!(tree.is_active(PANEL_INFO));
-    tree.check_invariants()
-        .expect("invariants after fallback open");
 }
 
 #[test]
 fn reorder_cycle_float_and_weights_preserve_invariants() {
     let mut tree = DockTree::editing();
+    // Mixer and Assistant open into the Viewer's frame, their default.
+    assert_eq!(tree.open(PANEL_MIXER), FrameId::CENTER);
+    assert_eq!(tree.open(PANEL_ASSISTANT), FrameId::CENTER);
     tree.activate(PANEL_MIXER);
     assert!(tree.is_active(PANEL_MIXER));
 

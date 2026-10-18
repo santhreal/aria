@@ -184,6 +184,18 @@ pub struct Renderer {
     pub(crate) apply_motion_blur: bool,
     /// Reusable CPU-side containers for layer realization.
     realize_scratch: realize::RealizeScratch,
+    /// Reusable scene and pool for preview frame entry points so steady
+    /// playback resolves without per-frame `Vec` or `String` allocations.
+    resolve_scene: crate::scene::Scene,
+    resolve_pool: crate::resolve::ResolvePool,
+    /// Reusable scene and pool for [`Self::look_ahead`] so steady look-ahead
+    /// resolves without per-frame `Vec` or `String` allocations.
+    look_ahead_scene: crate::scene::Scene,
+    look_ahead_pool: crate::resolve::ResolvePool,
+    /// Memo of static text bitmaps keyed by [`text_anim::static_raster_key`],
+    /// avoiding `ShapeKey::new` (`String`) and `RgbaImage::clone` (`Vec<u8>`)
+    /// on steady frames when the same static text layer is realized.
+    text_memo: HashMap<u64, RgbaImage>,
     /// A stop the next frame may honour, set by
     /// [`cancel_next_frame`](Renderer::cancel_next_frame) and taken by the
     /// realize pass. Frame-scoped by construction: a token left behind cannot

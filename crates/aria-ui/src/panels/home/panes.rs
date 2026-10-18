@@ -3,6 +3,7 @@
 //! Each pane corresponds to a rail selection. In addition, an active recovery
 //! offer is presented across all panes as a floating frosted banner.
 
+use crate::components::Wraps as _;
 use gpui::{Entity, InteractiveElement, IntoElement, ParentElement, Styled, div, px};
 
 use crate::app::AppState;
@@ -145,7 +146,7 @@ pub(super) fn recents_pane(
             div()
                 .flex()
                 .flex_row()
-                .flex_wrap()
+                .wraps()
                 .gap(px(Theme::SPACE_MD))
                 .child(hero_tile(
                     "home-new",

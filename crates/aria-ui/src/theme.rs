@@ -161,6 +161,14 @@ impl Theme {
     pub const TAB_ROW_HEIGHT: f32 = 24.0;
     /// Height of a text input.
     pub const INPUT_HEIGHT: f32 = 20.0;
+    /// Drawn size of an icon glyph.
+    pub const ICON_SIZE: f32 = 16.0;
+    /// Hit box of an icon control on a bar or a header row.
+    pub const ICON_HIT: f32 = 24.0;
+    /// Hit box of an icon control on the tool bar and the transport.
+    pub const ICON_HIT_LARGE: f32 = 28.0;
+    /// Hit box of an icon control inside a 22 px list or property row.
+    pub const ICON_HIT_ROW: f32 = 20.0;
 
     pub fn glass(&self) -> Hsla {
         match self.appearance {
@@ -231,7 +239,7 @@ impl Theme {
         let text = grey(0xd6);
         let text_muted = grey(0x9a);
         let text_faint = grey(0x6b);
-        let accent = oklch(0.673, 0.182, 276.935);
+        let accent = accent::accent_tokens(aria_settings::ThemeChoice::default(), Appearance::Dark);
         let warning = oklch(0.828, 0.189, 84.429);
         let danger = oklch(0.704, 0.191, 22.216);
         Self {
@@ -255,9 +263,9 @@ impl Theme {
             value: gpui::rgb(0x5aa8ff).into(),
             solid: neutral(0.922),
             on_solid: grey(0x0e),
-            accent,
-            accent_strong: oklch(0.585, 0.233, 277.117),
-            on_accent: neutral(0.985),
+            accent: accent.accent,
+            accent_strong: accent.accent_strong,
+            on_accent: accent.on_accent,
             danger,
             danger_muted: oklch(0.808, 0.114, 19.571),
             warning,
@@ -268,19 +276,19 @@ impl Theme {
             surface_raised_hover: grey(0x33),
             band: band_for(Appearance::Dark),
             input_bg: hsla(0.0, 0.0, 1.0, 0.03),
-            selection: hsla(0.66, 0.6, 0.55, 0.35),
+            selection: accent.selection,
             cursor: hsla(0.0, 0.0, 1.0, 0.35),
-            caret: hsla(0.66, 0.7, 0.7, 1.0),
+            caret: accent.caret,
             danger_strong: oklch(0.58, 0.16, 25.0),
-            font_sans: "Geist".into(),
-            font_mono: "Geist Mono".into(),
+            font_sans: UI_FAMILY.into(),
+            font_mono: system_mono().into(),
             font_sans_fallback: system_sans().into(),
             font_mono_fallback: system_mono().into(),
-            track_video: oklch(0.65, 0.03, 270.0),
+            track_video: oklch(0.65, 0.03, 250.0),
             track_audio: oklch(0.65, 0.03, 140.0),
             track_text: oklch(0.65, 0.03, 60.0),
             track_generator: oklch(0.65, 0.03, 0.0),
-            playhead: accent,
+            playhead: accent.playhead,
             snap_guide: warning,
             waveform_peak: text_muted.opacity(0.6),
             waveform_rms: text_faint.opacity(0.4),
@@ -293,6 +301,8 @@ impl Theme {
         let text = grey(0x26);
         let text_muted = grey(0x52);
         let text_faint = grey(0x7d);
+        let accent =
+            accent::accent_tokens(aria_settings::ThemeChoice::default(), Appearance::Light);
         let warning = oklch(0.555, 0.163, 48.998);
         let danger = oklch(0.577, 0.245, 27.325);
         Self {
@@ -316,9 +326,9 @@ impl Theme {
             value: gpui::rgb(0x1a73d9).into(),
             solid: neutral(0.205),
             on_solid: neutral(0.985),
-            accent: oklch(0.511, 0.262, 276.966),
-            accent_strong: oklch(0.511, 0.262, 276.966),
-            on_accent: neutral(0.985),
+            accent: accent.accent,
+            accent_strong: accent.accent_strong,
+            on_accent: accent.on_accent,
             danger,
             danger_muted: oklch(0.505, 0.213, 27.518),
             warning,
@@ -329,19 +339,19 @@ impl Theme {
             surface_raised_hover: grey(0xcc),
             band: band_for(Appearance::Light),
             input_bg: grey(0xff),
-            selection: hsla(0.66, 0.75, 0.62, 0.28),
+            selection: accent.selection,
             cursor: hsla(0.0, 0.0, 0.0, 0.55),
-            caret: hsla(0.66, 0.78, 0.42, 1.0),
+            caret: accent.caret,
             danger_strong: oklch(0.51, 0.20, 25.0),
-            font_sans: "Geist".into(),
-            font_mono: "Geist Mono".into(),
+            font_sans: UI_FAMILY.into(),
+            font_mono: system_mono().into(),
             font_sans_fallback: system_sans().into(),
             font_mono_fallback: system_mono().into(),
-            track_video: oklch(0.65, 0.03, 270.0),
+            track_video: oklch(0.65, 0.03, 250.0),
             track_audio: oklch(0.65, 0.03, 140.0),
             track_text: oklch(0.65, 0.03, 60.0),
             track_generator: oklch(0.65, 0.03, 0.0),
-            playhead: neutral(0.0),
+            playhead: accent.playhead,
             snap_guide: warning,
             waveform_peak: text_muted.opacity(0.6),
             waveform_rms: text_faint.opacity(0.4),
@@ -354,28 +364,6 @@ impl Theme {
             Appearance::Dark => Self::dark(),
             Appearance::Light => Self::light(),
         }
-    }
-
-    /// Retint the accent family for one saved [`aria_settings::ThemeChoice`].
-    ///
-    /// A choice is a hue, not a second palette: every neutral, every track tint, and
-    /// every contrast pairing is already balanced against both appearances, and a
-    /// parallel palette per choice would need that work three times over and drift.
-    /// So the accent, the playhead that follows it, and the caret move together, and
-    /// the tested contrast rules keep holding.
-    pub fn with_choice(mut self, choice: aria_settings::ThemeChoice) -> Self {
-        let hue = match choice {
-            // The shipped indigo, unchanged.
-            aria_settings::ThemeChoice::Default => return self,
-            aria_settings::ThemeChoice::Ember => 55.0,
-            aria_settings::ThemeChoice::DarkBlue => 245.0,
-        };
-        self.accent = retint(self.accent, hue);
-        self.accent_strong = retint(self.accent_strong, hue);
-        self.playhead = self.accent;
-        self.caret = retint(self.caret, hue);
-        self.selection = retint(self.selection, hue);
-        self
     }
 
     /// The saved theme choice, applied on top of the current appearance.
@@ -584,7 +572,16 @@ mod tests;
 // parent and the siblings reach it by name and nothing is left unreachable.
 #[path = "theme_system.rs"]
 mod system;
-use system::{gamma_encode, retint, system_mono, system_sans};
+use system::{gamma_encode, system_mono, system_sans};
+
+/// The accent families a theme choice selects.
+#[path = "theme_accent.rs"]
+mod accent;
+
+/// The UI typeface and the features UI text is shaped with.
+#[path = "theme_type.rs"]
+mod typeface;
+pub use typeface::*;
 
 // Moved to a sibling file to stay under the file ceiling; re-exported so
 // every existing path keeps resolving.

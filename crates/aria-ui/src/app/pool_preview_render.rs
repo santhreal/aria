@@ -95,10 +95,13 @@ pub(super) fn render_into(
                 state
                     .pool_preview
                     .finish_source(stamp, media, tick, rendered);
+                cx.notify();
             } else {
+                // A tile picture is drawn by the bodies that draw tiles; every
+                // other body replays.
                 state.pool_preview.finish(stamp, media, tick, rendered);
+                cx.emit(crate::app::PoolTileChanged);
             }
-            cx.notify();
         });
     })
     .detach();

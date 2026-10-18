@@ -12,7 +12,6 @@ use aria_plugin::{Origin, PluginContext, ProjectHost};
 use gpui::{Context, EventEmitter, RenderImage};
 use parking_lot::Mutex;
 
-use crate::projection::project_to_ui_with;
 use crate::settings::{SAVE_DEBOUNCE_MS, UiSettings};
 use crate::types::{
     ActivePanel, AppMenu, ContextTarget, EditMode, EditorTool, SidebarTab, UiAgentEntry, UiClip,
@@ -222,6 +221,8 @@ pub(crate) mod relink;
 pub mod remove_attributes;
 #[path = "app/rename.rs"]
 mod rename;
+#[path = "app/render_bar.rs"]
+mod render_bar;
 #[path = "app/render_device.rs"]
 mod render_device;
 #[path = "app/render_files.rs"]
@@ -261,7 +262,7 @@ mod three_point;
 #[path = "app/timeline_files.rs"]
 pub mod timeline_files;
 #[path = "app/timeline_view.rs"]
-mod timeline_view;
+pub(crate) mod timeline_view;
 #[path = "app/tracks.rs"]
 pub(crate) mod tracks;
 #[path = "app/transport.rs"]
@@ -293,7 +294,8 @@ mod zoom;
 
 pub use edits::{MarkerEditField, MarkerEditForm};
 pub(crate) use error_copy::describe_engine_error;
-pub use render_files::{RenderQuality, RenderSegment, compute_render_segments};
+pub use render_bar::compute_render_segments;
+pub use render_files::{RenderQuality, RenderSegment};
 pub use transport::{project_store, spawn_preview, start_playback};
 pub(crate) use view_events::ContextPluginRow;
 
@@ -304,6 +306,16 @@ pub struct StoreChanged;
 /// Raised when a new preview frame is ready.
 #[derive(Clone, Debug)]
 pub struct FrameReady;
+
+/// Raised when a media tile's scrub position or picture changes and nothing
+/// else on screen does. Each window redraws the panel bodies that draw tiles.
+#[derive(Clone, Debug)]
+pub struct PoolTileChanged;
+
+/// Raised when a timeline filmstrip cell finishes rendering. Each window
+/// redraws the panel bodies that draw filmstrips.
+#[derive(Clone, Debug)]
+pub struct FilmstripChanged;
 
 /// Which dialog is on screen. One at a time: a dialog owns the keyboard while it
 /// is up, so a second one would take input from the first.
@@ -355,19 +367,29 @@ struct Snapshot {
     /// The session facts a frame reads that the store does not carry, for the
     /// same reason: asking per element is a lock per element per frame.
     facts: project_facts::ProjectFacts,
+    /// What `store` was built from, for the next projection to compare against.
+    basis: crate::projection::LaneBasis,
 }
 
 impl Snapshot {
-    fn from_engine(engine: &mut Engine, playhead: RationalTime, selection: &[ClipId]) -> Self {
+    /// Project the engine's state. A lane that did not move since `previous`
+    /// was built keeps the clips `previous` holds for it.
+    fn from_engine(
+        engine: &mut Engine,
+        playhead: RationalTime,
+        selection: &[ClipId],
+        previous: Option<crate::projection::Previous<'_>>,
+    ) -> Self {
         let rate = engine.project().timeline().frame_rate;
         let at = RationalTime::new(playhead.value, rate);
-        let mut store = project_to_ui_with(
+        let (mut store, basis) = crate::projection::project_to_ui_from(
             engine.project(),
             at,
             selection,
             engine.is_dirty(),
             engine.can_undo(),
             engine.can_redo(),
+            previous,
         );
         // Which items decode through a proxy is the renderer's state, not the
         // project's — it is never saved — so the projection cannot read it and
@@ -384,12 +406,15 @@ impl Snapshot {
             store,
             selected: selected_detail::SelectedDetail::of(engine, selection, at),
             facts: project_facts::ProjectFacts::of(engine),
+            basis,
         }
     }
 }
 
 impl EventEmitter<StoreChanged> for AppState {}
 impl EventEmitter<FrameReady> for AppState {}
+impl EventEmitter<PoolTileChanged> for AppState {}
+impl EventEmitter<FilmstripChanged> for AppState {}
 
 #[cfg(test)]
 #[path = "app/error_copy_tests.rs"]
@@ -739,6 +764,18 @@ mod playback_report_tests;
 #[cfg(test)]
 #[path = "app/playback_present_tests.rs"]
 mod playback_present_tests;
+
+#[cfg(test)]
+#[path = "app/status_strip_tests.rs"]
+mod status_strip_tests;
+
+#[cfg(test)]
+#[path = "app/tool_groups_tests.rs"]
+mod tool_groups_tests;
+
+#[cfg(test)]
+#[path = "app/float_close_tests.rs"]
+mod float_close_tests;
 
 #[cfg(test)]
 #[path = "app/assistant_host_tests.rs"]

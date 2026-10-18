@@ -78,6 +78,28 @@ pub(crate) fn drawn_shell_at(
     (state, visual)
 }
 
+/// Redraws until the boot cover is gone, for a test that reads text where the
+/// cover's wordmark lies. The cover holds on the wall clock until the first
+/// picture lands or [`crate::shell::SPLASH_MAX`] passes, then fades, so the
+/// wait is on the wall clock too, and fails past that ceiling and the fade.
+pub(crate) fn wait_out_splash(visual: &mut gpui::VisualTestContext) {
+    use std::time::{Duration, Instant};
+    let deadline = Instant::now()
+        + crate::shell::SPLASH_MAX
+        + gpui::motion::presets::SPLASH_OUT.total()
+        + Duration::from_secs(1);
+    visual.run_until_parked();
+    while visual.debug_bounds("boot-splash").is_some() {
+        assert!(
+            Instant::now() < deadline,
+            "the boot cover outlived its ceiling"
+        );
+        std::thread::sleep(Duration::from_millis(50));
+        visual.update(|window, _| window.refresh());
+        visual.run_until_parked();
+    }
+}
+
 /// The state [`drawn_shell`] draws: the UI plugin mounted and an empty
 /// project open.
 fn shell_state(cx: &mut gpui::TestAppContext, tag: &str) -> gpui::Entity<crate::app::AppState> {

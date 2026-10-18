@@ -14,7 +14,7 @@ use crate::theme::Theme;
 use crate::types::{EditorTool, UiRoute};
 use aria_plugin::PanelLocation;
 use gpui::{
-    AnimationExt, Context, CursorStyle, Entity, ExternalPaths, InteractiveElement, IntoElement,
+    AppContext as _, Context, CursorStyle, Entity, ExternalPaths, InteractiveElement, IntoElement,
     KeyDownEvent, KeyUpEvent, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
     ParentElement, Render, Styled, Window, div, px,
 };
@@ -32,6 +32,9 @@ mod route;
 // What a drag is, and what letting go of one is worth.
 mod drag;
 use drag::{Drag, DragKind};
+// Docked panel bodies as cached views.
+mod panel_view;
+pub use panel_view::{Moved, notify_after_draw};
 pub struct Shell {
     pub state: Entity<AppState>,
     drag: Option<Drag>,
@@ -65,8 +68,8 @@ pub struct Shell {
     lone_alt: crate::keys::lone_alt::LoneAlt,
     /// Hovered frame and drop zone while dragging a panel tab.
     pub(super) tab_hover: Option<(crate::dock::FrameId, crate::dock::Zone)>,
-    /// Open frame/tab context menu `(frame_id, panel_id)`.
-    pub(super) frame_menu: Option<(crate::dock::FrameId, crate::dock::PanelId)>,
+    /// The frame menu or tab overflow menu open in this window.
+    pub(super) frame_menu: Option<dock_view::frame_menu::FrameMenu>,
     /// When `Some`, this `Shell` instance renders a single floating frame window.
     pub(super) floating_frame: Option<crate::dock::FrameId>,
     /// Open floating GPUI window handles owned by the main `Shell`.
@@ -78,6 +81,12 @@ pub struct Shell {
     pub(crate) window_move: bool,
     /// The title the platform window was last given.
     title: Option<WindowTitle>,
+    /// The cached body view of each docked panel drawn in this window.
+    bodies: std::collections::HashMap<crate::dock::PanelId, Entity<panel_view::PanelBody>>,
+    /// An empty view whose notification redraws the chrome alone.
+    beacon: Entity<panel_view::Beacon>,
+    /// The timeline projection count the panel bodies were last redrawn for.
+    drawn_projections: u64,
 }
 impl Shell {
     pub fn new(state: Entity<AppState>, cx: &mut Context<Self>) -> Self {
@@ -85,6 +94,14 @@ impl Shell {
         cx.observe(&state, |this, _, cx| {
             this.audio.pump();
             cx.notify();
+        })
+        .detach();
+        cx.subscribe(&state, |this, _, _: &crate::app::PoolTileChanged, cx| {
+            this.redraw(Moved::PoolHover, cx)
+        })
+        .detach();
+        cx.subscribe(&state, |this, _, _: &crate::app::FilmstripChanged, cx| {
+            this.redraw(Moved::Filmstrip, cx)
         })
         .detach();
         spawn_preview(state.clone(), cx);
@@ -110,6 +127,7 @@ impl Shell {
         if let Some(host) = host {
             crate::keys::set_mounted(host, cx);
         }
+        cx.observe_self(|this, cx| this.redraw_bodies(cx)).detach();
         Self {
             state,
             drag: None,
@@ -130,6 +148,9 @@ impl Shell {
             frame: Frame::Platform,
             window_move: false,
             title: None,
+            bodies: Default::default(),
+            beacon: cx.new(|_| panel_view::Beacon),
+            drawn_projections: 0,
         }
     }
 
@@ -142,6 +163,15 @@ impl Shell {
     ) -> Self {
         let audio = crate::audio::AudioSystem::new(state.read(cx).audio.clone());
         cx.observe(&state, |_, _, cx| cx.notify()).detach();
+        cx.subscribe(&state, |this, _, _: &crate::app::PoolTileChanged, cx| {
+            this.redraw(Moved::PoolHover, cx)
+        })
+        .detach();
+        cx.subscribe(&state, |this, _, _: &crate::app::FilmstripChanged, cx| {
+            this.redraw(Moved::Filmstrip, cx)
+        })
+        .detach();
+        cx.observe_self(|this, cx| this.redraw_bodies(cx)).detach();
         Self {
             state,
             drag: None,
@@ -162,6 +192,9 @@ impl Shell {
             frame: Frame::Platform,
             window_move: false,
             title: None,
+            bodies: Default::default(),
+            beacon: cx.new(|_| panel_view::Beacon),
+            drawn_projections: 0,
         }
     }
 
@@ -377,7 +410,7 @@ impl Shell {
     /// is the pointer in window coordinates, so it is measured against where the
     /// timeline's content starts rather than against the header width alone —
     /// the media rail is to the left of both, and it resizes.
-    pub(crate) fn zoom_at(&mut self, x: f32, factor: f32, cx: &mut Context<Self>) {
+    pub fn zoom_at(&mut self, x: f32, factor: f32, cx: &mut Context<Self>) {
         let Some(left) = self.state.read(cx).timeline_content_left() else {
             return;
         };
@@ -388,36 +421,31 @@ impl Shell {
             state.set_zoom(zoom, false);
             state.scroll_timeline_to(scroll, false);
         });
+        self.redraw(Moved::View, cx);
     }
 }
-/// One stage of the editor arriving.
+/// One stage of the editor arriving, drawn at the route value `arrived`.
 ///
 /// The window is on screen before any of this: what the operator watches is the
 /// layout resolving, so the order is the reading order: the bar, then the
-/// docked panels. Each stage waits
-/// [`motion::OPEN_STAGE_MS`] longer than the one before it, and the whole
-/// sequence fits inside the splash's own exit, so nothing is waited on.
-///
-/// Reduced motion draws the stage plainly: not a faster open, no open.
-fn opening<E>(
-    key: impl Into<motion::ControlId>,
-    stage: usize,
-    reduced: bool,
-    el: E,
-) -> gpui::AnyElement
+/// docked panels, each [`motion::OPEN_STAGE_LAG`] of the route behind the one
+/// before it. The stages are read off the route value rather than played as
+/// their own animations, so the editor is drawn by one clock: it lands when the
+/// route lands, a route change during it continues from the screen, and
+/// reduced motion, which lands the route on its first frame, draws every stage
+/// at rest.
+fn opening<E>(stage: usize, arrived: f32, el: E) -> gpui::AnyElement
 where
     E: Styled + IntoElement + 'static,
 {
-    if reduced {
+    let t = motion::open_stage(arrived, stage);
+    if t >= 1.0 {
         return el.into_any_element();
     }
-    let spec = motion::OPEN.with_delay(motion::OPEN_STAGE_MS * stage as u64);
-    el.with_animation(
-        key.into().element("opening"),
-        motion::animation(spec),
-        |el, t| el.opacity(t).relative().top(px(6.0 * (1.0 - t))),
-    )
-    .into_any_element()
+    el.opacity(t)
+        .relative()
+        .top(px(6.0 * (1.0 - t)))
+        .into_any_element()
 }
 
 impl Render for Shell {
@@ -445,6 +473,7 @@ impl Render for Shell {
             let floating = self.render_floating_window(frame_id, &theme, window, cx);
             return window_frame::framed(floating, frame, &theme, window);
         }
+        motion::mount_chrome(self.beacon.entity_id());
         let title = {
             let read = self.state.read(cx);
             if read.route == UiRoute::Home {
@@ -531,22 +560,29 @@ impl Render for Shell {
                     .flex_col()
                     .flex_1()
                     .min_h_0()
-                    .opacity(arrived)
                     .child(opening(
-                        "open-bar",
                         0,
-                        reduced,
+                        arrived,
                         crate::chrome::editor_bar(&theme, &self.state, window, cx),
                     ))
                     .child(opening(
-                        "open-body",
                         1,
-                        reduced,
+                        arrived,
                         div().flex().flex_1().min_w_0().min_h_0().size_full().child(
                             self.render_editor_dock(&theme, window_w, window_h, reduced, cx),
                         ),
                     ))
-                    .child(status_strip(&theme, &self.state, status, err, cx))
+                    .child(opening(
+                        1,
+                        arrived,
+                        div().flex().flex_col().child(status_strip(
+                            &theme,
+                            &self.state,
+                            status,
+                            err,
+                            cx,
+                        )),
+                    ))
                     .into_any_element()
             };
 
@@ -631,6 +667,7 @@ impl Render for Shell {
             .bg(theme.bg)
             .text_color(theme.text)
             .font_family(theme.font_sans.clone())
+            .font_features(crate::theme::text_features())
             .text_size(Theme::TEXT_UI)
             // A release outside the window ends a gesture as one inside it
             // does: the press began in this window, so its release is this
@@ -683,6 +720,9 @@ impl Render for Shell {
             // runs to its end. Mounted here because the shell is the one element
             // drawn in every route.
             .child(motion_driver())
+            // Notified by a narrow redraw, so the chrome is drawn again while
+            // the panel bodies that did not move replay their last drawing.
+            .child(self.beacon())
             .children(splash)
             .children(dialog_overlay)
             .children(context_overlay)

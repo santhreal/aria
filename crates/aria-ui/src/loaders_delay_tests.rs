@@ -95,9 +95,9 @@ fn reduced_motion_does_not_shorten_the_wait() {
     assert!(worth_showing(wait));
 }
 
-/// The span is one opening stage, not a number this file chose.
+/// The span is the catalog's loader wait, not a number this file chose.
 #[test]
-fn the_span_is_one_opening_stage() {
-    assert_eq!(glide::WAIT, motion::OPEN);
+fn the_span_is_the_catalog_loader_wait() {
+    assert_eq!(glide::WAIT, motion::LOADER_WAIT);
     assert_eq!(glide::WAIT.duration_ms, 320);
 }

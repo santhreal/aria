@@ -280,6 +280,9 @@ fn selecting_a_plugin_encoder_updates_destination_extension_and_request_id() {
         fn finish(&mut self) -> Result<(), EncodeError> {
             Ok(())
         }
+        fn choice(&self) -> aria_core::EncoderChoice {
+            aria_core::EncoderChoice::only("dummy", None)
+        }
     }
     impl Encoder for DummyEncoder {
         fn open(

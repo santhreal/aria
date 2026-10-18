@@ -4,6 +4,10 @@
 //! pool root or deleting it are not edits the project has. That condition is a
 //! row's own `when` rather than a `when_some` in the panel, so a button that
 //! would do nothing is not drawn and a census can see why.
+//!
+//! A row with an icon is drawn as that icon in the pool's footer; a row
+//! without one is drawn as its label beside the breadcrumb, which the pool
+//! shows only while a folder is open.
 
 use aria_engine::EngineError;
 
@@ -14,6 +18,8 @@ pub struct BinAction {
     /// Element id. Stable, because the strip draws at most one of each.
     pub id: &'static str,
     pub label: &'static str,
+    /// The footer icon, or `None` for a label beside the breadcrumb.
+    pub icon: Option<&'static str>,
     /// Whether the strip offers it, given what is open.
     pub when: fn(&BinStrip) -> bool,
     /// What pressing it asks the session for.
@@ -52,6 +58,7 @@ pub const BIN_ACTIONS: &[BinAction] = &[
     BinAction {
         id: "bin-new",
         label: "New bin",
+        icon: Some(crate::icons::FOLDER_PLUS),
         when: |_| true,
         run: |state, _| state.create_bin(),
     },
@@ -60,6 +67,7 @@ pub const BIN_ACTIONS: &[BinAction] = &[
     BinAction {
         id: "bin-rename",
         label: "Rename",
+        icon: None,
         when: |strip| strip.open.is_some(),
         run: |state, strip| {
             if let Some(bin) = strip.open {
@@ -71,6 +79,7 @@ pub const BIN_ACTIONS: &[BinAction] = &[
     BinAction {
         id: "bin-delete",
         label: "Delete bin",
+        icon: None,
         when: |strip| strip.open.is_some(),
         run: |state, _| state.remove_current_bin(),
     },

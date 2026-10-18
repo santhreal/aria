@@ -140,6 +140,7 @@ impl Render for Gallery {
             .bg(theme.bg)
             .text_color(theme.text)
             .font_family(theme.font_sans.clone())
+            .font_features(aria_ui::theme::text_features())
             .child(head)
             .child(index)
             .child(

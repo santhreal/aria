@@ -145,7 +145,7 @@ fn ruler_body(
                 this.state
                     .update(cx, |state, _| state.scrub_playhead_to_pointer(ticks));
                 crate::app::spawn_preview(this.state.clone(), cx);
-                cx.notify();
+                this.redraw(crate::shell::Moved::Playhead, cx);
             }),
         )
         .on_mouse_up(MouseButton::Left, |_: &MouseUpEvent, _, _| {
@@ -172,7 +172,7 @@ fn ruler_body(
             this.state
                 .update(cx, |state, _| state.scrub_playhead_to_pointer(ticks));
             crate::app::spawn_preview(this.state.clone(), cx);
-            cx.notify();
+            this.redraw(crate::shell::Moved::Playhead, cx);
         }))
         .child(ruler_ticks(theme, time, pps / fps.max(1.0), scroll_x))
         .children({
@@ -383,13 +383,7 @@ fn ruler_ticks(
     let major_color = theme.border_strong;
     let minor_color = theme.border;
     let label_color = theme.text_faint;
-    let font = gpui::Font {
-        family: theme.font_mono.clone(),
-        features: gpui::FontFeatures::default(),
-        fallbacks: None,
-        weight: gpui::FontWeight::NORMAL,
-        style: gpui::FontStyle::Normal,
-    };
+    let font = theme.ui_font(gpui::FontWeight::NORMAL);
     canvas(
         |_, _, _| (),
         move |bounds: Bounds<gpui::Pixels>, (), window, cx| {
@@ -414,46 +408,51 @@ fn ruler_ticks(
             let first = (scroll_x / px_per_tick).floor() as i64;
             let mut tick = (first.div_euclid(scale.major) * scale.major).max(0);
             let last = ((scroll_x + width) / px_per_tick).ceil() as i64;
-            while tick <= last {
-                let x = tick as f32 * px_per_tick - scroll_x;
-                let major = tick % scale.major == 0;
-                let (top, tall, color) = if major {
-                    (0.0, height, major_color)
-                } else {
-                    (height - MINOR_TICK_H, MINOR_TICK_H, minor_color)
-                };
-                window.paint_quad(fill(
-                    Bounds::new(
-                        bounds.origin + point(px(x), px(top)),
-                        size(px(1.0), px(tall)),
-                    ),
-                    color,
-                ));
-                if major {
-                    let text = SharedString::from(
-                        crate::timecode::display_time(tick, time.rate, time.display).to_string(),
-                    );
-                    let run = TextRun {
-                        len: text.len(),
-                        font: font.clone(),
-                        color: label_color,
-                        background_color: None,
-                        underline: None,
-                        strikethrough: None,
-                        tracking: Default::default(),
+            // A row of ticks and labels in a layer of its own, so it does not
+            // grow the index the rest of the timeline is ranked in.
+            window.paint_layer(bounds, |window| {
+                while tick <= last {
+                    let x = tick as f32 * px_per_tick - scroll_x;
+                    let major = tick % scale.major == 0;
+                    let (top, tall, color) = if major {
+                        (0.0, height, major_color)
+                    } else {
+                        (height - MINOR_TICK_H, MINOR_TICK_H, minor_color)
                     };
-                    let line = text_system.shape_line(text, font_size, &[run], None);
-                    let _ = line.paint(
-                        bounds.origin + point(px(x + Theme::SPACE_XS), px(1.0)),
-                        font_size + px(4.0),
-                        TextAlign::Left,
-                        None,
-                        window,
-                        cx,
-                    );
+                    window.paint_quad(fill(
+                        Bounds::new(
+                            bounds.origin + point(px(x), px(top)),
+                            size(px(1.0), px(tall)),
+                        ),
+                        color,
+                    ));
+                    if major {
+                        let text = SharedString::from(
+                            crate::timecode::display_time(tick, time.rate, time.display)
+                                .to_string(),
+                        );
+                        let run = TextRun {
+                            len: text.len(),
+                            font: font.clone(),
+                            color: label_color,
+                            background_color: None,
+                            underline: None,
+                            strikethrough: None,
+                            tracking: Default::default(),
+                        };
+                        let line = text_system.shape_line(text, font_size, &[run], None);
+                        let _ = line.paint(
+                            bounds.origin + point(px(x + Theme::SPACE_XS), px(1.0)),
+                            font_size + px(4.0),
+                            TextAlign::Left,
+                            None,
+                            window,
+                            cx,
+                        );
+                    }
+                    tick += scale.minor;
                 }
-                tick += scale.minor;
-            }
+            });
         },
     )
     .absolute()

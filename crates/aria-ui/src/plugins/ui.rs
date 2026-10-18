@@ -533,7 +533,7 @@ fn draw_audio_meters(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) ->
 }
 
 fn draw_effects_browser(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {
-    effects_browser::effects_panel(&crate::theme::Theme::of(cx), state, cx)
+    effects_browser::effects_dock_panel(&crate::theme::Theme::of(cx), state, cx)
 }
 
 fn draw_ai_tools(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {

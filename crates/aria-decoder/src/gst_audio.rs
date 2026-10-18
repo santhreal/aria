@@ -12,7 +12,7 @@ use gstreamer::prelude::*;
 use gstreamer_app as gst_app;
 use gstreamer_audio as gst_audio;
 
-use crate::gst::{ensure_init, gst_err, path_uri, rational_to_ns};
+use crate::gst::{PipelineGuard, ensure_init, gst_err, path_uri, rational_to_ns};
 
 const PULL_TIMEOUT: Duration = Duration::from_secs(8);
 
@@ -42,18 +42,26 @@ impl GstAudioReader {
         let uri = path_uri(path)?;
         let fmt = gst_audio::AUDIO_FORMAT_F32.to_str();
         let desc = format!(
-            "uridecodebin uri=\"{uri}\" ! audioconvert ! audioresample ! audio/x-raw,format={fmt},channels={channels},rate={out_rate},layout=interleaved ! appsink name=out sync=false max-buffers=8 drop=false"
+            "uridecodebin name=src uri=\"{uri}\" ! audioconvert ! audioresample ! audio/x-raw,format={fmt},channels={channels},rate={out_rate},layout=interleaved ! appsink name=out sync=false max-buffers=8 drop=false"
         );
-        let pipeline = gst::parse::launch(&desc)
-            .map_err(|e| {
-                DecodeError::Open(format!(
-                    "couldn't build the GStreamer audio pipeline: {e}. Install gstreamer1.0-plugins-base."
-                ))
-            })?
-            .downcast::<gst::Pipeline>()
-            .map_err(|_| {
-                DecodeError::Open("GStreamer did not return an audio pipeline. Retry the install.".into())
-            })?;
+        let pipeline = PipelineGuard::new(
+            gst::parse::launch(&desc)
+                .map_err(|e| {
+                    DecodeError::Open(format!(
+                        "couldn't build the GStreamer audio pipeline: {e}. Install gstreamer1.0-plugins-base."
+                    ))
+                })?
+                .downcast::<gst::Pipeline>()
+                .map_err(|_| {
+                    DecodeError::Open(
+                        "GStreamer did not return an audio pipeline. Retry the install.".into(),
+                    )
+                })?,
+        );
+        let src = pipeline
+            .by_name("src")
+            .ok_or_else(|| DecodeError::Open("audio pipeline is missing uridecodebin.".into()))?;
+        expose_all_but_audio(&src)?;
         let sink = pipeline
             .by_name("out")
             .ok_or_else(|| DecodeError::Open("audio pipeline is missing appsink.".into()))?
@@ -68,14 +76,13 @@ impl GstAudioReader {
             state_res,
             Ok(gst::StateChangeSuccess::Success) | Ok(gst::StateChangeSuccess::NoPreroll)
         ) {
-            let _ = pipeline.set_state(gst::State::Null);
             return Err(DecodeError::Open(
                 "GStreamer could not open an audio track. Install codec plugins or pick another file.".into(),
             ));
         }
 
         Ok(Self {
-            pipeline,
+            pipeline: pipeline.take(),
             sink,
             out_rate,
             channels: usize::from(channels),
@@ -137,6 +144,49 @@ impl GstAudioReader {
             }
         }
     }
+}
+
+/// Whether the audio pipeline plugs `factory` on a stream of `caps`: every
+/// element on an audio stream, and the demuxer that splits the container the
+/// audio is in.
+fn plugs_for_audio(caps: &gst::CapsRef, factory: &gst::ElementFactory) -> bool {
+    caps.structure(0)
+        .is_some_and(|stream| stream.name().starts_with("audio/"))
+        || factory
+            .metadata(gst::ELEMENT_METADATA_KLASS)
+            .is_some_and(|klass| klass.contains("Demuxer"))
+}
+
+/// Has `src`, a `uridecodebin`, expose every stream [`plugs_for_audio`] does
+/// not plug, undecoded. The exposed pad links to nothing, as a decoded video
+/// pad did, so reading a file's sound creates no video parser or decoder: on
+/// a host with a CUDA decoder, each one opened a GPU context of its own.
+fn expose_all_but_audio(src: &gst::Element) -> Result<(), DecodeError> {
+    let results = glib::Type::from_name("GstAutoplugSelectResult")
+        .and_then(glib::EnumClass::with_type)
+        .filter(|results| {
+            results.to_value_by_nick("try").is_some()
+                && results.to_value_by_nick("expose").is_some()
+        })
+        .ok_or_else(|| {
+            DecodeError::Open(
+                "GStreamer's uridecodebin has no autoplug-select result type. Reinstall gstreamer1.0-plugins-base.".into(),
+            )
+        })?;
+    src.connect("autoplug-select", false, move |values| {
+        let caps = values
+            .get(2)
+            .and_then(|value| value.get::<gst::Caps>().ok());
+        let factory = values
+            .get(3)
+            .and_then(|value| value.get::<gst::ElementFactory>().ok());
+        let plug = match (caps, factory) {
+            (Some(caps), Some(factory)) => plugs_for_audio(&caps, &factory),
+            _ => true,
+        };
+        results.to_value_by_nick(if plug { "try" } else { "expose" })
+    });
+    Ok(())
 }
 
 impl AudioReader for GstAudioReader {
@@ -205,3 +255,7 @@ impl Drop for GstAudioReader {
         let _ = self.pipeline.set_state(gst::State::Null);
     }
 }
+
+#[cfg(test)]
+#[path = "gst_audio_tests.rs"]
+mod tests;

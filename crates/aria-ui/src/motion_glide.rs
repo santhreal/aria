@@ -64,10 +64,10 @@ pub(crate) const ROUTE: MotionSpec = presets::DIALOG_IN;
 pub(crate) const PROGRESS: MotionSpec = presets::RESIZE;
 
 /// How long a wait must last before a loader is shown, spent by [`since`]
-/// rather than as a transition: only the span is read, never the curve. One
-/// [`super::OPEN`] stage, because a wait an operator did not notice must not be
-/// announced, and one they did must not be silent.
-pub(crate) const WAIT: MotionSpec = super::OPEN;
+/// rather than as a transition: only the span is read, never the curve.
+/// It is [`super::LOADER_WAIT`], because a wait an operator did not notice must
+/// not be announced, and one they did must not be silent.
+pub(crate) const WAIT: MotionSpec = super::LOADER_WAIT;
 
 /// The value `key` shows in the open frame while it travels to `target`.
 ///
@@ -83,9 +83,13 @@ pub(crate) const WAIT: MotionSpec = super::OPEN;
 pub(crate) fn glide(key: MotionKey, target: f32, spec: MotionSpec, instant: bool) -> f32 {
     with_frame(|chrome, frame| {
         let policy = chrome.policy(frame.policy());
-        chrome
+        let value = chrome
             .glide
-            .glide(key, target, spec, instant, policy, frame.now())
+            .glide(key, target, spec, instant, policy, frame.now());
+        if value != target {
+            chrome.views.moving();
+        }
+        value
     })
 }
 
@@ -95,9 +99,17 @@ pub(crate) fn glide(key: MotionKey, target: f32, spec: MotionSpec, instant: bool
 /// The inverse of [`glide`]'s first-read rule: a value that arrives already at
 /// its target is right for geometry and wrong for an age. A surface waits on
 /// this before it shows a loader. Reduced motion does not shorten a wait; the
-/// duration scale applies.
+/// duration scale applies. Under reduced motion an unfinished wait requests no
+/// frame, as [`super::end_frame`] counts it settled: the loader appears on the
+/// next frame drawn for another reason.
 pub(crate) fn since(key: MotionKey, spec: MotionSpec) -> f32 {
-    with_frame(|chrome, frame| chrome.glide.since(key, spec, frame.policy(), frame.now()))
+    with_frame(|chrome, frame| {
+        let elapsed = chrome.glide.since(key, spec, frame.policy(), frame.now());
+        if elapsed < 1.0 && !frame.policy().reduced() {
+            chrome.views.moving();
+        }
+        elapsed
+    })
 }
 
 #[cfg(test)]

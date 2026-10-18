@@ -5,6 +5,7 @@
 //! it as one edit; the panel's job is to report where it drew the graph so a
 //! window pointer can be read against it.
 
+use crate::components::Wraps as _;
 use gpui::{
     Bounds, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, MouseMoveEvent,
     MouseUpEvent, ParentElement, Pixels, Styled, canvas, div, point, px, size,
@@ -201,7 +202,7 @@ pub fn curve_editor_block(
             div()
                 .flex()
                 .flex_row()
-                .flex_wrap()
+                .wraps()
                 .gap(px(Theme::SPACE_XS))
                 .children(param_chips),
         )
@@ -219,7 +220,7 @@ pub fn curve_editor_block(
             div()
                 .flex()
                 .flex_row()
-                .flex_wrap()
+                .wraps()
                 .gap(px(Theme::SPACE_XS))
                 .children(easing_chips),
         )
@@ -238,11 +239,9 @@ fn measure(state: &gpui::Entity<AppState>) -> impl IntoElement {
                 f32::from(bounds.size.width),
                 f32::from(bounds.size.height),
             ];
-            state.update(cx, |state, cx| {
-                if state.record_curve_frame(frame) {
-                    cx.notify();
-                }
-            });
+            if state.update(cx, |state, _| state.record_curve_frame(frame)) {
+                crate::shell::notify_after_draw(&state, cx);
+            }
         },
         |_, _, _, _| (),
     )

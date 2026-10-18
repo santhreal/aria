@@ -337,14 +337,14 @@ fn install_applies_the_file_over_the_shipped_theme() {
     let (with_file, shipped) = cx.update(|app| {
         Theme::install(
             Appearance::Dark,
-            aria_settings::ThemeChoice::Default,
+            aria_settings::ThemeChoice::Blue,
             Some(&file),
             app,
         );
         let with_file = Theme::of(app).accent;
         Theme::install(
             Appearance::Dark,
-            aria_settings::ThemeChoice::Default,
+            aria_settings::ThemeChoice::Blue,
             None,
             app,
         );

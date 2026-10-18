@@ -1,13 +1,16 @@
 //! Look-ahead contracts: every media use a scene draws maps to its own decoder
 //! key, clip entrances are found in the playback direction within the window,
 //! playback through decode-ahead shows the same pixels as frames decoded cold,
-//! a clip about to come on screen has its decoder open before it does, and
-//! idle decoders drop their frames and close past the cap.
+//! a clip about to come on screen has its decoder open before it does,
+//! idle decoders drop their frames and close past the cap, and a repeat
+//! render of one source time takes the shown frame back with no decode.
 //!
 //! Not covered: hardware decode paths (the fixture decodes in software on the
 //! test hosts) and the decode pool's timing.
 
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use aria_compositor::RgbaImage;
 use aria_models::{
@@ -366,5 +369,116 @@ fn idle_decoders_release_their_frames_and_close_past_the_cap() {
             clip: None
         }),
         "the most recent use was closed"
+    );
+}
+
+/// A decoder that counts every call into the decoder it wraps.
+struct Counting {
+    inner: Box<dyn VideoDecoder>,
+    calls: Arc<AtomicUsize>,
+}
+
+impl Counting {
+    fn count(&self) {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+    }
+}
+
+impl VideoDecoder for Counting {
+    fn info(&self) -> &aria_core::SourceInfo {
+        self.inner.info()
+    }
+
+    fn seek(&mut self, target: RationalTime) -> Result<(), aria_core::DecodeError> {
+        self.count();
+        self.inner.seek(target)
+    }
+
+    fn next_frame(&mut self) -> Result<Option<VideoFrame>, aria_core::DecodeError> {
+        self.count();
+        self.inner.next_frame()
+    }
+
+    fn frame_at(
+        &mut self,
+        target: RationalTime,
+    ) -> Result<Option<VideoFrame>, aria_core::DecodeError> {
+        self.count();
+        self.inner.frame_at(target)
+    }
+
+    fn frame_at_nearest(
+        &mut self,
+        target: RationalTime,
+    ) -> Result<Option<VideoFrame>, aria_core::DecodeError> {
+        self.count();
+        self.inner.frame_at_nearest(target)
+    }
+}
+
+/// WHY: a paused preview redrawn for a parameter drag asked its decoder for
+/// the frame it had just shown, and the decoder seeks and walks the GOP for a
+/// target equal to its position: a full GOP walk per redraw. Closes the class
+/// of repeat requests at one source time under either policy reaching the
+/// decoder. Does not cover GPU surfaces, which are not kept.
+#[test]
+fn a_repeat_render_takes_the_shown_frame_back_without_decoding() {
+    let (project, media, a, _) = fixture_project();
+    let Ok(mut renderer) = Renderer::new_headless() else {
+        return;
+    };
+    let key = DecoderKey {
+        media,
+        clip: Some(a),
+    };
+    let calls = Arc::new(AtomicUsize::new(0));
+    let inner = open_video_decoder(&fixture(), aria_decoder::OutputMode::Cpu)
+        .unwrap_or_else(|error| panic!("fixture: {error}"));
+    let decoder = AheadDecoder::new(Box::new(Counting {
+        inner,
+        calls: Arc::clone(&calls),
+    }));
+    renderer
+        .decoders
+        .insert(key, DecoderSlot::new(Some(decoder), None, 0));
+    // Calls into the decoder once no pool job runs for it.
+    let settled = |renderer: &Renderer| {
+        if let Some(decoder) = &renderer.decoders[&key].decoder {
+            decoder.idle();
+        }
+        calls.load(Ordering::SeqCst)
+    };
+    let snap = |renderer: &mut Renderer, tick| {
+        let mut sink = aria_compositor::ImageSink::default();
+        renderer
+            .render_frame_fit_into_with(
+                &project,
+                RationalTime::new(tick, FPS_30),
+                160,
+                90,
+                crate::resolve::ResolveOverrides::default(),
+                SeekPolicy::NearestSync,
+                &mut sink,
+            )
+            .unwrap_or_else(|error| panic!("snap {tick}: {error}"));
+    };
+
+    let shown = frame(&mut renderer, &project, 20);
+    let first = settled(&renderer);
+    assert!(first > 0, "the first render decodes");
+    for _ in 0..4 {
+        assert_same(&frame(&mut renderer, &project, 20), &shown, 20, "repeat");
+    }
+    assert_eq!(settled(&renderer), first, "a repeat render decoded");
+    snap(&mut renderer, 20);
+    assert_eq!(settled(&renderer), first, "an exact frame answers a snap");
+
+    snap(&mut renderer, 5);
+    let snapped = settled(&renderer);
+    assert!(snapped > first, "another source time decodes");
+    frame(&mut renderer, &project, 5);
+    assert!(
+        settled(&renderer) > snapped,
+        "a snapped frame answered an exact request"
     );
 }

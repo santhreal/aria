@@ -149,6 +149,7 @@ pub(super) fn menu_drop(
     };
     div()
         .id(label)
+        .debug_selector(move || format!("menu-title-{label}"))
         .relative()
         .px(px(Theme::SPACE_SM))
         .py(px(Theme::SPACE_XS))
@@ -562,16 +563,22 @@ fn menu_row(
                 });
             }
         })
-        // The check column is drawn on every row, so captions line up whether or
-        // not a row is a toggle.
+        // The lead column is drawn on every row and holds the check mark or a
+        // plugin row's icon, so captions line up whether or not a row is a
+        // toggle or has an icon. A checked row shows its check.
         .child(
             div()
-                .w(px(12.))
+                .w(px(Theme::ICON_SIZE))
                 .flex_none()
+                .flex()
+                .justify_center()
                 .text_color(theme.text_muted)
-                .child(if checked == Some(true) { "✓" } else { "" }),
+                .children(match (checked, icon) {
+                    (Some(true), _) => Some("✓".into_any_element()),
+                    (_, Some(path)) => Some(crate::icons::icon(path).into_any_element()),
+                    _ => None,
+                }),
         )
-        .when_some(icon, |el, path| el.child(crate::icons::icon(path)))
         .child(
             div()
                 .flex_1()
@@ -582,7 +589,6 @@ fn menu_row(
             el.child(
                 div()
                     .pl(px(Theme::SPACE_LG))
-                    .font_family(theme.font_mono.clone())
                     .text_size(Theme::TEXT_UI)
                     .text_color(theme.text_faint)
                     .when(blocked.is_some(), |el| el.opacity(0.4))
@@ -607,3 +613,7 @@ fn menu_row(
 #[cfg(test)]
 #[path = "menu_view_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "menu_grid_tests.rs"]
+mod grid_tests;

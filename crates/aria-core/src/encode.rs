@@ -274,6 +274,53 @@ impl ExportFormat {
     }
 }
 
+/// The encoder an export session opened, and why each one tried before it was
+/// not used.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EncoderChoice {
+    /// The encoder: a GStreamer element such as `nvh264enc`, a platform
+    /// framework such as `AVAssetWriter`, or a plugin encoder's id.
+    pub encoder: std::borrow::Cow<'static, str>,
+    /// Whether it encodes on a GPU or media engine (`Some(true)`) or on the CPU
+    /// (`Some(false)`); `None` when the platform framework selects the codec
+    /// itself and does not report which one it took.
+    pub hardware: Option<bool>,
+    /// Why each encoder tried before [`Self::encoder`] did not open, in order.
+    pub passed_over: Vec<String>,
+}
+
+impl EncoderChoice {
+    /// An encoder that was the only one tried, on the processor `hardware`
+    /// states.
+    pub fn only(
+        encoder: impl Into<std::borrow::Cow<'static, str>>,
+        hardware: Option<bool>,
+    ) -> Self {
+        Self {
+            encoder: encoder.into(),
+            hardware,
+            passed_over: Vec::new(),
+        }
+    }
+}
+
+impl std::fmt::Display for EncoderChoice {
+    /// `encoder <name> (<processor>)`, then one `skipped <reason>` line for
+    /// each encoder passed over.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let processor = match self.hardware {
+            Some(true) => "hardware",
+            Some(false) => "software",
+            None => "selected by the platform",
+        };
+        write!(f, "encoder {} ({processor})", self.encoder)?;
+        for reason in &self.passed_over {
+            write!(f, "\nskipped {reason}")?;
+        }
+        Ok(())
+    }
+}
+
 /// A push-based video encoder.
 ///
 /// Push composited frames in presentation order, then [`finish`](VideoEncoder::finish)
@@ -300,6 +347,10 @@ pub trait VideoEncoder: Send {
     /// Flush buffered frames and finalize the output. The encoder must not be
     /// used after this returns.
     fn finish(&mut self) -> Result<(), EncodeError>;
+
+    /// The encoder this session opened, and why the ones tried before it were
+    /// not used.
+    fn choice(&self) -> EncoderChoice;
 }
 
 /// A push-based audio-only encoder.

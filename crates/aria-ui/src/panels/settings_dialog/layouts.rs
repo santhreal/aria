@@ -81,7 +81,6 @@ fn workspace_row(
         .gap(px(Theme::SPACE_XS))
         .child(
             div()
-                .font_family(theme.font_mono.clone())
                 .text_size(Theme::TEXT_UI)
                 .text_color(tone)
                 .child(if row.active {

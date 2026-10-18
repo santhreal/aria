@@ -624,6 +624,27 @@ impl AppState {
         true
     }
 
+    /// Close a floating frame and every panel in it, for the window's Close
+    /// Window button and the window manager's close control. The panels open
+    /// again from the Window menu in their default frames.
+    pub fn close_floating_frame(
+        &mut self,
+        frame_id: crate::dock::FrameId,
+        cx: &mut gpui::Context<Self>,
+    ) -> bool {
+        let Some(pos) = self
+            .dock_tree
+            .floating
+            .iter()
+            .position(|fl| fl.frame.id == frame_id)
+        else {
+            return false;
+        };
+        self.dock_tree.floating.remove(pos);
+        self.record_dock_edit(cx);
+        true
+    }
+
     /// The arrangement one row would restore, shipped, plugin, or saved.
     pub(crate) fn workspace_panes(&self, id: &str) -> Option<PaneLayout> {
         if id == CUSTOM_ID {

@@ -10,7 +10,7 @@
 //! its `--at`.
 
 use aria_core::{ExportFormat, VideoCodec};
-use aria_render::{ExportSettings, Renderer, export_to_file_observed};
+use aria_render::{ExportSettings, Renderer, export_to_file_with_encoder_observed};
 
 use crate::args::Args;
 use crate::fail::Failure;
@@ -68,20 +68,29 @@ pub fn run(args: &Args) -> Result<(), Failure> {
         }
         true
     };
-    let frames =
-        export_to_file_observed(&mut renderer, &project, &out, settings, &mut observer as _)
-            .map_err(|err| err.to_string())?;
+    let exported = export_to_file_with_encoder_observed(
+        &mut renderer,
+        &project,
+        &out,
+        settings,
+        &mut aria_encoder::open_encoder,
+        &mut observer as _,
+    )
+    .map_err(|err| err.to_string())?;
     if !quiet {
         eprintln!();
     }
     project::warn_driver_faults(&project);
     println!(
-        "wrote {frames} frames of {}x{} {} to {}",
+        "wrote {} frames of {}x{} {} to {}",
+        exported.frames,
         settings.size.0,
         settings.size.1,
         aria_encoder::capability().label_for(settings.video_codec),
         out.display()
     );
+    // The encoder line, then one `skipped` line per encoder that did not open.
+    println!("{}", exported.encoder);
     Ok(())
 }
 

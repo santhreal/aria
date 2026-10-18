@@ -962,6 +962,10 @@ mod inserts;
 mod xfade;
 pub use xfade::Crossfade;
 
+// The mix run ahead of an export's frame loop, on a thread of its own.
+#[path = "export_audio_feed.rs"]
+pub(crate) mod feed;
+
 #[doc(hidden)]
 pub mod export_audio_bench {
     pub use super::{BusNode, ExportAudioMixer, Span};

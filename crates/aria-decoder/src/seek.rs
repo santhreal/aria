@@ -14,27 +14,7 @@
 //! fresh decoders fall back to a real seek, byte-identical to the default
 //! seek-then-walk.
 //!
-//! ## Cost-adaptive roll window
-//!
-//! How far forward rolling beats seeking depends entirely on the source: a
-//! seek costs a keyframe-prefix re-decode (GOP length × per-frame cost),
-//! rolling costs one decode per frame skipped. With ~8-second GOPs (common in
-//! downloaded/CDN 4K) a fixed 1-second window turns a 30-frame forward drag
-//! into a multi-second GOP re-decode; with all-keyframe content rolling more
-//! than a couple frames is pure waste. So each decoder carries a [`SeekStats`]
-//! cost model: EMAs of the observed seek-path cost and the per-frame roll
-//! cost, measured by [`frame_at_rolling`] itself. The window is the
-//! break-even point `seek_cost / frame_cost` (in frames, converted through
-//! the frame rate), clamped between two frame periods and
-//! [`MAX_ROLL_WINDOW_SECS`]. Cold-start defaults reproduce the old fixed
-//! window (~1 s at 30 fps) until real measurements arrive.
-//!
-//! Measured (`scrub_bench`, 4K H.264 fragmented MP4 with ~8 s GOPs, Intel
-//! UHD 630, zero-copy GPU output, mean/p95 per target): a +30-frame forward
-//! drag — 1.001 s at 29.97 fps, one tick past the old fixed window — went
-//! from 449/1 239 ms to 175/238 ms; the CPU path from 1 530/4 282 ms to
-//! 646/1 185 ms. Small steps (+2, +8) and the never-rolling patterns
-//! (backward, random) are unchanged.
+//! The roll window is cost-adaptive: see [`crate::seek_cost`].
 //!
 //! ## Tick-truncation slack
 //!
@@ -60,65 +40,7 @@ use std::time::Instant;
 
 use aria_core::{DecodeError, Rational, RationalTime, VideoDecoder, VideoFrame, resample};
 
-/// Upper bound on the roll window: a pathological cost estimate (huge seek
-/// EMA, tiny frame EMA) must never make the decoder crawl forever instead of
-/// seeking.
-const MAX_ROLL_WINDOW_SECS: f64 = 10.0;
-
-/// EMA smoothing factor: heavy enough on the newest sample to track a
-/// scene-complexity change within a few observations, light enough that one
-/// outlier (cache-cold seek, page fault) doesn't swing the window.
-const EMA_ALPHA: f64 = 0.3;
-
-/// Frame rate assumed for the window when the source doesn't report one.
-const FALLBACK_FPS: f64 = 30.0;
-
-/// Per-decoder cost model for the adaptive roll-forward window: EMAs of the
-/// observed seek cost and per-frame decode cost, updated by
-/// [`frame_at_rolling`] from its own wall-clock measurements. Backends keep
-/// one next to `last_pts` and hand it back on every `frame_at`.
-///
-/// The defaults (300 ms per seek, 10 ms per frame) reproduce the previous
-/// fixed 1-second window at 30 fps until real measurements replace them.
-#[derive(Debug, Clone, Copy)]
-pub struct SeekStats {
-    /// EMA of a full seek-path `frame_at`: `seek()` plus the keyframe-prefix
-    /// walk to the covering frame, in milliseconds.
-    seek_ms: f64,
-    /// EMA of one `next_frame` on the roll path, in milliseconds.
-    frame_ms: f64,
-}
-
-impl Default for SeekStats {
-    fn default() -> Self {
-        Self {
-            seek_ms: 300.0,
-            frame_ms: 10.0,
-        }
-    }
-}
-
-impl SeekStats {
-    fn observe_seek(&mut self, ms: f64) {
-        self.seek_ms += EMA_ALPHA * (ms - self.seek_ms);
-    }
-
-    fn observe_roll_frame(&mut self, ms: f64) {
-        self.frame_ms += EMA_ALPHA * (ms - self.frame_ms);
-    }
-
-    /// The break-even roll window in microseconds: rolling `n` frames costs
-    /// `n × frame_ms`, so roll while that stays at or under one seek —
-    /// `seek_ms / frame_ms` frames, converted to time through the frame rate.
-    /// Clamped to at least two frame periods (sequential playback must always
-    /// roll) and at most [`MAX_ROLL_WINDOW_SECS`].
-    fn roll_window_us(&self, frame_rate: Rational) -> i64 {
-        let fps = frames_per_sec(frame_rate);
-        let break_even_frames = (self.seek_ms / self.frame_ms).max(0.0);
-        let secs = (break_even_frames / fps).clamp(2.0 / fps, MAX_ROLL_WINDOW_SECS);
-        (secs * 1e6) as i64
-    }
-}
+use crate::seek_cost::{SeekStats, frames_per_sec};
 
 /// `sec(a) − sec(b)`, exactly, scaled by the (positive) product of both rate
 /// numerators: positive iff `a` is later. `i128` keeps the triple products
@@ -302,17 +224,6 @@ pub fn frame_at_rolling<D: VideoDecoder + ?Sized>(
     Ok(found)
 }
 
-/// Frames per second of `frame_rate`, [`FALLBACK_FPS`] without a valid,
-/// positive rate.
-fn frames_per_sec(frame_rate: Rational) -> f64 {
-    let fps = f64::from(frame_rate.num) / f64::from(frame_rate.den);
-    if frame_rate.is_valid() && fps.is_finite() && fps > 0.0 {
-        fps
-    } else {
-        FALLBACK_FPS
-    }
-}
-
 /// Frames a seek walk decodes past its landing point before it gives up, so a
 /// corrupt stream whose timestamps never reach the target ends.
 const MAX_SEEK_WALK: u32 = 600;
@@ -412,12 +323,12 @@ impl Backoff {
     }
 }
 
-/// [`VideoDecoder::frame_at_nearest`] with the same roll-forward fast path
-/// as [`frame_at_rolling`]: a target just ahead of the last emitted frame
-/// (inside the adaptive window) takes the exact walk — a couple of
-/// `next_frame`s are cheaper than a container seek *and* land exactly.
-/// Every other target seeks and decodes a single frame, snapping to the
-/// sync point at or before `target`.
+/// [`VideoDecoder::frame_at_nearest`] with a roll-forward fast path: a
+/// target just ahead of the last emitted frame takes the exact walk, while
+/// rolling there costs no more than a snap (the nearest window of
+/// [`SeekStats`]).
+/// Every other target snaps: one seek and one decode, landing on the sync
+/// point at or before `target`.
 ///
 /// A target at or past end of stream would otherwise miss (`Ok(None)`),
 /// but "nearest" callers expect the tail frame there — containers
@@ -426,9 +337,9 @@ impl Backoff {
 /// the final tick of a clip). Such targets fall back to the last frame
 /// before end of stream.
 ///
-/// The snap path deliberately does **not** feed `stats`: its cost (one
-/// decode) says nothing about a full exact `frame_at`, and folding it into
-/// the seek EMA would shrink the roll window that exact calls rely on.
+/// A snap feeds the snap EMA, never the seek EMA: its cost (one decode)
+/// says nothing about a full exact `frame_at`, and folding it into the seek
+/// EMA would shrink the roll window that exact calls rely on.
 pub fn frame_at_nearest_rolling<D: VideoDecoder + ?Sized>(
     decoder: &mut D,
     last_pts: Option<RationalTime>,
@@ -440,15 +351,17 @@ pub fn frame_at_nearest_rolling<D: VideoDecoder + ?Sized>(
         last_pts,
         target,
         frame_rate,
-        stats.roll_window_us(frame_rate),
+        stats.nearest_window_us(frame_rate),
     ) {
         if let Some(frame) = frame_at_rolling(decoder, last_pts, stats, target)? {
             return Ok(Some(frame));
         }
         // Rolled off the end of the stream: the target lies past EOF.
     } else {
+        let start = Instant::now();
         decoder.seek(target)?;
         if let Some(frame) = decoder.next_frame()? {
+            stats.observe_snap(start.elapsed().as_secs_f64() * 1e3);
             return Ok(Some(frame));
         }
         // The seek landed at/past the last sample: no frame to emit.

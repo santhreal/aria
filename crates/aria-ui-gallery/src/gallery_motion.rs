@@ -151,31 +151,33 @@ fn plate(theme: &Theme, label: &str) -> gpui::Div {
         .child(label.to_string())
 }
 
-/// The app-open, as the shell runs it: three stages, one
-/// [`motion::OPEN_STAGE_MS`] apart, in reading order.
+/// The app-open, as the shell draws it: one route value on `DIALOG_IN`, with
+/// the docked panels and the status strip [`motion::OPEN_STAGE_LAG`] of it
+/// behind the bar.
 ///
 /// The shell's own `opening` is private to `aria-ui`, so the two lines it applies
-/// are repeated here against the same spec and the same gap. What is on screen is
-/// the app's first second.
+/// are repeated here against the same spec and [`motion::open_stage`]. What is on
+/// screen is the editor arriving.
 fn open_stages(theme: &Theme, state: GalleryState) -> AnyElement {
     let n = state.replay;
     group(
         theme,
         &format!(
-            "OPEN · {}ms, three stages {}ms apart",
-            motion::OPEN.duration_ms,
-            motion::OPEN_STAGE_MS
+            "Opening · DIALOG_IN {}ms, later stages {}% of the route behind",
+            presets::DIALOG_IN.duration_ms,
+            (motion::OPEN_STAGE_LAG * 100.0).round()
         ),
         div().flex().flex_col().gap(px(Theme::SPACE_XS)).children(
-            ["bar", "rails and picture", "timeline"]
+            [("bar", 0), ("docked panels", 1), ("status strip", 1)]
                 .into_iter()
-                .enumerate()
-                .map(move |(stage, label)| {
-                    let spec = motion::OPEN.with_delay(motion::OPEN_STAGE_MS * stage as u64);
+                .map(move |(label, stage)| {
                     plate(theme, label).with_animation(
-                        gpui::ElementId::from(format!("m-open-{stage}-{n}")),
-                        motion::animation(spec),
-                        |el, t| el.opacity(t).relative().top(px(6.0 * (1.0 - t))),
+                        gpui::ElementId::from(format!("m-open-{label}-{n}")),
+                        motion::animation(presets::DIALOG_IN),
+                        move |el, arrived| {
+                            let t = motion::open_stage(arrived, stage);
+                            el.opacity(t).relative().top(px(6.0 * (1.0 - t)))
+                        },
                     )
                 }),
         ),
@@ -230,7 +232,7 @@ fn curve(theme: &Theme, curve: Easing) -> AnyElement {
 /// added to `motion.rs` is on screen the moment it has a catalog row, and the
 /// gallery cannot fall one behind the design system the way it did with
 /// `CARET_BLINK`. Several of these have no helper of their own: RESIZE,
-/// TAB_SLIDE, COLLAPSE, CHEVRON, SCROLL_GLIDE, FLING and OPEN are applied at
+/// TAB_SLIDE, COLLAPSE, CHEVRON, SCROLL_GLIDE, FLING and LOADER_WAIT are applied at
 /// their call sites. A duration and a curve nobody can compare is a token
 /// nobody can review.
 fn specs(theme: &Theme) -> AnyElement {

@@ -17,3 +17,6 @@ Third-party code:
   text in LICENSES/comet-MIT.txt.
 - GPUI (https://github.com/zed-industries/zed): the user interface
   framework. Apache-2.0 license; text in LICENSES/zed-Apache-2.0.txt.
+- Inter (https://github.com/rsms/inter): the user interface typeface,
+  bundled in crates/aria-ui/assets/fonts. SIL Open Font License 1.1;
+  text in LICENSES/Inter-OFL-1.1.txt.

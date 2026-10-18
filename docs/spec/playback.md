@@ -61,6 +61,13 @@ decode workers  ->  frame cache  ->  render (GPU)  ->  present (GPU, no copy)
    a decoder on the shared decode pool. A decoder runs ahead of the playhead by
    a window sized by frame size and codec (at least 8 frames). Reverse playback
    decodes each GOP forward once and serves its frames backward from the cache.
+   A paused frame redrawn at the same source time, for a parameter drag or a
+   selection change, shows the CPU frame its last draw decoded; a GPU surface
+   and a new source time decode again. A scrub snaps to the sync frame before
+   the target when one seek and one decode cost less than decoding forward from
+   the decoder's position. After a seek the video decoder starts at the latest
+   video keyframe at or before the target, including in an MP4 whose audio
+   packets would place the segment start before that keyframe.
 2. **Frame cache.** Decoded and rendered frames are stored in a GPU-resident
    cache bounded by a size in Settings (default: 25 % of video memory) and a
    system memory spill tier (default: 4 GB). Frames are keyed by sequence,
@@ -75,7 +82,9 @@ decode workers  ->  frame cache  ->  render (GPU)  ->  present (GPU, no copy)
    CPU readback and no CPU copy between render and display. The device that
    renders is the device that presents.
 5. **Edits.** An edit during playback invalidates the affected cache entries and
-   playback continues; the next frame shown reflects the edit.
+   playback continues; the next frame shown reflects the edit. The render bar's
+   colours are computed on a thread of their own, so the next Viewer frame
+   never waits for them; a newer edit stops an older computation.
 
 No thread is created per frame. The decode pool, render thread, audio thread,
 and present path are created once per session.

@@ -5,6 +5,7 @@
 //! the tree, except the text box holding the keyboard, which shows its draft,
 //! and the slider being dragged, which shows the value under the pointer.
 
+use crate::components::Wraps as _;
 use std::sync::Arc;
 
 use aria_plugin::{PanelEvent, PanelLocation, PanelSpec, PanelState, Tone, UiNode, WaitingPanel};
@@ -233,7 +234,7 @@ fn node(draw: &Draw<'_>, node_: &UiNode, cx: &mut gpui::Context<Shell>) -> AnyEl
         UiNode::Row { children } => div()
             .flex()
             .flex_row()
-            .flex_wrap()
+            .wraps()
             .items_center()
             .gap(px(Theme::SPACE_SM))
             .children(children.iter().map(|child| node(draw, child, cx)))
@@ -326,12 +327,14 @@ fn node(draw: &Draw<'_>, node_: &UiNode, cx: &mut gpui::Context<Shell>) -> AnyEl
             height,
             rgba,
         } => match image_of(draw.images, *width, *height, rgba) {
-            Some(image) => img(image)
-                .w_full()
-                .max_w(px(*width as f32))
-                .aspect_ratio(*width as f32 / *height as f32)
-                .object_fit(ObjectFit::Contain)
-                .into_any_element(),
+            Some(image) => crate::components::picture(
+                img(image)
+                    .w_full()
+                    .max_w(px(*width as f32))
+                    .aspect_ratio(*width as f32 / *height as f32)
+                    .object_fit(ObjectFit::Contain),
+            )
+            .into_any_element(),
             // Not decoded until the next read; it draws then.
             None => div().into_any_element(),
         },
@@ -490,7 +493,6 @@ fn slider(
             div()
                 .w(px(48.))
                 .text_size(Theme::TEXT_UI)
-                .font_family(theme.font_mono.clone())
                 .text_color(theme.text)
                 .child(SharedString::from(shown)),
         )
@@ -596,7 +598,7 @@ fn choice(
             div()
                 .flex()
                 .flex_row()
-                .flex_wrap()
+                .wraps()
                 .gap(px(Theme::SPACE_XXS))
                 .children(chips),
         )

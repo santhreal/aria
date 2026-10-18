@@ -6,6 +6,7 @@
 //! be driven by `app::drawn_census` even though its controls are not text rows.
 
 use super::*;
+use crate::components::Wraps as _;
 use crate::surfaces::labels::{self, LabelTarget};
 
 /// The sixteen label colours plus a clear, as rows of swatches.
@@ -60,7 +61,7 @@ pub(super) fn label_row(
     div()
         .flex()
         .flex_row()
-        .flex_wrap()
+        .wraps()
         .items_center()
         .gap(px(Theme::SPACE_XS))
         .px(px(Theme::SPACE_SM))
@@ -120,7 +121,7 @@ pub(super) fn label_groups(
         div()
             .flex()
             .flex_row()
-            .flex_wrap()
+            .wraps()
             .items_center()
             .gap(px(Theme::SPACE_XS))
             .px(px(Theme::SPACE_SM))

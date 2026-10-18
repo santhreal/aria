@@ -67,7 +67,7 @@ fn reference_area(
     let label = caption(state.read(cx));
     let area = div().relative().overflow_hidden().bg(theme.bg);
     let area = match picture(state, cx) {
-        Some(picture) => area.child(
+        Some(picture) => area.child(crate::components::picture(
             img(picture)
                 .object_fit(ObjectFit::Contain)
                 .absolute()
@@ -75,7 +75,7 @@ fn reference_area(
                 .top(px(dy))
                 .w(relative(scale / width))
                 .h(relative(scale / height)),
-        ),
+        )),
         None => area
             .flex()
             .items_center()

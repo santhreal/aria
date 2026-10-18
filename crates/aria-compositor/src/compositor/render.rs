@@ -313,15 +313,14 @@ impl Compositor {
         offscreen.passes().begin_frame();
         offscreen.passes().set_frame_budget(config.frame_budget);
 
-        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("aria.encoder"),
-        });
+        let mut encoder =
+            device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
 
         // Clear canvas.
         {
             let bg = config.background;
             let _clear = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("aria.clear"),
+                label: None,
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &target.view,
                     depth_slice: None,

@@ -1,78 +1,60 @@
-//! The sidebar's chip rows and its grids: the group and tab chips with
-//! Import, the generator tiles, the catalog rows, and the cloud cards.
+//! The sidebar's chip rows and its grids: the group and tab chips, the
+//! generator tiles, the catalog rows, and the cloud cards.
 //!
 //! Split out of `sidebar.rs` to stay under the file ceiling. The items the
 //! parent draws are `pub(super)`.
 
 use super::*;
-
-/// Import, at the right end of the group row.
-fn import_button(theme: &Theme, cx: &mut gpui::Context<crate::shell::Shell>) -> impl IntoElement {
-    components::ghost_button("media-import", "Import", theme).on_mouse_down(
-        MouseButton::Left,
-        cx.listener(|this, _: &MouseDownEvent, _, cx| {
-            this.state.update(cx, |state, _| {
-                state.request_pick(
-                    Ask::OpenFiles(
-                        FileSpec::new("Import media").filter("Media", &media_import_extensions()),
-                    ),
-                    |state, answer| {
-                        let paths = answer.all();
-                        if paths.is_empty() {
-                            return;
-                        }
-                        if let Err(err) = state.import_dropped_paths(paths) {
-                            state.report_error(&err);
-                        }
-                    },
-                );
-            });
-            cx.notify();
-        }),
-    )
-}
+use crate::motion::RiseOnHover as _;
 
 /// The sidebar's chip rows: the groups, then the open group's tabs when it
-/// lists more than one.
+/// lists more than one and they are not the pool's. The pool's tabs are one
+/// list read two ways, so the Media tab's filter row switches between them.
+/// The groups stand on one row down to the panel's minimum width: the active
+/// group reads whole and the others shrink with an ellipsis when the panel is
+/// narrow. Each row steps out by its chips' padding, so the first label stands
+/// on the panel's text edge.
 pub(super) fn filter_chips(
     theme: &Theme,
     tab: SidebarTab,
+    width: Option<f32>,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     let open = tab.group();
     let tabs = open.tabs();
+    let listed = tabs.len() > 1 && !tabs.iter().all(|tab| tab.shows_pool());
+    let narrow = width.is_some_and(|w| w < 260.0);
     div()
         .px(px(Theme::SPACE_MD))
         .py(px(Theme::SPACE_XS))
         .flex()
         .flex_col()
-        .gap(px(Theme::SPACE_XS))
+        .gap(px(Theme::SPACE_XXS))
         .border_b_1()
         .border_color(theme.border)
         .child(
             div()
+                .id("sidebar-groups")
+                .debug_selector(|| "sidebar-groups".into())
+                .mx(px(-Theme::SPACE_SM))
                 .flex()
-                .items_start()
-                .gap(px(Theme::SPACE_XS))
-                .child(
-                    div()
-                        .flex_1()
-                        .flex()
-                        .flex_wrap()
-                        .gap(px(Theme::SPACE_XS))
-                        .children(
-                            SidebarGroup::ALL
-                                .iter()
-                                .map(|group| group_chip(theme, *group, open, cx)),
-                        ),
-                )
-                .child(import_button(theme, cx)),
+                .flex_row()
+                .items_center()
+                .gap(px(if narrow { 0.0 } else { Theme::SPACE_XXS }))
+                .children(
+                    SidebarGroup::ALL.iter().enumerate().map(|(index, group)| {
+                        group_chip(theme, *group, open, index == 0, narrow, cx)
+                    }),
+                ),
         )
-        .when(tabs.len() > 1, |rows| {
-            rows.child(
+        .when(listed, |el| {
+            el.child(
                 div()
+                    .min_h(px(Theme::ICON_HIT))
+                    .ml(px(-Theme::SPACE_XS))
                     .flex()
-                    .flex_wrap()
+                    .flex_row()
+                    .items_center()
                     .gap(px(Theme::SPACE_XXS))
                     .children(tabs.iter().map(|target| tab_chip(theme, *target, tab, cx))),
             )
@@ -85,15 +67,24 @@ fn group_chip(
     theme: &Theme,
     group: SidebarGroup,
     open: SidebarGroup,
+    first: bool,
+    narrow: bool,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
+    let active = group == open;
     components::chip(
         motion::MotionKey::new("sidebar-group", group.label()),
         group.label(),
-        group == open,
+        active,
         components::ChipSize::Regular,
         theme,
     )
+    .when(narrow, |el| {
+        el.px(px(Theme::SPACE_XS))
+            .when(first, |el| el.pl(px(Theme::SPACE_SM)))
+    })
+    .when(active, |el| el.flex_none())
+    .when(!active, |el| el.min_w_0())
     .debug_selector(move || format!("sidebar-group-{}", group.label()))
     .on_mouse_down(
         MouseButton::Left,
@@ -119,13 +110,16 @@ fn tab_chip(
     current: SidebarTab,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
+    let active = target == current;
     components::chip(
         target.label(),
         target.label(),
-        target == current,
+        active,
         components::ChipSize::Compact,
         theme,
     )
+    .when(active, |el| el.flex_none())
+    .when(!active, |el| el.min_w_0())
     .debug_selector(move || format!("sidebar-tab-{}", target.label()))
     .on_mouse_down(
         MouseButton::Left,
@@ -387,10 +381,6 @@ pub(super) fn catalog_row(
         .rounded(px(Theme::CONTROL_RADIUS))
         .cursor(CursorStyle::PointingHand)
         .bg(motion::hover_blend(key, rest, theme.wash(0.06)))
-        // The row rises as it lights. In a list of forty rows that differ only
-        // by their text, the lift is what says which one the click will hit.
-        .relative()
-        .top(px(-gpui::motion::lerp(0.0, 2.0, lit)))
         .child(
             div()
                 .text_size(Theme::TEXT_UI)
@@ -407,25 +397,31 @@ pub(super) fn catalog_row(
                 .text_color(muted)
                 .child(caption),
         )
-        .on_hover(cx.listener(move |this, hovered: &bool, window, cx| {
-            let hovered = *hovered;
-            motion::set_hover(hover_key, hovered, cx.motion_policy(), cx.frame_instant());
-            window.refresh();
-            if !previews {
-                return;
-            }
-            let changed = this.state.update(cx, |state, _| {
-                if hovered {
-                    state.preview_animation(&hover_id)
-                } else {
-                    state.clear_animation_preview()
+        // The row rises as it lights. In a list of forty rows that differ only
+        // by their text, the lift is what says which one the click will hit.
+        .rise_on_hover(
+            2.0,
+            lit,
+            cx.listener(move |this, hovered: &bool, window, cx| {
+                let hovered = *hovered;
+                motion::set_hover(hover_key, hovered, cx.motion_policy(), cx.frame_instant());
+                window.refresh();
+                if !previews {
+                    return;
                 }
-            });
-            if changed {
-                spawn_preview(this.state.clone(), cx);
-                cx.notify();
-            }
-        }))
+                let changed = this.state.update(cx, |state, _| {
+                    if hovered {
+                        state.preview_animation(&hover_id)
+                    } else {
+                        state.clear_animation_preview()
+                    }
+                });
+                if changed {
+                    spawn_preview(this.state.clone(), cx);
+                    cx.notify();
+                }
+            }),
+        )
         .on_drag(
             CatalogDrag {
                 kind,
@@ -474,9 +470,7 @@ pub(super) fn generator_tile(
         .cursor(CursorStyle::PointingHand)
         .active(|style| style.opacity(0.92))
         .bg(motion::hover_blend(key, theme.wash(0.0), theme.wash(0.06)))
-        .relative()
-        .top(px(-gpui::motion::lerp(0.0, 2.0, lit)))
-        .on_hover(motion::hover_listener(key))
+        .rise_on_hover(2.0, lit, motion::hover_listener(key))
         .child(
             div()
                 .text_size(Theme::TEXT_UI)

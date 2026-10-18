@@ -46,6 +46,9 @@ pub use editor::*;
 #[path = "types_pool.rs"]
 mod pool;
 pub use pool::*;
+#[path = "types_lane.rs"]
+mod lane;
+pub use lane::*;
 #[path = "types_sidebar.rs"]
 mod sidebar;
 pub use sidebar::*;

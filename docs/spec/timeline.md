@@ -9,8 +9,8 @@ as a layer does in After Effects, so cutting and animating happen in one panel.
 ```
 +-------------------------------+---------------------------------------------+
 | 00:00:12:04          [search] | ruler  :00f   :12f   01:00f  01:12f        |  header
-| 292 frames    [snap][link][M] | work area  [=========]                       |  42 px
-|  [wrench] [graph]             | render bar ====yellow===red===green          |
+|               [S][L][M][D][G] | work area  [=========]                       |  49 px
+|                               | render bar ====yellow===red===green          |
 +-------------------------------+---------------------------------------------+
 | V3 | Titles    | eye lock sync | [Title 01      ]                             |
 | V2 | Graphics  | eye lock sync |        [logo.png  fx]                       |
@@ -36,15 +36,41 @@ The left part is the outline column, 300 px wide by default and resizable. The
 right part is the time area. Video tracks are above the divider and number
 upward from V1; audio tracks are below it and number downward from A1. The
 divider between them is draggable and sets how much height each side gets.
+Tracks that take less height than their side sit against the divider: the
+spare height is above the top video track and below the last audio track. A
+media drag over the spare height above the video tracks lands on the top one.
+A side with no tracks is one 22 px strip labelled "No video tracks" or "No
+audio tracks", and the divider above or below it does not drag.
+
+A Timeline narrower than the outline column plus 160 px draws the outline
+column narrower, down to its 240 px minimum, so the time area keeps 160 px.
+The saved width is unchanged and returns when the panel widens.
 
 ## Header
 
-- Sequence timecode, 18 px, scrubbable and editable like the Viewer's. The frame
-  count is shown under it.
+The header over the outline column is a grid of two 24 px rows and two
+columns, 49 px tall with its bottom border, the height of the ruler beside it.
+
+| Row | Left column | Right column, 120 px |
+| --- | --- | --- |
+| 1 | Sequence timecode, centred on both rows | Property search |
+| 2 | | Toggles |
+
+- Sequence timecode: 18 px, or 14 px when the outline column is narrower than
+  272 px. It is scrubbable and editable like the Viewer's. At rest it is drawn
+  as figures; the field border and fill fade in under the pointer, and the
+  accent border and caret show while it is open. A press anywhere else closes
+  it without applying the typed value. Its first digit stands on the column's
+  text edge.
 - Property search: typing filters the property rows of every opened clip to
-  properties whose names match, and opens the groups that contain them.
-- Toggles: snapping (S), linked selection, add marker (M), timeline display
-  settings, and graph editor (Shift+F3).
+  properties whose names match, and opens the groups that contain them. The
+  field and the toggles under it share both edges.
+- Toggles, 24 px each: snapping (S), linked selection, add marker (M),
+  timeline display settings, and graph editor (Shift+F3). A lit toggle holds
+  the pressed plate and an accent icon, as the tool bar's tools do. The
+  window draws these toggles here only. The timeline display settings button
+  opens the View menu's Timeline Display Settings choices under itself; a
+  second press, a choice, Escape, or a press elsewhere closes them.
 - Ruler: ticks adapt to zoom so labels never overlap. Labels read in the
   sequence's display format (timecode, frames, or feet+frames). Clicking or
   dragging in the ruler moves the playhead; the playhead follows the pointer
@@ -65,6 +91,15 @@ divider between them is draggable and sets how much height each side gets.
 | Name | Double-click to rename | Same |
 | Toggles | Visibility (eye), lock, sync lock | Mute (M), solo (S), lock, sync lock |
 | Height | Drag the bottom edge; Ctrl+= and Ctrl+- resize all tracks | Same; tall audio tracks show a level meter and a volume knob |
+
+A track header is one row of 20 px controls: the source indicator, the
+track badge, the name, then the toggles. Mute and solo show at all times on
+audio tracks. Every other toggle shows while the pointer is over the header,
+and at all times while its track departs from a new track: collapsed,
+locked, hidden, sync lock off, muted or soloed. Target shows at all times
+while the track is targeted. A hidden toggle keeps its place, so no control
+moves when the pointer enters the header. A lit toggle is drawn in the accent
+colour.
 
 Right-click on a header offers Add Track, Delete Track, Rename, Duplicate,
 Collapse, and track output routing for audio. Tracks are reordered by dragging
@@ -140,6 +175,12 @@ Each property row shows in the outline column:
 The time area of a property row draws its keyframes. In graph editor mode the
 time area of the opened clip shows the value or speed graph of the selected
 properties instead (see [animation.md](animation.md#graph-editor)).
+
+The graph editor band is 168 px tall. Its header column holds the property's
+name on the first 24 px row and the graph tools on the second: the Value and
+Speed chips, then Easy Ease and Hold. The value axis labels stand on the
+column's right edge, in a 40 px gutter, at the top, middle and bottom values'
+ys, and the graph draws its three grid lines at the same ys.
 
 A path mask's group starts with its Path row (`Mask N Path`). A Path keyframe
 holds every vertex of the path, so the row has a stopwatch, the vertex count

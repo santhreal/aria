@@ -18,6 +18,7 @@
 //! is per chip. A fader's fill follows the pointer with no easing: on a drag an
 //! animation is lag, not polish.
 
+use crate::components::Wraps as _;
 use gpui::{
     CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
     MouseMoveEvent, MouseUpEvent, ParentElement, SharedString, StatefulInteractiveElement, Styled,
@@ -74,15 +75,29 @@ pub(crate) fn render(
                 .map(|strip| channel(state, &theme, strip, cx))
                 .collect();
             drawn.push(master(state, &theme, cx));
+            // The strips scroll sideways, as a console does; the panel fit test
+            // reads this region as one that scrolls. Strips taller than the
+            // frame scroll down in the region around them.
             div()
-                .id("mixer-strips")
+                .id("mixer-strips-down")
                 .flex()
-                .flex_row()
-                .items_start()
-                .gap(px(Theme::SPACE_SM))
-                .p(px(Theme::SPACE_MD))
-                .overflow_x_scroll()
-                .children(drawn)
+                .flex_col()
+                .flex_1()
+                .min_h_0()
+                .overflow_y_scroll()
+                .child(
+                    div()
+                        .id("mixer-strips")
+                        .debug_selector(|| "mixer-strips".into())
+                        .flex()
+                        .flex_row()
+                        .flex_shrink_0()
+                        .items_start()
+                        .gap(px(Theme::SPACE_SM))
+                        .p(px(Theme::SPACE_MD))
+                        .overflow_x_scroll()
+                        .children(drawn),
+                )
                 .into_any_element()
         }
     };
@@ -114,8 +129,10 @@ fn header(
     div()
         .flex()
         .flex_row()
+        .wraps()
         .items_center()
         .justify_between()
+        .gap(px(Theme::SPACE_XS))
         .px(px(Theme::SPACE_MD))
         .py(px(Theme::SPACE_SM))
         .border_b_1()
@@ -366,7 +383,7 @@ fn outputs(
             div()
                 .flex()
                 .flex_row()
-                .flex_wrap()
+                .wraps()
                 .gap(px(Theme::SPACE_XXS))
                 .children(chips),
         )
@@ -525,14 +542,7 @@ fn automation_row(
         .flex_col()
         .gap(px(Theme::SPACE_XXS))
         .child(label_row(theme, "Auto"))
-        .child(
-            div()
-                .flex()
-                .flex_row()
-                .flex_wrap()
-                .gap(px(2.))
-                .children(chips),
-        )
+        .child(div().flex().flex_row().wraps().gap(px(2.)).children(chips))
         .into_any_element()
 }
 

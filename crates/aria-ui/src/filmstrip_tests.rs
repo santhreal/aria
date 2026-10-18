@@ -6,24 +6,17 @@
 //! the work: one render in flight, and a tick that renders nothing is not
 //! retried on every frame.
 //!
+//! The request is made from the timeline's draw, so it must never wait on the
+//! engine lock, which a cell render holds for as long as its decode runs.
+//!
 //! Not covered: the render itself, which needs a GPU renderer and a project.
 
-use std::sync::Arc;
+use std::sync::mpsc;
+use std::time::{Duration, Instant};
 
-use gpui::RenderImage;
-use image::{ImageBuffer, Rgba};
-use smallvec::SmallVec;
+use gpui::AppContext as _;
 
-use super::{Cell, FilmstripStore, cell_step, cell_ticks};
-
-fn cell() -> Cell {
-    let buffer = ImageBuffer::<Rgba<u8>, _>::from_raw(1, 1, vec![0u8, 0, 0, 255]).expect("buffer");
-    Cell {
-        image: Arc::new(RenderImage::new(SmallVec::from_const([image::Frame::new(
-            buffer,
-        )]))),
-    }
-}
+use super::{FilmstripStore, cell_step, cell_ticks, request, test_cell as cell};
 
 #[test]
 fn cells_sit_on_one_grid_so_neighbours_share_them() {
@@ -185,4 +178,46 @@ fn a_tick_that_renders_nothing_is_not_retried() {
         "a gap in the sequence must not be re-rendered every frame"
     );
     assert!(store.get(96).is_none());
+}
+
+/// How long the lock holder below keeps the engine locked at most.
+const HELD: Duration = Duration::from_secs(3);
+
+/// A cell request made while another thread holds the engine lock returns at
+/// once and marks its tick in flight. Closes the class where the timeline's
+/// draw read the revision under the engine lock and the window stood still
+/// behind a cell decode. The holder releases after [`HELD`] whatever happens,
+/// so a request that waits ends the test red instead of hanging it. Does not
+/// cover the engine reads of the render thread, which wait by design.
+#[test]
+fn a_cell_request_does_not_wait_on_the_engine_lock() {
+    let cx = gpui::TestAppContext::single();
+    let state = cx.update(|app| app.new(|_| crate::app::premiere_tests::with_sequence(1, 10)));
+    let engine = cx.update(|app| state.read(app).engine().clone());
+    let (held_tx, held_rx) = mpsc::channel();
+    let (release_tx, release_rx) = mpsc::channel::<()>();
+    let holder = std::thread::spawn(move || {
+        let _guard = engine.lock();
+        let _ = held_tx.send(());
+        let _ = release_rx.recv_timeout(HELD);
+    });
+    held_rx
+        .recv_timeout(HELD)
+        .expect("the holder took the engine lock");
+    let started = Instant::now();
+    cx.update(|app| request(&state, app, 0));
+    let waited = started.elapsed();
+    drop(release_tx);
+    holder.join().expect("the holder released the engine lock");
+    assert!(
+        waited < Duration::from_millis(500),
+        "the cell request waited {waited:?} on the engine lock"
+    );
+    assert!(
+        cx.update(|app| !state.read(app).filmstrips.wants(24)),
+        "the request did not mark its tick in flight"
+    );
+    // The cell task holds the state until its render lands; a task left
+    // pending at the end is a leaked handle.
+    cx.run_until_parked();
 }

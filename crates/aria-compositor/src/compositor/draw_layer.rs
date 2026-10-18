@@ -201,11 +201,11 @@ pub(super) fn copy_canvas(
 /// Clear `view` to transparent.
 pub(super) fn clear_view(
     encoder: &mut wgpu::CommandEncoder,
-    label: &'static str,
+    _label: &'static str,
     view: &wgpu::TextureView,
 ) {
     let _clear = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: Some(label),
+        label: None,
         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
             view,
             depth_slice: None,

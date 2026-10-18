@@ -5,27 +5,29 @@
 //! so none of them enters the undo history. The View menu rows and the
 //! timeline header's display button call these setters; the timeline reads
 //! [`crate::timeline_display::TimelineDisplay`] when it draws and when the
-//! transport follows the playhead.
+//! transport follows the playhead. The display buttons open their View
+//! submenu, this one or the Viewer's, through [`AppState::toggle_display_menu`].
 
 use super::AppState;
-use crate::chrome::menu_items::{DropEntry, TIMELINE_DISPLAY, drop_entries};
+use crate::chrome::menu_items::{DropEntry, drop_entries};
 use crate::timeline_display::{Follow, Thumbnails, WaveformScale};
 use crate::types::AppMenu;
 
 impl AppState {
-    /// Open the View menu's Timeline Display Settings under the button
-    /// `owner`, the first choice lit so the arrows and Enter walk the choices,
-    /// or close it when `owner` already holds it out. The timeline header's
-    /// display button and the tool bar's run this.
-    pub fn toggle_timeline_display_menu(&mut self, owner: &'static str) {
+    /// Open the View menu's submenu `caption` under the button `owner`, the
+    /// first choice lit so the arrows and Enter walk the choices, or close it
+    /// when `owner` already holds it out. The Timeline header's and the
+    /// Viewer's display buttons run this.
+    pub fn toggle_display_menu(&mut self, owner: &'static str, caption: &'static str) {
         if self.menu_owner == Some(owner) {
             self.close_menu();
             return;
         }
         let entries = drop_entries(&self.menu_rows(AppMenu::View));
-        let Some(at) = entries.iter().position(
-            |entry| matches!(entry, DropEntry::Sub { caption, .. } if *caption == TIMELINE_DISPLAY),
-        ) else {
+        let Some(at) = entries
+            .iter()
+            .position(|entry| matches!(entry, DropEntry::Sub { caption: c, .. } if *c == caption))
+        else {
             return;
         };
         self.close_context();
@@ -35,15 +37,17 @@ impl AppState {
         self.menu_owner = Some(owner);
     }
 
-    /// Whether the Timeline Display Settings submenu is out.
-    pub fn timeline_display_menu_open(&self) -> bool {
-        self.open_menu == Some(AppMenu::View)
-            && self.menu_flyout.is_some_and(|(at, _)| {
-                matches!(
-                    drop_entries(&self.menu_rows(AppMenu::View)).get(at),
-                    Some(DropEntry::Sub { caption, .. }) if *caption == TIMELINE_DISPLAY
-                )
-            })
+    /// The caption of the View submenu that is out, or `None` when none is.
+    #[cfg(test)]
+    pub fn display_menu(&self) -> Option<&'static str> {
+        if self.open_menu != Some(AppMenu::View) {
+            return None;
+        }
+        let (at, _) = self.menu_flyout?;
+        match drop_entries(&self.menu_rows(AppMenu::View)).get(at) {
+            Some(DropEntry::Sub { caption, .. }) => Some(caption),
+            _ => None,
+        }
     }
 
     /// Draw video clips with `thumbnails`.
@@ -81,6 +85,27 @@ impl AppState {
     pub fn set_outline_width(&mut self, width: f32) {
         self.ui_settings.outline_width = crate::settings::clamp_outline(width);
     }
+
+    /// The outline column's width as drawn: the setting, narrowed so the
+    /// Timeline frame keeps `OUTLINE_TIME_MIN` px of time area, and never
+    /// under the settings minimum. Every reader of the column's width goes
+    /// through here, so the header, the lanes and the pointer mapping agree.
+    pub fn outline_drawn_width(&self) -> f32 {
+        drawn_outline(
+            self.ui_settings.outline_width,
+            self.timeline_frame.map(|[_, _, w, _]| w),
+        )
+    }
+}
+
+/// The time area a narrow Timeline keeps beside the outline column.
+pub const OUTLINE_TIME_MIN: f32 = 160.0;
+
+/// The drawn outline width for the `setting` in a Timeline frame `panel_w` px
+/// wide, or the setting before the frame is measured.
+pub fn drawn_outline(setting: f32, panel_w: Option<f32>) -> f32 {
+    let room = panel_w.map_or(setting, |w| w - OUTLINE_TIME_MIN);
+    setting.min(room).max(crate::settings::OUTLINE_MIN)
 }
 
 #[cfg(test)]

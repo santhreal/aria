@@ -20,6 +20,7 @@ path = "src/main.rs"
 aria-commands = { path = "../aria-commands" }
 aria-compositor = { path = "../aria-compositor" }
 aria-decoder = { path = "../aria-decoder" }
+aria-encoder = { path = "../aria-encoder" }
 aria-engine = { path = "../aria-engine" }
 aria-models = { path = "../aria-models" }
 aria-plugin = { path = "../aria-plugin" }

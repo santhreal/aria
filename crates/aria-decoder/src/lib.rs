@@ -78,9 +78,24 @@ pub use gst::GstDecoder;
 #[cfg(target_os = "linux")]
 mod gst_audio;
 #[cfg(target_os = "linux")]
+mod gst_context;
+#[cfg(target_os = "linux")]
+pub use gst_context::{await_warm_up, open_on_kept_contexts, warm_up};
+#[cfg(target_os = "linux")]
+mod gst_dmabuf_watch;
+#[cfg(target_os = "linux")]
+mod gst_fds;
+#[cfg(target_os = "linux")]
 mod gst_gpu;
 #[cfg(target_os = "linux")]
+mod gst_key_snap;
+#[cfg(target_os = "linux")]
+mod gst_unloadable;
+#[cfg(target_os = "linux")]
 pub use gst_audio::GstAudioReader;
+
+mod exit;
+pub use exit::exit_process;
 
 /// Shared `frame_at` roll-forward policy used by every backend. Built on every
 /// platform because [`AheadDecoder`] reads its frame matching; its roll-forward
@@ -95,7 +110,21 @@ pub use gst_audio::GstAudioReader;
     allow(dead_code)
 )]
 mod seek;
-pub use seek::{SeekStats, frame_at_nearest_rolling, frame_at_rolling};
+pub use seek::{frame_at_nearest_rolling, frame_at_rolling};
+
+/// Per-decoder cost model behind the roll windows of [`frame_at_rolling`]
+/// and [`frame_at_nearest_rolling`].
+#[cfg_attr(
+    not(any(
+        target_vendor = "apple",
+        target_os = "windows",
+        target_os = "android",
+        target_os = "linux"
+    )),
+    allow(dead_code)
+)]
+mod seek_cost;
+pub use seek_cost::SeekStats;
 
 mod ahead;
 pub use ahead::{

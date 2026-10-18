@@ -41,8 +41,6 @@ pub struct AppState {
     pub video_scroll_y: f32,
     /// Vertical scroll offset (px) of the audio lane group below the divider.
     pub audio_scroll_y: f32,
-    /// Last measured width (px) of the timeline time area.
-    pub timeline_viewport_w: f32,
     /// Virtualization and paint counters from the most recent timeline frame.
     pub timeline_paint_stats: crate::types::TimelinePaintStats,
     pub zoom: f32,
@@ -405,6 +403,8 @@ pub struct AppState {
     pub media_search_focus: bool,
     /// How the bin orders what it shows.
     pub media_sort: crate::types::MediaSort,
+    /// Whether the bin's order menu is open.
+    pub(crate) media_sort_list_open: bool,
     /// The pool items the operator has picked, in pick order. Its focus is the
     /// last one acted on, which is what a single-item row means; the whole set
     /// is what a multicam group is built from.
@@ -567,7 +567,7 @@ pub struct AppState {
     pub render_bar: std::sync::Arc<Vec<crate::app::render_files::RenderSegment>>,
     pub(crate) render_files_handle: std::sync::Arc<aria_render::RenderFiles>,
     pub(crate) render_files_generation: std::sync::Arc<std::sync::atomic::AtomicU64>,
-    pub(crate) render_bar_state: crate::app::render_files::RenderBarState,
+    pub(crate) render_bar_state: crate::app::render_bar::RenderBarState,
     /// The readout a press holds, and the one open as text.
     pub(crate) value_scrubs: crate::app::value_scrub::ValueScrubs,
     /// The press held on a clip bar's line.

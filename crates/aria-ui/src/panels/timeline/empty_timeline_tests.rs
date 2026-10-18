@@ -170,37 +170,47 @@ fn drawn_shell_with_1200_clips_bounds_canvas_elements_and_clicks_target_clip(
 ) {
     let (state, visual) = crate::test_support::drawn_shell(cx, "virt-1200");
     let state_in = state.clone();
-    visual.update(|window, app| {
-        state_in.update(app, |state, _| {
-            let media = state.import_media(fixture()).expect("import");
-            state
-                .add_track(TrackKind::Audio, "A1".to_owned())
-                .expect("add A1");
-            let v1_id = state.store.sequence.tracks[0].id;
-            let a1_id = state.store.sequence.tracks[1].id;
-            {
-                let mut eng = state.engine().lock();
-                let item_rate = eng.project().media(media).expect("media").duration.rate;
-                let source = TimeRange::at_rate(0, i64::from(item_rate.num), item_rate);
-                for (track_id, count) in [(v1_id, 600i64), (a1_id, 600i64)] {
-                    for i in 0..count {
-                        let start = RationalTime::new(i * 24, Rational::FPS_24);
-                        eng.apply(aria_commands::Command::Edit(
-                            aria_commands::EditCommand::AddClip {
-                                track: TrackId::from_raw(track_id),
-                                media,
-                                source,
-                                start,
-                            },
-                        ))
-                        .expect("add clip");
+    let add_range =
+        |window: &mut gpui::Window, app: &mut gpui::App, range: std::ops::Range<i64>| {
+            state_in.update(app, |state, _| {
+                let media = state.import_media(fixture()).expect("import");
+                if state.store.sequence.tracks.len() < 2 {
+                    state
+                        .add_track(TrackKind::Audio, "A1".to_owned())
+                        .expect("add A1");
+                }
+                let v1_id = state.store.sequence.tracks[0].id;
+                let a1_id = state.store.sequence.tracks[1].id;
+                {
+                    let mut eng = state.engine().lock();
+                    let item_rate = eng.project().media(media).expect("media").duration.rate;
+                    let source = TimeRange::at_rate(0, i64::from(item_rate.num), item_rate);
+                    for track_id in [v1_id, a1_id] {
+                        for i in range.clone() {
+                            let start = RationalTime::new(i * 24, Rational::FPS_24);
+                            eng.apply(aria_commands::Command::Edit(
+                                aria_commands::EditCommand::AddClip {
+                                    track: TrackId::from_raw(track_id),
+                                    media,
+                                    source,
+                                    start,
+                                },
+                            ))
+                            .expect("add clip");
+                        }
                     }
                 }
-            }
-            state.sync_from_engine();
-        });
-        window.refresh();
-    });
+                state.sync_from_engine();
+            });
+            window.refresh();
+        };
+
+    visual.update(|window, app| add_range(window, app, 0..20));
+    visual.run_until_parked();
+    let baseline = visual.read(|app| state.read(app).timeline_paint_stats);
+    assert_eq!(baseline.total_clips, 40, "40 clips in baseline sequence");
+
+    visual.update(|window, app| add_range(window, app, 20..600));
     visual.run_until_parked();
 
     let stats = visual.read(|app| state.read(app).timeline_paint_stats);
@@ -214,22 +224,32 @@ fn drawn_shell_with_1200_clips_bounds_canvas_elements_and_clicks_target_clip(
         "only clips in the visible time window are visited, got {}",
         stats.visible_clips
     );
+    assert_eq!(
+        stats.visible_clips, baseline.visible_clips,
+        "adding 1,160 off-screen clips visits zero extra clips"
+    );
+    assert_eq!(
+        stats.paint_calls, baseline.paint_calls,
+        "adding 1,160 off-screen clips issues zero extra paint calls"
+    );
     assert!(
-        stats.paint_calls < 250,
-        "paint calls per frame stay strictly bounded, got {}",
-        stats.paint_calls
+        stats.paint_calls <= stats.visible_clips * 12,
+        "paint calls ({}) stay bounded by visible clips ({})",
+        stats.paint_calls,
+        stats.visible_clips
     );
 
-    // Click inside the second clip on V1 ([24, 48) ticks -> x = origin.x + 120px) and
-    // verify the click hits and selects that exact clip.
+    // Click inside the second clip on V1 ([24, 48) ticks -> x = origin.x + 120px),
+    // at the height V1's header is drawn, and verify the click hits and selects
+    // that exact clip.
     let v_bounds = visual
         .debug_bounds("timeline-video-canvas")
         .expect("timeline-video-canvas bounds");
+    let v1_row = visual
+        .debug_bounds("track-header-V1")
+        .expect("track-header-V1 bounds");
     let second_clip_id = visual.read(|app| state.read(app).store.sequence.tracks[0].clips[1].id);
-    let click_pt = gpui::point(
-        v_bounds.origin.x + gpui::px(120.0),
-        v_bounds.origin.y + gpui::px(24.0),
-    );
+    let click_pt = gpui::point(v_bounds.origin.x + gpui::px(120.0), v1_row.center().y);
     visual.simulate_click(click_pt, gpui::Modifiers::none());
     visual.run_until_parked();
 
@@ -397,7 +417,6 @@ fn zoom_around_playhead_and_zoom_bar_handles_update_zoom_and_scroll() {
     state
         .drop_media_on_timeline(media, None, 120)
         .expect("drop 2");
-    state.timeline_viewport_w = 600.0;
     state.set_playhead(120);
     state.scroll_timeline_to(100.0, false);
 
@@ -616,14 +635,14 @@ fn clip_type_tint_prefers_label_then_clip_type_colour_then_kind() {
     let theme = crate::theme::Theme::dark();
     let label = |color| theme.label(color, false);
 
-    // 1. A picture clip with no label draws Violet.
+    // 1. A picture clip with no label draws Teal.
     assert_eq!(clip.label, None);
     assert_eq!(clip.default_label, aria_models::LabelColor::VIDEO);
     clip.clip_type = None;
     clip.selected = false;
     assert_eq!(
         crate::panels::timeline::clip::tint(&theme, &clip),
-        label(aria_models::LabelColor::Violet)
+        label(aria_models::LabelColor::Teal)
     );
 
     // 2. When `clip_type.colour` is set and `label` is None, `clip_type.colour` wins.
@@ -710,7 +729,7 @@ fn property_rows_and_keyframes_hit_test_and_draw_in_virtualized_timeline(
             is_drop_row: false,
             band: None,
             drop_tick: None,
-            clips: s.store.sequence.tracks[0].clips.clone(),
+            clips: s.store.sequence.tracks[0].clips.to_vec(),
             outline_rows: outline_rows.clone(),
         };
         // Opacity is the last row in Transform (index 6: 0 is GroupHeader, 1..=6 are PosX, PosY, ScaleX, ScaleY, Rotation, Opacity).
@@ -832,7 +851,7 @@ fn a_mask_path_row_hit_tests_its_keys_and_its_menu_eases_and_closes(cx: &mut gpu
             is_drop_row: false,
             band: None,
             drop_tick: None,
-            clips: s.store.sequence.tracks[0].clips.clone(),
+            clips: s.store.sequence.tracks[0].clips.to_vec(),
             outline_rows,
         };
         let row_mid_y = 52.0 + (path_idx as f32 + 0.5) * PROPERTY_ROW_H;

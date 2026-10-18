@@ -21,8 +21,7 @@ use gpui::{Modifiers, MouseButton};
 
 use super::REPEAT_DELAY;
 use crate::app::AppState;
-use crate::app::viewer_row_tests::{change, shell_with_take};
-use crate::interned::intern;
+use crate::app::viewer_row_tests::{bounds_of, change, shell_with_take};
 use crate::types::ActivePanel;
 
 /// Less than any frame interval the hold can run at.
@@ -84,10 +83,7 @@ fn a_held_step_repeats_once_per_frame_of_the_tab_in_front_until_released(
             let at = |visual: &mut gpui::VisualTestContext| {
                 visual.read(|app| frame_here(state.read(app)))
             };
-            let point = visual
-                .debug_bounds(intern(button))
-                .unwrap_or_else(|| panic!("the Viewer draws no {button}"))
-                .center();
+            let point = bounds_of(visual, button).center();
 
             visual.simulate_click(point, Modifiers::none());
             visual.run_until_parked();
@@ -155,10 +151,7 @@ fn a_hold_that_reaches_the_end_of_the_sequence_ends_while_the_button_is_down(
     let end = visual.read(|app| state.read(app).store.sequence.duration_ticks);
     for (button, from, stop) in [("next-frame", end - 1, end), ("prev-frame", 1, 0)] {
         change(visual, &state, |state| state.set_playhead(from));
-        let point = visual
-            .debug_bounds(intern(button))
-            .unwrap_or_else(|| panic!("the Viewer draws no {button}"))
-            .center();
+        let point = bounds_of(visual, button).center();
         visual.simulate_mouse_down(point, MouseButton::Left, Modifiers::none());
         visual.run_until_parked();
         executor.advance_clock(REPEAT_DELAY + EPSILON);

@@ -575,6 +575,11 @@ impl VideoEncoder for AvfEncoder {
         }
         Ok(())
     }
+
+    fn choice(&self) -> aria_core::EncoderChoice {
+        // AVAssetWriter selects the VideoToolbox codec itself.
+        aria_core::EncoderChoice::only("AVAssetWriter", None)
+    }
 }
 
 /// Build the AAC audio writer input for `audio` and add it to `writer`.

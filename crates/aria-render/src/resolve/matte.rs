@@ -43,6 +43,9 @@ pub(super) fn fold_mattes(
     cw: f32,
     ch: f32,
 ) -> Vec<SceneLayer> {
+    if !requests.iter().any(Option::is_some) {
+        return layers;
+    }
     let mut out = Vec::with_capacity(layers.len());
     let mut layers = layers.into_iter();
     let mut requests = requests.into_iter();

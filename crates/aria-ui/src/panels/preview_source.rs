@@ -81,14 +81,16 @@ pub(super) fn frame_view(
                 // A zoomed frame is drawn larger than the pane and offset by
                 // the pan; a fitted one is exactly the pane and `Contain`
                 // does the rest.
-                img(image)
-                    .id("preview-frame")
-                    .object_fit(ObjectFit::Contain)
-                    .absolute()
-                    .left(px(dx))
-                    .top(px(dy))
-                    .w(gpui::relative(scale))
-                    .h(gpui::relative(scale)),
+                crate::components::picture(
+                    img(image)
+                        .id("preview-frame")
+                        .object_fit(ObjectFit::Contain)
+                        .absolute()
+                        .left(px(dx))
+                        .top(px(dy))
+                        .w(gpui::relative(scale))
+                        .h(gpui::relative(scale)),
+                ),
             ))
             .into_any_element()
     } else {
@@ -168,10 +170,12 @@ pub(super) fn source_stage(
                     .justify_center()
                     .child(motion::fade_quick(
                         seek::frame_id("source-frame-fade", view.tick),
-                        img(image)
-                            .id("source-frame")
-                            .object_fit(ObjectFit::Contain)
-                            .size_full(),
+                        crate::components::picture(
+                            img(image)
+                                .id("source-frame")
+                                .object_fit(ObjectFit::Contain)
+                                .size_full(),
+                        ),
                     ))
                     .on_drag(
                         crate::types::MediaDrag {
@@ -187,35 +191,46 @@ pub(super) fn source_stage(
             )
         })
         .child(
+            // As wide as its text, up to the stage's width less the inset; a
+            // longer name ends in an ellipsis before the Sequence button.
             div()
                 .absolute()
                 .top(px(Theme::SPACE_SM))
                 .left(px(Theme::SPACE_SM))
+                .right(px(Theme::SPACE_SM))
                 .flex()
-                .items_center()
-                .gap(px(Theme::SPACE_SM))
-                .px(px(Theme::SPACE_SM))
-                .py(px(Theme::SPACE_XXS))
-                .rounded(px(Theme::CONTROL_RADIUS))
-                .bg(theme.surface_overlay)
                 .child(
                     div()
-                        .text_size(Theme::TEXT_UI)
-                        .text_color(theme.text_muted)
-                        .child(gpui::SharedString::from(position)),
-                )
-                .child(
-                    crate::components::ghost_button("source-close", "Sequence", theme)
-                        .when_some(crate::tooltip::builder("source-close"), |el, tip| {
-                            el.with_tip(tip)
-                        })
-                        .on_mouse_down(
-                            MouseButton::Left,
-                            cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                                cx.stop_propagation();
-                                this.state.update(cx, |state, _| state.show_program());
-                                cx.notify();
-                            }),
+                        .min_w_0()
+                        .flex()
+                        .items_center()
+                        .gap(px(Theme::SPACE_SM))
+                        .px(px(Theme::SPACE_SM))
+                        .py(px(Theme::SPACE_XXS))
+                        .rounded(px(Theme::CONTROL_RADIUS))
+                        .bg(theme.surface_overlay)
+                        .child(
+                            div()
+                                .min_w_0()
+                                .truncate()
+                                .text_size(Theme::TEXT_UI)
+                                .text_color(theme.text_muted)
+                                .child(gpui::SharedString::from(position)),
+                        )
+                        .child(
+                            crate::components::ghost_button("source-close", "Sequence", theme)
+                                .flex_none()
+                                .when_some(crate::tooltip::builder("source-close"), |el, tip| {
+                                    el.with_tip(tip)
+                                })
+                                .on_mouse_down(
+                                    MouseButton::Left,
+                                    cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                                        cx.stop_propagation();
+                                        this.state.update(cx, |state, _| state.show_program());
+                                        cx.notify();
+                                    }),
+                                ),
                         ),
                 ),
         )
@@ -254,88 +269,108 @@ pub(super) fn source_bar(
         .flex_col()
         .gap(px(Theme::SPACE_XS))
         .child(
+            // On the overlay's backing, as the name chip above, so the ghost
+            // buttons read over a bright picture. Narrower than the label and
+            // the buttons, the buttons take the next line at the right.
             div()
                 .flex()
+                .wraps()
                 .items_center()
                 .gap(px(Theme::SPACE_SM))
+                .px(px(Theme::SPACE_SM))
+                .py(px(Theme::SPACE_XXS))
+                .rounded(px(Theme::CONTROL_RADIUS))
+                .bg(theme.surface_overlay)
                 .child(
                     div()
                         .text_size(Theme::TEXT_UI)
                         .text_color(theme.text_muted)
                         .child(gpui::SharedString::from(marked)),
                 )
-                .child(div().flex_1())
                 .child(
-                    crate::components::ghost_button("source-mark-in", "In", theme)
-                        .when_some(crate::tooltip::builder("source-mark-in"), |el, tip| {
-                            el.with_tip(tip)
-                        })
-                        .on_mouse_down(
-                            MouseButton::Left,
-                            cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                                cx.stop_propagation();
-                                this.state.update(cx, |state, _| press(state, Pick::MarkIn));
-                                cx.notify();
-                            }),
-                        ),
-                )
-                .child(
-                    crate::components::ghost_button("source-mark-out", "Out", theme)
-                        .when_some(crate::tooltip::builder("source-mark-out"), |el, tip| {
-                            el.with_tip(tip)
-                        })
-                        .on_mouse_down(
-                            MouseButton::Left,
-                            cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                                cx.stop_propagation();
-                                this.state
-                                    .update(cx, |state, _| press(state, Pick::MarkOut));
-                                cx.notify();
-                            }),
-                        ),
-                )
-                .child(
-                    crate::components::ghost_button("source-mark-clear", "Clear", theme)
-                        .when_some(crate::tooltip::builder("source-mark-clear"), |el, tip| {
-                            el.with_tip(tip)
-                        })
-                        .on_mouse_down(
-                            MouseButton::Left,
-                            cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                                cx.stop_propagation();
-                                this.state
-                                    .update(cx, |state, _| press(state, Pick::ClearMarks));
-                                cx.notify();
-                            }),
-                        ),
-                )
-                .child(
-                    crate::components::button("source-insert", "Insert", theme)
-                        .when_some(crate::tooltip::builder("source-insert"), |el, tip| {
-                            el.with_tip(tip)
-                        })
-                        .on_mouse_down(
-                            MouseButton::Left,
-                            cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                                cx.stop_propagation();
-                                this.state.update(cx, |state, _| press(state, Pick::Insert));
-                                cx.notify();
-                            }),
-                        ),
-                )
-                .child(
-                    crate::components::button("source-overwrite", "Overwrite", theme)
-                        .when_some(crate::tooltip::builder("source-overwrite"), |el, tip| {
-                            el.with_tip(tip)
-                        })
-                        .on_mouse_down(
-                            MouseButton::Left,
-                            cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                                cx.stop_propagation();
-                                this.state
-                                    .update(cx, |state, _| press(state, Pick::Overwrite));
-                                cx.notify();
-                            }),
+                    div()
+                        .flex()
+                        .wraps()
+                        .items_center()
+                        .justify_end()
+                        .gap(px(Theme::SPACE_SM))
+                        .ml_auto()
+                        .child(
+                            crate::components::ghost_button("source-mark-in", "In", theme)
+                                .when_some(crate::tooltip::builder("source-mark-in"), |el, tip| {
+                                    el.with_tip(tip)
+                                })
+                                .on_mouse_down(
+                                    MouseButton::Left,
+                                    cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                                        cx.stop_propagation();
+                                        this.state
+                                            .update(cx, |state, _| press(state, Pick::MarkIn));
+                                        cx.notify();
+                                    }),
+                                ),
+                        )
+                        .child(
+                            crate::components::ghost_button("source-mark-out", "Out", theme)
+                                .when_some(crate::tooltip::builder("source-mark-out"), |el, tip| {
+                                    el.with_tip(tip)
+                                })
+                                .on_mouse_down(
+                                    MouseButton::Left,
+                                    cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                                        cx.stop_propagation();
+                                        this.state
+                                            .update(cx, |state, _| press(state, Pick::MarkOut));
+                                        cx.notify();
+                                    }),
+                                ),
+                        )
+                        .child(
+                            crate::components::ghost_button("source-mark-clear", "Clear", theme)
+                                .when_some(
+                                    crate::tooltip::builder("source-mark-clear"),
+                                    |el, tip| el.with_tip(tip),
+                                )
+                                .on_mouse_down(
+                                    MouseButton::Left,
+                                    cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                                        cx.stop_propagation();
+                                        this.state
+                                            .update(cx, |state, _| press(state, Pick::ClearMarks));
+                                        cx.notify();
+                                    }),
+                                ),
+                        )
+                        .child(
+                            crate::components::button("source-insert", "Insert", theme)
+                                .when_some(crate::tooltip::builder("source-insert"), |el, tip| {
+                                    el.with_tip(tip)
+                                })
+                                .on_mouse_down(
+                                    MouseButton::Left,
+                                    cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                                        cx.stop_propagation();
+                                        this.state
+                                            .update(cx, |state, _| press(state, Pick::Insert));
+                                        cx.notify();
+                                    }),
+                                ),
+                        )
+                        .child(
+                            crate::components::button("source-overwrite", "Overwrite", theme)
+                                .when_some(
+                                    crate::tooltip::builder("source-overwrite"),
+                                    |el, tip| el.with_tip(tip),
+                                )
+                                .on_mouse_down(
+                                    MouseButton::Left,
+                                    cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                                        cx.stop_propagation();
+                                        this.state
+                                            .update(cx, |state, _| press(state, Pick::Overwrite));
+                                        cx.notify();
+                                    }),
+                                ),
                         ),
                 ),
         )

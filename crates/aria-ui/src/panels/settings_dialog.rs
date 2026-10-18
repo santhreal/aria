@@ -184,8 +184,39 @@ fn playback_rows(
         let s = &state.read(cx).ui_settings;
         (s.audio_scrubbing, s.log_dropped_frames)
     };
-    let mut scrub_row = div()
-        .id("settings-audio-scrubbing")
+    vec![
+        on_off_row(
+            theme,
+            "settings-audio-scrubbing",
+            "Audio scrubbing",
+            scrubbing,
+            |settings, on| settings.audio_scrubbing = on,
+            cx,
+        ),
+        on_off_row(
+            theme,
+            "settings-log-dropped-frames",
+            "Log dropped frames",
+            logging,
+            |settings, on| settings.log_dropped_frames = on,
+            cx,
+        ),
+    ]
+}
+
+/// A label and an On and an Off chip; the lit chip is `value`, and a press
+/// stores the other through `set` and saves it.
+fn on_off_row(
+    theme: &Theme,
+    id: impl Into<crate::motion::ControlId>,
+    label: &'static str,
+    value: bool,
+    set: fn(&mut crate::settings::UiSettings, bool),
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> gpui::AnyElement {
+    let id = id.into();
+    let mut row = div()
+        .id(id.element("settings-on-off"))
         .flex()
         .flex_row()
         .items_center()
@@ -195,62 +226,29 @@ fn playback_rows(
                 .w(px(140.0))
                 .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_muted)
-                .child("Audio scrubbing"),
+                .child(label),
         );
     for (shown, on) in [("On", true), ("Off", false)] {
-        let id = crate::motion::MotionKey::new("audio-scrubbing", shown);
-        let chip = if scrubbing == on {
-            components::button(id, shown, theme)
+        let key = id.motion(shown);
+        let chip = if value == on {
+            components::button(key, shown, theme)
         } else {
-            components::ghost_button(id, shown, theme)
+            components::ghost_button(key, shown, theme)
         };
-        scrub_row = scrub_row.child(chip.on_mouse_down(
+        row = row.child(chip.on_mouse_down(
             MouseButton::Left,
             cx.listener(move |this, _: &MouseDownEvent, _, cx| {
                 cx.stop_propagation();
                 this.state.update(cx, |state, cx| {
-                    state.ui_settings.audio_scrubbing = on;
+                    set(&mut state.ui_settings, on);
                     state.persist_settings_later(cx);
-                    state.status_message = Some(format!("Audio scrubbing: {shown}"));
+                    state.status_message = Some(format!("{label}: {shown}"));
                 });
                 cx.notify();
             }),
         ));
     }
-    let mut log_row = div()
-        .id("settings-log-dropped-frames")
-        .flex()
-        .flex_row()
-        .items_center()
-        .gap(px(Theme::SPACE_SM))
-        .child(
-            div()
-                .w(px(140.0))
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text_muted)
-                .child("Log dropped frames"),
-        );
-    for (shown, on) in [("On", true), ("Off", false)] {
-        let id = crate::motion::MotionKey::new("log-dropped-frames", shown);
-        let chip = if logging == on {
-            components::button(id, shown, theme)
-        } else {
-            components::ghost_button(id, shown, theme)
-        };
-        log_row = log_row.child(chip.on_mouse_down(
-            MouseButton::Left,
-            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                cx.stop_propagation();
-                this.state.update(cx, |state, cx| {
-                    state.ui_settings.log_dropped_frames = on;
-                    state.persist_settings_later(cx);
-                    state.status_message = Some(format!("Log dropped frames: {shown}"));
-                });
-                cx.notify();
-            }),
-        ));
-    }
-    vec![scrub_row.into_any_element(), log_row.into_any_element()]
+    row.into_any_element()
 }
 
 /// The cloud endpoint. One field, because everything else about cloud access is a
@@ -278,6 +276,14 @@ fn format_fps(rate: Rational) -> String {
     }
 }
 
+/// The canvas size row that hands the size back to the aspect or the footage.
+const DERIVED_SIZE: &str = "Derived from the aspect or the footage";
+
+/// A delivery baseline's canvas size row: the baseline and its pixels.
+fn size_label(baseline: u32, size: [u32; 2]) -> String {
+    format!("{baseline}p — {}×{}", size[0], size[1])
+}
+
 /// The aspect presets, then the render size: what it is now, "Derived", and one
 /// row per delivery baseline. Sizes are read from the project rather than
 /// recomputed here, so the dialog and the exporter cannot name different pixels.
@@ -302,7 +308,7 @@ fn canvas_rows(
         pickers::resolution_row(
             theme,
             crate::motion::ControlId::Fixed("canvas-size-derived"),
-            "Derived from the aspect or the footage".into(),
+            DERIVED_SIZE.into(),
             None,
             canvas.resolution.is_none(),
             cx,
@@ -313,7 +319,7 @@ fn canvas_rows(
         pickers::resolution_row(
             theme,
             crate::motion::MotionKey::new("canvas-size", baseline).into(),
-            format!("{baseline}p — {}×{}", size[0], size[1]).into(),
+            size_label(baseline, size).into(),
             Some(size),
             canvas.resolution == Some(size),
             cx,
@@ -357,3 +363,11 @@ fn canvas_rows(
 
     rows
 }
+
+#[cfg(test)]
+#[path = "settings_dialog/rows_tests.rs"]
+mod rows_tests;
+
+#[cfg(test)]
+#[path = "settings_dialog/choice_fit_tests.rs"]
+mod choice_fit_tests;

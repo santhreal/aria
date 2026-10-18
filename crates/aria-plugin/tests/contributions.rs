@@ -101,6 +101,10 @@ impl VideoEncoder for NullEncoder {
     fn finish(&mut self) -> Result<(), EncodeError> {
         Ok(())
     }
+
+    fn choice(&self) -> aria_core::EncoderChoice {
+        aria_core::EncoderChoice::only("null", None)
+    }
 }
 
 impl Encoder for NullEncoder {

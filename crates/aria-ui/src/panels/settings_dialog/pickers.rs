@@ -5,7 +5,7 @@ use std::sync::Arc;
 use aria_models::{AudioLayout, CanvasAspect, Rational, TimeDisplay};
 use gpui::{
     InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, SharedString,
-    StatefulInteractiveElement, Styled, div, px,
+    StatefulInteractiveElement, Styled, div, prelude::FluentBuilder, px,
 };
 
 use crate::appearance::{self, AppearanceMode};
@@ -46,6 +46,61 @@ fn row_fill(theme: &Theme, key: motion::MotionKey, selected: bool) -> gpui::Hsla
     motion::hover_blend(key, rest, theme.glass_hover())
 }
 
+/// The box every picker row shares: one row height, the label at the left and
+/// any detail at the right, the fill from [`row_fill`], and the selected rows'
+/// shadow. The row steps out by its inset so its label stands on the section
+/// title's edge, as every other settings row does. A row adds its children and
+/// its click.
+fn row_shell(
+    id: impl Into<motion::ControlId>,
+    theme: &Theme,
+    fade: motion::MotionKey,
+    selected: bool,
+) -> gpui::Stateful<gpui::Div> {
+    div()
+        .id(id.into().element("picker-row"))
+        .flex()
+        .flex_row()
+        .flex_none()
+        .items_center()
+        .justify_between()
+        .gap(px(Theme::SPACE_SM))
+        .h(px(Theme::ROW_HEIGHT))
+        .px(px(Theme::SPACE_XS))
+        .mx(px(-Theme::SPACE_XS))
+        .rounded(px(Theme::CONTROL_RADIUS))
+        .bg(row_fill(theme, fade, selected))
+        .when(selected, |el| {
+            el.shadow(crate::theme::glass_selected_shadows())
+        })
+        .cursor(gpui::CursorStyle::PointingHand)
+        .active(|style| style.opacity(0.92))
+        .on_hover(motion::hover_listener(fade))
+}
+
+/// A picker row's label: the whole text, or its start and an ellipsis in a
+/// row too narrow for it.
+fn row_label(theme: &Theme, label: impl Into<SharedString>) -> impl IntoElement {
+    let label = label.into();
+    let selector = label.clone();
+    div()
+        .debug_selector(move || format!("picker-label-{selector}"))
+        .min_w_0()
+        .truncate()
+        .text_size(Theme::TEXT_UI)
+        .text_color(theme.text)
+        .child(label)
+}
+
+/// A picker row's detail, at the right.
+fn row_detail(theme: &Theme, detail: impl Into<SharedString>) -> impl IntoElement {
+    div()
+        .flex_none()
+        .text_size(Theme::TEXT_UI)
+        .text_color(theme.text_muted)
+        .child(detail.into())
+}
+
 pub(super) fn appearance_row(
     theme: &Theme,
     candidate: AppearanceMode,
@@ -55,37 +110,14 @@ pub(super) fn appearance_row(
     let selected = candidate == current;
     let key = candidate.label();
     let fade = motion::MotionKey::new("appearance", key);
-    let shadows = if selected {
-        crate::theme::glass_selected_shadows()
-    } else {
-        Vec::new()
-    };
     // What this mode looks like right now, accent included: "System" names a
     // choice the operator cannot see the result of, and this is the result.
     let preview = Theme::for_choice(
         appearance::preview(candidate, cx),
         appearance::theme_choice(cx),
     );
-    div()
-        .id(key)
-        .flex()
-        .flex_row()
-        .items_center()
-        .justify_between()
-        .px(px(Theme::SPACE_SM))
-        .py(px(Theme::SPACE_XS))
-        .rounded(px(Theme::CONTROL_RADIUS))
-        .bg(row_fill(&theme, fade, selected))
-        .shadow(shadows)
-        .cursor(gpui::CursorStyle::PointingHand)
-        .active(|style| style.opacity(0.92))
-        .on_hover(motion::hover_listener(fade))
-        .child(
-            div()
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text)
-                .child(candidate.label()),
-        )
+    row_shell(key, theme, fade, selected)
+        .child(row_label(theme, candidate.label()))
         .child(swatch(&preview))
         .on_mouse_down(
             MouseButton::Left,
@@ -116,37 +148,9 @@ pub(super) fn motion_row(
     let selected = candidate == current;
     let key = candidate.label();
     let fade = motion::MotionKey::new("motion-pref", key);
-    let shadows = if selected {
-        crate::theme::glass_selected_shadows()
-    } else {
-        Vec::new()
-    };
-    div()
-        .id(key)
-        .flex()
-        .flex_row()
-        .items_center()
-        .justify_between()
-        .px(px(Theme::SPACE_SM))
-        .py(px(Theme::SPACE_XS))
-        .rounded(px(Theme::CONTROL_RADIUS))
-        .bg(row_fill(&theme, fade, selected))
-        .shadow(shadows)
-        .cursor(gpui::CursorStyle::PointingHand)
-        .active(|style| style.opacity(0.92))
-        .on_hover(motion::hover_listener(fade))
-        .child(
-            div()
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text)
-                .child(candidate.label()),
-        )
-        .child(
-            div()
-                .text_size(Theme::TEXT_TITLE)
-                .text_color(theme.text_muted)
-                .child(candidate.detail()),
-        )
+    row_shell(key, theme, fade, selected)
+        .child(row_label(theme, candidate.label()))
+        .child(row_detail(theme, candidate.detail()))
         .on_mouse_down(
             MouseButton::Left,
             cx.listener(move |this, _: &MouseDownEvent, _, cx| {
@@ -174,34 +178,10 @@ pub(super) fn theme_row(
 ) -> impl IntoElement {
     let selected = candidate == current;
     let fade = motion::MotionKey::new("theme", candidate.key());
-    let key = fade.element_id("theme");
-    let shadows = if selected {
-        crate::theme::glass_selected_shadows()
-    } else {
-        Vec::new()
-    };
     // The accent this key installs, in the appearance that is on screen now.
     let preview = Theme::for_choice(theme.appearance, candidate);
-    div()
-        .id(key)
-        .flex()
-        .flex_row()
-        .items_center()
-        .justify_between()
-        .px(px(Theme::SPACE_SM))
-        .py(px(Theme::SPACE_XS))
-        .rounded(px(Theme::CONTROL_RADIUS))
-        .bg(row_fill(&theme, fade, selected))
-        .shadow(shadows)
-        .cursor(gpui::CursorStyle::PointingHand)
-        .active(|style| style.opacity(0.92))
-        .on_hover(motion::hover_listener(fade))
-        .child(
-            div()
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text)
-                .child(format!("Accent: {}", candidate.key())),
-        )
+    row_shell(fade, theme, fade, selected)
+        .child(row_label(theme, format!("Accent: {}", candidate.label())))
         .child(swatch(&preview))
         .on_mouse_down(
             MouseButton::Left,
@@ -231,12 +211,6 @@ pub(super) fn theme_file_row(
         .as_ref()
         .map_or_else(|| "Shipped".to_owned(), |file| file.label());
     let fade = motion::MotionKey::new("theme-file", stem.as_deref().unwrap_or(""));
-    let key = fade.element_id("theme-file");
-    let shadows = if selected {
-        crate::theme::glass_selected_shadows()
-    } else {
-        Vec::new()
-    };
     let base = Theme::for_choice(theme.appearance, appearance::theme_choice(cx));
     let preview = match &candidate {
         Some(file) => base.with_file(file),
@@ -247,39 +221,16 @@ pub(super) fn theme_file_row(
         Some(_) => "",
         None => "The built-in palette",
     };
-    div()
-        .id(key)
-        .flex()
-        .flex_row()
-        .items_center()
-        .justify_between()
-        .gap(px(Theme::SPACE_SM))
-        .px(px(Theme::SPACE_SM))
-        .py(px(Theme::SPACE_XS))
-        .rounded(px(Theme::CONTROL_RADIUS))
-        .bg(row_fill(theme, fade, selected))
-        .shadow(shadows)
-        .cursor(gpui::CursorStyle::PointingHand)
-        .active(|style| style.opacity(0.92))
-        .on_hover(motion::hover_listener(fade))
-        .child(
-            div()
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text)
-                .child(format!("Theme: {label}")),
-        )
+    row_shell(fade, theme, fade, selected)
+        .child(row_label(theme, format!("Theme: {label}")))
         .child(
             div()
                 .flex()
                 .flex_row()
+                .flex_none()
                 .items_center()
                 .gap(px(Theme::SPACE_SM))
-                .child(
-                    div()
-                        .text_size(Theme::TEXT_TITLE)
-                        .text_color(theme.text_muted)
-                        .child(detail),
-                )
+                .child(row_detail(theme, detail))
                 .child(swatch(&preview)),
         )
         .on_mouse_down(
@@ -298,22 +249,17 @@ pub(super) fn theme_file_row(
         )
 }
 
-/// A theme file that could not be read, and why. Not selectable.
+/// A theme file that could not be read, and why. Not selectable, so it has no
+/// row inset: its label stands on the section title's edge.
 pub(super) fn theme_file_failure_row(theme: &Theme, file: &str, reason: &str) -> impl IntoElement {
     div()
         .flex()
         .flex_col()
-        .px(px(Theme::SPACE_SM))
-        .py(px(Theme::SPACE_XS))
+        .py(px(Theme::SPACE_XXS))
+        .child(row_label(theme, format!("Theme file {file}")))
         .child(
             div()
                 .text_size(Theme::TEXT_UI)
-                .text_color(theme.text)
-                .child(format!("Theme file {file}")),
-        )
-        .child(
-            div()
-                .text_size(Theme::TEXT_TITLE)
                 .text_color(theme.danger)
                 .child(reason.to_owned()),
         )
@@ -329,26 +275,11 @@ pub(super) fn canvas_row(
 ) -> impl IntoElement {
     let selected = candidate == current;
     let fade = motion::MotionKey::new("canvas", candidate.name());
-    let key = fade.element_id("canvas");
-    div()
-        .id(key)
-        .flex()
-        .flex_row()
-        .items_center()
-        .justify_between()
-        .px(px(Theme::SPACE_SM))
-        .py(px(Theme::SPACE_XS))
-        .rounded(px(Theme::CONTROL_RADIUS))
-        .bg(row_fill(&theme, fade, selected))
-        .cursor(gpui::CursorStyle::PointingHand)
-        .active(|style| style.opacity(0.92))
-        .on_hover(motion::hover_listener(fade))
-        .child(
-            div()
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text)
-                .child(SharedString::from(candidate.name().to_string())),
-        )
+    row_shell(fade, theme, fade, selected)
+        .child(row_label(
+            theme,
+            SharedString::from(candidate.name().to_string()),
+        ))
         .on_mouse_down(
             MouseButton::Left,
             cx.listener(move |this, _: &MouseDownEvent, _, cx| {
@@ -375,25 +306,8 @@ pub(super) fn resolution_row(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     let fade = id.motion("resolution");
-    div()
-        .id(id.element("resolution"))
-        .flex()
-        .flex_row()
-        .items_center()
-        .justify_between()
-        .px(px(Theme::SPACE_SM))
-        .py(px(Theme::SPACE_XS))
-        .rounded(px(Theme::CONTROL_RADIUS))
-        .bg(row_fill(&theme, fade, selected))
-        .cursor(gpui::CursorStyle::PointingHand)
-        .active(|style| style.opacity(0.92))
-        .on_hover(motion::hover_listener(fade))
-        .child(
-            div()
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text)
-                .child(label),
-        )
+    row_shell(id, theme, fade, selected)
+        .child(row_label(theme, label))
         .on_mouse_down(
             MouseButton::Left,
             cx.listener(move |this, _: &MouseDownEvent, _, cx| {
@@ -469,25 +383,8 @@ fn pick_row(
     pick: Pick,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
-    div()
-        .id(fade.element_id("settings-pick"))
-        .flex()
-        .flex_row()
-        .items_center()
-        .justify_between()
-        .px(px(Theme::SPACE_SM))
-        .py(px(Theme::SPACE_XS))
-        .rounded(px(Theme::CONTROL_RADIUS))
-        .bg(row_fill(theme, fade, selected))
-        .cursor(gpui::CursorStyle::PointingHand)
-        .active(|style| style.opacity(0.92))
-        .on_hover(motion::hover_listener(fade))
-        .child(
-            div()
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text)
-                .child(label),
-        )
+    row_shell(fade, theme, fade, selected)
+        .child(row_label(theme, label))
         .on_mouse_down(
             MouseButton::Left,
             cx.listener(move |this, _: &MouseDownEvent, _, cx| {

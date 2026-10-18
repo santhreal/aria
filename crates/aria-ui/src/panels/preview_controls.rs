@@ -101,17 +101,14 @@ pub(super) fn mark_btn(
     cx: &mut gpui::Context<crate::shell::Shell>,
     mark: fn(&mut AppState),
 ) -> impl IntoElement {
-    crate::components::ghost_button(id, label, theme)
-        .debug_selector(move || id.to_string())
-        .when_some(crate::tooltip::builder(id), |el, tip| el.with_tip(tip))
-        .on_mouse_down(
-            MouseButton::Left,
-            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                cx.stop_propagation();
-                this.state.update(cx, |state, _| mark(state));
-                cx.notify();
-            }),
-        )
+    row_text(id, label, theme.text_muted, theme).on_mouse_down(
+        MouseButton::Left,
+        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+            cx.stop_propagation();
+            this.state.update(cx, |state, _| mark(state));
+            cx.notify();
+        }),
+    )
 }
 
 /// The sequence playhead as a field. A drag scrubs the playhead a frame per
@@ -126,8 +123,9 @@ pub(super) fn clock_field(
     let (focused, text) = state
         .read(cx)
         .clock_field(crate::app::clock::ClockSite::Viewer);
+    // The row's controls are one height, so the field is an icon button's.
     crate::components::text_box("playhead-tc", text, "00:00:00:00", focused, theme)
-        .font_family(theme.font_mono.clone())
+        .h(px(Theme::ICON_HIT))
         .text_size(Theme::TEXT_UI)
         .debug_selector(|| "playhead-tc".into())
         .when_some(crate::tooltip::builder("playhead-tc"), |el, tip| {
@@ -143,24 +141,62 @@ pub(super) fn clock_field(
                 cx.notify();
             }),
         )
+        // A press anywhere else drops the draft, as Escape does, and still
+        // lands where it was aimed.
+        .when(focused, |el| {
+            el.on_mouse_down_out(cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                this.state.update(cx, |state, _| state.focus_clock(false));
+                cx.notify();
+            }))
+        })
 }
 
+/// A worded control in the Viewer's row: an icon button's height, a hover
+/// wash, and the label in `color`.
+pub(super) fn row_text(
+    id: impl Into<motion::ControlId>,
+    label: impl Into<gpui::SharedString>,
+    color: gpui::Hsla,
+    theme: &Theme,
+) -> gpui::Stateful<gpui::Div> {
+    let id = id.into();
+    let key = id.motion("row-text");
+    div()
+        .id(id.element("row-text"))
+        .when_some(id.fixed_name(), |el, name| {
+            el.debug_selector(move || name.to_owned())
+        })
+        .flex_none()
+        .h(px(Theme::ICON_HIT))
+        .px(px(Theme::SPACE_XS))
+        .flex()
+        .items_center()
+        .rounded(px(Theme::CONTROL_RADIUS))
+        .text_size(Theme::TEXT_UI)
+        .text_color(color)
+        .bg(motion::hover_blend(
+            key,
+            theme.wash(0.0),
+            theme.element_hover,
+        ))
+        .on_hover(motion::hover_listener(key))
+        .cursor(gpui::CursorStyle::PointingHand)
+        .active(|style| style.opacity(0.92))
+        .when_some(
+            id.fixed_name().and_then(crate::tooltip::builder),
+            |el, tip| crate::tooltip::WithTip::with_tip(el, tip),
+        )
+        .child(label.into())
+}
+
+/// Loop playback, lit while the tab in front loops.
 pub(super) fn loop_btn(
     state: &Entity<AppState>,
     theme: &Theme,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     let on = state.read(cx).looping;
-    div()
-        .id("preview-loop")
-        .px(px(Theme::SPACE_XS))
-        .text_size(Theme::TEXT_UI)
-        .text_color(if on { theme.accent } else { theme.text_muted })
-        .cursor(gpui::CursorStyle::PointingHand)
-        .active(|style| style.opacity(0.92))
-        .when_some(crate::tooltip::builder("preview-loop"), |el, tip| {
-            el.with_tip(tip)
-        })
+    crate::chrome::tool_strip::lit_icon("preview-loop", crate::icons::LOOP, on, theme)
         .on_mouse_down(
             MouseButton::Left,
             cx.listener(|this, _: &MouseDownEvent, _, cx| {
@@ -168,10 +204,10 @@ pub(super) fn loop_btn(
                 cx.notify();
             }),
         )
-        .child("Loop")
 }
 
-/// A preview zoom step, drawn with the shipped zoom glyph.
+/// A preview zoom step, drawn with the shipped zoom glyph in an icon button's
+/// box.
 pub(super) fn zoom_btn(
     id: impl Into<motion::ControlId>,
     icon: &'static str,
@@ -184,8 +220,8 @@ pub(super) fn zoom_btn(
     let key = id.motion("zoom");
     div()
         .id(id.element("zoom-button"))
-        .w(px(Theme::SPACE_LG))
-        .h(px(Theme::SPACE_LG))
+        .flex_none()
+        .size(px(Theme::ICON_HIT))
         .flex()
         .items_center()
         .justify_center()

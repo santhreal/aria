@@ -1,5 +1,6 @@
 //! AI transcript and composer.
 
+use crate::components::Wraps as _;
 use gpui::{
     Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
     StatefulInteractiveElement, Styled, div, px,
@@ -293,19 +294,29 @@ fn composer(
         .flex_col()
         .gap(px(Theme::SPACE_XS))
         .child(
+            // Narrower than the target and the switches, the switches take the
+            // next line; a target wider than the panel truncates. The
+            // switches' left auto margin puts them at the right end: the row
+            // sets no justify of its own, because taffy hands the line's free
+            // space to the auto margin and to the justify both, which drew the
+            // switches past the panel's right edge.
             div()
                 .flex()
                 .flex_row()
+                .wraps()
                 .items_center()
-                .justify_between()
+                .gap(px(Theme::SPACE_XS))
                 .child(
                     div()
+                        .min_w_0()
+                        .truncate()
                         .text_size(Theme::TEXT_UI)
                         .text_color(theme.text_faint)
                         .child(gpui::SharedString::from(target)),
                 )
                 .child(
                     div()
+                        .ml_auto()
                         .flex()
                         .flex_row()
                         .gap(px(Theme::SPACE_XS))

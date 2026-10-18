@@ -169,7 +169,9 @@ pub fn pending_row(
         .gap(px(Theme::SPACE_SM))
         .child(leader)
         .child(
+            // A panel narrower than the line wraps it.
             div()
+                .min_w_0()
                 .text_size(Theme::TEXT_TITLE)
                 .text_color(color)
                 .child(text),
@@ -225,6 +227,7 @@ pub fn aria_mark_loader(
 
 pub fn splash_overlay(theme: &Theme, fading: bool) -> AnyElement {
     let content = div()
+        .debug_selector(|| "boot-splash".into())
         .absolute()
         .inset_0()
         .bg(theme.glass())

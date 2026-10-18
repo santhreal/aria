@@ -40,7 +40,7 @@
 //! # autonomy = "full"              # skip destructive-tool confirmations
 //!
 //! [appearance]
-//! theme = "dark-blue"              # "default" | "ember" | "dark-blue"
+//! theme = "blue"                   # "blue" | "ember" | "teal" | "graphite"
 //!
 //! [storage]
 //! root = "/Volumes/Media/Aria"  # optional; absolute paths only
@@ -108,33 +108,51 @@ pub(crate) use persist::*;
 // writes the version table through the same "only touch what changed" rule.
 pub(crate) use write::*;
 
-/// Which bundled theme the shell renders. The variant order matches the
-/// `index()` the UI dropdown uses; `DarkBlue` is the shipped default.
+/// Which accent family the shell paints. `Blue` is the shipped default.
+///
+/// Saved as [`key`](Self::key). Keys from before the families existed still
+/// read: `default` and `dark-blue` (or `dark_blue`) as `Blue`, since the hues
+/// they named are gone and blue is their successor; a save writes the new
+/// key.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ThemeChoice {
-    /// Cool graphite + teal (`DefaultTheme`).
-    Default,
-    /// Warm ember (`EmberTheme`).
-    Ember,
-    /// The shipped look (`DarkBlueTheme`).
+    /// The shipped blue.
     #[default]
-    DarkBlue,
+    Blue,
+    /// Warm orange.
+    Ember,
+    /// Blue-green.
+    Teal,
+    /// No hue: a neutral accent and a red playhead.
+    Graphite,
 }
 
 impl ThemeChoice {
-    /// Every choice, in dropdown order.
-    pub const ALL: [ThemeChoice; 3] = [
-        ThemeChoice::Default,
+    /// Every choice, in the order a picker offers them.
+    pub const ALL: [ThemeChoice; 4] = [
+        ThemeChoice::Blue,
         ThemeChoice::Ember,
-        ThemeChoice::DarkBlue,
+        ThemeChoice::Teal,
+        ThemeChoice::Graphite,
     ];
 
     /// The stable string written to `config.toml`.
     pub fn key(self) -> &'static str {
         match self {
-            ThemeChoice::Default => "default",
+            ThemeChoice::Blue => "blue",
             ThemeChoice::Ember => "ember",
-            ThemeChoice::DarkBlue => "dark-blue",
+            ThemeChoice::Teal => "teal",
+            ThemeChoice::Graphite => "graphite",
+        }
+    }
+
+    /// The name a picker shows.
+    pub fn label(self) -> &'static str {
+        match self {
+            ThemeChoice::Blue => "Blue",
+            ThemeChoice::Ember => "Ember",
+            ThemeChoice::Teal => "Teal",
+            ThemeChoice::Graphite => "Graphite",
         }
     }
 
@@ -142,29 +160,11 @@ impl ThemeChoice {
     /// caller keeps the default rather than failing the whole load).
     pub fn from_key(s: &str) -> Option<Self> {
         match s {
-            "default" => Some(ThemeChoice::Default),
+            "blue" | "default" | "dark-blue" | "dark_blue" => Some(ThemeChoice::Blue),
             "ember" => Some(ThemeChoice::Ember),
-            "dark-blue" | "dark_blue" => Some(ThemeChoice::DarkBlue),
+            "teal" => Some(ThemeChoice::Teal),
+            "graphite" => Some(ThemeChoice::Graphite),
             _ => None,
-        }
-    }
-
-    /// 0-based index for the Slint dropdown.
-    pub fn index(self) -> i32 {
-        match self {
-            ThemeChoice::Default => 0,
-            ThemeChoice::Ember => 1,
-            ThemeChoice::DarkBlue => 2,
-        }
-    }
-
-    /// Inverse of [`index`](Self::index); out-of-range falls back to the
-    /// shipped default.
-    pub fn from_index(i: i32) -> Self {
-        match i {
-            0 => ThemeChoice::Default,
-            1 => ThemeChoice::Ember,
-            _ => ThemeChoice::DarkBlue,
         }
     }
 }

@@ -139,6 +139,20 @@ Preview asks for `OutputMode::Gpu`. On Linux a LINEAR NV12 DMABuf imports into
 Vulkan; a tiled modifier cannot be imported by wgpu-hal, so decode falls back to
 CPU NV12 and the modifier is named once per session in the log.
 
+NVIDIA's NVDEC decoders in GStreamer 1.24 (`nvh264dec`, `nvh265dec`) output
+CUDA memory, GL memory, or system memory, never DMABuf, so the DMABuf request
+fails at open. Decode stays on NVDEC and frames arrive as CPU NV12. A plugged
+video decoder whose outputs include no DMABuf stops the DMABuf attempt before
+the decoder receives caps, so no decoder session opens for it. The first failed
+DMABuf open is logged with each plugged decoder and its output memory, is
+remembered for the process, and later opens go straight to CPU NV12. Every
+decode pipeline in the process receives the first device context of each type
+a decoder posted (`gst.cuda.context` for NVDEC, a VA display for VA-API), so the
+device opens once per process. The preview worker starts
+`aria_decoder::warm_up` when it starts: where `cudaupload` exists, a one-buffer
+pipeline opens the CUDA device on its own thread and keeps its context. A
+decoder opened during the warm-up waits for it.
+
 Android is a CPU-planes platform: MediaCodec runs in ByteBuffer mode, there is no
 `AImageReader` surface, and so no `AHardwareBuffer` for the compositor to import.
 Asking for `OutputMode::Gpu` there is refused at open rather than part way

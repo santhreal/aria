@@ -18,7 +18,9 @@ pub const TOOL_HOLD_MS: u64 = 300;
 /// One selectable entry in a tool button's variants popover (`docs/spec/layout.md`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ToolVariant {
-    Trim(EditorTool),
+    /// Another tool in the button's group.
+    Tool(EditorTool),
+    /// A mode of the Pen tool.
     Pen(PenVariant),
 }
 
@@ -26,45 +28,26 @@ impl ToolVariant {
     #[must_use]
     pub const fn label(self) -> &'static str {
         match self {
-            Self::Trim(EditorTool::Ripple) => "Ripple Edit",
-            Self::Trim(EditorTool::Roll) => "Rolling Edit",
-            Self::Trim(EditorTool::Rate) => "Rate Stretch",
-            Self::Trim(EditorTool::Slip) => "Slip",
-            Self::Trim(EditorTool::Slide) => "Slide",
-            Self::Trim(_) => "Tool",
+            Self::Tool(EditorTool::Ripple) => "Ripple Edit",
+            Self::Tool(EditorTool::Roll) => "Rolling Edit",
+            Self::Tool(EditorTool::Rate) => "Rate Stretch",
+            Self::Tool(tool) => tool.label(),
             Self::Pen(variant) => variant.label(),
         }
     }
 
+    /// The control whose tip holds this entry's shortcut: the tool's own
+    /// button, or the Pen's for its standard mode. The other Pen modes have no
+    /// key of their own.
     #[must_use]
-    pub const fn shortcut(self) -> &'static str {
+    pub const fn shortcut_control(self) -> Option<&'static str> {
         match self {
-            Self::Trim(EditorTool::Ripple) => "B",
-            Self::Trim(EditorTool::Roll) => "N",
-            Self::Trim(EditorTool::Rate) => "R",
-            Self::Trim(EditorTool::Slip) => "Y",
-            Self::Trim(EditorTool::Slide) => "U",
-            Self::Trim(_) => "",
-            Self::Pen(PenVariant::Standard) => "P",
-            Self::Pen(_) => "",
+            Self::Tool(tool) => Some(tool.control_id()),
+            Self::Pen(PenVariant::Standard) => Some(EditorTool::Pen.control_id()),
+            Self::Pen(_) => None,
         }
     }
 }
-
-const TRIM_TOOL_VARIANTS: &[ToolVariant] = &[
-    ToolVariant::Trim(EditorTool::Ripple),
-    ToolVariant::Trim(EditorTool::Roll),
-    ToolVariant::Trim(EditorTool::Rate),
-    ToolVariant::Trim(EditorTool::Slip),
-    ToolVariant::Trim(EditorTool::Slide),
-];
-
-const PEN_TOOL_VARIANTS: &[ToolVariant] = &[
-    ToolVariant::Pen(PenVariant::Standard),
-    ToolVariant::Pen(PenVariant::AddVertex),
-    ToolVariant::Pen(PenVariant::DeleteVertex),
-    ToolVariant::Pen(PenVariant::ConvertVertex),
-];
 
 impl EditorTool {
     /// Effective tool when hovering or dragging a clip edge with `ctrl` and `alt`
@@ -83,14 +66,25 @@ impl EditorTool {
         self
     }
 
-    /// Variants offered in the tool-strip popover for this tool (`docs/spec/layout.md`).
+    /// Variants offered in the tool-strip popover for this tool
+    /// (`docs/spec/layout.md`): the Pen's modes, or every tool in a group of
+    /// more than one, in table order. Empty for a button with nothing to offer.
     #[must_use]
-    pub const fn variants(self) -> &'static [ToolVariant] {
-        match self {
-            Self::Ripple | Self::Roll | Self::Rate | Self::Slip | Self::Slide => TRIM_TOOL_VARIANTS,
-            Self::Pen => PEN_TOOL_VARIANTS,
-            _ => &[],
+    pub fn variants(self) -> Vec<ToolVariant> {
+        if self.pens() {
+            return PenVariant::ALL.into_iter().map(ToolVariant::Pen).collect();
         }
+        if !self.has_variants() {
+            return Vec::new();
+        }
+        self.group().tools().map(ToolVariant::Tool).collect()
+    }
+
+    /// Whether the tool's button draws the corner triangle and opens a variants
+    /// popover on a 300 ms hold.
+    #[must_use]
+    pub fn has_variants(self) -> bool {
+        self.pens() || self.group().tools().nth(1).is_some()
     }
 }
 
@@ -153,7 +147,7 @@ impl AppState {
 
     pub fn select_tool_variant(&mut self, variant: ToolVariant) {
         match variant {
-            ToolVariant::Trim(tool) => {
+            ToolVariant::Tool(tool) => {
                 self.tool = tool;
             }
             ToolVariant::Pen(pv) => {

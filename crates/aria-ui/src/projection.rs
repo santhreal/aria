@@ -1,10 +1,10 @@
 //! Project the engine model into [`UiEditorStore`].
 
 use crate::types::{
-    UiAnimation, UiChroma, UiClip, UiClipKind, UiClipType, UiEditorStore, UiEffectInstance,
-    UiFilter, UiGenerator, UiLut, UiMarker, UiMask, UiMatte, UiMediaItem, UiMulticamAngle,
-    UiMulticamGroup, UiSequence, UiSequenceRef, UiSlot, UiStyles, UiTrack, UiTrackKind,
-    UiTransition, UiTypeHandle, clip_id, media_id, track_id,
+    UiAnimation, UiChroma, UiClip, UiClipKind, UiClipType, UiClips, UiEditorStore,
+    UiEffectInstance, UiFilter, UiGenerator, UiLut, UiMarker, UiMask, UiMatte, UiMediaItem,
+    UiMulticamAngle, UiMulticamGroup, UiSequence, UiSequenceRef, UiSlot, UiStyles, UiTrack,
+    UiTrackKind, UiTransition, UiTypeHandle, clip_id, media_id, track_id,
 };
 use aria_models::{
     Clip, ClipAction, ClipCapabilities, ClipId, ClipSource, EffectInstance, Filter, Generator,
@@ -27,12 +27,43 @@ pub fn project_to_ui_with(
     can_undo: bool,
     can_redo: bool,
 ) -> UiEditorStore {
+    project_to_ui_from(
+        project, playhead, selection, is_dirty, can_undo, can_redo, None,
+    )
+    .0
+}
+
+/// Same as [`project_to_ui_with`], taking from `previous` the clips of every
+/// lane that did not move since it was built (see [`lanes`]), and returning
+/// the basis the next projection compares against.
+pub(crate) fn project_to_ui_from(
+    project: &Project,
+    playhead: aria_models::RationalTime,
+    selection: &[ClipId],
+    is_dirty: bool,
+    can_undo: bool,
+    can_redo: bool,
+    previous: Option<Previous<'_>>,
+) -> (UiEditorStore, LaneBasis) {
     let timeline = project.timeline();
-    let drifts = project.link_drifts();
+    let media: Vec<UiMediaItem> = project
+        .media_iter()
+        .map(|m| media_to_ui(m, project))
+        .collect();
+    let sequences: Vec<UiSequenceRef> = project
+        .sequences()
+        .map(|sequence| UiSequenceRef {
+            id: sequence.id.raw(),
+            name: sequence.name.clone().into(),
+            duration_ticks: sequence.timeline.duration().value,
+        })
+        .collect();
+    let multicam = multicam_to_ui(project);
+    let globals = lanes::Globals::of(project, &media, &sequences, &multicam);
+    let (drawn, basis) = lanes::lanes(project, selection, globals, previous);
     let mut tracks: Vec<UiTrack> = Vec::new();
     let mut audio_tracks: Vec<UiTrack> = Vec::new();
-    for track in timeline.tracks_ordered() {
-        let ui = track_to_ui(project, track, selection, &drifts);
+    for (track, ui) in timeline.tracks_ordered().zip(drawn) {
         if matches!(track.kind, TrackKind::Audio | TrackKind::Submix) {
             audio_tracks.push(ui);
         } else {
@@ -79,7 +110,7 @@ pub fn project_to_ui_with(
     };
     sequence.mark_patched_lanes();
 
-    UiEditorStore {
+    let store = UiEditorStore {
         project_name: project.name.clone().into(),
         is_dirty,
         can_undo,
@@ -89,22 +120,13 @@ pub fn project_to_ui_with(
         scroll_x: 0.0,
         selection: selection.iter().copied().map(clip_id).collect(),
         sequence,
-        media: project
-            .media_iter()
-            .map(|m| media_to_ui(m, project))
-            .collect(),
+        media,
         bins: bins_to_ui(project),
-        multicam: multicam_to_ui(project),
-        sequences: project
-            .sequences()
-            .map(|sequence| UiSequenceRef {
-                id: sequence.id.raw(),
-                name: sequence.name.clone().into(),
-                duration_ticks: sequence.timeline.duration().value,
-            })
-            .collect(),
+        multicam,
+        sequences,
         open_sequence: project.active_sequence().map(|id| id.raw()),
-    }
+    };
+    (store, basis)
 }
 
 /// Multicam groups in id order, each carrying its cut list.
@@ -142,7 +164,10 @@ mod bar;
 mod clip;
 #[path = "projection_effect.rs"]
 mod effect;
-use clip::{bins_to_ui, media_to_ui, track_to_ui};
+use clip::{bins_to_ui, media_to_ui};
+#[path = "projection_lanes.rs"]
+mod lanes;
+pub(crate) use lanes::{LaneBasis, Previous, reselect};
 
 /// Forget cached file metadata after an explicit filesystem boundary.
 pub(crate) fn invalidate_media_statuses() {

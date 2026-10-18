@@ -7,6 +7,9 @@ ignore = [
     { id = "RUSTSEC-2024-0375", reason = "atty is transitive through nnnoiseless and clap 3; no maintained nnnoiseless release is available" },
     { id = "RUSTSEC-2024-0436", reason = "paste is transitive through GStreamer 0.23; removal requires the planned GStreamer API migration" },
     { id = "RUSTSEC-2026-0206", reason = "rustybuzz is transitive through usvg in GPUI; the advisory reports no safe upgrade" },
+    { id = "RUSTSEC-2026-0370", reason = "zvariant is transitive through zbus 5 in GPUI's accesskit, ashpd, atspi, and notify-rust; it merged into zbus 6, which none of them depend on, and the advisory reports no safe upgrade" },
+    { id = "RUSTSEC-2026-0371", reason = "zbus_names is transitive through zbus 5 in GPUI's accesskit, ashpd, atspi, and notify-rust; it merged into zbus 6, which none of them depend on, and the advisory reports no safe upgrade" },
+    { id = "RUSTSEC-2026-0372", reason = "zvariant_derive is transitive through zbus 5 in GPUI's accesskit, ashpd, atspi, and notify-rust; it merged into zbus 6, which none of them depend on, and the advisory reports no safe upgrade" },
 ]
 
 [licenses]

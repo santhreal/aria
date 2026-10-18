@@ -167,7 +167,7 @@ fn run_silhouette(
         ],
     );
     let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: Some("aria.style.silhouette.pass"),
+        label: None,
         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
             view: output,
             depth_slice: None,
@@ -211,7 +211,7 @@ fn blit_offset_premultiplied_to_canvas(
         ],
     );
     let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: Some("aria.style.offset.pass"),
+        label: None,
         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
             view: canvas_view,
             depth_slice: None,
@@ -247,7 +247,7 @@ fn blit_additive_to_canvas(
         &[Bound::Texture(source), Bound::Sampler(&registry.sampler)],
     );
     let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: Some("aria.style.additive.pass"),
+        label: None,
         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
             view: canvas_view,
             depth_slice: None,
@@ -298,7 +298,7 @@ fn blit_outline_harden_to_canvas(
         ],
     );
     let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: Some("aria.style.harden.pass"),
+        label: None,
         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
             view: canvas_view,
             depth_slice: None,

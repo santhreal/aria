@@ -7,6 +7,7 @@
 //! with the Character and Paragraph dock panels, so a title has one set of
 //! writes whichever surface edits it.
 
+use crate::components::Wraps as _;
 use gpui::{
     AnyElement, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
     SharedString, StatefulInteractiveElement, Styled, div, px,
@@ -311,7 +312,7 @@ fn chip_row(chips: Vec<AnyElement>) -> AnyElement {
     div()
         .flex()
         .flex_row()
-        .flex_wrap()
+        .wraps()
         .gap(px(Theme::SPACE_XXS))
         .children(chips)
         .into_any_element()

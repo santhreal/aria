@@ -752,7 +752,7 @@ pub struct UiTrack {
     /// A Source tab's edit lands this lane's channel here. Set by
     /// [`UiSequence::mark_patched_lanes`].
     pub patched: bool,
-    pub clips: Vec<UiClip>,
+    pub clips: super::UiClips,
 }
 
 #[derive(Debug, Clone, PartialEq)]

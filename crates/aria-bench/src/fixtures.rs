@@ -8,8 +8,8 @@ use std::time::Instant;
 
 use aria_models::{
     CanvasAspect, CanvasSettings, ClipParam, ClipTransform, ColorAdjustments, Easing,
-    EffectInstance, Generator, Marker, MarkerColor, MediaSource, Param, ParamValue, Project,
-    Rational, RationalTime, Scale2, TextStyle, TimeRange, TrackKind,
+    EffectInstance, Generator, Marker, MarkerColor, MediaSource, PROJECT_SCHEMA_VERSION, Param,
+    ParamValue, Project, Rational, RationalTime, Scale2, TextStyle, TimeRange, TrackKind,
 };
 use serde::{Deserialize, Serialize};
 
@@ -133,6 +133,9 @@ pub fn ensure_fixture(fixtures_dir: &Path, id: FixtureId) -> Result<FixtureSumma
         FixtureId::Hevc2160p60 => generate_hevc_2160p60(fixtures_dir, &path)?,
         FixtureId::ProRes2160p30 => generate_prores_2160p30(fixtures_dir, &path)?,
         FixtureId::LongGopScrub => {
+            // A stale alias is a hard link to the old file; drop it so the
+            // alias names the new one.
+            let _ = std::fs::remove_file(fixtures_dir.join("long-gop-10m.mp4"));
             generate_long_gop_scrub(fixtures_dir, &path)?;
             ensure_long_gop_alias(fixtures_dir, &path)?;
         }
@@ -150,6 +153,10 @@ pub fn ensure_fixture(fixtures_dir: &Path, id: FixtureId) -> Result<FixtureSumma
                 .save_to_file(&path)
                 .map_err(|err| format!("failed to save {}: {err}", path.display()))?;
         }
+    }
+    if is_media(id) {
+        std::fs::write(version_path(&path), MEDIA_FIXTURE_VERSION.to_string())
+            .map_err(|err| format!("failed to record the version of {}: {err}", path.display()))?;
     }
     let generation_ms = started.elapsed().as_secs_f64() * 1000.0;
     let bytes = std::fs::metadata(&path)
@@ -170,6 +177,31 @@ pub fn ensure_fixture(fixtures_dir: &Path, id: FixtureId) -> Result<FixtureSumma
     })
 }
 
+/// Version of the media fixture recipe, stored beside each media fixture in
+/// `<file>.version`. A media fixture with another version, or none, is
+/// generated again.
+///
+/// 2: the video loops a video-only segment and the audio is one tone of the
+/// whole length, so every video track is constant frame rate with no holes.
+/// Version 1 files lost one frame each loop.
+const MEDIA_FIXTURE_VERSION: u32 = 2;
+
+fn is_media(id: FixtureId) -> bool {
+    matches!(
+        id,
+        FixtureId::H264_1080p60
+            | FixtureId::Hevc2160p60
+            | FixtureId::ProRes2160p30
+            | FixtureId::LongGopScrub
+    )
+}
+
+fn version_path(path: &Path) -> PathBuf {
+    let mut name = path.as_os_str().to_owned();
+    name.push(".version");
+    PathBuf::from(name)
+}
+
 fn is_valid_fixture(_fixtures_dir: &Path, id: FixtureId, path: &Path) -> bool {
     let Ok(meta) = std::fs::metadata(path) else {
         return false;
@@ -181,9 +213,13 @@ fn is_valid_fixture(_fixtures_dir: &Path, id: FixtureId, path: &Path) -> bool {
         FixtureId::H264_1080p60
         | FixtureId::Hevc2160p60
         | FixtureId::ProRes2160p30
-        | FixtureId::LongGopScrub => meta.len() > 100_000,
+        | FixtureId::LongGopScrub => {
+            meta.len() > 100_000
+                && std::fs::read_to_string(version_path(path))
+                    .is_ok_and(|v| v.trim() == MEDIA_FIXTURE_VERSION.to_string())
+        }
         FixtureId::Project10k => {
-            let Ok(project) = Project::load_from_file(path) else {
+            let Some(project) = current_project(path) else {
                 return false;
             };
             let tracks = project.timeline().tracks_ordered().count();
@@ -203,13 +239,23 @@ fn is_valid_fixture(_fixtures_dir: &Path, id: FixtureId, path: &Path) -> bool {
             tracks == 50 && clips == 10_000 && markers == 500 && staggered
         }
         FixtureId::Stack4k => {
-            let Ok(project) = Project::load_from_file(path) else {
+            let Some(project) = current_project(path) else {
                 return false;
             };
             let tracks = project.timeline().tracks_ordered().count();
             tracks >= 4 && project.timeline().canvas().resolution == Some([3840, 2160])
         }
     }
+}
+
+/// The project fixture at `path` when this build's schema wrote it. A
+/// fixture an older build wrote is generated again, so the scenarios that
+/// open and save it measure the project a current save produces, not a
+/// migrated one.
+fn current_project(path: &Path) -> Option<Project> {
+    Project::load_from_file(path)
+        .ok()
+        .filter(|project| project.schema.version == PROJECT_SCHEMA_VERSION)
 }
 
 fn ensure_long_gop_alias(fixtures_dir: &Path, scrub_path: &Path) -> Result<(), String> {
@@ -232,27 +278,75 @@ fn run_ffmpeg(args: &[&str], label: &str) -> Result<(), String> {
     crate::process::run_ffmpeg(args, label)
 }
 
-fn generate_h264_1080p60(fixtures_dir: &Path, out_path: &Path) -> Result<(), String> {
-    let seg_path = fixtures_dir.join(".seg-h264-1080p60.mp4");
+/// Encode a video-only segment from `testsrc2` with `video_args`, then loop it
+/// `loops` extra times into `out` with a 440 Hz stereo tone of `tone_secs`
+/// encoded once by `audio_args`.
+///
+/// The segment carries no audio: a segment with AAC is longer than its video
+/// by the encoder padding, and every loop of it left that much of a hole in
+/// the video track (3,517 frames in a 60 s file at 60 fps).
+fn loop_segment(
+    seg_path: &Path,
+    source: &str,
+    video_args: &[&str],
+    loops: &str,
+    length_args: &[&str],
+    tone_secs: &str,
+    audio_args: &[&str],
+    out_path: &Path,
+    label: &str,
+) -> Result<(), String> {
     let seg_str = seg_path.to_string_lossy();
     let out_str = out_path.to_string_lossy();
+    let mut segment = vec![
+        "-y",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-f",
+        "lavfi",
+        "-i",
+        source,
+    ];
+    segment.extend_from_slice(video_args);
+    segment.push(&seg_str);
+    run_ffmpeg(&segment, &format!("{label} segment"))?;
 
-    run_ffmpeg(
+    let tone = format!("sine=frequency=440:sample_rate=48000:duration={tone_secs}");
+    let mut mux = vec![
+        "-y",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-stream_loop",
+        loops,
+        "-i",
+        &seg_str,
+        "-f",
+        "lavfi",
+        "-i",
+        &tone,
+        "-af",
+        "pan=stereo|c0=c0|c1=c0",
+        "-map",
+        "0:v",
+        "-map",
+        "1:a",
+    ];
+    mux.extend_from_slice(length_args);
+    mux.extend_from_slice(&["-c:v", "copy"]);
+    mux.extend_from_slice(audio_args);
+    mux.push(&out_str);
+    let muxed = run_ffmpeg(&mux, &format!("{label} mux"));
+    let _ = std::fs::remove_file(seg_path);
+    muxed
+}
+
+fn generate_h264_1080p60(fixtures_dir: &Path, out_path: &Path) -> Result<(), String> {
+    loop_segment(
+        &fixtures_dir.join(".seg-h264-1080p60.mp4"),
+        "testsrc2=size=1920x1080:rate=60:duration=1",
         &[
-            "-y",
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-f",
-            "lavfi",
-            "-i",
-            "testsrc2=size=1920x1080:rate=60:duration=1",
-            "-f",
-            "lavfi",
-            "-i",
-            "sine=frequency=440:sample_rate=48000:duration=1",
-            "-af",
-            "pan=stereo|c0=c0|c1=c0",
             "-c:v",
             "libx264",
             "-preset",
@@ -275,64 +369,21 @@ fn generate_h264_1080p60(fixtures_dir: &Path, out_path: &Path) -> Result<(), Str
             "60",
             "-sc_threshold",
             "0",
-            "-c:a",
-            "aac",
-            "-b:a",
-            "192k",
-            &seg_str,
         ],
-        "h264-1080p60 segment",
-    )?;
-
-    let mux_res = run_ffmpeg(
-        &[
-            "-y",
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-stream_loop",
-            "59",
-            "-i",
-            &seg_str,
-            "-t",
-            "60",
-            "-c:v",
-            "copy",
-            "-c:a",
-            "aac",
-            "-b:a",
-            "192k",
-            "-movflags",
-            "+faststart",
-            &out_str,
-        ],
-        "h264-1080p60 mux",
-    );
-    let _ = std::fs::remove_file(&seg_path);
-    mux_res
+        "59",
+        &["-t", "60"],
+        "60",
+        &["-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart"],
+        out_path,
+        "h264-1080p60",
+    )
 }
 
 fn generate_hevc_2160p60(fixtures_dir: &Path, out_path: &Path) -> Result<(), String> {
-    let seg_path = fixtures_dir.join(".seg-hevc-2160p60.mp4");
-    let seg_str = seg_path.to_string_lossy();
-    let out_str = out_path.to_string_lossy();
-
-    run_ffmpeg(
+    loop_segment(
+        &fixtures_dir.join(".seg-hevc-2160p60.mp4"),
+        "testsrc2=size=3840x2160:rate=60:duration=1",
         &[
-            "-y",
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-f",
-            "lavfi",
-            "-i",
-            "testsrc2=size=3840x2160:rate=60:duration=1",
-            "-f",
-            "lavfi",
-            "-i",
-            "sine=frequency=440:sample_rate=48000:duration=1",
-            "-af",
-            "pan=stereo|c0=c0|c1=c0",
             "-c:v",
             "libx265",
             "-preset",
@@ -345,66 +396,21 @@ fn generate_hevc_2160p60(fixtures_dir: &Path, out_path: &Path) -> Result<(), Str
             "80M",
             "-tag:v",
             "hvc1",
-            "-c:a",
-            "aac",
-            "-b:a",
-            "192k",
-            &seg_str,
         ],
-        "hevc-2160p60 segment",
-    )?;
-
-    let mux_res = run_ffmpeg(
-        &[
-            "-y",
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-stream_loop",
-            "59",
-            "-i",
-            &seg_str,
-            "-t",
-            "60",
-            "-c:v",
-            "copy",
-            "-tag:v",
-            "hvc1",
-            "-c:a",
-            "aac",
-            "-b:a",
-            "192k",
-            "-movflags",
-            "+faststart",
-            &out_str,
-        ],
-        "hevc-2160p60 mux",
-    );
-    let _ = std::fs::remove_file(&seg_path);
-    mux_res
+        "59",
+        &["-t", "60", "-tag:v", "hvc1"],
+        "60",
+        &["-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart"],
+        out_path,
+        "hevc-2160p60",
+    )
 }
 
 fn generate_prores_2160p30(fixtures_dir: &Path, out_path: &Path) -> Result<(), String> {
-    let seg_path = fixtures_dir.join(".seg-prores-2160p30.mov");
-    let seg_str = seg_path.to_string_lossy();
-    let out_str = out_path.to_string_lossy();
-
-    run_ffmpeg(
+    loop_segment(
+        &fixtures_dir.join(".seg-prores-2160p30.mov"),
+        "testsrc2=size=3840x2160:rate=30000/1001",
         &[
-            "-y",
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-f",
-            "lavfi",
-            "-i",
-            "testsrc2=size=3840x2160:rate=30000/1001",
-            "-f",
-            "lavfi",
-            "-i",
-            "sine=frequency=440:sample_rate=48000",
-            "-af",
-            "pan=stereo|c0=c0|c1=c0",
             "-frames:v",
             "30",
             "-c:v",
@@ -413,60 +419,21 @@ fn generate_prores_2160p30(fixtures_dir: &Path, out_path: &Path) -> Result<(), S
             "3",
             "-pix_fmt",
             "yuv422p10le",
-            "-c:a",
-            "pcm_s16le",
-            "-shortest",
-            &seg_str,
         ],
-        "prores-2160p30 segment",
-    )?;
-
-    let mux_res = run_ffmpeg(
-        &[
-            "-y",
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-stream_loop",
-            "29",
-            "-i",
-            &seg_str,
-            "-frames:v",
-            "900",
-            "-c:v",
-            "copy",
-            "-c:a",
-            "pcm_s16le",
-            "-shortest",
-            &out_str,
-        ],
-        "prores-2160p30 mux",
-    );
-    let _ = std::fs::remove_file(&seg_path);
-    mux_res
+        "29",
+        &["-frames:v", "900", "-shortest"],
+        "30.03",
+        &["-c:a", "pcm_s16le"],
+        out_path,
+        "prores-2160p30",
+    )
 }
 
 fn generate_long_gop_scrub(fixtures_dir: &Path, out_path: &Path) -> Result<(), String> {
-    let seg_path = fixtures_dir.join(".seg-long-gop.mp4");
-    let seg_str = seg_path.to_string_lossy();
-    let out_str = out_path.to_string_lossy();
-
-    run_ffmpeg(
+    loop_segment(
+        &fixtures_dir.join(".seg-long-gop.mp4"),
+        "testsrc2=size=1920x1080:rate=30:duration=10",
         &[
-            "-y",
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-f",
-            "lavfi",
-            "-i",
-            "testsrc2=size=1920x1080:rate=30:duration=10",
-            "-f",
-            "lavfi",
-            "-i",
-            "sine=frequency=440:sample_rate=48000:duration=10",
-            "-af",
-            "pan=stereo|c0=c0|c1=c0",
             "-c:v",
             "libx264",
             "-preset",
@@ -483,41 +450,14 @@ fn generate_long_gop_scrub(fixtures_dir: &Path, out_path: &Path) -> Result<(), S
             "300",
             "-sc_threshold",
             "0",
-            "-c:a",
-            "aac",
-            "-b:a",
-            "128k",
-            &seg_str,
         ],
-        "long-gop-scrub segment",
-    )?;
-
-    let mux_res = run_ffmpeg(
-        &[
-            "-y",
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-stream_loop",
-            "59",
-            "-i",
-            &seg_str,
-            "-t",
-            "600",
-            "-c:v",
-            "copy",
-            "-c:a",
-            "aac",
-            "-b:a",
-            "128k",
-            "-movflags",
-            "+faststart",
-            &out_str,
-        ],
-        "long-gop-scrub mux",
-    );
-    let _ = std::fs::remove_file(&seg_path);
-    mux_res
+        "59",
+        &["-t", "600"],
+        "600",
+        &["-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart"],
+        out_path,
+        "long-gop-scrub",
+    )
 }
 
 /// Build the `project-10k` fixture in memory:
@@ -721,3 +661,7 @@ pub fn build_stack_4k(fixtures_dir: &Path) -> Result<Project, String> {
 
     Ok(project)
 }
+
+#[cfg(test)]
+#[path = "fixtures_tests.rs"]
+mod tests;

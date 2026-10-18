@@ -16,7 +16,7 @@ use aria_text::TextRenderer;
 use crate::error::RenderError;
 use crate::motion_blur::attach_motion_blur_passes;
 use crate::render_files::RenderFiles;
-use crate::resolve::{ResolveOverrides, resolve, resolve_gesture_partitions, resolve_with};
+use crate::resolve::{ResolveOverrides, resolve, resolve_gesture_partitions};
 use crate::scene::{LayerSource, Scene, SceneLayer, SizeSpec};
 
 use super::media_cache::default_decode_mode;
@@ -108,6 +108,11 @@ impl Renderer {
             use_proxies: true,
             apply_motion_blur: false,
             realize_scratch: super::realize::RealizeScratch::default(),
+            resolve_scene: Scene::empty(0, 0, [0, 0, 0, 255]),
+            resolve_pool: crate::resolve::ResolvePool::default(),
+            look_ahead_scene: Scene::empty(0, 0, [0, 0, 0, 255]),
+            look_ahead_pool: crate::resolve::ResolvePool::default(),
+            text_memo: HashMap::new(),
             cancel: Cancel::never(),
             last_stats: FrameStats::default(),
             render_files: None,
@@ -251,6 +256,7 @@ impl Renderer {
     /// this the renderer uses the host's installed fonts.
     pub fn load_font(&mut self, data: Vec<u8>) {
         self.text.load_font(data);
+        self.text_memo.clear();
     }
 
     /// Resolve `project` at `t` and composite the result into an [`RgbaImage`].
@@ -404,15 +410,20 @@ impl Renderer {
         policy: SeekPolicy,
         sink: &mut dyn FrameSink,
     ) -> Result<(), RenderError> {
-        let mut scene = resolve_with(project, t, overrides)?;
+        let mut scene = self.take_resolved_scene(project, t, overrides)?;
         if overrides.is_empty()
             && let Some(decode_ms) = self.try_load_render_file(project, &scene)
         {
-            return self.composite_render_file_into(scene.width, scene.height, decode_ms, sink);
+            let (w, h) = (scene.width, scene.height);
+            self.return_resolved_scene(scene);
+            return self.composite_render_file_into(w, h, decode_ms, sink);
         }
         self.prepare_motion_blur(project, &mut scene);
-        self.render_scene_into_policy(project, &scene, sink, policy)?;
-        self.look_ahead(project, scene.tick, policy);
+        let tick = scene.tick;
+        let res = self.render_scene_into_policy(project, &scene, sink, policy);
+        self.return_resolved_scene(scene);
+        res?;
+        self.look_ahead(project, tick, policy);
         Ok(())
     }
 
@@ -432,17 +443,22 @@ impl Renderer {
         policy: SeekPolicy,
         sink: &mut dyn FrameSink,
     ) -> Result<(), RenderError> {
-        let mut scene = resolve_with(project, t, overrides)?;
+        let mut scene = self.take_resolved_scene(project, t, overrides)?;
         if overrides.is_empty()
             && let Some(decode_ms) = self.try_load_render_file(project, &scene)
         {
             scene.fit_within(max_width, max_height);
-            return self.composite_render_file_into(scene.width, scene.height, decode_ms, sink);
+            let (w, h) = (scene.width, scene.height);
+            self.return_resolved_scene(scene);
+            return self.composite_render_file_into(w, h, decode_ms, sink);
         }
         self.prepare_motion_blur(project, &mut scene);
         scene.fit_within(max_width, max_height);
-        self.render_scene_into_policy(project, &scene, sink, policy)?;
-        self.look_ahead(project, scene.tick, policy);
+        let tick = scene.tick;
+        let res = self.render_scene_into_policy(project, &scene, sink, policy);
+        self.return_resolved_scene(scene);
+        res?;
+        self.look_ahead(project, tick, policy);
         Ok(())
     }
 
@@ -460,20 +476,24 @@ impl Renderer {
     where
         F: FnOnce(u32, u32) -> wgpu::Texture,
     {
-        let mut scene = resolve_with(project, t, overrides)?;
+        let mut scene = self.take_resolved_scene(project, t, overrides)?;
         if overrides.is_empty()
             && let Some(decode_ms) = self.try_load_render_file(project, &scene)
         {
-            let texture = target(scene.width, scene.height);
-            self.composite_render_file_to_texture(scene.width, scene.height, decode_ms, &texture)?;
+            let (w, h) = (scene.width, scene.height);
+            self.return_resolved_scene(scene);
+            let texture = target(w, h);
+            self.composite_render_file_to_texture(w, h, decode_ms, &texture)?;
             return Ok(texture);
         }
         self.prepare_motion_blur(project, &mut scene);
+        let tick = scene.tick;
         let texture = target(scene.width, scene.height);
-        let pending =
-            self.submit_scene_policy(project, &scene, policy, Output::Texture(&texture))?;
+        let pending = self.submit_scene_policy(project, &scene, policy, Output::Texture(&texture));
+        self.return_resolved_scene(scene);
+        let pending = pending?;
         self.finish_pending_on_gpu(pending);
-        self.look_ahead(project, scene.tick, policy);
+        self.look_ahead(project, tick, policy);
         Ok(texture)
     }
 
@@ -495,22 +515,26 @@ impl Renderer {
     where
         F: FnOnce(u32, u32) -> wgpu::Texture,
     {
-        let mut scene = resolve_with(project, t, overrides)?;
+        let mut scene = self.take_resolved_scene(project, t, overrides)?;
         if overrides.is_empty()
             && let Some(decode_ms) = self.try_load_render_file(project, &scene)
         {
             scene.fit_within(max_width, max_height);
-            let texture = target(scene.width, scene.height);
-            self.composite_render_file_to_texture(scene.width, scene.height, decode_ms, &texture)?;
+            let (w, h) = (scene.width, scene.height);
+            self.return_resolved_scene(scene);
+            let texture = target(w, h);
+            self.composite_render_file_to_texture(w, h, decode_ms, &texture)?;
             return Ok(texture);
         }
         self.prepare_motion_blur(project, &mut scene);
         scene.fit_within(max_width, max_height);
+        let tick = scene.tick;
         let texture = target(scene.width, scene.height);
-        let pending =
-            self.submit_scene_policy(project, &scene, policy, Output::Texture(&texture))?;
+        let pending = self.submit_scene_policy(project, &scene, policy, Output::Texture(&texture));
+        self.return_resolved_scene(scene);
+        let pending = pending?;
         self.finish_pending_on_gpu(pending);
-        self.look_ahead(project, scene.tick, policy);
+        self.look_ahead(project, tick, policy);
         Ok(texture)
     }
 
@@ -555,6 +579,32 @@ impl Renderer {
         if self.apply_motion_blur {
             attach_motion_blur_passes(project, scene);
         }
+    }
+
+    fn take_resolved_scene(
+        &mut self,
+        project: &Project,
+        t: RationalTime,
+        overrides: ResolveOverrides<'_>,
+    ) -> Result<Scene, RenderError> {
+        let mut scene =
+            std::mem::replace(&mut self.resolve_scene, Scene::empty(0, 0, [0, 0, 0, 255]));
+        if let Err(err) = crate::resolve::resolve_with_into(
+            project,
+            t,
+            overrides,
+            &mut scene,
+            &mut self.resolve_pool,
+        ) {
+            self.resolve_scene = scene;
+            return Err(err.into());
+        }
+        Ok(scene)
+    }
+
+    fn return_resolved_scene(&mut self, mut scene: Scene) {
+        self.resolve_pool.recycle_scene(&mut scene);
+        self.resolve_scene = scene;
     }
 
     fn try_load_render_file(&mut self, project: &Project, unscaled_scene: &Scene) -> Option<f64> {

@@ -280,6 +280,43 @@ pub(super) fn upload_cpu_planes(
     }
 }
 
+/// Upload one decoded CPU plane into a pooled [`PlaneTexture`].
+///
+/// Retains `Queue::write_texture` rather than a persistent staging buffer +
+/// `CommandEncoder::copy_buffer_to_texture`: in `wgpu-core 29.0.4`,
+/// `Queue::write_buffer` (`device/queue.rs:541`) still allocates a fresh
+/// `StagingBuffer::new` + `Vec<hal::BufferBarrier>` on every call while
+/// `copy_buffer_to_texture` (`command/transfer.rs:1203,1214`) adds two more
+/// `Vec` allocations (`dst_barrier` and `regions`) and a second GPU copy;
+/// `Buffer::map_async` (`resource.rs:885`, `device/life.rs:351`) boxes the
+/// completion callback, allocates `MapContext` and `Vec<BufferMapPendingClosure>`,
+/// and still incurs `copy_buffer_to_texture`'s two `Vec` allocations.
+///
+/// Remaining internal `wgpu 29.0.4` heap allocations per steady frame (single
+/// NV12 layer = 65 allocs; 3-layer `stack-4k` with `gaussian_blur` + text = 211):
+/// - `CommandEncoder::new` (`wgpu_core::command::CommandEncoder::new`):
+///   2 allocs/encoder (`Arc<CommandEncoder>` + `Box<dyn DynCommandEncoder>`).
+///   Caller verdict: unavoidable with `label: None` (labels added 2 `String`s).
+/// - `CommandEncoder::begin_render_pass` (`wgpu_core::command::BasePass::new`):
+///   1 alloc/pass (`Vec<RenderCommand>` initial growth).
+///   Caller verdict: unavoidable with `label: None` (labels added 2 `String`s/pass
+///   in `BasePass::new` and `BasePass::take`).
+/// - `RenderPass::set_pipeline` (`indexmap::IndexMap` in bind tracker):
+///   1 alloc/draw pass. Caller verdict: internal to `wgpu_core` state tracker.
+/// - `CommandEncoder::commands` (`Vec<Command<ArcReferences>>`):
+///   1-3 allocs/encoder as recorded commands grow. Caller verdict: internal.
+/// - `Queue::write_texture` (`StagingBuffer::new` + `Vec<BufferTextureCopy>` +
+///   `Vec<TextureBarrier>` + `PendingWrites` `TempResource`/`dst_textures`):
+///   5 allocs/plane + 2 allocs/submit on CPU-decoded frames (0 on GPU-decoded
+///   surfaces). Caller verdict: internal to `wgpu_core` staging transfer.
+/// - `CommandEncoder::finish` / `encode_commands` (`encode_render_pass`
+///   `RenderPassInfo::start`, `Tracker::new`, `drain_barriers`,
+///   `copy_texture_to_texture`, `InnerCommandEncoder::close`):
+///   29 allocs/frame for 1 NV12 layer (150 in `stack-4k`). Caller verdict:
+///   internal to `wgpu_core` pass encoding and barrier drainage.
+/// - `Queue::submit` (`CoreQueue::submit`, `PendingWrites::pre_submit`
+///   `EncoderInFlight`, `active_executions`, `wgpu_hal::vulkan::Queue::submit`
+///   `SemaphoreList`): 18 allocs/submit. Caller verdict: internal to `wgpu`.
 fn upload_plane(
     gpu: &GpuContext,
     pool: &mut PlaneTexturePool,

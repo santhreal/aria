@@ -20,7 +20,7 @@ use gstreamer_app as gst_app;
 use gstreamer_video as gst_video;
 
 use crate::OutputMode;
-use crate::seek::SeekStats;
+use crate::seek_cost::SeekStats;
 
 pub(crate) const NS_PER_SEC: i64 = 1_000_000_000;
 const PULL_TIMEOUT: Duration = Duration::from_secs(8);
@@ -68,6 +68,7 @@ static GST_INIT: Once = Once::new();
 pub(crate) fn ensure_init() -> Result<(), DecodeError> {
     let mut err = None;
     GST_INIT.call_once(|| {
+        crate::gst_fds::raise_open_file_limit();
         if let Err(e) = gst::init() {
             err = Some(e);
         }
@@ -113,6 +114,8 @@ pub struct GstDecoder {
     last_pts: Option<RationalTime>,
     seek_stats: SeekStats,
     mode: OutputMode,
+    /// Starts the video decoder at the video keyframe after a key-unit seek.
+    snap: std::sync::Arc<crate::gst_key_snap::KeySnap>,
 }
 
 // SAFETY: pipeline and sink are owned by one decode worker. `VideoDecoder: Send`
@@ -139,6 +142,7 @@ impl GstDecoder {
             last_pts: None,
             seek_stats: SeekStats::default(),
             mode: opened.mode,
+            snap: opened.snap,
         })
     }
 
@@ -163,12 +167,18 @@ impl GstDecoder {
         }
     }
 
+    #[cfg(test)]
+    pub(crate) fn key_snap(&self) -> &crate::gst_key_snap::KeySnap {
+        &self.snap
+    }
+
     /// One flushing key-unit seek to the sync sample at or before `target`.
     fn seek_pipeline(&mut self, target: RationalTime) -> Result<(), DecodeError> {
         let ns = rational_to_ns(target);
         self.pending = None;
         self.settled = false;
         self.last_pts = None;
+        self.snap.arm(gst::ClockTime::from_nseconds(ns as u64));
         self.pipeline
             .seek_simple(
                 gst::SeekFlags::FLUSH | gst::SeekFlags::KEY_UNIT | gst::SeekFlags::SNAP_BEFORE,
@@ -468,6 +478,75 @@ fn codec_name(stream: &impl gstreamer_pbutils::prelude::DiscovererStreamInfoExt)
     }
 }
 
+/// Resets a [`gst::Pipeline`] to [`gst::State::Null`] on drop unless
+/// [`Self::take`] transfers ownership to an opened decoder or audio reader.
+///
+/// A `NULL -> PAUSED` or `NULL -> PLAYING` state change moves the pipeline and
+/// its children to `READY` first; when the second step (`READY -> PAUSED`, such
+/// as `typefind` on an empty or unreadable file) fails, `set_state` returns
+/// `Err` while the elements are still in `READY`. Disposing a `GstElement` in
+/// `READY` races with `decodebin` pad teardown and corrupts GObject state.
+pub(crate) struct PipelineGuard {
+    pipeline: gst::Pipeline,
+    armed: bool,
+}
+
+impl PipelineGuard {
+    pub(crate) fn new(pipeline: gst::Pipeline) -> Self {
+        Self {
+            pipeline,
+            armed: true,
+        }
+    }
+
+    /// Hands the pipeline to its opened owner; the guard no longer resets it.
+    pub(crate) fn take(mut self) -> gst::Pipeline {
+        self.armed = false;
+        self.pipeline.clone()
+    }
+}
+
+impl std::ops::Deref for PipelineGuard {
+    type Target = gst::Pipeline;
+
+    fn deref(&self) -> &Self::Target {
+        &self.pipeline
+    }
+}
+
+impl Drop for PipelineGuard {
+    fn drop(&mut self) {
+        if self.armed {
+            let _ = self.pipeline.set_state(gst::State::Null);
+            #[cfg(test)]
+            record_aborted_drop(&self.pipeline);
+        }
+    }
+}
+
+#[cfg(test)]
+std::thread_local! {
+    static ABORTED_DROPS: std::cell::RefCell<Vec<(gst::State, Vec<(String, gst::State)>)>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
+#[cfg(test)]
+fn record_aborted_drop(pipeline: &gst::Pipeline) {
+    let mut non_null = Vec::new();
+    let mut iter = pipeline.iterate_recurse();
+    while let Ok(Some(element)) = iter.next() {
+        let state = element.current_state();
+        if state != gst::State::Null {
+            non_null.push((element.name().to_string(), state));
+        }
+    }
+    ABORTED_DROPS.with(|drops| {
+        drops
+            .borrow_mut()
+            .push((pipeline.current_state(), non_null));
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -501,5 +580,44 @@ mod tests {
         // Also verify 1 hour at standard 48kHz audio rate.
         let t_48k = RationalTime::new(3_600 * 48_000, Rational::new(48_000, 1));
         assert_eq!(rational_to_ns(t_48k), one_hour_ns);
+    }
+
+    /// WHY: Opening an unreadable or empty source (`/dev/null`, a truncated
+    /// capture, or a timeline fixture stub) fails in `READY -> PAUSED` after
+    /// `uridecodebin`, `filesrc`, `typefind`, and downstream converters have
+    /// already transitioned `NULL -> READY`. Dropping the pipeline at `?`
+    /// without resetting it to `gst::State::Null` disposes those elements in
+    /// `READY`, printing `Trying to dispose element ..., but it is in READY
+    /// instead of the NULL state` and racing `decodebin` pad teardown into
+    /// `g_object_set_data: assertion 'G_IS_OBJECT (object)' failed` segfaults.
+    /// Covers every GStreamer open path (`GstDecoder::open` in `Gpu` and `Cpu`
+    /// modes plus `GstAudioReader::open`). Does not catch a pipeline leaked
+    /// after `PipelineGuard::take` succeeds; `GstDecoder::drop` and
+    /// `GstAudioReader::drop` own post-open teardown.
+    #[test]
+    fn a_failed_open_returns_its_pipeline_to_null_before_dropping_it() {
+        ABORTED_DROPS.with(|drops| drops.borrow_mut().clear());
+        let empty = Path::new("/dev/null");
+        assert!(GstDecoder::open(empty, OutputMode::Gpu).is_err());
+        assert!(GstDecoder::open(empty, OutputMode::Cpu).is_err());
+        assert!(crate::gst_audio::GstAudioReader::open(empty, 48_000, 2).is_err());
+
+        let drops = ABORTED_DROPS.with(|drops| std::mem::take(&mut *drops.borrow_mut()));
+        assert!(
+            drops.len() >= 3,
+            "expected at least 3 aborted pipeline opens (GPU/CPU video + audio), got {}",
+            drops.len()
+        );
+        for (idx, (pipeline_state, non_null_children)) in drops.iter().enumerate() {
+            assert_eq!(
+                *pipeline_state,
+                gst::State::Null,
+                "aborted open #{idx} dropped pipeline in {pipeline_state:?} instead of Null (children: {non_null_children:?})"
+            );
+            assert!(
+                non_null_children.is_empty(),
+                "aborted open #{idx} dropped child elements outside Null: {non_null_children:?}"
+            );
+        }
     }
 }

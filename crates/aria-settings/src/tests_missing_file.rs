@@ -9,7 +9,7 @@ fn missing_file_is_all_defaults() {
     let s = load(Path::new("/nonexistent/aria/config.toml")).unwrap();
     assert_eq!(s, Settings::default());
     assert!(!s.ai.is_configured());
-    assert_eq!(s.appearance.theme, ThemeChoice::DarkBlue);
+    assert_eq!(s.appearance.theme, ThemeChoice::Blue);
     assert_eq!(s.storage, StorageSettings::default());
     assert_eq!(s.storage.download_quota_mib, DEFAULT_DOWNLOAD_QUOTA_MIB);
 }
@@ -367,7 +367,7 @@ fn save_round_trips_and_preserves_comments_and_unknown_tables() {
         .unwrap();
 
     let mut s = load(&path).unwrap();
-    s.appearance.theme = ThemeChoice::Default;
+    s.appearance.theme = ThemeChoice::Teal;
     s.ai.model = "qwen3:14b".into();
     save(&path, &s).unwrap();
 
@@ -379,7 +379,7 @@ fn save_round_trips_and_preserves_comments_and_unknown_tables() {
 
     let reloaded = load(&path).unwrap();
     assert_eq!(reloaded.ai.model, "qwen3:14b");
-    assert_eq!(reloaded.appearance.theme, ThemeChoice::Default);
+    assert_eq!(reloaded.appearance.theme, ThemeChoice::Teal);
 }
 
 #[test]

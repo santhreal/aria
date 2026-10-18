@@ -11,6 +11,8 @@ use crate::error::ModelError;
 use crate::project::Project;
 use crate::schema::{PROJECT_SCHEMA_VERSION, ProjectSchema};
 
+mod pretty;
+
 /// Recommended extension for Aria project files.
 pub const PROJECT_FILE_EXTENSION: &str = "aria";
 
@@ -28,15 +30,36 @@ impl Project {
     /// from a v1 file may now hold v2-only data like keyframes; persisting
     /// it as "v1" would lie to older readers.)
     pub fn save_to_file(&self, path: &Path) -> io::Result<()> {
-        let mut doc = self.clone();
-        doc.schema.version = PROJECT_SCHEMA_VERSION;
-        doc.schema.kind = crate::schema::PROJECT_SCHEMA_KIND.into();
-        let mut json = serde_json::to_string_pretty(&doc).map_err(io::Error::other)?;
-        json.push('\n');
+        let json = self.serialize_current().map_err(io::Error::other)?;
 
         // Keep serialization entirely ahead of filesystem inspection so a
         // serialization failure cannot disturb an existing project.
-        persist_serialized(path, json.as_bytes(), &StdPersistenceFs)
+        persist_serialized(path, &json, &StdPersistenceFs)
+    }
+
+    /// The saved document: pretty JSON with a trailing newline, stamped with
+    /// this build's schema version and kind, written by [`pretty::to_vec`]
+    /// (the bytes `serde_json::to_vec_pretty` writes).
+    ///
+    /// A project whose schema is already current is written as it is; only an
+    /// older one is copied to be restamped, since the copy of a large timeline
+    /// costs as much as writing it.
+    fn serialize_current(&self) -> serde_json::Result<Vec<u8>> {
+        let stale;
+        let doc = if self.schema.version == PROJECT_SCHEMA_VERSION
+            && self.schema.kind == crate::schema::PROJECT_SCHEMA_KIND
+        {
+            self
+        } else {
+            let mut copy = self.clone();
+            copy.schema.version = PROJECT_SCHEMA_VERSION;
+            copy.schema.kind = crate::schema::PROJECT_SCHEMA_KIND.into();
+            stale = copy;
+            &stale
+        };
+        let mut json = pretty::to_vec(doc)?;
+        json.push(b'\n');
+        Ok(json)
     }
 
     /// Deserialize a project from a `.aria` JSON file.
@@ -70,13 +93,10 @@ impl Project {
 
     /// Serialize this project to a JSON string stamped with the current schema version.
     pub fn save_to_string(&self) -> Result<String, ModelError> {
-        let mut doc = self.clone();
-        doc.schema.version = PROJECT_SCHEMA_VERSION;
-        doc.schema.kind = crate::schema::PROJECT_SCHEMA_KIND.into();
-        let mut json = serde_json::to_string_pretty(&doc)
+        let json = self
+            .serialize_current()
             .map_err(|e| ModelError::InvalidProjectFile(e.to_string()))?;
-        json.push('\n');
-        Ok(json)
+        String::from_utf8(json).map_err(|e| ModelError::InvalidProjectFile(e.to_string()))
     }
 
     /// Deserialize a project from a JSON string, validating and migrating its schema.

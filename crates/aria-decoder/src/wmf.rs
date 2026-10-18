@@ -159,7 +159,7 @@ pub struct WmfDecoder {
     /// Cleared on [`VideoDecoder::seek`] (decode position moved).
     last_pts: Option<RationalTime>,
     /// Observed seek/decode costs driving the adaptive roll window.
-    seek_stats: crate::seek::SeekStats,
+    seek_stats: crate::seek_cost::SeekStats,
 }
 
 // SAFETY: the Source Reader and its COM children are owned and touched by a

@@ -1559,6 +1559,7 @@ impl Encoder for NativeEncoder {
             .call_encoder_open(&self.scoped_ctx, &self.encoder_id, &path_str, &raw_cfg)
             .map_err(EncodeError::Start)?;
         Ok(Box::new(NativeEncoderSession {
+            encoder_id: self.encoder_id.clone(),
             instance,
             finished: false,
             audio_sample_rate,
@@ -1570,6 +1571,7 @@ impl Encoder for NativeEncoder {
 }
 
 struct NativeEncoderSession {
+    encoder_id: String,
     instance: u64,
     finished: bool,
     audio_sample_rate: u32,
@@ -1630,6 +1632,10 @@ impl VideoEncoder for NativeEncoderSession {
         self.state
             .call_encoder_finish(&self.scoped_ctx, self.instance)
             .map_err(EncodeError::Encode)
+    }
+
+    fn choice(&self) -> aria_core::EncoderChoice {
+        aria_core::EncoderChoice::only(self.encoder_id.clone(), None)
     }
 }
 

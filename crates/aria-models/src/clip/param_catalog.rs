@@ -238,23 +238,34 @@ impl ParamSpec {
     /// which curve leaves each one, and a uniform shape means one drawing path
     /// for all four value kinds.
     pub fn keyframes(&self, clip: &Clip) -> Vec<(i64, Easing)> {
-        if !self.available(clip) {
-            return Vec::new();
+        let mut marks = Vec::new();
+        self.visit_keyframes(clip, |tick, easing| marks.push((tick, easing)));
+        marks
+    }
+
+    /// Call `visit` with every keyframe on this property as `(clip-local tick,
+    /// easing)`, in tick order, without collecting them.
+    ///
+    /// Resolves the route once. [`ParamSpec::keyframes`] is this collected.
+    pub fn visit_keyframes(&self, clip: &Clip, mut visit: impl FnMut(i64, Easing)) {
+        if matches!(self.scope, ParamScope::Audio)
+            && !matches!(clip.content, ClipSource::Media { .. })
+        {
+            return;
         }
-        fn marks<T: Clone>(p: &Param<T>) -> Vec<(i64, Easing)> {
-            p.keyframes().iter().map(|k| (k.tick, k.easing)).collect()
+        fn marks<T: Clone>(p: &Param<T>, visit: &mut impl FnMut(i64, Easing)) {
+            p.keyframes().iter().for_each(|k| visit(k.tick, k.easing));
         }
         match self.resolve(clip) {
-            ParamRoute::Scalar(p) => marks(p),
-            ParamRoute::Vec2(p) => marks(p),
-            ParamRoute::Vec3(p) => marks(p),
-            ParamRoute::Scale(p) => marks(p),
-            ParamRoute::Color(p) => marks(p),
-            ParamRoute::Rect(p) => marks(p),
+            ParamRoute::Scalar(p) => marks(p, &mut visit),
+            ParamRoute::Vec2(p) => marks(p, &mut visit),
+            ParamRoute::Vec3(p) => marks(p, &mut visit),
+            ParamRoute::Scale(p) => marks(p, &mut visit),
+            ParamRoute::Color(p) => marks(p, &mut visit),
+            ParamRoute::Rect(p) => marks(p, &mut visit),
             // A value the clip does not store cannot be keyframed until someone
             // writes one, which turns the route into a real `Param`.
-            ParamRoute::Const(_) => Vec::new(),
-            ParamRoute::Absent => Vec::new(),
+            ParamRoute::Const(_) | ParamRoute::Absent => {}
         }
     }
 

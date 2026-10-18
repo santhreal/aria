@@ -82,6 +82,8 @@ pub fn pulse_delta(spec: &MotionSpec, view: EntityId, cx: &mut App) -> f32 {
     if cx.reduce_motion() {
         return 0.0;
     }
+    // A pulse drawn in a cached panel body repaints that body, not the window.
+    let view = building_view().unwrap_or(view);
     let now = cx.frame_instant();
     let clock = cx.default_global::<PulseClock>();
     clock.leases.insert(view, now);
@@ -103,7 +105,7 @@ pub fn pulse_delta(spec: &MotionSpec, view: EntityId, cx: &mut App) -> f32 {
 }
 
 /// The motion state every element of the window shares: one hover store, one
-/// glide store, and the frame they sample.
+/// glide store, the frame they sample, and the cached views drawn in it.
 #[derive(Default)]
 struct Chrome {
     driver: MotionDriver,
@@ -113,8 +115,46 @@ struct Chrome {
     frame: Option<MotionFrame>,
     hover: TweenStore<MotionKey, FrameInstant>,
     glide: TweenStore<MotionKey, FrameInstant>,
+    /// Keys whose hover toggle started a transition at the stored instant.
+    hover_started: HashMap<MotionKey, FrameInstant>,
     /// Set by [`hold_for_playback`] while playback runs.
     held: bool,
+    views: Views,
+}
+
+/// The cached views of the open frame, and where its moving values were read.
+///
+/// A cached view that is not notified replays its last drawing and reads no
+/// value. So a frame that replays one is partial: the stores are not advanced,
+/// because advancing drops every key no element read, and the replayed view's
+/// keys would restart on its next build. A value still moving in a built view
+/// repaints that view alone on the next frame; one moving anywhere else
+/// repaints the window.
+#[derive(Default)]
+struct Views {
+    /// The cached view whose body is being built.
+    building: Option<EntityId>,
+    /// The empty view whose notification redraws the window chrome alone.
+    chrome: Option<EntityId>,
+    /// The cached views mounted in this frame.
+    mounted: Vec<EntityId>,
+    /// The cached views built in this frame.
+    built: Vec<EntityId>,
+    /// The cached views a moving value was read in.
+    moving: Vec<EntityId>,
+    /// Whether a moving value was read outside every cached view.
+    moving_root: bool,
+}
+
+impl Views {
+    /// Records that a value read now is still moving.
+    fn moving(&mut self) {
+        match self.building {
+            Some(view) if !self.moving.contains(&view) => self.moving.push(view),
+            Some(_) => {}
+            None => self.moving_root = true,
+        }
+    }
 }
 
 impl Chrome {
@@ -146,14 +186,90 @@ fn with_frame<R>(f: impl FnOnce(&mut Chrome, MotionFrame) -> R) -> R {
     })
 }
 
+/// The frames this thread has opened, and a ceiling a test sets on them.
+///
+/// A window that leaves itself dirty at the end of every draw is redrawn by
+/// gpui's test executor inside one flush, without end. With a ceiling set, the
+/// frame past it panics with the count, so such a test fails where it would
+/// otherwise hang.
+#[cfg(test)]
+pub(crate) mod frames {
+    use std::cell::Cell;
+
+    thread_local! {
+        static OPENED: Cell<usize> = const { Cell::new(0) };
+        static CEILING: Cell<Option<usize>> = const { Cell::new(None) };
+    }
+
+    /// Fail the frame after `more` further frames, or never with `None`.
+    pub(crate) fn allow(more: Option<usize>) {
+        CEILING.set(more.map(|more| OPENED.get() + more));
+    }
+
+    pub(super) fn open() {
+        let opened = OPENED.get() + 1;
+        OPENED.set(opened);
+        if let Some(ceiling) = CEILING.get()
+            && opened > ceiling
+        {
+            CEILING.set(None);
+            panic!("a draw loop: frame {opened} opened past the ceiling of {ceiling}");
+        }
+    }
+}
+
 /// Opens the frame every hover blend, glide, and entrance of this draw
 /// samples: the current [`App::frame_instant`] under the current
 /// [`App::motion_policy`]. The window root calls this first in its render.
 pub fn begin_frame(cx: &App) {
+    #[cfg(test)]
+    frames::open();
     CHROME.with(|chrome| {
         let chrome = &mut *chrome.borrow_mut();
         chrome.frame = Some(chrome.driver.begin(cx));
+        let now = chrome.frame.expect(NO_FRAME).now();
+        chrome.hover_started.retain(|_, at| *at == now);
+        chrome.views.chrome = None;
+        let views = &mut chrome.views;
+        views.mounted.clear();
+        views.built.clear();
+        views.moving.clear();
+        views.moving_root = false;
     });
+}
+
+/// Records that cached view `view` is mounted in the open frame, built or
+/// replayed.
+pub(crate) fn mount_view(view: EntityId) {
+    CHROME.with(|chrome| chrome.borrow_mut().views.mounted.push(view));
+}
+/// Records that `view` redraws the window chrome of the open frame without
+/// notifying its cached panel bodies.
+pub(crate) fn mount_chrome(view: EntityId) {
+    CHROME.with(|chrome| chrome.borrow_mut().views.chrome = Some(view));
+}
+
+/// The view that redraws the window chrome of the open frame, if any.
+pub(crate) fn chrome_view() -> Option<EntityId> {
+    CHROME.with(|chrome| chrome.borrow().views.chrome)
+}
+
+/// Builds the body of cached view `view` in `build`: a value read there that
+/// is still moving repaints `view` alone on the next frame.
+pub(crate) fn build_view<R>(view: EntityId, build: impl FnOnce() -> R) -> R {
+    let outer = CHROME.with(|chrome| {
+        let views = &mut chrome.borrow_mut().views;
+        views.built.push(view);
+        views.building.replace(view)
+    });
+    let built = build();
+    CHROME.with(|chrome| chrome.borrow_mut().views.building = outer);
+    built
+}
+
+/// The cached view whose body is being built, if any.
+pub(crate) fn building_view() -> Option<EntityId> {
+    CHROME.with(|chrome| chrome.borrow().views.building)
 }
 
 /// Draws every hover fade and glide at its end state while `playing`, so a
@@ -180,17 +296,45 @@ pub(crate) fn frame() -> MotionFrame {
 /// frame while a value is still moving. Returns whether a value is still
 /// moving.
 ///
+/// A frame that replayed a cached view advances neither store (see `Views`).
+/// A value moving only inside built cached views requests the next frame for
+/// those views; any other moving value requests it for the window.
+///
 /// Called once per draw, during prepaint, after the elements that read the
 /// stores. A second call in one draw advances the stores' frame counter twice
 /// and drops the values the draw had just read.
 pub fn end_frame(window: &mut Window) -> bool {
-    CHROME.with(|chrome| {
+    let (root, chrome_view, mut views) = CHROME.with(|chrome| {
         let chrome = &mut *chrome.borrow_mut();
-        let mut frame = chrome.frame.expect(NO_FRAME);
-        frame.track(&mut chrome.hover);
-        frame.track(&mut chrome.glide);
-        chrome.driver.end(frame, window)
-    })
+        let frame = chrome.frame.expect(NO_FRAME);
+        let views = &mut chrome.views;
+        let partial = views.mounted.iter().any(|view| !views.built.contains(view));
+        let active = !partial && {
+            let hover = chrome.hover.end_frame(frame.policy(), frame.now());
+            let glide = chrome.glide.end_frame(frame.policy(), frame.now());
+            hover || glide
+        };
+        let root = views.moving_root || (active && views.moving.is_empty());
+        (root, views.chrome, std::mem::take(&mut views.moving))
+    });
+    if root {
+        match chrome_view {
+            Some(chrome) => {
+                if !views.contains(&chrome) {
+                    views.push(chrome);
+                }
+            }
+            None => {
+                window.request_animation_frame();
+                return true;
+            }
+        }
+    }
+    let moving = !views.is_empty();
+    for view in views {
+        window.on_next_frame(move |_, cx| cx.notify(view));
+    }
+    moving
 }
 
 /// A one-shot [`Animation`] over `spec`: its total scaled by the motion policy
@@ -202,13 +346,25 @@ pub fn animation(spec: MotionSpec) -> Animation {
     Animation::new(policy.scale(spec.total())).with_easing(move |raw| spec.progress(raw))
 }
 
-/// One stage of the editor opening. Fast and decelerating: the window is already
-/// on screen, so this is the contents arriving, not a curtain.
-pub const OPEN: MotionSpec = MotionSpec::new(320, Easing::EaseOutExpo);
-/// What each later stage of [`OPEN`] waits for the one before it, in
-/// milliseconds. The two stages, the bar and the docked panels, fit inside the
-/// splash's own exit.
-pub const OPEN_STAGE_MS: u64 = 80;
+/// The span a wait must outlast before a loader appears, spent by
+/// `glide::WAIT`: only the span is read, never the curve.
+pub const LOADER_WAIT: MotionSpec = MotionSpec::new(320, Easing::EaseOutExpo);
+/// How far the editor's arrival travels before each later stage of the layout
+/// starts to arrive, as a fraction of the route value: the bar arrives with
+/// the route, the docked panels a quarter behind it.
+pub const OPEN_STAGE_LAG: f32 = 0.25;
+
+/// How far stage `stage` of the editor layout has arrived when the route has
+/// arrived `arrived` of the way, in `0.0..=1.0`.
+///
+/// The stages are read off the one route value rather than run as their own
+/// one-shots, so the opening ends when the route lands, a route change during
+/// it continues from the screen, and reduced motion, which lands the route on
+/// its first frame, draws every stage at rest.
+pub fn open_stage(arrived: f32, stage: usize) -> f32 {
+    let lag = (OPEN_STAGE_LAG * stage as f32).min(0.9);
+    ((arrived - lag) / (1.0 - lag)).clamp(0.0, 1.0)
+}
 /// A pan the hand let go of. The length of [`presets::SCROLL_GLIDE`], on the
 /// one curve that overshoots, so the offset carries the momentum of the release
 /// and settles instead of stopping dead under the finger that left.

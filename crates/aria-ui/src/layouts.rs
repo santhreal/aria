@@ -196,10 +196,7 @@ impl PaneLayout {
             children: vec![
                 (
                     viewer_r,
-                    Node::Frame(Frame::new(
-                        FrameId::CENTER,
-                        vec![PANEL_VIEWER, PANEL_MIXER, PANEL_ASSISTANT],
-                    )),
+                    Node::Frame(Frame::new(FrameId::CENTER, vec![PANEL_VIEWER])),
                 ),
                 (
                     timeline_r,

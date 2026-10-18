@@ -22,9 +22,19 @@ use crate::transport;
 const SELECTION_MARGIN: f32 = 0.12;
 
 impl AppState {
-    /// The timeline's drawable width, in pixels. The panel reads it too: what
-    /// is on screen decides what a fit shows and what a draw has to build.
-    pub(crate) fn timeline_viewport_px(&self) -> f32 {
+    /// The timeline's drawable width, in pixels: the Timeline frame as last
+    /// drawn, less the outline column. The panel reads it too: what is on
+    /// screen decides what a fit shows and what a draw has to build.
+    ///
+    /// Before the frame is first drawn, the width the editor layout leaves
+    /// beside the side panes. A frame that is drawn at a new width redraws
+    /// (see `AppState::record_timeline_frame`), so a draw never builds the
+    /// lanes for a width other than the one on screen.
+    pub fn timeline_viewport_px(&self) -> f32 {
+        let outline = self.outline_drawn_width();
+        if let Some([_, _, width, _]) = self.timeline_frame {
+            return (width - outline).max(1.0);
+        }
         let sidebar = if self.ui_settings.sidebar_collapsed {
             0.0
         } else {
@@ -35,12 +45,7 @@ impl AppState {
         } else {
             self.ui_settings.inspector_width
         };
-        transport::editor_timeline_viewport_px(
-            self.last_window_w,
-            sidebar,
-            inspector,
-            self.ui_settings.outline_width,
-        )
+        transport::editor_timeline_viewport_px(self.last_window_w, sidebar, inspector, outline)
     }
 
     /// Record where the timeline panel is drawn, in window pixels.
@@ -65,9 +70,9 @@ impl AppState {
     /// agree about where tick zero is. Subtracting the header width alone put
     /// the whole media rail's width into the sequence: a click on the first
     /// frame landed three seconds in.
-    pub(crate) fn timeline_content_left(&self) -> Option<f32> {
-        self.timeline_frame
-            .map(|[x, _, _, _]| x + self.ui_settings.outline_width)
+    pub fn timeline_content_left(&self) -> Option<f32> {
+        let outline = self.outline_drawn_width();
+        self.timeline_frame.map(|[x, _, _, _]| x + outline)
     }
 
     /// Move the timeline's horizontal scroll, and record whether the drawn

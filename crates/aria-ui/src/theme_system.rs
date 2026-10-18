@@ -1,10 +1,4 @@
-//! System: 4 helpers from [`super`].
-//!
-//! Split out of `theme.rs` to stay under the file ceiling. A pure
-//! move. Each item is `pub(super)` so the parent and its other children can
-//! reach it by name; nothing else changed.
-
-use super::*;
+//! System: font fallbacks and gamma encoding, helpers of [`super`].
 
 pub(super) fn system_sans() -> &'static str {
     if cfg!(target_os = "macos") {
@@ -23,17 +17,6 @@ pub(super) fn system_mono() -> &'static str {
         "Consolas"
     } else {
         "DejaVu Sans Mono"
-    }
-}
-
-/// Move one colour to a new hue, keeping its saturation, lightness, and alpha.
-///
-/// The accent family is tuned for contrast against both appearances; a theme choice is
-/// allowed to change what colour it is, not how visible it is.
-pub(super) fn retint(color: Hsla, hue_degrees: f32) -> Hsla {
-    Hsla {
-        h: (hue_degrees / 360.0).rem_euclid(1.0),
-        ..color
     }
 }
 

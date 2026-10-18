@@ -332,6 +332,9 @@ fn plugin_encoders_list_in_format_cycle_and_control_dialog_visibility_and_extens
         fn finish(&mut self) -> Result<(), EncodeError> {
             Ok(())
         }
+        fn choice(&self) -> aria_core::EncoderChoice {
+            aria_core::EncoderChoice::only("dummy", None)
+        }
     }
     impl Encoder for DummyEncoder {
         fn open(

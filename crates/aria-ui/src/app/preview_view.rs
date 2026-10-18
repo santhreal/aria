@@ -60,19 +60,6 @@ impl AppState {
         self.preview_view.action_safe = !self.preview_view.action_safe;
     }
 
-    /// Whether either safe margin is drawn.
-    pub fn safe_margins_on(&self) -> bool {
-        self.preview_view.title_safe || self.preview_view.action_safe
-    }
-
-    /// The Viewer's Safe chip: both margins off while either is drawn,
-    /// otherwise both on.
-    pub fn toggle_safe_margins(&mut self) {
-        let on = !self.safe_margins_on();
-        self.preview_view.title_safe = on;
-        self.preview_view.action_safe = on;
-    }
-
     pub fn toggle_preview_grid(&mut self) {
         self.preview_view.grid = !self.preview_view.grid;
     }

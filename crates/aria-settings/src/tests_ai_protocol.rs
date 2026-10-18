@@ -307,14 +307,28 @@ fn provider_key_resolution_prefers_the_named_environment_variable() {
     assert_eq!(blank_literal.resolve_key(), None);
 }
 
+/// Every theme choice reads back from the key it writes, and the keys and
+/// labels are distinct, so a new family is covered by default. The keys from
+/// before the accent families read as their successor.
 #[test]
-fn theme_key_index_round_trip() {
+fn theme_key_round_trip_and_legacy_keys() {
+    let mut keys = std::collections::BTreeSet::new();
+    let mut labels = std::collections::BTreeSet::new();
     for theme in ThemeChoice::ALL {
         assert_eq!(ThemeChoice::from_key(theme.key()), Some(theme));
-        assert_eq!(ThemeChoice::from_index(theme.index()), theme);
+        assert!(keys.insert(theme.key()), "{theme:?} reuses a key");
+        assert!(labels.insert(theme.label()), "{theme:?} reuses a label");
     }
+    for legacy in ["default", "dark-blue", "dark_blue"] {
+        assert_eq!(
+            ThemeChoice::from_key(legacy),
+            Some(ThemeChoice::Blue),
+            "{legacy}"
+        );
+    }
+    assert_eq!(ThemeChoice::from_key("ember"), Some(ThemeChoice::Ember));
     assert_eq!(ThemeChoice::from_key("nonsense"), None);
-    assert_eq!(ThemeChoice::from_index(99), ThemeChoice::DarkBlue);
+    assert_eq!(ThemeChoice::default(), ThemeChoice::Blue);
 }
 
 #[test]

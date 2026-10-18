@@ -140,7 +140,8 @@ fn run_plugin_export(
         &mut opener,
         &mut observer,
     )
-    .map_err(|err| err.to_string())?;
+    .map_err(|err| err.to_string())?
+    .frames;
     debug_assert!(
         guard.committed(),
         "the export published without the boundary"

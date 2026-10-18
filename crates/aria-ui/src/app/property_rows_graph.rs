@@ -23,6 +23,22 @@ pub enum GraphMode {
     Speed,
 }
 
+/// Vertical inset of the plot in the graph editor: the top label's value draws
+/// this far below the top edge and the bottom label's this far above the
+/// bottom. The panel draws the value axis and its grid from the same inset.
+pub const GRAPH_PAD_Y: f32 = 18.0;
+
+/// The y of the top, middle and bottom value labels in a graph `height` px
+/// tall, as the curve maps them.
+pub fn graph_axis_ys(height: f32) -> [f32; 3] {
+    let plot_h = (height - GRAPH_PAD_Y * 2.0).max(24.0);
+    [
+        GRAPH_PAD_Y,
+        GRAPH_PAD_Y + plot_h * 0.5,
+        GRAPH_PAD_Y + plot_h,
+    ]
+}
+
 /// Incoming or outgoing side of a keyframe's temporal ease or spatial tangent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GraphHandleSide {
@@ -818,7 +834,7 @@ impl AppState {
             targets.push((clip, param));
         }
 
-        let pad_y = 18.0;
+        let pad_y = GRAPH_PAD_Y;
         let plot_h = (height - pad_y * 2.0).max(24.0);
         let mut min_y = f32::INFINITY;
         let mut max_y = f32::NEG_INFINITY;
@@ -1223,7 +1239,7 @@ impl AppState {
         height: f32,
     ) -> bool {
         let model = self.build_timeline_graph_model(fps, pps, scroll_x, height);
-        let pad_y = 18.0;
+        let pad_y = GRAPH_PAD_Y;
         let plot_h = (height - pad_y * 2.0).max(24.0);
         let val_at_y = |y: f32| -> f32 {
             let frac = (1.0 - ((y - pad_y) / plot_h)).clamp(0.0, 1.0);

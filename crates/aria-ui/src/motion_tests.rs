@@ -365,3 +365,48 @@ fn two_views_read_one_pulse_phase() {
         "a quarter period later the phase is a quarter further: {first} then {later}"
     );
 }
+
+/// WHY: the editor opening is drawn off the one route value. The class this
+/// closes is an opening on a clock of its own: it outlived the route that drew
+/// it, faded the body twice (route times stage), and replayed from zero when
+/// the route bounced. Holding the stages to the route value means: the bar is
+/// the route, a later stage starts a fixed share of the route behind and lands
+/// with it, and nothing is drawn outside `0.0..=1.0`.
+/// Does not cover the element styling in `shell::opening`, only the value it reads.
+#[test]
+fn every_opening_stage_is_read_off_the_route_and_lands_with_it() {
+    let samples: Vec<f32> = (0..=40).map(|i| i as f32 / 40.0).collect();
+    for &arrived in &samples {
+        assert_eq!(
+            open_stage(arrived, 0),
+            arrived,
+            "the bar is the route itself"
+        );
+        for stage in 1..4 {
+            let t = open_stage(arrived, stage);
+            assert!((0.0..=1.0).contains(&t), "stage {stage} at {arrived}: {t}");
+            assert!(
+                t <= open_stage(arrived, stage - 1),
+                "stage {stage} is ahead of the stage before it at {arrived}"
+            );
+        }
+    }
+    for stage in 0..4 {
+        assert_eq!(
+            open_stage(1.0, stage),
+            1.0,
+            "stage {stage} lands with the route"
+        );
+        assert_eq!(open_stage(0.0, stage), 0.0, "stage {stage} starts hidden");
+    }
+    assert_eq!(
+        open_stage(OPEN_STAGE_LAG, 1),
+        0.0,
+        "the panels wait their lag"
+    );
+    assert!(
+        open_stage(OPEN_STAGE_LAG + 0.05, 1) > 0.0,
+        "and start right after it"
+    );
+    assert_eq!(OPEN_STAGE_LAG, 0.25);
+}

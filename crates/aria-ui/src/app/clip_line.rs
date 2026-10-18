@@ -281,14 +281,25 @@ impl AppState {
     }
 
     /// Keep the scale `clip`'s bar drew its line in when it was pressed.
+    ///
+    /// Only the lane holding the clip is written: a write moves a lane's
+    /// clips, and a moved lane is rebuilt by the next projection.
     fn pin_line_scale(&mut self, clip: ClipId, scale: LineScale) {
         let id = clip.raw();
-        if let Some(line) = self
-            .store_mut()
+        let Some(lane) = self
+            .store
             .sequence
             .tracks
+            .iter()
+            .position(|lane| lane.clips.iter().any(|ui| ui.id == id && ui.line.is_some()))
+        else {
+            return;
+        };
+        let lane = &mut self.store_mut().sequence.tracks[lane];
+        if let Some(line) = lane
+            .clips
+            .to_mut()
             .iter_mut()
-            .flat_map(|lane| lane.clips.iter_mut())
             .find(|ui| ui.id == id)
             .and_then(|ui| ui.line.as_mut())
         {

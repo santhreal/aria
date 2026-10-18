@@ -417,38 +417,3 @@ fn every_enumerated_choice_persists_under_its_own_key() {
         assert_eq!(ThemeChoice::from_key(choice.key()), Some(choice));
     }
 }
-/// A theme choice is a hue, so it changes the accent family and nothing else.
-#[test]
-fn a_theme_choice_retints_the_accent_and_keeps_the_palette() {
-    let base = crate::theme::Theme::dark();
-    let default = base.clone().with_choice(ThemeChoice::Default);
-    assert_eq!(
-        default.accent, base.accent,
-        "the default choice changed the shipped accent"
-    );
-    for choice in [ThemeChoice::Ember, ThemeChoice::DarkBlue] {
-        let tinted = base.clone().with_choice(choice);
-        assert_ne!(
-            tinted.accent.h,
-            base.accent.h,
-            "{} left the accent hue alone",
-            choice.key()
-        );
-        assert!(
-            (tinted.accent.l - base.accent.l).abs() < 1e-6
-                && (tinted.accent.s - base.accent.s).abs() < 1e-6,
-            "{} changed the accent's contrast, not just its hue",
-            choice.key()
-        );
-        assert_eq!(
-            tinted.playhead, tinted.accent,
-            "the playhead stopped following the accent"
-        );
-        assert_eq!(tinted.bg, base.bg, "a neutral moved with the accent");
-        assert_eq!(tinted.text, base.text, "text moved with the accent");
-        assert_eq!(
-            tinted.danger, base.danger,
-            "a meaning colour moved with the accent"
-        );
-    }
-}

@@ -1,5 +1,6 @@
 //! The Remove Attributes dialog (Edit > Remove Attributes).
 
+use crate::components::Wraps as _;
 use aria_models::ClipAttribute;
 use gpui::{
     Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled,
@@ -57,7 +58,7 @@ pub fn render(
 
     let toggles = div()
         .flex()
-        .flex_wrap()
+        .wraps()
         .gap(px(Theme::SPACE_XS))
         .children(rows.into_iter().map(|(attribute, ticked)| {
             components::chip(

@@ -122,8 +122,8 @@ pub use workspaces::{
 
 /// Re-export core types plugins commonly need.
 pub use aria_core::{
-    ColorSpace, DecodeError, EncodeError, EncoderConfig, FrameData, PixelFormat, RationalTime,
-    RgbaImage, SourceInfo, TimeRange, VideoDecoder, VideoEncoder, VideoFrame,
+    ColorSpace, DecodeError, EncodeError, EncoderChoice, EncoderConfig, FrameData, PixelFormat,
+    RationalTime, RgbaImage, SourceInfo, TimeRange, VideoDecoder, VideoEncoder, VideoFrame,
 };
 
 /// What a decoder plugin implements and returns.

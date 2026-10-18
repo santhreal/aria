@@ -144,13 +144,7 @@ fn shape(
 ) -> gpui::ShapedLine {
     let run = TextRun {
         len: text.len(),
-        font: gpui::Font {
-            family: theme.font_sans.clone(),
-            features: gpui::FontFeatures::default(),
-            fallbacks: None,
-            weight: gpui::FontWeight::NORMAL,
-            style: gpui::FontStyle::Normal,
-        },
+        font: theme.ui_font(gpui::FontWeight::NORMAL),
         color,
         background_color: None,
         underline: None,

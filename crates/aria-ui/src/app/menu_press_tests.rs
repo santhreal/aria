@@ -21,8 +21,8 @@ use std::path::Path;
 use gpui::{Entity, Modifiers, MouseButton, Pixels, Point, VisualTestContext, point, px};
 
 use crate::app::AppState;
-use crate::app::viewer_row_tests::shell_with_take;
-use crate::chrome::menu_items::{DropEntry, TIMELINE_DISPLAY, drop_entries};
+use crate::app::viewer_row_tests::{bounds_of, shell_with_take};
+use crate::chrome::menu_items::{DropEntry, drop_entries};
 use crate::interned::intern;
 use crate::test_support::{bounds_inside, drawn_shell};
 use crate::types::AppMenu;
@@ -35,9 +35,7 @@ fn click(visual: &mut VisualTestContext, at: Point<Pixels>) {
 
 /// The centre of the element drawn with `selector`, which must be on screen.
 fn centre(visual: &mut VisualTestContext, selector: &str) -> Point<Pixels> {
-    let bounds = visual
-        .debug_bounds(intern(selector))
-        .unwrap_or_else(|| panic!("nothing is drawn as {selector}"));
+    let bounds = bounds_of(visual, selector);
     let window = visual.update(|window, _| window.viewport_size());
     let at = bounds.center();
     assert!(
@@ -164,7 +162,7 @@ fn display_buttons() -> Vec<&'static str> {
         &Path::new(env!("CARGO_MANIFEST_DIR")).join("src"),
         &mut files,
     );
-    let needle = concat!("display_", "btn(\"");
+    let needle = concat!("display_", "btn(");
     let mut ids = Vec::new();
     for file in files {
         if file.to_string_lossy().ends_with("_tests.rs") {
@@ -172,10 +170,11 @@ fn display_buttons() -> Vec<&'static str> {
         }
         let text = std::fs::read_to_string(&file).expect("read a source file");
         for (at, _) in text.match_indices(needle) {
-            let id = text[at + needle.len()..]
-                .split('"')
-                .next()
-                .expect("a quoted element id");
+            // The definition names its parameter, not an id.
+            let Some(quoted) = text[at + needle.len()..].trim_start().strip_prefix('"') else {
+                continue;
+            };
+            let id = quoted.split('"').next().expect("a quoted element id");
             ids.push(intern(id));
         }
     }
@@ -184,15 +183,19 @@ fn display_buttons() -> Vec<&'static str> {
     ids
 }
 
-/// Whether each of the display submenu's rows is checked, in the order the
+/// Whether each row of the View submenu `caption` is checked, in the order the
 /// submenu draws them.
-fn checked_rows(visual: &mut VisualTestContext, state: &Entity<AppState>) -> Vec<bool> {
+fn checked_rows(
+    visual: &mut VisualTestContext,
+    state: &Entity<AppState>,
+    caption: &str,
+) -> Vec<bool> {
     visual.read(|app| {
         let state = state.read(app);
         state
             .menu_rows(AppMenu::View)
             .iter()
-            .filter(|item| item.under == Some(TIMELINE_DISPLAY))
+            .filter(|item| item.under == Some(caption))
             .map(|item| item.is_checked(state))
             .collect()
     })
@@ -201,37 +204,62 @@ fn checked_rows(visual: &mut VisualTestContext, state: &Entity<AppState>) -> Vec
 #[gpui::test]
 fn a_display_button_holds_its_submenu_under_itself(cx: &mut gpui::TestAppContext) {
     let buttons = display_buttons();
-    assert!(
-        buttons.len() >= 2,
-        "the tool bar and the timeline header each draw a display button: {buttons:?}"
-    );
-    let (state, visual, _) = shell_with_take(cx, "menu-press-display");
+    for expected in ["timeline-display-settings", "viewer-display-settings"] {
+        assert!(
+            buttons.contains(&expected),
+            "the scan did not reach the display button {expected}: {buttons:?}"
+        );
+    }
+    let (state, visual, media) = shell_with_take(cx, "menu-press-display");
     visual.update(|_, app| app.set_reduce_motion(true));
+    // Split Viewer needs a Source tab to put beside Program.
+    visual.update(|_, app| {
+        state.update(app, |state, cx| {
+            assert!(state.open_source(media.raw()), "the Source tab opens");
+            state.show_program();
+            cx.notify();
+        })
+    });
+    visual.run_until_parked();
     let held = |visual: &mut VisualTestContext| {
         visual.read(|app| {
             let state = state.read(app);
-            (
-                state.open_menu,
-                state.menu_owner,
-                state.timeline_display_menu_open(),
-            )
+            (state.open_menu, state.menu_owner, state.display_menu())
         })
     };
+    // Each button holds out a submenu of its own.
+    let mut captions = Vec::new();
+    for &owner in &buttons {
+        let button = bounds_of(visual, owner);
+        click(visual, button.center());
+        let (_, _, caption) = held(visual);
+        let caption = caption.unwrap_or_else(|| panic!("{owner} opened no View submenu"));
+        assert!(
+            !captions.iter().any(|&(_, c)| c == caption),
+            "{owner} opens {caption}, which another display button opens: {captions:?}"
+        );
+        captions.push((owner, caption));
+        click(visual, button.center());
+    }
+    let caption_of = |owner: &str| {
+        captions
+            .iter()
+            .find(|&&(o, _)| o == owner)
+            .map(|&(_, c)| c)
+            .expect("every button has a caption")
+    };
     for (index, owner) in buttons.iter().copied().enumerate() {
+        let caption = caption_of(owner);
         let submenu = format!("{owner}-submenu");
-        let button = visual
-            .debug_bounds(intern(owner))
-            .unwrap_or_else(|| panic!("the shell draws the display button {owner}"));
+        let button = bounds_of(visual, owner);
 
         click(visual, button.center());
         assert_eq!(
             held(visual),
-            (Some(AppMenu::View), Some(owner), true),
+            (Some(AppMenu::View), Some(owner), Some(caption)),
             "{owner} opened its submenu"
         );
-        let panel = visual
-            .debug_bounds(intern(&submenu))
-            .unwrap_or_else(|| panic!("{owner} drew no submenu under itself"));
+        let panel = bounds_of(visual, &submenu);
         assert!(
             (panel.top() - button.bottom()).abs() < px(1.0)
                 && (panel.left() - button.left()).abs() < px(1.0),
@@ -242,9 +270,7 @@ fn a_display_button_holds_its_submenu_under_itself(cx: &mut gpui::TestAppContext
             None,
             "{owner} opened the View title's drop as well"
         );
-        let ring = visual
-            .debug_bounds("focus-ring")
-            .expect("the submenu's first choice is lit");
+        let ring = bounds_of(visual, "focus-ring");
         assert!(
             bounds_inside(ring, panel),
             "the lit row {ring:?} is not in {owner}'s submenu {panel:?}"
@@ -257,27 +283,25 @@ fn a_display_button_holds_its_submenu_under_itself(cx: &mut gpui::TestAppContext
         visual.run_until_parked();
         assert_eq!(
             held(visual),
-            (Some(AppMenu::View), Some(owner), true),
+            (Some(AppMenu::View), Some(owner), Some(caption)),
             "a press on the edge of {owner}'s submenu, then Right"
         );
 
         // A second press on the button is the button's: it closes the submenu.
         click(visual, button.center());
-        assert_eq!(held(visual), (None, None, false), "{owner} pressed twice");
+        assert_eq!(held(visual), (None, None, None), "{owner} pressed twice");
         assert_eq!(visual.debug_bounds(intern(&submenu)), None);
 
         // A press elsewhere closes it and lands where it was aimed.
         click(visual, button.center());
-        let ruler = visual
-            .debug_bounds(intern("timeline-ruler"))
-            .expect("the timeline draws its ruler");
+        let ruler = bounds_of(visual, "timeline-ruler");
         let playhead = |visual: &mut VisualTestContext| {
             visual.read(|app| state.read(app).store.playhead_ticks)
         };
         let before = playhead(visual);
         let aim = px(20.0 + 40.0 * index as f32);
         click(visual, point(ruler.left() + aim, ruler.center().y));
-        assert_eq!(held(visual), (None, None, false), "a ruler press");
+        assert_eq!(held(visual), (None, None, None), "a ruler press");
         assert_ne!(playhead(visual), before, "the ruler press did not land");
 
         // The View title opens its own drop in place of the button's submenu.
@@ -289,7 +313,7 @@ fn a_display_button_holds_its_submenu_under_itself(cx: &mut gpui::TestAppContext
             });
         });
         visual.run_until_parked();
-        assert_eq!(held(visual), (Some(AppMenu::View), None, false));
+        assert_eq!(held(visual), (Some(AppMenu::View), None, None));
         assert!(visual.debug_bounds("menu-drop-View").is_some());
         assert_eq!(visual.debug_bounds(intern(&submenu)), None);
         visual.simulate_keystrokes("escape");
@@ -297,7 +321,7 @@ fn a_display_button_holds_its_submenu_under_itself(cx: &mut gpui::TestAppContext
 
         // A press on a choice runs it and closes the submenu. An unchecked
         // one, so the press moves a check mark whatever kind of row it is.
-        let before = checked_rows(visual, &state);
+        let before = checked_rows(visual, &state, caption);
         let choice = before
             .iter()
             .position(|checked| !checked)
@@ -307,43 +331,42 @@ fn a_display_button_holds_its_submenu_under_itself(cx: &mut gpui::TestAppContext
             visual.simulate_keystrokes("down");
         }
         visual.run_until_parked();
-        let lit = visual
-            .debug_bounds("focus-ring")
-            .expect("the arrows lit a choice");
+        let lit = bounds_of(visual, "focus-ring");
         click(visual, lit.center());
-        let after = checked_rows(visual, &state);
+        let after = checked_rows(visual, &state, caption);
         assert!(
             after[choice],
             "pressing choice {choice} in {owner}'s submenu: {after:?}"
         );
         assert_eq!(
             held(visual),
-            (None, None, false),
+            (None, None, None),
             "the choice closed the submenu"
         );
 
-        // A press on another display button moves the submenu there.
+        // A press on another display button, when the window draws one, moves
+        // the submenu there.
         click(visual, button.center());
-        let other = buttons[(index + 1) % buttons.len()];
-        let at_other = visual
-            .debug_bounds(intern(other))
-            .unwrap_or_else(|| panic!("the shell draws the display button {other}"))
-            .center();
-        click(visual, at_other);
-        assert_eq!(
-            held(visual),
-            (Some(AppMenu::View), Some(other), true),
-            "a press on {other} while {owner} held the submenu out"
-        );
-        assert_eq!(visual.debug_bounds(intern(&submenu)), None);
+        let mut open = owner;
+        if let Some(&other) = buttons.iter().find(|&&id| id != owner) {
+            let at_other = bounds_of(visual, other).center();
+            click(visual, at_other);
+            assert_eq!(
+                held(visual),
+                (Some(AppMenu::View), Some(other), Some(caption_of(other))),
+                "a press on {other} while {owner} held the submenu out"
+            );
+            assert_eq!(visual.debug_bounds(intern(&submenu)), None);
+            open = other;
+        }
 
         // Escape leaves the menu: no drop is left behind at the View title.
         visual.simulate_keystrokes("escape");
         visual.run_until_parked();
         assert_eq!(
             held(visual),
-            (None, None, false),
-            "Escape in {other}'s submenu"
+            (None, None, None),
+            "Escape in {open}'s submenu"
         );
         assert_eq!(visual.debug_bounds("menu-drop-View"), None);
     }

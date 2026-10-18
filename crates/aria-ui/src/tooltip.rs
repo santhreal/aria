@@ -103,7 +103,49 @@ pub const CONTROL_TIPS: &[ControlTip] = &[
     },
     ControlTip {
         control: "bin-new",
-        name: "New bin in this folder",
+        name: "New bin",
+        binding: None,
+    },
+    // The Project panel's pool bars: the filter's Import and Audio switch, the
+    // views, and the multicam maker.
+    ControlTip {
+        control: "media-import",
+        name: "Import",
+        binding: None,
+    },
+    ControlTip {
+        control: "pool-audio-only",
+        name: "Audio only",
+        binding: None,
+    },
+    ControlTip {
+        control: "pool-view-tiles",
+        name: "Tiles",
+        binding: None,
+    },
+    ControlTip {
+        control: "pool-view-list",
+        name: "List",
+        binding: None,
+    },
+    ControlTip {
+        control: "pool-view-icons",
+        name: "Icons",
+        binding: None,
+    },
+    ControlTip {
+        control: "pool-view-freeform",
+        name: "Freeform",
+        binding: None,
+    },
+    ControlTip {
+        control: "create-multicam-group",
+        name: "New multicam",
+        binding: None,
+    },
+    ControlTip {
+        control: "pool-sort",
+        name: "Sort order",
         binding: None,
     },
     ControlTip {
@@ -117,18 +159,8 @@ pub const CONTROL_TIPS: &[ControlTip] = &[
         binding: None,
     },
     ControlTip {
-        control: "snap",
-        name: "Snapping",
-        binding: Some("key-snap"),
-    },
-    ControlTip {
-        control: "linked-selection",
-        name: "Linked selection",
-        binding: None,
-    },
-    ControlTip {
-        control: "timeline-display",
-        name: "Timeline display settings",
+        control: "edit-mode",
+        name: "Drop mode — Ripple pushes later clips right, Overwrite covers them",
         binding: None,
     },
     ControlTip {
@@ -209,8 +241,23 @@ pub const CONTROL_TIPS: &[ControlTip] = &[
         binding: None,
     },
     ControlTip {
-        control: "preview-handles",
-        name: "Cycle the on-canvas handles",
+        control: "preview-handles-transform",
+        name: "Transform handles",
+        binding: None,
+    },
+    ControlTip {
+        control: "preview-handles-crop",
+        name: "Crop handles",
+        binding: None,
+    },
+    ControlTip {
+        control: "preview-handles-mask",
+        name: "Mask handles",
+        binding: None,
+    },
+    ControlTip {
+        control: "preview-scopes-toggle",
+        name: "Scope strip",
         binding: None,
     },
     ControlTip {
@@ -244,28 +291,8 @@ pub const CONTROL_TIPS: &[ControlTip] = &[
         binding: Some("key-pane-close"),
     },
     ControlTip {
-        control: "viewer-split",
-        name: "Source and Program side by side",
-        binding: None,
-    },
-    ControlTip {
-        control: "viewer-rulers",
-        name: "Rulers and guides over the Program view",
-        binding: Some("key-rulers"),
-    },
-    ControlTip {
-        control: "viewer-safe",
-        name: "Title-safe and action-safe margins",
-        binding: None,
-    },
-    ControlTip {
-        control: "viewer-guides",
-        name: "Show the guides dragged from the rulers",
-        binding: None,
-    },
-    ControlTip {
-        control: "viewer-alpha",
-        name: "Transparency grid where no layer covers the canvas",
+        control: "viewer-display-settings",
+        name: "Viewer display settings",
         binding: None,
     },
     // Source monitor.
@@ -340,6 +367,21 @@ pub const CONTROL_TIPS: &[ControlTip] = &[
         control: "property-search-clear",
         name: "Clear the property search",
         binding: None,
+    },
+    ControlTip {
+        control: "effects-query-clear",
+        name: "Clear the effects search",
+        binding: None,
+    },
+    ControlTip {
+        control: "graph-btn-easy-ease",
+        name: "Easy Ease the selected keyframes",
+        binding: Some("key-easy-ease"),
+    },
+    ControlTip {
+        control: "graph-btn-hold",
+        name: "Hold the selected keyframes",
+        binding: Some("key-toggle-hold"),
     },
     // Multicam. A frame nudge and an audio sync are glyphs on a dense row of
     // camera strips, so the words live here.
@@ -478,6 +520,12 @@ pub const CONTROL_TIPS: &[ControlTip] = &[
         name: "Close the window",
         binding: None,
     },
+    // A dock frame's tab row.
+    ControlTip {
+        control: "dock-tab-more",
+        name: "More panels",
+        binding: None,
+    },
 ];
 
 /// The tip for one control id, or nothing when the control is not named.
@@ -536,7 +584,6 @@ impl Render for Tip {
             .child(self.name.clone())
             .children(chord.map(|chord| {
                 div()
-                    .font_family(theme.font_mono.clone())
                     .text_size(Theme::TEXT_UI)
                     .text_color(theme.text_faint)
                     .child(chord)
@@ -630,34 +677,10 @@ mod tests {
         }
     }
 
-    /// Controls drawn twice for one action: the timeline header repeats the
-    /// tool bar's toggles, as (the header's, the tool bar's). A twin shares
-    /// its name and its chord with the control it repeats, and with no other.
-    const TWINS: &[(&str, &str)] = &[
-        ("timeline-snap", "snap"),
-        ("timeline-linked", "linked-selection"),
-        ("timeline-display-settings", "timeline-display"),
-    ];
-
-    fn twins(one: &str, other: &str) -> bool {
-        TWINS
-            .iter()
-            .any(|&(twin, of)| (twin, of) == (one, other) || (of, twin) == (one, other))
-    }
-
-    fn tip(control: &str) -> &'static ControlTip {
-        CONTROL_TIPS
-            .iter()
-            .find(|tip| tip.control == control)
-            .unwrap_or_else(|| panic!("{control} has no row in CONTROL_TIPS"))
-    }
-
     /// WHY: two controls with one name read as one action in their tooltips
     /// while they do different things. Closes "a new control named after an
-    /// existing one": every name belongs to one control unless `TWINS`
-    /// declares the pair, so a second control called the same goes red until
-    /// someone states it repeats the first. Does not cover two names for one
-    /// action outside `TWINS`.
+    /// existing one": every name belongs to one control, so a second control
+    /// called the same goes red. Does not cover two names for one action.
     #[test]
     fn a_control_is_named_once_and_the_names_differ() {
         for tip in CONTROL_TIPS {
@@ -671,7 +694,7 @@ mod tests {
                 .iter()
                 .filter(|other| other.name == tip.name)
                 .map(|other| other.control)
-                .filter(|&other| other != tip.control && !twins(tip.control, other))
+                .filter(|&other| other != tip.control)
                 .collect();
             assert!(
                 sharing.is_empty(),
@@ -679,24 +702,6 @@ mod tests {
                 tip.control,
                 sharing,
                 tip.name
-            );
-        }
-    }
-
-    /// WHY: a toggle the header repeats is the tool bar's toggle, so its
-    /// tooltip reads the same: the header's Snapping showed `S` and the tool
-    /// bar's did not. Closes "a repeated control whose name or chord drifts
-    /// from the one it repeats" for every pair in `TWINS`.
-    #[test]
-    fn a_twin_is_named_and_bound_as_the_control_it_repeats() {
-        for &(twin, of) in TWINS {
-            let (twin, of) = (tip(twin), tip(of));
-            assert_eq!(
-                (twin.name, twin.binding),
-                (of.name, of.binding),
-                "{} does not read as {}, the control it repeats",
-                twin.control,
-                of.control
             );
         }
     }
@@ -874,19 +879,19 @@ mod tests {
         let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
         let tipped_ids: std::collections::HashSet<&str> =
             CONTROL_TIPS.iter().map(|tip| tip.control).collect();
-        // The tool bar wraps `icon_button` in `tool_btn` and its display
-        // button in `display_btn`, and the Viewer wraps it in `jump_btn` and
-        // `step_btn` and draws its marks and view chips through `mark_btn`
-        // and `toggle_chip`. Each names the tooltip id in its first argument;
-        // scanning only the inner helper misses them.
+        // The Timeline header wraps `icon_button` in `tool_btn` and its display
+        // button in `display_btn`, the Project panel's and the Viewer's toggles
+        // in `lit_icon`, and the Viewer wraps it in `jump_btn` and `step_btn`
+        // and draws its marks through `mark_btn`. Each names the tooltip id in
+        // its first argument; scanning only the inner helper misses them.
         let needles = [
             concat!("icon_", "button("),
             concat!("tool_", "btn("),
+            concat!("lit_", "icon("),
             concat!("display_", "btn("),
             concat!("jump_", "btn("),
             concat!("step_", "btn("),
             concat!("mark_", "btn("),
-            concat!("toggle_", "chip("),
         ];
         let mut found: std::collections::HashSet<String> = std::collections::HashSet::new();
 
@@ -933,17 +938,17 @@ mod tests {
 
         assert!(
             [
-                "snap",
+                "timeline-snap",
                 "go-start",
                 "next-frame",
                 "program-mark-in",
-                "viewer-safe"
+                "viewer-display-settings"
             ]
             .iter()
             .all(|id| found.contains(*id)),
-            "the scan reached no call site: {} ids found, and the snap toggle in \
-             the tool bar, the Viewer's go-to-start or In button, or its Safe chip \
-             was not one of them",
+            "the scan reached no call site: {} ids found, and the Timeline \
+             header's snap toggle, the Viewer's go-to-start or In button, or its \
+             display button was not one of them",
             found.len()
         );
     }
