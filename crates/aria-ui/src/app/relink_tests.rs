@@ -29,6 +29,7 @@ fn entry(id: u64, path: &str) -> UiMediaItem {
         duration_label: "00:00:08:00".into(),
         has_audio: false,
         kind: UiClipKind::Media,
+        still: false,
         missing: true,
         label: None,
         imported_at: None,

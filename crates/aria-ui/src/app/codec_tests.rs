@@ -22,6 +22,7 @@ fn item(kind: UiClipKind) -> UiMediaItem {
         duration_label: "00:00:02:00".into(),
         has_audio: true,
         kind,
+        still: false,
         missing: false,
         label: None,
         imported_at: None,
@@ -112,11 +113,14 @@ fn the_properties_block_names_the_codecs_it_has() {
             .unwrap_or_else(|| panic!("no {label} row"))
     };
     // A still carries no codec track, so the row states unknown rather than
-    // naming PNG, which is the container.
+    // naming PNG, which is the container. Nor does it have a frame rate: the
+    // rate it was probed with is the tick base, which read as 1000.000 fps.
     assert_eq!(value("Video codec"), "unknown");
+    assert_eq!(value("Frame rate"), "still image");
     assert_eq!(value("Audio"), "no");
 
-    // A named codec reaches the block as the demuxer wrote it.
+    // A named codec reaches the block as the demuxer wrote it, and a moving
+    // picture states its own rate.
     if let Some(entry) = state
         .store_mut()
         .media
@@ -126,6 +130,8 @@ fn the_properties_block_names_the_codecs_it_has() {
         entry.video_codec = Some("H.264".into());
         entry.audio_codec = Some("MPEG-4 AAC".into());
         entry.has_audio = true;
+        entry.still = false;
+        entry.frame_rate = Rational::new(24_000, 1_001);
     }
     let rows = state.media_properties();
     let value = |label: &str| {
@@ -135,5 +141,6 @@ fn the_properties_block_names_the_codecs_it_has() {
             .unwrap_or_else(|| panic!("no {label} row"))
     };
     assert_eq!(value("Video codec"), "H.264");
+    assert_eq!(value("Frame rate"), "23.976 fps");
     assert_eq!(value("Audio"), "MPEG-4 AAC");
 }

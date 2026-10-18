@@ -10,10 +10,12 @@ use crate::motion::RiseOnHover as _;
 /// The sidebar's chip rows: the groups, then the open group's tabs when it
 /// lists more than one and they are not the pool's. The pool's tabs are one
 /// list read two ways, so the Media tab's filter row switches between them.
-/// The groups stand on one row down to the panel's minimum width: the active
-/// group reads whole and the others shrink with an ellipsis when the panel is
-/// narrow. Each row steps out by its chips' padding, so the first label stands
-/// on the panel's text edge.
+/// The groups stand on one row down to the panel's minimum width. When their
+/// labels at the regular padding are wider than the row, the chips take the
+/// compact padding, and only when that does not make room either do the
+/// groups other than the active one shrink with an ellipsis. Each row steps
+/// out by its chips' padding, so the first label stands on the panel's text
+/// edge.
 pub(super) fn filter_chips(
     theme: &Theme,
     tab: SidebarTab,
@@ -23,7 +25,11 @@ pub(super) fn filter_chips(
     let open = tab.group();
     let tabs = open.tabs();
     let listed = tabs.len() > 1 && !tabs.iter().all(|tab| tab.shows_pool());
-    let narrow = width.is_some_and(|w| w < 260.0);
+    // The row is the panel less its right border and its text inset, stepped
+    // out by a chip's padding on each side.
+    let narrow = width.is_some_and(|w| {
+        w - 1.0 - 2.0 * (Theme::SPACE_MD - Theme::SPACE_SM) < groups_width(theme, cx)
+    });
     div()
         .px(px(Theme::SPACE_MD))
         .py(px(Theme::SPACE_XS))
@@ -59,6 +65,23 @@ pub(super) fn filter_chips(
                     .children(tabs.iter().map(|target| tab_chip(theme, *target, tab, cx))),
             )
         })
+}
+
+/// The group row's width at the regular chip padding: every group's label in
+/// the face its chip draws, the padding on both sides of each, and the gaps
+/// between them. Each label's advance is a hit in the text system's cache
+/// after the first frame.
+fn groups_width(theme: &Theme, cx: &gpui::App) -> f32 {
+    let system = cx.text_system();
+    let font = system.resolve_font(&theme.ui_font(gpui::FontWeight::NORMAL));
+    let labels: f32 = SidebarGroup::ALL
+        .iter()
+        .map(|group| {
+            f32::from(system.advance_for_text_with_font_id(group.label(), font, Theme::TEXT_UI))
+        })
+        .sum();
+    let count = SidebarGroup::ALL.len() as f32;
+    labels + count * 2.0 * Theme::SPACE_SM + (count - 1.0) * Theme::SPACE_XXS
 }
 
 /// One group, as a chip. Choosing another group opens its first tab; the open

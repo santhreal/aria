@@ -1545,10 +1545,10 @@ A workspace is a named arrangement of frames, tabs, and pane sizes. Five ship:
 | Workspace | What it arranges |
 | --- | --- |
 | Editing | The default, six panels. Upper row: `Project \| Effect Controls` (320 px) on the left, `Viewer` in the centre, `Effects & Presets` (300 px) on the right. Lower row: `Timeline` and `Audio Meters` (64 px). Audio Track Mixer and Assistant open from **Window** beside the Viewer; Info and Character open beside Effects & Presets. |
-| Animation | `Effect Controls \| Effects & Presets` on the left, `Viewer` in the centre, `Info \| Scopes` on the right, and `Timeline` at 50% height with the graph editor open. |
-| Color | `Viewer` at 55% width, `Color \| Scopes \| Effect Controls` at 45% width, and a compact `Timeline` below. |
-| Audio | `Viewer` at 30% width, `Audio Track Mixer` at 45% width, `Effects & Presets` (filtered to Audio Effects) and `Audio Meters` at 25% width, with `Project` and `Timeline` below. |
-| Effects | `Project \| Effects & Presets` (320 px) on the left, `Viewer` in the centre, `Effect Controls \| Info` (300 px) on the right, and `Timeline` plus `Audio Meters` (64 px) below. |
+| Animation | `Effect Controls \| Project` on the left, `Viewer \| Audio Track Mixer \| Assistant` in the centre, `Info \| Effects & Presets \| Align` on the right with Effects & Presets in front, and `Timeline` at 50% height with the graph editor open. |
+| Color | `Viewer \| Audio Track Mixer \| Assistant` at 38% width, `Scopes \| Project` at 32%, `Color \| Effect Controls \| Effects & Presets` at 30%, and `Timeline` at 35% height below. |
+| Audio | `Viewer \| Project` at 22% width, `Audio Track Mixer \| Assistant` at 50%, `Audio Meters \| Effects & Presets \| Effect Controls` at 28% with Effects & Presets filtered to Audio Effects, and `Timeline` at 35% height below. In a window of 1440 x 900 or larger, the mixer strips of a new project show without scrolling. |
+| Effects | `Effects & Presets \| Project` at 32% width, `Viewer \| Audio Track Mixer \| Assistant` at 36%, `Effect Controls \| Info` at 32%, and `Timeline` at 40% height below. |
 
 Pick one from **Window**, from Settings > Workspaces, by Shift+Alt+1 through
 Shift+Alt+9, or from the command palette by name. Edits made to a workspace's

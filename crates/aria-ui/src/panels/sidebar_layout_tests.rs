@@ -10,12 +10,10 @@
 //! the Media tab draws its filter row, its items, and its footer, each one
 //! line tall where it is a control row, with nothing else.
 //!
-//! Not covered: whether the five groups fit one line, which depends on the
-//! face's advances and the test text system's are not the shipped face's;
-//! and the glyphs, which the test text system does not raster. A control
-//! drawn inside an item is the item's.
+//! Not covered: the glyphs, which the test text system does not raster. A
+//! control drawn inside an item is the item's.
 
-use gpui::{Bounds, Pixels, TestAppContext, VisualTestContext, px};
+use gpui::{Bounds, FontWeight, Pixels, TestAppContext, VisualTestContext, px};
 
 use crate::components::drawn::{self, Drawn};
 use crate::interned::intern;
@@ -52,6 +50,37 @@ fn pool_with_a_still<'a>(
     });
     visual.run_until_parked();
     (state, visual)
+}
+
+/// Set the Project panel's column to `width` px of the 1920 px row, and draw
+/// twice: the panel reads its width from the frame the previous draw laid
+/// out, so the second draw is the one at `width`. Ends on a full draw, which
+/// keeps every view's debug bounds and text runs.
+fn project_width(
+    state: &gpui::Entity<crate::app::AppState>,
+    visual: &mut VisualTestContext,
+    width: f32,
+) {
+    visual.update(|_, app| {
+        state.update(app, |state, cx| {
+            let row = state
+                .dock_tree
+                .split_weights(&[0])
+                .expect("the launch layout's upper area is a row split");
+            let (_, rest) = row.split_first().expect("a row has children");
+            let left = width / 1920.0;
+            let total: f32 = rest.iter().sum();
+            let weights: Vec<f32> = std::iter::once(left)
+                .chain(rest.iter().map(|w| w / total * (1.0 - left)))
+                .collect();
+            assert!(state.dock_tree.set_weights(&[0], &weights));
+            cx.notify();
+        });
+    });
+    visual.run_until_parked();
+    visual.update(|_, app| state.update(app, |_, cx| cx.notify()));
+    visual.run_until_parked();
+    visual.update(|window, _| window.refresh());
 }
 
 #[gpui::test]
@@ -121,25 +150,7 @@ fn the_project_panel_rows_fit_the_panel(cx: &mut TestAppContext) {
 
     // Down to the panel's minimum width (160 px), the group row and the footer
     // each hold one row and never wrap onto a second line.
-    visual.update(|_, app| {
-        state.update(app, |state, cx| {
-            let row = state
-                .dock_tree
-                .split_weights(&[0])
-                .expect("the launch layout's upper area is a row split");
-            let (_, rest) = row.split_first().expect("a row has children");
-            let left = 160.0 / 1920.0;
-            let total: f32 = rest.iter().sum();
-            let weights: Vec<f32> = std::iter::once(left)
-                .chain(rest.iter().map(|w| w / total * (1.0 - left)))
-                .collect();
-            assert!(state.dock_tree.set_weights(&[0], &weights));
-            cx.notify();
-        });
-    });
-    visual.run_until_parked();
-    visual.update(|_, app| state.update(app, |_, cx| cx.notify()));
-    visual.run_until_parked();
+    project_width(&state, visual, 160.0);
     let one_row = px(Theme::ROW_HEIGHT + Theme::SPACE_XS + 2.0);
     for bar in ["sidebar-groups", "pool-header", "pool-footer"] {
         let at = bounds(visual, bar);
@@ -149,6 +160,68 @@ fn the_project_panel_rows_fit_the_panel(cx: &mut TestAppContext) {
             at.size.height
         );
     }
+}
+
+/// Every group's label reads whole while the group row holds the labels at
+/// the compact chip padding, at every Project panel width from 400 px down.
+///
+/// WHY: the row chose its padding by a fixed panel width, 260 px, so the
+/// launch layout's 280 px panel kept the regular padding and cut four groups
+/// to "Graphi…", "Effe…", "Libr…" and "Analy…" while the compact padding left
+/// room for all five. The padding is now chosen by measuring the labels. The
+/// walk must draw a width where the regular padding does not fit and the
+/// compact one does, or it cannot tell the two rules apart. Does not cover a
+/// row too narrow for the compact padding, where the inactive groups shrink
+/// with an ellipsis by design.
+#[gpui::test]
+fn every_group_reads_whole_while_the_compact_padding_holds_the_row(cx: &mut TestAppContext) {
+    let (state, visual) = pool_with_a_still(cx, "sidebar-groups-fit");
+    let labels: Vec<(&'static str, f32)> = visual.update(|_, app| {
+        let font = Theme::of(app).ui_font(FontWeight::NORMAL);
+        SidebarGroup::ALL
+            .iter()
+            .map(|group| {
+                let advance = app
+                    .text_system()
+                    .advance_for_text(group.label(), &font, Theme::TEXT_UI);
+                (group.label(), f32::from(advance))
+            })
+            .collect()
+    });
+    let sum: f32 = labels.iter().map(|(_, advance)| advance).sum();
+    let count = labels.len() as f32;
+    // The compact padding on both sides of every chip, and the first chip's
+    // wider left inset, which keeps its label on the panel's text edge.
+    let compact = sum + count * 2.0 * Theme::SPACE_XS + (Theme::SPACE_SM - Theme::SPACE_XS);
+    let regular = sum + count * 2.0 * Theme::SPACE_SM + (count - 1.0) * Theme::SPACE_XXS;
+    let (mut held, mut decisive) = (0, 0);
+    for width in (160..=400).rev().step_by(4) {
+        project_width(&state, visual, width as f32);
+        let row = f32::from(bounds(visual, "sidebar-groups").size.width);
+        if row < compact + EPS {
+            continue;
+        }
+        held += 1;
+        if row < regular {
+            decisive += 1;
+        }
+        let runs = visual.update(|window, _| window.rendered_text_runs().to_vec());
+        for (label, _) in &labels {
+            let chip = bounds(visual, &format!("sidebar-group-{label}"));
+            assert!(
+                runs.iter().any(|run| run.text.as_ref() == *label
+                    && chip.contains(&run.bounds.center())),
+                "in a {width} px panel the {row} px group row holds the labels at the \
+                 compact padding ({compact} px), and the {label} chip {chip:?} does not \
+                 read its label whole"
+            );
+        }
+    }
+    assert!(
+        held > 0 && decisive > 0,
+        "the walk drew {held} rows that hold the labels, {decisive} of them narrower than the \
+         regular padding ({regular} px), so it cannot tell the padding rules apart"
+    );
 }
 
 /// WHY: the Media tab once drew five control rows over its items (the tab

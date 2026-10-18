@@ -1442,6 +1442,9 @@ Notes for the latest release. For previous releases, see the
 - Left and Right step only the playhead; Ctrl+Left and Ctrl+Right trim the selected edge, or move the selected clip when no edge is selected.
 - The Home Learn rail reads its chords from the key registry, so a rebound key shows there.
 - The Home Learn pane lists the editor's essential chords (import, play, In, Out, split, undo, palette, export, close) instead of a row for Esc, and the Home rail drops its tagline.
+- A Home recent-project card prints its project's folder on one line, with the home folder as `~`, instead of the whole path.
+- Each Inspector tab takes a share of the strip in proportion to its label, so Transform reads in full beside the shorter tabs.
+- The Audio workspace gives the Audio Track Mixer's row 65% of the height and the Timeline 35%, so a new project's mixer strips show without scrolling in a 1440 x 900 window.
 - A mask cuts what a clip draws before its effects, LUT, and layer styles, so a shadow or glow follows the masked edge.
 
 - **GPUI builds from santh-gpui, the framework shared with iris and Veyyon.**
@@ -2278,6 +2281,8 @@ Notes for the latest release. For previous releases, see the
 ### Fixed
 
 - The Audio Meters clip light spans the panel, so its `CLIP` label stays inside the light in the 64 px launch frame, and the bars take the width the narrower scale gives up.
+- The Project panel's properties state a still's frame rate as `still image` instead of the 1000.000 fps tick base it was probed in.
+- The Project panel's group chips take the compact padding when their labels at the regular padding do not fit the panel, measured in the drawn face, so the launch layout reads Graphics, Effects, Library, and Analyze in full instead of cutting them at a fixed 260 px threshold.
 - A file that opens neither through DMABuf nor to CPU memory, such as an unreadable or audio-only file, no longer turns DMABuf decode off for every later file in the process.
 - A DMABuf open whose decoder has no DMABuf output stops before that decoder opens a hardware session and falls back to CPU decode.
 - Playback with a few dozen decoded layers no longer fails with "Element failed to change its state": the first GStreamer start in a process raises the open-file soft limit from 1024 to the hard limit, at most 65,536.

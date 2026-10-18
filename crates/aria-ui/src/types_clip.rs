@@ -932,6 +932,9 @@ pub struct UiMediaItem {
     pub duration_label: SharedString,
     pub has_audio: bool,
     pub kind: UiClipKind,
+    /// Whether the source is a still picture, which has no frame rate of its
+    /// own: its rate is the tick base it was probed in.
+    pub still: bool,
     pub missing: bool,
     /// The operator's grouping colour for this pool entry, when set.
     pub label: Option<aria_models::LabelColor>,

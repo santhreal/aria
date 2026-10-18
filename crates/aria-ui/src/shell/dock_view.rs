@@ -1484,3 +1484,6 @@ mod frame_height_tests;
 #[cfg(test)]
 #[path = "tab_overflow_tests.rs"]
 mod tab_overflow_tests;
+#[cfg(test)]
+#[path = "workspace_fit_tests.rs"]
+mod workspace_fit_tests;

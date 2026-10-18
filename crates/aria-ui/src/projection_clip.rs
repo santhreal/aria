@@ -585,6 +585,7 @@ pub(super) fn media_to_ui(media: &MediaSource, project: &Project) -> UiMediaItem
             MediaKind::Audio => UiClipKind::Audio,
             MediaKind::Image | MediaKind::Video => UiClipKind::Media,
         },
+        still: media.kind() == MediaKind::Image,
         missing: media_missing(&media.path),
         label: media.label,
         imported_at: media.imported_at,

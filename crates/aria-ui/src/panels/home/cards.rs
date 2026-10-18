@@ -255,15 +255,20 @@ fn recent_card(
         .child(
             div()
                 .text_size(Theme::TEXT_UI)
+                .font_weight(gpui::FontWeight::MEDIUM)
                 .text_color(theme.text)
                 .child(recent.label.clone()),
         )
         .child(
             div()
-                // The dimmest tier: a path is how the operator tells two
-                // projects with the same name apart, and nothing else.
+                // The dimmest tier: the folder is how the operator tells two
+                // projects with the same name apart, and nothing else. One
+                // line, giving up its start, so the folder's own name stays.
                 .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_dim)
+                .overflow_hidden()
+                .whitespace_nowrap()
+                .text_ellipsis_start()
                 .child(recent.detail.clone()),
         )
         .child(

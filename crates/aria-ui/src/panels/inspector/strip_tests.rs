@@ -12,8 +12,8 @@ use std::path::PathBuf;
 
 use aria_models::{ClipId, ClipParam, ParamValue};
 use gpui::{
-    Bounds, Modifiers, MouseButton, Pixels, Point, ScaledPixels, SharedString, TestAppContext,
-    VisualTestContext, point,
+    Bounds, FontWeight, Modifiers, MouseButton, Pixels, Point, ScaledPixels, SharedString,
+    TestAppContext, VisualTestContext, point,
 };
 
 use crate::app::AppState;
@@ -22,6 +22,7 @@ use crate::panels::inspector::blocks::key_strip::{STRIP_MIN, STRIP_W};
 use crate::panels::inspector::blocks::widgets::LABEL_RESERVE;
 use crate::surfaces::effects_rack::{self, Gesture};
 use crate::test_support::drawn_shell;
+use crate::theme::Theme;
 
 /// The blur's radius: the first slot of the first effect.
 const RADIUS: ClipParam = ClipParam::Effect {
@@ -606,44 +607,80 @@ fn read_playhead(state: &gpui::Entity<AppState>, visual: &VisualTestContext) -> 
     visual.read(|app| state.read(app).playhead.value)
 }
 
-/// Every Inspector tab takes an equal share of the strip and stays inside it,
-/// and the underline spans the tab in front, at every width.
+/// Every Inspector tab takes a share of the strip in proportion to its label
+/// and its padding, the tabs stay inside the strip, and the underline spans
+/// the tab in front, at every width. While the strip is as wide as the labels
+/// and their padding, no tab is narrower than its own.
 ///
-/// Closes the class "a tab as wide as its label": the underline is placed at
-/// the active tab's share of the strip, so a label that widened its tab moved
-/// the tab off its underline and pushed the last tab past the frame. Does not
-/// cover the ellipsis, which the test text system does not draw.
+/// Closes the class "a tab that cuts its label while the strip has room for
+/// it": with equal shares, Transform, the longest label, was cut to "Transf…"
+/// in the shipped layout while the short labels had room to spare. Also closes
+/// "a tab off its underline": the underline is placed at the weights'
+/// fractions, so a tab sized any other way leaves it. The walk must draw a
+/// width where equal shares cut the longest label and weighted ones do not.
+/// Does not cover the ellipsis, which the test text system does not draw.
 #[gpui::test]
-async fn every_inspector_tab_keeps_an_equal_share_under_its_underline(cx: &mut TestAppContext) {
+async fn every_inspector_tab_takes_a_share_by_its_label_under_its_underline(
+    cx: &mut TestAppContext,
+) {
     let (state, visual) = drawn_on(cx, "effect-controls-tabs", "transform", |_| {});
-    let ids: Vec<SharedString> = crate::panels::inspector::host_of()
-        .tabs()
-        .iter()
-        .map(|tab| tab.id.clone())
-        .collect();
-    let mut steps = 0;
+    // Each tab's label and padding, measured in the font the strip draws.
+    let weights: Vec<(SharedString, f32)> = visual.update(|_, app| {
+        let font = Theme::of(app).ui_font(FontWeight::NORMAL);
+        crate::panels::inspector::host_of()
+            .tabs()
+            .iter()
+            .map(|tab| {
+                let label = app
+                    .text_system()
+                    .advance_for_text(&tab.label, &font, Theme::TEXT_UI);
+                (tab.id.clone(), f32::from(label) + 2.0 * Theme::SPACE_SM)
+            })
+            .collect()
+    });
+    let (mut steps, mut decisive) = (0, 0);
+    // The tab in front moves one place right at every step, so the underline
+    // is checked at every offset, not only at the first tab's.
+    let mut in_front = SharedString::from("transform");
     narrow_the_inspector(&state, visual, |visual, frame| {
         steps += 1;
-        let drawn: Vec<(SharedString, Bounds<Pixels>)> = ids
+        let drawn: Vec<(&SharedString, Bounds<Pixels>, f32)> = weights
             .iter()
-            .filter_map(|id| {
+            .filter_map(|(id, weight)| {
                 let selector: &'static str = format!("insp-tab-{id}").leak();
                 visual
                     .debug_bounds(selector)
-                    .map(|bounds| (id.clone(), bounds))
+                    .map(|bounds| (id, bounds, *weight))
             })
             .collect();
         assert!(drawn.len() > 1, "the strip draws {} tabs", drawn.len());
-        let share = drawn[0].1.size.width;
-        // Layout rounds every edge to the device pixel grid, so equal shares
-        // differ by up to one device pixel.
-        let pixel = gpui::px(1.0 / visual.update(|window, _| window.scale_factor()));
-        for pair in drawn.windows(2) {
-            let ((_, left), (id, right)) = (&pair[0], &pair[1]);
+        // Layout rounds every edge to the device pixel grid, so a share
+        // differs from its fraction of the strip by up to one device pixel.
+        let pixel = 1.0 / visual.update(|window, _| window.scale_factor());
+        let strip = f32::from(drawn[drawn.len() - 1].1.right() - drawn[0].1.left());
+        let total: f32 = drawn.iter().map(|(_, _, weight)| weight).sum();
+        let widest = drawn
+            .iter()
+            .map(|(_, _, weight)| *weight)
+            .fold(0.0, f32::max);
+        if strip >= total && strip < widest * drawn.len() as f32 {
+            decisive += 1;
+        }
+        for (id, bounds, weight) in &drawn {
+            let width = f32::from(bounds.size.width);
             assert!(
-                (right.size.width - share).abs() <= pixel,
-                "frame edge {frame}: tab {id} is {right:?}, not the share {share:?}"
+                (width - strip * weight / total).abs() <= pixel,
+                "frame edge {frame}: tab {id} is {width} of a {strip} strip, not its \
+                 share {weight}/{total}"
             );
+            assert!(
+                strip < total || width >= weight - pixel,
+                "frame edge {frame}: tab {id} is {width}, narrower than its label and \
+                 padding {weight}, in a {strip} strip that holds every label"
+            );
+        }
+        for pair in drawn.windows(2) {
+            let ((_, left, _), (id, right, _)) = (&pair[0], &pair[1]);
             assert!(
                 (right.left() - left.right()).abs() < gpui::px(0.5),
                 "frame edge {frame}: tab {id} at {right:?} does not follow {left:?}"
@@ -654,20 +691,32 @@ async fn every_inspector_tab_keeps_an_equal_share_under_its_underline(cx: &mut T
             f32::from(last.right()) <= frame + 0.5,
             "frame edge {frame}: the last tab {last:?} is past the frame"
         );
-        let front = drawn
+        let at = drawn
             .iter()
-            .find(|(id, _)| id.as_ref() == "transform")
-            .map(|(_, bounds)| *bounds)
-            .expect("the Transform tab is drawn");
+            .position(|(id, _, _)| **id == in_front)
+            .unwrap_or_else(|| panic!("the tab in front, {in_front}, is drawn"));
+        let front = drawn[at].1;
         let line = visual
             .debug_bounds("insp-tab-underline")
             .expect("the strip draws an underline");
         assert!(
-            (line.left() - front.left()).abs() <= pixel
-                && (line.right() - front.right()).abs() <= pixel,
-            "frame edge {frame}: the underline {line:?} is not under the tab in front {front:?}"
+            f32::from((line.left() - front.left()).abs()) <= pixel
+                && f32::from((line.right() - front.right()).abs()) <= pixel,
+            "frame edge {frame}: the underline {line:?} is not under {in_front} {front:?}"
         );
+        in_front = drawn[(at + 1) % drawn.len()].0.clone();
+        visual.update(|_, app| {
+            state.update(app, |state, cx| {
+                state.inspector_tab = in_front.to_string();
+                cx.notify();
+            });
+        });
         false
     });
     assert!(steps > 1, "the walk drew {steps} widths");
+    assert!(
+        decisive > 0,
+        "the walk drew no width that holds every label but not an equal share for the \
+         longest, so it cannot tell weighted shares from equal ones"
+    );
 }

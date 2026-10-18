@@ -169,6 +169,7 @@ pub fn sample_still(data_dir: &Path) -> PathBuf {
 }
 
 pub fn visible_recents(data_dir: &Path) -> Vec<RecentView> {
+    let home = dirs::home_dir();
     load_entries(data_dir)
         .into_iter()
         .map(|entry| {
@@ -180,7 +181,7 @@ pub fn visible_recents(data_dir: &Path) -> Vec<RecentView> {
                 .unwrap_or("untitled")
                 .to_owned()
                 .into();
-            let detail = entry.path.display().to_string().into();
+            let detail = folder_label(&entry.path, home.as_deref()).into();
             let opened = format_opened(entry.opened_at).into();
             RecentView {
                 path: Arc::new(entry.path),
@@ -192,6 +193,21 @@ pub fn visible_recents(data_dir: &Path) -> Vec<RecentView> {
             }
         })
         .collect()
+}
+
+/// Where a recent project is, as its card prints it: the folder that holds
+/// it, with `home` written `~`. The card's title is the file's stem, so the
+/// folder is what tells two projects of one name apart.
+pub(crate) fn folder_label(path: &Path, home: Option<&Path>) -> String {
+    let folder = path
+        .parent()
+        .filter(|folder| !folder.as_os_str().is_empty())
+        .unwrap_or(path);
+    match home.and_then(|home| folder.strip_prefix(home).ok()) {
+        Some(rest) if rest.as_os_str().is_empty() => "~".to_owned(),
+        Some(rest) => format!("~{}{}", std::path::MAIN_SEPARATOR, rest.display()),
+        None => folder.display().to_string(),
+    }
 }
 
 fn load_entries(data_dir: &Path) -> Vec<RecentEntry> {
@@ -278,8 +294,36 @@ mod tests {
         assert_eq!(recents[1].path.as_ref(), &a);
         assert!(recents[0].opened_at > 0);
         assert_eq!(recents[0].label.as_ref(), "b");
-        assert_eq!(recents[0].detail.as_ref(), b.display().to_string());
+        assert_eq!(
+            recents[0].detail.as_ref(),
+            folder_label(&b, dirs::home_dir().as_deref())
+        );
         assert!(!recents[0].missing);
+    }
+
+    /// A card prints the folder its project is in, with the home folder as
+    /// `~`. Closes the class "a card that prints the whole path": a deep path
+    /// wrapped the card over several lines and repeated the title's file name.
+    /// The home prefix matches whole components, so `/home/u` is not a prefix
+    /// of `/home/user2`.
+    #[test]
+    #[cfg(unix)]
+    fn a_card_prints_its_projects_folder_with_home_as_a_tilde() {
+        let cases: [(&str, Option<&str>, &str); 6] = [
+            ("/home/u/.aria/untitled.aria", Some("/home/u"), "~/.aria"),
+            ("/home/u/films/cut/a.aria", Some("/home/u"), "~/films/cut"),
+            ("/home/u/a.aria", Some("/home/u"), "~"),
+            ("/home/user2/a.aria", Some("/home/u"), "/home/user2"),
+            ("/srv/films/a.aria", None, "/srv/films"),
+            ("a.aria", Some("/home/u"), "a.aria"),
+        ];
+        for (path, home, printed) in cases {
+            assert_eq!(
+                folder_label(Path::new(path), home.map(Path::new)),
+                printed,
+                "{path} under home {home:?}"
+            );
+        }
     }
 
     #[test]

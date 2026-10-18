@@ -6,15 +6,17 @@
 //! list rather than by a table of offsets. A tab contributed at runtime is
 //! underlined, hover-fades, and slides like any other.
 //!
-//! The underline is positioned as a fraction of the row instead of in pixels,
-//! because a tab's width is its share of the strip and nothing measures it:
-//! every tab is `flex_1`, so tab `i` of `n` starts at `i/n` and is `1/n` wide,
-//! whatever the strip's width turns out to be.
+//! Each tab's share of the strip is its label's width plus its padding, so a
+//! long label gets the room it needs before a short one gets spare room. The
+//! shares are flex weights on a zero basis: tab `i` starts at the weights
+//! before it over their sum and is its own weight over the sum wide, whatever
+//! the strip's width turns out to be, so the underline is placed by those
+//! fractions rather than in pixels.
 
 use gpui::motion::presets;
 use gpui::{
-    CursorStyle, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
-    StatefulInteractiveElement, Styled, div, px, relative,
+    CursorStyle, FontWeight, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
+    ParentElement, StatefulInteractiveElement, Styled, div, px, relative,
 };
 
 use crate::motion::{self, glide};
@@ -47,11 +49,32 @@ pub(super) fn tab_row(
     let hover_bg = theme.glass_hover();
 
     // Separate iterator passes avoid retaining a per-frame vector. The host is
-    // immutable for the process, so count, position, and drawing read one table.
-    let count = host.visible(kind).count();
-    let target = host
+    // immutable for the process, so the sums and the drawing read one table,
+    // and each label's advance is a hit in the text system's cache after the
+    // first frame.
+    let font = cx
+        .text_system()
+        .resolve_font(&theme.ui_font(FontWeight::NORMAL));
+    let weight = |label: &str| {
+        f32::from(
+            cx.text_system()
+                .advance_for_text_with_font_id(label, font, Theme::TEXT_UI),
+        ) + 2.0 * Theme::SPACE_SM
+    };
+    let total: f32 = host
         .visible(kind)
-        .position(|tab| tab.id.as_ref() == active.as_ref());
+        .map(|tab| weight(tab.label.as_ref()))
+        .sum();
+    let mut before = 0.0;
+    let mut front = None;
+    for tab in host.visible(kind) {
+        let share = weight(tab.label.as_ref());
+        if tab.id.as_ref() == active.as_ref() {
+            front = Some((before, share));
+            break;
+        }
+        before += share;
+    }
     let mut row = div().relative().flex().flex_row().w_full();
     for tab in host.visible(kind) {
         let selected = tab.id.as_ref() == active.as_ref();
@@ -65,10 +88,12 @@ pub(super) fn tab_row(
                     let id = tab.id.clone();
                     move || format!("insp-tab-{id}")
                 })
-                // No minimum from the label: every tab keeps its equal share,
-                // which is where the underline is drawn, and a label longer
-                // than the share ends in an ellipsis.
-                .flex_1()
+                // No minimum from the label: every tab keeps its weighted
+                // share, which is where the underline is drawn, and a label
+                // longer than its share ends in an ellipsis.
+                .flex_basis(relative(0.))
+                .flex_grow(weight(tab.label.as_ref()))
+                .flex_shrink(1.)
                 .min_w_0()
                 .flex()
                 .items_center()
@@ -105,11 +130,16 @@ pub(super) fn tab_row(
         );
     }
 
-    if let Some(index) = target {
-        let slot = 1.0 / count as f32;
-        let at = glide::glide(
-            motion::MotionKey::new(SLIDE_KEY, ""),
-            index as f32,
+    if let Some((before, share)) = front.filter(|_| total > 0.0) {
+        let left = glide::glide(
+            motion::MotionKey::new(SLIDE_KEY, "left"),
+            before / total,
+            presets::TAB_SLIDE,
+            false,
+        );
+        let width = glide::glide(
+            motion::MotionKey::new(SLIDE_KEY, "width"),
+            share / total,
             presets::TAB_SLIDE,
             false,
         );
@@ -118,8 +148,8 @@ pub(super) fn tab_row(
                 .debug_selector(|| "insp-tab-underline".to_owned())
                 .absolute()
                 .bottom_0()
-                .left(relative(at * slot))
-                .w(relative(slot))
+                .left(relative(left))
+                .w(relative(width))
                 .h(px(INDICATOR_H))
                 .rounded(px(INDICATOR_H / 2.0))
                 .bg(accent),
