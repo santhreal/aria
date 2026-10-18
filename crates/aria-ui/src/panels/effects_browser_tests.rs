@@ -18,7 +18,7 @@ use gpui::{Bounds, Modifiers, TestAppContext, point, px, size};
 
 use crate::components::drawn::{self, Drawn};
 use crate::dock::PANEL_EFFECTS;
-use crate::test_support::drawn_shell;
+use crate::test_support::{drawn_shell, refresh_panels};
 use crate::theme::Theme;
 const EPS: f32 = 0.51;
 
@@ -32,7 +32,7 @@ fn the_docked_effects_panel_keeps_its_inset(cx: &mut TestAppContext) {
             cx.notify();
         });
     });
-    visual.run_until_parked();
+    refresh_panels(visual);
     // The frame holding the panel, from the dock rather than from the panel's
     // own elements, so a panel drawn without its inset is measured too.
     let [x, y, w, h] = visual
@@ -108,7 +108,7 @@ fn at_rest_the_effects_panel_draws_a_lean_search_row_and_clears_with_an_icon(
             cx.notify();
         });
     });
-    visual.run_until_parked();
+    refresh_panels(visual);
 
     let dock = visual
         .debug_bounds("effects-dock")
@@ -158,7 +158,7 @@ fn at_rest_the_effects_panel_draws_a_lean_search_row_and_clears_with_an_icon(
             cx.notify();
         });
     });
-    visual.run_until_parked();
+    refresh_panels(visual);
     let boxes = drawn::take();
 
     let clear = visual
@@ -181,7 +181,7 @@ fn at_rest_the_effects_panel_draws_a_lean_search_row_and_clears_with_an_icon(
         "the clear button draws its close icon"
     );
     visual.simulate_click(clear.center(), Modifiers::none());
-    visual.run_until_parked();
+    refresh_panels(visual);
     assert!(
         visual.read(|app| state.read(app).effects_browser.query.is_empty()),
         "clicking the clear button empties the query"

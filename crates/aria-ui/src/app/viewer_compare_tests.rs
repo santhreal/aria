@@ -246,8 +246,7 @@ fn an_unreadable_still_stops_the_comparison(cx: &mut TestAppContext) {
 }
 
 fn bounds(visual: &mut VisualTestContext, selector: &'static str) -> Bounds<Pixels> {
-    visual
-        .debug_bounds(selector)
+    crate::test_support::panel_bounds(visual, selector)
         .unwrap_or_else(|| panic!("nothing drawn as {selector}"))
 }
 

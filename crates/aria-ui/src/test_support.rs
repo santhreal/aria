@@ -78,6 +78,38 @@ pub(crate) fn drawn_shell_at(
     (state, visual)
 }
 
+/// Settles background follow-ups and forces a full window draw so every cached
+/// [`crate::shell::panel_view::PanelBody`] populates `rendered_frame.debug_bounds`.
+///
+/// # Why
+///
+/// Each docked panel body is mounted through [`gpui::AnyView::cached`]. When an
+/// asynchronous follow-up (`PoolTileChanged`, `FilmstripChanged`, or a narrow
+/// [`crate::shell::Shell::redraw`]) runs while `visual.run_until_parked()` drains
+/// the executor, `gpui` draws a frame with `window.refreshing == false` and only
+/// the moved panel bodies in `window.dirty_views`. Unmoved [`PanelBody`] views
+/// take the `window.reuse_prepaint` fast path (`crates/gpui/src/window.rs:3818`),
+/// which copies hitboxes, tooltips, and dispatch nodes from `prev_frame` to
+/// `next_frame` without copying `debug_bounds`. Calling `run_until_parked()`
+/// first drains those narrow redraws, and `window.refresh()` then sets
+/// `window.refreshing = true` and synchronously draws a full frame in
+/// `App::flush_effects`, bypassing `reuse_prepaint` for every panel body. Do not
+/// call `run_until_parked()` after this function before reading `debug_bounds`.
+pub(crate) fn refresh_panels(visual: &mut gpui::VisualTestContext) {
+    visual.run_until_parked();
+    visual.update(|window, _| window.refresh());
+}
+
+/// The painted bounds of `selector` after settling follow-ups and forcing a
+/// full panel draw (see [`refresh_panels`]).
+pub(crate) fn panel_bounds(
+    visual: &mut gpui::VisualTestContext,
+    selector: &'static str,
+) -> Option<gpui::Bounds<gpui::Pixels>> {
+    refresh_panels(visual);
+    visual.debug_bounds(selector)
+}
+
 /// Redraws until the boot cover is gone, for a test that reads text where the
 /// cover's wordmark lies. The cover holds on the wall clock until the first
 /// picture lands or [`crate::shell::SPLASH_MAX`] passes, then fades, so the
@@ -100,10 +132,52 @@ pub(crate) fn wait_out_splash(visual: &mut gpui::VisualTestContext) {
     }
 }
 
+/// Shuts down the test [`gpui::App`] when [`gpui::TestDispatcher::drain_tasks`]
+/// drops the background timer task at the end of a `#[gpui::test]`.
+///
+/// # Why
+///
+/// [`gpui::TestAppContext::add_window_view`] converts its [`gpui::VisualTestContext`]
+/// into `&'static mut` with `Box::into_raw` (`into_mut`) and registers the
+/// matching `Box::from_raw` drop inside `TestAppContext::on_quit`. However, the
+/// `#[gpui::test]` macro teardown calls `cx.update(|cx| cx.quit())`, which
+/// invokes `App::quit` (`TestPlatform::quit`, a no-op) rather than
+/// `TestAppContext::quit`. Without `TestAppContext::quit`, `on_quit` is never
+/// drained and `App::shutdown` never runs, leaking the `VisualTestContext`,
+/// `Rc<AppCell>`, `Window`, `Shell`, `AppState`, `Engine`, `Renderer` (`wgpu`
+/// device), `PreviewWorker` (`aria-preview` thread), and `EventBus`
+/// (`aria-events` thread) for the lifetime of the test binary. Holding this
+/// guard inside a timer task on `foreground_executor` ensures
+/// `dispatcher.drain_tasks()` drops the guard after the test body and macro
+/// teardowns finish, running `TestAppContext::quit` so every window, entity,
+/// device, and worker thread is released before the next test starts.
+struct QuitOnDrain(gpui::TestAppContext);
+
+impl Drop for QuitOnDrain {
+    fn drop(&mut self) {
+        if !std::thread::panicking() {
+            self.0.quit();
+        }
+    }
+}
+
 /// The state [`drawn_shell`] draws: the UI plugin mounted and an empty
 /// project open.
 fn shell_state(cx: &mut gpui::TestAppContext, tag: &str) -> gpui::Entity<crate::app::AppState> {
     use gpui::AppContext as _;
+    let guard = QuitOnDrain(cx.clone());
+    cx.foreground_executor()
+        .spawn(async move {
+            let _guard = guard;
+            loop {
+                _guard
+                    .0
+                    .executor()
+                    .timer(std::time::Duration::from_secs(3600))
+                    .await;
+            }
+        })
+        .detach();
     cx.update(|app| {
         crate::theme::Theme::install(
             crate::theme::Appearance::Dark,

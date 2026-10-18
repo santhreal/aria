@@ -253,18 +253,18 @@ fn kind_of(id: &str) -> Option<Kind> {
 }
 
 /// Run one palette row against a fresh state and report the history labels it
-/// added, newest last.
-fn labels_from(row: &crate::commands::host::CommandEntry) -> Vec<String> {
-    driven(row).0
-}
-
-/// Run one palette row against a fresh state and report both the history labels
-/// it added, newest last, and every command it dispatched.
+/// added, newest last, every command it dispatched, and whether it asked the
+/// file picker for a path.
 ///
-/// The two answer different questions: the label says the row changed the
-/// project, the dispatch says the row asked for something. A save asks and
-/// changes nothing, so the surface census needs the second.
-fn driven(row: &crate::commands::host::CommandEntry) -> (Vec<String>, Vec<&'static str>) {
+/// # Why
+///
+/// Each `with_clip()` constructs an `AppState` and a headless `Renderer`
+/// (`~240 ms` wall and `66` Lavapipe threads per call). Recording per-row
+/// history labels and path-picker requests during the single `CENSUS` pass
+/// avoids repeating two additional `150`-row passes in
+/// `every_row_does_what_it_says` and
+/// `every_row_that_asks_for_a_path_is_driven_with_an_answer`.
+fn driven(row: &crate::commands::host::CommandEntry) -> (Vec<String>, Vec<&'static str>, bool) {
     let (mut state, _) = with_clip();
     // Put the playhead inside the clip: several rows are inert outside it, and an
     // inert row would look identical to a broken one.
@@ -276,7 +276,11 @@ fn driven(row: &crate::commands::host::CommandEntry) -> (Vec<String>, Vec<&'stat
     let before = history_labels(&state);
     (row.run)(&mut state);
     let after = history_labels(&state);
-    (after.into_iter().skip(before.len()).collect(), watch.take())
+    (
+        after.into_iter().skip(before.len()).collect(),
+        watch.take(),
+        state.picks_asked() > 0,
+    )
 }
 
 fn history_labels(state: &AppState) -> Vec<String> {
@@ -289,33 +293,40 @@ fn history_labels(state: &AppState) -> Vec<String> {
         .collect()
 }
 
+struct PaletteCensus {
+    labels: BTreeSet<String>,
+    sent: BTreeSet<&'static str>,
+    rows: Vec<(&'static str, Vec<String>, bool)>,
+}
+
 /// Every command label the drivable palette rows produced. Each row costs a
 /// fresh editor state, so the census is built once and shared.
 ///
 /// Shared with the operator-surface census, which needs the same set from the
 /// other direction: this one is what the palette reaches.
 pub(super) fn measured() -> &'static BTreeSet<String> {
-    &CENSUS.0
+    &CENSUS.labels
 }
 
 /// Every command the palette rows dispatched, whether or not it edited.
 pub(super) fn dispatched() -> &'static BTreeSet<&'static str> {
-    &CENSUS.1
+    &CENSUS.sent
 }
 
-/// The palette census: history labels, then commands sent. Both come from one
-/// pass, because a pass costs a fresh editor state per row.
-static CENSUS: std::sync::LazyLock<(BTreeSet<String>, BTreeSet<&'static str>)> =
-    std::sync::LazyLock::new(|| {
-        let mut labels = BTreeSet::new();
-        let mut sent = BTreeSet::new();
-        for row in BUILTIN_COMMANDS {
-            let (wrote, asked) = driven(row);
-            labels.extend(wrote);
-            sent.extend(asked);
-        }
-        (labels, sent)
-    });
+/// The palette census: history labels, commands sent, and per-row outcomes. All
+/// come from one pass, because a pass costs a fresh editor state per row.
+static CENSUS: std::sync::LazyLock<PaletteCensus> = std::sync::LazyLock::new(|| {
+    let mut labels = BTreeSet::new();
+    let mut sent = BTreeSet::new();
+    let mut rows = Vec::with_capacity(BUILTIN_COMMANDS.len());
+    for row in BUILTIN_COMMANDS {
+        let (wrote, asked, asked_pick) = driven(row);
+        labels.extend(wrote.iter().cloned());
+        sent.extend(asked);
+        rows.push((row.id, wrote, asked_pick));
+    }
+    PaletteCensus { labels, sent, rows }
+});
 
 #[test]
 fn the_table_names_every_palette_row_and_nothing_else() {
@@ -336,14 +347,13 @@ fn every_row_does_what_it_says() {
     // Collected rather than asserted one at a time: one run should name every
     // row that drifted, not the first.
     let mut wrong = Vec::new();
-    for row in BUILTIN_COMMANDS {
-        let Some(kind) = kind_of(row.id) else {
+    for (id, produced, _) in &CENSUS.rows {
+        let Some(kind) = kind_of(id) else {
             continue;
         };
-        let produced = labels_from(row);
         match (kind, produced.is_empty()) {
-            (Edits, true) => wrong.push(format!("{} declared Edits, sent nothing", row.id)),
-            (NoEdit, false) => wrong.push(format!("{} declared NoEdit, sent {produced:?}", row.id)),
+            (Edits, true) => wrong.push(format!("{id} declared Edits, sent nothing")),
+            (NoEdit, false) => wrong.push(format!("{id} declared NoEdit, sent {produced:?}")),
             _ => {}
         }
     }
@@ -517,14 +527,12 @@ fn every_row_that_asks_for_a_path_is_driven_with_an_answer() {
     // time. A new row that opens a dialog is red here until it is declared and
     // driven. Reaching this line at all is the other half of the proof: a row
     // that blocked on a dialog would never return.
-    let mut asking = Vec::new();
-    for row in BUILTIN_COMMANDS {
-        let (mut state, _) = with_clip();
-        (row.run)(&mut state);
-        if state.picks_asked() > 0 {
-            asking.push(row.id);
-        }
-    }
+    let asking: Vec<&str> = CENSUS
+        .rows
+        .iter()
+        .filter(|(_, _, asked_pick)| *asked_pick)
+        .map(|(id, _, _)| *id)
+        .collect();
     let declared: BTreeSet<&str> = PICK_ROWS.iter().copied().collect();
     let undeclared: Vec<&&str> = asking
         .iter()

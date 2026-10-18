@@ -18,7 +18,7 @@ use crate::app::AppState;
 use crate::app::clip_params::ParamRow;
 use crate::app::premiere_tests::with_clip;
 use crate::keys::fields;
-use crate::test_support::drawn_shell;
+use crate::test_support::{drawn_shell, refresh_panels};
 
 const ROTATION: ClipParam = ClipParam::Rotation;
 
@@ -240,9 +240,7 @@ async fn alt_click_on_a_drawn_stopwatch_adds_a_driver_the_keys_edit(cx: &mut Tes
     cx.executor().allow_parking();
     let (state, visual) = drawn_shell(cx, "driver-drawn");
     let clip = visual.update(|_, app| {
-        // Notified, so the shell builds every panel body again; a window
-        // refresh alone replays each body's last drawing, with no clip selected.
-        state.update(app, |state, cx| {
+        state.update(app, |state, _| {
             expressions(state);
             let media = state.import_media(fixture()).expect("import the fixture");
             state
@@ -259,11 +257,10 @@ async fn alt_click_on_a_drawn_stopwatch_adds_a_driver_the_keys_edit(cx: &mut Tes
                 .expect("a clip");
             state.select_clip(clip);
             state.dock_tree.open(crate::dock::PANEL_INSPECTOR);
-            cx.notify();
             clip
         })
     });
-    visual.run_until_parked();
+    refresh_panels(visual);
     let dot = visual.debug_bounds("insp-key-Rotation").unwrap_or_else(|| {
         let drawn: Vec<_> = ["insp-key-Position", "insp-key-Scale", "insp-key-Opacity"]
             .into_iter()
@@ -289,7 +286,7 @@ async fn alt_click_on_a_drawn_stopwatch_adds_a_driver_the_keys_edit(cx: &mut Tes
         panic!("the inspector draws no rotation stopwatch: {facts}; other dots {drawn:?}")
     });
     visual.simulate_click(dot.center(), Modifiers::alt());
-    visual.run_until_parked();
+    refresh_panels(visual);
     let driven = visual.read(|app| {
         state
             .read(app)

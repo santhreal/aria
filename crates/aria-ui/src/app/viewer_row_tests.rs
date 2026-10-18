@@ -63,10 +63,7 @@ pub(super) fn bounds_of(
     visual: &mut gpui::VisualTestContext,
     selector: &str,
 ) -> gpui::Bounds<gpui::Pixels> {
-    visual.update(|window, _| window.refresh());
-    visual.run_until_parked();
-    visual
-        .debug_bounds(intern(selector))
+    crate::test_support::panel_bounds(visual, intern(selector))
         .unwrap_or_else(|| panic!("the shell draws no {selector}"))
 }
 

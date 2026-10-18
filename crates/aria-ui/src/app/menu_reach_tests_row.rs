@@ -27,17 +27,15 @@ fn every_row_does_what_it_says() {
     // Collected rather than asserted one at a time: one run should name every
     // row that drifted, not the first.
     let mut wrong = Vec::new();
-    for (menu, id) in live_rows() {
-        let Some((kind, dress)) = row_of(&id) else {
-            continue;
-        };
-        let produced = labels_from(menu, &id, dress);
-        match (kind, produced.is_empty()) {
+    for row in &CENSUS.rows {
+        match (row.kind, row.wrote.is_empty()) {
             (Edits, true) => wrong.push(format!(
-                "{id} declared Edits against {dress:?} and sent nothing"
+                "{} declared Edits against {:?} and sent nothing",
+                row.id, row.dress
             )),
             (NoEdit, false) => wrong.push(format!(
-                "{id} declared NoEdit against {dress:?} and sent {produced:?}"
+                "{} declared NoEdit against {:?} and sent {:?}",
+                row.id, row.dress, row.wrote
             )),
             _ => {}
         }
@@ -67,16 +65,11 @@ fn every_row_that_asks_for_a_path_is_driven_with_an_answer() {
     // all is the other half of the proof: a row that blocked on a dialog would
     // never return.
     let declared: BTreeSet<&str> = PICK_ROWS.iter().map(|(id, _)| *id).collect();
-    let cx = gpui::TestAppContext::single();
-    let mut undeclared = Vec::new();
-    for (menu, id) in live_rows() {
-        let entity = entity_of(with_clip().0, &cx);
-        run_row(&entity, &cx, menu, &id);
-        let asked = cx.update(|app| entity.read(app).picks_asked());
-        if asked > 0 && !declared.contains(id.as_str()) {
-            undeclared.push(id);
-        }
-    }
+    let undeclared: Vec<&String> = CENSUS
+        .asking_picks
+        .iter()
+        .filter(|id| !declared.contains(id.as_str()))
+        .collect();
     assert!(
         undeclared.is_empty(),
         "these rows ask for a path and no test answers one: {undeclared:?}"
@@ -88,24 +81,14 @@ fn every_row_that_opens_a_form_is_committed() {
     // row that leaves a dialog up whose Enter runs something must be driven with
     // Enter pressed or exempted with a reason. A new form row is red here until
     // someone decides which.
-    let cx = gpui::TestAppContext::single();
     let committed: BTreeSet<&str> = FORM_ROWS.iter().map(|(id, _)| *id).collect();
     let exempt: BTreeSet<&str> = FORM_EXEMPT.iter().map(|(id, _)| *id).collect();
-    let mut forms = BTreeSet::new();
-    for (menu, id) in live_rows() {
-        let Some((_, dress)) = row_of(&id) else {
-            continue;
-        };
-        let entity = entity_of(dress.state(), &cx);
-        run_row(&entity, &cx, menu, &id);
-        let dialog = cx.update(|app| entity.read(app).dialog);
-        if matches!(
-            crate::app::dialog_primary::primary(dialog),
-            crate::app::dialog_primary::Primary::Run(_)
-        ) {
-            forms.insert(id);
-        }
-    }
+    let forms: BTreeSet<String> = CENSUS
+        .rows
+        .iter()
+        .filter(|row| row.opened_form)
+        .map(|row| row.id.clone())
+        .collect();
     let undeclared: Vec<&String> = forms
         .iter()
         .filter(|id| !committed.contains(id.as_str()) && !exempt.contains(id.as_str()))

@@ -22,13 +22,11 @@ fn row(menu: AppMenu, state: &AppState, id: &str) -> MenuItem {
 #[test]
 fn no_row_is_drawn_disabled_over_the_state_it_edits() {
     let mut wrong = Vec::new();
-    for (menu, id) in live_rows() {
-        let Some((Edits, dress)) = row_of(&id) else {
-            continue;
-        };
-        let state = dress.state();
-        if let Some(reason) = row(menu, &state, &id).blocked_by(&state) {
-            wrong.push(format!("{id} against {dress:?}: {reason}"));
+    for row in &CENSUS.rows {
+        if row.kind == Edits
+            && let Some(reason) = row.blocked
+        {
+            wrong.push(format!("{} against {:?}: {reason}", row.id, row.dress));
         }
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));

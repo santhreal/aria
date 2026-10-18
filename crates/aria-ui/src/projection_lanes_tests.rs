@@ -177,9 +177,9 @@ const REACH: &[(&str, Reach, Reach)] = &[
     ("SourceEdit", Refused, Refused),
 ];
 
-/// The fixture and the clip and lane every sample is pointed at.
-struct Fixture {
-    engine: Engine,
+/// The clip, lane, and media every sample is pointed at.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Targets {
     clip: ClipId,
     track: TrackId,
     media: MediaId,
@@ -234,7 +234,17 @@ fn text(engine: &mut Engine, track: TrackId, start: i64) -> ClipId {
     ))
 }
 
-fn fixture(aim: Aim) -> Fixture {
+/// Reset `engine` to the census fixture aimed at `aim`.
+///
+/// # Why
+///
+/// `Engine::with_project` calls `Renderer::new_headless`, which brings up a
+/// Vulkan device (`66` OS threads on Lavapipe) and JIT-compiles 25 WGSL
+/// pipelines (`~240 ms` wall per call). Reusing one `Engine` across the
+/// 230 `(EditCommand, Aim)` cases and resetting its project and history on
+/// each case keeps every projection and undo assertion identical without
+/// constructing 230 headless GPU devices.
+fn reset_fixture(engine: &mut Engine, aim: Aim) -> Targets {
     let mut project = Project::new("lanes", RATE);
     let media = project.add_media(MediaSource::new("take.mp4", 1920, 1080, RATE, 300, true));
     let mut place = |kind: TrackKind, name: &str, at: i64| {
@@ -252,41 +262,56 @@ fn fixture(aim: Aim) -> Fixture {
     let (_, picture) = place(TrackKind::Video, "V1", 0);
     let (sound_lane, sound) = place(TrackKind::Audio, "A1", 2);
     let (_, echo) = place(TrackKind::Audio, "A2", 5);
-    let mut engine = Engine::with_project(EngineConfig { undo_limit: 64 }, project)
-        .expect("an engine over the fixture");
+    engine.reset_project(project);
     apply(
-        &mut engine,
+        engine,
         EditCommand::LinkClips {
             clips: vec![picture, sound, echo],
         },
     );
-    let titles = lane(&mut engine, TrackKind::Text, "T1");
-    let left = text(&mut engine, titles, 0);
-    text(&mut engine, titles, 24);
+    let titles = lane(engine, TrackKind::Text, "T1");
+    let left = text(engine, titles, 0);
+    text(engine, titles, 24);
     apply(
-        &mut engine,
+        engine,
         EditCommand::AddTransition {
             clip: left,
             transition_id: "dip_to_black".to_string(),
         },
     );
-    let bystander = lane(&mut engine, TrackKind::Text, "T2");
-    text(&mut engine, bystander, 0);
+    let bystander = lane(engine, TrackKind::Text, "T2");
+    text(engine, bystander, 0);
     let (clip, track) = match aim {
         Aim::Text => (left, titles),
         Aim::Linked => (sound, sound_lane),
     };
-    Fixture {
-        engine,
-        clip,
-        track,
-        media,
+    Targets { clip, track, media }
+}
+
+fn fixture_engine(gpu: Option<&aria_compositor::GpuContext>) -> Engine {
+    let config = EngineConfig { undo_limit: 64 };
+    let project = Project::new("lanes", RATE);
+    match gpu {
+        Some(gpu) => Engine::with_renderer(
+            config,
+            project,
+            aria_render::Renderer::with_gpu(gpu.share()),
+        ),
+        None => Engine::with_project(config, project).expect("an engine over the fixture"),
     }
+}
+
+fn fixture(aim: Aim) -> (Engine, Targets) {
+    let ctx = aria_plugin::PluginContext::new();
+    let gpu = crate::test_support::mounted_gpu(&ctx);
+    let mut engine = fixture_engine(gpu.as_ref());
+    let targets = reset_fixture(&mut engine, aim);
+    (engine, targets)
 }
 
 /// Point a census sample at the fixture's clip, lane and media, by the names
 /// every command gives those fields on the wire.
-fn retarget(command: &EditCommand, fixture: &Fixture) -> EditCommand {
+fn retarget(command: &EditCommand, fixture: &Targets) -> EditCommand {
     let (clip, track) = (fixture.clip, fixture.track);
     let mut wire = serde_json::to_value(command).expect("a command serializes");
     let fields = wire
@@ -373,27 +398,20 @@ fn catalogs() -> [u64; 4] {
 /// Run `sample` aimed by `aim`: the incremental store after the edit and after
 /// its undo, each against a full projection. Returns the reach, or `None` when
 /// another test moved a catalog mid-case and the reach cannot be read.
-fn case(sample: &EditCommand, aim: Aim) -> Result<Option<Reach>, String> {
+fn case(engine: &mut Engine, sample: &EditCommand, aim: Aim) -> Result<Option<Reach>, String> {
     let catalogs_before = catalogs();
-    let mut fixture = fixture(aim);
-    let selection = [fixture.clip];
-    let (before, basis) = project(&fixture.engine, &selection, None);
-    let command = retarget(sample, &fixture);
+    let targets = reset_fixture(engine, aim);
+    let selection = [targets.clip];
+    let (before, basis) = project(engine, &selection, None);
+    let command = retarget(sample, &targets);
     let id = command.spec().id;
-    let refused = fixture.engine.apply(Command::Edit(command)).is_err();
+    let refused = engine.apply(Command::Edit(command)).is_err();
     let previous = Previous {
         store: &before,
         basis: &basis,
     };
-    let (after, basis_after) = project(&fixture.engine, &selection, Some(previous));
-    let full = project_to_ui_with(
-        fixture.engine.project(),
-        at(),
-        &selection,
-        false,
-        false,
-        false,
-    );
+    let (after, basis_after) = project(engine, &selection, Some(previous));
+    let full = project_to_ui_with(engine.project(), at(), &selection, false, false, false);
     if let Some(wrong) = difference(&after, &full) {
         return Err(format!(
             "{id} aimed at {aim:?}: the kept store is stale\n{wrong}"
@@ -411,20 +429,13 @@ fn case(sample: &EditCommand, aim: Aim) -> Result<Option<Reach>, String> {
                 .any(|old| old.id == lane.id && old.clips.shares(&lane.clips))
         })
         .count();
-    if !refused && fixture.engine.undo() {
+    if !refused && engine.undo() {
         let previous = Previous {
             store: &after,
             basis: &basis_after,
         };
-        let (undone, _) = project(&fixture.engine, &selection, Some(previous));
-        let full = project_to_ui_with(
-            fixture.engine.project(),
-            at(),
-            &selection,
-            false,
-            false,
-            false,
-        );
+        let (undone, _) = project(engine, &selection, Some(previous));
+        let full = project_to_ui_with(engine.project(), at(), &selection, false, false, false);
         if let Some(wrong) = difference(&undone, &full) {
             return Err(format!(
                 "{id} aimed at {aim:?}: the kept store is stale after its undo\n{wrong}"
@@ -452,6 +463,59 @@ fn case(sample: &EditCommand, aim: Aim) -> Result<Option<Reach>, String> {
 /// one, and re-projects as much as its [`REACH`] row records.
 #[test]
 fn every_edit_reprojects_what_a_full_projection_would() {
+    let ctx = aria_plugin::PluginContext::new();
+    let gpu = crate::test_support::mounted_gpu(&ctx);
+    let mut fresh_engine = fixture_engine(gpu.as_ref());
+    let fresh_targets = reset_fixture(&mut fresh_engine, Aim::Text);
+    let mut engine = fixture_engine(gpu.as_ref());
+    let _ = reset_fixture(&mut engine, Aim::Linked);
+    let _ = engine.apply(Command::Edit(EditCommand::SetProjectName {
+        name: "mutated".to_string(),
+    }));
+    let reset_targets = reset_fixture(&mut engine, Aim::Text);
+    let shape = |eng: &Engine, targets: Targets| {
+        let store = project_to_ui_with(eng.project(), at(), &[targets.clip], false, false, false);
+        let tracks: Vec<_> = store
+            .sequence
+            .tracks
+            .iter()
+            .map(|track| {
+                let clips: Vec<_> = track
+                    .clips
+                    .iter()
+                    .map(|clip| {
+                        (
+                            clip.timeline_start_ticks,
+                            clip.timeline_end_ticks,
+                            clip.selected,
+                            clip.transition.is_some(),
+                        )
+                    })
+                    .collect();
+                (track.name.clone(), track.kind, clips)
+            })
+            .collect();
+        let history: Vec<_> = eng
+            .history_entries()
+            .into_iter()
+            .map(|entry| (entry.label.into_owned(), entry.applied))
+            .collect();
+        (
+            store.project_name.to_string(),
+            tracks,
+            history,
+            eng.is_dirty(),
+            eng.in_group(),
+            eng.project_path().cloned(),
+            eng.active_sequence(),
+        )
+    };
+    assert_eq!(
+        shape(&engine, reset_targets),
+        shape(&fresh_engine, fresh_targets),
+    );
+    drop(fresh_engine);
+
     let mut failures = Vec::new();
     let mut missing = Vec::new();
     let census: Vec<EditCommand> = every_edit_command();
@@ -462,7 +526,7 @@ fn every_edit_reprojects_what_a_full_projection_would() {
             // A catalog moved by a test running beside this one changes what
             // every lane reads; the case runs again rather than read that as
             // this edit's reach.
-            let reach = (0..4).find_map(|_| case(sample, aim).transpose());
+            let reach = (0..4).find_map(|_| case(&mut engine, sample, aim).transpose());
             match reach {
                 Some(Ok(reach)) => measured[slot] = reach,
                 Some(Err(why)) => failures.push(why),
@@ -502,10 +566,10 @@ fn every_edit_reprojects_what_a_full_projection_would() {
 /// rest, and the kept store equals a full projection.
 #[test]
 fn a_selection_change_rebuilds_the_lanes_it_toggles() {
-    let fixture = fixture(Aim::Text);
-    let project = fixture.engine.project();
+    let (engine, targets) = fixture(Aim::Text);
+    let project = engine.project();
     let (before, basis) = project_to_ui_from(project, at(), &[], false, false, false, None);
-    let selection = [fixture.clip];
+    let selection = [targets.clip];
     let previous = Previous {
         store: &before,
         basis: &basis,
@@ -523,7 +587,7 @@ fn a_selection_change_rebuilds_the_lanes_it_toggles() {
     if let Some(wrong) = difference(&after, &full) {
         panic!("a selection change left a lane stale\n{wrong}");
     }
-    let lane = fixture.track.raw();
+    let lane = targets.track.raw();
     for (old, new) in before.sequence.tracks.iter().zip(&after.sequence.tracks) {
         assert_eq!(
             old.clips.shares(&new.clips),
