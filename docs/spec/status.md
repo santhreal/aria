@@ -80,7 +80,13 @@ field or text box draws an accent border. Motion runs on `gpui::motion` with the
 timings in the Motion rules: lane heights and twirl-downs chase their target
 over 180 ms `ease_out`, workspace changes morph the frames over 180 ms
 `ease_out`, and during playback every hover fade and glide draws its end state
-(`crates/aria-ui/src/motion.rs`, `crates/aria-ui/src/motion_glide.rs`).
+(`crates/aria-ui/src/motion.rs`, `crates/aria-ui/src/motion_glide.rs`). Tab
+underlines and value hover underlines draw over their box and take no layout
+(`Theme::TAB_UNDERLINE` in `crates/aria-ui/src/theme.rs`,
+`crates/aria-ui/src/panels/value_readout.rs`), and the alignment rules in
+Density are checked on every painted quad and text run of the shell in every
+workspace at `1280x800`, `1600x976` and `1920x1080`
+(`crates/aria-ui/src/shell/spacing_tests.rs`).
 
 ## Viewer ([viewer.md](viewer.md))
 

@@ -54,6 +54,16 @@ A row of ghost buttons, chips or clickable rows steps out by its controls'
 side padding, so the first label stands on the text edge of the column that
 holds the row. Menu and palette rows stand with no gap between them.
 
+An active tab's underline and a scrubbable value's hover underline draw over
+their box and take no layout, so a tab label stands on its neighbours' centre
+line and a property value on the line of its label and keyframe navigator.
+Docked frames stand 6 px apart and 6 px in from the bars and the window's
+edges. Two parallel grey rules of different elements never touch or stand
+1 px apart. The workspace switcher, the breadcrumb and the transport stand on
+their bar's centre line while both side groups fit their halves. A round
+control, such as a transform handle on a fitted picture's edge, is drawn
+whole inside the box that clips it.
+
 Text uses Inter with proportional figures. Readouts are shaped with tabular
 figures, so timecode, values, and frame counts keep their digit widths while
 they change and align in columns; names and labels keep proportional figures,
