@@ -746,6 +746,7 @@ dependencies = [
  "gpui",
  "gpui_platform",
  "image",
+ "log",
  "parking_lot",
  "pollster 0.4.0",
  "serde",

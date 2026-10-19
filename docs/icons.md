@@ -31,6 +31,13 @@ All UI icons live under the **single** tracked root `assets/icon/`
 `text/`, `inspector/`, `ui/`). Media scratch files for local dev and tests
 live in gitignored `local-assets/assets/`.
 
+An icon sets `currentColor` on `stroke` or `fill`, never on the root `color`
+attribute: usvg cannot read `color="currentColor"` and logs a warning each
+time gpui rasterises the glyph at a new size.
+`every_registered_glyph_parses_without_a_warning` in
+`crates/aria-ui/src/icons.rs` parses every registered SVG through gpui's
+renderer and fails on any usvg warning.
+
 `assets/icon/aria-icon.png` is the canonical mark. `icons::brand_mark`
 draws it in the window, Linux packages install it, `scripts/package-macos.sh`
 turns it into `AppIcon.icns`, and the Xcode asset catalog under

@@ -70,6 +70,8 @@ gpui = { workspace = true, features = ["test-support"] }
 criterion = { version = "0.5", features = ["html_reports"] }
 # `handoff` is awaited without a window in its own unit tests.
 pollster = { workspace = true }
+# The icon tests record what usvg logs while gpui's renderer parses a glyph.
+log = "0.4"
 
 # The hot paths a frame pays for outside the GPU: projecting the project into
 # the view model, building the magnet index from it, and querying that index

@@ -403,6 +403,76 @@ mod tests {
         }
     }
 
+    std::thread_local! {
+        static USVG_RECORDS: std::cell::RefCell<Vec<String>> =
+            const { std::cell::RefCell::new(Vec::new()) };
+    }
+
+    /// Records every warning and error logged on the thread that logs it.
+    struct Recorder;
+
+    impl log::Log for Recorder {
+        fn enabled(&self, metadata: &log::Metadata) -> bool {
+            metadata.level() <= log::Level::Warn
+        }
+
+        fn log(&self, record: &log::Record) {
+            if self.enabled(record.metadata()) {
+                let line = format!("{} {}: {}", record.level(), record.target(), record.args());
+                USVG_RECORDS.with_borrow_mut(|records| records.push(line));
+            }
+        }
+
+        fn flush(&self) {}
+    }
+
+    /// The warnings and errors this thread logs while gpui's renderer parses
+    /// `bytes`.
+    fn parse_warnings(renderer: &gpui::SvgRenderer, name: &str, bytes: &[u8]) -> Vec<String> {
+        static INSTALL: std::sync::Once = std::sync::Once::new();
+        INSTALL.call_once(|| {
+            log::set_logger(&Recorder).expect("aria-ui's tests install no other logger");
+            log::set_max_level(log::LevelFilter::Warn);
+        });
+        USVG_RECORDS.with_borrow_mut(Vec::clear);
+        if let Err(error) = renderer.parse_svg(bytes) {
+            panic!("{name} does not parse: {error}");
+        }
+        USVG_RECORDS.take()
+    }
+
+    /// Every registered glyph parses through gpui's own SVG renderer without
+    /// a warning.
+    ///
+    /// Closes the class of icon files holding a value usvg cannot read: usvg
+    /// drops the attribute and logs a warning whenever gpui rasterises the
+    /// glyph at a new size, so a `color="currentColor"` on the play, pause and
+    /// fullscreen roots logged one at startup and two when playback first
+    /// started. Driven off the registry, so a new glyph is checked on the row
+    /// that adds it. The first parse, the pause glyph's root and one of its
+    /// strokes as they shipped, is the control: it must warn, or the recorder
+    /// is not receiving usvg. Does not check what a glyph looks like.
+    #[test]
+    fn every_registered_glyph_parses_without_a_warning() {
+        let renderer = gpui::SvgRenderer::new(std::sync::Arc::new(Assets));
+        let control = br#"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" color="currentColor"><path d="M8.5 5.5V18.5" stroke="currentColor" stroke-width="2"/></svg>"#;
+        assert_eq!(
+            parse_warnings(&renderer, "the control", control),
+            ["WARN usvg::parser::svgtree: Failed to parse color value: 'currentColor'."]
+        );
+        let glyphs = Assets.list("icon/").unwrap();
+        let glyphs: Vec<_> = glyphs
+            .iter()
+            .filter(|path| path.ends_with(".svg"))
+            .collect();
+        assert!(glyphs.contains(&&SharedString::from(PLAY)));
+        for path in glyphs {
+            let bytes = Assets.load(path).unwrap().expect("a listed path loads");
+            let warnings = parse_warnings(&renderer, path, &bytes);
+            assert!(warnings.is_empty(), "{path}: {warnings:?}");
+        }
+    }
+
     #[test]
     fn unknown_paths_are_none() {
         assert!(Assets.load("icon/nope.svg").unwrap().is_none());
