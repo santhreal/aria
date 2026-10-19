@@ -14,6 +14,8 @@
 //!   and the graph editor's rule against the ruler's are all members.
 //! - A tab label off its tab's centre line: an active tab whose underline
 //!   takes layout and lifts its label above its neighbours'.
+//! - A property value off its row's line: a readout whose underline takes
+//!   layout and lifts the number above the keyframe navigator beside it.
 //! - A centred control off its bar's centre line while both side groups fit
 //!   their halves: the workspace switcher, the breadcrumb and the transport.
 //! - A round control cut by the box that clips it: a handle on a fitted
@@ -555,6 +557,62 @@ fn every_tab_label_stands_on_its_tab_centre_line(cx: &mut TestAppContext) {
     assert!(
         checked.iter().all(|count| *count > 0),
         "the walk checked {checked:?} dock and Viewer tab labels"
+    );
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// The keyframe navigator's previous-key glyph, drawn right of a property's
+/// value in the Effect Controls rows and the Timeline's property rows.
+const PREVIOUS_KEY: &str = "\u{2039}";
+
+/// Every property value stands on the line of the keyframe navigator beside
+/// it. Each child of the row is centred on the row and each box's top lands on
+/// the device pixel grid, so the two centres stand within half a device pixel
+/// of each other; a value whose box is taller than its text on one side stands
+/// a whole device pixel off.
+#[gpui::test]
+fn every_value_stands_on_the_line_of_its_keyframe_navigator(cx: &mut TestAppContext) {
+    let mut failures = Vec::new();
+    let mut checked = 0usize;
+    walk(cx, &[false], |case, _, visual| {
+        let (runs, pixel) = visual.update(|window, _| {
+            (
+                window.rendered_text_runs().to_vec(),
+                1.0 / window.scale_factor(),
+            )
+        });
+        let gap = |value: &gpui::TextRunLayout, glyph: &gpui::TextRunLayout| {
+            f32::from(glyph.bounds.left() - value.bounds.right())
+        };
+        for glyph in runs.iter().filter(|run| run.text.as_ref() == PREVIOUS_KEY) {
+            // The value is the run that ends nearest left of the glyph on its
+            // line, at most one inset away.
+            let value = runs
+                .iter()
+                .filter(|run| {
+                    !run.text.trim().is_empty()
+                        && (0.0..=Theme::SPACE_MD).contains(&gap(run, glyph))
+                        && run.bounds.top() < glyph.bounds.bottom()
+                        && glyph.bounds.top() < run.bounds.bottom()
+                })
+                .min_by(|a, b| gap(a, glyph).total_cmp(&gap(b, glyph)));
+            let Some(value) = value else {
+                continue;
+            };
+            checked += 1;
+            let down = f32::from(value.bounds.center().y - glyph.bounds.center().y);
+            if down.abs() > pixel / 2.0 + 0.01 {
+                failures.push(format!(
+                    "{case}: the value `{}` stands {down} px off the line of the keyframe \
+                     navigator beside it ({:?} against {:?})",
+                    value.text, value.bounds, glyph.bounds
+                ));
+            }
+        }
+    });
+    assert!(
+        checked > 0,
+        "the walk drew no property value beside a keyframe navigator"
     );
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }

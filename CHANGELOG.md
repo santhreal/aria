@@ -1458,6 +1458,7 @@ Notes for the latest release. For previous releases, see the
 - The Program picture is inset 6 px in its pane, so transform handles at the frame edge draw whole.
 - The Viewer's handle-mode buttons stand 4 px apart.
 - The Timeline ruler draws no tick on its first pixel, beside the outline column's divider, and a graph editor directly under the ruler draws no second rule.
+- A property value in Effect Controls and in the Timeline's property rows stands on its row's line instead of one pixel above its label and keyframe navigator.
 
 - **GPUI builds from santh-gpui, the framework shared with iris and Veyyon.**
   The vendored copy of the `wingleeio/zed` fork is deleted, and building from

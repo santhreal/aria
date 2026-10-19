@@ -94,11 +94,22 @@ pub fn readout(
         .font_features(crate::theme::tabular_figures())
         .text_color(ink)
         .cursor(CursorStyle::ResizeLeftRight)
-        .border_b_1()
-        .border_dashed()
-        .border_color(ink.opacity(if dragging { 1.0 } else { lit }))
         .on_hover(motion::hover_listener(hover))
         .child(text.into())
+        // The underline hangs below the text, outside the readout's box, so the
+        // box is the text's line and the number centres on its row like the
+        // label and the keyframe navigator beside it.
+        .child(
+            div()
+                .absolute()
+                .left_0()
+                .right_0()
+                .bottom(px(-1.0))
+                .h(px(1.0))
+                .border_b_1()
+                .border_dashed()
+                .border_color(ink.opacity(if dragging { 1.0 } else { lit })),
+        )
         .children(painted)
         .on_mouse_down(
             MouseButton::Left,
