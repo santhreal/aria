@@ -72,7 +72,11 @@ decode workers  ->  frame cache  ->  render (GPU)  ->  present (GPU, no copy)
    when one seek and one decode cost less than decoding forward from the
    decoder's position. After a seek the video decoder starts at the latest video
    keyframe at or before the target, including in an MP4 whose audio packets
-   would place the segment start before that keyframe.
+   would place the segment start before that keyframe. When the first frame
+   after a seek decodes corrupt, or is an H.264 frame that shows before that
+   keyframe and references frames before it, the seek moves earlier, one
+   second then doubling, until its first frame decodes clean. H.265 and H.266
+   decoders drop such frames.
 2. **Frame cache.** Decoded and rendered frames are stored in a GPU-resident
    cache bounded by a size in Settings (default: 25 % of video memory) and a
    system memory spill tier (default: 4 GB). Frames are keyed by sequence,

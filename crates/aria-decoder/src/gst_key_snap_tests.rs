@@ -78,6 +78,7 @@ fn a_segment_snapped_to_an_audio_packet_skips_to_the_video_keyframe() {
     );
     assert_eq!(fed, [false, false, false, true, true]);
     assert_eq!(snap.first_fed(), Some(ms(2000)));
+    assert_eq!(snap.seek_key(), Some(ms(2000)));
 }
 
 #[test]
@@ -85,6 +86,7 @@ fn a_segment_on_the_video_keyframe_is_left_alone() {
     let snap = seeked(true, 1500, 1000);
     assert_eq!(feed(&snap, &[(1000, true), (1017, false)]), [true, true]);
     assert_eq!(snap.first_fed(), Some(ms(1000)));
+    assert_eq!(snap.seek_key(), Some(ms(1000)));
 }
 
 /// A fragmented MP4 is not adjusted by `qtdemux`: its segment starts at the
@@ -93,6 +95,7 @@ fn a_segment_on_the_video_keyframe_is_left_alone() {
 fn a_segment_at_the_target_is_left_alone() {
     let snap = seeked(true, 2000, 2000);
     assert_eq!(feed(&snap, &[(1000, true), (1017, false)]), [true, true]);
+    assert_eq!(snap.seek_key(), Some(ms(1000)));
 }
 
 /// Another demuxer is not adjusted to an audio packet; its segment start is
@@ -101,14 +104,17 @@ fn a_segment_at_the_target_is_left_alone() {
 fn another_demuxer_is_left_alone() {
     let snap = seeked(false, 2000, 1984);
     assert_eq!(feed(&snap, &[(1000, true), (1017, false)]), [true, true]);
+    assert_eq!(snap.seek_key(), Some(ms(1000)));
 }
 
 /// A delta first buffer means the decoder was not restarted at a keyframe
-/// before the target; nothing is consumed.
+/// before the target; nothing is consumed, and the decode has no keyframe to
+/// start from, including the one after it.
 #[test]
 fn a_delta_first_buffer_is_left_alone() {
     let snap = seeked(true, 2000, 1984);
     assert_eq!(feed(&snap, &[(1017, false), (2000, true)]), [true, true]);
+    assert_eq!(snap.seek_key(), None);
 }
 
 /// Buffers and a segment from before the seek's flush are the old position's,
@@ -121,9 +127,26 @@ fn buffers_and_a_segment_before_the_flush_do_not_decide() {
     snap.arm(ms(2000));
     snap.event(&segment(500));
     assert_eq!(feed(&snap, &[(500, true)]), [true]);
+    assert_eq!(snap.seek_key(), None);
     snap.event(&gst::event::FlushStop::new(true));
     snap.event(&segment(1984));
     assert_eq!(feed(&snap, &[(1000, true), (2000, true)]), [false, true]);
+    assert_eq!(snap.seek_key(), Some(ms(2000)));
+}
+
+/// A new seek forgets the keyframe the last one started at until its own
+/// decode starts.
+#[test]
+fn a_new_seek_forgets_the_last_seeks_keyframe() {
+    let snap = seeked(true, 1500, 1000);
+    assert_eq!(feed(&snap, &[(1000, true)]), [true]);
+    assert_eq!(snap.seek_key(), Some(ms(1000)));
+    snap.arm(ms(3500));
+    assert_eq!(snap.seek_key(), None);
+    snap.event(&gst::event::FlushStop::new(true));
+    snap.event(&segment(3000));
+    assert_eq!(feed(&snap, &[(3000, true)]), [true]);
+    assert_eq!(snap.seek_key(), Some(ms(3000)));
 }
 
 /// The skip ends at the target even when no keyframe came: a stream that
@@ -136,6 +159,7 @@ fn a_skip_without_a_keyframe_ends_after_the_target() {
         &[(1000, true), (1990, false), (2017, false), (2034, false)],
     );
     assert_eq!(fed, [false, false, true, true]);
+    assert_eq!(snap.seek_key(), None);
 }
 
 /// Without a seek nothing is consumed, including after an unrelated flush.
@@ -147,6 +171,35 @@ fn an_unarmed_snap_passes_everything() {
     snap.event(&gst::event::FlushStop::new(true));
     snap.event(&segment(1984));
     assert_eq!(feed(&snap, &[(1000, true), (1017, false)]), [true, true]);
+    assert_eq!(snap.seek_key(), None);
+}
+
+/// The caps the decoder's sink pad receives for `codec`.
+fn caps(codec: &str) -> gst::Event {
+    gst::event::Caps::new(&gst::Caps::builder(codec).build())
+}
+
+/// An H.265 or H.266 decoder outputs only the leading frames that decode,
+/// so no keyframe time marks frames before it as undecodable; every other
+/// video codec reports it, and the last caps received decide.
+#[test]
+fn the_seek_key_is_withheld_only_for_codecs_whose_leading_frames_decode() {
+    for (codec, key) in [
+        ("video/x-h264", Some(ms(1000))),
+        ("video/mpeg", Some(ms(1000))),
+        ("video/x-h265", None),
+        ("video/x-h266", None),
+    ] {
+        let snap = seeked(true, 2000, 2000);
+        snap.event(&caps(codec));
+        assert_eq!(feed(&snap, &[(1000, true)]), [true], "{codec}");
+        assert_eq!(snap.seek_key(), key, "{codec}");
+    }
+    let snap = seeked(true, 2000, 2000);
+    snap.event(&caps("video/x-h265"));
+    snap.event(&caps("video/x-h264"));
+    assert_eq!(feed(&snap, &[(1000, true)]), [true]);
+    assert_eq!(snap.seek_key(), Some(ms(1000)));
 }
 
 /// The AAC encoder this host has; a missing one is a hard failure, as for

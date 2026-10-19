@@ -17,6 +17,13 @@
 //! before that keyframe is consumed, so the decoder starts there. A
 //! fragmented MP4 is not adjusted by `qtdemux` (its segment starts at the
 //! target), so it is left alone.
+//!
+//! It also records the time of the keyframe each seek's decode starts at
+//! ([`KeySnap::seek_key`]). In H.264 and the other codecs with open GOPs, a
+//! frame the decoder outputs before that time is a leading frame of an open
+//! GOP, whose references precede the keyframe. An H.265 or H.266 decoder
+//! drops those frames (RASL) and outputs only the leading frames that decode
+//! (RADL), so for these codecs no time is reported.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
@@ -47,6 +54,9 @@ enum Phase {
 struct State {
     target: Option<gst::ClockTime>,
     phase: Phase,
+    /// The time of the first keyframe the decoder received after the last
+    /// seek's segment: the frame that seek's decode starts at.
+    key: Option<gst::ClockTime>,
     /// The first buffer the decoder received after the last seek's segment.
     #[cfg(test)]
     first_fed: Option<gst::ClockTime>,
@@ -57,6 +67,9 @@ struct State {
 pub(crate) struct KeySnap {
     /// Whether the demuxer is `qtdemux`, whose seek this corrects.
     qtdemux: AtomicBool,
+    /// Whether the decoder's input is H.265 or H.266, whose decoders output
+    /// only the leading frames that decode.
+    leading_decodes: AtomicBool,
     state: Mutex<State>,
 }
 
@@ -64,9 +77,11 @@ impl Default for KeySnap {
     fn default() -> Self {
         Self {
             qtdemux: AtomicBool::new(false),
+            leading_decodes: AtomicBool::new(false),
             state: Mutex::new(State {
                 target: None,
                 phase: Phase::Idle,
+                key: None,
                 #[cfg(test)]
                 first_fed: None,
             }),
@@ -80,10 +95,23 @@ impl KeySnap {
         let mut state = self.lock();
         state.target = Some(target);
         state.phase = Phase::AwaitFlush;
+        state.key = None;
         #[cfg(test)]
         {
             state.first_fed = None;
         }
+    }
+
+    /// The time of the keyframe the last seek's decode starts at, once the
+    /// decoder has received it: a frame output before it references frames
+    /// that decode never received. `None` before then, without a seek, when
+    /// the seek restarted the decoder on a delta frame, and for H.265 and
+    /// H.266.
+    pub(crate) fn seek_key(&self) -> Option<gst::ClockTime> {
+        if self.leading_decodes.load(Ordering::Acquire) {
+            return None;
+        }
+        self.lock().key
     }
 
     #[cfg(test)]
@@ -100,7 +128,6 @@ impl KeySnap {
         let mut state = self.lock();
         let key = !buffer.flags().contains(gst::BufferFlags::DELTA_UNIT);
         let pts = buffer.pts();
-        #[cfg(test)]
         let deciding = matches!(state.phase, Phase::Fresh { .. } | Phase::Skipping);
         let admit = match state.phase {
             Phase::Idle | Phase::AwaitFlush | Phase::AwaitSegment => true,
@@ -138,6 +165,9 @@ impl KeySnap {
         if admit && state.phase == Phase::Idle {
             state.target = None;
         }
+        if admit && deciding && key {
+            state.key = pts;
+        }
         #[cfg(test)]
         if admit && deciding && state.first_fed.is_none() {
             state.first_fed = pts;
@@ -146,6 +176,14 @@ impl KeySnap {
     }
 
     fn event(&self, event: &gst::EventRef) {
+        if let gst::EventView::Caps(caps) = event.view() {
+            let leading_decodes = caps.caps().structure(0).is_some_and(|codec| {
+                codec.has_name("video/x-h265") || codec.has_name("video/x-h266")
+            });
+            self.leading_decodes
+                .store(leading_decodes, Ordering::Release);
+            return;
+        }
         let mut state = self.lock();
         match event.view() {
             gst::EventView::FlushStop(_) if state.target.is_some() => {

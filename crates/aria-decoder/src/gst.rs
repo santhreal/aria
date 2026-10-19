@@ -35,6 +35,16 @@ fn is_corrupt(sample: &gst::Sample) -> bool {
         .is_some_and(|buffer| buffer.flags().contains(gst::BufferFlags::CORRUPTED))
 }
 
+/// Whether `sample` shows before `key`, the keyframe its seek's decode
+/// started at: a leading frame of an open GOP. It decodes after the keyframe
+/// and references frames before it, which that decode never received.
+/// `avdec_h264` flags such a frame [`gst::BufferFlags::CORRUPTED`];
+/// `vah264dec` outputs it unflagged with the missing references concealed.
+fn is_leading(sample: &gst::Sample, key: Option<gst::ClockTime>) -> bool {
+    let pts = sample.buffer().and_then(|buffer| buffer.pts());
+    matches!((pts, key), (Some(pts), Some(key)) if pts < key)
+}
+
 /// Whether `sample` is a leading frame the seek's segment clipped: a frame
 /// that starts before the sync sample the seek landed on and overlaps it.
 /// GStreamer moves such a frame's start up to the segment start and cuts its
@@ -171,6 +181,13 @@ impl GstDecoder {
         }
     }
 
+    /// Whether `sample`, pulled after a seek, cannot stand for its time: it
+    /// decoded corrupt, or it is a leading frame of the GOP the seek's decode
+    /// started in.
+    fn undecodable(&self, sample: &gst::Sample) -> bool {
+        is_corrupt(sample) || is_leading(sample, self.snap.seek_key())
+    }
+
     #[cfg(test)]
     pub(crate) fn key_snap(&self) -> &crate::gst_key_snap::KeySnap {
         &self.snap
@@ -206,9 +223,10 @@ impl VideoDecoder for GstDecoder {
     }
 
     /// Seek to the sync sample at or before `target`. When the first frame
-    /// after it decodes corrupt, the sync sample needs frames before it (an
-    /// open GOP without an IDR there), so the seek moves earlier, one second
-    /// then doubling, until the first frame decodes clean. A leading frame the
+    /// after it decodes corrupt, or is a leading frame that shows before the
+    /// sync sample, the sync sample needs frames before it (an open GOP
+    /// without an IDR there), so the seek moves earlier, one second then
+    /// doubling, until the first frame decodes clean. A leading frame the
     /// seek's segment clipped is skipped: its time was moved, so returning it
     /// would show one frame under another's time.
     fn seek(&mut self, target: RationalTime) -> Result<(), DecodeError> {
@@ -226,7 +244,7 @@ impl VideoDecoder for GstDecoder {
                 };
                 sample = next;
             }
-            if is_corrupt(&sample)
+            if self.undecodable(&sample)
                 && let Some((earlier, _)) = backoff.next()
             {
                 point = earlier;
@@ -625,3 +643,7 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "gst_leading_tests.rs"]
+mod leading_tests;
