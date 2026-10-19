@@ -34,8 +34,17 @@ impl AppState {
     pub fn set_playhead(&mut self, ticks: i64) {
         let rate = self.playhead.rate;
         let duration = self.store.sequence.duration_ticks.max(0);
+        let before = self.playhead.value;
         self.playhead = RationalTime::new(ticks.clamp(0, duration), rate);
         let tick = self.playhead.value;
+        // Paused, the frame on screen is the one at the old playhead. The
+        // shell's next draw asks for the frame here, whichever key, menu row,
+        // palette row or plugin moved it; a control that asks for the frame
+        // itself clears the mark with its request. Playback shows its own
+        // frames.
+        if tick != before && !self.playing {
+            self.still_stale = true;
+        }
         self.store_mut().playhead_ticks = tick;
         self.pointer_playhead = None;
         self.refresh_clock_text();
@@ -361,9 +370,9 @@ impl AppState {
         }
     }
 
-    /// Whether the editor shows a frame from before an edit made while paused,
-    /// with no frame asked for since. Home draws no frame, so the mark waits
-    /// for the editor.
+    /// Whether the editor shows a frame from before an edit or a playhead move
+    /// made while paused, with no frame asked for since. Home draws no frame,
+    /// so the mark waits for the editor.
     pub(crate) fn still_frame_stale(&self) -> bool {
         self.still_stale && self.route != crate::types::UiRoute::Home
     }

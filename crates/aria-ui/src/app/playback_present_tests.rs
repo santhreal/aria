@@ -5,8 +5,8 @@
 //! atlas, and had no count of the frames it failed to show. These drive the
 //! real loop one vsync at a time against a clock the test sets, and pin that a
 //! vsync shows the newest frame rendered ahead, counts every due frame it did
-//! not show by cause, releases the texture it replaced, and that the loop ends
-//! on a stop.
+//! not show by cause, releases the texture it replaced, asks for no still
+//! frame, and that the loop ends on a stop.
 //!
 //! The run plays at 2x, where the audio path is silent and the monotonic clock
 //! is the master, so no audio device takes part.
@@ -84,6 +84,7 @@ async fn each_vsync_shows_the_newest_frame_and_counts_what_it_did_not(cx: &mut T
     });
     assert_eq!(run.tick(1) - run.anchor, 2);
     assert_eq!(armed(&state, visual), 1);
+    let asked = visual.read(|app| state.read(app).preview_generation);
 
     // Slot 1 is due and was rendered ahead.
     assert_eq!(vsync(&state, visual, 1), 1);
@@ -99,6 +100,13 @@ async fn each_vsync_shows_the_newest_frame_and_counts_what_it_did_not(cx: &mut T
         state.last_render.clone().expect("the frame has a texture")
     });
     visual.run_until_parked();
+    // The playhead moved, and playback shows its own frames: the shell's draw
+    // asks for no still frame.
+    assert_eq!(
+        visual.read(|app| state.read(app).preview_generation),
+        asked,
+        "a vsync's playhead move asked for a still frame"
+    );
     assert!(
         visual.update(|window, _| window.has_image_atlas_entry(&first)),
         "the shown frame was not drawn"

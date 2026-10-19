@@ -837,6 +837,10 @@ mod preview_queue_tests;
 mod still_frame_tests;
 
 #[cfg(test)]
+#[path = "app/playhead_frame_tests.rs"]
+mod playhead_frame_tests;
+
+#[cfg(test)]
 #[path = "app/rename_caret_tests.rs"]
 mod rename_caret_tests;
 

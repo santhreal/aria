@@ -460,9 +460,9 @@ impl Render for Shell {
         // frame opened here, so it comes before any child is built.
         motion::begin_frame(cx);
         motion::hold_for_playback(self.state.read(cx).playing);
-        // An edit made while paused leaves the frame from before it on screen.
-        // The first draw after it asks for the frame again, whichever control
-        // or job made the edit; a control that asked already cleared the mark.
+        // An edit or a playhead move made while paused leaves the old frame on
+        // screen. The first draw after it asks for the frame again, whichever
+        // control, key or job made it; a control that asked cleared the mark.
         if self.state.read(cx).still_frame_stale() {
             let state = self.state.clone();
             cx.defer(move |app| spawn_preview(state, app));

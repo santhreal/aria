@@ -4,6 +4,9 @@ The Viewer panel shows the Program (the active sequence at the playhead) and
 any number of Source tabs. Program is always the first tab and cannot be
 closed.
 
+While paused, Program shows the frame at the playhead after every move of
+the playhead: a key, a menu row, a palette row, a plugin, or a scrub.
+
 ## Opening a source
 
 | Action | Result |

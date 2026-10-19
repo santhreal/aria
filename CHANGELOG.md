@@ -2313,6 +2313,7 @@ Notes for the latest release. For previous releases, see the
 - Timeline ruler labels draw in the faint text colour instead of white.
 - Effect Controls reads effect parameters at the playhead instead of at the clip's first frame, and editing an animated effect parameter writes a keyframe there.
 - An edit made while paused, such as an effect added from the Effect Controls Add list, shows in the Viewer at once instead of when the playhead next moves.
+- A playhead moved while paused, by Home, End, the arrow keys, a menu row or a plugin, shows its frame in the Viewer instead of leaving the frame from before the move under the new timecode.
 - A rename opens with the whole name selected, so typing replaces the name instead of appending to it, and the name field takes the arrows, Home, End, Shift selection, Ctrl word moves, Delete and Ctrl+Z.
 - A control's tooltip no longer opens over the menu its press opened; after a press the tooltip stays hidden until the pointer leaves the control.
 - A property row in Effect Controls keeps its keyframe navigator and time area on its own line, shortening a long name with an ellipsis and showing it in full on hover; values stand in one column, a colour row draws its swatches on the line under its name, and every row's time area starts and ends at the same place so keyframes line up in time.

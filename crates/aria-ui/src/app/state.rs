@@ -350,9 +350,10 @@ pub struct AppState {
     /// decode in flight starts it when it lands, which is how a scrub of forty
     /// mouse moves costs two decodes instead of forty.
     pub(super) preview_wanted: bool,
-    /// Whether the project changed while paused since the last frame was asked
-    /// for, so the frame on screen shows it as it was. The shell's next draw
-    /// asks for the frame again; any request clears it.
+    /// Whether the project changed or the playhead moved while paused since the
+    /// last frame was asked for, so the frame on screen is not the one the
+    /// Viewer should show. The shell's next draw asks for the frame again; any
+    /// request clears it.
     pub(super) still_stale: bool,
     /// The stop for the decode in flight. A newer frame cancels it, so the
     /// decode drops the layers the playhead has already passed instead of
