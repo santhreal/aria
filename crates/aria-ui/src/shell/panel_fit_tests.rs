@@ -349,7 +349,9 @@ fn every_panel_keeps_its_text_inside_a_side_frame_down_to_its_minimum_width(
             wrap_row_misses(&what, row, &ordered, &mut misses);
         }
         if panel == PANEL_PROJECT {
-            let one_row = px(crate::theme::Theme::ROW_HEIGHT + crate::theme::Theme::SPACE_XS + 2.0);
+            // A control row with a bar's padding and rule around it.
+            let one_row =
+                px(crate::theme::Theme::ROW_HEIGHT + 2.0 * crate::theme::Theme::SPACE_XS + 2.0);
             for bar in ["sidebar-groups", "pool-header", "pool-footer"] {
                 let Some(at) = visual.debug_bounds(bar) else {
                     misses.push(format!("{what}: {bar} was not drawn"));

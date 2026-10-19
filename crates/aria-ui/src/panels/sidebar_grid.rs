@@ -13,9 +13,9 @@ use crate::motion::RiseOnHover as _;
 /// The groups stand on one row down to the panel's minimum width. When their
 /// labels at the regular padding are wider than the row, the chips take the
 /// compact padding, and only when that does not make room either do the
-/// groups other than the active one shrink with an ellipsis. Each row steps
-/// out by its chips' padding, so the first label stands on the panel's text
-/// edge.
+/// groups other than the active one shrink with an ellipsis. Each row starts
+/// on the panel's inset, the edge the filter field, the items and the footer
+/// start on.
 pub(super) fn filter_chips(
     theme: &Theme,
     tab: SidebarTab,
@@ -25,11 +25,8 @@ pub(super) fn filter_chips(
     let open = tab.group();
     let tabs = open.tabs();
     let listed = tabs.len() > 1 && !tabs.iter().all(|tab| tab.shows_pool());
-    // The row is the panel less its right border and its text inset, stepped
-    // out by a chip's padding on each side.
-    let narrow = width.is_some_and(|w| {
-        w - 1.0 - 2.0 * (Theme::SPACE_MD - Theme::SPACE_SM) < groups_width(theme, cx)
-    });
+    // The row is the panel less its inset on each side.
+    let narrow = width.is_some_and(|w| w - 2.0 * Theme::SPACE_MD < groups_width(theme, cx));
     div()
         .px(px(Theme::SPACE_MD))
         .py(px(Theme::SPACE_XS))
@@ -42,22 +39,20 @@ pub(super) fn filter_chips(
             div()
                 .id("sidebar-groups")
                 .debug_selector(|| "sidebar-groups".into())
-                .mx(px(-Theme::SPACE_SM))
                 .flex()
                 .flex_row()
                 .items_center()
                 .gap(px(if narrow { 0.0 } else { Theme::SPACE_XXS }))
                 .children(
-                    SidebarGroup::ALL.iter().enumerate().map(|(index, group)| {
-                        group_chip(theme, *group, open, index == 0, narrow, cx)
-                    }),
+                    SidebarGroup::ALL
+                        .iter()
+                        .map(|group| group_chip(theme, *group, open, narrow, cx)),
                 ),
         )
         .when(listed, |el| {
             el.child(
                 div()
                     .min_h(px(Theme::ICON_HIT))
-                    .ml(px(-Theme::SPACE_XS))
                     .flex()
                     .flex_row()
                     .items_center()
@@ -90,7 +85,6 @@ fn group_chip(
     theme: &Theme,
     group: SidebarGroup,
     open: SidebarGroup,
-    first: bool,
     narrow: bool,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
@@ -102,10 +96,7 @@ fn group_chip(
         components::ChipSize::Regular,
         theme,
     )
-    .when(narrow, |el| {
-        el.px(px(Theme::SPACE_XS))
-            .when(first, |el| el.pl(px(Theme::SPACE_SM)))
-    })
+    .when(narrow, |el| el.px(px(Theme::SPACE_XS)))
     .when(active, |el| el.flex_none())
     .when(!active, |el| el.min_w_0())
     .debug_selector(move || format!("sidebar-group-{}", group.label()))

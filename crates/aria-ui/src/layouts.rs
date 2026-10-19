@@ -362,7 +362,7 @@ pub fn workspace_tree_for_width(
                 axis: Axis::Column,
                 children: vec![
                     (
-                        0.65,
+                        0.66,
                         Node::Split {
                             axis: Axis::Row,
                             children: vec![
@@ -391,7 +391,7 @@ pub fn workspace_tree_for_width(
                         },
                     ),
                     (
-                        0.35,
+                        0.34,
                         Node::Frame(Frame::new(FrameId::BOTTOM, vec![PANEL_TIMELINE])),
                     ),
                 ],

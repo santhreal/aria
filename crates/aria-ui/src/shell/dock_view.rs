@@ -11,7 +11,7 @@ use gpui::{
 use aria_plugin::PanelLocation;
 
 use crate::dock::{
-    Axis, FloatRect, Frame, FrameId, Node, PANEL_TIMELINE, PANEL_VIEWER, PanelId, Zone,
+    Axis, DOCK_GUTTER, FloatRect, Frame, FrameId, Node, PANEL_TIMELINE, PANEL_VIEWER, PanelId, Zone,
 };
 use crate::fluent::FluentBuilder;
 use crate::motion::{self, MotionKey};
@@ -32,7 +32,6 @@ mod frame_page;
 #[path = "tab_fit.rs"]
 mod tab_fit;
 
-const SPLITTER_HIT_PX: f32 = 6.0;
 const SPLITTER_LINE_PX: f32 = 1.0;
 
 /// A dock tab's close: its box and its glyph.
@@ -526,14 +525,16 @@ impl Shell {
             Axis::Column => CursorStyle::ResizeUpDown,
         };
         let motion_slot = splitter_motion_key(path, index);
-        let line_color = motion::hover_blend(motion_slot, theme.border, theme.accent);
+        // At rest the gutter is the only mark between two frames: a line in it
+        // would draw a third rule beside the two frame borders.
+        let line_color = motion::hover_blend(motion_slot, theme.wash(0.0), theme.accent);
         let line = match axis {
             Axis::Row => div().w(px(SPLITTER_LINE_PX)).h_full().bg(line_color),
             Axis::Column => div().h(px(SPLITTER_LINE_PX)).w_full().bg(line_color),
         };
         let strip = match axis {
-            Axis::Row => div().w(px(SPLITTER_HIT_PX)).h_full(),
-            Axis::Column => div().h(px(SPLITTER_HIT_PX)).w_full(),
+            Axis::Row => div().w(px(DOCK_GUTTER)).h_full(),
+            Axis::Column => div().h(px(DOCK_GUTTER)).w_full(),
         };
         strip
             .id(motion_slot.element_id("bar"))
@@ -555,10 +556,13 @@ impl Shell {
                         return;
                     }
                     set_active_split_drag_path(&full_path);
+                    // The docked frames stand a gutter in from the window's
+                    // edges on both sides.
                     let root_extent = match axis {
-                        Axis::Row => f32::from(window.viewport_size().width).max(200.0),
-                        Axis::Column => f32::from(window.viewport_size().height).max(200.0),
+                        Axis::Row => f32::from(window.viewport_size().width),
+                        Axis::Column => f32::from(window.viewport_size().height),
                     };
+                    let root_extent = (root_extent - 2.0 * DOCK_GUTTER).max(200.0);
                     let (span_frac, splitters_px) = {
                         let read = this.state.read(cx);
                         let frac = read.dock_tree.split_span_fraction(&full_path, axis);
@@ -569,10 +573,7 @@ impl Shell {
                                 .count(),
                             _ => 2,
                         };
-                        (
-                            frac,
-                            (drawn_count.saturating_sub(1) as f32) * SPLITTER_HIT_PX,
-                        )
+                        (frac, (drawn_count.saturating_sub(1) as f32) * DOCK_GUTTER)
                     };
                     let span_px = (root_extent * span_frac - splitters_px).max(100.0);
                     let origin = match axis {
@@ -820,6 +821,7 @@ impl Shell {
             let close_slot = MotionKey::new("dock-tab-close", panel);
             tabs_out.push(
                 div()
+                    .relative()
                     .id(tab_slot.element_id("tab"))
                     .debug_selector(move || format!("dock-tab-{panel}"))
                     // A tab narrower than its title still reads it under the
@@ -838,7 +840,6 @@ impl Shell {
                     .bg(if is_active { theme.bg } else { theme.surface })
                     .border_r_1()
                     .border_color(theme.border)
-                    .when(is_active, |el| el.border_b_2().border_color(theme.accent))
                     .text_size(Theme::TEXT_UI)
                     // A hover fade notifies the window chrome alone; a gpui
                     // hover style here would notify the Shell, which rebuilds
@@ -945,6 +946,17 @@ impl Shell {
                                     .size(px(DOCK_TAB_CLOSE_GLYPH)),
                             ),
                     )
+                    .when(is_active, |el| {
+                        el.child(
+                            div()
+                                .absolute()
+                                .left_0()
+                                .right_0()
+                                .bottom_0()
+                                .h(px(Theme::TAB_UNDERLINE))
+                                .bg(theme.accent),
+                        )
+                    })
                     .into_any_element(),
             );
         }
@@ -1481,6 +1493,9 @@ mod panel_fit_tests;
 #[cfg(test)]
 #[path = "frame_height_tests.rs"]
 mod frame_height_tests;
+#[cfg(test)]
+#[path = "spacing_tests.rs"]
+mod spacing_tests;
 #[cfg(test)]
 #[path = "tab_overflow_tests.rs"]
 mod tab_overflow_tests;

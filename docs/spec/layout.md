@@ -70,15 +70,15 @@ A drop zone is a translucent accent rectangle covering the half or the centre
 of the target frame. It appears 80 ms after the pointer enters the frame and
 follows the pointer between zones with a 120 ms fade.
 
-Splitters between frames are 1 px drawn and 6 px hit. Hovering a splitter
-shows the resize cursor and brightens the line to the accent colour.
-Double-clicking a splitter restores the workspace's saved ratio for it. A frame
-never shrinks below its panel's minimum size: 160 px wide and 80 px high for
-most panels, 320 x 180 for the Viewer, and 400 x 120 for the Timeline.
-Project, Effect Controls, Effects & Presets, Assistant, Audio Track Mixer, and
-Audio Meters are laid out at least as tall as their fixed rows and a few lines
-of their lists (112 to 280 px). A frame shorter than that scrolls the panel
-with the wheel.
+Frames stand 6 px apart and 6 px in from the bars and the window edges. The
+gap between two frames is the splitter: it draws no line at rest, and hovering
+it shows the resize cursor and a 1 px accent line. Double-clicking a splitter
+restores the workspace's saved ratio for it. A frame never shrinks below its
+panel's minimum size: 160 px wide and 80 px high for most panels, 320 x 180 for
+the Viewer, and 400 x 120 for the Timeline. Project, Effect Controls, Effects &
+Presets, Assistant, Audio Track Mixer, and Audio Meters are laid out at least
+as tall as their fixed rows and a few lines of their lists (112 to 280 px). A
+frame shorter than that scrolls the panel with the wheel.
 
 The focused frame draws a 1 px accent outline. Keyboard shortcuts resolve
 against the focused panel first, then the window (see

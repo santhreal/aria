@@ -76,9 +76,11 @@ pub fn render(
         )
         .child(
             // Three groups that never split: what the picture shows, the
-            // transport, and the display controls. A Viewer too narrow for
-            // one line wraps between groups, so every control stays inside
-            // the frame at the minimum window size.
+            // transport, and the display controls. The two outer groups split
+            // the room the transport leaves evenly, so the transport stands on
+            // the Viewer's centre line whenever each outer group fits its
+            // half. A Viewer too narrow for one line wraps between groups, so
+            // every control stays inside the frame at the minimum window size.
             div()
                 .debug_selector(|| "viewer-row".to_owned())
                 .flex_none()
@@ -88,13 +90,14 @@ pub fn render(
                 .flex()
                 .wraps()
                 .items_center()
-                .justify_between()
+                .justify_center()
                 .gap(px(Theme::SPACE_SM))
                 .border_t_1()
                 .border_color(theme.border)
                 .bg(theme.surface)
                 .child(
                     row_group("viewer-row-picture")
+                        .flex_1()
                         .child(clock_field(state, &theme, cx))
                         .child(zoom_btn(
                             "preview-zoom-out",
@@ -166,6 +169,8 @@ pub fn render(
                 )
                 .child(
                     row_group("viewer-row-display")
+                        .flex_1()
+                        .justify_end()
                         .child(handles::mode_picker(state, &theme, cx))
                         .child(scopes::toggle(state, &theme, cx))
                         .child(peak_meter(state, &theme, cx)),
@@ -204,6 +209,11 @@ pub fn render(
 /// plugin overlays, rulers, and viewer guides. A press anchors a pan and picks
 /// the clip under the pointer; a held guide follows the pointer and drops on
 /// release.
+///
+/// The picture area stands half a handle inside the pane on every side. A
+/// fitted frame touches the picture area on two sides, and a handle on the
+/// frame's edge stands half outside the frame, so the margin keeps every
+/// handle of a fitted frame whole.
 fn program_pane(
     state: &Entity<AppState>,
     theme: &crate::theme::ThemeHandle,
@@ -216,9 +226,7 @@ fn program_pane(
         .min_w_0()
         .min_h_0()
         .flex()
-        .items_center()
-        .justify_center()
-        .relative()
+        .p(px(handles::HANDLE / 2.0))
         .when(view.pannable(), |el| el.cursor(gpui::CursorStyle::OpenHand))
         .on_mouse_down(
             MouseButton::Right,
@@ -287,16 +295,26 @@ fn program_pane(
         }))
         .on_mouse_up(MouseButton::Left, cx.listener(drop_guide))
         .on_mouse_up_out(MouseButton::Left, cx.listener(drop_guide))
-        .child(frame_view(state, theme, cx))
-        .children(compare::wipe(state, theme, cx))
-        .children(guides(view, theme))
-        .child(handles::measure(state))
-        .children(handles::overlay(state, theme, cx))
-        .children(motion_path::overlay(state, theme, cx))
-        .children(mask_path::overlay(state, theme, cx))
-        .children(text_caret::overlay(state, theme, cx))
-        .children(plugin_overlays::overlay(state, theme, cx))
-        .children(rulers::rulers_and_guides(state, theme, cx))
+        .child(
+            div()
+                .relative()
+                .flex_1()
+                .min_w_0()
+                .min_h_0()
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(frame_view(state, theme, cx))
+                .children(compare::wipe(state, theme, cx))
+                .children(guides(view, theme))
+                .child(handles::measure(state))
+                .children(handles::overlay(state, theme, cx))
+                .children(motion_path::overlay(state, theme, cx))
+                .children(mask_path::overlay(state, theme, cx))
+                .children(text_caret::overlay(state, theme, cx))
+                .children(plugin_overlays::overlay(state, theme, cx))
+                .children(rulers::rulers_and_guides(state, theme, cx)),
+        )
 }
 
 /// Release a held guide where the pointer came up: over its ruler or off the

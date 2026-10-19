@@ -171,6 +171,10 @@ pub fn render(
     let stack_h =
         (panel_h - RULER_H - 2.0 * Theme::SPACE_SM - AV_DIVIDER_H - graph_h - overview::OVERVIEW_H)
             .max(0.0);
+    // A frame too short for any of the stack puts the graph editor straight
+    // under the ruler, and its top rule would stand on the ruler's bottom rule
+    // as one doubled line. The ruler's rule then separates the two alone.
+    let graph_ruled = panel_h - RULER_H - graph_h - overview::OVERVIEW_H >= 2.0;
     let (video_side, audio_side) = sides::sides(
         visual_rows,
         total_rows.saturating_sub(visual_rows),
@@ -231,8 +235,6 @@ pub fn render(
         .flex()
         .flex_col()
         .bg(theme.surface)
-        .border_t_1()
-        .border_color(theme.border)
         .cursor(cursor)
         .on_scroll_wheel(cx.listener(move |this, event: &ScrollWheelEvent, _, cx| {
             handle_scroll(this, event, cx);
@@ -334,6 +336,7 @@ pub fn render(
                 fps,
                 scroll_x,
                 playhead_at,
+                graph_ruled,
                 cx,
             ))
         })
@@ -401,6 +404,8 @@ fn outline_edge(outline: f32, cx: &mut gpui::Context<crate::shell::Shell>) -> im
 
 /// The bar between the video and audio sides. It drags the split while both
 /// sides have lanes; with one side empty there is no split and it is a rule.
+/// Its fill is its edge: the lane above ends in its own rule, and a second
+/// one here would double it.
 fn av_divider(
     theme: &Theme,
     outline: f32,
@@ -413,9 +418,6 @@ fn av_divider(
         .h(px(AV_DIVIDER_H))
         .flex_none()
         .bg(theme.surface_raised)
-        .border_t_1()
-        .border_b_1()
-        .border_color(theme.border_strong)
         .when(draggable, |el| el.cursor(CursorStyle::ResizeUpDown))
         .flex()
         .items_center()

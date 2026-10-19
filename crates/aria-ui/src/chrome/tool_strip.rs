@@ -60,6 +60,9 @@ pub(super) fn tool_bar(
         );
     }
 
+    // The tools and the Export button stand in two side groups that split the
+    // room the switcher leaves evenly, so the switcher stands on the window's
+    // centre line rather than midway between the two groups' inner edges.
     div()
         .id("tool-bar")
         .debug_selector(|| "tool-bar".into())
@@ -72,21 +75,26 @@ pub(super) fn tool_bar(
         .gap(px(Theme::SPACE_XS))
         .border_t_1()
         .border_color(theme.border)
-        .children(tools)
-        .child(rule(theme))
-        .child(mode_btn(theme, mode, cx))
-        .child(div().flex_1())
+        .child(
+            div()
+                .flex_1()
+                .flex()
+                .flex_row()
+                .items_center()
+                .gap(px(Theme::SPACE_XS))
+                .children(tools)
+                .child(rule(theme))
+                .child(mode_btn(theme, mode, cx)),
+        )
         .child(workspace_switcher(theme, state, cx))
-        .child(div().flex_1())
-        .child(word_icon(
-            "export",
-            crate::icons::UPLOAD,
-            "Export",
-            cx,
-            |s| {
-                s.open_dialog(DialogKind::Export);
-            },
-        ))
+        .child(
+            div().flex_1().flex().flex_row().justify_end().child(
+                word_icon("export", crate::icons::UPLOAD, "Export", cx, |s| {
+                    s.open_dialog(DialogKind::Export);
+                })
+                .debug_selector(|| "tool-bar-export".into()),
+            ),
+        )
 }
 
 fn spec_tool_btn(
@@ -250,12 +258,14 @@ fn variants_popover(
         .children(rows)
 }
 
-/// The display button `id`: a wrench that holds the View menu's submenu
-/// `caption` out under itself while pressed. The Timeline header draws one
-/// for Timeline Display Settings, the Viewer one for Viewer Display Settings.
+/// The display button `id`: a wrench `size` px square that holds the View
+/// menu's submenu `caption` out under itself while pressed. The Timeline
+/// header draws one for Timeline Display Settings, the Viewer one for Viewer
+/// Display Settings.
 pub(crate) fn display_btn(
     id: &'static str,
     caption: &'static str,
+    size: f32,
     theme: &Theme,
     state: &Entity<AppState>,
     cx: &mut Context<Shell>,
@@ -264,6 +274,7 @@ pub(crate) fn display_btn(
     let button = tool_btn(id, crate::icons::WRENCH, on, cx, move |s| {
         s.toggle_display_menu(id, caption)
     })
+    .size(px(size))
     .into_any_element();
     super::menu_view::submenu_under(id, AppMenu::View, caption, button, theme, state, cx)
 }
@@ -276,7 +287,7 @@ pub(crate) fn tool_btn(
     on: bool,
     cx: &mut Context<Shell>,
     action: impl Fn(&mut AppState) + 'static,
-) -> impl IntoElement {
+) -> gpui::Stateful<gpui::Div> {
     lit_icon(id, path, on, &Theme::of(cx)).on_mouse_down(
         MouseButton::Left,
         cx.listener(move |this, _: &MouseDownEvent, _, cx| {
@@ -314,7 +325,7 @@ fn word_icon(
     label: &'static str,
     cx: &mut Context<Shell>,
     action: impl Fn(&mut AppState) + 'static,
-) -> impl IntoElement {
+) -> gpui::Stateful<gpui::Div> {
     let theme = Theme::of(cx);
     let id = id.into();
     let key = id.motion("word");
@@ -440,6 +451,7 @@ fn workspace_switcher(
     }
     div()
         .id("workspace-switcher")
+        .debug_selector(|| "workspace-switcher".into())
         .flex()
         .flex_row()
         .items_center()

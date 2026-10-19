@@ -26,9 +26,6 @@ use crate::types::UiClipKind;
 
 use super::tab_host::TabHost;
 
-/// Thickness of the underline.
-const INDICATOR_H: f32 = 2.0;
-
 /// What the underline's travel is filed under. One inspector means one strip,
 /// so the key is a constant rather than something derived from the tabs.
 const SLIDE_KEY: &str = "inspector.tab-underline";
@@ -150,14 +147,16 @@ pub(super) fn tab_row(
                 .bottom_0()
                 .left(relative(left))
                 .w(relative(width))
-                .h(px(INDICATOR_H))
-                .rounded(px(INDICATOR_H / 2.0))
+                .h(px(Theme::TAB_UNDERLINE))
+                .rounded(px(Theme::TAB_UNDERLINE / 2.0))
                 .bg(accent),
         );
     }
 
+    // The strip stands on the body's inset, so the first tab's box starts on
+    // the edge the section titles and the rows below start on.
     div()
-        .px(px(Theme::SPACE_SM))
+        .px(px(Theme::SPACE_MD))
         .py(px(Theme::SPACE_XS))
         .border_b_1()
         .border_color(theme.border)

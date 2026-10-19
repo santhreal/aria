@@ -5,10 +5,10 @@
 //! past its edge or wrapped onto a stray line; and a control row added
 //! between the filter row and the items, or under the items above the footer.
 //! With media in the pool, at the launch layout's width, the groups have the
-//! panel's whole text width to themselves, the count stands on the group
-//! row's text edge, no text runs past the panel's edges, and below the groups
-//! the Media tab draws its filter row, its items, and its footer, each one
-//! line tall where it is a control row, with nothing else.
+//! panel's whole inset width to themselves, the first chip, the filter row
+//! and the count start on one edge, no text runs past the panel's edges, and
+//! below the groups the Media tab draws its filter row, its items, and its
+//! footer, each one line tall where it is a control row, with nothing else.
 //!
 //! Not covered: the glyphs, which the test text system does not raster. A
 //! control drawn inside an item is the item's.
@@ -92,15 +92,15 @@ fn the_project_panel_rows_fit_the_panel(cx: &mut TestAppContext) {
         .iter()
         .map(|group| bounds(visual, &format!("sidebar-group-{}", group.label())))
         .collect();
-    // The group row is the panel's whole text width, stepped out by a chip's
-    // padding on each side: nothing else stands on it, so the chips wrap only
-    // when the panel is narrower than they are.
+    // The group row is the panel's whole width less its inset on each side:
+    // nothing else stands on it, so the chips wrap only when the panel is
+    // narrower than they are.
     let row = bounds(visual, "sidebar-groups");
-    let edge = Theme::SPACE_MD - Theme::SPACE_SM;
+    let edge = px(Theme::SPACE_MD);
     assert!(
-        (row.left() - (panel.left() + px(edge))).abs() <= px(EPS)
-            && row.right() >= panel.right() - px(1.0 + edge + EPS),
-        "the group row {row:?} is not the panel's {panel:?} width"
+        (row.left() - (panel.left() + edge)).abs() <= px(EPS)
+            && (row.right() - (panel.right() - edge)).abs() <= px(EPS),
+        "the group row {row:?} is not the panel's {panel:?} width less its inset"
     );
     for (group, chip) in SidebarGroup::ALL.iter().zip(&groups) {
         assert!(
@@ -124,20 +124,18 @@ fn the_project_panel_rows_fit_the_panel(cx: &mut TestAppContext) {
         .iter()
         .find(|run| run.text.as_ref() == "1 item(s)")
         .expect("the pool's count is not drawn");
-    // The first group chip's label and the count stand on one text edge: the
-    // chip row steps out by its chips' padding.
-    let first = SidebarGroup::ALL[0].label();
-    let label = inside
-        .iter()
-        .find(|run| run.text.as_ref() == first && groups[0].contains(&run.bounds.center()))
-        .expect("the first group's label is drawn");
-    assert!(
-        (label.bounds.left() - count.bounds.left()).abs() <= px(EPS),
-        "`{}` starts at {:?}, the count at {:?}",
-        label.text,
-        label.bounds.left(),
-        count.bounds.left()
-    );
+    // The first group chip, the filter row and the count start on one edge:
+    // a chip's box stands where every other row's box or bare text starts.
+    let header_left = header.left();
+    for (what, left) in [
+        ("the first group chip", groups[0].left()),
+        ("the count", count.bounds.left()),
+    ] {
+        assert!(
+            (left - header_left).abs() <= px(EPS),
+            "{what} starts at {left:?}, the filter row at {header_left:?}"
+        );
+    }
     for run in inside {
         assert!(
             run.bounds.left() >= panel.left() - px(EPS)
@@ -149,9 +147,10 @@ fn the_project_panel_rows_fit_the_panel(cx: &mut TestAppContext) {
     }
 
     // Down to the panel's minimum width (160 px), the group row and the footer
-    // each hold one row and never wrap onto a second line.
+    // each hold one row and never wrap onto a second line. A row is a control
+    // row with a bar's padding and rule around it.
     project_width(&state, visual, 160.0);
-    let one_row = px(Theme::ROW_HEIGHT + Theme::SPACE_XS + 2.0);
+    let one_row = px(Theme::ROW_HEIGHT + 2.0 * Theme::SPACE_XS + 2.0);
     for bar in ["sidebar-groups", "pool-header", "pool-footer"] {
         let at = bounds(visual, bar);
         assert!(
@@ -190,9 +189,9 @@ fn every_group_reads_whole_while_the_compact_padding_holds_the_row(cx: &mut Test
     });
     let sum: f32 = labels.iter().map(|(_, advance)| advance).sum();
     let count = labels.len() as f32;
-    // The compact padding on both sides of every chip, and the first chip's
-    // wider left inset, which keeps its label on the panel's text edge.
-    let compact = sum + count * 2.0 * Theme::SPACE_XS + (Theme::SPACE_SM - Theme::SPACE_XS);
+    // The compact padding on both sides of every chip, with no gap between
+    // them.
+    let compact = sum + count * 2.0 * Theme::SPACE_XS;
     let regular = sum + count * 2.0 * Theme::SPACE_SM + (count - 1.0) * Theme::SPACE_XXS;
     let (mut held, mut decisive) = (0, 0);
     for width in (160..=400).rev().step_by(4) {
@@ -257,7 +256,7 @@ fn at_rest_the_media_tab_draws_two_control_rows_around_its_items(cx: &mut TestAp
         header.size.height
     );
     assert!(
-        footer.size.height <= one_control + px(Theme::SPACE_XS + 1.0),
+        footer.size.height <= one_control + px(2.0 * Theme::SPACE_XS + 1.0),
         "the footer is {:?} tall, more than one control",
         footer.size.height
     );

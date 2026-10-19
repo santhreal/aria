@@ -523,68 +523,75 @@ impl Render for Shell {
         // Every frame, whichever route is drawn: the value has to be asked for
         // to stay alive in the store, and the one being left is asked for too.
         let arrived = route::fade(route, reduced);
-        let body =
-            if route == UiRoute::Home {
-                div()
-                    .flex()
-                    .flex_col()
-                    .flex_1()
-                    .min_h_0()
-                    .opacity(arrived)
-                    .child(crate::chrome::home_bar(&theme, window, cx))
-                    .children(self.slot(PanelLocation::Home, cx))
-                    .into_any_element()
-            } else if self.state.read(cx).preview_view.fullscreen {
-                // Fullscreen is the viewer with nothing beside it. The overlay slot
-                // stays, so a dialog opened from a shortcut is still reachable, and
-                // the status strip stays because a refusal must remain readable.
-                div()
-                    .flex()
-                    .flex_col()
-                    .flex_1()
-                    .min_h_0()
-                    .opacity(arrived)
-                    .child(
-                        div()
-                            .flex_1()
-                            .min_h_0()
-                            .relative()
-                            .children(self.slot(PanelLocation::Viewer, cx))
-                            .children(self.slot(PanelLocation::Overlay, cx)),
-                    )
-                    .child(status_strip(&theme, &self.state, status, err, cx))
-                    .into_any_element()
-            } else {
-                div()
-                    .flex()
-                    .flex_col()
-                    .flex_1()
-                    .min_h_0()
-                    .child(opening(
-                        0,
-                        arrived,
-                        crate::chrome::editor_bar(&theme, &self.state, window, cx),
-                    ))
-                    .child(opening(
-                        1,
-                        arrived,
-                        div().flex().flex_1().min_w_0().min_h_0().size_full().child(
-                            self.render_editor_dock(&theme, window_w, window_h, reduced, cx),
-                        ),
-                    ))
-                    .child(opening(
-                        1,
-                        arrived,
-                        div().flex().flex_col().child(status_strip(
-                            &theme,
-                            &self.state,
-                            status,
-                            err,
-                            cx,
-                        )),
-                    ))
-                    .into_any_element()
-            };
+        let body = if route == UiRoute::Home {
+            div()
+                .flex()
+                .flex_col()
+                .flex_1()
+                .min_h_0()
+                .opacity(arrived)
+                .child(crate::chrome::home_bar(&theme, window, cx))
+                .children(self.slot(PanelLocation::Home, cx))
+                .into_any_element()
+        } else if self.state.read(cx).preview_view.fullscreen {
+            // Fullscreen is the viewer with nothing beside it. The overlay slot
+            // stays, so a dialog opened from a shortcut is still reachable, and
+            // the status strip stays because a refusal must remain readable.
+            div()
+                .flex()
+                .flex_col()
+                .flex_1()
+                .min_h_0()
+                .opacity(arrived)
+                .child(
+                    div()
+                        .flex_1()
+                        .min_h_0()
+                        .relative()
+                        .children(self.slot(PanelLocation::Viewer, cx))
+                        .children(self.slot(PanelLocation::Overlay, cx)),
+                )
+                .child(status_strip(&theme, &self.state, status, err, cx))
+                .into_any_element()
+        } else {
+            div()
+                .flex()
+                .flex_col()
+                .flex_1()
+                .min_h_0()
+                .child(opening(
+                    0,
+                    arrived,
+                    crate::chrome::editor_bar(&theme, &self.state, window, cx),
+                ))
+                .child(opening(
+                    1,
+                    arrived,
+                    // The frames stand a gutter in from the bars and the
+                    // window's edges, as far as they stand from each other.
+                    div()
+                        .debug_selector(|| "dock-area".into())
+                        .flex()
+                        .flex_1()
+                        .min_w_0()
+                        .min_h_0()
+                        .size_full()
+                        .p(px(crate::dock::DOCK_GUTTER))
+                        .child(self.render_editor_dock(&theme, window_w, window_h, reduced, cx)),
+                ))
+                .child(opening(
+                    1,
+                    arrived,
+                    div().flex().flex_col().child(status_strip(
+                        &theme,
+                        &self.state,
+                        status,
+                        err,
+                        cx,
+                    )),
+                ))
+                .into_any_element()
+        };
 
         // Built before the chain: each overlay draws with `&mut Context`, and one
         // closure per condition inside the builder would hold that borrow twice.

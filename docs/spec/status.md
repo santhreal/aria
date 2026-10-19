@@ -28,7 +28,9 @@ change.
 ## Layout ([layout.md](layout.md))
 
 Recursive split and tab-group tree (`DockTree` in `crates/aria-ui/src/dock/`),
-with 24 px frame tab bars, draggable splitters, tab reordering, five-zone
+with 24 px frame tab bars, frames 6 px apart and 6 px in from the bars and
+window edges (`DOCK_GUTTER` in `crates/aria-ui/src/dock/mod.rs`),
+draggable splitters drawn only under the pointer, tab reordering, five-zone
 docking (`Center`, `Left`, `Right`, `Top`, `Bottom`), floating panel windows,
 frame maximize (`key-pane-maximize`, `` ` ``), focused-frame accent border, and
 a Viewer-over-Timeline fallback below `1024x640` (`MIN_WINDOW_WIDTH` and

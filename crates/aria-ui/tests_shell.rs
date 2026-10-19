@@ -408,7 +408,7 @@ fn interaction_a_splitter_drag_resizes_the_media_rail(cx: &mut gpui::TestAppCont
         .expect("the left frame records where it was drawn");
     let start = lw.round();
     let y = ly + lh * 0.5;
-    // Two pixels into the four-pixel splitter, which begins where the left frame ends.
+    // Two pixels into the six-pixel splitter, which begins where the left frame ends.
     let grip = lx + lw + 2.0;
 
     visual.simulate_mouse_down(point(px(grip), px(y)), MouseButton::Left, Modifiers::none());

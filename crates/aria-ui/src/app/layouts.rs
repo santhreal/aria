@@ -13,8 +13,8 @@
 //! panel is part of the active workspace rather than a departure from it.
 
 use crate::dock::{
-    Axis, DockTree, Node, PANEL_AUDIO_METERS, PANEL_INSPECTOR, PANEL_PROJECT, PANEL_TIMELINE,
-    PANEL_VIEWER, PanelId,
+    Axis, DOCK_GUTTER, DockTree, Node, PANEL_AUDIO_METERS, PANEL_INSPECTOR, PANEL_PROJECT,
+    PANEL_TIMELINE, PANEL_VIEWER, PanelId,
 };
 use crate::interned::intern;
 use crate::layouts::{self, CUSTOM_ID, CUSTOM_NAME, PLUGIN_PREFIX, PaneLayout};
@@ -188,8 +188,10 @@ impl AppState {
                 .iter()
                 .filter(|c| self.node_has_registered_panel(&c.1))
                 .count();
-            let splitters_px = (drawn_count.saturating_sub(1) as f32) * 6.0;
-            let frame_pool_w = (win_w - splitters_px).max(1.0);
+            // The row spans the window less the dock area's margin on each side
+            // and one gutter between each pair of drawn frames.
+            let gutters_px = (drawn_count.saturating_sub(1) as f32 + 2.0) * DOCK_GUTTER;
+            let frame_pool_w = (win_w - gutters_px).max(1.0);
             self.ui_settings.sidebar_width = (first.0 * frame_pool_w)
                 .round()
                 .clamp(crate::settings::SIDEBAR_MIN, crate::settings::SIDEBAR_MAX);
@@ -330,7 +332,7 @@ impl AppState {
                 if mins.is_empty() {
                     return crate::plugins::panel_host::DockSpec::DEFAULT_MIN_SIZE;
                 }
-                let splitter_allowance = 6.0 * (mins.len().saturating_sub(1) as f32);
+                let splitter_allowance = DOCK_GUTTER * (mins.len().saturating_sub(1) as f32);
                 match axis {
                     Axis::Row => (
                         mins.iter().map(|(w, _)| *w).sum::<f32>() + splitter_allowance,

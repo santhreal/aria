@@ -43,7 +43,10 @@ pub(super) const AXIS_GUTTER: f32 = 40.0;
 const AXIS_LABEL_H: f32 = 12.0;
 
 /// Render the Timeline Graph Editor band (Value graph and Speed graph with
-/// incoming/outgoing influence handles and spatial tangent handles).
+/// incoming/outgoing influence handles and spatial tangent handles). `ruled`
+/// draws the rule over the band; a band straight under the ruler leaves it to
+/// the ruler's own.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn render_graph_editor(
     theme: &Theme,
     state: &Entity<AppState>,
@@ -51,6 +54,7 @@ pub(super) fn render_graph_editor(
     fps: f32,
     scroll_x: f32,
     playhead: f32,
+    ruled: bool,
     cx: &mut gpui::Context<Shell>,
 ) -> impl IntoElement {
     let width = state.read(cx).outline_drawn_width();
@@ -308,8 +312,9 @@ pub(super) fn render_graph_editor(
         .h(px(GRAPH_EDITOR_H))
         .flex()
         .flex_row()
-        .border_t_1()
-        .border_color(theme.border_strong)
+        .when(ruled, |el| {
+            el.border_t_1().border_color(theme.border_strong)
+        })
         .child(header_col)
         .child(graph_canvas)
 }

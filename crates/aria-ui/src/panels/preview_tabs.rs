@@ -7,7 +7,9 @@ use super::*;
 use crate::theme::Theme;
 
 /// One tab: an underline and full-strength text when it has the keys. A tab
-/// with no room for its label ends it in an ellipsis.
+/// with no room for its label ends it in an ellipsis. The underline is drawn
+/// over the tab's bottom edge, so an active label stands on the same centre
+/// line as the others.
 fn tab(
     key: motion::MotionKey,
     label: gpui::SharedString,
@@ -17,18 +19,13 @@ fn tab(
     let lit = motion::hover_t(key);
     div()
         .id(key.element_id("viewer-tab"))
+        .relative()
         .min_w_0()
         .h_full()
         .flex()
         .items_center()
         .gap(px(Theme::SPACE_XS))
         .px(px(Theme::SPACE_SM))
-        .border_b_2()
-        .border_color(if active {
-            theme.accent
-        } else {
-            theme.wash(0.0)
-        })
         .bg(motion::mix(
             theme.wash(if active { 0.08 } else { 0.0 }),
             theme.element_hover,
@@ -44,6 +41,17 @@ fn tab(
         .active(|style| style.opacity(0.92))
         .on_hover(motion::hover_listener(key))
         .child(div().min_w_0().truncate().child(label))
+        .when(active, |el| {
+            el.child(
+                div()
+                    .absolute()
+                    .left_0()
+                    .right_0()
+                    .bottom_0()
+                    .h(px(Theme::TAB_UNDERLINE))
+                    .bg(theme.accent),
+            )
+        })
 }
 
 /// The tab row over the Viewer's picture.
@@ -114,6 +122,7 @@ pub(super) fn tab_row(
                     crate::icons::CLOSE,
                     theme,
                 )
+                .size(px(Theme::ICON_HIT_ROW))
                 .flex_none()
                 .on_mouse_down(
                     MouseButton::Left,
@@ -141,9 +150,12 @@ pub(super) fn tab_row(
         .child(program)
         .children(sources)
         .child(div().flex_1())
+        // A row control: the tab row's 23 px under its rule holds a 20 px box
+        // with an even step over and under it.
         .child(crate::chrome::tool_strip::display_btn(
             "viewer-display-settings",
             crate::chrome::menu_items::VIEWER_DISPLAY,
+            Theme::ICON_HIT_ROW,
             theme,
             state,
             cx,

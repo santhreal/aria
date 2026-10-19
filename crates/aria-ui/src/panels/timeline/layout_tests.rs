@@ -140,8 +140,9 @@ fn assert_clear(runs: &[TextRunLayout], area: Bounds<Pixels>, what: &str) {
 /// The header column is two rows by two columns at every outline width: the
 /// timecode alone in the left column, centred on the two rows with its first
 /// digit on the column's text edge; the search field on the toggles' two
-/// edges; every toggle 24 px square; and no label over another or past the
-/// column.
+/// edges; every toggle a 20 px row control, one even step from the next; the
+/// stack of field and toggles as far under the header's top as over its
+/// bottom; and no label over another or past the column.
 #[gpui::test]
 fn the_header_column_is_one_grid_at_every_outline_width(cx: &mut gpui::TestAppContext) {
     let (state, visual) = shell_with_still(cx, "timeline-header-grid");
@@ -158,10 +159,19 @@ fn the_header_column_is_one_grid_at_every_outline_width(cx: &mut gpui::TestAppCo
             HEADER_TOGGLES.iter().map(|id| bounds(visual, id)).collect();
         for (id, toggle) in HEADER_TOGGLES.iter().zip(&toggles) {
             assert!(
-                near(toggle.size.width, px(Theme::ICON_HIT))
-                    && near(toggle.size.height, px(Theme::ICON_HIT)),
-                "{width}: {id} is {:?}, not a 24 px hit box",
+                near(toggle.size.width, px(Theme::ICON_HIT_ROW))
+                    && near(toggle.size.height, px(Theme::ICON_HIT_ROW)),
+                "{width}: {id} is {:?}, not a 20 px row control",
                 toggle.size
+            );
+        }
+        for (pair, ids) in toggles.windows(2).zip(HEADER_TOGGLES.windows(2)) {
+            assert!(
+                near(pair[1].left() - pair[0].right(), px(Theme::SPACE_XS)),
+                "{width}: {} and {} stand {:?} apart, not one step",
+                ids[0],
+                ids[1],
+                pair[1].left() - pair[0].right()
             );
         }
         let search = bounds(visual, "property-search");
@@ -173,7 +183,16 @@ fn the_header_column_is_one_grid_at_every_outline_width(cx: &mut gpui::TestAppCo
         );
         assert!(
             near(toggles[4].right() - toggles[0].left(), px(TOOLS_W)),
-            "{width}: the toggles are not edge to edge"
+            "{width}: the toggles do not span the right column"
+        );
+        let (over, under) = (
+            search.top() - header.top(),
+            header.bottom() - toggles[0].bottom(),
+        );
+        assert!(
+            near(over, under),
+            "{width}: the field stands {over:?} under the header's top, the toggles \
+             {under:?} over its bottom"
         );
 
         let drawn = runs(visual);

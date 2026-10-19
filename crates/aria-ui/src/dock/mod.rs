@@ -28,6 +28,12 @@ pub const MIN_WEIGHT: f32 = 0.02;
 pub const MIN_FLOAT_W: f32 = 160.0;
 pub const MIN_FLOAT_H: f32 = 80.0;
 
+/// The gap between two docked frames, which is also the splitter's hit strip,
+/// and the margin between the docked frames and the bars and window edges
+/// around them, in logical pixels: every frame edge stands this far from its
+/// neighbour.
+pub const DOCK_GUTTER: f32 = 6.0;
+
 /// Interned identifier of a dockable panel.
 pub type PanelId = &'static str;
 

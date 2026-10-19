@@ -418,13 +418,18 @@ fn ruler_ticks(
                     } else {
                         (height - MINOR_TICK_H, MINOR_TICK_H, minor_color)
                     };
-                    window.paint_quad(fill(
-                        Bounds::new(
-                            bounds.origin + point(px(x), px(top)),
-                            size(px(1.0), px(tall)),
-                        ),
-                        color,
-                    ));
+                    // A tick on the ruler's first pixel would stand against
+                    // the outline column's divider and read as one doubled
+                    // line; the divider already marks that time.
+                    if x >= 1.0 {
+                        window.paint_quad(fill(
+                            Bounds::new(
+                                bounds.origin + point(px(x), px(top)),
+                                size(px(1.0), px(tall)),
+                            ),
+                            color,
+                        ));
+                    }
                     if major {
                         let text = SharedString::from(
                             crate::timecode::display_time(tick, time.rate, time.display)

@@ -55,8 +55,6 @@ pub fn render(
         .flex()
         .flex_col()
         .bg(theme.surface)
-        .border_l_1()
-        .border_color(theme.border)
         .child(match selected {
             Some(clip) => {
                 clip_body(&theme, clip, tab, rate.num, rate.den, subs, state, cx).into_any_element()

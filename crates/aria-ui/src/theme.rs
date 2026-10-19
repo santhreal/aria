@@ -159,6 +159,10 @@ impl Theme {
     pub const ROW_HEIGHT: f32 = 22.0;
     /// Height of a tab row.
     pub const TAB_ROW_HEIGHT: f32 = 24.0;
+    /// Thickness of the line under the active tab. It is drawn over the tab's
+    /// bottom edge, not in its layout, so every label in a row stands on one
+    /// centre line.
+    pub const TAB_UNDERLINE: f32 = 2.0;
     /// Height of a text input.
     pub const INPUT_HEIGHT: f32 = 20.0;
     /// Drawn size of an icon glyph.

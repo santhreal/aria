@@ -117,6 +117,7 @@ fn menu_bar(
     let drop = menu_view::drop_phase(open, cx.motion_policy());
     div()
         .id("menu-bar")
+        .debug_selector(|| "menu-bar".into())
         .h(px(MENU_H))
         .w_full()
         .flex()
@@ -137,26 +138,54 @@ fn menu_bar(
                 cx.notify();
             }))
         })
-        // The shipped mark, the same art the packagers turn into the app icon.
-        // 18px sits on the cap height of the menu words beside it in a 32px bar.
-        .child(crate::icons::brand_mark(18.))
-        .children(
-            AppMenu::ALL
-                .into_iter()
-                .map(|menu| {
-                    let phase = drop.and_then(|(owner, phase)| (owner == menu).then_some(phase));
-                    menu_view::menu_drop(menu, phase, theme, state, cx).into_any_element()
-                })
-                .collect::<Vec<_>>(),
+        // The menus and the window controls stand in two side groups that
+        // split the room the crumb leaves evenly, so the crumb stands on the
+        // window's centre line whenever the menus fit their half. The empty
+        // stretch of each group is where the window is moved from.
+        .child(
+            div()
+                .flex_1()
+                .h_full()
+                .flex()
+                .flex_row()
+                .items_center()
+                .gap(px(Theme::SPACE_XS))
+                // The shipped mark, the same art the packagers turn into the
+                // app icon. 18px sits on the cap height of the menu words
+                // beside it in a 32px bar.
+                .child(crate::icons::brand_mark(18.))
+                .children(
+                    AppMenu::ALL
+                        .into_iter()
+                        .map(|menu| {
+                            let phase =
+                                drop.and_then(|(owner, phase)| (owner == menu).then_some(phase));
+                            menu_view::menu_drop(menu, phase, theme, state, cx).into_any_element()
+                        })
+                        .collect::<Vec<_>>(),
+                )
+                .child(
+                    drag_strip("bar-drag-left", frame, cx)
+                        .debug_selector(|| "bar-drag-left".into()),
+                ),
         )
-        // The crumb sits centred between two empty stretches, which are where
-        // the window is moved from.
-        .child(drag_strip("bar-drag-left", frame, cx))
         .child(breadcrumb(theme, state, cx))
-        .child(drag_strip("bar-drag-right", frame, cx))
-        .when(frame.draws_controls(), |el| {
-            el.child(caption_buttons(theme, window, cx))
-        })
+        .child(
+            div()
+                .flex_1()
+                .h_full()
+                .flex()
+                .flex_row()
+                .items_center()
+                .gap(px(Theme::SPACE_XS))
+                .child(
+                    drag_strip("bar-drag-right", frame, cx)
+                        .debug_selector(|| "bar-drag-right".into()),
+                )
+                .when(frame.draws_controls(), |el| {
+                    el.child(caption_buttons(theme, window, cx))
+                }),
+        )
 }
 
 /// An empty stretch of a bar: where the window is moved from when the app
@@ -204,6 +233,7 @@ fn breadcrumb(
     let key = motion::MotionKey::new("crumb", "home");
     div()
         .id("breadcrumb")
+        .debug_selector(|| "breadcrumb".into())
         .flex()
         .flex_row()
         .items_center()

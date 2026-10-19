@@ -602,17 +602,21 @@ fn read_playhead(state: &gpui::Entity<AppState>, visual: &VisualTestContext) -> 
 }
 
 /// Every Inspector tab takes a share of the strip in proportion to its label
-/// and its padding, the tabs stay inside the strip, and the underline spans
-/// the tab in front, at every width. While the strip is as wide as the labels
-/// and their padding, no tab is narrower than its own.
+/// and its padding, the tabs stay inside the strip, the underline spans the
+/// tab in front, and every tab's label stands on its tab's centre, down and
+/// across, at every width. While the strip is as wide as the labels and their
+/// padding, no tab is narrower than its own.
 ///
 /// Closes the class "a tab that cuts its label while the strip has room for
 /// it": with equal shares, Transform, the longest label, was cut to "Transf…"
 /// in the shipped layout while the short labels had room to spare. Also closes
 /// "a tab off its underline": the underline is placed at the weights'
-/// fractions, so a tab sized any other way leaves it. The walk must draw a
-/// width where equal shares cut the longest label and weighted ones do not.
-/// Does not cover the ellipsis, which the test text system does not draw.
+/// fractions, so a tab sized any other way leaves it. And "a label off its
+/// tab's centre": an underline that takes layout at the tab's foot lifts the
+/// label, and a label not centred in its share stands to one side. The walk
+/// must draw a width where equal shares cut the longest label and weighted
+/// ones do not. Does not cover the ellipsis, which the test text system does
+/// not draw, so a cut label is checked down only.
 #[gpui::test]
 async fn every_inspector_tab_takes_a_share_by_its_label_under_its_underline(
     cx: &mut TestAppContext,
@@ -632,6 +636,12 @@ async fn every_inspector_tab_takes_a_share_by_its_label_under_its_underline(
             })
             .collect()
     });
+    let labels: Vec<(SharedString, SharedString)> = crate::panels::inspector::host_of()
+        .tabs()
+        .iter()
+        .map(|tab| (tab.id.clone(), tab.label.clone()))
+        .collect();
+    let mut centred = 0;
     let (mut steps, mut decisive) = (0, 0);
     // The tab in front moves one place right at every step, so the underline
     // is checked at every offset, not only at the first tab's.
@@ -698,6 +708,44 @@ async fn every_inspector_tab_takes_a_share_by_its_label_under_its_underline(
                 && f32::from((line.right() - front.right()).abs()) <= pixel,
             "frame edge {frame}: the underline {line:?} is not under {in_front} {front:?}"
         );
+        // A text box is laid out at its width rounded up to a whole pixel, so
+        // the box a label is centred by is measured from where its run starts.
+        let runs = visual.update(|window, _| window.rendered_text_runs().to_vec());
+        for (id, bounds, _) in &drawn {
+            let label = labels
+                .iter()
+                .find(|(tab, _)| tab == *id)
+                .map(|(_, label)| label)
+                .unwrap_or_else(|| panic!("tab {id} has a label"));
+            let Some(run) = runs.iter().find(|run| {
+                let kept = run.text.trim_end_matches('…');
+                !kept.is_empty() && label.starts_with(kept) && bounds.contains(&run.bounds.center())
+            }) else {
+                continue;
+            };
+            let down = f32::from(run.bounds.center().y - bounds.center().y);
+            assert!(
+                down.abs() <= pixel + 0.01,
+                "frame edge {frame}: the label `{}` of tab {id} stands {down} px off the \
+                 tab's centre line ({:?} in {bounds:?})",
+                run.text,
+                run.bounds
+            );
+            // A label wider than its tab is cut, and starts at the tab's edge.
+            let width = f32::from(run.bounds.size.width).ceil();
+            if run.text != *label || width > f32::from(bounds.size.width) + 0.01 {
+                continue;
+            }
+            let across = f32::from(run.bounds.left()) + width / 2.0 - f32::from(bounds.center().x);
+            assert!(
+                across.abs() <= pixel + 0.01,
+                "frame edge {frame}: the label `{}` of tab {id} stands {across} px off the \
+                 tab's middle ({:?} in {bounds:?})",
+                run.text,
+                run.bounds
+            );
+            centred += 1;
+        }
         in_front = drawn[(at + 1) % drawn.len()].0.clone();
         visual.update(|_, app| {
             state.update(app, |state, cx| {
@@ -712,5 +760,9 @@ async fn every_inspector_tab_takes_a_share_by_its_label_under_its_underline(
         decisive > 0,
         "the walk drew no width that holds every label but not an equal share for the \
          longest, so it cannot tell weighted shares from equal ones"
+    );
+    assert!(
+        centred > 0,
+        "the walk drew no tab whose whole label could be checked across"
     );
 }

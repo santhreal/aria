@@ -163,7 +163,13 @@ pub(super) fn footer(
         .debug_selector(|| "pool-footer".into())
         .flex_none()
         .min_h(px(Theme::ICON_HIT))
-        .pt(px(Theme::SPACE_XS))
+        // A bar across the panel's whole width and flush to its bottom, the
+        // mirror of the group strip on top: the rule spans the panel and the
+        // row stands an equal step under it and over the panel's edge.
+        .mx(px(-Theme::SPACE_MD))
+        .mb(px(-Theme::SPACE_MD))
+        .px(px(Theme::SPACE_MD))
+        .py(px(Theme::SPACE_XS))
         .border_t_1()
         .border_color(theme.border)
         .flex()

@@ -5,10 +5,12 @@
 //! The header is two columns over two 24 px rows. The left column holds the
 //! timecode, centred on the two rows, its first digit on the column's text
 //! edge. The right column is five toggles wide and holds the search field
-//! over the toggles, so the field and the toggles share both edges. The right
-//! column keeps its width at every outline width; the left column takes the
-//! rest, and the timecode steps down to 14 px when that is narrower than an
-//! 18 px timecode.
+//! over the toggles, so the field and the toggles share both edges. Field and
+//! toggles are 20 px row controls, each centred on its row, so the stack
+//! stands as far under the header's top as over its bottom. The right column
+//! keeps its width at every outline width; the left column takes the rest,
+//! and the timecode steps down to 14 px when that is narrower than an 18 px
+//! timecode.
 //!
 //! The timecode is a playhead field like the Viewer's (`app/viewer_scrub.rs`):
 //! a drag scrubs, a click opens it for typing, and a press anywhere else
@@ -37,8 +39,9 @@ use crate::types::ActivePanel;
 pub(super) const HEADER_ROW_H: f32 = Theme::ICON_HIT;
 /// The toggles in the right column, left to right.
 const TOGGLES: usize = 5;
-/// Width of the right column: the toggles, edge to edge.
-pub(super) const TOOLS_W: f32 = TOGGLES as f32 * Theme::ICON_HIT;
+/// Width of the right column: the toggles and the steps between them.
+pub(super) const TOOLS_W: f32 =
+    TOGGLES as f32 * Theme::ICON_HIT_ROW + (TOGGLES - 1) as f32 * Theme::SPACE_XS;
 /// Outline width under which the timecode is drawn at `TEXT_HEADING`: below
 /// it the left column is narrower than an 18 px timecode.
 pub(super) const TIMECODE_FULL_MIN: f32 = 272.0;
@@ -157,6 +160,7 @@ pub(super) fn header_controls(
         .child(row().child(search).when(searching, |el| {
             el.child(
                 components::icon_button("property-search-clear", icons::CLOSE, theme)
+                    .size(px(Theme::ICON_HIT_ROW))
                     .debug_selector(|| "property-search-clear".into())
                     .on_mouse_down(
                         MouseButton::Left,
@@ -170,31 +174,41 @@ pub(super) fn header_controls(
         }))
         .child(
             row()
-                .child(tool_btn("timeline-snap", icons::MAGNET, snap, cx, |s| {
-                    s.toggle_snapping()
-                }))
-                .child(tool_btn("timeline-linked", icons::LINK, linked, cx, |s| {
-                    s.toggle_linked_selection()
-                }))
-                .child(tool_btn("timeline-marker", icons::FLAG, false, cx, |s| {
-                    if let Err(err) = s.add_or_edit_marker() {
-                        s.report_error(&err);
-                    }
-                }))
+                .gap(px(Theme::SPACE_XS))
+                .child(
+                    tool_btn("timeline-snap", icons::MAGNET, snap, cx, |s| {
+                        s.toggle_snapping()
+                    })
+                    .size(px(Theme::ICON_HIT_ROW)),
+                )
+                .child(
+                    tool_btn("timeline-linked", icons::LINK, linked, cx, |s| {
+                        s.toggle_linked_selection()
+                    })
+                    .size(px(Theme::ICON_HIT_ROW)),
+                )
+                .child(
+                    tool_btn("timeline-marker", icons::FLAG, false, cx, |s| {
+                        if let Err(err) = s.add_or_edit_marker() {
+                            s.report_error(&err);
+                        }
+                    })
+                    .size(px(Theme::ICON_HIT_ROW)),
+                )
                 .child(display_btn(
                     "timeline-display-settings",
                     crate::chrome::menu_items::TIMELINE_DISPLAY,
+                    Theme::ICON_HIT_ROW,
                     theme,
                     state,
                     cx,
                 ))
-                .child(tool_btn(
-                    "timeline-graph",
-                    icons::GRAPH,
-                    graph_open,
-                    cx,
-                    |s| s.toggle_timeline_graph_editor(),
-                )),
+                .child(
+                    tool_btn("timeline-graph", icons::GRAPH, graph_open, cx, |s| {
+                        s.toggle_timeline_graph_editor()
+                    })
+                    .size(px(Theme::ICON_HIT_ROW)),
+                ),
         );
 
     div()

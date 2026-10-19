@@ -26,7 +26,6 @@ pub fn render(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     let theme = Theme::of(cx);
-    let selected = state.read(cx).active_panel == ActivePanel::Media;
     let tab = state.read(cx).sidebar_tab;
     let width = state
         .read(cx)
@@ -68,8 +67,6 @@ pub fn render(
         .flex()
         .flex_col()
         .bg(theme.surface)
-        .border_r_1()
-        .border_color(if selected { theme.accent } else { theme.border })
         .child(filter_chips(&theme, tab, width, cx))
         .child(
             div()

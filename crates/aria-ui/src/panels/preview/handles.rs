@@ -21,8 +21,8 @@ use crate::theme::Theme;
 use crate::types::OverlayMode;
 
 /// Handle hit size in pixels. Big enough to grab, small enough not to hide the
-/// frame under it.
-const HANDLE: f32 = 12.0;
+/// frame under it. The Program pane keeps half of it clear around the picture.
+pub(super) const HANDLE: f32 = 12.0;
 
 /// One step of a drag, reported rather than swallowed.
 ///
@@ -64,7 +64,9 @@ pub(super) fn measure(state: &Entity<AppState>) -> impl IntoElement {
     .size_full()
 }
 
-/// The handle-set picker: one icon toggle per mode, the live one lit.
+/// The handle-set picker: one icon toggle per mode, the live one lit. The
+/// toggles stand one row step apart, the step every control in the Viewer's
+/// row keeps from the next.
 ///
 /// Three toggles rather than one cycling control, because the sets are
 /// mutually exclusive and an operator reaching for the mask handles should not
@@ -81,7 +83,7 @@ pub(super) fn mode_picker(
         .flex()
         .flex_row()
         .items_center()
-        .gap(px(Theme::SPACE_XXS));
+        .gap(px(Theme::SPACE_XS));
     for mode in OverlayMode::ALL {
         let (id, path) = match mode {
             OverlayMode::Transform => ("preview-handles-transform", crate::icons::TRANSFORM),

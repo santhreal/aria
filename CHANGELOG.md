@@ -1446,8 +1446,18 @@ Notes for the latest release. For previous releases, see the
 - The Home Learn pane lists the editor's essential chords (import, play, In, Out, split, undo, palette, export, close) instead of a row for Esc, and the Home rail drops its tagline.
 - A Home recent-project card prints its project's folder on one line, with the home folder as `~`, instead of the whole path.
 - Each Inspector tab takes a share of the strip in proportion to its label, so Transform reads in full beside the shorter tabs.
-- The Audio workspace gives the Audio Track Mixer's row 65% of the height and the Timeline 35%, so a new project's mixer strips show without scrolling in a 1440 x 900 window.
+- The Audio workspace gives the Audio Track Mixer's row 66% of the height and the Timeline 34%, so a new project's mixer strips show without scrolling in a 1440 x 900 window.
 - A mask cuts what a clip draws before its effects, LUT, and layer styles, so a shadow or glow follows the masked edge.
+- Docked frames stand 6 px apart and 6 px in from the bars and the window edges, and the splitter between two frames draws a line only under the pointer.
+- The active tab's underline in frame tab bars, the Viewer tab row, and the Effect Controls strip is drawn over the tab's foot, so every tab label in a row stands on the row's centre line.
+- Panel bodies inside a frame and the Timeline's A/V divider no longer draw a rule beside the frame's or the lane's own rule.
+- The workspace switcher, the breadcrumb, and the Viewer transport stand on their bar's centre line whenever the controls on both sides fit their half.
+- The Timeline header's track toggles are 20 px buttons 4 px apart.
+- The Project panel footer spans the panel's full width.
+- The Project panel grid and the Effect Controls tab strip are inset 12 px from the frame edge.
+- The Program picture is inset 6 px in its pane, so transform handles at the frame edge draw whole.
+- The Viewer's handle-mode buttons stand 4 px apart.
+- The Timeline ruler draws no tick on its first pixel, beside the outline column's divider, and a graph editor directly under the ruler draws no second rule.
 
 - **GPUI builds from santh-gpui, the framework shared with iris and Veyyon.**
   The vendored copy of the `wingleeio/zed` fork is deleted, and building from
