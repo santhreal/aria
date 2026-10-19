@@ -299,18 +299,34 @@ fn steady_resolve_and_look_ahead_allocate_zero_heap_blocks() {
 /// `Renderer::render_frame_to_texture_with`, `RealizeScratch` / `InlineVec`
 /// realization tables, static text bitmap memoization (`Renderer::text_memo`),
 /// look-ahead scene pooling, and `wgpu` command-encoder / render-pass label
-/// `String` allocations on the lavapipe software Vulkan path. Does not catch
-/// allocations inside hardware-only video decoder backends (NVDEC/VideoToolbox).
+/// `String` allocations. Each frame is counted on its own and compared with a
+/// pre-resolved `render_scene_to_texture` frame, so one allocation on one frame
+/// fails. Every counted frame starts on an idle device: `Queue::submit` retires
+/// the finished submissions it finds, and while earlier frames are still in
+/// flight `wgpu` grows its submission and encoder pools by a count that depends
+/// on GPU timing, which a loaded host turns into a different count per run.
+/// The absolute floor is checked on lavapipe, the adapter CI renders on.
+/// Does not catch allocations inside hardware-only video decoder backends
+/// (NVDEC/VideoToolbox), or allocations made only while earlier frames are
+/// still in flight.
 #[test]
 fn steady_frame_render_allocations_stay_at_wgpu_floor() {
     use crate::resolve::ResolveOverrides;
     use aria_core::{Rational, RationalTime};
     use aria_models::TextCase;
 
+    const STEADY_FRAMES: usize = 8;
     let started = Instant::now();
-    let mut renderer = Renderer::new_headless().expect("lavapipe headless renderer");
+    let mut renderer = Renderer::new_headless().expect("headless renderer");
+    let adapter = renderer.gpu().adapter.get_info();
+    let device = renderer.gpu().device.clone();
+    let idle = || {
+        device
+            .poll(wgpu::PollType::wait_indefinitely())
+            .expect("device finishes its submitted frames");
+    };
     let project = build_steady_alloc_project(TextCase::Title);
-    let target = aria_compositor::create_frame_target(&renderer.gpu().device, 64, 64);
+    let target = aria_compositor::create_frame_target(&device, 64, 64);
 
     // Warm up caches and pools across 2 frames before the 1s mark (tick 60).
     for tick in 58..60 {
@@ -325,47 +341,62 @@ fn steady_frame_render_allocations_stay_at_wgpu_floor() {
             .expect("warmup frame render");
     }
 
-    let steady_frames = 4_u64;
-    let (res, total_allocs) = count_thread_allocs(|| -> Result<(), RenderError> {
-        for tick in 60..(60 + steady_frames as i64) {
+    let mut frame_allocs = [0_u64; STEADY_FRAMES];
+    for (allocs, tick) in frame_allocs.iter_mut().zip(60_i64..) {
+        idle();
+        let (res, count) = count_thread_allocs(|| {
             renderer.render_frame_to_texture_with(
                 &project,
                 RationalTime::new(tick, Rational::FPS_60),
                 ResolveOverrides::default(),
                 SeekPolicy::Exact,
                 |_, _| target.clone(),
-            )?;
-        }
-        Ok(())
-    });
-    res.expect("steady frame renders");
+            )
+        });
+        res.expect("steady frame render");
+        *allocs = count;
+    }
 
-    let allocs_per_frame = total_allocs / steady_frames;
     let warm_scene = crate::resolve::resolve(&project, RationalTime::new(60, Rational::FPS_60))
         .expect("resolve warm scene");
-    let (scene_res, scene_total_allocs) = count_thread_allocs(|| -> Result<(), RenderError> {
-        for _ in 0..steady_frames {
-            renderer.render_scene_to_texture(&project, &warm_scene, &target)?;
-        }
-        Ok(())
-    });
-    scene_res.expect("steady scene renders");
-    let scene_allocs_per_frame = scene_total_allocs / steady_frames;
+    let mut scene_allocs = [0_u64; STEADY_FRAMES];
+    for allocs in &mut scene_allocs {
+        idle();
+        let (res, count) = count_thread_allocs(|| {
+            renderer.render_scene_to_texture(&project, &warm_scene, &target)
+        });
+        res.expect("steady scene render");
+        *allocs = count;
+    }
+    let floor = scene_allocs[0];
     assert_eq!(
-        allocs_per_frame, scene_allocs_per_frame,
-        "render_frame_to_texture_with allocated {allocs_per_frame}/frame vs {scene_allocs_per_frame}/frame for pre-resolved render_scene_to_texture"
+        scene_allocs, [floor; STEADY_FRAMES],
+        "pre-resolved render_scene_to_texture allocated a different count per frame on an idle device"
+    );
+    assert_eq!(
+        frame_allocs, [floor; STEADY_FRAMES],
+        "render_frame_to_texture_with allocated these blocks per frame against {floor} for pre-resolved render_scene_to_texture"
     );
     // For 1 CommandEncoder + 8 RenderPasses (canvas clear + 3 layer-into +
-    // 3 gaussian_blur + 1 text blit) + 1 Queue::submit, wgpu 29.0.4 + lavapipe
-    // allocates 177 internal blocks on a steady frame when all descriptor
-    // labels are `None`. Any re-introduced aria-side allocation (resolve,
-    // realize InlineVec, text_memo, PassId, look_ahead) or wgpu descriptor
-    // label String pushes this above the 177 wgpu floor.
-    const WGPU_STEADY_FLOOR: u64 = 177;
-    assert!(
-        allocs_per_frame <= WGPU_STEADY_FLOOR,
-        "steady frame allocated {allocs_per_frame} blocks/frame (total {total_allocs} over {steady_frames} frames), exceeding wgpu floor {WGPU_STEADY_FLOOR}"
-    );
+    // 3 gaussian_blur + 1 text blit) + 1 Queue::submit with every descriptor
+    // label `None`, wgpu 29.0.4 on lavapipe allocates 173 blocks. An
+    // allocation on the path both renders share (realize InlineVec,
+    // text_memo, PassId) or a descriptor label String raises it. Other
+    // adapters allocate their own counts (wgpu's GL backend on an Intel iGPU:
+    // 222), so the floor holds for lavapipe only.
+    const LAVAPIPE_STEADY_FLOOR: u64 = 173;
+    if adapter.backend == wgpu::Backend::Vulkan && adapter.name.contains("llvmpipe") {
+        assert!(
+            floor <= LAVAPIPE_STEADY_FLOOR,
+            "steady frame allocated {floor} blocks/frame on {}, exceeding the lavapipe floor {LAVAPIPE_STEADY_FLOOR}",
+            adapter.name
+        );
+    } else {
+        eprintln!(
+            "lavapipe floor not checked on {} ({:?}): {floor} blocks/frame",
+            adapter.name, adapter.backend
+        );
+    }
     assert!(
         started.elapsed() < Duration::from_secs(10),
         "steady frame render test exceeded 10s bound: {:?}",
