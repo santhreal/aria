@@ -2285,6 +2285,7 @@ Notes for the latest release. For previous releases, see the
 - The Project panel's properties state a still's frame rate as `still image` instead of the 1000.000 fps tick base it was probed in.
 - The Project panel's group chips take the compact padding when their labels at the regular padding do not fit the panel, measured in the drawn face, so the launch layout reads Graphics, Effects, Library, and Analyze in full instead of cutting them at a fixed 260 px threshold.
 - Home's recent-project cards draw their top and bottom edges whole instead of under a fade, and Home scrolls a pane longer than the window, fading an edge only while the pane continues past it.
+- `cargo test -p aria-ui --lib -- --test-threads=4` peaks at 4799 MiB and 148 threads instead of 15338 MiB and 412: each test's window and app are released when the test ends, and the projection lane tests render on the GPU the test window mounted instead of opening one per test.
 - A file that opens neither through DMABuf nor to CPU memory, such as an unreadable or audio-only file, no longer turns DMABuf decode off for every later file in the process.
 - A DMABuf open whose decoder has no DMABuf output stops before that decoder opens a hardware session and falls back to CPU decode.
 - Playback with a few dozen decoded layers no longer fails with "Element failed to change its state": the first GStreamer start in a process raises the open-file soft limit from 1024 to the hard limit, at most 65,536.

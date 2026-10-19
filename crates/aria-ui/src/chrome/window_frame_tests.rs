@@ -215,7 +215,8 @@ fn the_content_fills_the_window_and_a_band_press_never_reaches_it(cx: &mut TestA
         .into_iter()
         .chain(tilings().map(Frame::Client));
     for frame in frames {
-        let (view, visual) = cx.add_window_view(move |_, _| Framed { frame, presses: 0 });
+        let (view, visual) =
+            crate::test_support::window_view(cx, move |_, _| Framed { frame, presses: 0 });
         visual.run_until_parked();
         let window = visual.update(|window, _| window.viewport_size());
         let probe = visual

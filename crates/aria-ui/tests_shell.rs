@@ -43,6 +43,9 @@ use aria_ui::types::{ActivePanel, UiRoute};
 use gpui::AppContext as _;
 use gpui::{Modifiers, MouseButton, point, px};
 
+#[path = "src/test_support/window.rs"]
+mod window;
+
 /// A data directory of this test's own, at one fixed path per tag.
 ///
 /// Every case needs its own: the shell writes settings and a recovery file, and
@@ -109,7 +112,7 @@ macro_rules! shell {
             app.new(|_| AppState::new(ctx, data_dir($tag)).expect("editor state"))
         });
         let owned = gpui::Entity::clone(&state);
-        let (_shell, visual) = $cx.add_window_view(|_, cx| Shell::new(owned, cx));
+        let (_shell, visual) = window::window_view($cx, |_, cx| Shell::new(owned, cx));
         (state, visual)
     }};
 }
@@ -1036,7 +1039,7 @@ fn interaction_dock_tab_drag_splits_frame_and_floating_window_shares_state(
     });
     let shared = gpui::Entity::clone(&state);
     let (_float_shell, float_visual) =
-        cx.add_window_view(|_, cx| Shell::new_floating(shared, float_id, cx));
+        window::window_view(cx, |_, cx| Shell::new_floating(shared, float_id, cx));
     float_visual.run_until_parked();
     assert_eq!(
         float_visual.read(|app| state.read(app).dock_tree.floating.len()),

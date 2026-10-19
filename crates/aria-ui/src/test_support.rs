@@ -15,6 +15,9 @@
 
 use std::path::{Path, PathBuf};
 
+mod window;
+pub(crate) use window::{release_at_teardown, window_view};
+
 /// Every `.rs` file under `dir`, recursively.
 ///
 /// The censuses below read the sources rather than a list of call sites, and so
@@ -47,7 +50,7 @@ pub(crate) fn drawn_shell<'a>(
 ) {
     let state = shell_state(cx, tag);
     let owned = state.clone();
-    let (_shell, visual) = cx.add_window_view(|_, cx| crate::shell::Shell::new(owned, cx));
+    let (_shell, visual) = window_view(cx, |_, cx| crate::shell::Shell::new(owned, cx));
     (state, visual)
 }
 
@@ -60,6 +63,7 @@ pub(crate) fn drawn_shell_at(
     bounds: gpui::Bounds<gpui::Pixels>,
 ) -> (gpui::Entity<crate::app::AppState>, gpui::VisualTestContext) {
     use gpui::AppContext as _;
+    release_at_teardown(cx);
     let state = shell_state(cx, tag);
     let owned = state.clone();
     let window = cx
@@ -132,52 +136,10 @@ pub(crate) fn wait_out_splash(visual: &mut gpui::VisualTestContext) {
     }
 }
 
-/// Shuts down the test [`gpui::App`] when [`gpui::TestDispatcher::drain_tasks`]
-/// drops the background timer task at the end of a `#[gpui::test]`.
-///
-/// # Why
-///
-/// [`gpui::TestAppContext::add_window_view`] converts its [`gpui::VisualTestContext`]
-/// into `&'static mut` with `Box::into_raw` (`into_mut`) and registers the
-/// matching `Box::from_raw` drop inside `TestAppContext::on_quit`. However, the
-/// `#[gpui::test]` macro teardown calls `cx.update(|cx| cx.quit())`, which
-/// invokes `App::quit` (`TestPlatform::quit`, a no-op) rather than
-/// `TestAppContext::quit`. Without `TestAppContext::quit`, `on_quit` is never
-/// drained and `App::shutdown` never runs, leaking the `VisualTestContext`,
-/// `Rc<AppCell>`, `Window`, `Shell`, `AppState`, `Engine`, `Renderer` (`wgpu`
-/// device), `PreviewWorker` (`aria-preview` thread), and `EventBus`
-/// (`aria-events` thread) for the lifetime of the test binary. Holding this
-/// guard inside a timer task on `foreground_executor` ensures
-/// `dispatcher.drain_tasks()` drops the guard after the test body and macro
-/// teardowns finish, running `TestAppContext::quit` so every window, entity,
-/// device, and worker thread is released before the next test starts.
-struct QuitOnDrain(gpui::TestAppContext);
-
-impl Drop for QuitOnDrain {
-    fn drop(&mut self) {
-        if !std::thread::panicking() {
-            self.0.quit();
-        }
-    }
-}
-
 /// The state [`drawn_shell`] draws: the UI plugin mounted and an empty
 /// project open.
 fn shell_state(cx: &mut gpui::TestAppContext, tag: &str) -> gpui::Entity<crate::app::AppState> {
     use gpui::AppContext as _;
-    let guard = QuitOnDrain(cx.clone());
-    cx.foreground_executor()
-        .spawn(async move {
-            let _guard = guard;
-            loop {
-                _guard
-                    .0
-                    .executor()
-                    .timer(std::time::Duration::from_secs(3600))
-                    .await;
-            }
-        })
-        .detach();
     cx.update(|app| {
         crate::theme::Theme::install(
             crate::theme::Appearance::Dark,
@@ -259,3 +221,6 @@ mod shell_draw;
 
 #[cfg(test)]
 mod deferred_docs;
+
+#[cfg(test)]
+mod window_teardown;
