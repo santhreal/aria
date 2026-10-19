@@ -542,93 +542,96 @@ fn slot_of(kind: EffectParamKind, layer: ClipId) -> Option<(EffectParamSpec, Slo
 
 #[test]
 fn an_effect_reads_as_mixed_on_the_slots_the_clips_set_apart() {
-    // The slots no curve carries are the ones the model cannot keyframe.
-    for kind in KINDS {
-        assert_eq!(
-            slot_of(kind, ClipId::from_raw(0)).is_some(),
-            !kind.is_keyframeable(),
-            "{kind:?}"
-        );
-    }
-    let statics: Vec<EffectParamKind> = KINDS
-        .into_iter()
-        .filter(|kind| slot_of(*kind, ClipId::from_raw(0)).is_some())
-        .collect();
-    let mut params: Vec<EffectParamSpec> = statics
-        .iter()
-        .filter_map(|kind| slot_of(*kind, ClipId::from_raw(0)).map(|(spec, _)| spec))
-        .collect();
-    let amount_slot = params.len();
-    params.push(EffectParamSpec {
-        name: "amount".into(),
-        label: "Amount".into(),
-        kind: EffectParamKind::Scalar,
-        default: 0.5,
-        min: 0.0,
-        max: 1.0,
-        ..Default::default()
-    });
-    let (_guard, _) = register_effect(EffectSpec {
-        id: "test.ui.shared_slots".into(),
-        label: "Shared Slots".into(),
-        category: "Stylize".into(),
-        params,
-        ..Default::default()
-    })
-    .expect("register the test effect");
-    let (mut state, _) = with_clip();
-    state
-        .add_effect_to_selected("test.ui.shared_slots")
-        .expect("add");
-    let (drawn, twin) = twin_selected(&mut state);
-    let amount = ClipParam::Effect {
-        effect: 0,
-        param: amount_slot as u32,
-    };
-    let amount_mixed = |state: &AppState| {
-        state
-            .effect_param_rows(0)
+    // Registers and drops an effect every other library test can list.
+    crate::test_support::catalogs::own_process(|| {
+        // The slots no curve carries are the ones the model cannot keyframe.
+        for kind in KINDS {
+            assert_eq!(
+                slot_of(kind, ClipId::from_raw(0)).is_some(),
+                !kind.is_keyframeable(),
+                "{kind:?}"
+            );
+        }
+        let statics: Vec<EffectParamKind> = KINDS
+            .into_iter()
+            .filter(|kind| slot_of(*kind, ClipId::from_raw(0)).is_some())
+            .collect();
+        let mut params: Vec<EffectParamSpec> = statics
             .iter()
-            .find(|row| row.param == amount)
-            .expect("the amount row")
-            .mixed
-    };
-    assert!(state.effect_slots_mixed(0).is_empty());
-    assert!(!amount_mixed(&state));
-
-    // A direct setter edits the drawn clip alone, which sets it apart there.
-    for (slot, kind) in statics.iter().enumerate() {
-        let (_, edit) = slot_of(*kind, twin).expect("a static kind");
+            .filter_map(|kind| slot_of(*kind, ClipId::from_raw(0)).map(|(spec, _)| spec))
+            .collect();
+        let amount_slot = params.len();
+        params.push(EffectParamSpec {
+            name: "amount".into(),
+            label: "Amount".into(),
+            kind: EffectParamKind::Scalar,
+            default: 0.5,
+            min: 0.0,
+            max: 1.0,
+            ..Default::default()
+        });
+        let (_guard, _) = register_effect(EffectSpec {
+            id: "test.ui.shared_slots".into(),
+            label: "Shared Slots".into(),
+            category: "Stylize".into(),
+            params,
+            ..Default::default()
+        })
+        .expect("register the test effect");
+        let (mut state, _) = with_clip();
         state
-            .edit_selected_effect_slot(0, slot, edit)
-            .unwrap_or_else(|err| panic!("{kind:?}: {err}"));
-        assert_eq!(state.effect_slots_mixed(0), [slot], "{kind:?} set apart");
-        assert!(state.undo());
-        assert!(state.effect_slots_mixed(0).is_empty(), "{kind:?} undone");
-    }
-    state
-        .set_selected_effect_param(0, amount_slot, 0.9)
-        .expect("amount");
-    assert!(amount_mixed(&state), "the amount set apart");
+            .add_effect_to_selected("test.ui.shared_slots")
+            .expect("add");
+        let (drawn, twin) = twin_selected(&mut state);
+        let amount = ClipParam::Effect {
+            effect: 0,
+            param: amount_slot as u32,
+        };
+        let amount_mixed = |state: &AppState| {
+            state
+                .effect_param_rows(0)
+                .iter()
+                .find(|row| row.param == amount)
+                .expect("the amount row")
+                .mixed
+        };
+        assert!(state.effect_slots_mixed(0).is_empty());
+        assert!(!amount_mixed(&state));
 
-    select(&mut state, &[drawn]);
-    assert!(!amount_mixed(&state), "one clip is never mixed");
-    state
-        .edit_selected_effect_slot(0, 0, SlotEdit::ToggleBool)
-        .expect("switch");
-    assert!(
-        state.effect_slots_mixed(0).is_empty(),
-        "one clip is never mixed"
-    );
+        // A direct setter edits the drawn clip alone, which sets it apart there.
+        for (slot, kind) in statics.iter().enumerate() {
+            let (_, edit) = slot_of(*kind, twin).expect("a static kind");
+            state
+                .edit_selected_effect_slot(0, slot, edit)
+                .unwrap_or_else(|err| panic!("{kind:?}: {err}"));
+            assert_eq!(state.effect_slots_mixed(0), [slot], "{kind:?} set apart");
+            assert!(state.undo());
+            assert!(state.effect_slots_mixed(0).is_empty(), "{kind:?} undone");
+        }
+        state
+            .set_selected_effect_param(0, amount_slot, 0.9)
+            .expect("amount");
+        assert!(amount_mixed(&state), "the amount set apart");
 
-    // A copy holding another effect there is no peer of the slot.
-    on(&mut state, twin, &[twin], |state| {
-        state.remove_effect(twin, 0).expect("remove");
-        state.add_effect_to_selected("vignette").expect("vignette");
+        select(&mut state, &[drawn]);
+        assert!(!amount_mixed(&state), "one clip is never mixed");
+        state
+            .edit_selected_effect_slot(0, 0, SlotEdit::ToggleBool)
+            .expect("switch");
+        assert!(
+            state.effect_slots_mixed(0).is_empty(),
+            "one clip is never mixed"
+        );
+
+        // A copy holding another effect there is no peer of the slot.
+        on(&mut state, twin, &[twin], |state| {
+            state.remove_effect(twin, 0).expect("remove");
+            state.add_effect_to_selected("vignette").expect("vignette");
+        });
+        select(&mut state, &[drawn, twin]);
+        assert!(state.effect_slots_mixed(0).is_empty());
+        assert!(!amount_mixed(&state));
     });
-    select(&mut state, &[drawn, twin]);
-    assert!(state.effect_slots_mixed(0).is_empty());
-    assert!(!amount_mixed(&state));
 }
 
 #[test]

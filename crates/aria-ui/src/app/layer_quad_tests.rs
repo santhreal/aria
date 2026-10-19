@@ -109,43 +109,46 @@ fn a_pen_path_has_a_selection_box_and_is_picked_by_its_ink() {
 /// wrong side. Does not catch a margin the compositor fails to draw.
 #[test]
 fn a_click_inside_an_effect_margin_selects_the_layer_drawing_it() {
-    use aria_compositor::{EffectDefinition, register_effect};
-    use aria_models::{EffectBounds, EffectSpec};
+    // Registers and drops an effect every other library test can list.
+    crate::test_support::catalogs::own_process(|| {
+        use aria_compositor::{EffectDefinition, register_effect};
+        use aria_models::{EffectBounds, EffectSpec};
 
-    let _registration = register_effect(EffectDefinition {
-        spec: EffectSpec {
-            id: "test.ui.pick_margin".into(),
-            label: "Pick Margin".into(),
-            bounds: EffectBounds::new(0.0, 0.0, 200.0, 0.0),
-            ..Default::default()
-        },
-        passes: vec![
-            "@fragment\nfn fs(in: VsOut) -> @location(0) vec4<f32> {\n    return textureSample(input_tex, aria_sampler, in.uv);\n}\n"
-                .into(),
-        ],
-    })
-    .expect("register the margin effect");
-    let mut state = with_title();
-    let title = state.selected_clip().expect("the title is selected");
-    let under = other(&state, title);
-    aim(&mut state);
-    state
-        .add_effect_to_selected("test.ui.pick_margin")
-        .expect("add the margin effect");
-    let (center, size) = state.selected_layer_quad().expect("a title has a quad");
-    let right = center[0] + size[0] * 0.5;
-    let left = center[0] - size[0] * 0.5;
-    for (x, picked, what) in [
-        (right + 100.0, title, "inside the right margin"),
-        (right + 300.0, under, "past the right margin"),
-        (
-            left - 100.0,
-            under,
-            "beside the left side, which has no margin",
-        ),
-    ] {
-        state.select_clip(if picked == title { under } else { title });
-        state.select_layer_at([x, center[1]], false);
-        assert_eq!(state.selected_clip(), Some(picked), "a click {what}");
-    }
+        let _registration = register_effect(EffectDefinition {
+            spec: EffectSpec {
+                id: "test.ui.pick_margin".into(),
+                label: "Pick Margin".into(),
+                bounds: EffectBounds::new(0.0, 0.0, 200.0, 0.0),
+                ..Default::default()
+            },
+            passes: vec![
+                "@fragment\nfn fs(in: VsOut) -> @location(0) vec4<f32> {\n    return textureSample(input_tex, aria_sampler, in.uv);\n}\n"
+                    .into(),
+            ],
+        })
+        .expect("register the margin effect");
+        let mut state = with_title();
+        let title = state.selected_clip().expect("the title is selected");
+        let under = other(&state, title);
+        aim(&mut state);
+        state
+            .add_effect_to_selected("test.ui.pick_margin")
+            .expect("add the margin effect");
+        let (center, size) = state.selected_layer_quad().expect("a title has a quad");
+        let right = center[0] + size[0] * 0.5;
+        let left = center[0] - size[0] * 0.5;
+        for (x, picked, what) in [
+            (right + 100.0, title, "inside the right margin"),
+            (right + 300.0, under, "past the right margin"),
+            (
+                left - 100.0,
+                under,
+                "beside the left side, which has no margin",
+            ),
+        ] {
+            state.select_clip(if picked == title { under } else { title });
+            state.select_layer_at([x, center[1]], false);
+            assert_eq!(state.selected_clip(), Some(picked), "a click {what}");
+        }
+    });
 }

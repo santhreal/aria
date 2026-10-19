@@ -27,7 +27,11 @@ pub(crate) fn with_clip() -> (AppState, ClipId) {
 /// The same six steps for any pool file, so a test that needs a clip with a
 /// picture and a clip with sound asks for them here rather than growing its own
 /// way into the engine.
+///
+/// Fails first when an entry has left a process-wide catalog: see
+/// [`crate::test_support::catalogs`].
 pub(crate) fn with_media(asset: PathBuf) -> (AppState, ClipId) {
+    crate::test_support::catalogs::assert_catalogs_only_grew();
     let mut state = AppState::new(PluginContext::new(), scratch()).unwrap();
     state.new_project().unwrap();
     let media = state.import_media(asset).expect("import fixture");

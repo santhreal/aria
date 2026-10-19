@@ -247,66 +247,72 @@ fn type_label(state: &AppState, clip: aria_models::ClipId) -> Option<SharedStrin
 
 #[test]
 fn a_plugin_changing_a_catalog_the_project_uses_reprojects() {
-    let (mut state, clip) = with_clip();
-    let id = "test.memo.used";
-    state
-        .engine
-        .lock()
-        .apply(Command::Edit(EditCommand::SetClipType {
-            clip,
-            clip_type: Some(id.into()),
-        }))
-        .expect("a clip type");
-    state.sync_from_engine();
-    let drawn = Arc::clone(&state.store);
-    assert_eq!(
-        type_label(&state, clip).as_deref(),
-        Some(id),
-        "a type no plugin lists is shown by its id"
-    );
+    // Registers and drops a clip type every other library test can list.
+    crate::test_support::catalogs::own_process(|| {
+        let (mut state, clip) = with_clip();
+        let id = "test.memo.used";
+        state
+            .engine
+            .lock()
+            .apply(Command::Edit(EditCommand::SetClipType {
+                clip,
+                clip_type: Some(id.into()),
+            }))
+            .expect("a clip type");
+        state.sync_from_engine();
+        let drawn = Arc::clone(&state.store);
+        assert_eq!(
+            type_label(&state, clip).as_deref(),
+            Some(id),
+            "a type no plugin lists is shown by its id"
+        );
 
-    // Listing the type moves no project revision.
-    let held = register_clip_type(ClipTypeSpec::new(
-        id,
-        "Memo type",
-        "color_overlay",
-        MarkerColor::Blue,
-    ))
-    .expect("the type registers")
-    .0;
-    state.sync_from_engine();
-    assert!(
-        !Arc::ptr_eq(&drawn, &state.store),
-        "a registration the clip reads did not reach the projection"
-    );
-    assert_eq!(type_label(&state, clip).as_deref(), Some("Memo type"));
+        // Listing the type moves no project revision.
+        let held = register_clip_type(ClipTypeSpec::new(
+            id,
+            "Memo type",
+            "color_overlay",
+            MarkerColor::Blue,
+        ))
+        .expect("the type registers")
+        .0;
+        state.sync_from_engine();
+        assert!(
+            !Arc::ptr_eq(&drawn, &state.store),
+            "a registration the clip reads did not reach the projection"
+        );
+        assert_eq!(type_label(&state, clip).as_deref(), Some("Memo type"));
 
-    drop(held);
-    state.sync_from_engine();
-    assert_eq!(
-        type_label(&state, clip).as_deref(),
-        Some(id),
-        "a dropped type is still shown by its name"
-    );
+        drop(held);
+        state.sync_from_engine();
+        assert_eq!(
+            type_label(&state, clip).as_deref(),
+            Some(id),
+            "a dropped type is still shown by its name"
+        );
+    });
 }
 
 #[test]
 fn a_catalog_the_project_does_not_use_keeps_the_projection() {
-    let (mut state, _) = with_clip();
-    state.sync_from_engine();
-    let drawn = Arc::clone(&state.store);
-    let _held = register_clip_type(ClipTypeSpec::new(
-        "test.memo.unused",
-        "Unused memo type",
-        "color_overlay",
-        MarkerColor::Green,
-    ))
-    .expect("the type registers");
-    state.sync_from_engine();
-    assert!(
-        Arc::ptr_eq(&drawn, &state.store),
-        "a registration the project reads nothing of rebuilt the projection"
-    );
+    // Registers and drops a clip type every other library test can list.
+    crate::test_support::catalogs::own_process(|| {
+        let (mut state, _) = with_clip();
+        state.sync_from_engine();
+        let drawn = Arc::clone(&state.store);
+        let _held = register_clip_type(ClipTypeSpec::new(
+            "test.memo.unused",
+            "Unused memo type",
+            "color_overlay",
+            MarkerColor::Green,
+        ))
+        .expect("the type registers");
+        state.sync_from_engine();
+        assert!(
+            Arc::ptr_eq(&drawn, &state.store),
+            "a registration the project reads nothing of rebuilt the projection"
+        );
+    });
 }
 
 #[test]

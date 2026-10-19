@@ -17,6 +17,8 @@ use std::path::{Path, PathBuf};
 
 mod window;
 pub(crate) use window::{release_at_teardown, window_view};
+pub(crate) mod catalogs;
+pub(crate) mod sources;
 
 /// Every `.rs` file under `dir`, recursively.
 ///

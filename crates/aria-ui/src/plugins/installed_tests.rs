@@ -218,123 +218,125 @@ fn reload_mounts_what_is_on_disk_now_and_refuses_a_disabled_package() {
 }
 
 /// One test for every WASM step: the component registers an audio effect in a
-/// catalog the process shares, so two tests mounting it at once collide.
+/// catalog the process shares, so the test runs in a process of its own.
 #[test]
 fn a_wasm_package_mounts_reloads_and_follows_its_component_on_disk() {
-    let wasm = wasm_fixture();
-    let id = "com.example.wasm-tools";
-    let toml = format!(
-        "[plugin]\nid = {id:?}\nname = \"Example WASM Tools\"\nversion = \"0.1.0\"\napi = 1\n\
+    crate::test_support::catalogs::own_process(|| {
+        let wasm = wasm_fixture();
+        let id = "com.example.wasm-tools";
+        let toml = format!(
+            "[plugin]\nid = {id:?}\nname = \"Example WASM Tools\"\nversion = \"0.1.0\"\napi = 1\n\
          publisher = \"Example\"\n"
-    );
-    let data = crate::scratch_pool::scratch("installed-wasm");
-    let dir = write_package(
-        &data,
-        "wasm-tools",
-        &[
-            (package::MANIFEST_FILE, toml.as_bytes()),
-            (package::COMPONENT_FILE, &wasm),
-        ],
-    );
-    let configured = PluginLimitSettings {
-        wasm_fuel_per_call: 2_000_000_000,
-        wasm_memory_mib: 128,
-    };
-    let mut settings = aria_settings::Settings::default();
-    settings.plugin_limits = configured;
-    aria_settings::save(&aria_settings::config_in(&data), &settings).expect("write config");
-    let ctx = PluginContext::new();
-    let mut installed = InstalledPlugins::open(&data);
-    assert_eq!(installed.limits(), configured);
-    assert!(matches!(
-        installed.package(id).map(|package| &package.tier),
-        Some(package::Tier::Wasm { .. })
-    ));
-    let failures = installed.mount_enabled(&ctx);
-    assert!(failures.is_empty(), "{failures:?}");
-    assert!(ctx.is_mounted(id));
-    let registered = ctx
-        .mounted()
-        .into_iter()
-        .find(|info| info.manifest.id == id)
-        .map(|info| info.contributions.len())
-        .unwrap_or_default();
-    assert!(registered > 0, "the component registered nothing");
+        );
+        let data = crate::scratch_pool::scratch("installed-wasm");
+        let dir = write_package(
+            &data,
+            "wasm-tools",
+            &[
+                (package::MANIFEST_FILE, toml.as_bytes()),
+                (package::COMPONENT_FILE, &wasm),
+            ],
+        );
+        let configured = PluginLimitSettings {
+            wasm_fuel_per_call: 2_000_000_000,
+            wasm_memory_mib: 128,
+        };
+        let mut settings = aria_settings::Settings::default();
+        settings.plugin_limits = configured;
+        aria_settings::save(&aria_settings::config_in(&data), &settings).expect("write config");
+        let ctx = PluginContext::new();
+        let mut installed = InstalledPlugins::open(&data);
+        assert_eq!(installed.limits(), configured);
+        assert!(matches!(
+            installed.package(id).map(|package| &package.tier),
+            Some(package::Tier::Wasm { .. })
+        ));
+        let failures = installed.mount_enabled(&ctx);
+        assert!(failures.is_empty(), "{failures:?}");
+        assert!(ctx.is_mounted(id));
+        let registered = ctx
+            .mounted()
+            .into_iter()
+            .find(|info| info.manifest.id == id)
+            .map(|info| info.contributions.len())
+            .unwrap_or_default();
+        assert!(registered > 0, "the component registered nothing");
 
-    installed.reload(&ctx, id).expect("reloads");
-    assert!(ctx.is_mounted(id));
+        installed.reload(&ctx, id).expect("reloads");
+        assert!(ctx.is_mounted(id));
 
-    fs::write(dir.join(package::COMPONENT_FILE), b"not a component").expect("break");
-    let reloaded = installed.reload_changed(&ctx, later());
-    assert_eq!(reloaded.len(), 1, "{reloaded:?}");
-    assert_eq!(reloaded[0].id, id);
-    assert!(reloaded[0].result.is_err(), "{reloaded:?}");
-    assert!(!ctx.is_mounted(id));
-    assert!(ctx.failures().iter().any(|failure| failure.id == id));
+        fs::write(dir.join(package::COMPONENT_FILE), b"not a component").expect("break");
+        let reloaded = installed.reload_changed(&ctx, later());
+        assert_eq!(reloaded.len(), 1, "{reloaded:?}");
+        assert_eq!(reloaded[0].id, id);
+        assert!(reloaded[0].result.is_err(), "{reloaded:?}");
+        assert!(!ctx.is_mounted(id));
+        assert!(ctx.failures().iter().any(|failure| failure.id == id));
 
-    fs::write(dir.join(package::COMPONENT_FILE), &wasm).expect("fix");
-    let fixed = Reloaded {
-        id: id.to_owned(),
-        name: "Example WASM Tools".to_owned(),
-        result: Ok(()),
-    };
-    assert_eq!(installed.reload_changed(&ctx, later()), [fixed]);
-    assert!(ctx.is_mounted(id));
-    assert!(!ctx.failures().iter().any(|failure| failure.id == id));
+        fs::write(dir.join(package::COMPONENT_FILE), &wasm).expect("fix");
+        let fixed = Reloaded {
+            id: id.to_owned(),
+            name: "Example WASM Tools".to_owned(),
+            result: Ok(()),
+        };
+        assert_eq!(installed.reload_changed(&ctx, later()), [fixed]);
+        assert!(ctx.is_mounted(id));
+        assert!(!ctx.failures().iter().any(|failure| failure.id == id));
 
-    // A change of limits remounts the mounted component under the new ones: a
-    // memory too small to instantiate it fails the remount.
-    assert!(
-        installed.set_limits(&ctx, configured).is_empty(),
-        "unchanged limits remount nothing"
-    );
-    let starved = PluginLimitSettings {
-        wasm_memory_mib: 0,
-        ..configured
-    };
-    let remounted = installed.set_limits(&ctx, starved);
-    assert_eq!(remounted.len(), 1, "{remounted:?}");
-    assert_eq!(remounted[0].id, id);
-    assert!(remounted[0].result.is_err(), "{remounted:?}");
-    assert!(!ctx.is_mounted(id));
-    assert!(
-        installed.set_limits(&ctx, configured).is_empty(),
-        "a package that is not mounted is not remounted"
-    );
-    installed
-        .reload(&ctx, id)
-        .expect("mounts under the restored limits");
-    assert!(ctx.is_mounted(id));
+        // A change of limits remounts the mounted component under the new ones: a
+        // memory too small to instantiate it fails the remount.
+        assert!(
+            installed.set_limits(&ctx, configured).is_empty(),
+            "unchanged limits remount nothing"
+        );
+        let starved = PluginLimitSettings {
+            wasm_memory_mib: 0,
+            ..configured
+        };
+        let remounted = installed.set_limits(&ctx, starved);
+        assert_eq!(remounted.len(), 1, "{remounted:?}");
+        assert_eq!(remounted[0].id, id);
+        assert!(remounted[0].result.is_err(), "{remounted:?}");
+        assert!(!ctx.is_mounted(id));
+        assert!(
+            installed.set_limits(&ctx, configured).is_empty(),
+            "a package that is not mounted is not remounted"
+        );
+        installed
+            .reload(&ctx, id)
+            .expect("mounts under the restored limits");
+        assert!(ctx.is_mounted(id));
 
-    // Listing an activation event defers the component: its declared command
-    // is listed while none of it runs, and the first matching file loads it.
-    fs::write(
-        dir.join(package::MANIFEST_FILE),
-        format!(
-            "{toml}[activation]\non = [\"file:lazy\"]\n[[commands]]\n\
+        // Listing an activation event defers the component: its declared command
+        // is listed while none of it runs, and the first matching file loads it.
+        fs::write(
+            dir.join(package::MANIFEST_FILE),
+            format!(
+                "{toml}[activation]\non = [\"file:lazy\"]\n[[commands]]\n\
              id = \"example.add-marker\"\ntitle = \"Add Example Marker\"\n"
-        ),
-    )
-    .expect("defer");
-    installed.reload(&ctx, id).expect("reloads");
-    assert!(ctx.is_mounted(id), "a mounted package mounts again at once");
-    assert_eq!(installed.set_enabled(&ctx, id, false), Ok(true));
-    assert_eq!(installed.set_enabled(&ctx, id, true), Ok(true));
-    assert!(!ctx.is_mounted(id));
-    assert!(ctx.is_waiting(id));
-    assert!(
-        ctx.commands()
-            .iter()
-            .any(|spec| spec.id == "example.add-marker")
-    );
-    let activated = ctx.activate_for_file(Path::new("take.LAZY"));
-    assert_eq!(activated.len(), 1, "{activated:?}");
-    assert_eq!(activated[0].result, Ok(()));
-    assert!(ctx.is_mounted(id));
-    assert!(!ctx.is_waiting(id));
+            ),
+        )
+        .expect("defer");
+        installed.reload(&ctx, id).expect("reloads");
+        assert!(ctx.is_mounted(id), "a mounted package mounts again at once");
+        assert_eq!(installed.set_enabled(&ctx, id, false), Ok(true));
+        assert_eq!(installed.set_enabled(&ctx, id, true), Ok(true));
+        assert!(!ctx.is_mounted(id));
+        assert!(ctx.is_waiting(id));
+        assert!(
+            ctx.commands()
+                .iter()
+                .any(|spec| spec.id == "example.add-marker")
+        );
+        let activated = ctx.activate_for_file(Path::new("take.LAZY"));
+        assert_eq!(activated.len(), 1, "{activated:?}");
+        assert_eq!(activated[0].result, Ok(()));
+        assert!(ctx.is_mounted(id));
+        assert!(!ctx.is_waiting(id));
 
-    assert_eq!(installed.set_enabled(&ctx, id, false), Ok(true));
-    assert!(!ctx.is_mounted(id));
+        assert_eq!(installed.set_enabled(&ctx, id, false), Ok(true));
+        assert!(!ctx.is_mounted(id));
+    });
 }
 
 /// A package with code that lists activation events waits for the first of

@@ -451,7 +451,11 @@ fn a_panicking_runner_fails_honestly_and_advances_queue() {
 #[test]
 fn app_state_reaches_export_queue_and_cancels_entries() {
     let (mut state, _clip) = with_clip();
+    // The first entry holds until the second is cancelled, so the second is
+    // still queued when the cancel reaches it.
+    let (release_tx, release_rx) = crossbeam_channel::bounded::<()>(1);
     let runner: ExportRunner = Arc::new(move |context, _project, dest, _settings| {
+        let _ = release_rx.recv_timeout(Duration::from_secs(10));
         let _ = context.try_begin_commit();
         JobCompletion::new("done")
             .with_output("path", dest.display().to_string())
@@ -473,6 +477,9 @@ fn app_state_reaches_export_queue_and_cancels_entries() {
 
     // Cancel queued entry 2
     state.cancel_job(id2);
+    release_tx
+        .send(())
+        .expect("the first entry waits for its release");
     assert!(state.export_queue.settle_all(Duration::from_secs(10)));
 
     let snapshot = state.export_queue.snapshot();

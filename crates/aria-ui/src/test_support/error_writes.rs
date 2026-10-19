@@ -78,28 +78,11 @@ fn no_production_direct_last_error_writes_outside_report_error() {
         let Ok(text) = std::fs::read_to_string(file) else {
             continue;
         };
-
-        let mut in_test_cfg = false;
-        let mut test_depth = 0i32;
+        let text = super::sources::without_test_items(&text);
 
         for (idx, line) in text.lines().enumerate() {
             let line_num = idx + 1;
             let trimmed = line.trim();
-
-            if trimmed.starts_with("#[cfg(test)]") || trimmed.starts_with("#[test]") {
-                in_test_cfg = true;
-            }
-
-            if in_test_cfg {
-                let opens = line.matches('{').count() as i32;
-                let closes = line.matches('}').count() as i32;
-                test_depth += opens - closes;
-                if test_depth <= 0 && (opens > 0 || closes > 0) {
-                    in_test_cfg = false;
-                    test_depth = 0;
-                }
-                continue;
-            }
 
             // If this is the derived choke point line range, allow the assignment
             if rel == choke_file_rel && line_num >= choke_line_start && line_num <= choke_line_end {

@@ -115,7 +115,7 @@ pub fn dialog_surface(
 /// The frost sits on the card and not on the scrim: the blur separates the card
 /// from the editor behind it, and a blurred scrim would only smear the editor.
 pub fn dialog_layer(
-    id: &'static str,
+    id: impl Into<crate::motion::ControlId>,
     title: impl Into<String>,
     exit: Option<f32>,
     cx: &App,

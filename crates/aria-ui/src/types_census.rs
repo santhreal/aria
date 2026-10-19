@@ -78,10 +78,13 @@ fn public_fields(text: &str) -> Vec<(usize, String)> {
 /// Every source file that draws, as `(path relative to `src`, contents)`.
 ///
 /// Test modules are excluded because a test that builds a fixture out of owned
-/// text is not a frame; the builders are excluded for the reason above. A file
-/// that keeps its tests inline is cut at its first `#[cfg(test)]`, which in this
-/// crate is always the last item in the file: a test that formats an id it
-/// expects to find in a registry is not a control naming itself.
+/// text is not a frame: the `_tests.rs` files, and `test_support.rs` with the
+/// modules under `test_support/`, which build only under `cfg(test)`. The
+/// builders are excluded for the reason above. In every other file the
+/// test-only items are blanked wherever they sit
+/// ([`crate::test_support::sources::without_test_items`]): a test that formats
+/// an id it expects to find in a registry is not a control naming itself, and
+/// a test-only re-export above the draw code does not hide the draw code.
 fn draw_sources() -> Vec<(String, String)> {
     let src = src();
     let mut files = Vec::new();
@@ -97,19 +100,83 @@ fn draw_sources() -> Vec<(String, String)> {
             if name.ends_with("_tests.rs")
                 || name.ends_with("/tests.rs")
                 || name == "test_support.rs"
+                || name.starts_with("test_support/")
                 || name == "types_census.rs"
                 || BUILDERS.iter().any(|layer| name.starts_with(layer))
             {
                 return None;
             }
             let text = std::fs::read_to_string(&file).ok()?;
-            let text = match text.find("#[cfg(test)]") {
-                Some(at) => text[..at].to_string(),
-                None => text,
-            };
-            Some((name, text))
+            Some((
+                name,
+                crate::test_support::sources::without_test_items(&text),
+            ))
         })
         .collect()
+}
+
+/// Fewest top-level functions the draw files declare outside a test-only item.
+const TOP_LEVEL_FN_FLOOR: usize = 1000;
+
+/// **The draw scans read past a test-only item.**
+///
+/// A test-only item can sit anywhere in a file, such as a `#[cfg(test)]`
+/// re-export above the menu bar, and a scan that stops at the first one reads
+/// only part of the file. Every top-level function a draw file declares outside
+/// a test-only item is in the text the draw scans read. A top-level function
+/// starts in the first column; it is test-only when an attribute line directly
+/// above it is a test attribute.
+#[test]
+fn the_draw_scans_read_every_top_level_function_of_a_draw_file() {
+    const DECLARES: [&str; 6] = [
+        "fn ",
+        "pub fn ",
+        "pub(crate) fn ",
+        "pub(super) fn ",
+        "const fn ",
+        "pub(crate) const fn ",
+    ];
+    let src = src();
+    let mut checked = 0usize;
+    let mut unread = Vec::new();
+    for (name, scanned) in draw_sources() {
+        let text = std::fs::read_to_string(src.join(&name))
+            .unwrap_or_else(|err| panic!("{name} is a draw file and must read: {err}"));
+        let lines: Vec<&str> = text.lines().collect();
+        let scanned: Vec<&str> = scanned.lines().collect();
+        for (index, line) in lines.iter().enumerate() {
+            if !DECLARES.iter().any(|declares| line.starts_with(declares)) {
+                continue;
+            }
+            let test_only = lines[..index]
+                .iter()
+                .rev()
+                .take_while(|above| above.starts_with("#[") || above.starts_with("///"))
+                .any(|above| {
+                    ["#[cfg(test)]", "#[test]", "#[gpui::test"]
+                        .iter()
+                        .any(|attribute| above.starts_with(attribute))
+                });
+            if test_only {
+                continue;
+            }
+            checked += 1;
+            if scanned.get(index) != Some(line) {
+                unread.push(format!("{name}:{}: {line}", index + 1));
+            }
+        }
+    }
+    assert!(
+        checked >= TOP_LEVEL_FN_FLOOR,
+        "found {checked} top-level draw functions, fewer than the {TOP_LEVEL_FN_FLOOR} this \
+         rule was written against: the draw layer moved and it is now checking almost nothing"
+    );
+    assert!(
+        unread.is_empty(),
+        "{} top-level draw functions are missing from the text the draw scans read:\n  {}",
+        unread.len(),
+        unread.join("\n  ")
+    );
 }
 
 /// **A mirror holds shared text, not owned text.**
@@ -894,7 +961,12 @@ fn no_draw_helper_names_its_control_with_text() {
     let mut helpers = Vec::new();
     for (name, text) in draw_sources() {
         for (line, function, parameters, body) in functions(&text) {
-            if !body.contains(".id(") && !body.contains(".with_animation(") {
+            // `.id()` with nothing between the parentheses is a getter, such as
+            // a label colour's `color.id()`, and assigns no element id.
+            let assigns_id = body
+                .match_indices(".id(")
+                .any(|(at, needle)| !body[at + needle.len()..].starts_with(')'));
+            if !assigns_id && !body.contains(".with_animation(") {
                 continue;
             }
             for parameter in parameters.split(',') {

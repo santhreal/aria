@@ -1132,7 +1132,7 @@ pub(super) fn window_items(state: &AppState) -> MenuItems {
         if PANEL_ROWS.iter().any(|&(_, opened, _)| opened == panel) {
             continue;
         }
-        let id = crate::interned::intern(&format!("{PANEL_PREFIX}{panel}"));
+        let id = crate::interned::joined(PANEL_PREFIX, panel);
         items.push(
             panel_row(state, id, panel, |id, s, _| {
                 if let Some(panel) = id.strip_prefix(PANEL_PREFIX) {

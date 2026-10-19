@@ -153,6 +153,17 @@ device opens once per process. The preview worker starts
 pipeline opens the CUDA device on its own thread and keeps its context. A
 decoder opened during the warm-up waits for it.
 
+The warm-up loads each device element's plugin before it opens the device. A
+plugin that fails to load (a CUDA plugin registered while a working driver was
+present) is recorded in `aria/unloadable-plugins` under the user cache directory
+(`$XDG_CACHE_HOME`, by default `~/.cache`), with the plugin file's path, size,
+and modification time and the boot id. The process that failed, and every later
+process on the same boot whose plugin file matches the record, sets the rank of
+each feature of the plugin to `NONE`, so autoplugging never selects its
+decoders, and the later process does not load the plugin. A new boot or a
+changed plugin file loads the plugin again, and a load that succeeds clears the
+record. The file is replaced whole through a staged file and a rename.
+
 Android is a CPU-planes platform: MediaCodec runs in ByteBuffer mode, there is no
 `AImageReader` surface, and so no `AHardwareBuffer` for the compositor to import.
 Asking for `OutputMode::Gpu` there is refused at open rather than part way

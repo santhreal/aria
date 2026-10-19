@@ -168,11 +168,11 @@ fn menu_bar(
 /// compositor. Under Windows the stretch is the caption, and the system gives
 /// the same gestures and snapping.
 pub(crate) fn drag_strip(
-    id: &'static str,
+    id: impl Into<motion::ControlId>,
     frame: Frame,
     cx: &mut Context<Shell>,
 ) -> gpui::Stateful<gpui::Div> {
-    let strip = div().id(id).flex_1().h_full();
+    let strip = div().id(id.into().element("drag-strip")).flex_1().h_full();
     match frame {
         Frame::Platform => strip,
         Frame::Caption => strip.window_control_area(gpui::WindowControlArea::Drag),
@@ -287,12 +287,14 @@ fn caption_buttons(
 /// One window control. Three glyphs with no words beside them, so each names
 /// itself from the tooltip table like every other icon-only control.
 fn caption_btn(
-    id: &'static str,
+    id: impl crate::components::IconId,
     icon: &'static str,
     theme: &Theme,
     on_click: impl Fn(&MouseDownEvent, &mut Window, &mut App) + 'static,
 ) -> impl IntoElement {
-    let key = motion::MotionKey::new("caption", id);
+    let tip = id.tip();
+    let id = id.element_id();
+    let key = motion::MotionKey::new("caption", &id);
     div()
         .id(id)
         .w(px(12.))
@@ -309,7 +311,7 @@ fn caption_btn(
         .text_color(motion::hover_blend(key, theme.border_strong, theme.text))
         .cursor(CursorStyle::PointingHand)
         .active(|style| style.opacity(0.92))
-        .with_tip(crate::tooltip::deferred_builder(id))
+        .with_tip(crate::tooltip::deferred_builder(tip))
         .on_hover(motion::hover_listener(key))
         .child(crate::icons::icon(icon).size(px(8.)))
         .on_mouse_down(MouseButton::Left, on_click)
