@@ -255,18 +255,18 @@ pub(super) fn upload_cpu_planes(
                 gpu,
                 pool,
                 &image.planes[1],
-                cw / 2,
-                ch / 2,
-                cw / 2,
+                cw.div_ceil(2),
+                ch.div_ceil(2),
+                cw.div_ceil(2),
                 wgpu::TextureFormat::R8Unorm,
             )?;
             let v = upload_plane(
                 gpu,
                 pool,
                 &image.planes[2],
-                cw / 2,
-                ch / 2,
-                cw / 2,
+                cw.div_ceil(2),
+                ch.div_ceil(2),
+                cw.div_ceil(2),
                 wgpu::TextureFormat::R8Unorm,
             )?;
             Ok(PlaneSet::Triplanar { y, u, v })

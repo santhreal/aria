@@ -20,7 +20,7 @@
 //! - **Linux** ([`GstDecoder`]): GStreamer `uridecodebin` demuxes and
 //!   decodes (VAAPI / NVDEC / V4L2 when the host plugins provide them,
 //!   software otherwise). `OutputMode::Gpu` tries a DMA-BUF appsink
-//!   (LINEAR NV12); tiled or missing DMABuf falls back to CPU NV12.
+//!   (LINEAR NV12); tiled or missing DMABuf falls back to CPU planes (I420 or NV12).
 //!   Aria never ships a codec; missing plugins return
 //!   [`DecodeError::Unsupported`].
 //!

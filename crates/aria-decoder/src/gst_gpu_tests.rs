@@ -4,15 +4,24 @@
 use super::*;
 
 #[test]
-fn packed_nv12_bytes_split() {
+fn packed_nv12_and_i420_bytes_split() {
     let w = 4u32;
     let h = 4u32;
-    let mut bytes = vec![16u8; (w * h) as usize];
-    bytes.extend(std::iter::repeat_n(128u8, (w * h / 2) as usize));
-    let planes = nv12_from_bytes(&bytes, w, h).expect("split");
+    let mut nv12 = vec![16u8; (w * h) as usize];
+    nv12.extend(std::iter::repeat_n(128u8, (w * h / 2) as usize));
+    let planes = nv12_from_bytes(&nv12, w, h).expect("split nv12");
     assert_eq!(planes.len(), 2);
     assert_eq!(planes[0].rows, 4);
     assert_eq!(planes[1].rows, 2);
+
+    let mut i420 = vec![16u8; (w * h) as usize];
+    i420.extend(std::iter::repeat_n(64u8, (w * h / 4) as usize));
+    i420.extend(std::iter::repeat_n(192u8, (w * h / 4) as usize));
+    let planes = i420_from_bytes(&i420, w, h).expect("split i420");
+    assert_eq!(planes.len(), 3);
+    assert_eq!((planes[0].stride, planes[0].rows), (4, 4));
+    assert_eq!((planes[1].stride, planes[1].rows), (2, 2));
+    assert_eq!((planes[2].stride, planes[2].rows), (2, 2));
 }
 
 #[test]
@@ -394,6 +403,231 @@ fn video_pipeline_ignores_audio_streams_and_bounds_decoder_threads() {
             restored_threads[0].1 > last_mt,
             "dropping concurrent pipelines did not restore a larger thread budget: eighth={last_mt}, restored={}",
             restored_threads[0].1
+        );
+    }
+}
+
+/// WHY: Hardcoding `video/x-raw,format=NV12` on the CPU `appsink` forced
+/// `videoconvert` to repack every planar `I420` frame from software decoders
+/// (`avdec_h264`, `avdec_h265`) into `NV12` on the CPU, and hardcoding
+/// `PixelFormat::Nv12` in `sample_source_info` and `sample_to_cpu_frame`
+/// dropped plane 2 or mislabelled non-NV12 samples. Closes the class of CPU
+/// decode format negotiation and plane-extraction mismatches across `I420`,
+/// `NV12`, padded `GstVideoMeta` strides and offsets, and 10-bit or non-4:2:0
+/// formats. Does not cover GPU DMABuf import; `a_failed_dmabuf_open_records_the_decoder_it_plugged`
+/// and `linear_nv12_surface_is_importable` cover that path.
+#[test]
+fn cpu_pipeline_passes_i420_and_nv12_with_exact_plane_strides_and_offsets_and_rejects_unconverted_10bit() {
+    use aria_core::{ColorSpace, Rotation, SourceInfo};
+
+    crate::gst::ensure_init().expect("GStreamer initializes");
+    let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let av_fixture = manifest.join("../../tests/fixtures/fixture-640x360-24fps-3s-av.mp4");
+
+    let opened = open_pipeline(&av_fixture, OutputMode::Cpu).expect("CPU pipeline opens");
+    let mut filter_caps_str = None;
+    let mut converter_passthrough = None;
+    let mut iter = opened.pipeline.iterate_elements();
+    while let Ok(Some(element)) = iter.next() {
+        let Some(factory) = element.factory() else {
+            continue;
+        };
+        if factory.name() == "capsfilter" && element.name() != "src" {
+            let caps: gst::Caps = element.property("caps");
+            let s = caps.to_string();
+            if s.contains("I420") || s.contains("NV12") {
+                filter_caps_str = Some(s);
+            }
+        } else if factory.name() == "videoconvert" {
+            let sink_fmt = element
+                .static_pad("sink")
+                .and_then(|p| p.current_caps())
+                .and_then(|c| gst_video::VideoInfo::from_caps(&c).ok())
+                .map(|v| v.format());
+            let src_fmt = element
+                .static_pad("src")
+                .and_then(|p| p.current_caps())
+                .and_then(|c| gst_video::VideoInfo::from_caps(&c).ok())
+                .map(|v| v.format());
+            converter_passthrough = Some((sink_fmt, src_fmt));
+        }
+    }
+    let _ = opened.pipeline.set_state(gst::State::Null);
+    let caps_str = filter_caps_str.expect("CPU capsfilter configured");
+    assert!(
+        caps_str.contains("I420") && caps_str.contains("NV12"),
+        "CPU capsfilter must accept both I420 and NV12, got: {caps_str}"
+    );
+    assert!(
+        !caps_str.contains("I420_10LE") && !caps_str.contains("P010"),
+        "CPU capsfilter must keep 10-bit formats on videoconvert, got: {caps_str}"
+    );
+    if let Some((Some(gst_video::VideoFormat::I420), src_fmt)) = converter_passthrough {
+        assert_eq!(
+            src_fmt,
+            Some(gst_video::VideoFormat::I420),
+            "videoconvert converted an I420 software decode instead of passing it through"
+        );
+        assert_eq!(opened.info.pixel_format, PixelFormat::Yuv420p);
+    }
+    drop(opened);
+
+    let source_info = SourceInfo {
+        coded_size: (6, 4),
+        display_size: (6, 4),
+        rotation: Rotation::None,
+        pixel_format: PixelFormat::Yuv420p,
+        color: ColorSpace::BT709,
+        frame_rate: Rational::new(30, 1),
+        time_base: Rational::new(crate::gst::NS_PER_SEC as i32, 1),
+        duration: None,
+    };
+
+    // 1. Padded I420 sample with non-contiguous offsets and sentinel bytes per row.
+    let i420_caps = gst_video::VideoInfo::builder(gst_video::VideoFormat::I420, 6, 4)
+        .fps(gst::Fraction::new(30, 1))
+        .build()
+        .expect("i420 video info")
+        .to_caps()
+        .expect("i420 caps");
+    let i420_strides: [i32; 3] = [16, 12, 10];
+    let i420_offsets: [usize; 3] = [32, 160, 224];
+    let mut raw = vec![0xEEu8; 300];
+    for r in 0..4usize {
+        for c in 0..16usize {
+            raw[i420_offsets[0] + r * 16 + c] = (0x10 + r * 16 + c) as u8;
+        }
+    }
+    for r in 0..2usize {
+        for c in 0..12usize {
+            raw[i420_offsets[1] + r * 12 + c] = (0x80 + r * 12 + c) as u8;
+        }
+        for c in 0..10usize {
+            raw[i420_offsets[2] + r * 10 + c] = (0xC0 + r * 10 + c) as u8;
+        }
+    }
+    let mut gst_buf = gst::Buffer::from_mut_slice(raw.clone());
+    {
+        let buf_mut = gst_buf.get_mut().expect("mutable buffer");
+        buf_mut.set_pts(gst::ClockTime::from_nseconds(33_333_333));
+        gst_video::VideoMeta::add_full(
+            buf_mut,
+            gst_video::VideoFrameFlags::empty(),
+            gst_video::VideoFormat::I420,
+            6,
+            4,
+            &i420_offsets,
+            &i420_strides,
+        )
+        .expect("attach I420 VideoMeta");
+    }
+    let i420_sample = gst::Sample::builder()
+        .buffer(&gst_buf)
+        .caps(&i420_caps)
+        .build();
+    let decoded = crate::gst::sample_to_cpu_frame(&i420_sample, &source_info)
+        .expect("decode padded I420 sample");
+    assert_eq!(decoded.format, PixelFormat::Yuv420p);
+    let cpu = decoded.cpu().expect("CPU image");
+    assert_eq!(cpu.planes.len(), 3);
+    assert_eq!((cpu.planes[0].stride, cpu.planes[0].rows), (16, 4));
+    assert_eq!((cpu.planes[1].stride, cpu.planes[1].rows), (12, 2));
+    assert_eq!((cpu.planes[2].stride, cpu.planes[2].rows), (10, 2));
+    assert_eq!(
+        cpu.planes[0].data,
+        &raw[i420_offsets[0]..i420_offsets[0] + 16 * 4]
+    );
+    assert_eq!(
+        cpu.planes[1].data,
+        &raw[i420_offsets[1]..i420_offsets[1] + 12 * 2]
+    );
+    assert_eq!(
+        cpu.planes[2].data,
+        &raw[i420_offsets[2]..i420_offsets[2] + 10 * 2]
+    );
+
+    let from_bytes = cpu_planes_from_bytes(
+        &raw,
+        PixelFormat::Yuv420p,
+        6,
+        4,
+        &i420_strides,
+        &i420_offsets,
+    )
+    .expect("extract padded I420 from bytes");
+    assert_eq!(from_bytes[0].data, cpu.planes[0].data);
+    assert_eq!(from_bytes[1].data, cpu.planes[1].data);
+    assert_eq!(from_bytes[2].data, cpu.planes[2].data);
+
+    // 2. Padded NV12 sample with non-contiguous offsets.
+    let nv12_caps = gst_video::VideoInfo::builder(gst_video::VideoFormat::Nv12, 6, 4)
+        .fps(gst::Fraction::new(30, 1))
+        .build()
+        .expect("nv12 video info")
+        .to_caps()
+        .expect("nv12 caps");
+    let nv12_strides: [i32; 2] = [16, 12];
+    let nv12_offsets: [usize; 2] = [16, 112];
+    let mut nv12_buf = gst::Buffer::from_mut_slice(raw.clone());
+    {
+        let buf_mut = nv12_buf.get_mut().expect("mutable buffer");
+        gst_video::VideoMeta::add_full(
+            buf_mut,
+            gst_video::VideoFrameFlags::empty(),
+            gst_video::VideoFormat::Nv12,
+            6,
+            4,
+            &nv12_offsets,
+            &nv12_strides,
+        )
+        .expect("attach NV12 VideoMeta");
+    }
+    let nv12_sample = gst::Sample::builder()
+        .buffer(&nv12_buf)
+        .caps(&nv12_caps)
+        .build();
+    let nv12_decoded = crate::gst::sample_to_cpu_frame(&nv12_sample, &source_info)
+        .expect("decode padded NV12 sample");
+    assert_eq!(nv12_decoded.format, PixelFormat::Nv12);
+    let nv12_cpu = nv12_decoded.cpu().expect("NV12 CPU image");
+    assert_eq!(nv12_cpu.planes.len(), 2);
+    assert_eq!((nv12_cpu.planes[0].stride, nv12_cpu.planes[0].rows), (16, 4));
+    assert_eq!((nv12_cpu.planes[1].stride, nv12_cpu.planes[1].rows), (12, 2));
+    assert_eq!(
+        nv12_cpu.planes[0].data,
+        &raw[nv12_offsets[0]..nv12_offsets[0] + 16 * 4]
+    );
+    assert_eq!(
+        nv12_cpu.planes[1].data,
+        &raw[nv12_offsets[1]..nv12_offsets[1] + 12 * 2]
+    );
+
+    // 3. Every 10-bit or non-4:2:0 GStreamer format is rejected rather than
+    // truncated or mislabelled as 8-bit Nv12 or Yuv420p.
+    for unsupported in [
+        gst_video::VideoFormat::I42010le,
+        gst_video::VideoFormat::P01010le,
+        gst_video::VideoFormat::Y444,
+        gst_video::VideoFormat::Rgba,
+    ] {
+        assert!(
+            gst_cpu_format(unsupported).is_err(),
+            "unsupported format {unsupported:?} was accepted as 8-bit CPU YUV"
+        );
+        let bad_caps = gst_video::VideoInfo::builder(unsupported, 6, 4)
+            .fps(gst::Fraction::new(30, 1))
+            .build()
+            .expect("video info")
+            .to_caps()
+            .expect("caps");
+        let bad_buf = gst::Buffer::from_mut_slice(vec![0u8; 512]);
+        let bad_sample = gst::Sample::builder()
+            .buffer(&bad_buf)
+            .caps(&bad_caps)
+            .build();
+        assert!(
+            crate::gst::sample_to_cpu_frame(&bad_sample, &source_info).is_err(),
+            "sample_to_cpu_frame accepted {unsupported:?} without conversion"
         );
     }
 }

@@ -137,15 +137,15 @@ before a file is opened, so a caller picks a mode instead of reading a refusal.
 
 Preview asks for `OutputMode::Gpu`. On Linux a LINEAR NV12 DMABuf imports into
 Vulkan; a tiled modifier cannot be imported by wgpu-hal, so decode falls back to
-CPU NV12 and the modifier is named once per session in the log.
+CPU planes (I420 or NV12) and the modifier is named once per session in the log.
 
 NVIDIA's NVDEC decoders in GStreamer 1.24 (`nvh264dec`, `nvh265dec`) output
 CUDA memory, GL memory, or system memory, never DMABuf, so the DMABuf request
-fails at open. Decode stays on NVDEC and frames arrive as CPU NV12. A plugged
+fails at open. Decode stays on NVDEC and frames arrive as CPU planes. A plugged
 video decoder whose outputs include no DMABuf stops the DMABuf attempt before
 the decoder receives caps, so no decoder session opens for it. The first failed
 DMABuf open is logged with each plugged decoder and its output memory, is
-remembered for the process, and later opens go straight to CPU NV12. Every
+remembered for the process, and later opens go straight to CPU planes. Every
 decode pipeline in the process receives the first device context of each type
 a decoder posted (`gst.cuda.context` for NVDEC, a VA display for VA-API), so the
 device opens once per process. The preview worker starts
