@@ -72,7 +72,34 @@ impl Project {
     pub fn load_from_file(path: &Path) -> Result<Project, ModelError> {
         let text = std::fs::read_to_string(path)
             .map_err(|e| ModelError::InvalidProjectFile(e.to_string()))?;
-        let mut doc: serde_json::Value = serde_json::from_str(&text)
+        Self::load_from_string(&text)
+    }
+
+    /// Serialize this project to a JSON string stamped with the current schema version.
+    pub fn save_to_string(&self) -> Result<String, ModelError> {
+        let json = self
+            .serialize_current()
+            .map_err(|e| ModelError::InvalidProjectFile(e.to_string()))?;
+        String::from_utf8(json).map_err(|e| ModelError::InvalidProjectFile(e.to_string()))
+    }
+
+    /// Deserialize a project from a JSON string, validating and migrating its schema.
+    pub fn load_from_string(text: &str) -> Result<Project, ModelError> {
+        let bytes = text.as_bytes();
+        let prefix = &bytes[..bytes.len().min(STREAM_BUF_CAPACITY)];
+        if has_leading_current_schema(prefix) {
+            let mut project: Project = serde_json::from_str(text)
+                .map_err(|e| ModelError::InvalidProjectFile(e.to_string()))?;
+            project.timeline_mut().normalize_lanes();
+            return Ok(project);
+        }
+        Self::load_from_value_str(text)
+    }
+
+    fn load_from_value_str(text: &str) -> Result<Project, ModelError> {
+        #[cfg(test)]
+        note_value_fallback();
+        let mut doc: serde_json::Value = serde_json::from_str(text)
             .map_err(|e| ModelError::InvalidProjectFile(e.to_string()))?;
 
         unwrap_legacy_envelope(&mut doc);
@@ -88,32 +115,6 @@ impl Project {
         project.schema = schema;
         // Files written before the main-track flag (or edited externally)
         // re-derive the lane-zone / main-track invariants on entry.
-        project.timeline_mut().normalize_lanes();
-        Ok(project)
-    }
-
-    /// Serialize this project to a JSON string stamped with the current schema version.
-    pub fn save_to_string(&self) -> Result<String, ModelError> {
-        let json = self
-            .serialize_current()
-            .map_err(|e| ModelError::InvalidProjectFile(e.to_string()))?;
-        String::from_utf8(json).map_err(|e| ModelError::InvalidProjectFile(e.to_string()))
-    }
-
-    /// Deserialize a project from a JSON string, validating and migrating its schema.
-    pub fn load_from_string(text: &str) -> Result<Project, ModelError> {
-        let mut doc: serde_json::Value = serde_json::from_str(text)
-            .map_err(|e| ModelError::InvalidProjectFile(e.to_string()))?;
-
-        unwrap_legacy_envelope(&mut doc);
-        let mut schema = read_schema(&doc)?;
-        normalize_legacy_schema(&mut schema);
-        validate_schema(&schema)?;
-        migrate_document(&mut doc, schema.version);
-
-        let mut project: Project = serde_json::from_value(doc)
-            .map_err(|e| ModelError::InvalidProjectFile(e.to_string()))?;
-        project.schema = schema;
         project.timeline_mut().normalize_lanes();
         Ok(project)
     }
@@ -199,6 +200,49 @@ fn note_stream_write(len: usize) {
         let (calls, max_len) = stats.get();
         stats.set((calls + 1, max_len.max(len)));
     });
+}
+
+#[cfg(test)]
+std::thread_local! {
+    static VALUE_FALLBACK_COUNT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+fn reset_value_fallback_count() {
+    VALUE_FALLBACK_COUNT.with(|count| count.set(0));
+}
+
+#[cfg(test)]
+fn value_fallback_count() -> usize {
+    VALUE_FALLBACK_COUNT.with(std::cell::Cell::get)
+}
+
+#[cfg(test)]
+fn note_value_fallback() {
+    VALUE_FALLBACK_COUNT.with(|count| count.set(count.get() + 1));
+}
+
+fn has_leading_current_schema(buf: &[u8]) -> bool {
+    let rest = buf.trim_ascii_start();
+    let Some(rest) = rest.strip_prefix(b"{") else {
+        return false;
+    };
+    let rest = rest.trim_ascii_start();
+    let Some(rest) = rest.strip_prefix(b"\"schema\"") else {
+        return false;
+    };
+    let rest = rest.trim_ascii_start();
+    let Some(rest) = rest.strip_prefix(b":") else {
+        return false;
+    };
+    let mut stream = serde_json::Deserializer::from_slice(rest).into_iter::<ProjectSchema>();
+    let Some(Ok(schema)) = stream.next() else {
+        return false;
+    };
+    let after = rest[stream.byte_offset()..].trim_ascii_start();
+    matches!(after.first(), Some(b',' | b'}'))
+        && schema.version == PROJECT_SCHEMA_VERSION
+        && schema.kind == crate::schema::PROJECT_SCHEMA_KIND
 }
 
 struct FsWriter<'a, F> {

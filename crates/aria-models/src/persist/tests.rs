@@ -806,3 +806,76 @@ fn save_to_file_streams_pretty_json_in_bounded_chunks() {
         "save_to_file wrote a {max_write_len}-byte chunk exceeding STREAM_BUF_CAPACITY ({STREAM_BUF_CAPACITY})"
     );
 }
+
+/// WHY: `Project::load_from_file` and `Project::load_from_string` previously
+/// materialized an untyped `serde_json::Value` tree (~90 MiB on `project-10k`)
+/// before deserializing `Project`, pinning ~90 MiB of small heap allocations
+/// beneath the loaded `Project` in RSS and doubling deserialization CPU time.
+/// Current-schema `.aria` documents deserialize directly into `Project` via
+/// `serde_json::from_str` without entering the `serde_json::Value` fallback,
+/// while legacy or older-schema documents still take the migration fallback.
+///
+/// Does NOT catch: kernel page-cache allocations during `std::fs::read_to_string`.
+#[test]
+fn load_from_file_streams_current_schema_without_value_tree() {
+    let mut project = Project::new("streamed-load", R24);
+    let media_id = project.add_media(crate::MediaSource::new(
+        "/var/tmp/clip.mp4",
+        1920,
+        1080,
+        R24,
+        240_000,
+        true,
+    ));
+    let track = project.add_track(TrackKind::Video, "V1");
+    for i in 0..800_i64 {
+        project
+            .add_clip(
+                track,
+                media_id,
+                TimeRange::at_rate(i * 24, 24, R24),
+                RationalTime::new(i * 24, R24),
+            )
+            .unwrap();
+    }
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("streamed-load.aria");
+    project.save_to_file(&path).unwrap();
+
+    reset_value_fallback_count();
+    let loaded = Project::load_from_file(&path).unwrap();
+    assert_eq!(loaded.name, "streamed-load");
+    assert_eq!(loaded.schema, ProjectSchema::current());
+    assert_eq!(loaded.timeline().clip_count(), 800);
+    assert_eq!(
+        value_fallback_count(),
+        0,
+        "current-schema load_from_file must not materialize a serde_json::Value tree"
+    );
+
+    let raw_json = std::fs::read_to_string(&path).unwrap();
+    reset_value_fallback_count();
+    let loaded_from_str = Project::load_from_string(&raw_json).unwrap();
+    assert_eq!(loaded_from_str.timeline().clip_count(), 800);
+    assert_eq!(
+        value_fallback_count(),
+        0,
+        "current-schema load_from_string must not materialize a serde_json::Value tree"
+    );
+
+    let legacy_path = dir.path().join("legacy-v1.aria");
+    std::fs::write(
+        &legacy_path,
+        r#"{"schema":{"version":1,"kind":"aria.project"},"id":1,"name":"v1","metadata":{},"media":[],"timeline":{"frame_rate":{"num":24,"den":1},"tracks":[],"order":[],"clip_index":[]}}"#,
+    )
+    .unwrap();
+    reset_value_fallback_count();
+    let migrated = Project::load_from_file(&legacy_path).unwrap();
+    assert_eq!(migrated.name, "v1");
+    assert_eq!(
+        value_fallback_count(),
+        1,
+        "older-schema documents must still take the Value migration fallback"
+    );
+}
