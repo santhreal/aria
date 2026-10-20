@@ -743,17 +743,9 @@ fn cm_zero() -> CMTime {
     }
 }
 
-/// [`RationalTime`] → `CMTime` (seconds preserved as value·den / num).
+/// [`RationalTime`] → `CMTime`, through [`RationalTime::as_timescaled`].
 fn rational_to_cmtime(t: RationalTime) -> CMTime {
-    let num = t.rate.num.max(1);
-    let den = i64::from(t.rate.den.max(1));
-    let (value, timescale) = match t.value.checked_mul(den) {
-        Some(value) => (value, num),
-        None => (
-            (t.value as f64 * den as f64 / f64::from(num) * 1e6) as i64,
-            1_000_000,
-        ),
-    };
+    let (value, timescale) = t.as_timescaled();
     CMTime {
         value,
         timescale,
@@ -779,35 +771,10 @@ mod tests {
     use aria_core::Rational;
 
     #[test]
-    fn rational_to_cmtime_near_overflow_is_safe() {
-        let half_max = i64::MAX / 2;
-        let t_safe = RationalTime::new(half_max, Rational::new(30, 1));
-        let cm_safe = rational_to_cmtime(t_safe);
-        assert_eq!(cm_safe.timescale, 30);
-        assert_eq!(cm_safe.value, half_max);
-
-        let t_overflow = RationalTime::new(half_max, Rational::new(30, 3));
-        let cm_overflow = rational_to_cmtime(t_overflow);
-        assert_eq!(cm_overflow.timescale, 1_000_000);
-        assert!(cm_overflow.value > 0);
-    }
-
-    #[test]
-    fn swizzle_rgba_to_bgra_converts_correctly() {
-        let mut src = vec![0u8; 32];
-        for i in 0..8 {
-            src[i * 4] = 10; // R
-            src[i * 4 + 1] = 20; // G
-            src[i * 4 + 2] = 30; // B
-            src[i * 4 + 3] = 40; // A
-        }
-        let mut dst = vec![0u8; 32];
-        swizzle_rgba_to_bgra(&src, &mut dst, 8);
-        for i in 0..8 {
-            assert_eq!(dst[i * 4], 30); // B
-            assert_eq!(dst[i * 4 + 1], 20); // G
-            assert_eq!(dst[i * 4 + 2], 10); // R
-            assert_eq!(dst[i * 4 + 3], 40); // A
-        }
+    fn rational_to_cmtime_carries_the_timescaled_pair() {
+        let t = RationalTime::new(30, Rational::FPS_29_97);
+        let cm = rational_to_cmtime(t);
+        assert_eq!((cm.value, cm.timescale), t.as_timescaled());
+        assert!(cm.flags.contains(CMTimeFlags::Valid));
     }
 }

@@ -180,10 +180,7 @@ fn bounded(text: &str) -> Arc<str> {
     if text.len() <= LOG_LINE_MAX_BYTES {
         return Arc::from(text);
     }
-    let mut cut = LOG_LINE_MAX_BYTES - LOG_LINE_TRUNCATED.len();
-    while !text.is_char_boundary(cut) {
-        cut -= 1;
-    }
+    let cut = text.floor_char_boundary(LOG_LINE_MAX_BYTES - LOG_LINE_TRUNCATED.len());
     let mut kept = String::with_capacity(cut + LOG_LINE_TRUNCATED.len());
     kept.push_str(&text[..cut]);
     kept.push_str(LOG_LINE_TRUNCATED);

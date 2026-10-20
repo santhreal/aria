@@ -41,7 +41,7 @@ fn every_catalog_id_is_implemented_by_the_sampler_that_owns_it() {
             let delta = delta.unwrap_or_else(|| panic!("'{}' has no sampler", spec.id));
             assert_ne!(
                 delta,
-                AnimationDelta::IDENTITY,
+                LookDelta::IDENTITY,
                 "animation '{}' produced identity at sample",
                 spec.id
             );

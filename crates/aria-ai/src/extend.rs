@@ -87,11 +87,7 @@ pub fn compose_rules(sections: &[(String, String)]) -> (String, bool) {
     }
     // Truncate on a char boundary and say so in-band, so the model knows
     // the rules are incomplete rather than mid-sentence garbage.
-    let mut cut = MAX_RULES_BYTES;
-    while !out.is_char_boundary(cut) {
-        cut -= 1;
-    }
-    out.truncate(cut);
+    out.truncate(out.floor_char_boundary(MAX_RULES_BYTES));
     out.push_str("\n[…rules truncated at the size cap]");
     (out, true)
 }

@@ -307,6 +307,42 @@ fn provider_key_resolution_prefers_the_named_environment_variable() {
     assert_eq!(blank_literal.resolve_key(), None);
 }
 
+/// WHY: the AI table and every BYOK provider table test for a key through
+/// one presence check. A key that counts for one and not the other
+/// routes a provider call that then fails for want of a key, or hides a
+/// configured provider. Neither check reads the named variable.
+#[test]
+fn ai_and_provider_tables_agree_on_whether_a_key_is_present() {
+    let cases: [(Option<&str>, Option<&str>, bool); 9] = [
+        (None, None, false),
+        (Some(""), None, false),
+        (Some("   "), None, false),
+        (None, Some("\t\n"), false),
+        (Some(" "), Some(""), false),
+        (Some("sk-1"), None, true),
+        (None, Some("ARIA_TEST_UNSET_VARIABLE"), true),
+        (Some(" "), Some("NAMED"), true),
+        (Some("sk-1"), Some(" "), true),
+    ];
+    for (api_key, api_key_env, present) in cases {
+        let ai = AiSettings {
+            api_key: api_key.map(str::to_owned),
+            api_key_env: api_key_env.map(str::to_owned),
+            ..AiSettings::default()
+        };
+        let provider = ProviderSettings {
+            api_key: api_key.map(str::to_owned),
+            api_key_env: api_key_env.map(str::to_owned),
+        };
+        assert_eq!(ai.has_api_key(), present, "{api_key:?} {api_key_env:?}");
+        assert_eq!(
+            provider.is_configured(),
+            present,
+            "{api_key:?} {api_key_env:?}"
+        );
+    }
+}
+
 /// Every theme choice reads back from the key it writes, and the keys and
 /// labels are distinct, so a new family is covered by default. The keys from
 /// before the accent families read as their successor.

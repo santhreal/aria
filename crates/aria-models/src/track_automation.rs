@@ -63,17 +63,6 @@ impl AutomationMode {
             Self::Latch => "Latch",
         }
     }
-
-    /// Compact chip label on a narrow mixer strip.
-    pub const fn short_label(self) -> &'static str {
-        match self {
-            Self::Off => "Off",
-            Self::Read => "Read",
-            Self::Write => "Write",
-            Self::Touch => "Touch",
-            Self::Latch => "Latch",
-        }
-    }
 }
 
 /// Refuse a pan position outside `[-1.0, 1.0]`, naming what it was.
@@ -89,25 +78,31 @@ pub fn check_track_pan(what: &str, pan: f32) -> Result<f32, ModelError> {
 /// Validate a strip volume automation envelope (`0.0..=AudioSend::MAX_LEVEL`,
 /// strictly sorted keyframes, no spatial tangents).
 pub fn check_track_volume_envelope(what: &str, envelope: &Param<f32>) -> Result<(), ModelError> {
-    envelope.validate_shape()?;
-    if envelope.keyframes().iter().any(|kf| kf.tangents.is_some()) {
-        return Err(ModelError::InvalidParam(format!(
-            "{what} is a scalar curve and cannot carry spatial tangents"
-        )));
-    }
-    envelope.for_each_value(|&v| AudioSend::check_level(what, v).map(|_| ()))
+    check_scalar_envelope(what, envelope, |v| {
+        AudioSend::check_level(what, v).map(|_| ())
+    })
 }
 
 /// Validate a strip pan automation envelope (`-1.0..=1.0`, strictly sorted
 /// keyframes, no spatial tangents).
 pub fn check_track_pan_envelope(what: &str, envelope: &Param<f32>) -> Result<(), ModelError> {
+    check_scalar_envelope(what, envelope, |v| check_track_pan(what, v).map(|_| ()))
+}
+
+/// Strictly sorted keyframes, no spatial tangents, and every value accepted
+/// by `check_value`.
+fn check_scalar_envelope(
+    what: &str,
+    envelope: &Param<f32>,
+    check_value: impl Fn(f32) -> Result<(), ModelError>,
+) -> Result<(), ModelError> {
     envelope.validate_shape()?;
     if envelope.keyframes().iter().any(|kf| kf.tangents.is_some()) {
         return Err(ModelError::InvalidParam(format!(
             "{what} is a scalar curve and cannot carry spatial tangents"
         )));
     }
-    envelope.for_each_value(|&v| check_track_pan(what, v).map(|_| ()))
+    envelope.for_each_value(|&v| check_value(v))
 }
 
 impl Track {

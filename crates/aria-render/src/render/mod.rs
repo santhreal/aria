@@ -16,7 +16,8 @@ pub(crate) mod text_anim;
 /// Hot-path helpers exposed for Criterion benches — not a stable API.
 #[doc(hidden)]
 pub mod text_anim_bench {
-    pub use super::text_anim::{ClusterDelta, cluster_deltas, place_clusters};
+    pub use super::text_anim::{cluster_deltas, place_clusters};
+    pub use crate::animation::LookDelta;
 }
 
 #[cfg(test)]

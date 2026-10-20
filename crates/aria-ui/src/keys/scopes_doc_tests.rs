@@ -12,7 +12,6 @@ use crate::scopes::{
     WaveformMode, channel_colour,
 };
 
-
 fn unquote(cell: &str) -> &str {
     cell.trim().trim_start_matches('`').trim_end_matches('`')
 }
@@ -208,11 +207,7 @@ fn scopes_doc_matches_registries() {
                 WaveformChannel::Cb => grey_cb,
                 WaveformChannel::Cr => grey_cr,
             };
-            (
-                format!("{ch:?}"),
-                format!("{:?}", channel_colour(ch)),
-                grey,
-            )
+            (format!("{ch:?}"), format!("{:?}", channel_colour(ch)), grey)
         })
         .collect();
     assert_eq!(
@@ -243,10 +238,22 @@ fn scopes_doc_matches_registries() {
         ("MAX_WAVEFORM_COLUMNS", max_cols_s.as_str()),
         ("MAX_VECTORSCOPE_SIZE", max_vec_s.as_str()),
         ("MAX_SCOPE_SAMPLES", max_samp_s.as_str()),
-        ("ScopeConfig::default().waveform_columns()", def_cols_s.as_str()),
-        ("ScopeConfig::default().vectorscope_size()", def_vec_s.as_str()),
-        ("ScopeConfig::default().maximum_samples()", def_samp_s.as_str()),
-        ("ScopeConfig::default().waveform_trace()", def_trace_s.as_str()),
+        (
+            "ScopeConfig::default().waveform_columns()",
+            def_cols_s.as_str(),
+        ),
+        (
+            "ScopeConfig::default().vectorscope_size()",
+            def_vec_s.as_str(),
+        ),
+        (
+            "ScopeConfig::default().maximum_samples()",
+            def_samp_s.as_str(),
+        ),
+        (
+            "ScopeConfig::default().waveform_trace()",
+            def_trace_s.as_str(),
+        ),
     ];
     assert_eq!(
         doc_cfg, expected_cfg,
@@ -254,10 +261,7 @@ fn scopes_doc_matches_registries() {
     );
 
     // 4. Bitmap and graticule constants + TARGET_COLOURS
-    let const_rows = table_rows(section(
-        SCOPES_DOC,
-        "### Bitmap and graticule constants",
-    ));
+    let const_rows = table_rows(section(SCOPES_DOC, "### Bitmap and graticule constants"));
     let doc_consts: Vec<(&str, &str)> = const_rows
         .iter()
         .map(|r| (unquote(r[0]), unquote(r[1])))

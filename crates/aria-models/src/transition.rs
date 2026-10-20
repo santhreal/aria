@@ -20,8 +20,8 @@ use crate::clip::ParamValue;
 use crate::effects::{
     EffectCurvePoint, EffectGradientStop, EffectParamKind, EffectParamSpec, StoredParams,
     check_params, choice_check, curve_check, gradient_check, holds_scalar, holds_text, holds_vec2,
-    int_range_check, linear_color_check, scalar_or_int_range_check, stored_slot, vec2_range_check,
-    vec3_range_check,
+    int_range_check, linear_color_check, scalar_or_int_range_check, stored_slot,
+    vector_range_check,
 };
 use crate::error::ModelError;
 use crate::ids::ClipId;
@@ -495,7 +495,7 @@ impl Transition {
                 pspec.name, pspec.kind
             )));
         }
-        vec2_range_check(&pspec, value)?;
+        vector_range_check(&pspec, &value)?;
         self.vec2_params.insert(pspec.name, value);
         Ok(())
     }
@@ -509,7 +509,7 @@ impl Transition {
                 pspec.name, pspec.kind
             )));
         }
-        vec3_range_check(&pspec, value)?;
+        vector_range_check(&pspec, &value)?;
         self.vec3_params.insert(pspec.name, value);
         Ok(())
     }
@@ -659,12 +659,12 @@ impl Transition {
             )?;
         }
         for (name, &v) in &self.vec2_params {
-            vec2_range_check(slot(name, "vec2_params", holds_vec2)?, v)?;
+            vector_range_check(slot(name, "vec2_params", holds_vec2)?, &v)?;
         }
         for (name, &v) in &self.vec3_params {
-            vec3_range_check(
+            vector_range_check(
                 slot(name, "vec3_params", |k| k == EffectParamKind::Point3)?,
-                v,
+                &v,
             )?;
         }
         for name in self.bool_params.keys() {

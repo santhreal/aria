@@ -15,16 +15,7 @@ pub(super) fn rational_speed(speed: f64) -> Result<Rational, Rejection> {
             "speed must be between 0.05 and 100 (got {speed})"
         )));
     }
-    let num = (speed * 100.0).round() as i32;
-    let g = gcd(num, 100);
-    Ok(Rational::new(num / g, 100 / g))
-}
-
-fn gcd(mut a: i32, mut b: i32) -> i32 {
-    while b != 0 {
-        (a, b) = (b, a % b);
-    }
-    a.max(1)
+    Ok(Rational::new((speed * 100.0).round() as i32, 100).reduced())
 }
 
 /// Lower optional wire spatial handles into model [`SpatialTangents`].

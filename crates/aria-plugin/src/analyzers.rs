@@ -600,7 +600,7 @@ impl Analyzers {
         let guard = self
             .entries
             .insert_unique(&plugin_id, entry, |existing| existing.spec.id == id)
-            .ok_or_else(|| {
+            .map_err(|_| {
                 PluginError::AnalyzerRefused(format!("analyzer {id} is already registered"))
             })?;
         Ok(Box::new(guard))

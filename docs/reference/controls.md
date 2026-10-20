@@ -157,7 +157,9 @@ The Project panel (`crates/aria-ui/src/panels/sidebar_*.rs`, `crates/aria-ui/src
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
 | `analysis-clear` (per row) | × | Clears cached analysis results for the specified detector kind on the selected clip. | None |
+| `analysis-confidence` (per row) | ≥0% / ≥25% / ≥50% / ≥75% | Hides detected moments whose confidence is below the chosen value. | None |
 | `analysis-cut-silence` | Ripple-delete silence | Splits and ripple-deletes detected silent spans on the selected timeline clip. | None |
+| `analysis-kind` (per row) | All / Shots / Silence / Beats | Lists the moments of every detector, or of the chosen detector only. | None |
 | `analysis-loudness` | Loudness | Runs EBU R128 integrated loudness, range, and true-peak measurement on the selected clip. | None |
 | `analysis-next` | Next | Moves the playhead to the next detected analysis moment. | None |
 | `analysis-prev` | Previous | Moves the playhead to the previous detected analysis moment. | None |
@@ -214,8 +216,11 @@ The Captions panel (`crates/aria-ui/src/panels/captions.rs`) renders speech-to-t
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
-| `caption-commit` (per row) | Commit | Commits generated transcript segments onto the timeline as caption clips or markers. | None |
+| `caption-commit` | Commit | Writes the transcript into the project as the text clips or markers `caption-target` selects, one undo entry per caption. | None |
 | `caption-run` | Transcribe | Starts speech-to-text transcription on the selected clip or sequence audio. | None |
+| `caption-target` (per row) | Text clips / Markers | Selects whether Commit places one timed text clip per caption or one timeline marker per caption. | None |
+| `caption-threads` (per row) | 1 / 2 / 4 / 8 thread(s) | Sets how many CPU threads the transcription model decodes with. | None |
+| `caption-words` | One clip per word | Commits one caption per transcribed word instead of one per segment, for segments that carry word timings. | None |
 
 ## Text
 

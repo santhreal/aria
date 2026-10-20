@@ -108,7 +108,7 @@ pub(crate) fn place_retimed(
         inverses.push(set_speed::set_speed(
             ctx,
             id,
-            ratio(source_ticks, fill),
+            Rational::from_ratio_fitted(source_ticks, fill),
             false,
         )?);
     }
@@ -135,30 +135,6 @@ fn park_tick(ctx: &ApplyContext<'_>, track: TrackId, floor: i64) -> i64 {
         })
         .unwrap_or(0)
         .max(floor)
-}
-
-/// `num : den` as a rate, reduced so it fits the `i32` terms a [`Rational`] is
-/// made of.
-///
-/// A span long enough to overflow those terms is halved until it fits rather
-/// than refused: what matters is the ratio, and a tick count that large is
-/// already beyond the precision a speed is read at.
-fn ratio(num: i64, den: i64) -> Rational {
-    let divisor = gcd(num, den).max(1);
-    let (mut num, mut den) = (num / divisor, den / divisor);
-    while num > i64::from(i32::MAX) || den > i64::from(i32::MAX) {
-        num = (num / 2).max(1);
-        den = (den / 2).max(1);
-    }
-    Rational::new(num as i32, den as i32)
-}
-
-fn gcd(a: i64, b: i64) -> i64 {
-    let (mut a, mut b) = (a.abs(), b.abs());
-    while b != 0 {
-        (a, b) = (b, a % b);
-    }
-    a
 }
 
 /// Cover `[start, end)` on `track`, reusing overwrite's plan so the two edits

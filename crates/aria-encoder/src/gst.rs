@@ -176,17 +176,18 @@ impl VideoEncoder for GstEncoder {
             let buffer = buffer
                 .get_mut()
                 .ok_or_else(|| EncodeError::Encode("couldn't write an encode buffer.".into()))?;
-            let pts = gst::ClockTime::from_nseconds(rational_to_ns(frame.pts) as u64);
+            let pts = gst::ClockTime::from_nseconds(frame.pts.in_units(NS_PER_SEC) as u64);
             buffer.set_pts(pts);
             buffer.set_dts(pts);
             if let Some(dur) = frame.duration {
-                buffer.set_duration(gst::ClockTime::from_nseconds(rational_to_ns(dur) as u64));
-            } else {
-                let rate = self.config.frame_rate;
-                if rate.num > 0 {
-                    let ns = (NS_PER_SEC * i64::from(rate.den.max(1))) / i64::from(rate.num);
-                    buffer.set_duration(gst::ClockTime::from_nseconds(ns as u64));
-                }
+                buffer.set_duration(gst::ClockTime::from_nseconds(
+                    dur.in_units(NS_PER_SEC) as u64
+                ));
+            } else if self.config.frame_rate.is_valid() {
+                let period = RationalTime::new(1, self.config.frame_rate);
+                buffer.set_duration(gst::ClockTime::from_nseconds(
+                    period.in_units(NS_PER_SEC) as u64
+                ));
             }
             let mut map = buffer
                 .map_writable()
@@ -222,7 +223,9 @@ impl VideoEncoder for GstEncoder {
             let buffer = buffer.get_mut().ok_or_else(|| {
                 EncodeError::Encode("couldn't write an audio encode buffer.".into())
             })?;
-            buffer.set_pts(gst::ClockTime::from_nseconds(rational_to_ns(pts) as u64));
+            buffer.set_pts(gst::ClockTime::from_nseconds(
+                pts.in_units(NS_PER_SEC) as u64
+            ));
         }
         audio
             .push_buffer(buffer)
@@ -642,38 +645,9 @@ fn copy_plane(plane: &aria_core::Plane, dest: &mut [u8], dest_stride: usize, row
     }
 }
 
-fn rational_to_ns(t: RationalTime) -> i64 {
-    if t.rate.num <= 0 {
-        return 0;
-    }
-    let den = i128::from(t.rate.den.max(1));
-    let num = i128::from(t.rate.num);
-    let ns = (i128::from(t.value) * den * i128::from(NS_PER_SEC)) / num;
-    ns.clamp(i64::MIN as i128, i64::MAX as i128) as i64
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use aria_core::Rational;
-
-    #[test]
-    fn one_second_is_onee9_ns() {
-        assert_eq!(
-            rational_to_ns(RationalTime::new(24, Rational::new(24, 1))),
-            NS_PER_SEC
-        );
-    }
-
-    #[test]
-    fn one_hour_timestamp_converts_exactly() {
-        let one_hour_ns = 3_600 * NS_PER_SEC;
-        let t = RationalTime::new(one_hour_ns, Rational::new(1_000_000_000, 1));
-        assert_eq!(rational_to_ns(t), one_hour_ns);
-
-        let t_48k = RationalTime::new(3_600 * 48_000, Rational::new(48_000, 1));
-        assert_eq!(rational_to_ns(t_48k), one_hour_ns);
-    }
 
     /// The walk returns the first candidate that opens and stops there; a
     /// candidate that fails (a registered NVENC whose driver does not answer)

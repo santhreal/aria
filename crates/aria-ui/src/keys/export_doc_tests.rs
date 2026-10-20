@@ -11,22 +11,20 @@ use aria_render::{
 use aria_transcription::WHISPER_SAMPLE_RATE;
 
 use crate::app::captions::{
-    CaptionCommit, MAX_PCM_FRAMES, THREAD_CHOICES, TRANSCRIPT_ANALYZER,
-    TRANSCRIPT_ANALYZER_VERSION,
+    CaptionCommit, MAX_PCM_FRAMES, THREAD_CHOICES, TRANSCRIPT_ANALYZER, TRANSCRIPT_ANALYZER_VERSION,
 };
 use crate::app::export_options::{
     ExportBitrate, ExportGop, ExportOptions, ExportRate, ExportScale,
 };
-
 
 fn unquote(cell: &str) -> &str {
     cell.trim().trim_start_matches('`').trim_end_matches('`')
 }
 
 fn section<'a>(doc: &'a str, heading: &str) -> &'a str {
-    let start = doc
-        .find(heading)
-        .unwrap_or_else(|| panic!("docs/reference/export-and-subtitles.md missing heading {heading:?}"));
+    let start = doc.find(heading).unwrap_or_else(|| {
+        panic!("docs/reference/export-and-subtitles.md missing heading {heading:?}")
+    });
     let body = &doc[start + heading.len()..];
     let body = body.strip_prefix('\n').unwrap_or(body);
     let level = heading.bytes().take_while(|&b| b == b'#').count();
@@ -186,7 +184,10 @@ fn export_and_subtitles_doc_matches_registries() {
         ("AUDIO_CAPABILITY.codec", AUDIO_CAPABILITY.codec),
         ("AUDIO_CAPABILITY.extension", AUDIO_CAPABILITY.extension),
         ("AUDIO_CAPABILITY.label()", audio_label.as_str()),
-        ("PngSequenceEncoder::choice().encoder", png_choice.encoder.as_ref()),
+        (
+            "PngSequenceEncoder::choice().encoder",
+            png_choice.encoder.as_ref(),
+        ),
         ("PngSequenceEncoder::choice().hardware", png_hw.as_str()),
         ("EXPORT_AUDIO_RATE", rate_str.as_str()),
         ("EXPORT_AUDIO_CHANNELS", ch_str.as_str()),
@@ -308,13 +309,10 @@ fn export_and_subtitles_doc_matches_registries() {
     let expected_gops: Vec<(String, String, String, bool)> = ExportGop::ALL
         .iter()
         .map(|&g| {
-            let frames_str = g.frames().map_or_else(|| "none".to_string(), |f| f.to_string());
-            (
-                format!("{g:?}"),
-                g.label(),
-                frames_str,
-                g == def_opts.gop,
-            )
+            let frames_str = g
+                .frames()
+                .map_or_else(|| "none".to_string(), |f| f.to_string());
+            (format!("{g:?}"), g.label(), frames_str, g == def_opts.gop)
         })
         .collect();
     assert_eq!(
@@ -345,13 +343,10 @@ fn export_and_subtitles_doc_matches_registries() {
     let expected_brs: Vec<(String, String, String, bool)> = ExportBitrate::ALL
         .iter()
         .map(|&b| {
-            let kbps_str = b.kbps().map_or_else(|| "none".to_string(), |k| k.to_string());
-            (
-                format!("{b:?}"),
-                b.label(),
-                kbps_str,
-                b == def_opts.bitrate,
-            )
+            let kbps_str = b
+                .kbps()
+                .map_or_else(|| "none".to_string(), |k| k.to_string());
+            (format!("{b:?}"), b.label(), kbps_str, b == def_opts.bitrate)
         })
         .collect();
     assert_eq!(
@@ -373,10 +368,7 @@ fn export_and_subtitles_doc_matches_registries() {
         .iter()
         .map(|r| unquote(r[0]).to_string())
         .collect();
-    let expected_empty: Vec<String> = EmptyExport::ALL
-        .iter()
-        .map(|e| format!("{e:?}"))
-        .collect();
+    let expected_empty: Vec<String> = EmptyExport::ALL.iter().map(|e| format!("{e:?}")).collect();
     assert_eq!(
         doc_empty, expected_empty,
         "docs/reference/export-and-subtitles.md EmptyExport table drifted from EmptyExport::ALL"
@@ -467,7 +459,7 @@ fn export_and_subtitles_doc_matches_registries() {
     let max_pcm = MAX_PCM_FRAMES.to_string();
     let threads_str = THREAD_CHOICES
         .iter()
-        .map( usize::to_string)
+        .map(usize::to_string)
         .collect::<Vec<_>>()
         .join(", ");
     let ver_str = TRANSCRIPT_ANALYZER_VERSION.to_string();

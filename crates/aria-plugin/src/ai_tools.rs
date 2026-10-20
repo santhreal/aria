@@ -8,15 +8,13 @@
 //! session.
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Weak};
-
-use parking_lot::RwLock;
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 use crate::context::PluginContext;
 use crate::error::PluginError;
 use crate::events::panic_message;
-use crate::listed::owner;
+use crate::listed::{Listed, owner};
 use crate::plugin::PluginManifest;
 use crate::registration::{Contribution, ContributionKind, Registration};
 
@@ -165,8 +163,8 @@ pub enum AiToolError {
     Panicked(String),
 }
 
-struct Entry {
-    serial: u64,
+#[derive(Clone)]
+pub(crate) struct HeldTool {
     tool: PluginAiTool,
     /// The registering plugin's manifest, or `None` for the host.
     scope: Option<Arc<PluginManifest>>,
@@ -174,37 +172,7 @@ struct Entry {
 }
 
 /// The tools registered on one context, in registration order.
-#[derive(Default)]
-pub(crate) struct AiTools {
-    entries: RwLock<Vec<Entry>>,
-    serial: AtomicU64,
-    revision: AtomicU64,
-}
-
-/// Removes one tool when its registration drops.
-struct Unregister {
-    registry: Weak<AiTools>,
-    serial: u64,
-}
-
-impl Drop for Unregister {
-    fn drop(&mut self) {
-        let Some(registry) = self.registry.upgrade() else {
-            return;
-        };
-        // The handler drops after the lock is released, so its drop code may
-        // read the registry.
-        let removed: Vec<_> = registry
-            .entries
-            .write()
-            .extract_if(.., |entry| entry.serial == self.serial)
-            .collect();
-        if !removed.is_empty() {
-            registry.revision.fetch_add(1, Ordering::Release);
-        }
-        drop(removed);
-    }
-}
+pub(crate) type AiTools = Listed<HeldTool>;
 
 fn refused(reason: String) -> PluginError {
     PluginError::AiToolRefused(reason)
@@ -287,66 +255,44 @@ impl PluginContext {
         check(&spec)?;
         let (plugin_id, plugin_name) = owner(self);
         let call_name = format!("{AI_TOOL_PREFIX}{}", spec.name);
-        let registry = self.ai_tool_registry();
-        let serial = {
-            let mut entries = registry.entries.write();
-            if let Some(held) = entries
-                .iter()
-                .find(|entry| entry.tool.call_name == call_name)
-            {
-                return Err(refused(format!(
-                    "{} already offers a tool named {}",
-                    held.tool.plugin_name, spec.name
-                )));
-            }
-            let serial = registry.serial.fetch_add(1, Ordering::Relaxed);
-            entries.push(Entry {
-                serial,
-                tool: PluginAiTool {
-                    plugin_id,
-                    plugin_name,
-                    call_name: call_name.clone(),
-                    spec: Arc::new(spec),
-                },
-                scope: self.scope(),
-                handler: Arc::new(tool),
-            });
-            serial
-        };
-        registry.revision.fetch_add(1, Ordering::Release);
-        let contribution = Contribution::new(ContributionKind::AiTool, call_name);
-        Ok(self.retain_if_mounting(Registration::holding(
-            contribution,
-            Unregister {
-                registry: Arc::downgrade(registry),
-                serial,
+        let held = HeldTool {
+            tool: PluginAiTool {
+                plugin_id: Arc::clone(&plugin_id),
+                plugin_name,
+                call_name: call_name.clone(),
+                spec: Arc::new(spec),
             },
-        )))
+            scope: self.scope(),
+            handler: Arc::new(tool),
+        };
+        let listed = self
+            .ai_tool_registry()
+            .insert_unique(&plugin_id, held, |other| other.tool.call_name == call_name)
+            .map_err(|other| {
+                refused(format!(
+                    "{} already offers a tool named {}",
+                    other.tool.plugin_name, other.tool.spec.name
+                ))
+            })?;
+        let contribution = Contribution::new(ContributionKind::AiTool, call_name);
+        Ok(self.retain_if_mounting(Registration::holding(contribution, listed)))
     }
 
     /// Every registered tool, in registration order.
     pub fn ai_tools(&self) -> Vec<PluginAiTool> {
-        self.ai_tool_registry()
-            .entries
-            .read()
-            .iter()
-            .map(|entry| entry.tool.clone())
-            .collect()
+        self.ai_tool_registry().entries(|held| held.tool.clone())
     }
 
     /// Moves whenever a tool is registered or removed.
     pub fn ai_tools_revision(&self) -> u64 {
-        self.ai_tool_registry().revision.load(Ordering::Acquire)
+        self.ai_tool_registry().revision()
     }
 
     /// The tool the assistant calls `call_name`, if one is registered.
     pub fn ai_tool(&self, call_name: &str) -> Option<PluginAiTool> {
         self.ai_tool_registry()
-            .entries
-            .read()
-            .iter()
-            .find(|entry| entry.tool.call_name == call_name)
-            .map(|entry| entry.tool.clone())
+            .find(|held| held.tool.call_name == call_name)
+            .map(|held| held.tool)
     }
 
     /// Run the tool the assistant calls `call_name`, which the caller allowed
@@ -365,22 +311,17 @@ impl PluginContext {
         granted: AiToolTier,
         cancel: &AtomicBool,
     ) -> Result<AiToolOutput, AiToolError> {
-        let found = self
+        let Some(HeldTool {
+            tool,
+            scope,
+            handler,
+        }) = self
             .ai_tool_registry()
-            .entries
-            .read()
-            .iter()
-            .find(|entry| entry.tool.call_name == call_name)
-            .map(|entry| {
-                (
-                    entry.tool.spec.tier,
-                    entry.scope.clone(),
-                    Arc::clone(&entry.handler),
-                )
-            });
-        let Some((tier, scope, handler)) = found else {
+            .find(|held| held.tool.call_name == call_name)
+        else {
             return Err(AiToolError::Unknown(call_name.to_owned()));
         };
+        let tier = tool.spec.tier;
         if tier > granted {
             return Err(AiToolError::Failed(format!(
                 "{call_name} changed since it was allowed and now needs {tier:?} trust; call it \

@@ -277,17 +277,22 @@ fn thread_chip(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
     let active = target == current;
-    chip(
-        theme,
-        crate::motion::MotionKey::new("caption-threads", target).into(),
+    components::chip(
+        crate::motion::MotionKey::new("caption-threads", target),
         SharedString::from(format!("{target} thread(s)")),
         active,
+        components::ChipSize::Regular,
+        theme,
+    )
+    .on_mouse_down(
+        MouseButton::Left,
         cx.listener(move |this, _: &MouseDownEvent, _, cx| {
             this.state
                 .update(cx, |state, _| state.set_caption_threads(target));
             cx.notify();
         }),
     )
+    .into_any_element()
 }
 
 fn commit_chip(
@@ -298,17 +303,22 @@ fn commit_chip(
     current: CaptionCommit,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
-    chip(
-        theme,
-        crate::motion::MotionKey::new("caption-commit", id).into(),
+    components::chip(
+        crate::motion::MotionKey::new("caption-target", id),
         SharedString::from(label),
         target == current,
+        components::ChipSize::Regular,
+        theme,
+    )
+    .on_mouse_down(
+        MouseButton::Left,
         cx.listener(move |this, _: &MouseDownEvent, _, cx| {
             this.state
                 .update(cx, |state, _| state.set_caption_commit(target));
             cx.notify();
         }),
     )
+    .into_any_element()
 }
 
 fn word_toggle(
@@ -316,36 +326,20 @@ fn word_toggle(
     word_level: bool,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
-    chip(
-        theme,
-        crate::motion::MotionKey::new("caption", "words").into(),
+    components::chip(
+        "caption-words",
         SharedString::from("One clip per word"),
         word_level,
+        components::ChipSize::Regular,
+        theme,
+    )
+    .on_mouse_down(
+        MouseButton::Left,
         cx.listener(move |this, _: &MouseDownEvent, _, cx| {
             this.state
                 .update(cx, |state, _| state.set_caption_word_level(!word_level));
             cx.notify();
         }),
     )
-}
-
-/// One selectable chip. The look belongs to [`crate::components::chip`], which
-/// also gives it the eased hover every other control in the app has; this
-/// carries only the click.
-fn chip(
-    theme: &Theme,
-    id: crate::motion::ControlId,
-    label: SharedString,
-    active: bool,
-    on_click: impl Fn(&MouseDownEvent, &mut gpui::Window, &mut gpui::App) + 'static,
-) -> gpui::AnyElement {
-    crate::components::chip(
-        id,
-        label,
-        active,
-        crate::components::ChipSize::Regular,
-        theme,
-    )
-    .on_mouse_down(MouseButton::Left, on_click)
     .into_any_element()
 }

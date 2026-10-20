@@ -174,7 +174,11 @@ fn clip_properties_doc_matches_registries() {
         "docs/reference/clip-properties.md clip_param_catalog() table drifted"
     );
     assert_eq!(
-        LookParam::ALL.len() + StyleParam::ALL.len() + TextParam::ALL.len() + ShapeParam::ALL.len() + 8,
+        LookParam::ALL.len()
+            + StyleParam::ALL.len()
+            + TextParam::ALL.len()
+            + ShapeParam::ALL.len()
+            + 8,
         catalog.len(),
         "sub-enum variant counts must sum to clip_param_catalog().len()"
     );
@@ -247,9 +251,18 @@ fn clip_properties_doc_matches_registries() {
         .collect();
     let expected_align_to: Vec<(String, String, bool)> = AlignTo::ALL
         .iter()
-        .map(|&a| (format!("{a:?}"), a.label().to_string(), a == AlignTo::default()))
+        .map(|&a| {
+            (
+                format!("{a:?}"),
+                a.label().to_string(),
+                a == AlignTo::default(),
+            )
+        })
         .collect();
-    assert_eq!(doc_align_to, expected_align_to, "AlignTo::ALL table drifted");
+    assert_eq!(
+        doc_align_to, expected_align_to,
+        "AlignTo::ALL table drifted"
+    );
 
     let align_edge_rows = table_rows(section(DOC, "### Alignment edges (`AlignEdge::ALL`)"));
     let doc_align_edge: Vec<(String, String)> = align_edge_rows
@@ -314,7 +327,13 @@ fn clip_properties_doc_matches_registries() {
         .collect();
     let expected_cases: Vec<(String, String, bool)> = TextCase::ALL
         .iter()
-        .map(|&c| (format!("{c:?}"), c.label().to_string(), c == TextCase::default()))
+        .map(|&c| {
+            (
+                format!("{c:?}"),
+                c.label().to_string(),
+                c == TextCase::default(),
+            )
+        })
         .collect();
     assert_eq!(doc_cases, expected_cases, "TextCase::ALL table drifted");
 
@@ -334,7 +353,13 @@ fn clip_properties_doc_matches_registries() {
         .collect();
     let expected_align_h: Vec<(String, String, bool)> = TextAlignH::ALL
         .iter()
-        .map(|&a| (format!("{a:?}"), a.label().to_string(), a == TextAlignH::default()))
+        .map(|&a| {
+            (
+                format!("{a:?}"),
+                a.label().to_string(),
+                a == TextAlignH::default(),
+            )
+        })
         .collect();
     assert_eq!(
         doc_align_h, expected_align_h,
@@ -357,7 +382,13 @@ fn clip_properties_doc_matches_registries() {
         .collect();
     let expected_align_v: Vec<(String, String, bool)> = TextAlignV::ALL
         .iter()
-        .map(|&a| (format!("{a:?}"), a.label().to_string(), a == TextAlignV::default()))
+        .map(|&a| {
+            (
+                format!("{a:?}"),
+                a.label().to_string(),
+                a == TextAlignV::default(),
+            )
+        })
         .collect();
     assert_eq!(
         doc_align_v, expected_align_v,
@@ -515,10 +546,7 @@ fn clip_properties_doc_matches_registries() {
         .iter()
         .map(|&s| (s.id().to_string(), s.label().to_string(), format!("{s:?}")))
         .collect();
-    assert_eq!(
-        doc_stab, expected_stab,
-        "StabilizeLevel::ALL table drifted"
-    );
+    assert_eq!(doc_stab, expected_stab, "StabilizeLevel::ALL table drifted");
 
     let attr_rows = table_rows(section(
         DOC,
@@ -537,13 +565,7 @@ fn clip_properties_doc_matches_registries() {
         .collect();
     let expected_attrs: Vec<(String, String, bool)> = ClipAttribute::ALL
         .iter()
-        .map(|&a| {
-            (
-                format!("{a:?}"),
-                a.label().to_string(),
-                a.is_intrinsic(),
-            )
-        })
+        .map(|&a| (format!("{a:?}"), a.label().to_string(), a.is_intrinsic()))
         .collect();
     assert_eq!(
         doc_attrs, expected_attrs,
@@ -580,7 +602,13 @@ fn clip_properties_doc_matches_registries() {
         .collect();
     let expected_mask_ops: Vec<(String, u32, bool)> = MaskOp::ALL
         .iter()
-        .map(|&op| (format!("{op:?}"), op.id(), (op.start() - 1.0).abs() < f32::EPSILON))
+        .map(|&op| {
+            (
+                format!("{op:?}"),
+                op.id(),
+                (op.start() - 1.0).abs() < f32::EPSILON,
+            )
+        })
         .collect();
     assert_eq!(
         doc_mask_ops, expected_mask_ops,

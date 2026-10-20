@@ -40,7 +40,7 @@ impl CloudError {
                 let message = response
                     .into_string()
                     .unwrap_or_else(|_| "<unreadable error body>".into());
-                let message = truncate(message, 300);
+                let message = crate::http::capped_body(message, 300);
                 CloudError::Status {
                     status,
                     message,
@@ -50,21 +50,4 @@ impl CloudError {
             ureq::Error::Transport(t) => CloudError::Network(format!("{url}: {t}")),
         }
     }
-}
-
-/// Cut `s` to at most `max` bytes on a char boundary, appending `…` when
-/// something was dropped (server error bodies can be huge HTML pages). Takes
-/// the `String` by value: the caller already owns the body it read off the
-/// socket, so the common short case costs no allocation at all.
-fn truncate(mut s: String, max: usize) -> String {
-    if s.len() <= max {
-        return s;
-    }
-    let mut end = max;
-    while !s.is_char_boundary(end) {
-        end -= 1;
-    }
-    s.truncate(end);
-    s.push('…');
-    s
 }

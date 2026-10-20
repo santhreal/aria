@@ -26,8 +26,8 @@ use crate::app::decline::Decline;
 use crate::app::generate::GenerateKind;
 use crate::app::models::TimeoutField;
 use crate::app::plugin_install::WasmLimit;
-use crate::app::settings_form::SettingsField;
 use crate::app::project_settings::CANVAS_BASELINES;
+use crate::app::settings_form::SettingsField;
 use crate::app::{AppState, DialogKind};
 use crate::appearance::AppearanceMode;
 use crate::chrome::menu_items::items_for;
@@ -677,9 +677,10 @@ fn panels_doc_matches_registry() {
             (format!("{k:?}"), label.to_string(), ext.to_string())
         })
         .collect();
-    let documented_generate_kinds: Vec<(String, String, String)> = parse_table_rows(
-        section_slice(PANELS_DOC, "Generate panel media kinds (`GenerateKind::ALL`)"),
-    )
+    let documented_generate_kinds: Vec<(String, String, String)> = parse_table_rows(section_slice(
+        PANELS_DOC,
+        "Generate panel media kinds (`GenerateKind::ALL`)",
+    ))
     .iter()
     .map(|cells| {
         assert!(cells.len() >= 3, "malformed GenerateKind row: {cells:?}");
@@ -701,16 +702,13 @@ fn panels_doc_matches_registry() {
             match k {
                 AnalysisKind::Shots | AnalysisKind::Silence | AnalysisKind::Beats => {}
             }
-            (
-                format!("{k:?}"),
-                k.id().to_string(),
-                k.label().to_string(),
-            )
+            (format!("{k:?}"), k.id().to_string(), k.label().to_string())
         })
         .collect();
-    let documented_analysis_kinds: Vec<(String, String, String)> = parse_table_rows(
-        section_slice(PANELS_DOC, "Analysis panel detector kinds (`AnalysisKind::ALL`)"),
-    )
+    let documented_analysis_kinds: Vec<(String, String, String)> = parse_table_rows(section_slice(
+        PANELS_DOC,
+        "Analysis panel detector kinds (`AnalysisKind::ALL`)",
+    ))
     .iter()
     .map(|cells| {
         assert!(cells.len() >= 3, "malformed AnalysisKind row: {cells:?}");
@@ -842,9 +840,10 @@ fn menus_doc_matches_registry() {
             )
         })
         .collect();
-    let documented_gain_modes: Vec<(String, String, bool)> = parse_table_rows(
-        section_slice(MENUS_DOC, "Audio Gain dialog modes (`AudioGainMode::ALL`)"),
-    )
+    let documented_gain_modes: Vec<(String, String, bool)> = parse_table_rows(section_slice(
+        MENUS_DOC,
+        "Audio Gain dialog modes (`AudioGainMode::ALL`)",
+    ))
     .iter()
     .map(|cells| {
         assert!(cells.len() >= 4, "malformed AudioGainMode row: {cells:?}");
@@ -878,20 +877,22 @@ fn menus_doc_matches_registry() {
             )
         })
         .collect();
-    let documented_audio_channels: Vec<(String, String, String, String)> = parse_table_rows(
-        section_slice(MENUS_DOC, "Audio Channels routing presets (`AudioChannels::ALL`)"),
-    )
-    .iter()
-    .map(|cells| {
-        assert!(cells.len() >= 4, "malformed AudioChannels row: {cells:?}");
-        (
-            strip_ticks(cells[0]).to_string(),
-            strip_ticks(cells[1]).to_string(),
-            strip_ticks(cells[2]).to_string(),
-            strip_ticks(cells[3]).to_string(),
-        )
-    })
-    .collect();
+    let documented_audio_channels: Vec<(String, String, String, String)> =
+        parse_table_rows(section_slice(
+            MENUS_DOC,
+            "Audio Channels routing presets (`AudioChannels::ALL`)",
+        ))
+        .iter()
+        .map(|cells| {
+            assert!(cells.len() >= 4, "malformed AudioChannels row: {cells:?}");
+            (
+                strip_ticks(cells[0]).to_string(),
+                strip_ticks(cells[1]).to_string(),
+                strip_ticks(cells[2]).to_string(),
+                strip_ticks(cells[3]).to_string(),
+            )
+        })
+        .collect();
     assert_eq!(
         documented_audio_channels, expected_audio_channels,
         "docs/reference/menus.md Audio Channels routing presets drifted from AudioChannels::ALL"
@@ -903,16 +904,13 @@ fn menus_doc_matches_registry() {
             match m {
                 MatteSource::Alpha | MatteSource::Luma => {}
             }
-            (
-                format!("{m:?}"),
-                m.id().to_string(),
-                m.label().to_string(),
-            )
+            (format!("{m:?}"), m.id().to_string(), m.label().to_string())
         })
         .collect();
-    let documented_matte_sources: Vec<(String, String, String)> = parse_table_rows(
-        section_slice(MENUS_DOC, "Track matte sources (`MatteSource::ALL`)"),
-    )
+    let documented_matte_sources: Vec<(String, String, String)> = parse_table_rows(section_slice(
+        MENUS_DOC,
+        "Track matte sources (`MatteSource::ALL`)",
+    ))
     .iter()
     .map(|cells| {
         assert!(cells.len() >= 3, "malformed MatteSource row: {cells:?}");
@@ -1655,18 +1653,18 @@ fn settings_doc_matches_registries() {
         .collect();
     let timeout_start = SettingsField::ALL.len();
     let timeout_end = timeout_start + TimeoutField::ALL.len();
-    let documented_timeout_fields: Vec<(String, String, String)> =
-        field_rows[timeout_start..timeout_end]
-            .iter()
-            .map(|cells| {
-                assert!(cells.len() >= 3, "malformed TimeoutField row: {cells:?}");
-                (
-                    strip_ticks(cells[0]).to_string(),
-                    strip_ticks(cells[1]).to_string(),
-                    strip_ticks(cells[2]).to_string(),
-                )
-            })
-            .collect();
+    let documented_timeout_fields: Vec<(String, String, String)> = field_rows
+        [timeout_start..timeout_end]
+        .iter()
+        .map(|cells| {
+            assert!(cells.len() >= 3, "malformed TimeoutField row: {cells:?}");
+            (
+                strip_ticks(cells[0]).to_string(),
+                strip_ticks(cells[1]).to_string(),
+                strip_ticks(cells[2]).to_string(),
+            )
+        })
+        .collect();
     assert_eq!(
         documented_timeout_fields, expected_timeout_fields,
         "docs/reference/settings.md TimeoutField table drifted from TimeoutField::ALL"
@@ -1719,16 +1717,16 @@ fn settings_doc_matches_registries() {
             (format!("{c:?}"), c.label().to_string())
         })
         .collect();
-    let documented_drop_causes: Vec<(String, String)> =
-        drop_output_rows[..aria_render::DropCause::ALL.len()]
-            .iter()
-            .map(|cells| {
-                assert!(cells.len() >= 2, "malformed DropCause row: {cells:?}");
-                (
-                    strip_ticks(cells[0]).to_string(),
-                    strip_ticks(cells[1]).to_string(),
-                )
-            })
+    let documented_drop_causes: Vec<(String, String)> = drop_output_rows
+        [..aria_render::DropCause::ALL.len()]
+        .iter()
+        .map(|cells| {
+            assert!(cells.len() >= 2, "malformed DropCause row: {cells:?}");
+            (
+                strip_ticks(cells[0]).to_string(),
+                strip_ticks(cells[1]).to_string(),
+            )
+        })
         .collect();
     assert_eq!(
         documented_drop_causes, expected_drop_causes,
@@ -1744,17 +1742,17 @@ fn settings_doc_matches_registries() {
             (format!("{m:?}"), m.label().to_string())
         })
         .collect();
-    let documented_output_modes: Vec<(String, String)> =
-        drop_output_rows[aria_render::DropCause::ALL.len()..]
-            .iter()
-            .map(|cells| {
-                assert!(cells.len() >= 2, "malformed OutputMode row: {cells:?}");
-                (
-                    strip_ticks(cells[0]).to_string(),
-                    strip_ticks(cells[1]).to_string(),
-                )
-            })
-            .collect();
+    let documented_output_modes: Vec<(String, String)> = drop_output_rows
+        [aria_render::DropCause::ALL.len()..]
+        .iter()
+        .map(|cells| {
+            assert!(cells.len() >= 2, "malformed OutputMode row: {cells:?}");
+            (
+                strip_ticks(cells[0]).to_string(),
+                strip_ticks(cells[1]).to_string(),
+            )
+        })
+        .collect();
     assert_eq!(
         documented_output_modes, expected_output_modes,
         "docs/reference/settings.md OutputMode table drifted from aria_decoder::OutputMode::ALL"
@@ -3015,7 +3013,10 @@ fn const_all_registries_have_recorded_documentation_decisions() {
             "ScenarioId",
             "benchmark scenario identifier internal to aria-bench",
         ),
-        ("HttpCaller", "internal HTTP timeout caller tag in aria-cloud"),
+        (
+            "HttpCaller",
+            "internal HTTP timeout caller tag in aria-cloud",
+        ),
         (
             "CoverageMix",
             "internal test-only coverage generator mix in aria-media",
@@ -3028,7 +3029,10 @@ fn const_all_registries_have_recorded_documentation_decisions() {
             "WindowReason",
             "internal whisper windowing split reason in aria-speech",
         ),
-        ("ChipSize", "internal UI widget size token in aria-ui::components"),
+        (
+            "ChipSize",
+            "internal UI widget size token in aria-ui::components",
+        ),
         (
             "LabelTarget",
             "internal context-menu colour-label dispatch target in aria-ui::app",

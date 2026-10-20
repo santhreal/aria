@@ -43,11 +43,11 @@ mod docs_claims_tests;
 #[cfg(test)]
 mod export_doc_tests;
 #[cfg(test)]
-mod project_settings_doc_tests;
+mod guide_doc_tests;
 #[cfg(test)]
 mod keyframes_graph_doc_tests;
 #[cfg(test)]
-mod guide_doc_tests;
+mod project_settings_doc_tests;
 #[cfg(test)]
 mod reference_doc_tests;
 #[cfg(test)]
@@ -95,6 +95,23 @@ pub struct Binding {
     pub run: KeyBody,
     pub after: After,
 }
+
+#[cfg(test)]
+impl Binding {
+    /// A binding that runs nothing and schedules nothing, for tests of the key
+    /// table itself.
+    pub(crate) fn inert(id: &'static str, chord: Chord, route: KeyRoute) -> Self {
+        fn noop(_: &mut AppState) {}
+        Self {
+            id,
+            chord,
+            route,
+            run: KeyBody::Plain(noop),
+            after: After::Nothing,
+        }
+    }
+}
+
 macro_rules! bind {
     ($id:literal, $chord:expr, $route:ident, $run:expr) => {
         $crate::keys::Binding {
@@ -427,24 +444,16 @@ pub fn dispatch_key_up(
 mod tests {
     use super::*;
 
-    fn noop(_: &mut AppState) {}
-
-    fn binding(id: &'static str, chord: Chord, route: KeyRoute) -> Binding {
-        Binding {
-            id,
-            chord,
-            route,
-            run: KeyBody::Plain(noop),
-            after: After::Nothing,
-        }
-    }
-
     /// A chord is exact: Alt+I and I are different keys, so an action cannot leak
     /// into a modifier combination nobody bound.
     #[test]
     fn a_chord_matches_only_its_own_modifiers() {
         let host = KeyHost::default();
-        assert!(host.add(binding("mark-in", Chord::plain("i"), KeyRoute::Editor)));
+        assert!(host.add(Binding::inert(
+            "mark-in",
+            Chord::plain("i"),
+            KeyRoute::Editor
+        )));
         assert!(
             host.resolve(KeyRoute::Editor, "i", false, false, false)
                 .is_some()
@@ -465,8 +474,16 @@ mod tests {
     #[test]
     fn the_same_chord_binds_once_per_route() {
         let host = KeyHost::default();
-        assert!(host.add(binding("editor-open", Chord::ctrl("o"), KeyRoute::Editor)));
-        assert!(host.add(binding("home-open", Chord::ctrl("o"), KeyRoute::Home)));
+        assert!(host.add(Binding::inert(
+            "editor-open",
+            Chord::ctrl("o"),
+            KeyRoute::Editor
+        )));
+        assert!(host.add(Binding::inert(
+            "home-open",
+            Chord::ctrl("o"),
+            KeyRoute::Home
+        )));
         assert!(host.conflicts().is_empty());
         assert_eq!(
             host.resolve(KeyRoute::Home, "o", true, false, false)
@@ -480,17 +497,21 @@ mod tests {
     #[test]
     fn the_focused_panel_resolves_before_the_window() {
         let host = KeyHost::default();
-        assert!(host.add(binding(
+        assert!(host.add(Binding::inert(
             "window-left",
             Chord::plain("left"),
             KeyRoute::Editor
         )));
-        assert!(host.add(binding(
+        assert!(host.add(Binding::inert(
             "viewer-left",
             Chord::plain("left"),
             KeyRoute::Viewer
         )));
-        assert!(host.add(binding("window-save", Chord::ctrl("s"), KeyRoute::Editor)));
+        assert!(host.add(Binding::inert(
+            "window-save",
+            Chord::ctrl("s"),
+            KeyRoute::Editor
+        )));
         assert!(
             host.conflicts().is_empty(),
             "a panel chord is not a window conflict"
@@ -528,7 +549,7 @@ mod tests {
             ("bracket", Chord::plain("]"), "]", false, false),
         ];
         for (id, chord, ..) in rows {
-            assert!(host.add(binding(id, chord, KeyRoute::Editor)));
+            assert!(host.add(Binding::inert(id, chord, KeyRoute::Editor)));
         }
         for (id, chord, key, shift, bare) in rows {
             for focus in [KeyRoute::Timeline, KeyRoute::Viewer, KeyRoute::Editor] {
@@ -540,7 +561,7 @@ mod tests {
             }
         }
         // Shift+6 arrives as `^`, and is not a bare key.
-        assert!(host.add(binding("mixer", Chord::shift("6"), KeyRoute::Editor)));
+        assert!(host.add(Binding::inert("mixer", Chord::shift("6"), KeyRoute::Editor)));
         assert_eq!(
             host.resolve_focused(KeyRoute::Editor, "^", false, false, false)
                 .map(|b| b.id),
@@ -553,8 +574,12 @@ mod tests {
     #[test]
     fn a_taken_chord_is_refused_and_recorded() {
         let host = KeyHost::default();
-        assert!(host.add(binding("save", Chord::ctrl("s"), KeyRoute::Editor)));
-        assert!(!host.add(binding("plugin-save", Chord::ctrl("s"), KeyRoute::Editor)));
+        assert!(host.add(Binding::inert("save", Chord::ctrl("s"), KeyRoute::Editor)));
+        assert!(!host.add(Binding::inert(
+            "plugin-save",
+            Chord::ctrl("s"),
+            KeyRoute::Editor
+        )));
         assert_eq!(
             host.resolve(KeyRoute::Editor, "s", true, false, false)
                 .map(|b| b.id),

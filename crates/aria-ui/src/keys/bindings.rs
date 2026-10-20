@@ -1,60 +1,30 @@
 //! The key bindings the editor ships.
 //!
 //! A table, not a `match`: the tests below enumerate it, so a chord added here is
-//! covered without a second list, and `KeyHost::add` refuses a chord that is
+//! covered without a second list, and `KeyHost::add` rejects a chord that is
 //! already taken rather than shadowing the first.
 //!
-//! The rows live in three sibling files, split by what a chord does:
-//! `bindings_edit`, `bindings_tools`, and
-//! `bindings_reach`. `SHIPPED_BINDINGS` is their concatenation, joined at
-//! compile time from the groups' own lengths — no count is written down, so a
-//! chord added to any group is in the table by construction, and the conflict test
-//! below sees it.
+//! The rows are in four sibling files, split by what a chord does:
+//! `bindings_edit`, `bindings_tools`, `bindings_reach` and `bindings_reveal`.
+//! `SHIPPED_BINDINGS` is their concatenation, joined at compile time from the
+//! groups' own lengths. No count is written down, so a chord added to any group
+//! is in the table by construction, and the conflict test below checks it.
 
 use super::Binding;
 use super::bindings_edit::EDIT_ROWS;
 use super::bindings_reach::REACH_ROWS;
 use super::bindings_reveal::REVEAL_ROWS;
 use super::bindings_tools::TOOL_ROWS;
+use crate::const_table;
 
 /// The row groups, in registration order: editor first, Home last.
 const GROUPS: &[&[Binding]] = &[EDIT_ROWS, TOOL_ROWS, REACH_ROWS, REVEAL_ROWS];
 
-/// How many bindings the groups hold between them, summed at compile time.
-const TOTAL: usize = {
-    let mut total = 0;
-    let mut group = 0;
-    while group < GROUPS.len() {
-        total += GROUPS[group].len();
-        group += 1;
-    }
-    total
-};
-
-/// Flatten the groups into one array.
-///
-/// A const fn rather than a fourth hand-written table: the registry and the
-/// tooltip index both want one `&[Binding]`, and the rows want to live in files a
-/// person can read.
-const fn joined<const N: usize>(groups: &[&[Binding]]) -> [Binding; N] {
-    let mut out = [groups[0][0]; N];
-    let mut at = 0;
-    let mut group = 0;
-    while group < groups.len() {
-        let rows = groups[group];
-        let mut row = 0;
-        while row < rows.len() {
-            out[at] = rows[row];
-            at += 1;
-            row += 1;
-        }
-        group += 1;
-    }
-    out
-}
+/// How many bindings the groups hold between them.
+const TOTAL: usize = const_table::total(GROUPS);
 
 /// Editor-route bindings, then Home-route ones, then the reach chords.
-pub const SHIPPED_BINDINGS: &[Binding] = &joined::<TOTAL>(GROUPS);
+pub const SHIPPED_BINDINGS: &[Binding] = &const_table::joined::<TOTAL, Binding>(GROUPS);
 
 #[cfg(test)]
 mod tests {

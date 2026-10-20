@@ -11,6 +11,7 @@ use std::io::{BufReader, Read};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
+use aria_cloud::http::capped_body;
 use base64::Engine as _;
 use parking_lot::Mutex;
 use serde::Deserialize;
@@ -20,7 +21,7 @@ use crate::provider::{
     ProviderStreamEvent, ToolCall,
 };
 
-use super::openai_compat::{retry_delay, retryable_status, sleep_unless_cancelled, truncate};
+use super::openai_compat::{retry_delay, retryable_status, sleep_unless_cancelled};
 
 /// A Responses API transport. One instance is scoped to one agent prompt so
 /// replay state cannot leak into persisted conversation history.
@@ -114,7 +115,7 @@ impl OpenAiResponsesProvider {
                     .unwrap_or_else(|_| "<unreadable error body>".to_string());
                 Err(ProviderError::Provider {
                     status,
-                    message: truncate(message, 200),
+                    message: capped_body(message, 200),
                 })
             }
             Err(ureq::Error::Transport(error)) => {
@@ -273,7 +274,7 @@ impl ChatProvider for OpenAiResponsesProvider {
                     self.clear_replay();
                     return Err(ProviderError::Provider {
                         status,
-                        message: truncate(message, 500),
+                        message: capped_body(message, 500),
                     });
                 }
                 Err(ureq::Error::Transport(error)) => match retry_delay(attempt) {

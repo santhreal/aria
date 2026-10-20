@@ -1006,19 +1006,9 @@ pub(crate) fn linear_color_check(
     Ok(())
 }
 
-pub(crate) fn vec2_range_check(pspec: &EffectParamSpec, value: [f32; 2]) -> Result<(), ModelError> {
-    for (i, &component) in value.iter().enumerate() {
-        if !component.is_finite() || component < pspec.min || component > pspec.max {
-            return Err(ModelError::InvalidParam(format!(
-                "{}[{i}] = {component} out of range [{}, {}]",
-                pspec.name, pspec.min, pspec.max
-            )));
-        }
-    }
-    Ok(())
-}
-
-pub(crate) fn vec3_range_check(pspec: &EffectParamSpec, value: [f32; 3]) -> Result<(), ModelError> {
+/// Every component of a `Vec2` or `Point3` value finite and inside the
+/// parameter's `[min, max]`.
+pub(crate) fn vector_range_check(pspec: &EffectParamSpec, value: &[f32]) -> Result<(), ModelError> {
     for (i, &component) in value.iter().enumerate() {
         if !component.is_finite() || component < pspec.min || component > pspec.max {
             return Err(ModelError::InvalidParam(format!(

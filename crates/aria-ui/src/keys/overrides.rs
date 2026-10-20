@@ -122,26 +122,21 @@ impl KeyHost {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::app::AppState;
-    use crate::keys::{After, KeyBody, KeyRoute, binding_label};
-
-    fn noop(_: &mut AppState) {}
-
-    fn binding(id: &'static str, chord: Chord, route: KeyRoute) -> Binding {
-        Binding {
-            id,
-            chord,
-            route,
-            run: KeyBody::Plain(noop),
-            after: After::Nothing,
-        }
-    }
+    use crate::keys::{KeyRoute, binding_label};
 
     fn host() -> KeyHost {
         let host = KeyHost::default();
-        assert!(host.add(binding("key-save", Chord::ctrl("s"), KeyRoute::Editor)));
-        assert!(host.add(binding("key-split", Chord::plain("s"), KeyRoute::Editor)));
-        assert!(host.add(binding("key-open", Chord::ctrl("o"), KeyRoute::Home)));
+        assert!(host.add(Binding::inert(
+            "key-save",
+            Chord::ctrl("s"),
+            KeyRoute::Editor
+        )));
+        assert!(host.add(Binding::inert(
+            "key-split",
+            Chord::plain("s"),
+            KeyRoute::Editor
+        )));
+        assert!(host.add(Binding::inert("key-open", Chord::ctrl("o"), KeyRoute::Home)));
         host
     }
 

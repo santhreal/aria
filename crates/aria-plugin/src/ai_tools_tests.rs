@@ -6,6 +6,8 @@
 //! passes, whatever tier registered it. It does not cover how the assistant
 //! lists and authorizes the tools; `aria-ui`'s host tool tests own that.
 
+use std::sync::atomic::Ordering;
+
 use serde_json::json;
 
 use super::*;
@@ -333,7 +335,13 @@ fn two_plugins_cannot_offer_one_name() {
     let ctx = PluginContext::new();
     ctx.mount(&plugin("test.first", "shared", false))
         .expect("mounts");
-    let refused = ctx.mount(&plugin("test.second", "shared", false));
+    // A different display name, so the error states the holder and not the
+    // rejected plugin.
+    let refused = ctx.mount(&WithTool {
+        manifest: PluginManifest::new("test.second", "Mirrors", "0.1.0", &[], &[]),
+        name: "shared",
+        panics: false,
+    });
     assert!(
         matches!(&refused, Err(PluginError::MountFailed(id, reason))
             if id == "test.second" && reason.contains("Echoes already offers a tool named shared")),

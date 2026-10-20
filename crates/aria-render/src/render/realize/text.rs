@@ -112,7 +112,7 @@ pub(super) fn realize_text(
 fn move_painted_clusters(
     extent: (u32, u32),
     clusters: Vec<ClusterBox>,
-    deltas: &[super::super::text_anim::ClusterDelta],
+    deltas: &[crate::animation::LookDelta],
     origin: [f32; 2],
     scale: [f32; 2],
     layer_rotation: f32,
@@ -154,7 +154,7 @@ mod tests {
         let (glyphs, instances) = move_painted_clusters(
             (4, 3),
             clusters,
-            &[super::super::super::text_anim::ClusterDelta::IDENTITY],
+            &[crate::animation::LookDelta::IDENTITY],
             [0.0, 0.0],
             [1.0, 1.0],
             0.0,

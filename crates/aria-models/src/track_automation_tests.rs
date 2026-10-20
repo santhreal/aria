@@ -54,6 +54,126 @@ fn pan_and_automation_envelopes_validate_and_round_trip() {
     assert_eq!(track.pan_at(12), -0.75);
 }
 
+/// Every strip curve, lane and master, rejects spatial tangents and a
+/// keyframe outside its range, states its name in the error, and keeps the
+/// previous curve.
+#[test]
+fn strip_envelopes_refuse_tangents_and_out_of_range_keyframes() {
+    use crate::SpatialTangents;
+
+    let keyed = |value: f32| {
+        let mut curve = Param::Constant(0.5);
+        curve.set_keyframe(0, 0.5, Easing::Linear);
+        curve.set_keyframe(24, value, Easing::Linear);
+        curve
+    };
+    let bent = || {
+        let mut curve = keyed(0.5);
+        curve
+            .set_keyframe_tangents(24, Some(SpatialTangents::ZERO))
+            .unwrap();
+        curve
+    };
+    let tangents =
+        |what: &str| format!("{what} is a scalar curve and cannot carry spatial tangents");
+    let flat = || Param::Constant(0.5);
+    // (what, volume curve, pan curve, expected refusal)
+    let cases = [
+        (
+            "lane volume envelope",
+            bent(),
+            flat(),
+            tangents("lane volume envelope"),
+        ),
+        (
+            "lane pan envelope",
+            flat(),
+            bent(),
+            tangents("lane pan envelope"),
+        ),
+        (
+            "lane volume envelope",
+            keyed(4.5),
+            flat(),
+            "lane volume envelope 4.5 is outside 0..=4".to_string(),
+        ),
+        (
+            "lane volume envelope",
+            keyed(-0.25),
+            flat(),
+            "lane volume envelope -0.25 is outside 0..=4".to_string(),
+        ),
+        (
+            "lane pan envelope",
+            flat(),
+            keyed(1.5),
+            "lane pan envelope 1.5 is outside -1..=1".to_string(),
+        ),
+        (
+            "master volume envelope",
+            bent(),
+            flat(),
+            tangents("master volume envelope"),
+        ),
+        (
+            "master pan envelope",
+            flat(),
+            bent(),
+            tangents("master pan envelope"),
+        ),
+        (
+            "master volume envelope",
+            keyed(4.5),
+            flat(),
+            "master volume envelope 4.5 is outside 0..=4".to_string(),
+        ),
+        (
+            "master pan envelope",
+            flat(),
+            keyed(-1.5),
+            "master pan envelope -1.5 is outside -1..=1".to_string(),
+        ),
+    ];
+    for (what, volume, pan, expected) in cases {
+        let mut timeline = timeline();
+        let audio = lane(&mut timeline, TrackKind::Audio, "A1");
+        let result = if what.starts_with("lane") {
+            timeline.set_track_automation(audio, AutomationMode::Read, volume, pan)
+        } else {
+            timeline.set_master_mix(1.0, 0.0, false, AutomationMode::Read, volume, pan)
+        };
+        assert!(
+            matches!(&result, Err(ModelError::InvalidParam(msg)) if *msg == expected),
+            "{what}: {result:?}, expected {expected}"
+        );
+        assert!(
+            timeline
+                .track(audio)
+                .unwrap()
+                .volume_envelope
+                .keyframes()
+                .is_empty()
+        );
+        assert!(timeline.master_volume_envelope().keyframes().is_empty());
+    }
+
+    let mut timeline = timeline();
+    let audio = lane(&mut timeline, TrackKind::Audio, "A1");
+    timeline
+        .set_track_automation(audio, AutomationMode::Read, keyed(4.0), keyed(-1.0))
+        .unwrap();
+    timeline
+        .set_master_mix(
+            1.0,
+            0.0,
+            false,
+            AutomationMode::Read,
+            keyed(0.0),
+            keyed(1.0),
+        )
+        .unwrap();
+}
+
 #[test]
 fn master_mix_and_resample_preserve_strip_curves() {
     let mut timeline = timeline();

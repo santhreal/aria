@@ -87,13 +87,3 @@ unsafe fn copy_biplanar(
         Plane::new(chroma, stride, chroma_rows),
     ])
 }
-
-/// Convert a [`RationalTime`] to Media Foundation's 100-ns ticks.
-///
-/// `seconds = value * den / num`, so `hns = value * den * 1e7 / num`. Computed in
-/// `i128` to avoid overflow before truncating to the `i64` MF expects.
-pub(super) fn to_hns(target: RationalTime) -> i64 {
-    let num = i128::from(target.rate.num.max(1));
-    let den = i128::from(target.rate.den.max(1));
-    ((i128::from(target.value) * den * i128::from(HNS_PER_SEC)) / num) as i64
-}

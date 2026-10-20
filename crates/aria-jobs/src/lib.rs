@@ -850,13 +850,7 @@ fn sanitize_text(value: &str, max_bytes: usize) -> String {
 /// and valid UTF-8 ourselves.
 fn thread_name(label: &str) -> String {
     let mut name = format!("job: {label}");
-    if name.len() > MAX_THREAD_NAME_BYTES {
-        let mut end = MAX_THREAD_NAME_BYTES;
-        while !name.is_char_boundary(end) {
-            end -= 1;
-        }
-        name.truncate(end);
-    }
+    name.truncate(name.floor_char_boundary(MAX_THREAD_NAME_BYTES));
     name
 }
 

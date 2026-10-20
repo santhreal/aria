@@ -366,13 +366,7 @@ impl AiSettings {
 
     /// Literal or env-named key present (not resolved).
     pub fn has_api_key(&self) -> bool {
-        self.api_key
-            .as_deref()
-            .is_some_and(|k| !k.trim().is_empty())
-            || self
-                .api_key_env
-                .as_deref()
-                .is_some_and(|k| !k.trim().is_empty())
+        key_present(self.api_key.as_deref(), self.api_key_env.as_deref())
     }
 }
 
@@ -408,13 +402,7 @@ impl std::fmt::Debug for ProviderSettings {
 impl ProviderSettings {
     /// Whether either key form is present (the BYOK routing predicate).
     pub fn is_configured(&self) -> bool {
-        self.api_key
-            .as_deref()
-            .is_some_and(|k| !k.trim().is_empty())
-            || self
-                .api_key_env
-                .as_deref()
-                .is_some_and(|k| !k.trim().is_empty())
+        key_present(self.api_key.as_deref(), self.api_key_env.as_deref())
     }
 
     /// Resolve the key with the same precedence and blank handling as
@@ -436,6 +424,16 @@ impl ProviderSettings {
                 .map(str::to_owned)
         })
     }
+}
+
+/// Whether a literal key or a key-variable name holds more than whitespace.
+/// The named variable is not read: this is the presence check shared by
+/// [`AiSettings::has_api_key`] and [`ProviderSettings::is_configured`].
+fn key_present(api_key: Option<&str>, api_key_env: Option<&str>) -> bool {
+    [api_key, api_key_env]
+        .into_iter()
+        .flatten()
+        .any(|key| !key.trim().is_empty())
 }
 
 /// The `[cloud]` table: anonymous API host override for stock, catalogs,

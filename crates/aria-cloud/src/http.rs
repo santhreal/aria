@@ -20,6 +20,19 @@ pub const DEFAULT_READ_TIMEOUT: Duration = Duration::from_secs(30);
 /// Standard write timeout across all Aria HTTP clients (30 seconds).
 pub const DEFAULT_WRITE_TIMEOUT: Duration = Duration::from_secs(30);
 
+/// `body` cut to at most `max` bytes on a char boundary, with `…` appended
+/// when something was dropped. Server error bodies can be whole HTML pages;
+/// this keeps the readable head for an error message. Takes the `String` by
+/// value because every caller already has the body it read off the socket,
+/// so the common short case costs no allocation.
+pub fn capped_body(mut body: String, max: usize) -> String {
+    if body.len() > max {
+        body.truncate(body.floor_char_boundary(max));
+        body.push('…');
+    }
+    body
+}
+
 macro_rules! http_callers {
     (
         $(
@@ -263,6 +276,21 @@ mod tests {
     use std::io::Write as _;
     use std::net::TcpListener;
     use std::path::Path;
+
+    /// WHY: every server error body the editor shows goes through
+    /// `capped_body`. A cut inside a multi-byte character panics on the
+    /// `String::truncate`, and a cut without the marker reads as the whole
+    /// message.
+    #[test]
+    fn capped_body_cuts_on_a_char_boundary_and_marks_the_cut() {
+        assert_eq!(capped_body("abc".into(), 3), "abc");
+        assert_eq!(capped_body("abc".into(), 10), "abc");
+        assert_eq!(capped_body("abcdef".into(), 3), "abc…");
+        // `é` is bytes 1..3, so a cap of 2 falls inside it and backs off to 1.
+        assert_eq!(capped_body("aé".into(), 2), "a…");
+        assert_eq!(capped_body("aé".into(), 3), "aé");
+        assert_eq!(capped_body("éé".into(), 0), "…");
+    }
 
     #[test]
     fn default_builder_has_standard_timeouts_and_https_only() {
