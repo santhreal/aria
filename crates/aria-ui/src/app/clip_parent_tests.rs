@@ -46,6 +46,82 @@ fn the_parent_row_offers_the_overlapping_clip_and_not_the_clip_itself() {
 }
 
 #[test]
+fn parent_choices_order_overlapping_clips_by_lane_and_start_and_skip_disjoint_clips() {
+    let (mut state, lower, upper) = stacked_pair();
+    let rate = state.playhead.rate;
+    let media = aria_models::MediaId::from_raw(
+        state
+            .store
+            .media
+            .first()
+            .expect("the fixture's pool item")
+            .id,
+    );
+    let (v1, v2, source_rate) = {
+        let engine = state.engine.lock();
+        let mut tracks = engine.project().timeline().tracks_ordered();
+        let v1 = tracks.next().expect("lower lane").id;
+        let v2 = tracks.next().expect("upper lane").id;
+        let source_rate = engine
+            .project()
+            .media(media)
+            .expect("pool media")
+            .full_range()
+            .start
+            .rate;
+        (v1, v2, source_rate)
+    };
+    // Add a second overlapping clip on V2 (trim `upper` to 0..12, add `upper_b` at 12..24)
+    // and disjoint clips further down both lanes.
+    state
+        .apply_command(Command::Edit(EditCommand::TrimClip {
+            clip: upper,
+            timeline: aria_models::TimeRange::at_rate(0, 12, rate),
+        }))
+        .expect("trim upper");
+    state
+        .apply_command(Command::Edit(EditCommand::AddClip {
+            track: v2,
+            media,
+            source: aria_models::TimeRange::at_rate(0, 500, source_rate),
+            start: aria_models::RationalTime::new(12, rate),
+        }))
+        .expect("add upper_b");
+    let upper_b = state
+        .store
+        .sequence
+        .tracks
+        .iter()
+        .flat_map(|lane| lane.clips.iter())
+        .map(|clip| ClipId::from_raw(clip.id))
+        .find(|clip| *clip != lower && *clip != upper)
+        .expect("upper_b clip");
+    for i in 1..10_i64 {
+        let start = aria_models::RationalTime::new((i + 5) * 200, rate);
+        let source = aria_models::TimeRange::at_rate(0, 400, source_rate);
+        state
+            .apply_command(Command::Edit(EditCommand::AddClip {
+                track: v1,
+                media,
+                source,
+                start,
+            }))
+            .expect("add disjoint v1 clip");
+        state
+            .apply_command(Command::Edit(EditCommand::AddClip {
+                track: v2,
+                media,
+                source,
+                start,
+            }))
+            .expect("add disjoint v2 clip");
+    }
+    state.select_clip(lower);
+    let choices = state.selected_parent_choices().expect("selected lower");
+    assert_eq!(&*choices.eligible, &[upper, upper_b]);
+}
+
+#[test]
 fn a_parent_is_not_offered_its_own_child() {
     let (mut state, child) = parented_pair();
     let choices = state
