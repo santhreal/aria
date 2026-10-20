@@ -37,7 +37,7 @@ impl Compositor {
                 encoder,
                 "aria.offscreen.base",
                 offscreen.view(into),
-                true,
+                Some(wgpu::Color::TRANSPARENT),
                 pipeline,
                 &built,
             );
@@ -53,7 +53,7 @@ impl Compositor {
                 encoder,
                 "aria.motion_blur.sample",
                 offscreen.view(scratch),
-                true,
+                Some(wgpu::Color::TRANSPARENT),
                 pipeline,
                 &built,
             );

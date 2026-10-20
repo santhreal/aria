@@ -15,7 +15,7 @@ use crate::grade::ColorGrade;
 use crate::layer::{CompositeLayer, CompositorConfig, CompositorLayer};
 
 use super::canvas_pass::CanvasPassDraw;
-use super::draw_layer::{BlendDest, LayerTarget};
+use super::draw_layer::{BlendDest, LayerTarget, clear_view_color};
 use super::pairs::{MatteDraw, TransitionDraw};
 use super::scene::Scene;
 use super::{Compositor, LayerGpu};
@@ -49,6 +49,7 @@ impl Compositor {
         item: &CompositorLayer<'_>,
         (texture, view): Dest<'_>,
         in_nest: bool,
+        pending_clear: &mut Option<wgpu::Color>,
     ) -> Result<(), CompositorError> {
         // A pair drawn onto the destination composites with its layers' blend
         // modes.
@@ -61,7 +62,7 @@ impl Compositor {
                 let onto = LayerTarget {
                     texture,
                     view,
-                    clear: false,
+                    clear: pending_clear.take(),
                     label: "aria.pass",
                 };
                 self.draw_layer_onto(gpu, encoder, config, offscreen, layer, &onto)
@@ -72,6 +73,9 @@ impl Compositor {
                 lut,
                 stencil,
             } => {
+                if let Some(color) = pending_clear.take() {
+                    clear_view_color(encoder, "aria.clear", view, color);
+                }
                 let pass = CanvasPassDraw {
                     effects,
                     grade,
@@ -92,6 +96,9 @@ impl Compositor {
                 transition_id,
                 progress,
             } => {
+                if let Some(color) = pending_clear.take() {
+                    clear_view_color(encoder, "aria.clear", view, color);
+                }
                 let draw = TransitionDraw {
                     outgoing,
                     incoming,
@@ -108,6 +115,9 @@ impl Compositor {
                 progress,
                 params,
             } => {
+                if let Some(color) = pending_clear.take() {
+                    clear_view_color(encoder, "aria.clear", view, color);
+                }
                 let draw = TransitionDraw {
                     outgoing,
                     incoming,
@@ -124,6 +134,9 @@ impl Compositor {
                 invert,
                 softness,
             } => {
+                if let Some(color) = pending_clear.take() {
+                    clear_view_color(encoder, "aria.clear", view, color);
+                }
                 let draw = MatteDraw {
                     content,
                     stencil,
@@ -152,7 +165,7 @@ impl Compositor {
             return Err(CompositorError::UndrawnNest(nest));
         };
         for item in items {
-            self.draw_item(gpu, encoder, config, offscreen, item, dest, true)?;
+            self.draw_item(gpu, encoder, config, offscreen, item, dest, true, &mut None)?;
         }
         Ok(())
     }

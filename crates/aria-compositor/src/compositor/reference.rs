@@ -26,19 +26,18 @@ pub(super) fn draws_content_direct(layer: &CompositeLayer<'_>) -> bool {
         && layer.blur_passes.is_empty()
 }
 
-/// Draw `built` into `view`, clearing it first when `clear` is set.
+/// Draw `built` into `view`, clearing it first when `clear` is `Some`.
 pub(super) fn draw_layer_into(
     encoder: &mut wgpu::CommandEncoder,
     _label: &'static str,
     view: &wgpu::TextureView,
-    clear: bool,
+    clear: Option<wgpu::Color>,
     pipeline: &wgpu::RenderPipeline,
     built: &LayerGpu,
 ) {
-    let load = if clear {
-        wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT)
-    } else {
-        wgpu::LoadOp::Load
+    let load = match clear {
+        Some(color) => wgpu::LoadOp::Clear(color),
+        None => wgpu::LoadOp::Load,
     };
     let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
         label: None,
@@ -212,7 +211,7 @@ impl Compositor {
         if draws_content_direct(layer) {
             let built = self.build_layer(gpu, config, layer)?;
             let pipeline = pipeline_for(&built.pipeline, self);
-            draw_layer_into(encoder, "aria.reference", view, false, pipeline, &built);
+            draw_layer_into(encoder, "aria.reference", view, None, pipeline, &built);
             return Ok(());
         }
         let result = self.layer_result(gpu, encoder, config, offscreen, layer)?;

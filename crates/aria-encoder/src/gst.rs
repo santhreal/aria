@@ -170,8 +170,8 @@ impl VideoEncoder for GstEncoder {
             ));
         }
         let (width, height) = self.config.size;
-        let nv12 = frame_to_nv12(frame, width, height, matrix_for(&self.config.color))?;
-        let mut buffer = gst::Buffer::from_mut_slice(nv12);
+        let mut buffer = gst::Buffer::with_size(yuv420_len(width, height))
+            .map_err(|_| EncodeError::Encode("couldn't allocate an encode buffer.".into()))?;
         {
             let buffer = buffer
                 .get_mut()
@@ -188,6 +188,16 @@ impl VideoEncoder for GstEncoder {
                     buffer.set_duration(gst::ClockTime::from_nseconds(ns as u64));
                 }
             }
+            let mut map = buffer
+                .map_writable()
+                .map_err(|_| EncodeError::Encode("couldn't map an encode buffer.".into()))?;
+            write_frame_to_nv12(
+                frame,
+                width,
+                height,
+                matrix_for(&self.config.color),
+                map.as_mut_slice(),
+            )?;
         }
         self.video
             .push_buffer(buffer)
@@ -569,17 +579,18 @@ fn make(factory: &str) -> Result<gst::Element, EncodeError> {
     })
 }
 
-fn frame_to_nv12(
+fn write_frame_to_nv12(
     frame: &VideoFrame,
     width: u32,
     height: u32,
     matrix: YuvMatrix,
-) -> Result<Vec<u8>, EncodeError> {
+    out: &mut [u8],
+) -> Result<(), EncodeError> {
     let cpu = frame.cpu().ok_or_else(|| {
         EncodeError::unsupported("Linux encoder accepts CPU frames only. Export from a CPU render.")
     })?;
     match frame.format {
-        PixelFormat::Nv12 => packed_nv12(&cpu.planes, width, height),
+        PixelFormat::Nv12 => write_packed_nv12(&cpu.planes, width, height, out),
         PixelFormat::Rgba8 | PixelFormat::Bgra8 => {
             let plane = cpu
                 .planes
@@ -590,10 +601,6 @@ fn frame_to_nv12(
             } else {
                 ChannelOrder::Rgba
             };
-            // GStreamer takes ownership of the buffer, so this one allocation
-            // per frame is the handoff itself — the frame is no longer cloned
-            // to re-order channels, and no I420 intermediate is built.
-            let mut nv12 = vec![0u8; yuv420_len(width, height)];
             rgba_to_nv12_into(
                 &plane.data,
                 width,
@@ -601,9 +608,8 @@ fn frame_to_nv12(
                 plane.stride,
                 matrix,
                 order,
-                &mut nv12,
-            )?;
-            Ok(nv12)
+                out,
+            )
         }
         other => Err(EncodeError::unsupported(format!(
             "Linux encoder cannot take {other:?} frames. Export RGBA or NV12."
@@ -611,11 +617,12 @@ fn frame_to_nv12(
     }
 }
 
-fn packed_nv12(
+fn write_packed_nv12(
     planes: &[aria_core::Plane],
     width: u32,
     height: u32,
-) -> Result<Vec<u8>, EncodeError> {
+    out: &mut [u8],
+) -> Result<(), EncodeError> {
     if planes.len() < 2 {
         return Err(EncodeError::Encode("NV12 frame is missing a plane.".into()));
     }
@@ -623,15 +630,14 @@ fn packed_nv12(
     let uv_stride = width as usize;
     let y_rows = height as usize;
     let uv_rows = height.div_ceil(2) as usize;
-    let mut out = vec![0u8; y_stride * y_rows + uv_stride * uv_rows];
-    copy_plane(&planes[0], &mut out[..y_stride * y_rows], y_stride, y_rows);
-    copy_plane(
-        &planes[1],
-        &mut out[y_stride * y_rows..],
-        uv_stride,
-        uv_rows,
-    );
-    Ok(out)
+    let y_len = y_stride * y_rows;
+    let need = y_len + uv_stride * uv_rows;
+    if out.len() < need {
+        return Err(EncodeError::Encode("NV12 encode buffer is too small.".into()));
+    }
+    copy_plane(&planes[0], &mut out[..y_len], y_stride, y_rows);
+    copy_plane(&planes[1], &mut out[y_len..need], uv_stride, uv_rows);
+    Ok(())
 }
 
 fn copy_plane(plane: &aria_core::Plane, dest: &mut [u8], dest_stride: usize, rows: usize) {

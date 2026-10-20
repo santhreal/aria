@@ -77,7 +77,7 @@ fn fs(in: VertexOutput) -> @location(0) vec4<f32> {
 
     // Grade the straight-alpha color after chroma keying (the key targets the
     // source footage), before mask/opacity shape the alpha.
-    if premul.a > 0.0 {
+    if premul.a > 0.0 && p.grade[0].w > 0.5 {
         var graded = apply_color_grade(premul.rgb / premul.a, p.grade);
         graded = apply_grade_sharpness(graded, in.uv, tex, samp, grade_sharpness(p.grade));
         graded = apply_grade_vignette(graded, in.quad_uv, grade_vignette(p.grade));

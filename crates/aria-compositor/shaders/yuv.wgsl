@@ -89,46 +89,48 @@ fn yuv_to_rgb(ys: f32, cbs: f32, crs: f32, kr: f32, kb: f32, full: f32) -> vec3<
 @fragment
 fn fs(in: VertexOutput) -> @location(0) vec4<f32> {
     let ys = textureSample(y_tex, samp, in.uv).r;
+    let u_sample = textureSample(u_tex, samp, in.uv);
     var cbs: f32;
     var crs: f32;
     if (p.coeffs.w > 0.5) {
         // NV12: both chroma samples interleaved in the U-slot texture (RG8).
-        let cbcr = textureSample(u_tex, samp, in.uv).rg;
-        cbs = cbcr.r;
-        crs = cbcr.g;
+        cbs = u_sample.r;
+        crs = u_sample.g;
     } else {
         // I420: separate U and V planes.
-        cbs = textureSample(u_tex, samp, in.uv).r;
+        cbs = u_sample.r;
         crs = textureSample(v_tex, samp, in.uv).r;
     }
-    let rgb = yuv_to_rgb(ys, cbs, crs, p.coeffs.x, p.coeffs.y, p.coeffs.z);
-    var graded = apply_color_grade(rgb, p.grade);
-    // YUV sharpness: 4-tap laplacian on converted neighbor RGB (same formula).
-    let sharp = grade_sharpness(p.grade);
-    if (sharp > 0.0) {
-        let dims = vec2<f32>(textureDimensions(y_tex));
-        let texel = vec2(1.0) / dims;
-        let n0 = sample_yuv_rgb(in.uv + vec2(texel.x, 0.0));
-        let n1 = sample_yuv_rgb(in.uv - vec2(texel.x, 0.0));
-        let n2 = sample_yuv_rgb(in.uv + vec2(0.0, texel.y));
-        let n3 = sample_yuv_rgb(in.uv - vec2(0.0, texel.y));
-        let avg = (n0 + n1 + n2 + n3) * 0.25;
-        graded = clamp(graded + sharp * 1.5 * (graded - avg), vec3(0.0), vec3(1.0));
+    var graded = yuv_to_rgb(ys, cbs, crs, p.coeffs.x, p.coeffs.y, p.coeffs.z);
+    if (p.grade[0].w > 0.5) {
+        graded = apply_color_grade(graded, p.grade);
+        // YUV sharpness: 4-tap laplacian on converted neighbor RGB (same formula).
+        let sharp = grade_sharpness(p.grade);
+        if (sharp > 0.0) {
+            let dims = vec2<f32>(textureDimensions(y_tex));
+            let texel = vec2(1.0) / dims;
+            let n0 = sample_yuv_rgb(in.uv + vec2(texel.x, 0.0));
+            let n1 = sample_yuv_rgb(in.uv - vec2(texel.x, 0.0));
+            let n2 = sample_yuv_rgb(in.uv + vec2(0.0, texel.y));
+            let n3 = sample_yuv_rgb(in.uv - vec2(0.0, texel.y));
+            let avg = (n0 + n1 + n2 + n3) * 0.25;
+            graded = clamp(graded + sharp * 1.5 * (graded - avg), vec3(0.0), vec3(1.0));
+        }
+        graded = apply_grade_vignette(graded, in.quad_uv, grade_vignette(p.grade));
     }
-    graded = apply_grade_vignette(graded, in.quad_uv, grade_vignette(p.grade));
     return vec4(graded, p.trans_opacity.z);
 }
 
 fn sample_yuv_rgb(uv: vec2<f32>) -> vec3<f32> {
     let ys = textureSample(y_tex, samp, uv).r;
+    let u_sample = textureSample(u_tex, samp, uv);
     var cbs: f32;
     var crs: f32;
     if (p.coeffs.w > 0.5) {
-        let cbcr = textureSample(u_tex, samp, uv).rg;
-        cbs = cbcr.r;
-        crs = cbcr.g;
+        cbs = u_sample.r;
+        crs = u_sample.g;
     } else {
-        cbs = textureSample(u_tex, samp, uv).r;
+        cbs = u_sample.r;
         crs = textureSample(v_tex, samp, uv).r;
     }
     return yuv_to_rgb(ys, cbs, crs, p.coeffs.x, p.coeffs.y, p.coeffs.z);

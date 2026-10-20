@@ -512,7 +512,7 @@ impl Renderer {
         })
     }
 
-    pub(super) fn finish_pending_into(
+    pub(crate) fn finish_pending_into(
         &mut self,
         mut pending: PendingFrame,
         sink: &mut dyn FrameSink,

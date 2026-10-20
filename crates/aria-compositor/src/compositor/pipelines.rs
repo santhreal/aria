@@ -214,6 +214,7 @@ impl Compositor {
             glyphs_layout,
             sampler,
             target: None,
+            frame_target_views: Vec::new(),
             pass_registry: PassRegistry::new(device),
             offscreen: None,
             references: crate::effect_render::CanvasTargets::new("aria.reference"),

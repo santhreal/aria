@@ -63,7 +63,7 @@ impl Compositor {
             let target = LayerTarget {
                 texture,
                 view,
-                clear: under.is_none(),
+                clear: under.is_none().then_some(wgpu::Color::TRANSPARENT),
                 label,
             };
             self.draw_layer_onto(gpu, encoder, config, offscreen, side, &target)?;
