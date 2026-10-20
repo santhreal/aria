@@ -326,3 +326,35 @@ fn the_strip_lists_each_keyed_tick_once_relative_to_the_clip_start() {
     assert_eq!(clip.timeline_start_ticks, 48);
     assert_eq!(clip.keyframe_ticks, vec![6, 18, 30]);
 }
+
+/// A project file can list sequence markers in any order, and the ruler stops
+/// at the first marker past the viewport, so the projection sorts them.
+///
+/// WHY: the sort ran only when a clip held markers; a file with out-of-order
+/// sequence markers and no clip markers projected them unsorted. What this
+/// does not catch: a consumer that re-sorts or filters `markers` itself.
+#[test]
+fn project_to_ui_sorts_sequence_markers_a_file_lists_out_of_order() {
+    let (mut project, _, _, _) = sample_project();
+    for (tick, name) in [(40, "late"), (8, "early")] {
+        project
+            .timeline_mut()
+            .add_marker(aria_models::Marker::new(
+                RationalTime::new(tick, Rational::FPS_24),
+                name,
+                aria_models::MarkerColor::Teal,
+            ))
+            .unwrap();
+    }
+    let mut doc: serde_json::Value =
+        serde_json::from_str(&project.save_to_string().unwrap()).unwrap();
+    let listed = doc["timeline"]["markers"].as_array_mut().unwrap();
+    assert_eq!(listed.len(), 2);
+    listed.reverse();
+    let reloaded = Project::load_from_string(&doc.to_string()).unwrap();
+    assert_eq!(reloaded.timeline().markers()[0].tick.value, 40);
+
+    let store = project_to_ui(&reloaded, RationalTime::new(0, Rational::FPS_24), &[]);
+    let ticks: Vec<i64> = store.sequence.markers.iter().map(|m| m.tick).collect();
+    assert_eq!(ticks, vec![8, 40]);
+}

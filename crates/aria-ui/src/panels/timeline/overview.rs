@@ -141,8 +141,8 @@ pub(super) fn window_on_strip(scroll_x: f32, full_px: f32, view_w: f32) -> (f32,
     (x.clamp(0.0, (strip - w).max(0.0)), w)
 }
 
-/// Coalesce clip `[start, end]` intervals into at most `MAX_OVERVIEW_SPANS`
-/// pixel intervals `(x, w)` so 10,000 clips never build 10,000 overview nodes.
+/// The `[start, end]` tick intervals that `clips` cover, merged where they
+/// touch or overlap. `clips` is in start order, as a lane holds them.
 fn coalesce_track_ranges(clips: &[crate::types::UiClip]) -> Rc<[(i64, i64)]> {
     let mut ranges: Vec<(i64, i64)> = Vec::new();
     for clip in clips {
@@ -180,6 +180,8 @@ fn range_bucket_mask(ranges: &[(i64, i64)], duration: i64, view_w: f32, bucket_w
     mask
 }
 
+/// Coalesce clip `[start, end]` intervals into at most `MAX_OVERVIEW_SPANS`
+/// pixel intervals `(x, w)` so 10,000 clips never build 10,000 overview nodes.
 pub(super) fn coalesce_overview_spans(
     store: &UiEditorStore,
     duration: i64,

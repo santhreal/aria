@@ -101,8 +101,11 @@ pub(crate) fn project_to_ui_from(
                 }
             }
         }
-        markers.sort_by_key(|m| (m.tick, m.id));
     }
+    // A project file can list sequence markers out of order, and the ruler
+    // stops at the first marker past the viewport. The sort is linear on
+    // input that is already in order.
+    markers.sort_by_key(|m| (m.tick, m.id));
 
     let mut sequence = UiSequence {
         tracks,
