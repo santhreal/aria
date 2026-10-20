@@ -51,7 +51,7 @@ fn strip_ticks(cell: &str) -> &str {
     cell.trim().trim_matches('`').trim()
 }
 
-fn section_slice<'a>(doc: &'a str, heading: &str) -> &'a str {
+pub(super) fn section_slice<'a>(doc: &'a str, heading: &str) -> &'a str {
     let marker = format!("## {heading}\n");
     let start = doc
         .find(&marker)
@@ -488,6 +488,42 @@ fn menus_doc_matches_registry() {
             );
         }
     }
+}
+
+/// Every valid menu path (`Menu > Item`, `Menu > Submenu > Item`, and `Menu > Submenu`)
+/// produced by `items_for(menu, &state)` across `AppMenu::ALL`.
+pub(super) fn shipped_menu_paths() -> BTreeSet<String> {
+    let dir = crate::scratch_pool::scratch("guide-menus-doc");
+    let state = AppState::new(PluginContext::new(), dir).expect("build headless AppState");
+    let mut paths = BTreeSet::new();
+    for menu in AppMenu::ALL {
+        let menu_name = menu.label();
+        for item in items_for(menu, &state).iter() {
+            match item.under {
+                Some(sub) => {
+                    paths.insert(format!("{menu_name} > {sub}"));
+                    paths.insert(format!("{menu_name} > {sub} > {}", item.label));
+                }
+                None => {
+                    paths.insert(format!("{menu_name} > {}", item.label));
+                }
+            }
+        }
+    }
+    paths
+}
+
+/// Every registered Command Palette command id (`pal-*`) mapped to its display label.
+pub(super) fn shipped_palette_commands() -> BTreeMap<&'static str, &'static str> {
+    BUILTIN_COMMANDS
+        .iter()
+        .map(|entry| (entry.id, entry.label))
+        .chain(
+            BUILTIN_JOB_COMMANDS
+                .iter()
+                .map(|entry| (entry.id, entry.label)),
+        )
+        .collect()
 }
 
 /// Closes the class where a `config.toml` key, `[schema]` version,
@@ -983,7 +1019,7 @@ fn settings_doc_matches_registries() {
     }
 }
 
-fn collect_md_files(dir: &Path, out: &mut Vec<PathBuf>) {
+pub(super) fn collect_md_files(dir: &Path, out: &mut Vec<PathBuf>) {
     let entries = std::fs::read_dir(dir).unwrap_or_else(|e| panic!("read_dir {dir:?}: {e}"));
     let mut paths: Vec<PathBuf> = entries.map(|e| e.unwrap().path()).collect();
     paths.sort();
@@ -1069,7 +1105,7 @@ fn markdown_headings(md_path: &Path) -> BTreeSet<String> {
     slugs
 }
 
-fn strip_inline_code(line: &str) -> String {
+pub(super) fn strip_inline_code(line: &str) -> String {
     let mut out = String::new();
     let mut in_code = false;
     for ch in line.chars() {
@@ -1082,7 +1118,7 @@ fn strip_inline_code(line: &str) -> String {
     out
 }
 
-fn extract_markdown_links(line: &str) -> Vec<String> {
+pub(super) fn extract_markdown_links(line: &str) -> Vec<String> {
     let cleaned = strip_inline_code(line);
     let bytes = cleaned.as_bytes();
     let mut links = Vec::new();
@@ -1113,25 +1149,12 @@ fn extract_markdown_links(line: &str) -> Vec<String> {
     links
 }
 
-/// Closes the class where a documentation edit introduces a broken relative
-/// file link or a broken `#anchor` heading fragment anywhere under `docs/`.
-/// Does not check reachability of external `http://` or `https://` URLs.
-#[test]
-fn all_markdown_links_and_anchors_in_docs_resolve() {
-    let docs_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs");
-    let mut md_files = Vec::new();
-    collect_md_files(&docs_root, &mut md_files);
-    assert!(
-        md_files.len() >= 20,
-        "expected at least 20 markdown files under docs/, found {}",
-        md_files.len()
-    );
-
+pub(super) fn check_markdown_links_in_files(md_files: &[PathBuf]) -> (usize, Vec<String>) {
     let mut heading_cache: BTreeMap<PathBuf, BTreeSet<String>> = BTreeMap::new();
     let mut broken: Vec<String> = Vec::new();
     let mut checked_links = 0usize;
 
-    for md_file in &md_files {
+    for md_file in md_files {
         let text =
             std::fs::read_to_string(md_file).unwrap_or_else(|e| panic!("read {md_file:?}: {e}"));
         let mut in_fence = false;
@@ -1185,6 +1208,25 @@ fn all_markdown_links_and_anchors_in_docs_resolve() {
             }
         }
     }
+
+    (checked_links, broken)
+}
+
+/// Closes the class where a documentation edit introduces a broken relative
+/// file link or a broken `#anchor` heading fragment anywhere under `docs/`.
+/// Does not check reachability of external `http://` or `https://` URLs.
+#[test]
+fn all_markdown_links_and_anchors_in_docs_resolve() {
+    let docs_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs");
+    let mut md_files = Vec::new();
+    collect_md_files(&docs_root, &mut md_files);
+    assert!(
+        md_files.len() >= 20,
+        "expected at least 20 markdown files under docs/, found {}",
+        md_files.len()
+    );
+
+    let (checked_links, broken) = check_markdown_links_in_files(&md_files);
 
     assert!(
         checked_links >= 200,

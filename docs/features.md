@@ -262,7 +262,7 @@ Listed because Premiere and Resolve have them.
 
 ## Related documents
 
-- [getting-started.md](getting-started.md) walks the editor surface by surface.
+- [getting-started.md](getting-started.md) covers first steps and [guide/README.md](guide/README.md) walks Aria surface by surface.
 - [reference/README.md](reference/README.md) documents every catalog entry, tool, workspace, panel, menu, command, and setting.
 - [keyboard-shortcuts.md](keyboard-shortcuts.md) lists every binding.
 - [command-line.md](command-line.md) covers the headless CLI.
