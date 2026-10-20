@@ -100,13 +100,11 @@ pub fn transition_block(
         .and_then(|tr| {
             let spec = aria_models::transition_spec(&tr.id)?;
             Some(
-                crate::panels::inspector::tabs::effects::effects_params::transition_param_rows(
+                crate::panels::inspector::tabs::effects::effects_params::transition::transition_param_rows(
                     theme,
                     state,
                     tr,
                     &spec,
-                    &[],
-                    &[],
                     cx,
                 ),
             )

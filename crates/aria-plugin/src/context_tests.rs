@@ -4,6 +4,8 @@
 //! module and nothing about these cases changed in the move.
 
 use super::*;
+use crate::editor_events::{PluginActivated, PluginDeactivated};
+use crate::plugin::Plugin;
 
 struct TestService {
     value: u32,

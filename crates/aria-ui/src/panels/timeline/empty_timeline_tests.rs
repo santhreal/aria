@@ -4,7 +4,7 @@
 
 use crate::app::AppState;
 use crate::panels::timeline::clip::VisibleLane;
-use crate::panels::timeline::clip::finish::{HitTarget, hit_test};
+use crate::panels::timeline::clip::hit::{HitTarget, hit_test};
 use crate::panels::timeline::media::visible_clips_slice;
 use crate::panels::timeline::overview::coalesce_overview_spans;
 use crate::panels::timeline::{BASE_PPS, ticks_to_px};

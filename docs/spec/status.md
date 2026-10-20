@@ -41,8 +41,8 @@ named workspace files under `<data dir>/workspaces/<name>.json`, JSON import and
 export, and optional serialized `tree` definitions on plugin `WorkspacePanes`.
 Project, Viewer, Timeline, Effect Controls, Audio Track Mixer, Assistant,
 Scopes, Color, Info, Effects & Presets, Align, Character, Paragraph, Audio
-Meters, Jobs, History, and Markers are dock panels (`default_title_for` in
-`crates/aria-ui/src/dock/mod.rs`). The Editing workspace opens with six of them
+Meters, Jobs, History, and Markers are dock panels (`BUILTIN_PANELS` in
+`crates/aria-ui/src/plugins/ui.rs`). The Editing workspace opens with six of them
 (`DockTree::editing_for_width`). The Window menu holds
 one row per registered dock panel, plugin panels included, checked while the
 panel is open. The tool bar draws one button per `ToolGroup`, showing the

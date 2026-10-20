@@ -728,4 +728,5 @@ pub(super) fn paint_label(
 
 mod bar;
 pub(crate) mod finish;
+pub(crate) mod hit;
 mod state;
