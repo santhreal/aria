@@ -1,22 +1,16 @@
 //! `edit-apply` scenario: single edit and undo latency on `project-10k` in the
 //! engine and until visible on the next display frame.
 
-use std::sync::Arc;
 use std::time::Instant;
 
 use aria_commands::{Command, EditCommand};
 use aria_engine::{Engine, EngineConfig};
 use aria_models::{ClipParam, Easing, MarkerColor, ParamValue, Project, RationalTime, TimeRange};
-use aria_plugin::PluginContext;
-use aria_ui::app::AppState;
 use aria_ui::shell::Shell;
-use gpui::AppContext as _;
 
 use crate::fixtures::{FixtureId, ensure_fixture};
-use crate::scenarios::BenchContext;
-use crate::{
-    Comparison, SampleSeries, ScenarioId, ScenarioReport, TargetEvaluation, mount_builtin_plugins,
-};
+use crate::scenarios::{BenchContext, open_editor, open_marked_project};
+use crate::{Comparison, SampleSeries, ScenarioId, ScenarioReport, TargetEvaluation};
 
 pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     let fixture = ensure_fixture(&ctx.fixtures_dir, FixtureId::Project10k)?;
@@ -109,33 +103,8 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     let data_dir = scratch.join("data");
     std::fs::create_dir_all(&data_dir).map_err(|err| format!("mkdir failed: {err}"))?;
 
-    let mut app = gpui::TestApp::with_text_system_and_assets(
-        Arc::new(gpui::NoopTextSystem),
-        Arc::new(aria_ui::icons::Assets),
-    );
-    let state = app.update(|cx| {
-        aria_ui::theme::Theme::install(
-            aria_ui::theme::Appearance::Dark,
-            Default::default(),
-            None,
-            cx,
-        );
-        let plugin_ctx = PluginContext::new();
-        mount_builtin_plugins(&plugin_ctx, &data_dir).expect("built-in plugins mount");
-        cx.new(|_| AppState::new(plugin_ctx, data_dir).expect("editor state"))
-    });
-    let owned = gpui::Entity::clone(&state);
-    let mut window = app.open_window(|_, cx| Shell::new(owned, cx));
-
-    let fixture_path = fixture.path;
-    app.update(|cx| {
-        state.update(cx, |s, cx| {
-            s.open_project(fixture_path).expect("load project-10k");
-            s.mark_in = Some(0);
-            s.mark_out = Some(24);
-            cx.notify();
-        });
-    });
+    let (mut app, state, mut window) = open_editor(&data_dir);
+    open_marked_project(&mut app, &state, fixture.path);
     window.draw();
 
     let mut visible_frame_samples = Vec::with_capacity(14);

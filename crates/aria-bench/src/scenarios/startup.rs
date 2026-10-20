@@ -1,19 +1,11 @@
 //! `startup` scenario: cold and warm time to an interactive editor window.
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::time::Instant;
 
-use aria_plugin::PluginContext;
-use aria_ui::app::AppState;
-use aria_ui::shell::Shell;
-use gpui::AppContext as _;
-
 use crate::process::{measure_process_window_launch, start_private_xvfb};
-use crate::scenarios::BenchContext;
-use crate::{
-    Comparison, SampleSeries, ScenarioId, ScenarioReport, TargetEvaluation, mount_builtin_plugins,
-};
+use crate::scenarios::{BenchContext, open_editor};
+use crate::{Comparison, SampleSeries, ScenarioId, ScenarioReport, TargetEvaluation};
 fn find_aria_desktop_binary() -> Option<PathBuf> {
     let exe = std::env::current_exe().ok()?;
     let mut candidates = Vec::new();
@@ -30,24 +22,7 @@ fn find_aria_desktop_binary() -> Option<PathBuf> {
 }
 fn measure_inproc_interactive(data_dir: &Path) -> Result<f64, String> {
     let started = Instant::now();
-    let mut app = gpui::TestApp::with_text_system_and_assets(
-        Arc::new(gpui::NoopTextSystem),
-        Arc::new(aria_ui::icons::Assets),
-    );
-    let data_dir_owned = data_dir.to_path_buf();
-    let state = app.update(|cx| {
-        aria_ui::theme::Theme::install(
-            aria_ui::theme::Appearance::Dark,
-            Default::default(),
-            None,
-            cx,
-        );
-        let plugin_ctx = PluginContext::new();
-        mount_builtin_plugins(&plugin_ctx, &data_dir_owned).expect("built-in plugins mount");
-        cx.new(|_| AppState::new(plugin_ctx, data_dir_owned).expect("editor state"))
-    });
-    let owned = gpui::Entity::clone(&state);
-    let mut window = app.open_window(|_, cx| Shell::new(owned, cx));
+    let (mut app, state, mut window) = open_editor(data_dir);
     window.draw();
     let elapsed_ms = started.elapsed().as_secs_f64() * 1000.0;
 

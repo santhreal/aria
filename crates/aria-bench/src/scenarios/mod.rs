@@ -14,11 +14,16 @@ pub(crate) mod scrub;
 pub(crate) mod startup;
 pub(crate) mod timeline_frame;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use aria_compositor::{FrameSink, GpuContext, create_frame_target, wgpu};
+use aria_plugin::PluginContext;
+use aria_ui::app::AppState;
+use aria_ui::shell::Shell;
+use gpui::AppContext as _;
 
-use crate::{EnvironmentInfo, ScenarioId, ScenarioReport};
+use crate::{EnvironmentInfo, ScenarioId, ScenarioReport, mount_builtin_plugins};
 
 /// Execution context shared across benchmark scenarios.
 #[derive(Debug, Clone)]
@@ -57,6 +62,52 @@ impl BenchContext {
         })?;
         Ok(dir)
     }
+}
+
+/// A headless editor window: the dark theme, the built-in plugins mounted with
+/// `data_dir` as the data directory, and a [`Shell`] over a new [`AppState`].
+pub(crate) fn open_editor(
+    data_dir: &Path,
+) -> (
+    gpui::TestApp,
+    gpui::Entity<AppState>,
+    gpui::TestAppWindow<Shell>,
+) {
+    let mut app = gpui::TestApp::with_text_system_and_assets(
+        Arc::new(gpui::NoopTextSystem),
+        Arc::new(aria_ui::icons::Assets),
+    );
+    let data_dir = data_dir.to_path_buf();
+    let state = app.update(|cx| {
+        aria_ui::theme::Theme::install(
+            aria_ui::theme::Appearance::Dark,
+            Default::default(),
+            None,
+            cx,
+        );
+        let plugin_ctx = PluginContext::new();
+        mount_builtin_plugins(&plugin_ctx, &data_dir).expect("built-in plugins mount");
+        cx.new(|_| AppState::new(plugin_ctx, data_dir).expect("editor state"))
+    });
+    let owned = gpui::Entity::clone(&state);
+    let window = app.open_window(|_, cx| Shell::new(owned, cx));
+    (app, state, window)
+}
+
+/// Open the project at `path` in `state` with In and Out over frames 0 to 24.
+pub(crate) fn open_marked_project(
+    app: &mut gpui::TestApp,
+    state: &gpui::Entity<AppState>,
+    path: PathBuf,
+) {
+    app.update(|cx| {
+        state.update(cx, |s, cx| {
+            s.open_project(path).expect("load project-10k");
+            s.mark_in = Some(0);
+            s.mark_out = Some(24);
+            cx.notify();
+        });
+    });
 }
 
 /// Reusable GPU texture sink for display-path renders with no CPU readback.
