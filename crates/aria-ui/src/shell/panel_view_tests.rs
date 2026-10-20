@@ -146,6 +146,12 @@ pub(super) enum Change {
     Scopes,
     /// A letter typed in the effects search, or the search cleared.
     Search,
+    /// An effect starred under Favourites, or unstarred.
+    Favourite,
+    /// The effects search box taking the keyboard, or giving it back.
+    SearchFocus,
+    /// A preset saved from the first clip's effect, or deleted.
+    Preset,
     /// The pointer scrubbing the still's pool tile, with no monitor open on it.
     PoolHover,
     /// The pointer scrubbing the still's pool tile with the monitor open on it,
@@ -157,7 +163,7 @@ pub(super) enum Change {
     Frame,
 }
 
-const CHANGES: [Change; 17] = [
+const CHANGES: [Change; 20] = [
     Change::View,
     Change::Playhead,
     Change::Select,
@@ -170,6 +176,9 @@ const CHANGES: [Change; 17] = [
     Change::Job,
     Change::Title,
     Change::Scopes,
+    Change::Favourite,
+    Change::SearchFocus,
+    Change::Preset,
     Change::Search,
     Change::PoolHover,
     Change::MonitorScrub,
@@ -388,6 +397,31 @@ pub(super) fn make(
                         state.effects_query_push('b');
                     } else {
                         state.clear_effects_query();
+                    }
+                }),
+                Change::Favourite => notify(shell, cx, &|state| {
+                    state.toggle_effect_favourite(
+                        crate::app::effects_browser::EntryKind::VideoEffect,
+                        "vignette",
+                    );
+                }),
+                Change::SearchFocus => notify(shell, cx, &|state| {
+                    let focused = state.effects_browser.focused;
+                    state.focus_effects_search(!focused);
+                }),
+                Change::Preset => notify(shell, cx, &|state| {
+                    if state.presets.is_empty() {
+                        let clip = first_clip(state);
+                        state.select_clip(clip);
+                        state
+                            .add_effect_to_selected("vignette")
+                            .expect("add a vignette");
+                        state.save_selected_preset("Look").expect("save a preset");
+                        state
+                            .remove_all_effects_selected()
+                            .expect("strip the vignette");
+                    } else {
+                        state.delete_preset("Look").expect("delete the preset");
                     }
                 }),
                 Change::PoolHover | Change::MonitorScrub => shell.state.update(cx, |state, cx| {

@@ -53,30 +53,30 @@ pub(crate) fn effects_panel(
     state: &Entity<AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
-    let entries = crate::catalog_text::effect_entries();
-    let (presets, failures, query, focused, picked, only) = {
-        let read = state.read(cx);
-        (
-            read.effects_preset_entries(),
-            read.effects_failures(),
-            read.effects_browser.query.clone(),
-            read.effects_search_focused(),
-            read.effects_browser.picked.clone(),
-            read.effects_browser.only,
-        )
-    };
+    let effects_browser::PanelInputs {
+        entries,
+        presets,
+        failures,
+        browser,
+        focused,
+        favourites,
+    } = state.read(cx).effects_panel_inputs();
+    let effects_browser::EffectsBrowser {
+        query,
+        open,
+        picked,
+        only,
+        ..
+    } = browser;
     let searching = effects_browser::needle(&query).is_some();
-    let nodes = {
-        let read = state.read(cx);
-        effects_browser::tree(
-            &[&entries[..], &presets[..]],
-            &failures,
-            read.effect_favourites(),
-            &query,
-            &read.effects_browser.open,
-            only,
-        )
-    };
+    let nodes = effects_browser::tree(
+        &[&entries[..], &presets[..]],
+        &failures,
+        &favourites,
+        &query,
+        &open,
+        only,
+    );
     let reduced = cx.reduce_motion();
     let mut rows = Vec::with_capacity(nodes.len());
     for node in nodes {

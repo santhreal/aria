@@ -52,8 +52,10 @@ impl MeterReading {
             .any(|level| *level > 0.0)
     }
 
-    /// Everything the meter draws: the hold's age changes no pixel.
-    fn drawn(&self) -> ([f32; 2], [f32; 2], [f32; 2], bool) {
+    /// Everything the meter draws: the hold's age changes no pixel. A meter
+    /// tick repaints when this moves, and the Audio Meters body is rebuilt
+    /// when it differs from the drawing's.
+    pub(crate) fn drawn(&self) -> ([f32; 2], [f32; 2], [f32; 2], bool) {
         (self.peaks, self.rms, self.hold, self.clipped)
     }
 }

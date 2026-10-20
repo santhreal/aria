@@ -290,6 +290,23 @@ impl Default for EffectsBrowser {
     }
 }
 
+/// Everything the Effects panel draws from the state, read once per draw. The
+/// panel draws from this read, and its cached body is rebuilt when a later
+/// read differs, so the cache compares every input the panel draws.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PanelInputs {
+    /// The catalog rows, shared per catalog revision: an unchanged catalog
+    /// compares by pointer.
+    pub entries: std::sync::Arc<[Entry]>,
+    pub presets: Vec<Entry>,
+    pub failures: Vec<Failed>,
+    pub browser: EffectsBrowser,
+    /// Whether the search box holds the keyboard, as
+    /// [`AppState::effects_search_focused`] reads it.
+    pub focused: bool,
+    pub favourites: Vec<String>,
+}
+
 /// `c` lowercased, as one character. Search compares one character at a time,
 /// and the few characters that lowercase to two compare by their first.
 fn fold(c: char) -> char {
@@ -480,6 +497,18 @@ pub fn tree<'a>(
 }
 
 impl AppState {
+    /// What the Effects panel draws, read from the state as it stands.
+    pub fn effects_panel_inputs(&self) -> PanelInputs {
+        PanelInputs {
+            entries: crate::catalog_text::effect_entries(),
+            presets: self.effects_preset_entries(),
+            failures: self.effects_failures(),
+            browser: self.effects_browser.clone(),
+            focused: self.effects_search_focused(),
+            favourites: self.effect_favourites().to_vec(),
+        }
+    }
+
     /// The presets the panel lists: saved presets, then plugin presets whose
     /// name no saved preset already takes, since applying a name picks the
     /// saved one. Sorted for the tree.

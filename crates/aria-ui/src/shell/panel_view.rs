@@ -130,50 +130,33 @@ pub fn notify_after_draw<T: 'static>(entity: &Entity<T>, cx: &mut App) {
     });
 }
 
+/// What a stamped panel body drew from: the theme, and the panel's inputs read
+/// through the one function its drawing reads them through.
 #[derive(Clone, PartialEq)]
 enum PanelStamp {
     AudioMeters {
         theme: u32,
-        rms: [u32; 2],
-        peaks: [u32; 2],
-        hold: [u32; 2],
-        clipped: bool,
+        /// `MeterReading::drawn`.
+        reading: ([f32; 2], [f32; 2], [f32; 2], bool),
     },
     Effects {
         theme: u32,
         reduced: bool,
-        entries: usize,
-        presets: Vec<crate::app::effects_browser::Entry>,
-        failures: Vec<crate::app::effects_browser::Failed>,
-        browser: crate::app::effects_browser::EffectsBrowser,
-        focused: bool,
-        favourites: Vec<String>,
+        inputs: crate::app::effects_browser::PanelInputs,
     },
 }
 
 fn panel_stamp(panel: PanelId, state: &crate::app::AppState, reduced: bool) -> Option<PanelStamp> {
     let theme = crate::theme::theme_generation();
     match panel {
-        PANEL_AUDIO_METERS => {
-            let reading = state.meter();
-            Some(PanelStamp::AudioMeters {
-                theme,
-                rms: reading.rms.map(f32::to_bits),
-                peaks: reading.peaks.map(f32::to_bits),
-                hold: reading.hold.map(f32::to_bits),
-                clipped: reading.clipped,
-            })
-        }
+        PANEL_AUDIO_METERS => Some(PanelStamp::AudioMeters {
+            theme,
+            reading: state.meter().drawn(),
+        }),
         PANEL_EFFECTS => Some(PanelStamp::Effects {
             theme,
             reduced,
-            entries: std::sync::Arc::as_ptr(&crate::catalog_text::effect_entries()) as *const ()
-                as usize,
-            presets: state.effects_preset_entries(),
-            failures: state.effects_failures(),
-            browser: state.effects_browser.clone(),
-            focused: state.effects_search_focused(),
-            favourites: state.effect_favourites().to_vec(),
+            inputs: state.effects_panel_inputs(),
         }),
         _ => None,
     }
