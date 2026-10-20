@@ -9,7 +9,6 @@ Every interactive button, chip, icon button, and text field in the Aria shell is
 3. Left-click the control to dispatch its action (`EditorTool::Razor` selection or `AppState::toggle_playback`), or press the bound chord (`C` or `Space`) directly to run the same action without moving the pointer.
 
 ## Tool Strip
-## Tool Strip
 
 The editor tool strip (`crates/aria-ui/src/chrome/tool_strip.rs` and `crates/aria-ui/src/tool_catalog.rs`) renders one icon button per editing tool plus the timeline drop-mode toggle.
 
