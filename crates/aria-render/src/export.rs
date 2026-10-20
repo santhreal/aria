@@ -27,9 +27,9 @@ use crate::export_audio::{
     EXPORT_AUDIO_CHANNELS, EXPORT_AUDIO_RATE, ExportAudioMixer, sample_boundary,
 };
 use crate::render::{PendingFrame, Renderer};
-use aria_compositor::FrameSink;
 use crate::resolve::canvas_size;
 use crate::transactional_file::TransactionalFile;
+use aria_compositor::FrameSink;
 
 /// Output shape of an export: pixel size, frame sampling rate, what part of the
 /// timeline to render, and how the encoder is configured. The defaults
@@ -586,7 +586,10 @@ struct ExportFrameSink {
 impl ExportFrameSink {
     fn new() -> Self {
         Self {
-            frame: rgba_to_frame(RgbaImage::new(0, 0, Vec::new()), RationalTime::new(0, Rational::new(1, 1))),
+            frame: rgba_to_frame(
+                RgbaImage::new(0, 0, Vec::new()),
+                RationalTime::new(0, Rational::new(1, 1)),
+            ),
         }
     }
 

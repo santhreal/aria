@@ -601,15 +601,7 @@ fn write_frame_to_nv12(
             } else {
                 ChannelOrder::Rgba
             };
-            rgba_to_nv12_into(
-                &plane.data,
-                width,
-                height,
-                plane.stride,
-                matrix,
-                order,
-                out,
-            )
+            rgba_to_nv12_into(&plane.data, width, height, plane.stride, matrix, order, out)
         }
         other => Err(EncodeError::unsupported(format!(
             "Linux encoder cannot take {other:?} frames. Export RGBA or NV12."
@@ -633,7 +625,9 @@ fn write_packed_nv12(
     let y_len = y_stride * y_rows;
     let need = y_len + uv_stride * uv_rows;
     if out.len() < need {
-        return Err(EncodeError::Encode("NV12 encode buffer is too small.".into()));
+        return Err(EncodeError::Encode(
+            "NV12 encode buffer is too small.".into(),
+        ));
     }
     copy_plane(&planes[0], &mut out[..y_len], y_stride, y_rows);
     copy_plane(&planes[1], &mut out[y_len..need], uv_stride, uv_rows);

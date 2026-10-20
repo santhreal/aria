@@ -5,8 +5,8 @@ use crate::layer::{BlendMode, CompositeLayer, CompositorConfig, CompositorLayer,
 use crate::lut::CubeLut;
 use crate::passes::PassInstance;
 
-use super::items::frame_items;
 use super::draw_layer::clear_view_color;
+use super::items::frame_items;
 use super::scene::Scene;
 use super::{
     CANVAS_FORMAT, Compositor, FrameSink, LUT_CACHE_MAX, LayerGpu, LayerPipeline, LutTexture,

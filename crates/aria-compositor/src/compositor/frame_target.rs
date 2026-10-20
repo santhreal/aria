@@ -133,7 +133,12 @@ mod tests {
     use super::*;
     use crate::layer::{BlendMode, CompositeLayer, LayerPlacement};
 
-    fn read_texture_rgba(gpu: &GpuContext, texture: &wgpu::Texture, width: u32, height: u32) -> Vec<u8> {
+    fn read_texture_rgba(
+        gpu: &GpuContext,
+        texture: &wgpu::Texture,
+        width: u32,
+        height: u32,
+    ) -> Vec<u8> {
         let padded = (width * 4).div_ceil(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
             * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
         let buf = gpu.device.create_buffer(&wgpu::BufferDescriptor {
@@ -184,7 +189,7 @@ mod tests {
     /// fallback for `COPY_DST`-only caller textures and exact pixel parity
     /// across empty scenes, single direct layers, and multi-layer blends.
     #[test]
-    fn submit_compositor_layers_to_texture_renders_directly_without_staging_target_and_matches_copy_fallback() {
+    fn a_renderable_caller_texture_is_drawn_directly_and_matches_the_copy_fallback() {
         let gpu = GpuContext::new_headless_blocking().expect("headless GPU context");
         let mut comp = Compositor::new(&gpu);
         let mut config = CompositorConfig::new(8, 6);
