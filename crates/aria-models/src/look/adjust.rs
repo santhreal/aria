@@ -71,6 +71,18 @@ impl AdjustSlider {
     }
 }
 
+macro_rules! adjust_shape_neutral {
+    (signed) => {
+        0.0
+    };
+    (positive) => {
+        0.0
+    };
+    (multiplicative) => {
+        GAMMA_NEUTRAL
+    };
+}
+
 macro_rules! define_adjust {
     ($($field:ident => $variant:ident, $shape:ident, $id:literal, $label:literal,
        $doc:literal,)*) => {
@@ -109,19 +121,16 @@ macro_rules! define_adjust {
 
             /// How many sliders a grade carries.
             pub const COUNT: usize = Self::SLIDERS.len();
+
+            /// Every slider at its neutral constant.
+            pub const DEFAULT: Self = Self {
+                $($field: Param::Constant(adjust_shape_neutral!($shape)),)*
+            };
         }
 
         impl Default for ColorAdjustments {
             fn default() -> Self {
-                // Zeroed, then every slider is put where its row says it
-                // rests, so a neutral value is written down once.
-                let mut adjust = Self {
-                    $($field: Param::Constant(0.0),)*
-                };
-                for slider in Self::SLIDERS {
-                    *(slider.get_mut)(&mut adjust) = Param::Constant(slider.neutral);
-                }
-                adjust
+                Self::DEFAULT
             }
         }
     };

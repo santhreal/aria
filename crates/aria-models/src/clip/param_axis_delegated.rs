@@ -418,7 +418,10 @@ macro_rules! define_look_default {
             match param {
                 LookParam::FilterIntensity => Filter::new(String::new()).intensity.sample(0),
                 LookParam::LutIntensity => Lut::new(String::new()).intensity.sample(0),
-                $(LookParam::$variant => ColorAdjustments::default().$field.sample(0),)*
+                $(LookParam::$variant => match ColorAdjustments::DEFAULT.$field {
+                    Param::Constant(v) => v,
+                    _ => ColorAdjustments::DEFAULT.$field.sample(0),
+                },)*
                 LookParam::ChromaStrength => ChromaKey::new([0, 0, 0]).strength.sample(0),
                 LookParam::ChromaShadow => ChromaKey::new([0, 0, 0]).shadow.sample(0),
                 LookParam::MatteSoftness => TrackMatte::alpha().softness.sample(0),
