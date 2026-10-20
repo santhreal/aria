@@ -422,11 +422,12 @@ impl SharedPassPipelines {
 
     pub(super) fn harden_pipeline(&self) -> &wgpu::RenderPipeline {
         self.harden_pipeline.get_or_init(|| {
-            build_effect_pipeline(
+            build_blended_pipeline(
                 &self.device,
                 "aria.style_harden",
                 &self.harden_layout,
                 include_str!("../../shaders/style_harden.wgsl"),
+                Some(PREMULT_OVER),
             )
         })
     }
@@ -516,14 +517,14 @@ pub(crate) const PREMULT_OVER: wgpu::BlendState = wgpu::BlendState {
 };
 
 /// A full-screen pipeline of `source` (`vs` and `fs` entry points) that
-/// draws over its target with [`PREMULT_OVER`].
+/// writes a cleared offscreen target without blending.
 pub(super) fn build_effect_pipeline(
     device: &wgpu::Device,
     label: &str,
     layout: &wgpu::BindGroupLayout,
     source: &str,
 ) -> wgpu::RenderPipeline {
-    build_blended_pipeline(device, label, layout, source, Some(PREMULT_OVER))
+    build_blended_pipeline(device, label, layout, source, None)
 }
 
 /// A full-screen pipeline of `source` (`vs` and `fs` entry points) that

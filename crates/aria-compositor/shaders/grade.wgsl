@@ -27,47 +27,69 @@ fn apply_color_grade(rgb: vec3<f32>, a: array<vec4<f32>, GRADE_LANES>) -> vec3<f
     let gain = vec3(grade_gain_r(a), grade_gain_g(a), grade_gain_b(a))
         * vec3(grade_gain_master(a));
 
-    c = (c + lift * (vec3(1.0) - c)) * gain;
-    c = pow(max(c, vec3(0.0)), vec3(1.0) / max(gamma, vec3(1e-4)));
-    c *= exp2(2.0 * grade_exposure(a));
+    if (any(lift != vec3(0.0)) || any(gain != vec3(1.0))) {
+        c = (c + lift * (vec3(1.0) - c)) * gain;
+    }
+    if (any(gamma != vec3(1.0))) {
+        c = pow(max(c, vec3(0.0)), vec3(1.0) / max(gamma, vec3(1e-4)));
+    } else {
+        c = max(c, vec3(0.0));
+    }
+    let exposure = grade_exposure(a);
+    if (exposure != 0.0) {
+        c *= exp2(2.0 * exposure);
+    }
     let temperature = grade_temperature(a);
     c.r += temperature * 0.25;
     c.b -= temperature * 0.25;
     c.g += grade_tint(a) * 0.25;
     c += grade_brightness(a) * 0.25;
     c = (c - vec3(0.5)) * (1.0 + grade_contrast(a)) + vec3(0.5);
-    let luma0 = dot(c, vec3(0.2126, 0.7152, 0.0722));
-    c = mix(vec3(luma0), c, 1.0 + grade_saturation(a));
+    let sat = grade_saturation(a);
+    if (sat != 0.0) {
+        let luma0 = dot(c, vec3(0.2126, 0.7152, 0.0722));
+        c = mix(vec3(luma0), c, 1.0 + sat);
+    }
 
-    // YIQ hue rotation: 30° at ±1 (branchless).
+    // YIQ hue rotation: 30° at ±1.
     let hue = grade_hue(a);
-    let y = dot(c, vec3(0.299, 0.587, 0.114));
-    let i = dot(c, vec3(0.596, -0.274, -0.322));
-    let q = dot(c, vec3(0.211, -0.523, 0.312));
-    // Negated so +hue rotates red toward yellow (standard editor feel).
-    let angle = -hue * 0.5235987755982988; // −π/6 per unit
-    let cos_a = cos(angle);
-    let sin_a = sin(angle);
-    let i2 = i * cos_a - q * sin_a;
-    let q2 = i * sin_a + q * cos_a;
-    c = vec3(
-        y + 0.956 * i2 + 0.621 * q2,
-        y - 0.272 * i2 - 0.647 * q2,
-        y - 1.106 * i2 + 1.703 * q2,
-    );
+    if (hue != 0.0) {
+        let y = dot(c, vec3(0.299, 0.587, 0.114));
+        let i = dot(c, vec3(0.596, -0.274, -0.322));
+        let q = dot(c, vec3(0.211, -0.523, 0.312));
+        // Negated so +hue rotates red toward yellow (standard editor feel).
+        let angle = -hue * 0.5235987755982988; // −π/6 per unit
+        let cos_a = cos(angle);
+        let sin_a = sin(angle);
+        let i2 = i * cos_a - q * sin_a;
+        let q2 = i * sin_a + q * cos_a;
+        c = vec3(
+            y + 0.956 * i2 + 0.621 * q2,
+            y - 0.272 * i2 - 0.647 * q2,
+            y - 1.106 * i2 + 1.703 * q2,
+        );
+    }
 
-    // Highlights and shadows adjustments (branchless).
-    let luma = dot(c, vec3(0.2126, 0.7152, 0.0722));
+    // Highlights and shadows adjustments.
     let hl = grade_highlights(a);
-    let w_hl = smoothstep(0.5, 1.0, luma);
-    let lift_hl = select(c, vec3(1.0) - c, hl >= 0.0);
-    c += vec3(hl * w_hl * 0.35) * lift_hl;
-
     let sh = grade_shadows(a);
-    let w_sh = 1.0 - smoothstep(0.0, 0.5, luma);
-    let lift_sh = select(c, vec3(1.0) - c, sh >= 0.0);
-    c += vec3(sh * w_sh * 0.35) * lift_sh;
-    return clamp(apply_grade_secondary(c, a), vec3(0.0), vec3(1.0));
+    if (hl != 0.0 || sh != 0.0) {
+        let luma = dot(c, vec3(0.2126, 0.7152, 0.0722));
+        if (hl != 0.0) {
+            let w_hl = smoothstep(0.5, 1.0, luma);
+            let lift_hl = select(c, vec3(1.0) - c, hl >= 0.0);
+            c += vec3(hl * w_hl * 0.35) * lift_hl;
+        }
+        if (sh != 0.0) {
+            let w_sh = 1.0 - smoothstep(0.0, 0.5, luma);
+            let lift_sh = select(c, vec3(1.0) - c, sh >= 0.0);
+            c += vec3(sh * w_sh * 0.35) * lift_sh;
+        }
+    }
+    if (grade_enabled(a) > 1.5) {
+        c = apply_grade_secondary(c, a);
+    }
+    return clamp(c, vec3(0.0), vec3(1.0));
 }
 
 /// The stages after highlights and shadows, unclamped: whites and blacks,
@@ -109,29 +131,62 @@ fn apply_grade_secondary(rgb: vec3<f32>, a: array<vec4<f32>, GRADE_LANES>) -> ve
         grade_curve_master_midtones(a),
         grade_curve_master_highlights(a),
     );
+    if (any(master != vec3(0.0))) {
+        c = vec3(
+            grade_curve(c.r, master),
+            grade_curve(c.g, master),
+            grade_curve(c.b, master),
+        );
+    }
     let red = vec3(
         grade_curve_red_shadows(a),
         grade_curve_red_midtones(a),
         grade_curve_red_highlights(a),
     );
+    if (any(red != vec3(0.0))) {
+        c.r = grade_curve(c.r, red);
+    }
     let green = vec3(
         grade_curve_green_shadows(a),
         grade_curve_green_midtones(a),
         grade_curve_green_highlights(a),
     );
+    if (any(green != vec3(0.0))) {
+        c.g = grade_curve(c.g, green);
+    }
     let blue = vec3(
         grade_curve_blue_shadows(a),
         grade_curve_blue_midtones(a),
         grade_curve_blue_highlights(a),
     );
-    c = vec3(
-        grade_curve(grade_curve(c.r, master), red),
-        grade_curve(grade_curve(c.g, master), green),
-        grade_curve(grade_curve(c.b, master), blue),
-    );
+    if (any(blue != vec3(0.0))) {
+        c.b = grade_curve(c.b, blue);
+    }
 
     // The hue curves and the secondary read the hue once, and only when one
     // of them is off neutral.
+    let sat_active = grade_hue_sat_red(a) != 0.0
+        || grade_hue_sat_yellow(a) != 0.0
+        || grade_hue_sat_green(a) != 0.0
+        || grade_hue_sat_cyan(a) != 0.0
+        || grade_hue_sat_blue(a) != 0.0
+        || grade_hue_sat_magenta(a) != 0.0;
+    let turn_active = grade_hue_hue_red(a) != 0.0
+        || grade_hue_hue_yellow(a) != 0.0
+        || grade_hue_hue_green(a) != 0.0
+        || grade_hue_hue_cyan(a) != 0.0
+        || grade_hue_hue_blue(a) != 0.0
+        || grade_hue_hue_magenta(a) != 0.0;
+    let luma_active = grade_hue_luma_red(a) != 0.0
+        || grade_hue_luma_yellow(a) != 0.0
+        || grade_hue_luma_green(a) != 0.0
+        || grade_hue_luma_cyan(a) != 0.0
+        || grade_hue_luma_blue(a) != 0.0
+        || grade_hue_luma_magenta(a) != 0.0;
+    let secondary = vec3(grade_hsl_hue(a), grade_hsl_saturation(a), grade_hsl_luma(a));
+    if (!sat_active && !turn_active && !luma_active && all(secondary == vec3(0.0))) {
+        return c;
+    }
     let sat_knots = array<f32, 6>(
         grade_hue_sat_red(a),
         grade_hue_sat_yellow(a),
@@ -156,11 +211,6 @@ fn apply_grade_secondary(rgb: vec3<f32>, a: array<vec4<f32>, GRADE_LANES>) -> ve
         grade_hue_luma_blue(a),
         grade_hue_luma_magenta(a),
     );
-    let secondary = vec3(grade_hsl_hue(a), grade_hsl_saturation(a), grade_hsl_luma(a));
-    if (grade_flat(sat_knots) && grade_flat(turn_knots) && grade_flat(luma_knots)
-        && all(secondary == vec3(0.0))) {
-        return c;
-    }
     let hue_chroma = grade_hue_chroma(c);
     let hue = hue_chroma.x;
     let colour = smoothstep(0.0, 0.1, hue_chroma.y);
@@ -192,19 +242,21 @@ fn grade_curve(x: f32, knots: vec3<f32>) -> f32 {
     }
     // Phantom knots past each end mirror the first inner knot through the end
     // it sits beside, so the spline leaves 0 and 1 along the curve's slope.
-    var y = array<f32, 7>(
-        -0.25 - 0.25 * knots.x,
-        0.0,
-        0.25 + 0.25 * knots.x,
-        0.5 + 0.25 * knots.y,
-        0.75 + 0.25 * knots.z,
-        1.0,
-        1.25 - 0.25 * knots.z,
-    );
+    let y0 = -0.25 - 0.25 * knots.x;
+    let y1 = 0.0;
+    let y2 = 0.25 + 0.25 * knots.x;
+    let y3 = 0.5 + 0.25 * knots.y;
+    let y4 = 0.75 + 0.25 * knots.z;
+    let y5 = 1.0;
+    let y6 = 1.25 - 0.25 * knots.z;
     let scaled = x * 4.0;
     let seg = min(i32(floor(scaled)), 3);
     let t = scaled - f32(seg);
-    return grade_catmull(y[seg], y[seg + 1], y[seg + 2], y[seg + 3], t);
+    let p0 = select(select(select(y0, y1, seg == 1), y2, seg == 2), y3, seg == 3);
+    let p1 = select(select(select(y1, y2, seg == 1), y3, seg == 2), y4, seg == 3);
+    let p2 = select(select(select(y2, y3, seg == 1), y4, seg == 2), y5, seg == 3);
+    let p3 = select(select(select(y3, y4, seg == 1), y5, seg == 2), y6, seg == 3);
+    return grade_catmull(p0, p1, p2, p3, t);
 }
 
 /// Six hue knots (red, yellow, green, cyan, blue, magenta) on a closed
@@ -213,11 +265,20 @@ fn grade_hue_knots(h: f32, knots: array<f32, 6>) -> f32 {
     if (grade_flat(knots)) {
         return 0.0;
     }
-    var k = knots;
+    let k0 = knots[0];
+    let k1 = knots[1];
+    let k2 = knots[2];
+    let k3 = knots[3];
+    let k4 = knots[4];
+    let k5 = knots[5];
     let scaled = fract(h) * 6.0;
     let seg = min(i32(floor(scaled)), 5);
     let t = scaled - f32(seg);
-    return grade_catmull(k[(seg + 5) % 6], k[seg], k[(seg + 1) % 6], k[(seg + 2) % 6], t);
+    let p0 = select(select(select(select(select(k5, k0, seg == 1), k1, seg == 2), k2, seg == 3), k3, seg == 4), k4, seg == 5);
+    let p1 = select(select(select(select(select(k0, k1, seg == 1), k2, seg == 2), k3, seg == 3), k4, seg == 4), k5, seg == 5);
+    let p2 = select(select(select(select(select(k1, k2, seg == 1), k3, seg == 2), k4, seg == 3), k5, seg == 4), k0, seg == 5);
+    let p3 = select(select(select(select(select(k2, k3, seg == 1), k4, seg == 2), k5, seg == 3), k0, seg == 4), k1, seg == 5);
+    return grade_catmull(p0, p1, p2, p3, t);
 }
 
 /// True when all six knots sit at zero.

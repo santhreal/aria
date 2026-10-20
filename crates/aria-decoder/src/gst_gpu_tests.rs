@@ -468,3 +468,81 @@ fn video_pipeline_ignores_audio_streams_and_bounds_decoder_threads() {
         "expected avdec_h264, avdec_h265, and avdec_prores to be checked"
     );
 }
+
+#[test]
+fn nv12_from_video_frame_packs_i420_and_i420_10le_without_videoconvert_unpack() {
+    gst::init().expect("GStreamer initializes");
+
+    // 4x2 I420 frame with distinct Y, U, V values.
+    let info_i420 = gst_video::VideoInfo::builder(gst_video::VideoFormat::I420, 4, 2)
+        .build()
+        .expect("i420 info");
+    let mut buf_i420 = gst::Buffer::with_size(info_i420.size()).expect("i420 buffer");
+    {
+        let buf_mut = buf_i420.get_mut().expect("mutable i420 buffer");
+        let mut frame =
+            gst_video::VideoFrameRef::from_buffer_ref_writable(buf_mut, &info_i420).expect("map");
+        let y_stride = frame.plane_stride()[0] as usize;
+        let u_stride = frame.plane_stride()[1] as usize;
+        let v_stride = frame.plane_stride()[2] as usize;
+        frame.plane_data_mut(0).unwrap()[..4].copy_from_slice(&[10, 20, 30, 40]);
+        frame.plane_data_mut(0).unwrap()[y_stride..y_stride + 4].copy_from_slice(&[50, 60, 70, 80]);
+        frame.plane_data_mut(1).unwrap()[..2].copy_from_slice(&[111, 122]);
+        let _ = u_stride;
+        frame.plane_data_mut(2).unwrap()[..2].copy_from_slice(&[211, 222]);
+        let _ = v_stride;
+    }
+    let frame_i420 =
+        gst_video::VideoFrameRef::from_buffer_ref_readable(buf_i420.as_ref(), &info_i420)
+            .expect("read i420");
+    let planes_i420 = nv12_from_video_frame(&frame_i420, 2).expect("i420 -> nv12");
+    assert_eq!(planes_i420.len(), 2);
+    assert_eq!(planes_i420[0].rows, 2);
+    assert_eq!(&planes_i420[0].data[..4], &[10, 20, 30, 40]);
+    assert_eq!(
+        &planes_i420[0].data[planes_i420[0].stride..planes_i420[0].stride + 4],
+        &[50, 60, 70, 80]
+    );
+    assert_eq!(planes_i420[1].stride, 4);
+    assert_eq!(planes_i420[1].rows, 1);
+    assert_eq!(&planes_i420[1].data, &[111, 211, 122, 222]);
+
+    // 4x2 I420_10LE frame: 10-bit values (val << 2) must shift down by 2 into 8-bit NV12.
+    let info_10le = gst_video::VideoInfo::builder(gst_video::VideoFormat::I42010le, 4, 2)
+        .build()
+        .expect("i420_10le info");
+    let mut buf_10le = gst::Buffer::with_size(info_10le.size()).expect("i420_10le buffer");
+    {
+        let buf_mut = buf_10le.get_mut().expect("mutable i420_10le buffer");
+        let mut frame =
+            gst_video::VideoFrameRef::from_buffer_ref_writable(buf_mut, &info_10le).expect("map");
+        let y_stride = frame.plane_stride()[0] as usize;
+        for (i, px) in [16u16, 64, 128, 235].into_iter().enumerate() {
+            let bytes = (px << 2).to_le_bytes();
+            frame.plane_data_mut(0).unwrap()[i * 2..i * 2 + 2].copy_from_slice(&bytes);
+        }
+        for (i, px) in [32u16, 96, 160, 240].into_iter().enumerate() {
+            let bytes = (px << 2).to_le_bytes();
+            frame.plane_data_mut(0).unwrap()[y_stride + i * 2..y_stride + i * 2 + 2]
+                .copy_from_slice(&bytes);
+        }
+        for (i, u_px) in [90u16, 180].into_iter().enumerate() {
+            let bytes = (u_px << 2).to_le_bytes();
+            frame.plane_data_mut(1).unwrap()[i * 2..i * 2 + 2].copy_from_slice(&bytes);
+        }
+        for (i, v_px) in [100u16, 200].into_iter().enumerate() {
+            let bytes = (v_px << 2).to_le_bytes();
+            frame.plane_data_mut(2).unwrap()[i * 2..i * 2 + 2].copy_from_slice(&bytes);
+        }
+    }
+    let frame_10le =
+        gst_video::VideoFrameRef::from_buffer_ref_readable(buf_10le.as_ref(), &info_10le)
+            .expect("read i420_10le");
+    let planes_10le = nv12_from_video_frame(&frame_10le, 2).expect("i420_10le -> nv12");
+    assert_eq!(planes_10le[0].stride, 4);
+    assert_eq!(planes_10le[0].rows, 2);
+    assert_eq!(&planes_10le[0].data, &[16, 64, 128, 235, 32, 96, 160, 240]);
+    assert_eq!(planes_10le[1].stride, 4);
+    assert_eq!(planes_10le[1].rows, 1);
+    assert_eq!(&planes_10le[1].data, &[90, 100, 180, 200]);
+}

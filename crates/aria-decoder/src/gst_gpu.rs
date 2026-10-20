@@ -312,7 +312,7 @@ fn build_decode_pipeline(
         let scale = make("videoscale", None)?;
         scale.set_property("n-threads", CONVERT_THREADS);
         let caps = gst::Caps::builder("video/x-raw")
-            .field("format", "NV12")
+            .field("format", gst::List::new(["NV12", "I420", "I420_10LE"]))
             .build();
         filter.set_property("caps", &caps);
         pipeline
@@ -613,21 +613,124 @@ unsafe impl Send for DmaKeepAlive {}
 unsafe impl Sync for DmaKeepAlive {}
 
 /// CPU NV12 extraction used by the fallback path and by unit tests.
+///
+/// Software decoders natively emit planar `I420` (8-bit) or `I420_10LE`
+/// (10-bit). Accepting those layouts on the pipeline capsfilter leaves
+/// `videoconvert` in passthrough mode and packs `NV12` directly here in one
+/// pass, avoiding GStreamer's 64-bit `AYUV64` intermediate unpack.
 pub(crate) fn nv12_from_video_frame(
+    frame: &gst_video::VideoFrameRef<&gst::BufferRef>,
+    height: u32,
+) -> Result<Vec<Plane>, DecodeError> {
+    match frame.format() {
+        gst_video::VideoFormat::I420 => i420_to_nv12_planes(frame, height),
+        gst_video::VideoFormat::I42010le => i420_10le_to_nv12_planes(frame, height),
+        _ => {
+            let y = frame.plane_data(0).map_err(|_| {
+                DecodeError::Decode(
+                    "decoded frame is missing the Y plane. Try another file.".into(),
+                )
+            })?;
+            let uv = frame.plane_data(1).map_err(|_| {
+                DecodeError::Decode(
+                    "decoded frame is missing the UV plane. Try another file.".into(),
+                )
+            })?;
+            let y_stride = frame.plane_stride()[0] as usize;
+            let uv_stride = frame.plane_stride()[1] as usize;
+            Ok(vec![
+                Plane::new(y.to_vec(), y_stride, height as usize),
+                Plane::new(uv.to_vec(), uv_stride, (height as usize).div_ceil(2)),
+            ])
+        }
+    }
+}
+
+fn i420_to_nv12_planes(
     frame: &gst_video::VideoFrameRef<&gst::BufferRef>,
     height: u32,
 ) -> Result<Vec<Plane>, DecodeError> {
     let y = frame.plane_data(0).map_err(|_| {
         DecodeError::Decode("decoded frame is missing the Y plane. Try another file.".into())
     })?;
-    let uv = frame.plane_data(1).map_err(|_| {
-        DecodeError::Decode("decoded frame is missing the UV plane. Try another file.".into())
+    let u = frame.plane_data(1).map_err(|_| {
+        DecodeError::Decode("decoded frame is missing the U plane. Try another file.".into())
     })?;
-    let y_stride = frame.plane_stride()[0] as usize;
-    let uv_stride = frame.plane_stride()[1] as usize;
+    let v = frame.plane_data(2).map_err(|_| {
+        DecodeError::Decode("decoded frame is missing the V plane. Try another file.".into())
+    })?;
+    let width = frame.width() as usize;
+    let rows = height as usize;
+    let cw = width.div_ceil(2);
+    let ch = rows.div_ceil(2);
+    let strides = frame.plane_stride();
+    let y_stride = strides[0] as usize;
+    let u_stride = strides[1] as usize;
+    let v_stride = strides[2] as usize;
+    let uv_stride = cw * 2;
+    let mut uv = vec![0u8; uv_stride * ch];
+    for row in 0..ch {
+        let u_row = &u[row * u_stride..row * u_stride + cw];
+        let v_row = &v[row * v_stride..row * v_stride + cw];
+        let dst_row = &mut uv[row * uv_stride..(row + 1) * uv_stride];
+        for ((dst, &u_val), &v_val) in dst_row.chunks_exact_mut(2).zip(u_row).zip(v_row) {
+            dst[0] = u_val;
+            dst[1] = v_val;
+        }
+    }
     Ok(vec![
-        Plane::new(y.to_vec(), y_stride, height as usize),
-        Plane::new(uv.to_vec(), uv_stride, (height as usize).div_ceil(2)),
+        Plane::new(y.to_vec(), y_stride, rows),
+        Plane::new(uv, uv_stride, ch),
+    ])
+}
+
+fn i420_10le_to_nv12_planes(
+    frame: &gst_video::VideoFrameRef<&gst::BufferRef>,
+    height: u32,
+) -> Result<Vec<Plane>, DecodeError> {
+    let y = frame.plane_data(0).map_err(|_| {
+        DecodeError::Decode("decoded frame is missing the Y plane. Try another file.".into())
+    })?;
+    let u = frame.plane_data(1).map_err(|_| {
+        DecodeError::Decode("decoded frame is missing the U plane. Try another file.".into())
+    })?;
+    let v = frame.plane_data(2).map_err(|_| {
+        DecodeError::Decode("decoded frame is missing the V plane. Try another file.".into())
+    })?;
+    let width = frame.width() as usize;
+    let rows = height as usize;
+    let cw = width.div_ceil(2);
+    let ch = rows.div_ceil(2);
+    let strides = frame.plane_stride();
+    let y_stride = strides[0] as usize;
+    let u_stride = strides[1] as usize;
+    let v_stride = strides[2] as usize;
+    let mut y_out = vec![0u8; width * rows];
+    for row in 0..rows {
+        let src_row = &y[row * y_stride..row * y_stride + width * 2];
+        let dst_row = &mut y_out[row * width..(row + 1) * width];
+        for (dst, src) in dst_row.iter_mut().zip(src_row.chunks_exact(2)) {
+            *dst = (u16::from_le_bytes([src[0], src[1]]) >> 2) as u8;
+        }
+    }
+    let uv_stride = cw * 2;
+    let mut uv_out = vec![0u8; uv_stride * ch];
+    for row in 0..ch {
+        let u_row = &u[row * u_stride..row * u_stride + cw * 2];
+        let v_row = &v[row * v_stride..row * v_stride + cw * 2];
+        let dst_row = &mut uv_out[row * uv_stride..(row + 1) * uv_stride];
+        for ((dst, u_src), v_src) in dst_row
+            .chunks_exact_mut(2)
+            .zip(u_row.chunks_exact(2))
+            .zip(v_row.chunks_exact(2))
+        {
+            dst[0] = (u16::from_le_bytes([u_src[0], u_src[1]]) >> 2) as u8;
+            dst[1] = (u16::from_le_bytes([v_src[0], v_src[1]]) >> 2) as u8;
+        }
+    }
+    Ok(vec![
+        Plane::new(y_out, width, rows),
+        Plane::new(uv_out, uv_stride, ch),
     ])
 }
 

@@ -400,7 +400,7 @@ pub(crate) fn run_grade_pass<'a>(
             Bound::Texture(input),
             Bound::Sampler(&registry.sampler),
             Bound::Uniform(bytemuck::bytes_of(&GradeUniforms {
-                grade: grade.lanes(1.0),
+                grade: grade.lanes(grade.shader_enabled()),
             })),
         ],
     );
