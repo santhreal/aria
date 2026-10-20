@@ -500,7 +500,7 @@ fn mcp_design_doc_claims_match_aria_ai() {
     let doc = std::fs::read_to_string(&doc_path)
         .unwrap_or_else(|e| panic!("failed to read {}: {e}", doc_path.display()));
 
-    assert!(aria_ai::TOOL_SCHEMA_VERSION >= 1);
+    const { assert!(aria_ai::TOOL_SCHEMA_VERSION >= 1) };
     assert!(doc.contains("`TOOL_SCHEMA_VERSION`"));
 
     let specs = aria_ai::wire::tool_specs();

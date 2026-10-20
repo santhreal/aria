@@ -322,14 +322,13 @@ impl Element for Icon {
 /// not colour.
 ///
 /// Decoded once per process into a shared [`gpui::RenderImage`] so opening a
-/// window or [`gpui::TestApp`] does not re-decode the embedded PNG on GPUI's
+/// window or a test app does not re-decode the embedded PNG on GPUI's
 /// background asset loader.
 pub fn brand_mark_image() -> std::sync::Arc<gpui::RenderImage> {
     static BRAND_MARK_IMAGE: std::sync::LazyLock<std::sync::Arc<gpui::RenderImage>> =
         std::sync::LazyLock::new(|| {
-            let bytes = match Assets.load(BRAND_MARK).expect("brand mark asset") {
-                Some(bytes) => bytes,
-                None => panic!("missing embedded brand mark {BRAND_MARK}"),
+            let Some(bytes) = Assets.load(BRAND_MARK).expect("brand mark asset") else {
+                panic!("missing embedded brand mark {BRAND_MARK}");
             };
             let decoded = image::load_from_memory_with_format(&bytes, image::ImageFormat::Png)
                 .expect("embedded brand mark PNG decodes")

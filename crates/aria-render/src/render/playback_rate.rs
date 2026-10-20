@@ -195,12 +195,14 @@ fn render_one(
 /// session costs pipeline creation.
 #[test]
 fn the_warm_up_is_smaller_than_the_run_it_precedes() {
-    assert!(
-        WARM_UP > 0,
-        "a session's first frame is not a playback frame"
-    );
-    assert!(
-        FRAMES - WARM_UP >= 100,
-        "a rate measured over fewer than a hundred frames is one frame's noise"
-    );
+    const {
+        assert!(
+            WARM_UP > 0,
+            "a session's first frame is not a playback frame"
+        );
+        assert!(
+            FRAMES - WARM_UP >= 100,
+            "a rate measured over fewer than a hundred frames is one frame's noise"
+        );
+    }
 }

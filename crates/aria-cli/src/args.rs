@@ -59,7 +59,7 @@ impl Verb {
     }
 
     /// Flags accepted by this verb on the top-level command line (`Plugin`
-    /// dispatches to [` crate::plugin::Subcommand::flags`]).
+    /// dispatches to [`crate::plugin::Subcommand::flags`]).
     pub fn flags(self) -> &'static [&'static str] {
         match self {
             Verb::Demo => crate::demo::FLAGS,
@@ -304,6 +304,31 @@ mod tests {
     }
 
     /// Both flag spellings mean the same thing, and positionals keep their order.
+    /// The class closed here is "a verb dispatched without its flag check".
+    /// `run` checks every verb's flags against [`Verb::flags`] before the verb
+    /// reads its arguments, so an unknown flag is the failure even when the
+    /// positionals are wrong too. A verb that skipped the check would reach its
+    /// own argument handling and fail on the missing directory instead.
+    /// `aria plugin` checks its sub-command's flags, which `plugin::tests`
+    /// covers; the documentation test pins which flags each verb maps to.
+    #[test]
+    fn run_refuses_an_unknown_flag_for_every_verb() {
+        for verb in Verb::ALL {
+            if verb == Verb::Plugin {
+                continue;
+            }
+            let key = verb.key();
+            let args = Args::parse([key, "no-such-dir/target", "--bogus", "1"]).unwrap();
+            assert_eq!(
+                crate::run(&args),
+                Err(crate::fail::Failure::Usage(format!(
+                    "{key} does not take --bogus"
+                ))),
+                "verb {key}"
+            );
+        }
+    }
+
     #[test]
     fn flags_parse_either_spelling_and_positionals_keep_order() {
         let args = Args::parse([

@@ -132,7 +132,6 @@ impl Drop for ActiveThreadGuard<'_> {
 }
 
 /// Loaded WebAssembly component plugin implementing [`aria_plugin::Plugin`].
-
 pub struct WasmPlugin {
     shared: Arc<WasmPluginShared>,
 }
