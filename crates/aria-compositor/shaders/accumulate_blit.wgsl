@@ -8,7 +8,7 @@ struct VsOut {
 }
 
 struct Weight {
-    // xyz unused; w = weight
+    // x = weight; yzw unused
     value: vec4<f32>,
 }
 
