@@ -37,19 +37,23 @@ fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
 }
 ```
 
-The model sees the description followed by `(from the <plugin name> plugin)`.
+The host sends the description followed by `(from the <plugin name> plugin)`.
 An `Err` is returned to the model as written. The handler reaches only the
 services the manifest declares under `uses`; the example declares
 `"ProjectHost"`.
 
 ## Names and schemas
 
+`AiToolSpec` defines four fields, and `PluginContext::register_ai_tool` checks
+these bounds (`AI_TOOL_PREFIX` is `"plugin_"`, `MAX_AI_TOOL_NAME` is `56`, and
+`MAX_AI_TOOL_SPEC` is `16384` bytes / 16 KiB):
+
 | Field | Rule |
 | --- | --- |
-| `name` | 1 to 56 bytes of lowercase ASCII letters, digits, and `_`, unique across every mounted plugin |
-| `description` | Not blank |
-| `parameters` | A JSON object with `"type": "object"`; `properties`, when present, is an object; every name in `required` is a key of `properties` |
-| Size | The description plus the schema's JSON text is at most 16 KiB |
+| `name` | 1 to `56` (`MAX_AI_TOOL_NAME`) bytes of lowercase ASCII letters, digits, and `_`, unique across every mounted plugin; called as `plugin_<name>` (`AI_TOOL_PREFIX`) |
+| `description` | Non-blank text; `description.len()` plus the serialized JSON length of `parameters` is at most `16384` (`MAX_AI_TOOL_SPEC`) bytes |
+| `parameters` | A JSON object with `"type": "object"`; `properties`, when present, is an object; every name in `required` is a property in `properties` |
+| `tier` | `AiToolTier` (`ReadOnly`, `Workspace`, or `System`) |
 
 `register_ai_tool` returns `PluginError::AiToolRefused` with the reason when a
 rule fails. A registration made during mount drops when the plugin unmounts,
@@ -71,14 +75,21 @@ trust; call it again`.
 
 ## Output
 
-`AiToolOutput` holds `text` and `images`. Each `AiToolImage` is a PNG and a
-label of a few words. An image that is not a PNG, or is over 2048 pixels
-(`MAX_AI_TOOL_IMAGE_SIDE`) on a side, fails the call.
+`AiToolOutput` and `AiToolImage` have the following fields:
+
+| Type | Fields |
+| --- | --- |
+| `AiToolOutput` | `text`, `images` |
+| `AiToolImage` | `png`, `label` |
+
+Each `AiToolImage` is a PNG byte buffer and a short label. An image that is not
+a valid PNG, or is over `2048` pixels (`MAX_AI_TOOL_IMAGE_SIDE`) on a side,
+fails the call.
 
 ## Edits
 
 A tool edits the project through `ProjectHost` (`docs/plugins/project.md`). The
-assistant's turn holds one edit group on its thread, so an edit a tool applies
+assistant's turn opens one edit group on its thread, so an edit a tool applies
 joins the turn's undo step, and rolling the turn back rolls the edit back.
 
 ## Failure
@@ -92,6 +103,19 @@ Long work checks `cancel`, which is set when the turn stops.
 Settings > AI counts the plugin tools beside the app tools. The assistant's
 tool list shows one group per plugin, `from the <plugin name> plugin`. The
 Plugins list shows each tool as an `AI tool` contribution by its call name.
+
+| Call | Effect |
+| --- | --- |
+| `register_ai_tool(spec, tool)` | Validates `spec` and registers `tool` under `plugin_<name>` |
+| `ai_tools()` | Every registered `PluginAiTool` in registration order |
+| `ai_tools_revision()` | Monotonic counter incremented when a tool is registered or removed |
+| `ai_tool(call_name)` | The `PluginAiTool` registered as `call_name`, if any |
+| `call_ai_tool(call_name, arguments, granted, cancel)` | Runs `call_name` if its current `tier` does not exceed `granted` |
+
+| Type | Fields / Variants |
+| --- | --- |
+| `PluginAiTool` | `plugin_id`, `plugin_name`, `call_name`, `spec` |
+| `AiToolError` | `Unknown`, `Failed`, `Panicked` |
 
 ## WebAssembly plugins
 

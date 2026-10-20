@@ -65,6 +65,11 @@ pub enum AiToolTier {
     System,
 }
 
+impl AiToolTier {
+    /// Every tier, least privileged first.
+    pub const ALL: [Self; 3] = [Self::ReadOnly, Self::Workspace, Self::System];
+}
+
 /// What the assistant is told about one tool.
 #[derive(Debug, Clone, PartialEq)]
 pub struct AiToolSpec {

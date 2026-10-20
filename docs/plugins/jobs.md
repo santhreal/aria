@@ -8,27 +8,43 @@ The board labels a plugin job `<plugin name>: <label>`. A job started during
 `mount` waits for the mount to finish and does not run when the mount fails.
 Unmounting, reloading, or failing the plugin cancels every job it started that
 has not reached its commit step. A panic inside a job fails the plugin for the
-session and ends the job as failed. Starting a job is refused when the host has
-no job registry; the `aria.jobs` plugin registers it in the editor.
+session and ends the job as failed. Starting a job fails with
+`PluginError::JobRefused` when the host has no job registry; the `aria.jobs`
+plugin registers `JobManager` in the editor.
 
 ## Commit step
 
 Cancel is accepted until the job begins its commit step: the point after which
 stopping would leave partial output, such as renaming a finished file over the
-original. From the commit step on, Cancel is refused and the job runs to its
+original. From the commit step on, Cancel is rejected and the job runs to its
 end.
 
 ## In-process plugins
 
-`PluginContext::start_job(label, work)` runs `work` on a job thread and
-returns its `JobId`. `work` receives a `JobContext`:
+`PluginContext` provides two job entry points, and `work` receives a
+`JobContext`:
 
-| Call | Effect |
+| `PluginContext` call | Effect |
 | --- | --- |
-| `set_progress(fraction, detail)` | Sets the bar to `fraction` (`0.0..=1.0`) and the detail line |
-| `set_detail(detail)` | Sets the detail line and leaves the bar unchanged |
+| `start_job(label, work)` | Spawns `work(&JobContext)` on a job thread and returns its `JobId` |
+| `start_stepped_job(label, step, end)` | Runs `step()` repeatedly until `done`, error, or cancellation, then calls `end(cancelled)` |
+
+| `JobContext` call | Effect |
+| --- | --- |
+| `id()` | Returns the job's `JobId` |
+| `set_detail(detail)` | Sets the detail line and leaves the progress bar unchanged |
+| `set_progress(fraction, detail)` | Clamps `fraction` to `0.0..=1.0` and sets the detail line |
+| `cancellation_token()` | Returns a cloneable `CancellationToken` sharing this job's cancel flag |
 | `cancelled()` | True once Cancel was accepted; return from `work` |
-| `try_begin_commit()` | Enters the commit step; false when Cancel won first |
+| `try_begin_commit()` | Enters the commit step; returns `false` when Cancel won first |
+
+| `JobState` | Meaning |
+| --- | --- |
+| `Queued` | Waiting for a worker slot under `JobManager`'s concurrency limit |
+| `Running` | Executing on its job thread |
+| `Done` | Completed with `Ok` |
+| `Failed` | Returned `Err` or panicked |
+| `Cancelled` | Cancelled before `try_begin_commit()` |
 
 `work` returns `Ok(detail)` for the last line the board shows or `Err(reason)`
 for a failure.
@@ -68,7 +84,7 @@ A step returns:
 | `progress` | Fraction done, `0.0..=1.0`, or none while unknown |
 | `detail` | The line the board shows; the last line when `done` |
 | `done` | The job is finished |
-| `commit` | The next step cannot be undone: Cancel is refused from here on |
+| `commit` | The next step cannot be undone: Cancel is rejected from here on |
 
 | Tier | Start | Step | End |
 | --- | --- | --- | --- |
@@ -80,7 +96,7 @@ In the C ABI, `job_step` writes `progress`, `done`, and `commit` into the
 `AriaJobStep` it receives and returns the detail line as the `AriaResult`
 value. A negative or NaN `progress` reports unknown progress. A native plugin
 table shorter than `ARIA_PLUGIN_V1_JOBS_SIZE` has no job callbacks, and
-`start_job` from it is refused.
+`start_job` from it is rejected.
 
 ```rust
 impl aria_sdk::Plugin for Counter {
