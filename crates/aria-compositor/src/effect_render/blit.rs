@@ -55,7 +55,7 @@ pub(crate) fn blit_premultiplied_to_canvas(
         occlusion_query_set: None,
         multiview_mask: None,
     });
-    pass.set_pipeline(&registry.blit_pipeline);
+    pass.set_pipeline(registry.blit_pipeline());
     pass.set_bind_group(0, &*bind_group, &[]);
     pass.draw(0..6, 0..1);
 }
@@ -91,7 +91,7 @@ pub(crate) fn blit_replace(
         occlusion_query_set: None,
         multiview_mask: None,
     });
-    pass.set_pipeline(&registry.replace_pipeline);
+    pass.set_pipeline(registry.replace_pipeline());
     pass.set_bind_group(0, &*bind_group, &[]);
     pass.draw(0..6, 0..1);
 }
@@ -153,7 +153,7 @@ pub(crate) fn blit_weighted_additive(
         occlusion_query_set: None,
         multiview_mask: None,
     });
-    pass.set_pipeline(&registry.accumulate_blit_pipeline);
+    pass.set_pipeline(registry.accumulate_blit_pipeline());
     pass.set_bind_group(0, &*bind_group, &[]);
     pass.draw(0..6, 0..1);
 }

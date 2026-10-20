@@ -16,8 +16,8 @@ use parking_lot::RwLock;
 
 use gpui::{
     App, AssetSource, Bounds, Element, ElementId, GlobalElementId, ImageSource, Img,
-    InspectorElementId, IntoElement, LayoutId, Pixels, Resource, Result, SharedString,
-    StyleRefinement, Styled, Svg, Transformation, Window, img, px, svg,
+    InspectorElementId, IntoElement, LayoutId, Pixels, Result, SharedString, StyleRefinement,
+    Styled, Svg, Transformation, Window, img, px, svg,
 };
 
 macro_rules! icon_assets {
@@ -321,15 +321,29 @@ impl Element for Icon {
 /// it wants drawn rather than tinting it: this is the one asset the theme does
 /// not colour.
 ///
-/// The source is built rather than parsed from the path: `img(&str)` runs the
-/// string through a URL parser and allocates a `String` to decide it is not a
-/// URL, and Home and the splash both draw this every animated frame.
+/// Decoded once per process into a shared [`gpui::RenderImage`] so opening a
+/// window or [`gpui::TestApp`] does not re-decode the embedded PNG on GPUI's
+/// background asset loader.
+pub fn brand_mark_image() -> std::sync::Arc<gpui::RenderImage> {
+    static BRAND_MARK_IMAGE: std::sync::LazyLock<std::sync::Arc<gpui::RenderImage>> =
+        std::sync::LazyLock::new(|| {
+            let bytes = match Assets.load(BRAND_MARK).expect("brand mark asset") {
+                Some(bytes) => bytes,
+                None => panic!("missing embedded brand mark {BRAND_MARK}"),
+            };
+            let decoded = image::load_from_memory_with_format(&bytes, image::ImageFormat::Png)
+                .expect("embedded brand mark PNG decodes")
+                .into_rgba8();
+            crate::frame::rgba_bytes_to_render(decoded.width(), decoded.height(), decoded.as_raw())
+                .expect("embedded brand mark has non-zero dimensions")
+        });
+    std::sync::Arc::clone(&BRAND_MARK_IMAGE)
+}
+
 pub fn brand_mark(size_px: f32) -> Img {
-    img(ImageSource::Resource(Resource::Embedded(
-        SharedString::new_static(BRAND_MARK),
-    )))
-    .flex_none()
-    .size(px(size_px))
+    img(ImageSource::Render(brand_mark_image()))
+        .flex_none()
+        .size(px(size_px))
 }
 
 #[cfg(test)]
@@ -544,5 +558,39 @@ mod tests {
                 "docs/icons.md: a row names {constant}, which icon_assets! does not register"
             );
         }
+    }
+
+    struct BrandView;
+
+    impl gpui::Render for BrandView {
+        fn render(&mut self, _: &mut Window, _: &mut gpui::Context<Self>) -> impl IntoElement {
+            brand_mark(18.0)
+        }
+    }
+
+    /// WHY: `brand_mark` previously returned `ImageSource::Resource(Embedded(BRAND_MARK))`,
+    /// causing every new `App` / `TestApp` to reload and PNG-decode `icon/aria-icon.png`
+    /// on GPUI's background executor (~5% of startup CPU cycles). It now shares one
+    /// process-wide `RenderImage` decoded once from the embedded PNG.
+    ///
+    /// Does NOT catch: GPU texture upload of the `RenderImage` on a real window surface.
+    #[test]
+    fn brand_mark_reuses_one_decoded_render_image_without_per_app_asset_load() {
+        let first = brand_mark_image();
+        let second = brand_mark_image();
+        assert!(std::sync::Arc::ptr_eq(&first, &second));
+
+        let loads = Loads::default();
+        let mut app = gpui::TestApp::with_text_system_and_assets(
+            std::sync::Arc::new(gpui::NoopTextSystem),
+            std::sync::Arc::new(loads.clone()),
+        );
+        let mut window = app.open_window(|_, _| BrandView);
+        window.draw();
+        app.run_until_parked();
+        assert!(
+            loads.0.lock().is_empty(),
+            "brand_mark must use the shared RenderImage instead of reloading through AssetSource"
+        );
     }
 }

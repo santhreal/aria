@@ -64,28 +64,12 @@ pub(crate) fn run_blend_composite(
     pass.draw(0..6, 0..1);
 }
 
-pub(super) const BLEND_MODE_COUNT: usize = 13;
+pub(super) const BLEND_MODE_COUNT: usize = BlendMode::ALL.len();
 
-pub(super) const ALL_BLEND_MODES: [BlendMode; BLEND_MODE_COUNT] = [
-    BlendMode::Normal,
-    BlendMode::Darken,
-    BlendMode::Multiply,
-    BlendMode::ColorBurn,
-    BlendMode::Lighten,
-    BlendMode::Screen,
-    BlendMode::ColorDodge,
-    BlendMode::Add,
-    BlendMode::Overlay,
-    BlendMode::SoftLight,
-    BlendMode::HardLight,
-    BlendMode::Difference,
-    BlendMode::Exclusion,
-];
-
-pub(super) fn build_blend_pipelines(
+pub(super) fn build_blend_shader(
     device: &wgpu::Device,
     layout: &wgpu::BindGroupLayout,
-) -> [wgpu::RenderPipeline; BLEND_MODE_COUNT] {
+) -> (wgpu::ShaderModule, wgpu::PipelineLayout) {
     let source = include_str!("../../shaders/blend_composite.wgsl");
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("aria.blend_composite"),
@@ -96,36 +80,43 @@ pub(super) fn build_blend_pipelines(
         bind_group_layouts: &[Some(layout)],
         immediate_size: 0,
     });
-    ALL_BLEND_MODES.map(|mode| {
-        let constants = [("0", mode.shader_id() as f64)];
-        let compilation_options = wgpu::PipelineCompilationOptions {
-            constants: &constants,
-            zero_initialize_workgroup_memory: true,
-        };
-        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some(&format!("aria.blend_composite.{mode:?}")),
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("vs"),
-                buffers: &[],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            },
-            primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some("fs"),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: RT_FORMAT,
-                    blend: None,
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options,
-            }),
-            multiview_mask: None,
-            cache: None,
-        })
+    (shader, pipeline_layout)
+}
+
+pub(super) fn build_blend_pipeline(
+    device: &wgpu::Device,
+    shader: &wgpu::ShaderModule,
+    pipeline_layout: &wgpu::PipelineLayout,
+    mode: BlendMode,
+) -> wgpu::RenderPipeline {
+    let constants = [("0", mode.shader_id() as f64)];
+    let compilation_options = wgpu::PipelineCompilationOptions {
+        constants: &constants,
+        zero_initialize_workgroup_memory: true,
+    };
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some(&format!("aria.blend_composite.{mode:?}")),
+        layout: Some(pipeline_layout),
+        vertex: wgpu::VertexState {
+            module: shader,
+            entry_point: Some("vs"),
+            buffers: &[],
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+        },
+        primitive: wgpu::PrimitiveState::default(),
+        depth_stencil: None,
+        multisample: wgpu::MultisampleState::default(),
+        fragment: Some(wgpu::FragmentState {
+            module: shader,
+            entry_point: Some("fs"),
+            targets: &[Some(wgpu::ColorTargetState {
+                format: RT_FORMAT,
+                blend: None,
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+            compilation_options,
+        }),
+        multiview_mask: None,
+        cache: None,
     })
 }

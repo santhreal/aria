@@ -1,8 +1,10 @@
+use std::sync::{Arc, OnceLock};
+
 use super::glyphs::GlyphInstanceGpu;
-use crate::effect_render::PassRegistry;
+use crate::effect_render::{PassRegistry, SharedPassPipelines};
 use crate::gpu::GpuContext;
 
-use super::{CANVAS_FORMAT, Compositor};
+use super::{CANVAS_FORMAT, Compositor, LayerPipeline};
 
 use crate::grade::GRADE_WGSL;
 
@@ -37,11 +39,28 @@ const PREMULTIPLIED_OVER: wgpu::BlendState = wgpu::BlendState {
     },
 };
 
-impl Compositor {
-    /// Build the compositor's pipelines on an existing GPU context.
-    pub fn new(gpu: &GpuContext) -> Self {
-        let device = &gpu.device;
+pub(crate) struct SharedLayerPipelines {
+    device: wgpu::Device,
+    pub(super) yuv_layout: wgpu::BindGroupLayout,
+    pub(super) yuv_fx_layout: wgpu::BindGroupLayout,
+    pub(super) rgba_layout: wgpu::BindGroupLayout,
+    pub(super) rgba_fx_layout: wgpu::BindGroupLayout,
+    pub(super) solid_layout: wgpu::BindGroupLayout,
+    pub(super) sdf_layout: wgpu::BindGroupLayout,
+    pub(super) glyphs_layout: wgpu::BindGroupLayout,
+    pub(super) sampler: wgpu::Sampler,
+    yuv_pipeline: OnceLock<wgpu::RenderPipeline>,
+    yuv_fx_pipeline: OnceLock<wgpu::RenderPipeline>,
+    rgba_pipeline: OnceLock<wgpu::RenderPipeline>,
+    rgba_fx_pipeline: OnceLock<wgpu::RenderPipeline>,
+    solid_pipeline: OnceLock<wgpu::RenderPipeline>,
+    sdf_pipeline: OnceLock<wgpu::RenderPipeline>,
+    glyphs_pipeline: OnceLock<wgpu::RenderPipeline>,
+    pub(super) pass_pipelines: Arc<SharedPassPipelines>,
+}
 
+impl SharedLayerPipelines {
+    pub(crate) fn new(device: &wgpu::Device) -> Self {
         let yuv_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("aria.yuv.bgl"),
             entries: &[
@@ -95,97 +114,6 @@ impl Compositor {
             entries: &[plane_tex_entry(0), sampler_entry(1), uniform_entry(2)],
         });
 
-        let yuv_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("aria.yuv.wgsl"),
-            source: wgsl_with_grade(include_str!("../../shaders/yuv.wgsl")),
-        });
-        let yuv_fx_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("aria.yuv_fx.wgsl"),
-            source: wgpu::ShaderSource::Wgsl(
-                format!(
-                    "{}\n{}{}",
-                    *GRADE_WGSL,
-                    include_str!("../../shaders/mask.wgsl"),
-                    include_str!("../../shaders/yuv_fx.wgsl"),
-                )
-                .into(),
-            ),
-        });
-        let rgba_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("aria.rgba.wgsl"),
-            source: wgsl_with_grade(include_str!("../../shaders/rgba.wgsl")),
-        });
-        let rgba_fx_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("aria.rgba_fx.wgsl"),
-            source: wgpu::ShaderSource::Wgsl(
-                format!(
-                    "{}\n{}{}",
-                    *GRADE_WGSL,
-                    include_str!("../../shaders/mask.wgsl"),
-                    include_str!("../../shaders/rgba_fx.wgsl"),
-                )
-                .into(),
-            ),
-        });
-        let solid_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("aria.solid.wgsl"),
-            source: wgsl_with_grade(include_str!("../../shaders/solid.wgsl")),
-        });
-        let sdf_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("aria.shape.wgsl"),
-            source: wgsl_with_grade(include_str!("../../shaders/shape.wgsl")),
-        });
-        let glyphs_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("aria.glyph.wgsl"),
-            source: wgsl_with_grade(include_str!("../../shaders/glyph.wgsl")),
-        });
-
-        // Opaque video and solids use straight-alpha src-over; RGBA bitmaps
-        // (text/shape coverage) are premultiplied for clean edges.
-        let yuv_pipeline =
-            build_pipeline(device, "aria.yuv", &yuv_layout, &yuv_shader, STRAIGHT_OVER);
-        let yuv_fx_pipeline = build_pipeline(
-            device,
-            "aria.yuv_fx",
-            &yuv_fx_layout,
-            &yuv_fx_shader,
-            STRAIGHT_OVER,
-        );
-        let rgba_pipeline = build_pipeline(
-            device,
-            "aria.rgba",
-            &rgba_layout,
-            &rgba_shader,
-            PREMULTIPLIED_OVER,
-        );
-        let rgba_fx_pipeline = build_pipeline(
-            device,
-            "aria.rgba_fx",
-            &rgba_fx_layout,
-            &rgba_fx_shader,
-            PREMULTIPLIED_OVER,
-        );
-        let solid_pipeline = build_pipeline(
-            device,
-            "aria.solid",
-            &solid_layout,
-            &solid_shader,
-            STRAIGHT_OVER,
-        );
-        // SDF shapes emit straight-alpha fragments (coverage folded into
-        // alpha), like solids.
-        let sdf_pipeline =
-            build_pipeline(device, "aria.sdf", &sdf_layout, &sdf_shader, STRAIGHT_OVER);
-        // Glyphs are premultiplied atlas samples, like RGBA bitmaps.
-        let glyphs_pipeline = build_instanced_pipeline(
-            device,
-            "aria.glyphs",
-            &glyphs_layout,
-            &glyphs_shader,
-            PREMULTIPLIED_OVER,
-            &[GlyphInstanceGpu::LAYOUT],
-        );
-
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("aria.sampler"),
             address_mode_u: wgpu::AddressMode::ClampToEdge,
@@ -198,13 +126,196 @@ impl Compositor {
         });
 
         Self {
-            yuv_pipeline,
-            yuv_fx_pipeline,
-            rgba_pipeline,
-            rgba_fx_pipeline,
-            solid_pipeline,
-            sdf_pipeline,
-            glyphs_pipeline,
+            device: device.clone(),
+            yuv_layout,
+            yuv_fx_layout,
+            rgba_layout,
+            rgba_fx_layout,
+            solid_layout,
+            sdf_layout,
+            glyphs_layout,
+            sampler,
+            yuv_pipeline: OnceLock::new(),
+            yuv_fx_pipeline: OnceLock::new(),
+            rgba_pipeline: OnceLock::new(),
+            rgba_fx_pipeline: OnceLock::new(),
+            solid_pipeline: OnceLock::new(),
+            sdf_pipeline: OnceLock::new(),
+            glyphs_pipeline: OnceLock::new(),
+            pass_pipelines: Arc::new(SharedPassPipelines::new(device)),
+        }
+    }
+
+    pub(super) fn layer_pipeline(&self, kind: &LayerPipeline) -> &wgpu::RenderPipeline {
+        match kind {
+            LayerPipeline::Yuv => self.yuv_pipeline.get_or_init(|| {
+                let shader = self
+                    .device
+                    .create_shader_module(wgpu::ShaderModuleDescriptor {
+                        label: Some("aria.yuv.wgsl"),
+                        source: wgsl_with_grade(include_str!("../../shaders/yuv.wgsl")),
+                    });
+                build_pipeline(
+                    &self.device,
+                    "aria.yuv",
+                    &self.yuv_layout,
+                    &shader,
+                    STRAIGHT_OVER,
+                )
+            }),
+            LayerPipeline::YuvFx => self.yuv_fx_pipeline.get_or_init(|| {
+                let shader = self
+                    .device
+                    .create_shader_module(wgpu::ShaderModuleDescriptor {
+                        label: Some("aria.yuv_fx.wgsl"),
+                        source: wgpu::ShaderSource::Wgsl(
+                            format!(
+                                "{}\n{}{}",
+                                *GRADE_WGSL,
+                                include_str!("../../shaders/mask.wgsl"),
+                                include_str!("../../shaders/yuv_fx.wgsl"),
+                            )
+                            .into(),
+                        ),
+                    });
+                build_pipeline(
+                    &self.device,
+                    "aria.yuv_fx",
+                    &self.yuv_fx_layout,
+                    &shader,
+                    STRAIGHT_OVER,
+                )
+            }),
+            LayerPipeline::Rgba => self.rgba_pipeline.get_or_init(|| {
+                let shader = self
+                    .device
+                    .create_shader_module(wgpu::ShaderModuleDescriptor {
+                        label: Some("aria.rgba.wgsl"),
+                        source: wgsl_with_grade(include_str!("../../shaders/rgba.wgsl")),
+                    });
+                build_pipeline(
+                    &self.device,
+                    "aria.rgba",
+                    &self.rgba_layout,
+                    &shader,
+                    PREMULTIPLIED_OVER,
+                )
+            }),
+            LayerPipeline::RgbaFx => self.rgba_fx_pipeline.get_or_init(|| {
+                let shader = self
+                    .device
+                    .create_shader_module(wgpu::ShaderModuleDescriptor {
+                        label: Some("aria.rgba_fx.wgsl"),
+                        source: wgpu::ShaderSource::Wgsl(
+                            format!(
+                                "{}\n{}{}",
+                                *GRADE_WGSL,
+                                include_str!("../../shaders/mask.wgsl"),
+                                include_str!("../../shaders/rgba_fx.wgsl"),
+                            )
+                            .into(),
+                        ),
+                    });
+                build_pipeline(
+                    &self.device,
+                    "aria.rgba_fx",
+                    &self.rgba_fx_layout,
+                    &shader,
+                    PREMULTIPLIED_OVER,
+                )
+            }),
+            LayerPipeline::Solid => self.solid_pipeline.get_or_init(|| {
+                let shader = self
+                    .device
+                    .create_shader_module(wgpu::ShaderModuleDescriptor {
+                        label: Some("aria.solid.wgsl"),
+                        source: wgsl_with_grade(include_str!("../../shaders/solid.wgsl")),
+                    });
+                build_pipeline(
+                    &self.device,
+                    "aria.solid",
+                    &self.solid_layout,
+                    &shader,
+                    STRAIGHT_OVER,
+                )
+            }),
+            LayerPipeline::Sdf => self.sdf_pipeline.get_or_init(|| {
+                let shader = self
+                    .device
+                    .create_shader_module(wgpu::ShaderModuleDescriptor {
+                        label: Some("aria.shape.wgsl"),
+                        source: wgsl_with_grade(include_str!("../../shaders/shape.wgsl")),
+                    });
+                build_pipeline(
+                    &self.device,
+                    "aria.sdf",
+                    &self.sdf_layout,
+                    &shader,
+                    STRAIGHT_OVER,
+                )
+            }),
+            LayerPipeline::Glyphs => self.glyphs_pipeline.get_or_init(|| {
+                let shader = self
+                    .device
+                    .create_shader_module(wgpu::ShaderModuleDescriptor {
+                        label: Some("aria.glyph.wgsl"),
+                        source: wgsl_with_grade(include_str!("../../shaders/glyph.wgsl")),
+                    });
+                build_instanced_pipeline(
+                    &self.device,
+                    "aria.glyphs",
+                    &self.glyphs_layout,
+                    &shader,
+                    PREMULTIPLIED_OVER,
+                    &[GlyphInstanceGpu::LAYOUT],
+                )
+            }),
+        }
+    }
+
+    pub(super) fn compiled_count(&self) -> usize {
+        let layers = [
+            &self.yuv_pipeline,
+            &self.yuv_fx_pipeline,
+            &self.rgba_pipeline,
+            &self.rgba_fx_pipeline,
+            &self.solid_pipeline,
+            &self.sdf_pipeline,
+            &self.glyphs_pipeline,
+        ]
+        .into_iter()
+        .filter(|cell| cell.get().is_some())
+        .count();
+        layers + self.pass_pipelines.compiled_count()
+    }
+}
+
+impl Compositor {
+    /// Build a compositor backed by `gpu`'s shared, lazily-compiled pipelines.
+    pub fn new(gpu: &GpuContext) -> Self {
+        let pipelines = Arc::clone(
+            gpu.pipelines
+                .get_or_init(|| Arc::new(SharedLayerPipelines::new(&gpu.device))),
+        );
+        Self::with_shared_pipelines(gpu, pipelines)
+    }
+
+    pub(crate) fn with_shared_pipelines(
+        gpu: &GpuContext,
+        pipelines: Arc<SharedLayerPipelines>,
+    ) -> Self {
+        let yuv_layout = pipelines.yuv_layout.clone();
+        let yuv_fx_layout = pipelines.yuv_fx_layout.clone();
+        let rgba_layout = pipelines.rgba_layout.clone();
+        let rgba_fx_layout = pipelines.rgba_fx_layout.clone();
+        let solid_layout = pipelines.solid_layout.clone();
+        let sdf_layout = pipelines.sdf_layout.clone();
+        let glyphs_layout = pipelines.glyphs_layout.clone();
+        let sampler = pipelines.sampler.clone();
+        let pass_registry = PassRegistry::from_shared(Arc::clone(&pipelines.pass_pipelines));
+
+        Self {
+            pipelines,
             yuv_layout,
             yuv_fx_layout,
             rgba_layout,
@@ -215,7 +326,7 @@ impl Compositor {
             sampler,
             target: None,
             frame_target_views: Vec::new(),
-            pass_registry: PassRegistry::new(device),
+            pass_registry,
             offscreen: None,
             references: crate::effect_render::CanvasTargets::new("aria.reference"),
             nests: crate::effect_render::CanvasTargets::new("aria.nest"),
@@ -331,4 +442,50 @@ fn wgsl_with_grade(shader: &str) -> wgpu::ShaderSource<'static> {
         "{}\n{shader}",
         *GRADE_WGSL
     )))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::layer::{CompositeLayer, CompositorConfig, LayerPlacement};
+
+    /// WHY: `Compositor::new` and `PassRegistry::new` previously compiled all 7
+    /// layer pipelines and all 50 built-in effect, transition, blend, style, and
+    /// blit pipelines eagerly before a single frame was drawn, spending >70% of
+    /// editor startup CPU cycles in Naga + LLVM JIT (`create_render_pipeline`)
+    /// and ~60 MiB of idle RSS. Built-in pipelines now compile lazily on first
+    /// draw and are shared across `Compositor` instances on the same `GpuContext`.
+    ///
+    /// Does NOT catch: driver-internal shader cache disk I/O on first draw.
+    #[test]
+    fn compositor_compiles_builtin_pipelines_lazily_and_shares_across_handles() {
+        let gpu = GpuContext::new_headless_blocking().expect("headless GPU");
+        let shared = Arc::new(SharedLayerPipelines::new(&gpu.device));
+        let mut first = Compositor::with_shared_pipelines(&gpu, Arc::clone(&shared));
+        assert_eq!(
+            first.builtin_pipeline_builds(),
+            0,
+            "new Compositor must not compile built-in pipelines before rendering"
+        );
+
+        let cfg = CompositorConfig::new(16, 16);
+        let solid = CompositeLayer::solid([255, 0, 0, 255], LayerPlacement::full_canvas(&cfg));
+        first.render(&gpu, &cfg, &[solid]).expect("solid render");
+        assert_eq!(
+            first.builtin_pipeline_builds(),
+            1,
+            "rendering a solid layer must compile only the solid pipeline"
+        );
+
+        let mut second = Compositor::with_shared_pipelines(&gpu, Arc::clone(&shared));
+        assert_eq!(
+            second.builtin_pipeline_builds(),
+            1,
+            "second Compositor sharing pipelines must reuse the compiled solid pipeline"
+        );
+        second
+            .render(&gpu, &cfg, &[solid])
+            .expect("second solid render");
+        assert_eq!(second.builtin_pipeline_builds(), 1);
+    }
 }

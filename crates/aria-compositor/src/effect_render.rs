@@ -27,7 +27,7 @@ pub(crate) use canvas_targets::CanvasTargets;
 pub(crate) use lut::run_lut_pass;
 pub use pass_cache::PassStats;
 pub(crate) use pass_cache::{Bound, PassCache};
-pub(crate) use pipelines::PassRegistry;
+pub(crate) use pipelines::{PassRegistry, SharedPassPipelines};
 pub(crate) use pool::OffscreenPool;
 pub(crate) use styles::{background_plate_layer, composite_layer_outline, composite_layer_styles};
 
@@ -340,7 +340,7 @@ pub(crate) fn run_matte_pass(
         occlusion_query_set: None,
         multiview_mask: None,
     });
-    pass.set_pipeline(&registry.matte);
+    pass.set_pipeline(registry.matte());
     pass.set_bind_group(0, &*bind_group, &[]);
     pass.draw(0..6, 0..1);
 }
@@ -417,7 +417,7 @@ pub(crate) fn run_mask_stack_pass(
         occlusion_query_set: None,
         multiview_mask: None,
     });
-    pass.set_pipeline(&registry.mask_stack);
+    pass.set_pipeline(registry.mask_stack());
     pass.set_bind_group(0, &*bind_group, &[]);
     pass.draw(0..6, 0..1);
 }
@@ -460,7 +460,7 @@ pub(crate) fn run_grade_pass<'a>(
         occlusion_query_set: None,
         multiview_mask: None,
     });
-    pass.set_pipeline(&registry.grade);
+    pass.set_pipeline(registry.grade());
     pass.set_bind_group(0, &*bind_group, &[]);
     pass.draw(0..6, 0..1);
     output

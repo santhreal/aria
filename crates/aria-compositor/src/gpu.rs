@@ -15,6 +15,9 @@ pub struct GpuContext {
     pub adapter: wgpu::Adapter,
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
+    pub(crate) pipelines: std::sync::Arc<
+        std::sync::OnceLock<std::sync::Arc<crate::compositor::pipelines::SharedLayerPipelines>>,
+    >,
 }
 
 impl std::fmt::Debug for GpuContext {
@@ -34,6 +37,16 @@ impl GpuContext {
         // full backend set if it somehow isn't.
         #[cfg(target_os = "windows")]
         if let Ok(gpu) = Self::new_headless_with(wgpu::Backends::DX12).await {
+            return Ok(gpu);
+        }
+        // Try primary backends (Vulkan / Metal / DX12) before falling back to
+        // GL/EGL, so hosts with a primary adapter do not dlopen and initialize
+        // a second EGL/DRI driver stack inside `wgpu::Instance::new`. A primary
+        // adapter that is a CPU rasterizer (lavapipe) is dropped: the full set
+        // ranks a GL adapter on real hardware above it.
+        if let Ok(gpu) = Self::new_headless_with(wgpu::Backends::PRIMARY).await
+            && primary_suffices(gpu.adapter.get_info().device_type)
+        {
             return Ok(gpu);
         }
         Self::new_headless_with(wgpu::Backends::all()).await
@@ -70,6 +83,7 @@ impl GpuContext {
             adapter,
             device,
             queue,
+            pipelines: std::sync::Arc::new(std::sync::OnceLock::new()),
         })
     }
 
@@ -125,6 +139,7 @@ impl GpuContext {
             adapter,
             device,
             queue,
+            pipelines: std::sync::Arc::new(std::sync::OnceLock::new()),
         }
     }
 
@@ -143,6 +158,7 @@ impl GpuContext {
             adapter: self.adapter.clone(),
             device: self.device.clone(),
             queue: self.queue.clone(),
+            pipelines: std::sync::Arc::clone(&self.pipelines),
         }
     }
 
@@ -179,6 +195,24 @@ fn new_instance(backends: wgpu::Backends) -> wgpu::Instance {
         backends,
         ..wgpu::InstanceDescriptor::new_without_display_handle()
     })
+}
+
+/// Whether a primary-backend adapter of `kind` is used without bringing up the
+/// GL backend. `wgpu` sorts the adapters of every backend it was given by
+/// device type, CPU rasterizers last, so with the GL backend present a GL
+/// adapter on hardware is chosen over a Vulkan CPU rasterizer (lavapipe). A
+/// CPU adapter is therefore not used from the primary backends alone. Any
+/// hardware adapter is used: the full set could only replace it with a GL
+/// adapter of a higher-ranked type, a discrete GPU with no Vulkan driver beside
+/// an integrated one that has one.
+fn primary_suffices(kind: wgpu::DeviceType) -> bool {
+    match kind {
+        wgpu::DeviceType::DiscreteGpu
+        | wgpu::DeviceType::IntegratedGpu
+        | wgpu::DeviceType::VirtualGpu
+        | wgpu::DeviceType::Other => true,
+        wgpu::DeviceType::Cpu => false,
+    }
 }
 
 #[cfg(test)]
@@ -218,5 +252,33 @@ mod tests {
         });
         second.queue.write_buffer(&buffer, 0, &[0u8; 16]);
         second.queue.submit(std::iter::empty());
+    }
+
+    /// **A CPU rasterizer from the primary backends is not used alone.**
+    ///
+    /// Asking the primary backends first skips the GL backend's driver bring-up.
+    /// It also skips `wgpu`'s cross-backend ranking, which places a GL adapter
+    /// on hardware above a Vulkan CPU rasterizer; a host with lavapipe beside a
+    /// GPU that has only a GL driver rendered on the CPU when the primary
+    /// answer was used whatever its type. Every device type is listed, and
+    /// `primary_suffices` matches exhaustively, so a new type fails to compile
+    /// until it is placed.
+    ///
+    /// Not caught: which adapter `wgpu` returns on a real mixed host.
+    #[test]
+    fn only_a_hardware_primary_adapter_skips_the_gl_backend() {
+        for (kind, used) in [
+            (wgpu::DeviceType::DiscreteGpu, true),
+            (wgpu::DeviceType::IntegratedGpu, true),
+            (wgpu::DeviceType::VirtualGpu, true),
+            (wgpu::DeviceType::Other, true),
+            (wgpu::DeviceType::Cpu, false),
+        ] {
+            assert_eq!(
+                primary_suffices(kind),
+                used,
+                "primary adapter of type {kind:?}"
+            );
+        }
     }
 }
