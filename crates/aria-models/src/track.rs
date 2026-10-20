@@ -376,6 +376,9 @@ impl std::io::Write for HashWriter {
 thread_local! {
     /// Lanes [`Track::revision`] hashed on this thread.
     static HASHED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// Clips [`Track::clip_at`], [`Track::has_overlap`], and [`Track::content_end`]
+    /// inspected on this thread.
+    static ORDER_PROBES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 #[derive(Deserialize)]
@@ -592,9 +595,24 @@ impl Track {
     /// The clip occupying `timeline_pos`, if any. (At most one, since clips on a
     /// track never overlap.)
     pub fn clip_at(&self, timeline_pos: RationalTime) -> Result<Option<&Clip>, ModelError> {
-        for clip in self.clips.values() {
+        let Some(&first_id) = self.order.first() else {
+            return Ok(None);
+        };
+        crate::time::check_same_rate(self.clips[&first_id].timeline.start.rate, timeline_pos.rate)?;
+        let idx = self.order.partition_point(|id| {
+            #[cfg(test)]
+            ORDER_PROBES.with(|c| c.set(c.get() + 1));
+            self.clips[id].timeline.start.value <= timeline_pos.value
+        });
+        for &id in self.order[..idx].iter().rev() {
+            #[cfg(test)]
+            ORDER_PROBES.with(|c| c.set(c.get() + 1));
+            let clip = &self.clips[&id];
             if clip.timeline.contains(timeline_pos)? {
                 return Ok(Some(clip));
+            }
+            if clip.timeline.end_tick() <= timeline_pos.value {
+                break;
             }
         }
         Ok(None)
@@ -607,21 +625,49 @@ impl Track {
         range: TimeRange,
         ignore: Option<ClipId>,
     ) -> Result<bool, ModelError> {
-        for clip in self.clips.values().filter(|c| Some(c.id) != ignore) {
+        let end = range.end_tick();
+        let idx = self.order.partition_point(|id| {
+            #[cfg(test)]
+            ORDER_PROBES.with(|c| c.set(c.get() + 1));
+            self.clips[id].timeline.start.value < end
+        });
+        for &id in self.order[..idx].iter().rev() {
+            if Some(id) == ignore {
+                continue;
+            }
+            #[cfg(test)]
+            ORDER_PROBES.with(|c| c.set(c.get() + 1));
+            let clip = &self.clips[&id];
             if clip.timeline.overlaps(range)? {
                 return Ok(true);
             }
+            if clip.timeline.end_tick() <= range.start.value {
+                break;
+            }
+        }
+        for &id in &self.order[idx..] {
+            if Some(id) == ignore {
+                continue;
+            }
+            #[cfg(test)]
+            ORDER_PROBES.with(|c| c.set(c.get() + 1));
+            let clip = &self.clips[&id];
+            crate::time::check_same_rate(clip.timeline.start.rate, range.start.rate)?;
+            break;
         }
         Ok(false)
     }
 
     /// Exclusive end tick of the last clip (0 if empty), at the timeline rate.
     pub fn content_end(&self) -> i64 {
-        self.clips
-            .values()
-            .map(|c| c.timeline.end_tick())
-            .max()
-            .unwrap_or(0)
+        self.order
+            .last()
+            .and_then(|id| {
+                #[cfg(test)]
+                ORDER_PROBES.with(|c| c.set(c.get() + 1));
+                self.clips.get(id)
+            })
+            .map_or(0, |c| c.timeline.end_tick())
     }
 
     /// Insert without overlap checking. Returns the displaced clip, if any.

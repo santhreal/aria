@@ -43,9 +43,32 @@ enum OverviewDrag {
     RightHandle,
 }
 
+struct TrackSpanCache {
+    clips: std::sync::Weak<Vec<crate::types::UiClip>>,
+    ranges: Rc<[(i64, i64)]>,
+    mask: Option<((i64, u32), u64)>,
+}
+
 thread_local! {
     static OVERVIEW_DRAG: Cell<Option<OverviewDrag>> = const { Cell::new(None) };
     static SPANS: RefCell<Option<(SpanKey, Rc<[(f32, f32)]>)>> = const { RefCell::new(None) };
+    static TRACK_MASKS: RefCell<std::collections::HashMap<u64, TrackSpanCache>> =
+        RefCell::new(std::collections::HashMap::new());
+}
+
+#[cfg(test)]
+thread_local! {
+    static OVERVIEW_CLIP_PROBES: Cell<usize> = const { Cell::new(0) };
+}
+
+#[cfg(test)]
+fn reset_overview_clip_probes() {
+    OVERVIEW_CLIP_PROBES.with(|n| n.set(0));
+}
+
+#[cfg(test)]
+fn overview_clip_probes() -> usize {
+    OVERVIEW_CLIP_PROBES.with(Cell::get)
 }
 
 /// What the coalesced overview spans are a function of. Clip times are written
@@ -56,14 +79,14 @@ struct SpanKey {
     store: *const UiEditorStore,
     projections: u64,
     tracks: usize,
-    clips: usize,
     duration: i64,
     view_w: u32,
 }
 
 /// [`coalesce_overview_spans`] for `store`, walked again only when the store
 /// was re-projected or the strip changed width: a scroll, zoom or playhead
-/// frame reads the last result.
+/// frame reads the last result, and a re-projection reuses the bucket mask of
+/// every lane whose `UiClips` allocation did not move.
 fn overview_spans(
     store: &Arc<UiEditorStore>,
     projections: u64,
@@ -74,7 +97,6 @@ fn overview_spans(
         store: Arc::as_ptr(store),
         projections,
         tracks: store.sequence.tracks.len(),
-        clips: store.sequence.tracks.iter().map(|t| t.clips.len()).sum(),
         duration,
         view_w: view_w.to_bits(),
     };
@@ -119,6 +141,45 @@ pub(super) fn window_on_strip(scroll_x: f32, full_px: f32, view_w: f32) -> (f32,
     (x.clamp(0.0, (strip - w).max(0.0)), w)
 }
 
+/// The `[start, end]` tick intervals that `clips` cover, merged where they
+/// touch or overlap. `clips` is in start order, as a lane holds them.
+fn coalesce_track_ranges(clips: &[crate::types::UiClip]) -> Rc<[(i64, i64)]> {
+    let mut ranges: Vec<(i64, i64)> = Vec::new();
+    for clip in clips {
+        #[cfg(test)]
+        OVERVIEW_CLIP_PROBES.with(|n| n.set(n.get() + 1));
+        let start = clip.timeline_start_ticks;
+        let end = clip.timeline_end_ticks.max(start);
+        if let Some(last) = ranges.last_mut()
+            && start <= last.1
+        {
+            last.1 = last.1.max(end);
+        } else {
+            ranges.push((start, end));
+        }
+    }
+    ranges.into()
+}
+
+fn range_bucket_mask(ranges: &[(i64, i64)], duration: i64, view_w: f32, bucket_w: f32) -> u64 {
+    let mut mask = 0u64;
+    for &(start, end_tick) in ranges {
+        let x0 = x_at(start, duration, view_w).clamp(0.0, view_w);
+        let x1 = x_at(end_tick, duration, view_w).clamp(x0, view_w);
+        let b0 = ((x0 / bucket_w).floor() as usize).min(MAX_OVERVIEW_SPANS - 1);
+        let b1 = ((x1 / bucket_w).ceil() as usize).min(MAX_OVERVIEW_SPANS);
+        let end = b1.max(b0 + 1).min(MAX_OVERVIEW_SPANS);
+        let count = end - b0;
+        let bits = if count >= 64 {
+            u64::MAX
+        } else {
+            ((1u64 << count) - 1) << b0
+        };
+        mask |= bits;
+    }
+    mask
+}
+
 /// Coalesce clip `[start, end]` intervals into at most `MAX_OVERVIEW_SPANS`
 /// pixel intervals `(x, w)` so 10,000 clips never build 10,000 overview nodes.
 pub(super) fn coalesce_overview_spans(
@@ -130,27 +191,47 @@ pub(super) fn coalesce_overview_spans(
         return Vec::new();
     }
     let bucket_w = (view_w / MAX_OVERVIEW_SPANS as f32).max(2.0);
-    let mut buckets = [false; MAX_OVERVIEW_SPANS];
-    for track in &store.sequence.tracks {
-        for clip in &track.clips {
-            let x0 = x_at(clip.timeline_start_ticks, duration, view_w).clamp(0.0, view_w);
-            let x1 = x_at(clip.timeline_end_ticks, duration, view_w).clamp(x0, view_w);
-            let b0 = ((x0 / bucket_w).floor() as usize).min(MAX_OVERVIEW_SPANS - 1);
-            let b1 = ((x1 / bucket_w).ceil() as usize).min(MAX_OVERVIEW_SPANS);
-            for slot in &mut buckets[b0..b1.max(b0 + 1).min(MAX_OVERVIEW_SPANS)] {
-                *slot = true;
-            }
+    let geom = (duration, view_w.to_bits());
+    let combined = TRACK_MASKS.with_borrow_mut(|prev| {
+        let mut next = std::collections::HashMap::with_capacity(store.sequence.tracks.len());
+        let mut all = 0u64;
+        for track in &store.sequence.tracks {
+            let (weak, ranges, cached) = match prev.remove(&track.id) {
+                Some(entry) if track.clips.is(&entry.clips) => {
+                    (entry.clips, entry.ranges, entry.mask)
+                }
+                _ => (
+                    track.clips.downgrade(),
+                    coalesce_track_ranges(&track.clips),
+                    None,
+                ),
+            };
+            let mask = match cached {
+                Some((held_geom, mask)) if held_geom == geom => mask,
+                _ => range_bucket_mask(&ranges, duration, view_w, bucket_w),
+            };
+            all |= mask;
+            next.insert(
+                track.id,
+                TrackSpanCache {
+                    clips: weak,
+                    ranges,
+                    mask: Some((geom, mask)),
+                },
+            );
         }
-    }
+        *prev = next;
+        all
+    });
     let mut merged = Vec::new();
     let mut idx = 0;
     while idx < MAX_OVERVIEW_SPANS {
-        if !buckets[idx] {
+        if (combined & (1u64 << idx)) == 0 {
             idx += 1;
             continue;
         }
         let start = idx;
-        while idx < MAX_OVERVIEW_SPANS && buckets[idx] {
+        while idx < MAX_OVERVIEW_SPANS && (combined & (1u64 << idx)) != 0 {
             idx += 1;
         }
         let x = start as f32 * bucket_w;
@@ -416,5 +497,50 @@ mod tests {
         let (x, w) = window_on_strip(200.0, 400.0, 200.0);
         assert!((x - 100.0).abs() < 0.01);
         assert!((w - 100.0).abs() < 0.01);
+    }
+
+    /// WHY: `coalesce_overview_spans` previously walked every clip on every
+    /// track whenever `projections` advanced. This test closes that class by
+    /// verifying that when one lane's `UiClips` allocation is replaced and the
+    /// remaining lanes keep their shared `UiClips`, only the changed lane's
+    /// clips are inspected.
+    ///
+    /// Does NOT catch: layout width changes (`view_w`), which intentionally
+    /// recompute bucket masks for the new strip width.
+    #[test]
+    fn coalesce_overview_spans_reuses_unchanged_lane_masks() {
+        let mut state = crate::app::premiere_tests::with_sequence(3, 15);
+        let last = state.store.sequence.tracks[0]
+            .clips
+            .last()
+            .expect("tail clip");
+        let clip = aria_models::ClipId::from_raw(last.id);
+        let start = last.timeline_start_ticks;
+        let dur = state.store.sequence.duration_ticks;
+        let _ = overview_spans(&state.store, state.projections, dur, 320.0);
+
+        state
+            .apply_command(aria_commands::Command::Edit(
+                aria_commands::EditCommand::TrimClip {
+                    clip,
+                    timeline: aria_models::TimeRange::at_rate(
+                        start,
+                        12,
+                        aria_models::Rational::FPS_24,
+                    ),
+                },
+            ))
+            .unwrap();
+
+        reset_overview_clip_probes();
+        let next_dur = state.store.sequence.duration_ticks;
+        let spans = overview_spans(&state.store, state.projections, next_dur, 320.0);
+        assert!(!spans.is_empty());
+        assert_eq!(
+            overview_clip_probes(),
+            15,
+            "expected only the 15 clips on the modified lane to be scanned, got {}",
+            overview_clip_probes()
+        );
     }
 }

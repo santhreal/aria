@@ -401,6 +401,108 @@ fn content_end_is_max_exclusive_end() {
     assert_eq!(track.content_end(), 130);
 }
 
+/// `clip_at`, `has_overlap`, and `content_end` index `Track::order` by binary
+/// search and tail lookup instead of scanning `clips`.
+///
+/// WHY: `resolve_timeline_into`, edit collision checks, and `Timeline::duration`
+/// call these methods across every lane on every frame and edit; scanning a
+/// 200-clip lane linearly turns each lookup into 200 hash-map probes. What this
+/// does not catch: a caller outside `Track` that iterates `Track::clips`
+/// directly instead of calling `clip_at`, `has_overlap`, or `content_end`.
+#[test]
+fn ordered_index_bounds_clip_at_has_overlap_and_content_end_probes() {
+    let probes = || super::ORDER_PROBES.with(std::cell::Cell::get);
+    let mut track = video_track("V1");
+    assert_eq!(track.clip_at(rt(0)).unwrap(), None);
+    assert!(!track.has_overlap(tr(0, 10), None).unwrap());
+    assert_eq!(track.content_end(), 0);
+
+    let mut ids = Vec::with_capacity(200);
+    for i in 0..200_i64 {
+        let clip = generated_clip(i * 20 + 10, 10);
+        ids.push(clip.id);
+        track.insert_clip(clip);
+    }
+
+    let before = probes();
+    assert_eq!(track.content_end(), 199 * 20 + 20);
+    assert_eq!(probes() - before, 1);
+
+    // Before first clip, inside first/middle/last clips, at exact start/end
+    // ticks, in gaps between clips, and past the last clip.
+    for (tick, expected) in [
+        (0, None),
+        (9, None),
+        (10, Some(ids[0])),
+        (15, Some(ids[0])),
+        (19, Some(ids[0])),
+        (20, None),
+        (29, None),
+        (100 * 20 + 10, Some(ids[100])),
+        (100 * 20 + 19, Some(ids[100])),
+        (100 * 20 + 20, None),
+        (199 * 20 + 10, Some(ids[199])),
+        (199 * 20 + 19, Some(ids[199])),
+        (199 * 20 + 20, None),
+        (5_000, None),
+    ] {
+        let start = probes();
+        assert_eq!(
+            track.clip_at(rt(tick)).unwrap().map(|c| c.id),
+            expected,
+            "clip_at({tick})"
+        );
+        let used = probes() - start;
+        assert!(
+            used <= 12,
+            "clip_at({tick}) inspected {used} clips on a 200-clip lane"
+        );
+    }
+
+    for (range, ignore, expected) in [
+        (tr(0, 10), None, false),
+        (tr(0, 11), None, true),
+        (tr(19, 2), None, true),
+        (tr(20, 10), None, false),
+        (tr(20, 11), None, true),
+        (tr(100 * 20, 10), None, false),
+        (tr(100 * 20 + 10, 10), Some(ids[100]), false),
+        (tr(100 * 20 + 10, 21), Some(ids[100]), true),
+        (tr(199 * 20 + 19, 2), None, true),
+        (tr(199 * 20 + 20, 10), None, false),
+    ] {
+        let start = probes();
+        assert_eq!(
+            track.has_overlap(range, ignore).unwrap(),
+            expected,
+            "has_overlap({range:?}, {ignore:?})"
+        );
+        let used = probes() - start;
+        assert!(
+            used <= 12,
+            "has_overlap({range:?}, {ignore:?}) inspected {used} clips on a 200-clip lane"
+        );
+    }
+
+    // Rate mismatch when the query range precedes every clip (idx == 0) or
+    // when the only clip before `end` is ignored.
+    assert!(
+        track
+            .clip_at(RationalTime::new(0, Rational::FPS_30))
+            .is_err()
+    );
+    assert!(
+        track
+            .has_overlap(TimeRange::at_rate(0, 5, Rational::FPS_30), None)
+            .is_err()
+    );
+    assert!(
+        track
+            .has_overlap(TimeRange::at_rate(10, 10, Rational::FPS_30), Some(ids[0]))
+            .is_err()
+    );
+}
+
 // --- flags / Clone ----------------------------------------------------
 
 #[test]

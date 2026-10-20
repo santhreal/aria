@@ -211,7 +211,7 @@ pub struct AppState {
     /// a marker or the sequence length can have moved. A drag frame reads it
     /// instead of walking every clip and every beat to build the same list again
     /// once per mouse move.
-    pub(super) snap_index: crate::snap::SnapIndex,
+    pub(super) snap_index: std::sync::OnceLock<crate::snap::SnapIndex>,
     /// The lane being resized and its previewed height, while the drag is in
     /// flight. Held here rather than written through the engine so one gesture
     /// costs one undo entry. Read through [`AppState::lane_preview`]: a panel

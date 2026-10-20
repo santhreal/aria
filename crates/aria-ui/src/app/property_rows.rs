@@ -43,6 +43,21 @@ pub const PROPERTY_ROW_H: f32 = crate::theme::Theme::ROW_HEIGHT;
 /// Height (px) of the timeline graph editor band when open.
 pub const GRAPH_EDITOR_H: f32 = 168.0;
 
+#[cfg(test)]
+std::thread_local! {
+    static OUTLINE_CLIP_PROBES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+pub(crate) fn reset_outline_clip_probes() {
+    OUTLINE_CLIP_PROBES.with(|n| n.set(0));
+}
+
+#[cfg(test)]
+pub(crate) fn outline_clip_probes() -> usize {
+    OUTLINE_CLIP_PROBES.with(std::cell::Cell::get)
+}
+
 /// Top-level outline group shown when a clip is expanded with the twirl triangle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum PropertyGroup {
@@ -667,6 +682,9 @@ impl AppState {
     /// timeline track. Empty when the track is collapsed or none of its clips
     /// are expanded.
     pub fn track_outline_rows(&self, track_id: u64) -> Vec<TimelineOutlineRow> {
+        if self.expanded_clips.is_empty() {
+            return Vec::new();
+        }
         let Some(track) = self.store.sequence.tracks.iter().find(|t| t.id == track_id) else {
             return Vec::new();
         };
@@ -676,7 +694,11 @@ impl AppState {
         let expanded_on_track: Vec<u64> = track
             .clips
             .iter()
-            .map(|c| c.id)
+            .map(|c| {
+                #[cfg(test)]
+                OUTLINE_CLIP_PROBES.with(|n| n.set(n.get() + 1));
+                c.id
+            })
             .filter(|id| self.expanded_clips.contains(id))
             .collect();
         if expanded_on_track.is_empty() {

@@ -400,12 +400,13 @@ impl Snapshot {
                 .media_proxy(aria_models::MediaId::from_raw(item.id))
                 .is_some();
         }
+        let facts = project_facts::ProjectFacts::of_with_basis(engine, Some(&basis));
         Self {
             revision: engine.revision(),
             playhead: at,
             store,
             selected: selected_detail::SelectedDetail::of(engine, selection, at),
-            facts: project_facts::ProjectFacts::of(engine),
+            facts,
             basis,
         }
     }

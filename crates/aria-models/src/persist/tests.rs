@@ -747,3 +747,62 @@ fn atomic_write_cleanup_on_write_and_flush_failures() {
     assert!(res_flush.is_err());
     assert!(!path.exists());
 }
+/// WHY: `Project::save_to_file` previously serialized the entire `.aria` JSON
+/// document into a single in-memory `Vec<u8>` (`pretty::to_vec`, ~25 MB on
+/// `project-10k`) before writing it to the temporary file. This test closes
+/// that class by verifying that `save_to_file` streams through bounded
+/// `BufWriter` chunks (`<= STREAM_BUF_CAPACITY`) while producing byte-identical
+/// pretty JSON with a trailing newline and current schema stamp.
+///
+/// Does NOT catch: kernel page-cache writeback latency inside `File::sync_all`.
+#[test]
+fn save_to_file_streams_pretty_json_in_bounded_chunks() {
+    let mut project = Project::new("streamed", R24);
+    project.schema.version = 1;
+    let media_id = project.add_media(crate::MediaSource::new(
+        "/var/tmp/clip.mp4",
+        1920,
+        1080,
+        R24,
+        240_000,
+        true,
+    ));
+    let track = project.add_track(TrackKind::Video, "V1");
+    for i in 0..800_i64 {
+        project
+            .add_clip(
+                track,
+                media_id,
+                TimeRange::at_rate(i * 24, 24, R24),
+                RationalTime::new(i * 24, R24),
+            )
+            .unwrap();
+    }
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("streamed.aria");
+    reset_stream_write_stats();
+    project.save_to_file(&path).unwrap();
+    let (write_calls, max_write_len) = stream_write_stats();
+
+    let on_disk = std::fs::read_to_string(&path).unwrap();
+    let in_memory = project.save_to_string().unwrap();
+    assert_eq!(on_disk, in_memory);
+    let parsed: serde_json::Value = serde_json::from_str(&on_disk).unwrap();
+    assert_eq!(parsed["schema"]["version"], PROJECT_SCHEMA_VERSION);
+    assert!(
+        on_disk.len() > STREAM_BUF_CAPACITY * 3,
+        "fixture document must span multiple buffer flushes (got {} bytes)",
+        on_disk.len()
+    );
+    assert!(
+        write_calls >= 4,
+        "save_to_file wrote {} times for a {}-byte document; expected streaming flushes",
+        write_calls,
+        on_disk.len()
+    );
+    assert!(
+        max_write_len <= STREAM_BUF_CAPACITY,
+        "save_to_file wrote a {max_write_len}-byte chunk exceeding STREAM_BUF_CAPACITY ({STREAM_BUF_CAPACITY})"
+    );
+}

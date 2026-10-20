@@ -181,6 +181,9 @@ fn ruler_body(
                     .sequence
                     .markers
                     .iter()
+                    .take_while(|marker| {
+                        ticks_to_px(marker.tick, fps, pps) - scroll_x <= viewport + 8.0
+                    })
                     .filter_map(|marker| {
                         let (left, width, is_range) = marker_ruler_span(
                             marker.tick,

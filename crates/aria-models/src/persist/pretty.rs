@@ -113,14 +113,23 @@ impl Formatter for Pretty {
     }
 }
 
+/// Write `value` as two-space pretty JSON, matching the bytes
+/// `serde_json::to_writer_pretty` writes for it.
+pub(super) fn to_writer<W: io::Write, T: ?Sized + serde::Serialize>(
+    mut writer: W,
+    value: &T,
+) -> serde_json::Result<()> {
+    value.serialize(&mut serde_json::Serializer::with_formatter(
+        &mut writer,
+        Pretty::default(),
+    ))
+}
+
 /// `value` as two-space pretty JSON, the bytes `serde_json::to_vec_pretty`
 /// writes for it.
 pub(super) fn to_vec<T: ?Sized + serde::Serialize>(value: &T) -> serde_json::Result<Vec<u8>> {
     let mut out = Vec::with_capacity(128);
-    value.serialize(&mut serde_json::Serializer::with_formatter(
-        &mut out,
-        Pretty::default(),
-    ))?;
+    to_writer(&mut out, value)?;
     Ok(out)
 }
 

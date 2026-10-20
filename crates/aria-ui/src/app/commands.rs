@@ -6,6 +6,21 @@
 
 use super::*;
 
+#[cfg(test)]
+std::thread_local! {
+    static SNAP_INDEX_BUILDS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+pub(crate) fn reset_snap_index_builds() {
+    SNAP_INDEX_BUILDS.with(|n| n.set(0));
+}
+
+#[cfg(test)]
+pub(crate) fn snap_index_builds() -> usize {
+    SNAP_INDEX_BUILDS.with(std::cell::Cell::get)
+}
+
 enum FilmstripInvalidation {
     Full,
     Spans(Vec<(i64, i64)>),
@@ -177,7 +192,7 @@ impl FilmstripImpact {
         }
         if let Some(media) = self.media {
             for track in project.timeline().tracks_ordered() {
-                for clip in track.clips_ordered() {
+                for clip in track.clips() {
                     if matches!(
                         &clip.content,
                         aria_models::ClipSource::Media { media: held, .. } if *held == media
@@ -203,11 +218,7 @@ fn track_containing(
     project: &aria_models::Project,
     clip: aria_models::ClipId,
 ) -> Option<aria_models::TrackId> {
-    project
-        .timeline()
-        .tracks_ordered()
-        .find(|track| track.clips_ordered().iter().any(|held| held.id == clip))
-        .map(|track| track.id)
+    project.timeline().track_of(clip)
 }
 
 fn push_clip_span(
@@ -228,8 +239,7 @@ fn push_track_spans(
     if let Some(track) = project.timeline().track(id) {
         spans.extend(
             track
-                .clips_ordered()
-                .into_iter()
+                .clips()
                 .map(|clip| (clip.timeline.start.value, clip.timeline.end_tick())),
         );
     }
@@ -242,13 +252,16 @@ fn targets_touch_picture(
     if targets.clips.is_empty() && targets.tracks.is_empty() {
         return true;
     }
-    project.timeline().tracks_ordered().any(|track| {
-        track.kind.is_visual()
-            && (targets.tracks.contains(&track.id)
-                || track
-                    .clips_ordered()
-                    .iter()
-                    .any(|clip| targets.clips.contains(&clip.id)))
+    let timeline = project.timeline();
+    targets.tracks.iter().any(|&id| {
+        timeline
+            .track(id)
+            .is_some_and(|track| track.kind.is_visual())
+    }) || targets.clips.iter().any(|&id| {
+        timeline
+            .track_of(id)
+            .and_then(|track| timeline.track(track))
+            .is_some_and(|track| track.kind.is_visual())
     })
 }
 
@@ -588,7 +601,7 @@ impl AppState {
             marquee: None,
             preview_view: Default::default(),
             snap_guide: None,
-            snap_index: crate::snap::SnapIndex::default(),
+            snap_index: std::sync::OnceLock::new(),
             lane_resize: None,
             expanded_clips: Default::default(),
             expanded_models: Default::default(),
@@ -764,7 +777,6 @@ impl AppState {
             engine.set_preview_proxies(state.ui_settings.use_proxies);
             engine.set_preview_transparency(state.ui_settings.transparency_grid);
         }
-        state.snap_index = state.build_snap_index();
         state.refresh_render_files();
         Ok(state)
     }
@@ -952,7 +964,13 @@ impl AppState {
     /// shape lives in [`crate::snap::index_for`], so the bench that measures it
     /// builds the same index this does.
     pub(crate) fn build_snap_index(&self) -> crate::snap::SnapIndex {
+        #[cfg(test)]
+        SNAP_INDEX_BUILDS.with(|n| n.set(n.get() + 1));
         crate::snap::index_for(&self.store)
+    }
+
+    fn snap_index(&self) -> &crate::snap::SnapIndex {
+        self.snap_index.get_or_init(|| self.build_snap_index())
     }
 
     /// The magnets that move without a new projection: the playhead and the two
@@ -978,7 +996,7 @@ impl AppState {
     /// drag path reads the index instead.
     pub fn snap_candidates(&self) -> Vec<crate::snap::SnapCandidate> {
         let mut all = self.loose_magnets();
-        all.extend(self.snap_index.rows().iter().copied());
+        all.extend(self.snap_index().rows().iter().copied());
         all
     }
 
@@ -992,7 +1010,7 @@ impl AppState {
         if !self.snap_enabled || suspended {
             return (desired, None);
         }
-        self.snap_index
+        self.snap_index()
             .nearest(desired, threshold_ticks, moving, &self.loose_magnets())
     }
 
@@ -1038,5 +1056,64 @@ impl AppState {
         })?;
         self.clear_selection();
         Ok(())
+    }
+}
+#[cfg(test)]
+mod edit_apply_scan_tests {
+    use super::*;
+
+    /// WHY: `apply_command` and `Timeline::render` previously ran multiple
+    /// full-timeline clip scans on every single-clip edit (`CatalogRevisions`,
+    /// `ProjectFacts`, `SnapIndex`, and `track_outline_rows`). This test closes
+    /// that class by verifying on a multi-lane sequence (6 lanes x 20 clips =
+    /// 120 clips) that editing one clip inspects only that lane's 20 clips for
+    /// `Built::of`, defers `SnapIndex` construction until queried, and inspects
+    /// 0 clips in `track_outline_rows` when `expanded_clips` is empty.
+    ///
+    /// Does NOT catch: GPU shader compilation or disk I/O outside `apply_command`.
+    #[test]
+    fn single_clip_edit_reuses_unchanged_lane_summaries_and_defers_snap_index() {
+        let mut state = crate::app::premiere_tests::with_sequence(3, 20);
+        let clip = ClipId::from_raw(state.store.sequence.tracks[0].clips[0].id);
+
+        crate::projection::reset_built_clip_probes();
+        reset_snap_index_builds();
+        crate::app::property_rows::reset_outline_clip_probes();
+
+        state
+            .apply_command(Command::Edit(EditCommand::TrimClipUnlinked {
+                clip,
+                timeline: aria_models::TimeRange::at_rate(0, 12, aria_models::Rational::FPS_24),
+            }))
+            .unwrap();
+
+        let built_probes = crate::projection::built_clip_probes();
+        assert_eq!(
+            built_probes, 20,
+            "expected only the 20 clips on the edited lane to be summarized, got {built_probes}"
+        );
+        assert_eq!(
+            snap_index_builds(),
+            0,
+            "apply_command built SnapIndex eagerly before any snap query"
+        );
+
+        let _ = state.snap_at(18, None, 4, false);
+        assert_eq!(snap_index_builds(), 1, "first snap_at must build SnapIndex");
+        let _ = state.snap_at(19, None, 4, false);
+        assert_eq!(
+            snap_index_builds(),
+            1,
+            "second snap_at on the same projection must reuse SnapIndex"
+        );
+
+        for track in &state.store.sequence.tracks {
+            assert!(state.track_outline_rows(track.id).is_empty());
+        }
+        assert_eq!(
+            crate::app::property_rows::outline_clip_probes(),
+            0,
+            "track_outline_rows scanned clips while expanded_clips was empty"
+        );
     }
 }

@@ -44,7 +44,10 @@ pub(super) fn lane_group(
     reduced: bool,
     cx: &mut gpui::Context<Shell>,
 ) -> impl IntoElement + use<> {
-    let outline_w = state.read(cx).outline_drawn_width();
+    let (outline_w, has_expanded_clips) = {
+        let app = state.read(cx);
+        (app.outline_drawn_width(), !app.expanded_clips.is_empty())
+    };
     let mut visible_lanes = Vec::new();
     let mut headers = Vec::new();
     let mut group_total_clips = 0usize;
@@ -71,7 +74,7 @@ pub(super) fn lane_group(
             glide::LANE,
             reduced || previewed.is_some(),
         );
-        let mut outline_rows = if track.collapsed {
+        let mut outline_rows = if track.collapsed || !has_expanded_clips {
             Vec::new()
         } else {
             state.read(cx).track_outline_rows(track.id)
