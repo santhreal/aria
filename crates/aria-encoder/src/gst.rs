@@ -580,7 +580,6 @@ fn frame_to_nv12(
     })?;
     match frame.format {
         PixelFormat::Nv12 => packed_nv12(&cpu.planes, width, height),
-        PixelFormat::Yuv420p => i420_to_nv12(&cpu.planes, width, height),
         PixelFormat::Rgba8 | PixelFormat::Bgra8 => {
             let plane = cpu
                 .planes
@@ -607,7 +606,7 @@ fn frame_to_nv12(
             Ok(nv12)
         }
         other => Err(EncodeError::unsupported(format!(
-            "Linux encoder cannot take {other:?} frames. Export RGBA, NV12, or I420."
+            "Linux encoder cannot take {other:?} frames. Export RGBA or NV12."
         ))),
     }
 }
@@ -632,38 +631,6 @@ fn packed_nv12(
         uv_stride,
         uv_rows,
     );
-    Ok(out)
-}
-
-fn i420_to_nv12(
-    planes: &[aria_core::Plane],
-    width: u32,
-    height: u32,
-) -> Result<Vec<u8>, EncodeError> {
-    if planes.len() < 3 {
-        return Err(EncodeError::Encode("I420 frame is missing a plane.".into()));
-    }
-    let y_stride = width as usize;
-    let uv_stride = width as usize;
-    let y_rows = height as usize;
-    let uv_rows = height.div_ceil(2) as usize;
-    let cw = width.div_ceil(2) as usize;
-    let mut out = vec![0u8; y_stride * y_rows + uv_stride * uv_rows];
-    copy_plane(&planes[0], &mut out[..y_stride * y_rows], y_stride, y_rows);
-    let uv_dest = &mut out[y_stride * y_rows..];
-    let u_plane = &planes[1];
-    let v_plane = &planes[2];
-    let copy_cw = cw.min(u_plane.stride).min(v_plane.stride);
-    let copy_rows = uv_rows.min(u_plane.rows).min(v_plane.rows);
-    for row in 0..copy_rows {
-        let u_row = &u_plane.data[row * u_plane.stride..row * u_plane.stride + copy_cw];
-        let v_row = &v_plane.data[row * v_plane.stride..row * v_plane.stride + copy_cw];
-        let dst_row = &mut uv_dest[row * uv_stride..row * uv_stride + copy_cw * 2];
-        for col in 0..copy_cw {
-            dst_row[col * 2] = u_row[col];
-            dst_row[col * 2 + 1] = v_row[col];
-        }
-    }
     Ok(out)
 }
 
@@ -838,38 +805,5 @@ mod tests {
                 );
             }
         }
-    }
-
-    #[test]
-    fn frame_to_nv12_interleaves_i420_planes_to_match_nv12() {
-        use aria_core::{ColorSpace, CpuImage, FrameData, Plane, Rect, Rotation};
-
-        let y_bytes = vec![16, 32, 48, 64, 80, 96, 112, 128];
-        let u = Plane::new(vec![100, 110, 0xEE, 0xEE], 4, 1);
-        let v = Plane::new(vec![200, 210, 0xFF, 0xFF], 4, 1);
-        let i420_frame = VideoFrame::new(
-            RationalTime::new(0, Rational::new(30, 1)),
-            PixelFormat::Yuv420p,
-            ColorSpace::BT709,
-            (4, 2),
-            Rect::from_size(4, 2),
-            Rotation::None,
-            FrameData::Cpu(CpuImage::new(vec![Plane::new(y_bytes.clone(), 4, 2), u, v])),
-        );
-        let nv12_frame = VideoFrame::new(
-            RationalTime::new(0, Rational::new(30, 1)),
-            PixelFormat::Nv12,
-            ColorSpace::BT709,
-            (4, 2),
-            Rect::from_size(4, 2),
-            Rotation::None,
-            FrameData::Cpu(CpuImage::new(vec![
-                Plane::new(y_bytes, 4, 2),
-                Plane::new(vec![100, 200, 110, 210], 4, 1),
-            ])),
-        );
-        let from_i420 = frame_to_nv12(&i420_frame, 4, 2, YuvMatrix::Bt709).expect("i420 to nv12");
-        let from_nv12 = frame_to_nv12(&nv12_frame, 4, 2, YuvMatrix::Bt709).expect("nv12 to nv12");
-        assert_eq!(from_i420, from_nv12);
     }
 }

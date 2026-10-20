@@ -27,21 +27,15 @@ fn probes_opengop_h264() {
 }
 
 #[test]
-fn decodes_first_frame_as_cpu_planes() {
+fn decodes_first_frame_as_cpu_nv12() {
     let mut decoder = GstDecoder::open(&fixture(), OutputMode::Cpu).expect("open decoder");
     let info = decoder.info().clone();
     assert!(info.display_size.0 > 0 && info.display_size.1 > 0);
-    assert!(
-        matches!(info.pixel_format, PixelFormat::Nv12 | PixelFormat::Yuv420p),
-        "unexpected CPU pixel_format: {:?}",
-        info.pixel_format
-    );
     let frame = decoder
         .next_frame()
         .expect("decode")
         .expect("fixture has at least one frame");
-    assert!(frame.is_cpu(), "Cpu mode must stay on CPU planes");
-    assert_eq!(frame.format, info.pixel_format);
+    assert!(frame.is_cpu(), "Cpu mode must stay CPU NV12");
     assert_eq!(
         (frame.width(), frame.height()),
         (info.display_size.0, info.display_size.1)

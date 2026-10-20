@@ -3,12 +3,11 @@
 //! `OutputMode::Gpu` tries a DMA-BUF appsink first
 //! (`video/x-raw(memory:DMABuf)`). LINEAR NV12 fds become a
 //! [`DmaBufSurface`]. Tiled modifiers, missing fds, or a pipeline that
-//! never negotiates DMABuf fall back to CPU planes (I420 or NV12) so preview
-//! still works. The first DMA-BUF open that fails on a file the CPU path then
-//! opens is logged with its cause ([`dmabuf_cause`]: each video decoder plugged
-//! and the memory it can output, such as `nvh264dec` with CUDA, GL, and system
-//! memory) and later opens in the process go straight to CPU planes. A file
-//! neither path
+//! never negotiates DMABuf fall back to CPU NV12 so preview still works.
+//! The first DMA-BUF open that fails on a file the CPU path then opens is
+//! logged with its cause ([`dmabuf_cause`]: each video decoder plugged and the
+//! memory it can output, such as `nvh264dec` with CUDA, GL, and system memory)
+//! and later opens in the process go straight to CPU NV12. A file neither path
 //! opens leaves DMA-BUF on. A decoder with no DMABuf output stops the
 //! attempt before it opens ([`crate::gst_dmabuf_watch`]). A
 //! tiled modifier is named once per session ([`report_tiled_fallback`]) so the
@@ -63,7 +62,7 @@ pub(crate) struct OpenedPipeline {
 static DMABUF_FAILED: std::sync::OnceLock<String> = std::sync::OnceLock::new();
 
 /// Try DMABuf first when the caller asked for GPU and no DMABuf open has
-/// failed in this process; otherwise CPU planes (I420 or NV12).
+/// failed in this process; otherwise CPU NV12.
 pub(crate) fn open_pipeline(
     path: &std::path::Path,
     mode: OutputMode,
@@ -98,7 +97,7 @@ fn open_latched<T>(
     let reason = format!("{} ({failed})", dmabuf_cause(&watch.decoders()));
     tracing::warn!(
         cause = %reason,
-        "DMABuf decode is unavailable; this process decodes to CPU planes from now on"
+        "DMABuf decode is unavailable; this process decodes to CPU NV12 from now on"
     );
     let _ = latch.set(reason);
     Ok(opened)
@@ -214,7 +213,7 @@ fn configure_video_uridecodebin(bin: &gst::Bin, thread_budget: i32) {
 }
 
 /// Open `uri` for DMABuf output when `watch` is set, recording the video
-/// decoders plugged into it; for CPU I420 or NV12 otherwise.
+/// decoders plugged into it; for CPU NV12 otherwise.
 fn try_open(
     uri: &glib::GString,
     watch: Option<&Arc<DmabufWatch>>,
@@ -227,7 +226,7 @@ fn try_open(
         )
     } else {
         format!(
-            "uridecodebin name=src uri=\"{uri}\" ! videoconvert n-threads={CONVERT_THREADS} ! videoscale n-threads={CONVERT_THREADS} ! video/x-raw,format=(string){{ I420, NV12 }} ! appsink name=out sync=false max-buffers=4 drop=false"
+            "uridecodebin name=src uri=\"{uri}\" ! videoconvert n-threads={CONVERT_THREADS} ! videoscale n-threads={CONVERT_THREADS} ! video/x-raw,format=NV12 ! appsink name=out sync=false max-buffers=4 drop=false"
         )
     };
     let pipeline = PipelineGuard::new(
@@ -340,7 +339,7 @@ pub(crate) fn sample_to_frame(
         if let Some(frame) = sample_to_gpu_frame(sample, info) {
             return Ok(frame);
         }
-        tracing::debug!("DMABuf sample was not importable; delivering CPU planes");
+        tracing::debug!("DMABuf sample was not importable; delivering CPU NV12");
     }
     crate::gst::sample_to_cpu_frame(sample, info)
 }
@@ -519,123 +518,23 @@ struct DmaKeepAlive {
 unsafe impl Send for DmaKeepAlive {}
 unsafe impl Sync for DmaKeepAlive {}
 
-pub(crate) fn sample_is_dmabuf(sample: &gst::Sample) -> bool {
-    sample.buffer().is_some_and(|buffer| {
-        buffer.n_memory() > 0 && dmabuf_fd(buffer.peek_memory(0).as_ptr() as *mut _).is_some()
-    })
-}
-
-pub(crate) fn gst_cpu_format(format: gst_video::VideoFormat) -> Result<PixelFormat, DecodeError> {
-    crate::pixel_map::gst_yuv420_layout(
-        format == gst_video::VideoFormat::I420,
-        format == gst_video::VideoFormat::Nv12,
-    )
-    .ok_or_else(|| {
-        DecodeError::Decode(format!(
-            "decoded CPU frame has unsupported GStreamer format {format:?}; expected I420 or NV12."
-        ))
-    })
-}
-
-fn plane_specs(format: PixelFormat, width: u32, height: u32) -> Result<[Option<(usize, usize)>; 3], DecodeError> {
-    let w = width as usize;
-    let h = height as usize;
-    let cw = w.div_ceil(2);
-    let ch = h.div_ceil(2);
-    match format {
-        PixelFormat::Nv12 => Ok([Some((w, h)), Some((cw * 2, ch)), None]),
-        PixelFormat::Yuv420p => Ok([Some((w, h)), Some((cw, ch)), Some((cw, ch))]),
-        other => Err(DecodeError::Decode(format!(
-            "unsupported CPU frame layout {other:?}; expected Nv12 or Yuv420p."
-        ))),
-    }
-}
-
-/// CPU I420/NV12 extraction used by the CPU decode path and by unit tests.
-pub(crate) fn cpu_planes_from_video_frame(
+/// CPU NV12 extraction used by the fallback path and by unit tests.
+pub(crate) fn nv12_from_video_frame(
     frame: &gst_video::VideoFrameRef<&gst::BufferRef>,
-    format: PixelFormat,
-    width: u32,
     height: u32,
 ) -> Result<Vec<Plane>, DecodeError> {
-    let frame_format = gst_cpu_format(frame.format())?;
-    if frame_format != format {
-        return Err(DecodeError::Decode(format!(
-            "decoded frame format {frame_format:?} does not match expected {format:?}."
-        )));
-    }
-    let specs = plane_specs(format, width, height)?;
-    let strides = frame.plane_stride();
-    let mut planes = Vec::with_capacity(format.plane_count());
-    for (idx, (min_stride, rows)) in specs.into_iter().flatten().enumerate() {
-        let raw_stride = strides.get(idx).copied().unwrap_or(0);
-        let stride = usize::try_from(raw_stride)
-            .ok()
-            .filter(|&s| s >= min_stride)
-            .ok_or_else(|| {
-                DecodeError::Decode(format!(
-                    "decoded plane {idx} has invalid stride {raw_stride} (need at least {min_stride})."
-                ))
-            })?;
-        let data = frame.plane_data(idx as u32).map_err(|_| {
-            DecodeError::Decode(format!(
-                "decoded frame is missing plane {idx} for {format:?}. Try another file."
-            ))
-        })?;
-        let byte_len = stride
-            .checked_mul(rows)
-            .ok_or_else(|| DecodeError::Decode("decoded plane size overflow.".into()))?;
-        if data.len() < byte_len {
-            return Err(DecodeError::Decode(format!(
-                "decoded plane {idx} is too small ({} bytes; need {byte_len}).",
-                data.len()
-            )));
-        }
-        planes.push(Plane::new(data[..byte_len].to_vec(), stride, rows));
-    }
-    Ok(planes)
-}
-
-pub(crate) fn cpu_planes_from_bytes(
-    bytes: &[u8],
-    format: PixelFormat,
-    width: u32,
-    height: u32,
-    strides: &[i32],
-    offsets: &[usize],
-) -> Result<Vec<Plane>, DecodeError> {
-    let specs = plane_specs(format, width, height)?;
-    let mut planes = Vec::with_capacity(format.plane_count());
-    let mut cursor = 0usize;
-    for (idx, (min_stride, rows)) in specs.into_iter().flatten().enumerate() {
-        let stride = match strides.get(idx) {
-            Some(&raw) => usize::try_from(raw)
-                .ok()
-                .filter(|&s| s >= min_stride)
-                .ok_or_else(|| {
-                    DecodeError::Decode(format!(
-                        "decoded plane {idx} has invalid stride {raw} (need at least {min_stride})."
-                    ))
-                })?,
-            None => min_stride,
-        };
-        let byte_len = stride
-            .checked_mul(rows)
-            .ok_or_else(|| DecodeError::Decode("decoded plane size overflow.".into()))?;
-        let offset = offsets.get(idx).copied().unwrap_or(cursor);
-        let end = offset
-            .checked_add(byte_len)
-            .ok_or_else(|| DecodeError::Decode("decoded plane offset overflow.".into()))?;
-        let slice = bytes.get(offset..end).ok_or_else(|| {
-            DecodeError::Decode(format!(
-                "decoded frame is too small ({} bytes for {width}x{height} plane {idx} at {offset}..{end}). Try another file.",
-                bytes.len()
-            ))
-        })?;
-        planes.push(Plane::new(slice.to_vec(), stride, rows));
-        cursor = end;
-    }
-    Ok(planes)
+    let y = frame.plane_data(0).map_err(|_| {
+        DecodeError::Decode("decoded frame is missing the Y plane. Try another file.".into())
+    })?;
+    let uv = frame.plane_data(1).map_err(|_| {
+        DecodeError::Decode("decoded frame is missing the UV plane. Try another file.".into())
+    })?;
+    let y_stride = frame.plane_stride()[0] as usize;
+    let uv_stride = frame.plane_stride()[1] as usize;
+    Ok(vec![
+        Plane::new(y.to_vec(), y_stride, height as usize),
+        Plane::new(uv.to_vec(), uv_stride, (height as usize).div_ceil(2)),
+    ])
 }
 
 pub(crate) fn nv12_from_bytes(
@@ -643,16 +542,22 @@ pub(crate) fn nv12_from_bytes(
     width: u32,
     height: u32,
 ) -> Result<Vec<Plane>, DecodeError> {
-    cpu_planes_from_bytes(bytes, PixelFormat::Nv12, width, height, &[], &[])
-}
-
-#[cfg(test)]
-pub(crate) fn i420_from_bytes(
-    bytes: &[u8],
-    width: u32,
-    height: u32,
-) -> Result<Vec<Plane>, DecodeError> {
-    cpu_planes_from_bytes(bytes, PixelFormat::Yuv420p, width, height, &[], &[])
+    let y_size = width as usize * height as usize;
+    let uv_size = width as usize * (height as usize).div_ceil(2);
+    if bytes.len() < y_size + uv_size {
+        return Err(DecodeError::Decode(format!(
+            "decoded frame is too small ({} bytes for {width}x{height}). Try another file.",
+            bytes.len()
+        )));
+    }
+    Ok(vec![
+        Plane::new(bytes[..y_size].to_vec(), width as usize, height as usize),
+        Plane::new(
+            bytes[y_size..y_size + uv_size].to_vec(),
+            width as usize,
+            (height as usize).div_ceil(2),
+        ),
+    ])
 }
 
 #[cfg(test)]

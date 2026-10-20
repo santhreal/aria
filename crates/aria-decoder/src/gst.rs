@@ -2,9 +2,9 @@
 //!
 //! GStreamer is Linux's AVFoundation: system plugins do demux and decode
 //! (VAAPI / NVDEC / V4L2 first, software after). Aria never ships a codec.
-//! `OutputMode::Cpu` lands I420 or NV12 through `appsink`. `OutputMode::Gpu`
-//! tries a DMA-BUF appsink first and falls back to CPU planes when the host
-//! cannot produce a LINEAR NV12 fd.
+//! `OutputMode::Cpu` lands NV12 through `appsink`. `OutputMode::Gpu` tries a
+//! DMA-BUF appsink first and falls back to CPU NV12 when the host cannot
+//! produce a LINEAR NV12 fd.
 
 use std::path::Path;
 use std::sync::Once;
@@ -322,12 +322,6 @@ fn sample_source_info(sample: &gst::Sample) -> Result<SourceInfo, DecodeError> {
         DecodeError::Open("GStreamer sample has no caps. Try another file.".into())
     })?;
     let vinfo = gst_video::VideoInfo::from_caps(caps).map_err(|e| gst_err(DecodeError::Open, e))?;
-    let pixel_format = if crate::gst_gpu::sample_is_dmabuf(sample) {
-        PixelFormat::Nv12
-    } else {
-        crate::gst_gpu::gst_cpu_format(vinfo.format())
-            .map_err(|e| DecodeError::Open(e.to_string()))?
-    };
     let width = vinfo.width();
     let height = vinfo.height();
     let fps = vinfo.fps();
@@ -340,7 +334,7 @@ fn sample_source_info(sample: &gst::Sample) -> Result<SourceInfo, DecodeError> {
         coded_size: (width, height),
         display_size: (width, height),
         rotation: Rotation::None,
-        pixel_format,
+        pixel_format: PixelFormat::Nv12,
         color: ColorSpace::BT709,
         frame_rate,
         time_base: Rational::new(NS_PER_SEC as i32, 1),
@@ -357,25 +351,17 @@ pub(crate) fn sample_to_cpu_frame(
     })?;
     let vinfo =
         gst_video::VideoInfo::from_caps(caps).map_err(|e| gst_err(DecodeError::Decode, e))?;
-    let format = crate::gst_gpu::gst_cpu_format(vinfo.format())?;
     let buffer = sample.buffer().ok_or_else(|| {
         DecodeError::Decode("GStreamer frame has no buffer. Try another file.".into())
     })?;
     let (width, height) = (vinfo.width(), vinfo.height());
     let planes = match gst_video::VideoFrameRef::from_buffer_ref_readable(buffer, &vinfo) {
-        Ok(frame) => crate::gst_gpu::cpu_planes_from_video_frame(&frame, format, width, height)?,
+        Ok(frame) => crate::gst_gpu::nv12_from_video_frame(&frame, height)?,
         Err(_) => {
             let map = buffer.map_readable().map_err(|_| {
                 DecodeError::Decode("couldn't map a decoded frame. Try another file.".into())
             })?;
-            crate::gst_gpu::cpu_planes_from_bytes(
-                map.as_slice(),
-                format,
-                width,
-                height,
-                vinfo.stride(),
-                vinfo.offset(),
-            )?
+            crate::gst_gpu::nv12_from_bytes(map.as_slice(), width, height)?
         }
     };
     let pts = stream_time_ns(sample, buffer)
@@ -386,7 +372,7 @@ pub(crate) fn sample_to_cpu_frame(
         .map(|t| RationalTime::new(t.nseconds() as i64, Rational::new(NS_PER_SEC as i32, 1)));
     let mut out = VideoFrame::new(
         pts,
-        format,
+        PixelFormat::Nv12,
         info.color,
         (width, height),
         Rect::from_size(width, height),

@@ -17,7 +17,7 @@ still oversells it.
   Intel CCS, AMD DCC) into the compositor without a CPU copy.
 - **Today:** LINEAR NV12 DMABuf imports through Vulkan
   `VK_KHR_external_memory_fd`. Tiled modifiers and missing fds fall back
-  to CPU planes (I420 or NV12) at decoder open, and the modifier is named once per session
+  to CPU NV12 at decoder open, and the modifier is named once per session
   in the log so the fallback is visible.
 - **Blocked on:** wgpu-hal 29 has no `DRM_FORMAT_MODIFIER_EXT` image create, so
   there is no call to write the import against.

@@ -20,16 +20,6 @@ pub(crate) fn wmf_biplanar_layout(nv12: bool, p010: bool) -> Option<PixelFormat>
     }
 }
 
-/// Resolve the two 8-bit 4:2:0 CPU layouts the GStreamer appsink accepts.
-#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
-pub(crate) fn gst_yuv420_layout(planar: bool, semiplanar: bool) -> Option<PixelFormat> {
-    match (planar, semiplanar) {
-        (true, false) => Some(PixelFormat::Yuv420p),
-        (false, true) => Some(PixelFormat::Nv12),
-        (false, false) | (true, true) => None,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -50,10 +40,5 @@ mod tests {
         assert_eq!(wmf_biplanar_layout(false, true), Some(PixelFormat::P010));
         assert_eq!(wmf_biplanar_layout(false, false), None);
         assert_eq!(wmf_biplanar_layout(true, true), None);
-
-        assert_eq!(gst_yuv420_layout(true, false), Some(PixelFormat::Yuv420p));
-        assert_eq!(gst_yuv420_layout(false, true), Some(PixelFormat::Nv12));
-        assert_eq!(gst_yuv420_layout(false, false), None);
-        assert_eq!(gst_yuv420_layout(true, true), None);
     }
 }
