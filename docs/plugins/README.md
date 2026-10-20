@@ -33,4 +33,6 @@ service registry plus an event bus. Built-in plugins are defined in
 - [Settings](settings.md)
 - [Native plugins](native.md)
 - [WebAssembly plugins](wasm.md)
+- [Native ABI reference](native-abi-reference.md)
+- [WIT reference](wit-reference.md)
 - [Worked example](worked-example.md)

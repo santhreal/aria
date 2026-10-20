@@ -1381,6 +1381,7 @@ Notes for the latest release. For previous releases, see the
 - Plugins can add rows to the fx badge menu through the `Clip Badge` menu location, and `ContextMenuRequested` reports it as `MenuTarget::ClipBadge`.
 - `docs/plugins/wit-reference.md` documents every type, field, case and function of the WASM `plugin` world from the `///` comments in `plugin.wit`, which `wit-bindgen` copies into guest bindings.
 - `docs/plugins/events.md` lists every event kind an external plugin subscribes to, with its payload fields and the replies the host reads.
+- `docs/plugins/native-abi-reference.md` documents every define, type, field and table slot of the native C ABI, and `aria_plugin.h`, generated from the same doc comments, gains them along with `AriaTableHeader`, the table size defines and `ARIA_PLUGIN_ENTRY_SYMBOL`.
 
 ### Changed
 
@@ -2292,6 +2293,7 @@ Notes for the latest release. For previous releases, see the
 - F, the command palette, and the preview context menu fit the timeline
   to the sequence. Titlebar, transport, and track headers use the shipped
   Lucide icons instead of letter placeholders.
+- The native plugin table slots `import` and `export` are named `import_file` and `export_file`, so `aria_plugin.h` compiles as C++.
 
 ### Fixed
 

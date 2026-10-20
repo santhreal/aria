@@ -610,6 +610,9 @@ dependencies = [
 [[package]]
 name = "aria-plugin-abi"
 version = "0.7.0-alpha.0"
+dependencies = [
+ "syn 2.0.118",
+]
 
 [[package]]
 name = "aria-plugin-wasm"

@@ -19,7 +19,7 @@ it; a plugin declares `uses: &["ProjectHost"]` and takes it with
 | `replace_session(&origin, f)` | Runs `f` on the engine with no edit in flight, for a session replacement that is not a command, then posts `ProjectClosed` and `ProjectOpened` |
 | `holder()` | The origin holding the project from another thread, if any |
 | `clip(id)` | `Option<ClipRef>` (`id`, `track`, `start`, `end`, `kind`, `name`) across the root timeline and nested sequences |
-| `clips_in_range(sequence, range)` | `Vec<ClipRef>` overlapping the half-open `range` (`None` for the root sequence, `Some(id)` for a nested one), in track order then time order |
+| `clips_in_range(sequence, range)` | `Vec<ClipRef>` overlapping the half-open `range` (`None` for the open sequence, `Some(id)` for a nested one), in track order then time order |
 | `clips_at(sequence, tick)` | `Vec<ClipRef>` covering `tick` (`start <= tick < end`), in track order then time order |
 | `selected_clips(selection)` | `Vec<ClipRef>` for `selection` in selection order, omitting ids no longer in the project (`ctx.selected_clips()` reads `EditorView` directly) |
 | `markers_in_range(sequence, range)` | `Vec<Marker>` in the sequence whose point or span overlaps the half-open `range`, ordered by tick then id |

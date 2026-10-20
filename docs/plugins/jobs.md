@@ -79,7 +79,7 @@ A step returns:
 In the C ABI, `job_step` writes `progress`, `done`, and `commit` into the
 `AriaJobStep` it receives and returns the detail line as the `AriaResult`
 value. A negative or NaN `progress` reports unknown progress. A native plugin
-table shorter than `sizeof(AriaPluginV1)` has no job callbacks, and
+table shorter than `ARIA_PLUGIN_V1_JOBS_SIZE` has no job callbacks, and
 `start_job` from it is refused.
 
 ```rust

@@ -31,14 +31,14 @@ macro_rules! plugin_table {
         ) -> AriaResult {
             $runtime.handle_event(host_ctx, kind, event_json)
         }
-        unsafe extern "C" fn import(
+        unsafe extern "C" fn import_file(
             host_ctx: *mut c_void,
             importer_id: AriaStr,
             path: AriaStr,
         ) -> AriaResult {
             $runtime.handle_import(host_ctx, importer_id, path)
         }
-        unsafe extern "C" fn export(
+        unsafe extern "C" fn export_file(
             host_ctx: *mut c_void,
             exporter_id: AriaStr,
             project_json: AriaStr,
@@ -266,8 +266,8 @@ macro_rules! plugin_table {
             unmount,
             command_run,
             event,
-            import,
-            export,
+            import_file,
+            export_file,
             audio_create,
             audio_process,
             audio_reset,

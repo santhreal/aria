@@ -171,9 +171,9 @@ that ID to `Plugin::command_run` automatically after `mount` returns.
 
 ## C ABI tables and size negotiation
 
-The C ABI (`aria-plugin-abi` and `include/aria_plugin.h`) avoids Rust compiler
-vtable layouts and shared allocators. A library compiled with any `rustc`
-version or C/C++ compiler exports:
+The C ABI (`aria-plugin-abi` and `crates/aria-plugin-abi/include/aria_plugin.h`)
+avoids Rust compiler vtable layouts and shared allocators. A library compiled
+with any `rustc` version or C/C++ compiler exports:
 
 ```c
 const AriaPluginV1 *aria_plugin_entry(const AriaHostV1 *host, uint32_t api_major);
@@ -184,31 +184,23 @@ Both `AriaHostV1` and `AriaPluginV1` start with `AriaTableHeader`
 `free_bytes` release functions so whichever side allocates an `AriaOwnedStr` or
 `AriaOwnedBytes` buffer frees it with its own allocator.
 
-`validate_plugin_table` requires `api_major == ARIA_API_MAJOR` (`1`) and checks
-`struct_size` against the cumulative v1 table prefixes:
+`validate_plugin_table` requires `api_major == ARIA_API_MAJOR` (`1`) and a
+`struct_size` of at least `ARIA_PLUGIN_V1_MIN_SIZE`. Each
+`ARIA_HOST_V1_*_SIZE` and `ARIA_PLUGIN_V1_*_SIZE` define ends a prefix of
+slots. The [native ABI reference](native-abi-reference.md) lists every define,
+type, field and slot, the slots of each
+[host](native-abi-reference.md#ariahostv1-prefixes) and
+[plugin](native-abi-reference.md#ariapluginv1-prefixes) prefix, and the prefix
+that holds each slot. In Rust, `has_panels()`, `has_encoders()`,
+`has_overlays()`, `has_jobs()`, `has_decoders()`, `has_ai_tools()`,
+`has_scopes()` and `has_contributions()` on either table, and
+`has_project_queries()` and `has_textures()` on `AriaHostV1`, report whether a
+table holds a prefix.
 
-| Prefix constant | `AriaHostV1` fields added | `AriaPluginV1` fields added | Capability predicate |
-| --- | --- | --- | --- |
-| `ARIA_HOST_V1_MIN_SIZE` / `ARIA_PLUGIN_V1_MIN_SIZE` | Core host calls (`log`, `storage_*`, `setting_get`, `register_command`, `subscribe`, `register_importer`, `register_exporter`, `register_audio_effect`, `project_*`, `editor_view`) | Core lifecycle and callbacks (`mount`, `unmount`, `command_run`, `event`, `import`, `export`, `audio_*`) | Minimum valid v1 table |
-| `ARIA_HOST_V1_PANELS_SIZE` / `ARIA_PLUGIN_V1_PANELS_SIZE` | `register_panel`, `refresh_panel` | `panel_view`, `panel_event` | `has_panels()` |
-| `ARIA_HOST_V1_ENCODERS_SIZE` / `ARIA_PLUGIN_V1_ENCODERS_SIZE` | `register_encoder` | `encoder_open`, `encoder_push_frame`, `encoder_push_audio`, `encoder_finish`, `encoder_drop` | `has_encoders()` |
-| `ARIA_HOST_V1_OVERLAYS_SIZE` / `ARIA_PLUGIN_V1_OVERLAYS_SIZE` | `register_viewer_overlay`, `refresh_viewer_overlay` | `overlay_scene`, `overlay_event` | `has_overlays()` |
-| `ARIA_HOST_V1_JOBS_SIZE` / `ARIA_PLUGIN_V1_JOBS_SIZE` | `start_job` | `job_step`, `job_end` | `has_jobs()` |
-| `ARIA_HOST_V1_DECODERS_SIZE` / `ARIA_PLUGIN_V1_DECODERS_SIZE` | `register_decoder` | `decoder_probe`, `decoder_open_video`, `decoder_seek`, `decoder_next_frame`, `decoder_open_audio`, `decoder_read_audio`, `decoder_seek_audio`, `decoder_close` | `has_decoders()` |
-| `ARIA_HOST_V1_AI_TOOLS_SIZE` / `ARIA_PLUGIN_V1_AI_TOOLS_SIZE` | `register_ai_tool` | `ai_tool_call` | `has_ai_tools()` |
-| `ARIA_HOST_V1_SCOPES_SIZE` / `ARIA_PLUGIN_V1_SCOPES_SIZE` | `register_scope` | `scope_measure` | `has_scopes()` |
-| `ARIA_HOST_V1_CONTRIBUTIONS_SIZE` / `sizeof(AriaPluginV1)` | `register_effect`, `register_cpu_effect`, `register_transition`, `register_generator`, `register_clip_type`, `register_driver_language`, `register_preset`, `register_theme`, `register_workspace`, `register_analyzer` | `cpu_effect_process`, `driver_evaluate` | `has_contributions()` |
-| `ARIA_HOST_V1_QUERIES_SIZE` | `clip`, `clips_in_range`, `clips_at`, `selected_clips`, `markers_in_range`, `in_out` | | `has_project_queries()` |
-| `sizeof(AriaHostV1)` | `register_texture` | | `has_textures()` |
-
-When a plugin returns a prefix shorter than `sizeof(AriaPluginV1)` (for example
-`ARIA_PLUGIN_V1_MIN_SIZE`, `ARIA_PLUGIN_V1_PANELS_SIZE`,
-`ARIA_PLUGIN_V1_ENCODERS_SIZE`, `ARIA_PLUGIN_V1_OVERLAYS_SIZE`,
-`ARIA_PLUGIN_V1_JOBS_SIZE`, `ARIA_PLUGIN_V1_DECODERS_SIZE`,
-`ARIA_PLUGIN_V1_AI_TOOLS_SIZE`, or `ARIA_PLUGIN_V1_SCOPES_SIZE`), `AriaPluginV1::copy_from_prefix` copies the
-supported prefix and fills trailing panel, encoder, viewer-overlay, job,
-decoder, AI tool, scope, CPU effect, or driver slots with stubs that return an error, or
-`ARIA_STATUS_UNSUPPORTED` for the decoder calls. Calling
+When a plugin returns a table shorter than `sizeof(AriaPluginV1)`,
+`AriaPluginV1::copy_from_prefix` copies the prefix it holds and fills every
+slot past it with a stub that returns `ARIA_STATUS_ERR`, `ARIA_BYTES_ERR` or
+`ARIA_INSTANCE_ERR` with the slot's name. Calling
 `Host::register_panel`, `Host::register_encoder`,
 `Host::register_viewer_overlay`, `Host::start_job`, `Host::register_decoder`,
 `Host::register_ai_tool`, `Host::register_scope`, `Host::register_cpu_effect`,

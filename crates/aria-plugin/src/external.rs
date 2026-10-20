@@ -571,9 +571,9 @@ impl NativePluginState {
             unscoped_ctx: scoped_ctx.scoped(None),
             in_mount: false,
         };
-        // SAFETY: `call_ctx`, `importer_id`, and `path` outlive `table.import`.
+        // SAFETY: `call_ctx`, `importer_id`, and `path` outlive `table.import_file`.
         let raw = unsafe {
-            (self.table.import)(
+            (self.table.import_file)(
                 (&raw mut call_ctx).cast::<c_void>(),
                 AriaStr::from_str(importer_id),
                 AriaStr::from_str(path),
@@ -609,9 +609,9 @@ impl NativePluginState {
             unscoped_ctx: scoped_ctx.scoped(None),
             in_mount: false,
         };
-        // SAFETY: `call_ctx`, `exporter_id`, `project_json`, and `path` outlive `table.export`.
+        // SAFETY: `call_ctx`, `exporter_id`, `project_json`, and `path` outlive `table.export_file`.
         let raw = unsafe {
-            (self.table.export)(
+            (self.table.export_file)(
                 (&raw mut call_ctx).cast::<c_void>(),
                 AriaStr::from_str(exporter_id),
                 AriaStr::from_str(project_json),
