@@ -27,6 +27,7 @@ use crate::export_audio::{
     EXPORT_AUDIO_CHANNELS, EXPORT_AUDIO_RATE, ExportAudioMixer, sample_boundary,
 };
 use crate::render::{PendingFrame, Renderer};
+use aria_compositor::FrameSink;
 use crate::resolve::canvas_size;
 use crate::transactional_file::TransactionalFile;
 
@@ -431,21 +432,46 @@ fn export_observed_inner(
             None => None,
         };
         let mut pending: Option<(PendingFrame, u64)> = None;
+        let mut frame_sink = ExportFrameSink::new();
         for i in 0..frames {
             if !observer(i, frames) {
                 if let Some((ready, ready_index)) = pending.take() {
-                    finish_export_frame(renderer, ready, ready_index, timing, encoder, &mut audio)?;
+                    finish_export_frame(
+                        renderer,
+                        ready,
+                        ready_index,
+                        timing,
+                        encoder,
+                        &mut audio,
+                        &mut frame_sink,
+                    )?;
                 }
                 return Err(RenderError::Cancelled);
             }
             let source = RationalTime::new(start + i as i64, rate);
             let next = renderer.submit_export_frame(project, source, output_size)?;
             if let Some((ready, ready_index)) = pending.replace((next, i)) {
-                finish_export_frame(renderer, ready, ready_index, timing, encoder, &mut audio)?;
+                finish_export_frame(
+                    renderer,
+                    ready,
+                    ready_index,
+                    timing,
+                    encoder,
+                    &mut audio,
+                    &mut frame_sink,
+                )?;
             }
         }
         if let Some((ready, ready_index)) = pending {
-            finish_export_frame(renderer, ready, ready_index, timing, encoder, &mut audio)?;
+            finish_export_frame(
+                renderer,
+                ready,
+                ready_index,
+                timing,
+                encoder,
+                &mut audio,
+                &mut frame_sink,
+            )?;
         }
         encoder.finish()?;
         observer(frames, frames);
@@ -478,16 +504,16 @@ fn finish_export_frame(
     timing: FrameTiming,
     encoder: &mut dyn VideoEncoder,
     audio: &mut Option<AudioFeed>,
+    frame_sink: &mut ExportFrameSink,
 ) -> Result<(), RenderError> {
     let FrameTiming {
         start,
         rate,
         audio_rate,
     } = timing;
-    let image = renderer.finish_pending(pending)?;
+    renderer.finish_pending_into(pending, frame_sink)?;
     let out = RationalTime::new(index as i64, rate);
-    let frame = rgba_to_frame(image, out);
-    encoder.push(&frame)?;
+    encoder.push(frame_sink.frame_with_pts(out))?;
     let Some(feed) = audio.as_ref() else {
         return Ok(());
     };
@@ -550,6 +576,50 @@ fn rgba_to_frame(image: RgbaImage, pts: RationalTime) -> VideoFrame {
     )
 }
 
+/// Reusable [`FrameSink`] that keeps a single packed-RGBA [`VideoFrame`] plane
+/// allocation across an entire export instead of allocating and zero-filling a
+/// fresh `width * height * 4` buffer on every exported frame.
+struct ExportFrameSink {
+    frame: VideoFrame,
+}
+
+impl ExportFrameSink {
+    fn new() -> Self {
+        Self {
+            frame: rgba_to_frame(RgbaImage::new(0, 0, Vec::new()), RationalTime::new(0, Rational::new(1, 1))),
+        }
+    }
+
+    fn frame_with_pts(&mut self, pts: RationalTime) -> &VideoFrame {
+        self.frame.pts = pts;
+        &self.frame
+    }
+}
+
+impl FrameSink for ExportFrameSink {
+    fn pixels(&mut self, width: u32, height: u32) -> &mut [u8] {
+        let row_bytes = (width as usize) * 4;
+        let rows = height as usize;
+        let needed = row_bytes * rows;
+        if (self.frame.width(), self.frame.height()) != (width, height) {
+            self.frame = rgba_to_frame(
+                RgbaImage::new(width, height, vec![0u8; needed]),
+                RationalTime::new(0, Rational::new(1, 1)),
+            );
+        }
+        let FrameData::Cpu(cpu) = &mut self.frame.data else {
+            unreachable!("ExportFrameSink always holds a CPU RGBA frame");
+        };
+        let plane = &mut cpu.planes[0];
+        if plane.data.len() != needed {
+            plane.data.resize(needed, 0);
+        }
+        plane.stride = row_bytes;
+        plane.rows = rows;
+        &mut plane.data
+    }
+}
+
 // The PNG sink and the two PNG boundaries, moved to a sibling to stay under the
 // file ceiling. Re-exported so `crate::export::PngSequenceEncoder` and
 // `crate::export::decode_png` still name them.
@@ -595,6 +665,41 @@ mod tests {
         }
         let error = decode_png(&encoded).expect_err("edge bound");
         assert!(error.to_string().contains("4097x1"), "{error}");
+    }
+
+    /// WHY: `finish_export_frame` previously called `renderer.finish_pending`,
+    /// which used `ImageSink::default()` to allocate, zero-fill, and drop a
+    /// fresh `width * height * 4` `Vec<u8>` (8.3 MB at 1080p) on every exported
+    /// frame. Closes the class of per-frame RGBA readback buffer reallocations
+    /// during video export.
+    #[test]
+    fn export_frame_sink_reuses_plane_buffer_across_frames_and_updates_pts() {
+        let mut sink = ExportFrameSink::new();
+        let p0 = sink.pixels(4, 2);
+        p0.fill(0x24);
+        let t0 = RationalTime::new(0, Rational::new(30, 1));
+        let ptr0 = {
+            let f0 = sink.frame_with_pts(t0);
+            assert_eq!(f0.pts, t0);
+            assert_eq!((f0.width(), f0.height()), (4, 2));
+            let plane = &f0.cpu().expect("cpu frame").planes[0];
+            assert_eq!((plane.stride, plane.rows), (16, 2));
+            assert!(plane.data.iter().all(|&b| b == 0x24));
+            plane.data.as_ptr()
+        };
+
+        let p1 = sink.pixels(4, 2);
+        p1.fill(0x7B);
+        let t1 = RationalTime::new(1, Rational::new(30, 1));
+        let f1 = sink.frame_with_pts(t1);
+        assert_eq!(f1.pts, t1);
+        let plane1 = &f1.cpu().expect("cpu frame").planes[0];
+        assert_eq!(
+            plane1.data.as_ptr(),
+            ptr0,
+            "ExportFrameSink reallocated the RGBA plane buffer on a same-size frame"
+        );
+        assert!(plane1.data.iter().all(|&b| b == 0x7B));
     }
 }
 #[cfg(test)]

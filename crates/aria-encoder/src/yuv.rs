@@ -159,14 +159,8 @@ pub(crate) fn rgba_to_i420_into(
     let (u_plane, v_plane) = chroma.split_at_mut(plan.c_len());
     let coeffs = matrix.coefficients();
     match order {
-        ChannelOrder::Rgba => {
-            write_luma::<false>(src, y_plane, &plan, &coeffs);
-            write_chroma_planar::<false>(src, u_plane, v_plane, &plan, &coeffs);
-        }
-        ChannelOrder::Bgra => {
-            write_luma::<true>(src, y_plane, &plan, &coeffs);
-            write_chroma_planar::<true>(src, u_plane, v_plane, &plan, &coeffs);
-        }
+        ChannelOrder::Rgba => write_i420::<false>(src, y_plane, u_plane, v_plane, &plan, &coeffs),
+        ChannelOrder::Bgra => write_i420::<true>(src, y_plane, u_plane, v_plane, &plan, &coeffs),
     }
     Ok(())
 }
@@ -201,14 +195,8 @@ pub(crate) fn rgba_to_nv12_into(
     // read only its own source rows.
     let pairs = plan.ch.div_ceil(bands(&plan));
     let convert = |((src, y), uv): ((&[u8], &mut [u8]), &mut [u8])| match order {
-        ChannelOrder::Rgba => {
-            write_luma::<false>(src, y, &plan, &coeffs);
-            write_chroma_interleaved::<false>(src, uv, &plan, &coeffs);
-        }
-        ChannelOrder::Bgra => {
-            write_luma::<true>(src, y, &plan, &coeffs);
-            write_chroma_interleaved::<true>(src, uv, &plan, &coeffs);
-        }
+        ChannelOrder::Rgba => write_nv12::<false>(src, y, uv, &plan, &coeffs),
+        ChannelOrder::Bgra => write_nv12::<true>(src, y, uv, &plan, &coeffs),
     };
     let mut parts = src
         .chunks(pairs * 2 * plan.stride)
@@ -332,92 +320,106 @@ fn pixel_pairs(row: &[u8]) -> &[[[u8; 4]; 2]] {
     pairs
 }
 
-fn write_luma<const SWAP: bool>(
-    src: &[u8],
-    y_plane: &mut [u8],
-    plan: &Plan,
-    coeffs: &YuvCoefficients,
-) {
-    let [cr, cg, cb] = coeffs.luma;
-    for (dst_row, src_row) in y_plane
-        .chunks_exact_mut(plan.w)
-        .zip(src.chunks_exact(plan.stride))
-    {
-        let (pixels, _) = src_row.as_chunks::<4>();
-        for (dst, px) in dst_row.iter_mut().zip(pixels) {
-            let (r, g, b) = rgb::<SWAP>(px);
-            let luma = (cr * r + cg * g + cb * b + 128) >> 8;
-            *dst = (luma + 16).clamp(0, 255) as u8;
-        }
-    }
+#[inline(always)]
+fn luma_sample(r: i32, g: i32, b: i32, [cr, cg, cb]: [i32; 3]) -> u8 {
+    let luma = (cr * r + cg * g + cb * b + 128) >> 8;
+    (luma + 16).clamp(0, 255) as u8
 }
 
-/// One `(U, V)` pair from the 2×2 pixel block straddling two source rows.
+/// Four luma samples (`top`, `bottom`) and one `(U, V)` chroma pair from the
+/// 2×2 pixel block straddling two source rows, unpacking each source pixel once.
 #[inline(always)]
-fn chroma_sample<const SWAP: bool>(
+fn block_420<const SWAP: bool>(
     top: &[[u8; 4]; 2],
     bottom: &[[u8; 4]; 2],
     coeffs: &YuvCoefficients,
-) -> (u8, u8) {
-    let (mut rs, mut gs, mut bs) = (0i32, 0i32, 0i32);
-    for px in top.iter().chain(bottom.iter()) {
-        let (r, g, b) = rgb::<SWAP>(px);
-        rs += r;
-        gs += g;
-        bs += b;
-    }
-    let (r, g, b) = (rs / 4, gs / 4, bs / 4);
+) -> ([u8; 2], [u8; 2], u8, u8) {
+    let (r00, g00, b00) = rgb::<SWAP>(&top[0]);
+    let (r01, g01, b01) = rgb::<SWAP>(&top[1]);
+    let (r10, g10, b10) = rgb::<SWAP>(&bottom[0]);
+    let (r11, g11, b11) = rgb::<SWAP>(&bottom[1]);
+
+    let y_top = [
+        luma_sample(r00, g00, b00, coeffs.luma),
+        luma_sample(r01, g01, b01, coeffs.luma),
+    ];
+    let y_bottom = [
+        luma_sample(r10, g10, b10, coeffs.luma),
+        luma_sample(r11, g11, b11, coeffs.luma),
+    ];
+
+    let r = (r00 + r01 + r10 + r11) >> 2;
+    let g = (g00 + g01 + g10 + g11) >> 2;
+    let b = (b00 + b01 + b10 + b11) >> 2;
     let [ur, ug, ub] = coeffs.u;
     let [vr, vg, vb] = coeffs.v;
-    let u = ((ur * r + ug * g + ub * b + 128) >> 8) + 128;
-    let v = ((vr * r + vg * g + vb * b + 128) >> 8) + 128;
-    (u.clamp(0, 255) as u8, v.clamp(0, 255) as u8)
+    let u = (((ur * r + ug * g + ub * b + 128) >> 8) + 128).clamp(0, 255) as u8;
+    let v = (((vr * r + vg * g + vb * b + 128) >> 8) + 128).clamp(0, 255) as u8;
+    (y_top, y_bottom, u, v)
 }
 
-fn write_chroma_planar<const SWAP: bool>(
+fn write_i420<const SWAP: bool>(
     src: &[u8],
+    y_plane: &mut [u8],
     u_plane: &mut [u8],
     v_plane: &mut [u8],
     plan: &Plan,
     coeffs: &YuvCoefficients,
 ) {
-    for ((u_row, v_row), rows) in u_plane
-        .chunks_exact_mut(plan.cw)
+    for (((y_rows, u_row), v_row), rows) in y_plane
+        .chunks_exact_mut(plan.w * 2)
+        .zip(u_plane.chunks_exact_mut(plan.cw))
         .zip(v_plane.chunks_exact_mut(plan.cw))
         .zip(src.chunks_exact(plan.stride * 2))
     {
+        let (y_top, y_bottom) = y_rows.split_at_mut(plan.w);
+        let (y_top_pairs, _) = y_top.as_chunks_mut::<2>();
+        let (y_bottom_pairs, _) = y_bottom.as_chunks_mut::<2>();
         let (top, bottom) = rows.split_at(plan.stride);
-        for (((u, v), t), b) in u_row
+        for (((((yt, yb), u), v), t), b) in y_top_pairs
             .iter_mut()
+            .zip(y_bottom_pairs.iter_mut())
+            .zip(u_row.iter_mut())
             .zip(v_row.iter_mut())
             .zip(pixel_pairs(top))
             .zip(pixel_pairs(bottom))
         {
-            let (cu, cv) = chroma_sample::<SWAP>(t, b, coeffs);
+            let (luma_t, luma_b, cu, cv) = block_420::<SWAP>(t, b, coeffs);
+            *yt = luma_t;
+            *yb = luma_b;
             *u = cu;
             *v = cv;
         }
     }
 }
 
-fn write_chroma_interleaved<const SWAP: bool>(
+fn write_nv12<const SWAP: bool>(
     src: &[u8],
+    y_plane: &mut [u8],
     uv_plane: &mut [u8],
     plan: &Plan,
     coeffs: &YuvCoefficients,
 ) {
-    for (uv_row, rows) in uv_plane
-        .chunks_exact_mut(plan.cw * 2)
+    for ((y_rows, uv_row), rows) in y_plane
+        .chunks_exact_mut(plan.w * 2)
+        .zip(uv_plane.chunks_exact_mut(plan.cw * 2))
         .zip(src.chunks_exact(plan.stride * 2))
     {
+        let (y_top, y_bottom) = y_rows.split_at_mut(plan.w);
+        let (y_top_pairs, _) = y_top.as_chunks_mut::<2>();
+        let (y_bottom_pairs, _) = y_bottom.as_chunks_mut::<2>();
         let (top, bottom) = rows.split_at(plan.stride);
         let (samples, _) = uv_row.as_chunks_mut::<2>();
-        for ((sample, t), b) in samples
+        for ((((yt, yb), sample), t), b) in y_top_pairs
             .iter_mut()
+            .zip(y_bottom_pairs.iter_mut())
+            .zip(samples.iter_mut())
             .zip(pixel_pairs(top))
             .zip(pixel_pairs(bottom))
         {
-            let (u, v) = chroma_sample::<SWAP>(t, b, coeffs);
+            let (luma_t, luma_b, u, v) = block_420::<SWAP>(t, b, coeffs);
+            *yt = luma_t;
+            *yb = luma_b;
             *sample = [u, v];
         }
     }

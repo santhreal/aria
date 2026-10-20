@@ -330,13 +330,67 @@ fn short_buffers_are_refused_rather_than_panicking() {
 
 /// NV12 of `src` written in one pass over every row, the way a frame too
 /// small to split is converted.
+fn reference_write_luma<const SWAP: bool>(
+    src: &[u8],
+    y_plane: &mut [u8],
+    plan: &Plan,
+    coeffs: &YuvCoefficients,
+) {
+    let [cr, cg, cb] = coeffs.luma;
+    for (dst_row, src_row) in y_plane
+        .chunks_exact_mut(plan.w)
+        .zip(src.chunks_exact(plan.stride))
+    {
+        let (pixels, _) = src_row.as_chunks::<4>();
+        for (dst, px) in dst_row.iter_mut().zip(pixels) {
+            let (r, g, b) = rgb::<SWAP>(px);
+            let luma = (cr * r + cg * g + cb * b + 128) >> 8;
+            *dst = (luma + 16).clamp(0, 255) as u8;
+        }
+    }
+}
+
+fn reference_write_chroma_interleaved<const SWAP: bool>(
+    src: &[u8],
+    uv_plane: &mut [u8],
+    plan: &Plan,
+    coeffs: &YuvCoefficients,
+) {
+    for (uv_row, rows) in uv_plane
+        .chunks_exact_mut(plan.cw * 2)
+        .zip(src.chunks_exact(plan.stride * 2))
+    {
+        let (top, bottom) = rows.split_at(plan.stride);
+        let (samples, _) = uv_row.as_chunks_mut::<2>();
+        for ((sample, t), b) in samples
+            .iter_mut()
+            .zip(pixel_pairs(top))
+            .zip(pixel_pairs(bottom))
+        {
+            let (mut rs, mut gs, mut bs) = (0i32, 0i32, 0i32);
+            for px in t.iter().chain(b.iter()) {
+                let (r, g, b) = rgb::<SWAP>(px);
+                rs += r;
+                gs += g;
+                bs += b;
+            }
+            let (r, g, b) = (rs / 4, gs / 4, bs / 4);
+            let [ur, ug, ub] = coeffs.u;
+            let [vr, vg, vb] = coeffs.v;
+            let u = (((ur * r + ug * g + ub * b + 128) >> 8) + 128).clamp(0, 255) as u8;
+            let v = (((vr * r + vg * g + vb * b + 128) >> 8) + 128).clamp(0, 255) as u8;
+            *sample = [u, v];
+        }
+    }
+}
+
 fn one_pass<const SWAP: bool>(src: &[u8], width: u32, height: u32, stride: usize) -> Vec<u8> {
     let mut out = vec![0u8; yuv420_len(width, height)];
     let plan = Plan::new(width, height, stride, src.len(), out.len()).expect("valid geometry");
     let coeffs = YuvMatrix::Bt709.coefficients();
     let (y, uv) = out[..plan.frame_len()].split_at_mut(plan.y_len());
-    write_luma::<SWAP>(&src[..plan.src_len()], y, &plan, &coeffs);
-    write_chroma_interleaved::<SWAP>(&src[..plan.src_len()], uv, &plan, &coeffs);
+    reference_write_luma::<SWAP>(&src[..plan.src_len()], y, &plan, &coeffs);
+    reference_write_chroma_interleaved::<SWAP>(&src[..plan.src_len()], uv, &plan, &coeffs);
     out
 }
 
