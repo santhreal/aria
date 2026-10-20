@@ -732,7 +732,14 @@ impl ParamValue {
         }
     }
 
-    pub(super) fn color(self) -> Result<[u8; 4], ModelError> {
+    pub(crate) fn vec3(self) -> Result<[f32; 3], ModelError> {
+        match self {
+            ParamValue::Vec3(v) => Ok(v),
+            _ => Err(ModelError::InvalidParam("expected a vec3 value".into())),
+        }
+    }
+
+    pub(crate) fn color(self) -> Result<[u8; 4], ModelError> {
         match self {
             ParamValue::Color(v) => Ok(v),
             _ => Err(ModelError::InvalidParam("expected a color value".into())),

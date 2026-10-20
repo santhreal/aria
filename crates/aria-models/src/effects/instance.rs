@@ -691,13 +691,13 @@ impl EffectInstance {
         let pspec = self.param_spec(index)?;
         match pspec.kind {
             EffectParamKind::Scalar | EffectParamKind::Angle | EffectParamKind::Int => {
-                self.set_param_constant(index, expect_scalar(value)?)
+                self.set_param_constant(index, value.scalar()?)
             }
-            EffectParamKind::Color => self.set_color_param_constant(index, expect_color(value)?),
+            EffectParamKind::Color => self.set_color_param_constant(index, value.color()?),
             EffectParamKind::Vec2 | EffectParamKind::Size => {
-                self.set_vec2_param_constant(index, expect_vec2(value)?)
+                self.set_vec2_param_constant(index, value.vec2()?)
             }
-            EffectParamKind::Point3 => self.set_vec3_param_constant(index, expect_vec3(value)?),
+            EffectParamKind::Point3 => self.set_vec3_param_constant(index, value.vec3()?),
             _ => Err(ModelError::InvalidParam(format!(
                 "effect parameter '{}' ({:?}) is not settable via ParamValue",
                 pspec.name, pspec.kind
@@ -716,16 +716,16 @@ impl EffectInstance {
         let pspec = self.param_spec(index)?;
         match pspec.kind {
             EffectParamKind::Scalar | EffectParamKind::Angle | EffectParamKind::Int => {
-                self.set_param_keyframe(index, tick, expect_scalar(value)?, easing)
+                self.set_param_keyframe(index, tick, value.scalar()?, easing)
             }
             EffectParamKind::Color => {
-                self.set_color_param_keyframe(index, tick, expect_color(value)?, easing)
+                self.set_color_param_keyframe(index, tick, value.color()?, easing)
             }
             EffectParamKind::Vec2 | EffectParamKind::Size => {
-                self.set_vec2_param_keyframe(index, tick, expect_vec2(value)?, easing)
+                self.set_vec2_param_keyframe(index, tick, value.vec2()?, easing)
             }
             EffectParamKind::Point3 => {
-                self.set_vec3_param_keyframe(index, tick, expect_vec3(value)?, easing)
+                self.set_vec3_param_keyframe(index, tick, value.vec3()?, easing)
             }
             _ => Err(ModelError::InvalidParam(format!(
                 "effect parameter '{}' ({:?}) does not support keyframes",
@@ -835,33 +835,5 @@ impl StoredParams for EffectInstance {
     }
     fn stored_layer(&self, name: &str) -> Option<u64> {
         self.layer_params.get(name).copied()
-    }
-}
-
-fn expect_scalar(value: ParamValue) -> Result<f32, ModelError> {
-    match value {
-        ParamValue::Scalar(v) => Ok(v),
-        _ => Err(ModelError::InvalidParam("expected a scalar value".into())),
-    }
-}
-
-fn expect_vec2(value: ParamValue) -> Result<[f32; 2], ModelError> {
-    match value {
-        ParamValue::Vec2(v) => Ok(v),
-        _ => Err(ModelError::InvalidParam("expected a vec2 value".into())),
-    }
-}
-
-fn expect_vec3(value: ParamValue) -> Result<[f32; 3], ModelError> {
-    match value {
-        ParamValue::Vec3(v) => Ok(v),
-        _ => Err(ModelError::InvalidParam("expected a vec3 value".into())),
-    }
-}
-
-fn expect_color(value: ParamValue) -> Result<[u8; 4], ModelError> {
-    match value {
-        ParamValue::Color(v) => Ok(v),
-        _ => Err(ModelError::InvalidParam("expected a color value".into())),
     }
 }
