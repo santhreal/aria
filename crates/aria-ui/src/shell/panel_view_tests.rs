@@ -249,7 +249,7 @@ fn make(visual: &mut VisualTestContext, shell: &gpui::Entity<Shell>, change: Cha
             match change {
                 Change::View => {
                     shell.state.update(cx, |state, _| {
-                        state.zoom_bar_pan(if step % 2 == 0 { 0.02 } else { -0.01 });
+                        state.zoom_bar_pan(if step.is_multiple_of(2) { 0.02 } else { -0.01 });
                         state.video_scroll_y = (step % 3) as f32 * 8.0;
                     });
                     shell.redraw(Moved::View, cx);
@@ -272,7 +272,7 @@ fn make(visual: &mut VisualTestContext, shell: &gpui::Entity<Shell>, change: Cha
                 Change::Param => notify(shell, cx, &|state| {
                     let clip = first_clip(state);
                     state.select_clip(clip);
-                    let delta = if step % 2 == 0 { -0.1 } else { 0.05 };
+                    let delta = if step.is_multiple_of(2) { -0.1 } else { 0.05 };
                     state
                         .nudge_param(aria_models::ClipParam::Opacity, None, delta)
                         .expect("nudge the opacity");
@@ -293,7 +293,7 @@ fn make(visual: &mut VisualTestContext, shell: &gpui::Entity<Shell>, change: Cha
                         .expect("add an audio lane");
                 }),
                 Change::Meter => notify(shell, cx, &|state| {
-                    let level = if step % 2 == 0 { 0.9 } else { 0.3 };
+                    let level = if step.is_multiple_of(2) { 0.9 } else { 0.3 };
                     state.audio.publish_block(&[level, level], 2);
                     state.meter_tick(std::time::Instant::now());
                 }),

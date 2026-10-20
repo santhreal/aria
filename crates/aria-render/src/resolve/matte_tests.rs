@@ -34,7 +34,7 @@ fn stack(count: usize) -> (Project, Vec<aria_models::ClipId>) {
     let mut project = Project::new("p", FPS_24);
     let mut clips = Vec::new();
     for i in 0..count {
-        let track = project.add_track(TrackKind::Sticker, &format!("S{}", i + 1));
+        let track = project.add_track(TrackKind::Sticker, format!("S{}", i + 1));
         let shade = (i as u8 + 1) * 40;
         clips.push(
             project
@@ -145,7 +145,7 @@ fn a_canvas_pass_is_never_folded_into_a_matte() {
         let mut project = Project::new("p", FPS_24);
         let mut clips = Vec::new();
         for (i, kind) in lanes.iter().enumerate() {
-            let track = project.add_track(*kind, &format!("L{}", i + 1));
+            let track = project.add_track(*kind, format!("L{}", i + 1));
             let generator = match kind {
                 TrackKind::Adjustment => Generator::Adjustment,
                 _ => solid([200, 200, 200, 255]),

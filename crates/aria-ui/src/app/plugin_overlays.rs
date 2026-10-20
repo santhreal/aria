@@ -175,10 +175,10 @@ impl AppState {
             .collect();
         let before = std::mem::replace(&mut self.plugin_overlays.shown, Arc::clone(&shown));
         self.plugin_overlays.revision = Some(revision);
-        if let Some(grab) = &self.plugin_overlays.grab {
-            if !shown.iter().any(|state| *state.spec.id == *grab.overlay) {
-                self.plugin_overlays.grab = None;
-            }
+        if let Some(grab) = &self.plugin_overlays.grab
+            && !shown.iter().any(|state| *state.spec.id == *grab.overlay)
+        {
+            self.plugin_overlays.grab = None;
         }
         for state in shown.iter() {
             let earlier = before.iter().find(|old| old.spec.id == state.spec.id);
@@ -258,10 +258,12 @@ impl AppState {
     /// cannot draw is reported.
     pub fn overlay_batches(&mut self, map: CanvasMap, clip: Rect) -> Arc<[Batch]> {
         let revision = self.plugin_overlays.revision.unwrap_or(0);
-        if let Some(drawn) = &self.plugin_overlays.drawn {
-            if drawn.revision == revision && drawn.map == map && drawn.clip == clip {
-                return Arc::clone(&drawn.batches);
-            }
+        if let Some(drawn) = &self.plugin_overlays.drawn
+            && drawn.revision == revision
+            && drawn.map == map
+            && drawn.clip == clip
+        {
+            return Arc::clone(&drawn.batches);
         }
         let mut out = Vec::new();
         let mut failed = Vec::new();

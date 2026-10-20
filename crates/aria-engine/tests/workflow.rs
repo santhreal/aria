@@ -100,14 +100,13 @@ fn failed_command_does_not_mutate_project() {
     let track = common::add_track(&mut engine, TrackKind::Video, "V1");
     let fake_media = aria_models::MediaId::from_raw(999);
 
-    let err = match engine.apply(Command::Edit(EditCommand::AddClip {
+    let Err(err) = engine.apply(Command::Edit(EditCommand::AddClip {
         track,
         media: fake_media,
         source: tr(0, 48),
         start: rt(0),
-    })) {
-        Err(e) => e,
-        Ok(_) => panic!("expected unknown media error"),
+    })) else {
+        panic!("expected unknown media error");
     };
 
     assert!(format!("{err}").contains("unknown media"));
@@ -121,11 +120,10 @@ fn failed_command_does_not_mutate_project() {
 #[test]
 fn import_via_command_from_missing_file_fails_cleanly() {
     let (_dir, mut engine) = temp_engine();
-    let err = match engine.apply(Command::Project(ProjectCommand::Import {
+    let Err(err) = engine.apply(Command::Project(ProjectCommand::Import {
         path: "/nonexistent/aria-engine.mp4".into(),
-    })) {
-        Err(e) => e,
-        Ok(_) => panic!("expected import error"),
+    })) else {
+        panic!("expected import error");
     };
     assert_eq!(engine.project().media_count(), 0);
     assert!(!engine.can_undo());
@@ -239,11 +237,10 @@ fn remove_referenced_media_is_rejected() {
         }))
         .expect("add clip");
 
-    let err = match engine.apply(Command::Project(ProjectCommand::RemoveMedia {
+    let Err(err) = engine.apply(Command::Project(ProjectCommand::RemoveMedia {
         media: media_id,
-    })) {
-        Err(e) => e,
-        Ok(_) => panic!("expected referenced-media rejection"),
+    })) else {
+        panic!("expected referenced-media rejection");
     };
     assert!(
         format!("{err}").contains("referenced"),

@@ -179,7 +179,7 @@ fn build_multi_layer_project(layer_count: usize) -> (Project, ClipId) {
         } else {
             TrackKind::Text
         };
-        let track = project.add_track(kind, &format!("Extra_{i}"));
+        let track = project.add_track(kind, format!("Extra_{i}"));
         if kind == TrackKind::Text {
             project
                 .add_generated(
@@ -217,7 +217,7 @@ fn build_keyframed_project(layer_count: usize) -> Project {
     let mut project = Project::new("keyframed_bench", Rational::FPS_24);
 
     for i in 0..layer_count {
-        let track = project.add_track(TrackKind::Video, &format!("KV_{i}"));
+        let track = project.add_track(TrackKind::Video, format!("KV_{i}"));
         let media = project.add_media(video(1920, 1080));
         let clip = project.add_clip(track, media, tr(0, 120), rt(0)).unwrap();
 

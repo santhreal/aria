@@ -139,7 +139,7 @@ fn paint_background(shaped: &ShapedText, style: &TextStyle) -> (Option<RgbaImage
     // the ink-tight extent is (−pad, −pad).
     let pad = effect_padding(&ghost) as f32;
     // Strip fully-transparent results (e.g. underline-only with no coverage).
-    let lit = painted.pixels.chunks_exact(4).any(|p| p[3] > 0);
+    let lit = painted.pixels.as_chunks::<4>().0.iter().any(|p| p[3] > 0);
     if !lit {
         return (None, [0.0, 0.0]);
     }

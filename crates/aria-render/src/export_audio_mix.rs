@@ -267,13 +267,13 @@ pub(crate) fn apply_strip_gain_pan(
         let (left, right) = pan_channel_gains(pan);
         let l = gain * left;
         let r = gain * right;
-        for frame in buf.chunks_exact_mut(CHANNELS) {
+        for frame in buf.as_chunks_mut::<CHANNELS>().0 {
             frame[0] *= l;
             frame[1] *= r;
         }
         return;
     }
-    for (idx, frame) in buf.chunks_exact_mut(CHANNELS).enumerate() {
+    for (idx, frame) in buf.as_chunks_mut::<CHANNELS>().0.iter_mut().enumerate() {
         let tick = samples_to_ticks(start_sample + idx as i64, fps);
         let gain = if reads_vol {
             volume_envelope.sample(tick)

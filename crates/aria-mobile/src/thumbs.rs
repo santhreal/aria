@@ -51,12 +51,11 @@ impl std::ops::DerefMut for PooledRenderer {
 
 impl Drop for PooledRenderer {
     fn drop(&mut self) {
-        if let Some(renderer) = self.0.take() {
-            if let Ok(mut pool) = RENDERER_POOL.lock() {
-                if pool.len() < MAX_POOLED_RENDERERS {
-                    pool.push(renderer);
-                }
-            }
+        if let Some(renderer) = self.0.take()
+            && let Ok(mut pool) = RENDERER_POOL.lock()
+            && pool.len() < MAX_POOLED_RENDERERS
+        {
+            pool.push(renderer);
         }
     }
 }

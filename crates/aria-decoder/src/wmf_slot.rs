@@ -125,7 +125,9 @@ mod tests {
             "a single wait must re-check"
         );
         assert!(
-            SLOT_ACQUIRE_TIMEOUT.as_millis() % SLOT_WAIT.as_millis() == 0,
+            SLOT_ACQUIRE_TIMEOUT
+                .as_millis()
+                .is_multiple_of(SLOT_WAIT.as_millis()),
             "the deadline should land on a wait boundary"
         );
     }

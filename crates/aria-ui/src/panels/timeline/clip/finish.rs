@@ -436,10 +436,9 @@ pub(crate) fn attach_group_mouse_listeners(
                 let (local_x, local_y) = local_coords(event.position, bounds_up.get());
                 if let Some(HitTarget::ClipBody { clip_id, .. }) =
                     hit_test(&lanes_up, local_x, local_y, fps, pps, scroll_x)
+                    && land_parent_whip(this, clip_id, event.modifiers.shift, cx)
                 {
-                    if land_parent_whip(this, clip_id, event.modifiers.shift, cx) {
-                        return;
-                    }
+                    return;
                 }
             }
             on_left_up(this, event, fps, pps, tool, cx);
@@ -529,11 +528,11 @@ fn on_left_down(
     });
 
     // An armed Parent pick whip takes the press on a clip, whatever the tool.
-    if let HitTarget::ClipBody { clip_id, .. } = hit {
-        if land_parent_whip(this, clip_id, event.modifiers.shift, cx) {
-            cx.stop_propagation();
-            return;
-        }
+    if let HitTarget::ClipBody { clip_id, .. } = hit
+        && land_parent_whip(this, clip_id, event.modifiers.shift, cx)
+    {
+        cx.stop_propagation();
+        return;
     }
 
     if tool.pans() {

@@ -389,7 +389,7 @@ fn animated_text_paints_glyphs_and_its_background_card() {
     // card.
     let mut card = 0usize;
     let mut glyph = 0usize;
-    for px in image.pixels.chunks_exact(4) {
+    for px in image.pixels.as_chunks::<4>().0 {
         if px[3] < 200 {
             continue;
         }

@@ -202,7 +202,7 @@ fn the_frame_reference_holds_the_frame_it_was_taken_at(cx: &mut TestAppContext) 
 fn the_still_reference_reads_the_file_it_was_answered_with(cx: &mut TestAppContext) {
     let (mut state, _) = with_clip();
     let want = aria_decoder::probe_image(&texture()).expect("the fixture is an image");
-    state.supply_pick(Answer::file(&texture()));
+    state.supply_pick(Answer::file(texture()));
     let state = entity(state, cx);
     cx.update(|app| state.update(app, |state, cx| state.pick_compare_still(cx)));
     cx.run_until_parked();

@@ -84,10 +84,7 @@ pub fn measure(
     if angles.len() < 2 {
         return Err(Decline::OneAngleOnly);
     }
-    let reference = match angles[0] {
-        Ok(peaks) => peaks,
-        Err(reason) => return Err(reason),
-    };
+    let reference = angles[0]?;
     let mut moved = Vec::new();
     let mut refused = None;
     for (angle, sound) in angles.iter().enumerate().skip(1) {

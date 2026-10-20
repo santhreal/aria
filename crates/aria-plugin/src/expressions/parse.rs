@@ -521,9 +521,8 @@ impl Parser {
             }
             self.deeper()?;
             if self.eat(".") {
-                let name = match self.advance().tok {
-                    Tok::Ident(name) => name,
-                    _ => return Err(format!("{pos}: expected a name after .")),
+                let Tok::Ident(name) = self.advance().tok else {
+                    return Err(format!("{pos}: expected a name after ."));
                 };
                 expr = Expr::Member(Box::new(expr), name, pos);
             } else if self.eat("(") {

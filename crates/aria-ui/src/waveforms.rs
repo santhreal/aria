@@ -230,7 +230,7 @@ pub fn request(state: &Entity<AppState>, cx: &mut App, media: u64, path: PathBuf
                 aria_decoder::audio_peaks_per_second(&path, PEAKS_PER_SECOND, MAX_PEAKS)
             })
             .await;
-        let _ = state.update(cx, |state, cx| {
+        state.update(cx, |state, cx| {
             match decoded {
                 Some(Ok(peaks)) if !peaks.peaks.is_empty() => state.waveforms.insert(
                     media,

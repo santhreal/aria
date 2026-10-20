@@ -988,7 +988,7 @@ fn every_pick_whip_reference_binds_back_to_its_input() {
                 .reference(&wanted)
                 .unwrap_or_else(|| panic!("no reference for {wanted:?}"));
             let program = compile(&source).unwrap_or_else(|err| panic!("{source}: {err}"));
-            assert_eq!(program.inputs(), [wanted.clone()], "{source}");
+            assert_eq!(program.inputs(), std::slice::from_ref(&wanted), "{source}");
         }
     }
     // A new driver starts at the property's own value.

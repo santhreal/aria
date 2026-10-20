@@ -499,11 +499,7 @@ impl AppState {
     /// Move the playhead to the next keyframe on `param` after it, if any.
     pub fn go_to_next_keyframe(&mut self, param: ClipParam) {
         let at = self.playhead.value;
-        if let Some(mark) = self
-            .keyframes_of(param)
-            .into_iter()
-            .find(|mark| mark.tick > at)
-        {
+        if let Some(mark) = self.keyframes_of(param).iter().find(|mark| mark.tick > at) {
             self.set_playhead(mark.tick);
         }
     }
@@ -513,7 +509,7 @@ impl AppState {
         let at = self.playhead.value;
         if let Some(mark) = self
             .keyframes_of(param)
-            .into_iter()
+            .iter()
             .rev()
             .find(|mark| mark.tick < at)
         {

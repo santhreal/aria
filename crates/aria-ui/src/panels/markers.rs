@@ -281,7 +281,7 @@ fn row(
                         .flex_1()
                         .text_size(Theme::TEXT_UI)
                         .text_color(theme.text)
-                        .child(SharedString::from(name)),
+                        .child(name),
                 )
                 .when(marker.kind != aria_models::MarkerKind::Comment, |el| {
                     el.child(
@@ -305,7 +305,7 @@ fn row(
                 div()
                     .text_size(Theme::TEXT_UI)
                     .text_color(theme.text_faint)
-                    .child(SharedString::from(comment)),
+                    .child(comment),
             )
         })
         .child(

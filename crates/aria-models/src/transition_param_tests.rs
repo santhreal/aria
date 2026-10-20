@@ -276,7 +276,7 @@ fn spec_builders_append_replace_and_look_up_parameters() {
     assert_eq!(spec.param_at(0), Some(&a));
     assert_eq!(spec.param_at(2), None);
     let replaced = spec.with_params(vec![b.clone()]);
-    assert_eq!(replaced.params, [b.clone()]);
+    assert_eq!(replaced.params, std::slice::from_ref(&b));
     assert_eq!(replaced.param("a"), None);
     assert_eq!(replaced.param_at(0), Some(&b));
 }

@@ -22,7 +22,7 @@ pub(crate) enum DropHint {
 }
 
 thread_local! {
-    static HINT: Cell<Option<DropHint>> = Cell::new(None);
+    static HINT: Cell<Option<DropHint>> = const { Cell::new(None) };
 }
 
 /// Record where the drag points. `true` when that is somewhere new, which is the

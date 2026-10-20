@@ -288,7 +288,7 @@ pub(super) fn cloud_grid(
             )
             .child(div().flex().gap(px(Theme::SPACE_XS)).children(
                 STOCK_KINDS.iter().map(|(id, label, this_kind)| {
-                    kind_chip(theme, *id, *label, *this_kind, kind, cx)
+                    kind_chip(theme, id, label, *this_kind, kind, cx)
                 }),
             ))
             .child(

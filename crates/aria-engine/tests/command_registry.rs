@@ -155,8 +155,7 @@ fn newest_label(engine: &Engine) -> String {
     engine
         .history_entries()
         .into_iter()
-        .filter(|entry| entry.applied)
-        .next_back()
+        .rfind(|entry| entry.applied)
         .map(|entry| entry.label.into_owned())
         .expect("an applied history step")
 }

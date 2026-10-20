@@ -567,9 +567,9 @@ fn proc_status_metrics() -> (f64, f64, usize, usize, usize) {
 /// WHY: 30 stacked clips of one media file at the same source time each opened
 /// their own GStreamer pipeline in `Renderer::decode` and again for every
 /// upcoming entrance in `Renderer::look_ahead`, reaching 240 open decoders and
-/// >5,000 libav threads across five 8-tick filmstrip/viewer steps. Closes the
-/// class of stacked clips at one source time multiplying decoders or decodes,
-/// and of look-ahead/active decoders exceeding `MAX_DECODERS`.
+/// more than 5,000 libav threads across five 8-tick filmstrip/viewer steps.
+/// Closes the class of stacked clips at one source time multiplying decoders or
+/// decodes, and of look-ahead/active decoders exceeding `MAX_DECODERS`.
 #[test]
 fn stacked_clips_of_one_media_at_one_source_time_share_one_decoder_and_stay_within_cap() {
     let (single_project, _, _) = stacked_cut_project(1, 80);

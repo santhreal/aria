@@ -105,10 +105,10 @@ impl MulticamGroup {
                     total: self.angles.len(),
                 });
             }
-            if let Some(prev) = last_tick {
-                if cut.at <= prev {
-                    return Err(ModelError::InvalidMulticamCuts);
-                }
+            if let Some(prev) = last_tick
+                && cut.at <= prev
+            {
+                return Err(ModelError::InvalidMulticamCuts);
             }
             last_tick = Some(cut.at);
         }

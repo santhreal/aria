@@ -937,7 +937,7 @@ fn add_scaled(dst: &mut [f32], src: &[f32], level: f32) {
 /// silence and read as a broken meter rather than a broken clip.
 fn stereo_peak(block: &[f32]) -> [f32; 2] {
     let mut peak = [0.0f32; 2];
-    for frame in block.chunks_exact(CHANNELS) {
+    for frame in block.as_chunks::<CHANNELS>().0 {
         for (bar, sample) in peak.iter_mut().zip(frame) {
             let magnitude = sample.abs();
             if magnitude.is_finite() && magnitude > *bar {

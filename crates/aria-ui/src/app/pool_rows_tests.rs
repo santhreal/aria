@@ -97,7 +97,7 @@ fn a_query_narrows_the_rows_and_leaves_the_total_alone() {
 fn the_audio_tab_holds_only_sound() {
     let state = pool();
     let rows = state.pool_rows(SidebarTab::Audio);
-    assert!(rows.len() >= 1, "the fixture imported no sound");
+    assert!(!rows.is_empty(), "the fixture imported no sound");
     for row in rows.iter() {
         assert_eq!(
             row.kind,

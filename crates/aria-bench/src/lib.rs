@@ -506,11 +506,10 @@ pub fn compute_overall_verdict(
 ) -> (Verdict, Option<String>) {
     let mut failure_reasons = Vec::new();
     let mut skip_reasons = Vec::new();
-    let mut any_pass = false;
 
     for t in targets {
         match t.verdict {
-            Verdict::Pass => any_pass = true,
+            Verdict::Pass => {}
             Verdict::Fail => {
                 failure_reasons.push(t.reason.clone().unwrap_or_else(|| {
                     format!(
@@ -538,7 +537,7 @@ pub fn compute_overall_verdict(
 
     for r in rules {
         match r.verdict {
-            Verdict::Pass => any_pass = true,
+            Verdict::Pass => {}
             Verdict::Fail => {
                 failure_reasons.push(
                     r.reason
@@ -562,8 +561,6 @@ pub fn compute_overall_verdict(
 
     if !failure_reasons.is_empty() {
         (Verdict::Fail, Some(failure_reasons.join("; ")))
-    } else if !skip_reasons.is_empty() && !any_pass {
-        (Verdict::Skipped, Some(skip_reasons.join("; ")))
     } else if !skip_reasons.is_empty() {
         (Verdict::Skipped, Some(skip_reasons.join("; ")))
     } else {

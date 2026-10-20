@@ -620,7 +620,7 @@ impl DockTree {
     /// Locate which frame (docked or floating) currently holds `panel`.
     pub fn find(&self, panel: &str) -> Option<FrameId> {
         for frame in self.frames() {
-            if frame.tabs.iter().any(|tab| *tab == panel) {
+            if frame.tabs.contains(&panel) {
                 return Some(frame.id);
             }
         }

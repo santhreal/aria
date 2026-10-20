@@ -366,7 +366,7 @@ pub fn block_levels(data: &[f32], channels: usize) -> BlockLevels {
         if !magnitude.is_finite() {
             continue;
         }
-        let side = usize::from(index % channels >= (channels + 1) / 2 && channels > 1);
+        let side = usize::from(index % channels >= channels.div_ceil(2) && channels > 1);
         peak[side] = peak[side].max(magnitude);
         squares[side] += magnitude * magnitude;
         counts[side] += 1;
@@ -641,10 +641,9 @@ impl AudioSystem {
             .lock()
             .take()
             .ok_or_else(|| "the prepared audio mix was already consumed".to_string())?;
-        let mixer = match prepared? {
-            Some(mixer) => mixer,
-            // Nothing audible: playing silence needs no device.
-            None => return Ok(()),
+        // Nothing audible: playing silence needs no device.
+        let Some(mixer) = prepared? else {
+            return Ok(());
         };
         let host = cpal::default_host();
         let device = host

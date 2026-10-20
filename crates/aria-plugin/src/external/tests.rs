@@ -200,9 +200,8 @@ fn missing_directory_and_bare_library_and_non_plugin_library_are_handled() {
         std::fs::create_dir_all(&lib_dir).expect("create lib dir");
         std::fs::copy(&sys_lib, lib_dir.join(library_name())).expect("copy sys lib");
         let pkg = Package::open(&pkg_dir).expect("open package");
-        let err = match load(&pkg) {
-            Ok(_) => panic!("system library without aria_plugin_entry must be refused"),
-            Err(err) => err,
+        let Err(err) = load(&pkg) else {
+            panic!("system library without aria_plugin_entry must be refused");
         };
         assert_eq!(err, "not an aria plugin: no aria_plugin_entry symbol");
     }

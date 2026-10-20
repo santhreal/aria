@@ -241,10 +241,10 @@ impl AppState {
             self.dock_tree.apply_spec_px_for_width(window_w);
             changed = true;
         }
-        if (window_w - prev_w).abs() > 0.5 || (window_h - prev_h).abs() > 0.5 {
-            if self.rebalance_splits_for_window(window_w, window_h) {
-                changed = true;
-            }
+        if ((window_w - prev_w).abs() > 0.5 || (window_h - prev_h).abs() > 0.5)
+            && self.rebalance_splits_for_window(window_w, window_h)
+        {
+            changed = true;
         }
         changed
     }

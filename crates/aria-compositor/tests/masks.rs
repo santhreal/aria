@@ -44,7 +44,7 @@ fn assert_px(img: &RgbaImage, x: u32, y: u32, expect: [u8; 4], tol: i32) {
 
 fn rgba_uniform(w: u32, h: u32, rgba: [u8; 4]) -> RgbaImage {
     let mut pixels = vec![0u8; (w * h * 4) as usize];
-    for px in pixels.chunks_exact_mut(4) {
+    for px in pixels.as_chunks_mut::<4>().0 {
         px.copy_from_slice(&rgba);
     }
     RgbaImage::new(w, h, pixels)

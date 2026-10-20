@@ -8,7 +8,7 @@ fn packed_nv12_bytes_split() {
     let w = 4u32;
     let h = 4u32;
     let mut bytes = vec![16u8; (w * h) as usize];
-    bytes.extend(std::iter::repeat(128u8).take((w * h / 2) as usize));
+    bytes.extend(std::iter::repeat_n(128u8, (w * h / 2) as usize));
     let planes = nv12_from_bytes(&bytes, w, h).expect("split");
     assert_eq!(planes.len(), 2);
     assert_eq!(planes[0].rows, 4);

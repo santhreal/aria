@@ -76,7 +76,7 @@ fn start_in(data_dir: &Path) -> Start {
         .into_iter()
         .map(|info| (info.manifest.id, info.mount))
         .collect();
-    per_plugin.sort_by(|left, right| right.1.cmp(&left.1));
+    per_plugin.sort_by_key(|entry| std::cmp::Reverse(entry.1));
 
     let at = Instant::now();
     let state =

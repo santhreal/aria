@@ -48,7 +48,7 @@ fn a_new_lane_ships_with_the_default_display() {
 #[test]
 fn a_height_change_is_projected_and_undoable() {
     let (mut state, _clip) = with_clip();
-    let track = fixture_lane(&mut state);
+    let track = fixture_lane(&state);
     state.set_lane_height(track, 96.0).expect("resize");
     assert_eq!(lane(&state, track).height, 96.0);
     assert!(state.undo(), "a resize is an edit, so it undoes");
@@ -63,7 +63,7 @@ fn a_height_change_is_projected_and_undoable() {
 #[test]
 fn a_height_outside_the_range_is_clamped_rather_than_refused() {
     let (mut state, _clip) = with_clip();
-    let track = fixture_lane(&mut state);
+    let track = fixture_lane(&state);
     state
         .set_lane_height(track, 4.0)
         .expect("a tiny drag lands");
@@ -83,7 +83,7 @@ fn a_height_outside_the_range_is_clamped_rather_than_refused() {
 #[test]
 fn one_flag_change_leaves_the_others_alone() {
     let (mut state, _clip) = with_clip();
-    let track = fixture_lane(&mut state);
+    let track = fixture_lane(&state);
     state.set_lane_height(track, 72.0).expect("resize");
     state.set_lane_waveform(track, false).expect("hide waves");
     let display = state.lane_display(track);
@@ -99,7 +99,7 @@ fn one_flag_change_leaves_the_others_alone() {
 #[test]
 fn a_locked_lane_still_takes_a_display_change() {
     let (mut state, _clip) = with_clip();
-    let track = fixture_lane(&mut state);
+    let track = fixture_lane(&state);
     state
         .set_track_locked(aria_models::TrackId::from_raw(track), true)
         .expect("lock");
@@ -114,7 +114,7 @@ fn the_layout_survives_save_and_open() {
     let dir = crate::scratch_pool::scratch("lane-display");
     let path = dir.join("layout.aria");
     let (mut state, _clip) = with_clip();
-    let track = fixture_lane(&mut state);
+    let track = fixture_lane(&state);
     state.set_lane_height(track, 88.0).expect("resize");
     state.set_lane_filmstrip(track, false).expect("hide strips");
     state.project_path = Some(path.clone());
@@ -135,7 +135,7 @@ fn the_layout_survives_save_and_open() {
 #[test]
 fn a_resize_in_flight_is_a_preview_and_costs_one_undo_entry() {
     let (mut state, _clip) = with_clip();
-    let track = fixture_lane(&mut state);
+    let track = fixture_lane(&state);
     let depth = state.history_depth();
     for y in [60.0, 72.0, 84.0] {
         state.set_lane_preview(track, y);
@@ -161,7 +161,7 @@ fn a_resize_in_flight_is_a_preview_and_costs_one_undo_entry() {
 #[test]
 fn an_abandoned_preview_changes_nothing() {
     let (mut state, _clip) = with_clip();
-    let track = fixture_lane(&mut state);
+    let track = fixture_lane(&state);
     state.set_lane_preview(track, 150.0);
     assert!(state.take_lane_preview().is_some());
     assert_eq!(
@@ -174,7 +174,7 @@ fn an_abandoned_preview_changes_nothing() {
 #[test]
 fn a_preview_is_clamped_to_the_accepted_range() {
     let (mut state, _clip) = with_clip();
-    let track = fixture_lane(&mut state);
+    let track = fixture_lane(&state);
     state.set_lane_preview(track, -40.0);
     assert_eq!(
         state.lane_preview(track),
@@ -191,7 +191,7 @@ fn a_preview_is_clamped_to_the_accepted_range() {
 #[test]
 fn collapsing_keeps_the_height_it_will_expand_back_to() {
     let (mut state, _clip) = with_clip();
-    let track = fixture_lane(&mut state);
+    let track = fixture_lane(&state);
     state.set_lane_height(track, 110.0).expect("resize");
     state.toggle_lane_collapsed(track).expect("collapse");
     let display = state.lane_display(track);
@@ -211,7 +211,7 @@ fn a_collapse_is_projected_undoable_and_persisted() {
     let dir = crate::scratch_pool::scratch("lane-collapse");
     let path = dir.join("collapsed.aria");
     let (mut state, _clip) = with_clip();
-    let track = fixture_lane(&mut state);
+    let track = fixture_lane(&state);
     state.set_lane_collapsed(track, true).expect("collapse");
     assert!(lane(&state, track).collapsed, "the panel draws from this");
     assert!(state.undo());
@@ -256,7 +256,7 @@ fn collapsing_one_lane_leaves_the_others_expanded() {
 #[test]
 fn stepping_a_lane_through_height_presets() {
     let (mut state, _clip) = with_clip();
-    let track = fixture_lane(&mut state);
+    let track = fixture_lane(&state);
 
     // Start at Mini (20) and walk up through every preset in TrackDisplay::PRESETS.
     state
@@ -349,7 +349,7 @@ fn the_track_context_menu_offers_every_height_preset_and_marks_the_active_one() 
     use crate::surfaces::context_menu::{MenuItem, TRACK_ITEMS, TrackMenu};
 
     let (mut state, _clip) = with_clip();
-    let track = fixture_lane(&mut state);
+    let track = fixture_lane(&state);
 
     let preset_rows: Vec<_> = TRACK_ITEMS
         .iter()

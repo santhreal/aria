@@ -153,7 +153,7 @@ pub fn register_texture(
         )));
     }
     let mut premultiplied = image.pixels.clone().into_boxed_slice();
-    for px in premultiplied.chunks_exact_mut(4) {
+    for px in premultiplied.as_chunks_mut::<4>().0 {
         let a = u16::from(px[3]);
         for channel in &mut px[..3] {
             *channel = ((u16::from(*channel) * a + 127) / 255) as u8;

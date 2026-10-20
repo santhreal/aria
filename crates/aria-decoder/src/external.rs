@@ -123,7 +123,7 @@ fn claimants(path: &Path) -> Vec<Arc<Claimant>> {
         .read()
         .unwrap_or_else(PoisonError::into_inner)
         .iter()
-        .filter(|claimant| claimant.extensions.iter().any(|claimed| *claimed == ext))
+        .filter(|claimant| claimant.extensions.contains(&ext))
         .cloned()
         .collect()
 }

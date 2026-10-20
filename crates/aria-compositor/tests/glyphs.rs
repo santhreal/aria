@@ -143,7 +143,13 @@ fn glyph_atlas_reused_across_frames() {
         );
         let img = comp.render(&gpu, &config, &[layer]).expect("render");
         // Some glyph coverage should land on the canvas.
-        let lit = img.pixels.chunks_exact(4).filter(|p| p[3] > 0).count();
+        let lit = img
+            .pixels
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .filter(|p| p[3] > 0)
+            .count();
         assert!(lit > 0, "frame {frame} drew no glyph coverage");
     }
 }

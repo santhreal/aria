@@ -321,8 +321,7 @@ fn sample_source_info(sample: &gst::Sample) -> Result<SourceInfo, DecodeError> {
     let caps = sample.caps().ok_or_else(|| {
         DecodeError::Open("GStreamer sample has no caps. Try another file.".into())
     })?;
-    let vinfo =
-        gst_video::VideoInfo::from_caps(&caps).map_err(|e| gst_err(DecodeError::Open, e))?;
+    let vinfo = gst_video::VideoInfo::from_caps(caps).map_err(|e| gst_err(DecodeError::Open, e))?;
     let width = vinfo.width();
     let height = vinfo.height();
     let fps = vinfo.fps();
@@ -351,7 +350,7 @@ pub(crate) fn sample_to_cpu_frame(
         DecodeError::Decode("GStreamer frame has no caps. Try another file.".into())
     })?;
     let vinfo =
-        gst_video::VideoInfo::from_caps(&caps).map_err(|e| gst_err(DecodeError::Decode, e))?;
+        gst_video::VideoInfo::from_caps(caps).map_err(|e| gst_err(DecodeError::Decode, e))?;
     let buffer = sample.buffer().ok_or_else(|| {
         DecodeError::Decode("GStreamer frame has no buffer. Try another file.".into())
     })?;

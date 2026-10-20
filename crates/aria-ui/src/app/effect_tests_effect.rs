@@ -276,10 +276,11 @@ fn with_no_effect_service_every_entry_is_marked_passthrough() {
         );
     }
 }
-/// The class closed below is "a slot the inspector cannot reach": colour and vec2
-/// slots were once unreachable while every other slot was a stepper. The slot list is read from the catalog at run time, so a new
-/// colour or vec2 parameter is covered here without a second list, and a new
-/// parameter kind turns the projection test red.
+// The class closed below is "a slot the inspector cannot reach": colour and vec2
+// slots were once unreachable while every other slot was a stepper. The slot list
+// is read from the catalog at run time, so a new colour or vec2 parameter is
+// covered here without a second list, and a new parameter kind turns the
+// projection test red.
 
 /// Every colour and vec2 slot of every catalog effect: set, clamp, reset, undo.
 #[test]

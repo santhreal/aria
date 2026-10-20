@@ -199,21 +199,21 @@ impl AudioProcessor for WasmAudioProcessor {
         if self.bypassed {
             return;
         }
-        if let Some(instance) = self.instance {
-            if self.shared.call_audio_reset(&self.ctx, instance).is_err() {
-                self.bypassed = true;
-                self.instance = None;
-            }
+        if let Some(instance) = self.instance
+            && self.shared.call_audio_reset(&self.ctx, instance).is_err()
+        {
+            self.bypassed = true;
+            self.instance = None;
         }
     }
 }
 
 impl Drop for WasmAudioProcessor {
     fn drop(&mut self) {
-        if let Some(instance) = self.instance.take() {
-            if !self.bypassed {
-                let _ = self.shared.call_audio_drop(&self.ctx, instance);
-            }
+        if let Some(instance) = self.instance.take()
+            && !self.bypassed
+        {
+            let _ = self.shared.call_audio_drop(&self.ctx, instance);
         }
     }
 }

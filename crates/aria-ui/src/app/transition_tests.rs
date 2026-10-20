@@ -277,9 +277,9 @@ fn breaking_the_abutment_drops_the_dead_junction() {
     );
 }
 
-/// The class closed below is "the wedge on the timeline is a readout". A wedge
-/// belongs to a clip, so its menu and its edge drag must address that clip without
-/// taking the selection, and an edge drag must be one edit.
+// The class closed below is "the wedge on the timeline is a readout". A wedge
+// belongs to a clip, so its menu and its edge drag must address that clip without
+// taking the selection, and an edge drag must be one edit.
 
 /// Both edges read the same window, the two directions are opposite, and a drag
 /// past the bounds stalls at them.

@@ -107,7 +107,7 @@ impl ColorGrade {
     /// `vec4` lanes needed to carry every slot. A row that crosses a multiple
     /// of four grows the uniform, and it grows on the shader side in the same
     /// build because the WGSL lane count is generated from this number.
-    pub(crate) const LANES: usize = (Self::SLOTS + 3) / 4;
+    pub(crate) const LANES: usize = Self::SLOTS.div_ceil(4);
 
     /// The slot a row packs into: rows fill slots in order, stepping over the
     /// enabled flag.

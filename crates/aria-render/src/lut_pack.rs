@@ -132,7 +132,9 @@ fn graded_reference(grade: &ColorGrade) -> Vec<[u8; 3]> {
     }
     grade.apply_image(width, SWATCH_ROWS, &mut rgba);
     rgba[stride..stride * 2]
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .map(|px| [px[0], px[1], px[2]])
         .collect()
 }

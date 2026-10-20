@@ -78,7 +78,7 @@ fn a_set_reads_back_as_it_was_written() {
     for (index, key) in aria_plugin::keys::BINDABLE_KEYS.iter().enumerate() {
         set.insert(
             format!("key-probe-{index}"),
-            Some(Chord::ctrl_shift_alt(*key)),
+            Some(Chord::ctrl_shift_alt(key)),
         );
     }
     let text = render_keymap(&set).expect("render");

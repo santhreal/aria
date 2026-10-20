@@ -489,10 +489,10 @@ fn a_clip_refused_on_a_new_track_leaves_the_track_to_the_next_event() {
     let _policy = session
         .context()
         .on_waterfall::<CommandProposed, _>(|proposed| {
-            if let Command::Edit(EditCommand::AddClip { start, .. }) = &proposed.command {
-                if start.value == 0 {
-                    proposed.refuse("no clip at the start");
-                }
+            if let Command::Edit(EditCommand::AddClip { start, .. }) = &proposed.command
+                && start.value == 0
+            {
+                proposed.refuse("no clip at the start");
             }
         });
     let cut = cut(

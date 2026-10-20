@@ -107,7 +107,9 @@ fn gesture_sprite_contains_unwrapped_text_pixels() {
     let visible = frames
         .sprite
         .pixels
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .filter(|pixel| pixel[3] > 0)
         .count();
     assert!(

@@ -384,13 +384,12 @@ impl AppState {
         let ready = self.matte_stencil_ready();
         self.send_matte(Some(matte))?;
         self.status_message = Some(if ready {
-            format!("Track matte reads {} above", source.label()).into()
+            format!("Track matte reads {} above", source.label())
         } else {
             format!(
                 "Track matte set to {}; nothing above this clip to cut with",
                 source.label()
             )
-            .into()
         });
         Ok(())
     }

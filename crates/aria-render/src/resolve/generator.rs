@@ -286,6 +286,7 @@ fn quantize_layout_px(v: f32) -> f32 {
 /// Reference-pixel metrics are scaled against the 1080px authoring height.
 /// The raster remains ink-tight even when wrapping uses the canvas width;
 /// alignment is applied later to the finished bitmap's placement.
+#[cfg(test)]
 pub(super) fn map_text_style(style: &ModelTextStyle, cw: f32, ch: f32, tick: i64) -> TextStyle {
     map_text_style_pooled(style, cw, ch, tick, String::new())
 }

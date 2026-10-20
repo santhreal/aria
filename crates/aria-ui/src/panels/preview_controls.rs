@@ -185,7 +185,7 @@ pub(super) fn row_text(
         .active(|style| style.opacity(0.92))
         .when_some(
             id.fixed_name().and_then(crate::tooltip::builder),
-            |el, tip| crate::tooltip::WithTip::with_tip(el, tip),
+            crate::tooltip::WithTip::with_tip,
         )
         .child(label.into())
 }

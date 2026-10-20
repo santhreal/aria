@@ -404,7 +404,7 @@ fn run_transcription(
     let pcm = aria_decoder::read_mono_pcm_with_cancel(
         &request.media_path,
         WHISPER_SAMPLE_RATE,
-        wanted.min(MAX_PCM_FRAMES).max(1),
+        wanted.clamp(1, MAX_PCM_FRAMES),
         || context.cancelled(),
     )
     .map_err(|err| err.to_string())?;

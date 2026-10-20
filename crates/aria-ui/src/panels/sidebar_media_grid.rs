@@ -169,7 +169,7 @@ pub(super) fn media_tile(
         None
     };
     let relink = missing.then(|| {
-        components::ghost_button("relink-media", "Relink", &theme).on_mouse_down(
+        components::ghost_button("relink-media", "Relink", theme).on_mouse_down(
             MouseButton::Left,
             cx.listener(move |this, _: &MouseDownEvent, _, cx| {
                 cx.stop_propagation();
@@ -231,7 +231,7 @@ pub(super) fn media_tile(
         // show one costs nothing per item beyond its text.
         .when(
             view.picture() && !missing && item.kind != UiClipKind::Audio,
-            |el| el.child(thumbnail(&theme, state, item.id, item.duration_ticks, cx)),
+            |el| el.child(thumbnail(theme, state, item.id, item.duration_ticks, cx)),
         )
         .child(
             // A name with no space to wrap at ends in an ellipsis at the

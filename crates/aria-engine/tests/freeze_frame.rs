@@ -88,7 +88,6 @@ fn track_layout(engine: &Engine, track: TrackId) -> Vec<(ClipId, i64, i64)> {
         .track(track)
         .unwrap()
         .clips_ordered()
-        .into_iter()
         .map(|clip| {
             (
                 clip.id,

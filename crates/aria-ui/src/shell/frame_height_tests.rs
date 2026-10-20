@@ -62,7 +62,7 @@ fn scroll_to_end(visual: &mut VisualTestContext, frame: Bounds<Pixels>) {
             });
         }
         visual.run_until_parked();
-        y = y + px(PITCH);
+        y += px(PITCH);
     }
     // Off the frame, so no hover draws over it.
     visual.simulate_mouse_move(point(px(2.0), px(2.0)), None, Modifiers::none());

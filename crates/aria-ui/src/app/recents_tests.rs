@@ -8,13 +8,13 @@
 
 use super::AppState;
 use aria_plugin::PluginContext;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 fn scratch() -> PathBuf {
     crate::scratch_pool::scratch("recents")
 }
 
-fn project(dir: &PathBuf, name: &str) -> PathBuf {
+fn project(dir: &Path, name: &str) -> PathBuf {
     let path = dir.join(name);
     std::fs::write(&path, "{}").expect("write a project file");
     path

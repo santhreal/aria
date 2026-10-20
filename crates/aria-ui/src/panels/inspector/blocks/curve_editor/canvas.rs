@@ -27,7 +27,7 @@ fn line(x0: f32, y0: f32, x1: f32, y1: f32, count: usize) -> Vec<(f32, f32, f64,
 }
 
 /// The column covering `x`, if any.
-fn at<'a>(columns: &'a [CurveColumn], x: f32) -> Option<&'a CurveColumn> {
+fn at(columns: &[CurveColumn], x: f32) -> Option<&CurveColumn> {
     columns
         .iter()
         .find(|column| x >= column.x && x <= column.x + column.w)

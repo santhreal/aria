@@ -202,7 +202,13 @@ impl CubeLut {
     /// Alpha is 255 and red varies fastest, matching WGPU's x-fastest layout.
     pub fn rgba8_texels_into(&self, out: &mut [u8]) {
         assert_eq!(out.len(), self.rgba8_texel_len());
-        for (rgb, rgba) in self.data.chunks_exact(3).zip(out.chunks_exact_mut(4)) {
+        for (rgb, rgba) in self
+            .data
+            .as_chunks::<3>()
+            .0
+            .iter()
+            .zip(out.as_chunks_mut::<4>().0.iter_mut())
+        {
             for (source, channel) in rgb.iter().zip(&mut rgba[..3]) {
                 *channel = (source.clamp(0.0, 1.0) * 255.0).round() as u8;
             }
@@ -250,7 +256,7 @@ impl CubeLut {
             let _ = writeln!(out, "TITLE \"{title}\"");
         }
         let _ = writeln!(out, "LUT_3D_SIZE {}", self.size);
-        for rgb in self.data.chunks_exact(3) {
+        for rgb in self.data.as_chunks::<3>().0 {
             let _ = writeln!(out, "{:.6} {:.6} {:.6}", rgb[0], rgb[1], rgb[2]);
         }
         out

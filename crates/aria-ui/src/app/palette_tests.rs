@@ -113,8 +113,8 @@ fn a_command_outranks_the_menu_row_that_shares_its_label() {
     let jobs = state
         .palette_catalog()
         .iter()
+        .find(|&offer| offer.label == "Jobs")
         .cloned()
-        .find(|offer| offer.label == "Jobs")
         .expect("Jobs is offered");
     assert!(
         matches!(jobs.action, Offered::Command(_)),
@@ -130,8 +130,8 @@ fn a_menu_only_row_names_the_menu_it_came_from() {
     let derived: Vec<_> = state
         .palette_catalog()
         .iter()
+        .filter(|&offer| offer.source.is_some())
         .cloned()
-        .filter(|offer| offer.source.is_some())
         .collect();
     assert!(
         !derived.is_empty(),
@@ -231,7 +231,7 @@ fn enter_runs_the_highlighted_row_not_the_first() {
         state.palette_push(ch);
     }
     let hits = state.palette_hits();
-    assert!(hits.len() >= 1);
+    assert!(!hits.is_empty());
     assert_eq!(hits[0].label, "Jobs");
     assert!(state.run_palette_highlight().is_none());
     assert_eq!(state.dialog, DialogKind::Jobs, "Enter ran the highlight");
@@ -243,7 +243,7 @@ fn a_menu_row_reports_itself_back_for_the_context_to_run() {
     state.open_dialog(DialogKind::Palette);
     let (index, expected) = state
         .palette_hits()
-        .into_iter()
+        .iter()
         .enumerate()
         .find_map(|(at, offer)| match offer.action {
             Offered::Menu(menu, id) => Some((at, Pending::Menu(menu, id))),

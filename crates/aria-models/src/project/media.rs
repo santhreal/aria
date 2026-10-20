@@ -313,10 +313,10 @@ impl Project {
         source_range: TimeRange,
         bin: Option<BinId>,
     ) -> Result<MediaId, ModelError> {
-        if let Some(bin_id) = bin {
-            if !self.bins.contains_key(&bin_id) {
-                return Err(ModelError::UnknownBin(bin_id));
-            }
+        if let Some(bin_id) = bin
+            && !self.bins.contains_key(&bin_id)
+        {
+            return Err(ModelError::UnknownBin(bin_id));
         }
         let parent = self
             .media

@@ -44,7 +44,9 @@ fn project_with_tone(path: &Path) -> Project {
 
 fn samples_of(bytes: &[u8]) -> Vec<i16> {
     bytes[44..]
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| i16::from_le_bytes([pair[0], pair[1]]))
         .collect()
 }

@@ -81,7 +81,7 @@ fn read_all(reader: *mut aria_mobile::AriaAudioReader, frames: usize) -> Vec<f32
 }
 
 fn assert_stereo_levels(block: &[f32], left: f32, right: f32, tolerance: f32) {
-    for pair in block.chunks_exact(2) {
+    for pair in block.as_chunks::<2>().0 {
         assert!(
             (pair[0] - left).abs() <= tolerance,
             "left sample {} != {left}",

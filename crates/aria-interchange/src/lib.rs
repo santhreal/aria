@@ -250,7 +250,7 @@ fn read_at_most(file: &Path, limit: u64) -> io::Result<String> {
 
 /// `bytes` in MiB when a whole number of them, else in bytes.
 fn size(bytes: u64) -> String {
-    if bytes % (1 << 20) == 0 {
+    if bytes.is_multiple_of(1 << 20) {
         format!("{} MiB", bytes >> 20)
     } else {
         format!("{bytes} bytes")

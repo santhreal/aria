@@ -1113,7 +1113,7 @@ pub fn color_name(rgba: [u8; 4]) -> SharedString {
     crate::app::clip_effects::PARAM_COLORS
         .iter()
         .find(|(_, _, preset)| *preset == rgba)
-        .map(|(_, label, _)| SharedString::new_static(*label))
+        .map(|(_, label, _)| SharedString::new_static(label))
         .unwrap_or_else(|| {
             let [r, g, b, a] = rgba;
             SharedString::from(if a == u8::MAX {

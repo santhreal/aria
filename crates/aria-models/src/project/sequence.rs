@@ -65,10 +65,10 @@ impl Project {
 
     /// Set the currently active sequence for editing (`None` ⇔ main root timeline).
     pub fn set_active_sequence(&mut self, id: Option<SequenceId>) -> Result<(), ModelError> {
-        if let Some(seq_id) = id {
-            if !self.sequences.contains_key(&seq_id) {
-                return Err(ModelError::UnknownSequence(seq_id));
-            }
+        if let Some(seq_id) = id
+            && !self.sequences.contains_key(&seq_id)
+        {
+            return Err(ModelError::UnknownSequence(seq_id));
         }
         self.invalidate_largest_used_video();
         self.active_sequence = id;

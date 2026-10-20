@@ -31,10 +31,10 @@ fn deferred_items_have_acceptance() {
     let mut resolutions = 0usize;
     let mut offenders = Vec::new();
     let close = |item: Option<(String, bool)>, offenders: &mut Vec<String>| {
-        if let Some((name, answered)) = item {
-            if !answered {
-                offenders.push(name);
-            }
+        if let Some((name, answered)) = item
+            && !answered
+        {
+            offenders.push(name);
         }
     };
     for line in text.lines() {
@@ -55,10 +55,8 @@ fn deferred_items_have_acceptance() {
         }
         let answered =
             line.starts_with("- **Acceptance:**") || line.starts_with("- **Out of scope:**");
-        if answered {
-            if let Some((_, seen)) = item.as_mut() {
-                *seen = true;
-            }
+        if answered && let Some((_, seen)) = item.as_mut() {
+            *seen = true;
         }
     }
     close(item.take(), &mut offenders);

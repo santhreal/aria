@@ -17,7 +17,9 @@ fn rt(tick: i64) -> RationalTime {
 /// Count near-white ink (ignores the opaque canvas clear).
 fn ink(img: &aria_core::RgbaImage) -> usize {
     img.pixels
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .filter(|p| p[0] > 200 && p[1] > 200 && p[2] > 200 && p[3] > 200)
         .count()
 }

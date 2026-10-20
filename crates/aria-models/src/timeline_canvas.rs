@@ -301,16 +301,16 @@ impl CanvasSettings {
         background: [u8; 3],
         resolution: Option<[u32; 2]>,
     ) -> Result<Self, crate::error::ModelError> {
-        if let Some(res) = resolution {
-            if !Self::resolution_is_valid(res) {
-                return Err(crate::error::ModelError::InvalidParam(format!(
-                    "invalid canvas resolution {}x{}: dimensions must be even and between {} and {}",
-                    res[0],
-                    res[1],
-                    Self::MIN_DIM,
-                    Self::MAX_DIM
-                )));
-            }
+        if let Some(res) = resolution
+            && !Self::resolution_is_valid(res)
+        {
+            return Err(crate::error::ModelError::InvalidParam(format!(
+                "invalid canvas resolution {}x{}: dimensions must be even and between {} and {}",
+                res[0],
+                res[1],
+                Self::MIN_DIM,
+                Self::MAX_DIM
+            )));
         }
         Ok(Self {
             aspect,

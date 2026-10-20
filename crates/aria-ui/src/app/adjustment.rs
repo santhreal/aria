@@ -58,10 +58,9 @@ impl AppState {
         if let (Some(from), Some(to)) = (
             selected.iter().map(|span| span.0).min(),
             selected.iter().map(|span| span.1).max(),
-        ) {
-            if to > from {
-                return (from.max(0), to - from);
-            }
+        ) && to > from
+        {
+            return (from.max(0), to - from);
         }
         let duration = self.store.sequence.duration_ticks;
         if duration > 0 {

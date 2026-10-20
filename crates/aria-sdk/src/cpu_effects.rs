@@ -282,8 +282,8 @@ impl<'a> CpuFrameIn<'a> {
             .params
             .get(offset..offset + EFFECT_GRADIENT_LUT_SAMPLES * 4)?;
         let mut out = [[0.0f32; 4]; EFFECT_GRADIENT_LUT_SAMPLES];
-        for (dst, chunk) in out.iter_mut().zip(s.chunks_exact(4)) {
-            dst.copy_from_slice(chunk);
+        for (dst, chunk) in out.iter_mut().zip(s.as_chunks::<4>().0) {
+            *dst = *chunk;
         }
         Some(out)
     }
@@ -409,7 +409,7 @@ impl<'a> CpuFrameOut<'a> {
 
     /// Fill every pixel of the output frame with raw binary16 `rgba`.
     pub fn fill(&mut self, rgba: [u16; 4]) {
-        for px in self.pixels.chunks_exact_mut(4) {
+        for px in self.pixels.as_chunks_mut::<4>().0 {
             px.copy_from_slice(&rgba);
         }
     }

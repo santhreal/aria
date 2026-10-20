@@ -112,7 +112,7 @@ fn a_locked_lane_refuses_the_edit_and_names_itself() {
     );
 
     // A refusal is copy the user can act on, not an internal error string.
-    state.report_error(&EngineError::Refused(reason.clone()));
+    state.report_error(EngineError::Refused(reason.clone()));
     assert_eq!(state.last_error.as_deref(), Some(reason.as_str()));
 }
 

@@ -217,7 +217,7 @@ impl PassRegistry {
             &effect_layout,
             &format!(
                 "{}\n{}",
-                &*crate::grade::GRADE_WGSL,
+                *crate::grade::GRADE_WGSL,
                 include_str!("../../shaders/canvas_grade.wgsl")
             ),
         );

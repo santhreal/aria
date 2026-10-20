@@ -477,7 +477,7 @@ fn an_edit_during_a_render_bar_pass_changes_the_project_in_place() {
 /// cover how soon the next request replaces it.
 #[test]
 fn a_render_bar_pass_abandons_once_the_project_moves_on() {
-    let mut state = long_sequence();
+    let state = long_sequence();
     let _ = state.render_bar();
     let seq = state.render_bar_state.latest_seq();
     state

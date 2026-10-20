@@ -151,7 +151,7 @@ fn vignette_darkens_corner_more_than_center() {
         ..ColorGrade::IDENTITY
     };
     let mut pixels = vec![0u8; 32 * 32 * 4];
-    for px in pixels.chunks_exact_mut(4) {
+    for px in pixels.as_chunks_mut::<4>().0 {
         px.copy_from_slice(&[200, 200, 200, 255]);
     }
     let bmp = RgbaImage::new(32, 32, pixels.clone());

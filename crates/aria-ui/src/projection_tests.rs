@@ -42,7 +42,7 @@ fn project_to_ui_preserves_track_and_clip_counts() {
     assert_eq!(store.sequence.duration_ticks, 96);
     assert_eq!(store.media.len(), 1);
     assert_eq!(store.media[0].width, 1920);
-    assert_eq!(store.sequence.tracks[0].enabled, true);
+    assert!(store.sequence.tracks[0].enabled);
     let first_clip = &store
         .sequence
         .tracks

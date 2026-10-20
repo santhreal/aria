@@ -199,7 +199,7 @@ pub fn request(state: &Entity<AppState>, cx: &mut App, tick: i64) {
             })
             .await
             .flatten();
-        let _ = state.update(cx, |state, cx| {
+        state.update(cx, |state, cx| {
             land(
                 state,
                 revision,

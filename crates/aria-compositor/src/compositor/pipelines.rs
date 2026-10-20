@@ -104,7 +104,7 @@ impl Compositor {
             source: wgpu::ShaderSource::Wgsl(
                 format!(
                     "{}\n{}{}",
-                    &*GRADE_WGSL,
+                    *GRADE_WGSL,
                     include_str!("../../shaders/mask.wgsl"),
                     include_str!("../../shaders/yuv_fx.wgsl"),
                 )
@@ -120,7 +120,7 @@ impl Compositor {
             source: wgpu::ShaderSource::Wgsl(
                 format!(
                     "{}\n{}{}",
-                    &*GRADE_WGSL,
+                    *GRADE_WGSL,
                     include_str!("../../shaders/mask.wgsl"),
                     include_str!("../../shaders/rgba_fx.wgsl"),
                 )
@@ -328,6 +328,6 @@ fn build_instanced_pipeline(
 fn wgsl_with_grade(shader: &str) -> wgpu::ShaderSource<'static> {
     wgpu::ShaderSource::Wgsl(std::borrow::Cow::Owned(format!(
         "{}\n{shader}",
-        &*GRADE_WGSL
+        *GRADE_WGSL
     )))
 }

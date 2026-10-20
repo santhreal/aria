@@ -431,7 +431,7 @@ fn replay_state_stays_bounded_across_many_tool_rounds() {
             tool_calls: turn.tool_calls,
         });
         messages.push(Message::tool_result(
-            &format!("call_{round}"),
+            format!("call_{round}"),
             "round result",
         ));
     }

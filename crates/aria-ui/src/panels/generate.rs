@@ -86,7 +86,7 @@ pub(crate) fn generate_panel(
             div().flex().gap(px(Theme::SPACE_XS)).children(
                 GenerateKind::ALL
                     .iter()
-                    .map(|(kind, label, _)| kind_chip(theme, *kind, *label, form.kind, cx)),
+                    .map(|(kind, label, _)| kind_chip(theme, *kind, label, form.kind, cx)),
             ),
         )
         .child(

@@ -258,12 +258,17 @@ mod raster_coverage_tests {
     }
 
     fn inked(img: &RgbaImage) -> usize {
-        img.pixels.chunks_exact(4).filter(|p| p[3] != 0).count()
+        img.pixels
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .filter(|p| p[3] != 0)
+            .count()
     }
 
     #[test]
     fn every_shape_rasters_ink_inside_its_box() {
-        let box_area = (HALF[0] * 2.0 * HALF[1] * 2.0) as f32;
+        let box_area = HALF[0] * 2.0 * HALF[1] * 2.0;
         for (params, low, high) in shapes() {
             let name = variant_name(params);
             let img = raster(

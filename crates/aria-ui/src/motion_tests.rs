@@ -260,6 +260,10 @@ fn mix_endpoints_and_transparent_blend() {
 #[test]
 fn every_motion_preference_is_offered_once_and_reads_differently() {
     for pref in MotionPreference::ALL {
+        #[allow(
+            clippy::needless_match,
+            reason = "the exhaustive match fails to compile when a variant is added"
+        )]
         let named = match pref {
             MotionPreference::Full => MotionPreference::Full,
             MotionPreference::Brisk => MotionPreference::Brisk,

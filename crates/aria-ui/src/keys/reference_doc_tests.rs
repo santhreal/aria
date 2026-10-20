@@ -63,7 +63,7 @@ fn section_slice<'a>(doc: &'a str, heading: &str) -> &'a str {
     }
 }
 
-fn parse_table_rows<'a>(section: &'a str) -> Vec<Vec<&'a str>> {
+fn parse_table_rows(section: &str) -> Vec<Vec<&str>> {
     let mut rows = Vec::new();
     for line in section.lines() {
         let trimmed = line.trim();

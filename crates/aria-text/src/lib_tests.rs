@@ -20,7 +20,12 @@ fn test_renderer() -> TextRenderer {
 
 /// Count pixels with non-zero alpha (glyph coverage).
 fn covered(img: &RgbaImage) -> usize {
-    img.pixels.chunks_exact(4).filter(|p| p[3] != 0).count()
+    img.pixels
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .filter(|p| p[3] != 0)
+        .count()
 }
 
 #[test]
@@ -74,7 +79,7 @@ fn rasterizes_glyph_coverage() {
     // with no green/blue (we asked for pure red).
     let lit = covered(&img);
     assert!(lit > 0, "no glyph coverage rasterized");
-    for p in img.pixels.chunks_exact(4).filter(|p| p[3] != 0) {
+    for p in img.pixels.as_chunks::<4>().0.iter().filter(|p| p[3] != 0) {
         assert!(
             p[0] >= p[1] && p[0] >= p[2],
             "fill color not red-dominant: {p:?}"
@@ -100,7 +105,15 @@ fn style_alpha_scales_coverage() {
     let opaque = r.rasterize("W", &TextStyle::new(48.0).with_color([255, 255, 255, 255]));
     let faded = r.rasterize("W", &TextStyle::new(48.0).with_color([255, 255, 255, 128]));
 
-    let max_a = |img: &RgbaImage| img.pixels.chunks_exact(4).map(|p| p[3]).max().unwrap_or(0);
+    let max_a = |img: &RgbaImage| {
+        img.pixels
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .map(|p| p[3])
+            .max()
+            .unwrap_or(0)
+    };
     assert!(
         max_a(&opaque) > max_a(&faded),
         "style alpha did not reduce coverage"

@@ -66,7 +66,7 @@ fn open_path_ignores_fill_and_strokes() {
     assert!(img.width > 0 && img.height > 0);
     // Some stroke ink exists, and no pixel is fill-red (open ⇒ no fill).
     let mut any_ink = false;
-    for px in img.pixels.chunks_exact(4) {
+    for px in img.pixels.as_chunks::<4>().0 {
         if px[3] > 0 {
             any_ink = true;
             assert!(

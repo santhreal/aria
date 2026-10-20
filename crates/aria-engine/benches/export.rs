@@ -13,10 +13,7 @@ fn tr(start: i64, duration: i64) -> TimeRange {
 
 fn engine_with_solid(frames: i64) -> (tempfile::TempDir, Engine) {
     let dir = tempfile::tempdir().expect("tempdir");
-    let config = EngineConfig {
-        undo_limit: 8,
-        ..Default::default()
-    };
+    let config = EngineConfig { undo_limit: 8 };
     let mut engine = Engine::new(config).expect("engine");
     // A solid fill is a graphics generator, so it lives on a sticker lane; a
     // video lane holds media clips. The lane kind is what the model checks, not

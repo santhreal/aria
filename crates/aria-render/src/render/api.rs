@@ -844,7 +844,7 @@ impl Renderer {
 
 /// Convert premultiplied RGBA readbacks into straight alpha for Slint.
 fn straighten_alpha(image: &mut RgbaImage) {
-    for chunk in image.pixels.chunks_exact_mut(4) {
+    for chunk in image.pixels.as_chunks_mut::<4>().0 {
         let a = chunk[3];
         if a == 0 || a == 255 {
             continue;

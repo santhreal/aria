@@ -698,39 +698,38 @@ pub fn apply_analyzer_result(
                             label: "Add marker",
                             reason: err.to_string(),
                         })?;
-                    if marker.duration_frames > 0 {
-                        if let Some(placed) = engine.project().timeline().marker(marker_id).cloned()
-                        {
-                            let clip_end = engine
-                                .project()
-                                .timeline()
-                                .clip(clip_id)
-                                .map(|c| c.clip_time_range().end_tick())
-                                .unwrap_or(placed.tick.value);
-                            let dur_ticks = frame_to_tick(
-                                marker.duration_frames,
-                                EXPORT_AUDIO_RATE,
-                                placed.tick.rate,
-                            )
-                            .max(0)
-                            .min((clip_end - placed.tick.value).max(0));
-                            if dur_ticks > 0 {
-                                let dur = RationalTime::new(dur_ticks, placed.tick.rate);
-                                engine
-                                    .edit_marker(
-                                        marker_id,
-                                        placed.tick,
-                                        dur,
-                                        placed.name,
-                                        placed.color,
-                                        placed.comment,
-                                        placed.kind,
-                                    )
-                                    .map_err(|err| TransactError::Failed {
-                                        label: "Edit marker",
-                                        reason: err.to_string(),
-                                    })?;
-                            }
+                    if marker.duration_frames > 0
+                        && let Some(placed) = engine.project().timeline().marker(marker_id).cloned()
+                    {
+                        let clip_end = engine
+                            .project()
+                            .timeline()
+                            .clip(clip_id)
+                            .map(|c| c.clip_time_range().end_tick())
+                            .unwrap_or(placed.tick.value);
+                        let dur_ticks = frame_to_tick(
+                            marker.duration_frames,
+                            EXPORT_AUDIO_RATE,
+                            placed.tick.rate,
+                        )
+                        .max(0)
+                        .min((clip_end - placed.tick.value).max(0));
+                        if dur_ticks > 0 {
+                            let dur = RationalTime::new(dur_ticks, placed.tick.rate);
+                            engine
+                                .edit_marker(
+                                    marker_id,
+                                    placed.tick,
+                                    dur,
+                                    placed.name,
+                                    placed.color,
+                                    placed.comment,
+                                    placed.kind,
+                                )
+                                .map_err(|err| TransactError::Failed {
+                                    label: "Edit marker",
+                                    reason: err.to_string(),
+                                })?;
                         }
                     }
                 } else if duration_ticks > 0 {

@@ -69,7 +69,7 @@ fn running_an_effect_row_adds_it_to_the_selection() {
     let spec = first_effect();
     let index = state
         .palette_catalog()
-        .into_iter()
+        .iter()
         .position(|offer| matches!(&offer.action, Offered::Effect(at) if *at == spec.id))
         .expect("the effect is offered");
 
@@ -107,7 +107,7 @@ fn an_effect_row_with_no_selection_says_so_and_adds_nothing() {
     let spec = first_effect();
     let index = state
         .palette_catalog()
-        .into_iter()
+        .iter()
         .position(|offer| matches!(&offer.action, Offered::Effect(at) if *at == spec.id))
         .expect("the effect is offered");
 

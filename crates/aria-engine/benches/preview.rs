@@ -51,10 +51,7 @@ fn tr(start: i64, duration: i64) -> TimeRange {
 }
 
 fn engine_with_solid_clip(frames: i64) -> (Engine, aria_models::ClipId) {
-    let config = EngineConfig {
-        undo_limit: 8,
-        ..Default::default()
-    };
+    let config = EngineConfig { undo_limit: 8 };
     let mut engine = Engine::new(config).expect("engine");
     // Solid generators live on sticker lanes (lane typing).
     let track = match engine
@@ -86,10 +83,7 @@ fn engine_with_solid_clip(frames: i64) -> (Engine, aria_models::ClipId) {
 }
 
 fn engine_with_media(path: &Path, source_frames: i64) -> Engine {
-    let config = EngineConfig {
-        undo_limit: 8,
-        ..Default::default()
-    };
+    let config = EngineConfig { undo_limit: 8 };
     let mut engine = Engine::new(config).expect("engine");
     let media = match engine
         .apply(Command::Project(ProjectCommand::Import {

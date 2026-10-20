@@ -358,13 +358,13 @@ fn live_rows() -> Vec<(AppMenu, String)> {
 /// during the single `CENSUS` pass lets `menu_reach_tests_row` and
 /// `menu_reach_tests_verbs` check every row's contract without repeating four
 /// full-menu passes (`~800` redundant `AppState::new` calls).
-pub(super) struct RowOutcome {
-    pub(super) id: String,
-    pub(super) kind: Kind,
-    pub(super) dress: Dress,
-    pub(super) wrote: Vec<String>,
-    pub(super) blocked: Option<&'static str>,
-    pub(super) opened_form: bool,
+struct RowOutcome {
+    id: String,
+    kind: Kind,
+    dress: Dress,
+    wrote: Vec<String>,
+    blocked: Option<&'static str>,
+    opened_form: bool,
 }
 
 struct Probe {
@@ -375,11 +375,11 @@ struct Probe {
     asked_pick: bool,
 }
 
-pub(super) struct MenuCensus {
-    pub(super) labels: BTreeSet<String>,
-    pub(super) sent: BTreeSet<&'static str>,
-    pub(super) rows: Vec<RowOutcome>,
-    pub(super) asking_picks: Vec<String>,
+struct MenuCensus {
+    labels: BTreeSet<String>,
+    sent: BTreeSet<&'static str>,
+    rows: Vec<RowOutcome>,
+    asking_picks: Vec<String>,
 }
 
 /// Run one menu row against a state the caller built: a row that asks for a
@@ -459,7 +459,7 @@ pub(super) fn dispatched() -> &'static BTreeSet<&'static str> {
 }
 /// The bar's census: history labels, commands sent, and per-row outcomes from
 /// one pass.
-pub(super) static CENSUS: std::sync::LazyLock<MenuCensus> = std::sync::LazyLock::new(|| {
+static CENSUS: std::sync::LazyLock<MenuCensus> = std::sync::LazyLock::new(|| {
     let mut labels = BTreeSet::new();
     let mut sent = BTreeSet::new();
     let mut row_outcomes = Vec::new();

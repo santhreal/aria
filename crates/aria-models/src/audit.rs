@@ -205,7 +205,7 @@ pub fn clips_with_fact(timeline: &Timeline, fact: ClipFact) -> Vec<ClipId> {
     timeline
         .tracks_ordered()
         .flat_map(|track| track.clips_ordered())
-        .filter(|clip| test(timeline, *clip))
+        .filter(|clip| test(timeline, clip))
         .map(|clip| clip.id)
         .collect()
 }

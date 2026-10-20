@@ -141,14 +141,14 @@ fn animation_knobs_move_alone_clamp_and_respect_the_preset() {
             .expect("applied");
         if exposed {
             assert!(
-                (anim_knob(&now, id) - target).abs() < 1e-3,
+                (anim_knob(now, id) - target).abs() < 1e-3,
                 "{id} did not take its value"
             );
         } else {
             // A knob the preset does not expose must be dropped, not sent and
             // rejected by the model.
             assert!(
-                (anim_knob(&now, id) - 1.0).abs() < 1e-3,
+                (anim_knob(now, id) - 1.0).abs() < 1e-3,
                 "{id} was written even though the preset has no such knob"
             );
         }
@@ -159,7 +159,7 @@ fn animation_knobs_move_alone_clamp_and_respect_the_preset() {
         let now = state
             .selected_animation(AnimationSlot::In)
             .expect("applied");
-        assert!(anim_knob(&now, id) <= *max + 1e-3, "{id} exceeded {max}");
+        assert!(anim_knob(now, id) <= *max + 1e-3, "{id} exceeded {max}");
 
         state
             .set_selected_animation_knob(AnimationSlot::In, id, f32::NAN)
@@ -167,7 +167,7 @@ fn animation_knobs_move_alone_clamp_and_respect_the_preset() {
         let now = state
             .selected_animation(AnimationSlot::In)
             .expect("applied");
-        assert!(anim_knob(&now, id).is_finite(), "{id} took a NaN");
+        assert!(anim_knob(now, id).is_finite(), "{id} took a NaN");
     }
 
     // A knob edit must not move the preset out of its slot or drop it.

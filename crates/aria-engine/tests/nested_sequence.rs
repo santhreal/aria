@@ -321,7 +321,6 @@ fn project_file_serialization_roundtrip_with_nested_sequences() {
     let root = loaded.timeline().track(v1).expect("root lane");
     let nested: Vec<&aria_models::Clip> = root
         .clips_ordered()
-        .into_iter()
         .filter(|clip| clip.is_sequence())
         .collect();
     assert_eq!(nested.len(), 1);

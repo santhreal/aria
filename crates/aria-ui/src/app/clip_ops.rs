@@ -484,19 +484,19 @@ impl AppState {
             .iter()
             .find(|item| item.id == media_id && item.has_audio)
             .map(|item| item.path.clone())?;
-        if self.waveforms.get(media_id).is_none() && !self.waveforms.refused(media_id) {
-            if let Ok(decoded) =
+        if self.waveforms.get(media_id).is_none()
+            && !self.waveforms.refused(media_id)
+            && let Ok(decoded) =
                 aria_decoder::audio_peaks_per_second(Path::new(&*path), 40.0, 400_000)
-                && !decoded.peaks.is_empty()
-            {
-                self.waveforms.insert(
-                    media_id,
-                    Waveform {
-                        peaks: Arc::new(decoded.peaks),
-                        per_second: decoded.per_second,
-                    },
-                );
-            }
+            && !decoded.peaks.is_empty()
+        {
+            self.waveforms.insert(
+                media_id,
+                Waveform {
+                    peaks: Arc::new(decoded.peaks),
+                    per_second: decoded.per_second,
+                },
+            );
         }
         let waveform = self.waveforms.get(media_id)?;
         let peak = if ui.source_end > ui.source_start {

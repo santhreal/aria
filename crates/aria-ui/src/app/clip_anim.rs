@@ -176,7 +176,7 @@ impl AppState {
         let Some(current) = self.selected_animation(slot) else {
             return Ok(());
         };
-        if !value.is_finite() || !anim_knob_available(&current, id) {
+        if !value.is_finite() || !anim_knob_available(current, id) {
             return Ok(());
         }
         let Some((_, _, _, set, (min, max), _)) = ANIM_KNOBS.iter().find(|(knob, ..)| *knob == id)
@@ -202,7 +202,7 @@ impl AppState {
         let Some(current) = self.selected_animation(slot) else {
             return Ok(());
         };
-        self.set_selected_animation_knob(slot, id, anim_knob(&current, id) + step)
+        self.set_selected_animation_knob(slot, id, anim_knob(current, id) + step)
     }
 
     /// Catalog presets valid for the selection: text-only presets are hidden on

@@ -48,7 +48,7 @@ fn painted(visual: &mut VisualTestContext, within: Bounds<Pixels>) -> Vec<Painte
                     point(px(b.origin.x.0 / scale), px(b.origin.y.0 / scale)),
                     size(px(b.size.width.0 / scale), px(b.size.height.0 / scale)),
                 );
-                within.contains(&bounds.center()).then(|| Painted {
+                within.contains(&bounds.center()).then_some(Painted {
                     bounds,
                     background: quad.background,
                     rounded: quad.corner_radii.top_left.0 > 0.0,
@@ -222,7 +222,7 @@ fn a_press_on_the_painted_line_drags_it_and_a_ctrl_click_keys_it(cx: &mut TestAp
 fn the_fx_badge_is_grey_yellow_purple_or_yellow_over_purple(cx: &mut TestAppContext) {
     let (state, visual, clip) = placed(cx, "bar-badge", texture());
     let lane = v1_lane(visual);
-    let theme = visual.read(|app| Theme::of(app));
+    let theme = visual.read(Theme::of);
     let yellow = theme.marker(MarkerColor::Yellow);
     let purple = theme.marker(MarkerColor::Purple);
     let badge = |visual: &mut VisualTestContext| {

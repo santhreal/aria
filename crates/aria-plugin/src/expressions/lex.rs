@@ -66,8 +66,8 @@ pub(super) fn lex(source: &str) -> Result<Vec<Token>, String> {
             at += rest.find('\n').unwrap_or(rest.len());
             continue;
         }
-        if rest.starts_with("/*") {
-            let Some(end) = rest[2..].find("*/") else {
+        if let Some(body) = rest.strip_prefix("/*") {
+            let Some(end) = body.find("*/") else {
                 return Err(format!("{pos}: a comment is not closed with */"));
             };
             let comment = &rest[..end + 4];

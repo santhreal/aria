@@ -28,7 +28,7 @@ pub fn rgba_bytes_to_render(width: u32, height: u32, rgba: &[u8]) -> Option<Arc<
         return None;
     }
     let mut bgra = rgba.to_vec();
-    for px in bgra.chunks_exact_mut(4) {
+    for px in bgra.as_chunks_mut::<4>().0 {
         px.swap(0, 2);
     }
     bgra_to_render(width, height, bgra)
@@ -55,8 +55,8 @@ pub fn rgba_over_grid_to_render(width: u32, height: u32, rgba: &[u8]) -> Option<
     }
     let row = width as usize;
     let mut bgra = Vec::with_capacity(len);
-    for (index, px) in rgba.chunks_exact(4).enumerate() {
-        let [r, g, b, alpha] = [px[0], px[1], px[2], px[3]];
+    for (index, px) in rgba.as_chunks::<4>().0.iter().enumerate() {
+        let [r, g, b, alpha] = *px;
         if alpha == u8::MAX {
             bgra.extend_from_slice(&[b, g, r, u8::MAX]);
             continue;

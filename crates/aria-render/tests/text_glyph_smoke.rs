@@ -48,7 +48,13 @@ fn typewriter_text_renders_glyph_coverage() {
     let img = renderer
         .render_frame(&project, RationalTime::new(12, FPS_24))
         .expect("render typewriter frame");
-    let lit = img.pixels.chunks_exact(4).filter(|p| p[3] > 0).count();
+    let lit = img
+        .pixels
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .filter(|p| p[3] > 0)
+        .count();
     assert!(
         lit > 0,
         "typewriter mid-reveal should produce glyph coverage"
@@ -58,7 +64,13 @@ fn typewriter_text_renders_glyph_coverage() {
     let later = renderer
         .render_frame(&project, RationalTime::new(36, FPS_24))
         .expect("render later frame");
-    let lit_later = later.pixels.chunks_exact(4).filter(|p| p[3] > 0).count();
+    let lit_later = later
+        .pixels
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .filter(|p| p[3] > 0)
+        .count();
     assert!(
         lit_later >= lit,
         "later typewriter phase should not lose coverage ({lit_later} < {lit})"

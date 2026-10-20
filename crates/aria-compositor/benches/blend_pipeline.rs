@@ -56,7 +56,7 @@ fn bench_blend_modes_bitmap(c: &mut Criterion) {
 
     // Create a 1080p RGBA bitmap layer
     let mut pixels = vec![0_u8; width as usize * height as usize * 4];
-    for (i, chunk) in pixels.chunks_exact_mut(4).enumerate() {
+    for (i, chunk) in pixels.as_chunks_mut::<4>().0.iter_mut().enumerate() {
         chunk[0] = ((i * 7) % 256) as u8;
         chunk[1] = ((i * 13) % 256) as u8;
         chunk[2] = ((i * 29) % 256) as u8;

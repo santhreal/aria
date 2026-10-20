@@ -155,7 +155,11 @@ fn a_video_row_applies_the_effect_it_names() {
         let id = format!("{APPLY_PREFIX}{}", spec.id);
         let (state, clip) = with_clip();
         run(state, &id, |state| {
-            assert_eq!(video_chain(state, clip), [spec.id.clone()], "{id}");
+            assert_eq!(
+                video_chain(state, clip),
+                std::slice::from_ref(&spec.id),
+                "{id}"
+            );
             state.undo();
             assert!(video_chain(state, clip).is_empty(), "one Undo removes {id}");
         });
@@ -182,7 +186,7 @@ fn an_audio_row_applies_the_effect_it_names_to_every_clip_with_sound() {
                     .map(|insert| insert.effect_id.clone())
                     .collect()
             };
-            assert_eq!(chain(state), [spec.id.clone()], "{id}");
+            assert_eq!(chain(state), std::slice::from_ref(&spec.id), "{id}");
             state.undo();
             assert!(chain(state).is_empty(), "one Undo removes {id}");
         });

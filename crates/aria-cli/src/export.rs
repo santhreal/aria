@@ -125,15 +125,15 @@ pub(crate) fn resolve_export_range(
     if at.is_none() && to.is_none() {
         return Ok(None);
     }
-    if let Some(at_val) = at {
-        if at_val < 0.0 {
-            return Err("--at cannot be negative".into());
-        }
+    if let Some(at_val) = at
+        && at_val < 0.0
+    {
+        return Err("--at cannot be negative".into());
     }
-    if let Some(to_val) = to {
-        if to_val < 0.0 {
-            return Err("--to cannot be negative".into());
-        }
+    if let Some(to_val) = to
+        && to_val < 0.0
+    {
+        return Err("--to cannot be negative".into());
     }
     let from = project::time_for_seconds(at.unwrap_or(0.0), rate);
     let end = match to {

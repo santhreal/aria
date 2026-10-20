@@ -71,7 +71,7 @@ fn every_project_row_id_is_the_variant_wire_tag() {
 #[test]
 fn the_edit_table_covers_exactly_the_census() {
     let tabled = ids(edit_specs().iter().map(|spec| spec.id));
-    let names: BTreeSet<String> = every_edit_command().iter().map(|cmd| tag(cmd)).collect();
+    let names: BTreeSet<String> = every_edit_command().iter().map(tag).collect();
     let census = ids(names.iter().map(String::as_str));
     assert_eq!(tabled, census);
 }
@@ -79,7 +79,7 @@ fn the_edit_table_covers_exactly_the_census() {
 #[test]
 fn the_project_table_covers_exactly_the_census() {
     let tabled = ids(project_specs().iter().map(|spec| spec.id));
-    let names: BTreeSet<String> = every_project_command().iter().map(|cmd| tag(cmd)).collect();
+    let names: BTreeSet<String> = every_project_command().iter().map(tag).collect();
     let census = ids(names.iter().map(String::as_str));
     assert_eq!(tabled, census);
 }

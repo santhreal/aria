@@ -251,9 +251,7 @@ fn waveform_modes(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> Option<gpui::AnyElement> {
     let state = state.read(cx);
-    if state.scope_textures.is_none() {
-        return None;
-    }
+    state.scope_textures.as_ref()?;
     let shown = state.waveform_mode();
     let row = div()
         .flex()

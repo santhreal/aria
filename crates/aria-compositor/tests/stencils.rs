@@ -115,7 +115,7 @@ fn nv12_uniform(y: u8, u: u8, v: u8) -> VideoFrame {
 /// a bitmap layer reads it.
 fn straight(image: &RgbaImage) -> RgbaImage {
     let mut pixels = image.pixels.clone();
-    for px in pixels.chunks_exact_mut(4) {
+    for px in pixels.as_chunks_mut::<4>().0 {
         let alpha = u32::from(px[3]);
         if alpha > 0 {
             for ch in &mut px[..3] {

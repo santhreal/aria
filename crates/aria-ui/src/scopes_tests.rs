@@ -186,7 +186,12 @@ fn a_scope_bitmap_is_opaque_so_the_panel_cannot_show_through() {
     for image in [&images.waveform, &images.vectorscope, &images.histogram] {
         assert!(image.is_well_formed());
         assert!(
-            image.pixels.chunks_exact(4).all(|px| px[3] == 255),
+            image
+                .pixels
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .all(|px| px[3] == 255),
             "a scope must be opaque"
         );
     }
@@ -230,8 +235,10 @@ fn an_empty_measurement_paints_a_graticule_and_no_trace() {
     // The level lines are still there; nothing else is.
     let level_pixels = image
         .pixels
-        .chunks_exact(4)
-        .filter(|px| *px == GRATICULE)
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .filter(|px| **px == GRATICULE)
         .count();
     assert_eq!(
         level_pixels,

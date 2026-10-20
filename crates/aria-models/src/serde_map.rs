@@ -49,7 +49,7 @@ where
         return seq.end();
     }
     let mut sorted: Vec<(&K, &V)> = map.iter().collect();
-    sorted.sort_unstable_by(|(left, _), (right, _)| left.cmp(right));
+    sorted.sort_unstable_by_key(|(left, _)| *left);
     serializer.collect_seq(sorted)
 }
 

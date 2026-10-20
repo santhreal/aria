@@ -53,7 +53,7 @@ fn a_slot_hint_becomes_the_prompt_label() {
     let (mut state, _) = with_clip();
     state.toggle_selected_replaceable().unwrap();
     state
-        .set_selected_slot_label("Opening shot".into())
+        .set_selected_slot_label("Opening shot")
         .expect("set the hint");
 
     let path = bundle_path();

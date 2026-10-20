@@ -48,7 +48,7 @@ pub fn template_block(
         .into_iter()
         .map(|(id, name)| {
             components::ghost_button("inspector-replace-media", name, theme)
-                .id(crate::motion::MotionKey::new("insp-replace", &id).element_id("insp-replace"))
+                .id(crate::motion::MotionKey::new("insp-replace", id).element_id("insp-replace"))
                 .on_mouse_down(
                     MouseButton::Left,
                     cx.listener(move |this, _: &MouseDownEvent, _, cx| {

@@ -755,8 +755,10 @@ async fn a_transparent_viewer_frame_is_drawn_over_the_grid(cx: &mut gpui::TestAp
         frame
             .rgba
             .pixels
-            .chunks_exact(4)
-            .all(|px| px == [0, 0, 0, 0]),
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .all(|px| *px == [0, 0, 0, 0]),
         "the empty canvas was not left transparent"
     );
     let image = frame.image.expect("the frame came back with no image");

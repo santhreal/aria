@@ -213,7 +213,7 @@ fn painted(visual: &mut VisualTestContext) -> Vec<Painted> {
 fn content(visual: &mut VisualTestContext) -> Vec<Edges> {
     CONTENT
         .iter()
-        .filter_map(|selector| visual.debug_bounds(*selector))
+        .filter_map(|selector| visual.debug_bounds(selector))
         .map(edges)
         .collect()
 }

@@ -16,12 +16,19 @@ fn renderer() -> TextRenderer {
 }
 
 fn covered(img: &RgbaImage) -> usize {
-    img.pixels.chunks_exact(4).filter(|p| p[3] != 0).count()
+    img.pixels
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .filter(|p| p[3] != 0)
+        .count()
 }
 
 fn count_near(img: &RgbaImage, rgb: [u8; 3], tol: i16) -> usize {
     img.pixels
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .filter(|p| {
             p[3] > 32
                 && (i16::from(p[0]) - i16::from(rgb[0])).abs() <= tol

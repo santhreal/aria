@@ -319,20 +319,20 @@ pub(super) fn set_clip_animation(
                     "animation '{id}' is a text-only preset"
                 )));
             }
-            if let Some(s) = args.speed {
-                if !s.is_finite() {
-                    return Err(Rejection::new("animation speed must be finite"));
-                }
+            if let Some(s) = args.speed
+                && !s.is_finite()
+            {
+                return Err(Rejection::new("animation speed must be finite"));
             }
-            if let Some(i) = args.intensity {
-                if !i.is_finite() {
-                    return Err(Rejection::new("animation intensity must be finite"));
-                }
+            if let Some(i) = args.intensity
+                && !i.is_finite()
+            {
+                return Err(Rejection::new("animation intensity must be finite"));
             }
-            if let Some(st) = args.stagger {
-                if !st.is_finite() {
-                    return Err(Rejection::new("animation stagger must be finite"));
-                }
+            if let Some(st) = args.stagger
+                && !st.is_finite()
+            {
+                return Err(Rejection::new("animation stagger must be finite"));
             }
             let anim = AnimationRef {
                 id: id.clone(),

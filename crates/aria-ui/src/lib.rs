@@ -141,11 +141,11 @@ pub fn run_app_with(config: UiConfig) -> ! {
     // they go through the same owner: a project file opens, media is imported and
     // laid end to end in a fresh session, a LUT or a skill installs. Answered
     // before the window so the operator's first frame is the project they named.
-    if !config.open_paths.is_empty() {
-        if let Err(err) = state.drop_on_home(config.open_paths) {
-            tracing::error!(error = %err, "could not open the paths given on the command line");
-            eprintln!("aria could not open what you asked for: {err}");
-        }
+    if !config.open_paths.is_empty()
+        && let Err(err) = state.drop_on_home(config.open_paths)
+    {
+        tracing::error!(error = %err, "could not open the paths given on the command line");
+        eprintln!("aria could not open what you asked for: {err}");
     }
     // The session resolved the profile root (a relative `ARIA_DATA_DIR` is
     // resolved against the working directory), so the settings the first frame

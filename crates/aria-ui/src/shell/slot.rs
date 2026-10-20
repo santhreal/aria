@@ -290,16 +290,17 @@ impl Shell {
                 let x = f32::from(event.position.x);
                 let y = f32::from(event.position.y);
                 let now_moved = moved || (x - drag.origin).hypot(y - origin_y) > 5.0;
-                if now_moved && !moved {
-                    if let Some(d) = &mut self.drag {
-                        d.kind = DragKind::DockTab {
-                            panel,
-                            source_frame,
-                            from_index,
-                            origin_y,
-                            moved: true,
-                        };
-                    }
+                if now_moved
+                    && !moved
+                    && let Some(d) = &mut self.drag
+                {
+                    d.kind = DragKind::DockTab {
+                        panel,
+                        source_frame,
+                        from_index,
+                        origin_y,
+                        moved: true,
+                    };
                 }
                 if now_moved {
                     let hit = {
@@ -430,13 +431,15 @@ impl Shell {
         // An open drop holds the keyboard ahead of a focused box and the
         // bindings: with File open, `E` lights Export rather than typing or
         // running the E key. Keys it does not answer go on as usual.
-        if !ctrl && !mods.alt && self.state.read(cx).open_menu.is_some() {
-            if let Some(nav) = crate::app::menu_keys::MenuNav::from_key(key) {
-                self.state.update(cx, |state, cx| state.menu_key(nav, cx));
-                cx.stop_propagation();
-                cx.notify();
-                return;
-            }
+        if !ctrl
+            && !mods.alt
+            && self.state.read(cx).open_menu.is_some()
+            && let Some(nav) = crate::app::menu_keys::MenuNav::from_key(key)
+        {
+            self.state.update(cx, |state, cx| state.menu_key(nav, cx));
+            cx.stop_propagation();
+            cx.notify();
+            return;
         }
         // A focused text box swallows the keystroke: while one holds focus every
         // printable key is text, not a shortcut. Which box, and in what order,

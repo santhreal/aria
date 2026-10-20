@@ -171,7 +171,7 @@ pub fn decode_png(bytes: &[u8]) -> Result<RgbaImage, RenderError> {
     match info.color_type {
         png::ColorType::Rgba => rgba.extend_from_slice(source),
         png::ColorType::Rgb => {
-            for pixel in source.chunks_exact(3) {
+            for pixel in source.as_chunks::<3>().0 {
                 rgba.extend_from_slice(&[pixel[0], pixel[1], pixel[2], 255]);
             }
         }
@@ -181,7 +181,7 @@ pub fn decode_png(bytes: &[u8]) -> Result<RgbaImage, RenderError> {
             }
         }
         png::ColorType::GrayscaleAlpha => {
-            for pixel in source.chunks_exact(2) {
+            for pixel in source.as_chunks::<2>().0 {
                 rgba.extend_from_slice(&[pixel[0], pixel[0], pixel[0], pixel[1]]);
             }
         }

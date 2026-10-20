@@ -57,7 +57,7 @@ fn text_composites_onto_a_canvas() {
     // and because the fill is white the lit pixels stay neutral gray.
     let mut max_luma = 0u8;
     let mut saw_colored = false;
-    for p in canvas.pixels.chunks_exact(4) {
+    for p in canvas.pixels.as_chunks::<4>().0 {
         max_luma = max_luma.max(p[0]).max(p[1]).max(p[2]);
         let spread = i32::from(p[0]).max(i32::from(p[1])).max(i32::from(p[2]))
             - i32::from(p[0]).min(i32::from(p[1])).min(i32::from(p[2]));

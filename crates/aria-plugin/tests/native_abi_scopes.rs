@@ -56,7 +56,7 @@ impl SdkPlugin for Guest {
                     return Err("needs two columns".to_owned());
                 }
                 let mut lit = 0;
-                for px in frame.pixels.chunks_exact(4) {
+                for px in frame.pixels.as_chunks::<4>().0 {
                     if px[0] > 127 {
                         image.put(lit, 0, [255, 255, 255, 255]);
                         lit += 1;

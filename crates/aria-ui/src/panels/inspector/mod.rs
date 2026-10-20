@@ -175,7 +175,7 @@ fn clip_body(
         )
         .child(tab_strip::tab_row(
             theme,
-            &host,
+            host,
             clip.kind,
             active_id.clone(),
             cx,
@@ -194,10 +194,10 @@ fn clip_body(
                                 .flex()
                                 .flex_col()
                                 .gap(px(Theme::SPACE_MD))
-                                .child(body(&theme, &clip, fps_num, fps_den, state, cx)),
+                                .child(body(theme, &clip, fps_num, fps_den, state, cx)),
                         )
                         .into_any_element(),
-                        None => empty(&theme).into_any_element(),
+                        None => empty(theme).into_any_element(),
                     }),
                 )
                 .children(subs),

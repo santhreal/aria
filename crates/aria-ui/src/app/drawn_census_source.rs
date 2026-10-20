@@ -385,7 +385,8 @@ fn the_marks_land_on_the_ends_they_name() {
 #[test]
 fn the_census_reaches_every_command_these_controls_claim() {
     let sent = dispatched();
-    for label in ["Source edit"] {
+    {
+        let label = "Source edit";
         assert!(
             sent.contains(label),
             "the monitor census pressed every control the bar draws and none of \

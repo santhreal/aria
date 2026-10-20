@@ -313,7 +313,7 @@ impl IconId for &'static str {
     }
 
     fn tip(&self) -> &'static str {
-        *self
+        self
     }
 }
 

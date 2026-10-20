@@ -197,10 +197,10 @@ impl Project {
     /// what stops a lane added inside a sequence from landing on the root,
     /// where the clip placed on it afterwards could not find it.
     pub fn timeline(&self) -> &Timeline {
-        if let Some(id) = self.active_sequence {
-            if let Some(seq) = self.sequences.get(&id) {
-                return &seq.timeline;
-            }
+        if let Some(id) = self.active_sequence
+            && let Some(seq) = self.sequences.get(&id)
+        {
+            return &seq.timeline;
         }
         &self.timeline
     }
@@ -208,10 +208,10 @@ impl Project {
     /// The timeline being edited, mutably. See [`timeline`](Self::timeline).
     pub fn timeline_mut(&mut self) -> &mut Timeline {
         self.invalidate_largest_used_video();
-        if let Some(id) = self.active_sequence {
-            if let Some(seq) = self.sequences.get_mut(&id) {
-                return &mut seq.timeline;
-            }
+        if let Some(id) = self.active_sequence
+            && let Some(seq) = self.sequences.get_mut(&id)
+        {
+            return &mut seq.timeline;
         }
         &mut self.timeline
     }

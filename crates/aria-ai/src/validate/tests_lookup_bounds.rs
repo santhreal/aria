@@ -40,7 +40,7 @@ fn entity_lookups_bound_id_lists_in_rejection_messages() {
     // Add 25 tracks
     let mut track_ids = Vec::new();
     for i in 0..25 {
-        let t = project.add_track(TrackKind::Video, &format!("V{i}"));
+        let t = project.add_track(TrackKind::Video, format!("V{i}"));
         track_ids.push(t.raw());
     }
 
@@ -48,7 +48,7 @@ fn entity_lookups_bound_id_lists_in_rejection_messages() {
     let mut media_ids = Vec::new();
     for i in 0..25 {
         let m = project.add_media(MediaSource::new(
-            &format!("/tmp/media_{i}.mp4"),
+            format!("/tmp/media_{i}.mp4"),
             1920,
             1080,
             R24,
@@ -172,11 +172,11 @@ fn extract_audio_linked_clip_list_is_bounded_and_zero_alloc_on_success() {
     let link = aria_models::LinkId::next();
     project.timeline_mut().clip_mut(video_clip).unwrap().link = Some(link);
     for i in 0..15 {
-        let track = project.add_track(TrackKind::Text, &format!("T{i}"));
+        let track = project.add_track(TrackKind::Text, format!("T{i}"));
         let companion = project
             .add_generated(
                 track,
-                Generator::text(&format!("text_{i}")),
+                Generator::text(format!("text_{i}")),
                 TimeRange::at_rate(0, 48, R24),
             )
             .unwrap();

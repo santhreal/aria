@@ -177,13 +177,9 @@ pub(crate) fn clear(
                 .ok_or(ModelError::UnknownClip(clip))?;
 
             // Cut 1 at start
-            let rest = match ctx
+            let rest = ctx
                 .project
-                .split_clip(clip, RationalTime::new(start, tl_rate))
-            {
-                Ok(r) => r,
-                Err(err) => return Err(err.into()),
-            };
+                .split_clip(clip, RationalTime::new(start, tl_rate))?;
 
             // Cut 2 at end
             let tail = match ctx

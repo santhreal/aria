@@ -92,10 +92,10 @@ impl Project {
         if let Some(track) = self.timeline_mut().track_mut(from_track) {
             track.prune_dead_transitions();
         }
-        if from_track != to_track {
-            if let Some(track) = self.timeline_mut().track_mut(to_track) {
-                track.prune_dead_transitions();
-            }
+        if from_track != to_track
+            && let Some(track) = self.timeline_mut().track_mut(to_track)
+        {
+            track.prune_dead_transitions();
         }
         Ok(())
     }

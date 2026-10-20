@@ -308,10 +308,11 @@ impl AppState {
             .selected_ramp_curve()
             .into_iter()
             .find(|(tick, _)| *tick == drag.origin);
-        if let Some((_, value)) = committed {
-            if drag.tick == drag.origin && (value - drag.value).abs() < f32::EPSILON {
-                return Ok(());
-            }
+        if let Some((_, value)) = committed
+            && drag.tick == drag.origin
+            && (value - drag.value).abs() < f32::EPSILON
+        {
+            return Ok(());
         }
         if drag.tick != drag.origin {
             self.remove_selected_ramp_point(drag.origin)?;

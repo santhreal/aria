@@ -66,7 +66,11 @@ fn entries(theme: &Theme, state: GalleryState, cx: &mut Context<Gallery>) -> Any
     let n = state.replay;
     // `menu_out` takes its progress from the caller rather than the animation,
     // so it is driven from the demo clock instead of the replay button.
-    let out_t = if state.replay % 2 == 0 { 0.0 } else { 0.85 };
+    let out_t = if state.replay.is_multiple_of(2) {
+        0.0
+    } else {
+        0.85
+    };
     group(
         theme,
         "entry / exit — click Replay to re-run every specimen",

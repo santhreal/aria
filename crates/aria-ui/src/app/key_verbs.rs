@@ -682,7 +682,7 @@ impl AppState {
             self.status_message = Some(format!("No workspace in place {}", slot + 1));
             return;
         };
-        self.apply_workspace(&id, cx);
+        self.apply_workspace(id, cx);
     }
 
     /// Shift+2: the Viewer forward. Pressed with the Viewer already focused it

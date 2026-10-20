@@ -166,25 +166,27 @@ impl AppState {
     pub fn toggle_timeline_graph_editor(&mut self) {
         let next = self.with_prop_rows_mut(|s| {
             s.graph_open = !s.graph_open;
-            if s.graph_open && s.graph_params.is_empty() {
-                if let Some(first) = s.selected_keyframes.first() {
-                    s.graph_params.push((first.clip, first.param));
-                }
+            if s.graph_open
+                && s.graph_params.is_empty()
+                && let Some(first) = s.selected_keyframes.first()
+            {
+                s.graph_params.push((first.clip, first.param));
             }
             s.graph_open
         });
-        if next && self.with_prop_rows(|s| s.graph_params.is_empty()) {
-            if let Some(clip) = self.selected_clip() {
-                let vis = self.visible_params_for_clip(clip);
-                let param = vis
-                    .first()
-                    .copied()
-                    .or_else(|| self.curve_param())
-                    .unwrap_or(ClipParam::Position);
-                self.with_prop_rows_mut(|s| {
-                    s.graph_params.push((clip, param));
-                });
-            }
+        if next
+            && self.with_prop_rows(|s| s.graph_params.is_empty())
+            && let Some(clip) = self.selected_clip()
+        {
+            let vis = self.visible_params_for_clip(clip);
+            let param = vis
+                .first()
+                .copied()
+                .or_else(|| self.curve_param())
+                .unwrap_or(ClipParam::Position);
+            self.with_prop_rows_mut(|s| {
+                s.graph_params.push((clip, param));
+            });
         }
     }
 

@@ -61,10 +61,10 @@ impl AppState {
         if !self.store.is_dirty {
             return false;
         }
-        if let Some(last) = self.last_autosave {
-            if now.duration_since(last) < AUTOSAVE_INTERVAL {
-                return false;
-            }
+        if let Some(last) = self.last_autosave
+            && now.duration_since(last) < AUTOSAVE_INTERVAL
+        {
+            return false;
         }
         self.last_autosave = Some(now);
         self.write_recovery().is_ok()

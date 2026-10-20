@@ -181,8 +181,8 @@ impl Default for ScopeImages {
 fn canvas(width: u32, height: u32) -> RgbaImage {
     let len = (width as usize) * (height as usize) * 4;
     let mut pixels = vec![0u8; len];
-    for chunk in pixels.chunks_exact_mut(4) {
-        chunk.copy_from_slice(&BACKDROP);
+    for chunk in pixels.as_chunks_mut::<4>().0 {
+        *chunk = BACKDROP;
     }
     RgbaImage::new(width, height, pixels)
 }
@@ -194,8 +194,8 @@ fn reset_canvas(image: &mut RgbaImage, width: u32, height: u32) {
         *image = canvas(width, height);
         return;
     }
-    for pixel in image.pixels.chunks_exact_mut(4) {
-        pixel.copy_from_slice(&BACKDROP);
+    for pixel in image.pixels.as_chunks_mut::<4>().0 {
+        *pixel = BACKDROP;
     }
 }
 
@@ -215,8 +215,8 @@ fn add(image: &mut RgbaImage, x: u32, y: u32, rgba: [u8; 3], amount: f32) {
         return;
     }
     let at = ((y * image.width + x) * 4) as usize;
-    for channel in 0..3 {
-        let target = f32::from(rgba[channel]) * amount.clamp(0.0, 1.0);
+    for (channel, &value) in rgba.iter().enumerate() {
+        let target = f32::from(value) * amount.clamp(0.0, 1.0);
         let current = f32::from(image.pixels[at + channel]);
         image.pixels[at + channel] = (current + target).min(255.0) as u8;
     }
@@ -325,11 +325,11 @@ fn paint_waveform(target: &mut RgbaImage, waveform: &Waveform) {
     // Each channel after the first starts one graticule column further on.
     let pitch = columns + 1;
     reset_canvas(target, pitch * count - 1, SCOPE_PX);
-    let mut image = target;
-    draw_levels(&mut image);
+    let image = target;
+    draw_levels(image);
     for gap in 1..count {
         for y in 0..SCOPE_PX {
-            put(&mut image, gap * pitch - 1, y, GRATICULE);
+            put(image, gap * pitch - 1, y, GRATICULE);
         }
     }
     let peak = waveform.peak();
@@ -340,7 +340,7 @@ fn paint_waveform(target: &mut RgbaImage, waveform: &Waveform) {
         };
         let left = index as u32 * pitch;
         let colour = channel_colour(*channel);
-        for (column, bins) in counts.chunks_exact(SCOPE_BINS).enumerate() {
+        for (column, bins) in counts.as_chunks::<SCOPE_BINS>().0.iter().enumerate() {
             for (bin, hits) in bins.iter().enumerate() {
                 if *hits == 0 {
                     continue;
@@ -348,7 +348,7 @@ fn paint_waveform(target: &mut RgbaImage, waveform: &Waveform) {
                 // Code 255 is the top of the display, code 0 the bottom.
                 let y = last - (bin as u32 * last / (SCOPE_BINS as u32 - 1));
                 add(
-                    &mut image,
+                    image,
                     left + column as u32,
                     y,
                     colour,
@@ -369,7 +369,7 @@ pub fn vectorscope_image(vectorscope: &Vectorscope) -> RgbaImage {
 
 fn paint_vectorscope(target: &mut RgbaImage, vectorscope: &Vectorscope) {
     reset_canvas(target, SCOPE_PX, SCOPE_PX);
-    let mut image = target;
+    let image = target;
     let size = vectorscope.size();
     for at in vectorscope_graticule(size).iter().copied() {
         image.pixels[at..at + 4].copy_from_slice(&GRATICULE);
@@ -383,7 +383,7 @@ fn paint_vectorscope(target: &mut RgbaImage, vectorscope: &Vectorscope) {
                 continue;
             }
             add(
-                &mut image,
+                image,
                 cell_pixel(x, size),
                 cell_pixel(y, size),
                 [235, 235, 120],
@@ -402,13 +402,13 @@ pub fn histogram_image(histogram: &Histogram) -> RgbaImage {
 
 fn paint_histogram(target: &mut RgbaImage, histogram: &Histogram) {
     reset_canvas(target, HISTOGRAM_W, HISTOGRAM_H);
-    let mut image = target;
+    let image = target;
     let last = HISTOGRAM_H - 1;
     // Quarter-tone verticals, so an operator can see where a clip sits.
     for step in 1..4 {
         let x = (HISTOGRAM_W - 1) * step / 4;
         for y in 0..HISTOGRAM_H {
-            put(&mut image, x, y, GRATICULE);
+            put(image, x, y, GRATICULE);
         }
     }
     let peak = histogram.peak();
@@ -425,7 +425,7 @@ fn paint_histogram(target: &mut RgbaImage, histogram: &Histogram) {
             let x = bin as u32 * (HISTOGRAM_W - 1) / (SCOPE_BINS as u32 - 1);
             let height = (intensity(*count, peak) * last as f32).round() as u32;
             for step in 0..=height {
-                add(&mut image, x, last - step, colour, 0.7);
+                add(image, x, last - step, colour, 0.7);
             }
         }
     }

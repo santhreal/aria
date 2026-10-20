@@ -311,20 +311,20 @@ impl AppState {
 
     pub fn set_mark_in(&mut self) {
         self.mark_in = Some(self.playhead.value.max(0));
-        if let Some(out) = self.mark_out {
-            if out < self.playhead.value {
-                self.mark_out = None;
-            }
+        if let Some(out) = self.mark_out
+            && out < self.playhead.value
+        {
+            self.mark_out = None;
         }
         self.status_message = Some("Mark In".into());
     }
 
     pub fn set_mark_out(&mut self) {
         self.mark_out = Some(self.playhead.value.max(0));
-        if let Some(inn) = self.mark_in {
-            if inn > self.playhead.value {
-                self.mark_in = None;
-            }
+        if let Some(inn) = self.mark_in
+            && inn > self.playhead.value
+        {
+            self.mark_in = None;
         }
         self.status_message = Some("Mark Out".into());
     }

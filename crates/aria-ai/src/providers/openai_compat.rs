@@ -481,7 +481,7 @@ pub(crate) fn consume_sse(
 
     let mut reader = BufReader::new(reader);
     let mut line = String::new();
-    while let Some(_) = read_line_bounded(&mut reader, &mut line, MAX_SSE_LINE_BYTES)? {
+    while read_line_bounded(&mut reader, &mut line, MAX_SSE_LINE_BYTES)?.is_some() {
         if cancel.load(Ordering::Relaxed) {
             return Err(ProviderError::Cancelled);
         }

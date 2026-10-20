@@ -86,7 +86,7 @@ pub fn text_tab(
                 div()
                     .text_size(Theme::TEXT_UI)
                     .text_color(theme.text)
-                    .child(SharedString::from(content)),
+                    .child(content),
             )
         })
         .when(content.is_none(), |el| {

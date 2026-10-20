@@ -80,7 +80,7 @@ fn straight(width: u32, height: u32) -> RgbaImage {
 /// times alpha over 255, rounded to nearest.
 fn premultiplied(image: &RgbaImage) -> Vec<u8> {
     let mut out = image.pixels.clone();
-    for px in out.chunks_exact_mut(4) {
+    for px in out.as_chunks_mut::<4>().0 {
         let a = u16::from(px[3]);
         for c in &mut px[..3] {
             *c = ((u16::from(*c) * a + 127) / 255) as u8;

@@ -300,12 +300,11 @@ pub fn available_codecs() -> Vec<VideoCodec> {
     let cap = capability();
     #[cfg(target_os = "linux")]
     {
-        return cap
-            .codecs
+        cap.codecs
             .iter()
             .copied()
             .filter(|codec| gst::can_encode(*codec))
-            .collect();
+            .collect()
     }
     #[cfg(not(target_os = "linux"))]
     {

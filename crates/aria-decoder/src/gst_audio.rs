@@ -116,16 +116,16 @@ impl GstAudioReader {
                 }
                 self.pending.clear();
                 self.pending.reserve(bytes.len() / 4);
-                for chunk in bytes.chunks_exact(4) {
+                for chunk in bytes.as_chunks::<4>().0 {
                     self.pending
                         .push(f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]));
                 }
                 self.pending_cursor = 0;
-                if self.position.is_none() {
-                    if let Some(ns) = crate::gst::stream_time_ns(&sample, buffer) {
-                        self.position =
-                            Some(ns.saturating_mul(i64::from(self.out_rate)) / 1_000_000_000);
-                    }
+                if self.position.is_none()
+                    && let Some(ns) = crate::gst::stream_time_ns(&sample, buffer)
+                {
+                    self.position =
+                        Some(ns.saturating_mul(i64::from(self.out_rate)) / 1_000_000_000);
                 }
                 Ok(!self.pending.is_empty())
             }

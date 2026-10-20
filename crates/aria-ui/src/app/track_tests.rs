@@ -70,9 +70,9 @@ fn with_two_video_lanes() -> (AppState, u64, u64, u64) {
     );
     (state, after[0], after[1], main)
 }
-/// The class closed below is "shifting time is one lane and one fixed step". A
-/// typed offset moves the selection on every lane it spans, from the earliest
-/// selected clip on each, and refuses whole rather than half-applying.
+// The class closed below is "shifting time is one lane and one fixed step". A
+// typed offset moves the selection on every lane it spans, from the earliest
+// selected clip on each, and is rejected whole rather than half-applied.
 
 /// Two video lanes each carrying one clip at tick 0, both selected.
 fn with_two_selected_lanes() -> (AppState, u64, u64, u64, u64) {

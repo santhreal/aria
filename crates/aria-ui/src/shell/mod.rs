@@ -265,10 +265,10 @@ impl Shell {
         match drag.kind {
             DragKind::Lane(track) => {
                 self.state.update(cx, |state, _| {
-                    if let Some(height) = state.take_lane_preview() {
-                        if let Err(err) = state.set_lane_height(track, height) {
-                            state.report_error(&err);
-                        }
+                    if let Some(height) = state.take_lane_preview()
+                        && let Err(err) = state.set_lane_height(track, height)
+                    {
+                        state.report_error(&err);
                     }
                 });
             }

@@ -103,7 +103,7 @@ impl FromStr for MediaContentKey {
         }
 
         let mut bytes = [0_u8; MEDIA_CONTENT_KEY_BYTES];
-        for (index, pair) in encoded.chunks_exact(2).enumerate() {
+        for (index, pair) in encoded.as_chunks::<2>().0.iter().enumerate() {
             let high = decode_hex_digit(pair[0], index * 2)?;
             let low = decode_hex_digit(pair[1], index * 2 + 1)?;
             bytes[index] = (high << 4) | low;

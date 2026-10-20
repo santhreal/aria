@@ -55,7 +55,12 @@ fn mean_red(
 ) -> Result<(), String> {
     let pixels = frame.pixels();
     let count = pixels.len() / 4;
-    let sum: usize = pixels.chunks_exact(4).map(|px| usize::from(px[0])).sum();
+    let sum: usize = pixels
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|px| usize::from(px[0]))
+        .sum();
     let mean = sum / count;
     let rows = (mean * image.height() as usize / 255) as u32;
     for y in 0..rows {

@@ -835,30 +835,26 @@ impl Transition {
         let pspec = self.param_spec(index)?;
         match pspec.kind {
             EffectParamKind::Scalar | EffectParamKind::Angle | EffectParamKind::Int => {
-                let v = match value {
-                    ParamValue::Scalar(v) => v,
-                    _ => return Err(ModelError::InvalidParam("expected a scalar value".into())),
+                let ParamValue::Scalar(v) = value else {
+                    return Err(ModelError::InvalidParam("expected a scalar value".into()));
                 };
                 self.set_param(index, v)
             }
             EffectParamKind::Color => {
-                let c = match value {
-                    ParamValue::Color(c) => c,
-                    _ => return Err(ModelError::InvalidParam("expected a color value".into())),
+                let ParamValue::Color(c) = value else {
+                    return Err(ModelError::InvalidParam("expected a color value".into()));
                 };
                 self.set_color_param(index, c)
             }
             EffectParamKind::Vec2 | EffectParamKind::Size => {
-                let v = match value {
-                    ParamValue::Vec2(v) => v,
-                    _ => return Err(ModelError::InvalidParam("expected a vec2 value".into())),
+                let ParamValue::Vec2(v) = value else {
+                    return Err(ModelError::InvalidParam("expected a vec2 value".into()));
                 };
                 self.set_vec2_param(index, v)
             }
             EffectParamKind::Point3 => {
-                let v = match value {
-                    ParamValue::Vec3(v) => v,
-                    _ => return Err(ModelError::InvalidParam("expected a vec3 value".into())),
+                let ParamValue::Vec3(v) = value else {
+                    return Err(ModelError::InvalidParam("expected a vec3 value".into()));
                 };
                 self.set_vec3_param(index, v)
             }

@@ -227,7 +227,7 @@ fn honors_source_stride() {
 fn bgra_order_matches_a_pre_swapped_rgba_frame() {
     let rgba = image(4, 4, |x, y| [(x * 60) as u8, (y * 50) as u8, 200, 255]);
     let mut bgra = rgba.clone();
-    for px in bgra.chunks_exact_mut(4) {
+    for px in bgra.as_chunks_mut::<4>().0 {
         px.swap(0, 2);
     }
 

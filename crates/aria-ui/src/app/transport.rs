@@ -790,7 +790,7 @@ fn decode_preview(state: Entity<AppState>, cx: &mut App) {
             return;
         };
         if again && let Some(state) = state.upgrade() {
-            let _ = cx.update(|app| spawn_preview(state, app));
+            cx.update(|app| spawn_preview(state, app));
         }
     })
     .detach();
@@ -852,6 +852,10 @@ pub fn start_playback(state: Entity<AppState>, window: &Window, cx: &mut App) {
 /// Present one playback frame after the next frame the window draws, and
 /// schedule the one after that while the run is current. `armed` travels with
 /// the pending callback and drops when the loop ends.
+#[allow(
+    clippy::only_used_in_recursion,
+    reason = "`armed` moves into each pending callback so that it drops when the loop ends"
+)]
 fn present_on_vsync(
     state: WeakEntity<AppState>,
     generation: u64,

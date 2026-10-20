@@ -99,7 +99,7 @@ impl RgbaImage {
     /// Each colour channel becomes `c * 255 / a`, rounded to nearest and
     /// capped at 255. Transparent and opaque pixels are unchanged.
     pub fn unpremultiply(&mut self) {
-        for px in self.pixels.chunks_exact_mut(4) {
+        for px in self.pixels.as_chunks_mut::<4>().0 {
             let a = px[3];
             if a == 0 || a == 255 {
                 continue;

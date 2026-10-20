@@ -303,9 +303,8 @@ fn read_md_files(
 fn read_capped(base_dir: Option<&Path>, path: &Path, warnings: &mut Vec<String>) -> Option<String> {
     use std::io::Read as _;
 
-    let meta = match std::fs::symlink_metadata(path) {
-        Ok(m) => m,
-        Err(_) => return None,
+    let Ok(meta) = std::fs::symlink_metadata(path) else {
+        return None;
     };
     if meta.file_type().is_symlink() {
         let canonical_target = match std::fs::canonicalize(path) {
@@ -315,16 +314,15 @@ fn read_capped(base_dir: Option<&Path>, path: &Path, warnings: &mut Vec<String>)
                 return None;
             }
         };
-        if let Some(base) = base_dir {
-            if let Ok(canonical_base) = std::fs::canonicalize(base) {
-                if !canonical_target.starts_with(&canonical_base) {
-                    warnings.push(format!(
-                        "{} skipped: symlink escapes base directory",
-                        path.display()
-                    ));
-                    return None;
-                }
-            }
+        if let Some(base) = base_dir
+            && let Ok(canonical_base) = std::fs::canonicalize(base)
+            && !canonical_target.starts_with(&canonical_base)
+        {
+            warnings.push(format!(
+                "{} skipped: symlink escapes base directory",
+                path.display()
+            ));
+            return None;
         }
     }
     let file_meta = match std::fs::metadata(path) {

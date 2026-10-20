@@ -80,7 +80,7 @@ pub fn speed_block(
                 },
                 theme,
             )
-            .id(crate::motion::MotionKey::new("speed", &id).element_id("speed"))
+            .id(crate::motion::MotionKey::new("speed", id).element_id("speed"))
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |this, _: &MouseDownEvent, _, cx| {

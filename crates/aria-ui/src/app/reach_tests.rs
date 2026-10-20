@@ -486,9 +486,8 @@ fn the_checksum_row_hashes_the_file_it_was_given() {
         line.starts_with("texture.png"),
         "the report must name the file that was picked: {line}"
     );
-    let digest = match line.split("sha256 ").nth(1) {
-        Some(digest) => digest,
-        None => panic!("the report carries no digest: {line}"),
+    let Some(digest) = line.split("sha256 ").nth(1) else {
+        panic!("the report has no digest: {line}");
     };
     assert_eq!(digest.len(), 64, "sha256 is 64 hex characters: {digest}");
     assert!(

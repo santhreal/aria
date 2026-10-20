@@ -435,10 +435,10 @@ pub(super) fn media_matches(item: &crate::types::UiMediaItem, query: &str) -> bo
     if kind.contains(query) {
         return true;
     }
-    if let Some(label) = item.label {
-        if label.id().contains(query) {
-            return true;
-        }
+    if let Some(label) = item.label
+        && label.id().contains(query)
+    {
+        return true;
     }
     format!("{}x{}", item.width, item.height).contains(query)
         || format!("{}×{}", item.width, item.height).contains(query)

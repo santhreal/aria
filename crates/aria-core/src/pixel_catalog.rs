@@ -123,7 +123,6 @@ impl PixelFormat {
 }
 
 /// Every shipped layout, read from the catalog rather than hand-listed.
-#[must_use]
 pub fn every_pixel_format() -> impl Iterator<Item = PixelFormat> {
     SHIPPED.iter().map(|spec| spec.format)
 }
@@ -194,7 +193,6 @@ impl ChromaSubsampling {
 }
 
 /// Every shipped chroma layout, read from the catalog rather than hand-listed.
-#[must_use]
 pub fn every_chroma_subsampling() -> impl Iterator<Item = ChromaSubsampling> {
     CHROMA.iter().map(|spec| spec.subsampling)
 }

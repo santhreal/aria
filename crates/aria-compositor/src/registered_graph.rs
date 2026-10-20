@@ -462,15 +462,15 @@ fn check_interface(module: &naga::Module, host: &[&str], entry: Entry) -> Result
     }
     for (_, global) in module.global_variables.iter() {
         let name = global.name.as_deref().unwrap_or("_");
-        if let Some(binding) = &global.binding {
-            if !host.contains(&name) {
-                return Err(format!(
-                    "`{name}` is bound at @group({}) @binding({}); a pass binds only {}",
-                    binding.group,
-                    binding.binding,
-                    host.join(", ")
-                ));
-            }
+        if let Some(binding) = &global.binding
+            && !host.contains(&name)
+        {
+            return Err(format!(
+                "`{name}` is bound at @group({}) @binding({}); a pass binds only {}",
+                binding.group,
+                binding.binding,
+                host.join(", ")
+            ));
         }
         if matches!(global.space, naga::AddressSpace::Immediate) {
             return Err(format!(

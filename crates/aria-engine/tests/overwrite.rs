@@ -137,7 +137,6 @@ fn a_straddled_clip_survives_on_both_sides_of_the_span() {
         .track(track)
         .expect("lane")
         .clips_ordered()
-        .into_iter()
         .map(|clip| (clip.timeline.start.value, clip.timeline.end_tick()))
         .collect();
     spans.sort_unstable();

@@ -69,7 +69,7 @@ pub(crate) fn dispatch(
         Some(Pending::Menu(menu, id)) => shell.state.update(cx, |state, cx| {
             crate::chrome::menu_items::run_item(menu, id, state, cx);
         }),
-        Some(Pending::Windowed(run)) => shell.state.update(cx, |state, cx| run(state, cx)),
+        Some(Pending::Windowed(run)) => shell.state.update(cx, run),
         None => {}
     }
     shell.state.update(cx, |state, _| {

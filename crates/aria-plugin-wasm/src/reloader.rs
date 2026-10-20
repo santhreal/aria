@@ -112,13 +112,13 @@ impl Reloader {
             .collect();
 
         for dir in removed_dirs {
-            if let Some(prev) = self.tracked.remove(&dir) {
-                if let Some(id) = prev.id {
-                    if ctx.is_mounted(&id) {
-                        let _ = ctx.unmount(&id);
-                    }
-                    outcomes.push(ReloadOutcome::Unmounted { id, dir });
+            if let Some(prev) = self.tracked.remove(&dir)
+                && let Some(id) = prev.id
+            {
+                if ctx.is_mounted(&id) {
+                    let _ = ctx.unmount(&id);
                 }
+                outcomes.push(ReloadOutcome::Unmounted { id, dir });
             }
         }
 
@@ -132,10 +132,10 @@ impl Reloader {
                 if prev.fingerprint == current_fp && (is_mounted || prev.id.is_none()) {
                     continue;
                 }
-                if let Some(prev_id) = &prev.id {
-                    if ctx.is_mounted(prev_id) {
-                        let _ = ctx.unmount(prev_id);
-                    }
+                if let Some(prev_id) = &prev.id
+                    && ctx.is_mounted(prev_id)
+                {
+                    let _ = ctx.unmount(prev_id);
                 }
                 match self.mount_package(&dir, ctx) {
                     Ok(Some(id)) => {
@@ -293,10 +293,10 @@ fn candidate_package_dirs(root: &Path) -> Vec<PathBuf> {
     }
     let mut dirs = Vec::new();
     for entry in discover(root) {
-        if let Ok(pkg) = entry {
-            if matches!(pkg.tier, Tier::Wasm { .. }) {
-                dirs.push(pkg.dir);
-            }
+        if let Ok(pkg) = entry
+            && matches!(pkg.tier, Tier::Wasm { .. })
+        {
+            dirs.push(pkg.dir);
         }
     }
     if let Ok(read_dir) = fs::read_dir(root) {

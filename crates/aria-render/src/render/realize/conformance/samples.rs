@@ -508,7 +508,9 @@ fn centered_rect(width: u32, height: u32) -> [u32; 4] {
 fn coverage_of(image: &RgbaImage) -> f32 {
     let inked = image
         .pixels
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .filter(|p| p[3] > INK_ALPHA)
         .count();
     inked as f32 / (image.width * image.height) as f32

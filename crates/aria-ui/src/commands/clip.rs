@@ -284,10 +284,10 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
         id: "pal-track-up",
         label: "Move track up",
         run: |state| {
-            if let Some(track) = state.selected_track() {
-                if let Err(err) = state.move_track_up(track) {
-                    state.report_error(&err);
-                }
+            if let Some(track) = state.selected_track()
+                && let Err(err) = state.move_track_up(track)
+            {
+                state.report_error(&err);
             }
         },
     },
@@ -295,10 +295,10 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
         id: "pal-track-down",
         label: "Move track down",
         run: |state| {
-            if let Some(track) = state.selected_track() {
-                if let Err(err) = state.move_track_down(track) {
-                    state.report_error(&err);
-                }
+            if let Some(track) = state.selected_track()
+                && let Err(err) = state.move_track_down(track)
+            {
+                state.report_error(&err);
             }
         },
     },
@@ -306,10 +306,10 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
         id: "pal-track-solo",
         label: "Solo track",
         run: |state| {
-            if let Some(track) = state.selected_track() {
-                if let Err(err) = state.toggle_track_solo(track) {
-                    state.report_error(&err);
-                }
+            if let Some(track) = state.selected_track()
+                && let Err(err) = state.toggle_track_solo(track)
+            {
+                state.report_error(&err);
             }
         },
     },
@@ -317,10 +317,10 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
         id: "pal-track-duck",
         label: "Toggle track as duck source",
         run: |state| {
-            if let Some(track) = state.selected_track() {
-                if let Err(err) = state.toggle_track_duck_source(track) {
-                    state.report_error(&err);
-                }
+            if let Some(track) = state.selected_track()
+                && let Err(err) = state.toggle_track_duck_source(track)
+            {
+                state.report_error(&err);
             }
         },
     },

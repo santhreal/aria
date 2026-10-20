@@ -10,6 +10,7 @@
 //! tree before the plugin receives it.
 
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::sync::Arc;
 
 use aria_plugin::{
@@ -279,13 +280,13 @@ impl AppState {
                     let key = image_key(*width, *height, rgba);
                     if let Some(entry) = old.remove(&key) {
                         images.insert(key, entry);
-                    } else if !images.contains_key(&key) {
+                    } else if let Entry::Vacant(e) = images.entry(key) {
                         // `UiNode::check` held the size to the bytes, so this
                         // only fails on an empty image, which draws nothing.
                         if let Some(decoded) =
                             crate::frame::rgba_bytes_to_render(*width, *height, rgba)
                         {
-                            images.insert(key, (Arc::clone(rgba), decoded));
+                            e.insert((Arc::clone(rgba), decoded));
                         }
                     }
                 }

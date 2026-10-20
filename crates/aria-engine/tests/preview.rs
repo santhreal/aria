@@ -89,7 +89,14 @@ fn get_frame_returns_black_when_timeline_empty() {
     // No media anywhere: the auto canvas falls back to 1920×1080.
     assert_eq!(frame.width, 1920);
     assert_eq!(frame.height, 1080);
-    assert!(frame.pixels.chunks_exact(4).all(|p| p == [0, 0, 0, 255]));
+    assert!(
+        frame
+            .pixels
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .all(|p| *p == [0, 0, 0, 255])
+    );
 }
 
 #[test]
@@ -109,7 +116,14 @@ fn get_frame_renders_solid_generated_clip() {
     let frame = engine.get_frame(rt(0)).expect("solid frame");
     assert_eq!(frame.width, 1920);
     assert_eq!(frame.height, 1080);
-    assert!(frame.pixels.chunks_exact(4).all(|p| p == [10, 20, 30, 255]));
+    assert!(
+        frame
+            .pixels
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .all(|p| *p == [10, 20, 30, 255])
+    );
 }
 
 #[test]
@@ -246,8 +260,10 @@ fn generator_override_previews_without_touching_state() {
     assert!(
         frame
             .pixels
-            .chunks_exact(4)
-            .all(|p| p == [10, 200, 40, 255])
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .all(|p| *p == [10, 200, 40, 255])
     );
 
     // ...while the committed generator and history stay untouched.
@@ -270,8 +286,10 @@ fn generator_override_previews_without_touching_state() {
     assert!(
         frame
             .pixels
-            .chunks_exact(4)
-            .all(|p| p == [200, 40, 10, 255])
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .all(|p| *p == [200, 40, 10, 255])
     );
 }
 
@@ -316,7 +334,12 @@ fn new_session_clears_overrides() {
 
     let frame = engine.get_frame(rt(0)).expect("fresh session frame");
     assert!(
-        frame.pixels.chunks_exact(4).all(|p| p == [10, 20, 30, 255]),
+        frame
+            .pixels
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .all(|p| *p == [10, 20, 30, 255]),
         "committed solid covers the whole canvas — no stale override applied"
     );
 }

@@ -238,7 +238,6 @@ impl UiState {
                 locked: track.locked,
                 clips: track
                     .clips_ordered()
-                    .into_iter()
                     .map(|clip| build_clip(project, track, clip, rate))
                     .collect(),
             })

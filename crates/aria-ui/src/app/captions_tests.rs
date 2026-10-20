@@ -61,7 +61,7 @@ fn the_decode_window_and_caption_times_convert_exactly() {
     assert_eq!(ticks_for_centiseconds(50, R24), 12);
     // Sub-frame offsets floor onto the frame that is showing, never the next one.
     assert_eq!(ticks_for_centiseconds(3, R24), 0);
-    assert_eq!(ticks_for_centiseconds(u64::MAX, R24) > 0, true);
+    assert!(ticks_for_centiseconds(u64::MAX, R24) > 0);
 }
 
 /// Every model in the catalog is listed with a size, a description, and a state, and a

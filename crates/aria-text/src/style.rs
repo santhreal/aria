@@ -277,14 +277,18 @@ mod tests {
         let first_ink = shaped.clusters[0]
             .image
             .pixels
-            .chunks_exact(4)
+            .as_chunks::<4>()
+            .0
+            .iter()
             .find(|px| px[3] == 255)
             .expect("first cluster has opaque ink");
         assert_eq!([first_ink[0], first_ink[1], first_ink[2]], [255, 0, 0]);
         let second_ink = shaped.clusters[1]
             .image
             .pixels
-            .chunks_exact(4)
+            .as_chunks::<4>()
+            .0
+            .iter()
             .find(|px| px[3] == 255)
             .expect("second cluster has opaque ink");
         assert_eq!(

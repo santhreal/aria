@@ -183,8 +183,7 @@ impl VulkanSurfaceImporter {
                 let name = ash::khr::external_memory_fd::NAME;
                 hal_device
                     .enabled_device_extensions()
-                    .iter()
-                    .any(|ext| *ext == name)
+                    .contains(&name)
                     .then_some(())
             });
         enabled?;
@@ -363,13 +362,13 @@ impl VulkanSurfaceImporter {
             ))
         })?;
 
-        let mut dedicated = vk::MemoryDedicatedAllocateInfo::default().image(image);
+        let dedicated = vk::MemoryDedicatedAllocateInfo::default().image(image);
         let mut import = vk::ImportMemoryFdInfoKHR::default()
             .handle_type(vk::ExternalMemoryHandleTypeFlags::DMA_BUF_EXT)
             .fd(import_fd);
         // ash 0.38 has no `push_next` on ImportMemoryFdInfoKHR (same as
         // wgpu-hal's Win32 import).
-        import.p_next = <*const _>::cast(&mut dedicated);
+        import.p_next = <*const _>::cast(&dedicated);
         let alloc = vk::MemoryAllocateInfo::default()
             .allocation_size(req.size.max(1))
             .memory_type_index(mem_type)

@@ -261,12 +261,10 @@ fn dress(project: &mut crate::Project, id: crate::ClipId, clip: &Clip, media_bac
     for mask in &clip.masks {
         project.add_clip_mask(id, mask.clone()).expect("mask");
     }
-    if media_backed {
-        if let Some(chroma) = clip.chroma_key.clone() {
-            project
-                .set_clip_chroma_key(id, Some(chroma))
-                .expect("chroma");
-        }
+    if media_backed && let Some(chroma) = clip.chroma_key.clone() {
+        project
+            .set_clip_chroma_key(id, Some(chroma))
+            .expect("chroma");
     }
     if let Some(matte) = clip.matte.clone() {
         project.set_clip_matte(id, Some(matte)).expect("matte");

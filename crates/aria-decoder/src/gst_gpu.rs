@@ -198,9 +198,7 @@ fn configure_video_uridecodebin(bin: &gst::Bin, thread_budget: i32) {
         let Ok(element) = values[2].get::<gst::Element>() else {
             return None;
         };
-        let Some(factory) = element.factory() else {
-            return None;
-        };
+        let factory = element.factory()?;
         let klass = factory
             .metadata(gst::ELEMENT_METADATA_KLASS)
             .unwrap_or_default();
@@ -383,7 +381,7 @@ fn sample_to_gpu_frame(sample: &gst::Sample, info: &SourceInfo) -> Option<VideoF
 
 fn sample_size(sample: &gst::Sample) -> Option<(u32, u32)> {
     let caps = sample.caps()?;
-    let vinfo = gst_video::VideoInfo::from_caps(&caps).ok()?;
+    let vinfo = gst_video::VideoInfo::from_caps(caps).ok()?;
     Some((vinfo.width(), vinfo.height()))
 }
 fn sample_to_dmabuf(sample: &gst::Sample) -> Option<DmaBufSurface> {
@@ -409,7 +407,7 @@ fn sample_to_dmabuf(sample: &gst::Sample) -> Option<DmaBufSurface> {
 
     let (fourcc, modifier) = sample
         .caps()
-        .and_then(|caps| gst_video::VideoInfoDmaDrm::from_caps(&caps).ok())
+        .and_then(|caps| gst_video::VideoInfoDmaDrm::from_caps(caps).ok())
         .map(|drm| (drm.fourcc(), drm.modifier()))
         .unwrap_or((DmaBufSurface::NV12, DmaBufSurface::LINEAR));
 
@@ -420,14 +418,14 @@ fn sample_to_dmabuf(sample: &gst::Sample) -> Option<DmaBufSurface> {
         for (i, offset) in meta.offset().iter().enumerate().take(4) {
             offsets[i] = u32::try_from(*offset).unwrap_or(0);
         }
-    } else if let Some(caps) = sample.caps() {
-        if let Ok(vinfo) = gst_video::VideoInfo::from_caps(&caps) {
-            for (i, stride) in vinfo.stride().iter().enumerate().take(4) {
-                strides[i] = (*stride).max(0) as u32;
-            }
-            for (i, offset) in vinfo.offset().iter().enumerate().take(4) {
-                offsets[i] = u32::try_from(*offset).unwrap_or(0);
-            }
+    } else if let Some(caps) = sample.caps()
+        && let Ok(vinfo) = gst_video::VideoInfo::from_caps(caps)
+    {
+        for (i, stride) in vinfo.stride().iter().enumerate().take(4) {
+            strides[i] = (*stride).max(0) as u32;
+        }
+        for (i, offset) in vinfo.offset().iter().enumerate().take(4) {
+            offsets[i] = u32::try_from(*offset).unwrap_or(0);
         }
     }
 

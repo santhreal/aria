@@ -241,7 +241,13 @@ fn grain_is_seeded_noise_around_the_source_value() {
     );
 
     // A flat plate stops being flat, and the mean stays near the source.
-    let lit: Vec<u8> = seeded.pixels.chunks_exact(4).map(|p| p[0]).collect();
+    let lit: Vec<u8> = seeded
+        .pixels
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|p| p[0])
+        .collect();
     let min = *lit.iter().min().expect("pixels");
     let max = *lit.iter().max().expect("pixels");
     assert!(max > min + 8, "grain left the plate flat: {min}…{max}");

@@ -511,8 +511,10 @@ fn premultiply_for_upload(
         scratch.resize(expected, 0);
     }
     for (dst, src) in scratch[..expected]
-        .chunks_exact_mut(4)
-        .zip(image.pixels.chunks_exact(4))
+        .as_chunks_mut::<4>()
+        .0
+        .iter_mut()
+        .zip(image.pixels.as_chunks::<4>().0.iter())
     {
         let a = u16::from(src[3]);
         dst[0] = ((u16::from(src[0]) * a + 127) / 255) as u8;

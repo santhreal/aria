@@ -480,7 +480,6 @@ fn build(project: &Project, plan: Option<Plan>) -> ProjectSummary {
                 .collect(),
             clips: track
                 .clips_ordered()
-                .into_iter()
                 .filter(|clip| plan.as_ref().is_none_or(|plan| plan.keeps(clip.id.raw())))
                 .map(|clip| ClipSummary {
                     id: clip.id.raw(),

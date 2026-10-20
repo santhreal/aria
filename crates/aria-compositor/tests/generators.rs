@@ -221,7 +221,7 @@ fn fractal_noise(rig: &mut Rig) {
     let again = rig.draw("fractal_noise", params.clone());
     assert_eq!(img.pixels, again.pixels, "one setting draws one picture");
     let mut levels = std::collections::BTreeSet::new();
-    for pixel in img.pixels.chunks_exact(4) {
+    for pixel in img.pixels.as_chunks::<4>().0 {
         assert_eq!(pixel[3], 255, "the noise is opaque");
         assert!(
             pixel[0] == pixel[1] && pixel[1] == pixel[2],

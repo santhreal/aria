@@ -136,7 +136,11 @@ fn a_taken_chord_is_refused_listed_and_left_with_its_holder() {
             resolved(&host, KeyRoute::Editor, Chord::ctrl("s")),
             Some("key-save")
         );
-        assert_eq!(host.conflicts(), [refusal.clone()], "round {round}");
+        assert_eq!(
+            host.conflicts(),
+            std::slice::from_ref(&refusal),
+            "round {round}"
+        );
         assert_eq!(
             listed(&host),
             [("key-save", Some(Chord::ctrl("s"))), ("grade.save", None)],

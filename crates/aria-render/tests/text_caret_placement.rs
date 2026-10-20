@@ -82,7 +82,9 @@ fn pixels(frame: &RgbaImage, keep: impl Fn([u8; 3]) -> bool) -> Vec<[f32; 2]> {
     let width = frame.width as usize;
     frame
         .pixels
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .enumerate()
         .filter(|(_, px)| keep([px[0], px[1], px[2]]))
         .map(|(i, _)| [(i % width) as f32 + 0.5, (i / width) as f32 + 0.5])

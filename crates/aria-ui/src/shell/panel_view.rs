@@ -184,7 +184,7 @@ impl Shell {
             self.redraw_bodies(cx);
         } else {
             for (panel, body) in &self.bodies {
-                if !unmoved(*panel, moved) {
+                if !unmoved(panel, moved) {
                     body.update(cx, |_, cx| cx.notify());
                 }
             }

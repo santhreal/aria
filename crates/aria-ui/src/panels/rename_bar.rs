@@ -28,7 +28,7 @@ thread_local! {
     /// `AppState::rename` is cleared the instant the rename is applied or
     /// cancelled, which is correct: the draft must not survive one frame longer
     /// than the edit. The picture still owes a fade, and it takes it from here.
-    static LAST_DRAFT: RefCell<Option<Drawn>> = RefCell::new(None);
+    static LAST_DRAFT: RefCell<Option<Drawn>> = const { RefCell::new(None) };
 }
 
 pub fn render(

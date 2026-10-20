@@ -174,7 +174,7 @@ impl AudioEncoder for WavEncoder {
                 "the WAV file is already finished".to_string(),
             ));
         }
-        if samples.len() as u64 % self.channels as u64 != 0 {
+        if !(samples.len() as u64).is_multiple_of(self.channels as u64) {
             return Err(EncodeError::Encode(format!(
                 "{} interleaved samples is not a whole number of {}-channel frames",
                 samples.len(),
@@ -284,7 +284,9 @@ mod tests {
 
         let bytes = std::fs::read(&path).expect("read back");
         let samples: Vec<i16> = bytes[44..]
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|c| i16::from_le_bytes([c[0], c[1]]))
             .collect();
         assert_eq!(samples, vec![32767, -32767, 0, 32767, -32767]);

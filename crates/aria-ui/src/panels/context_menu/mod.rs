@@ -21,7 +21,7 @@ thread_local! {
     /// picture, which still owes a fade out. Remembering the target here keeps
     /// the two apart, so the close stays instant and no write has to be
     /// postponed in order to animate it.
-    static LAST_TARGET: RefCell<Option<ContextTarget>> = RefCell::new(None);
+    static LAST_TARGET: RefCell<Option<ContextTarget>> = const { RefCell::new(None) };
 }
 pub fn render(
     state: &Entity<AppState>,

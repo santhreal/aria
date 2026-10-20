@@ -546,31 +546,30 @@ impl SharedStorageLayout {
         };
 
         loop {
-            if !state.writer_active {
-                if state
+            if !state.writer_active
+                && state
                     .queue
                     .front()
                     .is_some_and(|front| front.id == batch_id)
-                {
-                    state.active_readers += 1;
-                    let batch_drained = {
-                        let front = state
-                            .queue
-                            .front_mut()
-                            .expect("the matching reader batch is at the front");
-                        let BatchKind::Readers { remaining_to_enter } = &mut front.kind else {
-                            unreachable!("a reader wait cannot match a writer batch");
-                        };
-                        *remaining_to_enter -= 1;
-                        *remaining_to_enter == 0
+            {
+                state.active_readers += 1;
+                let batch_drained = {
+                    let front = state
+                        .queue
+                        .front_mut()
+                        .expect("the matching reader batch is at the front");
+                    let BatchKind::Readers { remaining_to_enter } = &mut front.kind else {
+                        unreachable!("a reader wait cannot match a writer batch");
                     };
-                    if batch_drained {
-                        state.queue.pop_front();
-                        self.inner.condvar.notify_all();
-                    }
-                    wait_guard.entered = true;
-                    return (state.layout.clone(), state.generation);
+                    *remaining_to_enter -= 1;
+                    *remaining_to_enter == 0
+                };
+                if batch_drained {
+                    state.queue.pop_front();
+                    self.inner.condvar.notify_all();
                 }
+                wait_guard.entered = true;
+                return (state.layout.clone(), state.generation);
             }
             state = self.inner.condvar.wait(state).unwrap_or_else(|poisoned| {
                 self.inner.state.clear_poison();
@@ -581,13 +580,13 @@ impl SharedStorageLayout {
 
     fn cancel_waiting_reader(&self, batch_id: u64) {
         let mut state = self.lock_state();
-        if let Some(pos) = state.queue.iter().position(|b| b.id == batch_id) {
-            if let BatchKind::Readers { remaining_to_enter } = &mut state.queue[pos].kind {
-                *remaining_to_enter = remaining_to_enter.saturating_sub(1);
-                if *remaining_to_enter == 0 {
-                    state.queue.remove(pos);
-                    self.inner.condvar.notify_all();
-                }
+        if let Some(pos) = state.queue.iter().position(|b| b.id == batch_id)
+            && let BatchKind::Readers { remaining_to_enter } = &mut state.queue[pos].kind
+        {
+            *remaining_to_enter = remaining_to_enter.saturating_sub(1);
+            if *remaining_to_enter == 0 {
+                state.queue.remove(pos);
+                self.inner.condvar.notify_all();
             }
         }
     }
@@ -638,15 +637,15 @@ impl SharedStorageLayout {
         };
 
         loop {
-            if !state.writer_active && state.active_readers == 0 {
-                if let Some(front) = state.queue.front() {
-                    if front.id == id {
-                        state.queue.pop_front();
-                        state.writer_active = true;
-                        wait_guard.entered = true;
-                        return WriteGuard { shared: self };
-                    }
-                }
+            if !state.writer_active
+                && state.active_readers == 0
+                && let Some(front) = state.queue.front()
+                && front.id == id
+            {
+                state.queue.pop_front();
+                state.writer_active = true;
+                wait_guard.entered = true;
+                return WriteGuard { shared: self };
             }
             state = self.inner.condvar.wait(state).unwrap_or_else(|poisoned| {
                 self.inner.state.clear_poison();

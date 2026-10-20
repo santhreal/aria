@@ -72,7 +72,8 @@ impl PresetDraft {
             properties: self
                 .properties
                 .iter()
-                .filter_map(|(id, _, on)| on.then(|| id.clone()))
+                .filter(|(_, _, on)| *on)
+                .map(|(id, _, _)| id.clone())
                 .collect(),
         }
     }

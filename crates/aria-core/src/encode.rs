@@ -167,19 +167,19 @@ impl EncoderConfig {
                 self.frame_rate
             )));
         }
-        if let Some(bitrate) = self.bitrate_kbps {
-            if bitrate == 0 {
-                return Err(EncodeError::Unsupported(
-                    "bitrate_kbps must be greater than zero".into(),
-                ));
-            }
+        if let Some(bitrate) = self.bitrate_kbps
+            && bitrate == 0
+        {
+            return Err(EncodeError::Unsupported(
+                "bitrate_kbps must be greater than zero".into(),
+            ));
         }
-        if let Some(interval) = self.keyframe_interval {
-            if interval == 0 {
-                return Err(EncodeError::Unsupported(
-                    "keyframe_interval must be greater than zero".into(),
-                ));
-            }
+        if let Some(interval) = self.keyframe_interval
+            && interval == 0
+        {
+            return Err(EncodeError::Unsupported(
+                "keyframe_interval must be greater than zero".into(),
+            ));
         }
         if let Some(audio) = &self.audio {
             audio

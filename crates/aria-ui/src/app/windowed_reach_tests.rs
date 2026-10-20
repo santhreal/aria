@@ -124,7 +124,7 @@ fn every_windowed_binding_starts_work_or_says_why_not() {
         let crate::keys::KeyBody::Windowed(run) = binding.run else {
             unreachable!("filtered above")
         };
-        match drive_with(move |state, cx| run(state, cx)) {
+        match drive_with(run) {
             Outcome::Silent => panic!("{} did nothing and said nothing", binding.id),
             Outcome::Queued(_) => {}
             Outcome::Refused(reason) => assert!(

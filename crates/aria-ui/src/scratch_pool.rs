@@ -716,7 +716,7 @@ mod tests {
                         sites.push(format!(
                             "{rel}:{}: {}",
                             index + offset + 1,
-                            ahead.trim().trim_end_matches(|c: char| c == '{')
+                            ahead.trim().trim_end_matches('{')
                         ));
                         break;
                     }

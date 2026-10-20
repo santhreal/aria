@@ -90,7 +90,7 @@ pub(super) fn render_into(
     let state = state.clone();
     cx.spawn(async move |cx| {
         let rendered = rendered.await.flatten();
-        let _ = state.update(cx, |state, cx| {
+        state.update(cx, |state, cx| {
             if monitor {
                 state
                     .pool_preview
