@@ -23,9 +23,6 @@ fn the_clip_label_and_the_scale_marks_stay_inside_their_boxes(cx: &mut TestAppCo
     cx.executor().allow_parking();
     let (state, visual) = drawn_shell(cx, "meter-labels");
     visual.run_until_parked();
-    // A full draw: a cached panel body keeps no debug bounds through a narrow
-    // redraw, and a refresh draws every view.
-    visual.update(|window, _| window.refresh());
 
     let [x, y, w, h] = visual
         .read(|app| {

@@ -54,8 +54,7 @@ fn pool_with_a_still<'a>(
 
 /// Set the Project panel's column to `width` px of the 1920 px row, and draw
 /// twice: the panel reads its width from the frame the previous draw laid
-/// out, so the second draw is the one at `width`. Ends on a full draw, which
-/// keeps every view's debug bounds and text runs.
+/// out, so the second draw is the one at `width`.
 fn project_width(
     state: &gpui::Entity<crate::app::AppState>,
     visual: &mut VisualTestContext,
@@ -80,7 +79,6 @@ fn project_width(
     visual.run_until_parked();
     visual.update(|_, app| state.update(app, |_, cx| cx.notify()));
     visual.run_until_parked();
-    visual.update(|window, _| window.refresh());
 }
 
 #[gpui::test]

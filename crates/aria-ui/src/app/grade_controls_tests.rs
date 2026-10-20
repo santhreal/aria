@@ -382,7 +382,7 @@ fn a_press_on_the_drawn_wheel_drags_through_the_shell(cx: &mut gpui::TestAppCont
             cx.notify();
         })
     });
-    crate::test_support::refresh_panels(visual);
+    visual.run_until_parked();
     assert!(
         visual.debug_bounds("color-wheel-lift").is_none(),
         "the wheels drew with their section closed"
@@ -393,7 +393,7 @@ fn a_press_on_the_drawn_wheel_drags_through_the_shell(cx: &mut gpui::TestAppCont
             return false;
         };
         visual.simulate_click(header.center(), Modifiers::none());
-        crate::test_support::refresh_panels(visual);
+        visual.run_until_parked();
         true
     };
     // Basic Correction closes, so the wheels open near the top of the panel.

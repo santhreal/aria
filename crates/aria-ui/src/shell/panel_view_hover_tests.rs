@@ -2,10 +2,10 @@
 //!
 //! The class closed here is a hover that rebuilds panel bodies it did not
 //! change. A hover inside one panel body notifies that cached body alone. A
-//! hover over chrome the Shell draws (a dock tab, a frame header control, a
-//! frame menu row, the timeline splitter, a palette row) fades through the
-//! motion store and redraws the chrome alone: a gpui hover style there
-//! notifies the Shell, and a Shell notification rebuilds every body.
+//! hover over the window chrome (a dock tab, a frame header control, a frame
+//! menu row, the timeline splitter, a palette row) fades through the motion
+//! store and redraws the chrome alone: a gpui hover style on chrome the Shell
+//! builds notifies the Shell, and a Shell notification rebuilds every body.
 //!
 //! Checked at every point the frame draws a quad or a text run in the chrome,
 //! at launch, with a frame menu open, and with the palette open, and at the

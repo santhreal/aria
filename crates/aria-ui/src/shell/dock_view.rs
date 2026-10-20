@@ -670,14 +670,14 @@ impl Shell {
         .absolute()
         .size_full();
 
-        let tab_bar = self.render_tab_bar(
-            &drawn_frame,
-            active_idx,
-            is_floating,
-            is_maximized,
-            theme,
-            cx,
-        );
+        let row = super::panel_view::TabRow {
+            overflow: self.overflow_open(frame_id),
+            window: self.frame,
+            frame: drawn_frame,
+            floating: is_floating,
+            maximized: is_maximized,
+        };
+        let tab_bar = self.tab_row(row, theme, cx);
         let frame_slot = MotionKey::new("dock-frame", frame_id);
         let body_children = vec![self.panel_body(active_panel, cx)];
         let menu_overlay = match self.frame_menu {

@@ -6,12 +6,12 @@
 //! registry holds is docked in turn, over a fresh project, and every change in
 //! [`CHANGES`] is made through the route the app makes it: a narrow
 //! [`Shell::redraw`] for a moved view or playhead, the pool tile route for a
-//! tile hover, the filmstrip route for a landed cell, a state notification
-//! for the rest. The frame drawn then
-//! must equal the frame drawn after a refresh, which builds every body anew.
-//! Every panel must also draw differently after at least one change, so a panel
-//! added to the registry whose drawing no change here reaches fails until a
-//! change it draws is added to [`CHANGES`].
+//! tile hover, the filmstrip route for a landed cell, the frame route for a
+//! landed Viewer frame or scope reading, a state notification for the rest.
+//! The frame drawn then must equal the frame drawn after a refresh, which
+//! builds every body anew. Every panel must also draw differently after at
+//! least one change, so a panel added to the registry whose drawing no change
+//! here reaches fails until a change it draws is added to [`CHANGES`].
 //!
 //! A frame is compared by its quads (bounds, clip, colours, corners, borders)
 //! and its text runs (text, bounds, size). Not caught: a stale image or path,
@@ -20,7 +20,7 @@
 use gpui::{Bounds, Pixels, TestAppContext, VisualTestContext};
 
 use crate::app::AppState;
-use crate::dock::{DockTree, FrameId, PANEL_PROJECT, PANEL_TIMELINE, Zone};
+use crate::dock::{DockTree, FrameId, PANEL_PROJECT, PANEL_TIMELINE, PANEL_VIEWER, Zone};
 use crate::shell::{Moved, Shell};
 use crate::test_support::{drawn_shell, wait_out_splash};
 
@@ -31,7 +31,7 @@ const WINDOW_W: f32 = 1920.0;
 
 /// A drawn frame, in an order that does not depend on how it was painted.
 #[derive(Debug, PartialEq)]
-struct Drawing {
+pub(super) struct Drawing {
     quads: Vec<(Bounds<Pixels>, String)>,
     runs: Vec<(Bounds<Pixels>, String)>,
 }
@@ -55,7 +55,7 @@ impl Drawing {
     }
 
     /// Up to eight quads or runs drawn in one frame and not the other.
-    fn differences(&self, full: &Drawing) -> String {
+    pub(super) fn differences(&self, full: &Drawing) -> String {
         let only = |a: &[(Bounds<Pixels>, String)], b: &[(Bounds<Pixels>, String)], tag: &str| {
             a.iter()
                 .filter(|entry| !b.contains(entry))
@@ -71,7 +71,7 @@ impl Drawing {
     }
 }
 
-fn drawing(visual: &mut VisualTestContext) -> Drawing {
+pub(super) fn drawing(visual: &mut VisualTestContext) -> Drawing {
     visual.update(|window, _| {
         let scale = window.scale_factor();
         let mut quads: Vec<(Bounds<Pixels>, String)> = window
@@ -119,7 +119,7 @@ fn drawing(visual: &mut VisualTestContext) -> Drawing {
 
 /// A change to what a panel draws, made the way the app makes it.
 #[derive(Clone, Copy, Debug)]
-enum Change {
+pub(super) enum Change {
     /// A wheel notch: the timeline view pans and its lanes scroll.
     View,
     /// A scrub step on the ruler.
@@ -153,9 +153,11 @@ enum Change {
     MonitorScrub,
     /// A filmstrip cell landing for the timeline, as a finished render lands.
     Filmstrip,
+    /// The frame at the playhead rendered again and landing in the Viewer.
+    Frame,
 }
 
-const CHANGES: [Change; 16] = [
+const CHANGES: [Change; 17] = [
     Change::View,
     Change::Playhead,
     Change::Select,
@@ -172,9 +174,10 @@ const CHANGES: [Change; 16] = [
     Change::PoolHover,
     Change::MonitorScrub,
     Change::Filmstrip,
+    Change::Frame,
 ];
 
-fn shell_of(visual: &mut VisualTestContext) -> gpui::Entity<Shell> {
+pub(super) fn shell_of(visual: &mut VisualTestContext) -> gpui::Entity<Shell> {
     visual.update(|window, _| {
         window
             .root::<Shell>()
@@ -221,7 +224,12 @@ fn settle(state: &AppState, job: aria_jobs::JobId) {
 }
 
 /// Makes `change` for the `step`th time.
-fn make(visual: &mut VisualTestContext, shell: &gpui::Entity<Shell>, change: Change, step: usize) {
+pub(super) fn make(
+    visual: &mut VisualTestContext,
+    shell: &gpui::Entity<Shell>,
+    change: Change,
+    step: usize,
+) {
     if let Change::MonitorScrub = change {
         // The monitor opens on the still first and is drawn in full, so the
         // comparison sees what the hover alone moved.
@@ -321,7 +329,7 @@ fn make(visual: &mut VisualTestContext, shell: &gpui::Entity<Shell>, change: Cha
                         }
                     }
                 }),
-                Change::Scopes => notify(shell, cx, &|state| {
+                Change::Scopes => shell.state.update(cx, |state, cx| {
                     let shade = (step * 37 % 256) as u8;
                     let pixels = [shade, 255 - shade, 90, 255].repeat(16 * 16);
                     let frame = aria_core::RgbaImage::new(16, 16, pixels);
@@ -332,7 +340,13 @@ fn make(visual: &mut VisualTestContext, shell: &gpui::Entity<Shell>, change: Cha
                         state.waveform_mode().trace(),
                         &mut crate::app::scope_view::ScopeBuffers::default(),
                     );
-                    state.adopt_scopes(reading);
+                    // As the preview worker's mail lands a reading.
+                    let mail = if state.adopt_scopes(reading) {
+                        crate::app::Mail::Reading
+                    } else {
+                        crate::app::Mail::Nothing
+                    };
+                    state.land_mail(mail, cx);
                 }),
                 Change::Search => notify(shell, cx, &|state| {
                     if state.effects_browser.query.is_empty() {
@@ -361,6 +375,7 @@ fn make(visual: &mut VisualTestContext, shell: &gpui::Entity<Shell>, change: Cha
                         cx,
                     );
                 }),
+                Change::Frame => crate::app::spawn_preview(shell.state.clone(), cx),
             }
         })
     });
@@ -479,9 +494,7 @@ fn every_cached_panel_body_draws_what_a_full_redraw_draws(cx: &mut TestAppContex
 #[gpui::test]
 fn a_view_change_builds_only_the_bodies_that_draw_the_view(cx: &mut TestAppContext) {
     cx.executor().allow_parking();
-    let (state, visual) = drawn_shell(cx, "panel-view-scope");
-    visual.update(|_, app| app.set_reduce_motion(true));
-    wait_out_splash(visual);
+    let (state, visual) = opened(cx, "panel-view-scope");
     let shell = shell_of(visual);
     let docked = visual.read(|app| {
         let state = state.read(app);
@@ -493,8 +506,10 @@ fn a_view_change_builds_only_the_bodies_that_draw_the_view(cx: &mut TestAppConte
             .collect::<Vec<_>>()
     });
     assert!(
-        docked.contains(&PANEL_TIMELINE) && docked.contains(&PANEL_PROJECT),
-        "the launch layout docks the Timeline and the Project panel"
+        [PANEL_TIMELINE, PANEL_PROJECT, PANEL_VIEWER]
+            .iter()
+            .all(|panel| docked.contains(panel)),
+        "the launch layout docks the Timeline, the Project panel and the Viewer"
     );
     assert!(
         docked.iter().any(|&panel| unmoved(panel, Moved::View)),
@@ -510,6 +525,7 @@ fn a_view_change_builds_only_the_bodies_that_draw_the_view(cx: &mut TestAppConte
                 Moved::Playhead => Change::Playhead,
                 Moved::PoolHover => Change::PoolHover,
                 Moved::Filmstrip => Change::Filmstrip,
+                Moved::Frame => Change::Frame,
             },
             1,
         );
@@ -527,10 +543,141 @@ fn a_view_change_builds_only_the_bodies_that_draw_the_view(cx: &mut TestAppConte
         let drawn_in = match moved {
             Moved::View | Moved::Playhead | Moved::Filmstrip => PANEL_TIMELINE,
             Moved::PoolHover => PANEL_PROJECT,
+            Moved::Frame => PANEL_VIEWER,
         };
         assert!(
             built.contains(&drawn_in),
             "a {moved:?} change left {drawn_in} replaying what it drew before"
         );
     }
+
+    // A scope reading of the frame on screen lands through the frame route.
+    visual.update(|_, app| {
+        state.update(app, |state, cx| {
+            state.toggle_scopes();
+            cx.notify();
+        })
+    });
+    visual.run_until_parked();
+    builds::take();
+    make(visual, &shell, Change::Scopes, 1);
+    let mut built = builds::take();
+    built.sort_unstable();
+    built.dedup();
+    let mut expected: Vec<_> = docked
+        .iter()
+        .copied()
+        .filter(|&panel| !unmoved(panel, Moved::Frame))
+        .collect();
+    expected.sort_unstable();
+    assert_eq!(built, expected, "the bodies built for a scope reading");
+}
+
+/// A frame that lands after an error clears the error, and the window draws it
+/// cleared through the frame route alone: the landing makes no state
+/// notification, and the status strip the shell draws and the Viewer's error
+/// line both read the error. The shell's own drawing is also what ends the
+/// boot cover on the session's first picture, which this route redraws the
+/// same way. Fails when a landed frame leaves the error set, or when a part
+/// of the window that draws the error replays its last drawing. Not caught: an
+/// error drawn only as an image.
+#[gpui::test]
+fn a_frame_landing_after_an_error_draws_the_window_without_it(cx: &mut TestAppContext) {
+    const ERROR: &str = "Decoding stopped at frame 12";
+    cx.executor().allow_parking();
+    let (state, visual) = opened(cx, "panel-view-error");
+    let shell = shell_of(visual);
+    let draws_error = |drawn: &Drawing| drawn.runs.iter().any(|(_, run)| run.contains(ERROR));
+    visual.update(|_, app| {
+        state.update(app, |state, cx| {
+            state.report_error(ERROR);
+            cx.notify();
+        })
+    });
+    visual.run_until_parked();
+    assert!(
+        draws_error(&drawing(visual)),
+        "the window draws the reported error"
+    );
+
+    make(visual, &shell, Change::Frame, 1);
+    assert_eq!(
+        visual.read(|app| state.read(app).last_error.clone()),
+        None,
+        "the landed frame clears the error"
+    );
+    let cached = drawing(visual);
+    assert!(
+        !draws_error(&cached),
+        "the window still draws the error the landed frame cleared"
+    );
+    visual.update(|window, _| window.refresh());
+    visual.run_until_parked();
+    let full = drawing(visual);
+    assert!(
+        cached == full,
+        "the landing drew a window that differs from a full redraw\n{}",
+        cached.differences(&full)
+    );
+}
+
+/// A playhead move that finds the project edited under it re-projects, and
+/// the redraw after it builds every docked body.
+///
+/// The class closed here is a narrow redraw after a poll that re-projected:
+/// another writer of the engine, such as a plugin or a job, edits the project,
+/// the next playhead move adopts the edit, and a redraw that built only the
+/// bodies that draw the playhead leaves the Project panel replaying the pool
+/// from before the edit. Not caught: an edit the projection does not read.
+#[gpui::test]
+fn a_playhead_move_that_re_projects_builds_every_body(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    let (state, visual) = opened(cx, "panel-view-reproject");
+    let shell = shell_of(visual);
+    let mut docked = visual.read(|app| {
+        let state = state.read(app);
+        state
+            .dock_tree
+            .frames()
+            .into_iter()
+            .map(|frame| frame.active_panel())
+            .collect::<Vec<_>>()
+    });
+    docked.sort_unstable();
+    docked.dedup();
+    assert!(
+        docked.iter().any(|&panel| unmoved(panel, Moved::Playhead)),
+        "the launch layout docks no panel a playhead move leaves alone"
+    );
+    visual.update(|_, app| {
+        state
+            .read(app)
+            .engine()
+            .lock()
+            .apply(aria_commands::Command::Edit(
+                aria_commands::EditCommand::CreateBin {
+                    name: "Edited elsewhere".into(),
+                    parent: None,
+                },
+            ))
+            .expect("create a bin on the engine");
+    });
+    builds::take();
+    make(visual, &shell, Change::Playhead, 1);
+    let mut built = builds::take();
+    built.sort_unstable();
+    built.dedup();
+    assert_eq!(
+        built, docked,
+        "the bodies a re-projecting playhead move built"
+    );
+    let cached = drawing(visual);
+    visual.update(|window, _| window.refresh());
+    visual.run_until_parked();
+    let full = drawing(visual);
+    assert!(
+        cached == full,
+        "the move drew a window that differs from a full redraw\n{}",
+        cached.differences(&full)
+    );
 }

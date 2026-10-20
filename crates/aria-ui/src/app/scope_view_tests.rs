@@ -24,10 +24,10 @@ use aria_core::RgbaImage;
 use aria_plugin::{PluginContext, Registration, ScopeFrame, ScopeImage, ScopeSpec};
 use gpui::AppContext;
 
-use super::AppState;
 use super::premiere_tests::with_clip;
 use super::scope_view::{ScopeBuffers, ScopeTextures, measure};
 use super::viewer_resolution_tests::run_view_row;
+use super::{AppState, Mail};
 use crate::interned::intern;
 use crate::scopes::WaveformMode;
 use crate::settings::UiSettings;
@@ -383,7 +383,11 @@ async fn opening_the_strip_measures_the_frame_on_screen_on_the_worker(
         "the scopes were measured on the calling thread"
     );
     assert_eq!(wakes.next_from_a_thread(&executor).await, Some(()));
-    assert!(state.take_preview_mail(), "the reading did not arrive");
+    assert_eq!(
+        state.take_preview_mail(),
+        Mail::Reading,
+        "the reading did not arrive"
+    );
     let textures = state.scope_textures.as_ref().expect("measured on open");
     assert_eq!(textures.sampled, 64 * 32);
     assert_eq!(textures.tick, 9);
@@ -476,7 +480,11 @@ async fn a_new_waveform_mode_remeasures_the_frame_on_screen(cx: &mut gpui::TestA
     state.shown_tick = Some(9);
     state.toggle_scopes();
     next_wake(&wakes, &executor, "opening the strip").await;
-    assert!(state.take_preview_mail(), "the luma reading did not arrive");
+    assert_eq!(
+        state.take_preview_mail(),
+        Mail::Reading,
+        "the luma reading did not arrive"
+    );
     for mode in [
         WaveformMode::YcbcrParade,
         WaveformMode::RgbParade,
@@ -618,7 +626,7 @@ fn the_chips_over_the_waveform_choose_its_mode(cx: &mut gpui::TestAppContext) {
             cx.notify();
         })
     });
-    crate::test_support::refresh_panels(visual);
+    visual.run_until_parked();
     for (place, mode) in [
         ("preview-scopes", WaveformMode::YcbcrParade),
         ("preview-scopes", WaveformMode::Luma),
@@ -629,11 +637,57 @@ fn the_chips_over_the_waveform_choose_its_mode(cx: &mut gpui::TestAppContext) {
             .debug_bounds(intern(&selector))
             .unwrap_or_else(|| panic!("the strip draws no {selector} chip"));
         visual.simulate_click(bounds.center(), gpui::Modifiers::none());
-        crate::test_support::refresh_panels(visual);
+        visual.run_until_parked();
         assert_eq!(
             visual.read(|app| state.read(app).waveform_mode()),
             mode,
             "{selector} chose another mode"
+        );
+    }
+}
+
+/// Mail that holds only a reading redraws where the frame on screen is drawn,
+/// through `FrameReady`, and notifies no observer of the state; a failure or a
+/// finished render bar notifies the state, which redraws the window.
+///
+/// The class closed here is mail routed to the wrong redraw: a reading that
+/// notified the state would build every panel body again at the scope rate of
+/// a run, and a render bar that only raised `FrameReady` would leave the
+/// timeline ruler replaying the bar it drew before. Not caught: a reading
+/// drawn by a panel the frame route leaves alone.
+#[gpui::test]
+fn each_kind_of_mail_redraws_what_it_changed(cx: &mut gpui::TestAppContext) {
+    use std::cell::Cell;
+    use std::rc::Rc;
+
+    cx.executor().allow_parking();
+    let (state, _) = with_clip();
+    let state = cx.new(|_| state);
+    let notified = Rc::new(Cell::new(0u32));
+    let framed = Rc::new(Cell::new(0u32));
+    let _observing = cx.update(|app| {
+        let notified = notified.clone();
+        app.observe(&state, move |_, _| notified.set(notified.get() + 1))
+    });
+    let _subscribed = cx.update(|app| {
+        let framed = framed.clone();
+        app.subscribe(&state, move |_, _: &crate::app::FrameReady, _| {
+            framed.set(framed.get() + 1)
+        })
+    });
+    for (mail, notifies, frames) in [
+        (Mail::Nothing, 0, 0),
+        (Mail::Reading, 0, 1),
+        (Mail::Window, 1, 0),
+    ] {
+        notified.set(0);
+        framed.set(0);
+        state.update(cx, |state, cx| state.land_mail(mail, cx));
+        cx.run_until_parked();
+        assert_eq!(
+            (notified.get(), framed.get()),
+            (notifies, frames),
+            "the notifications and FrameReady events {mail:?} raised"
         );
     }
 }

@@ -84,35 +84,16 @@ pub(crate) fn drawn_shell_at(
     (state, visual)
 }
 
-/// Settles background follow-ups and forces a full window draw so every cached
-/// [`crate::shell::panel_view::PanelBody`] populates `rendered_frame.debug_bounds`.
+/// The painted bounds of `selector` once background follow-ups have drawn.
 ///
-/// # Why
-///
-/// Each docked panel body is mounted through [`gpui::AnyView::cached`]. When an
-/// asynchronous follow-up (`PoolTileChanged`, `FilmstripChanged`, or a narrow
-/// [`crate::shell::Shell::redraw`]) runs while `visual.run_until_parked()` drains
-/// the executor, `gpui` draws a frame with `window.refreshing == false` and only
-/// the moved panel bodies in `window.dirty_views`. Unmoved [`PanelBody`] views
-/// take the `window.reuse_prepaint` fast path (`crates/gpui/src/window.rs:3818`),
-/// which copies hitboxes, tooltips, and dispatch nodes from `prev_frame` to
-/// `next_frame` without copying `debug_bounds`. Calling `run_until_parked()`
-/// first drains those narrow redraws, and `window.refresh()` then sets
-/// `window.refreshing = true` and synchronously draws a full frame in
-/// `App::flush_effects`, bypassing `reuse_prepaint` for every panel body. Do not
-/// call `run_until_parked()` after this function before reading `debug_bounds`.
-pub(crate) fn refresh_panels(visual: &mut gpui::VisualTestContext) {
-    visual.run_until_parked();
-    visual.update(|window, _| window.refresh());
-}
-
-/// The painted bounds of `selector` after settling follow-ups and forcing a
-/// full panel draw (see [`refresh_panels`]).
+/// A frame that replays a cached view keeps the bounds the view's debug
+/// selectors were painted at, so an element of a panel body the last frame
+/// replayed reads as one it rebuilt.
 pub(crate) fn panel_bounds(
     visual: &mut gpui::VisualTestContext,
     selector: &'static str,
 ) -> Option<gpui::Bounds<gpui::Pixels>> {
-    refresh_panels(visual);
+    visual.run_until_parked();
     visual.debug_bounds(selector)
 }
 

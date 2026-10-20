@@ -297,7 +297,7 @@ fn the_character_and_paragraph_panels_dock_from_the_window_menu(cx: &mut gpui::T
                 })
             });
             assert!(found, "Window has no row for {panel}");
-            crate::test_support::refresh_panels(visual);
+            visual.run_until_parked();
             visual.read(|app| state.read(app).dock_tree.is_open(panel))
         };
         if visual.read(|app| state.read(app).dock_tree.is_open(panel)) {

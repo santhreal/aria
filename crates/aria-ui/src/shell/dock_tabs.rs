@@ -2,17 +2,24 @@
 //! dragged onto it.
 
 use super::*;
+use crate::shell::panel_view::TabRow;
 
 impl Shell {
-    pub(super) fn render_tab_bar(
+    pub(in crate::shell) fn render_tab_bar(
         &self,
-        frame: &Frame,
-        active_idx: usize,
-        is_floating: bool,
-        is_maximized: bool,
+        row: &TabRow,
         theme: &Theme,
         cx: &mut Context<Self>,
     ) -> AnyElement {
+        let TabRow {
+            frame,
+            floating: is_floating,
+            maximized: is_maximized,
+            window,
+            ..
+        } = row;
+        let (is_floating, is_maximized) = (*is_floating, *is_maximized);
+        let active_idx = frame.active;
         let frame_id = frame.id;
         let active_panel = frame.active_panel();
         // The width the frame drew at last; a frame not drawn yet is not
@@ -114,9 +121,10 @@ impl Shell {
                     .border_r_1()
                     .border_color(theme.border)
                     .text_size(Theme::TEXT_UI)
-                    // A hover fade notifies the window chrome alone; a gpui
-                    // hover style here would notify the Shell, which rebuilds
-                    // every panel body.
+                    // A hover fade redraws the row alone. A gpui hover style
+                    // here would notify the view the row is built in, which is
+                    // the Shell while the editor arrives, and a Shell
+                    // notification rebuilds every panel body.
                     .text_color(if is_active {
                         theme.text
                     } else {
@@ -281,7 +289,7 @@ impl Shell {
             // A floating window's own bar: the empty stretch moves the window
             // when the app draws its frame.
             .child(if is_floating {
-                crate::chrome::drag_strip("dock-float-drag", self.frame, cx).into_any_element()
+                crate::chrome::drag_strip("dock-float-drag", *window, cx).into_any_element()
             } else {
                 div().flex_1().h_full().into_any_element()
             })

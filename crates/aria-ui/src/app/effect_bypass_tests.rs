@@ -13,7 +13,7 @@ use aria_models::ClipId;
 use gpui::{Modifiers, TestAppContext, VisualTestContext};
 
 use crate::app::AppState;
-use crate::test_support::{drawn_shell, panel_bounds, refresh_panels};
+use crate::test_support::{drawn_shell, panel_bounds};
 
 fn fixture() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/texture.png")
@@ -43,7 +43,7 @@ async fn the_drawn_fx_toggle_switches_its_own_effect_and_undo_takes_it_back(
     cx.executor().allow_parking();
     let (state, visual) = drawn_shell(cx, "effect-bypass");
     visual.update(|_, app| {
-        state.update(app, |state, _| {
+        state.update(app, |state, cx| {
             let media = state.import_media(fixture()).expect("import the fixture");
             state
                 .drop_media_on_timeline(media, None, 0)
@@ -65,9 +65,10 @@ async fn the_drawn_fx_toggle_switches_its_own_effect_and_undo_takes_it_back(
             }
             state.inspector_tab = "effects".to_string();
             state.dock_tree.open(crate::dock::PANEL_INSPECTOR);
+            cx.notify();
         });
     });
-    refresh_panels(visual);
+    visual.run_until_parked();
     let off = vec![false, false];
     assert_eq!(
         flags(&state, visual),

@@ -21,7 +21,7 @@ use crate::tool_catalog::ToolGroup;
 use crate::tooltip::WithTip as _;
 use crate::types::{AppMenu, EditMode};
 
-const TOOL_H: f32 = 36.0;
+pub(super) const TOOL_H: f32 = 36.0;
 
 pub(super) fn tool_bar(
     theme: &Theme,

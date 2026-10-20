@@ -54,11 +54,6 @@ fn window(width: f32, height: f32) -> gpui::Bounds<gpui::Pixels> {
 }
 
 /// The bounds drawn under `selector`, or a failure naming it.
-///
-/// WHY: a hover in one panel body notifies that cached view alone, and a
-/// cached replay keeps hitboxes without recording test-only `debug_bounds` for
-/// the other bodies; refreshing the window first makes every view prepaint and
-/// record its debug bounds.
 pub(super) fn bounds_of(
     visual: &mut gpui::VisualTestContext,
     selector: &str,

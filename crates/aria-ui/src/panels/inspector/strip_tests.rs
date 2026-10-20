@@ -21,7 +21,7 @@ use crate::dock::{Axis, FrameId, Node, PANEL_INSPECTOR};
 use crate::panels::inspector::blocks::key_strip::{STRIP_MIN, STRIP_W};
 use crate::panels::inspector::blocks::widgets::LABEL_RESERVE;
 use crate::surfaces::effects_rack::{self, Gesture};
-use crate::test_support::{drawn_shell, panel_bounds, refresh_panels};
+use crate::test_support::{drawn_shell, panel_bounds};
 use crate::theme::Theme;
 
 /// The blur's radius: the first slot of the first effect.
@@ -88,12 +88,13 @@ fn drawn_on<'a>(
     cx.executor().allow_parking();
     let (state, visual) = drawn_shell(cx, tag);
     visual.update(|_, app| {
-        state.update(app, |state, _| {
+        state.update(app, |state, cx| {
             select_the_texture(state, tab);
             then(state);
+            cx.notify();
         });
     });
-    refresh_panels(visual);
+    visual.run_until_parked();
     (state, visual)
 }
 
@@ -182,7 +183,7 @@ async fn every_control_beside_an_effect_parameter_edits_what_the_timeline_reads(
 
     // An edit there keys the animated radius where the row reads it.
     visual.update(|_, app| {
-        state.update(app, |state, _| {
+        state.update(app, |state, cx| {
             effects_rack::apply(
                 state,
                 Gesture::NudgeScalar {
@@ -192,6 +193,7 @@ async fn every_control_beside_an_effect_parameter_edits_what_the_timeline_reads(
                 },
             )
             .expect("nudge the radius");
+            cx.notify();
         })
     });
     visual.run_until_parked();
@@ -228,7 +230,7 @@ async fn every_control_beside_an_effect_parameter_edits_what_the_timeline_reads(
 
     // Reset keys the default where the playhead is and keeps the curve.
     visual.update(|_, app| {
-        state.update(app, |state, _| {
+        state.update(app, |state, cx| {
             effects_rack::apply(
                 state,
                 Gesture::NudgeScalar {
@@ -238,6 +240,7 @@ async fn every_control_beside_an_effect_parameter_edits_what_the_timeline_reads(
                 },
             )
             .expect("nudge the radius");
+            cx.notify();
         })
     });
     visual.run_until_parked();
@@ -270,7 +273,12 @@ async fn every_control_beside_an_effect_parameter_edits_what_the_timeline_reads(
         keys.len() == 2 && (keys[0] - half).abs() <= 1 && keys[1] == late,
         "the drag left the keys at {keys:?}, not near {half} and at {late}"
     );
-    visual.update(|_, app| state.update(app, |state, _| assert!(state.undo())));
+    visual.update(|_, app| {
+        state.update(app, |state, cx| {
+            assert!(state.undo());
+            cx.notify();
+        })
+    });
     visual.run_until_parked();
     assert_eq!(
         read(&state, visual).0,
@@ -281,7 +289,7 @@ async fn every_control_beside_an_effect_parameter_edits_what_the_timeline_reads(
     // The lit stopwatch drops every keyframe and holds the value the playhead
     // reads, as one undo step.
     visual.update(|_, app| {
-        state.update(app, |state, _| {
+        state.update(app, |state, cx| {
             effects_rack::apply(
                 state,
                 Gesture::NudgeScalar {
@@ -291,6 +299,7 @@ async fn every_control_beside_an_effect_parameter_edits_what_the_timeline_reads(
                 },
             )
             .expect("nudge the radius");
+            cx.notify();
         })
     });
     visual.run_until_parked();
@@ -482,11 +491,12 @@ fn narrow_the_inspector(
             })
             .collect();
         visual.update(|_, app| {
-            state.update(app, |state, _| {
+            state.update(app, |state, cx| {
                 assert!(state.dock_tree.set_weights(&split, &weights));
+                cx.notify();
             });
         });
-        refresh_panels(visual);
+        visual.run_until_parked();
         let right = visual.read(|app| {
             let state = state.read(app);
             let id = state.dock_tree.find(PANEL_INSPECTOR).expect("docked");

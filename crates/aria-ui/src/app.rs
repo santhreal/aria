@@ -296,6 +296,8 @@ pub use edits::{MarkerEditField, MarkerEditForm};
 pub(crate) use error_copy::describe_engine_error;
 pub use render_bar::compute_render_segments;
 pub use render_files::{RenderQuality, RenderSegment};
+#[cfg(test)]
+pub(crate) use transport::Mail;
 pub use transport::{project_store, spawn_preview, start_playback};
 pub(crate) use view_events::ContextPluginRow;
 
@@ -303,9 +305,16 @@ pub(crate) use view_events::ContextPluginRow;
 #[derive(Clone, Debug)]
 pub struct StoreChanged;
 
-/// Raised when a new preview frame is ready.
+/// Raised when a new preview frame is on screen, or a scope or probe reading
+/// of the one on screen arrives. Each window redraws the panel bodies that
+/// draw the frame or its readings.
 #[derive(Clone, Debug)]
 pub struct FrameReady;
+
+/// Raised when a playback vsync moves the playhead. Each window redraws the
+/// panel bodies that draw the playhead.
+#[derive(Clone, Debug)]
+pub struct PlayheadMoved;
 
 /// Raised when a media tile's scrub position or picture changes and nothing
 /// else on screen does. Each window redraws the panel bodies that draw tiles.
@@ -414,6 +423,7 @@ impl Snapshot {
 
 impl EventEmitter<StoreChanged> for AppState {}
 impl EventEmitter<FrameReady> for AppState {}
+impl EventEmitter<PlayheadMoved> for AppState {}
 impl EventEmitter<PoolTileChanged> for AppState {}
 impl EventEmitter<FilmstripChanged> for AppState {}
 
@@ -764,7 +774,7 @@ mod playback_report_tests;
 
 #[cfg(test)]
 #[path = "app/playback_present_tests.rs"]
-mod playback_present_tests;
+pub(crate) mod playback_present_tests;
 
 #[cfg(test)]
 #[path = "app/status_strip_tests.rs"]

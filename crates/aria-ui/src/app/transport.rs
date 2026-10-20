@@ -22,13 +22,24 @@ use crate::preview_worker::{Cadence, PreviewFrame};
 use crate::projection::project_to_ui;
 use crate::types::UiEditorStore;
 
-use super::{AppState, FrameReady};
+use super::{AppState, FrameReady, PlayheadMoved};
 use crate::transport::ShuttleSpeed;
 
 /// A gap between two vsyncs longer than this is a window that was not drawn,
 /// hidden or minimized, rather than a run of drops: the slots that came due in
 /// it are not counted.
 const PRESENT_GAP: Duration = Duration::from_millis(250);
+
+/// What a batch of the preview worker's mail changed on screen.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Mail {
+    /// Nothing.
+    Nothing,
+    /// A scope or probe reading of the frame on screen.
+    Reading,
+    /// A failure to report, or a finished render bar.
+    Window,
+}
 
 impl AppState {
     pub fn set_playhead(&mut self, ticks: i64) {
@@ -53,8 +64,14 @@ impl AppState {
         // The selected clip's driven values and its canvas quad are sampled at
         // the playhead. Nothing else polls between two moves, so the poll runs
         // here; a move with nothing else changed takes the playhead-only path,
-        // one resolve and no re-projection.
-        self.sync_from_engine();
+        // one resolve and no re-projection. Under playback the poll skips an
+        // engine the preview worker holds for the frame it renders ahead; the
+        // next move polls again, and the stop polls in full.
+        if self.playing {
+            self.sync_from_engine_if_free();
+        } else {
+            self.sync_from_engine();
+        }
     }
 
     pub fn scrub_playhead(&mut self, ticks: i64) {
@@ -385,10 +402,8 @@ impl AppState {
             while let Some(()) = wakes.next_from_a_thread(cx.background_executor()).await {
                 while wakes.try_next().is_some() {}
                 let updated = this.update(cx, |state, cx| {
-                    if state.take_preview_mail() {
-                        state.release_retired_images(None, cx);
-                        cx.notify();
-                    }
+                    let mail = state.take_preview_mail();
+                    state.land_mail(mail, cx);
                 });
                 if updated.is_err() {
                     return;
@@ -398,13 +413,16 @@ impl AppState {
         .detach();
     }
 
-    /// Stop rendering ahead and drop the frames rendered for this run.
+    /// Stop rendering ahead, drop the frames rendered for this run, and poll
+    /// the engine for what the run's moves skipped while the preview worker
+    /// held it.
     pub(crate) fn stop_presenting(&mut self) {
         if self.playback_cadence.take().is_some() {
             self.preview_worker.clear();
             self.measure_shown();
         }
         self.last_present = None;
+        self.sync_from_engine();
     }
 
     /// Frames dropped since the indicator was last reset.
@@ -421,19 +439,29 @@ impl AppState {
     /// due frame, count the slots that came due without one, and keep the next
     /// frames rendering. False once playback has stopped.
     pub(crate) fn present_playback(&mut self, cx: &mut gpui::Context<AppState>) -> bool {
-        let before = self.playhead.value;
+        let (before, started) = (self.playhead.value, self.playback_started);
         if !self.advance_playhead() {
             self.stop_presenting();
             cx.notify();
             return false;
         }
         // Most vsyncs at a display rate above the sequence's land on the tick
-        // the last one did, and change nothing worth a redraw.
-        let mut changed = self.playhead.value != before;
+        // the last one did, and change nothing worth a redraw. A move redraws
+        // what draws the playhead, and a shown frame what draws the frame. A
+        // slot comes due only on a move, so the drops it counts and the
+        // playback resolution they step are redrawn with the move: the status
+        // strip, the Viewer and the render cost readout draw them, and the
+        // shell and those bodies redraw on every move.
+        //
+        // A loop wrap restarts the run's clock and republishes the audio
+        // snapshot from the wrap. The shell starts the new stream on its next
+        // pump, and it pumps on a notify, so a wrap redraws the window.
+        if self.playback_started != started {
+            cx.notify();
+        } else if self.playhead.value != before {
+            cx.emit(PlayheadMoved);
+        }
         let Some(cadence) = self.playback_cadence else {
-            if changed {
-                cx.notify();
-            }
             return true;
         };
         let now = cadence.slot_at(self.playhead.value);
@@ -456,9 +484,8 @@ impl AppState {
             if auto {
                 self.auto_resolution.dropped(presented.dropped.total(), at);
             }
-            changed = true;
-        } else if auto && presented.frame.is_some() && self.auto_resolution.presented(at) {
-            changed = true;
+        } else if auto && presented.frame.is_some() {
+            self.auto_resolution.presented(at);
         }
         if let Some(frame) = presented.frame {
             self.playback.frame(frame.took);
@@ -466,13 +493,9 @@ impl AppState {
                 self.playback.present(started.elapsed());
             }
             self.show_frame(frame, cx);
-            changed = true;
         }
         self.preview_worker
             .render_ahead(cadence, now, self.playback_fit());
-        if changed {
-            cx.notify();
-        }
         true
     }
 
@@ -538,9 +561,9 @@ impl AppState {
     }
 
     /// Apply what the preview worker left in its mailbox: a scope reading for
-    /// the frame on screen, the colour under the pointer, and the reason a
-    /// render-ahead frame failed. True when anything changed.
-    pub(crate) fn take_preview_mail(&mut self) -> bool {
+    /// the frame on screen, the colour under the pointer, the reason a
+    /// render-ahead frame failed, and a finished render bar.
+    pub(crate) fn take_preview_mail(&mut self) -> Mail {
         let scopes = self.adopt_scopes(self.preview_worker.take_measured());
         let probed = self.adopt_probe(self.preview_worker.take_probed());
         let failed = match self.preview_worker.take_failure() {
@@ -551,7 +574,24 @@ impl AppState {
             None => false,
         };
         let render_bar = self.poll_render_bar();
-        scopes || probed || failed || render_bar
+        if failed || render_bar {
+            Mail::Window
+        } else if scopes || probed {
+            Mail::Reading
+        } else {
+            Mail::Nothing
+        }
+    }
+
+    /// Redraw what `mail` changed: a reading where the frame on screen is
+    /// drawn, through [`FrameReady`], and the rest across the window.
+    pub(crate) fn land_mail(&mut self, mail: Mail, cx: &mut gpui::Context<AppState>) {
+        match mail {
+            Mail::Nothing => return,
+            Mail::Reading => cx.emit(FrameReady),
+            Mail::Window => cx.notify(),
+        }
+        self.release_retired_images(None, cx);
     }
 
     /// What playback is managing against the rate it is trying to hold.
@@ -809,10 +849,13 @@ fn commit_preview(
 ) {
     match rendered {
         Ok(frame) => {
+            // The picture, its scopes and its cost readout redraw through the
+            // `FrameReady` that `show_frame` raises, and so does the shell's
+            // own drawing: the error line this frame clears and the boot
+            // cover the session's first picture ends.
+            state.last_error = None;
             state.show_frame(frame, cx);
             state.release_retired_images(None, cx);
-            state.last_error = None;
-            cx.notify();
         }
         Err(err) if err.is_cancelled() => {}
         Err(err) => {

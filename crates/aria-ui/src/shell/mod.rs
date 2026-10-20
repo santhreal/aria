@@ -83,6 +83,11 @@ pub struct Shell {
     title: Option<WindowTitle>,
     /// The cached body view of each docked panel drawn in this window.
     bodies: std::collections::HashMap<crate::dock::PanelId, Entity<panel_view::PanelBody>>,
+    /// The cached view of each chrome part drawn in this window's last frame.
+    parts: Vec<panel_view::PartSlot>,
+    /// Whether this draw mounts the chrome parts as cached views. False while
+    /// the editor arrives, when every frame draws the parts at a new opacity.
+    chrome_cached: bool,
     /// An empty view whose notification redraws the chrome alone.
     beacon: Entity<panel_view::Beacon>,
     /// The timeline projection count the panel bodies were last redrawn for.
@@ -96,14 +101,7 @@ impl Shell {
             cx.notify();
         })
         .detach();
-        cx.subscribe(&state, |this, _, _: &crate::app::PoolTileChanged, cx| {
-            this.redraw(Moved::PoolHover, cx)
-        })
-        .detach();
-        cx.subscribe(&state, |this, _, _: &crate::app::FilmstripChanged, cx| {
-            this.redraw(Moved::Filmstrip, cx)
-        })
-        .detach();
+        Self::redraw_on_narrow_changes(&state, cx);
         spawn_preview(state.clone(), cx);
         // One subscriber each for the session's lifetime: job rows update on
         // transitions, edits from plugins and the assistant re-project when
@@ -149,6 +147,8 @@ impl Shell {
             window_move: false,
             title: None,
             bodies: Default::default(),
+            parts: Vec::new(),
+            chrome_cached: true,
             beacon: cx.new(|_| panel_view::Beacon),
             drawn_projections: 0,
         }
@@ -163,14 +163,7 @@ impl Shell {
     ) -> Self {
         let audio = crate::audio::AudioSystem::new(state.read(cx).audio.clone());
         cx.observe(&state, |_, _, cx| cx.notify()).detach();
-        cx.subscribe(&state, |this, _, _: &crate::app::PoolTileChanged, cx| {
-            this.redraw(Moved::PoolHover, cx)
-        })
-        .detach();
-        cx.subscribe(&state, |this, _, _: &crate::app::FilmstripChanged, cx| {
-            this.redraw(Moved::Filmstrip, cx)
-        })
-        .detach();
+        Self::redraw_on_narrow_changes(&state, cx);
         cx.observe_self(|this, cx| this.redraw_bodies(cx)).detach();
         Self {
             state,
@@ -193,9 +186,33 @@ impl Shell {
             window_move: false,
             title: None,
             bodies: Default::default(),
+            parts: Vec::new(),
+            chrome_cached: true,
             beacon: cx.new(|_| panel_view::Beacon),
             drawn_projections: 0,
         }
+    }
+
+    /// Redraws the panel bodies that draw a tile, a filmstrip cell, the
+    /// playhead or a Viewer frame when `state` reports one changed and
+    /// nothing else did.
+    fn redraw_on_narrow_changes(state: &Entity<AppState>, cx: &mut Context<Self>) {
+        cx.subscribe(state, |this, _, _: &crate::app::PoolTileChanged, cx| {
+            this.redraw(Moved::PoolHover, cx)
+        })
+        .detach();
+        cx.subscribe(state, |this, _, _: &crate::app::FilmstripChanged, cx| {
+            this.redraw(Moved::Filmstrip, cx)
+        })
+        .detach();
+        cx.subscribe(state, |this, _, _: &crate::app::FrameReady, cx| {
+            this.redraw(Moved::Frame, cx)
+        })
+        .detach();
+        cx.subscribe(state, |this, _, _: &crate::app::PlayheadMoved, cx| {
+            this.redraw(Moved::Playhead, cx)
+        })
+        .detach();
     }
 
     /// Give the platform window `title` when it differs from the one it has,
@@ -460,6 +477,7 @@ impl Render for Shell {
         // frame opened here, so it comes before any child is built.
         motion::begin_frame(cx);
         motion::hold_for_playback(self.state.read(cx).playing);
+        self.begin_parts();
         // An edit or a playhead move made while paused leaves the old frame on
         // screen. The first draw after it asks for the frame again, whichever
         // control, key or job made it; a control that asked cleared the mark.
@@ -523,6 +541,8 @@ impl Render for Shell {
         // Every frame, whichever route is drawn: the value has to be asked for
         // to stay alive in the store, and the one being left is asked for too.
         let arrived = route::fade(route, reduced);
+        // Every stage of the opening lands with the route value.
+        self.chrome_cached = arrived >= 1.0;
         let body = if route == UiRoute::Home {
             div()
                 .flex()
@@ -559,11 +579,7 @@ impl Render for Shell {
                 .flex_col()
                 .flex_1()
                 .min_h_0()
-                .child(opening(
-                    0,
-                    arrived,
-                    crate::chrome::editor_bar(&theme, &self.state, window, cx),
-                ))
+                .child(self.editor_bar(&theme, arrived, window, cx))
                 .child(opening(
                     1,
                     arrived,

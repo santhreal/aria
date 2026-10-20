@@ -101,8 +101,8 @@ bytemuck = { version = "1", features = ["derive"] }
 pollster = "0.4"
 # GPUI from santhreal/santh-gpui, the framework shared with iris and Veyyon.
 # License: Apache-2.0; text in LICENSES/zed-Apache-2.0.txt.
-gpui = { git = "https://github.com/santhreal/santh-gpui", rev = "81bb19ec60c71ee904bc649655c9480ad7c28715" }
-gpui_platform = { git = "https://github.com/santhreal/santh-gpui", rev = "81bb19ec60c71ee904bc649655c9480ad7c28715", features = [
+gpui = { git = "https://github.com/santhreal/santh-gpui", rev = "35c4cde2ee309c91fa7ff05326e237ed92b2a2b2" }
+gpui_platform = { git = "https://github.com/santhreal/santh-gpui", rev = "35c4cde2ee309c91fa7ff05326e237ed92b2a2b2", features = [
     "wayland",
     "x11",
     "font-kit",

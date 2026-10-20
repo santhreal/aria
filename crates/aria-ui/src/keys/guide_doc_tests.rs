@@ -316,7 +316,7 @@ fn every_guide_names_real_controls_menus_and_keys() {
     let mut all_chapters = vec![getting_started_path];
     all_chapters.extend(chapter_files);
 
-    let mut link_check_files = vec![readme_path.clone()];
+    let mut link_check_files = vec![readme_path];
     link_check_files.extend(all_chapters.iter().cloned());
     let (checked_guide_links, broken_guide_links) =
         check_markdown_links_in_files(&link_check_files);

@@ -51,6 +51,39 @@ use window_frame::Frame;
 pub(crate) use menu_items::labels_for;
 
 const MENU_H: f32 = 32.0;
+/// The editor bar's height: the menu titles, the tool strip, and the 1 px rule
+/// under them.
+pub(crate) const EDITOR_BAR_H: f32 = MENU_H + tool_strip::TOOL_H + 1.0;
+
+/// The menu drop the editor bar draws in one frame, reconciled with the state.
+#[derive(Debug, Default)]
+pub struct BarDrop {
+    /// The menu open in the state, unless a button holds its drop.
+    open: Option<AppMenu>,
+    /// The menu drawn under its title and the phase it is drawn in.
+    drawn: Option<(AppMenu, menu_view::Phase)>,
+}
+
+impl BarDrop {
+    /// The drop of the open frame. Call once per frame the editor bar is
+    /// drawn, before it is built: the drop that is fading out is no longer in
+    /// the state, so this call holds it for the length of the exit.
+    pub fn of(state: &Entity<AppState>, cx: &mut Context<Shell>) -> Self {
+        // A drop a button opened is drawn by the button, so the titles see no
+        // open drop and the bar takes no dismissal for it.
+        let open = {
+            let state = state.read(cx);
+            state.open_menu.filter(|_| state.menu_owner.is_none())
+        };
+        let drawn = menu_view::drop_phase(open, cx.motion_policy());
+        Self { open, drawn }
+    }
+
+    /// Whether a drop is drawn under a title, open or on its way out.
+    pub fn is_drawn(&self) -> bool {
+        self.drawn.is_some()
+    }
+}
 
 pub fn home_bar(theme: &Theme, window: &mut Window, cx: &mut Context<Shell>) -> impl IntoElement {
     let frame = Frame::of(window);
@@ -79,42 +112,38 @@ pub fn home_bar(theme: &Theme, window: &mut Window, cx: &mut Context<Shell>) -> 
 }
 
 /// A concrete element rather than `impl IntoElement`: the shell stages this in
-/// on open, and an animation needs an element it can restyle.
+/// on open, and an animation needs an element it can restyle. `drop` is the
+/// frame's [`BarDrop`].
 pub fn editor_bar(
     theme: &Theme,
     state: &Entity<AppState>,
+    drop: BarDrop,
     window: &mut Window,
     cx: &mut Context<Shell>,
 ) -> gpui::Stateful<gpui::Div> {
     div()
         .id("app-bar")
         .w_full()
+        .h(px(EDITOR_BAR_H))
         .relative()
         .flex()
         .flex_col()
         .bg(theme.glass())
         .border_b_1()
         .border_color(theme.border)
-        .child(menu_bar(theme, state, window, cx))
+        .child(menu_bar(theme, state, drop, window, cx))
         .child(tool_strip::tool_bar(theme, state, cx))
 }
 
 fn menu_bar(
     theme: &Theme,
     state: &Entity<AppState>,
+    drop: BarDrop,
     window: &mut Window,
     cx: &mut Context<Shell>,
 ) -> impl IntoElement {
-    // A drop a button opened is drawn by the button, so the titles see no open
-    // drop and the bar takes no dismissal for it.
-    let open = {
-        let state = state.read(cx);
-        state.open_menu.filter(|_| state.menu_owner.is_none())
-    };
+    let BarDrop { open, drawn } = drop;
     let frame = Frame::of(window);
-    // Once per frame: the drop that is fading out is no longer in the state, so
-    // the bar is what remembers it for the length of the exit.
-    let drop = menu_view::drop_phase(open, cx.motion_policy());
     div()
         .id("menu-bar")
         .debug_selector(|| "menu-bar".into())
@@ -159,7 +188,7 @@ fn menu_bar(
                         .into_iter()
                         .map(|menu| {
                             let phase =
-                                drop.and_then(|(owner, phase)| (owner == menu).then_some(phase));
+                                drawn.and_then(|(owner, phase)| (owner == menu).then_some(phase));
                             menu_view::menu_drop(menu, phase, theme, state, cx).into_any_element()
                         })
                         .collect::<Vec<_>>(),

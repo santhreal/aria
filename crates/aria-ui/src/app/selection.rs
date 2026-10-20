@@ -715,7 +715,21 @@ impl AppState {
     /// uses loads first, with the engine lock released, and the store is then
     /// built at the same revision so it reads what the package registered.
     pub(crate) fn sync_from_engine(&mut self) {
-        let mut poll = self.poll_engine(true);
+        self.sync(true);
+    }
+
+    /// Poll as [`Self::sync_from_engine`] does, unless another thread holds
+    /// the engine. The preview worker holds it for the length of each frame it
+    /// renders, so a playback vsync that waited for it would wait out a
+    /// render.
+    pub(crate) fn sync_from_engine_if_free(&mut self) {
+        self.sync(false);
+    }
+
+    /// The poll of [`Self::sync_from_engine`]; `wait` waits for an engine
+    /// another thread holds, and without it a held engine is left unpolled.
+    fn sync(&mut self, wait: bool) {
+        let mut poll = self.poll_engine(true, wait);
         if let Some(Poll::Load(wanted)) = &poll {
             for event in wanted {
                 self.load_plugins_for(event);
@@ -723,10 +737,10 @@ impl AppState {
             // A package that did not load is asked for again by the next
             // poll, not by this one.
             self.projected = None;
-            poll = self.poll_engine(false);
+            poll = self.poll_engine(false, wait);
         }
         match poll {
-            None | Some(Poll::Load(_)) => {}
+            None | Some(Poll::Held | Poll::Load(_)) => {}
             Some(Poll::Moved(at, selected)) => {
                 self.playhead = at;
                 self.store_mut().playhead_ticks = at.value;
@@ -754,9 +768,17 @@ impl AppState {
 
     /// What [`Self::sync_from_engine`] has to do, decided under the engine
     /// lock. `None` when the store already covers the engine. With `load`,
-    /// the events of waiting packages the project uses come first.
-    fn poll_engine(&mut self, load: bool) -> Option<Poll> {
-        let mut engine = self.engine.lock();
+    /// the events of waiting packages the project uses come first. Without
+    /// `wait`, an engine another thread holds is [`Poll::Held`].
+    fn poll_engine(&mut self, load: bool, wait: bool) -> Option<Poll> {
+        let mut engine = if wait {
+            self.engine.lock()
+        } else {
+            match self.engine.try_lock() {
+                Some(engine) => engine,
+                None => return Some(Poll::Held),
+            }
+        };
         if load {
             let wanted = self
                 .ctx
@@ -972,6 +994,8 @@ impl CatalogRevisions {
 
 /// What a poll found, decided under the lock and applied after it is dropped.
 enum Poll {
+    /// Another thread held the engine, and nothing was polled.
+    Held,
     /// Waiting packages the project uses, to load before the store is built.
     Load(Vec<aria_plugin::Activation>),
     /// Only the playhead moved: the tick, and the detail sampled at it.
