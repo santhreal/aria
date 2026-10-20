@@ -172,13 +172,13 @@ impl PassRegistry {
         // One pipeline per variant kind, not per row: dip switches black/white
         // and wipe switches its four edges on the mode slot, so the sources come
         // from a representative variant of each kind.
-        let crossfade = build_transition_pipeline(
+        let crossfade = build_effect_pipeline(
             device,
             "aria.crossfade",
             &transition_layout,
             TransitionPass::Crossfade.shader(),
         );
-        let wipe = build_transition_pipeline(
+        let wipe = build_effect_pipeline(
             device,
             "aria.wipe",
             &transition_layout,
@@ -187,25 +187,25 @@ impl PassRegistry {
             }
             .shader(),
         );
-        let dip = build_transition_pipeline(
+        let dip = build_effect_pipeline(
             device,
             "aria.dip",
             &transition_layout,
             TransitionPass::Dip { white: false }.shader(),
         );
-        let slide = build_transition_pipeline(
+        let slide = build_effect_pipeline(
             device,
             "aria.slide",
             &transition_layout,
             TransitionPass::Slide.shader(),
         );
-        let matte = build_transition_pipeline(
+        let matte = build_effect_pipeline(
             device,
             "aria.matte",
             &transition_layout,
             include_str!("../../shaders/matte.wgsl"),
         );
-        let mask_stack = build_transition_pipeline(
+        let mask_stack = build_effect_pipeline(
             device,
             "aria.mask_stack",
             &transition_layout,
@@ -391,11 +391,25 @@ pub(super) const PREMULT_OVER: wgpu::BlendState = wgpu::BlendState {
     },
 };
 
+/// A full-screen pipeline of `source` (`vs` and `fs` entry points) that
+/// draws over its target with [`PREMULT_OVER`].
 pub(super) fn build_effect_pipeline(
     device: &wgpu::Device,
     label: &str,
     layout: &wgpu::BindGroupLayout,
     source: &str,
+) -> wgpu::RenderPipeline {
+    build_blended_pipeline(device, label, layout, source, Some(PREMULT_OVER))
+}
+
+/// A full-screen pipeline of `source` (`vs` and `fs` entry points) that
+/// writes its target with `blend`, or replaces it when `blend` is `None`.
+pub(super) fn build_blended_pipeline(
+    device: &wgpu::Device,
+    label: &str,
+    layout: &wgpu::BindGroupLayout,
+    source: &str,
+    blend: Option<wgpu::BlendState>,
 ) -> wgpu::RenderPipeline {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some(label),
@@ -423,7 +437,7 @@ pub(super) fn build_effect_pipeline(
             entry_point: Some("fs"),
             targets: &[Some(wgpu::ColorTargetState {
                 format: RT_FORMAT,
-                blend: Some(PREMULT_OVER),
+                blend,
                 write_mask: wgpu::ColorWrites::ALL,
             })],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
@@ -431,13 +445,4 @@ pub(super) fn build_effect_pipeline(
         multiview_mask: None,
         cache: None,
     })
-}
-
-fn build_transition_pipeline(
-    device: &wgpu::Device,
-    label: &str,
-    layout: &wgpu::BindGroupLayout,
-    source: &str,
-) -> wgpu::RenderPipeline {
-    build_effect_pipeline(device, label, layout, source)
 }

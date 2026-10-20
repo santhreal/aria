@@ -10,6 +10,7 @@
 mod catalog;
 mod instance;
 mod params;
+mod stored;
 
 pub(crate) use catalog::check_effect_params;
 pub use catalog::{
@@ -20,14 +21,15 @@ pub use instance::{EFFECT_NAME_MAX_CHARS, EffectInstance};
 pub use params::{
     EFFECT_CURVE_LUT_SAMPLES, EFFECT_GRADIENT_LUT_SAMPLES, EffectChoiceOption, EffectCurvePoint,
     EffectGradientStop, EffectGroupSpec, EffectParamDisplay, EffectParamKind, EffectParamSpec,
-    EffectVisibilityCondition, default_flattened_param_floats, evaluate_effect_curve_lut,
-    evaluate_effect_gradient_lut, sample_effect_curve, sample_effect_gradient,
+    EffectVisibilityCondition, evaluate_effect_curve_lut, evaluate_effect_gradient_lut,
+    sample_effect_curve, sample_effect_gradient,
 };
 pub(crate) use params::{
     check_params, choice_check, curve_check, gradient_check, holds_scalar, holds_text, holds_vec2,
     int_range_check, linear_color_check, range_check, scalar_or_int_range_check, stored_slot,
     vec2_range_check, vec3_range_check,
 };
+pub use stored::{StoredParams, default_flattened_param_floats};
 
 #[cfg(test)]
 use serde::Serialize;

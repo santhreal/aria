@@ -87,3 +87,47 @@ fn moving_bar_supersamples_to_smear() {
         "blurred and static frames must differ"
     );
 }
+
+/// The motion-blur average is a sum of samples at weight `1/N`, so N
+/// identical samples must reproduce the unblurred layer. An accumulation that
+/// draws each sample over the running sum instead of adding it leaves an
+/// opaque layer at `1 - (1 - 1/N)^N` coverage: about 167 of 255 for eight
+/// samples over black. The sweep test above compares samples with each other
+/// and cannot see that loss.
+#[test]
+fn identical_blur_samples_average_to_the_unblurred_layer() {
+    let gpu = gpu_or_skip!();
+    let mut comp = Compositor::new(&gpu);
+    let config = CompositorConfig::new(64, 16).with_background([0, 0, 0, 255]);
+    let placement = LayerPlacement {
+        center: [26.0, 8.0],
+        size: [8.0, 8.0],
+        rotation: 0.0,
+        opacity: 1.0,
+    };
+    let passes = [placement; 8];
+    let blurred = CompositeLayer::solid([255, 255, 255, 255], placement).with_blur_passes(&passes);
+    let averaged = comp.render(&gpu, &config, &[blurred]).expect("render blur");
+    let sharp = comp
+        .render(
+            &gpu,
+            &config,
+            &[CompositeLayer::solid([255, 255, 255, 255], placement)],
+        )
+        .expect("render static");
+
+    assert_eq!(
+        sharp.pixel(26, 8),
+        [255, 255, 255, 255],
+        "static bar centre"
+    );
+    for y in 0..16 {
+        for x in 0..64 {
+            let (got, want) = (averaged.pixel(x, y), sharp.pixel(x, y));
+            assert!(
+                got.iter().zip(want).all(|(g, w)| g.abs_diff(w) <= 2),
+                "pixel ({x},{y}): averaged {got:?}, unblurred {want:?}"
+            );
+        }
+    }
+}

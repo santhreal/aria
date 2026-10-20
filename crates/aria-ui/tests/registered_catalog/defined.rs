@@ -8,6 +8,7 @@ use aria_plugin::{ClipTypeDefinition, ClipTypeRender};
 use aria_ui::app::effects_browser::EntryKind;
 use aria_ui::app::property_rows::{PropertyGroup, TimelineOutlineRow, TimelinePropertyRow};
 use aria_ui::surfaces::effects_rack::{self, Gesture};
+use aria_ui::types::UiSlots as _;
 
 use super::{
     AppState, ClipTypeSpec, EffectParamKind, EffectParamSpec, MarkerColor, Offered, PluginContext,

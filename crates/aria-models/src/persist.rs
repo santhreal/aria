@@ -72,24 +72,7 @@ impl Project {
     pub fn load_from_file(path: &Path) -> Result<Project, ModelError> {
         let text = std::fs::read_to_string(path)
             .map_err(|e| ModelError::InvalidProjectFile(e.to_string()))?;
-        let mut doc: serde_json::Value = serde_json::from_str(&text)
-            .map_err(|e| ModelError::InvalidProjectFile(e.to_string()))?;
-
-        unwrap_legacy_envelope(&mut doc);
-        let mut schema = read_schema(&doc)?;
-        normalize_legacy_schema(&mut schema);
-        validate_schema(&schema)?;
-        migrate_document(&mut doc, schema.version);
-
-        let mut project: Project = serde_json::from_value(doc)
-            .map_err(|e| ModelError::InvalidProjectFile(e.to_string()))?;
-        // Keep the file's original (normalized) schema as provenance; the
-        // writer re-stamps the current version on save.
-        project.schema = schema;
-        // Files written before the main-track flag (or edited externally)
-        // re-derive the lane-zone / main-track invariants on entry.
-        project.timeline_mut().normalize_lanes();
-        Ok(project)
+        Self::load_from_string(&text)
     }
 
     /// Serialize this project to a JSON string stamped with the current schema version.
@@ -113,7 +96,11 @@ impl Project {
 
         let mut project: Project = serde_json::from_value(doc)
             .map_err(|e| ModelError::InvalidProjectFile(e.to_string()))?;
+        // Keep the file's original (normalized) schema as provenance; the
+        // writer re-stamps the current version on save.
         project.schema = schema;
+        // Files written before the main-track flag (or edited externally)
+        // re-derive the lane-zone / main-track invariants on entry.
         project.timeline_mut().normalize_lanes();
         Ok(project)
     }
@@ -237,20 +224,27 @@ fn write_streamed_temp(
     permissions: Option<Permissions>,
     fs: &impl PersistenceFs,
 ) -> io::Result<PathBuf> {
+    write_temp(destination, permissions, fs, |file| {
+        let mut writer = io::BufWriter::with_capacity(STREAM_BUF_CAPACITY, FsWriter { file, fs });
+        pretty::to_writer(&mut writer, project).map_err(io::Error::other)?;
+        writer.write_all(b"\n")?;
+        writer.into_inner().map_err(|err| err.into_error())?;
+        Ok(())
+    })
+}
+
+/// Create a unique temporary beside `destination`, fill it with `write`, then
+/// flush it, give it `permissions`, and sync it. The temporary is removed when
+/// any step fails.
+fn write_temp(
+    destination: &Path,
+    permissions: Option<Permissions>,
+    fs: &impl PersistenceFs,
+    write: impl FnOnce(&mut File) -> io::Result<()>,
+) -> io::Result<PathBuf> {
     let (temporary, mut file) = create_unique_temp(destination, fs)?;
     let result = (|| {
-        {
-            let mut writer = io::BufWriter::with_capacity(
-                STREAM_BUF_CAPACITY,
-                FsWriter {
-                    file: &mut file,
-                    fs,
-                },
-            );
-            pretty::to_writer(&mut writer, project).map_err(io::Error::other)?;
-            writer.write_all(b"\n")?;
-            writer.into_inner().map_err(|err| err.into_error())?;
-        }
+        write(&mut file)?;
         fs.flush(&mut file)
             .map_err(|error| contextual_error("could not flush the temporary project", error))?;
         if let Some(permissions) = permissions {
@@ -309,26 +303,10 @@ fn write_synced_temp(
     permissions: Option<Permissions>,
     fs: &impl PersistenceFs,
 ) -> io::Result<PathBuf> {
-    let (temporary, mut file) = create_unique_temp(destination, fs)?;
-    let result = (|| {
-        fs.write_all(&mut file, contents)
-            .map_err(|error| contextual_error("could not write the temporary project", error))?;
-        fs.flush(&mut file)
-            .map_err(|error| contextual_error("could not flush the temporary project", error))?;
-        if let Some(permissions) = permissions {
-            fs.set_permissions(&file, permissions).map_err(|error| {
-                contextual_error("could not preserve project file permissions", error)
-            })?;
-        }
-        fs.sync_all(&file)
-            .map_err(|error| contextual_error("could not sync the temporary project", error))
-    })();
-    drop(file);
-
-    match result {
-        Ok(()) => Ok(temporary),
-        Err(error) => Err(cleanup_temp_after_error(fs, &temporary, error)),
-    }
+    write_temp(destination, permissions, fs, |file| {
+        fs.write_all(file, contents)
+            .map_err(|error| contextual_error("could not write the temporary project", error))
+    })
 }
 
 fn create_unique_temp(destination: &Path, fs: &impl PersistenceFs) -> io::Result<(PathBuf, File)> {

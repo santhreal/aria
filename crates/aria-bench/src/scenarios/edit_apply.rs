@@ -1,22 +1,15 @@
 //! `edit-apply` scenario: single edit and undo latency on `project-10k` in the
 //! engine and until visible on the next display frame.
 
-use std::sync::Arc;
 use std::time::Instant;
 
 use aria_commands::{Command, EditCommand};
 use aria_engine::{Engine, EngineConfig};
 use aria_models::{ClipParam, Easing, MarkerColor, ParamValue, Project, RationalTime, TimeRange};
-use aria_plugin::PluginContext;
-use aria_ui::app::AppState;
-use aria_ui::shell::Shell;
-use gpui::AppContext as _;
 
 use crate::fixtures::{FixtureId, ensure_fixture};
-use crate::scenarios::BenchContext;
-use crate::{
-    Comparison, SampleSeries, ScenarioId, ScenarioReport, TargetEvaluation, mount_builtin_plugins,
-};
+use crate::scenarios::{BenchContext, open_editor, open_marked_project, timed_frame};
+use crate::{Comparison, SampleSeries, ScenarioId, ScenarioReport, TargetEvaluation};
 
 pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     let fixture = ensure_fixture(&ctx.fixtures_dir, FixtureId::Project10k)?;
@@ -104,39 +97,13 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
         }
     }
 
-    // Measure end-to-end edit + UI projection + GPUI Shell window.draw() latency on project-10k.
+    // Measure end-to-end edit + UI projection + the GPUI Shell frame it causes on project-10k.
     let scratch = ctx.ensure_scratch_subdir("edit-apply")?;
     let data_dir = scratch.join("data");
     std::fs::create_dir_all(&data_dir).map_err(|err| format!("mkdir failed: {err}"))?;
 
-    let mut app = gpui::TestApp::with_text_system_and_assets(
-        Arc::new(gpui::NoopTextSystem),
-        Arc::new(aria_ui::icons::Assets),
-    );
-    let state = app.update(|cx| {
-        aria_ui::theme::Theme::install(
-            aria_ui::theme::Appearance::Dark,
-            Default::default(),
-            None,
-            cx,
-        );
-        let plugin_ctx = PluginContext::new();
-        mount_builtin_plugins(&plugin_ctx, &data_dir).expect("built-in plugins mount");
-        cx.new(|_| AppState::new(plugin_ctx, data_dir).expect("editor state"))
-    });
-    let owned = gpui::Entity::clone(&state);
-    let mut window = app.open_window(|_, cx| Shell::new(owned, cx));
-
-    let fixture_path = fixture.path;
-    app.update(|cx| {
-        state.update(cx, |s, cx| {
-            s.open_project(fixture_path).expect("load project-10k");
-            s.mark_in = Some(0);
-            s.mark_out = Some(24);
-            cx.notify();
-        });
-    });
-    window.draw();
+    let (mut app, state, mut window) = open_editor(&data_dir);
+    open_marked_project(&mut app, &state, fixture.path);
 
     let mut visible_frame_samples = Vec::with_capacity(14);
     for iter in 0..7usize {
@@ -148,27 +115,18 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
                 rate,
             ),
         });
-        let t0 = Instant::now();
-        app.update(|cx| {
+        visible_frame_samples.push(timed_frame(&app, &mut window, |_, _, cx| {
             state.update(cx, |s, cx| {
                 s.apply_command(cmd).expect("apply_command on project-10k");
                 cx.notify();
             });
-        });
-        window.draw();
-        visible_frame_samples.push(t0.elapsed().as_secs_f64() * 1000.0);
-        settle(&mut app, &mut window);
-
-        let t_undo = Instant::now();
-        app.update(|cx| {
+        }));
+        visible_frame_samples.push(timed_frame(&app, &mut window, |_, _, cx| {
             state.update(cx, |s, cx| {
                 assert!(s.undo(), "undo on project-10k");
                 cx.notify();
             });
-        });
-        window.draw();
-        visible_frame_samples.push(t_undo.elapsed().as_secs_f64() * 1000.0);
-        settle(&mut app, &mut window);
+        }));
     }
 
     drop(state);
@@ -206,7 +164,7 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     ];
 
     let notes = vec![format!(
-        "project-10k engine edit p50={:.4} ms (p95={:.4} ms), undo/redo p50={:.4} ms (p95={:.4} ms); full AppState::apply_command + UI re-project + GPUI Shell window.draw() p50={:.2} ms (p95={:.2} ms)",
+        "project-10k engine edit p50={:.4} ms (p95={:.4} ms), undo/redo p50={:.4} ms (p95={:.4} ms); full AppState::apply_command + UI re-project + the GPUI Shell frame it causes p50={:.2} ms (p95={:.2} ms)",
         edit_only_series.p50,
         edit_only_series.p95,
         undo_only_series.p50,
@@ -228,17 +186,4 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
         ],
         notes,
     ))
-}
-
-/// Run the work an edit left behind outside the timed window: the still frame
-/// the drawn change asked the preview worker for, and the draw that shows it.
-///
-/// The test app runs background tasks on its one thread, so without this the
-/// next sample's `update` waits for the previous change's preview render. In the
-/// editor that render runs on a pool thread and the next edit does not wait for
-/// it. Each sample therefore starts from a settled editor and measures one edit.
-fn settle(app: &mut gpui::TestApp, window: &mut gpui::TestAppWindow<Shell>) {
-    app.run_until_parked();
-    window.draw();
-    app.run_until_parked();
 }

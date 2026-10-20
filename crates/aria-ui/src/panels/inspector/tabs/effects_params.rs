@@ -25,7 +25,7 @@ use crate::panels::inspector::blocks::widgets::{
 };
 use crate::surfaces::effects_rack::{self, Gesture, SlotEdit};
 use crate::theme::Theme;
-use crate::types::UiEffectInstance;
+use crate::types::{UiEffectInstance, UiSlots as _};
 
 /// Build all visible parameter rows (and collapsible group sections) for one effect instance.
 #[allow(clippy::too_many_arguments)]
@@ -339,7 +339,7 @@ fn push_effect_slot_rows(
             );
         }
         EffectParamKind::Bool => {
-            let value = effect.bool_val(slot).unwrap_or(pspec.default_bool);
+            let value = effect.boolean(slot).unwrap_or(pspec.default_bool);
             let btn_label = if keys.mixed(index, slot, None) {
                 MIXED
             } else if value {

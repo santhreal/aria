@@ -3,7 +3,7 @@
 //! release, like the inspector's vec2 field.
 
 use super::*;
-use crate::types::UiTypeHandle;
+use crate::types::{UiSlots as _, UiTypeHandle};
 
 impl AppState {
     /// Where each of the selected clip's clip type handles draws, as fractions

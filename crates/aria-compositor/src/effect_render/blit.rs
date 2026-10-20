@@ -1,5 +1,28 @@
-use super::pipelines::{PREMULT_OVER, PassRegistry, build_effect_pipeline};
-use super::{Bound, PassCache, RT_FORMAT};
+use super::pipelines::{PassRegistry, build_blended_pipeline, build_effect_pipeline};
+use super::{Bound, PassCache};
+
+/// A full-screen quad that samples `tex` at its UV: the source of the plain,
+/// additive, and replacing blits.
+const BLIT_WGSL: &str = r#"
+struct VsOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32> }
+@vertex fn vs(@builtin(vertex_index) vi: u32) -> VsOut {
+    var positions = array<vec2<f32>, 6>(
+        vec2(-1.0,-1.0), vec2(1.0,-1.0), vec2(-1.0,1.0),
+        vec2(-1.0,1.0), vec2(1.0,-1.0), vec2(1.0,1.0));
+    var uvs = array<vec2<f32>, 6>(
+        vec2(0.0,1.0), vec2(1.0,1.0), vec2(0.0,0.0),
+        vec2(0.0,0.0), vec2(1.0,1.0), vec2(1.0,0.0));
+    var o: VsOut;
+    o.pos = vec4(positions[vi], 0.0, 1.0);
+    o.uv = uvs[vi];
+    return o;
+}
+@group(0) @binding(0) var tex: texture_2d<f32>;
+@group(0) @binding(1) var samp: sampler;
+@fragment fn fs(in: VsOut) -> @location(0) vec4<f32> {
+    return textureSample(tex, samp, in.uv);
+}
+"#;
 
 /// Alpha-over a full-canvas offscreen texture onto `canvas_view`.
 pub(crate) fn blit_premultiplied_to_canvas(
@@ -77,27 +100,7 @@ pub(super) fn build_blit_pipeline(
     device: &wgpu::Device,
     layout: &wgpu::BindGroupLayout,
 ) -> wgpu::RenderPipeline {
-    let source = r#"
-struct VsOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32> }
-@vertex fn vs(@builtin(vertex_index) vi: u32) -> VsOut {
-    var positions = array<vec2<f32>, 6>(
-        vec2(-1.0,-1.0), vec2(1.0,-1.0), vec2(-1.0,1.0),
-        vec2(-1.0,1.0), vec2(1.0,-1.0), vec2(1.0,1.0));
-    var uvs = array<vec2<f32>, 6>(
-        vec2(0.0,1.0), vec2(1.0,1.0), vec2(0.0,0.0),
-        vec2(0.0,0.0), vec2(1.0,1.0), vec2(1.0,0.0));
-    var o: VsOut;
-    o.pos = vec4(positions[vi], 0.0, 1.0);
-    o.uv = uvs[vi];
-    return o;
-}
-@group(0) @binding(0) var tex: texture_2d<f32>;
-@group(0) @binding(1) var samp: sampler;
-@fragment fn fs(in: VsOut) -> @location(0) vec4<f32> {
-    return textureSample(tex, samp, in.uv);
-}
-"#;
-    build_effect_pipeline(device, "aria.blit", layout, source)
+    build_effect_pipeline(device, "aria.blit", layout, BLIT_WGSL)
 }
 
 /// Premultiplied blit with UV offset (shadow placement onto the canvas).
@@ -105,41 +108,12 @@ pub(super) fn build_offset_blit_pipeline(
     device: &wgpu::Device,
     layout: &wgpu::BindGroupLayout,
 ) -> wgpu::RenderPipeline {
-    let source = include_str!("../../shaders/style_offset_blit.wgsl");
-    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some("aria.offset_blit"),
-        source: wgpu::ShaderSource::Wgsl(source.into()),
-    });
-    let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-        label: Some("aria.offset_blit"),
-        bind_group_layouts: &[Some(layout)],
-        immediate_size: 0,
-    });
-    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("aria.offset_blit"),
-        layout: Some(&pipeline_layout),
-        vertex: wgpu::VertexState {
-            module: &shader,
-            entry_point: Some("vs"),
-            buffers: &[],
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
-        },
-        primitive: wgpu::PrimitiveState::default(),
-        depth_stencil: None,
-        multisample: wgpu::MultisampleState::default(),
-        fragment: Some(wgpu::FragmentState {
-            module: &shader,
-            entry_point: Some("fs"),
-            targets: &[Some(wgpu::ColorTargetState {
-                format: RT_FORMAT,
-                blend: Some(PREMULT_OVER),
-                write_mask: wgpu::ColorWrites::ALL,
-            })],
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
-        }),
-        multiview_mask: None,
-        cache: None,
-    })
+    build_effect_pipeline(
+        device,
+        "aria.offset_blit",
+        layout,
+        include_str!("../../shaders/style_offset_blit.wgsl"),
+    )
 }
 
 /// Weighted additive blit for motion-blur accumulation: `accum += src * w`
@@ -189,35 +163,6 @@ pub(super) fn build_additive_blit_pipeline(
     device: &wgpu::Device,
     layout: &wgpu::BindGroupLayout,
 ) -> wgpu::RenderPipeline {
-    let source = r#"
-struct VsOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32> }
-@vertex fn vs(@builtin(vertex_index) vi: u32) -> VsOut {
-    var positions = array<vec2<f32>, 6>(
-        vec2(-1.0,-1.0), vec2(1.0,-1.0), vec2(-1.0,1.0),
-        vec2(-1.0,1.0), vec2(1.0,-1.0), vec2(1.0,1.0));
-    var uvs = array<vec2<f32>, 6>(
-        vec2(0.0,1.0), vec2(1.0,1.0), vec2(0.0,0.0),
-        vec2(0.0,0.0), vec2(1.0,1.0), vec2(1.0,0.0));
-    var o: VsOut;
-    o.pos = vec4(positions[vi], 0.0, 1.0);
-    o.uv = uvs[vi];
-    return o;
-}
-@group(0) @binding(0) var tex: texture_2d<f32>;
-@group(0) @binding(1) var samp: sampler;
-@fragment fn fs(in: VsOut) -> @location(0) vec4<f32> {
-    return textureSample(tex, samp, in.uv);
-}
-"#;
-    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some("aria.additive_blit"),
-        source: wgpu::ShaderSource::Wgsl(source.into()),
-    });
-    let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-        label: Some("aria.additive_blit"),
-        bind_group_layouts: &[Some(layout)],
-        immediate_size: 0,
-    });
     const ADDITIVE: wgpu::BlendState = wgpu::BlendState {
         color: wgpu::BlendComponent {
             src_factor: wgpu::BlendFactor::One,
@@ -230,47 +175,19 @@ struct VsOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32> }
             operation: wgpu::BlendOperation::Add,
         },
     };
-    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("aria.additive_blit"),
-        layout: Some(&pipeline_layout),
-        vertex: wgpu::VertexState {
-            module: &shader,
-            entry_point: Some("vs"),
-            buffers: &[],
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
-        },
-        primitive: wgpu::PrimitiveState::default(),
-        depth_stencil: None,
-        multisample: wgpu::MultisampleState::default(),
-        fragment: Some(wgpu::FragmentState {
-            module: &shader,
-            entry_point: Some("fs"),
-            targets: &[Some(wgpu::ColorTargetState {
-                format: RT_FORMAT,
-                blend: Some(ADDITIVE),
-                write_mask: wgpu::ColorWrites::ALL,
-            })],
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
-        }),
-        multiview_mask: None,
-        cache: None,
-    })
+    build_blended_pipeline(
+        device,
+        "aria.additive_blit",
+        layout,
+        BLIT_WGSL,
+        Some(ADDITIVE),
+    )
 }
 
 pub(super) fn build_accumulate_blit_pipeline(
     device: &wgpu::Device,
     layout: &wgpu::BindGroupLayout,
 ) -> wgpu::RenderPipeline {
-    let source = include_str!("../../shaders/accumulate_blit.wgsl");
-    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some("aria.accumulate_blit"),
-        source: wgpu::ShaderSource::Wgsl(source.into()),
-    });
-    let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-        label: Some("aria.accumulate_blit"),
-        bind_group_layouts: &[Some(layout)],
-        immediate_size: 0,
-    });
     const ACCUM: wgpu::BlendState = wgpu::BlendState {
         color: wgpu::BlendComponent {
             src_factor: wgpu::BlendFactor::One,
@@ -283,89 +200,18 @@ pub(super) fn build_accumulate_blit_pipeline(
             operation: wgpu::BlendOperation::Add,
         },
     };
-    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("aria.accumulate_blit"),
-        layout: Some(&pipeline_layout),
-        vertex: wgpu::VertexState {
-            module: &shader,
-            entry_point: Some("vs"),
-            buffers: &[],
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
-        },
-        primitive: wgpu::PrimitiveState::default(),
-        depth_stencil: None,
-        multisample: wgpu::MultisampleState::default(),
-        fragment: Some(wgpu::FragmentState {
-            module: &shader,
-            entry_point: Some("fs"),
-            targets: &[Some(wgpu::ColorTargetState {
-                format: RT_FORMAT,
-                blend: Some(ACCUM),
-                write_mask: wgpu::ColorWrites::ALL,
-            })],
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
-        }),
-        multiview_mask: None,
-        cache: None,
-    })
+    build_blended_pipeline(
+        device,
+        "aria.accumulate_blit",
+        layout,
+        include_str!("../../shaders/accumulate_blit.wgsl"),
+        Some(ACCUM),
+    )
 }
 
 pub(super) fn build_replace_pipeline(
     device: &wgpu::Device,
     layout: &wgpu::BindGroupLayout,
 ) -> wgpu::RenderPipeline {
-    let source = r#"
-struct VsOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32> }
-@vertex fn vs(@builtin(vertex_index) vi: u32) -> VsOut {
-    var positions = array<vec2<f32>, 6>(
-        vec2(-1.0,-1.0), vec2(1.0,-1.0), vec2(-1.0,1.0),
-        vec2(-1.0,1.0), vec2(1.0,-1.0), vec2(1.0,1.0));
-    var uvs = array<vec2<f32>, 6>(
-        vec2(0.0,1.0), vec2(1.0,1.0), vec2(0.0,0.0),
-        vec2(0.0,0.0), vec2(1.0,1.0), vec2(1.0,0.0));
-    var o: VsOut;
-    o.pos = vec4(positions[vi], 0.0, 1.0);
-    o.uv = uvs[vi];
-    return o;
-}
-@group(0) @binding(0) var tex: texture_2d<f32>;
-@group(0) @binding(1) var samp: sampler;
-@fragment fn fs(in: VsOut) -> @location(0) vec4<f32> {
-    return textureSample(tex, samp, in.uv);
-}
-"#;
-    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some("aria.blit_replace"),
-        source: wgpu::ShaderSource::Wgsl(source.into()),
-    });
-    let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-        label: Some("aria.blit_replace"),
-        bind_group_layouts: &[Some(layout)],
-        immediate_size: 0,
-    });
-    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("aria.blit_replace"),
-        layout: Some(&pipeline_layout),
-        vertex: wgpu::VertexState {
-            module: &shader,
-            entry_point: Some("vs"),
-            buffers: &[],
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
-        },
-        primitive: wgpu::PrimitiveState::default(),
-        depth_stencil: None,
-        multisample: wgpu::MultisampleState::default(),
-        fragment: Some(wgpu::FragmentState {
-            module: &shader,
-            entry_point: Some("fs"),
-            targets: &[Some(wgpu::ColorTargetState {
-                format: RT_FORMAT,
-                blend: None,
-                write_mask: wgpu::ColorWrites::ALL,
-            })],
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
-        }),
-        multiview_mask: None,
-        cache: None,
-    })
+    build_blended_pipeline(device, "aria.blit_replace", layout, BLIT_WGSL, None)
 }

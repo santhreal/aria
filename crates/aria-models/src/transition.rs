@@ -18,10 +18,10 @@ use serde::{Deserialize, Serialize};
 use crate::Map;
 use crate::clip::ParamValue;
 use crate::effects::{
-    EffectCurvePoint, EffectGradientStop, EffectParamKind, EffectParamSpec, check_params,
-    choice_check, curve_check, evaluate_effect_curve_lut, evaluate_effect_gradient_lut,
-    gradient_check, holds_scalar, holds_text, holds_vec2, int_range_check, linear_color_check,
-    scalar_or_int_range_check, stored_slot, vec2_range_check, vec3_range_check,
+    EffectCurvePoint, EffectGradientStop, EffectParamKind, EffectParamSpec, StoredParams,
+    check_params, choice_check, curve_check, gradient_check, holds_scalar, holds_text, holds_vec2,
+    int_range_check, linear_color_check, scalar_or_int_range_check, stored_slot, vec2_range_check,
+    vec3_range_check,
 };
 use crate::error::ModelError;
 use crate::ids::ClipId;
@@ -300,326 +300,87 @@ impl Transition {
 
     /// Check whether `pspec` is visible given the current values on `self`.
     pub fn is_param_visible(&self, pspec: &EffectParamSpec, spec: &TransitionSpec) -> bool {
-        let Some(cond) = &pspec.visible_when else {
-            return true;
-        };
-        let Some(other) = spec.param(&cond.param) else {
-            return true;
-        };
-        match other.kind {
-            EffectParamKind::Choice => self
-                .sample_choice_param(&cond.param)
-                .is_some_and(|v| v == cond.equals),
-            EffectParamKind::Bool => {
-                let target = match cond.equals.as_str() {
-                    "true" | "1" => Some(true),
-                    "false" | "0" => Some(false),
-                    _ => None,
-                };
-                target.is_some_and(|b| self.sample_bool_param(&cond.param) == Some(b))
-            }
-            EffectParamKind::Int => cond
-                .equals
-                .parse::<i64>()
-                .ok()
-                .is_some_and(|n| self.sample_int_param(&cond.param) == Some(n)),
-            EffectParamKind::Scalar | EffectParamKind::Angle => {
-                cond.equals.parse::<f32>().ok().is_some_and(|v| {
-                    self.sample_param(&cond.param)
-                        .is_some_and(|cur| (cur - v).abs() <= 1e-4)
-                })
-            }
-            EffectParamKind::Text | EffectParamKind::Font | EffectParamKind::File => self
-                .sample_text_param(&cond.param)
-                .is_some_and(|s| s == cond.equals),
-            _ => true,
-        }
+        self.visible(pspec, &spec.params, 0.0)
+    }
+
+    /// Read the parameter named `param` with `read`, or `None` when the
+    /// transition or the parameter is unknown.
+    fn read_named<T>(
+        &self,
+        param: &str,
+        read: impl FnOnce(&EffectParamSpec) -> Option<T>,
+    ) -> Option<T> {
+        read(self.spec().ok()?.param(param)?)
     }
 
     /// Sample a scalar (`f32`), angle, or integer parameter on this transition.
     pub fn sample_param(&self, param: &str) -> Option<f32> {
-        let spec = self.spec().ok()?;
-        let pspec = spec.param(param)?;
-        match pspec.kind {
-            EffectParamKind::Scalar | EffectParamKind::Angle => {
-                Some(self.params.get(param).copied().unwrap_or(pspec.default))
-            }
-            EffectParamKind::Int => Some(
-                self.params
-                    .get(param)
-                    .map(|v| v.round())
-                    .unwrap_or(pspec.default_int as f32),
-            ),
-            _ => None,
-        }
+        self.read_named(param, |p| self.scalar(p, 0.0))
     }
 
     /// Sample an integer (`i64`) parameter on this transition.
     pub fn sample_int_param(&self, param: &str) -> Option<i64> {
-        let spec = self.spec().ok()?;
-        let pspec = spec.param(param)?;
-        if pspec.kind != EffectParamKind::Int {
-            return None;
-        }
-        Some(
-            self.params
-                .get(param)
-                .map(|v| v.round() as i64)
-                .unwrap_or(pspec.default_int),
-        )
+        self.read_named(param, |p| self.int(p, 0.0))
     }
 
     /// Sample a boolean parameter on this transition.
     pub fn sample_bool_param(&self, param: &str) -> Option<bool> {
-        let spec = self.spec().ok()?;
-        let pspec = spec.param(param)?;
-        if pspec.kind != EffectParamKind::Bool {
-            return None;
-        }
-        Some(
-            self.bool_params
-                .get(param)
-                .copied()
-                .unwrap_or(pspec.default_bool),
-        )
+        self.read_named(param, |p| self.boolean(p))
     }
 
     /// Sample a choice parameter's selected option id on this transition.
     pub fn sample_choice_param(&self, param: &str) -> Option<String> {
-        let spec = self.spec().ok()?;
-        let pspec = spec.param(param)?;
-        if pspec.kind != EffectParamKind::Choice {
-            return None;
-        }
-        pspec
-            .choice_or_default(self.choice_params.get(param).map(String::as_str))
-            .map(str::to_owned)
+        self.read_named(param, |p| self.choice(p).map(str::to_owned))
     }
 
     /// Sample a choice parameter's selected option index on this transition.
     pub fn sample_choice_index(&self, param: &str) -> Option<usize> {
-        let spec = self.spec().ok()?;
-        let pspec = spec.param(param)?;
-        if pspec.kind != EffectParamKind::Choice {
-            return None;
-        }
-        let id = pspec.choice_or_default(self.choice_params.get(param).map(String::as_str))?;
-        Some(pspec.choice_index(id).unwrap_or(0))
+        self.read_named(param, |p| self.choice_index(p))
     }
 
     /// Sample an 8-bit RGBA color parameter on this transition.
     pub fn sample_color_param(&self, param: &str) -> Option<[u8; 4]> {
-        let spec = self.spec().ok()?;
-        let pspec = spec.param(param)?;
-        if pspec.kind != EffectParamKind::Color {
-            return None;
-        }
-        if let Some(c) = self.color_params.get(param) {
-            return Some(*c);
-        }
-        if let Some(c) = self.linear_color_params.get(param) {
-            return Some(c.map(|v| (v.clamp(0.0, 1.0) * 255.0).round() as u8));
-        }
-        Some(pspec.default_color_u8())
+        self.read_named(param, |p| self.color(p, 0.0))
     }
 
     /// Sample a linear RGBA (`[f32; 4]`) color parameter on this transition.
     pub fn sample_linear_color_param(&self, param: &str) -> Option<[f32; 4]> {
-        let spec = self.spec().ok()?;
-        let pspec = spec.param(param)?;
-        if pspec.kind != EffectParamKind::Color {
-            return None;
-        }
-        if let Some(c) = self.linear_color_params.get(param) {
-            return Some(*c);
-        }
-        if let Some(c) = self.color_params.get(param) {
-            return Some(c.map(|v| f32::from(v) / 255.0));
-        }
-        Some(pspec.default_color_linear())
+        self.read_named(param, |p| self.linear_color(p, 0.0))
     }
 
     /// Sample a 2D vector (`[f32; 2]`) or size parameter on this transition.
     pub fn sample_vec2_param(&self, param: &str) -> Option<[f32; 2]> {
-        let spec = self.spec().ok()?;
-        let pspec = spec.param(param)?;
-        if !matches!(pspec.kind, EffectParamKind::Vec2 | EffectParamKind::Size) {
-            return None;
-        }
-        Some(
-            self.vec2_params
-                .get(param)
-                .copied()
-                .unwrap_or(pspec.default_vec2),
-        )
+        self.read_named(param, |p| self.vec2(p, 0.0))
     }
 
     /// Sample a 3D point (`[f32; 3]`) parameter on this transition.
     pub fn sample_vec3_param(&self, param: &str) -> Option<[f32; 3]> {
-        let spec = self.spec().ok()?;
-        let pspec = spec.param(param)?;
-        if pspec.kind != EffectParamKind::Point3 {
-            return None;
-        }
-        Some(
-            self.vec3_params
-                .get(param)
-                .copied()
-                .unwrap_or(pspec.default_vec3),
-        )
+        self.read_named(param, |p| self.vec3(p, 0.0))
     }
 
     /// Sample a 1D curve parameter's control points on this transition.
     pub fn sample_curve_param(&self, param: &str) -> Option<Vec<EffectCurvePoint>> {
-        let spec = self.spec().ok()?;
-        let pspec = spec.param(param)?;
-        if pspec.kind != EffectParamKind::Curve {
-            return None;
-        }
-        Some(
-            self.curve_params
-                .get(param)
-                .cloned()
-                .unwrap_or_else(|| pspec.default_curve_points()),
-        )
+        self.read_named(param, |p| self.curve(p))
     }
 
     /// Sample a gradient parameter's stops on this transition.
     pub fn sample_gradient_param(&self, param: &str) -> Option<Vec<EffectGradientStop>> {
-        let spec = self.spec().ok()?;
-        let pspec = spec.param(param)?;
-        if pspec.kind != EffectParamKind::Gradient {
-            return None;
-        }
-        Some(
-            self.gradient_params
-                .get(param)
-                .cloned()
-                .unwrap_or_else(|| pspec.default_gradient_stops()),
-        )
+        self.read_named(param, |p| self.gradient(p))
     }
 
     /// Sample a text, font, or file parameter on this transition.
     pub fn sample_text_param(&self, param: &str) -> Option<String> {
-        let spec = self.spec().ok()?;
-        let pspec = spec.param(param)?;
-        if !matches!(
-            pspec.kind,
-            EffectParamKind::Text | EffectParamKind::Font | EffectParamKind::File
-        ) {
-            return None;
-        }
-        Some(
-            self.text_params
-                .get(param)
-                .cloned()
-                .unwrap_or_else(|| pspec.default_text.clone()),
-        )
+        self.read_named(param, |p| self.text(p))
     }
 
     /// Sample a layer reference (`ClipId`) parameter on this transition.
     pub fn sample_layer_param(&self, param: &str) -> Option<Option<ClipId>> {
-        let spec = self.spec().ok()?;
-        let pspec = spec.param(param)?;
-        if pspec.kind != EffectParamKind::Layer {
-            return None;
-        }
-        let raw = self.layer_params.get(param).copied().unwrap_or(0);
-        Some((raw != 0).then(|| ClipId::from_raw(raw)))
+        self.read_named(param, |p| self.layer(p))
     }
 
     /// Sample all shader-visible transition parameters in declaration order into a flat `Vec<f32>`.
-    pub fn sample_flattened_floats(&self, _tick: f64) -> Result<Vec<f32>, ModelError> {
-        let spec = self.spec()?;
-        let total: usize = spec.params.iter().map(|p| p.kind.shader_floats()).sum();
-        let mut out = Vec::with_capacity(total);
-        for pspec in &spec.params {
-            match pspec.kind {
-                EffectParamKind::Scalar | EffectParamKind::Angle => {
-                    let v = self
-                        .params
-                        .get(&pspec.name)
-                        .copied()
-                        .unwrap_or(pspec.default);
-                    out.push(v);
-                }
-                EffectParamKind::Int => {
-                    let v = self
-                        .params
-                        .get(&pspec.name)
-                        .map(|x| x.round())
-                        .unwrap_or(pspec.default_int as f32);
-                    out.push(v);
-                }
-                EffectParamKind::Bool => {
-                    let b = self
-                        .bool_params
-                        .get(&pspec.name)
-                        .copied()
-                        .unwrap_or(pspec.default_bool);
-                    out.push(if b { 1.0 } else { 0.0 });
-                }
-                EffectParamKind::Choice => {
-                    let idx = pspec
-                        .choice_or_default(self.choice_params.get(&pspec.name).map(String::as_str))
-                        .and_then(|s| pspec.choice_index(s))
-                        .unwrap_or(0);
-                    out.push(idx as f32);
-                }
-                EffectParamKind::Color => {
-                    let rgba = if let Some(c) = self.linear_color_params.get(&pspec.name) {
-                        *c
-                    } else if let Some(c) = self.color_params.get(&pspec.name) {
-                        c.map(|v| f32::from(v) / 255.0)
-                    } else {
-                        pspec.default_color_linear()
-                    };
-                    out.extend_from_slice(&rgba);
-                }
-                EffectParamKind::Vec2 | EffectParamKind::Size => {
-                    let v = self
-                        .vec2_params
-                        .get(&pspec.name)
-                        .copied()
-                        .unwrap_or(pspec.default_vec2);
-                    out.extend_from_slice(&v);
-                }
-                EffectParamKind::Point3 => {
-                    let v = self
-                        .vec3_params
-                        .get(&pspec.name)
-                        .copied()
-                        .unwrap_or(pspec.default_vec3);
-                    out.extend_from_slice(&v);
-                }
-                EffectParamKind::Curve => {
-                    let pts = self
-                        .curve_params
-                        .get(&pspec.name)
-                        .map(Vec::as_slice)
-                        .unwrap_or(&pspec.default_curve);
-                    let lut = evaluate_effect_curve_lut(pts);
-                    out.extend_from_slice(&lut);
-                }
-                EffectParamKind::Gradient => {
-                    let stops = self
-                        .gradient_params
-                        .get(&pspec.name)
-                        .map(Vec::as_slice)
-                        .unwrap_or(&pspec.default_gradient);
-                    let lut = evaluate_effect_gradient_lut(stops);
-                    for rgba in lut {
-                        out.extend_from_slice(&rgba);
-                    }
-                }
-                EffectParamKind::Layer => {
-                    let raw = self.layer_params.get(&pspec.name).copied().unwrap_or(0);
-                    out.push(raw as f32);
-                }
-                EffectParamKind::Text | EffectParamKind::Font | EffectParamKind::File => {}
-            }
-        }
-        Ok(out)
+    pub fn sample_flattened_floats(&self) -> Result<Vec<f32>, ModelError> {
+        Ok(self.flatten_floats(&self.spec()?.params, 0.0, None))
     }
 
     /// Set a scalar, angle, or integer parameter slot on this transition.
@@ -934,6 +695,42 @@ impl Transition {
             slot(name, "layer_params", |k| k == EffectParamKind::Layer)?;
         }
         Ok(())
+    }
+}
+
+impl StoredParams for Transition {
+    fn stored_scalar(&self, name: &str, _tick: f64) -> Option<f32> {
+        self.params.get(name).copied()
+    }
+    fn stored_color(&self, name: &str, _tick: f64) -> Option<[u8; 4]> {
+        self.color_params.get(name).copied()
+    }
+    fn stored_linear_color(&self, name: &str, _tick: f64) -> Option<[f32; 4]> {
+        self.linear_color_params.get(name).copied()
+    }
+    fn stored_vec2(&self, name: &str, _tick: f64) -> Option<[f32; 2]> {
+        self.vec2_params.get(name).copied()
+    }
+    fn stored_vec3(&self, name: &str, _tick: f64) -> Option<[f32; 3]> {
+        self.vec3_params.get(name).copied()
+    }
+    fn stored_bool(&self, name: &str) -> Option<bool> {
+        self.bool_params.get(name).copied()
+    }
+    fn stored_choice(&self, name: &str) -> Option<&str> {
+        self.choice_params.get(name).map(String::as_str)
+    }
+    fn stored_curve(&self, name: &str) -> Option<&[EffectCurvePoint]> {
+        self.curve_params.get(name).map(Vec::as_slice)
+    }
+    fn stored_gradient(&self, name: &str) -> Option<&[EffectGradientStop]> {
+        self.gradient_params.get(name).map(Vec::as_slice)
+    }
+    fn stored_text(&self, name: &str) -> Option<&str> {
+        self.text_params.get(name).map(String::as_str)
+    }
+    fn stored_layer(&self, name: &str) -> Option<u64> {
+        self.layer_params.get(name).copied()
     }
 }
 

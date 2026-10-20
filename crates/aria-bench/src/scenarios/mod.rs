@@ -14,11 +14,17 @@ pub(crate) mod scrub;
 pub(crate) mod startup;
 pub(crate) mod timeline_frame;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::time::Instant;
 
 use aria_compositor::{FrameSink, GpuContext, create_frame_target, wgpu};
+use aria_plugin::PluginContext;
+use aria_ui::app::AppState;
+use aria_ui::shell::Shell;
+use gpui::AppContext as _;
 
-use crate::{EnvironmentInfo, ScenarioId, ScenarioReport};
+use crate::{EnvironmentInfo, ScenarioId, ScenarioReport, mount_builtin_plugins};
 
 /// Execution context shared across benchmark scenarios.
 #[derive(Debug, Clone)]
@@ -57,6 +63,77 @@ impl BenchContext {
         })?;
         Ok(dir)
     }
+}
+
+/// A headless editor window: the dark theme, the built-in plugins mounted with
+/// `data_dir` as the data directory, and a [`Shell`] over a new [`AppState`].
+pub(crate) fn open_editor(
+    data_dir: &Path,
+) -> (
+    gpui::TestApp,
+    gpui::Entity<AppState>,
+    gpui::TestAppWindow<Shell>,
+) {
+    let mut app = gpui::TestApp::with_text_system_and_assets(
+        Arc::new(gpui::NoopTextSystem),
+        Arc::new(aria_ui::icons::Assets),
+    );
+    let data_dir = data_dir.to_path_buf();
+    let state = app.update(|cx| {
+        aria_ui::theme::Theme::install(
+            aria_ui::theme::Appearance::Dark,
+            Default::default(),
+            None,
+            cx,
+        );
+        let plugin_ctx = PluginContext::new();
+        mount_builtin_plugins(&plugin_ctx, &data_dir).expect("built-in plugins mount");
+        cx.new(|_| AppState::new(plugin_ctx, data_dir).expect("editor state"))
+    });
+    let owned = gpui::Entity::clone(&state);
+    let window = app.open_window(|_, cx| Shell::new(owned, cx));
+    (app, state, window)
+}
+
+/// Open the project at `path` in `state` with In and Out over frames 0 to 24.
+pub(crate) fn open_marked_project(
+    app: &mut gpui::TestApp,
+    state: &gpui::Entity<AppState>,
+    path: PathBuf,
+) {
+    app.update(|cx| {
+        state.update(cx, |s, cx| {
+            s.open_project(path).expect("load project-10k");
+            s.mark_in = Some(0);
+            s.mark_out = Some(24);
+            cx.notify();
+        });
+    });
+}
+
+/// Runs `change` on the editor window's shell and returns the milliseconds
+/// until the frame it causes is drawn.
+///
+/// The test executor runs background tasks on this thread when it parks, and
+/// the flush that ends an update draws every window a change left dirty. So
+/// before the clock starts, the executor is parked and the window drawn: the
+/// work an earlier sample left behind, such as a preview render, a filmstrip
+/// decode, or the redraw of the frame they land, falls outside the sample, as
+/// it runs on pool threads and in a frame of its own in the editor. The sample
+/// is one update and the one draw its flush makes.
+pub(crate) fn timed_frame(
+    app: &gpui::TestApp,
+    window: &mut gpui::TestAppWindow<Shell>,
+    change: impl FnOnce(&mut Shell, &mut gpui::Window, &mut gpui::Context<Shell>),
+) -> f64 {
+    app.run_until_parked();
+    window.draw();
+    app.run_until_parked();
+    let (cx, handle) = (app.to_async(), window.handle());
+    let started = Instant::now();
+    cx.update(|cx| handle.update(cx, change))
+        .expect("the editor window is open");
+    started.elapsed().as_secs_f64() * 1000.0
 }
 
 /// Reusable GPU texture sink for display-path renders with no CPU readback.

@@ -16,6 +16,7 @@ use aria_models::{
 };
 
 use super::AppState;
+use crate::types::UiSlots as _;
 
 /// Colours worth one click on an effect parameter. A full picker is a separate
 /// concern; these are the hues a key, a tint, or a border is actually set to.
@@ -619,7 +620,7 @@ impl AppState {
         self.selected_ui_clip_ref()?
             .effects
             .get(index)?
-            .bool_val(param)
+            .boolean(param)
     }
 
     /// Toggle a boolean parameter on the selected clip's effect at `index`.

@@ -1,94 +1,78 @@
-//! Effect: 2 helpers from [`super`].
-//!
-//! Split out of `projection.rs` to stay under the file ceiling. A pure
-//! move. Each item is `pub(super)` so the parent and its other children can
-//! reach it by name; nothing else changed.
+//! The inspector view of a clip's effects and of a transition, and the track
+//! tint, for [`super`].
 
 use super::*;
-use aria_models::EffectParamKind;
+use aria_models::{EffectParamKind, EffectParamSpec, StoredParams};
 use gpui::SharedString;
 
 use crate::types::UiEffectValue;
+
+/// The inspector value and visibility of every slot in `params`, read from
+/// an effect instance or a transition at `tick`.
+fn slots_to_ui(
+    stored: &impl StoredParams,
+    params: &[EffectParamSpec],
+    tick: f64,
+) -> (Vec<UiEffectValue>, Vec<bool>) {
+    let values = params
+        .iter()
+        .map(|p| match p.kind {
+            EffectParamKind::Scalar | EffectParamKind::Angle => {
+                UiEffectValue::Scalar(stored.scalar(p, tick).unwrap_or(p.default))
+            }
+            EffectParamKind::Int => {
+                UiEffectValue::Int(stored.int(p, tick).unwrap_or(p.default_int) as i32)
+            }
+            EffectParamKind::Bool => {
+                UiEffectValue::Bool(stored.boolean(p).unwrap_or(p.default_bool))
+            }
+            EffectParamKind::Choice => {
+                UiEffectValue::Choice(stored.choice(p).unwrap_or_default().to_owned().into())
+            }
+            EffectParamKind::Color => UiEffectValue::Color(
+                stored
+                    .color(p, tick)
+                    .unwrap_or_else(|| p.default_color_u8()),
+            ),
+            EffectParamKind::Vec2 | EffectParamKind::Size => {
+                UiEffectValue::Vec2(stored.vec2(p, tick).unwrap_or(p.default_vec2))
+            }
+            EffectParamKind::Point3 => {
+                UiEffectValue::Point3(stored.vec3(p, tick).unwrap_or(p.default_vec3))
+            }
+            EffectParamKind::Curve => {
+                UiEffectValue::Curve(stored.curve(p).unwrap_or_else(|| p.default_curve_points()))
+            }
+            EffectParamKind::Gradient => UiEffectValue::Gradient(
+                stored
+                    .gradient(p)
+                    .unwrap_or_else(|| p.default_gradient_stops()),
+            ),
+            EffectParamKind::Text | EffectParamKind::Font | EffectParamKind::File => {
+                UiEffectValue::Text(
+                    stored
+                        .text(p)
+                        .unwrap_or_else(|| p.default_text.clone())
+                        .into(),
+                )
+            }
+            EffectParamKind::Layer => {
+                UiEffectValue::Layer(stored.layer(p).flatten().map(aria_models::ClipId::raw))
+            }
+        })
+        .collect();
+    let visible = params
+        .iter()
+        .map(|p| stored.visible(p, params, tick))
+        .collect();
+    (values, visible)
+}
 
 pub(super) fn effect_to_ui(effect: &EffectInstance) -> UiEffectInstance {
     let spec = effect.spec().ok();
     let (values, visible) = spec
         .as_ref()
-        .map(|spec| {
-            let values = spec
-                .params
-                .iter()
-                .map(|param| match param.kind {
-                    EffectParamKind::Scalar | EffectParamKind::Angle => UiEffectValue::Scalar(
-                        effect
-                            .sample_param(&param.name, 0.0)
-                            .unwrap_or(param.default),
-                    ),
-                    EffectParamKind::Int => UiEffectValue::Int(
-                        effect
-                            .sample_int_param(&param.name, 0.0)
-                            .unwrap_or(param.default_int) as i32,
-                    ),
-                    EffectParamKind::Bool => UiEffectValue::Bool(
-                        effect
-                            .sample_bool_param(&param.name)
-                            .unwrap_or(param.default_bool),
-                    ),
-                    EffectParamKind::Choice => UiEffectValue::Choice(
-                        effect
-                            .sample_choice_param(&param.name)
-                            .or_else(|| param.default_choice_id().map(str::to_owned))
-                            .unwrap_or_default()
-                            .into(),
-                    ),
-                    EffectParamKind::Color => UiEffectValue::Color(
-                        effect
-                            .sample_color_param(&param.name, 0.0)
-                            .unwrap_or_else(|| param.default_color_u8()),
-                    ),
-                    EffectParamKind::Vec2 | EffectParamKind::Size => UiEffectValue::Vec2(
-                        effect
-                            .sample_vec2_param(&param.name, 0.0)
-                            .unwrap_or(param.default_vec2),
-                    ),
-                    EffectParamKind::Point3 => UiEffectValue::Point3(
-                        effect
-                            .sample_vec3_param(&param.name, 0.0)
-                            .unwrap_or(param.default_vec3),
-                    ),
-                    EffectParamKind::Curve => UiEffectValue::Curve(
-                        effect
-                            .sample_curve_param(&param.name)
-                            .unwrap_or_else(|| param.default_curve_points()),
-                    ),
-                    EffectParamKind::Gradient => UiEffectValue::Gradient(
-                        effect
-                            .sample_gradient_param(&param.name)
-                            .unwrap_or_else(|| param.default_gradient_stops()),
-                    ),
-                    EffectParamKind::Text | EffectParamKind::Font | EffectParamKind::File => {
-                        UiEffectValue::Text(
-                            effect
-                                .sample_text_param(&param.name)
-                                .unwrap_or_else(|| param.default_text.clone())
-                                .into(),
-                        )
-                    }
-                    EffectParamKind::Layer => UiEffectValue::Layer(
-                        effect
-                            .sample_layer_param(&param.name)
-                            .flatten()
-                            .map(aria_models::ClipId::raw),
-                    ),
-                })
-                .collect();
-            let visible = spec
-                .params
-                .iter()
-                .map(|param| effect.is_param_visible(param, spec, 0.0))
-                .collect();
-            (values, visible)
-        })
+        .map(|spec| slots_to_ui(effect, &spec.params, 0.0))
         .unwrap_or_default();
     UiEffectInstance {
         id: effect.effect_id.clone().into(),
@@ -108,78 +92,7 @@ pub(super) fn transition_to_ui(transition: &aria_models::Transition) -> UiTransi
     let (values, visible) = spec
         .as_ref()
         .map(|spec| {
-            let values: Vec<_> = spec
-                .params
-                .iter()
-                .map(|param| match param.kind {
-                    EffectParamKind::Scalar | EffectParamKind::Angle => UiEffectValue::Scalar(
-                        transition
-                            .sample_param(&param.name)
-                            .unwrap_or(param.default),
-                    ),
-                    EffectParamKind::Int => UiEffectValue::Int(
-                        transition
-                            .sample_int_param(&param.name)
-                            .unwrap_or(param.default_int) as i32,
-                    ),
-                    EffectParamKind::Bool => UiEffectValue::Bool(
-                        transition
-                            .sample_bool_param(&param.name)
-                            .unwrap_or(param.default_bool),
-                    ),
-                    EffectParamKind::Choice => UiEffectValue::Choice(
-                        transition
-                            .sample_choice_param(&param.name)
-                            .or_else(|| param.default_choice_id().map(str::to_owned))
-                            .unwrap_or_default()
-                            .into(),
-                    ),
-                    EffectParamKind::Color => UiEffectValue::Color(
-                        transition
-                            .sample_color_param(&param.name)
-                            .unwrap_or_else(|| param.default_color_u8()),
-                    ),
-                    EffectParamKind::Vec2 | EffectParamKind::Size => UiEffectValue::Vec2(
-                        transition
-                            .sample_vec2_param(&param.name)
-                            .unwrap_or(param.default_vec2),
-                    ),
-                    EffectParamKind::Point3 => UiEffectValue::Point3(
-                        transition
-                            .sample_vec3_param(&param.name)
-                            .unwrap_or(param.default_vec3),
-                    ),
-                    EffectParamKind::Curve => UiEffectValue::Curve(
-                        transition
-                            .sample_curve_param(&param.name)
-                            .unwrap_or_else(|| param.default_curve_points()),
-                    ),
-                    EffectParamKind::Gradient => UiEffectValue::Gradient(
-                        transition
-                            .sample_gradient_param(&param.name)
-                            .unwrap_or_else(|| param.default_gradient_stops()),
-                    ),
-                    EffectParamKind::Text | EffectParamKind::Font | EffectParamKind::File => {
-                        UiEffectValue::Text(
-                            transition
-                                .sample_text_param(&param.name)
-                                .unwrap_or_else(|| param.default_text.clone())
-                                .into(),
-                        )
-                    }
-                    EffectParamKind::Layer => UiEffectValue::Layer(
-                        transition
-                            .sample_layer_param(&param.name)
-                            .flatten()
-                            .map(aria_models::ClipId::raw),
-                    ),
-                })
-                .collect();
-            let visible: Vec<_> = spec
-                .params
-                .iter()
-                .map(|param| transition.is_param_visible(param, spec))
-                .collect();
+            let (values, visible) = slots_to_ui(transition, &spec.params, 0.0);
             (std::sync::Arc::from(values), std::sync::Arc::from(visible))
         })
         .unwrap_or_else(|| (std::sync::Arc::from([]), std::sync::Arc::from([])));

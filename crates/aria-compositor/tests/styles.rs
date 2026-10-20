@@ -141,6 +141,40 @@ fn glow_extends_outside_content_on_black() {
     );
 }
 
+/// A glow adds light to what lies below it and never dims or erases it.
+///
+/// The glow blit writes its blurred silhouette with additive blending. Drawn
+/// over the canvas with alpha-over instead, a red glow on a green canvas would
+/// darken the green under its fringe; drawn as a replacing blit, it would
+/// erase the canvas wherever the glow is clear. Not caught: an additive blend
+/// that adds the wrong amount, which the brightness of the fringe alone does
+/// not pin.
+#[test]
+fn glow_adds_light_without_dimming_the_canvas_below() {
+    let gpu = gpu_or_skip!();
+    let mut comp = Compositor::new(&gpu);
+    let green = [0, 128, 0, 255];
+    let config = CompositorConfig::new(400, 400).with_background(green);
+    let layer = centered_red_layer(&config).with_styles(LayerStyles {
+        glow: Some(LayerGlow {
+            rgba: [255, 0, 0, 255],
+            radius: 10.0,
+            intensity: 1.0,
+        }),
+        ..Default::default()
+    });
+    let img = comp.render(&gpu, &config, &[layer]).expect("render");
+
+    // 4px right of the content's right edge at x = 250, inside the fringe.
+    let fringe = img.pixel(254, 200);
+    assert!(
+        fringe[0] >= 20,
+        "expected the red glow at the fringe, got {fringe:?}"
+    );
+    assert_px(&img, 254, 200, [fringe[0], 128, 0, 255], 2);
+    assert_px(&img, 10, 10, green, 2);
+}
+
 #[test]
 fn empty_styles_matches_styles_free_render() {
     let gpu = gpu_or_skip!();

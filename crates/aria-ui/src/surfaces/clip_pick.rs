@@ -29,6 +29,7 @@ use aria_models::{
 
 use crate::app::AppState;
 use crate::app::clip_text::TextSwitch;
+use crate::types::UiSlots as _;
 
 /// One update to a transition's parameter slot.
 #[derive(Clone, Debug)]
@@ -230,7 +231,7 @@ impl Pick {
                 let toggle = matches!(edit, TransitionSlotEdit::ToggleBool);
                 state.peers_reading(|clip| {
                     clip.transition.as_ref().map(|transition| {
-                        let flag = toggle.then(|| transition.bool_val(*slot));
+                        let flag = toggle.then(|| transition.boolean(*slot));
                         (transition.id.clone(), flag)
                     })
                 })

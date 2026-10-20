@@ -395,7 +395,7 @@ fn all_15_param_kinds_roundtrip_on_effect_and_transition_and_respect_visibility(
     assert_eq!(tr_loaded, tr);
     let tr_spec = crate::transition_spec("test.models.tr_15_v2").unwrap();
     assert_eq!(
-        tr_loaded.sample_flattened_floats(0.0).unwrap().len(),
+        tr_loaded.sample_flattened_floats().unwrap().len(),
         tr_spec
             .params
             .iter()
