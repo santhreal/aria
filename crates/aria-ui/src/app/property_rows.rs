@@ -9,6 +9,8 @@
 
 #[path = "property_rows_graph.rs"]
 pub mod graph;
+#[path = "property_rows_keyframes.rs"]
+mod keyframes;
 #[path = "property_rows_search.rs"]
 mod search;
 
