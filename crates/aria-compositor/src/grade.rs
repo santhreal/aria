@@ -118,6 +118,61 @@ impl ColorGrade {
             row
         }
     }
+
+    /// True when any secondary stage (`whites`/`blacks`, `faded_film`,
+    /// `vibrance`, RGB curves, hue curves, or HSL secondary) is off neutral.
+    pub const fn has_secondary(&self) -> bool {
+        self.whites != 0.0
+            || self.blacks != 0.0
+            || self.faded_film != 0.0
+            || self.vibrance != 0.0
+            || self.curve_master_shadows != 0.0
+            || self.curve_master_midtones != 0.0
+            || self.curve_master_highlights != 0.0
+            || self.curve_red_shadows != 0.0
+            || self.curve_red_midtones != 0.0
+            || self.curve_red_highlights != 0.0
+            || self.curve_green_shadows != 0.0
+            || self.curve_green_midtones != 0.0
+            || self.curve_green_highlights != 0.0
+            || self.curve_blue_shadows != 0.0
+            || self.curve_blue_midtones != 0.0
+            || self.curve_blue_highlights != 0.0
+            || self.hue_sat_red != 0.0
+            || self.hue_sat_yellow != 0.0
+            || self.hue_sat_green != 0.0
+            || self.hue_sat_cyan != 0.0
+            || self.hue_sat_blue != 0.0
+            || self.hue_sat_magenta != 0.0
+            || self.hue_hue_red != 0.0
+            || self.hue_hue_yellow != 0.0
+            || self.hue_hue_green != 0.0
+            || self.hue_hue_cyan != 0.0
+            || self.hue_hue_blue != 0.0
+            || self.hue_hue_magenta != 0.0
+            || self.hue_luma_red != 0.0
+            || self.hue_luma_yellow != 0.0
+            || self.hue_luma_green != 0.0
+            || self.hue_luma_cyan != 0.0
+            || self.hue_luma_blue != 0.0
+            || self.hue_luma_magenta != 0.0
+            || self.hsl_hue != 0.0
+            || self.hsl_saturation != 0.0
+            || self.hsl_luma != 0.0
+    }
+
+    /// Value written to [`Self::ENABLED_SLOT`] for GPU shaders: `0.0` skips
+    /// the grade entirely, `1.0` runs primary stages only, and `2.0` runs both
+    /// primary and secondary stages.
+    pub const fn shader_enabled(&self) -> f32 {
+        if self.is_identity() {
+            0.0
+        } else if self.has_secondary() {
+            2.0
+        } else {
+            1.0
+        }
+    }
 }
 impl ColorGrade {
     /// Hold a positive strength to the compositor's unit interval.
@@ -465,6 +520,89 @@ mod grade_lane_census {
         assert!(
             wgsl.contains("fn apply_color_grade("),
             "the preamble lost the shader body it prefixes"
+        );
+    }
+
+    #[test]
+    fn shader_enabled_tier_and_branchless_curve_selects_guard_secondary_stages() {
+        assert_eq!(ColorGrade::IDENTITY.shader_enabled(), 0.0);
+        let primary_only = ColorGrade {
+            contrast: 0.08,
+            saturation: 0.06,
+            temperature: -0.04,
+            ..ColorGrade::IDENTITY
+        };
+        assert!(!primary_only.has_secondary());
+        assert_eq!(primary_only.shader_enabled(), 1.0);
+
+        for (idx, set) in SETTERS.iter().enumerate() {
+            let field = ColorGrade::FIELDS[idx];
+            let mut g = ColorGrade::IDENTITY;
+            set(&mut g, 0.25);
+            if matches!(
+                field,
+                "whites"
+                    | "blacks"
+                    | "faded_film"
+                    | "vibrance"
+                    | "curve_master_shadows"
+                    | "curve_master_midtones"
+                    | "curve_master_highlights"
+                    | "curve_red_shadows"
+                    | "curve_red_midtones"
+                    | "curve_red_highlights"
+                    | "curve_green_shadows"
+                    | "curve_green_midtones"
+                    | "curve_green_highlights"
+                    | "curve_blue_shadows"
+                    | "curve_blue_midtones"
+                    | "curve_blue_highlights"
+                    | "hue_sat_red"
+                    | "hue_sat_yellow"
+                    | "hue_sat_green"
+                    | "hue_sat_cyan"
+                    | "hue_sat_blue"
+                    | "hue_sat_magenta"
+                    | "hue_hue_red"
+                    | "hue_hue_yellow"
+                    | "hue_hue_green"
+                    | "hue_hue_cyan"
+                    | "hue_hue_blue"
+                    | "hue_hue_magenta"
+                    | "hue_luma_red"
+                    | "hue_luma_yellow"
+                    | "hue_luma_green"
+                    | "hue_luma_cyan"
+                    | "hue_luma_blue"
+                    | "hue_luma_magenta"
+                    | "hsl_hue"
+                    | "hsl_saturation"
+                    | "hsl_luma"
+            ) {
+                assert!(g.has_secondary(), "{field} must enable secondary tier");
+                assert_eq!(
+                    g.shader_enabled(),
+                    2.0,
+                    "{field} must set shader_enabled=2.0"
+                );
+            } else if !matches!(field, "hsl_key_hue" | "hsl_key_width") {
+                assert!(!g.has_secondary(), "{field} must stay on primary tier");
+                assert_eq!(
+                    g.shader_enabled(),
+                    1.0,
+                    "{field} must set shader_enabled=1.0"
+                );
+            }
+        }
+
+        let wgsl = &*GRADE_WGSL;
+        assert!(
+            wgsl.contains("if (grade_enabled(a) > 1.5)"),
+            "grade.wgsl must gate apply_grade_secondary behind grade_enabled(a) > 1.5"
+        );
+        assert!(
+            !wgsl.contains("var y = array<f32, 7>") && !wgsl.contains("var k = knots"),
+            "grade.wgsl must not allocate mutable local knot arrays on the fragment stack"
         );
     }
 }

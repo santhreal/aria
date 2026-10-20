@@ -431,7 +431,7 @@ pub(super) fn placement_affine_rot(
 /// through the accessors generated beside it, so neither side states a slot.
 pub(super) fn pack_grade(grade: Option<ColorGrade>) -> [[f32; 4]; ColorGrade::LANES] {
     match grade.filter(|g| !g.is_identity()) {
-        Some(g) => g.lanes(1.0),
+        Some(g) => g.lanes(g.shader_enabled()),
         None => ColorGrade::IDENTITY.lanes(0.0),
     }
 }

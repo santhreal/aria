@@ -1,4 +1,4 @@
-use super::pipelines::{PassRegistry, build_blended_pipeline, build_effect_pipeline};
+use super::pipelines::{PREMULT_OVER, PassRegistry, build_blended_pipeline};
 use super::{Bound, PassCache};
 use crate::color_pass;
 
@@ -77,7 +77,7 @@ pub(super) fn build_blit_pipeline(
     device: &wgpu::Device,
     layout: &wgpu::BindGroupLayout,
 ) -> wgpu::RenderPipeline {
-    build_effect_pipeline(device, "aria.blit", layout, BLIT_WGSL)
+    build_blended_pipeline(device, "aria.blit", layout, BLIT_WGSL, Some(PREMULT_OVER))
 }
 
 /// Premultiplied blit with UV offset (shadow placement onto the canvas).
@@ -85,11 +85,12 @@ pub(super) fn build_offset_blit_pipeline(
     device: &wgpu::Device,
     layout: &wgpu::BindGroupLayout,
 ) -> wgpu::RenderPipeline {
-    build_effect_pipeline(
+    build_blended_pipeline(
         device,
         "aria.offset_blit",
         layout,
         include_str!("../../shaders/style_offset_blit.wgsl"),
+        Some(PREMULT_OVER),
     )
 }
 
