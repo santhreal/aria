@@ -923,7 +923,7 @@ impl<'a> ExactSizeIterator for ClipsOrdered<'a> {
     }
 }
 
-impl<'b, 'a> IntoIterator for &'b ClipsOrdered<'a> {
+impl<'a> IntoIterator for &ClipsOrdered<'a> {
     type Item = &'a Clip;
     type IntoIter = ClipsOrdered<'a>;
 

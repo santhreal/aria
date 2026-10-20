@@ -13,8 +13,8 @@ use composite::{Caches, composite_card, composite_leaf};
 use layers::{Leaf, Nests, Pixels, Realized};
 
 use aria_compositor::{
-    ColorGrade, CompositeLayer, CompositorConfig, CompositorLayer, FrameSink, ImageSink,
-    LayerPlacement, LayerStencil, MatteRead, PassInstance, wgpu,
+    ColorGrade, CompositeLayer, CompositorConfig, CompositorLayer, FrameSink, LayerPlacement,
+    LayerStencil, MatteRead, PassInstance, wgpu,
 };
 use aria_core::Cancel;
 use aria_models::{MatteSource, Project};
@@ -546,17 +546,6 @@ impl Renderer {
     fn return_scratch(&mut self, mut scratch: RealizeScratch) {
         scratch.take_shown(|shown| self.keep_shown(shown));
         self.realize_scratch = scratch;
-    }
-
-    pub(crate) fn finish_pending(
-        &mut self,
-        pending: PendingFrame,
-    ) -> Result<aria_core::RgbaImage, RenderError> {
-        let mut sink = ImageSink::default();
-        self.finish_pending_into(pending, &mut sink)?;
-        Ok(sink
-            .into_image()
-            .expect("a successful pending frame fills the image sink"))
     }
 
     fn record_pending_stats(&mut self, pending: &PendingFrame, composite_ms: f64) {

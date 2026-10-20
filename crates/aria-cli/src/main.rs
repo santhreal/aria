@@ -56,31 +56,17 @@ fn run(args: &Args) -> Result<(), Failure> {
     builtin
         .mount(&aria_plugin::ExpressionsPlugin)
         .map_err(|err| Failure::Failed(err.to_string()))?;
+    if args.verb != Verb::Plugin {
+        // `aria plugin` checks the flags of its sub-command instead.
+        args.reject_unknown(args.verb.flags())?;
+    }
     match args.verb {
-        Verb::Demo => {
-            args.reject_unknown(demo::FLAGS)?;
-            demo::run(args.positional.first().map(Into::into)).map_err(Failure::Failed)
-        }
-        Verb::New => {
-            args.reject_unknown(new::FLAGS)?;
-            new::run(args)
-        }
-        Verb::Frame => {
-            args.reject_unknown(frame::FLAGS)?;
-            frame::run(args)
-        }
-        Verb::Export => {
-            args.reject_unknown(export::FLAGS)?;
-            export::run(args)
-        }
-        Verb::Inspect => {
-            args.reject_unknown(inspect::FLAGS)?;
-            inspect::run(args)
-        }
-        Verb::Analyze => {
-            args.reject_unknown(analyze::FLAGS)?;
-            analyze::run(args)
-        }
+        Verb::Demo => demo::run(args.positional.first().map(Into::into)).map_err(Failure::Failed),
+        Verb::New => new::run(args),
+        Verb::Frame => frame::run(args),
+        Verb::Export => export::run(args),
+        Verb::Inspect => inspect::run(args),
+        Verb::Analyze => analyze::run(args),
         Verb::Plugin => plugin::run(args),
     }
 }

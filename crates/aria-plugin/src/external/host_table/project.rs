@@ -84,7 +84,7 @@ pub(super) extern "C" fn host_clip(host_ctx: *mut c_void, id: u64) -> AriaResult
     // SAFETY: `host_ctx` is valid for the duration of `host_clip`.
     let result = unsafe {
         call_ctx(host_ctx).and_then(|ctx| {
-            let host = require_project_read_host(&ctx, "clip")?;
+            let host = require_project_read_host(ctx, "clip")?;
             match host.clip(crate::ClipId::from_raw(id)) {
                 Some(found) => serde_json::to_string(&found)
                     .map(Some)
@@ -108,7 +108,7 @@ pub(super) extern "C" fn host_clips_in_range(
     // SAFETY: `host_ctx` and `range_json` are valid for the duration of `host_clips_in_range`.
     let result = unsafe {
         call_ctx(host_ctx).and_then(|ctx| {
-            let host = require_project_read_host(&ctx, "clips_in_range")?;
+            let host = require_project_read_host(ctx, "clips_in_range")?;
             let raw = read_str(range_json, "time range JSON")?;
             let range: crate::TimeRange = serde_json::from_str(raw)
                 .map_err(|err| format!("invalid time range JSON: {err}"))?;
@@ -130,7 +130,7 @@ pub(super) extern "C" fn host_clips_at(
     // SAFETY: `host_ctx` and `tick_json` are valid for the duration of `host_clips_at`.
     let result = unsafe {
         call_ctx(host_ctx).and_then(|ctx| {
-            let host = require_project_read_host(&ctx, "clips_at")?;
+            let host = require_project_read_host(ctx, "clips_at")?;
             let raw = read_str(tick_json, "tick JSON")?;
             let tick: RationalTime =
                 serde_json::from_str(raw).map_err(|err| format!("invalid tick JSON: {err}"))?;
@@ -148,7 +148,7 @@ pub(super) extern "C" fn host_selected_clips(host_ctx: *mut c_void) -> AriaResul
     // SAFETY: `host_ctx` is valid for the duration of `host_selected_clips`.
     let result = unsafe {
         call_ctx(host_ctx).and_then(|ctx| {
-            let host = require_project_read_host(&ctx, "selected_clips")?;
+            let host = require_project_read_host(ctx, "selected_clips")?;
             let clips = host_wire::selected_clips_for_view(&ctx.unscoped_ctx, &host);
             serde_json::to_string(&clips).map_err(|err| err.to_string())
         })
@@ -167,7 +167,7 @@ pub(super) extern "C" fn host_markers_in_range(
     // SAFETY: `host_ctx` and `range_json` are valid for the duration of `host_markers_in_range`.
     let result = unsafe {
         call_ctx(host_ctx).and_then(|ctx| {
-            let host = require_project_read_host(&ctx, "markers_in_range")?;
+            let host = require_project_read_host(ctx, "markers_in_range")?;
             let raw = read_str(range_json, "time range JSON")?;
             let range: crate::TimeRange = serde_json::from_str(raw)
                 .map_err(|err| format!("invalid time range JSON: {err}"))?;

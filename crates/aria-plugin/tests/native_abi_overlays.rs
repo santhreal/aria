@@ -30,11 +30,10 @@ use aria_plugin::{
     PluginContext, PluginError,
 };
 use aria_plugin_abi::{
-    ARIA_API_MAJOR, ARIA_HOST_V1_ENCODERS_SIZE, ARIA_HOST_V1_MIN_SIZE, ARIA_HOST_V1_PANELS_SIZE,
-    ARIA_PLUGIN_V1_ENCODERS_SIZE, ARIA_PLUGIN_V1_MIN_SIZE, ARIA_PLUGIN_V1_PANELS_SIZE,
-    AriaAudioBlock, AriaAudioParam, AriaBytesResult, AriaEncoderAudio, AriaEncoderConfig,
-    AriaEncoderFrame, AriaInstanceResult, AriaOwnedBytes, AriaOwnedStr, AriaPluginV1, AriaResult,
-    AriaStr, free_rust_bytes, free_rust_string,
+    ARIA_API_MAJOR, ARIA_PLUGIN_V1_ENCODERS_SIZE, ARIA_PLUGIN_V1_MIN_SIZE,
+    ARIA_PLUGIN_V1_PANELS_SIZE, AriaAudioBlock, AriaAudioParam, AriaBytesResult, AriaEncoderAudio,
+    AriaEncoderConfig, AriaEncoderFrame, AriaInstanceResult, AriaOwnedBytes, AriaOwnedStr,
+    AriaPluginV1, AriaResult, AriaStr, free_rust_bytes, free_rust_string,
 };
 use aria_sdk::{
     DragPhase as SdkDragPhase, HandleLook as SdkHandleLook, Host, OverlayColor as SdkOverlayColor,
@@ -821,8 +820,6 @@ fn malformed_json_oversized_json_panics_and_legacy_table_sizes_are_handled() {
         check_compat(ABI_VERSION, ARIA_PLUGIN_V1_ENCODERS_SIZE),
         Ok(())
     );
-    assert!(ARIA_HOST_V1_MIN_SIZE < ARIA_HOST_V1_PANELS_SIZE);
-    assert!(ARIA_HOST_V1_PANELS_SIZE < ARIA_HOST_V1_ENCODERS_SIZE);
     assert!(host_table().has_overlays());
 
     let mut legacy_encoders_table = raw_plugin_table();

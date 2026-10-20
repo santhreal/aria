@@ -29,26 +29,24 @@ impl HostState {
 
     fn check_fs_path(&self, raw_path: &str, write: bool) -> Result<PathBuf, String> {
         let path = Path::new(raw_path);
-        if !write {
-            if let Some(active) = &self.active_read_path {
-                if path == active {
-                    return Ok(active.clone());
-                }
-            }
-        }
-        if write {
-            if let Some(active) = &self.active_encode_path {
-                if path == active {
-                    return Ok(active.clone());
-                }
-            }
+        let active = if write {
+            &self.active_encode_path
+        } else {
+            &self.active_read_path
+        };
+        if let Some(active) = active
+            && path == active
+        {
+            return Ok(active.clone());
         }
 
         for scope in &self.package.manifest.permissions.fs {
-            if let FsScope::Path(prefix) = scope {
-                if path.is_absolute() && !contains_parent_dir(path) && path.starts_with(prefix) {
-                    return Ok(path.to_path_buf());
-                }
+            if let FsScope::Path(prefix) = scope
+                && path.is_absolute()
+                && !contains_parent_dir(path)
+                && path.starts_with(prefix)
+            {
+                return Ok(path.to_path_buf());
             }
         }
 
@@ -162,11 +160,11 @@ impl HostState {
     }
 
     pub(super) fn host_fs_write(&mut self, path: String, bytes: Vec<u8>) -> Result<(), String> {
-        if let Some(active) = &mut self.active_export {
-            if path == active.path {
-                active.bytes = bytes;
-                return Ok(());
-            }
+        if let Some(active) = &mut self.active_export
+            && path == active.path
+        {
+            active.bytes = bytes;
+            return Ok(());
         }
         let allowed = self.check_fs_path(&path, true)?;
         if let Some(parent) = allowed.parent() {

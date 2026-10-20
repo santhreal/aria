@@ -35,13 +35,10 @@ impl NewTier {
     }
 
     pub(crate) fn parse(raw: &str) -> Result<Self, Failure> {
-        match raw {
-            "wasm" => Ok(Self::Wasm),
-            "native" => Ok(Self::Native),
-            _ => Err(Failure::Usage(format!(
-                "--tier wants wasm or native, got \"{raw}\""
-            ))),
-        }
+        Self::ALL
+            .into_iter()
+            .find(|tier| tier.key() == raw)
+            .ok_or_else(|| Failure::Usage(format!("--tier wants wasm or native, got \"{raw}\"")))
     }
 }
 

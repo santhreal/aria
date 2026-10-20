@@ -85,7 +85,7 @@ impl Value {
 }
 
 /// A number as JavaScript prints it.
-pub(self) fn number_text(number: f64) -> String {
+fn number_text(number: f64) -> String {
     if number.is_nan() {
         "NaN".into()
     } else if number.is_infinite() {
@@ -774,7 +774,7 @@ fn symbol(op: Binary) -> &'static str {
     }
 }
 
-pub(self) fn binary(op: Binary, left: Value, right: Value, pos: Pos) -> Result<Value, String> {
+fn binary(op: Binary, left: Value, right: Value, pos: Pos) -> Result<Value, String> {
     match op {
         Binary::Eq => return Ok(Value::Bool(left == right)),
         Binary::NotEq => return Ok(Value::Bool(left != right)),

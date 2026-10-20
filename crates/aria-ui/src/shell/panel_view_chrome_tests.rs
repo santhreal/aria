@@ -158,7 +158,7 @@ fn make_chrome(
                 .iter()
                 .filter(|spec| spec.tool != selected)
                 .map(|spec| spec.id)
-                .find(|id| visual.debug_bounds(*id).is_some())
+                .find(|id| visual.debug_bounds(id).is_some())
                 .expect("the strip draws a tool that is not selected");
             click(visual, id);
             assert!(

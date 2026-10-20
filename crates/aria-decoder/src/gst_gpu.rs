@@ -489,13 +489,13 @@ fn sample_to_dmabuf(sample: &gst::Sample) -> Option<DmaBufSurface> {
     let mut offsets = [0u32; 4];
     let mut plane_count = 0u32;
 
-    for i in 0..n.min(4) {
+    for (i, slot) in fds.iter_mut().enumerate().take(n) {
         let mem = buffer.peek_memory(i);
         let fd = dmabuf_fd(mem.as_ptr() as *mut _)?;
         if fd < 0 {
             return None;
         }
-        fds[i] = fd;
+        *slot = fd;
         plane_count += 1;
     }
 

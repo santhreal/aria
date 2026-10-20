@@ -15,6 +15,9 @@ use crate::args::Args;
 use crate::fail::Failure;
 
 pub(crate) const FLAGS: &[&str] = &[];
+/// The sections [`check_dir`] prints, in order, each at the start of its line.
+/// The command-line reference test compares `docs/command-line.md` against it.
+#[cfg(test)]
 pub(crate) const CHECK_SECTIONS: [&str; 7] = [
     "manifest",
     "shaders",

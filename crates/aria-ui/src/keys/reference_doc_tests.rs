@@ -2227,7 +2227,7 @@ fn plugin_keys_and_basics_docs_match_ui_registries_bidirectionally() {
     let mut key_host_doc_calls: Vec<String> = Vec::new();
     for row in &rows {
         if row.len() == 2 {
-            let first = strip_ticks(&row[0]);
+            let first = strip_ticks(row[0]);
             if first.contains('(') {
                 key_host_doc_calls.push(first.split('(').next().unwrap_or(first).to_owned());
             } else {

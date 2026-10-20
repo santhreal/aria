@@ -76,22 +76,11 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
             "unknown plugin sub-command \"{raw}\" (expected new, dev, check, or pack)"
         ))
     })?;
+    args.reject_unknown(sub.flags())?;
     match sub {
-        Subcommand::New => {
-            args.reject_unknown(new::FLAGS)?;
-            new::run(args)
-        }
-        Subcommand::Dev => {
-            args.reject_unknown(dev::FLAGS)?;
-            dev::run(args)
-        }
-        Subcommand::Check => {
-            args.reject_unknown(check::FLAGS)?;
-            check::run(args)
-        }
-        Subcommand::Pack => {
-            args.reject_unknown(pack::FLAGS)?;
-            pack::run(args)
-        }
+        Subcommand::New => new::run(args),
+        Subcommand::Dev => dev::run(args),
+        Subcommand::Check => check::run(args),
+        Subcommand::Pack => pack::run(args),
     }
 }

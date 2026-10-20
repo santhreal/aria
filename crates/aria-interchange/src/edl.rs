@@ -346,7 +346,7 @@ fn event_of(
 ) -> Option<Event> {
     let (speed, reversed) = match line.m2 {
         None => (Rational::new(1, 1), false),
-        Some(fps) if fps == 0.0 => {
+        Some(0.0) => {
             skipped.push(format!(
                 "event {}: a freeze frame, which is not read",
                 line.number

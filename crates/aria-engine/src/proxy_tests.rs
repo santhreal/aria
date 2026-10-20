@@ -53,10 +53,12 @@ fn a_size_that_is_not_a_canvas_is_refused_rather_than_clamped() {
     assert_eq!(proxy_size(1920, 1080, 0), None);
     // Below the canvas floor: 15×9 rounds to 14×8, and 8 is under MIN_DIM.
     assert!(proxy_size(15, 9, 960).is_none());
-    assert!(
-        CanvasSettings::MIN_DIM > 8,
-        "the case above assumes the floor"
-    );
+    const {
+        assert!(
+            CanvasSettings::MIN_DIM > 8,
+            "the case above assumes the floor"
+        )
+    };
     // Over the ceiling only when nothing scaled it: the cap is what keeps a
     // 12000-pixel source inside the bound.
     assert!(proxy_size(12_000, 6_750, 0).is_none());
