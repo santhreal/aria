@@ -210,6 +210,21 @@ impl Drop for VideoPipelineSlot {
     }
 }
 
+/// Whether software video decoder `factory_name` decodes faster with slice-only
+/// threading (`thread-type = "slice"`) than with frame threading.
+///
+/// Single-slice H.264 streams have no intra-frame slice parallelism, so setting
+/// `thread-type = "slice"` on `avdec_h264` serializes forward roll across a GOP
+/// onto one thread (`long_gop_exact_seek_ms` 36.50 ms -> 64.66 ms and
+/// `warm_renderer_scrub_ms` 3.89 ms -> 6.30 ms on a 16-core host). HEVC
+/// (`avdec_h265`, Wavefront Parallel Processing CTU rows) and ProRes
+/// (`avdec_prores`, independent macroblock slices per frame) parallelize each
+/// frame across slice threads without buffering `max-threads` 4K frames before
+/// emitting the preroll sample after a seek.
+pub(crate) fn uses_slice_threading(factory_name: &str) -> bool {
+    matches!(factory_name, "avdec_h265" | "avdec_prores")
+}
+
 /// Restrict `uridecodebin` to raw video output so non-video tracks (audio,
 /// subtitles) are not demuxed or queued, and bound software video decoder
 /// thread pools (`max-threads`) as decoders are plugged.
@@ -235,7 +250,9 @@ fn configure_video_uridecodebin(bin: &gst::Bin, thread_budget: i32) {
             if element.find_property("max-threads").is_some() {
                 element.set_property("max-threads", thread_budget);
             }
-            if element.find_property("thread-type").is_some() {
+            if uses_slice_threading(factory.name().as_str())
+                && element.find_property("thread-type").is_some()
+            {
                 element.set_property_from_str("thread-type", "slice");
             }
         }

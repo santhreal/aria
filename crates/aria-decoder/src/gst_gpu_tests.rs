@@ -427,10 +427,11 @@ fn video_pipeline_ignores_audio_streams_and_bounds_decoder_threads() {
         );
     }
 
-    // Every software video decoder with `thread-type` (`avdec_h264`,
-    // `avdec_h265`, `avdec_prores`) must be configured for `slice` threading
-    // (without `frame` threading) so open and seek preroll do not buffer
-    // `max-threads` frames before emitting a single sample.
+    // Intra-frame / WPP slice-parallel 4K codecs (`avdec_h265`, `avdec_prores`)
+    // must enable slice-only threading so open and seek preroll do not buffer
+    // `max-threads` frames, while `avdec_h264` must keep frame threading so
+    // single-slice H.264 streams decode across multiple threads during forward
+    // roll and renderer lookahead.
     let probe_bin = gst::ElementFactory::make("uridecodebin")
         .build()
         .expect("uridecodebin")
@@ -438,7 +439,11 @@ fn video_pipeline_ignores_audio_streams_and_bounds_decoder_threads() {
         .expect("uridecodebin is a bin");
     configure_video_uridecodebin(&probe_bin, single_budget);
     let mut checked_codecs = 0usize;
-    for codec in ["avdec_h264", "avdec_h265", "avdec_prores"] {
+    for (codec, expect_slice_only) in [
+        ("avdec_h264", false),
+        ("avdec_h265", true),
+        ("avdec_prores", true),
+    ] {
         let Ok(dec) = gst::ElementFactory::make(codec).build() else {
             continue;
         };
@@ -449,19 +454,17 @@ fn video_pipeline_ignores_audio_streams_and_bounds_decoder_threads() {
         let value = dec.property_value("thread-type");
         let flags = gst::glib::FlagsClass::with_type(value.type_())
             .expect("thread-type is a GFlags property");
-        assert!(
-            flags.is_set_by_nick(&value, "slice"),
-            "{codec} did not enable slice threading"
-        );
-        assert!(
-            !flags.is_set_by_nick(&value, "frame"),
-            "{codec} left frame threading enabled"
+        let slice_only =
+            flags.is_set_by_nick(&value, "slice") && !flags.is_set_by_nick(&value, "frame");
+        assert_eq!(
+            slice_only, expect_slice_only,
+            "{codec} slice-only threading mismatch (expected {expect_slice_only})"
         );
         let _ = probe_bin.remove(&dec);
         checked_codecs += 1;
     }
-    assert!(
-        checked_codecs >= 2,
-        "expected at least avdec_h264 and avdec_h265 to be checked, got {checked_codecs}"
+    assert_eq!(
+        checked_codecs, 3,
+        "expected avdec_h264, avdec_h265, and avdec_prores to be checked"
     );
 }
