@@ -131,7 +131,7 @@ the `AriaHostV1` function table:
 | Storage | `storage_get(key)`, `storage_set(key, bytes)`, `storage_delete(key)`, `storage_keys()` (backed by `<data dir>/plugin-data/<id>`) | |
 | Settings | `setting_get(key)` (`Result<Option<Value>, String>`), `setting_get_json(key)` | |
 | Commands | `register_command(id, title)` | `command_run(&self, host, id, args_json)` |
-| Events | `subscribe(event_kind)`, `subscribe_with_priority(event_kind, priority)` | `event(&self, host, kind, event_json) -> Result<EventResponse, String>` |
+| Events | `subscribe(event_kind)`, `subscribe_with_priority(event_kind, priority)` ([kinds and payloads](events.md#external-plugins)) | `event(&self, host, kind, event_json) -> Result<EventResponse, String>` |
 | Project & view | `project_snapshot()`, `project_snapshot_json()`, `editor_view()`, `editor_view_json()`, `clip(id)`, `clips_in_range(sequence, range)`, `clips_at(sequence, tick)`, `selected_clips()`, `markers_in_range(sequence, range)`, `in_out()`, `project_transact(label, commands)`, `project_transact_json(label, commands_json)`, `project_undo()` | |
 | Interchange | `register_importer(&ImporterSpec)`, `register_exporter(&ExporterSpec)`, `register_encoder(EncoderSpec, impl Encoder)`, `register_encoder_spec(&EncoderSpec)` | `import(&self, host, importer_id, path)`, `export(&self, host, exporter_id, project_json, path)`, `encoder_open(&self, host, encoder_id, path, config)` |
 | Audio effects | `register_audio_effect(&AudioEffectSpec)` | `audio_create(&self, host, effect_id, sample_rate) -> Result<Box<dyn AudioProcessor>, String>` |

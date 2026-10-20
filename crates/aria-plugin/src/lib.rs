@@ -20,6 +20,7 @@ mod drivers;
 mod editor_events;
 mod enablement;
 mod error;
+pub mod event_wire;
 mod events;
 mod expressions;
 pub mod external;
@@ -76,8 +77,8 @@ pub use error::PluginError;
 pub use events::{Event, EventBus, SerialEvent, WaterfallEvent, WaterfallResult};
 pub use hooks::{CommandProposed, DropAction, Dropped, ResolveDropped};
 pub use interchange::{
-    Encoder, EncoderSpec, Exporter, ExporterSpec, Importer, ImporterSpec, InterchangeError,
-    InterchangeReport,
+    Encoder, EncoderFrame, EncoderSpec, Exporter, ExporterSpec, Importer, ImporterSpec,
+    InterchangeError, InterchangeReport, encoder_pts,
 };
 pub use keys::{Chord, KeyDefault, KeyRoute};
 pub use menus::{MenuCommand, MenuLocation, MenuPath};

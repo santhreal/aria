@@ -14,12 +14,10 @@ use aria_models::{
 };
 use aria_plugin::package::{Access, FsScope, Package, register_declared};
 use aria_plugin::{
-    CallError, ClipRef, DecoderSpec, EXPORT_AUDIO_CHANNELS, EXPORT_AUDIO_RATE, EditorView,
-    EncodeError, Encoder, EncoderConfig, EncoderSpec, Exporter, ExporterSpec, ForeignDecoder,
-    FrameData, Importer, ImporterSpec, InterchangeReport, JobStep, LogLevel, Names, Origin,
-    PixelFormat, Plugin, PluginCommand, PluginContext, PluginError, PluginManifest, ProjectHost,
-    Rational, RationalTime, ScopeSpec, SettingsService, TimeRange, TransactError, Transaction,
-    VideoEncoder, VideoFrame,
+    CallError, ClipRef, DecoderSpec, EditorView, EncoderSpec, Exporter, ExporterSpec,
+    ForeignDecoder, Importer, ImporterSpec, InterchangeReport, JobStep, LogLevel, Names, Origin,
+    Plugin, PluginCommand, PluginContext, PluginError, PluginManifest, ProjectHost, Rational,
+    RationalTime, ScopeSpec, SettingsService, TimeRange, TransactError, Transaction,
 };
 use parking_lot::Mutex;
 use serde_json::json;
@@ -31,6 +29,7 @@ use crate::audio::WasmAudioFactory;
 use crate::bindings;
 use crate::contributions;
 use crate::decoders::WasmDecoder;
+use crate::encoders::WasmEncoder;
 use crate::events::{UnmountSentinel, subscribe_event};
 use crate::legacy_bindings;
 use crate::overlays::register_wasm_overlay;
@@ -1178,124 +1177,6 @@ impl Exporter for WasmExporter {
     }
 }
 
-struct WasmEncoder {
-    shared: Arc<WasmPluginShared>,
-    ctx: PluginContext,
-    id: String,
-}
-
-impl Encoder for WasmEncoder {
-    fn open(
-        &self,
-        path: &Path,
-        config: &EncoderConfig,
-    ) -> Result<Box<dyn VideoEncoder>, EncodeError> {
-        let (width, height) = config.size;
-        let (audio_sample_rate, audio_channels) = config.audio.map_or(
-            (EXPORT_AUDIO_RATE, u32::from(EXPORT_AUDIO_CHANNELS)),
-            |audio| (audio.sample_rate, u32::from(audio.channels)),
-        );
-        let wit_cfg = bindings::EncoderConfig {
-            width,
-            height,
-            fps_num: i64::from(config.frame_rate.num),
-            fps_den: config.frame_rate.den,
-            video_bitrate_kbps: config.bitrate_kbps.unwrap_or(0),
-            audio_bitrate_kbps: 0,
-        };
-        let instance = self
-            .shared
-            .call_encoder_open(&self.ctx, &self.id, path, &wit_cfg)
-            .map_err(EncodeError::Start)?;
-        Ok(Box::new(WasmEncoderSession {
-            shared: Arc::clone(&self.shared),
-            ctx: self.ctx.clone(),
-            path: path.to_path_buf(),
-            id: self.id.clone(),
-            instance,
-            audio_sample_rate,
-            audio_channels,
-            finished: false,
-        }))
-    }
-}
-
-struct WasmEncoderSession {
-    shared: Arc<WasmPluginShared>,
-    ctx: PluginContext,
-    path: PathBuf,
-    id: String,
-    instance: u64,
-    audio_sample_rate: u32,
-    audio_channels: u32,
-    finished: bool,
-}
-
-impl VideoEncoder for WasmEncoderSession {
-    fn push(&mut self, frame: &VideoFrame) -> Result<(), EncodeError> {
-        if frame.format != PixelFormat::Rgba8 {
-            return Err(EncodeError::Unsupported(format!(
-                "plugin encoder expects Rgba8 frame, got {:?}",
-                frame.format
-            )));
-        }
-        let FrameData::Cpu(cpu) = &frame.data else {
-            return Err(EncodeError::Unsupported(
-                "plugin encoder requires CPU RGBA frame".to_owned(),
-            ));
-        };
-        let Some(plane) = cpu.planes.first() else {
-            return Err(EncodeError::Encode(
-                "RGBA frame has no pixel plane".to_owned(),
-            ));
-        };
-        let (width, height) = frame.coded_size;
-        let wit_frame = bindings::EncoderFrame {
-            rgba: plane.data.clone(),
-            width,
-            height,
-            stride: plane.stride as u32,
-            pts_value: frame.pts.value,
-            pts_rate: frame.pts.rate.num,
-        };
-        self.shared
-            .call_encoder_push_frame(&self.ctx, &self.path, self.instance, &wit_frame)
-            .map_err(EncodeError::Encode)
-    }
-
-    fn push_audio(&mut self, samples: &[f32], pts: RationalTime) -> Result<(), EncodeError> {
-        let wit_audio = bindings::EncoderAudio {
-            samples: samples.to_vec(),
-            sample_rate: self.audio_sample_rate,
-            channels: self.audio_channels,
-            pts_value: pts.value,
-            pts_rate: pts.rate.num,
-        };
-        self.shared
-            .call_encoder_push_audio(&self.ctx, &self.path, self.instance, &wit_audio)
-            .map_err(EncodeError::Encode)
-    }
-
-    fn finish(&mut self) -> Result<(), EncodeError> {
-        self.finished = true;
-        self.shared
-            .call_encoder_finish(&self.ctx, &self.path, self.instance)
-            .map_err(EncodeError::Encode)
-    }
-
-    fn choice(&self) -> aria_plugin::EncoderChoice {
-        aria_plugin::EncoderChoice::only(self.id.clone(), None)
-    }
-}
-
-impl Drop for WasmEncoderSession {
-    fn drop(&mut self) {
-        if !self.finished {
-            let _ = self.shared.call_encoder_drop(&self.ctx, self.instance);
-        }
-    }
-}
-
 impl HostState {
     fn require_mount_phase(&self, op: &str) -> Result<PluginContext, String> {
         if self.phase != CallPhase::Mount {
@@ -1572,16 +1453,9 @@ impl bindings::PluginImports for HostState {
             extension: spec.extension,
             audio: spec.audio,
         };
-        ctx.register_encoder(
-            host_spec,
-            WasmEncoder {
-                shared,
-                ctx: ctx.clone(),
-                id,
-            },
-        )
-        .map(|_| ())
-        .map_err(|err| err.to_string())
+        ctx.register_encoder(host_spec, WasmEncoder::new(shared, ctx.clone(), id))
+            .map(|_| ())
+            .map_err(|err| err.to_string())
     }
 
     fn register_decoder(&mut self, spec: bindings::DecoderSpec) -> Result<(), String> {

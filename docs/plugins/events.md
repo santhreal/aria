@@ -157,11 +157,6 @@ and the AI plugin claims `SKILL.md`. An unclaimed path is imported as media; an
 unclaimed URL sets the status strip to `No plugin accepts <url>`. The `.aria`
 project extension is opened by the host before `ResolveDropped` runs.
 
-External native and WASM plugins subscribe to `"resolve-dropped"` (or
-`"resolve-dropped:<priority>"`, with `"resolve-dropped-path"` accepted as an
-alias) and receive `{"kind":"path","path":"..."}` or
-`{"kind":"url","url":"..."}`.
-
 ```rust
 ctx.on_serial_with_priority::<ResolveDropped, DropAction, _>(10, |event| {
     if let Some(url) = event.item.as_url() {
@@ -175,3 +170,82 @@ ctx.on_serial_with_priority::<ResolveDropped, DropAction, _>(10, |event| {
         .then_some(DropAction::ImportMedia)
 });
 ```
+
+## External plugins
+
+A native or WASM plugin subscribes to an event by kind during `mount`:
+`host.subscribe(kind)` in `aria-sdk`, `subscribe(kind)` in the WIT world. The
+event type name is accepted in place of the kind (`"CommandApplied"` for
+`"command-applied"`), and `"resolve-dropped-path"` is accepted for
+`"resolve-dropped"`. `"resolve-dropped:<n>"` subscribes at priority `n`, a
+32-bit integer; no other kind takes a priority. Any other name fails the
+`subscribe` call, and the error lists the kinds.
+
+The plugin's `event` callback receives the kind in the first column, whichever
+spelling subscribed, and the event as a JSON object with the fields listed.
+Native and WASM plugins receive the same kind and payload.
+
+| Kind | Event | Payload | Reply |
+| --- | --- | --- | --- |
+| `command-proposed` | `CommandProposed` | `command`, `origin`, `target_tracks`, `target_clips` | Refusal or replacement command |
+| `resolve-dropped` | `ResolveDropped` | `kind`, `path`, `extension`, `url` | Drop action |
+| `command-applied` | `CommandApplied` | `command`, `outcome`, `revision`, `origin` | Ignored |
+| `project-opened` | `ProjectOpened` | `path` | Ignored |
+| `project-closed` | `ProjectClosed` | `path` | Ignored |
+| `project-saved` | `ProjectSaved` | `path` | Ignored |
+| `selection-changed` | `SelectionChanged` | `clips` | Ignored |
+| `playhead-moved` | `PlayheadMoved` | `at` | Ignored |
+| `in-out-changed` | `InOutChanged` | `mark_in`, `mark_out` | Ignored |
+| `playback-started` | `PlaybackStarted` | `at`, `speed` | Ignored |
+| `playback-stopped` | `PlaybackStopped` | `at` | Ignored |
+| `media-imported` | `MediaImported` | `media`, `path` | Ignored |
+| `media-relinked` | `MediaRelinked` | `media`, `path` | Ignored |
+| `media-offline` | `MediaOffline` | `media`, `path` | Ignored |
+| `render-finished` | `RenderFinished` | `kind`, `path`, `result` | Ignored |
+| `export-started` | `ExportStarted` | `path` | Ignored |
+| `export-finished` | `ExportFinished` | `path`, `result` | Ignored |
+| `job-progress` | `JobProgress` | `job`, `label`, `progress`, `detail` | Ignored |
+| `job-finished` | `JobFinished` | `job`, `label`, `outcome`, `detail` | Ignored |
+
+### Payload fields
+
+- `command` is the command in the JSON form `project_transact` takes.
+- `origin` is `"the editor"`, `"the assistant"`, or `"plugin <id>"`.
+- `target_tracks` and `target_clips` are the ids `EditCommand::targets()`
+  returns. Both are empty for a project command.
+- `outcome` in `command-applied` is the engine's `ApplyOutcome`, adjacently
+  tagged: `{"type": "Saved"}`, `{"type": "Imported", "value": {"media": 3}}`.
+- `revision` is the engine revision after the command.
+- `at`, `mark_in`, and `mark_out` are times:
+  `{"value": 60, "rate": {"num": 24, "den": 1}}`. A cleared mark is `null`.
+- `speed` is a multiple of real time. A negative speed plays backwards.
+- `path` is a string. In `project-opened` and `project-closed` it is `null`
+  for a session that was never saved. Each invalid UTF-8 sequence in a path is
+  replaced by U+FFFD.
+- `clips`, `media`, `job`, and the entries of `target_tracks` and
+  `target_clips` are integer ids.
+- `kind` in `resolve-dropped` is `"path"`, sent with `path` and `extension`
+  (empty when the file name has none), or `"url"`, sent with `url`.
+- `kind` in `render-finished` is `{"clip": <id>}` for a clip render, or
+  `"image-sequence"`.
+- `result` is `{"status": "written"}`,
+  `{"status": "failed", "reason": "<reason>"}`, or `{"status": "cancelled"}`.
+- `progress` is a number from 0 to 1, or `null` before the job measures it.
+- `outcome` in `job-finished` is `"done"`, `"failed"`, or `"cancelled"`.
+
+A command that has no JSON form, such as one naming a path that is not UTF-8,
+is not delivered; the host logs a warning naming the kind.
+
+### Replies
+
+- `command-proposed`: `{"veto": "<reason>"}` or `{"refuse": "<reason>"}`
+  refuses the command and shows the reason as written. `{"rewrite": <command>}`
+  or a bare command replaces it. An empty reply, or any other, leaves the
+  command as proposed. In `aria-sdk` these are `EventResponse::Refuse` and
+  `EventResponse::RewriteCommand`.
+- `resolve-dropped`: the drop action as a JSON string, a bare word, or
+  `{"claim_drop": "<action>"}`. The actions are `open-project`,
+  `import-media`, `apply-lut`, `install-skill`, `import-timeline`, and
+  `handled`; each `DropAction` variant name is accepted too. In `aria-sdk`
+  this is `EventResponse::ClaimDrop`. Any other reply claims nothing.
+- Every other kind ignores the reply.

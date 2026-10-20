@@ -302,6 +302,8 @@ struct ContractEncoderSession {
     header: String,
     frames: usize,
     samples: usize,
+    /// `f<value>/<rate>` per frame and `a<value>/<rate>` per audio block.
+    times: Vec<String>,
     mode: &'static str,
 }
 
@@ -311,6 +313,8 @@ impl SdkEncoderSession for ContractEncoderSession {
             panic!("encoder push boom");
         }
         self.frames += usize::from(frame.width > 0 && frame.rgba.len() >= frame.stride as usize);
+        self.times
+            .push(format!("f{}/{}", frame.pts_value, frame.pts_rate));
         Ok(())
     }
 
@@ -319,6 +323,8 @@ impl SdkEncoderSession for ContractEncoderSession {
             panic!("encoder audio boom");
         }
         self.samples += audio.samples.len();
+        self.times
+            .push(format!("a{}/{}", audio.pts_value, audio.pts_rate));
         Ok(())
     }
 
@@ -331,7 +337,13 @@ impl SdkEncoderSession for ContractEncoderSession {
         }
         std::fs::write(
             &self.path,
-            format!("{}:{}:{}", self.header, self.frames, self.samples),
+            format!(
+                "{}:{}:{}:{}",
+                self.header,
+                self.frames,
+                self.samples,
+                self.times.join(",")
+            ),
         )
         .map_err(|err| err.to_string())
     }
@@ -399,6 +411,7 @@ impl SdkPlugin for ContractGuest {
                     header: format!("{}x{}@{}", cfg.width, cfg.height, cfg.fps_num),
                     frames: 0,
                     samples: 0,
+                    times: Vec::new(),
                     mode,
                 });
                 Ok(session)
@@ -779,6 +792,8 @@ fn full_contract_operations_and_registration_guard_and_interchange_work() {
     );
 
     // 6b. `open_encoder` writes video frames and audio blocks through the native encoder.
+    // A time at 30000/1001 reaches the guest as whole-rate ticks: frame 3 starts
+    // 3 * 1001 / 30000 s in, and an audio block at frame 5 starts 5005 / 30000 s in.
     let enc_out = temp.path().join("out.cenc");
     let enc_cfg = EncoderConfig::new((8, 4), Rational::FPS_24, ColorSpace::BT709)
         .with_audio(AudioEncoderConfig::new(48_000, 2))
@@ -788,7 +803,7 @@ fn full_contract_operations_and_registration_guard_and_interchange_work() {
         .expect("open contract.enc");
     let plane = Plane::new(vec![0u8; 8 * 4 * 4], 8 * 4, 4);
     let frame = VideoFrame::new(
-        RationalTime::zero(Rational::FPS_24),
+        RationalTime::new(3, Rational::FPS_29_97),
         PixelFormat::Rgba8,
         ColorSpace::BT709,
         (8, 4),
@@ -800,13 +815,13 @@ fn full_contract_operations_and_registration_guard_and_interchange_work() {
     enc_session
         .push_audio(
             &[0.5, -0.5, 0.25, -0.25],
-            RationalTime::zero(Rational::new(48_000, 1)),
+            RationalTime::new(5, Rational::FPS_29_97),
         )
         .expect("push audio");
     enc_session.finish().expect("finish encoder");
     assert_eq!(
         std::fs::read_to_string(&enc_out).expect("read encoded output"),
-        "8x4@24:1:4"
+        "8x4@24:1:4:f3003/30000,a5005/30000"
     );
 
     // 7. Unmount calls the guest's `unmount` callback and drops all registrations.

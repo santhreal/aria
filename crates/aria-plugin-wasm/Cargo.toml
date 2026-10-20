@@ -25,5 +25,6 @@ aria-decoder = { path = "../aria-decoder" }
 aria-engine = { path = "../aria-engine" }
 aria-render = { path = "../aria-render" }
 tempfile = "3"
+wit-parser = "0.258.3"
 [lints]
 workspace = true

@@ -111,7 +111,7 @@ impl ColorSpace {
         range: ColorRange::Limited,
     };
 
-    /// HDR10: BT.2020 primaries, PQ transfer, full container range.
+    /// HDR10: BT.2020 primaries, PQ transfer, limited range.
     pub const BT2020_PQ: ColorSpace = ColorSpace {
         primaries: ColorPrimaries::Bt2020,
         transfer: TransferFunction::Pq,

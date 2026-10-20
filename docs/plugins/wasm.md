@@ -58,7 +58,10 @@ setting above is stored as `com.example.wasm-tools.marker-label`.
 ## WIT World (`aria:plugin/plugin@1.0.0`)
 
 The WIT definition is at `crates/aria-plugin-wasm/wit/plugin.wit`, and
-`aria_plugin_wasm::WORLD` holds its name.
+`aria_plugin_wasm::WORLD` holds its name. The [WIT reference](wit-reference.md)
+describes every function, type, field and case of the world. The tables below
+list the permission each host import requires and the chapter that covers each
+function.
 
 Loading a component type-checks it against the world before anything runs. A
 component that imports a function the host does not provide, or lacks an
@@ -68,89 +71,100 @@ load.
 
 ### Host Imports
 
-| Import | Signature | Permission |
+| Import | Permission | Chapter |
 | --- | --- | --- |
-| `log` | `func(level: log-level, text: string)`; kept in the plugin's log in Settings > Plugins ([Logging](basics.md#logging)) | None |
-| `storage-get` | `func(key: string) -> result<option<list<u8>>, string>` | None (`<data_root>/plugin-data/<id>`) |
-| `storage-set` | `func(key: string, value: list<u8>) -> result<_, string>` | None (`<data_root>/plugin-data/<id>`) |
-| `storage-delete` | `func(key: string) -> result<_, string>` | None (`<data_root>/plugin-data/<id>`) |
-| `storage-keys` | `func() -> result<list<string>, string>` | None (`<data_root>/plugin-data/<id>`) |
-| `setting-get` | `func(key: string) -> result<option<string>, string>` | None |
-| `register-command` | `func(id: string, title: string) -> result<_, string>` | `mount` only |
-| `subscribe` | `func(event-kind: string) -> result<_, string>` (append `:<priority>` on `resolve-dropped` to set handler priority) | `mount` only |
-| `register-importer` | `func(spec: importer-spec) -> result<_, string>` | `mount` only |
-| `register-exporter` | `func(spec: exporter-spec) -> result<_, string>` | `mount` only |
-| `register-audio-effect` | `func(spec: audio-effect-spec) -> result<_, string>` | `mount` only |
-| `register-panel` | `func(spec: panel-spec) -> result<_, string>` | `mount` only |
-| `refresh-panel` | `func(id: string) -> result<_, string>` | Own panels only |
-| `register-viewer-overlay` | `func(spec: overlay-spec) -> result<_, string>` | `mount` only |
-| `refresh-viewer-overlay` | `func(id: string) -> result<_, string>` | Own overlays only |
-| `start-job` | `func(label: string) -> result<u64, string>`; runs the guest's `job-step` on a job thread ([Jobs](jobs.md)) | None |
-| `register-decoder` | `func(spec: decoder-spec) -> result<_, string>` | `mount` only |
-| `register-ai-tool` | `func(spec: ai-tool-spec) -> result<_, string>` ([AI tools](ai-tools.md)) | `mount` only |
-| `register-scope` | `func(spec: scope-spec) -> result<_, string>` ([Scopes](scopes.md)) | `mount` only |
-| `set-effect-category` | `func(id: string, category: string) -> result<_, string>` | `mount` only, own effects only |
-| `register-effect` | `func(spec: effect-spec, passes: list<string>) -> result<_, string>` ([Effects](effects.md)) | `mount` only |
-| `register-cpu-effect` | `func(spec: effect-spec) -> result<_, string>` ([Effects](effects.md)) | `mount` only |
-| `register-transition` | `func(spec: transition-spec, wgsl: string) -> result<_, string>` ([Effects](effects.md)) | `mount` only |
-| `register-generator` | `func(spec: effect-spec, passes: list<string>) -> result<_, string>` ([Effects](effects.md)) | `mount` only |
-| `register-effect-graph` | `func(spec: effect-spec, traits: effect-traits, passes: list<graph-pass>) -> result<_, string>`; a generator when `spec.generator` is set ([Effect graphs](effects.md#effect-graphs)) | `mount` only |
-| `register-texture` | `func(id: string, width: u32, height: u32, pixels: list<u8>) -> result<_, string>`; straight-alpha RGBA8, top row first ([Plugin textures](effects.md#plugin-textures)) | `mount` only |
-| `register-clip-type` | `func(spec: clip-type-spec) -> result<_, string>` ([Clip types](clip-types.md)) | `mount` only |
-| `define-clip-type` | `func(spec: clip-type-spec, schema: clip-type-schema, render: clip-type-render) -> result<_, string>`; `clip-type-schema` holds `fields`, `groups`, and `time-dependent`, and `clip-type-render` is `cpu` (drawn by `cpu-effect-process` called with the type's id) or `passes(list<graph-pass>)` ([Defined types](clip-types.md#defined-types)) | `mount` only |
-| `register-driver-language` | `func(spec: driver-language-spec) -> result<_, string>` ([Drivers](drivers.md)) | `mount` only |
-| `register-preset` | `func(preset-json: string) -> result<_, string>` ([Presets](presets.md)) | `mount` only |
-| `register-theme` | `func(id: string, toml: string) -> result<_, string>` | `mount` only |
-| `register-workspace` | `func(spec: workspace-spec) -> result<_, string>` ([Workspaces](workspaces.md)) | `mount` only |
-| `project-snapshot` | `func() -> result<string, string>` | `project = "read"` or `"read-write"` |
-| `editor-view` | `func() -> result<string, string>` | `project = "read"` or `"read-write"` |
-| `clip` | `func(id: u64) -> result<option<clip-ref>, string>` | `project = "read"` or `"read-write"` |
-| `clips-in-range` | `func(sequence: option<u64>, range: time-range) -> result<list<clip-ref>, string>` | `project = "read"` or `"read-write"` |
-| `clips-at` | `func(sequence: option<u64>, tick: rational-time) -> result<list<clip-ref>, string>` | `project = "read"` or `"read-write"` |
-| `selected-clips` | `func() -> result<list<clip-ref>, string>` | `project = "read"` or `"read-write"` |
-| `markers-in-range` | `func(sequence: option<u64>, range: time-range) -> result<list<marker>, string>` | `project = "read"` or `"read-write"` |
-| `in-out` | `func() -> result<in-out-marks, string>` | `project = "read"` or `"read-write"` |
-| `project-transact` | `func(label: string, commands-json: string) -> result<string, string>` | `project = "read-write"` |
-| `project-undo` | `func() -> result<bool, string>` | `project = "read-write"` |
-| `fs-read` | `func(path: string) -> result<list<u8>, string>` | Active import or decode path, or `permissions.fs` |
-| `fs-read-at` | `func(path: string, offset: u64, len: u32) -> result<list<u8>, string>`; up to `len` bytes from `offset`, fewer only at end of file, at most 64 MiB per call | Active import or decode path, or `permissions.fs` |
-| `fs-len` | `func(path: string) -> result<u64, string>` | Active import or decode path, or `permissions.fs` |
-| `fs-write` | `func(path: string, bytes: list<u8>) -> result<_, string>` | Active export path or `permissions.fs` |
+| [`log`](wit-reference.md#import-log) | None | [Logging](basics.md#logging) |
+| [`storage-get`](wit-reference.md#import-storage-get) | None | |
+| [`storage-set`](wit-reference.md#import-storage-set) | None | |
+| [`storage-delete`](wit-reference.md#import-storage-delete) | None | |
+| [`storage-keys`](wit-reference.md#import-storage-keys) | None | |
+| [`setting-get`](wit-reference.md#import-setting-get) | None | [Settings](settings.md) |
+| [`register-command`](wit-reference.md#import-register-command) | `mount` only | [Commands](commands.md) |
+| [`subscribe`](wit-reference.md#import-subscribe) | `mount` only | [Events](events.md#external-plugins) |
+| [`register-importer`](wit-reference.md#import-register-importer) | `mount` only | [Importers and exporters](interchange.md#importers-and-exporters) |
+| [`register-exporter`](wit-reference.md#import-register-exporter) | `mount` only | [Importers and exporters](interchange.md#importers-and-exporters) |
+| [`register-encoder`](wit-reference.md#import-register-encoder) | `mount` only | [Encoders](interchange.md#encoders) |
+| [`register-audio-effect`](wit-reference.md#import-register-audio-effect) | `mount` only | [Audio effects](audio-effects.md) |
+| [`register-panel`](wit-reference.md#import-register-panel) | `mount` only | [Panels](panels.md) |
+| [`refresh-panel`](wit-reference.md#import-refresh-panel) | Own panels only | [Panels](panels.md) |
+| [`register-viewer-overlay`](wit-reference.md#import-register-viewer-overlay) | `mount` only | [Viewer overlays](viewer-overlays.md) |
+| [`refresh-viewer-overlay`](wit-reference.md#import-refresh-viewer-overlay) | Own overlays only | [Viewer overlays](viewer-overlays.md) |
+| [`project-snapshot`](wit-reference.md#import-project-snapshot) | `project = "read"` or `"read-write"` | [Project](project.md#project) |
+| [`editor-view`](wit-reference.md#import-editor-view) | `project = "read"` or `"read-write"` | [Project](project.md#project) |
+| [`clip`](wit-reference.md#import-clip) | `project = "read"` or `"read-write"` | [Project](project.md#project) |
+| [`clips-in-range`](wit-reference.md#import-clips-in-range) | `project = "read"` or `"read-write"` | [Project](project.md#project) |
+| [`clips-at`](wit-reference.md#import-clips-at) | `project = "read"` or `"read-write"` | [Project](project.md#project) |
+| [`selected-clips`](wit-reference.md#import-selected-clips) | `project = "read"` or `"read-write"` | [Project](project.md#project) |
+| [`markers-in-range`](wit-reference.md#import-markers-in-range) | `project = "read"` or `"read-write"` | [Project](project.md#project) |
+| [`in-out`](wit-reference.md#import-in-out) | `project = "read"` or `"read-write"` | [Project](project.md#project) |
+| [`project-transact`](wit-reference.md#import-project-transact) | `project = "read-write"` | [Project](project.md#project) |
+| [`project-undo`](wit-reference.md#import-project-undo) | `project = "read-write"` | [Project](project.md#project) |
+| [`fs-read`](wit-reference.md#import-fs-read) | Active import or decode path, or `permissions.fs` | [Permissions](packages.md#permissions) |
+| [`fs-write`](wit-reference.md#import-fs-write) | Active export path or `permissions.fs` | [Permissions](packages.md#permissions) |
+| [`start-job`](wit-reference.md#import-start-job) | None | [Jobs](jobs.md) |
+| [`register-decoder`](wit-reference.md#import-register-decoder) | `mount` only | [Decoders](interchange.md#decoders) |
+| [`fs-read-at`](wit-reference.md#import-fs-read-at) | Active import or decode path, or `permissions.fs` | [Permissions](packages.md#permissions) |
+| [`fs-len`](wit-reference.md#import-fs-len) | Active import or decode path, or `permissions.fs` | [Permissions](packages.md#permissions) |
+| [`register-ai-tool`](wit-reference.md#import-register-ai-tool) | `mount` only | [AI tools](ai-tools.md) |
+| [`register-scope`](wit-reference.md#import-register-scope) | `mount` only | [Scopes](scopes.md) |
+| [`set-effect-category`](wit-reference.md#import-set-effect-category) | `mount` only, own effects only | [Effects](effects.md) |
+| [`register-effect`](wit-reference.md#import-register-effect) | `mount` only | [Effects](effects.md) |
+| [`register-cpu-effect`](wit-reference.md#import-register-cpu-effect) | `mount` only | [CPU effects and generators](effects.md#cpu-effects-and-generators) |
+| [`register-transition`](wit-reference.md#import-register-transition) | `mount` only | [Effects](effects.md) |
+| [`register-generator`](wit-reference.md#import-register-generator) | `mount` only | [Generators](effects.md#generators) |
+| [`register-effect-graph`](wit-reference.md#import-register-effect-graph) | `mount` only | [Effect graphs](effects.md#effect-graphs) |
+| [`register-texture`](wit-reference.md#import-register-texture) | `mount` only | [Plugin textures](effects.md#plugin-textures) |
+| [`register-clip-type`](wit-reference.md#import-register-clip-type) | `mount` only | [Clip types](clip-types.md) |
+| [`define-clip-type`](wit-reference.md#import-define-clip-type) | `mount` only | [Defined types](clip-types.md#defined-types) |
+| [`register-driver-language`](wit-reference.md#import-register-driver-language) | `mount` only | [Drivers](drivers.md) |
+| [`register-preset`](wit-reference.md#import-register-preset) | `mount` only | [Presets](presets.md) |
+| [`register-theme`](wit-reference.md#import-register-theme) | `mount` only | [Theme files](../theme-tokens.md#theme-files) |
+| [`register-workspace`](wit-reference.md#import-register-workspace) | `mount` only | [Workspaces](workspaces.md) |
+| [`register-analyzer`](wit-reference.md#import-register-analyzer) | `mount` only | [Audio analyzers](analyzers.md) |
 
 ### Guest Exports
 
-| Export | Signature | Description |
-| --- | --- | --- |
-| `mount` | `func() -> result<_, string>` | Initializes the plugin and registers contributions. |
-| `unmount` | `func() -> result<_, string>` | Releases guest state before unload or reload. |
-| `command-run` | `func(id: string, args-json: string) -> result<_, string>` | Executes a registered palette command. |
-| `event` | `func(kind: string, event-json: string) -> result<option<string>, string>` | Receives subscribed notifications, waterfall proposals, and serial claims. |
-| `%import` | `func(importer-id: string, path: string) -> result<import-result, string>` | Parses `path` and returns `Vec<aria_commands::Command>` JSON plus skipped items. |
-| `%export` | `func(exporter-id: string, project-json: string, path: string) -> result<report, string>` | Serializes `project-json` to `path` and returns skipped items. |
-| `audio-create` | `func(effect-id: string, sample-rate: u32) -> result<instance, string>` | Allocates an audio DSP instance at `sample-rate`. |
-| `audio-process` | `func(instance: instance, params: list<audio-param>, block: audio-block) -> result<stereo-buffers, string>` | Processes one planar stereo block. |
-| `audio-reset` | `func(instance: instance) -> result<_, string>` | Resets DSP state after a transport seek. |
-| `audio-drop` | `func(instance: instance) -> result<_, string>` | Releases an audio DSP instance. |
-| `panel-view` | `func(id: string) -> list<ui-node>` | Builds the flattened `ui-node` tree (`root = index 0`) for panel `id`. |
-| `panel-event` | `func(id: string, event: panel-event) -> result<_, string>` | Handles a user control interaction on panel `id`. |
-| `overlay-scene` | `func(id: string) -> list<overlay-shape>` | Builds the vector shape list for viewer overlay `id`. |
-| `overlay-event` | `func(id: string, event: overlay-event) -> result<_, string>` | Handles a handle drag interaction on viewer overlay `id`. |
-| `job-step` | `func(job: u64) -> result<job-step, string>` | Runs one step of job `job` and returns `job-step { progress, detail, done, commit }`. |
-| `job-end` | `func(job: u64, cancelled: bool)` | Releases the state of job `job` after it finishes, fails, or is cancelled. |
-| `decoder-probe` | `func(decoder-id: string, path: string) -> result<media-probe, decode-error>` | Describes `path` without decoding it. |
-| `decoder-open-video` | `func(decoder-id: string, path: string) -> result<opened-video, decode-error>` | Opens the video stream of `path`: an instance and its `video-info`. |
-| `decoder-seek` | `func(instance: instance, pts: s64) -> result<_, string>` | Positions the stream at the sync frame at or before `pts`. |
-| `decoder-next-frame` | `func(instance: instance) -> result<option<decoded-frame>, string>` | Returns the next frame, or `none` at end of stream. |
-| `decoder-open-audio` | `func(decoder-id: string, path: string, sample-rate: u32, channels: u16) -> result<instance, decode-error>` | Opens the audio of `path`, resampled to `sample-rate` and `channels`. |
-| `decoder-read-audio` | `func(instance: instance, max-samples: u32) -> result<list<f32>, string>` | Returns up to `max-samples` interleaved samples. |
-| `decoder-seek-audio` | `func(instance: instance, frame: s64) -> result<_, string>` | Positions the next read at sample frame `frame`. |
-| `decoder-close` | `func(instance: instance)` | Releases a video or audio stream. |
-| `ai-tool-call` | `func(name: string, arguments-json: string) -> result<ai-tool-output, string>` | Runs the AI tool registered as `name` on the assistant's turn thread and returns its text and PNG images. |
-| `scope-measure` | `func(id: string, frame: scope-frame) -> result<scope-drawing, string>` | Measures the Viewer frame on the preview worker and returns the scope's image and readout ([Scopes](scopes.md)). |
-| `cpu-effect-process` | `func(id: string, params: list<effect-param>, frame: video-frame) -> result<video-frame, string>` | Renders one premultiplied `RGBA16F` frame (`pixels: list<u16>`, IEEE-754 binary16 bit patterns, row-major, no row padding) for CPU effect or generator `id` ([Effects](effects.md)). |
-| `driver-evaluate` | `func(id: string, expr: string, vars: driver-vars) -> result<param-value, string>` | Evaluates driver expression `expr` for driver language `id` ([Drivers](drivers.md)). |
+| Export | Chapter |
+| --- | --- |
+| [`mount`](wit-reference.md#export-mount) | [Mount order](basics.md#mount-order) |
+| [`unmount`](wit-reference.md#export-unmount) | [Mount order](basics.md#mount-order) |
+| [`command-run`](wit-reference.md#export-command-run) | [Commands](commands.md) |
+| [`event`](wit-reference.md#export-event) | [Events](events.md#external-plugins) |
+| [`%import`](wit-reference.md#export-import) | [Importers and exporters](interchange.md#importers-and-exporters) |
+| [`%export`](wit-reference.md#export-export) | [Importers and exporters](interchange.md#importers-and-exporters) |
+| [`audio-create`](wit-reference.md#export-audio-create) | [Audio effects](audio-effects.md) |
+| [`audio-process`](wit-reference.md#export-audio-process) | [Audio effects](audio-effects.md) |
+| [`audio-reset`](wit-reference.md#export-audio-reset) | [Audio effects](audio-effects.md) |
+| [`audio-drop`](wit-reference.md#export-audio-drop) | [Audio effects](audio-effects.md) |
+| [`panel-view`](wit-reference.md#export-panel-view) | [Declarative UI panels](#declarative-ui-panels) |
+| [`panel-event`](wit-reference.md#export-panel-event) | [Declarative UI panels](#declarative-ui-panels) |
+| [`overlay-scene`](wit-reference.md#export-overlay-scene) | [Viewer overlays](viewer-overlays.md) |
+| [`overlay-event`](wit-reference.md#export-overlay-event) | [Viewer overlays](viewer-overlays.md) |
+| [`encoder-open`](wit-reference.md#export-encoder-open) | [Encoders](interchange.md#encoders) |
+| [`encoder-push-frame`](wit-reference.md#export-encoder-push-frame) | [Encoders](interchange.md#encoders) |
+| [`encoder-push-audio`](wit-reference.md#export-encoder-push-audio) | [Encoders](interchange.md#encoders) |
+| [`encoder-finish`](wit-reference.md#export-encoder-finish) | [Encoders](interchange.md#encoders) |
+| [`encoder-drop`](wit-reference.md#export-encoder-drop) | [Encoders](interchange.md#encoders) |
+| [`job-step`](wit-reference.md#export-job-step) | [Jobs](jobs.md) |
+| [`job-end`](wit-reference.md#export-job-end) | [Jobs](jobs.md) |
+| [`decoder-probe`](wit-reference.md#export-decoder-probe) | [Decoders](interchange.md#decoders) |
+| [`decoder-open-video`](wit-reference.md#export-decoder-open-video) | [Decoders](interchange.md#decoders) |
+| [`decoder-seek`](wit-reference.md#export-decoder-seek) | [Decoders](interchange.md#decoders) |
+| [`decoder-next-frame`](wit-reference.md#export-decoder-next-frame) | [Decoders](interchange.md#decoders) |
+| [`decoder-open-audio`](wit-reference.md#export-decoder-open-audio) | [Decoders](interchange.md#decoders) |
+| [`decoder-read-audio`](wit-reference.md#export-decoder-read-audio) | [Decoders](interchange.md#decoders) |
+| [`decoder-seek-audio`](wit-reference.md#export-decoder-seek-audio) | [Decoders](interchange.md#decoders) |
+| [`decoder-close`](wit-reference.md#export-decoder-close) | [Decoders](interchange.md#decoders) |
+| [`ai-tool-call`](wit-reference.md#export-ai-tool-call) | [AI tools](ai-tools.md) |
+| [`scope-measure`](wit-reference.md#export-scope-measure) | [Scopes](scopes.md) |
+| [`cpu-effect-process`](wit-reference.md#export-cpu-effect-process) | [CPU effects and generators](effects.md#cpu-effects-and-generators) |
+| [`driver-evaluate`](wit-reference.md#export-driver-evaluate) | [Drivers](drivers.md) |
+| [`analyzer-open`](wit-reference.md#export-analyzer-open) | [Audio analyzers](analyzers.md) |
+| [`analyzer-push`](wit-reference.md#export-analyzer-push) | [Audio analyzers](analyzers.md) |
+| [`analyzer-finish`](wit-reference.md#export-analyzer-finish) | [Audio analyzers](analyzers.md) |
+| [`analyzer-drop`](wit-reference.md#export-analyzer-drop) | [Audio analyzers](analyzers.md) |
 
-For notification events, `event` returns `ok(none)`. For `command-proposed`, returning `some("{\"veto\":\"reason\"}")` refuses the command and returning a serialized `aria_commands::Command` JSON object rewrites it in place. For `resolve-dropped` (or `resolve-dropped-path`), returning `some("\"open-project\"")`, `some("\"import-media\"")`, `some("\"apply-lut\"")`, `some("\"install-skill\"")`, `some("\"import-timeline\"")`, or `some("\"handled\"")` claims the dropped path or URL.
+`subscribe` takes an event kind, and `event` receives the kind and its payload as JSON. The kinds, payload fields, and replies are listed in [Events](events.md#external-plugins); a notification returns `ok(none)`.
 
 ### Declarative UI Panels
 
@@ -162,16 +176,15 @@ A guest registers a viewer overlay during `mount` with `register-viewer-overlay(
 
 ### Media Encoders
 
-A WebAssembly plugin contributes an output format to the media Export dialog by calling `register-encoder` during `mount` and implementing the five `encoder-*` guest exports in `aria:plugin/plugin@1.0.0`:
-
-| Import / Export | Signature | Description |
-| --- | --- | --- |
-| `import register-encoder` | `func(spec: encoder-spec) -> result<_, string>` | Registers an output format (`id`, `name`, `extension`, `audio`) during `mount`. |
-| `export encoder-open` | `func(encoder-id: string, path: string, config: encoder-config) -> result<instance, string>` | Opens an encoding session writing to `path` and returns a guest instance handle. |
-| `export encoder-push-frame` | `func(instance: instance, frame: encoder-frame) -> result<_, string>` | Encodes one straight-alpha RGBA8 frame (`rgba`, `width`, `height`, `stride`, `pts-value`, `pts-rate`). |
-| `export encoder-push-audio` | `func(instance: instance, audio: encoder-audio) -> result<_, string>` | Encodes one interleaved `f32` audio block (`samples`, `sample-rate`, `channels`, `pts-value`, `pts-rate`). |
-| `export encoder-finish` | `func(instance: instance) -> result<_, string>` | Finalizes the container and flushes output to `path`. |
-| `export encoder-drop` | `func(instance: instance) -> result<_, string>` | Releases guest state when an export is cancelled or fails before `encoder-finish`. |
+A WebAssembly plugin contributes an output format to the media Export dialog by calling
+[`register-encoder`](wit-reference.md#import-register-encoder) during `mount` and implementing
+[`encoder-open`](wit-reference.md#export-encoder-open),
+[`encoder-push-frame`](wit-reference.md#export-encoder-push-frame),
+[`encoder-push-audio`](wit-reference.md#export-encoder-push-audio),
+[`encoder-finish`](wit-reference.md#export-encoder-finish), and
+[`encoder-drop`](wit-reference.md#export-encoder-drop). The host calls `encoder-drop` when an
+export is cancelled or fails before `encoder-finish`. [Encoders](interchange.md#encoders)
+describes the export flow.
 
 During `encoder-open`, `encoder-push-frame`, `encoder-push-audio`, and `encoder-finish`, the host permits `fs-write` to the active staging `path` passed to `encoder-open` without requiring `permissions.fs` in `plugin.toml`. Writing to any other path is denied and records a `CapabilityDenial` unless covered by `permissions.fs`. Every encoder call runs under `Limits::fuel_per_call`, `Limits::memory_bytes`, and `Limits::call_deadline`; a guest trap, fuel exhaustion, or deadline interruption fails the plugin for the session, drops its registrations, and discards the staged file.
 

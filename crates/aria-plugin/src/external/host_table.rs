@@ -24,11 +24,11 @@ use crate::package::Access;
 use crate::{
     AudioBlock, AudioEffectSpec, AudioProcessor, AudioProcessorFactory, Command,
     EXPORT_AUDIO_CHANNELS, EXPORT_AUDIO_RATE, EditorView, EffectParamKind, EffectParamSpec,
-    EncodeError, Encoder, EncoderConfig, EncoderSpec, Exporter, ExporterSpec, Importer,
-    ImporterSpec, InterchangeReport, LogLevel, Origin, OverlayEvent, OverlayScene, OverlaySpec,
-    PanelEvent, PanelLocation, PanelSpec, PanelView, ParamSignal, PixelFormat, PluginCommand,
+    EncodeError, Encoder, EncoderConfig, EncoderFrame, EncoderSpec, Exporter, ExporterSpec,
+    Importer, ImporterSpec, InterchangeReport, LogLevel, Origin, OverlayEvent, OverlayScene,
+    OverlaySpec, PanelEvent, PanelLocation, PanelSpec, PanelView, ParamSignal, PluginCommand,
     PluginContext, Project, ProjectHost, RationalTime, Service, SettingsService, TransactError,
-    Transaction, UiNode, VideoEncoder, VideoFrame, ViewerOverlay,
+    Transaction, UiNode, VideoEncoder, VideoFrame, ViewerOverlay, encoder_pts,
 };
 
 /// Capability marker recorded in `PluginContext::denials()` when a plugin with
@@ -1582,29 +1582,13 @@ struct NativeEncoderSession {
 
 impl VideoEncoder for NativeEncoderSession {
     fn push(&mut self, frame: &VideoFrame) -> Result<(), EncodeError> {
-        if frame.format != PixelFormat::Rgba8 {
-            return Err(EncodeError::Unsupported(format!(
-                "plugin encoder expects Rgba8 frame, got {:?}",
-                frame.format
-            )));
-        }
-        let aria_core::FrameData::Cpu(cpu) = &frame.data else {
-            return Err(EncodeError::Unsupported(
-                "plugin encoder requires CPU RGBA frame".to_owned(),
-            ));
-        };
-        let Some(plane) = cpu.planes.first() else {
-            return Err(EncodeError::Encode(
-                "RGBA frame has no pixel plane".to_owned(),
-            ));
-        };
-        let (width, height) = frame.coded_size;
+        let frame = EncoderFrame::new(frame)?;
         let raw = AriaEncoderFrame {
-            rgba: plane.data.as_ptr(),
-            rgba_len: plane.data.len(),
-            width,
-            height,
-            stride: plane.stride as u32,
+            rgba: frame.rgba.as_ptr(),
+            rgba_len: frame.rgba.len(),
+            width: frame.width,
+            height: frame.height,
+            stride: frame.stride,
             pts_value: frame.pts.value,
             pts_rate: frame.pts.rate.num,
         };
@@ -1614,6 +1598,7 @@ impl VideoEncoder for NativeEncoderSession {
     }
 
     fn push_audio(&mut self, samples: &[f32], pts: RationalTime) -> Result<(), EncodeError> {
+        let pts = encoder_pts(pts)?;
         let raw = AriaEncoderAudio {
             samples: samples.as_ptr(),
             samples_len: samples.len(),

@@ -134,16 +134,10 @@ impl Plugin for NotesPlugin {
 
     fn event(&self, _host: &Host, kind: &str, event_json: &str) -> Result<EventResponse, String> {
         match kind {
-            "resolve-dropped"
-            | "resolve-dropped-path"
-            | "ResolveDropped"
-            | "ResolveDroppedPath" => {
+            "resolve-dropped" => {
                 let parsed: Value =
                     serde_json::from_str(event_json).map_err(|err| err.to_string())?;
-                let path_str = parsed
-                    .get("path")
-                    .and_then(Value::as_str)
-                    .or_else(|| parsed.pointer("/item/path").and_then(Value::as_str));
+                let path_str = parsed.get("path").and_then(Value::as_str);
                 let is_srt = path_str
                     .and_then(|path| Path::new(path).extension())
                     .is_some_and(|ext| ext.eq_ignore_ascii_case("srt"));
@@ -153,13 +147,12 @@ impl Plugin for NotesPlugin {
                     Ok(EventResponse::Pass)
                 }
             }
-            "command-proposed" | "CommandProposed" => {
+            "command-proposed" => {
                 SEEN.fetch_add(1, Ordering::Relaxed);
                 let parsed: Value =
                     serde_json::from_str(event_json).map_err(|err| err.to_string())?;
                 let track_count = parsed
                     .get("target_tracks")
-                    .or_else(|| parsed.get("tracks"))
                     .and_then(Value::as_array)
                     .map_or(0, Vec::len);
                 if track_count > 8 {

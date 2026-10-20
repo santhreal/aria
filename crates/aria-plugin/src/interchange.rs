@@ -13,7 +13,9 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Weak};
 
-use aria_core::{EncodeError, EncoderConfig, RationalTime, VideoEncoder, VideoFrame};
+use aria_core::{
+    EncodeError, EncoderConfig, FrameData, PixelFormat, RationalTime, VideoEncoder, VideoFrame,
+};
 use aria_models::Project;
 use parking_lot::RwLock;
 
@@ -94,6 +96,62 @@ pub trait Encoder: Send + Sync {
         path: &Path,
         config: &EncoderConfig,
     ) -> Result<Box<dyn VideoEncoder>, EncodeError>;
+}
+
+/// One export frame as a plugin encoder receives it: straight-alpha RGBA8
+/// rows of `stride` bytes, and the presentation time as `pts.value` ticks at
+/// `pts.rate.num` ticks per second (`pts.rate.den` is 1).
+#[derive(Debug, Clone, Copy)]
+pub struct EncoderFrame<'a> {
+    pub rgba: &'a [u8],
+    pub width: u32,
+    pub height: u32,
+    pub stride: u32,
+    pub pts: RationalTime,
+}
+
+impl<'a> EncoderFrame<'a> {
+    /// View `frame`, which must be a CPU [`PixelFormat::Rgba8`] frame.
+    pub fn new(frame: &'a VideoFrame) -> Result<Self, EncodeError> {
+        if frame.format != PixelFormat::Rgba8 {
+            return Err(EncodeError::Unsupported(format!(
+                "plugin encoder expects Rgba8 frame, got {:?}",
+                frame.format
+            )));
+        }
+        let FrameData::Cpu(cpu) = &frame.data else {
+            return Err(EncodeError::Unsupported(
+                "plugin encoder requires CPU RGBA frame".to_owned(),
+            ));
+        };
+        let Some(plane) = cpu.planes.first() else {
+            return Err(EncodeError::Encode(
+                "RGBA frame has no pixel plane".to_owned(),
+            ));
+        };
+        let stride = u32::try_from(plane.stride).map_err(|_| {
+            EncodeError::Encode(format!("RGBA row of {} bytes exceeds u32", plane.stride))
+        })?;
+        let (width, height) = frame.coded_size;
+        Ok(Self {
+            rgba: &plane.data,
+            width,
+            height,
+            stride,
+            pts: encoder_pts(frame.pts)?,
+        })
+    }
+}
+
+/// `pts` at the whole tick rate a plugin encoder reads: see
+/// [`RationalTime::at_whole_rate`].
+pub fn encoder_pts(pts: RationalTime) -> Result<RationalTime, EncodeError> {
+    pts.at_whole_rate().map_err(|err| {
+        EncodeError::Encode(format!(
+            "presentation time {} at {}/{}: {err}",
+            pts.value, pts.rate.num, pts.rate.den
+        ))
+    })
 }
 
 /// Why an import or an export did not complete.

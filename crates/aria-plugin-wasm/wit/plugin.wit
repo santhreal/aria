@@ -4,61 +4,98 @@ package aria:plugin@1.0.0;
 world plugin {
     /// Severity level for plugin log messages.
     enum log-level {
+        /// Step-by-step detail.
         trace,
+        /// Diagnostic detail.
         debug,
+        /// Normal operation.
         info,
+        /// A problem the plugin recovered from.
         warn,
+        /// A failure.
         error,
     }
 
     /// Timeline importer registration metadata.
     record importer-spec {
+        /// Not empty, and unique among importers and exporters.
         id: string,
+        /// The format as a menu lists it, such as `CMX 3600 EDL`.
         name: string,
+        /// The file extensions it reads, without the dot: at least one, each ASCII letters and
+        /// digits. Matched without regard to case.
         extensions: list<string>,
     }
 
     /// Timeline exporter registration metadata.
     record exporter-spec {
+        /// Not empty, and unique among importers and exporters.
         id: string,
+        /// The format as a menu lists it.
         name: string,
+        /// The extension of the file it writes, without the dot: ASCII letters and digits,
+        /// stored lowercase.
         extension: string,
     }
 
     /// Media encoder registration metadata.
     record encoder-spec {
+        /// Not empty, and unique among encoders.
         id: string,
+        /// The format as the Export dialog lists it, such as `Apple ProRes 422`.
         name: string,
+        /// The extension of the file it writes, without the dot: ASCII letters and digits,
+        /// stored lowercase. Selecting the encoder sets the destination's extension.
         extension: string,
+        /// The encoder takes audio through `encoder-push-audio`. When false, the Export dialog
+        /// hides the Audio row and the export is video only.
         audio: bool,
     }
 
     /// Configuration passed to `encoder-open`.
     record encoder-config {
+        /// Frame width in pixels.
         width: u32,
+        /// Frame height in pixels.
         height: u32,
+        /// Frame rate numerator: `fps-num / fps-den` frames per second.
         fps-num: s64,
+        /// Frame rate denominator.
         fps-den: s32,
+        /// Requested video bitrate in kilobits per second, or 0 when the export requests none.
         video-bitrate-kbps: u32,
+        /// Requested audio bitrate in kilobits per second. The host passes 0.
         audio-bitrate-kbps: u32,
     }
 
     /// One RGBA video frame passed to `encoder-push-frame`.
     record encoder-frame {
+        /// Straight-alpha RGBA8 pixels: `height` rows of `stride` bytes, top row first.
         rgba: list<u8>,
+        /// Frame width in pixels.
         width: u32,
+        /// Frame height in pixels.
         height: u32,
+        /// Bytes per row, at least `width * 4`.
         stride: u32,
+        /// Presentation time in ticks of `pts-rate`: the frame starts `pts-value / pts-rate`
+        /// seconds into the file.
         pts-value: s64,
+        /// Ticks per second of `pts-value`.
         pts-rate: s32,
     }
 
     /// One interleaved `f32` audio block passed to `encoder-push-audio`.
     record encoder-audio {
+        /// Interleaved samples, `channels` per sample frame.
         samples: list<f32>,
+        /// Sample frames per second.
         sample-rate: u32,
+        /// Channels per sample frame.
         channels: u32,
+        /// Presentation time of the first sample frame in ticks of `pts-rate`.
         pts-value: s64,
+        /// Ticks per second of `pts-value`.
         pts-rate: s32,
     }
 
@@ -78,291 +115,437 @@ world plugin {
 
     /// Scalar parameter definition for an audio effect.
     record audio-param-spec {
+        /// Parameter key, unique within the effect.
         name: string,
+        /// The parameter's row label.
         label: string,
+        /// Value of a new insert, inside `min..=max`.
         default-value: f32,
+        /// Lowest value.
         min: f32,
+        /// Highest value, not below `min`.
         max: f32,
     }
 
     /// Audio effect registration metadata.
     record audio-effect-spec {
+        /// Namespaced id with at least one `.`, such as `com.example.drive`. A shipped id or an
+        /// id already registered is refused.
         id: string,
+        /// The name the Effect menu and the mixer inserts list. Not empty.
         label: string,
+        /// Scalar parameters in slot order. `audio-process` receives their signals in this
+        /// order.
         params: list<audio-param-spec>,
+        /// Frames at 48 kHz by which the output trails the input, at most 48000. The mixer
+        /// delays every parallel path by the same amount.
         latency: u32,
+        /// The effect reads a key signal: a mixer strip shows a Key from row, and `audio-block`
+        /// carries the key lane.
         sidechain: bool,
     }
 
-    /// Handle to a live audio processor instance owned by the plugin.
+    /// Handle to a session the plugin holds: an audio processor, an encoder, a decoder stream,
+    /// or an analyzer.
     type instance = u64;
 
     /// Parameter signal for one parameter across an audio block.
     record audio-param {
+        /// The value for the whole block, or the first frame's value when `per-frame` is set.
         constant: f32,
+        /// One value per frame when the parameter is keyframed and changes within the block;
+        /// empty otherwise.
         per-frame: list<f32>,
     }
 
     /// Planar stereo audio block passed to `audio-process`.
     record audio-block {
+        /// Left channel samples. The block holds as many frames as this list.
         left: list<f32>,
+        /// Right channel samples, as many as `left`.
         right: list<f32>,
+        /// Sequence position of the first frame, in frames at `sample-rate`.
         position: s64,
+        /// Frames per second.
         sample-rate: u32,
+        /// Left channel of the key signal, or empty when the effect takes no key or the insert
+        /// has no key lane.
         sidechain-left: list<f32>,
+        /// Right channel of the key signal, or empty as `sidechain-left` is.
         sidechain-right: list<f32>,
     }
 
     /// Processed planar stereo output buffers returned from `audio-process`.
     record stereo-buffers {
+        /// Processed left channel. The host copies at most the block's frame count; frames past
+        /// a shorter list keep their input.
         left: list<f32>,
+        /// Processed right channel, copied as `left` is.
         right: list<f32>,
     }
 
     /// Docked location for a declared plugin panel.
     enum panel-location {
+        /// The left frame.
         sidebar,
+        /// The right frame.
         inspector,
+        /// The bottom frame.
         timeline,
     }
 
     /// Registration metadata for a docked plugin panel.
     record panel-spec {
+        /// Not empty, and unique among panels.
         id: string,
+        /// The dock tab title and the Window menu row. Not empty.
         title: string,
+        /// The frame the panel opens in.
         location: panel-location,
     }
 
     /// Text colour tone for `ui-node::text`.
     enum tone {
+        /// The body text colour.
         normal,
+        /// The secondary text colour.
         muted,
+        /// The theme's success colour.
         success,
+        /// The theme's warning colour.
         warning,
+        /// The theme's danger colour.
         danger,
     }
 
     /// Paragraph text node with tone.
     record ui-text {
+        /// The paragraph.
         text: string,
+        /// Its colour.
         tone: tone,
     }
 
     /// Key-value field row.
     record ui-field {
+        /// The label on the left.
         label: string,
+        /// The value on the right.
         value: string,
     }
 
     /// Push button control.
     record ui-button {
+        /// Control id: unique in the tree, 1 to 128 bytes, no control characters.
         id: string,
+        /// The button text.
         label: string,
+        /// Drawn disabled. A press sends no event.
         disabled: bool,
     }
 
     /// Boolean toggle control.
     record ui-toggle {
+        /// Control id: unique in the tree, 1 to 128 bytes, no control characters.
         id: string,
+        /// The switch label.
         label: string,
+        /// The current state. A click sends `panel-event::toggled` with the opposite.
         on: bool,
     }
 
     /// Numeric slider control.
     record ui-slider {
+        /// Control id: unique in the tree, 1 to 128 bytes, no control characters.
         id: string,
+        /// The slider label.
         label: string,
+        /// The current value, inside `min..=max`.
         value: f64,
+        /// The lowest value: finite and below `max`.
         min: f64,
+        /// The highest value: finite.
         max: f64,
+        /// The snap step, in `0..=max - min`. 0 clamps without snapping.
         step: f64,
     }
 
     /// Single-line text input control.
     record ui-input {
+        /// Control id: unique in the tree, 1 to 128 bytes, no control characters.
         id: string,
+        /// The current text.
         value: string,
+        /// The text shown while the box is empty.
         placeholder: string,
     }
 
     /// Multi-option chip selector control.
     record ui-choice {
+        /// Control id: unique in the tree, 1 to 128 bytes, no control characters.
         id: string,
+        /// The selector label.
         label: string,
+        /// The chip labels: 1 to 64.
         options: list<string>,
+        /// Index of the selected option, below the option count.
         selected: u32,
     }
 
     /// Progress bar indicator.
     record ui-progress {
+        /// The bar label.
         label: string,
+        /// The filled fraction, 0.0 to 1.0.
         fraction: f32,
     }
 
     /// Straight-alpha RGBA8 image node (`width * height * 4` bytes).
     record ui-image {
+        /// Width in pixels, 1 to 2048.
         width: u32,
+        /// Height in pixels, 1 to 2048.
         height: u32,
+        /// `width * height * 4` bytes of straight-alpha RGBA8.
         rgba: list<u8>,
     }
 
     /// One node in a flattened panel tree (`root = index 0`).
     /// Container nodes (`column`, `row`) hold indices into the flat `list<ui-node>`.
     variant ui-node {
+        /// Children drawn top to bottom, as indices into the flat list.
         column(list<u32>),
+        /// Children drawn left to right, wrapping, as indices into the flat list.
         row(list<u32>),
+        /// A title line.
         heading(string),
+        /// A paragraph in a tone.
         text(ui-text),
+        /// A label and value row.
         field(ui-field),
+        /// A rule between rows.
         separator,
+        /// A push button.
         button(ui-button),
+        /// A switch.
         toggle(ui-toggle),
+        /// A track and value.
         slider(ui-slider),
+        /// A one-line text box.
         input(ui-input),
+        /// A row of chips.
         choice(ui-choice),
+        /// A bar filled to its fraction.
         progress(ui-progress),
+        /// An image, narrowed to fit the panel.
         image(ui-image),
     }
 
     /// Payload for `panel-event::toggled`.
     record panel-toggled {
+        /// The toggle's id.
         id: string,
+        /// The new state.
         on: bool,
     }
 
     /// Payload for `panel-event::slid`.
     record panel-slid {
+        /// The slider's id.
         id: string,
+        /// The value on release, clamped to the range and snapped to the step.
         value: f64,
     }
 
     /// Payload for `panel-event::submitted`.
     record panel-submitted {
+        /// The input's id.
         id: string,
+        /// The text when Enter was pressed, at most 16 KiB.
         text: string,
     }
 
     /// Payload for `panel-event::chose`.
     record panel-chose {
+        /// The selector's id.
         id: string,
+        /// Index of the chosen option.
         index: u32,
     }
 
     /// Interaction event delivered from a panel control to the plugin.
     variant panel-event {
+        /// A button was pressed. The payload is its id.
         pressed(string),
+        /// A toggle was clicked.
         toggled(panel-toggled),
+        /// A slider was released.
         slid(panel-slid),
+        /// Enter was pressed in an input. Escape sends nothing.
         submitted(panel-submitted),
+        /// A chip was clicked.
         chose(panel-chose),
     }
 
     /// 2D coordinate or size in sequence frame pixels.
     record point {
+        /// Horizontal coordinate or width, rightward.
         x: f32,
+        /// Vertical coordinate or height, downward.
         y: f32,
     }
 
     /// Stroke or fill color for a viewer overlay shape.
     variant overlay-color {
+        /// The theme accent colour.
         accent,
+        /// The theme text colour.
         text,
+        /// The theme muted colour.
         muted,
+        /// The theme success colour.
         success,
+        /// The theme warning colour.
         warning,
+        /// The theme danger colour.
         danger,
+        /// Straight-alpha sRGB bytes `(r, g, b, a)`.
         rgba(tuple<u8, u8, u8, u8>),
     }
 
     /// Visual glyph drawn for a draggable viewer overlay handle.
     enum handle-look {
+        /// A dot.
         dot,
+        /// A square.
         square,
+        /// A cross.
         cross,
     }
 
     /// Straight line segment in a viewer overlay scene.
     record overlay-line {
+        /// Start point in canvas pixels.
         %from: point,
+        /// End point in canvas pixels.
         to: point,
+        /// Stroke colour.
         color: overlay-color,
+        /// Stroke width in window pixels, above 0 and at most 32.
         width: f32,
     }
 
     /// Axis-aligned rectangle in a viewer overlay scene.
     record overlay-rect {
+        /// Top-left corner in canvas pixels.
         origin: point,
+        /// Width and height in canvas pixels, not negative.
         size: point,
+        /// Outline colour.
         color: overlay-color,
+        /// Stroke width in window pixels, above 0 and at most 32.
         width: f32,
+        /// Fill colour, or none for an outline only.
         fill: option<overlay-color>,
     }
 
     /// Axis-aligned ellipse in a viewer overlay scene.
     record overlay-ellipse {
+        /// Centre in canvas pixels.
         center: point,
+        /// Horizontal and vertical radius in canvas pixels, not negative.
         radii: point,
+        /// Outline colour.
         color: overlay-color,
+        /// Stroke width in window pixels, above 0 and at most 32.
         width: f32,
+        /// Fill colour, or none for an outline only.
         fill: option<overlay-color>,
     }
 
     /// Polyline or closed polygon in a viewer overlay scene.
     record overlay-path {
+        /// At least two points in canvas pixels.
         points: list<point>,
+        /// Joins the last point back to the first.
         closed: bool,
+        /// Stroke colour.
         color: overlay-color,
+        /// Stroke width in window pixels, above 0 and at most 32.
         width: f32,
     }
 
     /// Text label in a viewer overlay scene.
     record overlay-text {
+        /// Top-left corner of the line in canvas pixels.
         at: point,
+        /// One line of text, with no line break.
         text: string,
+        /// Text colour.
         color: overlay-color,
+        /// Text size in window pixels, 6 to 96.
         size: f32,
     }
 
     /// Draggable handle in a viewer overlay scene.
     record overlay-handle {
+        /// Handle id: unique among the scene's handles, 1 to 128 bytes, no control characters.
         id: string,
+        /// Centre in canvas pixels.
         at: point,
+        /// Handle colour.
         color: overlay-color,
+        /// The glyph, 12 pixels across.
         look: handle-look,
     }
 
     /// One vector primitive or handle in a viewer overlay scene.
     variant overlay-shape {
+        /// A straight stroke.
         line(overlay-line),
+        /// An axis-aligned rectangle.
         rect(overlay-rect),
+        /// An axis-aligned ellipse.
         ellipse(overlay-ellipse),
+        /// Straight segments through its points.
         path(overlay-path),
+        /// One line of text, drawn above every stroke.
         text(overlay-text),
+        /// A draggable handle, drawn above every stroke.
         handle(overlay-handle),
     }
 
     /// Phase of a pointer drag on an `overlay-handle`.
     enum drag-phase {
+        /// The press on the handle.
         start,
+        /// A pointer step with the button held.
         move,
+        /// The release, wherever the pointer is.
         end,
     }
 
     /// Payload for `overlay-event::drag`.
     record overlay-drag {
+        /// Id of the pressed handle.
         handle: string,
+        /// The step of the drag.
         phase: drag-phase,
+        /// The pointer in canvas pixels. It may lie off the frame.
         at: point,
     }
 
     /// Interaction event delivered from a viewer overlay handle to the plugin.
     variant overlay-event {
+        /// A pointer drag on a handle.
         drag(overlay-drag),
     }
 
     /// Viewer overlay registration metadata.
     record overlay-spec {
+        /// Not empty, and unique among viewer overlays.
         id: string,
+        /// The overlay's name, shown before an error its handler returns. Not empty.
         title: string,
     }
 
@@ -385,7 +568,7 @@ world plugin {
         /// Changes the project or the editor in a way an undo reverses.
         workspace,
         /// Deletes data, writes outside the project, or reaches another
-        /// system. Runs after the operator allows the call.
+        /// system. Runs once the call is allowed, unless Settings > AI > Autonomy is Full.
         system,
     }
 
@@ -398,18 +581,23 @@ world plugin {
         description: string,
         /// A JSON Schema object describing the arguments, as JSON text.
         parameters-json: string,
+        /// The trust the tool needs.
         tier: ai-tool-tier,
     }
 
     /// A PNG image an AI tool returns, at most 2048 pixels on a side.
     record ai-tool-image {
+        /// A caption of a few words.
         label: string,
+        /// The PNG file bytes.
         png: list<u8>,
     }
 
     /// What an AI tool returns to the model.
     record ai-tool-output {
+        /// The text the model reads.
         text: string,
+        /// The images the model receives.
         images: list<ai-tool-image>,
     }
 
@@ -429,8 +617,11 @@ world plugin {
     /// The frame a scope reads: `width * height` RGBA8 pixels, sRGB, straight
     /// alpha, top row first.
     record scope-frame {
+        /// Frame width in pixels.
         width: u32,
+        /// Frame height in pixels.
         height: u32,
+        /// `width * height * 4` bytes.
         pixels: list<u8>,
     }
 
@@ -438,13 +629,17 @@ world plugin {
     /// empty list for a transparent image, and one readout line of at most
     /// 160 bytes.
     record scope-drawing {
+        /// RGBA8 pixels at the size the spec declares, or empty for a transparent image.
         pixels: list<u8>,
+        /// The readout line, at most 160 bytes.
         readout: string,
     }
 
     /// Media decoder registration metadata.
     record decoder-spec {
+        /// Not empty, and unique among the plugin's decoders.
         id: string,
+        /// The format name, such as `YUV4MPEG2`.
         name: string,
         /// File extensions without the dot: ASCII letters and digits.
         extensions: list<string>,
@@ -454,16 +649,23 @@ world plugin {
 
     /// What `decoder-probe` reports about a file.
     record media-probe {
+        /// Frame width in pixels.
         width: u32,
+        /// Frame height in pixels.
         height: u32,
+        /// Frame rate numerator: `frame-rate-num / frame-rate-den` frames per second.
         frame-rate-num: s32,
+        /// Frame rate denominator.
         frame-rate-den: s32,
         /// Length in whole frames at the frame rate, 0 when unknown.
         frame-count: s64,
+        /// The file has a sound track.
         has-audio: bool,
         /// The file is a still image: one frame, no time base.
         is-image: bool,
+        /// The video codec name, or none when unknown.
         video-codec: option<string>,
+        /// The audio codec name, or none when unknown.
         audio-codec: option<string>,
     }
 
@@ -477,9 +679,13 @@ world plugin {
 
     /// Color space of decoded frames.
     enum frame-color {
+        /// BT.709, limited range.
         bt709,
+        /// BT.601, limited range.
         bt601,
+        /// BT.2020 primaries, PQ transfer, limited range.
         bt2020-pq,
+        /// sRGB, full range.
         srgb,
     }
 
@@ -489,12 +695,17 @@ world plugin {
         width: u32,
         /// Even, at most 16384.
         height: u32,
+        /// Pixel layout of every frame.
         format: frame-format,
+        /// Colour space of every frame.
         color: frame-color,
+        /// Frame rate numerator: `frame-rate-num / frame-rate-den` frames per second.
         frame-rate-num: s32,
+        /// Frame rate denominator.
         frame-rate-den: s32,
         /// Every pts counts ticks at `time-base-num / time-base-den` ticks per second.
         time-base-num: s32,
+        /// Time base denominator.
         time-base-den: s32,
         /// Length in time-base ticks, when known.
         duration: option<s64>,
@@ -502,14 +713,20 @@ world plugin {
 
     /// A video stream `decoder-open-video` opened.
     record opened-video {
+        /// The stream handle `decoder-seek`, `decoder-next-frame`, and `decoder-close` receive.
         instance: instance,
+        /// What the stream holds.
         info: video-info,
     }
 
     /// One decoded frame: its pts and its planes in plane order, each row
     /// packed at the plane's row width with no padding.
     record decoded-frame {
+        /// Presentation time in time-base ticks.
         pts: s64,
+        /// The planes, rows packed with no padding: Y is `width` bytes by `height` rows, the
+        /// NV12 UV plane is `width` bytes by `height / 2` rows, and each YUV 4:2:0 chroma plane
+        /// is `width / 2` bytes by `height / 2` rows.
         planes: list<list<u8>>,
     }
 
@@ -523,105 +740,176 @@ world plugin {
 
     /// Value kind of a visual effect or transition parameter.
     enum effect-param-kind {
+        /// An `f32` in `min..=max`.
         scalar,
+        /// An integer in `min..=max`, each bound rounded.
         int,
+        /// A switch.
         boolean,
+        /// One option of `choices`.
         choice,
+        /// An RGBA colour; the shader reads linear RGBA in `0..1`.
         color,
+        /// Two components in `min..=max`. A clip type's `handles` draws it on the Viewer.
         vec2,
+        /// Three components in `min..=max`.
         point3,
+        /// Width and height in `min..=max`.
         size,
+        /// Degrees in `min..=max`.
         angle,
+        /// A response curve over `0..1`, read by a shader as 64 samples.
         curve,
+        /// A colour gradient over `0..1`, read by a shader as 64 linear RGBA samples.
         gradient,
+        /// UTF-8 text. Shaders do not read it.
         text,
+        /// A font family name. Shaders do not read it.
         font,
+        /// A file path. Shaders do not read it.
         file,
+        /// A clip on the timeline. A pass that lists it as an input reads that clip's frame.
         layer,
     }
 
     /// Inspector control presentation for a scalar parameter.
     enum effect-param-display {
+        /// A horizontal scrub slider.
         slider,
+        /// A rotary dial in degrees.
         angle-dial,
+        /// The value formatted as a percentage.
         percentage,
     }
 
     /// One option of an `effect-param-kind::choice` parameter.
     record effect-choice-option {
+        /// Option id, stored on the effect instance.
         id: string,
+        /// The text the dropdown lists.
         label: string,
     }
 
     /// One control point on an `effect-param-kind::curve` parameter (`x, y` in `0.0..=1.0`).
     record effect-curve-point {
+        /// Input, in `0.0..=1.0`.
         x: f32,
+        /// Output at `x`.
         y: f32,
     }
 
     /// One colour stop on an `effect-param-kind::gradient` parameter.
     record effect-gradient-stop {
+        /// Position along the gradient, in `0.0..=1.0`.
         position: f32,
+        /// Linear RGBA `(r, g, b, a)`.
         color: tuple<f32, f32, f32, f32>,
     }
 
     /// Condition under which a parameter row is shown in the inspector.
     record effect-visibility-condition {
+        /// Name of the controlling parameter of the same effect or transition.
         param: string,
+        /// Shows the row while the controlling switch equals this.
         equals-bool: option<bool>,
+        /// Shows the row while the controlling integer equals this.
         equals-int: option<s32>,
+        /// Shows the row while the controlling choice selects this option id. The host reads
+        /// `equals-choice`, then `equals-bool`, then `equals-int`, and uses the first that is
+        /// set.
         equals-choice: option<string>,
     }
 
     /// Named collapsible parameter group in an effect or transition inspector.
     record effect-group-spec {
+        /// Group id that parameters name in `group`.
         id: string,
+        /// The section heading in Effect Controls.
         label: string,
+        /// The section starts collapsed.
         collapsed: bool,
     }
 
     /// Parameter definition for a visual effect, generator, or transition.
     record effect-param-spec {
+        /// Parameter key: unique within the effect and a WGSL identifier. A shader reads it
+        /// through `param_<name>()`.
         name: string,
+        /// The row label.
         label: string,
+        /// The value kind.
         kind: effect-param-kind,
+        /// Default for `scalar` and `angle`.
         default-value: f32,
+        /// Lowest value of `scalar`, `vec2`, `point3`, `size`, and `angle`. Rounded, the lowest
+        /// `int`.
         min: f32,
+        /// Highest value, as `min` is the lowest. Not below `min`.
         max: f32,
+        /// Default for `color`: RGBA `(r, g, b, a)` in `0..=255`.
         default-color: tuple<u8, u8, u8, u8>,
+        /// Default for `vec2` and `size`.
         default-vec2: tuple<f32, f32>,
+        /// The control a `scalar` row draws.
         display: effect-param-display,
+        /// Lower end of the scrub range before values clamp to `min`, or none.
         soft-min: option<f32>,
+        /// Upper end of the scrub range before values clamp to `max`, or none.
         soft-max: option<f32>,
+        /// Unit suffix, such as `px`, `deg`, `%`, or `s`, or none.
         unit: option<string>,
+        /// Tooltip text for the row, or none.
         tooltip: option<string>,
+        /// Id of the `effect-group-spec` the row sits in, or none.
         group: option<string>,
+        /// Shows the row only while the condition holds, or always when none.
         visible-when: option<effect-visibility-condition>,
+        /// The options of a `choice`.
         choices: list<effect-choice-option>,
+        /// Default for `int`.
         default-int: s32,
+        /// Default for `boolean`.
         default-bool: bool,
+        /// Default option id for `choice`. Empty selects the first option.
         default-choice: string,
+        /// Default for `point3`.
         default-vec3: tuple<f32, f32, f32>,
+        /// Default control points for `curve`. Empty is the identity `(0, 0)` to `(1, 1)`.
         default-curve: list<effect-curve-point>,
+        /// Default stops for `gradient`. Empty is black to white.
         default-gradient: list<effect-gradient-stop>,
+        /// Default for `text`, `font`, and `file`.
         default-text: string,
     }
 
     /// Visual effect or generator registration metadata.
     record effect-spec {
+        /// Namespaced id with at least one `.`, not already in the catalog.
         id: string,
+        /// The name the Effect menu and Effect Controls show. Not empty.
         label: string,
+        /// The Effect menu submenu. Empty lists the effect under Other. Generators are not
+        /// listed in the Effect menu.
         category: string,
+        /// Parameters in row order. Flattened values follow this order.
         params: list<effect-param-spec>,
+        /// Collapsible parameter sections, in display order.
         groups: list<effect-group-spec>,
+        /// The entry draws a frame without reading an input. `register-effect` sets it false
+        /// and `register-generator` true; `register-cpu-effect` and `register-effect-graph`
+        /// read it.
         generator: bool,
+        /// The output at a time depends on frames before it, as feedback and trails do.
         stateful: bool,
     }
 
     /// Transition registration metadata.
     record transition-spec {
+        /// Namespaced id with at least one `.`, not already in the catalog.
         id: string,
+        /// The name the transition list shows. Not empty.
         label: string,
+        /// Parameters in row order. A shader reads each through `param_<name>()`.
         params: list<effect-param-spec>,
     }
 
@@ -664,6 +952,7 @@ world plugin {
     record graph-pass {
         /// The name other passes read this one by. Empty names it `pass<index>`.
         name: string,
+        /// How the pass runs.
         stage: pass-stage,
         /// What the pass reads, in binding order; the first is also bound as
         /// `input_tex`. Empty reads the pass before it, or the source frame
@@ -671,6 +960,7 @@ world plugin {
         inputs: list<pass-input>,
         /// The last pass writes the effect's frame and uses `same`.
         output: output-size,
+        /// The pass's WGSL source.
         wgsl: string,
     }
 
@@ -692,31 +982,53 @@ world plugin {
     /// `cpu-effect-process`: `width * height * 4` IEEE-754 binary16 bit
     /// patterns (`[R, G, B, A]` per pixel), top row first, with no row padding.
     record video-frame {
+        /// Width in pixels.
         width: u32,
+        /// Height in pixels.
         height: u32,
+        /// Seconds since the clip's first frame, or 0 when the effect or clip type is not time
+        /// dependent. An effect from `register-cpu-effect` is not.
         time: f32,
+        /// `width * height * 4` binary16 bit patterns.
         pixels: list<u16>,
     }
 
-    /// Timeline tint colour for a registered clip type.
+    /// A label colour: a clip type's timeline tint and a marker's colour.
     enum marker-color {
+        /// The Teal label.
         teal,
+        /// The Blue label.
         blue,
+        /// The Purple label.
         purple,
+        /// The Magenta label.
         pink,
+        /// The Rose label.
         red,
+        /// The Mango label.
         orange,
+        /// The Yellow label.
         yellow,
+        /// The Green label.
         green,
     }
 
     /// Generator-backed clip type registration metadata.
     record clip-type-spec {
+        /// Namespaced id with at least one `.`: at most 128 bytes, no space or control
+        /// character, not already in the catalog.
         id: string,
+        /// The name in the Generators tab, the palette, Effect Controls, and on the clip: 1 to
+        /// 64 bytes.
         label: string,
+        /// Id of the generator that draws the type. Not empty.
         generator: string,
+        /// The timeline label colour.
         colour: marker-color,
+        /// SVG source of the icon drawn before the clip's name, or none.
         icon-svg: option<string>,
+        /// Names of the generator's `vec2` parameters drawn as Viewer handles: at most 8, each
+        /// once.
         handles: list<string>,
     }
 
@@ -744,134 +1056,199 @@ world plugin {
 
     /// Property driver language registration metadata.
     record driver-language-spec {
+        /// ASCII letters, digits, `.`, `-` and `_`. A second registration in one host is
+        /// refused.
         id: string,
+        /// The language's display name.
         name: string,
     }
 
     /// Property value passed to and returned from `driver-evaluate`.
     variant param-value {
+        /// One value.
         scalar(f32),
+        /// `(x, y)`.
         vec2(tuple<f32, f32>),
+        /// `(x, y, z)`.
         vec3(tuple<f32, f32, f32>),
+        /// RGBA8 `(r, g, b, a)`.
         color(tuple<u8, u8, u8, u8>),
+        /// `(x, y, width, height)`.
         rect(tuple<f32, f32, f32, f32>),
     }
 
     /// Scope variables passed to `driver-evaluate`.
     record driver-vars {
+        /// Sequence seconds being evaluated.
         time: f64,
+        /// Seconds since the clip's first frame.
         clip-time: f64,
+        /// Sequence frames per second.
         frame-rate: f64,
+        /// Sequence length in seconds.
         duration: f64,
+        /// Canvas width in pixels.
         canvas-width: u32,
+        /// Canvas height in pixels.
         canvas-height: u32,
+        /// The property's keyframed value at `time`.
         value: param-value,
+        /// A number fixed per clip and property.
         seed: u64,
     }
 
     /// Keyboard focus target for a registered workspace.
     enum workspace-focus {
+        /// The Project panel.
         media,
+        /// The Viewer.
         preview,
+        /// The Timeline.
         timeline,
+        /// Effect Controls.
         inspector,
+        /// The assistant.
         assistant,
+        /// The mixer.
         mixer,
     }
 
     /// Pane arrangement restored when a workspace is applied.
     record workspace-panes {
+        /// Sidebar width in pixels, above 0 and at most 16384. None keeps the Editing width.
         sidebar-width: option<f32>,
+        /// Collapses the sidebar. None shows it.
         sidebar-collapsed: option<bool>,
+        /// Inspector width in pixels, above 0 and at most 16384. None keeps the Editing width.
         inspector-width: option<f32>,
+        /// Collapses the inspector. None shows it.
         inspector-collapsed: option<bool>,
+        /// Timeline height in pixels, above 0 and at most 16384. None keeps the Editing height.
         timeline-height: option<f32>,
+        /// Opens the scope strip. None leaves it closed.
         scopes: option<bool>,
+        /// The pane that takes the keyboard. None selects the Timeline.
         focus: option<workspace-focus>,
     }
 
     /// Workspace registration metadata.
     record workspace-spec {
+        /// Unique within the plugin: 1 to 64 ASCII letters, digits, `-`, `_` and `.`, not
+        /// starting with `.`.
         id: string,
+        /// The Window menu row and the Settings row: one line of at most 64 bytes.
         name: string,
+        /// The arrangement applied.
         panes: workspace-panes,
     }
 
     /// What target an audio analyzer operates on.
     enum analyzer-scope {
+        /// The selected clip's sound, offered in Clip > Analyze.
         clip,
+        /// The whole sequence mix, offered in Sequence > Analyze.
         sequence,
+        /// The sequence mix from In to Out, or the whole sequence when no range is marked,
+        /// offered in Sequence > Analyze.
         in-out,
     }
 
     /// Audio analyzer registration metadata.
     record analyzer-spec {
+        /// Namespaced id with at least one `.`: ASCII letters, digits, `.`, `_` and `-`.
         id: string,
+        /// The menu row, palette row, job title, and undo step name. Not blank.
         label: string,
+        /// An optional grouping label.
         category: option<string>,
+        /// What the analyzer reads and which menu lists it.
         scope: analyzer-scope,
     }
 
     /// Exact timestamp `value / (rate-num / rate-den)` seconds.
     record rational-time {
+        /// Tick count.
         value: s64,
+        /// Tick rate numerator.
         rate-num: s32,
+        /// Tick rate denominator.
         rate-den: s32,
     }
 
     /// Half-open time interval `[start, start + duration)`.
     record time-range {
+        /// The first tick.
         start: rational-time,
+        /// The length, at the rate of `start`.
         duration: rational-time,
     }
 
     /// Summary of a timeline clip returned by project queries.
     record clip-ref {
+        /// The clip id.
         id: u64,
+        /// Id of the track holding the clip.
         track: u64,
+        /// The clip's first tick on the timeline.
         start: rational-time,
+        /// The tick after the clip's last frame.
         end: rational-time,
+        /// `media`, `sequence`, `multicam`, the generator id of a generated clip, or the clip
+        /// type id of a typed clip.
         kind: string,
+        /// The clip's title. A typed clip with no name of its own reads the type's name.
         name: string,
     }
 
     /// Sequence In and Out points from the editor view.
     record in-out-marks {
+        /// The In point, or none when unset.
         mark-in: option<rational-time>,
+        /// The Out point, or none when unset.
         mark-out: option<rational-time>,
     }
 
     /// Category of a ruler marker.
     enum marker-kind {
+        /// A note.
         comment,
+        /// A chapter point.
         chapter,
+        /// A segment, such as a range an analyzer writes.
         segmentation,
     }
 
     /// Ruler marker on a sequence timeline.
     record marker {
+        /// The marker id.
         id: u64,
+        /// Position on the sequence timeline.
         tick: rational-time,
+        /// Span of a range marker, or 0 ticks for a point marker.
         duration: rational-time,
+        /// The marker name.
         name: string,
+        /// The marker colour.
         color: marker-color,
+        /// Comment text, empty when none.
         comment: string,
+        /// The marker category.
         kind: marker-kind,
     }
 
-    /// Emit a log line at `level`.
+    /// Emit a log line at `level`. The line is kept in the plugin's log in Settings > Plugins.
     import log: func(level: log-level, text: string);
 
-    /// Read a key from the package's `data_dir`.
+    /// Read a key from the package's storage directory, `<data_root>/plugin-data/<id>`.
     import storage-get: func(key: string) -> result<option<list<u8>>, string>;
 
-    /// Write `value` under `key` in the package's `data_dir`.
+    /// Write `value` under `key` in the package's storage directory.
     import storage-set: func(key: string, value: list<u8>) -> result<_, string>;
 
-    /// Delete `key` from the package's `data_dir`.
+    /// Delete `key` from the package's storage directory.
     import storage-delete: func(key: string) -> result<_, string>;
 
-    /// List all keys in the package's `data_dir` in sorted order.
+    /// List every key in the package's storage directory in sorted order.
     import storage-keys: func() -> result<list<string>, string>;
 
     /// Read a setting value as JSON text, or `none` if unset.
@@ -880,7 +1257,11 @@ world plugin {
     /// Register a palette command during `mount`.
     import register-command: func(id: string, title: string) -> result<_, string>;
 
-    /// Subscribe to an event kind during `mount`.
+    /// Subscribe to an event kind during `mount`. The kinds, payloads, and
+    /// replies are listed in [Events](events.md#external-plugins); the event
+    /// type name (`CommandApplied`) is accepted for its kind (`command-applied`).
+    /// `resolve-dropped:<n>` sets the handler priority to the `s32` `n`; the
+    /// default is 0, and no other kind takes a priority.
     import subscribe: func(event-kind: string) -> result<_, string>;
 
     /// Register a timeline importer during `mount`.
@@ -1032,7 +1413,10 @@ world plugin {
     /// Run a command previously registered by this plugin.
     export command-run: func(id: string, args-json: string) -> result<_, string>;
 
-    /// Handle an event of a subscribed kind. Returns optional response JSON.
+    /// Handle an event of a subscribed kind. `kind` is the kebab-case kind,
+    /// whichever spelling subscribed; `event-json` is the event as a JSON
+    /// object. The reply refuses or rewrites a `command-proposed` command and
+    /// claims a `resolve-dropped` item; every other kind ignores it.
     export event: func(kind: string, event-json: string) -> result<option<string>, string>;
 
     /// Import a timeline file at `path` using `importer-id`.
@@ -1068,7 +1452,7 @@ world plugin {
     /// Open an encoder session for `encoder-id` writing `config` to `path`.
     export encoder-open: func(encoder-id: string, path: string, config: encoder-config) -> result<instance, string>;
 
-    /// Push one RGBA video frame to an open encoder session.
+    /// Push one straight-alpha RGBA8 video frame to an open encoder session.
     export encoder-push-frame: func(instance: instance, frame: encoder-frame) -> result<_, string>;
 
     /// Push one interleaved `f32` audio block to an open encoder session.
@@ -1086,7 +1470,7 @@ world plugin {
     /// Job `job` ended: done, failed, or cancelled when `cancelled` is true.
     export job-end: func(job: u64, cancelled: bool);
 
-    /// Describe `path` with decoder `decoder-id`.
+    /// Describe `path` with decoder `decoder-id` without decoding it.
     export decoder-probe: func(decoder-id: string, path: string) -> result<media-probe, decode-error>;
 
     /// Open the video stream of `path` with decoder `decoder-id`.

@@ -1379,6 +1379,8 @@ Notes for the latest release. For previous releases, see the
 - Clicking a clip bar's fx badge opens a menu of the clip's properties, and the chosen property is the line the bar draws, with keyframe dots on Medium and taller lanes; dragging the line sets the value as one undo step and Ctrl+click on it adds a keyframe.
 - A clip bar whose media file is missing fills red with Media Offline and the file name, a generated clip's bar draws its name and colour swatch, and linked clips that drift apart show the frame offset on both bars.
 - Plugins can add rows to the fx badge menu through the `Clip Badge` menu location, and `ContextMenuRequested` reports it as `MenuTarget::ClipBadge`.
+- `docs/plugins/wit-reference.md` documents every type, field, case and function of the WASM `plugin` world from the `///` comments in `plugin.wit`, which `wit-bindgen` copies into guest bindings.
+- `docs/plugins/events.md` lists every event kind an external plugin subscribes to, with its payload fields and the replies the host reads.
 
 ### Changed
 
@@ -2685,6 +2687,9 @@ Notes for the latest release. For previous releases, see the
   now driven in tests with a supplied answer, including the nine that were
   excluded from the reach census for opening a dialog.
 - A failed plugin build in `aria plugin dev` and `aria plugin pack` reports the compiler error and its `note:` and `help:` lines, including under `CARGO_TERM_COLOR=always`, instead of only cargo's exit status.
+- A plugin encoder at a fractional frame rate such as 29.97 fps receives each frame's `pts_value` in ticks of `pts_rate` per second, instead of the frame number, which placed frame 30000 at 1 s instead of 1001 s.
+- A native plugin's `render-finished` event names an image sequence render `"image-sequence"`, as a WASM plugin's does, instead of `"image_sequence"`.
+- A WASM plugin's `command-proposed` reply accepts `{"rewrite": <command>}` and its `resolve-dropped` reply accepts `{"claim_drop": "<action>"}`, as a native plugin's does.
 
 ## [alpha-0.7.0] — 2026-07-22
 

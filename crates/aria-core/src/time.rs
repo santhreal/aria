@@ -137,6 +137,17 @@ impl RationalTime {
         let rhs = i128::from(other.value) * i128::from(other.rate.den) * i128::from(self.rate.num);
         lhs.cmp(&rhs)
     }
+
+    /// This time at the whole-number rate `rate.num / 1`: `value * rate.den`
+    /// ticks, the same instant at every rate, 30000/1001 included. Fails with
+    /// [`TimeError::Overflow`] when the tick count leaves `i64`.
+    pub fn at_whole_rate(self) -> Result<RationalTime, TimeError> {
+        let value = self
+            .value
+            .checked_mul(i64::from(self.rate.den))
+            .ok_or(TimeError::Overflow)?;
+        Ok(RationalTime::new(value, Rational::new(self.rate.num, 1)))
+    }
 }
 
 /// Half-open range `[start, start + duration)`.
@@ -317,6 +328,34 @@ mod tests {
         // One 24fps frame (1/24 s) is later than one 30fps frame (1/30 s).
         assert_eq!(rt(1, R24).compare(rt(1, R30)), Ordering::Greater);
         assert_eq!(rt(1, R30).compare(rt(1, R24)), Ordering::Less);
+    }
+
+    /// `at_whole_rate` sets the time a plugin encoder receives, so it must
+    /// keep the instant for fractional rates, not only for `n/1` ones.
+    #[test]
+    fn at_whole_rate_keeps_the_instant() {
+        for (value, rate) in [
+            (0, R24),
+            (48, R24),
+            (7, Rational::FPS_23_976),
+            (300, Rational::FPS_29_97),
+            (-5, Rational::FPS_59_94),
+            (96_000, Rational::new(48_000, 1)),
+        ] {
+            let time = rt(value, rate);
+            let whole = time.at_whole_rate().expect("in range");
+            assert_eq!(whole.rate, Rational::new(rate.num, 1));
+            assert_eq!(whole.value, value * i64::from(rate.den));
+            assert_eq!(
+                whole.compare(time),
+                Ordering::Equal,
+                "{time:?} -> {whole:?}"
+            );
+        }
+        assert_eq!(
+            rt(i64::MAX / 1000, Rational::FPS_29_97).at_whole_rate(),
+            Err(TimeError::Overflow)
+        );
     }
 
     #[test]

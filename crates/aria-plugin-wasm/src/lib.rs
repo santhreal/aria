@@ -49,6 +49,7 @@ mod ai_tools;
 mod audio;
 mod contributions;
 mod decoders;
+mod encoders;
 mod events;
 mod host;
 mod overlays;
@@ -157,10 +158,8 @@ mod tests {
     use wasmtime::Trap;
 
     use super::*;
-    use crate::events::{drop_action_wire_name, parse_drop_action};
     use crate::host::sanitize_relative_path;
     use crate::runtime::{classify_trap, deadline_ticks};
-    use aria_plugin::DropAction;
 
     /// The world named in load errors and by `aria plugin check` is the one
     /// `wit/plugin.wit` declares: a version bump in the WIT turns this red
@@ -233,25 +232,5 @@ mod tests {
         assert_eq!(limits.fuel_per_call, DEFAULT_FUEL_PER_CALL);
         assert_eq!(limits.memory_bytes, DEFAULT_MEMORY_BYTES);
         assert_eq!(limits.call_deadline, DEFAULT_CALL_DEADLINE);
-    }
-
-    #[test]
-    fn parse_drop_action_covers_all_variants_in_kebab_and_pascal_case() {
-        for (pascal, action) in [
-            ("OpenProject", DropAction::OpenProject),
-            ("ImportMedia", DropAction::ImportMedia),
-            ("ApplyLut", DropAction::ApplyLut),
-            ("InstallSkill", DropAction::InstallSkill),
-            ("ImportTimeline", DropAction::ImportTimeline),
-            ("Handled", DropAction::Handled),
-        ] {
-            let kebab = drop_action_wire_name(action);
-            assert_eq!(parse_drop_action(kebab), Some(action));
-            assert_eq!(parse_drop_action(&format!("{kebab:?}")), Some(action));
-            assert_eq!(parse_drop_action(pascal), Some(action));
-            assert_eq!(parse_drop_action(&format!("{pascal:?}")), Some(action));
-        }
-        assert_eq!(parse_drop_action(""), None);
-        assert_eq!(parse_drop_action("unknown-action"), None);
     }
 }
