@@ -403,3 +403,410 @@ fn steady_frame_render_allocations_stay_at_wgpu_floor() {
         started.elapsed()
     );
 }
+
+/// WHY: A full-canvas unmodified 1080p BT.709 CPU NV12 media frame was
+/// uploaded to the GPU, composited on `llvmpipe`, read back as 8.29 MB of
+/// RGBA, and converted back to NV12 on the CPU for every export frame.
+/// `scene_is_nv12_passthrough` passes the decoded planes to the encoder only
+/// when the scene and the decoded frame need no GPU work. Closes taking the
+/// passthrough when any single `SceneLayer` field, a second layer, a
+/// reference, a non-media source, or the frame format, visible rect, rotation
+/// or colour space asks for composition. A `SceneLayer` field added later
+/// fails to compile in the predicate. Does not cover a GPU-resident frame or
+/// a nested sequence, which need a device and a project to build.
+#[test]
+fn scene_is_nv12_passthrough_accepts_only_unmodified_full_canvas_bt709_cpu_nv12() {
+    use aria_core::{
+        ColorSpace, CpuImage, FrameData, PixelFormat, Plane, Rational, RationalTime, Rect,
+        Rotation, VideoFrame,
+    };
+    use aria_models::{BlendMode, MediaId};
+
+    let make_state = |modify_scene: &dyn Fn(&mut Scene), modify_frame: &dyn Fn(&mut VideoFrame)| {
+        let media = MediaId::next();
+        let mut scene = crate::scene::Scene::empty(1920, 1080, [0, 0, 0, 255]);
+        scene.layers = vec![SceneLayer {
+            clip: None,
+            source: LayerSource::Media {
+                media,
+                source_time: RationalTime::new(0, Rational::FPS_60),
+            },
+            center: [960.0, 540.0],
+            anchor_point: [0.5, 0.5],
+            size: SizeSpec::Fixed([1920.0, 1080.0]),
+            rotation: 0.0,
+            opacity: 1.0,
+            uv: [0.0, 0.0, 1.0, 1.0],
+            effects: Vec::new(),
+            color_grade: None,
+            lut: None,
+            chroma_key: None,
+            blend_mode: BlendMode::Normal,
+            masks: Vec::new(),
+            styles: None,
+            blur_passes: Vec::new(),
+        }];
+        modify_scene(&mut scene);
+        let mut frame = VideoFrame::new(
+            RationalTime::new(0, Rational::FPS_60),
+            PixelFormat::Nv12,
+            ColorSpace::BT709,
+            (1920, 1080),
+            Rect::from_size(1920, 1080),
+            Rotation::None,
+            FrameData::Cpu(CpuImage {
+                planes: vec![
+                    Plane {
+                        data: vec![16; 1920 * 4],
+                        stride: 1920,
+                        rows: 4,
+                    },
+                    Plane {
+                        data: vec![128; 1920 * 2],
+                        stride: 1920,
+                        rows: 2,
+                    },
+                ],
+            }),
+        );
+        modify_frame(&mut frame);
+        let mut scratch = RealizeScratch::default();
+        scratch.realized.push(Realized::Layer(Leaf {
+            pixels: Pixels::Frame(Shown {
+                key: super::super::look_ahead::DecoderKey { media, clip: None },
+                source_time: RationalTime::new(0, Rational::FPS_60),
+                policy: SeekPolicy::Exact,
+                frame,
+            }),
+            placement: LayerPlacement::full_canvas(&CompositorConfig::new(1920, 1080)),
+            uv: [0.0, 0.0, 1.0, 1.0],
+            fx: aria_compositor::LayerEffects::default(),
+            color_grade: None,
+            lut: None,
+            blend_mode: aria_compositor::BlendMode::Normal,
+            styles: aria_compositor::LayerStyles::default(),
+            blur: Vec::new(),
+            stencil: None,
+        }));
+        let nests = Nests::new(&scene);
+        scene_is_nv12_passthrough(&scene, &nests, &scratch)
+    };
+
+    assert!(
+        make_state(&|_| {}, &|_| {}),
+        "unmodified full-canvas BT.709 CPU NV12 frame must qualify for passthrough"
+    );
+    let mask = crate::scene::SceneMask {
+        kind: aria_models::MaskKind::Rectangle,
+        feather: 0.0,
+        op: aria_compositor::MaskOp::Add,
+        opacity: 1.0,
+        expansion: 0.0,
+        center: [0.0, 0.0],
+        size: [1.0, 1.0],
+        rotation_rad: 0.0,
+        roundness: 0.0,
+        invert: false,
+        path: Vec::new(),
+        path_closed: false,
+    };
+    type SceneEdit = Box<dyn Fn(&mut Scene)>;
+    let scene_cases: Vec<(&str, SceneEdit)> = vec![
+        (
+            "still source",
+            Box::new(|s: &mut Scene| {
+                s.layers[0].source = LayerSource::Still {
+                    media: MediaId::next(),
+                }
+            }),
+        ),
+        (
+            "off-centre",
+            Box::new(|s: &mut Scene| s.layers[0].center = [961.0, 540.0]),
+        ),
+        (
+            "moved anchor",
+            Box::new(|s: &mut Scene| s.layers[0].anchor_point = [0.0, 0.0]),
+        ),
+        (
+            "scaled size",
+            Box::new(|s: &mut Scene| s.layers[0].size = SizeSpec::Fixed([1910.0, 1080.0])),
+        ),
+        (
+            "rotation",
+            Box::new(|s: &mut Scene| s.layers[0].rotation = 0.1),
+        ),
+        (
+            "opacity",
+            Box::new(|s: &mut Scene| s.layers[0].opacity = 0.5),
+        ),
+        (
+            "cropped uv",
+            Box::new(|s: &mut Scene| s.layers[0].uv = [0.1, 0.0, 0.9, 1.0]),
+        ),
+        (
+            "mirrored uv",
+            Box::new(|s: &mut Scene| s.layers[0].uv = [1.0, 0.0, 0.0, 1.0]),
+        ),
+        (
+            "effect",
+            Box::new(|s: &mut Scene| {
+                s.layers[0]
+                    .effects
+                    .push(crate::scene::ResolvedPass::new("gaussian_blur", vec![2.0]))
+            }),
+        ),
+        (
+            "mask",
+            Box::new(move |s: &mut Scene| s.layers[0].masks.push(mask.clone())),
+        ),
+        (
+            "chroma key",
+            Box::new(|s: &mut Scene| {
+                s.layers[0].chroma_key = Some(crate::scene::SceneChromaKey {
+                    rgb: [0, 255, 0],
+                    strength: 0.5,
+                    shadow: 0.0,
+                })
+            }),
+        ),
+        (
+            "colour grade",
+            Box::new(|s: &mut Scene| {
+                s.layers[0].color_grade = Some(aria_compositor::ColorGrade::default())
+            }),
+        ),
+        (
+            "lut",
+            Box::new(|s: &mut Scene| {
+                s.layers[0].lut = Some(SceneLut {
+                    path: "look.cube".into(),
+                    intensity: 1.0,
+                })
+            }),
+        ),
+        (
+            "blend mode",
+            Box::new(|s: &mut Scene| s.layers[0].blend_mode = BlendMode::Multiply),
+        ),
+        (
+            "styles",
+            Box::new(|s: &mut Scene| {
+                s.layers[0].styles = Some(crate::scene::SceneStyles {
+                    shadow: None,
+                    glow: None,
+                    outline: Some(crate::scene::SceneOutline {
+                        rgba: [255; 4],
+                        width: 2.0,
+                    }),
+                    background: None,
+                })
+            }),
+        ),
+        (
+            "motion blur",
+            Box::new(|s: &mut Scene| {
+                s.layers[0].blur_passes.push(crate::scene::SceneBlurPass {
+                    center: [960.0, 540.0],
+                    size: [1920.0, 1080.0],
+                    rotation: 0.0,
+                    opacity: 0.5,
+                })
+            }),
+        ),
+        (
+            "second layer",
+            Box::new(|s: &mut Scene| {
+                let top = s.layers[0].clone();
+                s.layers.push(top);
+            }),
+        ),
+        (
+            "reference",
+            Box::new(|s: &mut Scene| {
+                let read = s.layers[0].clone();
+                s.references.push(read);
+            }),
+        ),
+    ];
+    for (name, edit) in &scene_cases {
+        assert!(
+            !make_state(edit.as_ref(), &|_| {}),
+            "{name}: the scene must composite on the GPU"
+        );
+    }
+    type FrameEdit = Box<dyn Fn(&mut VideoFrame)>;
+    let frame_cases: Vec<(&str, FrameEdit)> = vec![
+        (
+            "RGBA format",
+            Box::new(|f: &mut VideoFrame| f.format = PixelFormat::Rgba8),
+        ),
+        (
+            "smaller visible rect",
+            Box::new(|f: &mut VideoFrame| f.visible = Rect::from_size(1280, 720)),
+        ),
+        (
+            "offset visible rect",
+            Box::new(|f: &mut VideoFrame| f.visible = Rect::new(8, 0, 1920, 1080)),
+        ),
+        (
+            "container rotation",
+            Box::new(|f: &mut VideoFrame| f.rotation = Rotation::Cw90),
+        ),
+        (
+            "BT.601 colour",
+            Box::new(|f: &mut VideoFrame| f.color = ColorSpace::BT601),
+        ),
+    ];
+    for (name, edit) in &frame_cases {
+        assert!(
+            !make_state(&|_| {}, edit.as_ref()),
+            "{name}: the frame must composite on the GPU"
+        );
+    }
+}
+
+/// WHY: the export loop selects the passthrough from the encoder's
+/// `accepts_cpu_nv12`, retimes the decoded frame to the output timeline, and
+/// returns it to its decoder after the push. Closes an encoder that takes RGBA
+/// only receiving NV12 planes, an NV12 encoder receiving a composite it did
+/// not need, a passed-through frame keeping its source timestamp, and the
+/// look-ahead pairing a pending frame with the planes of a different source
+/// frame. Does not cover the encoder packing the planes, which the
+/// `aria-encoder` tests cover, or a GPU-resident decoded frame.
+#[test]
+fn export_passes_decoded_planes_only_to_an_encoder_that_takes_cpu_nv12() {
+    use aria_core::{
+        EncodeError, EncoderChoice, PixelFormat, Rational, RationalTime, VideoEncoder, VideoFrame,
+    };
+    use aria_models::{CanvasAspect, CanvasSettings, MediaSource, Project, TimeRange, TrackKind};
+
+    /// Format, timestamp, and `(bytes, stride, rows)` of each plane pushed.
+    type Pushed = (PixelFormat, RationalTime, Vec<(Vec<u8>, usize, usize)>);
+
+    struct Recorder {
+        nv12: bool,
+        frames: Vec<Pushed>,
+    }
+
+    impl VideoEncoder for Recorder {
+        fn push(&mut self, frame: &VideoFrame) -> Result<(), EncodeError> {
+            let cpu = frame.cpu().expect("export pushes CPU frames");
+            let planes = cpu
+                .planes
+                .iter()
+                .map(|plane| (plane.data.clone(), plane.stride, plane.rows))
+                .collect();
+            self.frames.push((frame.format, frame.pts, planes));
+            Ok(())
+        }
+
+        fn finish(&mut self) -> Result<(), EncodeError> {
+            Ok(())
+        }
+
+        fn choice(&self) -> EncoderChoice {
+            EncoderChoice::only("recorder", Some(false))
+        }
+
+        fn accepts_cpu_nv12(&self) -> bool {
+            self.nv12
+        }
+    }
+
+    const FRAMES: i64 = 3;
+    // Source frames 30..33 at output frames 0..3: a frame that keeps its
+    // source timestamp is a second off its output slot.
+    const SOURCE_START: i64 = 30;
+    let fps = Rational::FPS_30;
+    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/fixture-640x360-30fps-3s.mp4");
+    let mut project = Project::new("passthrough", fps);
+    project.timeline_mut().set_canvas(CanvasSettings {
+        aspect: CanvasAspect::Auto,
+        background: [0, 0, 0],
+        resolution: Some([640, 360]),
+    });
+    let media = project.add_media(MediaSource::new(&path, 640, 360, fps, 90, false));
+    let track = project.add_track(TrackKind::Video, "V1");
+    project
+        .add_clip(
+            track,
+            media,
+            TimeRange::at_rate(SOURCE_START, FRAMES, fps),
+            RationalTime::new(0, fps),
+        )
+        .expect("place the fixture clip");
+
+    let export = |nv12: bool| -> Option<Vec<Pushed>> {
+        let Ok(mut renderer) = Renderer::new_headless() else {
+            eprintln!("skipping: no GPU adapter for the headless renderer");
+            return None;
+        };
+        renderer.decode_mode = aria_decoder::OutputMode::Cpu;
+        let mut recorder = Recorder {
+            nv12,
+            frames: Vec::new(),
+        };
+        let settings = crate::ExportSettings::for_project(&project);
+        let written = crate::export_observed(
+            &mut renderer,
+            &project,
+            &mut recorder,
+            settings,
+            &mut |_, _| true,
+        )
+        .expect("export the lone clip");
+        assert_eq!(written, FRAMES as u64);
+        Some(recorder.frames)
+    };
+    let Some(nv12) = export(true) else {
+        return;
+    };
+    let Some(rgba) = export(false) else {
+        return;
+    };
+
+    let mut decoder = aria_decoder::open_video_decoder(&path, aria_decoder::OutputMode::Cpu)
+        .expect("the fixture opens");
+    for skipped in 0..SOURCE_START {
+        decoder
+            .next_frame()
+            .expect("decode the fixture")
+            .unwrap_or_else(|| panic!("the fixture holds frame {skipped}"));
+    }
+    assert_eq!(nv12.len(), FRAMES as usize);
+    assert_eq!(rgba.len(), FRAMES as usize);
+    for (index, ((format, pts, planes), (rgba_format, rgba_pts, _))) in
+        nv12.iter().zip(&rgba).enumerate()
+    {
+        let at = RationalTime::new(index as i64, fps);
+        let source = decoder
+            .next_frame()
+            .expect("decode the fixture")
+            .unwrap_or_else(|| panic!("the fixture holds frame {}", SOURCE_START + index as i64));
+        let expected: Vec<(Vec<u8>, usize, usize)> = source
+            .cpu()
+            .expect("CPU decode yields CPU planes")
+            .planes
+            .iter()
+            .map(|plane| (plane.data.clone(), plane.stride, plane.rows))
+            .collect();
+        assert_eq!(*format, PixelFormat::Nv12, "frame {index} was composited");
+        assert_eq!(
+            *pts, at,
+            "frame {index} kept a timestamp other than its output slot"
+        );
+        assert!(
+            *planes == expected,
+            "frame {index} carries planes other than source frame {}",
+            SOURCE_START + index as i64
+        );
+        assert_eq!(
+            *rgba_format,
+            PixelFormat::Rgba8,
+            "frame {index} reached an RGBA encoder as {rgba_format:?}"
+        );
+        assert_eq!(*rgba_pts, at);
+    }
+}

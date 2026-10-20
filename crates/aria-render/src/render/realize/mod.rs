@@ -20,7 +20,7 @@ use aria_core::Cancel;
 use aria_models::{MatteSource, Project};
 
 use crate::error::RenderError;
-use crate::scene::{LayerSource, Scene, SceneLayer, SceneLut};
+use crate::scene::{LayerSource, Scene, SceneLayer, SceneLut, SizeSpec};
 
 use super::effects::layer_effects;
 use super::look_ahead::Shown;
@@ -32,6 +32,9 @@ use super::{FrameStats, PendingFrame, Renderer, SLOW_FRAME_LOG_MS, SeekPolicy};
 pub(in crate::render) enum Output<'t> {
     /// A readback buffer the CPU maps when the frame finishes.
     Readback,
+    /// A readback buffer unless the realized scene is a single unmodified
+    /// full-canvas CPU NV12 media frame matching the canvas size.
+    ExportReadback { allow_nv12_passthrough: bool },
     /// A caller texture, written on the GPU.
     Texture(&'t wgpu::Texture),
 }
@@ -182,6 +185,81 @@ impl<T: Copy, const N: usize> Extend<T> for InlineVec<T, N> {
     }
 }
 
+/// Whether `scene` is one decoded CPU NV12 BT.709 media frame drawn unchanged
+/// over the whole canvas, so the export encoder takes the decoded planes and
+/// no GPU composite, readback, or RGBA to NV12 conversion runs.
+///
+/// Every [`Scene`] and [`SceneLayer`] field is named, so a field added later
+/// fails to compile here until its passthrough value is stated.
+fn scene_is_nv12_passthrough(scene: &Scene, nests: &Nests<'_>, scratch: &RealizeScratch) -> bool {
+    let Scene {
+        width,
+        height,
+        background: _,
+        tick: _,
+        layers,
+        references,
+    } = scene;
+    if !references.is_empty() || !nests.scenes.is_empty() {
+        return false;
+    }
+    let [layer] = layers.as_slice() else {
+        return false;
+    };
+    let SceneLayer {
+        clip: _,
+        source,
+        center,
+        anchor_point,
+        size,
+        rotation,
+        opacity,
+        uv,
+        effects,
+        masks,
+        chroma_key,
+        color_grade,
+        lut,
+        blend_mode,
+        styles,
+        blur_passes,
+    } = layer;
+    let (w, h) = (*width as f32, *height as f32);
+    let unchanged = matches!(source, LayerSource::Media { .. })
+        && *center == [w * 0.5, h * 0.5]
+        && *anchor_point == [0.5, 0.5]
+        && *size == SizeSpec::Fixed([w, h])
+        && *rotation == 0.0
+        && *opacity == 1.0
+        && *uv == [0.0, 0.0, 1.0, 1.0]
+        && effects.is_empty()
+        && masks.is_empty()
+        && chroma_key.is_none()
+        && color_grade.is_none()
+        && lut.is_none()
+        && *blend_mode == aria_models::BlendMode::Normal
+        && styles.is_none()
+        && blur_passes.is_empty();
+    if !unchanged {
+        return false;
+    }
+    let [
+        Realized::Layer(Leaf {
+            pixels: Pixels::Frame(shown),
+            ..
+        }),
+    ] = scratch.realized.as_slice()
+    else {
+        return false;
+    };
+    let frame = &shown.frame;
+    frame.format == aria_core::PixelFormat::Nv12
+        && frame.visible == aria_core::Rect::from_size(*width, *height)
+        && frame.rotation == aria_core::Rotation::None
+        && frame.color == aria_core::ColorSpace::BT709
+        && matches!(frame.data, aria_core::FrameData::Cpu(_))
+}
+
 impl Renderer {
     pub(super) fn submit_scene_once(
         &mut self,
@@ -232,6 +310,30 @@ impl Renderer {
         let decode_ms =
             self.realize_scene_layers(project, scene, policy, &cancel, &mut nests, scratch)?;
         self.retire_decoders();
+        if matches!(
+            output,
+            Output::ExportReadback {
+                allow_nv12_passthrough: true
+            }
+        ) && scene_is_nv12_passthrough(scene, &nests, scratch)
+        {
+            if cancel.is_cancelled() {
+                return Err(RenderError::Cancelled);
+            }
+            let realize_ms = realize_started.elapsed().as_secs_f64() * 1000.0;
+            return Ok(PendingFrame {
+                readback: None,
+                scratch: None,
+                decode_ms,
+                raster_ms: (realize_ms - decode_ms).max(0.0),
+                submitted_at: Instant::now(),
+                effect_passes: 0,
+                effect_pass_bind_groups: 0,
+                layers: 1,
+                width: scene.width,
+                height: scene.height,
+            });
+        }
         let realized = &scratch.realized;
         let caches = Caches {
             stills: &self.stills,
@@ -482,11 +584,10 @@ impl Renderer {
         let realize_ms = realize_started.elapsed().as_secs_f64() * 1000.0;
         let submitted_at = Instant::now();
         let readback = match output {
-            Output::Readback => Some(self.compositor.submit_compositor_layers(
-                &self.gpu,
-                &config,
-                compositor_layers,
-            )?),
+            Output::Readback | Output::ExportReadback { .. } => Some(
+                self.compositor
+                    .submit_compositor_layers(&self.gpu, &config, compositor_layers)?,
+            ),
             Output::Texture(texture) => {
                 self.compositor.submit_compositor_layers_to_texture(
                     &self.gpu,
@@ -525,6 +626,39 @@ impl Renderer {
         if let Some(scratch) = pending.scratch.take() {
             self.return_scratch(scratch);
         }
+        result?;
+        let composite_ms = pending.submitted_at.elapsed().as_secs_f64() * 1000.0;
+        self.record_pending_stats(&pending, composite_ms);
+        Ok(())
+    }
+
+    pub(crate) fn finish_pending_passthrough(
+        &mut self,
+        mut pending: PendingFrame,
+        pts: aria_core::RationalTime,
+        push: impl FnOnce(&aria_core::VideoFrame) -> Result<(), aria_core::EncodeError>,
+    ) -> Result<(), RenderError> {
+        let mut scratch = pending
+            .scratch
+            .take()
+            .expect("a passthrough pending frame retains its scratch");
+        let result = match scratch.realized.first_mut() {
+            Some(Realized::Layer(Leaf {
+                pixels: Pixels::Frame(shown),
+                ..
+            })) => {
+                let prev_pts = shown.frame.pts;
+                let prev_dur = shown.frame.duration;
+                shown.frame.pts = pts;
+                shown.frame.duration = None;
+                let res = push(&shown.frame);
+                shown.frame.pts = prev_pts;
+                shown.frame.duration = prev_dur;
+                res
+            }
+            _ => unreachable!("passthrough pending frame holds one realized media frame"),
+        };
+        self.return_scratch(scratch);
         result?;
         let composite_ms = pending.submitted_at.elapsed().as_secs_f64() * 1000.0;
         self.record_pending_stats(&pending, composite_ms);

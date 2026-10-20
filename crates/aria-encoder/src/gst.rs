@@ -45,6 +45,7 @@ pub struct GstEncoder {
     pipeline: gst::Pipeline,
     video: gst_app::AppSrc,
     audio: Option<gst_app::AppSrc>,
+    buffer_pool: Option<gst::BufferPool>,
     config: EncoderConfig,
     choice: EncoderChoice,
     finished: bool,
@@ -100,14 +101,17 @@ impl GstEncoder {
         let location = path.to_string_lossy().into_owned();
 
         let pipeline = gst::Pipeline::new();
+        let v_caps = video_caps(width, height, config.frame_rate)?;
+        let frame_bytes = yuv420_len(width, height);
+        let buffer_pool = open_buffer_pool(&v_caps, frame_bytes);
         let video = gst_app::AppSrc::builder()
             .format(gst::Format::Time)
-            .caps(&video_caps(width, height, config.frame_rate)?)
+            .caps(&v_caps)
             .stream_type(gst_app::AppStreamType::Stream)
             .is_live(false)
             .block(true)
+            .max_bytes((frame_bytes as u64).saturating_mul(8))
             .build();
-        let convert = make("videoconvert")?;
         configure_encoder(encoder, &config, enc_name);
         let parse = make(match config.video_codec {
             VideoCodec::H264 => "h264parse",
@@ -121,18 +125,20 @@ impl GstEncoder {
             .build()
             .map_err(|e| EncodeError::Start(e.to_string()))?;
 
+        // `x265enc` takes I420, Y42B or Y444 and no NV12; every other
+        // candidate takes the NV12 `appsrc` caps as they are.
+        let convert = if enc_name == "x265enc" {
+            Some(make("videoconvert")?)
+        } else {
+            None
+        };
+        let mut chain: Vec<&gst::Element> = vec![video.upcast_ref()];
+        chain.extend(convert.as_ref());
+        chain.extend([encoder, &parse, &video_queue]);
         pipeline
-            .add_many([
-                video.upcast_ref(),
-                &convert,
-                encoder,
-                &parse,
-                &video_queue,
-                &mux,
-                &sink,
-            ])
+            .add_many(chain.iter().copied().chain([&mux, &sink]))
             .map_err(|e| EncodeError::Start(e.to_string()))?;
-        gst::Element::link_many([video.upcast_ref(), &convert, encoder, &parse, &video_queue])
+        gst::Element::link_many(chain.iter().copied())
             .map_err(|e| EncodeError::Start(e.to_string()))?;
         video_queue
             .link(&mux)
@@ -155,6 +161,7 @@ impl GstEncoder {
             pipeline,
             video,
             audio,
+            buffer_pool,
             config,
             choice,
             finished: false,
@@ -170,8 +177,12 @@ impl VideoEncoder for GstEncoder {
             ));
         }
         let (width, height) = self.config.size;
-        let mut buffer = gst::Buffer::with_size(yuv420_len(width, height))
-            .map_err(|_| EncodeError::Encode("couldn't allocate an encode buffer.".into()))?;
+        let mut buffer = self
+            .buffer_pool
+            .as_ref()
+            .and_then(|pool| pool.acquire_buffer(None).ok())
+            .or_else(|| gst::Buffer::with_size(yuv420_len(width, height)).ok())
+            .ok_or_else(|| EncodeError::Encode("couldn't allocate an encode buffer.".into()))?;
         {
             let buffer = buffer
                 .get_mut()
@@ -272,12 +283,19 @@ impl VideoEncoder for GstEncoder {
             }
         }
         let _ = self.pipeline.set_state(gst::State::Null);
+        if let Some(pool) = &self.buffer_pool {
+            let _ = pool.set_active(false);
+        }
         self.finished = true;
         Ok(())
     }
 
     fn choice(&self) -> EncoderChoice {
         self.choice.clone()
+    }
+
+    fn accepts_cpu_nv12(&self) -> bool {
+        true
     }
 }
 
@@ -290,6 +308,9 @@ impl Drop for GstEncoder {
             }
         }
         let _ = self.pipeline.set_state(gst::State::Null);
+        if let Some(pool) = &self.buffer_pool {
+            let _ = pool.set_active(false);
+        }
     }
 }
 
@@ -364,6 +385,28 @@ fn first_opened<T>(
     Err(reasons)
 }
 
+/// Whether every feature registered under `factory`'s plugin has rank `NONE`:
+/// the state `aria_decoder`'s warm-up and [`demote_factory_plugin`] leave an
+/// unloadable plugin in, so later opens do not map its `.so` again.
+fn plugin_is_demoted(factory: &gst::ElementFactory) -> bool {
+    let Some(plugin) = factory.plugin_name() else {
+        return false;
+    };
+    let features = gst::Registry::get().features_by_plugin(&plugin);
+    !features.is_empty() && features.iter().all(|f| f.rank() == gst::Rank::NONE)
+}
+
+/// Set every feature of `factory`'s plugin to `Rank::NONE` in this process's
+/// registry after a failed load, so later candidates in the same plugin are
+/// skipped without mapping the `.so` again.
+fn demote_factory_plugin(factory: &gst::ElementFactory) {
+    if let Some(plugin) = factory.plugin_name() {
+        for feature in gst::Registry::get().features_by_plugin(&plugin) {
+            feature.set_rank(gst::Rank::NONE);
+        }
+    }
+}
+
 /// Build `name` and open it, returning it in `READY` state.
 ///
 /// Closing `nvh264enc` takes 250 ms on an RTX 5090 and opening it again 75 ms,
@@ -372,12 +415,25 @@ fn first_opened<T>(
 /// export runs one CUDA context rather than one for the encoder beside the
 /// decoders' one, and a decoder opened after it reuses the encoder's.
 fn open_encoder_element(name: &'static str) -> Result<gst::Element, String> {
-    if gst::ElementFactory::find(name).is_none() {
-        return Err(format!("{name} is not installed"));
+    let is_hw = !SOFTWARE_ENCODERS.contains(&name);
+    if is_hw {
+        aria_decoder::await_warm_up();
     }
-    let element = gst::ElementFactory::make(name)
-        .build()
-        .map_err(|e| format!("{name} failed to load ({e})"))?;
+    let Some(factory) = gst::ElementFactory::find(name) else {
+        return Err(format!("{name} is not installed"));
+    };
+    if is_hw && plugin_is_demoted(&factory) {
+        return Err(format!("{name} failed to load (plugin demoted)"));
+    }
+    let element = match gst::ElementFactory::make(name).build() {
+        Ok(element) => element,
+        Err(e) => {
+            if is_hw {
+                demote_factory_plugin(&factory);
+            }
+            return Err(format!("{name} failed to load ({e})"));
+        }
+    };
     if !aria_decoder::open_on_kept_contexts(&element) {
         let _ = element.set_state(gst::State::Null);
         return Err(format!("{name} could not open its device"));
@@ -413,6 +469,9 @@ fn configure_encoder(encoder: &gst::Element, config: &EncoderConfig, name: &str)
     }
     if name == "x264enc" {
         encoder.set_property_from_str("tune", "zerolatency");
+        // x264's `veryfast` preset quantizes without trellis; the element's
+        // `trellis` property defaults to on and replaces the preset's value.
+        encoder.set_property("trellis", false);
     }
     if let Some(interval) = config.keyframe_interval {
         // x264enc / x265enc take a frame count; the hardware elements do not
@@ -547,6 +606,16 @@ fn mux_queue(max_time_ns: u64) -> Result<gst::Element, EncodeError> {
         })
 }
 
+fn open_buffer_pool(caps: &gst::Caps, frame_bytes: usize) -> Option<gst::BufferPool> {
+    let size = u32::try_from(frame_bytes).ok()?;
+    let pool = gst::BufferPool::new();
+    let mut cfg = pool.config();
+    cfg.set_params(Some(caps), size, 0, 0);
+    pool.set_config(cfg).ok()?;
+    pool.set_active(true).ok()?;
+    Some(pool)
+}
+
 fn video_caps(
     width: u32,
     height: u32,
@@ -639,6 +708,11 @@ fn write_packed_nv12(
 
 fn copy_plane(plane: &aria_core::Plane, dest: &mut [u8], dest_stride: usize, rows: usize) {
     let copy_w = dest_stride.min(plane.stride);
+    if plane.stride == dest_stride && copy_w == dest_stride && plane.rows >= rows {
+        let len = rows * dest_stride;
+        dest[..len].copy_from_slice(&plane.data[..len]);
+        return;
+    }
     for row in 0..rows.min(plane.rows) {
         let src = &plane.data[row * plane.stride..row * plane.stride + copy_w];
         dest[row * dest_stride..row * dest_stride + copy_w].copy_from_slice(src);
@@ -778,6 +852,144 @@ mod tests {
                     context.context_type()
                 );
             }
+        }
+    }
+
+    /// WHY: `configure_encoder` set `speed-preset=veryfast` on `x264enc`, and
+    /// the element's `trellis` property, on by default, replaced the preset's
+    /// trellis-off value: `x264_8_trellis_coefn` took 12.2% of the samples of
+    /// a 1080p60 software export on Server. Closes leaving trellis on, and
+    /// pins the preset, the tune, the keyframe interval and the bitrate the
+    /// export requests, so a speed change cannot drop the preset to a lower
+    /// quality one unnoticed. Does not measure encode throughput.
+    #[test]
+    fn x264enc_runs_the_veryfast_preset_without_trellis() {
+        ensure_init().expect("GStreamer initialises");
+        let Ok(encoder) = gst::ElementFactory::make("x264enc").build() else {
+            return;
+        };
+        let config = EncoderConfig {
+            video_codec: VideoCodec::H264,
+            size: (1920, 1080),
+            frame_rate: Rational::FPS_60,
+            bitrate_kbps: Some(8_000),
+            keyframe_interval: Some(60),
+            color: aria_core::ColorSpace::BT709,
+            audio: None,
+        };
+        configure_encoder(&encoder, &config, "x264enc");
+        assert!(!encoder.property::<bool>("trellis"), "trellis is on");
+        let preset = encoder.property_value("speed-preset");
+        let (_, preset) =
+            gst::glib::EnumValue::from_value(&preset).expect("speed-preset is an enum");
+        assert_eq!(preset.nick(), "veryfast");
+        let tune = encoder.property_value("tune");
+        let flags = gst::glib::FlagsClass::with_type(tune.type_()).expect("tune is a flags type");
+        assert!(
+            flags.is_set_by_nick(&tune, "zerolatency"),
+            "tune lacks zerolatency"
+        );
+        assert_eq!(encoder.property::<u32>("key-int-max"), 60);
+        assert_eq!(encoder.property::<u32>("bitrate"), 8_000);
+    }
+
+    /// WHY: `open_encoder_element` built every hardware candidate on each
+    /// pick, so a plugin that had failed to load (`nvcodec` on a host without
+    /// an NVIDIA driver) mapped its `.so` again inside every export, about
+    /// 150 ms on Server. Closes building a candidate whose plugin the decoder
+    /// warm-up or an earlier failed build demoted, and a demotion that leaves
+    /// a feature of the plugin ranked. `wavparse` (rank primary) stands in for
+    /// a hardware candidate: every name outside `SOFTWARE_ENCODERS` takes the
+    /// hardware path, and no test in this crate autoplugs its plugin. Does not
+    /// cover the decoder warm-up's own demotion.
+    #[test]
+    fn a_candidate_of_a_demoted_plugin_is_refused_without_building_it() {
+        ensure_init().expect("GStreamer initialises");
+        let name = "wavparse";
+        let Some(factory) = gst::ElementFactory::find(name) else {
+            return;
+        };
+        let plugin = factory.plugin_name().expect("wavparse has a plugin");
+        let ranks: Vec<(gst::PluginFeature, gst::Rank)> = gst::Registry::get()
+            .features_by_plugin(&plugin)
+            .into_iter()
+            .map(|feature| {
+                let rank = feature.rank();
+                (feature, rank)
+            })
+            .collect();
+        assert!(!plugin_is_demoted(&factory), "{plugin} starts demoted");
+        let opened = open_encoder_element(name).expect("a ranked candidate builds and opens");
+        let _ = opened.set_state(gst::State::Null);
+
+        demote_factory_plugin(&factory);
+        let demoted = plugin_is_demoted(&factory);
+        let refused = open_encoder_element(name);
+        for (feature, rank) in ranks {
+            feature.set_rank(rank);
+        }
+        assert!(demoted, "a feature of {plugin} kept its rank");
+        assert_eq!(
+            refused.map(|_| ()),
+            Err(format!("{name} failed to load (plugin demoted)"))
+        );
+    }
+
+    /// WHY: export passes decoded NV12 planes to `push` as they are, and
+    /// `push` packs them into the `width`-stride buffer the `appsrc` caps
+    /// describe. Closes copying a decoder's row padding into the picture,
+    /// copying rows past the frame height from a plane coded taller, and the
+    /// contiguous fast path taking a padded plane. Does not cover the encoded
+    /// bitstream.
+    #[test]
+    fn nv12_planes_pack_to_the_frame_width_without_row_padding() {
+        use aria_core::{ColorSpace, CpuImage, FrameData, Plane, Rect, Rotation};
+
+        let (width, height) = (6_u32, 4_u32);
+        let (w, y_rows, uv_rows) = (width as usize, height as usize, height as usize / 2);
+        let plane = |stride: usize, rows: usize, base: u8| {
+            let data = (0..stride * rows)
+                .map(|i| base.wrapping_add(i as u8))
+                .collect();
+            Plane::new(data, stride, rows)
+        };
+        let picture = |plane: &Plane, rows: usize| -> Vec<u8> {
+            plane
+                .data
+                .chunks(plane.stride)
+                .take(rows)
+                .flat_map(|row| &row[..w])
+                .copied()
+                .collect()
+        };
+        let cases = [
+            ("tight", (w, y_rows), (w, uv_rows)),
+            ("padded rows", (w + 2, y_rows), (w + 2, uv_rows)),
+            ("coded taller", (w, y_rows + 4), (w, uv_rows + 2)),
+            (
+                "padded and taller",
+                (w + 10, y_rows + 4),
+                (w + 10, uv_rows + 2),
+            ),
+        ];
+        for (name, (y_stride, y_coded), (uv_stride, uv_coded)) in cases {
+            let y = plane(y_stride, y_coded, 16);
+            let uv = plane(uv_stride, uv_coded, 128);
+            let mut expected = picture(&y, y_rows);
+            expected.extend(picture(&uv, uv_rows));
+            let frame = VideoFrame::new(
+                RationalTime::new(0, aria_core::Rational::FPS_30),
+                PixelFormat::Nv12,
+                ColorSpace::BT709,
+                (width, height),
+                Rect::from_size(width, height),
+                Rotation::None,
+                FrameData::Cpu(CpuImage::new(vec![y, uv])),
+            );
+            let mut out = vec![0xEE; yuv420_len(width, height)];
+            write_frame_to_nv12(&frame, width, height, YuvMatrix::Bt709, &mut out)
+                .unwrap_or_else(|e| panic!("{name}: {e}"));
+            assert_eq!(out, expected, "{name} planes packed wrong");
         }
     }
 }

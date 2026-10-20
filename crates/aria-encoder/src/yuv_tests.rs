@@ -438,6 +438,126 @@ fn banded_conversion_matches_one_pass() {
     }
 }
 
+fn reference_write_chroma_planar<const SWAP: bool>(
+    src: &[u8],
+    u_plane: &mut [u8],
+    v_plane: &mut [u8],
+    plan: &Plan,
+    coeffs: &YuvCoefficients,
+) {
+    for ((u_row, v_row), rows) in u_plane
+        .chunks_exact_mut(plan.cw)
+        .zip(v_plane.chunks_exact_mut(plan.cw))
+        .zip(src.chunks_exact(plan.stride * 2))
+    {
+        let (top, bottom) = rows.split_at(plan.stride);
+        for (((u, v), t), b) in u_row
+            .iter_mut()
+            .zip(v_row.iter_mut())
+            .zip(pixel_pairs(top))
+            .zip(pixel_pairs(bottom))
+        {
+            let (mut rs, mut gs, mut bs) = (0i32, 0i32, 0i32);
+            for px in t.iter().chain(b.iter()) {
+                let (r, g, b) = rgb::<SWAP>(px);
+                rs += r;
+                gs += g;
+                bs += b;
+            }
+            let (r, g, b) = (rs / 4, gs / 4, bs / 4);
+            let [ur, ug, ub] = coeffs.u;
+            let [vr, vg, vb] = coeffs.v;
+            *u = (((ur * r + ug * g + ub * b + 128) >> 8) + 128).clamp(0, 255) as u8;
+            *v = (((vr * r + vg * g + vb * b + 128) >> 8) + 128).clamp(0, 255) as u8;
+        }
+    }
+}
+
+fn reference_nv12<const SWAP: bool>(
+    src: &[u8],
+    width: u32,
+    height: u32,
+    stride: usize,
+    matrix: YuvMatrix,
+) -> Vec<u8> {
+    let mut out = vec![0u8; yuv420_len(width, height)];
+    let plan = Plan::new(width, height, stride, src.len(), out.len()).expect("valid geometry");
+    let coeffs = matrix.coefficients();
+    let (y, uv) = out[..plan.frame_len()].split_at_mut(plan.y_len());
+    reference_write_luma::<SWAP>(&src[..plan.src_len()], y, &plan, &coeffs);
+    reference_write_chroma_interleaved::<SWAP>(&src[..plan.src_len()], uv, &plan, &coeffs);
+    out
+}
+
+fn reference_i420<const SWAP: bool>(
+    src: &[u8],
+    width: u32,
+    height: u32,
+    stride: usize,
+    matrix: YuvMatrix,
+) -> Vec<u8> {
+    let mut out = vec![0u8; yuv420_len(width, height)];
+    let plan = Plan::new(width, height, stride, src.len(), out.len()).expect("valid geometry");
+    let coeffs = matrix.coefficients();
+    let (y, chroma) = out[..plan.frame_len()].split_at_mut(plan.y_len());
+    let (u, v) = chroma.split_at_mut(plan.c_len());
+    reference_write_luma::<SWAP>(&src[..plan.src_len()], y, &plan, &coeffs);
+    reference_write_chroma_planar::<SWAP>(&src[..plan.src_len()], u, v, &plan, &coeffs);
+    out
+}
+
+/// WHY: Vectorizing 2×2 RGBA/BGRA → NV12/I420 conversion into 4-block (8-column)
+/// AVX2 chunks can silently drift from the scalar fixed-point formula on lane
+/// permutations, channel swaps, negative chroma shifts, alpha-channel blending,
+/// or non-multiple-of-4 chroma widths (`cw % 4 != 0`). Asserts bit-for-bit
+/// agreement with the scalar reference across every `YuvMatrix`, both
+/// `ChannelOrder`s, both 4:2:0 layouts (`NV12` and `I420`), padded strides, and
+/// chroma widths covering `cw % 4` remainders `0, 1, 2, 3`. Does not catch
+/// GStreamer element negotiation downstream of the buffer write.
+#[test]
+fn avx2_and_scalar_paths_match_reference_across_matrices_orders_and_widths() {
+    for &matrix in &YuvMatrix::ALL {
+        for &(width, height) in &[(16u32, 6u32), (18, 6), (20, 6), (22, 6), (23, 7)] {
+            let stride = width as usize * 4 + 20;
+            let src: Vec<u8> = (0..stride * height as usize)
+                .map(|i| match i % 7 {
+                    0 => 0,
+                    1 => 255,
+                    _ => (i.wrapping_mul(1_664_525).wrapping_add(1_013_904_223) >> 16) as u8,
+                })
+                .collect();
+            for (order, expected_nv12, expected_i420) in [
+                (
+                    ChannelOrder::Rgba,
+                    reference_nv12::<false>(&src, width, height, stride, matrix),
+                    reference_i420::<false>(&src, width, height, stride, matrix),
+                ),
+                (
+                    ChannelOrder::Bgra,
+                    reference_nv12::<true>(&src, width, height, stride, matrix),
+                    reference_i420::<true>(&src, width, height, stride, matrix),
+                ),
+            ] {
+                let mut got_nv12 = vec![0x5Au8; yuv420_len(width, height)];
+                rgba_to_nv12_into(&src, width, height, stride, matrix, order, &mut got_nv12)
+                    .expect("NV12 conversion succeeds");
+                assert_eq!(
+                    got_nv12, expected_nv12,
+                    "NV12 mismatch for {matrix:?} {order:?} {width}x{height}"
+                );
+
+                let mut got_i420 = vec![0x5Au8; yuv420_len(width, height)];
+                rgba_to_i420_into(&src, width, height, stride, matrix, order, &mut got_i420)
+                    .expect("I420 conversion succeeds");
+                assert_eq!(
+                    got_i420, expected_i420,
+                    "I420 mismatch for {matrix:?} {order:?} {width}x{height}"
+                );
+            }
+        }
+    }
+}
+
 /// **Every `YuvMatrix` variant, its fixed-point `[cr, cg, cb]` / `U` / `V` coefficients, and `matrix_for` mapping match `docs/reference/color.md`.**
 ///
 /// Closes: undocumented `YuvMatrix` variant, drifted fixed-point coefficient

@@ -358,6 +358,7 @@ fn block_420<const SWAP: bool>(
     (y_top, y_bottom, u, v)
 }
 
+#[allow(unsafe_code)]
 fn write_i420<const SWAP: bool>(
     src: &[u8],
     y_plane: &mut [u8],
@@ -366,6 +367,12 @@ fn write_i420<const SWAP: bool>(
     plan: &Plan,
     coeffs: &YuvCoefficients,
 ) {
+    #[cfg(target_arch = "x86_64")]
+    if std::arch::is_x86_feature_detected!("avx2") {
+        // SAFETY: guarded by `is_x86_feature_detected!("avx2")` above.
+        unsafe { write_i420_avx2::<SWAP>(src, y_plane, u_plane, v_plane, plan, coeffs) };
+        return;
+    }
     for (((y_rows, u_row), v_row), rows) in y_plane
         .chunks_exact_mut(plan.w * 2)
         .zip(u_plane.chunks_exact_mut(plan.cw))
@@ -393,6 +400,7 @@ fn write_i420<const SWAP: bool>(
     }
 }
 
+#[allow(unsafe_code)]
 fn write_nv12<const SWAP: bool>(
     src: &[u8],
     y_plane: &mut [u8],
@@ -400,6 +408,12 @@ fn write_nv12<const SWAP: bool>(
     plan: &Plan,
     coeffs: &YuvCoefficients,
 ) {
+    #[cfg(target_arch = "x86_64")]
+    if std::arch::is_x86_feature_detected!("avx2") {
+        // SAFETY: guarded by `is_x86_feature_detected!("avx2")` above.
+        unsafe { write_nv12_avx2::<SWAP>(src, y_plane, uv_plane, plan, coeffs) };
+        return;
+    }
     for ((y_rows, uv_row), rows) in y_plane
         .chunks_exact_mut(plan.w * 2)
         .zip(uv_plane.chunks_exact_mut(plan.cw * 2))
@@ -421,6 +435,275 @@ fn write_nv12<const SWAP: bool>(
             *yt = luma_t;
             *yb = luma_b;
             *sample = [u, v];
+        }
+    }
+}
+
+#[allow(unsafe_code)]
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2")]
+#[inline]
+unsafe fn coeff_vec_avx2<const SWAP: bool>([r, g, b]: [i32; 3]) -> std::arch::x86_64::__m256i {
+    use std::arch::x86_64::_mm256_setr_epi16;
+
+    let (c0, c2) = if SWAP {
+        (b as i16, r as i16)
+    } else {
+        (r as i16, b as i16)
+    };
+    let c1 = g as i16;
+    _mm256_setr_epi16(
+        c0, c1, c2, 128, c0, c1, c2, 128, c0, c1, c2, 128, c0, c1, c2, 128,
+    )
+}
+
+/// Convert 4 horizontal 2×2 pixel blocks (8 columns × 2 rows) with the exact
+/// fixed-point arithmetic of [`block_420`], returning `(y_top_8, y_bot_8)` in
+/// the low/high 64-bit halves of the first `__m128i` and the 4 `(u, v)` pairs
+/// as `[u0, u1, v0, v1 | u2, u3, v2, v3]` `i32` lanes in the second `__m256i`.
+#[allow(unsafe_code)]
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2")]
+#[inline]
+unsafe fn blocks_420_avx2(
+    top_ptr: *const u8,
+    bot_ptr: *const u8,
+    y_coeff: std::arch::x86_64::__m256i,
+    u_coeff: std::arch::x86_64::__m256i,
+    v_coeff: std::arch::x86_64::__m256i,
+) -> (std::arch::x86_64::__m128i, std::arch::x86_64::__m256i) {
+    use std::arch::x86_64::*;
+
+    let ones_16 = _mm256_set1_epi16(1);
+    let y_offset = _mm256_set1_epi32(16);
+    let uv_offset = _mm256_set1_epi32(128);
+
+    let top_lo = _mm256_blend_epi16::<0x88>(
+        _mm256_cvtepu8_epi16(unsafe { _mm_loadu_si128(top_ptr.cast()) }),
+        ones_16,
+    );
+    let top_hi = _mm256_blend_epi16::<0x88>(
+        _mm256_cvtepu8_epi16(unsafe { _mm_loadu_si128(top_ptr.add(16).cast()) }),
+        ones_16,
+    );
+    let bot_lo = _mm256_blend_epi16::<0x88>(
+        _mm256_cvtepu8_epi16(unsafe { _mm_loadu_si128(bot_ptr.cast()) }),
+        ones_16,
+    );
+    let bot_hi = _mm256_blend_epi16::<0x88>(
+        _mm256_cvtepu8_epi16(unsafe { _mm_loadu_si128(bot_ptr.add(16).cast()) }),
+        ones_16,
+    );
+
+    let yt_sum = _mm256_hadd_epi32(
+        _mm256_madd_epi16(top_lo, y_coeff),
+        _mm256_madd_epi16(top_hi, y_coeff),
+    );
+    let yt_32 = _mm256_permute4x64_epi64::<0xD8>(_mm256_add_epi32(
+        _mm256_srai_epi32::<8>(yt_sum),
+        y_offset,
+    ));
+
+    let yb_sum = _mm256_hadd_epi32(
+        _mm256_madd_epi16(bot_lo, y_coeff),
+        _mm256_madd_epi16(bot_hi, y_coeff),
+    );
+    let yb_32 = _mm256_permute4x64_epi64::<0xD8>(_mm256_add_epi32(
+        _mm256_srai_epi32::<8>(yb_sum),
+        y_offset,
+    ));
+
+    let yt_16 = _mm_packs_epi32(
+        _mm256_castsi256_si128(yt_32),
+        _mm256_extracti128_si256::<1>(yt_32),
+    );
+    let yb_16 = _mm_packs_epi32(
+        _mm256_castsi256_si128(yb_32),
+        _mm256_extracti128_si256::<1>(yb_32),
+    );
+    let y_packed = _mm_packus_epi16(yt_16, yb_16);
+
+    let vsum_lo = _mm256_add_epi16(top_lo, bot_lo);
+    let vsum_hi = _mm256_add_epi16(top_hi, bot_hi);
+    let even_cols = _mm256_unpacklo_epi64(vsum_lo, vsum_hi);
+    let odd_cols = _mm256_unpackhi_epi64(vsum_lo, vsum_hi);
+    let sum_2x2 = _mm256_permute4x64_epi64::<0xD8>(_mm256_add_epi16(even_cols, odd_cols));
+    let avg = _mm256_srli_epi16::<2>(sum_2x2);
+
+    let uv_sum = _mm256_hadd_epi32(
+        _mm256_madd_epi16(avg, u_coeff),
+        _mm256_madd_epi16(avg, v_coeff),
+    );
+    let uv_32 = _mm256_add_epi32(_mm256_srai_epi32::<8>(uv_sum), uv_offset);
+
+    (y_packed, uv_32)
+}
+
+#[allow(unsafe_code)]
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2")]
+unsafe fn write_nv12_avx2<const SWAP: bool>(
+    src: &[u8],
+    y_plane: &mut [u8],
+    uv_plane: &mut [u8],
+    plan: &Plan,
+    coeffs: &YuvCoefficients,
+) {
+    use std::arch::x86_64::*;
+
+    let y_coeff = unsafe { coeff_vec_avx2::<SWAP>(coeffs.luma) };
+    let u_coeff = unsafe { coeff_vec_avx2::<SWAP>(coeffs.u) };
+    let v_coeff = unsafe { coeff_vec_avx2::<SWAP>(coeffs.v) };
+    let chunks = plan.cw / 4;
+    let tail_start = chunks * 4;
+
+    for ((y_rows, uv_row), rows) in y_plane
+        .chunks_exact_mut(plan.w * 2)
+        .zip(uv_plane.chunks_exact_mut(plan.cw * 2))
+        .zip(src.chunks_exact(plan.stride * 2))
+    {
+        let (y_top, y_bottom) = y_rows.split_at_mut(plan.w);
+        let (top, bottom) = rows.split_at(plan.stride);
+        let top_ptr = top.as_ptr();
+        let bot_ptr = bottom.as_ptr();
+        let yt_ptr = y_top.as_mut_ptr();
+        let yb_ptr = y_bottom.as_mut_ptr();
+        let uv_ptr = uv_row.as_mut_ptr();
+
+        for chunk in 0..chunks {
+            let (y_packed, uv_32) = unsafe {
+                blocks_420_avx2(
+                    top_ptr.add(chunk * 32),
+                    bot_ptr.add(chunk * 32),
+                    y_coeff,
+                    u_coeff,
+                    v_coeff,
+                )
+            };
+            unsafe {
+                _mm_storel_epi64(yt_ptr.add(chunk * 8).cast(), y_packed);
+                _mm_storel_epi64(
+                    yb_ptr.add(chunk * 8).cast(),
+                    _mm_unpackhi_epi64(y_packed, y_packed),
+                );
+            }
+            let uv_interleaved = _mm256_shuffle_epi32::<0xD8>(uv_32);
+            let uv_16 = _mm_packs_epi32(
+                _mm256_castsi256_si128(uv_interleaved),
+                _mm256_extracti128_si256::<1>(uv_interleaved),
+            );
+            let uv_8 = _mm_packus_epi16(uv_16, uv_16);
+            unsafe {
+                _mm_storel_epi64(uv_ptr.add(chunk * 8).cast(), uv_8);
+            }
+        }
+
+        if tail_start < plan.cw {
+            let (y_top_pairs, _) = y_top[tail_start * 2..].as_chunks_mut::<2>();
+            let (y_bottom_pairs, _) = y_bottom[tail_start * 2..].as_chunks_mut::<2>();
+            let (samples, _) = uv_row[tail_start * 2..].as_chunks_mut::<2>();
+            let top_pairs = &pixel_pairs(top)[tail_start..plan.cw];
+            let bottom_pairs = &pixel_pairs(bottom)[tail_start..plan.cw];
+            for ((((yt, yb), sample), t), b) in y_top_pairs
+                .iter_mut()
+                .zip(y_bottom_pairs.iter_mut())
+                .zip(samples.iter_mut())
+                .zip(top_pairs)
+                .zip(bottom_pairs)
+            {
+                let (luma_t, luma_b, u, v) = block_420::<SWAP>(t, b, coeffs);
+                *yt = luma_t;
+                *yb = luma_b;
+                *sample = [u, v];
+            }
+        }
+    }
+}
+
+#[allow(unsafe_code)]
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2")]
+unsafe fn write_i420_avx2<const SWAP: bool>(
+    src: &[u8],
+    y_plane: &mut [u8],
+    u_plane: &mut [u8],
+    v_plane: &mut [u8],
+    plan: &Plan,
+    coeffs: &YuvCoefficients,
+) {
+    use std::arch::x86_64::*;
+
+    let y_coeff = unsafe { coeff_vec_avx2::<SWAP>(coeffs.luma) };
+    let u_coeff = unsafe { coeff_vec_avx2::<SWAP>(coeffs.u) };
+    let v_coeff = unsafe { coeff_vec_avx2::<SWAP>(coeffs.v) };
+    let chunks = plan.cw / 4;
+    let tail_start = chunks * 4;
+
+    for (((y_rows, u_row), v_row), rows) in y_plane
+        .chunks_exact_mut(plan.w * 2)
+        .zip(u_plane.chunks_exact_mut(plan.cw))
+        .zip(v_plane.chunks_exact_mut(plan.cw))
+        .zip(src.chunks_exact(plan.stride * 2))
+    {
+        let (y_top, y_bottom) = y_rows.split_at_mut(plan.w);
+        let (top, bottom) = rows.split_at(plan.stride);
+        let top_ptr = top.as_ptr();
+        let bot_ptr = bottom.as_ptr();
+        let yt_ptr = y_top.as_mut_ptr();
+        let yb_ptr = y_bottom.as_mut_ptr();
+
+        for chunk in 0..chunks {
+            let (y_packed, uv_32) = unsafe {
+                blocks_420_avx2(
+                    top_ptr.add(chunk * 32),
+                    bot_ptr.add(chunk * 32),
+                    y_coeff,
+                    u_coeff,
+                    v_coeff,
+                )
+            };
+            unsafe {
+                _mm_storel_epi64(yt_ptr.add(chunk * 8).cast(), y_packed);
+                _mm_storel_epi64(
+                    yb_ptr.add(chunk * 8).cast(),
+                    _mm_unpackhi_epi64(y_packed, y_packed),
+                );
+            }
+            // `uv_32` holds `[u0, u1, v0, v1 | u2, u3, v2, v3]`; permute 64-bit
+            // qwords with `0xD8` to group `[u0, u1, u2, u3 | v0, v1, v2, v3]`.
+            let uv_grouped = _mm256_permute4x64_epi64::<0xD8>(uv_32);
+            let uv_16 = _mm_packs_epi32(
+                _mm256_castsi256_si128(uv_grouped),
+                _mm256_extracti128_si256::<1>(uv_grouped),
+            );
+            let uv_8 = _mm_packus_epi16(uv_16, uv_16);
+            let u_4 = (_mm_cvtsi128_si32(uv_8) as u32).to_ne_bytes();
+            let v_4 = (_mm_extract_epi32::<1>(uv_8) as u32).to_ne_bytes();
+            u_row[chunk * 4..chunk * 4 + 4].copy_from_slice(&u_4);
+            v_row[chunk * 4..chunk * 4 + 4].copy_from_slice(&v_4);
+        }
+
+        if tail_start < plan.cw {
+            let (y_top_pairs, _) = y_top[tail_start * 2..].as_chunks_mut::<2>();
+            let (y_bottom_pairs, _) = y_bottom[tail_start * 2..].as_chunks_mut::<2>();
+            let u_tail = &mut u_row[tail_start..plan.cw];
+            let v_tail = &mut v_row[tail_start..plan.cw];
+            let top_pairs = &pixel_pairs(top)[tail_start..plan.cw];
+            let bottom_pairs = &pixel_pairs(bottom)[tail_start..plan.cw];
+            for (((((yt, yb), u), v), t), b) in y_top_pairs
+                .iter_mut()
+                .zip(y_bottom_pairs.iter_mut())
+                .zip(u_tail.iter_mut())
+                .zip(v_tail.iter_mut())
+                .zip(top_pairs)
+                .zip(bottom_pairs)
+            {
+                let (luma_t, luma_b, cu, cv) = block_420::<SWAP>(t, b, coeffs);
+                *yt = luma_t;
+                *yb = luma_b;
+                *u = cu;
+                *v = cv;
+            }
         }
     }
 }
