@@ -563,15 +563,26 @@ impl Renderer {
         project: &Project,
         t: RationalTime,
         output_size: Option<(u32, u32)>,
+        allow_nv12_passthrough: bool,
     ) -> Result<PendingFrame, RenderError> {
-        let mut scene = self.resolve_frame(project, t)?;
+        let mut scene = self.take_resolved_scene(project, t, ResolveOverrides::default())?;
+        self.prepare_motion_blur(project, &mut scene);
         if let Some((width, height)) = output_size {
             scene.fit_into(width, height);
         }
-        let pending =
-            self.submit_scene_policy(project, &scene, SeekPolicy::Exact, Output::Readback)?;
+        let tick = scene.tick;
+        let pending = self.submit_scene_policy(
+            project,
+            &scene,
+            SeekPolicy::Exact,
+            Output::ExportReadback {
+                allow_nv12_passthrough,
+            },
+        );
+        self.return_resolved_scene(scene);
+        let pending = pending?;
         // Export overlaps the next frames' decode with this frame's GPU work.
-        self.look_ahead(project, scene.tick, SeekPolicy::Exact);
+        self.look_ahead(project, tick, SeekPolicy::Exact);
         Ok(pending)
     }
 

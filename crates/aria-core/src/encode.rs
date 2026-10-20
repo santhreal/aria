@@ -351,6 +351,14 @@ pub trait VideoEncoder: Send {
     /// The encoder this session opened, and why the ones tried before it were
     /// not used.
     fn choice(&self) -> EncoderChoice;
+
+    /// Whether [`push`](VideoEncoder::push) takes a CPU NV12 frame of the
+    /// configured size as it is. Export passes such an encoder the decoded
+    /// planes of a frame that needs no composite, and composites and converts
+    /// every frame for any other encoder.
+    fn accepts_cpu_nv12(&self) -> bool {
+        false
+    }
 }
 
 /// A push-based audio-only encoder.

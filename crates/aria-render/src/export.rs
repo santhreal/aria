@@ -415,6 +415,10 @@ fn export_observed_inner(
     native: bool,
     rate: Rational,
 ) -> Result<u64, RenderError> {
+    if frames > 0 {
+        renderer.prime_look_ahead(project, RationalTime::new(start, rate), 1);
+    }
+    let allow_nv12_passthrough = encoder.accepts_cpu_nv12();
     let mixer = if settings.audio {
         ExportAudioMixer::for_project(project)?
     } else {
@@ -449,7 +453,12 @@ fn export_observed_inner(
                 return Err(RenderError::Cancelled);
             }
             let source = RationalTime::new(start + i as i64, rate);
-            let next = renderer.submit_export_frame(project, source, output_size)?;
+            let next = renderer.submit_export_frame(
+                project,
+                source,
+                output_size,
+                allow_nv12_passthrough,
+            )?;
             if let Some((ready, ready_index)) = pending.replace((next, i)) {
                 finish_export_frame(
                     renderer,
@@ -511,9 +520,13 @@ fn finish_export_frame(
         rate,
         audio_rate,
     } = timing;
-    renderer.finish_pending_into(pending, frame_sink)?;
     let out = RationalTime::new(index as i64, rate);
-    encoder.push(frame_sink.frame_with_pts(out))?;
+    if pending.is_passthrough() {
+        renderer.finish_pending_passthrough(pending, out, |frame| encoder.push(frame))?;
+    } else {
+        renderer.finish_pending_into(pending, frame_sink)?;
+        encoder.push(frame_sink.frame_with_pts(out))?;
+    }
     let Some(feed) = audio.as_ref() else {
         return Ok(());
     };

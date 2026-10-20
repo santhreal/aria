@@ -112,6 +112,12 @@ pub(crate) struct PendingFrame {
     height: u32,
 }
 
+impl PendingFrame {
+    pub(crate) const fn is_passthrough(&self) -> bool {
+        self.readback.is_none()
+    }
+}
+
 /// Renders project frames on a headless (or shared) GPU.
 pub struct Renderer {
     gpu: GpuContext,

@@ -450,6 +450,36 @@ impl Renderer {
             .insert(key, DecoderSlot::new(None, Some(opening), stamp));
     }
 
+    /// Start decoding a forward run of timeline frames from `first`, `step`
+    /// ticks apart, before `first` is realized: drop the decoders' shown
+    /// frames after a backward jump or a rate change, set `last_tick` two
+    /// steps before `first`, and run [`Self::look_ahead`] from one step before
+    /// it, so `first`'s decoders open and decode on the pool.
+    pub(crate) fn prime_look_ahead(&mut self, project: &Project, first: RationalTime, step: i64) {
+        if step <= 0 || step > MAX_STEP {
+            return;
+        }
+        if self
+            .last_tick
+            .is_some_and(|prev| prev.rate != first.rate || first.value < prev.value)
+        {
+            for slot in self.decoders.values_mut() {
+                slot.shown = None;
+                if let Some(decoder) = &slot.decoder {
+                    decoder.release();
+                }
+            }
+        }
+        let two_back = first.value.saturating_sub(step.saturating_mul(2));
+        let one_back = first.value.saturating_sub(step);
+        self.last_tick = Some(RationalTime::new(two_back, first.rate));
+        self.look_ahead(
+            project,
+            RationalTime::new(one_back, first.rate),
+            SeekPolicy::Exact,
+        );
+    }
+
     /// Look ahead from the timeline frame at `tick`, just rendered under
     /// `policy`: at a playback step from the previous timeline frame, request
     /// the next step's frames and open the clips coming on screen within
