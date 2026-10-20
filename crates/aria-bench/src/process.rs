@@ -72,37 +72,56 @@ pub(crate) struct XvfbGuard {
 }
 
 impl Drop for XvfbGuard {
+    /// Stop the server with `SIGTERM`, so it removes its `/tmp/.X<n>-lock`
+    /// and socket, and fall back to `SIGKILL` after 2 s.
     fn drop(&mut self) {
+        let signalled = Command::new("kill")
+            .args(["-TERM", &self.child.id().to_string()])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .is_ok_and(|status| status.success());
+        if signalled {
+            let deadline = Instant::now() + Duration::from_secs(2);
+            while Instant::now() < deadline {
+                if let Ok(Some(_)) = self.child.try_wait() {
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        }
         let _ = self.child.kill();
         let _ = self.child.wait();
     }
 }
 
-fn find_free_display() -> Option<u32> {
-    for num in 91..=99 {
-        let display = format!(":{num}");
-        let status = Command::new("xdpyinfo")
-            .args(["-display", &display])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
-        let is_free = match status {
-            Ok(s) => !s.success(),
-            Err(_) => {
-                let lock = PathBuf::from(format!("/tmp/.X{num}-lock"));
-                !lock.exists()
-            }
-        };
-        if is_free {
-            return Some(num);
-        }
+/// Whether nothing answers on display `:num`: `xdpyinfo` fails to connect, or,
+/// when `xdpyinfo` cannot run, no `/tmp/.X<num>-lock` exists.
+fn display_unanswered(num: u32) -> bool {
+    let display = format!(":{num}");
+    match Command::new("xdpyinfo")
+        .args(["-display", &display])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+    {
+        Ok(status) => !status.success(),
+        Err(_) => !PathBuf::from(format!("/tmp/.X{num}-lock")).exists(),
     }
-    None
 }
 
-/// Start a private headless `Xvfb` server on a verified free display `:91..=:99`.
+/// Start a private headless `Xvfb` server on the first display in `:91..=:99`
+/// that nothing answers on and that `Xvfb` accepts. A display whose `Xvfb`
+/// exits before accepting connections, such as one held by a lock file of
+/// another user's server that is no longer running, is skipped.
 pub(crate) fn start_private_xvfb() -> Option<XvfbGuard> {
-    let num = find_free_display()?;
+    (91..=99)
+        .filter(|&num| display_unanswered(num))
+        .find_map(start_xvfb_on)
+}
+
+/// Start `Xvfb` on `:num` and wait up to 3 s for it to accept connections.
+fn start_xvfb_on(num: u32) -> Option<XvfbGuard> {
     let display = format!(":{num}");
     let mut child = Command::new("Xvfb")
         .args([
@@ -201,3 +220,7 @@ pub(crate) fn measure_process_window_launch(
 
     mapped_ms.ok_or_else(|| "timed out waiting for aria-desktop X11 window to map".to_string())
 }
+
+#[cfg(test)]
+#[path = "process_tests.rs"]
+mod tests;

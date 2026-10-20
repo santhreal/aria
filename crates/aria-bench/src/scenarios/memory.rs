@@ -45,6 +45,12 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     mount_builtin_plugins(&plugin_ctx, &data_dir)?;
     let mut state =
         AppState::new(plugin_ctx, data_dir).map_err(|err| format!("AppState::new: {err}"))?;
+    // `AppState::new` starts the decode warm-up, which maps the codec plugin
+    // libraries on a thread of its own. Awaiting it here counts those in the
+    // empty session, not in the `project-10k` delta of whichever checkpoint
+    // the thread happens to finish before.
+    #[cfg(target_os = "linux")]
+    aria_decoder::await_warm_up();
 
     let empty_session_rss_mb = current_rss_mb()?;
 
