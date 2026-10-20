@@ -1391,6 +1391,9 @@ Notes for the latest release. For previous releases, see the
 - Tests fail when prose in `README.md` or under `docs/` has an em dash or a persona noun in place of the control, setting, or file that acts.
 - `docs/reference/controls.md` lists the 262 named controls of the editor across 22 surfaces with each control's id, label, action, and shortcut, and a test fails when a control id or shortcut in the source and the page disagree.
 - `docs/guide/` splits the usage guide into 21 chapters that each end in a worked example, and a test fails when a guide cites a menu row, control, key chord, or palette command the editor does not ship.
+- `docs/command-line.md` and `docs/plugins/` document every CLI verb, flag, plugin host call, type field, enum variant, and constant, and tests fail when a registry member and its page disagree.
+- `docs/reference/` documents every blend mode, mask mode, colour space, YUV matrix, starter LUT, project and sequence setting, animatable clip property, keyframe and graph editor control, export and subtitle preset, and video scope setting, and tests fail when a registry member has no entry.
+- Tests fail when a crate, count, package, encoder element, or registry identifier cited in `docs/architecture.md`, `features.md`, `install.md`, or `mcp-design.md` disagrees with the source, or when the `plugin.toml` in `docs/plugins/worked-example.md` does not parse and register.
 
 ### Changed
 
