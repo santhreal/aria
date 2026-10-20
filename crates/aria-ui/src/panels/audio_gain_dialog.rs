@@ -75,7 +75,14 @@ pub fn render(
                     AudioGainMode::NormalizeMaxPeak => "audio-gain-mode-norm-max",
                     AudioGainMode::NormalizeAllPeaks => "audio-gain-mode-norm-all",
                 };
-                components::chip(id, mode.label(), active, ChipSize::Regular, &theme).on_mouse_down(
+                components::chip(
+                    ("audio-gain-mode", id),
+                    mode.label(),
+                    active,
+                    ChipSize::Regular,
+                    &theme,
+                )
+                .on_mouse_down(
                     MouseButton::Left,
                     cx.listener(move |this, _: &MouseDownEvent, _, cx| {
                         this.state
@@ -105,7 +112,14 @@ pub fn render(
         .gap(px(Theme::SPACE_XS))
         .children(presets.iter().map(|&(val, id, label)| {
             let active = (active_db - val).abs() < 0.05;
-            components::chip(id, label, active, ChipSize::Compact, &theme).on_mouse_down(
+            components::chip(
+                ("audio-gain-preset", id),
+                label,
+                active,
+                ChipSize::Compact,
+                &theme,
+            )
+            .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |this, _: &MouseDownEvent, _, cx| {
                     this.state.update(cx, |state, _| match mode {
@@ -130,7 +144,7 @@ pub fn render(
         .gap(px(Theme::SPACE_XS))
         .children(DB_STEPS.iter().map(|&(delta, id, label)| {
             let next = active_db + delta;
-            components::ghost_button(id, label, &theme).on_mouse_down(
+            components::ghost_button(("audio-gain-step", id), label, &theme).on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |this, _: &MouseDownEvent, _, cx| {
                     this.state.update(cx, |state, _| match mode {

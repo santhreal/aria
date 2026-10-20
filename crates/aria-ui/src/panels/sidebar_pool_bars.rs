@@ -115,9 +115,8 @@ pub(super) fn footer(
     let mut controls: Vec<gpui::AnyElement> = Vec::with_capacity(PoolView::ALL.len() + 3);
     if all_views {
         for target in PoolView::ALL.iter().copied() {
-            let (id, path) = view_control(target);
             controls.push(
-                lit_icon(id, path, target == view, theme)
+                view_icon(target, target == view, theme)
                     .size(px(Theme::ICON_HIT_ROW))
                     .on_mouse_down(
                         MouseButton::Left,
@@ -133,14 +132,13 @@ pub(super) fn footer(
             );
         }
     } else {
-        let (id, path) = view_control(view);
         let next_idx = PoolView::ALL
             .iter()
             .position(|&v| v == view)
             .map_or(0, |idx| (idx + 1) % PoolView::ALL.len());
         let next = PoolView::ALL[next_idx];
         controls.push(
-            lit_icon(id, path, true, theme)
+            view_icon(view, true, theme)
                 .size(px(Theme::ICON_HIT_ROW))
                 .on_mouse_down(
                     MouseButton::Left,
@@ -198,13 +196,14 @@ pub(super) fn footer(
         )
 }
 
-/// A view's toggle: its tip id and its glyph.
-fn view_control(view: PoolView) -> (&'static str, &'static str) {
+/// A view's toggle, lit while `on`. One literal id per arm, so the controls
+/// and tooltip censuses read each view's id at its call.
+fn view_icon(view: PoolView, on: bool, theme: &Theme) -> gpui::Stateful<gpui::Div> {
     match view {
-        PoolView::Tiles => ("pool-view-tiles", icons::IMAGE),
-        PoolView::List => ("pool-view-list", icons::LIST),
-        PoolView::Icons => ("pool-view-icons", icons::LAYOUT_GRID),
-        PoolView::Freeform => ("pool-view-freeform", icons::MOVE),
+        PoolView::Tiles => lit_icon("pool-view-tiles", icons::IMAGE, on, theme),
+        PoolView::List => lit_icon("pool-view-list", icons::LIST, on, theme),
+        PoolView::Icons => lit_icon("pool-view-icons", icons::LAYOUT_GRID, on, theme),
+        PoolView::Freeform => lit_icon("pool-view-freeform", icons::MOVE, on, theme),
     }
 }
 

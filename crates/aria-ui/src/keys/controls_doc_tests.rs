@@ -1,17 +1,15 @@
 //! Reference documentation coverage checks for `docs/reference/controls.md`.
 //!
 //! Compares the control tables in `docs/reference/controls.md` against
-//! `crate::tooltip::CONTROL_TIPS` and all shared widget helper calls in
-//! non-test `crates/aria-ui/src/**/*.rs` files (`components::button`,
-//! `components::ghost_button`, `components::danger_button`,
-//! `components::chip`, `components::text_box`, `components::icon_button`, and
-//! `pending::stop_button`) in both directions.
+//! `crate::tooltip::CONTROL_TIPS` and the documented id of every shared-widget
+//! call in the crate's non-test sources, in both directions. The calls, and the
+//! forms an id takes at a call, are read by
+//! [`crate::test_support::control_sites`].
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
-use crate::test_support::collect_rs;
-use crate::test_support::sources::without_test_items;
+use crate::test_support::control_sites::control_ids;
 use crate::tooltip::CONTROL_TIPS;
 
 const EXPECTED_SURFACES: &[&str] = &[
@@ -47,152 +45,9 @@ struct DocControlRow {
     shortcut: String,
 }
 
-/// Replaces line and block comments with spaces while preserving string
-/// literals and newlines so source scans do not match commented-out calls.
-fn strip_comments(src: &str) -> String {
-    let bytes = src.as_bytes();
-    let mut out = Vec::with_capacity(bytes.len());
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'/' && i + 1 < bytes.len() && bytes[i + 1] == b'/' {
-            while i < bytes.len() && bytes[i] != b'\n' {
-                out.push(b' ');
-                i += 1;
-            }
-        } else if bytes[i] == b'/' && i + 1 < bytes.len() && bytes[i + 1] == b'*' {
-            out.push(b' ');
-            out.push(b' ');
-            i += 2;
-            let mut depth = 1usize;
-            while i < bytes.len() && depth > 0 {
-                if bytes[i] == b'/' && i + 1 < bytes.len() && bytes[i + 1] == b'*' {
-                    depth += 1;
-                    out.push(b' ');
-                    out.push(b' ');
-                    i += 2;
-                } else if bytes[i] == b'*' && i + 1 < bytes.len() && bytes[i + 1] == b'/' {
-                    depth -= 1;
-                    out.push(b' ');
-                    out.push(b' ');
-                    i += 2;
-                } else {
-                    out.push(if bytes[i] == b'\n' { b'\n' } else { b' ' });
-                    i += 1;
-                }
-            }
-        } else if bytes[i] == b'"' {
-            out.push(bytes[i]);
-            i += 1;
-            while i < bytes.len() {
-                out.push(bytes[i]);
-                if bytes[i] == b'\\' && i + 1 < bytes.len() {
-                    i += 1;
-                    out.push(bytes[i]);
-                } else if bytes[i] == b'"' {
-                    i += 1;
-                    break;
-                }
-                i += 1;
-            }
-        } else {
-            out.push(bytes[i]);
-            i += 1;
-        }
-    }
-    String::from_utf8(out).expect("valid utf-8 after stripping comments")
-}
-
-fn extract_source_controls() -> BTreeSet<String> {
-    let needles = [
-        concat!("components::", "button("),
-        concat!("ghost_", "button("),
-        concat!("components::", "danger_button("),
-        concat!("components::", "chip("),
-        concat!("components::", "text_box("),
-        concat!("icon_", "button("),
-    ];
-    let mk_prefixes = [
-        concat!("MotionKey::", "new("),
-        concat!("motion::MotionKey::", "new("),
-        concat!("crate::motion::MotionKey::", "new("),
-    ];
-    let stop_needle = concat!("stop_", "button(");
-
-    let crate_src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-    let mut files = Vec::new();
-    collect_rs(&crate_src, &mut files);
-    files.sort();
-
-    let mut extracted = BTreeSet::new();
-    for file in &files {
-        let rel = file
-            .strip_prefix(&crate_src)
-            .unwrap_or(file)
-            .to_string_lossy()
-            .replace('\\', "/");
-        if rel == "components.rs"
-            || rel.starts_with("test_support")
-            || rel.ends_with("_tests.rs")
-            || rel.ends_with("/tests.rs")
-            || rel.contains("/tests/")
-        {
-            continue;
-        }
-        let Ok(raw_src) = std::fs::read_to_string(file) else {
-            continue;
-        };
-        let stripped = strip_comments(&without_test_items(&raw_src));
-        for needle in needles {
-            let mut cursor = 0usize;
-            while let Some(pos) = stripped[cursor..].find(needle) {
-                let abs_pos = cursor + pos;
-                let after = abs_pos + needle.len();
-                cursor = after;
-                if !needle.contains("::")
-                    && abs_pos > 0
-                    && (stripped.as_bytes()[abs_pos - 1].is_ascii_alphanumeric()
-                        || stripped.as_bytes()[abs_pos - 1] == b'_')
-                {
-                    continue;
-                }
-                let rest =
-                    stripped[after..].trim_start_matches(|c: char| c.is_whitespace() || c == '(');
-                if let Some(quoted) = rest.strip_prefix('"') {
-                    if let Some(id) = quoted.split('"').next()
-                        && !id.is_empty()
-                        && !id.contains('{')
-                        && !id.contains('$')
-                    {
-                        extracted.insert(id.to_string());
-                    }
-                } else {
-                    for prefix in mk_prefixes {
-                        if let Some(after_mk) = rest.strip_prefix(prefix) {
-                            let after_mk = after_mk.trim_start();
-                            if let Some(quoted) = after_mk.strip_prefix('"')
-                                && let Some(kind) = quoted.split('"').next()
-                                && !kind.is_empty()
-                                && !kind.contains('{')
-                                && !kind.contains('$')
-                            {
-                                extracted.insert(kind.to_string());
-                            }
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-        if stripped.contains(stop_needle) {
-            extracted.insert("job-stop".to_string());
-        }
-    }
-    extracted
-}
-
 /// Every valid UI control identifier from `CONTROL_TIPS` and shared widget calls.
 pub(super) fn shipped_control_ids() -> BTreeSet<String> {
-    let mut ids = extract_source_controls();
+    let mut ids = control_ids();
     for tip in CONTROL_TIPS {
         ids.insert(tip.control.to_string());
     }
@@ -204,10 +59,12 @@ pub(super) fn shipped_control_ids() -> BTreeSet<String> {
 /// `docs/reference/controls.md` drifts out of step, or where a row in
 /// `controls.md` has an empty cell or a stale shortcut chord. Does not catch
 /// inaccurate prose descriptions in the `Action` column when the control ID,
-/// non-empty label, minimum action length, and shortcut chord all match, nor a
-/// control whose ID reaches the shared widget through a variable or a private
-/// wrapper rather than as a literal at the call: a wrapper around
-/// `components::chip` kept the Analysis and Captions chips out of this census.
+/// non-empty label, minimum action length, and shortcut chord all match. A
+/// shared-widget call whose id the census cannot read fails `control_ids`, so a
+/// control drawn through a variable, a table or a wrapper is covered once the
+/// call states its id or a forwarder or table record resolves it. Does not
+/// catch a control drawn by its own element rather than a shared widget, such
+/// as the Viewer's zoom steps and mark buttons.
 #[test]
 fn controls_doc_matches_source() {
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -358,13 +215,17 @@ fn controls_doc_matches_source() {
         }
     }
 
-    let extracted = extract_source_controls();
-    for id in &extracted {
-        assert!(
-            documented.contains_key(id),
-            "source control `{id}` extracted from crates/aria-ui/src is missing from docs/reference/controls.md"
-        );
-    }
+    let extracted = control_ids();
+    let undocumented: Vec<&str> = extracted
+        .iter()
+        .map(String::as_str)
+        .filter(|id| !documented.contains_key(*id))
+        .collect();
+    assert!(
+        undocumented.is_empty(),
+        "{} source controls extracted from crates/aria-ui/src are missing from docs/reference/controls.md: {undocumented:?}",
+        undocumented.len()
+    );
 
     for (id, row) in &documented {
         assert!(

@@ -313,7 +313,7 @@ fn row(
                 .flex()
                 .gap(px(Theme::SPACE_XS))
                 .child(edit_dialog_action(theme, id, cx))
-                .child(action(
+                .child(marker_action(
                     theme,
                     "marker-rename",
                     "Rename",
@@ -321,7 +321,7 @@ fn row(
                     RenameTarget::Marker(id),
                     cx,
                 ))
-                .child(action(
+                .child(marker_action(
                     theme,
                     "marker-note",
                     "Note",
@@ -383,7 +383,7 @@ fn remove(theme: &Theme, id: u64, cx: &mut gpui::Context<crate::shell::Shell>) -
 }
 
 /// A row control that opens a draft on this marker.
-fn action(
+fn marker_action(
     theme: &Theme,
     id_prefix: &'static str,
     label: &'static str,

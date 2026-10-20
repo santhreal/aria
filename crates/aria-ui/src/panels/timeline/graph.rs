@@ -84,7 +84,7 @@ pub(super) fn render_graph_editor(
             .child(label)
     };
     let [top_y, mid_y, bot_y] = graph_axis_ys(GRAPH_EDITOR_H);
-    let mode_chip = |id: &'static str, label: &'static str, chip_mode: GraphMode| {
+    let graph_mode_chip = |id: &'static str, label: &'static str, chip_mode: GraphMode| {
         components::chip(id, label, mode == chip_mode, ChipSize::Compact, theme)
             .debug_selector(move || id.into())
             .on_mouse_down(
@@ -98,9 +98,9 @@ pub(super) fn render_graph_editor(
                 }),
             )
     };
-    let value_chip = mode_chip("graph-mode-value", "Value", GraphMode::Value);
-    let speed_chip = mode_chip("graph-mode-speed", "Speed", GraphMode::Speed);
-    let tool = |id: &'static str, label: &'static str| {
+    let value_chip = graph_mode_chip("graph-mode-value", "Value", GraphMode::Value);
+    let speed_chip = graph_mode_chip("graph-mode-speed", "Speed", GraphMode::Speed);
+    let graph_tool = |id: &'static str, label: &'static str| {
         components::ghost_button(id, label, theme)
             .debug_selector(move || id.into())
             .px(px(Theme::SPACE_XS))
@@ -108,7 +108,7 @@ pub(super) fn render_graph_editor(
             .text_size(Theme::TEXT_SMALL)
             .when_some(crate::tooltip::builder(id), |el, tip| el.with_tip(tip))
     };
-    let easy_ease = tool("graph-btn-easy-ease", "Easy Ease").on_mouse_down(
+    let easy_ease = graph_tool("graph-btn-easy-ease", "Easy Ease").on_mouse_down(
         MouseButton::Left,
         cx.listener(|this, _: &MouseDownEvent, _, cx| {
             cx.stop_propagation();
@@ -121,7 +121,7 @@ pub(super) fn render_graph_editor(
             cx.notify();
         }),
     );
-    let hold = tool("graph-btn-hold", "Hold").on_mouse_down(
+    let hold = graph_tool("graph-btn-hold", "Hold").on_mouse_down(
         MouseButton::Left,
         cx.listener(|this, _: &MouseDownEvent, _, cx| {
             cx.stop_propagation();

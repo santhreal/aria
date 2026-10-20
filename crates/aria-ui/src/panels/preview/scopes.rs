@@ -261,7 +261,7 @@ fn waveform_modes(
         .child(labelled("Waveform", theme))
         .children(WaveformMode::ALL.into_iter().map(|mode| {
             crate::components::chip(
-                MotionKey::new(place, mode.id()),
+                ("scope-waveform-mode", MotionKey::new(place, mode.id())),
                 mode.short_label(),
                 mode == shown,
                 ChipSize::Compact,

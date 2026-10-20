@@ -168,7 +168,7 @@ pub fn audio_tab(
                 }),
         )
         .children(aria_models::AudioRole::ALL.into_iter().map(|role| {
-            components::ghost_button(role.id(), role.label(), theme).on_mouse_down(
+            components::ghost_button(("aud-role", role.id()), role.label(), theme).on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |this, _: &MouseDownEvent, _, cx| {
                     this.state.update(cx, |state, _| {
@@ -256,13 +256,15 @@ fn duck_rows(
                         .text_color(theme.text_muted)
                         .child(SharedString::from(label)),
                 )
-                .child(components::ghost_button(id, &value, theme).on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                        this.state.update(cx, |state, _| cycle(state));
-                        cx.notify();
-                    }),
-                ))
+                .child(
+                    components::ghost_button(("duck-setting", id), &value, theme).on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                            this.state.update(cx, |state, _| cycle(state));
+                            cx.notify();
+                        }),
+                    ),
+                )
                 .into_any_element(),
         );
     }

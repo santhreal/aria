@@ -34,7 +34,7 @@ pub fn grade_block(
         .iter()
         .map(|mode| {
             let mode = *mode;
-            components::ghost_button(mode.id(), mode.label(), theme)
+            components::ghost_button(("grade-blend", mode.id()), mode.label(), theme)
                 .on_mouse_down(
                     MouseButton::Left,
                     cx.listener(move |this, _: &MouseDownEvent, _, cx| {
@@ -54,7 +54,7 @@ pub fn grade_block(
         .iter()
         .map(|level| {
             let level = *level;
-            components::ghost_button(level.id(), level.label(), theme)
+            components::ghost_button(("stabilize-level", level.id()), level.label(), theme)
                 .on_mouse_down(
                     MouseButton::Left,
                     cx.listener(move |this, _: &MouseDownEvent, _, cx| {

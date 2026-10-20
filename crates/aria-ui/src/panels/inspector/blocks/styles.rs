@@ -52,7 +52,7 @@ pub fn styles_block(
                         (_, "white") => "background-white",
                         (_, _) => "background-half",
                     };
-                    components::ghost_button(id, *color_label, theme)
+                    components::ghost_button(("style-color", id), *color_label, theme)
                         .on_mouse_down(
                             MouseButton::Left,
                             cx.listener(move |this, _: &MouseDownEvent, _, cx| {
@@ -77,12 +77,7 @@ pub fn styles_block(
                 .gap(px(Theme::SPACE_XS))
                 .child(
                     components::ghost_button(
-                        match style {
-                            "shadow" => "style-shadow",
-                            "glow" => "style-glow",
-                            "outline" => "style-outline",
-                            _ => "style-background",
-                        },
+                        ("style-toggle", style),
                         format!("{label}{}", if on { " on" } else { "" }),
                         theme,
                     )

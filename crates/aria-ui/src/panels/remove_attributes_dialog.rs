@@ -62,7 +62,7 @@ pub fn render(
         .gap(px(Theme::SPACE_XS))
         .children(rows.into_iter().map(|(attribute, ticked)| {
             components::chip(
-                chip_id(attribute),
+                ("remove-attr", chip_id(attribute)),
                 attribute.label(),
                 ticked,
                 ChipSize::Regular,

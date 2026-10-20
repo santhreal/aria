@@ -85,9 +85,9 @@ fn options_row(
         let id = crate::motion::MotionKey::new(setting, stored);
         let shown = SharedString::from((*shown).to_owned());
         let chip = if current == *stored {
-            components::button(id, shown, theme)
+            components::button(("plugin-setting-option", id), shown, theme)
         } else {
-            components::ghost_button(id, shown, theme)
+            components::ghost_button(("plugin-setting-option", id), shown, theme)
         };
         let stored = (*stored).to_owned();
         row = row.child(chip.on_mouse_down(

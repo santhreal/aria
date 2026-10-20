@@ -77,12 +77,11 @@ pub(super) fn header_controls(
     let linked = app.linked_selection;
     let graph_open = app.timeline_graph_open();
 
-    let tc_id = motion::ControlId::from("timeline-tc");
-    let lit = motion::hover_t(tc_id.motion("field"));
+    let lit = motion::hover_t(motion::ControlId::from("timeline-tc").motion("field"));
     let field = if tc_open || !crate::timeline_playhead::layers_timecode() {
-        components::text_box(tc_id, tc_text, "", tc_open, theme)
+        components::text_box("timeline-tc", tc_text, "", tc_open, theme)
     } else {
-        components::field_frame(tc_id, false, theme).child(tc_layer.timecode(tc_text))
+        components::field_frame("timeline-tc", false, theme).child(tc_layer.timecode(tc_text))
     };
     let timecode = field
         .debug_selector(|| "timeline-tc".into())

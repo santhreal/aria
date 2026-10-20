@@ -1389,7 +1389,7 @@ Notes for the latest release. For previous releases, see the
 - Tests fail when a fenced code block under `docs/` never closes or a table runs into the paragraph after it.
 - `docs/icons.md` lists every registered icon constant with its file and the controls that draw it, and a test fails when the page and `icon_assets!` disagree.
 - Tests fail when prose in `README.md` or under `docs/` has an em dash or a persona noun in place of the control, setting, or file that acts.
-- `docs/reference/controls.md` lists the 262 named controls of the editor across 22 surfaces with each control's id, label, action, and shortcut, and a test fails when a control id or shortcut in the source and the page disagree.
+- `docs/reference/controls.md` lists the 337 named controls of the editor across 22 surfaces, each per-row control included, with each control's id, label, action, and shortcut, and a test fails when a shared-widget call states an id the page omits, a row names a control the source does not draw, or a shortcut disagrees.
 - `docs/guide/` splits the usage guide into 21 chapters that each end in a worked example, and a test fails when a guide cites a menu row, control, key chord, or palette command the editor does not ship.
 - `docs/command-line.md` and `docs/plugins/` document every CLI verb, flag, plugin host call, type field, enum variant, and constant, and tests fail when a registry member and its page disagree.
 - `docs/reference/` documents every blend mode, mask mode, colour space, YUV matrix, starter LUT, project and sequence setting, animatable clip property, keyframe and graph editor control, export and subtitle preset, and video scope setting, and tests fail when a registry member has no entry.

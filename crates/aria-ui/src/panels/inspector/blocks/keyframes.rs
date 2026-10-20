@@ -50,7 +50,7 @@ pub fn keyframes_block(
                     let preset_id = preset.id.as_str();
                     let selected = preset_here == Some(preset_id);
                     components::ghost_button(
-                        preset_id,
+                        ("keyframe-easing", preset_id),
                         if selected {
                             gpui::SharedString::from(format!("• {}", preset.label))
                         } else {
@@ -85,7 +85,10 @@ pub fn keyframes_block(
                 .map(|(preset, label)| {
                     let preset = *preset;
                     components::ghost_button(
-                        crate::motion::MotionKey::new(label, &id),
+                        (
+                            "keyframe-piecewise",
+                            crate::motion::MotionKey::new(label, &id),
+                        ),
                         *label,
                         theme,
                     )

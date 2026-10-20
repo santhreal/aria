@@ -138,7 +138,14 @@ pub fn render(
                     MarkerKind::Chapter => "marker-edit-kind-chapter",
                     MarkerKind::Segmentation => "marker-edit-kind-segmentation",
                 };
-                components::chip(id, kind.label(), active, ChipSize::Regular, &theme).on_mouse_down(
+                components::chip(
+                    ("marker-edit-kind", id),
+                    kind.label(),
+                    active,
+                    ChipSize::Regular,
+                    &theme,
+                )
+                .on_mouse_down(
                     MouseButton::Left,
                     cx.listener(move |this, _: &MouseDownEvent, _, cx| {
                         this.state

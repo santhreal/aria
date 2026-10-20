@@ -126,7 +126,7 @@ fn tab_chip(
 ) -> gpui::AnyElement {
     let active = target == current;
     components::chip(
-        target.label(),
+        ("sidebar-tab", target.label()),
         target.label(),
         active,
         components::ChipSize::Compact,
@@ -205,7 +205,7 @@ pub(super) fn kind_chip(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
     components::chip(
-        id,
+        ("stock-kind", id),
         label,
         target == current,
         components::ChipSize::Regular,

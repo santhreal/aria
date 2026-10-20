@@ -186,14 +186,18 @@ pub(super) fn plugin_rows(
         for (key, label, action) in actions {
             let id = row.id.clone();
             buttons = buttons.child(
-                components::ghost_button(MotionKey::new(key, row.id.clone()), label, theme)
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                            this.state.update(cx, |state, _| action.run(state, &id));
-                            cx.notify();
-                        }),
-                    ),
+                components::ghost_button(
+                    ("plugin-row-action", MotionKey::new(key, &row.id)),
+                    label,
+                    theme,
+                )
+                .on_mouse_down(
+                    MouseButton::Left,
+                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                        this.state.update(cx, |state, _| action.run(state, &id));
+                        cx.notify();
+                    }),
+                ),
             );
         }
         elements.push(buttons.into_any_element());

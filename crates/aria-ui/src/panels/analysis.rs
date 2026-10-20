@@ -223,12 +223,11 @@ fn detect_button(
     stored: bool,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
-    let run_id = crate::motion::MotionKey::new("analysis-run", kind.id());
     let label = SharedString::from(kind.label());
     let run = if stored {
-        components::ghost_button(run_id, label, theme)
+        components::ghost_button(("analysis-run", kind.id()), label, theme)
     } else {
-        components::button(run_id, label, theme)
+        components::button(("analysis-run", kind.id()), label, theme)
     };
     div()
         .flex()

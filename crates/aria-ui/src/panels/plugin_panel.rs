@@ -122,15 +122,19 @@ pub(crate) fn render_one(
 fn waiting_card(theme: &Theme, panel: &WaitingPanel, cx: &mut gpui::Context<Shell>) -> AnyElement {
     let key = MotionKey::new("plugin-panel", &panel.spec.id);
     let id = panel.spec.id.clone();
-    let open = components::button(key.with("open"), SharedString::new_static("Open"), theme)
-        .on_mouse_down(
-            MouseButton::Left,
-            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                this.state
-                    .update(cx, |state, _| state.open_waiting_panel(&id));
-                cx.notify();
-            }),
-        );
+    let open = components::button(
+        ("plugin-panel-open", key.with("open")),
+        SharedString::new_static("Open"),
+        theme,
+    )
+    .on_mouse_down(
+        MouseButton::Left,
+        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+            this.state
+                .update(cx, |state, _| state.open_waiting_panel(&id));
+            cx.notify();
+        }),
+    );
     motion::fade_in(
         key.with("card"),
         div()
@@ -355,7 +359,11 @@ fn button(
     disabled: bool,
     cx: &mut gpui::Context<Shell>,
 ) -> AnyElement {
-    let control = components::button(draw.key.with(&**id), SharedString::from(text), draw.theme);
+    let control = components::button(
+        ("plugin-ui-button", draw.key.with(&**id)),
+        SharedString::from(text),
+        draw.theme,
+    );
     if disabled {
         // Drawn, and takes no press: the host would refuse one anyway.
         return control
@@ -389,7 +397,7 @@ fn toggle(
     let spec = Arc::clone(draw.spec);
     let id = Arc::clone(id);
     components::chip(
-        draw.key.with(&*id),
+        ("plugin-ui-toggle", draw.key.with(&*id)),
         SharedString::from(text),
         on,
         ChipSize::Regular,
@@ -536,7 +544,7 @@ fn input(
     let spec = Arc::clone(draw.spec);
     let control = Arc::clone(id);
     components::text_box(
-        draw.key.with(&**id),
+        ("plugin-ui-input", draw.key.with(&**id)),
         text,
         SharedString::from(placeholder),
         typing.is_some(),
@@ -570,7 +578,7 @@ fn choice(
             let spec = Arc::clone(draw.spec);
             let id = Arc::clone(id);
             components::chip(
-                key.with(index),
+                ("plugin-ui-choice", key.with(index)),
                 SharedString::from(option),
                 index == selected,
                 ChipSize::Compact,

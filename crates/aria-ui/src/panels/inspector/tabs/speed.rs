@@ -72,7 +72,7 @@ pub fn speed_block(
             let id = spec.id.as_str();
             let selected = active == Some(id);
             components::ghost_button(
-                id,
+                ("speed-preset", id),
                 if selected {
                     format!("• {}", spec.label)
                 } else {

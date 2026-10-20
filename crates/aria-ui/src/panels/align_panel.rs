@@ -54,7 +54,7 @@ pub fn render(
     let mut edges: Vec<AnyElement> = AlignEdge::ALL
         .iter()
         .map(|&edge| {
-            button(
+            align_button(
                 &theme,
                 MotionKey::new("align-edge", edge.label()).with(SURFACE),
                 edge.label(),
@@ -68,7 +68,7 @@ pub fn render(
     let spread: Vec<AnyElement> = AlignAxis::ALL
         .iter()
         .map(|&axis| {
-            button(
+            align_button(
                 &theme,
                 MotionKey::new("align-spread", axis.label()).with(SURFACE),
                 axis.label(),
@@ -121,7 +121,7 @@ fn row(controls: Vec<AnyElement>) -> AnyElement {
 
 /// One button that hands `pick` to the registry when pressed. Drawn faint when
 /// the selection is too small for it; a press then says why on the status line.
-fn button(
+fn align_button(
     theme: &Theme,
     key: MotionKey,
     label: &'static str,
