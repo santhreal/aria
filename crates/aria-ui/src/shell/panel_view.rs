@@ -11,12 +11,12 @@
 //! ([`Shell::redraw_bodies`], run by the shell's own observer), so a change
 //! made anywhere is drawn everywhere. A body that keeps a `PanelStamp` of
 //! its inputs, such as the Audio Meters and the Effects panel, is skipped
-//! while the stamp is unchanged. Two paths are narrow: [`Shell::redraw`],
-//! for a change that moves only the timeline view, the playhead, or the pool
-//! tile under the pointer, redraws the chrome the shell draws itself and the
-//! bodies whose drawing reads what moved, and [`Shell::redraw_chrome`], for a
-//! change to chrome alone, redraws the chrome. The rest replay their last
-//! drawing.
+//! while the stamp is unchanged and the editor has arrived. Two paths are
+//! narrow: [`Shell::redraw`], for a change that moves only the timeline view,
+//! the playhead, or the pool tile under the pointer, redraws the chrome the
+//! shell draws itself and the bodies whose drawing reads what moved, and
+//! [`Shell::redraw_chrome`], for a change to chrome alone, redraws the chrome.
+//! The rest replay their last drawing.
 
 use gpui::{
     AnyElement, AnyView, App, AppContext as _, Context, Entity, IntoElement, ParentElement as _,
@@ -304,12 +304,15 @@ impl Shell {
     }
 
     /// Notifies every chrome part and every panel body whose inputs may have
-    /// changed since its last draw.
+    /// changed since its last draw. While the editor arrives, the shell draws
+    /// every body under an opacity that moves each frame and that no stamp
+    /// holds, so every body is notified.
     pub(crate) fn redraw_bodies(&mut self, cx: &mut Context<Self>) {
         self.drawn_projections = self.state.read(cx).projections;
         let reduced = cx.reduce_motion();
+        let arrived = self.chrome_cached;
         for (&panel, body) in &self.bodies {
-            let unchanged = {
+            let unchanged = arrived && {
                 let state = self.state.read(cx);
                 panel_stamp(panel, state, reduced)
                     .is_some_and(|now| body.read(cx).stamp.as_ref() == Some(&now))
