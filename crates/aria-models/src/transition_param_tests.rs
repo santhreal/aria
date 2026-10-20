@@ -130,8 +130,8 @@ impl Holder for Transition {
         })
     }
 
-    fn flattened(&self, tick: f64) -> Result<Vec<f32>, ModelError> {
-        self.sample_flattened_floats(tick)
+    fn flattened(&self, _tick: f64) -> Result<Vec<f32>, ModelError> {
+        self.sample_flattened_floats()
     }
 
     fn set(&mut self, index: usize, value: Value) -> Result<(), ModelError> {

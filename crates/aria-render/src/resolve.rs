@@ -446,9 +446,7 @@ fn resolve_track_at<'p>(
             }
             let outgoing = Box::new(outgoing);
             let incoming = Box::new(incoming);
-            let transition_params = transition
-                .sample_flattened_floats((t.value - window_start) as f64)
-                .unwrap_or_default();
+            let transition_params = transition.sample_flattened_floats().unwrap_or_default();
             let effects = if transition_params.is_empty() {
                 Vec::new()
             } else {

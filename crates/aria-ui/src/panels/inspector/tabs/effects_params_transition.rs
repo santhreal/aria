@@ -12,7 +12,7 @@ use crate::motion::MotionKey;
 use crate::panels::inspector::blocks::widgets::{Readout, audio_row, color_name, swatch};
 use crate::surfaces::clip_pick::{self, Pick, TransitionSlotEdit};
 use crate::theme::Theme;
-use crate::types::UiTransition;
+use crate::types::{UiSlots as _, UiTransition};
 
 /// Build all visible parameter rows for the selected clip's transition.
 pub(crate) fn transition_param_rows(
@@ -90,7 +90,7 @@ fn push_transition_slot_rows(
             );
         }
         EffectParamKind::Bool => {
-            let value = transition.bool_val(slot).unwrap_or(pspec.default_bool);
+            let value = transition.boolean(slot).unwrap_or(pspec.default_bool);
             let btn_label = if value { "✓ On" } else { "○ Off" };
             out.push(
                 param_line(theme, pspec.label.clone())

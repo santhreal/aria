@@ -867,42 +867,6 @@ impl EffectParamSpec {
     }
 }
 
-/// Append the default shader storage-buffer floats for `params`.
-pub fn default_flattened_param_floats(params: &[EffectParamSpec]) -> Vec<f32> {
-    let total: usize = params.iter().map(|p| p.kind.shader_floats()).sum();
-    let mut out = Vec::with_capacity(total);
-    for p in params {
-        match p.kind {
-            EffectParamKind::Scalar | EffectParamKind::Angle => out.push(p.default),
-            EffectParamKind::Int => out.push(p.default_int as f32),
-            EffectParamKind::Bool => out.push(if p.default_bool { 1.0 } else { 0.0 }),
-            EffectParamKind::Choice => {
-                let idx = p
-                    .default_choice_id()
-                    .and_then(|id| p.choice_index(id))
-                    .unwrap_or(0);
-                out.push(idx as f32);
-            }
-            EffectParamKind::Color => out.extend_from_slice(&p.default_color_linear()),
-            EffectParamKind::Vec2 | EffectParamKind::Size => out.extend_from_slice(&p.default_vec2),
-            EffectParamKind::Point3 => out.extend_from_slice(&p.default_vec3),
-            EffectParamKind::Curve => {
-                let lut = evaluate_effect_curve_lut(&p.default_curve);
-                out.extend_from_slice(&lut);
-            }
-            EffectParamKind::Gradient => {
-                let lut = evaluate_effect_gradient_lut(&p.default_gradient);
-                for rgba in lut {
-                    out.extend_from_slice(&rgba);
-                }
-            }
-            EffectParamKind::Layer => out.push(0.0),
-            EffectParamKind::Text | EffectParamKind::Font | EffectParamKind::File => {}
-        }
-    }
-    out
-}
-
 /// The parameter rules shared by video, transition, and audio effects, for `id`.
 pub(crate) fn check_params(id: &str, params: &[EffectParamSpec]) -> Result<(), String> {
     for (index, param) in params.iter().enumerate() {

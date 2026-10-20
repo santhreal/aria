@@ -192,97 +192,110 @@ pub struct UiEffectInstance {
     pub visible: Vec<bool>,
 }
 
-impl UiEffectInstance {
-    pub fn scalar(&self, slot: usize) -> Option<f32> {
-        match self.values.get(slot)? {
+/// Typed reads of the per-slot values and visibility that an effect instance
+/// and a transition hold for the inspector. Each read is `None` when the slot
+/// is absent or holds another representation.
+pub trait UiSlots {
+    /// One value per catalog slot.
+    fn slot_values(&self) -> &[UiEffectValue];
+    /// Visibility per catalog slot.
+    fn slot_visibility(&self) -> &[bool];
+
+    /// The value of a scalar slot, or of an integer slot as `f32`.
+    fn scalar(&self, slot: usize) -> Option<f32> {
+        match self.slot_values().get(slot)? {
             UiEffectValue::Scalar(value) => Some(*value),
             UiEffectValue::Int(value) => Some(*value as f32),
             _ => None,
         }
     }
 
-    pub fn int(&self, slot: usize) -> Option<i32> {
-        match self.values.get(slot)? {
+    fn int(&self, slot: usize) -> Option<i32> {
+        match self.slot_values().get(slot)? {
             UiEffectValue::Int(value) => Some(*value),
             _ => None,
         }
     }
 
-    pub fn boolean(&self, slot: usize) -> Option<bool> {
-        match self.values.get(slot)? {
+    fn boolean(&self, slot: usize) -> Option<bool> {
+        match self.slot_values().get(slot)? {
             UiEffectValue::Bool(value) => Some(*value),
             _ => None,
         }
     }
 
-    pub fn bool_val(&self, slot: usize) -> Option<bool> {
-        self.boolean(slot)
-    }
-
-    pub fn choice(&self, slot: usize) -> Option<&str> {
-        match self.values.get(slot)? {
+    fn choice(&self, slot: usize) -> Option<&str> {
+        match self.slot_values().get(slot)? {
             UiEffectValue::Choice(value) => Some(value.as_ref()),
             _ => None,
         }
     }
 
-    pub fn color(&self, slot: usize) -> Option<[u8; 4]> {
-        match self.values.get(slot)? {
+    fn color(&self, slot: usize) -> Option<[u8; 4]> {
+        match self.slot_values().get(slot)? {
             UiEffectValue::Color(value) => Some(*value),
             _ => None,
         }
     }
 
-    pub fn vec2(&self, slot: usize) -> Option<[f32; 2]> {
-        match self.values.get(slot)? {
+    fn vec2(&self, slot: usize) -> Option<[f32; 2]> {
+        match self.slot_values().get(slot)? {
             UiEffectValue::Vec2(value) => Some(*value),
             _ => None,
         }
     }
 
-    pub fn point3(&self, slot: usize) -> Option<[f32; 3]> {
-        match self.values.get(slot)? {
+    fn point3(&self, slot: usize) -> Option<[f32; 3]> {
+        match self.slot_values().get(slot)? {
             UiEffectValue::Point3(value) => Some(*value),
             _ => None,
         }
     }
 
-    pub fn curve(&self, slot: usize) -> Option<&[aria_models::EffectCurvePoint]> {
-        match self.values.get(slot)? {
+    fn curve(&self, slot: usize) -> Option<&[aria_models::EffectCurvePoint]> {
+        match self.slot_values().get(slot)? {
             UiEffectValue::Curve(points) => Some(points.as_slice()),
             _ => None,
         }
     }
 
-    pub fn gradient(&self, slot: usize) -> Option<&[aria_models::EffectGradientStop]> {
-        match self.values.get(slot)? {
+    fn gradient(&self, slot: usize) -> Option<&[aria_models::EffectGradientStop]> {
+        match self.slot_values().get(slot)? {
             UiEffectValue::Gradient(stops) => Some(stops.as_slice()),
             _ => None,
         }
     }
 
-    pub fn text(&self, slot: usize) -> Option<&str> {
-        match self.values.get(slot)? {
+    fn text(&self, slot: usize) -> Option<&str> {
+        match self.slot_values().get(slot)? {
             UiEffectValue::Text(value) => Some(value.as_ref()),
             _ => None,
         }
     }
 
-    pub fn layer(&self, slot: usize) -> Option<Option<u64>> {
-        match self.values.get(slot)? {
+    fn layer(&self, slot: usize) -> Option<Option<u64>> {
+        match self.slot_values().get(slot)? {
             UiEffectValue::Layer(value) => Some(*value),
             _ => None,
         }
     }
 
-    pub fn is_slot_visible(&self, slot: usize) -> bool {
-        self.visible.get(slot).copied().unwrap_or(true)
-    }
-
-    pub fn is_visible(&self, slot: usize) -> bool {
-        self.is_slot_visible(slot)
+    /// Whether the slot's `visible_when` holds; a slot past the end is shown.
+    fn is_slot_visible(&self, slot: usize) -> bool {
+        self.slot_visibility().get(slot).copied().unwrap_or(true)
     }
 }
+
+impl UiSlots for UiEffectInstance {
+    fn slot_values(&self) -> &[UiEffectValue] {
+        &self.values
+    }
+
+    fn slot_visibility(&self) -> &[bool] {
+        &self.visible
+    }
+}
+
 /// One parameter of an audio insert, as drawn.
 #[derive(Debug, Clone, PartialEq)]
 pub struct UiInsertParam {
@@ -556,91 +569,15 @@ impl UiTransition {
     pub fn window(&self, cut: i64) -> (i64, i64) {
         aria_models::transition_window(self.alignment, self.duration_ticks.max(1), cut)
     }
+}
 
-    pub fn scalar(&self, slot: usize) -> Option<f32> {
-        match self.values.get(slot)? {
-            UiEffectValue::Scalar(value) => Some(*value),
-            UiEffectValue::Int(value) => Some(*value as f32),
-            _ => None,
-        }
+impl UiSlots for UiTransition {
+    fn slot_values(&self) -> &[UiEffectValue] {
+        &self.values
     }
 
-    pub fn int(&self, slot: usize) -> Option<i32> {
-        match self.values.get(slot)? {
-            UiEffectValue::Int(value) => Some(*value),
-            _ => None,
-        }
-    }
-
-    pub fn boolean(&self, slot: usize) -> Option<bool> {
-        match self.values.get(slot)? {
-            UiEffectValue::Bool(value) => Some(*value),
-            _ => None,
-        }
-    }
-
-    pub fn bool_val(&self, slot: usize) -> Option<bool> {
-        self.boolean(slot)
-    }
-
-    pub fn choice(&self, slot: usize) -> Option<&str> {
-        match self.values.get(slot)? {
-            UiEffectValue::Choice(value) => Some(value.as_ref()),
-            _ => None,
-        }
-    }
-
-    pub fn color(&self, slot: usize) -> Option<[u8; 4]> {
-        match self.values.get(slot)? {
-            UiEffectValue::Color(value) => Some(*value),
-            _ => None,
-        }
-    }
-
-    pub fn vec2(&self, slot: usize) -> Option<[f32; 2]> {
-        match self.values.get(slot)? {
-            UiEffectValue::Vec2(value) => Some(*value),
-            _ => None,
-        }
-    }
-
-    pub fn point3(&self, slot: usize) -> Option<[f32; 3]> {
-        match self.values.get(slot)? {
-            UiEffectValue::Point3(value) => Some(*value),
-            _ => None,
-        }
-    }
-
-    pub fn curve(&self, slot: usize) -> Option<&[aria_models::EffectCurvePoint]> {
-        match self.values.get(slot)? {
-            UiEffectValue::Curve(points) => Some(points.as_slice()),
-            _ => None,
-        }
-    }
-
-    pub fn gradient(&self, slot: usize) -> Option<&[aria_models::EffectGradientStop]> {
-        match self.values.get(slot)? {
-            UiEffectValue::Gradient(stops) => Some(stops.as_slice()),
-            _ => None,
-        }
-    }
-
-    pub fn text(&self, slot: usize) -> Option<&str> {
-        match self.values.get(slot)? {
-            UiEffectValue::Text(value) => Some(value.as_ref()),
-            _ => None,
-        }
-    }
-
-    pub fn layer(&self, slot: usize) -> Option<Option<u64>> {
-        match self.values.get(slot)? {
-            UiEffectValue::Layer(value) => Some(*value),
-            _ => None,
-        }
-    }
-
-    pub fn is_slot_visible(&self, slot: usize) -> bool {
-        self.visible.get(slot).copied().unwrap_or(true)
+    fn slot_visibility(&self) -> &[bool] {
+        &self.visible
     }
 }
 

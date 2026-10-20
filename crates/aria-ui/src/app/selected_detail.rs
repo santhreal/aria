@@ -28,7 +28,7 @@
 use aria_engine::Engine;
 use aria_models::{
     Clip, ClipId, ClipParam, ClipSource, EffectInstance, EffectParamKind, EffectParamSpec,
-    Generator, ParentFrame, Project, RationalTime,
+    Generator, ParentFrame, Project, RationalTime, StoredParams,
 };
 use aria_render::{LayerSource, SceneLayer};
 
@@ -432,20 +432,15 @@ fn static_slot_differs(
     mine: &EffectInstance,
     theirs: &EffectInstance,
 ) -> bool {
-    let name = pspec.name.as_str();
     match pspec.kind {
-        EffectParamKind::Bool => mine.sample_bool_param(name) != theirs.sample_bool_param(name),
-        EffectParamKind::Choice => {
-            mine.sample_choice_param(name) != theirs.sample_choice_param(name)
-        }
-        EffectParamKind::Curve => mine.sample_curve_param(name) != theirs.sample_curve_param(name),
-        EffectParamKind::Gradient => {
-            mine.sample_gradient_param(name) != theirs.sample_gradient_param(name)
-        }
+        EffectParamKind::Bool => mine.boolean(pspec) != theirs.boolean(pspec),
+        EffectParamKind::Choice => mine.choice(pspec) != theirs.choice(pspec),
+        EffectParamKind::Curve => mine.curve(pspec) != theirs.curve(pspec),
+        EffectParamKind::Gradient => mine.gradient(pspec) != theirs.gradient(pspec),
         EffectParamKind::Text | EffectParamKind::Font | EffectParamKind::File => {
-            mine.sample_text_param(name) != theirs.sample_text_param(name)
+            mine.text(pspec) != theirs.text(pspec)
         }
-        EffectParamKind::Layer => mine.sample_layer_param(name) != theirs.sample_layer_param(name),
+        EffectParamKind::Layer => mine.layer(pspec) != theirs.layer(pspec),
         EffectParamKind::Scalar
         | EffectParamKind::Int
         | EffectParamKind::Color

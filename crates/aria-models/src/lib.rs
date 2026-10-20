@@ -103,8 +103,8 @@ pub use effects::{
     EFFECT_CURVE_LUT_SAMPLES, EFFECT_GRADIENT_LUT_SAMPLES, EFFECT_NAME_MAX_CHARS, EffectBounds,
     EffectChoiceOption, EffectCurvePoint, EffectGradientStop, EffectGroupSpec, EffectInstance,
     EffectParamDisplay, EffectParamKind, EffectParamSpec, EffectSpec, EffectVisibilityCondition,
-    OTHER_VIDEO_CATEGORY, default_flattened_param_floats, effect_catalog, effect_spec,
-    evaluate_effect_curve_lut, evaluate_effect_gradient_lut, sample_effect_curve,
+    OTHER_VIDEO_CATEGORY, StoredParams, default_flattened_param_floats, effect_catalog,
+    effect_spec, evaluate_effect_curve_lut, evaluate_effect_gradient_lut, sample_effect_curve,
     sample_effect_gradient, shipped_effect_catalog,
 };
 pub use error::ModelError;

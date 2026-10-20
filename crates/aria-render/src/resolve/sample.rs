@@ -5,6 +5,7 @@
 //! Moved out of `resolve.rs` to stay under the file ceiling; nothing changed.
 
 use super::*;
+use aria_models::StoredParams as _;
 
 /// Whether style resolution reused authored constants or evaluated curves.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -283,7 +284,7 @@ fn pack_effect(
     pool: &mut ResolvePool,
 ) -> Result<ResolvedPass, aria_models::ModelError> {
     let mut params = pool.params.pop().unwrap_or_default();
-    sample_flattened_floats_into(fx, tick, point, &mut params)?;
+    fx.flatten_floats_into(&fx.spec()?.params, tick, point, &mut params);
     // Shipped passes do not read the time or CPU instance, and a registered
     // effect that does not declare `time_dependent` reads time 0; leaving
     // them empty keeps equal frames equal so the scene cache holds across them.
@@ -298,109 +299,6 @@ fn pack_effect(
     Ok(ResolvedPass::new(id, params)
         .with_time(seconds)
         .with_instance(fx.clone()))
-}
-
-fn sample_flattened_floats_into(
-    fx: &EffectInstance,
-    tick: f64,
-    point: Option<(usize, [f32; 2])>,
-    out: &mut Vec<f32>,
-) -> Result<(), aria_models::ModelError> {
-    use aria_models::{EffectParamKind, evaluate_effect_curve_lut, evaluate_effect_gradient_lut};
-    let spec = fx.spec()?;
-    let total: usize = spec.params.iter().map(|p| p.kind.shader_floats()).sum();
-    out.clear();
-    out.reserve(total);
-    for (slot, pspec) in spec.params.iter().enumerate() {
-        match pspec.kind {
-            EffectParamKind::Scalar | EffectParamKind::Angle => {
-                let v = fx
-                    .params
-                    .get(&pspec.name)
-                    .map(|p| p.sample_at(tick))
-                    .unwrap_or(pspec.default);
-                out.push(v);
-            }
-            EffectParamKind::Int => {
-                let v = fx
-                    .params
-                    .get(&pspec.name)
-                    .map(|p| p.sample_at(tick).round())
-                    .unwrap_or(pspec.default_int as f32);
-                out.push(v);
-            }
-            EffectParamKind::Bool => {
-                let b = fx
-                    .bool_params
-                    .get(&pspec.name)
-                    .copied()
-                    .unwrap_or(pspec.default_bool);
-                out.push(if b { 1.0 } else { 0.0 });
-            }
-            EffectParamKind::Choice => {
-                let idx = pspec
-                    .choice_or_default(fx.choice_params.get(&pspec.name).map(String::as_str))
-                    .and_then(|s| pspec.choice_index(s))
-                    .unwrap_or(0);
-                out.push(idx as f32);
-            }
-            EffectParamKind::Color => {
-                let rgba = if let Some(p) = fx.linear_color_params.get(&pspec.name) {
-                    p.sample_at(tick)
-                } else if let Some(p) = fx.color_params.get(&pspec.name) {
-                    p.sample_at(tick).map(|c| f32::from(c) / 255.0)
-                } else {
-                    pspec.default_color_linear()
-                };
-                out.extend_from_slice(&rgba);
-            }
-            EffectParamKind::Vec2 | EffectParamKind::Size => {
-                let v = match point {
-                    Some((override_slot, override_val)) if override_slot == slot => override_val,
-                    _ => fx
-                        .vec2_params
-                        .get(&pspec.name)
-                        .map(|p| p.sample_at(tick))
-                        .unwrap_or(pspec.default_vec2),
-                };
-                out.extend_from_slice(&v);
-            }
-            EffectParamKind::Point3 => {
-                let v = fx
-                    .vec3_params
-                    .get(&pspec.name)
-                    .map(|p| p.sample_at(tick))
-                    .unwrap_or(pspec.default_vec3);
-                out.extend_from_slice(&v);
-            }
-            EffectParamKind::Curve => {
-                let pts = fx
-                    .curve_params
-                    .get(&pspec.name)
-                    .map(Vec::as_slice)
-                    .unwrap_or(&pspec.default_curve);
-                let lut = evaluate_effect_curve_lut(pts);
-                out.extend_from_slice(&lut);
-            }
-            EffectParamKind::Gradient => {
-                let stops = fx
-                    .gradient_params
-                    .get(&pspec.name)
-                    .map(Vec::as_slice)
-                    .unwrap_or(&pspec.default_gradient);
-                let lut = evaluate_effect_gradient_lut(stops);
-                for rgba in lut {
-                    out.extend_from_slice(&rgba);
-                }
-            }
-            EffectParamKind::Layer => {
-                let raw = fx.layer_params.get(&pspec.name).copied().unwrap_or(0);
-                out.push(raw as f32);
-            }
-            EffectParamKind::Text | EffectParamKind::Font | EffectParamKind::File => {}
-        }
-    }
-    Ok(())
 }
 
 /// UV rect from a clip's crop sampled at a clip-relative tick, with axes

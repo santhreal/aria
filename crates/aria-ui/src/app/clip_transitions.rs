@@ -16,6 +16,7 @@ use aria_models::{
 
 use super::AppState;
 use super::decline::Decline;
+use crate::types::UiSlots as _;
 
 /// The smallest and largest transition window the UI will send, in ticks. The
 /// model clamps to at least one tick; the upper bound keeps a drag from opening a
@@ -364,7 +365,7 @@ impl AppState {
         self.selected_ui_clip_ref()?
             .transition
             .as_ref()?
-            .bool_val(param)
+            .boolean(param)
     }
 
     /// Toggle a boolean parameter on the selected clip's transition.
