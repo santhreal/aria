@@ -16,6 +16,7 @@ pub(crate) mod timeline_frame;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Instant;
 
 use aria_compositor::{FrameSink, GpuContext, create_frame_target, wgpu};
 use aria_plugin::PluginContext;
@@ -108,6 +109,31 @@ pub(crate) fn open_marked_project(
             cx.notify();
         });
     });
+}
+
+/// Runs `change` on the editor window's shell and returns the milliseconds
+/// until the frame it causes is drawn.
+///
+/// The test executor runs background tasks on this thread when it parks, and
+/// the flush that ends an update draws every window a change left dirty. So
+/// before the clock starts, the executor is parked and the window drawn: the
+/// work an earlier sample left behind, such as a preview render, a filmstrip
+/// decode, or the redraw of the frame they land, falls outside the sample, as
+/// it runs on pool threads and in a frame of its own in the editor. The sample
+/// is one update and the one draw its flush makes.
+pub(crate) fn timed_frame(
+    app: &gpui::TestApp,
+    window: &mut gpui::TestAppWindow<Shell>,
+    change: impl FnOnce(&mut Shell, &mut gpui::Window, &mut gpui::Context<Shell>),
+) -> f64 {
+    app.run_until_parked();
+    window.draw();
+    app.run_until_parked();
+    let (cx, handle) = (app.to_async(), window.handle());
+    let started = Instant::now();
+    cx.update(|cx| handle.update(cx, change))
+        .expect("the editor window is open");
+    started.elapsed().as_secs_f64() * 1000.0
 }
 
 /// Reusable GPU texture sink for display-path renders with no CPU readback.

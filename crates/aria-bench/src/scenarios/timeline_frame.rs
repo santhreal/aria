@@ -1,11 +1,9 @@
 //! `timeline-frame` scenario: `project-10k` scroll, zoom, and drag UI frame build latency.
 
-use std::time::Instant;
-
 use aria_ui::shell::Moved;
 
 use crate::fixtures::{FixtureId, ensure_fixture};
-use crate::scenarios::{BenchContext, open_editor, open_marked_project};
+use crate::scenarios::{BenchContext, open_editor, open_marked_project, timed_frame};
 use crate::{Comparison, SampleSeries, ScenarioId, ScenarioReport, TargetEvaluation};
 
 pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
@@ -16,7 +14,6 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     std::fs::create_dir_all(&data_dir).map_err(|err| format!("mkdir failed: {err}"))?;
     let (mut app, state, mut window) = open_editor(&data_dir);
     open_marked_project(&mut app, &state, fixture.path);
-    window.draw();
 
     // Each step below changes what the matching pointer listener changes and
     // redraws the way that listener does: `Shell::redraw` with what moved.
@@ -24,17 +21,14 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     // 1. Scroll 30 frames across horizontal and vertical lanes on project-10k.
     let mut scroll_samples = Vec::with_capacity(30);
     for step in 0..30usize {
-        let t0 = Instant::now();
-        window.update(|shell, _, cx| {
+        scroll_samples.push(timed_frame(&app, &mut window, |shell, _, cx| {
             shell.state.update(cx, |s, _| {
                 s.zoom_bar_pan(0.025);
                 s.video_scroll_y = ((step % 15) as f32) * 24.0;
                 s.audio_scroll_y = ((step % 15) as f32) * 24.0;
             });
             shell.redraw(Moved::View, cx);
-        });
-        window.draw();
-        scroll_samples.push(t0.elapsed().as_secs_f64() * 1000.0);
+        }));
     }
 
     // 2. Zoom 30 frames on project-10k: ctrl+wheel notches under a pointer a
@@ -46,8 +40,7 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
         } else {
             1.0 / 1.15
         };
-        let t0 = Instant::now();
-        window.update(|shell, _, cx| {
+        zoom_samples.push(timed_frame(&app, &mut window, |shell, _, cx| {
             let (left, width) = {
                 let s = shell.state.read(cx);
                 (
@@ -56,9 +49,7 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
                 )
             };
             shell.zoom_at(left + width / 3.0, factor, cx);
-        });
-        window.draw();
-        zoom_samples.push(t0.elapsed().as_secs_f64() * 1000.0);
+        }));
     }
 
     // 3. Drag / scrub with snap index lookup across 30 frames on project-10k.
@@ -66,26 +57,22 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     let mut drag_samples = Vec::with_capacity(30);
     for step in 0..30i64 {
         let desired = (step * 73) % 4_800;
-        let t0 = Instant::now();
-        window.update(|shell, _, cx| {
+        drag_samples.push(timed_frame(&app, &mut window, |shell, _, cx| {
             shell.state.update(cx, |s, _| {
                 let (snapped, _) = s.snap_at(desired, Some(1), threshold, false);
                 s.set_playhead(snapped);
             });
             shell.redraw(Moved::Playhead, cx);
-        });
-        window.draw();
-        drag_samples.push(t0.elapsed().as_secs_f64() * 1000.0);
+        }));
     }
 
     // 4. The floor under every frame above: the window chrome redrawn with
     // every panel body replaying its last drawing. Not part of the target.
     let mut chrome_samples = Vec::with_capacity(30);
     for _ in 0..30 {
-        let t0 = Instant::now();
-        window.update(|shell, _, cx| shell.redraw_chrome(cx));
-        window.draw();
-        chrome_samples.push(t0.elapsed().as_secs_f64() * 1000.0);
+        chrome_samples.push(timed_frame(&app, &mut window, |shell, _, cx| {
+            shell.redraw_chrome(cx)
+        }));
     }
 
     let paint_stats = app.update(|cx| state.read(cx).timeline_paint_stats);
@@ -116,7 +103,7 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     )];
 
     let notes = vec![format!(
-        "project-10k GPUI Shell window.draw(): scroll p50={:.2} ms, zoom p50={:.2} ms, drag p50={:.2} ms, overall p95={:.2} ms, chrome alone p50={:.2} ms; TimelinePaintStats: total_lanes={}, visible_lanes={}, total_clips={}, visible_clips={}, canvas_elements={}, paint_calls={}",
+        "project-10k GPUI Shell frame, one update and the draw it causes: scroll p50={:.2} ms, zoom p50={:.2} ms, drag p50={:.2} ms, overall p95={:.2} ms, chrome alone p50={:.2} ms; TimelinePaintStats: total_lanes={}, visible_lanes={}, total_clips={}, visible_clips={}, canvas_elements={}, paint_calls={}",
         scroll_series.p50,
         zoom_series.p50,
         drag_series.p50,
