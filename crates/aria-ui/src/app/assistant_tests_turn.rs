@@ -9,8 +9,7 @@ use super::*;
 
 /// The refusal order is a promise: an empty box is answered before anything
 /// costs a lock, a thread, or a request. Reordering these would send a blank
-/// prompt to a provider, or open Settings for a box the operator has not typed
-/// in yet.
+/// prompt to a provider, or open Settings for a box that is still empty.
 #[test]
 fn an_empty_prompt_is_the_first_refusal() {
     let mut state = state();
@@ -45,7 +44,7 @@ fn an_unconfigured_provider_is_the_last_refusal() {
     let refusal = state.assistant_precheck("cut it").err().expect("refusal");
     assert_eq!(
         refusal, "Configure an AI provider in Settings to send this prompt.",
-        "the one refusal that sends the operator somewhere must be the provider"
+        "the one refusal that points at another dialog must be the provider"
     );
 }
 /// Deltas join one bubble. A bubble per delta would print an answer one word to
@@ -159,8 +158,7 @@ fn an_aborted_turn_is_not_remembered() {
     assert!(!state.assistant.running);
 }
 /// A turn stopped before it edited anything has nothing to report undoing: a
-/// "0 edit(s) undone" row would have the operator looking for a change that was
-/// never made.
+/// "0 edit(s) undone" row would point at a change that was never made.
 #[test]
 fn an_aborted_turn_that_edited_nothing_says_only_that_it_stopped() {
     let mut state = state();
@@ -177,8 +175,8 @@ fn an_aborted_turn_that_edited_nothing_says_only_that_it_stopped() {
     );
 }
 /// A dry run says nothing was applied, and says it in the number of steps Apply
-/// would replay. Reporting a plan as an edit would have the operator looking for
-/// a change that is not there; reporting a count the plan does not hold would
+/// would replay. Reporting a plan as an edit would point at a change that is
+/// not there; reporting a count the plan does not hold would
 /// have them approving three edits and getting two.
 #[test]
 fn a_dry_run_says_nothing_was_applied() {
@@ -298,8 +296,7 @@ fn clearing_forgets_both_halves_of_the_conversation() {
     assert!(state.assistant.history.is_empty());
 }
 /// The context handed to the model is in seconds, and the marked range travels
-/// with it: an agent asked to "trim this" needs the in/out points the operator
-/// can see.
+/// with it: an agent asked to "trim this" needs the in/out points on screen.
 #[test]
 fn the_context_reports_the_marks_in_seconds() {
     let mut state = state();
@@ -326,8 +323,8 @@ fn the_composer_names_its_target() {
     assert_eq!(state.assistant_target(), "No model chosen");
 }
 /// Rules cut at the prompt cap must be said out loud. The class this closes: a
-/// rule the operator wrote, believes is in force, and which never reached the
-/// model because it fell off the end of a 4 KB block.
+/// rule that was written, looks in force, and never reached the model because
+/// it fell off the end of a 4 KB block.
 #[test]
 fn truncated_rules_are_reported_before_the_turn() {
     let state = state();

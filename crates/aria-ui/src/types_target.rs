@@ -93,8 +93,8 @@ impl RenameTarget {
 
     /// Whether an empty draft is a value rather than a cancel.
     ///
-    /// A name cannot be blank, so an empty name draft means the operator changed
-    /// their mind. A note can be blank, and clearing one is the only way to take
+    /// A name cannot be blank, so an empty name draft means the rename was
+    /// abandoned. A note can be blank, and clearing one is the only way to take
     /// a stale note off a marker.
     pub fn allows_empty(self) -> bool {
         matches!(

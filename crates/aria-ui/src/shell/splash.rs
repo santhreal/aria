@@ -30,7 +30,7 @@ pub(super) enum Splash {
 ///
 /// A ceiling rather than a target: a missing file, a codec the host cannot
 /// decode, or a device that has gone away all end with no picture arriving, and
-/// the operator should be looking at the editor and its error, not at a splash.
+/// the window should show the editor and its error, not a splash.
 ///
 /// Public because it is the startup budget: the desktop crate's startup test
 /// measures a cold and a warm start against it rather than restating a number

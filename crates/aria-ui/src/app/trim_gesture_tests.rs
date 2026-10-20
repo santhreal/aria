@@ -199,8 +199,8 @@ fn a_roll_moves_the_cut_and_costs_one_undo_entry() {
     assert_eq!(after[1].2, second.2, "the outer edges did not move");
     assert_eq!(after[0].1, first.1);
     assert!(state.revision > before, "the roll landed");
-    // One undo puts both trims back: a rolling edit the operator made in one
-    // gesture must not take two undos to unmake.
+    // One undo puts both trims back: a rolling edit made in one gesture must
+    // not take two undos to unmake.
     assert!(state.undo(), "the group is one entry");
     assert_eq!(clips(&state), placed, "both clips are back where they were");
 }

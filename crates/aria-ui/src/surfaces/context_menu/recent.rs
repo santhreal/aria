@@ -18,8 +18,8 @@ pub const RECENT_ITEMS: &[MenuItem<PathBuf>] = &[
         label: |_| "Open",
         when: always(),
         run: |state, path| {
-            // A project that moved is relinked rather than reported: the operator
-            // asked to open this project, and the answer is a file dialog, not an
+            // A project that moved is relinked rather than reported: the request
+            // is to open this project, and the answer is a file dialog, not an
             // error about a path they did not type.
             if !path.exists() {
                 let missing = path.to_path_buf();

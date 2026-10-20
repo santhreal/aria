@@ -2,7 +2,7 @@
 //!
 //! A palette row, a menu row and a key chord are table entries, so a test can
 //! walk them and check that the command each claims to send is a command
-//! something sends. Everything else an operator presses used to be a `div()`
+//! something sends. Every other pressable control used to be a `div()`
 //! with its action sealed inside a gpui closure: a lane header toggle, a context
 //! menu row, a mixer strip control, an inspector block. Nothing could enumerate
 //! those, so about forty operator-reachable commands sat outside every

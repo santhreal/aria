@@ -1,4 +1,4 @@
-//! The cache registry as the operator sees it: what each cache is, where it lives,
+//! The cache registry as the Caches panel shows it: what each cache is, where it lives,
 //! how much it holds, and how to clear, move, or redirect it.
 //!
 //! `aria-storage` owned the whole model — twelve registered caches, their tiers, their
@@ -53,7 +53,7 @@ pub struct UiCache {
     ///
     /// Read from the layout, never from the settings table: an override the
     /// layout refused is not in force, and a row that claimed it was pointed
-    /// the operator at a directory nothing writes to.
+    /// at a directory nothing writes to.
     pub overridden: bool,
     /// Why a configured override is not in force, when one was configured and
     /// refused.
@@ -108,7 +108,7 @@ impl AppState {
     /// The storage layout this session resolves paths through.
     ///
     /// The root is the config's `[storage].root` when set and the session's data
-    /// directory otherwise, so a test never resolves into the operator's own tree.
+    /// directory otherwise, so a test never resolves into the real data tree.
     /// A malformed override is dropped rather than failing the whole layout: the
     /// remaining caches still have to be usable.
     pub fn storage_layout(&self) -> StorageLayout {
@@ -205,8 +205,8 @@ impl AppState {
 
     /// Measure every disk cache and hold the result.
     ///
-    /// Synchronous on purpose: this runs when the operator asks for it, and the walk is
-    /// the answer they asked for. A cache directory that does not exist yet measures as
+    /// Synchronous on purpose: this runs on request, and the walk is the
+    /// requested answer. A cache directory that does not exist yet measures as
     /// zero rather than as an error — nothing has been written there.
     pub fn measure_caches(&mut self) -> Result<(), String> {
         let layout = self.storage_layout();

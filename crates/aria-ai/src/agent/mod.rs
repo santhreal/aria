@@ -502,8 +502,8 @@ pub fn run_prompt_with_host(
         collect_turn_messages(messages, turn_start, &describe_call_ids, &final_text);
     if config.dry_run {
         // The plan leaves, the projection does not: every step the rehearsal
-        // applied is undone here, so Apply starts from the project the operator
-        // is still looking at.
+        // applied is undone here, so Apply starts from the project still on
+        // screen.
         bridge.rollback_group();
         return PromptOutcome {
             text: final_text,

@@ -3,8 +3,8 @@
 //!
 //! A clip with a deep effect stack is re-rendered on every frame of every
 //! playback. Baking it once to a file and decoding that instead is the standard
-//! answer, and the whole difficulty is the second half: the operator must be
-//! able to go back, after having trimmed, moved, or split the baked clip.
+//! answer, and the difficulty is the second half: an edit must be able to go
+//! back, after having trimmed, moved, or split the baked clip.
 //!
 //! The rule that makes the return exact is that **the intermediate is the
 //! clip's timeline span rendered one-to-one**. The start of the file is the tick

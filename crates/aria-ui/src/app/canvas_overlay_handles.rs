@@ -29,7 +29,7 @@ impl AppState {
         moved
     }
 
-    /// The selected clip's quad as the operator sees it right now: the resolved
+    /// The selected clip's quad as the preview draws it right now: the resolved
     /// quad, moved and scaled by whatever a transform drag has drafted and not
     /// yet committed.
     ///

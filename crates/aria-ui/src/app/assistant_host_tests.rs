@@ -180,7 +180,7 @@ fn looking_and_workspace_work_never_asks() {
     }
     assert!(
         rx.try_next().is_none(),
-        "a read-only or workspace tool asked the operator for permission"
+        "a read-only or workspace tool prompted for permission"
     );
 }
 
@@ -308,7 +308,7 @@ fn a_bad_cache_name_is_refused_and_names_itself() {
     assert!(error.contains("not-a-cache"), "{error}");
 }
 
-/// The model has to be told what happened, and the operator has to see it. One
+/// The model has to receive what happened, and the transcript has to show it. One
 /// applied request produces exactly one transcript row either way.
 #[test]
 fn an_applied_request_answers_the_model_and_shows_in_the_transcript() {
@@ -412,7 +412,7 @@ fn settings_says_whether_a_destructive_call_will_ask() {
 }
 
 /// Ordering matters for the transcript: a question is only shown while it is
-/// live, so the operator never clicks Allow on a call that already returned.
+/// live, so Allow is never clicked on a call that already returned.
 #[test]
 fn a_question_is_shown_once_and_cleared_when_answered() {
     let mut state = state();

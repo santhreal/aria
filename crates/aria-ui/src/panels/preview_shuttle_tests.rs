@@ -1,8 +1,8 @@
 //! What the badge says a rate is.
 //!
 //! The readout is the rate itself, not an index into a list of speeds, so it
-//! must round-trip: an operator reading `-4x` off the badge and pressing J four
-//! times has to arrive where the badge said they already were. The label is
+//! must round-trip: reading `-4x` off the badge and pressing J four times has
+//! to arrive where the badge said playback already was. The label is
 //! asserted over every rate the transport can hold rather than a sample of them.
 //!
 //! Not covered: that the badge is drawn, which needs a window. Its presence rule

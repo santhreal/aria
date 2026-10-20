@@ -2,7 +2,7 @@
 //!
 //! Every case drives the real verbs through a `gpui` entity, because applying a
 //! workspace persists settings and asks the window to redraw — a test that called
-//! the fields directly would prove nothing about the row the operator clicks.
+//! the fields directly would prove nothing about the clicked row.
 //!
 //! The subjects are read out of `layouts::WORKSPACES` at run time, so a fifth
 //! shipped arrangement is covered by these cases without an edit here, and one
@@ -487,12 +487,12 @@ fn a_workspace_nobody_ships_is_refused_and_changes_nothing() {
     let before = panes_of(&subject, &cx);
     assert!(!apply(&subject, &cx, "win-workspace-nothing"));
     // The slot is empty, so its row is not on offer and applying it is refused
-    // rather than restoring the default arrangement under the operator.
+    // rather than silently restoring the default arrangement.
     assert!(!apply(&subject, &cx, CUSTOM_ID));
     assert_eq!(panes_of(&subject, &cx), before);
 }
 
-/// Where the operator is goes with the arrangement, through the guarded verbs:
+/// The current screen goes with the arrangement, through the guarded verbs:
 /// a slot saved on the start screen restores the start screen.
 #[test]
 fn an_arrangement_saved_at_home_takes_the_operator_home() {
@@ -525,8 +525,8 @@ fn the_menu_family_is_the_workspace_table() {
     }
 }
 
-/// Clicking the menu row is what an operator does, so the row is what is driven
-/// here: the closure has to reach the verb with its own id.
+/// A click lands on the menu row, so the row is what is driven here: the
+/// closure has to reach the verb with its own id.
 #[test]
 fn the_menu_row_arranges_the_panes_it_names() {
     let cx = gpui::TestAppContext::single();

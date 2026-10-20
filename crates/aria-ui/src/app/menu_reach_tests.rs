@@ -16,7 +16,7 @@
 //!
 //! What this does not catch, stated plainly:
 //!
-//! - A row that asks the operator for a path is driven with a supplied answer,
+//! - A row that prompts for a path is driven with a supplied answer,
 //!   not with a dialog: see `PICK_ROWS` and the tests under it. What a native
 //!   dialog itself does is not observed here.
 //! - Rows are driven through the entity, not through a drawn window, so what a
@@ -41,7 +41,7 @@ enum Kind {
     /// Writes at least one history entry.
     Edits,
     /// Writes none: it moves the view, opens a route or a dialog, writes to
-    /// disk, or asks the operator for a path.
+    /// disk, or prompts for a path.
     NoEdit,
 }
 use Dress::{
@@ -156,7 +156,7 @@ const ROWS: &[(&str, Kind, Dress)] = &[
     ("view-guides-clear", NoEdit, Clip),
     ("view-split", NoEdit, Clip),
     // Holds a reference picture beside the Program frame, or sets how it is
-    // drawn: the operator's view, not the project.
+    // drawn: the view, not the project.
     ("view-compare-frame", NoEdit, Clip),
     ("view-compare-still", NoEdit, Clip),
     ("view-compare-source", NoEdit, Source),
@@ -192,7 +192,7 @@ const ROWS: &[(&str, Kind, Dress)] = &[
     ("help-data", NoEdit, Clip),
     ("help-about", NoEdit, Clip),
     ("help-updates", NoEdit, Clip),
-    // Asks the operator for a path. With no answer supplied the row asks and
+    // Prompts for a path. With no answer supplied the row prompts and
     // stops, which is why it writes nothing here; each is driven with an answer
     // by a test at the foot of this file.
     ("file-open", NoEdit, Clip),
@@ -448,7 +448,7 @@ fn history_labels(state: &AppState) -> Vec<String> {
 }
 /// Every command label the drivable menu rows produced, measured once.
 ///
-/// Shared with the operator-surface census: the bar is one of the surfaces a
+/// Shared with the UI surface census: the bar is one of the surfaces a
 /// command may be reached from.
 pub(super) fn measured() -> &'static BTreeSet<String> {
     &CENSUS.labels
@@ -520,7 +520,7 @@ static CENSUS: std::sync::LazyLock<MenuCensus> = std::sync::LazyLock::new(|| {
         asking_picks,
     }
 });
-/// Every menu row that asks the operator for a path, with the state and the
+/// Every menu row that prompts for a path, with the state and the
 /// answer it is driven with. Checked against the live menus at run time by
 /// `every_row_that_asks_for_a_path_is_driven_with_an_answer`.
 const PICK_ROWS: &[(&str, Answered)] = &[

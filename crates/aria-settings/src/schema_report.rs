@@ -1,9 +1,9 @@
 //! What this build does with the schema versions a `config.toml` records.
 //!
-//! [`crate::load`] refuses a file whose recorded version it cannot read, and the
-//! refusal names one table. That is the right behaviour and the wrong amount of
-//! information: an operator holding a configuration written by another build
-//! wants to know, per table, which version is on disk, which version this build
+//! [`crate::load`] rejects a file whose recorded version it cannot read, and
+//! the error states one table. That is the right behaviour and the wrong
+//! amount of information: for a configuration written by another build, the
+//! report states, per table, which version is on disk, which version this build
 //! reads, and how far back it migrates. Answering that used to require reading
 //! the source.
 //!
@@ -43,7 +43,7 @@ pub struct ShapeStatus {
 }
 
 impl ShapeStatus {
-    /// One line an operator can act on.
+    /// One line that states the corrective action.
     ///
     /// Phrased from the decision rather than from the numbers alone: "records 1,
     /// reads 2" leaves the reader to work out whether that is fine.

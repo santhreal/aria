@@ -340,12 +340,12 @@ fn row_of(state: &super::AppState, group: &str, param: ClipParam) -> super::clip
 
 /// **A row says whether a key sits under the playhead.**
 ///
-/// The stopwatch draws three states — constant, animated, pinned — and the third
-/// is what tells the operator that pressing it removes a key rather than writing
-/// one. It used to be answered by asking the state again per row while the group
-/// was being built; it travels on the row now, so this holds the three apart: an
-/// unkeyed property is neither, a keyed one with the playhead on the key is both,
-/// and one tick off the key it is animated and not pinned.
+/// The stopwatch draws three states (constant, animated, pinned) and the third
+/// is what shows that pressing it removes a key rather than writing one. It
+/// used to be answered by asking the state again per row while the group was
+/// being built; it travels on the row now, so this holds the three apart: an
+/// unkeyed property is neither, a keyed one with the playhead on the key is
+/// both, and one tick off the key it is animated and not pinned.
 #[test]
 fn a_row_reports_whether_a_keyframe_sits_under_the_playhead() {
     let (mut state, _) = with_clip();

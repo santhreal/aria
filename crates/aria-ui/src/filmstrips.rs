@@ -4,7 +4,7 @@
 //! strip's height. Rendering rather than decoding the source is deliberate: the
 //! renderer already owns colour conversion, transforms, and effects, so a cell
 //! shows what will actually be seen at that tick instead of a raw source frame
-//! the operator never watches.
+//! that never plays.
 //!
 //! Cells are keyed by tick. A normal edit invalidates only cells whose ticks
 //! intersect the picture span it changed; audio-only and organizational edits

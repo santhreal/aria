@@ -12,8 +12,8 @@
 //! sessions locks and fifteen walks per repaint, behind whatever a preview
 //! decode was doing with the same lock. They are measured instead when the
 //! report is opened and again on any re-projection while it is open, both of
-//! which are edit paths that already hold the session. An operator with the
-//! report closed pays nothing.
+//! which are edit paths that already hold the session. With the report closed
+//! the cost is zero.
 //!
 //! **The stage timings are not here.** A frame's cost changes while the report
 //! sits open, so freezing it at open would be a lie; it is recorded where the
@@ -64,7 +64,7 @@ pub struct ProjectReport {
     pub facts: std::sync::Arc<[ProjectFactRow]>,
     /// Every per-clip question with the number of clips it holds for, in
     /// catalog order. Rows nothing answers are kept: "no clip carries a speed
-    /// ramp" is the answer an operator came for.
+    /// ramp" is a useful answer.
     pub clip_facts: std::sync::Arc<[ClipFactRow]>,
     /// Tight size in canvas pixels of what the selected clip's generator
     /// actually draws, sampled at the playhead. `None` for a media clip and for

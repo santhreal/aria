@@ -64,9 +64,9 @@ pub(super) fn home_body(
 /// The offer to take back work a crash interrupted.
 ///
 /// Shown on every Home rail rather than one of them: it is the most urgent
-/// thing on the screen, and an operator looking for their lost afternoon should
-/// not have to find the right tab first. Frosted, because it floats over the
-/// route rather than belonging to the pane under it.
+/// thing on the screen, and lost work should not hide behind the wrong tab.
+/// Frosted, because it floats over the route rather than belonging to the pane
+/// under it.
 pub(super) fn recovery_banner(
     theme: &Theme,
     offer: crate::app::recovery::RecoveryOffer,

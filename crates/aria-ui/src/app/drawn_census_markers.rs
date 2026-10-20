@@ -12,8 +12,8 @@
 //!
 //! The row controls are pressed against a marker the panel would have drawn: a
 //! project with one on the ruler. The add button is pressed against the same
-//! project, because a second marker at the playhead is what an operator gets by
-//! clicking twice.
+//! project, because a second marker at the playhead is what clicking twice
+//! produces.
 
 use std::collections::BTreeSet;
 

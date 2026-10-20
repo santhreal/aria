@@ -1,7 +1,7 @@
 //! Which model, and whether the endpoint will answer.
 //!
-//! The AI section used to let the operator type a model id and a key and told
-//! them nothing else. Both are opaque: a typo in a model id reads exactly like a
+//! The AI section used to take a typed model id and a key and report nothing
+//! else. Both are opaque: a typo in a model id reads exactly like a
 //! model that is merely not installed, and a key that does not resolve reads
 //! exactly like a key that does, right up until the first prompt fails. Two
 //! controls close that:
@@ -109,8 +109,8 @@ fn probe_buttons(
 /// One offerable model: the name, what it is for, and whether it is there.
 ///
 /// A model the endpoint does not have is still offered, marked. Hiding it would
-/// hide the instruction: the row names the model an operator has to install, and
-/// a list that silently omitted it would leave them wondering where it went.
+/// hide the instruction: the row states the model to install, and a list that
+/// silently omitted it would give no hint where it went.
 fn model_row(
     theme: &Theme,
     row: AiModelRow,

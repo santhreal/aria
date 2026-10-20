@@ -543,7 +543,7 @@ fn track(theme: &Theme, fill: f32, hovered: f32) -> impl IntoElement {
 /// property has. Three states are drawn, and the travel between them is the
 /// point: constant, animated, and animated with a keyframe under the playhead.
 /// The dot grows into each state rather than switching, so a misclick is
-/// something the operator sees happen.
+/// visible as it happens.
 fn stopwatch_dot(
     theme: &Theme,
     key: motion::MotionKey,

@@ -48,7 +48,7 @@ fn every_row_has_a_distinct_id() {
 }
 
 /// A refusal message spells the topology's id with spaces, so an id has to
-/// survive that transformation into something an operator can read.
+/// survive that transformation into readable text.
 #[test]
 fn every_id_reads_as_prose() {
     for spec in SHIPPED {

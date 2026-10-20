@@ -49,7 +49,7 @@ fn aiming_at_a_lane_outranks_targeting() {
     let upper = rows(&state)[0];
 
     // The aimed lane is untargeted; a gesture that named a lane still wins,
-    // because the operator was more specific than the flag.
+    // because the gesture is more specific than the flag.
     state
         .toggle_track_targeted(TrackId::from_raw(upper))
         .unwrap();

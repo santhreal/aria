@@ -78,8 +78,8 @@ struct Shared {
     plugins: RwLock<Vec<MountedPlugin>>,
     pending: Mutex<Option<Vec<Registration>>>,
     /// Plugins that failed, in the order they failed. A host reads this to
-    /// tell the user which capability is missing and why, instead of a log line
-    /// nobody sees.
+    /// report which capability is missing and why in the editor, instead of in
+    /// a log line.
     failures: RwLock<Vec<MountFailure>>,
     /// Services asked for and refused, in the order they were asked for.
     denials: RwLock<Vec<CapabilityDenial>>,

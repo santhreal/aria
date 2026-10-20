@@ -168,7 +168,7 @@ impl AppState {
     /// This is the rate-stretch gesture, and it is a speed edit rather than a
     /// trim: a trim would drop source, while this plays the same source faster
     /// or slower. A clip that is already retimed is stretched from where it is,
-    /// not from 1x, so two drags compose the way the operator sees them.
+    /// not from 1x, so two drags compose the way the timeline draws them.
     pub fn rate_stretch(
         &mut self,
         clip: ClipId,

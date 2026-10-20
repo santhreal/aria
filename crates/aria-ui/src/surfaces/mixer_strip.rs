@@ -20,7 +20,7 @@ use aria_models::{AutomationMode, TrackId};
 use crate::app::AppState;
 use crate::app::mixer::FaderTarget;
 
-/// One thing an operator does to the mixer.
+/// One gesture on the mixer.
 pub enum Gesture {
     /// Point a lane at a bus, or back at the master.
     PointOutput {
@@ -57,7 +57,7 @@ pub enum Gesture {
 }
 
 impl Gesture {
-    /// What the operator did, for a census and for a failure message.
+    /// The gesture, for a census and for a failure message.
     pub fn what(&self) -> &'static str {
         match self {
             Self::PointOutput { .. } => "a lane pointed at a bus",

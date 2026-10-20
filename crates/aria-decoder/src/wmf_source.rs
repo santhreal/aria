@@ -59,7 +59,7 @@ pub(crate) fn open_source_reader(
         Err(stream_err) => {
             unsafe { MFCreateSourceReaderFromURL(&url, attributes) }.map_err(|url_err| {
                 // An unrecognized container is a capability gap, not an I/O
-                // failure — tell the caller (and the user) which it is.
+                // failure; the error states which one it is.
                 if stream_err.code() == MF_E_UNSUPPORTED_BYTESTREAM_TYPE
                     || url_err.code() == MF_E_UNSUPPORTED_BYTESTREAM_TYPE
                 {

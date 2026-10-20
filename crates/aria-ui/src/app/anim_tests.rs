@@ -73,7 +73,7 @@ fn a_text_only_preset_is_not_offered_on_a_media_clip() {
             );
         }
         // Every non-text preset for this slot must be offered: a missing one is
-        // a feature the operator cannot reach.
+        // a feature no control reaches.
         let expected = animation_catalog()
             .iter()
             .filter(|spec| spec.slot == slot && !spec.text_only)

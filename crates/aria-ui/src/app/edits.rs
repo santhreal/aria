@@ -10,7 +10,7 @@
 //!
 //! An edit naming a marker that no longer exists is inert and `Ok`, not an
 //! error: a menu built one frame ago may reference a marker deleted since, and
-//! that is a stale surface rather than a failure the operator should see.
+//! that is a stale surface rather than a failure to report.
 
 use aria_commands::{Command, EditCommand};
 use aria_engine::EngineError;
@@ -554,7 +554,7 @@ impl AppState {
     /// Split the selected clip's audio onto its own track.
     ///
     /// Refusal is a status message, not an error: the capability is the
-    /// engine's to decide and the operator only needs to be told.
+    /// engine's to decide and the status line only reports it.
     pub fn extract_selected_audio(&mut self) -> Result<(), EngineError> {
         let Some(clip) = self.selected_clip() else {
             self.status_message = Some("Select a clip first".into());

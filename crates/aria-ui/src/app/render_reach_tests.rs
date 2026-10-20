@@ -240,7 +240,7 @@ fn an_unmeasured_frame_reads_as_unmeasured() {
 }
 
 /// The readout shows every number the split holds. A stage dropped from the
-/// row list is a cost the operator is billed for and never shown.
+/// row list is a cost that is paid and never shown.
 #[test]
 fn the_readout_names_every_number_in_the_split() {
     let stats = UiRenderStats {

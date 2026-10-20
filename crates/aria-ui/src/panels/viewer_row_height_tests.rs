@@ -2,7 +2,7 @@
 //! put it in.
 //!
 //! The class closed here: a control that changes the row's height when it is
-//! drawn, lit, or swapped, so the picture above jumps as the operator works. A
+//! drawn, lit, or swapped, so the picture above jumps during editing. A
 //! Viewer with room draws the row as one 40 px line, and every control in it is
 //! `Theme::ICON_HIT` high on the centre of the line under the row's top border.
 //! The row is measured at rest and after each toggle in it is pressed, and

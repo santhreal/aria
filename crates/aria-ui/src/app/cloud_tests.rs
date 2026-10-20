@@ -1,7 +1,7 @@
 //! Contracts for the cloud feeds: routing, card mapping, and load state.
 //!
 //! No test here opens a socket. What is asserted is everything that decides what a
-//! request would be and what the operator sees around it, because those are the parts
+//! request would be and what the panel shows around it, because those are the parts
 //! that were wrong when the surface did not exist:
 //!
 //! - The BYOK rule. A configured stock key must route the query at the provider, not

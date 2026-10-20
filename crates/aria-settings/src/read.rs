@@ -32,8 +32,8 @@ use crate::{
 /// A value the config file held that this build could not use.
 ///
 /// The load succeeded and the key kept its default; this is the record of what
-/// was in the file so the operator can be told which line of their own config
-/// had no effect.
+/// was in the file, so the report can state which line of the config had no
+/// effect.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Rejected {
     /// The dotted key, written the way the file writes it:
@@ -46,7 +46,7 @@ pub struct Rejected {
 }
 
 impl Rejected {
-    /// One line for an operator, naming the key, the value, and the reason.
+    /// One report line stating the key, the value, and the reason.
     pub fn line(&self) -> String {
         format!("{} = {}: {}", self.key, self.value, self.why.reason())
     }
@@ -276,8 +276,8 @@ fn refuse(out: &mut Vec<Rejected>, key: String, value: String, why: Refusal) {
     out.push(Rejected { key, value, why });
 }
 
-/// What an item held, rendered the way the file writes it, so the operator can
-/// match the report against a line in their own config.
+/// What an item held, rendered the way the file writes it, so a report line
+/// matches a line in the config.
 fn item_text(item: &Item) -> String {
     if let Some(text) = item.as_str() {
         return format!("{text:?}");

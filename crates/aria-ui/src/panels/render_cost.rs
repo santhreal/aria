@@ -1,9 +1,9 @@
 //! What the last rendered frame cost, split by stage.
 //!
 //! `FrameStats` splits a render into decode, raster, and composite, and names
-//! the part that shrinks when the preview renders smaller. The engine has always
-//! published it and no surface read it, so "playback is slow" had no answer
-//! inside the app: the operator could see a dropped frame and not whether it was
+//! the part that shrinks when the preview renders smaller. The engine has
+//! always published it and no surface read it, so "playback is slow" had no
+//! answer inside the app: a dropped frame was visible and not whether it was
 //! the file, the text layout, or the GPU.
 //!
 //! The rows are `UiRenderStats::rows`, which is the one owner of what the split
@@ -68,7 +68,7 @@ pub(crate) fn render(
 ///
 /// Absent on a frame with no effect pass, like the playback line: a scene
 /// without effects has no pass count to answer for. What it answers is "why is
-/// this frame dear" — a chain the operator stacked is drawn once per layer, and
+/// this frame dear": a stacked chain is drawn once per layer, and
 /// the second number says how much of that the compositor had to build rather
 /// than reuse.
 fn passes(
@@ -93,8 +93,8 @@ fn passes(
 /// read as a failure.
 ///
 /// The colour is the verdict, not decoration: green while the run holds the
-/// sequence's rate, amber once it does not, because a rate the operator has to
-/// compare against a target himself is a number he will not read.
+/// sequence's rate, amber once it does not, because a rate that has to be
+/// compared against a target by hand is a number nobody reads.
 fn playback(theme: &Theme, report: aria_render::PlaybackReport) -> Option<gpui::AnyElement> {
     if report.is_empty() {
         return None;

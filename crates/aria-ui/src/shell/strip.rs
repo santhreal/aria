@@ -20,8 +20,8 @@ pub(super) fn status_strip(
     // `cx` mutably: the projection read has to be over by then.
     //
     // Nothing else in the editor says a nest is open, and an edit inside one
-    // does not reach the root timeline, so without this the operator can trim
-    // for a minute in a sequence they no longer remember opening.
+    // does not reach the root timeline, so without this a minute of trims can
+    // land in a sequence opened and since forgotten.
     let breadcrumb = state.read(cx).open_sequence_name().map(str::to_string);
     let breadcrumb = breadcrumb.map(|name| {
         crate::components::chip(

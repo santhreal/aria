@@ -24,8 +24,8 @@ impl AppState {
     /// Which folder is open, and the one place it is written.
     ///
     /// The folder views are built from this and from the folder tree, so a
-    /// command that moved the operator to another folder and wrote the field
-    /// itself left the breadcrumb and the rows describing the folder they came
+    /// command that moved the view to another folder and wrote the field
+    /// itself left the breadcrumb and the rows describing the folder it came
     /// from. Every way of moving goes through here, and a test holds it: the
     /// field is assigned in one place in the crate.
     fn set_open_bin(&mut self, bin: Option<u64>) {

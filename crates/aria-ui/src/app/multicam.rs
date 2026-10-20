@@ -30,7 +30,7 @@ impl AppState {
             .map(|group| MulticamGroupId::from_raw(group.id)))
     }
 
-    /// Every selected pool item, in the order the operator picked them.
+    /// Every selected pool item, in pick order.
     ///
     /// The order is the angle order of a group built from it, which is why the
     /// selection keeps pick order rather than the order the list happens to be
@@ -200,7 +200,7 @@ impl AppState {
             .map(|measured| (measured.angle, measured.offset))
             .collect();
         // A group with some cameras moved and some not is out of sync in a way
-        // the operator cannot see, so nothing lands.
+        // the timeline cannot show, so nothing lands.
         self.one_step(|this| {
             moved.iter().try_for_each(|(angle, offset)| {
                 this.set_multicam_angle_offset(group, *angle, *offset)

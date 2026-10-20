@@ -204,7 +204,7 @@ fn a_cached_asset_path_is_keyed_by_feed_and_id_and_is_filename_safe() {
 #[test]
 fn an_empty_stock_query_clears_the_feed_instead_of_searching() {
     // Every provider answers an empty query with its idea of "popular", which is not
-    // what the operator asked for.
+    // what the query requested.
     let (mut state, _) = with_clip();
     state.cloud_feeds.insert(
         CloudFeed::Stock,

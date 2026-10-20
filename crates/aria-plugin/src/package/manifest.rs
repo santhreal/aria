@@ -141,7 +141,7 @@ pub enum Access {
 pub enum FsScope {
     /// The open project's folder.
     Project,
-    /// Paths the user picks in a host dialog.
+    /// Paths picked in a host dialog.
     Pick,
     /// One absolute path and everything under it.
     Path(PathBuf),

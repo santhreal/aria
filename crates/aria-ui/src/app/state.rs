@@ -162,7 +162,7 @@ pub struct AppState {
     /// to age it out. Not written by the forty-odd places that post a status:
     /// `age_status` notices the text changed and starts the clock itself.
     pub status_seen: Option<(String, std::time::Instant)>,
-    /// The inspector tab the operator picked, by id. A string because the tab
+    /// The picked inspector tab, by id. A string because the tab
     /// list is data: a tab has no enum variant to be.
     pub inspector_tab: String,
     pub sidebar_tab: SidebarTab,
@@ -412,7 +412,7 @@ pub struct AppState {
     pub media_sort: crate::types::MediaSort,
     /// Whether the bin's order menu is open.
     pub(crate) media_sort_list_open: bool,
-    /// The pool items the operator has picked, in pick order. Its focus is the
+    /// The picked pool items, in pick order. Its focus is the
     /// last one acted on, which is what a single-item row means; the whole set
     /// is what a multicam group is built from.
     pub pool_selection: crate::app::pool_selection::PoolSelection,
@@ -527,8 +527,8 @@ pub struct AppState {
     pub(crate) viewer_probe: info::ViewerProbe,
     /// What the Align panel lines the selection up against.
     pub(crate) align_to: align::AlignTo,
-    /// What the operator asked for while the project had unsaved edits, held
-    /// until they answer the prompt. Only ever set while the unsaved-changes
+    /// The action requested while the project had unsaved edits, held until
+    /// the prompt is answered. Only ever set while the unsaved-changes
     /// dialog is up.
     pub(crate) pending_intent: Option<unsaved::PendingIntent>,
     /// Set once leaving the app has been answered, or needed no answer. The
@@ -557,8 +557,8 @@ pub struct AppState {
     /// not move it: the projection carries the playhead as a value and derives
     /// nothing from it.
     pub(crate) projections: u64,
-    /// The picks the session has asked the operator for, and the answers a test
-    /// supplied in their place. One owner: `picker` is the only way a dialog
+    /// The picks the session has prompted for, and the answers a test supplied
+    /// in their place. One owner: `picker` is the only way a dialog
     /// opens.
     pub(crate) picks: picker::Picks,
     /// Plugin-declared panels as last read, and the one draft and drag a

@@ -457,7 +457,7 @@ pub enum TreeError {
     TooMuchImage,
 }
 
-/// What the user did to one control of a panel.
+/// An input event on one control of a panel.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum PanelEvent {

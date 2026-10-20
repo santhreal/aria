@@ -1,7 +1,7 @@
 //! What a view change does to the timeline's zoom and horizontal offset.
 //!
 //! Three contracts live here. The follow moves the view only when the playhead is
-//! about to leave it, so a view the operator scrolled to on purpose survives
+//! about to leave it, so a view scrolled to on purpose survives
 //! playback that stays inside it. The offset carries how it should be drawn: the
 //! timeline eases a view the editor chose and never eases one that is moving
 //! under a hand, so every writer records which it is. And the zoom the panel
@@ -74,8 +74,8 @@ fn the_view_follows_a_playhead_that_has_run_past_it() {
         state.scroll_x,
         state.scroll_x + width
     );
-    // It rests near the left, not centred: what plays next is what the operator
-    // needs to see.
+    // It rests near the left, not centred: what plays next is what has to be
+    // visible.
     assert!(at - state.scroll_x < width * 0.5);
     assert!(state.scroll_eased, "a view the editor chose arrives eased");
     assert_eq!(state.store.scroll_x, state.scroll_x);

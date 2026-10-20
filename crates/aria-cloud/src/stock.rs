@@ -2,8 +2,8 @@
 //!
 //! - [`BackendStockProvider`]: anonymous, routes through `aria-backend`
 //!   (the server holds the Pexels/Pixabay keys and caches responses).
-//! - [`DirectStockProvider`]: BYOK — the user configured their own stock
-//!   keys, so even search skips the backend entirely.
+//! - [`DirectStockProvider`]: BYOK. Stock keys are configured locally, so
+//!   even search skips the backend entirely.
 //!
 //! Both normalize into the shared [`StockItem`] DTO; the Library UI cannot
 //! tell them apart. File downloads always go direct to the provider CDN

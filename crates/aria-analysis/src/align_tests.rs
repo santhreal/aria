@@ -7,8 +7,8 @@
 //! measurement that computes it: the sign of the lag, what a weak match looks
 //! like, and every input that must be refused rather than answered with a
 //! number. The refusals matter more than the match: an offset applied from a
-//! guess moves every camera in the group away from sync, and the operator has
-//! no way to tell that from a real answer.
+//! guess moves every camera in the group away from sync, and the result looks
+//! the same as a real answer.
 
 use super::{
     ALIGN_BUDGET, AlignConfig, MAX_ALIGN_LAG, MAX_ALIGN_SAMPLES, RIVAL_GAP, align, align_anywhere,

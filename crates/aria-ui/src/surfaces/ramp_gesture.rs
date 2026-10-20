@@ -23,7 +23,7 @@ use aria_engine::EngineError;
 
 use crate::app::AppState;
 
-/// One thing an operator does to the speed graph.
+/// One gesture on the speed graph.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Gesture {
     /// A left press on the graph.
@@ -37,7 +37,7 @@ pub enum Gesture {
 }
 
 impl Gesture {
-    /// What the operator did, for a census and for a failure message.
+    /// The gesture, for a census and for a failure message.
     pub fn what(&self) -> &'static str {
         match self {
             Self::Press { .. } => "a press on the speed graph",

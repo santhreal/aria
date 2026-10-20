@@ -4,8 +4,8 @@ use crate::action::edit::restore_clip::RestoreClipAction;
 use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
 
-/// Set (or clear) a clip's operator-given name. Accepted on every clip kind — a
-/// name is what the operator calls the clip, not a property of the content — and
+/// Set (or clear) a clip's given name. Accepted on every clip kind, since a
+/// name is an editorial label, not a property of the content, and
 /// changes no duration, so there is no neighbour check. The inverse is a
 /// full-clip restore, like the other flag edits.
 pub fn set_clip_name(

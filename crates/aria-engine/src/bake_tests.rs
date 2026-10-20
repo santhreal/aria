@@ -240,7 +240,7 @@ fn every_refusal_names_what_is_wrong() {
     bake_project(&project, unknown).expect_err("no such clip");
 }
 
-/// A pass is built from a clone, so the project the operator is editing is not
+/// A pass is built from a clone, so the project being edited is not
 /// disturbed by asking what a bake would render.
 #[test]
 fn building_a_pass_leaves_the_project_alone() {

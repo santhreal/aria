@@ -403,10 +403,10 @@ fn a_lane_added_inside_a_sequence_holds_the_clips_placed_on_it() {
 ///
 /// Walks the census, so a command added to the surface is covered by existing.
 /// The class: an edit that reaches for the project's root timeline instead of
-/// the one the operator has open silently writes into a timeline nobody is
-/// looking at — and, when its sibling reads the open one, refuses the next edit
-/// outright. Asserting the root is byte-identical catches both directions
-/// without naming a single command.
+/// the open one silently writes into a timeline that is not on screen and,
+/// when its sibling reads the open one, fails the next edit outright.
+/// Asserting the root is byte-identical catches both directions without naming
+/// a single command.
 #[test]
 fn no_edit_touches_the_root_timeline_while_a_sequence_is_open() {
     for sample in every_edit_command() {

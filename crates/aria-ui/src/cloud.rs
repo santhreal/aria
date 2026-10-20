@@ -94,7 +94,7 @@ pub struct CloudCard {
     /// The extension the downloaded file should carry, derived from the URL, because
     /// the importer dispatches on it.
     pub extension: String,
-    /// Attribution the operator is obliged to keep, empty when the licence needs none.
+    /// Attribution the licence requires keeping, empty when the licence needs none.
     pub attribution: String,
 }
 
@@ -142,7 +142,7 @@ impl FeedState {
 /// available.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StockRoute {
-    /// The user's own Pexels / Pixabay keys.
+    /// Locally configured Pexels / Pixabay keys.
     Direct,
     /// Anonymous, through the Aria backend.
     Backend,

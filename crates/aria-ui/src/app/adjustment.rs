@@ -2,9 +2,9 @@
 //!
 //! The model has held `TrackKind::Adjustment` and `Generator::Adjustment` since
 //! the look work, and the resolver turns such a bar into a canvas pass, but no
-//! surface could create one. The span is taken from what the operator has
-//! already said: the marked range, else the selection, else the whole sequence —
-//! the same order of preference the export sheet uses, so one gesture does not
+//! surface could create one. The span is taken from what is already marked:
+//! the marked range, else the selection, else the whole sequence. This is the
+//! same order of preference the export sheet uses, so one gesture does not
 //! mean two different ranges in two places.
 //!
 //! Placement is refused on overlap by the model, so a second layer over an

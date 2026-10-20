@@ -1,12 +1,11 @@
 //! Telling a seek from a scrub, so the frame can cross-fade on one and not the
 //! other.
 //!
-//! A new frame deserves a fade when it replaces one the operator had been
-//! looking at: click a tick on the ruler, press a transport key, jump to a
-//! marker. It must not get one while the playhead is being dragged, because a
-//! fade that restarts every frame never finishes, and a frame that never
-//! reaches full opacity during a scrub is worse than one that never fades at
-//! all.
+//! A new frame deserves a fade when it replaces one that had been on screen:
+//! click a tick on the ruler, press a transport key, jump to a marker. It must
+//! not get one while the playhead is being dragged, because a fade that
+//! restarts every frame never finishes, and a frame that never reaches full
+//! opacity during a scrub is worse than one that never fades at all.
 //!
 //! The two cases differ only in their spacing, and that is all this reads: if
 //! the previous change arrived less than one fade ago, the changes are a run

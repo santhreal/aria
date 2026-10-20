@@ -1,4 +1,4 @@
-//! Handing a path to another application on the operator's desktop.
+//! Handing a path to another application on the desktop.
 //!
 //! One owner, **off until the shipped editor turns it on**. [`open_folder`] is
 //! the only place in the crate that spawns a process, and it spawns nothing
@@ -8,7 +8,7 @@
 //! The direction matters. A guard a test opts out of opens a window the first
 //! time a new test forgets, and that is exactly what happened: the menu reach
 //! test runs every menu item, "Open data dir" reveals a folder, and a suite on
-//! the operator's machine opened a file manager on their desktop. A capability
+//! a workstation opened a file manager on its desktop. A capability
 //! the *application* switches on cannot be forgotten by a test, because a test
 //! never runs the application.
 //!
@@ -25,7 +25,7 @@ use std::sync::{Mutex, PoisonError};
 static ENABLED: AtomicBool = AtomicBool::new(false);
 
 /// The folder the last reveal asked for. One slot, not a log: a shipped session
-/// reveals as often as the operator clicks, and a growing list would be a leak
+/// reveals once per click, and a growing list would be a leak
 /// for the sake of a test.
 static LAST: Mutex<Option<PathBuf>> = Mutex::new(None);
 

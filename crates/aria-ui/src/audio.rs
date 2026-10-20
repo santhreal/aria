@@ -434,7 +434,7 @@ impl AudioHandle {
         }
     }
 
-    /// Forget the clip indication. The operator has seen it; a meter that could
+    /// Forget the clip indication once it has been seen; a meter that could
     /// never be reset would report one old clip for the rest of the session.
     pub fn clear_clip(&self) {
         self.inner.clipped.store(false, Ordering::Relaxed);

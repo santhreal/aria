@@ -1,4 +1,4 @@
-//! Abandoning a frame the operator has already scrubbed past.
+//! Abandoning a frame the scrub has already passed.
 //!
 //! The class these close: work that keeps running after nobody wants it. A
 //! preview frame holds the engine lock for its whole length, so a frame that
@@ -105,7 +105,7 @@ fn cancelling_between_the_arm_and_the_frame_still_stops_it() {
     let Some((_dir, mut engine)) = one_clip_sequence() else {
         return;
     };
-    // What a scrub does: the token is armed, the operator moves the playhead,
+    // What a scrub does: the token is armed, the playhead moves,
     // and only then does the frame start reading it.
     let cancel = Cancel::new();
     engine.cancel_next_frame(cancel.clone());

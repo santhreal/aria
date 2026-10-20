@@ -213,8 +213,8 @@ pub fn render(
     }
     for job in &running {
         // The percentage stays in the label: a bar says roughly how far, and a
-        // render long enough to need one is also long enough that the operator
-        // wants the number.
+        // render long enough to need one is also long enough to need the
+        // number.
         let line: SharedString = match job.progress {
             Some(fraction) => format!("{} · {:.0}%", job.label, fraction * 100.0).into(),
             None => job.label.clone(),
@@ -231,7 +231,7 @@ pub fn render(
             .into_any_element(),
         );
         // A render is the longest thing this sheet starts, and the sheet is
-        // where the operator is standing when they change their mind. The same
+        // where a change of mind happens. The same
         // control as the board's, from the same owner.
         in_flight.extend(crate::pending::stop_button("export", job, &theme, cx));
     }

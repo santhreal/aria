@@ -441,7 +441,7 @@ fn nested() -> AppState {
     state
 }
 
-/// The state a row that asks the operator for a path is driven against, with the
+/// The state a row that prompts for a path is driven against, with the
 /// answer already supplied.
 ///
 /// A file dialog is not a surface a test can open, so the row would otherwise

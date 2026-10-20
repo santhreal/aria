@@ -40,7 +40,7 @@ use super::premiere_tests::with_clip;
 use crate::keys::KeyBody;
 use crate::keys::bindings::SHIPPED_BINDINGS;
 
-/// The words a driven surface may state in an operator reach declaration.
+/// The words a driven surface may state in a UI reach declaration.
 ///
 /// This is a closed allowlist, not an exception table. Every word corresponds to
 /// a registry the census presses below. A command that states a new surface

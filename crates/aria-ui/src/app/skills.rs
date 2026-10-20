@@ -31,7 +31,7 @@ impl AppState {
     /// Where rules, skills, and slash commands live for this session.
     ///
     /// Derived from `data_dir` like every other path the app owns, so a test with its
-    /// own scratch directory cannot install into the operator's real agent directory.
+    /// own scratch directory cannot install into the real agent directory.
     pub fn agent_dir(&self) -> PathBuf {
         self.data_dir.join("agent")
     }

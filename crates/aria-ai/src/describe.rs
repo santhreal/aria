@@ -18,7 +18,7 @@ pub use crate::describe_window::{
 use crate::describe_window::{Plan, plan};
 use crate::wire::WireScale;
 
-/// UI session state captured when the user hits send. This is how "the
+/// UI session state captured when a prompt is sent. This is how "the
 /// selected clip" and "at the playhead" resolve to ids and times.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct EditorContext {

@@ -6,11 +6,10 @@
 //!
 //! - Status is derived from the pair (state, cancel_requested). A cancel that has been
 //!   accepted but whose thread has not exited must read differently from Running, or a
-//!   job the operator already stopped looks stuck and gets stopped again.
+//!   job already stopped looks stuck and gets stopped again.
 //! - A terminal row stops offering Cancel, and asking anyway is reported. A Cancel that
 //!   silently does nothing is the worse surface.
-//! - Newest first. The row an operator just created must not be below sixty finished
-//!   ones.
+//! - Newest first. The row just created must not be below sixty finished ones.
 //! - Export refuses an empty timeline by name instead of spawning a job that fails a
 //!   minute later.
 //!
@@ -442,8 +441,8 @@ fn a_cancel_before_the_boundary_stops_the_write_and_after_it_does_not() {
 /// pending strip up did that four times while the job threads writing progress
 /// contended for the same lock. It is a projection now, refreshed where the list
 /// changes — and that only holds if every producer goes through the one owner
-/// that refreshes it. A job registered directly is a job the operator does not
-/// see until something else happens to publish, so a new producer that reaches
+/// that refreshes it. A job registered directly is a job the board does not
+/// show until something else happens to publish, so a new producer that reaches
 /// past `AppState::spawn_job` is red here rather than mysteriously slow to
 /// appear.
 #[test]
@@ -515,8 +514,8 @@ async fn a_progress_report_reaches_the_board(cx: &mut gpui::TestAppContext) {
             });
         })
     });
-    // The row exists in the update that started the work: the operator pressed a
-    // button, and the wake is a scheduler hop away.
+    // The row exists in the update that started the work: a button was pressed,
+    // and the wake is a scheduler hop away.
     assert!(
         cx.update(|app| {
             entity

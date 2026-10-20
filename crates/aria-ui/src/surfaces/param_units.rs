@@ -1,7 +1,7 @@
 //! Properties a block reads in units the catalog does not carry.
 //!
 //! A property's range comes from the model, and for almost every row that is
-//! also the scale the operator reads: a mask feather in the unit interval, a
+//! also the display scale: a mask feather in the unit interval, a
 //! shadow offset in pixels. A gain is the exception. It is stored as the linear
 //! multiplier the mixer applies and ridden in decibels, so one step is a decibel
 //! at unity and a decibel at a whisper, while a fixed step in the multiplier is

@@ -5,9 +5,8 @@
 //! Every dialog was opened by a chord and answered by a click. `Ctrl+E` put the
 //! export sheet on screen and Enter did nothing there, because the shell
 //! consumed Enter in exactly two places: a focused text field, and the palette.
-//! A dialog an operator can open from the keyboard and cannot commit from the
-//! keyboard is half a surface, and the half that is missing is the one that
-//! does the work.
+//! A dialog that opens from the keyboard and cannot commit from the keyboard is
+//! half a surface, and the half that is missing is the one that does the work.
 //!
 //! The decision is a row per [`DialogKind`], matched exhaustively. A new dialog
 //! does not compile until it says whether Enter commits it, and when it does

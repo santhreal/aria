@@ -1,6 +1,6 @@
 //! AI generation (image / video / TTS) — the client half.
 //!
-//! [`FalGenerationProvider`]: the user's own fal.ai key talking to the
+//! [`FalGenerationProvider`]: a configured fal.ai key talking to the
 //! fal queue API directly — backend fully out of the loop. The job id
 //! is the fal request id, namespaced per model.
 //!
@@ -41,7 +41,7 @@ pub trait GenerationProvider: Send {
 // BYOK (direct fal.ai) path
 // ---------------------------------------------------------------------------
 
-/// Direct fal.ai queue access with the user's own key.
+/// Direct fal.ai queue access with a configured key.
 pub struct FalGenerationProvider {
     api_key: String,
     queue_base: String,

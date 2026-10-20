@@ -27,7 +27,7 @@ pub struct SpecRow {
     /// curves are not the same motion, so the feel is pinned here the way the
     /// timing is.
     pub easing: Easing,
-    /// What the timing is for, in terms of what the operator sees.
+    /// What the timing is for, in terms of what the screen shows.
     pub purpose: &'static str,
     /// The file that spends it, relative to the workspace root.
     pub file: &'static str,
@@ -427,7 +427,7 @@ mod tests {
         }
     }
 
-    /// The document is the operator-facing half of the catalog. A spec missing
+    /// The document is the published half of the catalog. A spec missing
     /// from it, or a spec whose curve, duration, or delay is not written down,
     /// is a timing nobody outside this file can look up.
     #[test]

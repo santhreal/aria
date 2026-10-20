@@ -1,7 +1,7 @@
 //! Contracts for per-lane display options: height, waveform, filmstrip.
 //!
 //! The class closed here is "a view option is kept in the session, so reopening
-//! the project throws the operator's timeline layout away". Every assertion goes
+//! the project throws the timeline layout away". Every assertion goes
 //! through the projected store — the panel draws from the projection — and the
 //! persistence case round-trips a save and an open, because that is the failure
 //! the class is about.
@@ -196,10 +196,7 @@ fn collapsing_keeps_the_height_it_will_expand_back_to() {
     state.toggle_lane_collapsed(track).expect("collapse");
     let display = state.lane_display(track);
     assert!(display.collapsed);
-    assert_eq!(
-        display.height, 110,
-        "a collapsed lane keeps the height the operator gave it"
-    );
+    assert_eq!(display.height, 110, "a collapsed lane keeps its set height");
     state.toggle_lane_collapsed(track).expect("expand");
     let display = state.lane_display(track);
     assert!(!display.collapsed);

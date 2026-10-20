@@ -2,7 +2,7 @@
 //!
 //! One arm per wire command, and the same string is the chat entry, the undo
 //! tooltip, and the format the eval tests assert against. Writing it in editor
-//! language rather than in the wire shape is the point: the operator reads
+//! language rather than in the wire shape means the transcript reads
 //! "split clip 7 at 12.40s", not a JSON call, and a command whose line reads
 //! wrong is a command whose meaning was wrong.
 
@@ -695,7 +695,7 @@ pub fn describe_action(command: &WireCommand, outcome: Option<&EditOutcome>) -> 
     };
     // Exhaustive on purpose, with no `_` arm: the ids the assistant reports back
     // are the ones a follow-up turn can address, and an outcome that creates
-    // something the operator cannot then name is a silent hole. A new
+    // something no later turn can name is a silent hole. A new
     // `EditOutcome` variant stops this file compiling, which is where the
     // decision belongs.
     match outcome {

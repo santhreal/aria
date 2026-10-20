@@ -183,7 +183,7 @@ fn cancelling_mid_stream_rolls_back_the_edits_the_turn_had_applied() {
 }
 
 /// Cancellation is a flag, not a thread kill: a `chat` that never reads it runs
-/// to completion after the operator pressed Stop, and the panel keeps printing
+/// to completion after Stop is pressed, and the panel keeps printing
 /// an answer nobody is waiting for. Derived from the source, so a provider file
 /// joining the crate with an ignored flag fails this instead of shipping.
 #[test]

@@ -80,8 +80,8 @@ impl AppState {
     ///
     /// Every writer goes through here, so the model value and the store's copy
     /// are one edit and `eased` is the only decision a caller has to make. A
-    /// view the operator is moving by hand — a wheel notch, a pan drag, a
-    /// pointer-anchored zoom — has to land under that input and is not eased. A
+    /// view moved by hand (a wheel notch, a pan drag, a pointer-anchored zoom)
+    /// has to land under that input and is not eased. A
     /// view the editor chose — a fit, playback catching up — arrives instead.
     pub(crate) fn scroll_timeline_to(&mut self, x: f32, eased: bool) {
         let x = x.max(0.0);
@@ -245,7 +245,7 @@ impl AppState {
         let scroll = ((start_ticks.max(0) as f32 / fps.max(1.0)) * pps).max(0.0);
         self.set_zoom(zoom, true);
         self.scroll_timeline_to(scroll, true);
-        // A fit is a view change the operator can see; the previous status line
+        // A fit is a visible view change; the previous status line
         // is about something else and would read as this action's result.
         self.status_message = None;
         true

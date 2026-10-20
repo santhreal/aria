@@ -11,7 +11,7 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-/// What the user asked for.
+/// The requested operation.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Verb {
     /// Composite a demo scene on a headless GPU.

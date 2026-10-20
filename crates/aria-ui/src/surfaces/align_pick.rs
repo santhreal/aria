@@ -1,4 +1,4 @@
-//! What an operator presses in the Align panel: an edge to line the selection
+//! The controls pressed in the Align panel: an edge to line the selection
 //! up on, or an axis to spread it along.
 //!
 //! The Align To selector stays out. It chooses what the next press aligns
@@ -20,7 +20,7 @@ pub enum Pick {
 }
 
 impl Pick {
-    /// What the operator pressed, for a census and for a failure message.
+    /// The pressed control, for a census and for a failure message.
     pub fn what(&self) -> &'static str {
         match self {
             Self::Align(_) => "the selection aligned on an edge",

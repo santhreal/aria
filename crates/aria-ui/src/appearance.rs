@@ -59,7 +59,7 @@ pub fn resolve(mode: AppearanceMode, system: Appearance) -> Appearance {
 ///
 /// A control that offers a mode can then draw the palette the click would
 /// install, rather than naming it: "System" is not a colour, and which one it
-/// means is exactly what the operator cannot see from the word.
+/// means is not visible from the word.
 pub fn preview(mode: AppearanceMode, cx: &App) -> Appearance {
     let system = cx
         .try_global::<AppearanceState>()

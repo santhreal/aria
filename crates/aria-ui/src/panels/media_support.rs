@@ -39,7 +39,7 @@ struct Action {
     run: fn(&mut AppState),
 }
 
-/// The actions the panel offers, in the order an operator reaches for them.
+/// The actions the panel offers, in order of use.
 ///
 /// A table rather than four hand-built buttons: each row is one verb, and the
 /// only thing a new capability needs here is a row.

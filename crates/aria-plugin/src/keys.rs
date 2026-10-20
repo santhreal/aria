@@ -205,7 +205,7 @@ impl KeyRoute {
     }
 }
 
-/// The chord a command answers to until the user rebinds it.
+/// The chord bound to a command until a rebinding replaces it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KeyDefault {
     /// The command the chord runs.

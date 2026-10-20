@@ -262,8 +262,8 @@ fn recent_card(
         )
         .child(
             div()
-                // The dimmest tier: the folder is how the operator tells two
-                // projects with the same name apart, and nothing else. One
+                // The dimmest tier: the folder distinguishes two projects with
+                // the same name apart, and nothing else. One
                 // line, giving up its start, so the folder's own name stays.
                 .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_dim)

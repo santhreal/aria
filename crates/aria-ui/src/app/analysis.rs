@@ -103,8 +103,8 @@ impl AppState {
 
     /// Delete every stored analysis for every media file.
     ///
-    /// The whole index goes, rather than a batch at a time: the operator asking to
-    /// clear a cache is asking to reclaim the disk, and a per-media clear already
+    /// The whole index goes, rather than a batch at a time: a request to clear a
+    /// cache is a request to reclaim the disk, and a per-media clear already
     /// exists on the Analysis panel. Nothing in the project references it, so the next
     /// run rebuilds what is still wanted.
     pub fn clear_analysis_cache(&mut self) -> Result<u64, String> {
@@ -220,7 +220,7 @@ impl AppState {
         Ok(())
     }
 
-    /// Run one detector and put its refusal where the operator will see it.
+    /// Run one detector and show its refusal in the status line.
     ///
     /// The wrapper every surface spends: the palette row, the chord, and the
     /// panel button all want "start it, and if it will not start, say so", and

@@ -19,8 +19,8 @@
 //!   renderer over a project of its own: a proxy takes minutes, and the preview
 //!   cannot hold the engine lock for that.
 //! - **Asking for a proxy that exists is instant.** One verb covers both, because
-//!   "build one" and "use the one on disk" are the same request from the operator's
-//!   side, and a render must never stat a directory to decide which row to draw.
+//!   "build one" and "use the one on disk" are the same request from the menu,
+//!   and a render must never stat a directory to decide which row to draw.
 
 use std::path::PathBuf;
 use std::sync::Arc;

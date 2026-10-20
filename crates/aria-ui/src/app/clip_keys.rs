@@ -1,7 +1,7 @@
 //! Keyframe commands: writing, removing, and easing an animatable property.
 //!
 //! `SetParamKeyframe`, `RemoveParamKeyframe`, and `ApplyEasingPreset` had no
-//! operator path, so every property was a constant to the user. The keyframe
+//! UI path, so every property was a constant in the editor. The keyframe
 //! strip is driven from [`aria_models::clip_param_catalog`], and the value
 //! written is the property's own sampled value at the playhead, so adding a
 //! keyframe pins what is already on screen rather than snapping to a default.

@@ -84,7 +84,7 @@ pub struct UiMulticamAngle {
     /// Projected because the sidebar both draws it and moves it: the waveform
     /// strip beside an angle is that camera's sound placed on the common clock,
     /// which is the offset applied to the peaks, and a nudge is read against the
-    /// value the operator was looking at rather than the engine's.
+    /// value on screen rather than the engine's.
     pub sync_offset: i64,
 }
 
@@ -115,7 +115,7 @@ impl UiMulticamGroup {
 ///
 /// A nest is a clip on one timeline and a timeline of its own, and the editor
 /// has to say which one is open. The name comes along because an id in a
-/// breadcrumb tells the operator nothing.
+/// breadcrumb reads as nothing.
 #[derive(Debug, Clone, PartialEq)]
 pub struct UiSequenceRef {
     pub id: u64,
@@ -186,7 +186,7 @@ impl Default for UiEditorStore {
 /// unstyled bubble.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AgentEntryKind {
-    /// The operator's prompt.
+    /// The typed prompt.
     You,
     /// The model's answer.
     Assistant,

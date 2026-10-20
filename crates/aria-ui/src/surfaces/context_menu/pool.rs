@@ -63,7 +63,7 @@ pub const POOL_ITEMS: &[MenuItem<PoolMenu>] = &[
     }),
     // One row for both halves of the same request: a proxy already on disk is
     // registered here and now, and one that is not is rendered as a job. Which of
-    // the two it is, is not the operator's question.
+    // the two it is, is not a display question.
     MenuItem::Row(MenuRow {
         id: "ctx-pool-proxy-use",
         label: |_| "Decode through a proxy",

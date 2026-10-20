@@ -3,7 +3,7 @@
 //! The class closed here is a state change that queues instead of retargeting.
 //! Selection and lock are both reversible under the hand, so the symptom is a
 //! ring that snaps in after the click that deselected it, or a badge that plays
-//! a full fade for a lock the operator has already undone.
+//! a full fade for a lock already undone.
 //!
 //! What these do not catch: what the card draws with the value. That is a colour
 //! alpha in the builder chain, and it is asserted only in the sense that a value
@@ -74,8 +74,8 @@ fn a_selection_reversed_mid_fade_continues_from_where_it_got_to() {
 }
 
 /// Reduced motion is the one case where a state is allowed to snap, and it has
-/// to snap in both directions: an operator who turned motion off gets the ring,
-/// not a ring that is on its way.
+/// to snap in both directions: with motion turned off the ring appears, not a
+/// ring that is on its way.
 #[test]
 fn motion_off_puts_a_state_where_it_belongs_on_the_frame_it_changed() {
     let _frames = TestFrames::new();

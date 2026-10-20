@@ -229,7 +229,7 @@ fn open_sequence_navigates_and_undoes() {
     assert_eq!(
         engine.project().timeline().order().len(),
         1,
-        "the lane added inside the sequence followed the operator back out"
+        "the lane added inside the sequence followed the view back out"
     );
 
     assert!(engine.undo(), "undo switch to root");
@@ -367,7 +367,7 @@ fn scene_resolution_renders_nested_sequence() {
 /// open; redo brings it back under the same id.
 ///
 /// Closes the class where a created sequence is stored but not opened (Ctrl+N
-/// then edits the timeline the operator just left), or opened but left behind
+/// then edits the timeline that was just left), or opened but left behind
 /// by undo as an orphan in the store.
 #[test]
 fn create_sequence_opens_an_empty_sequence_and_undo_redo_cycles() {

@@ -24,8 +24,8 @@ use serde::{Deserialize, Serialize};
 /// A command about to be applied.
 ///
 /// A handler may edit `command` in place, or set `veto` to refuse it. The reason
-/// is shown to the user, so it names the lane, clip, or setting that caused the
-/// refusal rather than the plugin that noticed.
+/// is shown in the editor, so it states the lane, clip, or setting that caused
+/// the refusal rather than the plugin that detected it.
 ///
 /// `project` is the state the command will apply to. A handler reads it here
 /// instead of locking the engine: the host emits this event with the engine

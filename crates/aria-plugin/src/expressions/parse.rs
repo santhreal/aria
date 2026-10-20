@@ -54,7 +54,7 @@ pub(super) enum Expr {
     And(Box<Expr>, Box<Expr>),
     Or(Box<Expr>, Box<Expr>),
     Cond(Box<Expr>, Box<Expr>, Box<Expr>),
-    /// `name = value`, or `name op= value` with the operator.
+    /// `name = value`, or `name op= value` with its binary operator.
     Assign(Target, Option<Binary>, Box<Expr>, Pos),
     /// `++` or `--`, before or after the target.
     Step {

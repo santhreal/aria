@@ -111,7 +111,7 @@ pub(crate) enum Refusal {
 }
 
 impl Refusal {
-    /// One line for the pool row, phrased for the operator.
+    /// One line for the pool row, phrased for display.
     pub(crate) fn describe(&self) -> String {
         match self {
             Refusal::NoCandidate => "not in that folder".into(),
@@ -222,7 +222,7 @@ fn file_key(path: &Path) -> Option<String> {
 /// and [`RELINK_MAX_FILES`].
 ///
 /// Unreadable directories are skipped rather than failing the walk: one
-/// permission-denied subfolder must not cost the operator the whole relink.
+/// permission-denied subfolder must not cost the whole relink.
 pub(crate) fn walk(folder: &Path) -> Vec<PathBuf> {
     let mut files = Vec::new();
     let mut level = vec![folder.to_path_buf()];

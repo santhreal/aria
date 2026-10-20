@@ -122,7 +122,7 @@ impl AppState {
         self.go_to_clip_with_fact(id);
     }
 
-    /// Put the last frame's stage costs on the status line, for an operator
+    /// Put the last frame's stage costs on the status line, for a session
     /// without the report open.
     pub fn report_frame_cost(&mut self) {
         let total = self.frame_total_ms();
@@ -259,8 +259,8 @@ impl AppState {
             .map(|entry| entry.label.clone())
     }
 
-    /// Name both pending steps on the status line, for an operator who does not
-    /// have the report open. Moves nothing: this is what the keys would do, not
+    /// Name both pending steps on the status line, for a session without the
+    /// report open. Moves nothing: this is what the keys would do, not
     /// a second way of doing it.
     pub fn report_pending_history(&mut self) {
         let undo = self.next_undo_label();

@@ -2,7 +2,7 @@
 //!
 //! A reach census that reads history entries can only see an edit. Saving,
 //! opening, exporting, applying a template and renaming a project are commands
-//! an operator asks for that write no history, so a surface census built on
+//! a menu or key sends that write no history, so a surface census built on
 //! history alone reports every one of them as unreached.
 //!
 //! The project host emits `CommandProposed` before the engine sees the

@@ -141,7 +141,7 @@ impl AppState {
             BakeMedium::Sound => aria_encoder::AUDIO_CAPABILITY.label(),
         };
         // The clip the render is for, not whatever is selected: the assistant
-        // names one by id, and the operator may have clicked elsewhere since.
+        // names one by id, and the selection may have changed since.
         let name = self
             .ui_clip_ref(clip)
             .map(|clip| clip.name.clone())

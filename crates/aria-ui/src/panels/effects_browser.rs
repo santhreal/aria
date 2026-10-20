@@ -266,7 +266,7 @@ fn folder_row(
         .bg(motion::hover_blend(row, theme.wash(0.0), theme.wash(0.06)))
         .on_hover(motion::hover_listener(row))
         // A search holds every folder with a match open, so a click there
-        // would change a choice the operator cannot see.
+        // would change a choice that is not on screen.
         .when(!searching, |el| {
             el.cursor(CursorStyle::PointingHand).on_mouse_down(
                 MouseButton::Left,

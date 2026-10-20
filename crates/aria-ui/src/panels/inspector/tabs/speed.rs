@@ -299,7 +299,7 @@ fn point(at: gpui::Point<gpui::Pixels>) -> [f32; 2] {
 }
 
 /// Run one gesture, repainting only when the graph changed. A refusal is
-/// reported where the operator is looking rather than swallowed.
+/// reported in the status line rather than swallowed.
 fn run(
     shell: &mut crate::shell::Shell,
     gesture: Gesture,

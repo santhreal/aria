@@ -42,7 +42,7 @@ impl Plugin for DecoderPlugin {
         // so a picker and a drop cannot disagree. Asked before the project and
         // LUT plugins, so the list must not contain their file types: an
         // extension test here is cheap, and probing every dropped path would
-        // open files the user only meant to hand to another plugin.
+        // open files meant only for another plugin.
         ctx.on_serial::<ResolveDropped, DropAction, _>(|event| {
             event
                 .item

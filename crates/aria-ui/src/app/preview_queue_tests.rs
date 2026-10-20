@@ -67,7 +67,7 @@ fn every_request_advances_the_generation_so_a_stale_frame_is_dropped() {
     assert!(
         state.preview_generation > started,
         "a coalesced request must still count, or the frame in flight would \
-         commit a playhead the operator has left"
+         commit a playhead that has moved on"
     );
     assert!(state.release_preview());
 }

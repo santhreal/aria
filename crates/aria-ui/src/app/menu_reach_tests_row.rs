@@ -44,8 +44,8 @@ fn every_row_does_what_it_says() {
 }
 #[test]
 fn every_command_the_menu_sends_is_declared_reachable() {
-    // The inverse direction of `Reach`: a command an operator demonstrably sends
-    // from the bar must not be declared internal.
+    // The inverse direction of `Reach`: a command the bar demonstrably sends
+    // must not be declared internal.
     let labels = measured();
     for cmd in every_edit_command() {
         if labels.contains(cmd.label()) {

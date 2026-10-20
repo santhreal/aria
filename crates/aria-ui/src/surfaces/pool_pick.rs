@@ -31,7 +31,7 @@ pub enum Reach {
 }
 
 impl Reach {
-    /// What the operator did, for a census and for a failure message.
+    /// The gesture, for a census and for a failure message.
     pub fn what(&self) -> &'static str {
         match self {
             Self::Replace => "a pool card clicked",
@@ -60,7 +60,7 @@ impl Reach {
 }
 
 /// The pool in the order the list draws it, which is the order a span runs
-/// along: a range is what the operator saw between two cards, not a range of
+/// along: a range is what the list showed between two cards, not a range of
 /// ids, and the audio tab draws a subset with video items sitting between its
 /// rows in the pool itself.
 fn visible(state: &AppState, tab: SidebarTab) -> Vec<u64> {

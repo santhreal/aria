@@ -30,7 +30,7 @@ pub(crate) struct WorkspaceRow {
     pub(crate) panes: PaneLayout,
     /// Whether this row is the workspace last chosen.
     pub(crate) active: bool,
-    /// The operator's own slot, which can be re-saved and forgotten.
+    /// The custom slot, which can be re-saved and forgotten.
     pub(crate) custom: bool,
     /// The name of the plugin that registered the row, `None` for a shipped
     /// row and the Custom slot.

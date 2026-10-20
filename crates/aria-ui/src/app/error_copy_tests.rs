@@ -28,7 +28,7 @@ fn decode_points_at_supported_formats() {
 /// that covers no frame needs the in/out points moved, and a silent sound
 /// export needs a fader. Derived from
 /// [`aria_render::EmptyExport::ALL`], so a new reason without its own sentence
-/// fails here rather than sending half the operators to the wrong control.
+/// fails here rather than pointing half the reasons at the wrong control.
 #[test]
 fn empty_export_names_what_is_missing() {
     let mut seen: Vec<String> = Vec::new();

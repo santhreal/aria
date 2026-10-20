@@ -1242,7 +1242,7 @@ mod tests {
     }
 
     /// Labels are unique *within* each list a menu draws: two identical rows in
-    /// one dropdown or one flyout are indistinguishable to the operator. A
+    /// one dropdown or one flyout are indistinguishable on screen. A
     /// flyout's caption is a row of the dropdown it opens from. Across lists a
     /// repeat is legitimate (Home appears under File and Window; the Color
     /// workspace sits in the Workspaces flyout beside the Color panel's row).

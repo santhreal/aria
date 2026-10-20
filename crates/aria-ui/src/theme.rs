@@ -453,8 +453,8 @@ impl Theme {
     /// The fill of a clip or pool row with `label`, or the fill a selected
     /// clip with that label draws.
     ///
-    /// The same in both appearances: a label is the operator's colour, and a
-    /// clip keeps it when the appearance changes.
+    /// The same in both appearances: a label is a chosen colour, and a clip
+    /// keeps it when the appearance changes.
     pub fn label(&self, label: aria_models::LabelColor, selected: bool) -> Hsla {
         let [r, g, b] = if selected {
             label.selected_rgb()

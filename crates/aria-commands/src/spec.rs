@@ -1,7 +1,7 @@
 //! Every command, as a row.
 //!
 //! A command used to be an enum variant plus a hand-written arm in each place
-//! that cared: the history label, the operator-reach declaration, the ids a
+//! that cared: the history label, the reach declaration, the ids a
 //! lock policy has to check, whether a structural edit can break a transition
 //! junction, and — in `aria-engine` — the handler and the inverse. Nothing tied
 //! those together, so a command could be dispatchable and unlabelled, or
@@ -9,7 +9,7 @@
 //! finding every match again.
 //!
 //! A row here carries what the command layer knows about one command: its wire
-//! id, its history label, how an operator reaches it, which clips and lanes it
+//! id, its history label, which UI surface reaches it, which clips and lanes it
 //! addresses, whether a lock may refuse it, whether it can break an abutment,
 //! and what undoing it puts back. `aria-engine` holds the other half — the
 //! handler that applies it — keyed by the same id, and its own table is the
@@ -128,7 +128,7 @@ const fn operator(surface: &'static str) -> Reach {
     Reach::Operator(surface)
 }
 
-// There is no `planned` constructor: every row below names either an operator
+// There is no `planned` constructor: every row below states either a UI
 // surface or an internal reason. `Reach::Planned` is still part of the
 // vocabulary, and a row that needs it writes it out, which is loud enough to
 // notice in review.
@@ -378,7 +378,7 @@ impl EditCommand {
         self.spec().label
     }
 
-    /// How an operator reaches this edit.
+    /// Which UI surface reaches this edit.
     pub fn reach(&self) -> Reach {
         self.spec().reach
     }
@@ -402,7 +402,7 @@ impl ProjectCommand {
         self.spec().label
     }
 
-    /// How an operator reaches this project command.
+    /// Which UI surface reaches this project command.
     pub fn reach(&self) -> Reach {
         self.spec().reach
     }

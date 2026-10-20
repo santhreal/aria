@@ -1,5 +1,5 @@
-//! Media: the pool as the operator reads it, and what the pool knows about the
-//! item they picked.
+//! Media: the pool as the panel lists it, and what the pool has on the picked
+//! item.
 //!
 //! Split out of `sidebar.rs` to stay under the file ceiling; the wall of cards
 //! it draws lives in `sidebar_media_grid.rs` for the same reason. Each item is
@@ -14,7 +14,7 @@ mod bars;
 #[path = "sidebar_media_grid.rs"]
 mod grid;
 
-/// The pool as the operator reads it: the filter row, the items, and the
+/// The pool as the panel lists it: the filter row, the items, and the
 /// footer with the count, the views and the order, and what the pool knows
 /// about the one they picked.
 ///

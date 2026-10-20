@@ -228,7 +228,7 @@ fn toggles_and_choices_send_the_value_clicked() {
 
 /// The host holds an event to the tree on screen: the plugin never receives a
 /// press on a disabled button, a control that is not drawn, or an option that
-/// is not offered, and the operator reads why.
+/// is not offered, and the status line states why.
 #[test]
 fn an_event_the_tree_cannot_produce_is_refused_before_the_plugin() {
     let cases = [

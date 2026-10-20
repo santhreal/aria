@@ -1,7 +1,7 @@
 //! Media support: what this build can decode, and what the selected source is.
 //!
 //! Six backend capabilities shipped without a way to reach them. Each one
-//! answers a question an operator asks before an export, and each one had to be
+//! answers a question to settle before an export, and each one had to be
 //! answered by guessing:
 //!
 //! - `aria_decoder::decoder_capability` names the backend this build dispatches

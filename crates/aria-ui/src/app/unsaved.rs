@@ -13,7 +13,7 @@ use std::path::PathBuf;
 
 use super::{AppState, DialogKind};
 
-/// What the operator asked for, held until they answer the prompt.
+/// The requested action, held until the prompt is answered.
 ///
 /// Every variant replaces or leaves the loaded project. Anything that does not
 /// is not an intent and must not be parked: the prompt would ask about work the
@@ -69,7 +69,7 @@ impl AppState {
         self.pending_intent = Some(intent);
         // Set directly rather than through `open_dialog`: this prompt is the one
         // dialog that must open on Home too, because a dirty session stays
-        // loaded when the operator walks back to Home.
+        // loaded on the way back to Home.
         self.dialog = DialogKind::UnsavedChanges;
         self.context_menu = None;
         self.close_menu();
@@ -141,7 +141,7 @@ impl AppState {
         self.resolve_pending();
     }
 
-    /// Continue and lose the edits, which is what the operator just asked for.
+    /// Continue and lose the edits, as the Discard button requests.
     pub fn discard_and_continue(&mut self) {
         self.resolve_pending();
     }

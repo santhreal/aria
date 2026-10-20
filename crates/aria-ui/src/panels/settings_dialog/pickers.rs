@@ -16,9 +16,9 @@ use crate::theme::file::ThemeFile;
 
 /// Page, card, and accent from a palette that is not installed.
 ///
-/// A row that only names an appearance or an accent asks the operator to click
-/// and find out. Every palette here is built the way the real one is, so the
-/// chips cannot drift from what the click installs.
+/// A row that only names an appearance or an accent needs a click to find out.
+/// Every palette here is built the way the real one is, so the chips cannot
+/// drift from what the click installs.
 fn swatch(preview: &Theme) -> impl IntoElement {
     let border = preview.border;
     div().flex().flex_row().gap(px(3.)).children(
@@ -111,7 +111,7 @@ pub(super) fn appearance_row(
     let key = candidate.label();
     let fade = motion::MotionKey::new("appearance", key);
     // What this mode looks like right now, accent included: "System" names a
-    // choice the operator cannot see the result of, and this is the result.
+    // choice with an invisible result, and this is the result.
     let preview = Theme::for_choice(
         appearance::preview(candidate, cx),
         appearance::theme_choice(cx),

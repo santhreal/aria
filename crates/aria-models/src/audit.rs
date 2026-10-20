@@ -3,18 +3,17 @@
 //! The model answers a couple of dozen "does this clip carry X?" questions —
 //! a custom crop, a keyframed volume envelope, detected beats, sound that a
 //! separated companion took over. Every one of them was a method with no
-//! caller outside the crate that defines it: the operator could put a speed
-//! ramp on a clip in one shot and then had no way to find it again three
-//! hundred clips later.
+//! caller outside the crate that defines it: a speed ramp could go on a clip
+//! in one shot and then could not be found again three hundred clips later.
 //!
-//! A row here names one question, so a surface that lets the operator find
-//! those clips walks [`clip_facts`] instead of writing a predicate per row.
+//! A row here states one question, so a surface that finds those clips
+//! walks [`clip_facts`] instead of writing a predicate per row.
 //! `index_of` is an exhaustive match over [`ClipFact`], so a question added
 //! without a row does not compile.
 //!
 //! Project-wide counts live in the sibling [`project_facts`] table for the same
 //! reason: `media_count`, `bin_count`, `marker_count` and `has_transitions` are
-//! the numbers an operator wants before an export, and none of them had a
+//! the numbers to check before an export, and none of them had a
 //! surface either.
 
 use crate::clip::Clip;

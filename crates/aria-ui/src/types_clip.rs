@@ -354,7 +354,7 @@ pub struct UiClip {
     ///
     /// A nest draws as a media clip — it has a picture, a source range and a
     /// name — so the kind cannot carry this. Without it no surface can offer
-    /// to open what the operator is pointing at.
+    /// to open what the pointer is on.
     pub nested_sequence: Option<u64>,
     pub name: SharedString,
     pub source_start: f64,
@@ -369,7 +369,7 @@ pub struct UiClip {
     pub duration_label: SharedString,
     pub thumbnail: Option<Vec<u8>>,
     pub color: u32,
-    /// The operator's label colour, when one is set. `None` draws the clip
+    /// The clip's set label colour, when one is set. `None` draws the clip
     /// type's colour, else [`Self::default_label`].
     pub label: Option<aria_models::LabelColor>,
     /// The label `docs/spec/look.md` gives a clip of this content on this lane.
@@ -475,7 +475,7 @@ pub struct UiClip {
 }
 
 impl UiClip {
-    /// The label the clip is drawn in: the operator's, else the clip type's
+    /// The label the clip is drawn in: the set one, else the clip type's
     /// colour, else the default for its kind.
     pub fn drawn_label(&self) -> aria_models::LabelColor {
         self.label
@@ -780,7 +780,7 @@ pub struct UiPluginRow {
 }
 
 /// One catalog as the Catalogs list shows it: how many entries are in effect,
-/// whether they came from the user's file, and why a file on disk is not in use.
+/// whether they came from an override file, and why a file on disk is not in use.
 #[derive(Debug, Clone, PartialEq)]
 pub struct UiCatalogRow {
     pub name: SharedString,
@@ -873,7 +873,7 @@ pub struct UiMediaItem {
     /// own: its rate is the tick base it was probed in.
     pub still: bool,
     pub missing: bool,
-    /// The operator's grouping colour for this pool entry, when set.
+    /// The grouping colour for this pool entry, when set.
     pub label: Option<aria_models::LabelColor>,
     /// Unix seconds this entry was imported, when the project recorded one.
     pub imported_at: Option<u64>,

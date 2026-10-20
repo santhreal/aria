@@ -11,8 +11,8 @@ use super::AppState;
 impl AppState {
     /// Move the project to the state after `depth` steps.
     ///
-    /// One republish for the whole walk rather than one per step: the operator
-    /// asked for a state, not for N undos.
+    /// One republish for the whole walk rather than one per step: the request
+    /// is for a state, not for N undos.
     pub fn history_jump(&mut self, depth: usize) -> bool {
         if depth == self.history_depth() {
             return false;

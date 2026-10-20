@@ -222,7 +222,7 @@ fn a_refused_plugin_key_is_rebound_like_any_other() {
     );
 }
 
-/// A chord the operator frees goes to the plugin key that wanted it, and taking
+/// A freed chord goes to the plugin key that wanted it, and taking
 /// it back for a shipped binding refuses the plugin key again.
 #[test]
 fn freeing_a_chord_places_the_plugin_key_that_wanted_it() {
@@ -263,8 +263,8 @@ fn freeing_a_chord_places_the_plugin_key_that_wanted_it() {
     assert_eq!(host.conflicts().len(), 1);
 }
 
-/// An operator's chord for a plugin key outlives a sync, so a plugin that
-/// registers another command does not reset the operator's choice.
+/// A rebound chord for a plugin key outlives a sync, so a plugin that
+/// registers another command does not reset the rebinding.
 #[test]
 fn an_override_moves_a_plugin_key_and_survives_a_sync() {
     let ctx = PluginContext::new();

@@ -121,7 +121,7 @@ pub(super) fn strip(
         }
         None => {
             // Open with nothing measured is a wait, not an empty state: the
-            // next frame the operator scrubs to fills the strip.
+            // next frame a scrub reaches fills the strip.
             column = column.child(crate::pending::working(
                 theme,
                 "preview.scopes",

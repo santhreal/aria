@@ -34,7 +34,7 @@ pub fn fader_ceiling_db() -> f32 {
 
 /// How close to unity a drag has to land before it snaps there, in decibels.
 ///
-/// Unity is the value an operator returns to, and hitting it on a 120 px fader
+/// Unity is the value a fader returns to most often, and hitting it on a 120 px fader
 /// otherwise takes a pixel. The detent is the only place the pointer is not
 /// obeyed exactly, and it is announced by the readout snapping with it.
 const UNITY_DETENT_DB: f32 = 0.75;

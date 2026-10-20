@@ -35,7 +35,7 @@ pub enum SummaryRequest {
     /// The slice the session implies: the whole timeline when it fits
     /// [`CLIP_BUDGET`], otherwise the clips nearest the playhead.
     Session {
-        /// Where the operator is looking, in seconds. A windowed description is
+        /// The playhead time, in seconds. A windowed description is
         /// centred on it.
         playhead_seconds: f64,
     },

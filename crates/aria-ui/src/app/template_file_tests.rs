@@ -1,11 +1,11 @@
 //! Contracts for the `.ariat` bundle round trip.
 //!
 //! The class closed here is "a template is written but nothing proves it can be
-//! read back and applied", which is how a bundle format rots: the writer and the
-//! reader drift and nobody notices until an operator's saved template will not
-//! open. Every assertion goes through the shipped `AppState` path, not through
-//! `aria_models::Template` directly, because the writer the operator uses is the
-//! command, not the model call.
+//! read back and applied", which is how a bundle format rots: the writer and
+//! the reader drift and nobody notices until a saved template will not open.
+//! Every assertion goes through the shipped `AppState` path, not through
+//! `aria_models::Template` directly, because the shipped writer is the command,
+//! not the model call.
 //!
 //! Not covered: the file dialogs. `pick_and_save_template` and
 //! `pick_and_apply_template` are the dialog wrappers around these functions.
@@ -61,7 +61,7 @@ fn a_slot_hint_becomes_the_prompt_label() {
     assert_eq!(
         state.template_slots(&path).unwrap(),
         vec!["Opening shot".to_string()],
-        "the hint must be what the operator is asked for"
+        "the hint must be what the slot prompt shows"
     );
 }
 

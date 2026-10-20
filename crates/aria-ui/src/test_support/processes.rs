@@ -45,13 +45,13 @@ const SPAWN_OWNERS: &[(&str, &str)] = &[
 /// **Starting another application is one module's job, and it is off by
 /// default.**
 ///
-/// The defect this closes was not a wrong path, it was a second spawn site.
-/// Two modules opened a file manager — the jobs dialog's "Reveal" and Home's
-/// recents — so neither could be switched off in one place, and the menu
-/// reach test, which runs every menu item, opened a file-manager window on
-/// the machine running the suite. A test may not touch the operator's
-/// desktop, and the only shape that guarantees it is a capability the
-/// *application* turns on, since no test runs the application.
+/// The defect this closes was not a wrong path, it was a second spawn site. Two
+/// modules opened a file manager (the jobs dialog's "Reveal" and Home's
+/// recents), so neither could be switched off in one place, and the menu reach
+/// test, which runs every menu item, opened a file-manager window on the
+/// machine running the suite. A test may not touch the desktop session, and the
+/// only shape that guarantees it is a capability the *application* turns on,
+/// since no test runs the application.
 ///
 /// Derived from the sources, so a spawn added tomorrow in any crate turns
 /// the suite red on the run that introduces it, and a rename of the owner

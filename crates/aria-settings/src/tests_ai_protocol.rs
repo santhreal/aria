@@ -54,7 +54,7 @@ fn save_replaces_existing_file_without_transaction_artifacts() {
 
 /// WHY: the config holds provider API keys, so an existing mode that let the
 /// group or the world read it is tightened on save rather than preserved. A
-/// group-readable file is the case an operator never notices.
+/// group-readable file shows no symptom, so nothing else reports it.
 #[cfg(unix)]
 #[test]
 fn save_tightens_loose_existing_file_permissions() {

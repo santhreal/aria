@@ -12,10 +12,10 @@
 //!   run on a job thread over a copy of the project, and a walk that started
 //!   writing again would be a walk that has to run on the window's thread.
 //! - **Progress is determinate.** A bar that reports a fraction of a known total
-//!   is the difference between a pass an operator waits for and a pass they kill.
+//!   is the difference between a pass that is waited for and a pass that is killed.
 //! - **A stopped pass keeps what it followed, as one entry.** Cancel is not undo:
-//!   the frames already tracked are the operator's, and they revert in one
-//!   keystroke or they were not one gesture.
+//!   the frames already tracked stay, and they revert in one keystroke or they
+//!   were not one gesture.
 //!
 //! The refusals are asserted as prose because a job surface has nowhere else to
 //! put them: the row either queues work or says why it will not.
@@ -135,7 +135,7 @@ fn adopted_after(prepare: fn(&mut AppState), edit: fn(&mut AppState)) -> (AppSta
 ///
 /// The job's cancel is a flag another thread sets mid-pass, and this is that
 /// shape: the pass is stopped somewhere in the middle rather than before it
-/// starts, which is the case the operator actually creates.
+/// starts, which is the case a Cancel press creates.
 fn stop_after(frames: usize) -> impl Fn() -> bool {
     let asked = Cell::new(0usize);
     move || {
@@ -181,7 +181,7 @@ fn a_pass_reports_progress_all_the_way_to_the_total() {
 fn a_stopped_pass_keeps_the_frames_it_followed() {
     let state = tracked();
     let mut source = Scripted::walking(8, 4, 0);
-    // Two frames of motion, then the operator presses Cancel.
+    // Two frames of motion, then Cancel is pressed.
     let (keys, report, reported) = Reported::walk(&state, &mut source, 7, &stop_after(2));
 
     assert!(report.cancelled, "a cancelled pass did not say so");
@@ -293,7 +293,7 @@ fn a_track_written_from_a_job_is_one_undo_entry() {
 #[test]
 fn an_adopted_track_says_it_was_stopped_rather_than_finished() {
     // A cancelled pass and a completed pass write the same way and read
-    // differently: an operator who stopped a track must not be told it finished.
+    // differently: a stopped track must not be reported as finished.
     let mut state = tracked();
     let mut source = Scripted::walking(8, 4, 0);
     let (keys, report, _) = Reported::walk(&state, &mut source, 7, &stop_after(2));

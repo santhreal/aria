@@ -247,7 +247,7 @@ pub(super) fn clip_to_ui(
                 None
             }
         },
-        // The operator's own name outranks the one the source would give: a
+        // A given name outranks the one the source would give: a
         // renamed clip keeps its name through a relink or a media swap.
         name: clip.name.clone().map(Into::into).unwrap_or(name),
         source_start,

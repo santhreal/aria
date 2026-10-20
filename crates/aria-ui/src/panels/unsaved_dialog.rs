@@ -68,8 +68,8 @@ pub fn render(
                 .text_color(theme.text_faint)
                 .child(match going {
                     // The prompt says what the answer does, because "Discard"
-                    // and "Save" both leave this project and the operator asked
-                    // for one specific elsewhere.
+                    // and "Save" both leave this project for one specific
+                    // destination.
                     Some(outcome) => format!("Discard leaves them behind for good. {outcome}"),
                     None => "Discard leaves them behind for good.".to_string(),
                 }),

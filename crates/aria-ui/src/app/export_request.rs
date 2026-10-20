@@ -39,7 +39,7 @@ pub struct ExportRequest {
 }
 
 impl AppState {
-    /// Where an export lands when the operator names no file: beside the
+    /// Where an export lands when no file is named: beside the
     /// project, or in the data directory when the project has never been saved.
     ///
     /// Here rather than in the sheet, so the path the sheet prints and the path

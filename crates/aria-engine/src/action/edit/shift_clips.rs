@@ -50,8 +50,8 @@ impl EditAction for ShiftClipsAction {
 ///
 /// A lane whose clip straddles `from` is cut there first. Shifting selects
 /// clips by start tick, so without the cut an insert landing inside a clip
-/// moved nothing and was then refused for overlapping it — an operator
-/// dropping a pool item halfway through a shot got an error instead of an
+/// moved nothing and was then refused for overlapping it: a pool item
+/// dropped halfway through a shot got an error instead of an
 /// insert. The cut is part of the hole, so it is one lane's decision here
 /// rather than each caller's.
 ///

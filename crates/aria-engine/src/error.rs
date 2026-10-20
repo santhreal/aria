@@ -68,8 +68,8 @@ impl EngineError {
 
     /// Whether this is work that was abandoned rather than work that failed.
     ///
-    /// A cancelled frame is the expected end of a scrub: the operator moved the
-    /// playhead before the frame arrived. The distinction has one owner here so
+    /// A cancelled frame is the expected end of a scrub: the playhead moved
+    /// before the frame arrived. The distinction has one owner here so
     /// a shell cannot decide it by matching on a message — reporting a
     /// cancellation as an error would put "cancelled" on the status strip for
     /// every frame a scrub passes over.

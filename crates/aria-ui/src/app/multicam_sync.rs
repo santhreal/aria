@@ -11,8 +11,8 @@
 //! decodes, so syncing a group costs no decode of its own and needs no second
 //! representation of a source's sound. The first angle is the clock: it keeps
 //! the offset it has, and every other angle is placed against it. Aligning
-//! everything to the first camera rather than to a computed average is what lets
-//! an operator sync twice and get the same answer.
+//! everything to the first camera rather than to a computed average is what makes
+//! a second sync give the same answer.
 //!
 //! Nothing here reads the project or the store. The peaks come in, the offsets
 //! come out, and the reasons an angle could not be placed come out beside them,

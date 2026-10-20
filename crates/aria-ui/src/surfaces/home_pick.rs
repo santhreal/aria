@@ -1,4 +1,4 @@
-//! What an operator presses on the Home screen: the tiles that start or replace
+//! The controls pressed on the Home screen: the tiles that start or replace
 //! a session, one recent project's two actions, and the recovery offer.
 //!
 //! `Load project` claimed this screen and nothing could press it. The recovery
@@ -22,7 +22,7 @@ use aria_engine::EngineError;
 
 use crate::app::AppState;
 
-/// One thing an operator presses on Home.
+/// One press on Home.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Pick {
     /// The New Project tile.
@@ -46,7 +46,7 @@ pub enum Pick {
 }
 
 impl Pick {
-    /// What the operator pressed, for a census and for a failure message.
+    /// The pressed control, for a census and for a failure message.
     pub fn what(&self) -> &'static str {
         match self {
             Self::NewProject => "a new project started",

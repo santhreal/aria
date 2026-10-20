@@ -198,8 +198,8 @@ fn escape_closes_the_field_without_writing() {
     }
 }
 
-/// Text that states no number is reported and kept, so the operator can fix
-/// it; letters never reach the draft at all.
+/// Text that states no number is reported and kept, so it can be fixed; letters
+/// never reach the draft at all.
 #[test]
 fn text_stating_no_number_keeps_the_field_and_reports_it() {
     let mut state = start(0.5);

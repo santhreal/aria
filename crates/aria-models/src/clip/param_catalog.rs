@@ -197,7 +197,7 @@ impl ParamSpec {
     /// This is what pins a keyframe to what is already on screen rather than to
     /// a default. Gated on [`ParamSpec::available`] so one rule decides both
     /// whether a row is offered and whether it answers: a row that samples a
-    /// value the operator was never offered is how a dead control gets shipped.
+    /// value no control offers is how a dead control gets shipped.
     pub fn sample(&self, clip: &Clip, local: i64) -> Option<ParamValue> {
         if !self.available(clip) {
             return None;

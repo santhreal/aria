@@ -1,7 +1,7 @@
 //! Pool poster frames that outlive the session.
 //!
 //! The class this closes: [`super::PoolPreviewStore`] holds pictures for one
-//! session, so a relaunch re-decoded every tile the operator scrolled past —
+//! session, so a relaunch re-decoded every tile already scrolled past:
 //! one decode per source, through the same engine the preview needs, on the
 //! first scroll of every launch. A poster frame is a picture of a *file*, and a
 //! file does not change between launches, so it belongs on disk.

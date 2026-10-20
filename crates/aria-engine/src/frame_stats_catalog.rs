@@ -2,7 +2,7 @@
 //!
 //! [`Engine::last_frame_stats`](crate::Engine::last_frame_stats) has always
 //! reported where a preview or export frame spent its time, and nothing read it:
-//! an operator whose scrub was slow had no way to tell a decode-bound source
+//! a slow scrub gave no way to tell a decode-bound source
 //! from a raster-bound title from a composite-bound stack of effects, which is
 //! the one fact that decides what to do about it.
 //!

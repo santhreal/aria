@@ -161,8 +161,7 @@ pub(super) fn media_tile(
         theme.text_muted
     };
     // Why the last Relink All left this one missing. Drawn, not tooltipped: a
-    // refusal the operator has to hover to find is a silent skip with extra
-    // steps.
+    // refusal that needs a hover to find is a silent skip with extra steps.
     let note = if missing {
         state.read(cx).relink_notes.get(&id).cloned()
     } else {
@@ -212,7 +211,7 @@ pub(super) fn media_tile(
         .cursor(CursorStyle::PointingHand)
         .active(|style| style.opacity(0.92))
         .bg(motion::hover_blend(key, theme.wash(0.0), theme.wash(0.06)))
-        // A card the operator has picked is drawn picked, which is what makes a
+        // A picked card is drawn picked, which is what makes a
         // selection of several visible at all. The border is always drawn and
         // only its colour changes, so picking a card cannot shift the row it
         // sits in by a pixel.

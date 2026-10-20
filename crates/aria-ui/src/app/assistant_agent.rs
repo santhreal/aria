@@ -229,7 +229,7 @@ impl AppState {
             })));
             match status {
                 // A stopped turn is a failed job: the board must not report
-                // "done" for work the operator interrupted.
+                // "done" for interrupted work.
                 PromptStatus::Aborted(reason) => Err(reason),
                 _ => Ok(JobCompletion::new(summary)),
             }
@@ -440,7 +440,7 @@ impl AppState {
                         );
                         // The validated commands are kept so Apply replays this
                         // exact plan. Asking the model again would be a second
-                        // plan, and the operator approved the first one.
+                        // plan, and the first one was approved.
                         self.assistant.plan = finished.plan.into();
                         self.status_message = Some("The assistant planned without editing".into());
                     }
@@ -450,7 +450,7 @@ impl AppState {
                     // Its edits are gone too — the loop rolls the group back —
                     // so the action rows above are now describing a timeline
                     // that no longer has them, and the panel says so rather
-                    // than leaving the operator to find out by looking.
+                    // than leaving it to be found by inspection.
                     PromptStatus::Aborted(reason) => {
                         self.push_agent_message(AgentEntryKind::Error, reason.clone());
                         let undone = if finished.edits == 0 {

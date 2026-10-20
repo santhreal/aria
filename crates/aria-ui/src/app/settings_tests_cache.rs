@@ -65,7 +65,7 @@ fn every_registered_cache_has_a_row_that_describes_it() {
     }
 
     // Disposable data is evicted before downloadable data, which is evicted before
-    // anything the operator owns. The order is what makes the label useful.
+    // anything that cannot be fetched again. The order is what makes the label useful.
     let disposable = rows
         .iter()
         .find(|row| row.key == "proxies")
@@ -366,7 +366,7 @@ fn a_refused_setting_leaves_the_saved_value_alone() {
             "http://localhost:1234/v1",
             "a refused URL overwrote the saved one"
         );
-        // The draft survives so the operator can fix it rather than retype it.
+        // The draft survives so it can be fixed rather than retyped.
         assert_eq!(
             state.settings_form.focused,
             Some(SettingsField::AiBaseUrl),

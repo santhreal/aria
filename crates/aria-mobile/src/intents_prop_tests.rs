@@ -197,7 +197,7 @@ fn set_transition_sets_changes_and_clears_one_junction() {
     assert_eq!(
         (kept.transition_id.as_str(), kept.duration),
         (second, 6),
-        "no duration means keep the window the operator already chose"
+        "no duration means keep the window already chosen"
     );
 
     run(

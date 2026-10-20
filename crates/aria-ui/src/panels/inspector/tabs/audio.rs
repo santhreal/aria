@@ -332,7 +332,7 @@ fn loudness_rows(
     // One row per bar would be one element per 50 ms window: a minute of audio is 1200
     // elements nothing can read. The contour is reduced to a fixed number of columns,
     // each the loudest window it covers, because a peak that averages away is the one
-    // the operator was looking for.
+    // the meter exists to show.
     const COLUMNS: usize = 48;
     let per_column = contour.len().div_ceil(COLUMNS).max(1);
     let bars: Vec<gpui::AnyElement> = contour

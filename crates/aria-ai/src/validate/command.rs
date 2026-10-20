@@ -754,7 +754,7 @@ pub fn validate(command: &WireCommand, project: &Project) -> Result<Lowered, Rej
 ///
 /// Checked exactly as an edit is: a render the renderer would refuse must be
 /// refused now, in the turn the model can still correct, rather than minutes
-/// into an encode with an operator watching a job bar. The refusals are the
+/// into an encode with a job bar on screen. The refusals are the
 /// model's own, because [`Project::bake_medium`] is what the render itself
 /// reads, so a rule added there reaches this row without being copied into it.
 ///

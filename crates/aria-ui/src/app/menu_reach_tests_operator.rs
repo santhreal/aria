@@ -265,7 +265,7 @@ fn compare_with_still_reads_the_chosen_file() {
 ///
 /// `measured()` above runs every live menu row, this row reveals a folder, and
 /// the reveal used to spawn `xdg-open` unconditionally — so `cargo test`
-/// launched the operator's file manager. The row still does its whole job here;
+/// launched the desktop file manager. The row still does its whole job here;
 /// what changed is that starting another application needs the headed editor's
 /// permission, which a test process never gives.
 #[test]

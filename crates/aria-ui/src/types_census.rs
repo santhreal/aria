@@ -693,8 +693,8 @@ fn no_draw_copies_a_list_it_reached_through_the_state() {
 /// **One place decides which folder is open.**
 ///
 /// The two folder views are built from that field and from the folder tree, so a
-/// command that moved the operator and wrote the field itself left the
-/// breadcrumb and the rows describing the folder they came from — which is
+/// command that moved the view and wrote the field itself left the
+/// breadcrumb and the rows describing the folder it came from, which is
 /// exactly what creating a folder inside another one did. Every move goes
 /// through `AppState::set_open_bin`, which writes and rebuilds, and this counts
 /// the assignments so the next command cannot reintroduce it.

@@ -97,7 +97,7 @@ fn the_palette_offers_every_colour_and_a_way_out() {
 fn a_clip_label_and_a_pool_label_are_written_by_different_targets() {
     // One palette, two writes. A target that wrote to the selection while drawn
     // on a pool row would label whatever happened to be selected, which is the
-    // clip the operator was not pointing at.
+    // clip the pointer was not on.
     let (mut state, clip) = with_clip();
     let media = state
         .store

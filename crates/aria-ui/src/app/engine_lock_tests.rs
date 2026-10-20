@@ -14,7 +14,7 @@
 //! the same engine read that builds the store and keyed by the same projection
 //! key, so a drawn value cannot disagree with the store beside it.
 //!
-//! What is left is declared. A report the operator opened, a job about to start,
+//! What is left is declared. A report opened from a menu, a job about to start,
 //! a pointer hit test and a republish to the audio engine may all take the
 //! session, because none of them is a frame. The list below is that declaration
 //! and the test is the fence around it: a `&self` method that starts locking —
@@ -31,7 +31,9 @@
 //! mutex on a helper thread and draws every panel, and which does not care how
 //! the lock was reached.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
+
+use crate::test_support::collect_rs;
 
 /// A `&self` method that is allowed to take the session, and why it is not a
 /// frame.
@@ -73,7 +75,7 @@ const DECLARED: &[(&str, &str, &str)] = &[
     (
         "app/media_reach_report.rs",
         "build_coverage",
-        "writes the media-support report the operator asked for",
+        "writes the requested media-support report",
     ),
     (
         "app/project_reach.rs",
@@ -109,7 +111,7 @@ const DECLARED: &[(&str, &str, &str)] = &[
     (
         "app/text_reach.rs",
         "title_ink_report",
-        "measures every title's ink for the report the operator asked for",
+        "measures every title's ink for the requested report",
     ),
     (
         "app/text_reach_shapes.rs",
@@ -153,20 +155,6 @@ struct Reader {
     line: usize,
     name: String,
     body: String,
-}
-
-fn collect_rs(dir: &Path, into: &mut Vec<PathBuf>) {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            collect_rs(&path, into);
-        } else if path.extension().is_some_and(|ext| ext == "rs") {
-            into.push(path);
-        }
-    }
 }
 
 /// `text` with every whitespace character dropped, so a call a formatter split
@@ -339,7 +327,7 @@ fn engine_lock_census() {
         "these `&self` methods take the session lock, so a frame that reads one parks behind \
          whatever the preview decode is doing. Project the value instead — see \
          crate::app::project_facts for a session fact, crate::app::selected_detail for the \
-         selected clip, crate::app::project_report for a count the operator asked for — or \
+         selected clip, crate::app::project_report for a requested count, or \
          add a row to DECLARED in this file saying why it is not a frame:\n  {}",
         offenders.join("\n  ")
     );

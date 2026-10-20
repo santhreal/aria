@@ -86,8 +86,8 @@ struct LivePreviews {
     /// the undo stack.
     animation: Option<(ClipId, AnimationSlot, Option<AnimationRef>)>,
     /// Live crop window and mirror flags for one clip. An on-canvas crop drag shows
-    /// the uncropped frame while the handles move, so the operator cuts into the
-    /// picture they can see instead of one the crop already hid.
+    /// the uncropped frame while the handles move, so the crop cuts into the
+    /// visible picture instead of one the crop already hid.
     crop: Option<(ClipId, CropRect, bool, bool)>,
     /// One live vec2 effect parameter on one clip: a Viewer handle drag shows
     /// the point it is placing before the release commits it.
@@ -144,7 +144,7 @@ pub struct Engine {
     /// Whether the session was saved-clean when the open group began. A
     /// rolled-back group restores the project it started from, so a session
     /// that was clean before it is clean after: without this, a rehearsal or an
-    /// aborted turn would leave the operator with unsaved changes that nothing
+    /// aborted turn would leave the session with unsaved changes that nothing
     /// made.
     group_started_clean: bool,
     /// Proxy substitutions applied so far: bumped whenever a media item starts
@@ -781,7 +781,7 @@ impl Engine {
     /// lock, set the token, ask for the frame. A cancelled frame returns
     /// [`RenderError::Cancelled`](aria_render::RenderError::Cancelled) and
     /// releases the lock where the check caught it, instead of paying for the
-    /// layers the operator has already scrubbed past.
+    /// layers the scrub has already passed.
     pub fn cancel_next_frame(&mut self, cancel: aria_core::Cancel) {
         self.renderer.cancel_next_frame(cancel);
     }

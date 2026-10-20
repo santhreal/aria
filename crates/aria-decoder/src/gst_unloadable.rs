@@ -76,7 +76,7 @@ impl Stamp {
     }
 }
 
-/// The record file for this user, under the user cache directory.
+/// The record file for this account, under GLib's per-account cache directory.
 pub(crate) fn user_records() -> PathBuf {
     gst::glib::user_cache_dir()
         .join("aria")

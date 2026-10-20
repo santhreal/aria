@@ -404,7 +404,7 @@ fn paint_histogram(target: &mut RgbaImage, histogram: &Histogram) {
     reset_canvas(target, HISTOGRAM_W, HISTOGRAM_H);
     let image = target;
     let last = HISTOGRAM_H - 1;
-    // Quarter-tone verticals, so an operator can see where a clip sits.
+    // Quarter-tone verticals, so it is visible where a clip sits.
     for step in 1..4 {
         let x = (HISTOGRAM_W - 1) * step / 4;
         for y in 0..HISTOGRAM_H {

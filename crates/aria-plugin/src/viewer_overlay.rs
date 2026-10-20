@@ -323,7 +323,7 @@ pub enum DragPhase {
     End,
 }
 
-/// What the user did to a handle of an overlay.
+/// An input event on a handle of an overlay.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum OverlayEvent {

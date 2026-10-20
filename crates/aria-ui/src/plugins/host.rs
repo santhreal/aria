@@ -16,7 +16,7 @@ use super::register_dyn;
 /// The data root every other plugin's directory hangs off.
 ///
 /// No `Default`: the root is the session's profile and only the caller knows it,
-/// so a host that forgot to say would have written into the operator's real
+/// so a host that omitted it would have written into the real profile
 /// directory. See [`crate::plugins::builtin`].
 pub struct StoragePlugin {
     pub root: PathBuf,

@@ -29,7 +29,7 @@ pub enum Dropped {
 }
 
 impl Dropped {
-    /// The gesture, named for what an operator did.
+    /// The gesture, named for the drop.
     ///
     /// Matched exhaustively, so a new payload is a compile error here and the
     /// census then requires a dressed drop for it.

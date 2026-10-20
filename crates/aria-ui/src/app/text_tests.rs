@@ -126,7 +126,7 @@ fn a_no_op_text_edit_leaves_no_undo_entry() {
 #[test]
 fn text_controls_are_inert_on_a_clip_that_is_not_a_title() {
     // The media fixture is selected, not a title: every setter is a no-op rather
-    // than an error the operator has to read.
+    // than an error in the status line.
     let (mut state, _) = with_clip();
     assert!(!state.selected_is_title());
     state.set_selected_text("nope".into()).unwrap();

@@ -96,7 +96,7 @@ impl Staged {
         &self.asks
     }
 
-    /// Whether the install needs the user's confirmation: always for a new
+    /// Whether the install needs a confirmation prompt: always for a new
     /// install, and for an update that asks for more.
     pub fn needs_confirmation(&self) -> bool {
         self.previous.is_none() || !self.asks.is_empty()

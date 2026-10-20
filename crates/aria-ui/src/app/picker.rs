@@ -1,4 +1,4 @@
-//! The one way the editor asks the operator for a path.
+//! The one way the editor prompts for a path.
 //!
 //! Fifteen call sites used to open a native dialog with `rfd`'s blocking API on
 //! the thread that draws. Two defects came with that: the window stopped
@@ -35,7 +35,7 @@ use super::AppState;
 
 pub use aria_dialog::FileSpec;
 
-/// What one pick asks the operator for.
+/// What one pick prompts for.
 pub enum Ask {
     /// One file that already exists.
     OpenFile(FileSpec),
@@ -50,7 +50,7 @@ pub enum Ask {
 }
 
 impl Ask {
-    /// Open the dialog and wait for the operator. Awaited on a background task:
+    /// Open the dialog and wait for an answer. Awaited on a background task:
     /// the answer arrives whenever it arrives, and the window keeps drawing.
     async fn answer(self) -> Answer {
         match self {
@@ -71,7 +71,7 @@ impl Ask {
     }
 }
 
-/// What the operator answered.
+/// The dialog's answer.
 ///
 /// Cancelling is an answer: no paths, or no. A continuation that reads the
 /// answer with [`Answer::one`] or [`Answer::all`] handles the cancel by handling
@@ -159,8 +159,7 @@ impl Default for Picks {
 }
 
 impl AppState {
-    /// Ask the operator for a path, then run `then` against the state with what
-    /// they answered.
+    /// Prompt for a path, then run `then` against the state with the answer.
     ///
     /// Returns immediately. `then` runs on the thread that draws, either now
     /// (an answer was supplied) or once the dialog is answered.
@@ -176,7 +175,7 @@ impl AppState {
         }
         // A wake fails only when the reader is gone, which cannot happen while
         // the state holds it. Nothing is lost either way: an unanswered pick is
-        // a dialog the operator never saw.
+        // a dialog that never opened.
         self.picks.to_window.wake(PickRequest {
             ask,
             then: Box::new(then),
@@ -230,7 +229,7 @@ pub fn watch_picks(state: &Entity<AppState>, cx: &mut App) {
                 break;
             }
             // A pick that relinked or imported media changed the picture under
-            // the playhead, and the pick is what the operator was waiting for.
+            // the playhead, and the pick is what the window was waiting for.
             // The update above just succeeded and nothing is awaited in
             // between, so the app is still alive here.
             let Some(entity) = state.upgrade() else {

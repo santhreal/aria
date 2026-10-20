@@ -136,7 +136,7 @@ fn the_instant_override_snaps_without_travelling() {
 }
 
 /// The store reads reduced motion from the frame's policy, so a call site that
-/// asks to animate still respects an operator who turned motion off.
+/// requests animation still respects motion turned off.
 #[test]
 fn reduced_motion_stops_the_store_even_when_the_caller_asks_to_animate() {
     let frames = TestFrames::new();

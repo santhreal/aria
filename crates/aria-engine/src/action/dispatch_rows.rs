@@ -195,7 +195,7 @@ project_ops! { ctx;
 
     // Export renders through the engine's own renderer, which has to suspend
     // its proxy first; `Engine::apply` intercepts it before dispatch is
-    // reached, so arriving here is a routing bug rather than an operator error.
+    // reached, so arriving here is a routing bug rather than an input error.
     Export { .. } => return Err(EngineError::Export(
         "export is handled by Engine::apply, not dispatch".into(),
     )),

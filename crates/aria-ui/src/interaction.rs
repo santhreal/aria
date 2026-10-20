@@ -1,6 +1,6 @@
-//! Cross-thread "the user is interacting with the preview" gate.
+//! Cross-thread "the preview is being scrubbed or played" flag.
 //!
-//! Background decode should defer while the user scrubs or plays.
+//! Background decode should defer during a scrub or playback.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};

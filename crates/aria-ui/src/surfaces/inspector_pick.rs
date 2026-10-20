@@ -41,7 +41,7 @@ pub const STYLE_COLORS: &[(&str, &str, [u8; 4])] = &[
     ("half", "Half black", [0, 0, 0, 128]),
 ];
 
-/// One thing an operator picks in a picture block.
+/// One pick in a picture block.
 #[derive(Clone)]
 pub enum Pick {
     /// A chip in the filter catalog.
@@ -94,7 +94,7 @@ pub enum Pick {
 }
 
 impl Pick {
-    /// What the operator picked, for a census and for a failure message.
+    /// The picked control, for a census and for a failure message.
     pub fn what(&self) -> &'static str {
         match self {
             Self::Filter(_) => "a filter from the catalog",

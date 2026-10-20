@@ -1,6 +1,6 @@
 //! Contracts for the reach declaration.
 //!
-//! The class closed here is "a command drifts out of the operator's hands". The
+//! The class closed here is "a command drifts out of every UI surface". The
 //! registry's exhaustive variant-to-row match already refuses to compile when a
 //! variant is added, so what is left to assert is that a declaration is
 //! meaningful: an unreachable command carries a real reason, and the set of
@@ -48,7 +48,7 @@ const UNREACHABLE: [&str; 4] = ["Export", "Fit to fill", "Overwrite", "Ripple in
 
 #[test]
 fn the_unreachable_set_is_locked() {
-    // Promoting a command to an operator surface, or adding one that has no
+    // Promoting a command to a UI surface, or adding one that has no
     // surface, is a decision. Both show up here rather than in nobody's diff.
     let mut unreachable: Vec<&'static str> = declared()
         .into_iter()
@@ -84,7 +84,7 @@ fn every_operator_command_names_its_surface() {
         if let Some(surface) = reach.surface() {
             assert!(
                 surface.len() > 20 && surface.contains(' '),
-                "{label} claims an operator surface without naming it: {surface:?}"
+                "{label} claims a UI surface without naming it: {surface:?}"
             );
         }
     }

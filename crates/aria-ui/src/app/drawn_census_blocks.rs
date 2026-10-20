@@ -432,7 +432,7 @@ fn a_pick_with_nothing_selected_is_inert() {
     for stage in staged() {
         let mut state = stage.dress.build();
         // The pick is read before the selection goes, because that is the order
-        // the operator's click happens in: the chip was drawn from a project that
+        // a click happens in: the chip was drawn from a project that
         // had a selection.
         let pick = stage.pick.of(&state);
         state.clear_selection();

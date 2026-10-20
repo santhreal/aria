@@ -190,7 +190,8 @@ impl EncoderConfig {
     }
 }
 
-/// What an export was *asked* for, one field per choice an operator can make.
+/// What an export was *asked* for, one field per choice the export dialog
+/// offers.
 ///
 /// Every field is an override: `None` (and [`ExportFormat::default`]) means
 /// "whatever the project already is", which is why this type carries no

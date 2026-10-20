@@ -198,7 +198,7 @@ fn an_unlabelled_clip_takes_the_label_of_its_kind() {
     assert_eq!(
         relabelled.drawn_label(),
         LabelColor::Rose,
-        "the operator's label wins"
+        "the set label wins"
     );
 }
 

@@ -30,7 +30,7 @@ impl Project {
     /// Both callers read it here: the pass that renders the clip, and the
     /// assistant tool that asks for a render before one is started. A tool that
     /// checked a shorter list would accept calls the render then refused,
-    /// minutes later, with the operator watching a job bar.
+    /// minutes later, with a job bar on screen.
     pub fn bake_medium(&self, clip_id: ClipId) -> Result<BakeMedium, ModelError> {
         let kind = self
             .lane_kind(clip_id)
