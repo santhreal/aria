@@ -21,6 +21,8 @@ Helpers: `ink(alpha)` for fills, `hairline(alpha)` for borders,
 | `surface_overlay` | `#2e2e2e` | `#d1d1d1` | Menus, popovers |
 | `element_hover` | ink 0.11 | ink 0.06 | The plate a control fades to under the pointer |
 | `element_active` | ink 0.16 | ink 0.10 | The plate a control shows while it is pressed, and a selected tool |
+| `input_bg` | white 3 % | `#ffffff` | Text input fill |
+| `solid` | `neutral(0.922)` | `neutral(0.205)` | High-contrast primary button fill |
 
 ## Lines
 
@@ -40,6 +42,8 @@ Helpers: `ink(alpha)` for fills, `hairline(alpha)` for borders,
 | `text_dim` | `#989898` | `neutral(0.50)` | Context rather than content: file paths |
 | `value` | `#5aa8ff` | `#1a73d9` | Editable numbers |
 | `caret` | accent family | accent family | The blinking caret in a text field |
+| `on_solid` | `#0e0e0e` | `neutral(0.985)` | Glyph and label colour on `solid` |
+| `on_accent` | `#141414` or `#f4f4f4` | `#141414` or `#f4f4f4` | Glyph and label colour on `accent` and `accent_strong` |
 
 Fonts: Inter (Regular, Medium, SemiBold, Bold, embedded) for all UI text, with
 proportional figures; readouts (the playhead fields, the ruler, scrubbable
@@ -48,6 +52,13 @@ tabular figures (`tnum`) so digits keep one width. `font_mono` is the system
 monospace face, used for expressions and plugin logs. Sizes are
 28 px (display), 18 px (timeline timecode), 16 px, 14 px (headings), 12 px
 (panel titles), 11 px (UI text), 10 px, and 9 px (micro labels).
+
+| Token | Dark | Light | Use |
+| --- | --- | --- | --- |
+| `font_sans` | `"Inter"` | `"Inter"` | Primary UI sans-serif family |
+| `font_mono` | system monospace | system monospace | Monospace family for expressions, timecode, and plugin logs |
+| `font_sans_fallback` | system sans-serif | system sans-serif | Fallback sans-serif family |
+| `font_mono_fallback` | system monospace | system monospace | Fallback monospace family |
 
 ## Accents
 
@@ -60,6 +71,11 @@ Use each hue only in its role. No sixth accent.
 | `warning` | 0.828, 0.189, 84.429 | 0.555, 0.163, 48.998 | Snap guide, missing media |
 | `success` | 0.765, 0.177, 163.223 | 0.596, 0.145, 163.225 | Export done, AI approve |
 | `busy` | 0.718, 0.202, 349.761 | 0.592, 0.249, 0.584 | Working indicator (`loaders::pulse_loader`) |
+| `accent_strong` | accent family | accent family | Pressed or emphasized accent fill |
+| `danger_strong` | 0.58, 0.16, 25.0 | 0.51, 0.20, 25.0 | Destructive button fill |
+| `danger_muted` | 0.808, 0.114, 19.571 | 0.505, 0.213, 27.518 | Error status strip and failed job row fill |
+| `warning_muted` | 0.924, 0.12, 95.746 | 0.473, 0.137, 46.201 | Moved-file warning banner fill |
+| `success_muted` | 0.845, 0.143, 164.978 | 0.508, 0.118, 165.612 | Completed job row fill |
 
 Muted variants back a whole surface rather than a glyph: `danger_muted` the
 status strip while an error stands and a failed job row, `warning_muted` a
@@ -156,26 +172,38 @@ font_mono = "JetBrains Mono"
 accent = "oklch(0.5 0.2 260 / 1)"
 ```
 
-- `name` is the label in Settings. Without it, the file name is the label.
-- `[dark]` and `[light]` map tokens to values: every token in the tables above,
-  plus `font_sans`, `font_mono`, `font_sans_fallback`, and
-  `font_mono_fallback`, which take a font family name. A token left out keeps
-  its shipped value, and an appearance with no table is the shipped one.
-- Colours are `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, or `oklch(l c h)` with
-  an optional `/ alpha`. `l` and `alpha` are 0 to 1, `c` is 0 or more, and `h`
-  is in degrees.
-- The accent choice applies first, so a file that sets `accent` replaces it.
-- A file larger than 64 KiB, an unknown key or token, or a value that does not
-  parse makes the file unreadable. Settings lists it with the reason. A saved
-  choice of an unreadable file shows the shipped theme and logs a warning.
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `name` | string | file stem or theme id | Display label shown in Settings. When omitted or whitespace-only, defaults to the file name without `.toml` (or `<theme id>` for a plugin theme). |
+| `dark` | table (`[dark]`) | `{}` (shipped dark tokens) | Token overrides applied when the active appearance is Dark. |
+| `light` | table (`[light]`) | `{}` (shipped light tokens) | Token overrides applied when the active appearance is Light. |
+
+- At least one of `[dark]` or `[light]` must set at least one token. Unknown
+  top-level keys are rejected.
+- `[dark]` and `[light]` map token names to string values: every colour and font
+  token in the tables above (`COLOR_TOKENS` and `FONT_TOKENS`, 49 tokens total).
+  A token omitted from a table keeps its shipped value, and an appearance with
+  no table uses the shipped theme.
+- Colour strings are `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, or `oklch(l c h)`
+  with an optional `/ alpha`. Lightness `l` and `alpha` must be finite in
+  `0.0..=1.0`, chroma `c` finite and `>= 0.0`, and hue `h` finite in degrees.
+  Font tokens take a non-blank font family string.
+- The accent family selected in Settings applies first; a theme file that sets
+  `accent`, `accent_strong`, `caret`, `selection`, or `playhead` overrides it.
+- A theme file larger than `MAX_THEME_BYTES` (`THEME_MAX_BYTES` = 64 KiB), an
+  unknown key or token, or a value that fails to parse is rejected and listed in
+  Settings with its failure reason. A saved choice that fails to load falls back
+  to the shipped theme and logs a warning.
 
 To reload a file after editing it, open Settings and click its row. A plugin
-adds a theme with `themes/<id>.toml` in its package or
+ships theme files at `themes/<id>.toml` in its package (where `<id>` is 1 to
+`THEME_ID_MAX_BYTES` = 64 bytes of ASCII letters, digits, `-`, `_`, and `.`, not
+starting with `.`) or registers them from code with
 `PluginContext::register_theme` (see [Packages](plugins/packages.md)).
 
 ## Layout constants
 
-`HEADER_HEIGHT = 44`, `TITLEBAR_HEIGHT = 38`, `STATUS_STRIP_HEIGHT = 24`,
+`HEADER_HEIGHT = 44`, `TITLEBAR_HEIGHT = 38`, `STATUS_STRIP_HEIGHT = 22`,
 `BUBBLE_RADIUS = 16`, `PANEL_RADIUS = 10`, `CONTROL_RADIUS = 6`,
 `SPACE_XS = 4`, `SPACE_SM = 8`, `SPACE_MD = 12`, `SPACE_LG = 16`.
 

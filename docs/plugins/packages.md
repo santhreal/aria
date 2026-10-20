@@ -27,7 +27,7 @@ tiers:
 
 | Tier | Files in package root | Capabilities |
 | --- | --- | --- |
-| `Tier::Data` | Neither `plugin.wasm` nor `lib/` | Declared WGSL effects, generators, and transitions, plugin textures, menu rows, key chords, settings, `.ariapreset` files, and themes. Cannot declare `[[commands]]`. Mounts at startup without running guest code. |
+| `Tier::Data` | Neither `plugin.wasm` nor `lib/` | Declared WGSL effects, generators, and transitions, plugin textures, clip types, workspaces, menu rows, key chords, settings, `.ariapreset` files, and themes. Cannot declare `[[commands]]`. Mounts at startup without running guest code. |
 | `Tier::Wasm` | `plugin.wasm` | All declared contributions plus sandboxed guest code targeting `aria:plugin/plugin@1.0.0`: commands, panels, viewer overlays, scopes, jobs, AI tools, events, project edits, importers, exporters, encoders, decoders, audio effects, WGSL effect graphs and CPU effects, generators, transitions, plugin textures, clip types, driver languages, presets, themes, workspaces, settings, and storage. See [WebAssembly plugins](wasm.md). |
 | `Tier::Native` | `lib/<os>-<arch>.<so\|dylib\|dll>` | All declared contributions plus in-process C ABI code (`aria_plugin_entry`): commands, panels, viewer overlays, scopes, jobs, AI tools, events, project edits, importers, exporters, encoders, decoders, audio effects, WGSL effect graphs and CPU effects, generators, transitions, plugin textures, clip types, driver languages, presets, themes, workspaces, settings, and storage. See [Native plugins](native.md). |
 
@@ -42,8 +42,9 @@ File limits enforced when opening or mounting a package:
 - Shader files (`shaders/*.wgsl`): relative paths without `..` segments,
   resolving inside the package directory after canonicalization, each at most
   `MAX_SHADER_BYTES` (1 MiB).
-- Command icons (`icons/*.svg`): relative SVG paths without `..` segments, each
-  at most `ICON_MAX_BYTES` (64 KiB), parsed by `CommandIcon::from_svg`.
+- Icons (`icons/*.svg`): relative SVG paths without `..` segments for
+  `[[commands]]` and `[[clip_types]]`, each at most `ICON_MAX_BYTES` (64 KiB),
+  parsed by `CommandIcon::from_svg`.
 - Textures (`textures/*.png`): relative image paths without `..` segments,
   resolving inside the package directory after canonicalization, each at most
   `MAX_TEXTURE_BYTES` (64 MiB) and at most `MAX_TEXTURE_SIDE` (8192) pixels on
@@ -69,7 +70,24 @@ updating the package leaves `<data dir>/plugin-data/<id>` intact.
 
 ## `plugin.toml` reference
 
-Every table in `plugin.toml` rejects unknown keys (`deny_unknown_fields`).
+Every table in `plugin.toml` rejects unknown fields (`deny_unknown_fields`).
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `plugin` | table | required | Package identity, target API version, metadata, and plugin dependencies. |
+| `permissions` | table | no access | Host capability grants for project state, media, GPU, network, file system, subprocesses, and clipboard. |
+| `activation` | table | `{ on = [] }` | Deferred-loading event list. Empty loads at startup. |
+| `textures` | array of tables | `[]` | Static RGBA images registered before the package's effects, generators, and clip types. |
+| `effects` | array of tables | `[]` | Video effects rendered by package WGSL files. |
+| `generators` | array of tables | `[]` | Generators rendered by package WGSL files. |
+| `transitions` | array of tables | `[]` | Clip transitions rendered by package WGSL files. |
+| `commands` | array of tables | `[]` | Command palette entries implemented by WASM or native guest code. |
+| `menus` | array of tables | `[]` | Additional menu bar placements for declared commands. |
+| `keys` | array of tables | `[]` | Additional default keyboard shortcuts for declared commands. |
+| `panels` | array of tables | `[]` | Docked UI panels implemented by WASM or native guest code. |
+| `settings` | array of tables | `[]` | Persistent configuration fields shown in the package's Settings section. |
+| `workspaces` | array of tables | `[]` | Named editor pane layouts listed in the Window menu and Settings. |
+| `clip_types` | array of tables | `[]` | Custom timeline clip kinds drawn by a package generator or by their own WGSL. |
 
 ```toml
 [plugin]
@@ -144,7 +162,7 @@ title = "Run Color Tools"
 key = "Ctrl+Alt+L"
 menu = "Sequence/Color Tools"
 icon = "icons/color-tools.svg"
-enablement = "clipSelected && !playing"
+enablement = "selection && !playing"
 
 [[menus]]
 command = "com.example.color-tools.run"
@@ -177,210 +195,537 @@ inspector_width = 520
 timeline_height = 230
 scopes = true
 focus = "preview"
+
+[[clip_types]]
+id = "slate"
+name = "Slate"
+generator = "test-card"
+colour = "teal"
 ```
 
 ### `[plugin]`
 
 Required identity and compatibility table.
 
-| Key | Type | Rules |
-| --- | --- | --- |
-| `id` | string | Reverse-domain ID with at least two dot-separated labels (`com.example.tools`). Each label contains only `a-z`, `0-9`, or `-`, and cannot start or end with `-`. The `aria.` prefix is reserved for shipped plugins. |
-| `name` | string | Non-empty display name after trimming whitespace. |
-| `version` | string | Full `major.minor.patch` semantic version parsed by `semver::Version`. |
-| `api` | integer or string | Plugin host API major version (`1` or `"1"`). Must equal `API_MAJOR` (`1`). |
-| `publisher` | string | Optional publisher name (default `""`). |
-| `description` | string | Optional summary (default `""`). |
-| `license` | string | Optional SPDX license expression (default `""`). |
-| `requires` | array of strings | Optional dependency list (default `[]`). Each entry is `"<plugin-id>"` or `"<plugin-id> <version-req>"` where `<version-req>` parses as `semver::VersionReq`. Target IDs must be valid plugin IDs and cannot match `plugin.id`. |
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `id` | string | required | Reverse-domain identifier with at least two dot-separated labels (`com.example.tools`). Each label contains only lowercase ASCII letters (`a-z`), digits (`0-9`), and `-`, and cannot start or end with `-`. The `aria.` prefix is reserved for shipped plugins. |
+| `name` | string | required | Display name. Must be non-empty after trimming whitespace. |
+| `version` | string | required | Full `major.minor.patch` semantic version parsed by `semver::Version`. |
+| `api` | integer or string | required | Plugin host API major version (`1` or `"1"`). Must equal `API_MAJOR` (`1`). |
+| `publisher` | string | `""` | Publisher display name. |
+| `description` | string | `""` | Short package summary. |
+| `license` | string | `""` | SPDX license expression. |
+| `requires` | array of strings | `[]` | Required plugin dependencies. Each entry is `"<plugin-id>"` (any version) or `"<plugin-id> <version-req>"` where `<version-req>` parses as `semver::VersionReq`. Target IDs must contain a dot, use only `a-z`, `0-9`, `-`, and `.`, and cannot equal `plugin.id`. |
+
+```toml
+[plugin]
+id = "com.example.minimal"
+name = "Minimal Plugin"
+version = "1.0.0"
+api = 1
+```
 
 ### `[permissions]`
 
-Optional capability grants (defaults to no access when omitted). `Package::plugin_manifest`
-maps these grants to host service names in `PluginManifest::uses`:
+Optional capability grants. `Package::plugin_manifest` maps these grants to
+host service names in `PluginManifest::uses`. `SettingsService` and
+`SettingsSchema` are included in `uses` without a permission entry.
 
-| Key | Allowed values | Default | Host services / scope |
+| Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `project` | `"none"`, `"read"`, `"read-write"` | `"none"` | `"read"` and `"read-write"` add `ProjectHost` (`"read"` permits snapshots; `"read-write"` also permits transactions and undo). |
-| `media` | `"none"`, `"read"`, `"read-write"` | `"none"` | `"read"` and `"read-write"` add `DecoderService` and `AudioHost`. |
-| `gpu` | `false`, `true` | `false` | `true` adds `GpuContext` and `RenderHost`. |
-| `net` | array of host strings | `[]` | Allowed network hosts (`api.example.com`, `*.cdn.example.com`). Each entry must be non-empty and contain only ASCII alphanumeric characters, `-`, `.`, or `*`. |
-| `fs` | array of strings | `[]` | File-system scopes (`FsScope`). Each entry is `"project"`, `"pick"`, or an absolute path (`/path/to/dir`). |
-| `process` | `false` or array of strings | `false` | Allowed external executables. `process = true` and empty executable strings are rejected. |
-| `clipboard` | `false`, `true` | `false` | System clipboard access. |
+| `project` | `"none"`, `"read"`, or `"read-write"` | `"none"` | Project access level. `"read"` and `"read-write"` add `ProjectHost` (`"read"` permits project snapshots; `"read-write"` also permits transactions and undo). |
+| `media` | `"none"`, `"read"`, or `"read-write"` | `"none"` | Media access level. `"read"` and `"read-write"` add `DecoderService` and `AudioHost`. |
+| `gpu` | boolean | `false` | GPU compute and render access. `true` adds `GpuContext` and `RenderHost`. |
+| `net` | array of strings | `[]` | Allowed network host names (`"api.example.com"`, `"*.cdn.example.com"`). Each entry must be non-empty and contain only ASCII alphanumeric characters, `-`, `.`, or `*`. |
+| `fs` | array of strings | `[]` | File-system scopes (`FsScope`) beyond the package directory and `<data dir>/plugin-data/<id>`. Each entry is `"project"` (the open project folder), `"pick"` (paths chosen in a file dialog), or an absolute path. |
+| `process` | `false` or array of strings | `false` | Executables the plugin may spawn. `process = true` and empty executable strings are rejected. |
+| `clipboard` | boolean | `false` | System clipboard read access. |
 
-`SettingsService` and `SettingsSchema` are included in `uses` without a
-permission entry.
+```toml
+[plugin]
+id = "com.example.exporter"
+name = "Exporter"
+version = "1.0.0"
+api = 1
+
+[permissions]
+project = "read"
+media = "read"
+fs = ["pick"]
+process = ["ffmpeg"]
+```
 
 ### `[activation]`
 
-Optional deferred-loading triggers (empty `on` or omitted `[activation]` loads
-the package at startup). See [Activation](activation.md).
+Optional deferred-loading triggers. When `[activation]` is omitted, `on` is
+empty, or `on` contains `"startup"`, `PackageManifest::loads_at_start` returns
+`true` and the package mounts at startup. See [Activation](activation.md).
 
-- `on`: array of trigger strings: `"startup"`, `"command:<id>"`, `"file:<ext>"`,
-  `"effect:<id>"`, `"transition:<id>"`, `"generator:<id>"`, `"panel:<id>"`, or
-  `"setting:<key>"`.
-- Every `"command:<id>"`, `"panel:<id>"`, and `"setting:<key>"` entry must match
-  a `[[commands]]`, `[[panels]]`, or `[[settings]]` entry declared in the same
-  `plugin.toml` (`setting:<key>` is qualified under `<plugin.id>.<key>` unless
-  already prefixed).
-- `"file:<ext>"` strips an optional leading `.` and normalizes `<ext>` to
-  lowercase ASCII letters, digits, `_`, and `-`.
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `on` | array of strings | `[]` | Activation events (`Activation`): `"startup"`, `"command:<id>"`, `"panel:<id>"`, `"setting:<key>"`, `"file:<ext>"`, `"effect:<id>"`, `"transition:<id>"`, or `"generator:<id>"`. Duplicate events are deduplicated in declaration order. |
 
-### `[[effects]]`, `[[generators]]`, and `[[transitions]]`
+Every `"command:<id>"`, `"panel:<id>"`, and `"setting:<key>"` entry must match
+an entry in `[[commands]]`, `[[panels]]`, or `[[settings]]` of the same
+`plugin.toml` (`setting:<key>` is qualified under `<plugin.id>.<key>` unless
+already prefixed). `"file:<ext>"` strips an optional leading `.` and normalizes
+`<ext>` to lowercase ASCII letters, digits, `_`, and `-`.
 
-Optional declared GPU shaders registered into the compositor when the package
-mounts or defers. See [Effects and transitions](effects.md).
+```toml
+[plugin]
+id = "com.example.lazy"
+name = "Lazy Loader"
+version = "1.0.0"
+api = 1
 
-- `id`: `<name>` or `<plugin.id>.<name>` containing only ASCII letters, digits,
-  `-`, `_`, and `.`. Unprefixed IDs are qualified as `<plugin.id>.<id>`. Every
-  effect, generator, and transition in a package shares one catalog ID
-  namespace and must be unique.
-- `name`: non-empty display label.
-- `category` (`[[effects]]` and `[[generators]]` only): the Effect menu submenu
-  an effect is listed under. An effect without one is listed under Other.
-  Generators are not listed in the Effect menu.
-- `shader` or `passes`: effects and generators specify either `shader =
-  "path.wgsl"` or `passes`, never both and never neither. Transitions take
-  `shader = "path.wgsl"` only. Every path must be relative to the package root
-  without `..` segments.
-- `passes`: an array whose entries are a WGSL path (a fragment pass with
-  default name, inputs, and size) or a pass table, written inline or as
-  `[[effects.passes]]` / `[[generators.passes]]`. A pass table takes `file`
-  (required), `name`, `stage` (`"fragment"` or
-  `{ compute = { workgroup = [x, y] } }`), `inputs` (each `"source"`,
-  `{ pass = "<name>" }`, `{ layer = "<param>" }`, or `{ texture = "<id>" }`),
-  and `output` (`"same"`, `{ scale = [x, y] }`, or `{ fixed = [w, h] }`), with
-  the defaults and rules of [Effect graphs](effects.md#effect-graphs). A
-  texture input is qualified like a texture id and must name a `[[textures]]`
-  entry of the same package.
-- `bounds` (`[[effects]]` and `[[generators]]` only): optional
-  `{ left, top, right, bottom }` pixel margins the effect draws past its layer
-  (default all `0`).
-- `reads_outside` and `time_dependent` (`[[effects]]` and `[[generators]]`
-  only): optional booleans (default `false`). See
-  [Bounds and traits](effects.md#bounds-and-traits).
-- `params`: optional array of `EffectParamSpec` tables (`name`, `label`,
-  optional `kind` = `"scalar"` | `"int"` | `"bool"` | `"choice"` | `"color"` |
-  `"vec2"` | `"point3"` | `"size"` | `"angle"` | `"curve"` | `"gradient"` |
-  `"text"` | `"font"` | `"file"` | `"layer"`, `default`, `min`, `max`,
-  `soft_min`, `soft_max`, `unit`, `display`, `default_int`, `int_min`,
-  `int_max`, `default_bool`, `choices`, `default_choice`, `default_color`,
-  `default_linear_color`, `default_vec2`, `default_vec3`, `default_curve`,
-  `default_gradient`, `default_text`, `group`, `visible_when`, `tooltip`).
-- `groups` (`[[effects]]` and `[[generators]]` only): optional array of
-  `EffectGroupSpec` tables (`id`, `label`, optional `collapsed = true | false`).
+[activation]
+on = ["file:braw", "setting:quality"]
+
+[[settings]]
+key = "quality"
+label = "Decode Quality"
+```
 
 ### `[[textures]]`
 
-Optional images that effect and generator passes read with
-`{ texture = "<id>" }`. See [Plugin textures](effects.md#plugin-textures).
+Optional static images registered through `PluginContext::register_texture`
+before the package's effects, generators, and clip types. See
+[Plugin textures](effects.md#plugin-textures).
 
-- `id`: `<name>` or `<plugin.id>.<name>` containing only ASCII letters, digits,
-  `-`, `_`, and `.`. Unprefixed IDs are qualified as `<plugin.id>.<id>`. Each id
-  is declared once.
-- `file`: an image path relative to the package root without `..` segments.
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `id` | string | required | Texture identifier containing only ASCII letters, digits, `-`, `_`, and `.`. Unprefixed IDs are qualified as `<plugin.id>.<id>`. Must be unique within `[[textures]]`. |
+| `file` | string | required | Image path relative to the package root without `..` segments, at most `MAX_TEXTURE_BYTES` (64 MiB) and `MAX_TEXTURE_SIDE` (8192) pixels per side. |
 
-Mounting registers every texture before the package's effects. An image that
-is missing, does not decode, or is larger than the limits above fails the
-mount, naming the texture and the file, and leaves no texture or effect of the
-package registered.
+```toml
+[plugin]
+id = "com.example.textures"
+name = "Texture Pack"
+version = "1.0.0"
+api = 1
+
+[[textures]]
+id = "hald-lut"
+file = "textures/hald.png"
+```
+
+### `[[effects]]` and `[[generators]]`
+
+Optional declared GPU effects and generators registered into the compositor
+when the package mounts. Both array-of-tables sections share the same schema;
+entries in `[[generators]]` register with `EffectSpec::generator = true`.
+Every `[[effects]]`, `[[generators]]`, `[[transitions]]`, and self-drawn
+`[[clip_types]]` entry in a package shares one catalog ID namespace and must be
+unique. See [Effects and transitions](effects.md).
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `id` | string | required | Catalog identifier containing only ASCII letters, digits, `-`, `_`, and `.`. Unprefixed IDs are qualified as `<plugin.id>.<id>`. |
+| `name` | string | required | Display label. Must be non-empty after trimming whitespace. |
+| `category` | string | none (`"Other"` for effects) | Effect menu submenu label. Ignored for generators, which are listed in the Generators tab rather than the Effect menu. |
+| `shader` | string | none | Single-pass fragment shader WGSL path relative to the package root without `..` segments. Mutually exclusive with `passes`; one of `shader` or `passes` is required. |
+| `passes` | array of strings or pass tables | `[]` | Multi-pass render graph entries (`[[effects.passes]]` / `[[generators.passes]]`). Mutually exclusive with `shader`; between 1 and `MAX_EFFECT_PASSES` (8) passes when used. |
+| `params` | array of `EffectParamSpec` tables | `[]` | Parameter declarations in inspector display order. |
+| `groups` | array of `EffectGroupSpec` tables | `[]` | Inspector parameter group headings (`{ id, label, collapsed }`). |
+| `stateful` | boolean | `false` | Whether the output at tick `t` depends on frames rendered before `t`. |
+| `bounds` | `EffectBounds` table | `{ left = 0.0, top = 0.0, right = 0.0, bottom = 0.0 }` | Pixel margin expansion (`> 0`) or contraction (`< 0`) applied to the layer bounding box. |
+| `reads_outside` | boolean | `false` | Whether any pass samples source coordinates outside `0.0..=1.0`. |
+| `time_dependent` | boolean | `false` | Whether the output varies with playback time (`aria.time`) when parameters are static. When `false`, `aria.time` is `0.0`. |
+
+```toml
+[plugin]
+id = "com.example.fx"
+name = "FX Pack"
+version = "1.0.0"
+api = 1
+
+[[effects]]
+id = "warm-tint"
+name = "Warm Tint"
+category = "Color"
+shader = "shaders/warm-tint.wgsl"
+bounds = { left = 4.0, top = 4.0, right = 4.0, bottom = 4.0 }
+reads_outside = false
+time_dependent = false
+
+[[generators]]
+id = "checkerboard"
+name = "Checkerboard"
+shader = "shaders/checkerboard.wgsl"
+time_dependent = true
+```
+
+### `[[effects.passes]]`, `[[generators.passes]]`, and parameter tables
+
+Each entry in `passes` is either a relative WGSL path string (equivalent to a
+fragment pass with default `name`, `inputs`, and `output`) or a pass table:
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `file` | string | required | Relative WGSL path inside the package without `..` segments, at most `MAX_SHADER_BYTES` (1 MiB). |
+| `name` | string | `""` (`pass<index>`) | Pass identifier (`a-z`, `A-Z`, `0-9`, `_`) referenced by later passes as `{ pass = "<name>" }` and bound in WGSL as `pass_<name>`. |
+| `stage` | `"fragment"` or `{ compute = { workgroup = [x, y] } }` | `"fragment"` | Pipeline stage (`PassStage`). Compute workgroup dimensions must be non-zero with `x * y <= MAX_WORKGROUP_INVOCATIONS` (256). |
+| `inputs` | array of `PassInput` entries | `[]` (previous pass, or `"source"` for pass 0) | Bound inputs in order, at most `MAX_PASS_INPUTS` (8): `"source"`, `{ pass = "<name>" }`, `{ layer = "<param>" }`, or `{ texture = "<id>" }`. Texture IDs are qualified under `<plugin.id>.` and must match a `[[textures]]` entry in the same manifest. |
+| `output` | `"same"`, `{ scale = [x, y] }`, or `{ fixed = [w, h] }` | `"same"` | Output target dimensions (`OutputSize`). Scale factors must be finite and in `0.0..=16.0` (`MAX_PASS_SCALE`). Fixed dimensions must be in `1..=8192` (`MAX_PASS_SIDE`). The final pass must use `"same"`. |
+
+`bounds` (`EffectBounds`) inline table keys:
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `left` | float (`f32`) | `0.0` | Left margin offset in canvas pixels. |
+| `top` | float (`f32`) | `0.0` | Top margin offset in canvas pixels. |
+| `right` | float (`f32`) | `0.0` | Right margin offset in canvas pixels. |
+| `bottom` | float (`f32`) | `0.0` | Bottom margin offset in canvas pixels. |
+
+`groups` (`EffectGroupSpec`) table keys:
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `id` | string | required | Group identifier referenced by `params[].group`. |
+| `label` | string | required | Inspector section heading. |
+| `collapsed` | boolean | `false` | Whether the group starts collapsed in the inspector. |
+
+`params` (`EffectParamSpec`) table keys (used in `[[effects]]`,
+`[[generators]]`, `[[transitions]]`, and self-drawn `[[clip_types]]`):
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `name` | string | required | WGSL parameter identifier (`a-z`, `A-Z`, `0-9`, `_`, not starting with a digit), unique within the effect or transition. |
+| `label` | string | required | Non-empty inspector display label. |
+| `kind` | string (`EffectParamKind`) | `"scalar"` | Parameter type: `"scalar"` (alias `"float"`), `"int"` (alias `"integer"`), `"bool"` (alias `"boolean"`), `"choice"` (alias `"enum"`), `"color"` (alias `"colour"`), `"vec2"` (aliases `"point2d"`, `"point_2d"`), `"point3"` (aliases `"vec3"`, `"point3d"`, `"point_3d"`), `"size"`, `"angle"`, `"curve"`, `"gradient"`, `"text"` (alias `"string"`), `"font"`, `"file"` (alias `"path"`), or `"layer"` (alias `"layer_ref"`). |
+| `default` | float (`f32`) | `0.0` | Default value for `"scalar"` and `"angle"`. Must satisfy `min <= default <= max`. |
+| `min` | float (`f32`) | `0.0` | Hard minimum for `"scalar"`, `"vec2"`, `"point3"`, `"size"`, and `"angle"` (`min <= max`). |
+| `max` | float (`f32`) | `1.0` | Hard maximum for `"scalar"`, `"vec2"`, `"point3"`, `"size"`, and `"angle"` (`min <= max`). |
+| `soft_min` | float (`f32`) | none | Optional slider scrub minimum (`min <= soft_min <= soft_max <= max`). |
+| `soft_max` | float (`f32`) | none | Optional slider scrub maximum (`min <= soft_min <= soft_max <= max`). |
+| `unit` | string | none | Unit suffix shown in the inspector (`"px"`, `"deg"`, `"%"`, `"s"`). |
+| `display` | string (`EffectParamDisplay`) | none (`"slider"`) | Numeric control style: `"slider"`, `"angle_dial"` (aliases `"angle"`, `"dial"`), or `"percentage"` (alias `"percent"`). |
+| `default_int` | integer (`i64`) | `0` | Default value for `"int"`. |
+| `int_min` | integer (`i64`) | `0` | Minimum allowed value for `"int"` (`int_min <= int_max`). |
+| `int_max` | integer (`i64`) | `0` | Maximum allowed value for `"int"` (`int_min <= int_max`). |
+| `default_bool` | boolean | `false` | Default value for `"bool"`. |
+| `choices` | array of `{ id, label }` tables | `[]` | Options (`EffectChoiceOption`) for `"choice"`. Must be non-empty when `kind = "choice"`. |
+| `default_choice` | string | none (first option) | Default option `id` for `"choice"`. |
+| `default_color` | `[u8; 4]` | `[0, 0, 0, 0]` | Default sRGB `[R, G, B, A]` color in `0..=255` for `"color"`. |
+| `default_linear_color` | `[f32; 4]` | none | Optional linear RGBA default `[r, g, b, a]` for `"color"` (alias `linear_color`). Overrides `default_color` when set. |
+| `linear_color` | `[f32; 4]` | none | Alias for `default_linear_color`. |
+| `default_vec2` | `[f32; 2]` | `[0.0, 0.0]` | Default `[x, y]` or `[w, h]` value for `"vec2"` and `"size"`. |
+| `default_vec3` | `[f32; 3]` | `[0.0, 0.0, 0.0]` | Default `[x, y, z]` value for `"point3"`. |
+| `default_curve` | array of `{ x, y }` tables | `[]` | Default control points (`EffectCurvePoint`, coordinates in `0.0..=1.0`) for `"curve"`. Empty defaults to the identity line `(0, 0)` to `(1, 1)`. |
+| `default_gradient` | array of `{ offset, color }` tables | `[]` | Default stops (`EffectGradientStop`, `offset` or alias `position` in `0.0..=1.0`, linear RGBA `color: [f32; 4]`) for `"gradient"`. |
+| `default_text` | string | `""` | Default string for `"text"`, `"font"`, or `"file"`. |
+| `group` | string | none | Group `id` matching an entry in `groups`. |
+| `visible_when` | `EffectVisibilityCondition` table | none | Visibility rule hiding this parameter unless another parameter on the same effect or transition equals a target value. |
+| `tooltip` | string | none | Inspector hover description. |
+
+`choices` (`EffectChoiceOption`) table keys:
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `id` | string | required | Option identifier stored on the effect instance. |
+| `label` | string | required | Option label shown in the dropdown. |
+
+`default_curve` (`EffectCurvePoint`) table keys:
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `x` | float (`f32`) | required | Input coordinate in `0.0..=1.0`. |
+| `y` | float (`f32`) | required | Output value in `0.0..=1.0`. |
+
+`default_gradient` (`EffectGradientStop`) table keys:
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `offset` | float (`f32`) | required | Stop position in `0.0..=1.0` (alias `position`). |
+| `position` | float (`f32`) | none | Alias for `offset`. |
+| `color` | `[f32; 4]` | required | Linear RGBA color `[r, g, b, a]` at this stop. |
+
+`visible_when` (`EffectVisibilityCondition`) table keys:
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `param` | string | required | Controlling parameter identifier on the same effect or transition. |
+| `equals` | string | `""` | Stringified value that reveals this parameter. |
+| `equals_bool` | boolean | none | Boolean alias for `equals` (`true` -> `"true"`, `false` -> `"false"`). |
+| `equals_int` | integer (`i64`) | none | Integer alias for `equals`. |
+| `equals_choice` | string | none | Choice ID alias for `equals`. |
+
+```toml
+[plugin]
+id = "com.example.bloom"
+name = "Bloom"
+version = "1.0.0"
+api = 1
+
+[[textures]]
+id = "dirt"
+file = "textures/dirt.png"
+
+[[effects]]
+id = "bloom"
+name = "Bloom"
+category = "Stylize"
+bounds = { left = 8.0, top = 8.0, right = 8.0, bottom = 8.0 }
+groups = [{ id = "optics", label = "Optics", collapsed = false }]
+params = [
+  { name = "amount", label = "Amount", kind = "scalar", default = 0.5, min = 0.0, max = 2.0, soft_min = 0.0, soft_max = 1.0, unit = "%", display = "percentage", group = "optics", tooltip = "Bloom intensity" },
+]
+
+[[effects.passes]]
+name = "downsample"
+file = "shaders/downsample.wgsl"
+stage = { compute = { workgroup = [8, 8] } }
+output = { scale = [0.5, 0.5] }
+
+[[effects.passes]]
+file = "shaders/composite.wgsl"
+inputs = ["source", { pass = "downsample" }, { texture = "dirt" }]
+output = "same"
+```
+
+### `[[transitions]]`
+
+Optional single-pass GPU transitions between adjacent timeline clips. See
+[Effects and transitions](effects.md).
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `id` | string | required | Catalog identifier containing only ASCII letters, digits, `-`, `_`, and `.`. Unprefixed IDs are qualified as `<plugin.id>.<id>`. |
+| `name` | string | required | Non-empty display label. |
+| `shader` | string | required | Relative WGSL path inside the package without `..` segments, at most `MAX_SHADER_BYTES` (1 MiB). |
+| `params` | array of `EffectParamSpec` tables | `[]` | Transition parameters exposed in the inspector and as `param_<name>()` in WGSL. |
+
+```toml
+[plugin]
+id = "com.example.transitions"
+name = "Transitions"
+version = "1.0.0"
+api = 1
+
+[[transitions]]
+id = "flash-cut"
+name = "Flash Cut"
+shader = "shaders/flash-cut.wgsl"
+params = [
+  { name = "softness", label = "Softness", default = 0.25, min = 0.0, max = 1.0 },
+]
+```
 
 ### `[[commands]]`
 
 Optional command palette entries implemented by the package's WASM or native
-code. See [Commands](commands.md).
+code. Rejected in `Tier::Data` packages. See [Commands](commands.md).
 
-- `id`: non-empty command ID, unique within `[[commands]]`.
-- `title`: non-empty command palette title.
-- `key`: optional default chord on the `editor` route, validated by
-  `Chord::parse` (for example `"Ctrl+Alt+L"`).
-- `menu`: optional menu path validated by `MenuPath::parse` (for example
-  `"Sequence"`, `"Sequence/Color Tools"`, `"Clip"`).
-- `icon`: optional relative `.svg` path inside the package.
-- `enablement`: optional enablement expression validated by `Enablement::parse`
-  (for example `"clipSelected && !playing"`).
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `id` | string | required | Non-empty command identifier, unique within `[[commands]]`. |
+| `title` | string | required | Non-empty command palette and menu label. |
+| `key` | string | none | Default shortcut chord on the `"editor"` route, validated by `Chord::parse` (for example `"Ctrl+Alt+L"`). |
+| `menu` | string | none | Menu bar placement validated by `MenuPath::parse` (for example `"Sequence"`, `"Sequence/Color Tools"`, `"Clip"`). |
+| `icon` | string | none | Relative `.svg` file path inside the package without `..` segments, at most `ICON_MAX_BYTES` (64 KiB). |
+| `enablement` | string | none | Boolean enablement expression over editor context keys (`clips`, `selection`, `single-selection`, `mark-in`, `mark-out`, `in-out`, `playing`, `focus.media`, `focus.viewer`, `focus.timeline`, `focus.inspector`, `focus.assistant`, `focus.mixer`), validated by `Enablement::parse` (for example `"selection && !playing"`). |
+
+```toml
+[plugin]
+id = "com.example.commands"
+name = "Commands"
+version = "1.0.0"
+api = 1
+
+[[commands]]
+id = "com.example.commands.normalize"
+title = "Normalize Clip"
+key = "Ctrl+Alt+N"
+menu = "Clip"
+icon = "icons/normalize.svg"
+enablement = "selection && !playing"
+```
 
 ### `[[menus]]`
 
-Optional additional menu placements for commands declared in `[[commands]]`.
+Optional additional menu bar placements for commands declared in `[[commands]]`.
 See [Menus](menus.md).
 
-- `command`: target command ID; must match an entry in `[[commands]]`.
-- `menu`: menu path validated by `MenuPath::parse`. Duplicate `(command, menu)`
-  placements across `[[commands]]` and `[[menus]]` are rejected.
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `command` | string | required | Target command ID. Must match an `id` declared in `[[commands]]`. |
+| `menu` | string | required | Menu path validated by `MenuPath::parse` (top-level menu `File`, `Edit`, `Clip`, `Sequence`, `Markers`, `View`, `Window`, or `Help`, with optional `/Submenu` up to `MAX_MENU_DEPTH` = 3). Duplicate `(command, menu)` pairs across `[[commands]]` and `[[menus]]` are rejected. |
+
+```toml
+[plugin]
+id = "com.example.menus"
+name = "Menus"
+version = "1.0.0"
+api = 1
+
+[[commands]]
+id = "com.example.menus.grade"
+title = "Apply Grade"
+
+[[menus]]
+command = "com.example.menus.grade"
+menu = "Sequence/Color Tools"
+```
 
 ### `[[keys]]`
 
-Optional additional default key chords for commands declared in `[[commands]]`.
-See [Keys](keys.md).
+Optional additional default keyboard shortcuts for commands declared in
+`[[commands]]`. See [Keys](keys.md).
 
-- `command`: target command ID; must match an entry in `[[commands]]`.
-- `key`: chord string validated by `Chord::parse`.
-- `route`: optional `"editor"` (default) or `"home"` (`KeyRoute::parse`). Each
-  command may bind at most one default chord per route across `[[commands]]`
-  and `[[keys]]`.
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `command` | string | required | Target command ID. Must match an `id` declared in `[[commands]]`. |
+| `key` | string | required | Key chord validated by `Chord::parse` (`Ctrl`, `Alt`/`Option`, `Shift`, `Super`/`Cmd` modifiers plus a bindable key). |
+| `route` | `"editor"`, `"timeline"`, `"viewer"`, or `"home"` | `"editor"` | Key dispatch scope (`KeyRoute::parse`). Each command may bind at most one default chord per route across `[[commands]]` and `[[keys]]`. |
+
+```toml
+[plugin]
+id = "com.example.keys"
+name = "Keys"
+version = "1.0.0"
+api = 1
+
+[[commands]]
+id = "com.example.keys.mark"
+title = "Mark Beat"
+
+[[keys]]
+command = "com.example.keys.mark"
+key = "Ctrl+Shift+M"
+route = "timeline"
+```
 
 ### `[[panels]]`
 
-Optional dockable panels rendered by the package's code. See [Panels](panels.md).
+Optional dockable panels rendered by the package's WASM or native code. See
+[Panels](panels.md).
 
-- `id`: non-empty panel ID, unique within `[[panels]]`.
-- `title`: non-empty panel tab title.
-- `location`: `"sidebar"`, `"inspector"`, or `"timeline"`.
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `id` | string | required | Non-empty panel identifier, unique within `[[panels]]`. |
+| `title` | string | required | Non-empty tab title. |
+| `location` | `"sidebar"`, `"inspector"`, or `"timeline"` | required | Initial dock region (`PanelLocation`). |
+
+```toml
+[plugin]
+id = "com.example.panels"
+name = "Panels"
+version = "1.0.0"
+api = 1
+
+[[panels]]
+id = "com.example.panels.notes"
+title = "Production Notes"
+location = "inspector"
+```
 
 ### `[[settings]]`
 
-Optional array of setting field tables registered under the package's section
-in Settings. See [Settings](settings.md).
+Optional configuration fields registered under the package's section in
+Settings. See [Settings](settings.md).
 
-- `key`: `<key>` or `<plugin.id>.<key>`, qualified under `<plugin.id>.` unless
-  already prefixed, and unique within `[[settings]]`.
-- `label`: non-empty display label.
-- `type`: optional `"text"` (default), `"secret"`, `"toggle"`, `"number"`, or
-  `"choice"`.
-- `placeholder`: optional placeholder string (default `""`).
-- `default`: optional string, boolean, integer, or float validated against
-  `type`.
-- `min`, `max`, `step`: optional `f64` bounds and step for `type = "number"`
-  (`min <= max`, `step > 0`). Rejected on other types.
-- `options`: required non-empty list of unique non-empty strings for `type =
-  "choice"`. Rejected on other types.
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `key` | string | required | Setting identifier containing only ASCII letters, digits, `-`, `_`, and `.`, qualified under `<plugin.id>.<key>` unless already prefixed, and unique within `[[settings]]`. |
+| `label` | string | required | Non-empty display label in Settings. |
+| `type` | `"text"`, `"secret"`, `"toggle"`, `"number"`, or `"choice"` | `"text"` | Control and storage kind (`SettingKind`). |
+| `placeholder` | string | `""` | Placeholder hint shown for empty `"text"` and `"secret"` inputs. |
+| `default` | string, boolean, integer, or float | none | Initial value validated against `type` (`"true"` / `"false"` for `"toggle"`, finite number in `min..=max` for `"number"`, member of `options` for `"choice"`). |
+| `min` | float (`f64`) | `f64::MIN` | Minimum value for `type = "number"` (`min <= max`, finite). Rejected on other types. |
+| `max` | float (`f64`) | `f64::MAX` | Maximum value for `type = "number"` (`min <= max`, finite). Rejected on other types. |
+| `step` | float (`f64`) | `1.0` | Scrub and spinbox increment for `type = "number"` (`step > 0.0`, finite). Rejected on other types. |
+| `options` | array of strings | `[]` | Allowed choices for `type = "choice"`. Must be non-empty with non-blank unique entries when `type = "choice"`; rejected on other types. |
+
+```toml
+[plugin]
+id = "com.example.settings"
+name = "Settings Demo"
+version = "1.0.0"
+api = 1
+
+[[settings]]
+key = "mode"
+label = "Render Mode"
+type = "choice"
+options = ["draft", "full"]
+default = "full"
+```
 
 ### `[[workspaces]]`
 
-Optional named pane arrangements offered in the Window menu and Settings. See
-[Workspaces](workspaces.md).
+Optional named editor pane arrangements offered in the Window menu and
+**Settings > Workspaces**. See [Workspaces](workspaces.md).
 
-- `id`: 1 to 64 ASCII letters, digits, `-`, `_` and `.`, not starting with `.`,
-  unique within `[[workspaces]]`.
-- `name`: one line of at most 64 bytes.
-- `sidebar_width`, `inspector_width`, `timeline_height`: optional pane sizes in
-  pixels, above 0 and at most 16384.
-- `sidebar_collapsed`, `inspector_collapsed`, `scopes`: optional booleans.
-- `focus`: optional `"media"`, `"preview"`, `"timeline"`, `"inspector"`,
-  `"assistant"`, or `"mixer"`.
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `id` | string | required | Workspace identifier: 1 to `WORKSPACE_ID_MAX_BYTES` (64) bytes of ASCII letters, digits, `-`, `_`, and `.`, not starting with `.`, unique within `[[workspaces]]`. |
+| `name` | string | required | Display name: 1 to `WORKSPACE_NAME_MAX_BYTES` (64) bytes after trimming, without line breaks (`\n` or `\r`). |
+| `sidebar_width` | float (`f32`) | none (Editing width) | Sidebar width in pixels, finite and in `(0.0, 16384.0]` (`WORKSPACE_MAX_SIZE`). |
+| `sidebar_collapsed` | boolean | none (`false`) | Whether the left sidebar starts collapsed. |
+| `inspector_width` | float (`f32`) | none (Editing width) | Inspector width in pixels, finite and in `(0.0, 16384.0]` (`WORKSPACE_MAX_SIZE`). |
+| `inspector_collapsed` | boolean | none (`false`) | Whether the right inspector starts collapsed. |
+| `timeline_height` | float (`f32`) | none (Editing height) | Timeline height in pixels, finite and in `(0.0, 16384.0]` (`WORKSPACE_MAX_SIZE`). |
+| `scopes` | boolean | none (`false`) | Whether the video scopes strip is open. |
+| `focus` | `"media"`, `"preview"`, `"timeline"`, `"inspector"`, `"assistant"`, or `"mixer"` | none (`"timeline"`) | Pane receiving keyboard focus (`WorkspaceFocus`). |
+| `tree` | string | none | Optional serialized `DockTree` JSON string overriding the default dock split tree. |
+
+```toml
+[plugin]
+id = "com.example.workspaces"
+name = "Workspaces"
+version = "1.0.0"
+api = 1
+
+[[workspaces]]
+id = "grading"
+name = "Grading Room"
+sidebar_collapsed = true
+inspector_width = 520.0
+timeline_height = 230.0
+scopes = true
+focus = "preview"
+```
 
 ### `[[clip_types]]`
 
-Optional clip kinds drawn by a generator, offered in the Generators tab and
-the palette. See [Clip types](clip-types.md).
+Optional custom clip kinds offered in the Generators tab and command palette.
+Each entry either references an existing generator via `generator` or defines
+its own renderer with `shader` or `passes`. See [Clip types](clip-types.md).
 
-- `id`: `<name>` or `<plugin.id>.<name>`, qualified under `<plugin.id>.` unless
-  already prefixed, unique within `[[clip_types]]`, at most 128 bytes.
-- `name`: non-empty, at most 64 bytes.
-- `generator`: a generator id, qualified the same way. Required unless the
-  entry sets `shader` or `passes`, and refused beside either.
-- `shader`, `passes`: the type's own renderer, on the terms of `[[effects]]`.
-  The host registers a generator under the type's id, which no `[[effects]]`
-  or `[[generators]]` entry may repeat.
-- `params`, `groups`, `time_dependent`: the fields of a type with its own
-  renderer, on the terms of `[[effects]]`. Refused beside `generator`.
-- `colour`: `"teal"`, `"blue"`, `"purple"`, `"pink"`, `"red"`, `"orange"`,
-  `"yellow"`, or `"green"`.
-- `icon`: optional relative path to an SVG file inside the package.
-- `handles`: optional list of at most 8 unique vec2 parameter names of the
-  generator, or of `params` for a type with its own renderer.
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `id` | string | required | Clip type identifier: 1 to `CLIP_TYPE_ID_MAX_BYTES` (128) bytes of ASCII letters, digits, `-`, `_`, and `.`, qualified under `<plugin.id>.<id>` unless already prefixed, unique within `[[clip_types]]`. |
+| `name` | string | required | Display label: 1 to `CLIP_TYPE_LABEL_MAX_BYTES` (64) bytes after trimming, without line breaks. |
+| `generator` | string | none | Target generator ID (qualified under `<plugin.id>.` unless already prefixed), at most `CLIP_TYPE_ID_MAX_BYTES` (128) bytes. Mutually exclusive with `shader`, `passes`, `params`, `groups`, and `time_dependent`. |
+| `colour` | `"teal"`, `"blue"`, `"purple"`, `"pink"`, `"red"`, `"orange"`, `"yellow"`, or `"green"` | required | Timeline clip bar and badge color (`MarkerColor`). |
+| `icon` | string | none | Relative `.svg` file path inside the package without `..` segments, at most `ICON_MAX_BYTES` (64 KiB), with at most `CLIP_TYPE_ICON_MAX_PATHS` (32) paths and `CLIP_TYPE_ICON_MAX_VERBS` (1024) path verbs. |
+| `handles` | array of strings | `[]` | On-canvas viewer handle parameter names: up to `CLIP_TYPE_MAX_HANDLES` (8) unique non-empty names, each at most `CLIP_TYPE_HANDLE_MAX_BYTES` (64) bytes of ASCII letters, digits, and `_` (not starting with a digit). For a self-drawn clip type, each handle must match a `kind = "vec2"` entry in `params`. |
+| `shader` | string | none | Single-pass WGSL generator path relative to the package root without `..` segments. Registers a generator under the clip type's `id`. Mutually exclusive with `generator` and `passes`. |
+| `passes` | array of strings or pass tables | `[]` | Multi-pass WGSL generator graph (`[[clip_types.passes]]`) registered under the clip type's `id`. Mutually exclusive with `generator` and `shader`. |
+| `params` | array of `EffectParamSpec` tables | `[]` | Generator parameters for a self-drawn clip type (`shader` or `passes`). Rejected when `generator` is set. |
+| `groups` | array of `EffectGroupSpec` tables | `[]` | Inspector parameter groups for a self-drawn clip type (`shader` or `passes`). Rejected when `generator` is set. |
+| `time_dependent` | boolean | `false` | Whether a self-drawn clip type reads `aria.time`. Rejected when `generator` is set. |
+
+```toml
+[plugin]
+id = "com.example.cliptypes"
+name = "Clip Types"
+version = "1.0.0"
+api = 1
+
+[[clip_types]]
+id = "callout"
+name = "Callout Box"
+colour = "orange"
+shader = "shaders/callout.wgsl"
+handles = ["origin", "target"]
+time_dependent = true
+params = [
+  { name = "origin", label = "Origin", kind = "vec2", default_vec2 = [0.25, 0.75], min = 0.0, max = 1.0 },
+  { name = "target", label = "Target", kind = "vec2", default_vec2 = [0.5, 0.5], min = 0.0, max = 1.0 },
+]
+```
 
 ## Installing and managing packages
 
