@@ -36,7 +36,7 @@ refused.
 ## Enablement
 
 An enablement condition states the editor state a command needs. It is a
-boolean expression over these keys:
+boolean expression over these keys (`ContextKey::ALL` in `crates/aria-plugin/src/enablement.rs`):
 
 | Key | Holds when |
 | --- | --- |

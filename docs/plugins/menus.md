@@ -14,8 +14,8 @@ ctx.register_menu_entry(MenuCommand {
 
 A path starts with a menu-bar menu (`File`, `Edit`, `Sequence`, `Markers`,
 `Effect`, `Animation`, `View`, `Window`, `Help`) or a context menu (`Clip`,
-`Track`, `Media`, `Viewer`, `Transition`, `Effect Header`, `Clip Badge`), and
-may add one group. An `Effect Header` row is drawn in the menu an effect's header
+`Track`, `Media`, `Viewer`, `Transition`, `Effect Header`, `Clip Badge`) from
+`MenuLocation::ALL` (`crates/aria-plugin/src/menus.rs`), and may add one group. An `Effect Header` row is drawn in the menu an effect's header
 opens in the Effects tab of Effect Controls. A `Clip Badge` row is drawn in the
 menu the fx badge on a timeline clip bar opens. A `Clip` row is
 drawn in the clip context menu and in the menu bar's Clip menu. In the menu bar a

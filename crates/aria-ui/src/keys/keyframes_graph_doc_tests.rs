@@ -22,6 +22,7 @@ use aria_render::{
     InputProperty, driver_languages, register_driver_language,
 };
 
+use crate::app::canvas_overlay::motion_path::{PathParam, TangentSide};
 use crate::app::property_rows::graph::{GRAPH_PAD_Y, graph_axis_ys};
 use crate::app::property_rows::{
     GRAPH_EDITOR_H, GraphHandleSide, GraphMode, KeyframeIconShape, PROPERTY_ROW_H, PropertyGroup,
@@ -372,7 +373,7 @@ fn keyframes_and_graph_doc_matches_registries() {
             GraphHandleSide::Incoming | GraphHandleSide::Outgoing => {}
         }
     }
-    let mode_rows = table_rows(graph_sec);
+    let mode_rows = table_rows(graph_sec.split("\n### ").next().unwrap_or(graph_sec));
     let doc_modes: Vec<(String, String, String, bool)> = mode_rows
         .iter()
         .map(|r| {
@@ -402,6 +403,60 @@ fn keyframes_and_graph_doc_matches_registries() {
     assert_eq!(
         doc_modes, expected_modes,
         "docs/reference/keyframes-and-graph.md GraphMode table drifted"
+    );
+
+    let path_sec = section(
+        DOC,
+        "### On-canvas motion path (`PathParam::ALL` and `TangentSide::ALL`)",
+    );
+    let mut path_tables = Vec::new();
+    for block in path_sec.split("\n\n") {
+        let r = table_rows(block);
+        if !r.is_empty() {
+            path_tables.push(r);
+        }
+    }
+    assert_eq!(
+        path_tables.len(),
+        2,
+        "expected 2 tables under On-canvas motion path"
+    );
+    let doc_path_params: Vec<(String, String, String, bool)> = path_tables[0]
+        .iter()
+        .map(|r| {
+            (
+                unquote(r[0]).to_string(),
+                unquote(r[1]).to_string(),
+                unquote(r[2]).to_string(),
+                unquote(r[3]) == "true",
+            )
+        })
+        .collect();
+    let expected_path_params: Vec<(String, String, String, bool)> = PathParam::ALL
+        .iter()
+        .map(|&p| {
+            (
+                format!("{p:?}"),
+                format!("{:?}", p.param()),
+                p.id().to_string(),
+                p.bends(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        doc_path_params, expected_path_params,
+        "docs/reference/keyframes-and-graph.md PathParam::ALL table drifted"
+    );
+
+    let doc_tangent_sides: Vec<String> = path_tables[1]
+        .iter()
+        .map(|r| unquote(r[0]).to_string())
+        .collect();
+    let expected_tangent_sides: Vec<String> =
+        TangentSide::ALL.iter().map(|s| format!("{s:?}")).collect();
+    assert_eq!(
+        doc_tangent_sides, expected_tangent_sides,
+        "docs/reference/keyframes-and-graph.md TangentSide::ALL table drifted"
     );
 
     // 5. Property drivers (DriverCode, DriverLanguageRegistration, DEFAULT_DRIVER_BUDGET).

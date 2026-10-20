@@ -1,6 +1,6 @@
 # Command line
 
-The `aria` binary drives the same crates the editor drives. A frame rendered
+The `aria` binary (`crates/aria-cli`, `Verb::ALL` in `crates/aria-cli/src/args.rs`) drives the same crates the editor drives. A frame rendered
 here is the frame the editor shows, a file exported here is the file the export
 sheet writes, and a detector run here finds what the analysis panel finds.
 
@@ -178,7 +178,7 @@ aria plugin check <dir|file.ariaplugin>
 aria plugin pack <dir> [--out FILE] [--no-build]
 ```
 
-Create, run, validate, and package external plugins. Missing or unknown
+Create, run, validate, and package external plugins (`Subcommand::ALL` in `crates/aria-cli/src/plugin/mod.rs`). Missing or unknown
 sub-commands and unknown flags exit `2`. Build, validation, and runtime
 failures exit `1`.
 
@@ -186,7 +186,7 @@ failures exit `1`.
 
 | Flag | Default | Description |
 | --- | --- | --- |
-| `--tier <TIER>` | `wasm` | Execution tier: `wasm` or `native` |
+| `--tier <TIER>` | `wasm` | Execution tier (`NewTier::ALL` in `crates/aria-cli/src/plugin/new.rs`): `wasm` or `native` |
 | `--dir <PARENT>` | working directory | Parent directory in which `<id>/` is created |
 | `--sdk <PATH>` | auto-resolved | Path to `crates/aria-sdk` for `--tier native` |
 

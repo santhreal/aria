@@ -11,8 +11,8 @@
 //! Not caught: prose commentary outside the structured tables and constants.
 
 use aria_models::{
-    AudioLayout, AudioRole, BakeMedium, CanvasAspect, CanvasSettings, LabelColor, LaneZone,
-    MarkerColor, MarkerKind, TimeDisplay, TrackDisplay, track_kind_specs,
+    AudioLayout, AudioRole, AutomationMode, BakeMedium, CanvasAspect, CanvasSettings, LabelColor,
+    LaneZone, MarkerColor, MarkerKind, SourceChannel, TimeDisplay, TrackDisplay, track_kind_specs,
 };
 
 use crate::app::project_settings::CANVAS_BASELINES;
@@ -514,5 +514,62 @@ fn project_settings_doc_matches_registries() {
     assert_eq!(
         doc_presets, expected_presets,
         "docs/reference/project-settings.md TrackDisplay::PRESETS table drifted"
+    );
+
+    let auto_rows = table_rows(section(
+        DOC,
+        "## Track automation modes (`AutomationMode::ALL`)",
+    ));
+    let doc_auto: Vec<(String, String, bool, bool, bool)> = auto_rows
+        .iter()
+        .map(|r| {
+            assert!(r.len() >= 5, "malformed AutomationMode row: {r:?}");
+            (
+                unquote(r[0]).to_string(),
+                r[1].to_string(),
+                unquote(r[2]) == "true",
+                unquote(r[3]) == "true",
+                unquote(r[4]) == "yes",
+            )
+        })
+        .collect();
+    let expected_auto: Vec<(String, String, bool, bool, bool)> = AutomationMode::ALL
+        .iter()
+        .map(|&m| {
+            (
+                format!("{m:?}"),
+                m.label().to_string(),
+                m.reads_envelope(),
+                m.writes_envelope(),
+                m == AutomationMode::default(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        doc_auto, expected_auto,
+        "docs/reference/project-settings.md AutomationMode::ALL table drifted"
+    );
+
+    let patch_rows = table_rows(section(
+        DOC,
+        "## Source patching channels (`SourceChannel::ALL`)",
+    ));
+    let doc_patch: Vec<(String, String)> = patch_rows
+        .iter()
+        .map(|r| {
+            assert!(r.len() >= 2, "malformed SourceChannel row: {r:?}");
+            (
+                unquote(r[0]).to_string(),
+                unquote(r[1]).to_string(),
+            )
+        })
+        .collect();
+    let expected_patch: Vec<(String, String)> = SourceChannel::ALL
+        .iter()
+        .map(|&c| (format!("{c:?}"), format!("{:?}", c.lane_kind())))
+        .collect();
+    assert_eq!(
+        doc_patch, expected_patch,
+        "docs/reference/project-settings.md SourceChannel::ALL table drifted"
     );
 }

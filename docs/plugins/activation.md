@@ -1,6 +1,6 @@
 # Activation
 
-A package that lists activation events stays unloaded until the first of them.
+A package that lists activation events (`ActivationKind::ALL` in `crates/aria-plugin/src/activation.rs`) stays unloaded until the first of them.
 A package with no `[activation]` section, or one that lists `startup`, loads at
 start.
 

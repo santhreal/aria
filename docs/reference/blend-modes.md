@@ -61,3 +61,13 @@ A clip's `masks: Vec<Mask>` stack holds up to `MAX_CLIP_MASKS = 32` masks and ev
 | `heart` | Heart | `Heart` | `4` | `yes` | `no` |
 | `star` | Star | `Star` | `5` | `yes` | `no` |
 | `path` | Path | `Path` | `cpu` | `no` | `no` |
+
+## On-canvas mask handles (`MaskHandle::ALL`)
+
+In the Viewer (`crates/aria-ui/src/app/canvas_overlay.rs`), parametric masks draw three handles (`MaskHandle::ALL`, with minimum extent `MIN_MASK_FRACTION = 0.02`):
+
+| Variant | Element ID (`id()`) | Anchor (`mask_handle_anchor`) |
+| --- | --- | --- |
+| `Center` | `mask-handle-center` | `[x + w * 0.5, y + h * 0.5]` |
+| `Size` | `mask-handle-size` | `[x + w, y + h]` |
+| `Rotate` | `mask-handle-rotate` | `[x + w * 0.5, (y - h * 0.25).max(0.0)]` |

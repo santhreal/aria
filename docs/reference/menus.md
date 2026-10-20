@@ -307,3 +307,53 @@ Several menus append rows at render time when session state or mounted plugins p
 - `win-workspace-custom`, `win-workspace-file:<name>`, and `win-workspace-plugin:<id>` (under **Window > Workspaces**): switches to the saved custom workspace, a named workspace JSON file under `<data dir>/workspaces/`, or a plugin-registered workspace.
 - `win-panel:<panel_id>` (under **Window**): toggles a plugin-contributed dock panel.
 - `win-project-report` (under **Window**, label `Project Report`): opens `aria.dialog.project-report` once the project has at least one media source or timeline clip (`state.project_report_available()`).
+
+## Audio Gain dialog modes (`AudioGainMode::ALL`)
+
+Defined in `crates/aria-ui/src/app/clip_ops.rs` (`AudioGainMode::ALL`, opened by `clip-audio-gain` / **Clip > Audio Gain…**).
+
+| Variant | Label (`label()`) | Default | Summary |
+| --- | --- | --- | --- |
+| `SetGain` | `Set Gain to` | `yes` | Sets `clip.gain_db` to the target dB value (`-96.0..=+24.0`). |
+| `AdjustGain` | `Adjust Gain by` | `no` | Adds the signed dB delta to each selected clip's existing `gain_db`. |
+| `NormalizeMaxPeak` | `Normalize Max Peak to` | `no` | Shifts all selected clips by a single dB offset so the loudest clip peak across the selection lands at the target dB ceiling. |
+| `NormalizeAllPeaks` | `Normalize All Peaks to` | `no` | Shifts each selected clip independently so every clip's own maximum sample peak lands at the target dB ceiling. |
+
+## Audio Channels routing presets (`AudioChannels::ALL`)
+
+Defined in `crates/aria-ui/src/app/audio_channels.rs` (`AudioChannels::ALL`, under **Clip > Audio Channels**).
+
+| Variant | Menu row ID (`row()`) | Label (`label()`) | Audio effect ID (`tool()`) |
+| --- | --- | --- | --- |
+| `Stereo` | `clip-channels-stereo` | `Stereo` | `none` |
+| `Swap` | `clip-channels-swap` | `Swap Channels` | `swap_channels` |
+| `LeftToBoth` | `clip-channels-left` | `Left to Both` | `fill_right` |
+| `RightToBoth` | `clip-channels-right` | `Right to Both` | `fill_left` |
+| `Mono` | `clip-channels-mono` | `Mono` | `mono` |
+
+## Track matte sources (`MatteSource::ALL`)
+
+Defined in `crates/aria-models/src/look/matte.rs` (`MatteSource::ALL`, cycled by **Clip > Set Matte** in the clip context menu).
+
+| Variant | ID (`id()`) | Label (`label()`) |
+| --- | --- | --- |
+| `Alpha` | `alpha` | `Alpha` |
+| `Luma` | `luma` | `Luma` |
+
+## Action decline reasons (`Decline::ALL`)
+
+Defined in `crates/aria-ui/src/app/decline.rs` (`Decline::ALL`). When a command finds no applicable target in the current selection or cut, the status line displays `reason()`:
+
+| Variant | Status line (`reason()`) |
+| --- | --- |
+| `NoSelection` | `Nothing is selected` |
+| `NoAbuttingCut` | `No clip on the other side of that cut` |
+| `UnknownTransition` | `No such transition` |
+| `NoTransitionAtCut` | `No transition at that cut` |
+| `PictureCut` | `That cut is between pictures: Ctrl+T puts a transition on it` |
+| `SoundCut` | `That cut is between sounds: Ctrl+Shift+T crossfades it` |
+| `OneAngleOnly` | `A group needs a second camera to sync against` |
+| `AnglesStillDecoding` | `The angles' sound is still being read` |
+| `NoAngleSound` | `An angle has no sound to sync by` |
+| `AnglesDoNotMatch` | `The angles' sound does not match` |
+| `AnglesRepeat` | `The angles' sound repeats, so it cannot say where it is` |

@@ -1,8 +1,8 @@
 # Transitions
 
-Aria ships 8 video transition entries in `crates/aria-models/data/transitions.toml` (overridden at `<data dir>/catalogs/transitions.toml`; see [Catalogs](../catalogs.md)) and 1 audio crossfade transition (`AudioTransition`).
+Aria ships 8 video transition entries in `crates/aria-models/data/transitions.toml` (overridden at `<data dir>/catalogs/transitions.toml`; see [Catalogs](../catalogs.md)) and 3 audio crossfade transitions (`AudioTransition::ALL`).
 
-A video transition (`Transition`) attaches to the outgoing edge of a video clip and blends it with the adjacent incoming clip on the same track over `duration` (`TimeSpan`, default `0.5 s` / `45000` ticks). Normalized progress `t` runs from `0.0` at the transition start (`clip.end() - transition.duration`) to `1.0` at the cut (`clip.end()`), passed through the transition's `easing` curve (`Easing::Linear` by default; see [Animations, text effects, easings, and speed presets](animations.md)).
+A video transition (`Transition`) attaches to a cut between two abutting clips on the same track over `duration` ticks (`DEFAULT_TRANSITION_TICKS = 24`) with window placement `alignment: TransitionAlignment` (`TransitionAlignment::Center` by default). Normalized progress `t` runs from `0.0` at the transition window start to `1.0` at the transition window end.
 
 ## Examples
 
@@ -124,13 +124,24 @@ UI location: **Effects & Presets > Transitions > Slide** and **Project > Transit
 
 Parameters: none (`params = []`).
 
-## Audio transition (`AudioTransition`)
+## Transition cut alignment (`TransitionAlignment::ALL`)
 
-Defined in `crates/aria-models/src/clip/audio_transition.rs` (`AudioTransition` / `CrossfadeCurve`):
+Defined in `crates/aria-models/src/transition.rs` (`TransitionAlignment::ALL`, `DEFAULT_TRANSITION_TICKS = 24`):
 
-| Property | Default | Allowed values | Effect |
-| --- | --- | --- | --- |
-| `duration` | `0.5 s` (`45000` ticks) | `> 0` ticks | Overlap span at the outgoing audio clip cut. |
-| `curve` | `equal_power` (`EqualPower`) | `equal_power`, `linear` | `equal_power`: outgoing `cos(t * pi / 2)`, incoming `sin(t * pi / 2)` (`gain_a^2 + gain_b^2 = 1.0`). `linear`: outgoing `1.0 - t`, incoming `t`. |
+| ID | Label | Variant | Default | Window `[start, end)` |
+| --- | --- | --- | --- | --- |
+| `center` | Center at Cut | `Center` | `yes` | `[cut - duration / 2, cut - duration / 2 + duration)` |
+| `start` | Start at Cut | `Start` | `no` | `[cut, cut + duration)` |
+| `end` | End at Cut | `End` | `no` | `[cut - duration, cut)` |
 
-Where to apply: **Window > Effect Controls > Transition** on an audio clip.
+## Audio transitions (`AudioTransition::ALL`)
+
+Defined in `crates/aria-models/src/audio_transition.rs` (`AudioTransition::ALL`, `EXPONENTIAL_FLOOR_DB = -60.0`):
+
+| ID | Label | Variant | Default | Gain curve (`p` in `0.0..=1.0`) |
+| --- | --- | --- | --- | --- |
+| `constant_power` | Constant Power | `ConstantPower` | `yes` | Incoming `sin(p * pi / 2)`, outgoing `cos(p * pi / 2)` |
+| `constant_gain` | Constant Gain | `ConstantGain` | `no` | Incoming `p`, outgoing `1.0 - p` |
+| `exponential_fade` | Exponential Fade | `ExponentialFade` | `no` | Level linear in dB from `-60.0` dBFS (`EXPONENTIAL_FLOOR_DB`) to `0.0` dB |
+
+Where to apply: `Ctrl+Shift+T`, **Sequence > Apply Audio Crossfade**, or **Effects & Presets > Audio Transitions**.
