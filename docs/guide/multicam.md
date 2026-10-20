@@ -48,6 +48,16 @@ sound matches at every repeat, so the best match is whichever repeat came first
 rather than the right one. An offset applied from a guess would move a camera
 that was already in sync, and nothing on screen would indicate it had.
 
+
+## Example
+
+Build a multicam group from several camera angles, sync them by audio waveform, place the group on the timeline, and cut between angles:
+
+1. Press <kbd>Shift+1</kbd> (`key-pane-project`) or choose **Window > Project**, Ctrl+click each camera angle in the Media pool in angle order, and click [`create-multicam-group`](../reference/controls.md#project-panel) below the pool list. A multicam group row appears under the folder strip listing each camera angle and its audio waveform strip.
+2. Click [`sync-multicam-group`](../reference/controls.md#project-panel) on the multicam group row (or adjust an individual camera's frame offset by one frame with [`nudge-multicam-back`](../reference/controls.md#project-panel) and [`nudge-multicam-forward`](../reference/controls.md#project-panel)). Aria correlates each angle's decoded waveform peaks against the first angle and aligns their frame offsets in one undo step.
+3. Move the sequence playhead to the start of the scene and click [`place-multicam-group`](../reference/controls.md#project-panel) on the multicam group row. A multicam clip spanning the combined coverage of the angles lands on `V1` and its linked audio lands on `A1`.
+4. Scrub or play the timeline with <kbd>Space</kbd> (`key-play`) and click an angle chip ([`switch-multicam-angle`](../reference/controls.md#project-panel)) in the multicam row at each point where the camera should switch. The group's cut list records each switch at the playhead and the Viewer immediately displays the newly active camera angle.
+
 ## Reference
 
 See [Controls](../reference/controls.md#project-panel) for all multicam pool controls.

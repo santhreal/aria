@@ -85,6 +85,17 @@ layer's look to the masked area. The Look tab holds:
 The Audio tab tags a clip as Music, Sound FX, Voiceover, or Extracted.
 **Untag** clears it.
 
+
+## Example
+
+Key a green-screen shot and isolate the subject with a garbage mask:
+
+1. Place the background plate on `V1` and the green-screen foreground clip directly above it on `V2`, then select the foreground clip on `V2` and press <kbd>Shift+4</kbd> (`key-pane-effect-controls`) or choose **Window > Effect Controls**. The Effect Controls panel opens on the selected `V2` clip.
+2. Run **Key green screen** (`pal-chroma-green`) in the Command Palette (or pick **Green** in the chroma key section of the **Look** tab) and adjust **Strength** and **Shadow**. The green backdrop becomes transparent in the Viewer, revealing the `V1` background behind the subject.
+3. Add a rectangle garbage mask around the talent by running **Add rectangle mask** (`pal-mask-add-rectangle`) in the Command Palette (or clicking **rectangle** under **Add a mask** in the **Look** tab), then click [`preview-handles-mask`](../reference/controls.md#viewer--source-monitor) in the Viewer control row (or choose **View > Canvas Handles > Mask**). The Viewer draws the active mask's centre, size, and rotation handles over the subject.
+4. Drag the mask handles in the Viewer to crop out rigging outside the green backdrop, and scrub **Feather** in the mask rows to soften the edge (or press <kbd>P</kbd> (`key-tool-pen`) / click [`tool-pen`](../reference/controls.md#tool-strip) to draw a custom Bézier path mask and click [`path-watch`](../reference/controls.md#keyframes) to keyframe its path). Everything outside the mask is cut before the keyer and effects run.
+5. If the talent moves across the frame, park the playhead at the start of the move and run **Track mask forward from the playhead** (`pal-track-mask`) in the Command Palette. Aria tracks the pixels under the active mask forward in a background job and writes centre keyframes across the clip, and the Viewer shows the keyed subject composited cleanly over `V1`.
+
 ## Reference
 
 See [Stickers and masks](../reference/stickers-and-masks.md), [Animations](../reference/animations.md), [Controls](../reference/controls.md#inspector), and [Commands](../reference/commands.md) for all mask shapes, stack modes, and keyer commands.

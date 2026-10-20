@@ -50,6 +50,16 @@ rather than leaving Settings waiting.
 A finished job keeps its row and its outputs. **Reveal** on an output path opens
 the containing folder in the file manager.
 
+
+## Example
+
+Step back to an earlier edit in the History panel and manage a background render on the Jobs board:
+
+1. Press <kbd>Ctrl+Shift+H</kbd> (`key-history`) or choose **Window > History** (or run **History** (`pal-history`) in the Command Palette). The History panel opens in the right dock frame listing every edit step from **Project opened** to the row marked **current**.
+2. Click an earlier row in the History list to jump the sequence back to that step without pressing <kbd>Ctrl+Z</kbd> (`key-undo`) repeatedly, or click a dimmed row below **current** to redo forward to it. The timeline and Viewer update immediately to the chosen undo state.
+3. Choose **Window > Jobs** or run **Jobs** (`pal-jobs`) in the Command Palette while an export, proxy, analysis, or transcription job is running. The Jobs list displays each job's state, progress bar, and elapsed time.
+4. Click [`job-stop`](../reference/controls.md#modal-dialogs) beside an in-flight job before its publication boundary to cancel it and discard partial output, or click [`job-reveal`](../reference/controls.md#modal-dialogs) on a completed job row (and [`jobs-done`](../reference/controls.md#modal-dialogs) to close the modal Jobs dialog). The file manager opens the folder containing the finished output file.
+
 ## Reference
 
 See [Panels](../reference/panels.md), [Controls](../reference/controls.md#modal-dialogs), and [Commands](../reference/commands.md) for all History and Jobs controls.

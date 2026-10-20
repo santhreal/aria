@@ -161,6 +161,16 @@ sequence cycle error stating the sequence.
 Nesting nothing, opening a clip that is not a nest, and leaving when the root
 timeline is already open are each refused with what is missing.
 
+
+## Example
+
+Nest a sequence of clips into a single compound clip, edit inside the nest, and return to the parent sequence:
+
+1. Click [`add-track`](../reference/controls.md#timeline) at the bottom-left of the timeline (or choose **Sequence > Add Tracks > Video Track**) and arrange the clips to group across `V1` and `V2`. The timeline shows the layered clips in the composite.
+2. Drag a marquee across the clips to group (or press <kbd>Ctrl+A</kbd> (`key-select-all`) / choose **Edit > Select All**), then choose **Clip > Nest…** or run **Nest selection into a sequence** (`pal-nest-selection`) in the Command Palette. Aria moves the selected clips into a new sequence and replaces them on the parent timeline with a single Tan-coloured nested sequence clip.
+3. Select the nested sequence clip and choose **Sequence > Nested Sequence > Open Nested Sequence** (or run **Open the selected nested sequence** (`pal-nest-open`)). The timeline switches to the nested sequence's own tracks and ruler, and the status bar shows the nest breadcrumb [`status-nest-breadcrumb`](../reference/controls.md#window--dock-chrome).
+4. Trim or reorder the clips inside the nested sequence, then click [`status-nest-breadcrumb`](../reference/controls.md#window--dock-chrome) in the status bar or choose **Sequence > Nested Sequence > Leave Nested Sequence** (or press <kbd>Ctrl+W</kbd> (`key-pane-close`) with the Timeline focused). The parent timeline returns to view and the Viewer composites the updated nested sequence as one clip.
+
 ## Reference
 
 See [Menus](../reference/menus.md#sequence-menu), [Commands](../reference/commands.md), and [Controls](../reference/controls.md#timeline) for track, routing, and nested sequence commands.

@@ -75,6 +75,16 @@ Limits: audio longer than 30 minutes is refused, the window comes from the clip'
 source range rather than its speed-warped output, and no model ships with the
 app.
 
+
+## Example
+
+Style a title on the canvas and caption a spoken clip with offline Whisper transcription:
+
+1. Press <kbd>T</kbd> (`key-tool-type`) or click [`tool-type`](../reference/controls.md#tool-strip) in the Tool Strip, click in the Viewer to create a title clip at the playhead, type the heading text, and press Esc (or click [`text-edit`](../reference/controls.md#text) in the Effect Controls **Text** tab and step through fonts with [`font-step`](../reference/controls.md#text) or **Window > Character**). A Mango-coloured title clip appears on the text track and renders in the Viewer.
+2. Choose **Edit > Preferences…** or press <kbd>Ctrl+,</kbd> (`key-settings`), select **Transcription**, and click [`model-install`](../reference/controls.md#settings) beside a Whisper model to download and verify it in `models/`. The model row updates to installed once the download job finishes.
+3. Select a dialogue clip with audio on the timeline and run **Captions** (`pal-captions`) in the Command Palette (or choose **Window > Project** and open the **Captions** tab under **Analyze**). The Project panel opens the **Captions** tab for the selected clip.
+4. Click [`caption-run`](../reference/controls.md#captions) (or run **Transcribe selected clip** (`pal-transcribe`) in the Command Palette) to transcribe the clip's audio in a background job. Once the segments list appears with timecodes, select **Text clips** and click [`caption-commit`](../reference/controls.md#captions). Aria places timed caption clips across the text track and the Viewer renders each caption over the picture as the playhead crosses it.
+
 ## Reference
 
 See [Animations, text effects, easings, and speed presets](../reference/animations.md#text-style-presets-text_effectstoml), [Controls](../reference/controls.md#captions), [Panels](../reference/panels.md), and [Commands](../reference/commands.md) for all text and transcription controls.

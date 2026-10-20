@@ -36,6 +36,16 @@ the selected media clip and opens the Speed tab. While Time Remap is active, the
 curve maps sequence time to source time by integrating the keyframed speed
 multipliers across the clip.
 
+
+## Example
+
+Retime a clip with constant Speed/Duration and a keyframed speed ramp:
+
+1. Select a video clip on `V1` and press <kbd>Ctrl+R</kbd> (`key-speed-duration`) or choose **Clip > Speed/Duration…** (or run **Speed/Duration…** (`pal-speed-duration`) in the Command Palette). The Speed/Duration dialog opens with the clip's current speed percentage and duration.
+2. Set the speed to `150%`, toggle [`speed-duration-pitch`](../reference/controls.md#modal-dialogs) to preserve audio pitch (or toggle [`speed-duration-reverse`](../reference/controls.md#modal-dialogs) to play the take in reverse), and click [`speed-duration-apply`](../reference/controls.md#modal-dialogs). The clip shortens on the timeline and its name strip displays `150%`.
+3. Press <kbd>Ctrl+Alt+T</kbd> (`key-time-remap`) or choose **Clip > Time Remapping** (or run **Time Remapping** (`pal-time-remap`)) to open the Effect Controls **Speed** tab, then click the **Hero** speed-ramp preset or drag dots on the logarithmic speed graph. The clip's timeline length updates to match the integrated speed curve and the Viewer plays fast into a slow-motion middle before ramping back up.
+4. Click [`speed-clear`](../reference/controls.md#inspector) in the **Speed** tab to return the clip to flat 1x speed and its unwarped duration. The speed ramp clears and the timeline bar restores its original length.
+
 ## Reference
 
 See [Animations, text effects, easings, and speed presets](../reference/animations.md#speed-ramp-presets-speed_presetstoml), [Controls](../reference/controls.md#modal-dialogs), and [Menus](../reference/menus.md#clip-menu) for all retiming controls.

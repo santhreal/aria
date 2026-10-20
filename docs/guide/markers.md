@@ -23,6 +23,16 @@ to the marker. Clicking the colour swatch cycles the eight-colour palette,
 positive duration draws as a range bar on the timeline ruler or on its clip
 card, and snapping targets both ends of a range marker.
 
+
+## Example
+
+Add sequence and clip markers, assign a colour and duration in the Edit Marker dialog, and navigate between markers:
+
+1. With no clip selected (or with a clip selected to mark in clip-source time), move the playhead to the target frame and press <kbd>M</kbd> (`key-marker-add`) or click [`timeline-marker`](../reference/controls.md#timeline) in the timeline header (or choose **Markers > Add Marker** / run **Add Marker** (`pal-marker`)). A marker pin appears on the timeline ruler (or on the selected clip card).
+2. Press <kbd>M</kbd> (`key-marker-add`) again at the same frame or choose **Markers > Edit Marker…**. The Edit Marker dialog opens over Aria.
+3. Type a marker name and comment, pick a colour swatch, enter a positive duration timecode to turn the marker into a range bar, and click [`marker-edit-save`](../reference/controls.md#modal-dialogs). The timeline ruler draws the coloured range marker across the specified duration.
+4. Choose **Window > Markers** to open the Markers panel, filter by colour or click [`marker-filter-all`](../reference/controls.md#markers) to show all colours, and press <kbd>Shift+M</kbd> (`key-marker-next`) and <kbd>Ctrl+Shift+M</kbd> (`key-marker-prev`) (or choose **Markers > Go to Next Marker** and **Markers > Go to Previous Marker**) to jump the playhead between markers, or click [`marker-remove`](../reference/controls.md#markers) (or press <kbd>Ctrl+Alt+M</kbd> (`key-marker-remove`)) to delete a marker. The playhead seeks directly to each chosen marker frame in the Viewer.
+
 ## Reference
 
 See [Menus](../reference/menus.md#markers-menu), [Controls](../reference/controls.md#markers), and [Keyboard shortcuts](../keyboard-shortcuts.md) for all marker commands and chords.

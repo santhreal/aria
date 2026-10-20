@@ -276,6 +276,18 @@ preview zoom controls, **Add a track**, and the effect row's reorder and remove
 buttons. The shortcut shown is read from the key bindings, so a re-chorded key
 reads correctly rather than repeating a stale letter.
 
+
+## Example
+
+Cut a short clip from a longer recording with In/Out and ripple delete:
+
+1. Select the recording on `V1`, move the playhead to the frame where the unwanted section starts, and press <kbd>Ctrl+K</kbd> (`key-split`) or choose **Sequence > Add Edit** (or run **Split at playhead** (`pal-split`) in the Command Palette). The recording splits into two adjacent clips at the playhead.
+2. Move the playhead to the start of the keep range and press <kbd>I</kbd> (`key-mark-in`) or click [`program-mark-in`](../reference/controls.md#viewer--source-monitor) (or choose **Markers > Mark In**). The timeline ruler work area bar anchors its In point at the playhead.
+3. Move the playhead to the end of the keep range and press <kbd>O</kbd> (`key-mark-out`) or click [`program-mark-out`](../reference/controls.md#viewer--source-monitor) (or choose **Markers > Mark Out**). The work area bar highlights the span between In and Out on the timeline ruler.
+4. Press <kbd>Ctrl+K</kbd> (`key-split`) at the Out point to cut the tail off the keep clip, then select the unwanted tail clip on `V1`. The tail clip highlights with a white selection border.
+5. Press <kbd>Shift+Backspace</kbd> (`key-ripple-delete`) or choose **Edit > Ripple Delete** (or run **Ripple delete selected** (`pal-ripple-delete`)). Aria removes the unwanted clip and shifts all later clips on sync-locked lanes left to close the gap, leaving the short cut clip on `V1`.
+6. Press <kbd>\</kbd> (`key-fit`) or click [`fit-timeline`](../reference/controls.md#timeline) (or choose **View > Fit**) to fit the edited sequence across the timeline viewport. The timeline zooms to show the shortened sequence end to end.
+
 ## Reference
 
 See [Controls](../reference/controls.md#timeline), [Menus](../reference/menus.md#edit-menu), [Commands](../reference/commands.md), and [Keyboard shortcuts](../keyboard-shortcuts.md) for all editing actions.

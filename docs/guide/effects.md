@@ -131,6 +131,16 @@ under the category its plugin specifies, or under Other or Other Audio. A video
 effect row appends the effect to the selected clip's chain. An audio effect row
 appends it to the chain of every selected clip with sound, as one undo step.
 
+
+## Example
+
+Apply a video effect chain, reorder and reset parameters in Effect Controls, and save the chain as a preset:
+
+1. Select a clip on `V1` and press <kbd>Shift+5</kbd> (`key-pane-effects`) or choose **Window > Effects & Presets**. The Effects & Presets panel opens in the right dock frame with its search field [`effects-query`](../reference/controls.md#effects-browser) focused.
+2. Type `glow` in [`effects-query`](../reference/controls.md#effects-browser), double-click **Glow** to append it to the selected clip, then click [`effects-query-clear`](../reference/controls.md#effects-browser) to clear the filter (or click [`fx-add`](../reference/controls.md#inspector) in the Effect Controls **Effects** tab to append another effect). The clip's `fx` badge turns yellow on the timeline and both effects appear in the Effect Controls **Effects** tab.
+3. In the Effect Controls **Effects** tab (**Effect > Effect Controls**), click [`inspector-fx-up`](../reference/controls.md#inspector) or [`inspector-fx-down`](../reference/controls.md#inspector) to reorder the passes, click [`inspector-fx-bypass`](../reference/controls.md#inspector) to toggle an effect off and on, or click [`inspector-fx-reset`](../reference/controls.md#inspector) (or press <kbd>Ctrl+Alt+R</kbd> (`key-effect-reset`) / choose **Effect > Reset effect parameters**) to return parameters to their defaults. The Viewer updates the rendered frame after each change.
+4. Click [`inspector-fx-preset-save`](../reference/controls.md#inspector), type a preset name in [`inspector-fx-preset-name`](../reference/controls.md#inspector), and press Enter. The saved preset chip ([`inspector-fx-preset`](../reference/controls.md#inspector)) appears under **Presets** in the **Effects** tab and under **Animation Presets** in Effects & Presets.
+
 ## Reference
 
 See [Video effects](../reference/effects.md), [Generators](../reference/generators.md), [Controls](../reference/controls.md#inspector), and [Menus](../reference/menus.md#effect-menu) for every built-in effect and generator parameter.

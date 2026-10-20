@@ -112,6 +112,16 @@ starting a new one, starts a new conversation.
 - Screenshots are not stored. The assistant already drops them from history
   before each request, so keeping them would store bytes no prompt can use.
 
+
+## Example
+
+Preview a multi-step edit in Plan only mode and apply the validated plan:
+
+1. Press <kbd>Shift+0</kbd> (`key-assistant`) or choose **Window > Assistant** to open the Assistant panel in the centre frame. The Assistant panel shows the active provider and model above the prompt box.
+2. Click [`ai-plan-only`](../reference/controls.md#ai-assistant) to enable **Plan only** mode, click [`ai-prompt`](../reference/controls.md#ai-assistant), type an editing instruction, and press Enter or click [`ai-send`](../reference/controls.md#ai-assistant) (or click [`ai-stop`](../reference/controls.md#ai-assistant) while a turn is streaming to cancel and roll back). The assistant validates each proposed edit step against the project state without modifying the timeline and renders a numbered plan card in the transcript.
+3. Review the steps listed on the plan card and click [`ai-plan-apply`](../reference/controls.md#ai-assistant) to execute the entire plan as a single undo entry (or click [`ai-plan-discard`](../reference/controls.md#ai-assistant) to drop the plan without changing the project). The timeline applies all planned edits at once and the Viewer updates to the resulting frame.
+4. If a tool call prompts for confirmation under `ask` autonomy, click [`ai-ask-allow`](../reference/controls.md#ai-assistant) or [`ai-ask-deny`](../reference/controls.md#ai-assistant); click [`ai-copy-all`](../reference/controls.md#ai-assistant) to copy the transcript or [`ai-clear`](../reference/controls.md#ai-assistant) to clear the conversation history.
+
 ## Reference
 
 See [Controls](../reference/controls.md#ai-assistant), [Settings](../reference/settings.md), and [Commands](../reference/commands.md) for all Assistant controls and configuration keys.

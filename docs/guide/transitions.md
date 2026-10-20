@@ -49,6 +49,16 @@ over the part of the window it covers, reaching silence where its media ends. A
 retimed clip fades inside its own extent. The crossfade replaces the clip's own
 fade on that side, in playback and in export.
 
+
+## Example
+
+Add a video transition and an audio crossfade across an edit cut:
+
+1. Select the [`tool-pointer`](../reference/controls.md#tool-strip) tool (<kbd>V</kbd> (`key-tool-pointer`)), place two clips with unused source handles side by side on `V1` and `A1`, and click the outgoing clip on `V1` (or park the playhead at the cut). The cut between the two clips is ready on both lanes.
+2. Press <kbd>Ctrl+T</kbd> (`key-transition`) or choose **Sequence > Apply Default Transitions** (or choose **Sequence > Add Cross Fade at Cut** / run **Add cross fade at cut** (`pal-transition-crossfade`)). Aria attaches a `Cross Fade` transition band across the cut on `V1`.
+3. Press <kbd>Ctrl+Shift+T</kbd> (`key-audio-transition`) to apply the default `Constant Power` audio crossfade on `A1`. The timeline draws both the video transition pill on `V1` and the audio crossfade band across the cut on `A1`.
+4. With the outgoing clip selected, open the Effect Controls **Look** tab (**Window > Effect Controls**), click [`transition-choice`](../reference/controls.md#inspector) to switch the video blend to **Dip to Black** or **Wipe Left**, and click [`transition-align`](../reference/controls.md#inspector) to choose **Center at Cut**, **Start at Cut**, or **End at Cut** (or click [`transition-clear`](../reference/controls.md#inspector) / choose **Sequence > Remove Transition at Cut** to remove it). Playback across the cut blends the outgoing and incoming frames and crossfades the audio smoothly in the Viewer.
+
 ## Reference
 
 See [Transitions](../reference/transitions.md), [Controls](../reference/controls.md#inspector), and [Menus](../reference/menus.md#sequence-menu) for all 8 video transitions and 3 audio crossfade curves.

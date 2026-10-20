@@ -152,6 +152,17 @@ Audio Effects, Grade, Mask, and Chroma Key. Remove resets the ticked groups to a
 new clip's values as one undo step. Clearing Time Remapping re-derives the
 clip's duration; clearing Volume keeps the fades.
 
+
+## Example
+
+Animate a title's position with keyframes and an easing curve:
+
+1. Select a title clip on `T1`, move the playhead to the first frame of the clip, and press <kbd>Alt+P</kbd> (`key-reveal-position`) to reveal the **Position** row under the clip on the timeline (or open **Window > Effect Controls**). The **Position** property row opens beneath the track header.
+2. Click the stopwatch [`prop-watch`](../reference/controls.md#keyframes) (or click [`kf-toggle`](../reference/controls.md#keyframes) / choose **Animation > Add Keyframe** / run **Keyframe position at playhead** (`pal-key-position`)) and drag the title to its starting off-centre position in the Viewer. A diamond keyframe marker appears on the **Position** row at the clip's start frame.
+3. Move the playhead 24 frames forward, drag the title to the centre of the frame in the Viewer, and use [`kf-prev`](../reference/controls.md#keyframes) and [`kf-next`](../reference/controls.md#keyframes) (or press <kbd>Shift+Alt+Left</kbd> (`key-keyframe-prev`) and <kbd>Shift+Alt+Right</kbd> (`key-keyframe-next`)) to step between the two keyframes. Aria writes a second keyframe at the playhead and draws the motion path between the two positions.
+4. Select the second keyframe and press <kbd>F9</kbd> (`key-easy-ease`) or choose **Animation > Keyframe Assistant > Easy Ease** (or click [`graph-btn-easy-ease`](../reference/controls.md#timeline) in the timeline header). The keyframe icon changes from a linear diamond to an Easy Ease hourglass.
+5. Press <kbd>Shift+F3</kbd> (`key-graph-editor`) or click [`timeline-graph`](../reference/controls.md#timeline) (or choose **Animation > Graph Editor**) to open the graph editor under the timeline, click the **Position** row label, and drag the incoming Bézier influence handle (or choose **Animation > Keyframe Velocity…** and click [`keyframe-velocity-apply`](../reference/controls.md#modal-dialogs)). Playing the clip in the Viewer moves the title smoothly along the eased curve into its resting position.
+
 ## Reference
 
 See [Animations, text effects, easings, and speed presets](../reference/animations.md), [Controls](../reference/controls.md#keyframes), [Menus](../reference/menus.md#animation-menu), and [Keyboard shortcuts](../keyboard-shortcuts.md) for all keyframe and graph editor controls.

@@ -204,6 +204,17 @@ the frame onto the timeline to drop the marked range where you let go, covering
 what is there; hold Ctrl to insert instead. Each is one undo entry. The tab stays
 open, so takes can be cut in one after another.
 
+
+## Example
+
+Create a bin, preview a recording in the Source Monitor, mark an In-to-Out take, and insert it into the sequence:
+
+1. Press <kbd>Shift+1</kbd> (`key-pane-project`) or choose **Window > Project** to focus the Project panel, then click [`bin-new`](../reference/controls.md#project-panel) (or run **New bin** (`pal-bin-new`) in the Command Palette), type `Selects`, and press Enter. The Media pool opens the new `Pool / Selects` bin.
+2. Click [`pool-view-list`](../reference/controls.md#project-panel) to switch the pool to list view, or type a query in [`media-query`](../reference/controls.md#project-panel) (or press <kbd>Ctrl+F</kbd> (`key-find`) / choose **Edit > Find…**) to filter the pool rows. The list narrows to matching items and shows the count below the list.
+3. Double-click a video item in the pool to open its **Source:** tab in the Viewer ([`viewer-tab-source`](../reference/controls.md#viewer--source-monitor)), scrub to the start of the take, and press <kbd>I</kbd> (`key-mark-in`) or click [`source-mark-in`](../reference/controls.md#viewer--source-monitor). The Source Monitor mini ruler marks the source In point.
+4. Scrub to the end of the take and press <kbd>O</kbd> (`key-mark-out`) or click [`source-mark-out`](../reference/controls.md#viewer--source-monitor). The Source Monitor shades the marked source span and displays the frame count kept.
+5. Click [`source-insert`](../reference/controls.md#viewer--source-monitor) or press <kbd>,</kbd> (`key-source-insert`) (or choose **Sequence > Source > Insert**). Aria inserts the marked source take at the sequence playhead on the patched tracks and shifts downstream clips right.
+
 ## Reference
 
 See [Panels](../reference/panels.md#project-panel-tabs), [Controls](../reference/controls.md#project-panel), and [Keyboard shortcuts](../keyboard-shortcuts.md) for all pool, bin, and Source Monitor controls.

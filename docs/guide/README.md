@@ -1,6 +1,6 @@
 # User Guide
 
-Task-oriented manual for the Aria desktop editor. Each chapter covers one editor surface or workflow. Start with [Getting started](../getting-started.md) to create a project, import media, place a clip, play back, and export.
+Task-oriented manual for the Aria desktop editor. Each chapter covers one editor surface or workflow and concludes with a worked example (`## Example`). Start with [Getting started](../getting-started.md) to create a project, import media, place a clip, play back, and export.
 
 ## Chapters
 
@@ -26,6 +26,31 @@ Task-oriented manual for the Aria desktop editor. Each chapter covers one editor
 19. [History and jobs](history-and-jobs.md) - Session undo history panel, non-linear state jumping, background job board, publication boundaries, and revealing outputs
 20. [The assistant](assistant.md) - Prompting the AI assistant, streaming edits, Plan only mode, cloud and local skills, autonomy prompts, and per-project conversation history
 21. [Settings and storage](settings-and-storage.md) - Canvas aspect and resolution, frame rate, audio layout, time display, provider keys, download quota, cache directories, plugins, AI settings, workspaces, and config.toml schemas
+
+## Task walkthroughs
+
+- [Create a project, import a clip, play back, and export](../getting-started.md#example)
+- [Import media, subtitle timeline files, and relink offline files](importing-media.md#example)
+- [Organize media in bins, mark a take in the Source Monitor, and insert it](media-pool-and-bins.md#example)
+- [Cut a short clip from a longer recording with In/Out and ripple delete](timeline-and-editing.md#example)
+- [Trim with the trim tools](trimming.md#example)
+- [Nest a sequence](tracks-and-routing.md#example)
+- [Frame and crop a clip with safe margins, rulers, and crop handles, and render In to Out](viewer.md#example)
+- [Colour-correct and apply a filter preset](colour.md#example)
+- [Key a green-screen shot with a mask](masks-and-keys.md#example)
+- [Apply a video effect chain and save an effect preset](effects.md#example)
+- [Route audio through a submix bus, insert an audio effect chain, and normalize clip gain](audio.md#example)
+- [Add a transition and an audio crossfade](transitions.md#example)
+- [Animate a title's position with keyframes and an easing curve](keyframes-and-graph-editor.md#example)
+- [Retime a clip with Speed/Duration and a speed ramp](speed.md#example)
+- [Caption a clip](text-and-captions.md#example)
+- [Duck music under voice with the analysis tools](analysis.md#example)
+- [Edit a multicam clip](multicam.md#example)
+- [Add, edit, filter, and navigate sequence and clip markers](markers.md#example)
+- [Export H.264 for web](export.md#example)
+- [Step back through the History panel and manage background jobs](history-and-jobs.md#example)
+- [Preview and apply an edit plan with the Assistant in Plan only mode](assistant.md#example)
+- [Configure project canvas settings, measure storage caches, and save a workspace layout](settings-and-storage.md#example)
 
 ## Reference manual
 

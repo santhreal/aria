@@ -100,6 +100,16 @@ copy on the next launch:
   session reads unsaved, because the project file still holds the older content.
 - **Discard** deletes the copy.
 
+
+## Example
+
+Export a sequence as an H.264 `.mp4` file for web delivery:
+
+1. Mark the sequence In and Out points if exporting a sub-range, or leave the work area spanning the full cut, and press <kbd>Ctrl+S</kbd> (`key-save`) or choose **File > Save** to save the project first. The window title clears its unsaved `*` indicator.
+2. Press <kbd>Ctrl+M</kbd> (`key-export`) or choose **File > Export > Media…** (or run **Export** (`pal-export`) in the Command Palette). The Export modal sheet opens over the workspace.
+3. In the Export sheet, verify **Scale** is `100%`, **Codec** is `H.264`, **Bitrate** is `8 Mb/s` (or `16 Mb/s` for high-motion 1080p/4K web upload), **Audio** includes the mix, and **Range** matches the intended span, then click [`export-dest`](../reference/controls.md#export--transcode) to pick the output `.mp4` path. The **Destination** row displays the target file path and resolved pixel dimensions.
+4. Click [`export-go`](../reference/controls.md#export--transcode) to start the background encode (or click [`export-cancel`](../reference/controls.md#export--transcode) to close the sheet without rendering). The Jobs board opens showing frame progress and estimated time remaining, and clicking [`job-reveal`](../reference/controls.md#modal-dialogs) once the job finishes opens the exported `.mp4` in the system file manager.
+
 ## Reference
 
 See [Controls](../reference/controls.md#export--transcode), [Menus](../reference/menus.md#file-menu), [Commands](../reference/commands.md), and [Command line](../command-line.md) for all export controls and CLI flags.

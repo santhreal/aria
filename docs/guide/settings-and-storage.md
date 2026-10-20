@@ -252,6 +252,16 @@ read a base URL with a model as the freeform endpoint; version 2 reads an absent
 `source` as the local server. `[cloud]` version 1 kept the API host in
 `[account].base_url`; version 2 keeps it in `[cloud].base_url`.
 
+
+## Example
+
+Configure project canvas settings, measure and clear a storage cache, and save a custom workspace arrangement:
+
+1. Choose **File > Project Settings…** or **Sequence > Sequence Settings…** (or press <kbd>Ctrl+,</kbd> (`key-settings`) / choose **Edit > Preferences…**). The Settings dialog opens on the **Canvas** section.
+2. Pick an aspect ratio and frame rate for the open sequence, then switch to the **Caches** section and click [`caches-measure`](../reference/controls.md#settings) to compute disk usage across all cache directories. Each cache row fills in its measured byte size and file count.
+3. Click [`cache-clear`](../reference/controls.md#settings) on an unpinned cache row (or click [`storage-clear`](../reference/controls.md#settings) in the **Storage** section and adjust the download quota with [`quota-dec`](../reference/controls.md#settings) or [`quota-inc`](../reference/controls.md#settings)), then click [`settings-done`](../reference/controls.md#settings) to close Settings. The status line reports the reclaimed bytes.
+4. Drag panel tabs or splitters to arrange the dock layout, then choose **Window > Workspaces > Save Workspace** (or click [`settings-workspace-save`](../reference/controls.md#settings) in the **Workspaces** section of Settings). Aria writes the layout to `<data dir>/workspaces/` and enables the **Custom** workspace slot; choosing **Window > Workspaces > Reset to Saved Layout** restores the saved arrangement at any time.
+
 ## Reference
 
 See [Settings](../reference/settings.md), [Workspaces](../reference/workspaces.md), and [Controls](../reference/controls.md#settings) for every `config.toml` key, `ui-settings.json` field, and Settings control.

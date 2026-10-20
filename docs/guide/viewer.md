@@ -188,6 +188,17 @@ Position driver, and clips not drawn at the playhead stay where they are. One
 press is one undo step. A press that would move nothing writes nothing and
 reports why on the status line.
 
+
+## Example
+
+Frame and crop a clip with safe margins, rulers, and crop handles, then render the work area:
+
+1. Choose **View > Viewer Display Settings > Title Safe** (or click [`viewer-display-settings`](../reference/controls.md#viewer--source-monitor) and toggle **Title Safe**) and press <kbd>Ctrl+Shift+R</kbd> (`key-rulers`) or choose **View > Viewer Display Settings > Show Rulers**. The Viewer draws the inner title-safe rectangle and pixel rulers along the top and left edges.
+2. Select a clip on `V1` and click [`preview-handles-crop`](../reference/controls.md#viewer--source-monitor) in the Viewer control row (or choose **View > Canvas Handles > Crop**). The Viewer draws four edge and four corner crop handles around the selected clip's frame.
+3. Drag the left and right crop handles inward, or click [`crop-clear`](../reference/controls.md#inspector) in Effect Controls (or choose **Clip > Transform > Reset Framing** / run **Reset framing** (`pal-crop-reset`)) to reset the crop edges. The Viewer updates the cropped frame in real time.
+4. Choose **Window > Align**, click [`align-to`](../reference/controls.md#alignment) to select frame alignment, and click **Centre** and **Middle**. The selected clip centers horizontally and vertically inside the sequence canvas.
+5. Mark an In and Out range on the sequence and press <kbd>Enter</kbd> (`key-render-in-to-out`) or choose **Sequence > Render In to Out** (or run **Render In to Out** (`pal-render-in-to-out`)). Aria renders QOI cache frames for the span and turns the timeline ruler render bar green across the work area.
+
 ## Reference
 
 See [Controls](../reference/controls.md#viewer--source-monitor), [Menus](../reference/menus.md#view-menu), and [Panels](../reference/panels.md) for all Viewer, Scopes, Info, and Align controls.

@@ -72,6 +72,16 @@ Every change is one undo step. Preview and export run the same chain; the
 mixer delays every other path by the latency of the Limiter, Noise Reduction,
 and Pitch Shifter so lanes stay in time.
 
+
+## Example
+
+Route dialogue through a submix bus, insert an audio effect chain, and normalize clip peaks:
+
+1. Select the dialogue clips on `A1` and press <kbd>G</kbd> (`key-audio-gain`) or choose **Clip > Audio Gain…** (or run **Audio Gain…** (`pal-audio-gain`) in the Command Palette). The Audio Gain dialog opens and reports the measured peak in dBFS across the selection.
+2. Choose **Normalize Max Peak to**, set the target level, and click [`audio-gain-apply`](../reference/controls.md#modal-dialogs). The clip waveforms on `A1` scale to the normalized level in one undo step.
+3. Press <kbd>Shift+6</kbd> (`key-mixer`) or choose **Window > Audio Track Mixer** (or run **Mixer: open the mixer** (`pal-mixer-open`)), then click **+ Submix bus** or run **Mixer: add a submix bus** (`pal-mixer-add-bus`) in the Command Palette. A `Bus 1 · bus` strip appears in the mixer before the `Master` strip.
+4. On the `A1` strip, click the `Bus 1` chip under **Out** to route `A1` into `Bus 1`, then add **Parametric EQ** and **Compressor** under **Inserts** on `Bus 1` and reorder them with [`insert-up`](../reference/controls.md#audio-mixer) or [`insert-down`](../reference/controls.md#audio-mixer) (or remove an insert with [`insert-remove`](../reference/controls.md#audio-mixer)). Press <kbd>Shift+9</kbd> (`key-pane-audio-meters`) or choose **Window > Audio Meters** to watch the summed peak levels in the Audio Meters panel and [`preview-meter`](../reference/controls.md#audio-meters) during playback.
+
 ## Reference
 
 See [Audio effects](../reference/audio-effects.md), [Controls](../reference/controls.md#audio-mixer), [Menus](../reference/menus.md#clip-menu), and [Commands](../reference/commands.md) for all audio processors and mixer controls.

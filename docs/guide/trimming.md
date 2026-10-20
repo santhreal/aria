@@ -31,6 +31,18 @@ Slide, a rolling edit, and a ripple trim each issue two edits and cost one undo.
 If the second edit is refused the first is rolled back, so the timeline never
 keeps half a gesture.
 
+
+## Example
+
+Trim a cut between two clips and adjust the incoming take with the trim tools:
+
+1. Press <kbd>B</kbd> (`key-tool-ripple`) or click [`tool-ripple`](../reference/controls.md#tool-strip) in the Tool Strip, then drag the outgoing edge of the first clip on `V1` left by 10 frames. The clip shortens by 10 frames and every downstream clip on the track and sync-locked tracks ripples left to close the gap.
+2. Press <kbd>N</kbd> (`key-tool-roll`) or click [`tool-roll`](../reference/controls.md#tool-strip) in the Tool Strip, then drag the shared cut between the first and second clips right by 6 frames. The first clip grows by 6 frames and the second clip trims its head by 6 frames while the combined sequence duration stays unchanged.
+3. Press <kbd>Y</kbd> (`key-tool-slip`) or click [`tool-slip`](../reference/controls.md#tool-strip), then drag the body of the second clip left or right. The clip's source In and Out points shift together in the Viewer while the clip's start and length on the timeline remain fixed.
+4. Press <kbd>U</kbd> (`key-tool-slide`) or click [`tool-slide`](../reference/controls.md#tool-strip), then drag the second clip along `V1` between the first and third clips. The second clip moves while its adjacent neighbours trim to preserve their outer bounds.
+5. Press <kbd>R</kbd> (`key-tool-rate`) or click [`tool-rate`](../reference/controls.md#tool-strip), then drag the tail of the last clip to match a marker on the ruler. The clip's timeline duration changes and its playback speed percentage updates on the clip name strip.
+6. Press <kbd>V</kbd> (`key-tool-pointer`) or click [`tool-pointer`](../reference/controls.md#tool-strip) to return to the Select tool. The timeline shows the updated cut points and speed badge, and the Viewer displays the frame at the playhead.
+
 ## Reference
 
 See [Tools](../reference/tools.md) and [Controls](../reference/controls.md#tool-strip) for every trim tool and shortcut.
