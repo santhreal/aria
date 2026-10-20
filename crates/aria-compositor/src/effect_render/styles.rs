@@ -9,6 +9,7 @@
 use aria_shapes::{SDF_AA, SdfParams};
 use bytemuck::{Pod, Zeroable};
 
+use crate::color_pass;
 use crate::layer::{
     CompositeLayer, LayerBackground, LayerGlow, LayerOutline, LayerPlacement, LayerShadow, SdfLayer,
 };
@@ -166,25 +167,13 @@ fn run_silhouette(
             Bound::Uniform(bytemuck::bytes_of(&uniforms)),
         ],
     );
-    let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: None,
-        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-            view: output,
-            depth_slice: None,
-            resolve_target: None,
-            ops: wgpu::Operations {
-                load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                store: wgpu::StoreOp::Store,
-            },
-        })],
-        depth_stencil_attachment: None,
-        timestamp_writes: None,
-        occlusion_query_set: None,
-        multiview_mask: None,
-    });
-    pass.set_pipeline(registry.silhouette_pipeline());
-    pass.set_bind_group(0, &*bind_group, &[]);
-    pass.draw(0..6, 0..1);
+    color_pass::draw_quad(
+        encoder,
+        output,
+        color_pass::CLEAR,
+        registry.silhouette_pipeline(),
+        &bind_group,
+    );
 }
 
 /// Premultiplied-over blit of `source` onto the canvas with a UV offset.
@@ -210,25 +199,13 @@ fn blit_offset_premultiplied_to_canvas(
             })),
         ],
     );
-    let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: None,
-        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-            view: canvas_view,
-            depth_slice: None,
-            resolve_target: None,
-            ops: wgpu::Operations {
-                load: wgpu::LoadOp::Load,
-                store: wgpu::StoreOp::Store,
-            },
-        })],
-        depth_stencil_attachment: None,
-        timestamp_writes: None,
-        occlusion_query_set: None,
-        multiview_mask: None,
-    });
-    pass.set_pipeline(registry.offset_blit_pipeline());
-    pass.set_bind_group(0, &*bind_group, &[]);
-    pass.draw(0..6, 0..1);
+    color_pass::draw_quad(
+        encoder,
+        canvas_view,
+        color_pass::KEEP,
+        registry.offset_blit_pipeline(),
+        &bind_group,
+    );
 }
 
 /// Additive blit of premultiplied `source` onto the canvas (glow).
@@ -246,25 +223,13 @@ fn blit_additive_to_canvas(
         "aria.style.additive.bg",
         &[Bound::Texture(source), Bound::Sampler(&registry.sampler)],
     );
-    let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: None,
-        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-            view: canvas_view,
-            depth_slice: None,
-            resolve_target: None,
-            ops: wgpu::Operations {
-                load: wgpu::LoadOp::Load,
-                store: wgpu::StoreOp::Store,
-            },
-        })],
-        depth_stencil_attachment: None,
-        timestamp_writes: None,
-        occlusion_query_set: None,
-        multiview_mask: None,
-    });
-    pass.set_pipeline(registry.additive_blit_pipeline());
-    pass.set_bind_group(0, &*bind_group, &[]);
-    pass.draw(0..6, 0..1);
+    color_pass::draw_quad(
+        encoder,
+        canvas_view,
+        color_pass::KEEP,
+        registry.additive_blit_pipeline(),
+        &bind_group,
+    );
 }
 
 /// Harden the blurred silhouette into an outside stroke on the canvas.
@@ -297,25 +262,13 @@ fn blit_outline_harden_to_canvas(
             Bound::Uniform(bytemuck::bytes_of(&uniforms)),
         ],
     );
-    let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: None,
-        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-            view: canvas_view,
-            depth_slice: None,
-            resolve_target: None,
-            ops: wgpu::Operations {
-                load: wgpu::LoadOp::Load,
-                store: wgpu::StoreOp::Store,
-            },
-        })],
-        depth_stencil_attachment: None,
-        timestamp_writes: None,
-        occlusion_query_set: None,
-        multiview_mask: None,
-    });
-    pass.set_pipeline(registry.harden_pipeline());
-    pass.set_bind_group(0, &*bind_group, &[]);
-    pass.draw(0..6, 0..1);
+    color_pass::draw_quad(
+        encoder,
+        canvas_view,
+        color_pass::KEEP,
+        registry.harden_pipeline(),
+        &bind_group,
+    );
 }
 
 /// Draw shadow then glow under the layer content.

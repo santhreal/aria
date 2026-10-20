@@ -62,7 +62,7 @@ impl Compositor {
             return Ok(());
         }
         if let Some(color) = target.clear {
-            clear_view_color(encoder, target.label, target.view, color);
+            crate::color_pass::clear(encoder, target.view, color);
         }
         let device = &gpu.device;
         // The content cut by its mask, or the average of its motion-blur
@@ -195,38 +195,4 @@ pub(super) fn copy_canvas(
             depth_or_array_layers: 1,
         },
     );
-}
-
-/// Clear `view` to transparent.
-pub(super) fn clear_view(
-    encoder: &mut wgpu::CommandEncoder,
-    label: &'static str,
-    view: &wgpu::TextureView,
-) {
-    clear_view_color(encoder, label, view, wgpu::Color::TRANSPARENT);
-}
-
-/// Clear `view` to `color`.
-pub(super) fn clear_view_color(
-    encoder: &mut wgpu::CommandEncoder,
-    _label: &'static str,
-    view: &wgpu::TextureView,
-    color: wgpu::Color,
-) {
-    let _clear = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: None,
-        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-            view,
-            depth_slice: None,
-            resolve_target: None,
-            ops: wgpu::Operations {
-                load: wgpu::LoadOp::Clear(color),
-                store: wgpu::StoreOp::Store,
-            },
-        })],
-        depth_stencil_attachment: None,
-        timestamp_writes: None,
-        occlusion_query_set: None,
-        multiview_mask: None,
-    });
 }

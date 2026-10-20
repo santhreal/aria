@@ -3,6 +3,7 @@
 //! result; a reference draws it into the target an effect reads through a
 //! layer parameter.
 
+use crate::color_pass;
 use crate::effect_render::{
     OffscreenPool, blit_premultiplied_to_canvas, effects_need_offscreen, run_effect_chain,
     run_lut_pass,
@@ -39,22 +40,7 @@ pub(super) fn draw_layer_into(
         Some(color) => wgpu::LoadOp::Clear(color),
         None => wgpu::LoadOp::Load,
     };
-    let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: None,
-        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-            view,
-            depth_slice: None,
-            resolve_target: None,
-            ops: wgpu::Operations {
-                load,
-                store: wgpu::StoreOp::Store,
-            },
-        })],
-        depth_stencil_attachment: None,
-        timestamp_writes: None,
-        occlusion_query_set: None,
-        multiview_mask: None,
-    });
+    let mut pass = color_pass::begin(encoder, view, load);
     draw_built_layer(&mut pass, pipeline, built);
 }
 

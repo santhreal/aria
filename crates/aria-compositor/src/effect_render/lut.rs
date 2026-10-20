@@ -1,3 +1,4 @@
+use crate::color_pass;
 use bytemuck::{Pod, Zeroable};
 
 use super::pipelines::PassRegistry;
@@ -50,24 +51,12 @@ pub(crate) fn run_lut_pass<'a>(
         ],
     );
 
-    let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: None,
-        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-            view: output,
-            depth_slice: None,
-            resolve_target: None,
-            ops: wgpu::Operations {
-                load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                store: wgpu::StoreOp::Store,
-            },
-        })],
-        depth_stencil_attachment: None,
-        timestamp_writes: None,
-        occlusion_query_set: None,
-        multiview_mask: None,
-    });
-    pass.set_pipeline(registry.lut());
-    pass.set_bind_group(0, &*bind_group, &[]);
-    pass.draw(0..6, 0..1);
+    color_pass::draw_quad(
+        encoder,
+        output,
+        color_pass::CLEAR,
+        registry.lut(),
+        &bind_group,
+    );
     output
 }

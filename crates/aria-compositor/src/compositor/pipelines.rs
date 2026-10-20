@@ -1,7 +1,9 @@
 use std::sync::{Arc, OnceLock};
 
 use super::glyphs::GlyphInstanceGpu;
-use crate::effect_render::{PassRegistry, SharedPassPipelines};
+use crate::effect_render::{
+    PREMULT_OVER, PassRegistry, SharedPassPipelines, sampler_entry, tex_entry,
+};
 use crate::gpu::GpuContext;
 
 use super::{CANVAS_FORMAT, Compositor, LayerPipeline};
@@ -14,21 +16,6 @@ use crate::grade::GRADE_WGSL;
 const STRAIGHT_OVER: wgpu::BlendState = wgpu::BlendState {
     color: wgpu::BlendComponent {
         src_factor: wgpu::BlendFactor::SrcAlpha,
-        dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-        operation: wgpu::BlendOperation::Add,
-    },
-    alpha: wgpu::BlendComponent {
-        src_factor: wgpu::BlendFactor::One,
-        dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-        operation: wgpu::BlendOperation::Add,
-    },
-};
-
-/// Premultiplied src-over: the source fragment is already alpha-weighted (the
-/// RGBA pipeline), so the color factor is `One`. Correct for anti-aliased edges.
-const PREMULTIPLIED_OVER: wgpu::BlendState = wgpu::BlendState {
-    color: wgpu::BlendComponent {
-        src_factor: wgpu::BlendFactor::One,
         dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
         operation: wgpu::BlendOperation::Add,
     },
@@ -64,54 +51,54 @@ impl SharedLayerPipelines {
         let yuv_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("aria.yuv.bgl"),
             entries: &[
-                plane_tex_entry(0),
-                plane_tex_entry(1),
-                plane_tex_entry(2),
+                tex_entry(0),
+                tex_entry(1),
+                tex_entry(2),
                 sampler_entry(3),
-                uniform_entry(4),
+                layer_uniform_entry(4),
             ],
         });
 
         let yuv_fx_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("aria.yuv_fx.bgl"),
             entries: &[
-                plane_tex_entry(0),
-                plane_tex_entry(1),
-                plane_tex_entry(2),
+                tex_entry(0),
+                tex_entry(1),
+                tex_entry(2),
                 sampler_entry(3),
-                uniform_entry(4),
-                uniform_entry(5),
+                layer_uniform_entry(4),
+                layer_uniform_entry(5),
             ],
         });
 
         let rgba_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("aria.rgba.bgl"),
-            entries: &[plane_tex_entry(0), sampler_entry(1), uniform_entry(2)],
+            entries: &[tex_entry(0), sampler_entry(1), layer_uniform_entry(2)],
         });
 
         let rgba_fx_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("aria.rgba_fx.bgl"),
             entries: &[
-                plane_tex_entry(0),
+                tex_entry(0),
                 sampler_entry(1),
-                uniform_entry(2),
-                uniform_entry(3),
+                layer_uniform_entry(2),
+                layer_uniform_entry(3),
             ],
         });
 
         let solid_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("aria.solid.bgl"),
-            entries: &[uniform_entry(0)],
+            entries: &[layer_uniform_entry(0)],
         });
 
         let sdf_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("aria.sdf.bgl"),
-            entries: &[uniform_entry(0)],
+            entries: &[layer_uniform_entry(0)],
         });
 
         let glyphs_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("aria.glyphs.bgl"),
-            entries: &[plane_tex_entry(0), sampler_entry(1), uniform_entry(2)],
+            entries: &[tex_entry(0), sampler_entry(1), layer_uniform_entry(2)],
         });
 
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
@@ -198,7 +185,7 @@ impl SharedLayerPipelines {
                     "aria.rgba",
                     &self.rgba_layout,
                     &shader,
-                    PREMULTIPLIED_OVER,
+                    PREMULT_OVER,
                 )
             }),
             LayerPipeline::RgbaFx => self.rgba_fx_pipeline.get_or_init(|| {
@@ -221,7 +208,7 @@ impl SharedLayerPipelines {
                     "aria.rgba_fx",
                     &self.rgba_fx_layout,
                     &shader,
-                    PREMULTIPLIED_OVER,
+                    PREMULT_OVER,
                 )
             }),
             LayerPipeline::Solid => self.solid_pipeline.get_or_init(|| {
@@ -266,7 +253,7 @@ impl SharedLayerPipelines {
                     "aria.glyphs",
                     &self.glyphs_layout,
                     &shader,
-                    PREMULTIPLIED_OVER,
+                    PREMULT_OVER,
                     &[GlyphInstanceGpu::LAYOUT],
                 )
             }),
@@ -349,29 +336,9 @@ impl Compositor {
     }
 }
 
-fn plane_tex_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
-    wgpu::BindGroupLayoutEntry {
-        binding,
-        visibility: wgpu::ShaderStages::FRAGMENT,
-        ty: wgpu::BindingType::Texture {
-            sample_type: wgpu::TextureSampleType::Float { filterable: true },
-            view_dimension: wgpu::TextureViewDimension::D2,
-            multisampled: false,
-        },
-        count: None,
-    }
-}
-
-fn sampler_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
-    wgpu::BindGroupLayoutEntry {
-        binding,
-        visibility: wgpu::ShaderStages::FRAGMENT,
-        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-        count: None,
-    }
-}
-
-fn uniform_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
+/// A uniform buffer the vertex stage reads too: a layer pipeline places its
+/// quad from it.
+fn layer_uniform_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
     wgpu::BindGroupLayoutEntry {
         binding,
         visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,

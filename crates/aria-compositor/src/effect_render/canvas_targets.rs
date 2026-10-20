@@ -82,14 +82,14 @@ impl CanvasTargets {
     /// Clear every target to transparent.
     pub(crate) fn clear(&self, encoder: &mut wgpu::CommandEncoder) {
         for (_, view) in self.targets.values() {
-            clear_target(encoder, self.label, view);
+            crate::color_pass::clear(encoder, view, wgpu::Color::TRANSPARENT);
         }
     }
 
     /// Clear the target of `id` to transparent, when this frame names it.
     pub(crate) fn clear_one(&self, encoder: &mut wgpu::CommandEncoder, id: u64) {
         if let Some((_, view)) = self.targets.get(&id) {
-            clear_target(encoder, self.label, view);
+            crate::color_pass::clear(encoder, view, wgpu::Color::TRANSPARENT);
         }
     }
 
@@ -103,27 +103,4 @@ impl CanvasTargets {
     pub(crate) fn target(&self, id: u64) -> Option<(&wgpu::Texture, &wgpu::TextureView)> {
         self.targets.get(&id).map(|(texture, view)| (texture, view))
     }
-}
-
-fn clear_target(
-    encoder: &mut wgpu::CommandEncoder,
-    _label: &'static str,
-    view: &wgpu::TextureView,
-) {
-    let _clear = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: None,
-        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-            view,
-            depth_slice: None,
-            resolve_target: None,
-            ops: wgpu::Operations {
-                load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                store: wgpu::StoreOp::Store,
-            },
-        })],
-        depth_stencil_attachment: None,
-        timestamp_writes: None,
-        occlusion_query_set: None,
-        multiview_mask: None,
-    });
 }

@@ -15,10 +15,11 @@ use crate::grade::ColorGrade;
 use crate::layer::{CompositeLayer, CompositorConfig, CompositorLayer};
 
 use super::canvas_pass::CanvasPassDraw;
-use super::draw_layer::{BlendDest, LayerTarget, clear_view_color};
+use super::draw_layer::{BlendDest, LayerTarget};
 use super::pairs::{MatteDraw, TransitionDraw};
 use super::scene::Scene;
 use super::{Compositor, LayerGpu};
+use crate::color_pass;
 
 /// The texture an item draws onto and its view.
 pub(super) type Dest<'a> = (&'a wgpu::Texture, &'a wgpu::TextureView);
@@ -74,7 +75,7 @@ impl Compositor {
                 stencil,
             } => {
                 if let Some(color) = pending_clear.take() {
-                    clear_view_color(encoder, "aria.clear", view, color);
+                    color_pass::clear(encoder, view, color);
                 }
                 let pass = CanvasPassDraw {
                     effects,
@@ -97,7 +98,7 @@ impl Compositor {
                 progress,
             } => {
                 if let Some(color) = pending_clear.take() {
-                    clear_view_color(encoder, "aria.clear", view, color);
+                    color_pass::clear(encoder, view, color);
                 }
                 let draw = TransitionDraw {
                     outgoing,
@@ -116,7 +117,7 @@ impl Compositor {
                 params,
             } => {
                 if let Some(color) = pending_clear.take() {
-                    clear_view_color(encoder, "aria.clear", view, color);
+                    color_pass::clear(encoder, view, color);
                 }
                 let draw = TransitionDraw {
                     outgoing,
@@ -135,7 +136,7 @@ impl Compositor {
                 softness,
             } => {
                 if let Some(color) = pending_clear.take() {
-                    clear_view_color(encoder, "aria.clear", view, color);
+                    color_pass::clear(encoder, view, color);
                 }
                 let draw = MatteDraw {
                     content,

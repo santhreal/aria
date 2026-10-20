@@ -5,7 +5,6 @@ use crate::layer::{BlendMode, CompositeLayer, CompositorConfig, CompositorLayer,
 use crate::lut::CubeLut;
 use crate::passes::PassInstance;
 
-use super::draw_layer::clear_view_color;
 use super::items::frame_items;
 use super::scene::Scene;
 use super::{
@@ -374,7 +373,7 @@ impl Compositor {
             }
         }
         if let Some(color) = pending_clear.take() {
-            clear_view_color(&mut encoder, "aria.clear", canvas.1, color);
+            crate::color_pass::clear(&mut encoder, canvas.1, color);
         }
 
         Ok(encoder)

@@ -1,5 +1,6 @@
 use super::pipelines::{PassRegistry, build_blended_pipeline, build_effect_pipeline};
 use super::{Bound, PassCache};
+use crate::color_pass;
 
 /// A full-screen quad that samples `tex` at its UV: the source of the plain,
 /// additive, and replacing blits.
@@ -39,25 +40,13 @@ pub(crate) fn blit_premultiplied_to_canvas(
         "aria.blit.bg",
         &[Bound::Texture(source), Bound::Sampler(&registry.sampler)],
     );
-    let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: None,
-        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-            view: canvas_view,
-            depth_slice: None,
-            resolve_target: None,
-            ops: wgpu::Operations {
-                load: wgpu::LoadOp::Load,
-                store: wgpu::StoreOp::Store,
-            },
-        })],
-        depth_stencil_attachment: None,
-        timestamp_writes: None,
-        occlusion_query_set: None,
-        multiview_mask: None,
-    });
-    pass.set_pipeline(registry.blit_pipeline());
-    pass.set_bind_group(0, &*bind_group, &[]);
-    pass.draw(0..6, 0..1);
+    color_pass::draw_quad(
+        encoder,
+        canvas_view,
+        color_pass::KEEP,
+        registry.blit_pipeline(),
+        &bind_group,
+    );
 }
 
 /// Replace a full-canvas render target with `source`.
@@ -75,25 +64,13 @@ pub(crate) fn blit_replace(
         "aria.blit_replace.bg",
         &[Bound::Texture(source), Bound::Sampler(&registry.sampler)],
     );
-    let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: None,
-        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-            view: output,
-            depth_slice: None,
-            resolve_target: None,
-            ops: wgpu::Operations {
-                load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                store: wgpu::StoreOp::Store,
-            },
-        })],
-        depth_stencil_attachment: None,
-        timestamp_writes: None,
-        occlusion_query_set: None,
-        multiview_mask: None,
-    });
-    pass.set_pipeline(registry.replace_pipeline());
-    pass.set_bind_group(0, &*bind_group, &[]);
-    pass.draw(0..6, 0..1);
+    color_pass::draw_quad(
+        encoder,
+        output,
+        color_pass::CLEAR,
+        registry.replace_pipeline(),
+        &bind_group,
+    );
 }
 
 pub(super) fn build_blit_pipeline(
@@ -137,25 +114,13 @@ pub(crate) fn blit_weighted_additive(
             Bound::Uniform(bytemuck::bytes_of(&[weight, 0.0f32, 0.0, 0.0])),
         ],
     );
-    let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: None,
-        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-            view: accum,
-            depth_slice: None,
-            resolve_target: None,
-            ops: wgpu::Operations {
-                load: wgpu::LoadOp::Load,
-                store: wgpu::StoreOp::Store,
-            },
-        })],
-        depth_stencil_attachment: None,
-        timestamp_writes: None,
-        occlusion_query_set: None,
-        multiview_mask: None,
-    });
-    pass.set_pipeline(registry.accumulate_blit_pipeline());
-    pass.set_bind_group(0, &*bind_group, &[]);
-    pass.draw(0..6, 0..1);
+    color_pass::draw_quad(
+        encoder,
+        accum,
+        color_pass::KEEP,
+        registry.accumulate_blit_pipeline(),
+        &bind_group,
+    );
 }
 
 /// Additive premultiplied blit (glow): color One/One, alpha One/OneMinusSrcAlpha.
