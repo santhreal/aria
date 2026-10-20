@@ -454,10 +454,7 @@ fn color_doc_yuv_matrices_match_coefficients() {
         .find("## YUV 4:2:0 conversion matrices (`YuvMatrix`)")
         .expect("missing YuvMatrix section in color.md");
     let rest = &color_doc[start..];
-    let end = rest[1..]
-        .find("\n## ")
-        .map(|i| i + 1)
-        .unwrap_or(rest.len());
+    let end = rest[1..].find("\n## ").map(|i| i + 1).unwrap_or(rest.len());
     let sec = &rest[..end];
 
     let mut rows = Vec::new();

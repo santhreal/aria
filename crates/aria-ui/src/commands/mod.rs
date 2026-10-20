@@ -31,6 +31,7 @@ use crate::app::AppState;
 use crate::app::analysis::AnalysisKind;
 use crate::app::palette::Pending;
 use crate::app::{DialogKind, spawn_preview, start_playback};
+use crate::const_table;
 
 use self::ai::{AI_JOB_ROWS, AI_ROWS};
 use self::clip::{CLIP_JOB_ROWS, CLIP_ROWS};
@@ -95,43 +96,11 @@ const GROUPS: &[&[CommandEntry]] = &[
     TEXT_ROWS,
 ];
 
-/// How many rows the groups hold between them, summed at compile time.
-const TOTAL: usize = {
-    let mut total = 0;
-    let mut group = 0;
-    while group < GROUPS.len() {
-        total += GROUPS[group].len();
-        group += 1;
-    }
-    total
-};
-
-/// Flatten the groups into one array.
-///
-/// A const fn rather than a fourth hand-written table: the registry wants one
-/// `&[CommandEntry]` and the rows want to live in files a person can read. The
-/// alternative was a public type change, which every caller of
-/// `BUILTIN_COMMANDS` — the plugin mount, the tooltip index, four test suites —
-/// would have had to follow for no gain.
-const fn joined<const N: usize, T: Copy>(groups: &[&[T]]) -> [T; N] {
-    let mut out = [groups[0][0]; N];
-    let mut at = 0;
-    let mut group = 0;
-    while group < groups.len() {
-        let rows = groups[group];
-        let mut row = 0;
-        while row < rows.len() {
-            out[at] = rows[row];
-            at += 1;
-            row += 1;
-        }
-        group += 1;
-    }
-    out
-}
+/// How many rows the groups hold between them.
+const TOTAL: usize = const_table::total(GROUPS);
 
 /// Every shipped command that runs against the state alone.
-pub const BUILTIN_COMMANDS: &[CommandEntry] = &joined::<TOTAL, CommandEntry>(GROUPS);
+pub const BUILTIN_COMMANDS: &[CommandEntry] = &const_table::joined::<TOTAL, CommandEntry>(GROUPS);
 
 /// The detector, transcription, ducking, and update rows.
 ///
@@ -194,22 +163,15 @@ const ANALYSIS_JOB_ROWS: &[WindowedEntry] = &[
 /// adding rows adds a slice here rather than editing a shared literal.
 const JOB_GROUPS: &[&[WindowedEntry]] = &[ANALYSIS_JOB_ROWS, AI_JOB_ROWS, CLIP_JOB_ROWS];
 
-/// How many job rows the groups hold between them, summed at compile time.
-const JOB_TOTAL: usize = {
-    let mut total = 0;
-    let mut group = 0;
-    while group < JOB_GROUPS.len() {
-        total += JOB_GROUPS[group].len();
-        group += 1;
-    }
-    total
-};
+/// How many job rows the groups hold between them.
+const JOB_TOTAL: usize = const_table::total(JOB_GROUPS);
 
 /// The shipped commands that need the entity context because they start work.
 ///
 /// Joined from `JOB_GROUPS` by the same const fn that builds
 /// [`BUILTIN_COMMANDS`], so neither table has a count written down.
-pub const BUILTIN_JOB_COMMANDS: &[WindowedEntry] = &joined::<JOB_TOTAL, _>(JOB_GROUPS);
+pub const BUILTIN_JOB_COMMANDS: &[WindowedEntry] =
+    &const_table::joined::<JOB_TOTAL, WindowedEntry>(JOB_GROUPS);
 
 #[cfg(test)]
 mod tests {

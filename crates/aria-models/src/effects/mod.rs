@@ -27,7 +27,7 @@ pub use params::{
 pub(crate) use params::{
     check_params, choice_check, curve_check, gradient_check, holds_scalar, holds_text, holds_vec2,
     int_range_check, linear_color_check, range_check, scalar_or_int_range_check, stored_slot,
-    vec2_range_check, vec3_range_check,
+    vector_range_check,
 };
 pub use stored::{StoredParams, default_flattened_param_floats};
 

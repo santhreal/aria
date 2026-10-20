@@ -11,6 +11,7 @@ use std::io::{BufRead, BufReader, Read};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
+use aria_cloud::http::capped_body;
 use base64::Engine as _;
 
 use crate::provider::{
@@ -128,7 +129,7 @@ impl OpenAiCompatProvider {
                     .unwrap_or_else(|_| "<unreadable error body>".to_string());
                 Err(ProviderError::Provider {
                     status,
-                    message: truncate(message, 200),
+                    message: capped_body(message, 200),
                 })
             }
             Err(ureq::Error::Transport(t)) => Err(ProviderError::Network(format!("{url}: {t}"))),
@@ -565,25 +566,8 @@ pub(crate) fn consume_sse(
     })
 }
 
-/// Caps `s` at `max` bytes, never splitting a character. Takes the `String` by
-/// value because every caller already owns one: the short case — which is most
-/// error bodies — then costs no allocation at all, where `&str` + `to_string`
-/// re-allocated the whole body to change nothing.
-pub(super) fn truncate(mut s: String, max: usize) -> String {
-    if s.len() <= max {
-        return s;
-    }
-    let mut end = max;
-    while !s.is_char_boundary(end) {
-        end -= 1;
-    }
-    s.truncate(end);
-    s.push('…');
-    s
-}
-
 fn chat_error_message(status: u16, message: String) -> String {
-    let mut message = truncate(message, 500);
+    let mut message = capped_body(message, 500);
     let lower = message.to_ascii_lowercase();
     if status == 400
         && (lower.contains("reasoning_effort") || lower.contains("reasoning effort"))

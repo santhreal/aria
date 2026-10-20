@@ -19,6 +19,7 @@ pub mod chrome;
 pub mod cloud;
 pub mod commands;
 pub mod components;
+pub(crate) mod const_table;
 pub mod datefmt;
 pub mod dock;
 pub mod drag_hint;

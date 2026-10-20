@@ -84,21 +84,48 @@ impl Rational {
         let g = gcd(self.num, self.den);
         Rational::new(self.num / g, self.den / g)
     }
+
+    /// `num : den` in lowest terms, or `None` when a reduced term is outside
+    /// `i32`. For ratios computed in `i64`, such as tick counts scaled by a
+    /// rate.
+    pub fn from_ratio(num: i64, den: i64) -> Option<Rational> {
+        let g = gcd_i64(num, den);
+        Some(Rational::new(
+            i32::try_from(num / g).ok()?,
+            i32::try_from(den / g).ok()?,
+        ))
+    }
+
+    /// `num : den` in lowest terms, with both terms halved until they fit in
+    /// `i32`. For speed ratios of two positive tick counts: a span long
+    /// enough to overflow `i32` is past the precision a speed is read at, so
+    /// it is approximated rather than rejected. Halving stops at 1, so a
+    /// positive term never reaches zero.
+    pub fn from_ratio_fitted(num: i64, den: i64) -> Rational {
+        let g = gcd_i64(num, den);
+        let (mut num, mut den) = (num / g, den / g);
+        while num > i64::from(i32::MAX) || den > i64::from(i32::MAX) {
+            num = (num / 2).max(1);
+            den = (den / 2).max(1);
+        }
+        Rational::new(num as i32, den as i32)
+    }
 }
 
-/// Greatest common divisor of two `i32`s (Euclid), never zero so it is safe to
-/// divide by.
+/// Greatest common divisor of two `i32`s, never zero so it is safe to divide
+/// by. `gcd(i32::MIN, i32::MIN)` is 2³¹, which saturates to `i32::MAX`.
 fn gcd(a: i32, b: i32) -> i32 {
+    i32::try_from(gcd_i64(i64::from(a), i64::from(b))).unwrap_or(i32::MAX)
+}
+
+/// Greatest common divisor of two `i64`s (Euclid), never zero so it is safe to
+/// divide by. `gcd_i64(i64::MIN, 0)` is 2⁶³, which saturates to `i64::MAX`.
+fn gcd_i64(a: i64, b: i64) -> i64 {
     let (mut a, mut b) = (a.unsigned_abs(), b.unsigned_abs());
     while b != 0 {
         (a, b) = (b, a % b);
     }
-    let g = a.max(1);
-    if g > i32::MAX as u32 {
-        i32::MAX
-    } else {
-        g as i32
-    }
+    i64::try_from(a.max(1)).unwrap_or(i64::MAX)
 }
 
 /// A time position or duration as integer ticks at an exact rate.
@@ -136,6 +163,38 @@ impl RationalTime {
         let lhs = i128::from(self.value) * i128::from(self.rate.den) * i128::from(other.rate.num);
         let rhs = i128::from(other.value) * i128::from(other.rate.den) * i128::from(self.rate.num);
         lhs.cmp(&rhs)
+    }
+
+    /// This time in whole units of `1 / units_per_second` seconds:
+    /// `value · den · units_per_second / num`, exact in `i128`, truncated
+    /// toward zero and saturated to `i64`. Platform clocks read time this way:
+    /// GStreamer in nanoseconds (`1_000_000_000`), Media Foundation in 100 ns
+    /// units (`10_000_000`). A rate that is not [`Rational::is_valid`] gives 0.
+    pub fn in_units(self, units_per_second: i64) -> i64 {
+        if !self.rate.is_valid() {
+            return 0;
+        }
+        let scaled = i128::from(self.value) * i128::from(self.rate.den);
+        let units = match scaled.checked_mul(i128::from(units_per_second)) {
+            Some(product) => product / i128::from(self.rate.num),
+            None if (scaled < 0) == (units_per_second < 0) => i128::MAX,
+            None => i128::MIN,
+        };
+        units.clamp(i128::from(i64::MIN), i128::from(i64::MAX)) as i64
+    }
+
+    /// This time as `(ticks, timescale)` with `seconds = ticks / timescale`,
+    /// the shape of CoreMedia's `CMTime`. Exact at timescale `rate.num` when
+    /// `value · den` fits `i64`; past that, truncated to microseconds at
+    /// timescale `1_000_000` rather than wrapping. A rate term below 1 counts
+    /// as 1.
+    pub fn as_timescaled(self) -> (i64, i32) {
+        let rate = Rational::new(self.rate.num.max(1), self.rate.den.max(1));
+        let time = RationalTime::new(self.value, rate);
+        match time.at_whole_rate() {
+            Ok(whole) => (whole.value, rate.num),
+            Err(_) => (time.in_units(1_000_000), 1_000_000),
+        }
     }
 
     /// This time at the whole-number rate `rate.num / 1`: `value * rate.den`
@@ -433,5 +492,140 @@ mod tests {
         assert_eq!(gcd(i32::MIN, i32::MIN), i32::MAX);
         assert_eq!(gcd(i32::MIN, 2), 2);
         assert_eq!(gcd(0, 0), 1);
+        assert_eq!(gcd_i64(i64::MIN, 0), i64::MAX);
+        assert_eq!(gcd_i64(i64::MIN, 4), 4);
+        assert_eq!(gcd_i64(0, 0), 1);
+        assert_eq!(gcd_i64(-9, 6), 3);
+    }
+
+    #[test]
+    fn in_units_is_exact_truncates_toward_zero_and_saturates() {
+        const NS: i64 = 1_000_000_000;
+        const HNS: i64 = 10_000_000;
+        assert_eq!(rt(0, R24).in_units(NS), 0);
+        assert_eq!(rt(24, R24).in_units(NS), NS);
+        assert_eq!(rt(1, Rational::FPS_29_97).in_units(NS), 33_366_666);
+        assert_eq!(rt(-1, Rational::FPS_29_97).in_units(NS), -33_366_666);
+        // An hour on a nanosecond clock overflows `i64` once multiplied by
+        // 1e9, so the product has to be taken in `i128`.
+        let hour_ns = 3_600 * NS;
+        assert_eq!(
+            rt(hour_ns, Rational::new(1_000_000_000, 1)).in_units(NS),
+            hour_ns
+        );
+        assert_eq!(
+            rt(3_600 * 48_000, Rational::new(48_000, 1)).in_units(NS),
+            hour_ns
+        );
+        // Already on the 100 ns base: unchanged.
+        assert_eq!(rt(3, Rational::new(10_000_000, 1)).in_units(HNS), 3);
+        assert_eq!(rt(30, R30).in_units(HNS), HNS);
+        // 5/30 s is 1_666_666.67 hns: truncated toward zero on both sides.
+        assert_eq!(rt(5, R30).in_units(HNS), 1_666_666);
+        assert_eq!(rt(-5, R30).in_units(HNS), -1_666_666);
+        // NTSC: 30 frames at 30000/1001 is 1.001 s.
+        assert_eq!(rt(30, Rational::FPS_29_97).in_units(HNS), 10_010_000);
+        // Past `i64`, and past `i128` before the division: saturated.
+        assert_eq!(rt(i64::MAX, Rational::new(1, 1)).in_units(NS), i64::MAX);
+        assert_eq!(rt(i64::MIN, Rational::new(1, 1)).in_units(NS), i64::MIN);
+        assert_eq!(
+            rt(i64::MAX, Rational::new(1, i32::MAX)).in_units(i64::MAX),
+            i64::MAX
+        );
+        assert_eq!(
+            rt(i64::MIN, Rational::new(1, i32::MAX)).in_units(i64::MAX),
+            i64::MIN
+        );
+        // No rate, no time.
+        assert_eq!(rt(24, Rational::new(0, 1)).in_units(NS), 0);
+        assert_eq!(rt(24, Rational::new(-24, 1)).in_units(NS), 0);
+        assert_eq!(rt(24, Rational::new(24, 0)).in_units(NS), 0);
+        assert_eq!(rt(24, Rational::new(24, -1)).in_units(NS), 0);
+    }
+
+    #[test]
+    fn as_timescaled_is_exact_until_value_times_den_overflows() {
+        assert_eq!(rt(48, R24).as_timescaled(), (48, 24));
+        assert_eq!(
+            rt(30, Rational::FPS_29_97).as_timescaled(),
+            (30_030, 30_000)
+        );
+        let half_max = i64::MAX / 2;
+        assert_eq!(rt(half_max, R30).as_timescaled(), (half_max, 30));
+        // `half_max · 3` leaves `i64`: microseconds instead, still positive and
+        // still the same instant to the microsecond.
+        let (value, timescale) = rt(half_max, Rational::new(30, 3)).as_timescaled();
+        assert_eq!(timescale, 1_000_000);
+        assert_eq!(
+            value,
+            rt(half_max, Rational::new(30, 3)).in_units(1_000_000)
+        );
+        assert!(value > 0);
+        // An invalid rate is read as 1 per term instead of dividing by zero.
+        assert_eq!(rt(5, Rational::new(0, 0)).as_timescaled(), (5, 1));
+    }
+
+    /// A ratio of two tick counts reduces to the rate it names, and a term
+    /// that cannot fit an `i32` is rejected by [`Rational::from_ratio`] and
+    /// halved by [`Rational::from_ratio_fitted`], whose result keeps the ratio.
+    #[test]
+    fn a_tick_ratio_reduces_and_an_oversized_one_is_rejected_or_halved() {
+        assert_eq!(Rational::from_ratio(600, 25), Some(R24));
+        assert_eq!(Rational::from_ratio_fitted(600, 25), R24);
+        assert_eq!(
+            Rational::from_ratio(48_048, 48_000),
+            Some(Rational::new(1001, 1000))
+        );
+        assert_eq!(Rational::from_ratio(0, 5), Some(Rational::new(0, 1)));
+        assert_eq!(Rational::from_ratio(-6, 4), Some(Rational::new(-3, 2)));
+
+        let over = i64::from(i32::MAX) + 1;
+        assert_eq!(Rational::from_ratio(over, 1), None);
+        assert_eq!(Rational::from_ratio(1, over), None);
+        assert_eq!(Rational::from_ratio(over * 2, 2), None);
+        assert_eq!(Rational::from_ratio(i64::from(i32::MIN) - 1, 1), None);
+        assert_eq!(
+            Rational::from_ratio(i64::from(i32::MAX), 1),
+            Some(Rational::new(i32::MAX, 1))
+        );
+        // Reduction brings a large pair back into range.
+        assert_eq!(
+            Rational::from_ratio(i64::from(i32::MAX) * 4, 8),
+            Some(Rational::new(i32::MAX, 2))
+        );
+
+        // 2^32 : 1 halves twice to 2^30 : 1, the first power of two that fits.
+        assert_eq!(
+            Rational::from_ratio_fitted(1 << 32, 1),
+            Rational::new(1 << 30, 1)
+        );
+        // 3 * 2^32 : 2^32 reduces to 3 : 1 before any halving.
+        assert_eq!(
+            Rational::from_ratio_fitted(3 << 32, 1 << 32),
+            Rational::new(3, 1)
+        );
+        // Coprime and past `i32`: both terms halve together until both fit.
+        assert_eq!(
+            Rational::from_ratio_fitted(6_000_000_001, 4_000_000_000),
+            Rational::new(1_500_000_000, 1_000_000_000)
+        );
+        // A term halved past one is held at one instead of becoming a zero rate.
+        assert_eq!(
+            Rational::from_ratio_fitted(over * 4, 3),
+            Rational::new(1 << 30, 1)
+        );
+        assert_eq!(
+            Rational::from_ratio_fitted(7, over),
+            Rational::new(3, 1 << 30)
+        );
+        // Two large terms of similar size keep the ratio to well under a
+        // millionth, which is the case a speed from two tick counts is.
+        let (num, den) = (over * 3, over + 1);
+        let r = Rational::from_ratio_fitted(num, den);
+        let want = num as f64 / den as f64;
+        assert!(
+            (r.as_f64() - want).abs() / want < 1e-6,
+            "{num}:{den} -> {r:?}"
+        );
     }
 }

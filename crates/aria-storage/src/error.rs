@@ -203,11 +203,7 @@ pub(crate) fn bounded_text(mut message: String) -> String {
     if message.len() <= MAX_ERROR_MESSAGE_BYTES {
         return message;
     }
-    let mut end = MAX_ERROR_MESSAGE_BYTES.saturating_sub(3);
-    while !message.is_char_boundary(end) {
-        end = end.saturating_sub(1);
-    }
-    message.truncate(end);
+    message.truncate(message.floor_char_boundary(MAX_ERROR_MESSAGE_BYTES.saturating_sub(3)));
     message.push_str("...");
     message
 }

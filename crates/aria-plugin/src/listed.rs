@@ -93,16 +93,17 @@ impl<T: Clone> Listed<T> {
         self.push_unless(plugin_id, item, |entry| {
             entry.plugin_id == *plugin_id && taken(&entry.item)
         })
+        .ok()
     }
 
-    /// Append `item` for `plugin_id`, or return `None` when `taken` matches an
-    /// item any plugin holds.
+    /// Append `item` for `plugin_id`, or return the item `taken` matches when
+    /// any plugin holds one.
     pub(crate) fn insert_unique(
         self: &Arc<Self>,
         plugin_id: &Arc<str>,
         item: T,
         taken: impl Fn(&T) -> bool,
-    ) -> Option<Unlist<T>> {
+    ) -> Result<Unlist<T>, T> {
         self.push_unless(plugin_id, item, |entry| taken(&entry.item))
     }
 
@@ -111,10 +112,10 @@ impl<T: Clone> Listed<T> {
         plugin_id: &Arc<str>,
         item: T,
         clash: impl Fn(&Entry<T>) -> bool,
-    ) -> Option<Unlist<T>> {
+    ) -> Result<Unlist<T>, T> {
         let mut entries = self.entries.write();
-        if entries.iter().any(clash) {
-            return None;
+        if let Some(held) = entries.iter().find(|entry| clash(entry)) {
+            return Err(held.item.clone());
         }
         let serial = self.serial.fetch_add(1, Ordering::Relaxed);
         entries.push(Entry {
@@ -123,7 +124,7 @@ impl<T: Clone> Listed<T> {
             item,
         });
         self.revision.fetch_add(1, Ordering::Release);
-        Some(Unlist {
+        Ok(Unlist {
             registry: Arc::downgrade(self),
             serial,
         })

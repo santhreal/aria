@@ -517,11 +517,11 @@ fn automation_row(
         .iter()
         .copied()
         .map(|mode| {
-            let text = mode.short_label().to_string();
+            let text = mode.label().to_string();
             chip(
                 theme,
                 motion::MotionKey::new("mixer-auto", raw_id)
-                    .with(mode.short_label())
+                    .with(mode.label())
                     .into(),
                 text,
                 mode == current,

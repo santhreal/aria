@@ -12,7 +12,7 @@ use gstreamer::prelude::*;
 use gstreamer_app as gst_app;
 use gstreamer_audio as gst_audio;
 
-use crate::gst::{PipelineGuard, ensure_init, gst_err, path_uri, rational_to_ns};
+use crate::gst::{NS_PER_SEC, PipelineGuard, ensure_init, gst_err, path_uri};
 
 const PULL_TIMEOUT: Duration = Duration::from_secs(8);
 
@@ -229,7 +229,7 @@ impl AudioReader for GstAudioReader {
             return Ok(());
         }
         let start = RationalTime::new(frame.max(0), Rational::new(self.out_rate as i32, 1));
-        let ns = rational_to_ns(start);
+        let ns = start.in_units(NS_PER_SEC);
         self.pipeline
             .seek_simple(
                 gst::SeekFlags::FLUSH | gst::SeekFlags::ACCURATE,

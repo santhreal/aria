@@ -1998,8 +1998,10 @@ fn commands_menus_and_analyzers_docs_match_context_key_menu_location_and_analyze
 
     // 3. `AnalyzerScope::ALL` in `docs/plugins/analyzers.md` `## Scope and menus`.
     let analyzers_doc = read_workspace_file("docs/plugins/analyzers.md");
-    let scope_tables =
-        parse_markdown_tables(extract_heading_section(&analyzers_doc, "## Scope and menus"));
+    let scope_tables = parse_markdown_tables(extract_heading_section(
+        &analyzers_doc,
+        "## Scope and menus",
+    ));
     assert_eq!(scope_tables.len(), 1);
     let doc_scopes: Vec<(String, String)> = scope_tables[0]
         .rows

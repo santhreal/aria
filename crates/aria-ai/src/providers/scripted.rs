@@ -56,10 +56,7 @@ fn stream(
         if cancel.load(Ordering::Relaxed) {
             return Err(ProviderError::Cancelled);
         }
-        let mut end = CHUNK.min(rest.len());
-        while !rest.is_char_boundary(end) {
-            end += 1;
-        }
+        let end = rest.ceil_char_boundary(CHUNK);
         emit(&rest[..end]);
         rest = &rest[end..];
     }

@@ -307,8 +307,8 @@ impl VideoEncoder for WmfEncoder {
             &mut nv12,
         );
         let written = converted.and_then(|()| {
-            let pts = to_hns(frame.pts);
-            let duration = frame_duration_hns(self.frame_rate);
+            let pts = frame.pts.in_units(HNS_PER_SEC);
+            let duration = RationalTime::new(1, self.frame_rate).in_units(HNS_PER_SEC);
             self.write_sample(self.video_stream, &nv12, pts, duration)
         });
         self.nv12 = nv12;
@@ -338,7 +338,7 @@ impl VideoEncoder for WmfEncoder {
 
         let frames = (samples.len() / channels) as i64;
         let duration = HNS_PER_SEC * frames / i64::from(cfg.sample_rate.max(1));
-        self.write_sample(stream, &pcm, to_hns(pts), duration)
+        self.write_sample(stream, &pcm, pts.in_units(HNS_PER_SEC), duration)
     }
 
     fn finish(&mut self) -> Result<(), EncodeError> {
@@ -456,24 +456,6 @@ fn ensure_mf_platform() {
 /// `MF_MT_FRAME_SIZE` (width, height) and `MF_MT_FRAME_RATE` (num, den).
 fn pack_u32_pair(high: u32, low: u32) -> u64 {
     (u64::from(high) << 32) | u64::from(low)
-}
-
-/// [`RationalTime`] → 100 ns units, exact in `i128` before the cast back.
-fn to_hns(t: RationalTime) -> i64 {
-    if t.rate.num <= 0 || t.rate.den <= 0 {
-        return 0;
-    }
-    let hns = i128::from(t.value) * i128::from(HNS_PER_SEC) * i128::from(t.rate.den)
-        / i128::from(t.rate.num);
-    hns as i64
-}
-
-/// One frame period at `rate`, in 100 ns units.
-fn frame_duration_hns(rate: Rational) -> i64 {
-    if rate.num <= 0 || rate.den <= 0 {
-        return 0;
-    }
-    HNS_PER_SEC * i64::from(rate.den) / i64::from(rate.num)
 }
 
 fn start_err(e: windows::core::Error) -> EncodeError {

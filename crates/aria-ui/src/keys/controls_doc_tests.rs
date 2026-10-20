@@ -204,7 +204,10 @@ pub(super) fn shipped_control_ids() -> BTreeSet<String> {
 /// `docs/reference/controls.md` drifts out of step, or where a row in
 /// `controls.md` has an empty cell or a stale shortcut chord. Does not catch
 /// inaccurate prose descriptions in the `Action` column when the control ID,
-/// non-empty label, minimum action length, and shortcut chord all match.
+/// non-empty label, minimum action length, and shortcut chord all match, nor a
+/// control whose ID reaches the shared widget through a variable or a private
+/// wrapper rather than as a literal at the call: a wrapper around
+/// `components::chip` kept the Analysis and Captions chips out of this census.
 #[test]
 fn controls_doc_matches_source() {
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));

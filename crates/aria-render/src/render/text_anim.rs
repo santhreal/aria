@@ -9,40 +9,11 @@ use aria_compositor::GlyphInstance;
 use aria_models::AnimationSlot;
 use aria_text::{ClusterBox, ShapedText, TextStyle};
 
+use crate::animation::LookDelta;
 use crate::scene::TextAnimation;
 
-/// Multiplicative / additive delta applied to one cluster's rest placement.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct ClusterDelta {
-    /// Offset from rest center, in *run* pixels (scaled later).
-    pub position: [f32; 2],
-    pub scale: f32,
-    /// Extra clockwise rotation in radians.
-    pub rotation: f32,
-    pub opacity: f32,
-}
-
-impl ClusterDelta {
-    pub const IDENTITY: Self = Self {
-        position: [0.0, 0.0],
-        scale: 1.0,
-        rotation: 0.0,
-        opacity: 1.0,
-    };
-
-    fn with_intensity(self, intensity: f32) -> Self {
-        let i = intensity.clamp(0.0, 2.0);
-        Self {
-            position: [self.position[0] * i, self.position[1] * i],
-            scale: 1.0 + (self.scale - 1.0) * i,
-            rotation: self.rotation * i,
-            opacity: 1.0 + (self.opacity - 1.0) * i,
-        }
-    }
-}
-
 /// Compute per-cluster deltas for `anim` over `shaped`.
-pub fn cluster_deltas(shaped: &ShapedText, anim: &TextAnimation) -> Vec<ClusterDelta> {
+pub fn cluster_deltas(shaped: &ShapedText, anim: &TextAnimation) -> Vec<LookDelta> {
     if shaped.clusters.is_empty() {
         return Vec::new();
     }
@@ -61,7 +32,7 @@ pub fn cluster_deltas(shaped: &ShapedText, anim: &TextAnimation) -> Vec<ClusterD
         .collect()
 }
 
-fn sample_cluster(anim: &TextAnimation, stagger: f32, _line: usize, index: usize) -> ClusterDelta {
+fn sample_cluster(anim: &TextAnimation, stagger: f32, _line: usize, index: usize) -> LookDelta {
     let t = anim.t.clamp(0.0, 1.0);
     // Catalog stagger window 0.55, stretched by the clip's stagger knob.
     let window = (0.55 * anim.stagger.clamp(0.05, 2.0)).clamp(0.05, 0.95);
@@ -71,7 +42,7 @@ fn sample_cluster(anim: &TextAnimation, stagger: f32, _line: usize, index: usize
         AnimationSlot::Combo => sample_combo(&anim.id, t, stagger, index, window),
     };
     delta
-        .unwrap_or(ClusterDelta::IDENTITY)
+        .unwrap_or(LookDelta::IDENTITY)
         .with_intensity(anim.intensity)
 }
 
@@ -94,56 +65,56 @@ fn stagger_progress(t: f32, stagger: f32, window: f32) -> f32 {
     ((t - start) / window).clamp(0.0, 1.0)
 }
 
-fn sample_entrance(id: &str, t: f32, stagger: f32, window: f32) -> Option<ClusterDelta> {
+fn sample_entrance(id: &str, t: f32, stagger: f32, window: f32) -> Option<LookDelta> {
     let local = stagger_progress(t, stagger, window);
     let inv = 1.0 - local;
     Some(match id {
-        "typewriter" | "char_typewriter" => ClusterDelta {
+        "typewriter" | "char_typewriter" => LookDelta {
             opacity: if local > 0.0 { 1.0 } else { 0.0 },
-            ..ClusterDelta::IDENTITY
+            ..LookDelta::IDENTITY
         },
-        "char_fade_in" => ClusterDelta {
+        "char_fade_in" => LookDelta {
             opacity: local,
-            ..ClusterDelta::IDENTITY
+            ..LookDelta::IDENTITY
         },
-        "char_bounce_in" => ClusterDelta {
+        "char_bounce_in" => LookDelta {
             position: [0.0, inv * 18.0],
             scale: 0.4 + 0.6 * bounce_out(local),
             opacity: local,
-            ..ClusterDelta::IDENTITY
+            ..LookDelta::IDENTITY
         },
-        "char_slide_in" => ClusterDelta {
+        "char_slide_in" => LookDelta {
             position: [inv * 24.0, 0.0],
             opacity: local,
-            ..ClusterDelta::IDENTITY
+            ..LookDelta::IDENTITY
         },
-        "char_pop_in" => ClusterDelta {
+        "char_pop_in" => LookDelta {
             scale: 0.2 + 0.8 * local,
             opacity: local,
-            ..ClusterDelta::IDENTITY
+            ..LookDelta::IDENTITY
         },
         _ => return None,
     })
 }
 
-fn sample_exit(id: &str, t: f32, stagger: f32, window: f32) -> Option<ClusterDelta> {
+fn sample_exit(id: &str, t: f32, stagger: f32, window: f32) -> Option<LookDelta> {
     // Exit staggers in reverse so the last character leaves first.
     let local = stagger_progress(t, 1.0 - stagger, window);
     let inv = 1.0 - local;
     Some(match id {
-        "char_fade_out" => ClusterDelta {
+        "char_fade_out" => LookDelta {
             opacity: inv,
-            ..ClusterDelta::IDENTITY
+            ..LookDelta::IDENTITY
         },
-        "char_fall_away" => ClusterDelta {
+        "char_fall_away" => LookDelta {
             position: [0.0, local * 28.0],
             scale: 1.0 - 0.35 * local,
             opacity: inv,
-            ..ClusterDelta::IDENTITY
+            ..LookDelta::IDENTITY
         },
-        "char_typewriter_out" => ClusterDelta {
+        "char_typewriter_out" => LookDelta {
             opacity: if local < 1.0 { 1.0 } else { 0.0 },
-            ..ClusterDelta::IDENTITY
+            ..LookDelta::IDENTITY
         },
         _ => return None,
     })
@@ -155,7 +126,7 @@ fn sample_combo(
     stagger: f32,
     index: usize,
     window: f32,
-) -> Option<ClusterDelta> {
+) -> Option<LookDelta> {
     let phase = phase.fract();
     let wave = ((phase + stagger) * std::f32::consts::TAU).sin();
     Some(match id {
@@ -163,38 +134,38 @@ fn sample_combo(
             // Looping reveal: phase 0..0.85 types in, then holds / resets.
             let reveal = (phase / 0.85).clamp(0.0, 1.0);
             let local = stagger_progress(reveal, stagger, (window * 0.4 / 0.55).clamp(0.05, 0.95));
-            ClusterDelta {
+            LookDelta {
                 opacity: if local > 0.0 { 1.0 } else { 0.0 },
-                ..ClusterDelta::IDENTITY
+                ..LookDelta::IDENTITY
             }
         }
-        "text_fade" => ClusterDelta {
+        "text_fade" => LookDelta {
             opacity: 0.55
                 + 0.45 * ((phase * std::f32::consts::PI + stagger * 2.0).sin() * 0.5 + 0.5),
-            ..ClusterDelta::IDENTITY
+            ..LookDelta::IDENTITY
         },
-        "text_bounce" => ClusterDelta {
+        "text_bounce" => LookDelta {
             position: [0.0, wave.abs() * 6.0],
             scale: 1.0 + 0.08 * wave.abs(),
-            ..ClusterDelta::IDENTITY
+            ..LookDelta::IDENTITY
         },
-        "text_slide" => ClusterDelta {
+        "text_slide" => LookDelta {
             position: [wave * 5.0, 0.0],
-            ..ClusterDelta::IDENTITY
+            ..LookDelta::IDENTITY
         },
         "pop" => {
             let pulse = (phase * std::f32::consts::PI + stagger * std::f32::consts::PI)
                 .sin()
                 .max(0.0);
-            ClusterDelta {
+            LookDelta {
                 scale: 1.0 + 0.18 * pulse,
-                ..ClusterDelta::IDENTITY
+                ..LookDelta::IDENTITY
             }
         }
-        "wave" => ClusterDelta {
+        "wave" => LookDelta {
             position: [0.0, wave * 8.0],
             rotation: wave * 0.12,
-            ..ClusterDelta::IDENTITY
+            ..LookDelta::IDENTITY
         },
         "char_jitter" => {
             // Deterministic tiny noise from index + phase buckets.
@@ -202,15 +173,15 @@ fn sample_combo(
             let seed = (index as f32 * 12.9898 + bucket * 78.233).sin() * 43_758.547;
             let nx = seed.fract() * 2.0 - 1.0;
             let ny = ((seed * 1.37).fract()) * 2.0 - 1.0;
-            ClusterDelta {
+            LookDelta {
                 position: [nx * 2.5, ny * 2.5],
                 rotation: nx * 0.05,
-                ..ClusterDelta::IDENTITY
+                ..LookDelta::IDENTITY
             }
         }
-        "char_pulse" => ClusterDelta {
+        "char_pulse" => LookDelta {
             scale: 1.0 + 0.12 * ((phase * std::f32::consts::TAU + stagger * 3.0).sin()),
-            ..ClusterDelta::IDENTITY
+            ..LookDelta::IDENTITY
         },
         _ => return None,
     })
@@ -240,7 +211,7 @@ fn bounce_out(t: f32) -> f32 {
 /// per-character look presets).
 pub fn place_clusters(
     shaped: &ShapedText,
-    deltas: &[ClusterDelta],
+    deltas: &[LookDelta],
     origin: [f32; 2],
     scale: [f32; 2],
     layer_rotation: f32,
@@ -269,7 +240,7 @@ pub fn place_clusters(
 fn instance_for_cluster(
     glyph: u32,
     cluster: &ClusterBox,
-    delta: &ClusterDelta,
+    delta: &LookDelta,
     origin: [f32; 2],
     scale: [f32; 2],
     layer_rotation: f32,
@@ -448,7 +419,7 @@ mod tests {
                 image: aria_core::RgbaImage::new(6, 8, vec![255; 6 * 8 * 4]),
             }],
         };
-        let finite = |d: &ClusterDelta| {
+        let finite = |d: &LookDelta| {
             d.opacity.is_finite()
                 && d.scale.is_finite()
                 && d.rotation.is_finite()

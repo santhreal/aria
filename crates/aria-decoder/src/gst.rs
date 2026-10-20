@@ -203,7 +203,7 @@ impl GstDecoder {
 
     /// One flushing key-unit seek to the sync sample at or before `target`.
     fn seek_pipeline(&mut self, target: RationalTime) -> Result<(), DecodeError> {
-        let ns = rational_to_ns(target);
+        let ns = target.in_units(NS_PER_SEC);
         self.at_start = false;
         self.pending = None;
         self.settled = false;
@@ -243,7 +243,7 @@ impl VideoDecoder for GstDecoder {
         let mut point = target;
         let period = frame_period_ns(self.info.frame_rate);
         loop {
-            if self.at_start && rational_to_ns(point) <= 0 {
+            if self.at_start && point.in_units(NS_PER_SEC) <= 0 {
                 self.at_start = false;
                 self.pending = None;
                 self.settled = false;
@@ -441,16 +441,6 @@ pub(crate) fn bus_or(pipeline: &gst::Pipeline, fallback: DecodeError) -> DecodeE
     bus_error(pipeline).unwrap_or(fallback)
 }
 
-pub(crate) fn rational_to_ns(t: RationalTime) -> i64 {
-    if t.rate.num <= 0 {
-        return 0;
-    }
-    let den = i128::from(t.rate.den.max(1));
-    let num = i128::from(t.rate.num);
-    let ns = (i128::from(t.value) * den * i128::from(NS_PER_SEC)) / num;
-    ns.clamp(i64::MIN as i128, i64::MAX as i128) as i64
-}
-
 /// Duration of the first audio track, for the audio-only fallback probe.
 pub(crate) fn audio_track_duration(path: &Path) -> Option<RationalTime> {
     ensure_init().ok()?;
@@ -587,37 +577,6 @@ fn record_aborted_drop(pipeline: &gst::Pipeline) {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn rational_zero_is_zero_ns() {
-        assert_eq!(
-            rational_to_ns(RationalTime::new(0, Rational::new(24, 1))),
-            0
-        );
-    }
-
-    #[test]
-    fn one_second_at_24fps_is_onee9_ns() {
-        assert_eq!(
-            rational_to_ns(RationalTime::new(24, Rational::new(24, 1))),
-            NS_PER_SEC
-        );
-    }
-
-    #[test]
-    fn one_hour_timestamp_converts_exactly() {
-        // 1 hour at 1GHz (nanosecond clock) = 3,600,000,000,000 ns.
-        // In i64 saturating arithmetic: 3.6e12 * 1e9 saturates at i64::MAX (~9.22e18),
-        // dividing by 1e9 erroneously clamped to ~9.22e9 ns (~9.22 seconds).
-        // i128 arithmetic converts this without clamping.
-        let one_hour_ns = 3_600 * NS_PER_SEC;
-        let t = RationalTime::new(one_hour_ns, Rational::new(1_000_000_000, 1));
-        assert_eq!(rational_to_ns(t), one_hour_ns);
-
-        // Also verify 1 hour at standard 48kHz audio rate.
-        let t_48k = RationalTime::new(3_600 * 48_000, Rational::new(48_000, 1));
-        assert_eq!(rational_to_ns(t_48k), one_hour_ns);
-    }
 
     /// WHY: Opening an unreadable or empty source (`/dev/null`, a truncated
     /// capture, or a timeline fixture stub) fails in `READY -> PAUSED` after

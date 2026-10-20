@@ -440,8 +440,8 @@ fn build_rich_spans<'a>(
 ) -> Vec<(&'a str, OwnedSpanAttrs)> {
     let mut cuts = vec![0usize, text.len()];
     for r in &style.runs {
-        let s = clamp_char_boundary(text, r.range.start);
-        let e = clamp_char_boundary(text, r.range.end);
+        let s = text.floor_char_boundary(r.range.start);
+        let e = text.floor_char_boundary(r.range.end);
         if s < e {
             cuts.push(s);
             cuts.push(e);
@@ -458,8 +458,8 @@ fn build_rich_spans<'a>(
             continue;
         }
         let active = style.runs.iter().rev().find(|r| {
-            let s = clamp_char_boundary(text, r.range.start);
-            let e = clamp_char_boundary(text, r.range.end);
+            let s = text.floor_char_boundary(r.range.start);
+            let e = text.floor_char_boundary(r.range.end);
             s <= a && e >= b
         });
         let fam_ref = active
@@ -505,12 +505,4 @@ fn build_rich_spans<'a>(
         ));
     }
     out
-}
-
-fn clamp_char_boundary(text: &str, idx: usize) -> usize {
-    let mut i = idx.min(text.len());
-    while i > 0 && !text.is_char_boundary(i) {
-        i -= 1;
-    }
-    i
 }

@@ -40,7 +40,7 @@ pub fn execute(
             ));
         }
         let fill = target_dur.value;
-        let speed = ratio(src_dur_tl, fill);
+        let speed = Rational::from_ratio_fitted(src_dur_tl, fill);
         let speed_f32 = speed.num as f32 / speed.den as f32;
         if speed_f32 < MIN_SPEED || speed_f32 > MAX_SPEED {
             return Err(EngineError::Refused(format!(
@@ -83,22 +83,4 @@ pub fn execute(
         ctx.project
             .duplicate_clip_retimed(clip, to_track, start, derived_speed, duration_ticks)?;
     Ok((new_id, Box::new(RemoveClipAction { clip: new_id })))
-}
-
-fn ratio(num: i64, den: i64) -> Rational {
-    let divisor = gcd(num, den).max(1);
-    let (mut num, mut den) = (num / divisor, den / divisor);
-    while num > i64::from(i32::MAX) || den > i64::from(i32::MAX) {
-        num = (num / 2).max(1);
-        den = (den / 2).max(1);
-    }
-    Rational::new(num as i32, den as i32)
-}
-
-fn gcd(a: i64, b: i64) -> i64 {
-    let (mut a, mut b) = (a.abs(), b.abs());
-    while b != 0 {
-        (a, b) = (b, a % b);
-    }
-    a
 }

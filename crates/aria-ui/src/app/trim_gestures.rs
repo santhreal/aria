@@ -548,20 +548,8 @@ pub fn stretch_speed(current: Rational, old: i64, new: i64) -> Option<Rational> 
     // applied on top of whatever the clip already runs at.
     let num = i64::from(current.num.max(1)) * old;
     let den = i64::from(current.den.max(1)) * new;
-    let divisor = gcd(num, den);
-    let (num, den) = (num / divisor, den / divisor);
-    if num > i64::from(i32::MAX) || den > i64::from(i32::MAX) {
-        // A ratio this extreme is a dragged pixel away from meaningless; the
-        // gesture does nothing rather than sending a speed that lies.
-        return None;
-    }
-    Some(Rational::new(num as i32, den as i32).reduced())
-}
-
-fn gcd(a: i64, b: i64) -> i64 {
-    let (mut a, mut b) = (a.abs().max(1), b.abs().max(1));
-    while b != 0 {
-        (a, b) = (b, a % b);
-    }
-    a.max(1)
+    // A ratio too extreme for `i32` terms is a dragged pixel away from
+    // meaningless; the gesture does nothing rather than sending a wrong
+    // speed.
+    Rational::from_ratio(num, den)
 }

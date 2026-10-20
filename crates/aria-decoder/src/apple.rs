@@ -373,20 +373,9 @@ pub(crate) fn cmtime_to_rational(t: CMTime) -> Option<RationalTime> {
         .then(|| RationalTime::new(t.value, Rational::new(t.timescale, 1)))
 }
 
-/// [`RationalTime`] -> `CMTime` (seconds preserved exactly as value·den / num).
+/// [`RationalTime`] → `CMTime`, through [`RationalTime::as_timescaled`].
 pub(crate) fn rational_to_cmtime(t: RationalTime) -> CMTime {
-    let num = t.rate.num.max(1);
-    let den = i64::from(t.rate.den.max(1));
-    let (value, timescale) = match t.value.checked_mul(den) {
-        Some(value) => (value, num),
-        // value·den past i64 (an astronomical time on an extreme time base):
-        // approximate at microsecond resolution instead of wrapping into a
-        // nonsense — possibly negative — time.
-        None => (
-            (t.value as f64 * den as f64 / f64::from(num) * 1e6) as i64,
-            1_000_000,
-        ),
-    };
+    let (value, timescale) = t.as_timescaled();
     CMTime {
         value,
         timescale,

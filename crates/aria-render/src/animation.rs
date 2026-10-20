@@ -9,17 +9,21 @@ use aria_models::{
 /// Normalized slide distance as a fraction of canvas height (+y down).
 const SLIDE_OFFSET: f32 = 0.18;
 
-/// Multiplicative transform delta sampled from one animation preset.
+/// Transform and opacity delta sampled from one look-animation preset, for a
+/// whole layer or for one text cluster.
 #[derive(Debug, Clone, Copy, PartialEq)]
-struct AnimationDelta {
-    position: [f32; 2],
-    scale: f32,
-    rotation: f32,
-    opacity: f32,
+pub struct LookDelta {
+    /// Offset from rest: a fraction of the canvas height for a whole layer
+    /// (`+y` down), *run* pixels for a text cluster (scaled later).
+    pub position: [f32; 2],
+    pub scale: f32,
+    /// Extra clockwise rotation in radians.
+    pub rotation: f32,
+    pub opacity: f32,
 }
 
-impl AnimationDelta {
-    const IDENTITY: Self = Self {
+impl LookDelta {
+    pub const IDENTITY: Self = Self {
         position: [0.0, 0.0],
         scale: 1.0,
         rotation: 0.0,
@@ -27,7 +31,7 @@ impl AnimationDelta {
     };
 
     /// Scale motion / opacity swing by `intensity` (`0` = identity, `1` = catalog).
-    fn with_intensity(self, intensity: f32) -> Self {
+    pub(crate) fn with_intensity(self, intensity: f32) -> Self {
         let i = intensity.clamp(0.0, 2.0);
         Self {
             position: [self.position[0] * i, self.position[1] * i],
@@ -67,7 +71,7 @@ pub(crate) fn apply_look_animations(
     }
     let duration = duration_ticks.max(1);
     let base_window = look_animation_window_ticks(duration, rate);
-    let mut deltas = [AnimationDelta::IDENTITY; 2];
+    let mut deltas = [LookDelta::IDENTITY; 2];
     let mut delta_len = 0usize;
 
     if let Some(combo) = anims.combo {
@@ -117,7 +121,7 @@ pub(crate) fn apply_look_animations(
     compose_transform(base, &deltas[..delta_len])
 }
 
-fn compose_transform(base: ClipTransform, deltas: &[AnimationDelta]) -> ClipTransform {
+fn compose_transform(base: ClipTransform, deltas: &[LookDelta]) -> ClipTransform {
     let mut xf = base;
     for delta in deltas {
         xf.position[0] += delta.position[0];
@@ -161,70 +165,70 @@ pub fn renders_animation(id: &str, slot: AnimationSlot) -> bool {
 
 /// The whole-layer entrance delta for `id`, or `None` when this build has no
 /// implementation for it.
-fn sample_entrance(id: &str, t: f64) -> Option<AnimationDelta> {
+fn sample_entrance(id: &str, t: f64) -> Option<LookDelta> {
     let t = t.clamp(0.0, 1.0);
     let inv = 1.0 - t;
     Some(match id {
-        "fade_in" => AnimationDelta {
+        "fade_in" => LookDelta {
             opacity: t as f32,
-            ..AnimationDelta::IDENTITY
+            ..LookDelta::IDENTITY
         },
-        "slide_up" => AnimationDelta {
+        "slide_up" => LookDelta {
             position: [0.0, inv as f32 * SLIDE_OFFSET],
             opacity: t as f32,
-            ..AnimationDelta::IDENTITY
+            ..LookDelta::IDENTITY
         },
-        "zoom_in" => AnimationDelta {
+        "zoom_in" => LookDelta {
             scale: (0.25 + 0.75 * t) as f32,
             opacity: t as f32,
-            ..AnimationDelta::IDENTITY
+            ..LookDelta::IDENTITY
         },
-        "spin_in" => AnimationDelta {
+        "spin_in" => LookDelta {
             rotation: (inv * -360.0) as f32,
             opacity: t as f32,
             scale: (0.5 + 0.5 * t) as f32,
-            ..AnimationDelta::IDENTITY
+            ..LookDelta::IDENTITY
         },
-        "bounce" => AnimationDelta {
+        "bounce" => LookDelta {
             scale: bounce_scale(t) as f32,
             opacity: t as f32,
             position: [0.0, inv as f32 * SLIDE_OFFSET * 0.35],
-            ..AnimationDelta::IDENTITY
+            ..LookDelta::IDENTITY
         },
         _ => return None,
     })
 }
 
 /// The whole-layer exit delta for `id`, or `None` when there is no implementation.
-fn sample_exit(id: &str, t: f64) -> Option<AnimationDelta> {
+fn sample_exit(id: &str, t: f64) -> Option<LookDelta> {
     let t = t.clamp(0.0, 1.0);
     let inv = 1.0 - t;
     Some(match id {
-        "fade_out" => AnimationDelta {
+        "fade_out" => LookDelta {
             opacity: inv as f32,
-            ..AnimationDelta::IDENTITY
+            ..LookDelta::IDENTITY
         },
-        "slide_down" => AnimationDelta {
+        "slide_down" => LookDelta {
             position: [0.0, t as f32 * SLIDE_OFFSET],
             opacity: inv as f32,
-            ..AnimationDelta::IDENTITY
+            ..LookDelta::IDENTITY
         },
-        "zoom_out" => AnimationDelta {
+        "zoom_out" => LookDelta {
             scale: (1.0 - 0.75 * t) as f32,
             opacity: inv as f32,
-            ..AnimationDelta::IDENTITY
+            ..LookDelta::IDENTITY
         },
-        "spin_out" => AnimationDelta {
+        "spin_out" => LookDelta {
             rotation: (t * 360.0) as f32,
             opacity: inv as f32,
             scale: (1.0 - 0.5 * t) as f32,
-            ..AnimationDelta::IDENTITY
+            ..LookDelta::IDENTITY
         },
-        "drop" => AnimationDelta {
+        "drop" => LookDelta {
             position: [0.0, t as f32 * SLIDE_OFFSET * 1.4],
             opacity: inv as f32,
             scale: (1.0 - 0.35 * t) as f32,
-            ..AnimationDelta::IDENTITY
+            ..LookDelta::IDENTITY
         },
         _ => return None,
     })
@@ -232,34 +236,34 @@ fn sample_exit(id: &str, t: f64) -> Option<AnimationDelta> {
 
 /// The whole-layer looping delta for `id`, or `None` when there is no
 /// implementation. Text-only presets are not implemented here by design.
-fn sample_combo(id: &str, phase: f64) -> Option<AnimationDelta> {
+fn sample_combo(id: &str, phase: f64) -> Option<LookDelta> {
     let phase = phase.fract();
     let wave = (phase * std::f64::consts::TAU).sin();
     Some(match id {
-        "pulse" => AnimationDelta {
+        "pulse" => LookDelta {
             scale: (1.0 + 0.08 * wave) as f32,
-            ..AnimationDelta::IDENTITY
+            ..LookDelta::IDENTITY
         },
-        "rock" => AnimationDelta {
+        "rock" => LookDelta {
             rotation: (6.0 * wave) as f32,
-            ..AnimationDelta::IDENTITY
+            ..LookDelta::IDENTITY
         },
-        "swing" => AnimationDelta {
+        "swing" => LookDelta {
             rotation: (12.0 * (phase * std::f64::consts::PI).sin()) as f32,
-            ..AnimationDelta::IDENTITY
+            ..LookDelta::IDENTITY
         },
-        "flicker" => AnimationDelta {
+        "flicker" => LookDelta {
             opacity: if (phase * 8.0).fract() < 0.5 {
                 1.0
             } else {
                 0.35
             },
-            ..AnimationDelta::IDENTITY
+            ..LookDelta::IDENTITY
         },
-        "breathe" => AnimationDelta {
+        "breathe" => LookDelta {
             scale: (1.0 + 0.05 * wave) as f32,
             opacity: (0.85 + 0.15 * ((phase * std::f64::consts::PI).sin() + 1.0) * 0.5) as f32,
-            ..AnimationDelta::IDENTITY
+            ..LookDelta::IDENTITY
         },
         // text_only presets (typewriter, text_fade, …) are handled by
         // `render::text_anim` — they must not reach this whole-layer sampler.

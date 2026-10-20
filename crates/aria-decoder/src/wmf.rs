@@ -353,7 +353,7 @@ impl VideoDecoder for WmfDecoder {
         // `GUID_NULL` selects the 100-ns time format; the position rides in a
         // `VT_I8` PROPVARIANT. The reader lands at the keyframe at/before the
         // target and flushes, matching the trait contract.
-        let position = PROPVARIANT::from(to_hns(target));
+        let position = PROPVARIANT::from(target.in_units(HNS_PER_SEC));
         let time_format = GUID::from_u128(0);
         unsafe { self.reader.SetCurrentPosition(&time_format, &position) }.map_err(seek_err)?;
         self.eos = false;

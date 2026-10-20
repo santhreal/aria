@@ -93,19 +93,6 @@ fn subtype_maps_to_pixel_format() {
 }
 
 #[test]
-fn hns_conversion_matches_time_base() {
-    // 3 ticks already on the 100-ns base is exactly 3 hns.
-    let exact = RationalTime::new(3, Rational::new(HNS_PER_SEC as i32, 1));
-    assert_eq!(to_hns(exact), 3);
-    // Frame 30 at 30 fps is one second = 1e7 hns.
-    let one_second = RationalTime::new(30, Rational::FPS_30);
-    assert_eq!(to_hns(one_second), HNS_PER_SEC);
-    // Frame 5 at 30 fps: 5/30 s -> 1_666_666 hns (truncated toward zero).
-    let frame_5 = RationalTime::new(5, Rational::FPS_30);
-    assert_eq!(to_hns(frame_5), 1_666_666);
-}
-
-#[test]
 fn verbatim_prefixes_fold_to_paths_media_foundation_opens() {
     // `canonicalize` output: the DOS-device bypass must go.
     assert_eq!(mf_path(r"\\?\C:\media\clip.mp4"), r"C:\media\clip.mp4");

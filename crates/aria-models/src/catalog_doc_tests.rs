@@ -392,7 +392,9 @@ fn transitions_reference_matches_shipped_catalog() {
         "## Transition cut alignment (`TransitionAlignment::ALL`)",
     );
     assert!(
-        align_sec.contains(&format!("DEFAULT_TRANSITION_TICKS = {DEFAULT_TRANSITION_TICKS}")),
+        align_sec.contains(&format!(
+            "DEFAULT_TRANSITION_TICKS = {DEFAULT_TRANSITION_TICKS}"
+        )),
         "transitions.md must document DEFAULT_TRANSITION_TICKS"
     );
     let align_rows = table_rows(align_sec);
@@ -906,7 +908,10 @@ fn blend_modes_and_masks_reference_matches_catalog() {
         "docs/reference/blend-modes.md MaskMode table does not match MaskMode::ALL"
     );
 
-    let shape_sec = section(&blend_modes_doc, "## Mask shapes (`MaskKind` and `masks.toml`)");
+    let shape_sec = section(
+        &blend_modes_doc,
+        "## Mask shapes (`MaskKind` and `masks.toml`)",
+    );
     let shape_rows = table_rows(shape_sec);
     let doc_shapes: Vec<(&str, &str, String, &str, bool, bool)> = shape_rows
         .iter()

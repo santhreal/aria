@@ -7,7 +7,7 @@ use super::catalog::{EffectSpec, effect_spec};
 use super::params::{
     EffectCurvePoint, EffectGradientStop, EffectParamKind, EffectParamSpec, choice_check,
     curve_check, gradient_check, holds_scalar, holds_text, holds_vec2, int_range_check,
-    linear_color_check, scalar_or_int_range_check, stored_slot, vec2_range_check, vec3_range_check,
+    linear_color_check, scalar_or_int_range_check, stored_slot, vector_range_check,
 };
 use super::stored::StoredParams;
 use crate::Map;
@@ -428,7 +428,7 @@ impl EffectInstance {
                 pspec.name, pspec.kind
             )));
         }
-        vec2_range_check(&pspec, value)?;
+        vector_range_check(&pspec, &value)?;
         easing.validate()?;
         let (name, default) = (pspec.name.clone(), pspec.default_vec2);
         self.vec2_params
@@ -448,7 +448,7 @@ impl EffectInstance {
     ) -> Result<(), ModelError> {
         let pspec = self.param_spec(index)?;
         self.expect_kind(&pspec, EffectParamKind::Point3)?;
-        vec3_range_check(&pspec, value)?;
+        vector_range_check(&pspec, &value)?;
         easing.validate()?;
         let (name, default) = (pspec.name.clone(), pspec.default_vec3);
         self.vec3_params
@@ -595,7 +595,7 @@ impl EffectInstance {
                 pspec.name, pspec.kind
             )));
         }
-        vec2_range_check(&pspec, value)?;
+        vector_range_check(&pspec, &value)?;
         self.vec2_params
             .insert(pspec.name.to_string(), Param::Constant(value));
         Ok(())
@@ -609,7 +609,7 @@ impl EffectInstance {
     ) -> Result<(), ModelError> {
         let pspec = self.param_spec(index)?;
         self.expect_kind(&pspec, EffectParamKind::Point3)?;
-        vec3_range_check(&pspec, value)?;
+        vector_range_check(&pspec, &value)?;
         self.vec3_params
             .insert(pspec.name.to_string(), Param::Constant(value));
         Ok(())
@@ -762,12 +762,12 @@ impl EffectInstance {
         for (name, param) in &self.vec2_params {
             let pspec = slot(name, "vec2_params", holds_vec2)?;
             param.validate_shape()?;
-            param.for_each_value(|v| vec2_range_check(pspec, *v))?;
+            param.for_each_value(|v| vector_range_check(pspec, v))?;
         }
         for (name, param) in &self.vec3_params {
             let pspec = slot(name, "vec3_params", |k| k == EffectParamKind::Point3)?;
             param.validate_shape()?;
-            param.for_each_value(|v| vec3_range_check(pspec, *v))?;
+            param.for_each_value(|v| vector_range_check(pspec, v))?;
         }
         for name in self.bool_params.keys() {
             slot(name, "bool_params", |k| k == EffectParamKind::Bool)?;

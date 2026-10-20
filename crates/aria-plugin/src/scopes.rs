@@ -284,7 +284,7 @@ impl PluginContext {
         let listed = self
             .scope_registry()
             .insert_unique(&plugin_id, held, |other| other.listed.spec.id == id)
-            .ok_or_else(|| refused(format!("a scope is registered as {id}")))?;
+            .map_err(|_| refused(format!("a scope is registered as {id}")))?;
         let contribution = Contribution::new(ContributionKind::Scope, id);
         Ok(self.retain_if_mounting(Registration::holding(contribution, listed)))
     }

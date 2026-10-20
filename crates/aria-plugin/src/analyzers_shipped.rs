@@ -40,12 +40,28 @@ impl BeatAnalyzer {
     }
 }
 
+/// The audio a run has received, with a non-finite sample read as silence.
+#[derive(Default)]
+struct Received {
+    /// The first block's first frame, which reported frames count from.
+    base_frame: Option<i64>,
+    /// Interleaved samples in arrival order.
+    samples: Vec<f32>,
+}
+
+impl Received {
+    fn push(&mut self, first_frame: i64, samples: &[f32]) {
+        self.base_frame.get_or_insert(first_frame);
+        self.samples
+            .extend(samples.iter().map(|&s| if s.is_finite() { s } else { 0.0 }));
+    }
+}
+
 struct BeatAnalyzerRun {
     rate: u32,
     channels: u16,
     config: aria_analysis::BeatConfig,
-    base_frame: Option<i64>,
-    samples: Vec<f32>,
+    received: Received,
 }
 
 impl Analyzer for BeatAnalyzer {
@@ -54,29 +70,24 @@ impl Analyzer for BeatAnalyzer {
             rate,
             channels,
             config: self.config,
-            base_frame: None,
-            samples: Vec::new(),
+            received: Received::default(),
         })
     }
 }
 
 impl AnalyzerRun for BeatAnalyzerRun {
     fn block(&mut self, first_frame: i64, samples: &[f32]) -> ControlFlow<()> {
-        if self.base_frame.is_none() {
-            self.base_frame = Some(first_frame);
-        }
-        self.samples
-            .extend(samples.iter().map(|&s| if s.is_finite() { s } else { 0.0 }));
+        self.received.push(first_frame, samples);
         ControlFlow::Continue(())
     }
 
     fn finish(self: Box<Self>) -> Result<AnalyzerResult, String> {
         let channels = usize::from(self.channels);
-        if self.rate == 0 || channels == 0 || self.samples.is_empty() {
+        if self.rate == 0 || channels == 0 || self.received.samples.is_empty() {
             return Ok(AnalyzerResult::default());
         }
-        let base_frame = self.base_frame.unwrap_or(0);
-        let pcm = aria_analysis::InterleavedPcm::new(&self.samples, self.rate, channels)
+        let base_frame = self.received.base_frame.unwrap_or(0);
+        let pcm = aria_analysis::InterleavedPcm::new(&self.received.samples, self.rate, channels)
             .map_err(|err| err.to_string())?;
         let total_frames = pcm.frame_count();
         let window_frames = (self.config.loudness().window_seconds() * f64::from(self.rate))
@@ -96,8 +107,12 @@ impl AnalyzerRun for BeatAnalyzerRun {
             let first_db = contour[0].dbfs;
             let third_db = contour[2].dbfs;
             if first_db - third_db >= self.config.minimum_onset_db() {
-                let onset =
-                    refine_onset_frame(&self.samples, channels, 0, window_frames.min(total_frames));
+                let onset = refine_onset_frame(
+                    &self.received.samples,
+                    channels,
+                    0,
+                    window_frames.min(total_frames),
+                );
                 beats.push(base_frame + onset as i64);
             }
         }
@@ -106,7 +121,8 @@ impl AnalyzerRun for BeatAnalyzerRun {
             let end_frame =
                 ((event.time_seconds * f64::from(self.rate)).round() as usize).min(total_frames);
             let start_frame = end_frame.saturating_sub(window_frames);
-            let onset = refine_onset_frame(&self.samples, channels, start_frame, end_frame);
+            let onset =
+                refine_onset_frame(&self.received.samples, channels, start_frame, end_frame);
             let candidate = base_frame + onset as i64;
             if beats
                 .last()
@@ -179,8 +195,7 @@ struct SilenceAnalyzerRun {
     rate: u32,
     channels: u16,
     config: aria_analysis::SilenceConfig,
-    base_frame: Option<i64>,
-    samples: Vec<f32>,
+    received: Received,
 }
 
 impl Analyzer for SilenceAnalyzer {
@@ -189,29 +204,24 @@ impl Analyzer for SilenceAnalyzer {
             rate,
             channels,
             config: self.config,
-            base_frame: None,
-            samples: Vec::new(),
+            received: Received::default(),
         })
     }
 }
 
 impl AnalyzerRun for SilenceAnalyzerRun {
     fn block(&mut self, first_frame: i64, samples: &[f32]) -> ControlFlow<()> {
-        if self.base_frame.is_none() {
-            self.base_frame = Some(first_frame);
-        }
-        self.samples
-            .extend(samples.iter().map(|&s| if s.is_finite() { s } else { 0.0 }));
+        self.received.push(first_frame, samples);
         ControlFlow::Continue(())
     }
 
     fn finish(self: Box<Self>) -> Result<AnalyzerResult, String> {
         let channels = usize::from(self.channels);
-        if self.rate == 0 || channels == 0 || self.samples.is_empty() {
+        if self.rate == 0 || channels == 0 || self.received.samples.is_empty() {
             return Ok(AnalyzerResult::default());
         }
-        let base_frame = self.base_frame.unwrap_or(0);
-        let pcm = aria_analysis::InterleavedPcm::new(&self.samples, self.rate, channels)
+        let base_frame = self.received.base_frame.unwrap_or(0);
+        let pcm = aria_analysis::InterleavedPcm::new(&self.received.samples, self.rate, channels)
             .map_err(|err| err.to_string())?;
         let ranges = pcm
             .detect_silence(self.config)
@@ -256,7 +266,7 @@ struct LoudnessAnalyzerRun {
     rate: u32,
     channels: u16,
     config: aria_analysis::LoudnessConfig,
-    samples: Vec<f32>,
+    received: Received,
 }
 
 impl Analyzer for LoudnessAnalyzer {
@@ -265,21 +275,20 @@ impl Analyzer for LoudnessAnalyzer {
             rate,
             channels,
             config: self.config,
-            samples: Vec::new(),
+            received: Received::default(),
         })
     }
 }
 
 impl AnalyzerRun for LoudnessAnalyzerRun {
-    fn block(&mut self, _first_frame: i64, samples: &[f32]) -> ControlFlow<()> {
-        self.samples
-            .extend(samples.iter().map(|&s| if s.is_finite() { s } else { 0.0 }));
+    fn block(&mut self, first_frame: i64, samples: &[f32]) -> ControlFlow<()> {
+        self.received.push(first_frame, samples);
         ControlFlow::Continue(())
     }
 
     fn finish(self: Box<Self>) -> Result<AnalyzerResult, String> {
         let channels = usize::from(self.channels);
-        if self.rate == 0 || channels == 0 || self.samples.is_empty() {
+        if self.rate == 0 || channels == 0 || self.received.samples.is_empty() {
             return Ok(AnalyzerResult {
                 loudness: Some(AnalyzerLoudness {
                     integrated_lufs: f64::NEG_INFINITY,
@@ -289,9 +298,13 @@ impl AnalyzerRun for LoudnessAnalyzerRun {
                 ..Default::default()
             });
         }
-        let pcm = aria_analysis::InterleavedPcm::new(&self.samples, self.rate, channels)
+        let pcm = aria_analysis::InterleavedPcm::new(&self.received.samples, self.rate, channels)
             .map_err(|err| err.to_string())?;
-        let peak = self.samples.iter().fold(0.0f32, |acc, &s| acc.max(s.abs()));
+        let peak = self
+            .received
+            .samples
+            .iter()
+            .fold(0.0f32, |acc, &s| acc.max(s.abs()));
         let true_peak_db = if peak > 0.0 {
             20.0 * f64::from(peak).log10()
         } else {

@@ -105,14 +105,66 @@ pub fn f16_to_u8(bits: u16) -> u8 {
     }
 }
 
+/// The geometry both frame views share: `width`×`height` `RGBA16F` pixels,
+/// `row_stride` `u16` elements per row.
+#[derive(Debug, Clone, Copy)]
+struct FrameShape {
+    width: u32,
+    height: u32,
+    row_stride: usize,
+}
+
+impl FrameShape {
+    /// Panics if `row_stride < width as usize * 4` or `len` is shorter than
+    /// `height as usize * row_stride`.
+    fn new(len: usize, width: u32, height: u32, row_stride: usize) -> Self {
+        let row_elems = (width as usize) * 4;
+        assert!(
+            row_stride >= row_elems,
+            "row_stride ({row_stride}) must be at least width * 4 ({row_elems})"
+        );
+        let needed = (height as usize) * row_stride;
+        assert!(
+            len >= needed,
+            "data length ({len}) is shorter than height * row_stride ({needed})"
+        );
+        Self {
+            width,
+            height,
+            row_stride,
+        }
+    }
+
+    /// The `u16` index range of row `y`'s `width * 4` active channel values.
+    #[inline]
+    fn row(&self, y: u32) -> std::ops::Range<usize> {
+        assert!(
+            y < self.height,
+            "row {y} out of bounds for height {}",
+            self.height
+        );
+        let start = (y as usize) * self.row_stride;
+        start..start + (self.width as usize) * 4
+    }
+
+    /// The offset of pixel `x`'s first channel within a row.
+    #[inline]
+    fn column(&self, x: u32) -> usize {
+        assert!(
+            x < self.width,
+            "x {x} out of bounds for width {}",
+            self.width
+        );
+        (x as usize) * 4
+    }
+}
+
 /// Input frame handed to [`CpuEffect::process`]: premultiplied `RGBA16F` pixels
 /// stored as four IEEE-754 binary16 `u16` channels (`[R, G, B, A]`) per pixel.
 #[derive(Debug, Clone, Copy)]
 pub struct CpuFrameIn<'a> {
     data: &'a [u16],
-    width: u32,
-    height: u32,
-    row_stride: usize,
+    shape: FrameShape,
 }
 
 impl<'a> CpuFrameIn<'a> {
@@ -122,41 +174,26 @@ impl<'a> CpuFrameIn<'a> {
     /// Panics if `row_stride < width as usize * 4` or `data` is shorter than
     /// `height as usize * row_stride`.
     pub fn new(data: &'a [u16], width: u32, height: u32, row_stride: usize) -> Self {
-        let row_elems = (width as usize) * 4;
-        assert!(
-            row_stride >= row_elems,
-            "row_stride ({row_stride}) must be at least width * 4 ({row_elems})"
-        );
-        let needed = (height as usize) * row_stride;
-        assert!(
-            data.len() >= needed,
-            "data length ({}) is shorter than height * row_stride ({needed})",
-            data.len()
-        );
-        Self {
-            data,
-            width,
-            height,
-            row_stride,
-        }
+        let shape = FrameShape::new(data.len(), width, height, row_stride);
+        Self { data, shape }
     }
 
     /// Frame width in pixels.
     #[inline]
     pub fn width(&self) -> u32 {
-        self.width
+        self.shape.width
     }
 
     /// Frame height in pixels.
     #[inline]
     pub fn height(&self) -> u32 {
-        self.height
+        self.shape.height
     }
 
     /// Row stride in `u16` elements (`>= width * 4`).
     #[inline]
     pub fn row_stride(&self) -> usize {
-        self.row_stride
+        self.shape.row_stride
     }
 
     /// Underlying `u16` slice containing `height * row_stride` elements.
@@ -168,26 +205,14 @@ impl<'a> CpuFrameIn<'a> {
     /// The `width * 4` active `u16` channel values of row `y`.
     #[inline]
     pub fn row(&self, y: u32) -> &'a [u16] {
-        assert!(
-            y < self.height,
-            "row {y} out of bounds for height {}",
-            self.height
-        );
-        let start = (y as usize) * self.row_stride;
-        let len = (self.width as usize) * 4;
-        &self.data[start..start + len]
+        &self.data[self.shape.row(y)]
     }
 
     /// Raw `RGBA16F` (`[u16; 4]`) pixel at `(x, y)`.
     #[inline]
     pub fn pixel(&self, x: u32, y: u32) -> [u16; 4] {
-        assert!(
-            x < self.width,
-            "x {x} out of bounds for width {}",
-            self.width
-        );
+        let idx = self.shape.column(x);
         let row = self.row(y);
-        let idx = (x as usize) * 4;
         [row[idx], row[idx + 1], row[idx + 2], row[idx + 3]]
     }
 
@@ -205,9 +230,7 @@ impl<'a> CpuFrameIn<'a> {
 #[derive(Debug)]
 pub struct CpuFrameOut<'a> {
     data: &'a mut [u16],
-    width: u32,
-    height: u32,
-    row_stride: usize,
+    shape: FrameShape,
 }
 
 impl<'a> CpuFrameOut<'a> {
@@ -217,41 +240,26 @@ impl<'a> CpuFrameOut<'a> {
     /// Panics if `row_stride < width as usize * 4` or `data` is shorter than
     /// `height as usize * row_stride`.
     pub fn new(data: &'a mut [u16], width: u32, height: u32, row_stride: usize) -> Self {
-        let row_elems = (width as usize) * 4;
-        assert!(
-            row_stride >= row_elems,
-            "row_stride ({row_stride}) must be at least width * 4 ({row_elems})"
-        );
-        let needed = (height as usize) * row_stride;
-        assert!(
-            data.len() >= needed,
-            "data length ({}) is shorter than height * row_stride ({needed})",
-            data.len()
-        );
-        Self {
-            data,
-            width,
-            height,
-            row_stride,
-        }
+        let shape = FrameShape::new(data.len(), width, height, row_stride);
+        Self { data, shape }
     }
 
     /// Frame width in pixels.
     #[inline]
     pub fn width(&self) -> u32 {
-        self.width
+        self.shape.width
     }
 
     /// Frame height in pixels.
     #[inline]
     pub fn height(&self) -> u32 {
-        self.height
+        self.shape.height
     }
 
     /// Row stride in `u16` elements (`>= width * 4`).
     #[inline]
     pub fn row_stride(&self) -> usize {
-        self.row_stride
+        self.shape.row_stride
     }
 
     /// Immutable view of the underlying `u16` slice.
@@ -269,39 +277,20 @@ impl<'a> CpuFrameOut<'a> {
     /// The `width * 4` active `u16` channel values of row `y`.
     #[inline]
     pub fn row(&self, y: u32) -> &[u16] {
-        assert!(
-            y < self.height,
-            "row {y} out of bounds for height {}",
-            self.height
-        );
-        let start = (y as usize) * self.row_stride;
-        let len = (self.width as usize) * 4;
-        &self.data[start..start + len]
+        &self.data[self.shape.row(y)]
     }
 
     /// Mutable slice of the `width * 4` active `u16` channel values of row `y`.
     #[inline]
     pub fn row_mut(&mut self, y: u32) -> &mut [u16] {
-        assert!(
-            y < self.height,
-            "row {y} out of bounds for height {}",
-            self.height
-        );
-        let start = (y as usize) * self.row_stride;
-        let len = (self.width as usize) * 4;
-        &mut self.data[start..start + len]
+        &mut self.data[self.shape.row(y)]
     }
 
     /// Raw `RGBA16F` (`[u16; 4]`) pixel at `(x, y)`.
     #[inline]
     pub fn pixel(&self, x: u32, y: u32) -> [u16; 4] {
-        assert!(
-            x < self.width,
-            "x {x} out of bounds for width {}",
-            self.width
-        );
+        let idx = self.shape.column(x);
         let row = self.row(y);
-        let idx = (x as usize) * 4;
         [row[idx], row[idx + 1], row[idx + 2], row[idx + 3]]
     }
 
@@ -315,13 +304,8 @@ impl<'a> CpuFrameOut<'a> {
     /// Write raw `RGBA16F` (`[u16; 4]`) channels to `(x, y)`.
     #[inline]
     pub fn set_pixel(&mut self, x: u32, y: u32, rgba: [u16; 4]) {
-        assert!(
-            x < self.width,
-            "x {x} out of bounds for width {}",
-            self.width
-        );
+        let idx = self.shape.column(x);
         let row = self.row_mut(y);
-        let idx = (x as usize) * 4;
         row[idx..idx + 4].copy_from_slice(&rgba);
     }
 
@@ -1081,6 +1065,85 @@ mod tests {
             input.pixel(0, 1),
             [U8_TO_F16[10], U8_TO_F16[20], U8_TO_F16[30], F16_ONE]
         );
+        // The padding between rows is never part of a row or a pixel.
+        assert_eq!(&input.row(1)[..4], &storage[12..16]);
+        assert!(storage[8..12].iter().all(|&c| c == 0));
+    }
+
+    /// WHY: both frame views take their bounds from one shape. Each case is a
+    /// read or write a CPU effect can make with a bad index or a short buffer;
+    /// each must panic with the bound it broke instead of reading the next
+    /// row's pixels or the padding, or failing later on a bare slice index.
+    #[test]
+    fn frame_views_panic_on_every_out_of_bounds_access() {
+        use std::panic::{AssertUnwindSafe, catch_unwind};
+        fn panic_text(f: impl FnOnce()) -> String {
+            let payload = catch_unwind(AssertUnwindSafe(f)).expect_err("the access panics");
+            payload
+                .downcast_ref::<String>()
+                .cloned()
+                .or_else(|| payload.downcast_ref::<&str>().map(|s| (*s).to_owned()))
+                .unwrap_or_default()
+        }
+        const STRIDE: &str = "row_stride (7) must be at least width * 4 (8)";
+        const SHORT: &str = "data length (23) is shorter than height * row_stride (24)";
+        const X: &str = "x 2 out of bounds for width 2";
+        const ROW: &str = "row 2 out of bounds for height 2";
+        let mut storage = vec![0u16; 24];
+        assert_eq!(
+            panic_text(|| {
+                CpuFrameIn::new(&storage, 2, 2, 7);
+            }),
+            STRIDE
+        );
+        assert_eq!(
+            panic_text(|| {
+                CpuFrameIn::new(&storage[..23], 2, 2, 12);
+            }),
+            SHORT
+        );
+        let input = CpuFrameIn::new(&storage, 2, 2, 12);
+        assert_eq!(
+            panic_text(|| {
+                input.pixel(2, 0);
+            }),
+            X
+        );
+        assert_eq!(
+            panic_text(|| {
+                input.pixel(0, 2);
+            }),
+            ROW
+        );
+        assert_eq!(
+            panic_text(|| {
+                input.row(2);
+            }),
+            ROW
+        );
+        assert_eq!(
+            panic_text(|| {
+                CpuFrameOut::new(&mut storage[..23], 2, 2, 12);
+            }),
+            SHORT
+        );
+        assert_eq!(
+            panic_text(|| {
+                CpuFrameOut::new(&mut storage, 2, 2, 7);
+            }),
+            STRIDE
+        );
+        let mut out = CpuFrameOut::new(&mut storage, 2, 2, 12);
+        assert_eq!(panic_text(|| out.set_pixel(2, 0, [0; 4])), X);
+        assert_eq!(panic_text(|| out.set_pixel(0, 2, [0; 4])), ROW);
+        assert_eq!(
+            panic_text(|| {
+                out.row_mut(2);
+            }),
+            ROW
+        );
+        out.set_pixel(1, 1, [1, 2, 3, 4]);
+        assert_eq!(out.pixel(1, 1), [1, 2, 3, 4]);
     }
 
     #[test]

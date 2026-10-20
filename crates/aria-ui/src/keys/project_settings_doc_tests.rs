@@ -432,8 +432,10 @@ fn project_settings_doc_matches_registries() {
 
     let display_sec = section(DOC, "### Track display heights (`TrackDisplay`)");
     assert!(
-        display_sec.contains(&format!("DEFAULT_HEIGHT = {}", TrackDisplay::DEFAULT_HEIGHT))
-            && display_sec.contains(&format!("BUS_HEIGHT = {}", TrackDisplay::BUS_HEIGHT))
+        display_sec.contains(&format!(
+            "DEFAULT_HEIGHT = {}",
+            TrackDisplay::DEFAULT_HEIGHT
+        )) && display_sec.contains(&format!("BUS_HEIGHT = {}", TrackDisplay::BUS_HEIGHT))
             && display_sec.contains(&format!(
                 "HEIGHT = {}..={}",
                 TrackDisplay::HEIGHT.start(),
@@ -503,10 +505,7 @@ fn project_settings_doc_matches_registries() {
         .iter()
         .map(|r| {
             assert!(r.len() >= 2, "malformed SourceChannel row: {r:?}");
-            (
-                unquote(r[0]).to_string(),
-                unquote(r[1]).to_string(),
-            )
+            (unquote(r[0]).to_string(), unquote(r[1]).to_string())
         })
         .collect();
     let expected_patch: Vec<(String, String)> = SourceChannel::ALL

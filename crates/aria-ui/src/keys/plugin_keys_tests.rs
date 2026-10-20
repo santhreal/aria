@@ -13,21 +13,7 @@
 
 use aria_plugin::{CommandSpec, KeyDefault, PluginContext, Registration};
 
-use crate::keys::{
-    After, Binding, Chord, KeyBody, KeyConflict, KeyHost, KeyOverrideError, KeyRoute,
-};
-
-fn noop(_: &mut crate::app::AppState) {}
-
-fn shipped(id: &'static str, chord: Chord, route: KeyRoute) -> Binding {
-    Binding {
-        id,
-        chord,
-        route,
-        run: KeyBody::Plain(noop),
-        after: After::Nothing,
-    }
-}
+use crate::keys::{Binding, Chord, KeyBody, KeyConflict, KeyHost, KeyOverrideError, KeyRoute};
 
 fn command(ctx: &PluginContext, id: &str, title: &str) -> Registration {
     ctx.register_command(CommandSpec::new(id, title), |_: &PluginContext| Ok(()))
@@ -120,7 +106,11 @@ fn a_plugin_key_follows_its_command_and_its_registration() {
 fn a_taken_chord_is_refused_listed_and_left_with_its_holder() {
     let ctx = PluginContext::new();
     let host = KeyHost::default();
-    assert!(host.add(shipped("key-save", Chord::ctrl("s"), KeyRoute::Editor)));
+    assert!(host.add(Binding::inert(
+        "key-save",
+        Chord::ctrl("s"),
+        KeyRoute::Editor
+    )));
     let _command = command(&ctx, "grade.save", "Save Grade");
     let _key = key(&ctx, "grade.save", Chord::ctrl("s"), KeyRoute::Editor);
     let refusal = KeyConflict {
@@ -180,8 +170,16 @@ fn the_first_plugin_to_ask_for_a_chord_keeps_it() {
 fn a_refused_plugin_key_is_rebound_like_any_other() {
     let ctx = PluginContext::new();
     let host = KeyHost::default();
-    assert!(host.add(shipped("key-save", Chord::ctrl("s"), KeyRoute::Editor)));
-    assert!(host.add(shipped("key-open", Chord::ctrl("o"), KeyRoute::Editor)));
+    assert!(host.add(Binding::inert(
+        "key-save",
+        Chord::ctrl("s"),
+        KeyRoute::Editor
+    )));
+    assert!(host.add(Binding::inert(
+        "key-open",
+        Chord::ctrl("o"),
+        KeyRoute::Editor
+    )));
     let _command = command(&ctx, "grade.save", "Save Grade");
     let _key = key(&ctx, "grade.save", Chord::ctrl("s"), KeyRoute::Editor);
     host.sync_plugin_keys(&ctx);
@@ -228,7 +226,11 @@ fn a_refused_plugin_key_is_rebound_like_any_other() {
 fn freeing_a_chord_places_the_plugin_key_that_wanted_it() {
     let ctx = PluginContext::new();
     let host = KeyHost::default();
-    assert!(host.add(shipped("key-save", Chord::ctrl("s"), KeyRoute::Editor)));
+    assert!(host.add(Binding::inert(
+        "key-save",
+        Chord::ctrl("s"),
+        KeyRoute::Editor
+    )));
     let _command = command(&ctx, "grade.save", "Save Grade");
     let _key = key(&ctx, "grade.save", Chord::ctrl("s"), KeyRoute::Editor);
     host.sync_plugin_keys(&ctx);

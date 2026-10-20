@@ -108,23 +108,9 @@ impl Default for AudioGainForm {
     }
 }
 
-fn gcd(mut a: i32, mut b: i32) -> i32 {
-    a = a.abs();
-    b = b.abs();
-    while b != 0 {
-        let t = b;
-        b = a % b;
-        a = t;
-    }
-    a.max(1)
-}
-
 fn speed_percent_to_rational(percent: f32) -> Rational {
     let scaled = (percent * 10.0).round() as i32;
-    let num = scaled.clamp(50, 100_000);
-    let den = 1000;
-    let g = gcd(num, den);
-    Rational::new(num / g, den / g)
+    Rational::new(scaled.clamp(50, 100_000), 1000).reduced()
 }
 
 fn linear_for_db(db: f32) -> f32 {

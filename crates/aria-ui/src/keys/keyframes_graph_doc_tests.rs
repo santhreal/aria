@@ -202,7 +202,14 @@ fn keyframes_and_graph_doc_matches_registries() {
     let easing_samples = [
         ("Linear", "linear", Easing::Linear, "false", "false", true),
         ("EaseIn", "ease_in", Easing::EaseIn, "false", "true", false),
-        ("EaseOut", "ease_out", Easing::EaseOut, "false", "true", false),
+        (
+            "EaseOut",
+            "ease_out",
+            Easing::EaseOut,
+            "false",
+            "true",
+            false,
+        ),
         (
             "EaseInOut",
             "ease_in_out",

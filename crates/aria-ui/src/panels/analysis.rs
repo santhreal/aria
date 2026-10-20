@@ -327,17 +327,22 @@ fn kind_chip(
 ) -> gpui::AnyElement {
     let id = target.map_or("analysis-kind-all", AnalysisKind::id);
     let label = target.map_or("All", AnalysisKind::label);
-    chip(
-        theme,
-        crate::motion::MotionKey::new("analysis-kind", id).into(),
+    components::chip(
+        crate::motion::MotionKey::new("analysis-kind", id),
         SharedString::from(label),
         target == current,
+        components::ChipSize::Regular,
+        theme,
+    )
+    .on_mouse_down(
+        MouseButton::Left,
         cx.listener(move |this, _: &MouseDownEvent, _, cx| {
             this.state
                 .update(cx, |state, _| press(state, Pick::Filter(target)));
             cx.notify();
         }),
     )
+    .into_any_element()
 }
 
 fn confidence_chip(
@@ -347,36 +352,20 @@ fn confidence_chip(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
     let percent = (target * 100.0) as i32;
-    chip(
-        theme,
-        crate::motion::MotionKey::new("analysis-confidence", percent).into(),
+    components::chip(
+        crate::motion::MotionKey::new("analysis-confidence", percent),
         SharedString::from(format!("≥{percent}%")),
         (target - current).abs() < f32::EPSILON,
+        components::ChipSize::Regular,
+        theme,
+    )
+    .on_mouse_down(
+        MouseButton::Left,
         cx.listener(move |this, _: &MouseDownEvent, _, cx| {
             this.state
                 .update(cx, |state, _| press(state, Pick::Confidence(target)));
             cx.notify();
         }),
     )
-}
-
-/// One selectable chip. The look belongs to [`crate::components::chip`], which
-/// also gives it the eased hover every other control in the app has; this
-/// carries only the click.
-fn chip(
-    theme: &Theme,
-    id: crate::motion::ControlId,
-    label: SharedString,
-    active: bool,
-    on_click: impl Fn(&MouseDownEvent, &mut gpui::Window, &mut gpui::App) + 'static,
-) -> gpui::AnyElement {
-    crate::components::chip(
-        id,
-        label,
-        active,
-        crate::components::ChipSize::Regular,
-        theme,
-    )
-    .on_mouse_down(MouseButton::Left, on_click)
     .into_any_element()
 }
