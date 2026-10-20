@@ -70,6 +70,22 @@ halves of that claim, both without naming a field: a projection at two ticks may
 differ in `playhead_ticks` and nowhere else, and what a scrub leaves must equal a
 full re-projection at the same tick.
 
+The draw follows the same split. A dock panel body is a cached view that
+replays its last drawing until a change reaches something it draws (`UNMOVED`
+in `shell/panel_view.rs`). While the timeline body is built, it records where
+the playhead's head, its line across each lane group, and the timecode go
+(`timeline_playhead.rs`), and the shell paints them over the body on every
+frame it draws, so a playback vsync or a scrub replays the timeline body.
+While the body draws something that reads the playhead or covers its line
+(`INLINE_WHEN`: property rows, the Graph Editor, a trim readout, a snap guide,
+a keyframe or mask path menu, the empty-timeline prompt), the body paints the
+playhead and a playhead move builds it again. A move that changes what the
+timecode field lays out (a figure gained or lost, the field opened or closed)
+builds it, and so does a vsync that scrolls the view to follow the playhead,
+because the body draws the scroll. `shell/panel_view_playhead_tests.rs`
+compares the window the layer draws with the one the body draws when it paints
+the playhead, at five positions and with the timecode at rest and open.
+
 What may still take the session is declared, with a reason, in
 `app/engine_lock_tests.rs`: a report requested from a control, a job about to
 start, a pointer hit test, a republish to the audio engine. `engine_lock_census`

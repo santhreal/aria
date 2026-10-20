@@ -439,7 +439,7 @@ impl AppState {
     /// due frame, count the slots that came due without one, and keep the next
     /// frames rendering. False once playback has stopped.
     pub(crate) fn present_playback(&mut self, cx: &mut gpui::Context<AppState>) -> bool {
-        let (before, started) = (self.playhead.value, self.playback_started);
+        let (before, started, scroll) = (self.playhead.value, self.playback_started, self.scroll_x);
         if !self.advance_playhead() {
             self.stop_presenting();
             cx.notify();
@@ -459,7 +459,9 @@ impl AppState {
         if self.playback_started != started {
             cx.notify();
         } else if self.playhead.value != before {
-            cx.emit(PlayheadMoved);
+            cx.emit(PlayheadMoved {
+                followed: self.scroll_x != scroll,
+            });
         }
         let Some(cadence) = self.playback_cadence else {
             return true;

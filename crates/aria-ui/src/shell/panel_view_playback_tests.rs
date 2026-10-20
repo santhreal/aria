@@ -54,7 +54,10 @@ fn redrawn(
     moved: &[Moved],
 ) -> Vec<PanelId> {
     let mut panels = docked(state, visual);
-    panels.retain(|&panel| moved.iter().any(|&kind| !unmoved(panel, kind)));
+    visual.read(|app| {
+        let state = state.read(app);
+        panels.retain(|&panel| moved.iter().any(|&kind| !unmoved(panel, kind, state)));
+    });
     panels
 }
 

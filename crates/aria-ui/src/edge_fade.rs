@@ -72,6 +72,14 @@ fn continues(scroll: &ScrollHandle, axis: fn(gpui::Point<Pixels>) -> Pixels) -> 
     (scrolled > 1.0, scrolled < max_scroll - 1.0)
 }
 
+/// The fade over `bounds`, `band` px deep at each edge `at` sets.
+pub(crate) fn fade(bounds: Bounds<Pixels>, band: f32, at: Edges<bool>) -> EdgeFade {
+    EdgeFade {
+        bounds,
+        bands: at.map(|&on| px(if on { band } else { 0.0 })),
+    }
+}
+
 #[cfg(test)]
 thread_local! {
     static PAINTED: std::cell::RefCell<Vec<EdgeFade>> = const { std::cell::RefCell::new(Vec::new()) };
@@ -82,6 +90,21 @@ thread_local! {
 #[cfg(test)]
 pub(crate) fn take_painted() -> Vec<EdgeFade> {
     PAINTED.with(|painted| std::mem::take(&mut *painted.borrow_mut()))
+}
+
+/// Runs `paint` inside `fade`. Every element in the crate that paints in a
+/// fade paints through this, so a test reads each fade applied from
+/// [`take_painted`].
+pub(crate) fn paint_in<R>(
+    window: &mut Window,
+    fade: Option<EdgeFade>,
+    paint: impl FnOnce(&mut Window) -> R,
+) -> R {
+    #[cfg(test)]
+    if let Some(fade) = fade.filter(EdgeFade::fades) {
+        PAINTED.with(|painted| painted.borrow_mut().push(fade));
+    }
+    window.with_edge_fade(fade, paint)
 }
 
 impl Element for EdgeFaded {
@@ -138,21 +161,17 @@ impl Element for EdgeFaded {
             .scroll_x
             .as_ref()
             .map_or((false, false), |scroll| continues(scroll, |at| at.x));
-        let band = |on: bool| px(if on { self.band } else { 0.0 });
-        let fade = EdgeFade {
+        let fade = fade(
             bounds,
-            bands: Edges {
-                top: band(top),
-                bottom: band(bottom),
-                left: band(left || self.left),
-                right: band(right || self.right),
+            self.band,
+            Edges {
+                top,
+                bottom,
+                left: left || self.left,
+                right: right || self.right,
             },
-        };
-        #[cfg(test)]
-        if fade.fades() {
-            PAINTED.with(|painted| painted.borrow_mut().push(fade));
-        }
-        window.with_edge_fade(Some(fade), |window| self.child.paint(window, cx));
+        );
+        paint_in(window, Some(fade), |window| self.child.paint(window, cx));
     }
 }
 

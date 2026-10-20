@@ -15,8 +15,9 @@ use gpui::{
     TextRun, Window, fill, point, px, quad, size,
 };
 
-use crate::panels::timeline::{COLLAPSED_H, ticks_to_px, ticks_to_px_f};
+use crate::panels::timeline::{COLLAPSED_H, ticks_to_px};
 use crate::theme::Theme;
+use crate::transport::ticks_to_px_f;
 use crate::types::{SelectedEdge, SelectedGap, TrimFeedback, TrimSide, UiClip};
 
 pub(crate) const TRIM: f32 = 8.0;
@@ -49,7 +50,9 @@ pub(crate) struct LaneGroupPaint {
     pub pps: f32,
     pub fps: f32,
     pub scroll_x: f32,
-    pub playhead: f32,
+    /// The playhead in ticks while the body draws it; `None` while the
+    /// shell's layer does (`crate::timeline_playhead`).
+    pub playhead: Option<f32>,
     pub snap_guide: Option<crate::snap::SnapCandidate>,
     pub selected_edge: Option<SelectedEdge>,
     pub selected_gap: Option<SelectedGap>,
@@ -289,17 +292,11 @@ pub(crate) fn paint_lane_group(
         }
 
         // Playhead line across the group.
-        let px_at = ticks_to_px_f(data.playhead, data.fps, data.pps) - data.scroll_x;
-        if px_at >= -2.0 && px_at <= view_w + 2.0 {
-            paint_solid(
-                window,
-                &mut paint_calls,
-                origin_x + px_at,
-                origin_y,
-                1.5,
-                view_h,
-                theme.playhead,
-            );
+        if let Some(playhead) = data.playhead {
+            let px_at = ticks_to_px_f(playhead, data.fps, data.pps) - data.scroll_x;
+            if crate::timeline_playhead::paint_lane_line(window, bounds, px_at, theme.playhead) {
+                paint_calls += 1;
+            }
         }
 
         // On-screen TrimFeedback HUD pill (drawn in the first group so it appears once).

@@ -679,7 +679,14 @@ impl Shell {
         };
         let tab_bar = self.tab_row(row, theme, cx);
         let frame_slot = MotionKey::new("dock-frame", frame_id);
-        let body_children = vec![self.panel_body(active_panel, cx)];
+        let mut body_children = vec![self.panel_body(active_panel, cx)];
+        // The timeline's playhead is painted over its body on every frame the
+        // shell draws, so a move of the playhead alone replays the body.
+        if active_panel == PANEL_TIMELINE {
+            let reduced = cx.reduce_motion();
+            let layer = crate::timeline_playhead::layer(self.state.read(cx), theme, reduced);
+            body_children.push(layer.into_any_element());
+        }
         let menu_overlay = match self.frame_menu {
             Some(frame_menu::FrameMenu::Panel { frame, panel, .. }) if frame == frame_id => {
                 Some(self.render_frame_menu(frame_id, panel, theme, cx))

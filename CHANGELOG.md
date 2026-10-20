@@ -2310,6 +2310,7 @@ Notes for the latest release. For previous releases, see the
 - Finding the clip at a time or an overlap on a track is a binary search over the track's ordered clips, and a track's end is its last clip's end, which brings `project-10k` cold-seek p95 on Server from 683 ms and 573 ms to 543 ms and 548 ms over two paired runs.
 - Saving a project streams the JSON through a 64 KiB buffer into the temporary file instead of building the whole document in memory first.
 - A timeline edit re-reads only the lanes it changed for the project facts, catalog revisions, clip markers, and overview strip, and builds the snap index on the first snap query instead of after every edit, which brings `project-10k` edit-to-visible-frame p50 on Server from 23.5 ms to 20.8 ms.
+- The timeline's playhead, its line across each lane group, and the timecode at rest are painted in a layer over the timeline body, so a playback vsync or a playhead drag replays the body's last drawing, which brings `project-10k` playback vsync p50 on Server from 14.8 ms and 22.6 ms to 6.6 ms and 6.4 ms over two paired runs, and playhead drag frame p50 from 2.5 ms to 1.2 ms.
 
 ### Fixed
 

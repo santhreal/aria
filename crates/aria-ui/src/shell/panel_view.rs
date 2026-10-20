@@ -16,7 +16,9 @@
 //! the playhead, or the pool tile under the pointer, redraws the chrome the
 //! shell draws itself and the bodies whose drawing reads what moved, and
 //! [`Shell::redraw_chrome`], for a change to chrome alone, redraws the chrome.
-//! The rest replay their last drawing.
+//! The rest replay their last drawing. The timeline's playhead is painted by
+//! the shell over the timeline body (`crate::timeline_playhead`), so
+//! a playhead move replays the timeline body while that layer holds.
 
 use gpui::{
     AnyElement, AnyView, App, AppContext as _, Context, Entity, IntoElement, ParentElement as _,
@@ -55,6 +57,10 @@ mod chrome_tests;
 #[path = "panel_view_playback_tests.rs"]
 mod playback_tests;
 
+#[cfg(test)]
+#[path = "panel_view_playhead_tests.rs"]
+mod playhead_tests;
+
 /// What a narrow change moved.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Moved {
@@ -86,7 +92,8 @@ impl Moved {
 /// The panels whose drawing reads nothing a change of each kind moves.
 ///
 /// A panel not listed is redrawn by every narrow change, so a panel added to
-/// the registry is redrawn until it is listed here.
+/// the registry is redrawn until it is listed here. The Timeline is listed
+/// for a playhead move by [`unmoved`] while its playhead layer holds.
 /// `panel_view_tests` draws every registered panel after each kind of change
 /// both ways, and fails when a listed panel's drawing differs from a full
 /// redraw.
@@ -108,11 +115,15 @@ const UNMOVED: &[(PanelId, &[Moved])] = &[
     (PANEL_TIMELINE, &[Moved::PoolHover, Moved::Frame]),
 ];
 
-/// Whether `panel` draws the same after a change that moved `moved`.
-pub(crate) fn unmoved(panel: PanelId, moved: Moved) -> bool {
+/// Whether `panel` draws the same after a change that moved `moved`, with
+/// `state` as it stands after the change.
+pub(crate) fn unmoved(panel: PanelId, moved: Moved, state: &crate::app::AppState) -> bool {
     UNMOVED
         .iter()
         .any(|(listed, kinds)| *listed == panel && kinds.contains(&moved))
+        || (panel == PANEL_TIMELINE
+            && moved == Moved::Playhead
+            && state.timeline_playhead.holds(state))
 }
 
 /// Notifies `entity` once the draw in progress ends.
@@ -327,7 +338,7 @@ impl Shell {
             self.redraw_bodies(cx);
         } else {
             for (panel, body) in &self.bodies {
-                if !unmoved(panel, moved) {
+                if !unmoved(*panel, moved, self.state.read(cx)) {
                     body.update(cx, |_, cx| cx.notify());
                 }
             }

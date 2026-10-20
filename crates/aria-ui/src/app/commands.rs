@@ -618,6 +618,7 @@ impl AppState {
             curve_param: None,
             curve_axis: 0,
             timeline_frame: None,
+            timeline_playhead: Default::default(),
             dock_frame_rects: Default::default(),
             transcript: Default::default(),
             clipboard: None,

@@ -29,6 +29,17 @@ use super::{builds, unmoved};
 /// The window the launch layout is built for.
 const WINDOW_W: f32 = 1920.0;
 
+/// Whether a change that moved `moved` leaves `panel` replaying its last
+/// drawing, with the state as it stands.
+pub(super) fn left_alone(
+    state: &gpui::Entity<AppState>,
+    visual: &mut VisualTestContext,
+    panel: PanelId,
+    moved: Moved,
+) -> bool {
+    visual.read(|app| unmoved(panel, moved, state.read(app)))
+}
+
 /// A drawn frame, in an order that does not depend on how it was painted.
 #[derive(Debug, PartialEq)]
 pub(super) struct Drawing {
@@ -581,7 +592,9 @@ fn a_view_change_builds_only_the_bodies_that_draw_the_view(cx: &mut TestAppConte
         "the launch layout docks the Timeline, the Project panel and the Viewer"
     );
     assert!(
-        docked.iter().any(|&panel| unmoved(panel, Moved::View)),
+        docked
+            .iter()
+            .any(|&panel| left_alone(&state, visual, panel, Moved::View)),
         "the launch layout docks no panel a view change leaves alone"
     );
     for moved in Moved::ALL {
@@ -604,20 +617,31 @@ fn a_view_change_builds_only_the_bodies_that_draw_the_view(cx: &mut TestAppConte
         let mut expected: Vec<_> = docked
             .iter()
             .copied()
-            .filter(|&panel| !unmoved(panel, moved))
+            .filter(|&panel| !left_alone(&state, visual, panel, moved))
             .collect();
         expected.sort_unstable();
         assert_eq!(built, expected, "the bodies built for a {moved:?} change");
-        // The panel that draws what moved is rebuilt, whatever the table lists.
+        // The panel that draws what moved is rebuilt, whatever the table
+        // lists. A playhead move is drawn by the shell's playhead layer over
+        // the timeline body it replays, since no state in `INLINE_WHEN` holds
+        // over a still on the timeline.
         let drawn_in = match moved {
-            Moved::View | Moved::Playhead | Moved::Filmstrip => PANEL_TIMELINE,
-            Moved::PoolHover => PANEL_PROJECT,
-            Moved::Frame => PANEL_VIEWER,
+            Moved::View | Moved::Filmstrip => Some(PANEL_TIMELINE),
+            Moved::Playhead => None,
+            Moved::PoolHover => Some(PANEL_PROJECT),
+            Moved::Frame => Some(PANEL_VIEWER),
         };
-        assert!(
-            built.contains(&drawn_in),
-            "a {moved:?} change left {drawn_in} replaying what it drew before"
-        );
+        match drawn_in {
+            Some(drawn_in) => assert!(
+                built.contains(&drawn_in),
+                "a {moved:?} change left {drawn_in} replaying what it drew before"
+            ),
+            None => assert!(
+                !built.contains(&PANEL_TIMELINE),
+                "a playhead move over a timeline the playhead layer draws built the timeline \
+                 body"
+            ),
+        }
     }
 
     // A scope reading of the frame on screen lands through the frame route.
@@ -636,7 +660,7 @@ fn a_view_change_builds_only_the_bodies_that_draw_the_view(cx: &mut TestAppConte
     let mut expected: Vec<_> = docked
         .iter()
         .copied()
-        .filter(|&panel| !unmoved(panel, Moved::Frame))
+        .filter(|&panel| !left_alone(&state, visual, panel, Moved::Frame))
         .collect();
     expected.sort_unstable();
     assert_eq!(built, expected, "the bodies built for a scope reading");
@@ -716,10 +740,9 @@ fn a_playhead_move_that_re_projects_builds_what_a_notify_builds(cx: &mut TestApp
     docked.dedup();
     let before = stamps(&state, visual, &docked);
     assert!(
-        docked
-            .iter()
-            .zip(&before)
-            .any(|(&panel, stamp)| unmoved(panel, Moved::Playhead) && stamp.is_none()),
+        docked.iter().zip(&before).any(|(&panel, stamp)| {
+            left_alone(&state, visual, panel, Moved::Playhead) && stamp.is_none()
+        }),
         "the launch layout docks no panel a playhead move leaves alone and a notify rebuilds"
     );
     visual.update(|_, app| {

@@ -39,14 +39,18 @@ pub(super) fn lane_group(
     scroll_x: f32,
     view_start: i64,
     view_end: i64,
-    playhead: f32,
+    playhead: Option<f32>,
     snap_guide: Option<crate::snap::SnapCandidate>,
     reduced: bool,
     cx: &mut gpui::Context<Shell>,
 ) -> impl IntoElement + use<> {
-    let (outline_w, has_expanded_clips) = {
+    let (outline_w, has_expanded_clips, layer) = {
         let app = state.read(cx);
-        (app.outline_drawn_width(), !app.expanded_clips.is_empty())
+        (
+            app.outline_drawn_width(),
+            !app.expanded_clips.is_empty(),
+            app.timeline_playhead.clone(),
+        )
     };
     let mut visible_lanes = Vec::new();
     let mut headers = Vec::new();
@@ -275,6 +279,7 @@ pub(super) fn lane_group(
         canvas(
             move |bounds, window, _| {
                 bounds_for_canvas.set(bounds);
+                layer.record_lanes(is_audio, bounds, window);
                 #[cfg(test)]
                 built::canvas(f32::from(bounds.size.width));
                 window.insert_hitbox(bounds, HitboxBehavior::Normal)

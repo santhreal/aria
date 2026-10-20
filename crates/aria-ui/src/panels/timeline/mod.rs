@@ -38,6 +38,7 @@ use gpui::{
 use crate::app::AppState;
 use crate::motion::glide;
 use crate::theme::Theme;
+use crate::timeline_playhead;
 use crate::types::ActivePanel;
 
 use lanes::lane_group;
@@ -83,16 +84,7 @@ pub fn render(
 ) -> impl IntoElement {
     let theme = Theme::of(cx);
     let store = state.read(cx).store.clone();
-    let playhead = store.playhead_ticks;
     let reduced = cx.reduce_motion();
-    // A playhead a pointer placed is drawn where the pointer is; a keyed step
-    // or a jump eases.
-    let playhead_at = glide::glide(
-        crate::motion::MotionKey::new("playhead", ""),
-        playhead as f32,
-        glide::PLAYHEAD,
-        reduced || state.read(cx).playhead_under_pointer(),
-    );
     let zoom = glide::glide(
         crate::motion::MotionKey::new("timeline-zoom", ""),
         store.zoom,
@@ -159,6 +151,14 @@ pub fn render(
             app.mask_path_key_menu(),
         )
     };
+    // The layer paints the playhead over the body unless the body draws
+    // something that reads it or covers its line; then the body draws it.
+    let layered = timeline_playhead::layered(state.read(cx));
+    state
+        .read(cx)
+        .timeline_playhead
+        .begin(layered, timeline_playhead::View { pps, fps, scroll_x });
+    let playhead_at = (!layered).then(|| timeline_playhead::drawn_at(state.read(cx), reduced));
     let graph_h = if graph_open {
         crate::app::property_rows::GRAPH_EDITOR_H
     } else {
@@ -328,7 +328,7 @@ pub fn render(
                     )
                 }),
         )
-        .when(graph_open, |el| {
+        .when_some(playhead_at.filter(|_| graph_open), |el, playhead_at| {
             el.child(graph::render_graph_editor(
                 &theme,
                 state,
@@ -508,11 +508,7 @@ pub(crate) fn pointer_ticks(
 }
 
 pub(super) fn ticks_to_px(ticks: i64, fps: f32, pps: f32) -> f32 {
-    ticks_to_px_f(ticks as f32, fps, pps)
-}
-
-pub(super) fn ticks_to_px_f(ticks: f32, fps: f32, pps: f32) -> f32 {
-    (ticks / fps.max(1.0)) * pps
+    crate::transport::ticks_to_px_f(ticks as f32, fps, pps)
 }
 
 pub(crate) fn px_to_ticks(x: f32, fps: f32, pps: f32) -> i64 {
