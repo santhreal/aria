@@ -193,6 +193,44 @@ pub fn await_warm_up() {
     WARM_UP.wait();
 }
 
+/// Demote any device plugins recorded as unloadable on this boot before
+/// autoplugging or scanning the registry for hardware decoders.
+pub(crate) fn demote_recorded_unloadable() {
+    static DEMOTED: std::sync::Once = std::sync::Once::new();
+    DEMOTED.call_once(|| {
+        let records = crate::gst_unloadable::user_records();
+        for (element, _) in DEVICES {
+            if let Some(factory) = gst::ElementFactory::find(element)
+                && let Some(stamp) = crate::gst_unloadable::Stamp::of(&factory)
+                && crate::gst_unloadable::failed_before(&records, &stamp)
+            {
+                crate::gst_unloadable::demote(&stamp);
+            }
+        }
+    });
+}
+
+/// Core decode pipeline elements pre-loaded during [`warm_up`] so the first
+/// file open does not block on plugin `.so` mapping, GType class init, or
+/// `libavcodec` decoder registration.
+const CORE_DECODE_FACTORIES: &[&str] = &[
+    "uridecodebin",
+    "decodebin",
+    "filesrc",
+    "typefind",
+    "qtdemux",
+    "multiqueue",
+    "h264parse",
+    "h265parse",
+    "avdec_h264",
+    "avdec_h265",
+    "avdec_prores",
+    "videoconvert",
+    "videoscale",
+    "capsfilter",
+    "appsink",
+];
+
 /// Open each device in [`DEVICES`] whose element this host has and can load.
 ///
 /// The registry can list an element whose plugin no longer loads (a CUDA
@@ -238,6 +276,10 @@ fn warm_devices() {
         if let Err(cause) = warm_device(launch) {
             tracing::warn!(element, %cause, "the decode device warm-up failed; the first decoder opens its own device");
         }
+    }
+    let _ = crate::gst_dmabuf_watch::registry_has_dmabuf_video_decoder();
+    for name in CORE_DECODE_FACTORIES {
+        let _ = gst::ElementFactory::make(name).build();
     }
 }
 

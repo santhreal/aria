@@ -44,10 +44,15 @@ enum Phase {
     AwaitFlush,
     /// The seek's flush arrived; its segment has not.
     AwaitSegment,
-    /// The seek's segment arrived; its first buffer decides.
-    Fresh { start: gst::ClockTime },
+    /// The seek's segment arrived; its first buffer decides. `offset` is the
+    /// edit-list shift (`segment.start - segment.time`) from stream time to
+    /// buffer PTS.
+    Fresh {
+        start: gst::ClockTime,
+        offset: gst::ClockTime,
+    },
     /// Consuming buffers until the video keyframe after the segment start.
-    Skipping,
+    Skipping { offset: gst::ClockTime },
 }
 
 #[derive(Debug)]
@@ -128,27 +133,31 @@ impl KeySnap {
         let mut state = self.lock();
         let key = !buffer.flags().contains(gst::BufferFlags::DELTA_UNIT);
         let pts = buffer.pts();
-        let deciding = matches!(state.phase, Phase::Fresh { .. } | Phase::Skipping);
+        let deciding = matches!(state.phase, Phase::Fresh { .. } | Phase::Skipping { .. });
         let admit = match state.phase {
             Phase::Idle | Phase::AwaitFlush | Phase::AwaitSegment => true,
-            Phase::Fresh { start } => {
+            Phase::Fresh { start, offset } => {
                 let early = key
                     && self.qtdemux.load(Ordering::Acquire)
                     && pts.is_some_and(|pts| pts + TOLERANCE < start)
                     && state
                         .target
-                        .is_some_and(|target| start + TOLERANCE < target);
-                state.phase = if early { Phase::Skipping } else { Phase::Idle };
+                        .is_some_and(|target| start + TOLERANCE < target + offset);
+                state.phase = if early {
+                    Phase::Skipping { offset }
+                } else {
+                    Phase::Idle
+                };
                 !early
             }
-            Phase::Skipping if key => {
+            Phase::Skipping { .. } if key => {
                 state.phase = Phase::Idle;
                 true
             }
-            Phase::Skipping => {
+            Phase::Skipping { offset } => {
                 let past = matches!(
                     (pts, state.target),
-                    (Some(pts), Some(target)) if pts > target + TOLERANCE
+                    (Some(pts), Some(target)) if pts > target + offset + TOLERANCE
                 );
                 if past {
                     tracing::warn!(
@@ -190,12 +199,14 @@ impl KeySnap {
                 state.phase = Phase::AwaitSegment;
             }
             gst::EventView::Segment(segment) if state.phase == Phase::AwaitSegment => {
-                if let Some(start) = segment
-                    .segment()
-                    .downcast_ref::<gst::ClockTime>()
-                    .and_then(|segment| segment.start())
+                if let Some(seg) = segment.segment().downcast_ref::<gst::ClockTime>()
+                    && let Some(start) = seg.start()
                 {
-                    state.phase = Phase::Fresh { start };
+                    let offset = seg
+                        .time()
+                        .filter(|time| !time.is_zero())
+                        .map_or(gst::ClockTime::ZERO, |time| start.saturating_sub(time));
+                    state.phase = Phase::Fresh { start, offset };
                 }
             }
             _ => {}

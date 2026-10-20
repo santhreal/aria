@@ -131,6 +131,7 @@ pub(crate) fn demote(stamp: &Stamp) {
     for feature in gst::Registry::get().features_by_plugin(&stamp.plugin) {
         feature.set_rank(gst::Rank::NONE);
     }
+    crate::gst_dmabuf_watch::invalidate_dmabuf_decoder_cache();
 }
 
 #[cfg(test)]
