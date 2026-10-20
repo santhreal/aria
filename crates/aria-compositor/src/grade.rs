@@ -161,9 +161,9 @@ impl ColorGrade {
             || self.hsl_luma != 0.0
     }
 
-    /// Value written to [`Self::ENABLED_SLOT`] for GPU shaders: `0.0` skips
-    /// the grade entirely, `1.0` runs primary stages only, and `2.0` runs both
-    /// primary and secondary stages.
+    /// Value written to the grade's enabled uniform lane for GPU shaders: `0.0`
+    /// skips the grade entirely, `1.0` runs primary stages only, and `2.0` runs
+    /// both primary and secondary stages.
     pub const fn shader_enabled(&self) -> f32 {
         if self.is_identity() {
             0.0
