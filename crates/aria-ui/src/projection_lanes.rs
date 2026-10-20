@@ -43,6 +43,7 @@ pub(crate) struct LaneBasis {
     lanes: HashMap<u64, Built>,
     order: Vec<u64>,
     selection: Vec<ClipId>,
+    mixer: Arc<(crate::app::mixer::MixerBasis, crate::app::mixer::MixerFacts)>,
 }
 
 /// One lane as the projection built it.
@@ -136,6 +137,10 @@ impl LaneBasis {
         used.sort_unstable();
         used.dedup();
         used
+    }
+
+    pub(crate) fn mixer(&self) -> crate::app::mixer::MixerFacts {
+        self.mixer.1.clone()
     }
 }
 
@@ -245,11 +250,19 @@ pub(super) fn lanes(
             lane_to_ui(track, clips)
         })
         .collect();
+    let mixer = match previous.filter(|prev| prev.basis.mixer.0.matches(timeline)) {
+        Some(prev) => Arc::clone(&prev.basis.mixer),
+        None => Arc::new((
+            crate::app::mixer::MixerBasis::of(timeline),
+            crate::app::mixer::MixerFacts::of_timeline(timeline),
+        )),
+    };
     let basis = LaneBasis {
         globals,
         lanes: built,
         order: timeline.order().iter().map(|id| id.raw()).collect(),
         selection: selection.to_vec(),
+        mixer,
     };
     (lanes, basis)
 }

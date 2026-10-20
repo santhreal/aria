@@ -33,7 +33,7 @@ impl ParentChoices {
             .map(|timeline| {
                 timeline
                     .tracks_ordered()
-                    .flat_map(|track| track.clips())
+                    .flat_map(|track| track.clips_overlapping(clip.timeline))
                     .filter(|other| {
                         other.id != clip.id && project.check_parent(clip.id, other.id).is_ok()
                     })

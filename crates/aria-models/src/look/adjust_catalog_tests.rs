@@ -138,13 +138,22 @@ fn a_grade_axis_refuses_a_value_its_row_does_not_allow() {
 
 #[test]
 fn default_puts_every_slider_where_its_row_rests() {
+    let (project, clip_id) = graded_clip();
+    let clip = project.clip(clip_id).expect("the clip");
     let adjust = ColorAdjustments::default();
+    assert_eq!(ColorAdjustments::DEFAULT, adjust);
     assert!(adjust.is_neutral(), "a fresh grade is not neutral");
     for slider in ColorAdjustments::SLIDERS {
         assert_eq!(
             (slider.get)(&adjust).constant(),
             Some(slider.neutral),
             "{} does not default to its neutral",
+            slider.name
+        );
+        assert_eq!(
+            ClipParam::Look { param: slider.axis }.default_value(clip),
+            Some(ParamValue::Scalar(slider.neutral)),
+            "{} default_value does not match its neutral",
             slider.name
         );
     }

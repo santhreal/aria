@@ -20,7 +20,7 @@
 use gpui::{Bounds, Pixels, TestAppContext, VisualTestContext};
 
 use crate::app::AppState;
-use crate::dock::{DockTree, FrameId, PANEL_PROJECT, PANEL_TIMELINE, PANEL_VIEWER, Zone};
+use crate::dock::{DockTree, FrameId, PANEL_PROJECT, PANEL_TIMELINE, PANEL_VIEWER, PanelId, Zone};
 use crate::shell::{Moved, Shell};
 use crate::test_support::{drawn_shell, wait_out_splash};
 
@@ -184,6 +184,41 @@ pub(super) fn shell_of(visual: &mut VisualTestContext) -> gpui::Entity<Shell> {
             .flatten()
             .expect("the window's root is the shell")
     })
+}
+
+/// What each of `panels` keeps of its inputs, read from the state as it
+/// stands. A panel that keeps nothing is rebuilt by every notification of the
+/// state.
+pub(super) fn stamps(
+    state: &gpui::Entity<AppState>,
+    visual: &mut VisualTestContext,
+    panels: &[PanelId],
+) -> Vec<Option<super::PanelStamp>> {
+    visual.read(|app| {
+        let reduced = app.reduce_motion();
+        panels
+            .iter()
+            .map(|&panel| super::panel_stamp(panel, state.read(app), reduced))
+            .collect()
+    })
+}
+
+/// The panels of `panels` a notification of the state rebuilds, given what
+/// they kept of their inputs before it: those that keep nothing, and those
+/// whose inputs it moved.
+pub(super) fn rebuilt(
+    state: &gpui::Entity<AppState>,
+    visual: &mut VisualTestContext,
+    panels: &[PanelId],
+    before: &[Option<super::PanelStamp>],
+) -> Vec<PanelId> {
+    let after = stamps(state, visual, panels);
+    panels
+        .iter()
+        .zip(before.iter().zip(&after))
+        .filter(|(_, (was, now))| was.is_none() || was != now)
+        .map(|(&panel, _)| panel)
+        .collect()
 }
 
 pub(super) fn first_clip(state: &AppState) -> aria_models::ClipId {
@@ -622,7 +657,7 @@ fn a_frame_landing_after_an_error_draws_the_window_without_it(cx: &mut TestAppCo
 }
 
 /// A playhead move that finds the project edited under it re-projects, and
-/// the redraw after it builds every docked body.
+/// the redraw after it builds what a notification of the state builds.
 ///
 /// The class closed here is a narrow redraw after a poll that re-projected:
 /// another writer of the engine, such as a plugin or a job, edits the project,
@@ -630,7 +665,7 @@ fn a_frame_landing_after_an_error_draws_the_window_without_it(cx: &mut TestAppCo
 /// bodies that draw the playhead leaves the Project panel replaying the pool
 /// from before the edit. Not caught: an edit the projection does not read.
 #[gpui::test]
-fn a_playhead_move_that_re_projects_builds_every_body(cx: &mut TestAppContext) {
+fn a_playhead_move_that_re_projects_builds_what_a_notify_builds(cx: &mut TestAppContext) {
     cx.executor().allow_parking();
     let (state, visual) = opened(cx, "panel-view-reproject");
     let shell = shell_of(visual);
@@ -645,9 +680,13 @@ fn a_playhead_move_that_re_projects_builds_every_body(cx: &mut TestAppContext) {
     });
     docked.sort_unstable();
     docked.dedup();
+    let before = stamps(&state, visual, &docked);
     assert!(
-        docked.iter().any(|&panel| unmoved(panel, Moved::Playhead)),
-        "the launch layout docks no panel a playhead move leaves alone"
+        docked
+            .iter()
+            .zip(&before)
+            .any(|(&panel, stamp)| unmoved(panel, Moved::Playhead) && stamp.is_none()),
+        "the launch layout docks no panel a playhead move leaves alone and a notify rebuilds"
     );
     visual.update(|_, app| {
         state
@@ -668,7 +707,8 @@ fn a_playhead_move_that_re_projects_builds_every_body(cx: &mut TestAppContext) {
     built.sort_unstable();
     built.dedup();
     assert_eq!(
-        built, docked,
+        built,
+        rebuilt(&state, visual, &docked, &before),
         "the bodies a re-projecting playhead move built"
     );
     let cached = drawing(visual);
@@ -680,4 +720,26 @@ fn a_playhead_move_that_re_projects_builds_every_body(cx: &mut TestAppContext) {
         "the move drew a window that differs from a full redraw\n{}",
         cached.differences(&full)
     );
+}
+
+#[gpui::test]
+fn a_clip_edit_skips_panels_whose_inputs_did_not_change(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    let (_, visual) = opened(cx, "panel-view-edit-skip");
+    let shell = shell_of(visual);
+    for change in [Change::Param, Change::Marker] {
+        builds::take();
+        make(visual, &shell, change, 1);
+        let built = builds::take();
+        assert!(
+            built.contains(&PANEL_TIMELINE),
+            "a {change:?} change did not rebuild {PANEL_TIMELINE}"
+        );
+        for untouched in [crate::dock::PANEL_EFFECTS, crate::dock::PANEL_AUDIO_METERS] {
+            assert!(
+                !built.contains(&untouched),
+                "a {change:?} change rebuilt {untouched}, whose inputs did not change: {built:?}"
+            );
+        }
+    }
 }

@@ -11,8 +11,8 @@
 //! playhead move builds. Neither may build a chrome part or notify the state's
 //! observers, and the window each draws must equal a full redraw. A vsync that
 //! wraps a loop restarts the audio stream, which the shell starts on a notify
-//! of the state, so it must notify the state's observers and rebuild every
-//! docked body.
+//! of the state, so it must notify the state's observers and build what a
+//! notification of the state builds.
 //!
 //! Not caught: a panel outside the launch layout that draws a drop, a body
 //! stale only in an image, and a stream the shell starts from the notify.
@@ -28,7 +28,7 @@ use crate::dock::PanelId;
 use crate::shell::Moved;
 
 use super::builds::{self, Part};
-use super::tests::{drawing, opened};
+use super::tests::{drawing, opened, rebuilt, stamps};
 use super::unmoved;
 
 /// The panels the layout docks, sorted.
@@ -203,6 +203,8 @@ async fn a_playback_vsync_builds_the_bodies_that_draw_the_playhead_or_the_frame(
     visual.run_until_parked();
     builds::take();
     notified.set(0);
+    let panels = docked(&state, visual);
+    let before = stamps(&state, visual, &panels);
     assert_eq!(vsync(&state, visual, 5), 1, "the run ended at the wrap");
     visual.run_until_parked();
     assert_eq!(visual.read(|app| state.read(app).playhead.value), 0);
@@ -214,7 +216,11 @@ async fn a_playback_vsync_builds_the_bodies_that_draw_the_playhead_or_the_frame(
     let mut built = builds::take();
     built.sort_unstable();
     built.dedup();
-    assert_eq!(built, docked(&state, visual), "the bodies the wrap built");
+    assert_eq!(
+        built,
+        rebuilt(&state, visual, &panels, &before),
+        "the bodies the wrap built"
+    );
 
     visual.update(|_, app| state.update(app, |state, _| state.toggle_playback()));
 }

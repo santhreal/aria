@@ -124,7 +124,7 @@ impl Shell {
                     // A hover fade redraws the row alone. A gpui hover style
                     // here would notify the view the row is built in, which is
                     // the Shell while the editor arrives, and a Shell
-                    // notification rebuilds every panel body.
+                    // notification rebuilds the panel bodies.
                     .text_color(if is_active {
                         theme.text
                     } else {

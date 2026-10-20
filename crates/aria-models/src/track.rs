@@ -592,6 +592,27 @@ impl Track {
     pub fn clips_ordered(&self) -> ClipsOrdered<'_> {
         ClipsOrdered::new(self)
     }
+
+    /// Clips overlapping `range`, in timeline start order.
+    pub fn clips_overlapping(&self, range: TimeRange) -> impl Iterator<Item = &Clip> {
+        let start = range.start.value;
+        let end = range.end_tick();
+        let hi = self.order.partition_point(|id| {
+            #[cfg(test)]
+            ORDER_PROBES.with(|c| c.set(c.get() + 1));
+            self.clips[id].timeline.start.value < end
+        });
+        let mut lo = hi;
+        while lo > 0 {
+            #[cfg(test)]
+            ORDER_PROBES.with(|c| c.set(c.get() + 1));
+            if self.clips[&self.order[lo - 1]].timeline.end_tick() <= start {
+                break;
+            }
+            lo -= 1;
+        }
+        self.order[lo..hi].iter().map(move |id| &self.clips[id])
+    }
     /// The clip occupying `timeline_pos`, if any. (At most one, since clips on a
     /// track never overlap.)
     pub fn clip_at(&self, timeline_pos: RationalTime) -> Result<Option<&Clip>, ModelError> {

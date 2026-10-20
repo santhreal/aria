@@ -484,6 +484,26 @@ fn ordered_index_bounds_clip_at_has_overlap_and_content_end_probes() {
         );
     }
 
+    for (range, expected) in [
+        (tr(0, 10), vec![]),
+        (tr(0, 11), vec![ids[0]]),
+        (tr(19, 2), vec![ids[0]]),
+        (tr(20, 10), vec![]),
+        (tr(10, 35), vec![ids[0], ids[1]]),
+        (tr(100 * 20 + 10, 10), vec![ids[100]]),
+        (tr(100 * 20 + 15, 20), vec![ids[100], ids[101]]),
+        (tr(199 * 20 + 20, 10), vec![]),
+    ] {
+        let start = probes();
+        let got: Vec<ClipId> = track.clips_overlapping(range).map(|c| c.id).collect();
+        assert_eq!(got, expected, "clips_overlapping({range:?})");
+        let used = probes() - start;
+        assert!(
+            used <= 12,
+            "clips_overlapping({range:?}) inspected {used} clips on a 200-clip lane"
+        );
+    }
+
     // Rate mismatch when the query range precedes every clip (idx == 0) or
     // when the only clip before `end` is ignored.
     assert!(

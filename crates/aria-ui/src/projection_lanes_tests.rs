@@ -417,6 +417,13 @@ fn case(engine: &mut Engine, sample: &EditCommand, aim: Aim) -> Result<Option<Re
             "{id} aimed at {aim:?}: the kept store is stale\n{wrong}"
         ));
     }
+    if crate::app::project_facts::ProjectFacts::of_with_basis(engine, Some(&basis_after)).mixer
+        != crate::app::project_facts::ProjectFacts::of_with_basis(engine, None).mixer
+    {
+        return Err(format!(
+            "{id} aimed at {aim:?}: the kept mixer facts are stale"
+        ));
+    }
     let kept = after
         .sequence
         .tracks
@@ -434,11 +441,18 @@ fn case(engine: &mut Engine, sample: &EditCommand, aim: Aim) -> Result<Option<Re
             store: &after,
             basis: &basis_after,
         };
-        let (undone, _) = project(engine, &selection, Some(previous));
+        let (undone, basis_undone) = project(engine, &selection, Some(previous));
         let full = project_to_ui_with(engine.project(), at(), &selection, false, false, false);
         if let Some(wrong) = difference(&undone, &full) {
             return Err(format!(
                 "{id} aimed at {aim:?}: the kept store is stale after its undo\n{wrong}"
+            ));
+        }
+        if crate::app::project_facts::ProjectFacts::of_with_basis(engine, Some(&basis_undone)).mixer
+            != crate::app::project_facts::ProjectFacts::of_with_basis(engine, None).mixer
+        {
+            return Err(format!(
+                "{id} aimed at {aim:?}: the kept mixer facts are stale after its undo"
             ));
         }
     }

@@ -7,9 +7,11 @@
 //! The editor bar and each frame's tab row are drawn the same way, as
 //! [`ChromePart`]s.
 //!
-//! Every notification of the shell notifies every body and every part
+//! Every notification of the shell notifies every part and every body
 //! ([`Shell::redraw_bodies`], run by the shell's own observer), so a change
-//! made anywhere is drawn everywhere. Two paths are narrow: [`Shell::redraw`],
+//! made anywhere is drawn everywhere. A body that keeps a `PanelStamp` of
+//! its inputs, such as the Audio Meters and the Effects panel, is skipped
+//! while the stamp is unchanged. Two paths are narrow: [`Shell::redraw`],
 //! for a change that moves only the timeline view, the playhead, or the pool
 //! tile under the pointer, redraws the chrome the shell draws itself and the
 //! bodies whose drawing reads what moved, and [`Shell::redraw_chrome`], for a
@@ -128,10 +130,60 @@ pub fn notify_after_draw<T: 'static>(entity: &Entity<T>, cx: &mut App) {
     });
 }
 
+#[derive(Clone, PartialEq)]
+enum PanelStamp {
+    AudioMeters {
+        theme: u32,
+        rms: [u32; 2],
+        peaks: [u32; 2],
+        hold: [u32; 2],
+        clipped: bool,
+    },
+    Effects {
+        theme: u32,
+        reduced: bool,
+        entries: usize,
+        presets: Vec<crate::app::effects_browser::Entry>,
+        failures: Vec<crate::app::effects_browser::Failed>,
+        browser: crate::app::effects_browser::EffectsBrowser,
+        focused: bool,
+        favourites: Vec<String>,
+    },
+}
+
+fn panel_stamp(panel: PanelId, state: &crate::app::AppState, reduced: bool) -> Option<PanelStamp> {
+    let theme = crate::theme::theme_generation();
+    match panel {
+        PANEL_AUDIO_METERS => {
+            let reading = state.meter();
+            Some(PanelStamp::AudioMeters {
+                theme,
+                rms: reading.rms.map(f32::to_bits),
+                peaks: reading.peaks.map(f32::to_bits),
+                hold: reading.hold.map(f32::to_bits),
+                clipped: reading.clipped,
+            })
+        }
+        PANEL_EFFECTS => Some(PanelStamp::Effects {
+            theme,
+            reduced,
+            entries: std::sync::Arc::as_ptr(&crate::catalog_text::effect_entries()) as *const ()
+                as usize,
+            presets: state.effects_preset_entries(),
+            failures: state.effects_failures(),
+            browser: state.effects_browser.clone(),
+            focused: state.effects_search_focused(),
+            favourites: state.effect_favourites().to_vec(),
+        }),
+        _ => None,
+    }
+}
+
 /// The body of one docked panel.
 pub(crate) struct PanelBody {
     shell: WeakEntity<Shell>,
     panel: PanelId,
+    stamp: Option<PanelStamp>,
 }
 
 impl Render for PanelBody {
@@ -140,6 +192,10 @@ impl Render for PanelBody {
         builds::record(self.panel);
         let panel = self.panel;
         let shell = self.shell.clone();
+        let reduced = cx.reduce_motion();
+        self.stamp = shell
+            .upgrade()
+            .and_then(|s| panel_stamp(panel, s.read(cx).state.read(cx), reduced));
         let children = motion::build_view(cx.entity_id(), || {
             shell
                 .update(cx, |shell, cx| shell.render_panel_body(panel, cx))
@@ -233,7 +289,13 @@ impl Shell {
         let body = self
             .bodies
             .entry(panel)
-            .or_insert_with(|| cx.new(|_| PanelBody { shell, panel }))
+            .or_insert_with(|| {
+                cx.new(|_| PanelBody {
+                    shell,
+                    panel,
+                    stamp: None,
+                })
+            })
             .clone();
         motion::mount_view(body.entity_id());
         AnyView::from(body)
@@ -241,12 +303,20 @@ impl Shell {
             .into_any_element()
     }
 
-    /// Notifies every panel body and every chrome part, so the next frame
-    /// builds each one again.
+    /// Notifies every chrome part and every panel body whose inputs may have
+    /// changed since its last draw.
     pub(crate) fn redraw_bodies(&mut self, cx: &mut Context<Self>) {
         self.drawn_projections = self.state.read(cx).projections;
-        for body in self.bodies.values() {
-            body.update(cx, |_, cx| cx.notify());
+        let reduced = cx.reduce_motion();
+        for (&panel, body) in &self.bodies {
+            let unchanged = {
+                let state = self.state.read(cx);
+                panel_stamp(panel, state, reduced)
+                    .is_some_and(|now| body.read(cx).stamp.as_ref() == Some(&now))
+            };
+            if !unchanged {
+                body.update(cx, |_, cx| cx.notify());
+            }
         }
         self.redraw_parts(cx);
     }
