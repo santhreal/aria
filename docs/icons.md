@@ -1,142 +1,172 @@
 # Icon registry
 
-The single place that tracks every icon the UI wants. Titlebar, transport,
-preview, and track headers use the shipped Lucide SVGs and the brand mark.
-Every entry below is wired; register a new placeholder here before shipping it.
+Every icon the editor draws is a row of `icon_assets!` in
+`crates/aria-ui/src/icons.rs`: a constant, the file under `assets/icon/`, and
+the path the asset source serves it under. This page lists each constant once,
+with its file and the controls that draw it.
 
-## Workflow
+## Adding an icon
 
-When you build UI and reach for an icon that doesn't exist yet, **don't
-block on it**:
+1. Fetch the SVG from [Lucide](https://lucide.dev) (ISC, single stroke, 2 px
+   default stroke), or from [Tabler](https://tabler.io/icons) (MIT) when
+   Lucide has no match.
+2. Save it under `assets/icon/`, in the subdirectory of the surface that draws
+   it.
+3. Add a row to `icon_assets!` and draw the control with the new constant.
+4. Add the constant to the table of that surface below.
+   `every_registered_icon_has_one_row_in_icons_md` in
+   `crates/aria-ui/src/icons.rs` fails when a constant has no row, when a row
+   names a constant the registry does not hold, and when a row's file differs
+   from the registry's.
 
-1. Ship the control now with a short text/char placeholder.
-2. **Register it here** under the right section, newest first.
-3. Later, someone fetches the SVG, drops it in `assets/icon/`, and swaps
-   the placeholder — then flips the entry to `[x]`.
+A control may ship with a short text placeholder before its icon exists. Its
+label is plain text and it has no row here until the icon lands.
 
-### Registry format
+## Files
 
-```
-- [ ] `lucide-name` — placeholder `"X"` — `crates/aria-ui/src/panels/file.rs` — what it does.
-```
-
-- `[ ]` = needed (placeholder live in the UI) · `[x]` = fetched + wired in.
-- Always include the **placeholder string** and the **file**.
-
-## Where icons live
-
-All UI icons live under the **single** tracked root `assets/icon/`
-(transport and the brand mark in `icon/`, library glyphs in
-`icon/library/`, and Lucide/Tabler fetches under `shell/`, `timeline/`,
-`text/`, `inspector/`, `ui/`). Media scratch files for local dev and tests
-live in gitignored `local-assets/assets/`.
+All UI icons are under `assets/icon/`: transport and the brand mark at the
+top level, library glyphs in `library/`, and Lucide and Tabler fetches under
+`shell/`, `timeline/`, `text/`, `inspector/`, `preview/`, `chat/`, and `ui/`.
+Media scratch files for local development and tests are in the gitignored
+`local-assets/assets/`.
 
 An icon sets `currentColor` on `stroke` or `fill`, never on the root `color`
 attribute: usvg cannot read `color="currentColor"` and logs a warning each
 time gpui rasterises the glyph at a new size.
 `every_registered_glyph_parses_without_a_warning` in
 `crates/aria-ui/src/icons.rs` parses every registered SVG through gpui's
-renderer and fails on any usvg warning.
+renderer and fails on any usvg warning. An icon paints its glyph in the text
+colour of the control around it.
 
-`assets/icon/aria-icon.png` is the canonical mark. `icons::brand_mark`
-draws it in the window, Linux packages install it, `scripts/package-macos.sh`
-turns it into `AppIcon.icns`, and the Xcode asset catalog under
-`apps/aria-ios-macos` contains the resized copies.
-
-### Generated workflow set
+`assets/icon/aria-icon.png` is the brand mark. `icons::brand_mark` draws it in
+the window, Linux packages install it, `scripts/package-macos.sh` turns it
+into `AppIcon.icns`, and the Xcode asset catalog under `apps/aria-ios-macos`
+contains the resized copies.
 
 `assets/generated/` contains the hand-authored 32 px workflow icon set added
 in repository commit `9e55722`. The files use square line caps, a 2.5 px
 stroke, and `currentColor`; no external generator or upstream icon package
 produced them.
 
-## Source
-
-Primary: **[Lucide](https://lucide.dev)** (ISC, single-stroke, 2 px default
-stroke). Fallback: **[Tabler](https://tabler.io/icons)** (MIT).
-
-## Already shipped
-
-`play`, `pause`, `fullscreen` · library tabs `media`, `audio`, `text`,
-`stickers`, `effects`, `transitions`, `stock`, `ai`, `sfx`, `filters`,
-`adjustment` · brand mark `aria-icon.png` · chat `send` /
-`circle-stop`.
-
----
-
 ## Registry
 
-### Tool bar — `crates/aria-ui/src/chrome/tool_strip.rs`
+### Window
 
-- [x] `upload` — `assets/icon/shell/upload.svg` — export.
-- [x] `mouse-pointer-2` — `assets/icon/timeline/mouse-pointer-2.svg` — selection tool.
-- [x] `chevrons-right` / `chevrons-left` — `assets/icon/timeline/chevrons-right.svg` and `chevrons-left.svg` — track select forward and backward tools.
-- [x] `scissors` — `assets/icon/timeline/scissors.svg` — razor tool.
-- [x] `zoom-in` — `assets/icon/timeline/zoom-in.svg` — zoom tool.
-- [x] `hand` — `assets/icon/timeline/hand.svg` — hand tool.
-- [x] `move-horizontal` — `assets/icon/timeline/move-horizontal.svg` — slip tool.
-- [x] `columns-3` — `assets/icon/timeline/columns-3.svg` — slide tool.
-- [x] `grip-vertical` — `assets/icon/timeline/grip-vertical.svg` — rolling edit tool.
-- [x] `gauge` — `assets/icon/timeline/gauge.svg` — rate stretch tool.
-- [x] `fold-horizontal` — `assets/icon/timeline/fold-horizontal.svg` — ripple trim tool.
-- [x] `aria-icon.png` — `assets/icon/aria-icon.png` — the titlebar mark, drawn by `icons::brand_mark`.
+Defined in `crates/aria-ui/src/chrome.rs` and `chrome/tool_strip.rs`.
 
-### Chat — `crates/aria-ui/src/panels/assistant.rs`
+| Constant | File | Use |
+| --- | --- | --- |
+| `BRAND_MARK` | `assets/icon/aria-icon.png` | The brand mark, drawn by `icons::brand_mark` in the titlebar (`chrome.rs`) and at the top of the Home rail (`panels/home/rail.rs`). |
+| `MINUS` | `assets/icon/shell/minus.svg` | Minimize the window. |
+| `SQUARE` | `assets/icon/shell/square.svg` | Maximize or restore the window. |
+| `CLOSE` | `assets/icon/shell/x.svg` | Close the window, a dock tab (`shell/dock_view.rs`), and a Viewer Source tab (`panels/preview_tabs.rs`); clear the timeline property search (`panels/timeline/header.rs`) and the Effects & Presets search (`panels/effects_browser.rs`). |
+| `UPLOAD` | `assets/icon/shell/upload.svg` | Export, on the tool bar. |
+| `WRENCH` | `assets/icon/timeline/wrench.svg` | Display settings: the Viewer's tab row holds View > Viewer Display Settings under it, and the Timeline header holds View > Timeline Display Settings (`display_btn` in `chrome/tool_strip.rs`). |
+| `SETTINGS` | `assets/icon/shell/settings.svg` | Drawn only by the control gallery (`crates/aria-ui-gallery`). |
+| `FIT` | `assets/icon/fullscreen.svg` | Drawn only by the control gallery (`crates/aria-ui-gallery`). |
 
-- [x] `send` — `assets/icon/chat/send.svg` — submit a message.
-- [x] `circle-stop` — `assets/icon/chat/stop.svg` — stop generation.
+### Tools
 
-### Viewer — `crates/aria-ui/src/panels/preview.rs`, `preview_source.rs`, `preview_tabs.rs`, `preview_controls.rs`, `preview_resolution.rs`, `preview/handles.rs`, and `preview/scopes.rs`
+Defined in `crates/aria-ui/src/tool_catalog.rs` and drawn on the tool bar.
 
-- [x] `play` / `pause` — `assets/icon/play.svg` — transport.
-- [x] `skip-back` / `skip-forward` — `assets/icon/skip-back.svg` and `assets/icon/skip-forward.svg` — go to start and go to end.
-- [x] `chevron-left` / `chevron-right` — `assets/icon/chevron-left.svg` and `assets/icon/chevron-right.svg` — step one frame.
-- [x] `zoom-in` / `zoom-out` — `assets/icon/timeline/zoom-in.svg` and `assets/icon/timeline/zoom-out.svg` — preview zoom step, replacing the `"+"` and `"−"` text glyphs.
-- [x] `wrench` — `assets/icon/timeline/wrench.svg` — Viewer display settings, at the right end of the tab row: holds View > Viewer Display Settings under itself.
-- [x] `repeat` — `assets/icon/timeline/repeat.svg`, registered as `LOOP` — loop playback.
-- [x] `replace` — `assets/icon/preview/replace.svg`, registered as `PROXY` — play proxies or the original media.
-- [x] `scaling` / `crop` / `square-dashed` — `assets/icon/preview/scaling.svg`, `crop.svg`, and `square-dashed.svg`, registered as `TRANSFORM`, `CROP`, and `MASK` — the Transform, Crop, and Mask handle sets.
-- [x] `activity` — `assets/icon/preview/activity.svg`, registered as `SCOPES` — open or close the scope strip.
+| Constant | File | Use |
+| --- | --- | --- |
+| `POINTER` | `assets/icon/timeline/mouse-pointer-2.svg` | Select tool. |
+| `CHEVRONS_RIGHT` | `assets/icon/timeline/chevrons-right.svg` | Track Select Forward tool, and a dock frame's tab overflow menu, which lists the tabs its tab row has no room for (`shell/frame_menu.rs`). |
+| `CHEVRONS_LEFT` | `assets/icon/timeline/chevrons-left.svg` | Track Select Backward tool. |
+| `SCISSORS` | `assets/icon/timeline/scissors.svg` | Razor tool. |
+| `ZOOM_IN` | `assets/icon/timeline/zoom-in.svg` | Zoom tool, and the Viewer's zoom in step (`panels/preview.rs`). |
+| `HAND` | `assets/icon/timeline/hand.svg` | Hand tool. |
+| `SLIP` | `assets/icon/timeline/move-horizontal.svg` | Slip tool. |
+| `SLIDE` | `assets/icon/timeline/columns-3.svg` | Slide tool. |
+| `ROLL` | `assets/icon/timeline/grip-vertical.svg` | Rolling edit tool. |
+| `RATE` | `assets/icon/timeline/gauge.svg` | Rate stretch tool. |
+| `RIPPLE` | `assets/icon/timeline/fold-horizontal.svg` | Ripple trim tool. |
+| `PEN` | `assets/icon/inspector/spline.svg` | Pen tool. |
+| `TYPE` | `assets/icon/library/text.svg` | Type tool. |
 
-### Home — `crates/aria-ui/src/panels/home/rail.rs` and `panes.rs`
+### Viewer
 
-- [x] `plus` — `assets/icon/plus.svg` — New Project tile.
-- [x] `folder-open` — `assets/icon/folder-open.svg` — Open tile.
-- [x] `clapperboard` / `image` / `sparkles` — `assets/icon/clapperboard.svg`, `assets/icon/library/image.svg`, and `assets/icon/shell/sparkles.svg` — Recents, Samples, and Learn rail tabs.
+Defined in `crates/aria-ui/src/panels/preview.rs`, `preview_controls.rs`,
+`preview_resolution.rs`, `preview/handles.rs`, and `preview/scopes.rs`.
 
-### Timeline — `crates/aria-ui/src/surfaces/lane_header.rs`, `panels/timeline/header.rs`, and `panels/timeline/overview.rs`
+| Constant | File | Use |
+| --- | --- | --- |
+| `PLAY` | `assets/icon/play.svg` | Play. |
+| `PAUSE` | `assets/icon/pause.svg` | Pause, in place of Play during playback. |
+| `SKIP_BACK` | `assets/icon/skip-back.svg` | Go to start. |
+| `SKIP_FORWARD` | `assets/icon/skip-forward.svg` | Go to end. |
+| `CHEVRON_LEFT` | `assets/icon/chevron-left.svg` | Step one frame back, and move a multicam angle one frame earlier on the group's clock (`panels/sidebar_multicam.rs`). |
+| `CHEVRON_RIGHT` | `assets/icon/chevron-right.svg` | Step one frame forward, and move a multicam angle one frame later (`panels/sidebar_multicam.rs`). |
+| `ZOOM_OUT` | `assets/icon/timeline/zoom-out.svg` | The Viewer's zoom out step. |
+| `TRANSFORM` | `assets/icon/preview/scaling.svg` | The Transform handle set. |
+| `CROP` | `assets/icon/preview/crop.svg` | The Crop handle set. |
+| `MASK` | `assets/icon/preview/square-dashed.svg` | The Mask handle set. |
+| `SCOPES` | `assets/icon/preview/activity.svg` | Open or close the scope strip. |
+| `LOOP` | `assets/icon/timeline/repeat.svg` | Loop playback. |
+| `PROXY` | `assets/icon/preview/replace.svg` | Decode through proxies where they exist, or through the original media. |
 
-- [x] `plus` — `assets/icon/plus.svg` — add video track, at the left of the zoom bar.
-- [x] `magnet` / `link` / `wrench` — `assets/icon/timeline/magnet.svg`, `link.svg`, and `wrench.svg` — snapping, linked selection, and timeline display settings in the timeline header.
-- [x] `flag` — `assets/icon/timeline/flag.svg`, registered as `FLAG` — add a marker at the playhead.
-- [x] `chart-spline` — `assets/icon/timeline/chart-spline.svg`, registered as `GRAPH` — open or close the graph editor.
-- [x] `x` — `assets/icon/shell/x.svg`, registered as `CLOSE` — clear the property search, and clear the Effects & Presets search (`panels/effects_browser.rs`).
-- [x] `eye` / `eye-off` — `assets/icon/timeline/eye.svg` — track enabled.
-- [x] `volume-2` / `volume-x` — `assets/icon/timeline/volume-2.svg` — track mute.
-- [x] `lock` / `lock-open` — `assets/icon/timeline/lock.svg` — track lock.
-- [x] `headphones` — `assets/icon/timeline/headphones.svg` — track solo.
-- [x] `chevron-down` — `assets/icon/ui/chevron-down.svg`, registered as `CHEVRON_DOWN`. One glyph for every disclosure: `components::chevron` turns it a quarter turn for a shut row — collapse and expand a lane.
-- [x] `crosshair` — `assets/icon/timeline/crosshair.svg` — lane target.
-- [x] `link` / `unlink` — `assets/icon/timeline/link.svg` and `assets/icon/timeline/unlink.svg` — lane sync lock.
+### Home
 
-### Media pool — `crates/aria-ui/src/panels/sidebar_bins.rs` and `sidebar_pool_bars.rs`
+Defined in `crates/aria-ui/src/panels/home/rail.rs` and `panes.rs`.
 
-- [x] `import` — `assets/icon/library/import.svg`, registered as `IMPORT` — Import, at the right end of the Media tab's filter row.
-- [x] `audio-lines` — `assets/icon/timeline/audio-lines.svg` — Audio only, beside Import: the pool lists its audio sources.
-- [x] `image` / `list` / `layout-grid` / `move` — `assets/icon/library/image.svg`, `list.svg`, `layout-grid.svg`, and `move.svg`, registered as `IMAGE`, `LIST`, `LAYOUT_GRID`, and `MOVE` — the Tiles, List, Icons, and Freeform views in the footer.
-- [x] `folder-plus` — `assets/icon/library/folder-plus.svg`, registered as `FOLDER_PLUS` — New bin, in the footer.
-- [x] `layers` — `assets/icon/library/layers.svg`, registered as `LAYERS` — New multicam, in the footer (`sidebar_multicam.rs`).
-- [x] `folder` — a bin row draws `components::chevron` (`CHEVRON_DOWN`), which leans toward the click as the row lights.
-- [x] `chevron-left` — `assets/icon/chevron-left.svg` — `crates/aria-ui/src/panels/sidebar_multicam.rs` — move a multicam angle one frame earlier on the group's clock.
-- [x] `chevron-right` — `assets/icon/chevron-right.svg` — `crates/aria-ui/src/panels/sidebar_multicam.rs` — move a multicam angle one frame later.
-- [x] `audio-lines` — `assets/icon/timeline/audio-lines.svg` — `crates/aria-ui/src/panels/sidebar_multicam.rs` — place a group's cameras from their sound.
+| Constant | File | Use |
+| --- | --- | --- |
+| `PLUS` | `assets/icon/plus.svg` | The New rail tab and the New Project tile, and Add Track at the left of the timeline zoom bar (`panels/timeline/overview.rs`). |
+| `FOLDER_OPEN` | `assets/icon/folder-open.svg` | The Open rail tab and the Open tile. |
+| `CLAPPERBOARD` | `assets/icon/clapperboard.svg` | The Recents rail tab, and the Sample Project and Use Template… tiles (`panels/home/panes.rs`). |
+| `IMAGE` | `assets/icon/library/image.svg` | The Samples rail tab, and the media pool's Tiles view (`panels/sidebar_pool_bars.rs`). |
+| `SPARKLES` | `assets/icon/shell/sparkles.svg` | The Learn rail tab. |
 
-### Inspector — `crates/aria-ui/src/panels/inspector/tabs/effects.rs`
+### Timeline
 
-- [x] `trash-2` — `assets/icon/inspector/trash-2.svg` — remove effect.
-- [x] `rotate-ccw` — `assets/icon/inspector/rotate-ccw.svg` — reset the transform (`tabs/transform.rs`) and one colour wheel (`blocks/wheels.rs`).
+Defined in `crates/aria-ui/src/surfaces/lane_header.rs`,
+`panels/timeline/header.rs`, and `components.rs`.
 
-### Fine as text (no icon needed)
+| Constant | File | Use |
+| --- | --- | --- |
+| `EYE` | `assets/icon/timeline/eye.svg` | A shown lane. |
+| `EYE_OFF` | `assets/icon/timeline/eye-off.svg` | A hidden lane. |
+| `VOLUME` | `assets/icon/timeline/volume-2.svg` | An audible lane. |
+| `VOLUME_X` | `assets/icon/timeline/volume-x.svg` | A muted lane, and the Viewer's shuttle badge, which a press returns to 1x (`panels/preview_shuttle.rs`). |
+| `HEADPHONES` | `assets/icon/timeline/headphones.svg` | Lane solo. |
+| `LOCK` | `assets/icon/timeline/lock.svg` | A locked lane. |
+| `LOCK_OPEN` | `assets/icon/timeline/lock-open.svg` | An unlocked lane. |
+| `CROSSHAIR` | `assets/icon/timeline/crosshair.svg` | Lane target. |
+| `LINK` | `assets/icon/timeline/link.svg` | A lane with sync lock on, and linked selection in the Timeline header. |
+| `UNLINK` | `assets/icon/timeline/unlink.svg` | A lane with sync lock off. |
+| `MAGNET` | `assets/icon/timeline/magnet.svg` | Snapping, in the Timeline header. |
+| `FLAG` | `assets/icon/timeline/flag.svg` | Add a marker at the playhead, or open Marker Edit for the marker already on the playhead's frame. |
+| `GRAPH` | `assets/icon/timeline/chart-spline.svg` | Open or close the Graph Editor. |
+| `CHEVRON_DOWN` | `assets/icon/ui/chevron-down.svg` | Every disclosure: a lane, a property group, and a bin row. `components::chevron` turns it a quarter turn for a shut row. |
 
-Timecode separators, the zoom readout, and word buttons in dialogs
-(Choose… / Cancel / Export / Done / New Project / Import).
+### Media pool
+
+Defined in `crates/aria-ui/src/panels/sidebar_pool_bars.rs`,
+`sidebar_multicam.rs`, and `surfaces/bin_strip.rs`.
+
+| Constant | File | Use |
+| --- | --- | --- |
+| `IMPORT` | `assets/icon/library/import.svg` | Import: the file picker, filtered to the formats the pool reads. |
+| `AUDIO_LINES` | `assets/icon/timeline/audio-lines.svg` | Audio only, beside the search field, which lists the pool's audio sources; and sync a multicam group by the sound its cameras recorded (`panels/sidebar_multicam.rs`). |
+| `LIST` | `assets/icon/library/list.svg` | The pool's List view. |
+| `LAYOUT_GRID` | `assets/icon/library/layout-grid.svg` | The pool's Icons view. |
+| `MOVE` | `assets/icon/library/move.svg` | The pool's Freeform view. |
+| `FOLDER_PLUS` | `assets/icon/library/folder-plus.svg` | New bin, on the folder strip. |
+| `LAYERS` | `assets/icon/library/layers.svg` | Create a multicam group (`panels/sidebar_multicam.rs`). |
+
+### Inspector
+
+Defined in `crates/aria-ui/src/panels/inspector/tabs/effects.rs`.
+
+| Constant | File | Use |
+| --- | --- | --- |
+| `ROTATE_CCW` | `assets/icon/inspector/rotate-ccw.svg` | Reset an effect, the transform (`tabs/transform.rs`), a colour wheel (`blocks/wheels.rs`), and a property row (`blocks/widgets.rs`, `panels/timeline/property_rows.rs`). |
+| `ELLIPSIS` | `assets/icon/inspector/ellipsis.svg` | An effect's menu. |
+| `TRASH` | `assets/icon/inspector/trash-2.svg` | Remove an effect, and remove an audio insert (`panels/insert_chain.rs`). |
+| `STAR` | `assets/icon/ui/star.svg` | Favourite an entry in Effects & Presets (`panels/effects_browser.rs`). |
+
+## Text labels
+
+Timecode separators, the zoom readout, and word buttons in dialogs (Choose…,
+Cancel, Export, Done, New Project, Import) are text and have no icon.

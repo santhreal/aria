@@ -24,6 +24,11 @@ macro_rules! icon_assets {
     ($(($const_name:ident, $file:literal, $path:literal)),+ $(,)?) => {
         $(pub const $const_name: &str = $path;)+
 
+        /// Every registered icon as its constant's name and its file under
+        /// `assets/icon/`, in registry order.
+        #[cfg(test)]
+        const REGISTRY: &[(&str, &str)] = &[$((stringify!($const_name), $file)),+];
+
         /// Serves the embedded icons to gpui's SVG renderer.
         pub struct Assets;
 
@@ -488,5 +493,56 @@ mod tests {
                 .iter()
                 .all(|p| p.as_ref() == PLAY)
         );
+    }
+
+    /// `docs/icons.md` has one table row per registered icon, and the row
+    /// states the file the registry embeds.
+    ///
+    /// Closes the class of an icon added, renamed, pointed at another file, or
+    /// removed without its reference row changing with it. The rows are read
+    /// from the page and compared with [`REGISTRY`], which the macro expands
+    /// from the same rows that serve the assets, so a new icon fails here until
+    /// the page lists it. Does not check the Use column against the controls
+    /// that draw the icon.
+    #[test]
+    fn every_registered_icon_has_one_row_in_icons_md() {
+        let page = include_str!("../../../docs/icons.md");
+        let mut rows: HashMap<&str, Vec<&str>> = HashMap::new();
+        for line in page.lines() {
+            let Some(rest) = line.strip_prefix('|') else {
+                continue;
+            };
+            let mut cells = rest.split('|').map(str::trim);
+            let (Some(first), Some(file)) = (cells.next(), cells.next()) else {
+                continue;
+            };
+            let Some(constant) = first.strip_prefix('`').and_then(|c| c.strip_suffix('`')) else {
+                continue;
+            };
+            let is_constant = !constant.is_empty()
+                && constant
+                    .chars()
+                    .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_');
+            if is_constant {
+                rows.entry(constant).or_default().push(file);
+            }
+        }
+        for (constant, file) in REGISTRY {
+            let expected = format!("`assets/icon/{file}`");
+            match rows.get(constant).map(Vec::as_slice) {
+                Some([only]) => assert_eq!(
+                    *only, expected,
+                    "docs/icons.md: the row of {constant} states {only}, the registry embeds {expected}"
+                ),
+                Some(many) => panic!("docs/icons.md: {constant} has {} rows", many.len()),
+                None => panic!("docs/icons.md: {constant} ({expected}) has no row"),
+            }
+        }
+        for constant in rows.keys() {
+            assert!(
+                REGISTRY.iter().any(|(name, _)| name == constant),
+                "docs/icons.md: a row names {constant}, which icon_assets! does not register"
+            );
+        }
     }
 }

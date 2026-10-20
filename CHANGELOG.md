@@ -1387,6 +1387,7 @@ Notes for the latest release. For previous releases, see the
 - Every public `aria-sdk` item is documented, and the crate denies `missing_docs`.
 - `docs/plugins/packages.md`, `presets.md`, `workspaces.md`, and `effects.md` and `docs/theme-tokens.md` document every `plugin.toml` table and key, preset field, workspace key, effect WGSL header field, and theme token with its type and default, and tests fail when a parser accepts a key the documents omit or a documented example does not parse.
 - Tests fail when a fenced code block under `docs/` never closes or a table runs into the paragraph after it.
+- `docs/icons.md` lists every registered icon constant with its file and the controls that draw it, and a test fails when the page and `icon_assets!` disagree.
 
 ### Changed
 
