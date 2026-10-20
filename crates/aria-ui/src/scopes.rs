@@ -132,7 +132,7 @@ impl WaveformMode {
 }
 
 /// The trace colour of one waveform channel.
-const fn channel_colour(channel: WaveformChannel) -> [u8; 3] {
+pub(crate) const fn channel_colour(channel: WaveformChannel) -> [u8; 3] {
     match channel {
         WaveformChannel::Luma => [TRACE[0], TRACE[1], TRACE[2]],
         WaveformChannel::Red | WaveformChannel::Cr => RED,

@@ -95,3 +95,73 @@ When `UiRoute::Home` is active (`aria.panel.home`), the left rail offers five vi
 | `Recents` | Recents | Default start view with quick-start actions (**New Project**, **Open Project**, **Use Template**) and recent projects list. |
 | `Samples` | Samples | Cloud template bundles that download and prompt for each replaceable slot. |
 | `Learn` | Learn | Interactive keyboard shortcut reference and onboarding guide (**Help > Keyboard Shortcuts**). |
+
+## Effect Controls inspector tabs
+
+`crate::panels::inspector::host_of()` (`crates/aria-ui/src/panels/inspector/tab_host.rs`) defines the eight shipped tabs inside **Effect Controls** (`aria.panel.inspector`), filtered by the selected clip's `UiClipKind` (`UiClipKind::ALL` in `crates/aria-ui/src/types_clip.rs`: `Media`, `Text`, `Shape`, `Generator`, `Audio`):
+
+| ID | Label | Applicable `UiClipKind` variants |
+| --- | --- | --- |
+| `transform` | Transform | `Media, Text, Shape, Generator` |
+| `look` | Look | `Media, Text, Shape, Generator` |
+| `effects` | Effects | `Media, Text, Shape, Generator` |
+| `speed` | Speed | `Media, Audio` |
+| `audio` | Audio | `Media, Audio` |
+| `text` | Text | `Text` |
+| `shape` | Shape | `Shape` |
+| `info` | Info | `Media, Text, Shape, Generator` |
+
+## Media pool views and sort orders
+
+Defined in `crates/aria-ui/src/types_pool.rs` (`PoolView::ALL`, `PoolLayout`, `POOL_CELL_WIDTH = 96.0`) and `crates/aria-ui/src/types_editor.rs` (`MediaSort::ALL`).
+
+| Variant | Serde name | Label | Picture | Facts | Inline | Wraps | Freeform | Cell width | Layout (`PoolLayout`) | Default |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `Tiles` | `tiles` | Tiles | `true` | `true` | `false` | `false` | `false` | `none` | `Stack` | `yes` |
+| `List` | `list` | List | `false` | `true` | `true` | `false` | `false` | `none` | `Stack` | `no` |
+| `Icons` | `icons` | Icons | `true` | `false` | `false` | `true` | `false` | `96.0` | `Wrap` | `no` |
+| `Freeform` | `freeform` | Freeform | `true` | `false` | `false` | `false` | `true` | `96.0` | `Freeform` | `no` |
+
+## Media pool sort orders
+
+| Variant | Label | Default |
+| --- | --- | --- |
+| `Name` | Name | `yes` |
+| `Duration` | Duration | `no` |
+| `Resolution` | Resolution | `no` |
+| `DateAdded` | Date added | `no` |
+
+## Viewer overlay modes
+
+Defined in `crates/aria-ui/src/types_editor.rs` (`OverlayMode::ALL`).
+
+| Variant | Label | Next (`next()`) | Default |
+| --- | --- | --- | --- |
+| `Transform` | Transform | `Crop` | `yes` |
+| `Crop` | Crop | `Mask` | `no` |
+| `Mask` | Mask | `Transform` | `no` |
+
+## Keyboard focus targets
+
+Defined in `crates/aria-ui/src/types_editor.rs` (`ActivePanel::ALL`, `#[serde(rename_all = "camelCase")]`).
+
+| Variant | Serde name | Primary dock panel ID (`panel_id()`) |
+| --- | --- | --- |
+| `Media` | `media` | `aria.panel.media` |
+| `Preview` | `preview` | `aria.panel.viewer` |
+| `Timeline` | `timeline` | `aria.panel.timeline` |
+| `Inspector` | `inspector` | `aria.panel.inspector` |
+| `Ai` | `ai` | `aria.panel.assistant` |
+| `Mixer` | `mixer` | `aria.panel.mixer` |
+
+## Assistant transcript entry kinds
+
+Defined in `crates/aria-ui/src/types_editor.rs` (`AgentEntryKind::ALL`).
+
+| Variant | Bubble label (`label()`) | Saved key (`key()`) |
+| --- | --- | --- |
+| `You` | `you` | `you` |
+| `Assistant` | `assistant` | `assistant` |
+| `Reasoning` | `thinking` | `reasoning` |
+| `Action` | `edit` | `action` |
+| `Error` | `error` | `error` |

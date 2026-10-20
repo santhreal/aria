@@ -437,3 +437,110 @@ fn banded_conversion_matches_one_pass() {
         assert_eq!(first, None, "{order:?}: the first differing byte");
     }
 }
+
+/// **Every `YuvMatrix` variant, its fixed-point `[cr, cg, cb]` / `U` / `V` coefficients, and `matrix_for` mapping match `docs/reference/color.md`.**
+///
+/// Closes: undocumented `YuvMatrix` variant, drifted fixed-point coefficient
+/// row in `COEFFICIENTS`, or changed `matrix_for` mapping.
+/// Not caught: prose commentary around the YUV equations.
+#[test]
+fn color_doc_yuv_matrices_match_coefficients() {
+    let color_doc = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../docs/reference/color.md"
+    ))
+    .expect("read docs/reference/color.md");
+    let start = color_doc
+        .find("## YUV 4:2:0 conversion matrices (`YuvMatrix`)")
+        .expect("missing YuvMatrix section in color.md");
+    let rest = &color_doc[start..];
+    let end = rest[1..]
+        .find("\n## ")
+        .map(|i| i + 1)
+        .unwrap_or(rest.len());
+    let sec = &rest[..end];
+
+    let mut rows = Vec::new();
+    let mut in_table = false;
+    let mut past_sep = false;
+    for line in sec.lines() {
+        let trimmed = line.trim();
+        if !trimmed.starts_with('|') {
+            if in_table {
+                in_table = false;
+                past_sep = false;
+            }
+            continue;
+        }
+        let cells: Vec<&str> = trimmed
+            .trim_start_matches('|')
+            .trim_end_matches('|')
+            .split('|')
+            .map(str::trim)
+            .collect();
+        if !in_table {
+            in_table = true;
+            continue;
+        }
+        if !past_sep {
+            past_sep = true;
+            continue;
+        }
+        rows.push(cells);
+    }
+
+    fn unquote(s: &str) -> &str {
+        s.trim().trim_start_matches('`').trim_end_matches('`')
+    }
+    let doc_matrices: Vec<(String, String, String, String, Vec<String>)> = rows
+        .iter()
+        .map(|r| {
+            assert!(r.len() >= 5, "malformed YuvMatrix row: {r:?}");
+            let mapped: Vec<String> = r[4].split(',').map(|s| unquote(s).to_string()).collect();
+            (
+                unquote(r[0]).to_string(),
+                unquote(r[1]).to_string(),
+                unquote(r[2]).to_string(),
+                unquote(r[3]).to_string(),
+                mapped,
+            )
+        })
+        .collect();
+
+    let all_mc = [
+        aria_core::MatrixCoefficients::Bt709,
+        aria_core::MatrixCoefficients::Bt601,
+        aria_core::MatrixCoefficients::Bt2020Ncl,
+        aria_core::MatrixCoefficients::Identity,
+        aria_core::MatrixCoefficients::Unspecified,
+    ];
+    let expected_matrices: Vec<(String, String, String, String, Vec<String>)> = YuvMatrix::ALL
+        .iter()
+        .map(|&m| {
+            let c = m.coefficients();
+            let mapped: Vec<String> = all_mc
+                .iter()
+                .copied()
+                .filter(|&mc| {
+                    let cs = aria_core::ColorSpace {
+                        matrix: mc,
+                        ..aria_core::ColorSpace::BT709
+                    };
+                    matrix_for(&cs) == m
+                })
+                .map(|mc| format!("{mc:?}"))
+                .collect();
+            (
+                format!("{m:?}"),
+                format!("{:?}", c.luma),
+                format!("{:?}", c.u),
+                format!("{:?}", c.v),
+                mapped,
+            )
+        })
+        .collect();
+    assert_eq!(
+        doc_matrices, expected_matrices,
+        "docs/reference/color.md YuvMatrix table drifted from YuvMatrix::ALL / COEFFICIENTS / matrix_for"
+    );
+}

@@ -1,7 +1,7 @@
 # Install
 
 Builds are on the [releases page](https://github.com/santhreal/aria/releases).
-Settings live in `~/.aria/config.toml`. Projects use the `.aria` extension.
+Settings are stored in `~/.aria/config.toml`. Projects use the `.aria` extension.
 
 ## macOS
 

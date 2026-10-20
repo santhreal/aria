@@ -15,14 +15,15 @@ GPUI.
 | `aria-text` / `aria-shapes` | Generators |
 | `aria-render` | Scene resolve, frames, audio mix, export |
 | `aria-engine` | Session, apply, undo, preview frames |
-| `aria-plugin` | `PluginContext`, services, event bus |
-| `aria-ui` | GPUI shell, panels, theme, motion, built-in plugins |
+| `aria-plugin` / `aria-plugin-abi` / `aria-plugin-wasm` / `aria-sdk` | `PluginContext`, services, event bus, C ABI, WASM runtime, Rust SDK |
+| `aria-interchange` | FCP7 XML, FCPXML, CMX 3600 EDL, and OTIO timeline interchange |
+| `aria-ui` / `aria-ui-gallery` | GPUI shell, panels, theme, motion, built-in plugins, and component gallery |
 | `aria-settings` | `~/.aria/config.toml` |
 | `aria-dialog` | Native file and message dialogs, `async` only |
 | `aria-storage` / `aria-jobs` / `aria-cloud` | Cache, jobs, catalog |
 | `aria-ai` / `aria-analysis` / `aria-transcription` | Assistant and analysis |
 | `aria-detect` | Decode-to-detector seam: analysis PCM, sampled frames |
-| `aria-cli` / `aria-mobile` / `aria-py` | Headless and bindings |
+| `aria-cli` / `aria-mobile` / `aria-py` / `aria-bench` | Headless CLI, mobile bridge, Python bindings, and benchmark suite |
 | `apps/aria-desktop` | Headed binary: mount plugins, `run_app` |
 
 ## UI boundary
@@ -111,8 +112,8 @@ the modules that state why they need one.
 only. No editor module can open a blocking dialog, because there is no blocking
 dialog in the dependency graph of `aria-ui`.
 
-A caller asks through `AppState::request_pick(ask, then)`. `Ask` names the
-dialog and `then` says what to do with the `Answer`. The request goes to
+A caller requests a path through `AppState::request_pick(ask, then)`. `Ask` specifies the
+dialog and `then` specifies the callback for the `Answer`. The request goes to
 `watch_picks`, which runs the dialog on the background executor, applies `then`
 to the session when the answer arrives, and refreshes the preview. Cancelling is
 an answer: `then` runs with no paths, so the cancel path is code that ran rather
@@ -184,10 +185,10 @@ variant is added, so a command cannot exist without appearing in the census.
 `EditCommand::reach()` and `ProjectCommand::reach()` are exhaustive and return
 one of three declarations. `Reach::Operator(surface)` states the control that
 sends it: a palette row, a menu item, a chord, an inspector block, a
-context-menu item, a timeline gesture. `Reach::Planned(missing)` says nothing
-sends it yet and names the work that blocks it, plus the ledger row that owns
-that work. `Reach::Internal(reason)` says it never gets a control, because
-another command covers the intent with more cases handled or because the caller
+context-menu item, a timeline gesture. `Reach::Planned(missing)` states that no
+control sends it yet and lists the remaining prerequisite work and ledger row.
+`Reach::Internal(reason)` states that it has no direct UI control because
+another command covers the operation or because the caller
 is the assistant, a plugin, or the CLI.
 
 Naming the surface is the point of the payload: a command cannot be declared
@@ -202,7 +203,7 @@ driven headlessly is driven, and what it produces is recorded:
 | Surface | Harness | What is measured |
 | --- | --- | --- |
 | Plain palette rows | `app/reach_tests.rs` | the history labels each row writes, and every command it dispatches |
-| Menu rows, all six menus | `app/menu_reach_tests.rs` | the same, through a headless `TestAppContext` |
+| Menu rows, all 10 menus | `app/menu_reach_tests.rs` | the same, through a headless `TestAppContext` |
 | Windowed palette rows | `app/windowed_reach_tests.rs` | a queued job, or a refusal in words |
 | Shipped chords | `app/operator_surface_tests.rs` | every command each plain chord dispatches |
 
@@ -234,7 +235,7 @@ was the largest surface in the product with no coverage at all.
 ## Plugin system
 
 See [plugins/README.md](plugins/README.md). `aria-plugin` already
-depends on compositor and render, so plugin impls that touch GPU live in
+depends on compositor and render, so plugin implementations that use the GPU are defined in
 `aria-ui/src/plugins/` rather than in those crates.
 
 Every edit goes through `aria_plugin::ProjectHost`: the editor's gestures, the
@@ -257,7 +258,7 @@ the palette, the menus, `KeyHost`, and Settings draw them.
 
 Keyboard reach is part of that. A dialog's primary action is a row in
 `app/dialog_primary.rs`, so Enter commits the sheet the same way the button does
-and a dialog that has nothing to commit says why. The palette's offer is derived
+and a dialog that has nothing to commit states why. The palette's offer is derived
 from the command registry, the menu bar and the effect catalog, so every effect
 is searchable by name without a compiled row: the catalog is data read at run
 time, which is why it cannot be one.
@@ -270,8 +271,8 @@ label, a value kind, a scope, a range, and a route to the `Param` it reads.
 
 The route is also the availability rule. A row whose owning block is missing
 resolves to `ParamRoute::Absent`, so `ParamSpec::available` needs no second
-condition to keep in step, and `sample`, `keyframes`, and `easing_at` are all
-gated on the same answer. A row that reports itself unavailable cannot return a
+condition to keep in step, and `sample`, `keyframes`, and `easing_at` all read
+that same availability check. A row that reports itself unavailable cannot return a
 value.
 
 Each property axis enum is declared by the `param_enum!` macro, which emits the
@@ -280,17 +281,13 @@ appears in the census by construction, and the conformance test that walks
 `LookParam::ALL`, `StyleParam::ALL`, `TextParam::ALL`, and `ShapeParam::ALL`
 fails until the variant has a catalog row. Direct `ClipParam` variants cannot be
 enumerated that way, since they hold data and `variant_count` is unstable, so an
-exhaustive `direct_param_id` match plus a `DIRECT` list stands in, which still
-refuses to compile when a variant is added.
+exhaustive `direct_param_id` match plus a `DIRECT` list stands in, which fails
+to compile when a variant is added.
 
 No surface keeps its own property list. `clip_params_for(clip)` returns the rows
 one clip can animate; `AppState::key_params` narrows that by lane, and
 `keyframes_of`, `value_at_playhead`, `keyframe_easing`, and the timeline strip's
-keyframe band all delegate to the row. This is not a style preference: the
-six-row table those methods used to carry, with `_ =>` fallbacks under it,
-offered 6 of the model's 58 animatable properties and the suite stayed green, and
-the strip's own hand-written union of six properties drew no mark for the other
-fifty-two.
+keyframe band all delegate to the row.
 
 An effect's parameters are rows too, built per clip rather than declared
 statically: they exist once per effect instance, addressed by
@@ -304,23 +301,20 @@ step.
 
 A row also states the block it belongs to, in `ParamSpec.group`. The panel that
 draws a block asks for its group and gets rows; it keeps no list of which
-properties it owns, and an id prefix is never parsed to guess one. The shipped
-groups are `transform`, `framing`, `audio`, `filter`, `lut`, `grade`, `mask`,
+properties it owns, and an id prefix is never parsed to guess one. The static
+groups are `transform`, `framing`, `audio`, `filter`, `lut`, `grade`,
 `chroma`, `matte`, `shadow`, `glow`, `outline`, `background`, `text`, and
-`shape`. Every instance of an effect is its own group (`effect-0`, `effect-1`),
-so two copies of the same effect on one clip are two blocks rather than one
-block with doubled rows.
+`shape`. Every mask slot and every effect instance has its own indexed group
+(`mask-0`..`mask-31`, `effect-0`, `effect-1`), so multiple masks or copies of
+an effect on one clip form separate blocks.
 
 One write path serves every row. `AppState::set_param_scalar` clamps to the
 range the row declares, then writes a keyframe under the playhead when the
 property is animated and the playhead is inside the clip, and a constant
-otherwise. The rule matters because the block commands (`SetClipMask`,
-`SetClipChroma`, `SetClipLayerStyles`, `SetClipAdjustments`) each carry a whole
-block: a panel that rebuilds the block from its projection in order to change
-one knob deletes every keyframe in it, which is what the per-block knob tables
-`MASK_KNOBS`, `CHROMA_KNOBS`, `STYLE_KNOBS`, and `ADJUSTMENTS` did; all four are
-deleted. Addressing the single property instead makes that class
-unrepresentable.
+otherwise. The block commands (`SetClipMask`, `SetClipChroma`,
+`SetClipLayerStyles`, `SetClipAdjustments`) each replace a whole block;
+addressing a single property through `set_param_scalar` preserves keyframes on
+the remaining properties in the block.
 
 `ParamRange` carries the bounds one side at a time, because the model's bounds
 are one-sided: a blur radius is non-negative with no ceiling, an opacity is
@@ -340,9 +334,8 @@ lane count and names each slider, so the uniform grows on both sides of the
 boundary in one build and no file counts vec4 components. What a row cannot
 carry is its own maths: a new slider needs its formula written in `grade.wgsl`
 and in `ColorGrade::apply`, and until it is there the slider composites as
-neutral. That is what the render census refuses, by pressing every row through a
-real frame on the layer path and the canvas pass and requiring the pixels to
-move.
+neutral. The render census checks every row through a rendered frame on the
+layer path and the canvas pass and requires the output pixels to change.
 
 ### Extension cost
 
@@ -354,7 +347,7 @@ move.
 | Animatable clip property | one `clip_param_catalog()` row, which is also its inspector row |
 | Colour adjustment slider | one `adjust_slider_rows!` row, plus its shader math |
 | Assistant tool | one `wire_tool_registry!` row, plus its group description, lowering arm and behavioral case; the row generates `WireCommand`, schema, decode, reverse name and group membership |
-| Lane kind | one `track_kind_specs()` row, which also decides what a bake of its clips renders to |
+| Lane kind | one `track_kind_specs()` row, which also selects what a bake of its clips renders to |
 | Plugin-owned animatable property | one effect parameter in the plugin's own descriptor |
 | Layer topology: matte, transition, canvas pass | `LayerSource`, `Realized`, `LayerJob`, `CompositorLayer`, one shader |
 
@@ -367,13 +360,14 @@ Everything else is a row.
 A topology is a new shape of layer tree, not a new leaf. Work the list in order;
 each step compiles on its own.
 
-1. `aria-models`: add the `LayerSource` variant and the state it reads. An
-   optional block on `Clip` keeps existing projects loadable.
+1. `aria-models`: add the clip state the topology reads. An optional block on
+   `Clip` keeps existing projects loadable.
 2. `aria-models`: route any animatable field through `clip_param_catalog()` and
-   `look_param_mut`, so keyframes and validation come for free.
-3. `aria-render` resolve: fold the source into a `Realized` layer. State what
-   happens when the input is missing and when the topology nests inside itself;
-   refuse rather than recurse.
+   `look_param_mut`, so keyframes and validation are shared.
+3. `aria-render`: add the `LayerSource` variant and `LayerSourceSpec` row in
+   `scene_layers.rs`, and fold the source into a `SceneLayer` in resolve. State
+   what happens when the input is missing and when the topology nests inside
+   itself; reject rather than recurse.
 4. `aria-render` realize: map model types to compositor types at the boundary.
    `aria-compositor` does not depend on `aria-models`.
 5. `aria-compositor`: add the `CompositorLayer` variant, the render arm, the
@@ -392,8 +386,8 @@ each step compiles on its own.
 
 Both realize dispatches match `LayerSource` without a wildcard arm, so step 4 is
 not optional: a new variant fails to compile until realize either draws it or
-refuses it in words. `LayerSource::kind()` names the eleven topologies that ship
-and is what refusal messages quote.
+rejects it with a diagnostic message. `LayerSource::kind()` returns one of the
+12 shipped topology IDs (`scene_layers::SHIPPED`) and is quoted in rejection messages.
 
 ## GPU bridge
 

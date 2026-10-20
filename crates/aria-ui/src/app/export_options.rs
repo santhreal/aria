@@ -37,7 +37,7 @@ impl ExportScale {
 
     /// The numerator and denominator of the scale, exact so a 1080p half is
     /// 960x540 rather than a float's idea of it.
-    fn ratio(self) -> (u32, u32) {
+    pub(crate) fn ratio(self) -> (u32, u32) {
         match self {
             Self::Full => (1, 1),
             Self::Threequarter => (3, 4),
@@ -85,7 +85,7 @@ impl ExportRate {
         }
     }
 
-    fn resolve(self, project: Rational) -> Rational {
+    pub(crate) fn resolve(self, project: Rational) -> Rational {
         match self {
             Self::Project => project,
             Self::Fps24 => Rational::new(24, 1),
@@ -119,7 +119,7 @@ impl ExportGop {
         }
     }
 
-    fn frames(self) -> Option<u32> {
+    pub(crate) fn frames(self) -> Option<u32> {
         match self {
             Self::Codec => None,
             Self::Frames(frames) => Some(frames),
