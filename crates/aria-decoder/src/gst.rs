@@ -87,7 +87,10 @@ pub(crate) fn ensure_init() -> Result<(), DecodeError> {
         Some(e) => Err(DecodeError::Open(format!(
             "GStreamer failed to initialize: {e}. Install gstreamer1.0 and retry."
         ))),
-        None => Ok(()),
+        None => {
+            crate::gst_context::demote_recorded_unloadable();
+            Ok(())
+        }
     }
 }
 
@@ -115,6 +118,9 @@ pub struct GstDecoder {
     pipeline: gst::Pipeline,
     sink: gst_app::AppSink,
     info: SourceInfo,
+    /// True right after `open` prerolls at stream start, before any sample is
+    /// pulled or any seek flushes the pipeline.
+    at_start: bool,
     /// Whether a frame has been returned since the last seek. Until one has,
     /// corrupt frames are skipped.
     settled: bool,
@@ -148,6 +154,7 @@ impl GstDecoder {
             pipeline: opened.pipeline,
             sink: opened.sink,
             info: opened.info,
+            at_start: true,
             // The preroll sample is not kept: appsink hands it out again as
             // the first `pull_sample` once the pipeline plays.
             settled: true,
@@ -161,6 +168,7 @@ impl GstDecoder {
     }
 
     fn pull_sample(&mut self) -> Result<Option<gst::Sample>, DecodeError> {
+        self.at_start = false;
         match self
             .sink
             .try_pull_sample(gst::ClockTime::from_nseconds(PULL_TIMEOUT.as_nanos() as u64))
@@ -196,6 +204,7 @@ impl GstDecoder {
     /// One flushing key-unit seek to the sync sample at or before `target`.
     fn seek_pipeline(&mut self, target: RationalTime) -> Result<(), DecodeError> {
         let ns = rational_to_ns(target);
+        self.at_start = false;
         self.pending = None;
         self.settled = false;
         self.last_pts = None;
@@ -234,7 +243,14 @@ impl VideoDecoder for GstDecoder {
         let mut point = target;
         let period = frame_period_ns(self.info.frame_rate);
         loop {
-            self.seek_pipeline(point)?;
+            if self.at_start && rational_to_ns(point) <= 0 {
+                self.at_start = false;
+                self.pending = None;
+                self.settled = false;
+                self.last_pts = None;
+            } else {
+                self.seek_pipeline(point)?;
+            }
             let Some(mut sample) = self.pull_sample()? else {
                 return Ok(());
             };
@@ -639,6 +655,71 @@ mod tests {
                 non_null_children.is_empty(),
                 "aborted open #{idx} dropped child elements outside Null: {non_null_children:?}"
             );
+        }
+    }
+
+    /// WHY: `GstDecoder::open` prerolls the pipeline at stream start (0 s),
+    /// leaving frame 0 ready in `appsink`. Calling `frame_at(0)` (or `seek(0)`
+    /// before pulling a frame) previously issued a `FLUSH | KEY_UNIT` seek to
+    /// 0 s, discarding the prerolled frame and re-decoding from 0 s a second
+    /// time. Initial `seek(0)` must reuse the prerolled start without flushing,
+    /// while a later `seek(0)` after advancing must flush and rewind to frame 0.
+    #[test]
+    fn initial_seek_to_zero_reuses_preroll_without_flushing_and_later_seek_rewinds() {
+        let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/fixture-640x360-30fps-3s.mp4");
+        let mut decoder = GstDecoder::open(&fixture, OutputMode::Cpu).expect("open fixture");
+        let flushes = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let flush_count = std::sync::Arc::clone(&flushes);
+        decoder
+            .sink
+            .static_pad("sink")
+            .expect("appsink sink pad")
+            .add_probe(gst::PadProbeType::EVENT_FLUSH, move |_, info| {
+                if let Some(gst::PadProbeData::Event(ev)) = &info.data
+                    && ev.type_() == gst::EventType::FlushStop
+                {
+                    flush_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                }
+                gst::PadProbeReturn::Ok
+            });
+
+        let zero = RationalTime::new(0, Rational::new(30, 1));
+        let first = decoder
+            .frame_at(zero)
+            .expect("frame_at(0)")
+            .expect("frame 0 present");
+        assert_eq!(
+            flushes.load(std::sync::atomic::Ordering::Relaxed),
+            0,
+            "initial frame_at(0) after open flushed the already-prerolled pipeline"
+        );
+        let second = decoder
+            .next_frame()
+            .expect("next_frame after frame 0")
+            .expect("frame 1 present");
+        assert!(
+            second.pts.seconds() > first.pts.seconds(),
+            "next_frame did not advance past frame 0: first={:?}, second={:?}",
+            first.pts,
+            second.pts
+        );
+
+        decoder.seek(zero).expect("rewind seek(0)");
+        assert!(
+            flushes.load(std::sync::atomic::Ordering::Relaxed) >= 1,
+            "subsequent seek(0) after advancing did not flush the pipeline to rewind"
+        );
+        let rewound = decoder
+            .next_frame()
+            .expect("frame after rewind")
+            .expect("rewound frame 0 present");
+        assert_eq!(rewound.pts, first.pts);
+        match (&first.data, &rewound.data) {
+            (FrameData::Cpu(a), FrameData::Cpu(b)) => {
+                assert_eq!(a.planes[0].data, b.planes[0].data);
+            }
+            _ => panic!("expected CPU frames"),
         }
     }
 }

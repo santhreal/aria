@@ -19,68 +19,13 @@ use crate::app::project_settings::CANVAS_BASELINES;
 use crate::surfaces::settings_pick::RATES;
 use crate::theme::{Appearance, Theme};
 
-
-fn unquote(cell: &str) -> &str {
-    cell.trim().trim_start_matches('`').trim_end_matches('`')
-}
-
-fn section<'a>(doc: &'a str, heading: &str) -> &'a str {
-    let level = heading.bytes().take_while(|&b| b == b'#').count();
-    let start = doc
-        .find(heading)
-        .unwrap_or_else(|| panic!("missing heading {heading:?}"));
-    let body = &doc[start + heading.len()..];
-    let body = body.strip_prefix('\n').unwrap_or(body);
-    let mut offset = 0usize;
-    for line in body.lines() {
-        let hashes = line.bytes().take_while(|&b| b == b'#').count();
-        if (1..=level).contains(&hashes) && line.as_bytes().get(hashes) == Some(&b' ') {
-            return &body[..offset];
-        }
-        offset += line.len() + 1;
-    }
-    body
-}
-
-fn table_rows(text: &str) -> Vec<Vec<&str>> {
-    let mut rows = Vec::new();
-    let mut in_table = false;
-    let mut past_sep = false;
-    for line in text.lines() {
-        let trimmed = line.trim();
-        if !trimmed.starts_with('|') {
-            if in_table {
-                in_table = false;
-                past_sep = false;
-            }
-            continue;
-        }
-        let cells: Vec<&str> = trimmed
-            .trim_start_matches('|')
-            .trim_end_matches('|')
-            .split('|')
-            .map(str::trim)
-            .collect();
-        if !in_table {
-            in_table = true;
-            continue;
-        }
-        if !past_sep {
-            past_sep = true;
-            continue;
-        }
-        rows.push(cells);
-    }
-    rows
-}
+use crate::test_support::doc_tables::{
+    heading_body as section, read_doc, strip_ticks as unquote, table_rows,
+};
 
 #[test]
 fn project_settings_doc_matches_registries() {
-    let doc_buf = std::fs::read_to_string(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../docs/reference/project-settings.md"),
-    )
-    .expect("read docs/reference/project-settings.md");
+    let doc_buf = read_doc("reference/project-settings.md");
     #[allow(non_snake_case)]
     let DOC = doc_buf.as_str();
     // 1. CanvasAspect::ALL, CanvasSettings::MIN_DIM / MAX_DIM, CANVAS_BASELINES.

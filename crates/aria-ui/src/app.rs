@@ -312,9 +312,13 @@ pub struct StoreChanged;
 pub struct FrameReady;
 
 /// Raised when a playback vsync moves the playhead. Each window redraws the
-/// panel bodies that draw the playhead.
+/// panel bodies that draw the playhead, and those that draw the timeline view
+/// when the move scrolled it.
 #[derive(Clone, Debug)]
-pub struct PlayheadMoved;
+pub struct PlayheadMoved {
+    /// Whether the timeline scrolled to follow the playhead.
+    pub followed: bool,
+}
 
 /// Raised when a media tile's scrub position or picture changes and nothing
 /// else on screen does. Each window redraws the panel bodies that draw tiles.

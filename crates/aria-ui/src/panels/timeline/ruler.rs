@@ -1,6 +1,6 @@
 //! The time half of the timeline header: the ruler and its markers, the work
-//! area bar under it, the render bar along the bottom, and the playhead and
-//! snap guide across all three.
+//! area bar under it, the render bar along the bottom, the playhead's head
+//! (`crate::timeline_playhead`), and the snap guide across all three.
 
 use std::cell::Cell;
 
@@ -17,10 +17,11 @@ use aria_models::{Rational, TimeDisplay};
 use crate::app::work_area::WorkAreaGrip;
 use crate::motion;
 use crate::theme::Theme;
+use crate::transport::ticks_to_px_f;
 use crate::types::UiSequence;
 
 use super::media::visible_clips_slice;
-use super::{RULER_H, RULER_TICKS_H, ruler_label_chars, ruler_scale, ticks_to_px, ticks_to_px_f};
+use super::{RULER_H, RULER_TICKS_H, ruler_label_chars, ruler_scale, ticks_to_px};
 
 /// Height of an unlabelled tick, standing on the ticks' bottom edge.
 const MINOR_TICK_H: f32 = 6.0;
@@ -29,6 +30,8 @@ const WORK_AREA_TOP: f32 = RULER_TICKS_H + 2.0;
 const WORK_AREA_H: f32 = 8.0;
 /// Width of the grip at each end of the work area bar.
 const WORK_AREA_GRIP_W: f32 = 4.0;
+/// How deep the ruler fades at an edge with content past it.
+pub(super) const RULER_FADE: f32 = Theme::SPACE_LG;
 
 thread_local! {
     /// Whether the left button went down on the ruler. Only that press
@@ -47,7 +50,7 @@ pub(super) fn snap_glow(cx: &mut gpui::Context<crate::shell::Shell>) -> f32 {
 pub(super) fn ruler(
     theme: &Theme,
     sequence: &UiSequence,
-    playhead: f32,
+    playhead: Option<f32>,
     pps: f32,
     fps: f32,
     scroll_x: f32,
@@ -62,6 +65,12 @@ pub(super) fn ruler(
     let sequence_px = ticks_to_px(sequence.duration_ticks, fps, pps);
     let fade_left = scroll_x > 0.0;
     let fade_right = sequence_px > scroll_x + viewport;
+    let mark = state.read(cx).timeline_playhead.ruler_mark(
+        playhead.map(|at| ticks_to_px_f(at, fps, pps) - scroll_x),
+        RULER_FADE,
+        (fade_left, fade_right),
+        theme.playhead,
+    );
 
     div()
         .id("ruler")
@@ -74,7 +83,7 @@ pub(super) fn ruler(
         .child(super::header::header_controls(theme, state, cx))
         .child(
             crate::edge_fade::edge_faded(
-                Theme::SPACE_LG,
+                RULER_FADE,
                 ruler_body(
                     theme,
                     RulerTime {
@@ -82,7 +91,7 @@ pub(super) fn ruler(
                         display: sequence.time_display,
                         last_tick: sequence.duration_ticks,
                     },
-                    playhead,
+                    mark,
                     pps,
                     fps,
                     scroll_x,
@@ -113,7 +122,7 @@ struct RulerTime {
 fn ruler_body(
     theme: &Theme,
     time: RulerTime,
-    playhead: f32,
+    mark: impl IntoElement,
     pps: f32,
     fps: f32,
     scroll_x: f32,
@@ -276,7 +285,7 @@ fn ruler_body(
             scroll_x,
             viewport,
         ))
-        .child(playhead_line(theme, playhead, pps, fps, scroll_x))
+        .child(mark)
         .when_some(snap_guide, |el, guide| {
             el.child(snap_guide_line(theme, guide, pps, fps, scroll_x, glow))
         })
@@ -467,33 +476,6 @@ fn ruler_ticks(
     .left_0()
     .w_full()
     .h(px(RULER_TICKS_H))
-}
-
-pub(super) fn playhead_line(
-    theme: &Theme,
-    playhead: f32,
-    pps: f32,
-    fps: f32,
-    scroll_x: f32,
-) -> impl IntoElement {
-    let x = ticks_to_px_f(playhead, fps, pps) - scroll_x;
-    div()
-        .debug_selector(|| "timeline-playhead".into())
-        .absolute()
-        .left(px(x - 5.0))
-        .top_0()
-        .bottom_0()
-        .w(px(11.))
-        .child(div().w(px(11.)).h(px(8.)).bg(theme.playhead))
-        .child(
-            div()
-                .absolute()
-                .left(px(5.))
-                .top_0()
-                .bottom_0()
-                .w(px(1.))
-                .bg(theme.playhead),
-        )
 }
 
 pub(super) fn snap_guide_line(

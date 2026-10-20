@@ -325,4 +325,46 @@ mod tests {
             .expect("audio has a tab");
         assert_eq!(audio.id, "speed");
     }
+
+    /// The Effect Controls inspector tabs table in `docs/reference/panels.md`
+    /// lists every registered tab, in strip order, with its label and the clip
+    /// kinds it applies to. Fails on a tab added, renamed, reordered, or given
+    /// other kinds without the table, and on a row for a tab nothing registers.
+    /// Not caught: the prose of the Summary column.
+    #[test]
+    fn the_panels_reference_lists_every_tab_with_its_clip_kinds() {
+        use crate::test_support::doc_tables::{
+            parse_table_rows, read_doc, section_slice, strip_ticks,
+        };
+        let doc = read_doc("reference/panels.md");
+        let expected_insp_tabs: Vec<(String, String, String)> = host_of()
+            .tabs()
+            .iter()
+            .map(|tab| {
+                let kinds: Vec<String> = UiClipKind::ALL
+                    .iter()
+                    .copied()
+                    .filter(|&k| (tab.applies)(k))
+                    .map(|k| format!("{k:?}"))
+                    .collect();
+                (tab.id.to_string(), tab.label.to_string(), kinds.join(", "))
+            })
+            .collect();
+        let documented_insp_tabs: Vec<(String, String, String)> =
+            parse_table_rows(section_slice(&doc, "Effect Controls inspector tabs"))
+                .iter()
+                .map(|cells| {
+                    assert!(cells.len() >= 3, "malformed inspector tab row: {cells:?}");
+                    (
+                        strip_ticks(cells[0]).to_string(),
+                        cells[1].to_string(),
+                        strip_ticks(cells[2]).to_string(),
+                    )
+                })
+                .collect();
+        assert_eq!(
+            documented_insp_tabs, expected_insp_tabs,
+            "docs/reference/panels.md Effect Controls inspector tabs drifted from TabHost"
+        );
+    }
 }

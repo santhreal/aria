@@ -36,6 +36,12 @@ pub fn fit_zoom(duration_ticks: i64, fps: f32, viewport_px: f32, base_pps: f32) 
     clamp_zoom(viewport_px / (seconds * base_pps))
 }
 
+/// `ticks` as px from the timeline's start, at `fps` ticks and `pps` px per
+/// second.
+pub fn ticks_to_px_f(ticks: f32, fps: f32, pps: f32) -> f32 {
+    (ticks / fps.max(1.0)) * pps
+}
+
 /// Timeline body width after chrome: window minus side panes, splits, header.
 pub fn editor_timeline_viewport_px(
     window_w: f32,

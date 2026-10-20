@@ -16,8 +16,11 @@
 //! a drag scrubs, a click opens it for typing, and a press anywhere else
 //! closes it. At rest it is plain figures; the field's border and fill fade
 //! in under the pointer, and the accent border and caret show while it holds
-//! the keys. The toggles are the header's own controls for snapping, linked
-//! selection, markers, the display settings, and the Graph Editor.
+//! the keys. At rest the figures are painted by the playhead layer
+//! (`crate::timeline_playhead`) over a box the header lays out at their size, so a
+//! playhead move repaints them without building the timeline again. The
+//! toggles are the header's own controls for snapping, linked selection,
+//! markers, the display settings, and the Graph Editor.
 
 use gpui::{
     CursorStyle, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
@@ -66,6 +69,7 @@ pub(super) fn header_controls(
     let app = state.read(cx);
     let outline = app.outline_drawn_width();
     let (tc_open, tc_text) = app.clock_field(ClockSite::Timeline);
+    let tc_layer = app.timeline_playhead.clone();
     let query = SharedString::from(app.property_query().to_owned());
     let searching = !query.is_empty();
     let search_open = app.property_search_focused();
@@ -75,7 +79,12 @@ pub(super) fn header_controls(
 
     let tc_id = motion::ControlId::from("timeline-tc");
     let lit = motion::hover_t(tc_id.motion("field"));
-    let timecode = components::text_box(tc_id, tc_text, "", tc_open, theme)
+    let field = if tc_open || !crate::timeline_playhead::layers_timecode() {
+        components::text_box(tc_id, tc_text, "", tc_open, theme)
+    } else {
+        components::field_frame(tc_id, false, theme).child(tc_layer.timecode(tc_text))
+    };
+    let timecode = field
         .debug_selector(|| "timeline-tc".into())
         .h(px(HEADER_ROW_H))
         .ml(px(-FIELD_INSET))

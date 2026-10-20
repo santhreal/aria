@@ -27,8 +27,8 @@ use crate::app::generate::GenerateKind;
 use crate::app::models::TimeoutField;
 use crate::app::plugin_install::WasmLimit;
 use crate::app::settings_form::SettingsField;
-use crate::app::{AppState, DialogKind};
 use crate::app::project_settings::CANVAS_BASELINES;
+use crate::app::{AppState, DialogKind};
 use crate::appearance::AppearanceMode;
 use crate::chrome::menu_items::items_for;
 use crate::cloud::{BYOK_PROVIDERS, CloudFeed};
@@ -45,62 +45,17 @@ use crate::settings::{
     TIMELINE_MIN_HEIGHT, UiSettings, WindowPlacement,
 };
 use crate::surfaces::settings_pick::RATES;
+use crate::test_support::doc_tables::{parse_table_rows, read_doc, section_slice, strip_ticks};
 use crate::timeline_display::{Follow, Thumbnails, TimelineDisplay, WaveformScale};
 use crate::tool_catalog::{ToolGroup, tool_specs};
 use crate::types::{
     ActivePanel, AgentEntryKind, AppMenu, HomeRail, MediaSort, OverlayMode, PenVariant, PoolView,
-    SidebarGroup, SidebarTab, UiClipKind,
+    SidebarGroup, SidebarTab,
 };
 
 const TOOLS_DOC: &str = include_str!("../../../../docs/reference/tools.md");
 const WORKSPACES_DOC: &str = include_str!("../../../../docs/reference/workspaces.md");
 const COMMANDS_DOC: &str = include_str!("../../../../docs/reference/commands.md");
-
-fn strip_ticks(cell: &str) -> &str {
-    cell.trim().trim_matches('`').trim()
-}
-
-pub(super) fn section_slice<'a>(doc: &'a str, heading: &str) -> &'a str {
-    let marker = format!("## {heading}\n");
-    let start = doc
-        .find(&marker)
-        .unwrap_or_else(|| panic!("missing section `## {heading}`"));
-    let rest = &doc[start + marker.len()..];
-    match rest.find("\n## ") {
-        Some(end) => &rest[..end],
-        None => rest,
-    }
-}
-
-fn parse_table_rows(section: &str) -> Vec<Vec<&str>> {
-    let mut rows = Vec::new();
-    for line in section.lines() {
-        let trimmed = line.trim();
-        if !trimmed.starts_with('|') {
-            continue;
-        }
-        let cells: Vec<&str> = trimmed
-            .trim_start_matches('|')
-            .trim_end_matches('|')
-            .split('|')
-            .map(str::trim)
-            .collect();
-        if cells.is_empty() {
-            continue;
-        }
-        if cells
-            .iter()
-            .all(|c| c.chars().all(|ch| ch == '-' || ch == ':' || ch == ' '))
-        {
-            continue;
-        }
-        if matches!(cells[0], "ID" | "Variant" | "Key" | "Shape" | "Shortcut") {
-            continue;
-        }
-        rows.push(cells);
-    }
-    rows
-}
 
 /// Closes the class where a timeline tool, toolbar group, or Pen vertex mode is
 /// added, renamed, or re-bound in `tool_catalog.rs` / `types_editor.rs` without
@@ -269,7 +224,8 @@ fn workspaces_doc_matches_registry() {
 
 /// Closes the class where a built-in panel, modal dialog, overlay, Project
 /// sidebar tab, or Home rail view is added or modified without updating
-/// `docs/reference/panels.md`.
+/// `docs/reference/panels.md`. The Effect Controls inspector tabs are held
+/// to the same page by `panels::inspector::tab_host`.
 /// Does not catch prose descriptions in the Summary column.
 #[test]
 fn panels_doc_matches_registry() {
@@ -309,10 +265,7 @@ fn panels_doc_matches_registry() {
         })
         .collect();
 
-    let panels_doc_buf = std::fs::read_to_string(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/reference/panels.md"),
-    )
-    .expect("read docs/reference/panels.md");
+    let panels_doc_buf = read_doc("reference/panels.md");
     #[allow(non_snake_case)]
     let PANELS_DOC = panels_doc_buf.as_str();
     let documented_panels: Vec<(String, String, String, String, String, String, String)> =
@@ -457,43 +410,6 @@ fn panels_doc_matches_registry() {
     assert_eq!(
         documented_rails, expected_rails,
         "docs/reference/panels.md Home rail items drifted from HomeRail"
-    );
-
-    let inspector_host = crate::panels::inspector::host_of();
-    let expected_insp_tabs: Vec<(String, String, String)> = inspector_host
-        .tabs()
-        .iter()
-        .map(|tab| {
-            let kinds: Vec<String> = UiClipKind::ALL
-                .iter()
-                .copied()
-                .filter(|&k| (tab.applies)(k))
-                .map(|k| format!("{k:?}"))
-                .collect();
-            (
-                tab.id.to_string(),
-                tab.label.to_string(),
-                kinds.join(", "),
-            )
-        })
-        .collect();
-    let documented_insp_tabs: Vec<(String, String, String)> = parse_table_rows(section_slice(
-        PANELS_DOC,
-        "Effect Controls inspector tabs",
-    ))
-    .iter()
-    .map(|cells| {
-        assert!(cells.len() >= 3, "malformed inspector tab row: {cells:?}");
-        (
-            strip_ticks(cells[0]).to_string(),
-            cells[1].to_string(),
-            strip_ticks(cells[2]).to_string(),
-        )
-    })
-    .collect();
-    assert_eq!(
-        documented_insp_tabs, expected_insp_tabs,
-        "docs/reference/panels.md Effect Controls inspector tabs drifted from TabHost"
     );
 
     let expected_pool_views: Vec<(
@@ -688,11 +604,7 @@ fn panels_doc_matches_registry() {
                 | AgentEntryKind::Error => {}
             }
             assert_eq!(AgentEntryKind::from_key(k.key()), Some(k));
-            (
-                format!("{k:?}"),
-                k.label().to_string(),
-                k.key().to_string(),
-            )
+            (format!("{k:?}"), k.label().to_string(), k.key().to_string())
         })
         .collect();
     let documented_agent_kinds: Vec<(String, String, String)> = parse_table_rows(section_slice(
@@ -864,10 +776,7 @@ fn commands_doc_matches_registry() {
 fn menus_doc_matches_registry() {
     let dir = crate::scratch_pool::scratch("reference-menus-doc");
     let state = AppState::new(PluginContext::new(), dir).expect("build headless AppState");
-    let menus_doc_buf = std::fs::read_to_string(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/reference/menus.md"),
-    )
-    .expect("read docs/reference/menus.md");
+    let menus_doc_buf = read_doc("reference/menus.md");
     #[allow(non_snake_case)]
     let MENUS_DOC = menus_doc_buf.as_str();
 
@@ -1099,10 +1008,7 @@ pub(super) fn shipped_palette_commands() -> BTreeMap<&'static str, &'static str>
 /// Does not catch prose wording in the Effect column.
 #[test]
 fn settings_doc_matches_registries() {
-    let settings_doc_buf = std::fs::read_to_string(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/reference/settings.md"),
-    )
-    .expect("read docs/reference/settings.md");
+    let settings_doc_buf = read_doc("reference/settings.md");
     #[allow(non_snake_case)]
     let SETTINGS_DOC = settings_doc_buf.as_str();
     let defaults = aria_settings::Settings::default();
@@ -2936,7 +2842,7 @@ fn const_all_registries_have_recorded_documentation_decisions() {
         (
             "UiClipKind",
             "docs/reference/panels.md",
-            "panels_doc_matches_registry",
+            "the_panels_reference_lists_every_tab_with_its_clip_kinds",
         ),
         (
             "MediaSort",

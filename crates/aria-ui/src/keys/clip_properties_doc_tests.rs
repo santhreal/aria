@@ -27,60 +27,9 @@ use crate::app::align::{AlignAxis, AlignEdge, AlignTo, DISTRIBUTE_MIN};
 use crate::app::canvas_overlay::{CropHandle, MaskHandle, TransformHandle};
 use crate::app::clip_frame::CROP_EDGES;
 
-
-fn unquote(cell: &str) -> &str {
-    cell.trim().trim_start_matches('`').trim_end_matches('`')
-}
-
-fn section<'a>(doc: &'a str, heading: &str) -> &'a str {
-    let level = heading.bytes().take_while(|&b| b == b'#').count();
-    let start = doc
-        .find(heading)
-        .unwrap_or_else(|| panic!("missing heading {heading:?}"));
-    let body = &doc[start + heading.len()..];
-    let body = body.strip_prefix('\n').unwrap_or(body);
-    let mut offset = 0usize;
-    for line in body.lines() {
-        let hashes = line.bytes().take_while(|&b| b == b'#').count();
-        if (1..=level).contains(&hashes) && line.as_bytes().get(hashes) == Some(&b' ') {
-            return &body[..offset];
-        }
-        offset += line.len() + 1;
-    }
-    body
-}
-
-fn table_rows(text: &str) -> Vec<Vec<&str>> {
-    let mut rows = Vec::new();
-    let mut in_table = false;
-    let mut past_sep = false;
-    for line in text.lines() {
-        let trimmed = line.trim();
-        if !trimmed.starts_with('|') {
-            if in_table {
-                in_table = false;
-                past_sep = false;
-            }
-            continue;
-        }
-        let cells: Vec<&str> = trimmed
-            .trim_start_matches('|')
-            .trim_end_matches('|')
-            .split('|')
-            .map(str::trim)
-            .collect();
-        if !in_table {
-            in_table = true;
-            continue;
-        }
-        if !past_sep {
-            past_sep = true;
-            continue;
-        }
-        rows.push(cells);
-    }
-    rows
-}
+use crate::test_support::doc_tables::{
+    heading_body as section, read_doc, strip_ticks as unquote, table_rows,
+};
 
 fn format_param_variant(p: ClipParam) -> String {
     match p {
@@ -124,11 +73,7 @@ fn format_range(r: ParamRange) -> String {
 
 #[test]
 fn clip_properties_doc_matches_registries() {
-    let doc_buf = std::fs::read_to_string(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../docs/reference/clip-properties.md"),
-    )
-    .expect("read docs/reference/clip-properties.md");
+    let doc_buf = read_doc("reference/clip-properties.md");
     #[allow(non_snake_case)]
     let DOC = doc_buf.as_str();
     // 1. ClipParam::CENSUS and ClipParamClass.
@@ -606,11 +551,7 @@ fn clip_properties_doc_matches_registries() {
     );
 
     // 8. Also check `MaskOp::ALL`, `CompositorBlendMode::ALL`, and `MaskHandle::ALL` in `docs/reference/blend-modes.md`.
-    let blend_doc = std::fs::read_to_string(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../docs/reference/blend-modes.md"),
-    )
-    .expect("read docs/reference/blend-modes.md");
+    let blend_doc = read_doc("reference/blend-modes.md");
     assert_eq!(
         CompositorBlendMode::ALL
             .iter()

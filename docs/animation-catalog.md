@@ -101,7 +101,9 @@ notifies the cached panel body (or shell chrome beacon) that drew the key, and
 `motion::glide` holds travelling `f32` geometry (the playhead, lane heights,
 clip positions, pane widths, the timeline scroll offset, the horizontal scale, a
 clip card's selection and lock, and how far the route being drawn has arrived)
-as a target each value chases.
+as a target each value chases. The shell's playhead layer reads the playhead's
+glide, so while a keyed step or a jump eases the playhead, the shell chrome
+redraws on each frame and the timeline body replays.
 
 Both stores sample one motion frame per draw. The shell, which is the window
 root, calls `motion::begin_frame` first in its render: the frame is the app's

@@ -40,6 +40,13 @@ fn segment(start_ms: u64) -> gst::Event {
     gst::event::Segment::new(&segment)
 }
 
+fn segment_with_time(start_ms: u64, time_ms: u64) -> gst::Event {
+    let mut segment = gst::FormattedSegment::<gst::ClockTime>::new();
+    segment.set_start(ms(start_ms));
+    segment.set_time(ms(time_ms));
+    gst::event::Segment::new(&segment)
+}
+
 /// A snap that has seen `qtdemux` (or not), armed for `target_ms`, with the
 /// seek's flush and segment delivered.
 fn seeked(qtdemux: bool, target_ms: u64, start_ms: u64) -> KeySnap {
@@ -160,6 +167,52 @@ fn a_skip_without_a_keyframe_ends_after_the_target() {
     );
     assert_eq!(fed, [false, false, true, true]);
     assert_eq!(snap.seek_key(), None);
+}
+
+/// WHY: an MP4 with B-frames carries an `edts` edit list that shifts buffer
+/// PTS and `segment.start` ahead of stream time (`segment.time`) by the
+/// composition offset (two frame periods, ~33 ms at 60 fps). When a seek to a
+/// keyframe at stream time `2000 ms` snaps to the preceding AAC packet at
+/// stream time `1984 ms`, `segment.start` is `2017 ms > 2000 ms`. Comparing
+/// `segment.start` directly against unshifted `target` evaluated
+/// `2017 < 2000 == false`, leaving `KeySnap` idle and decoding the entire
+/// preceding 60-frame 4K HEVC GOP on every cold seek (~540 ms on santhserver).
+#[test]
+fn a_segment_with_an_edit_list_offset_skips_to_the_video_keyframe_and_bounds_at_shifted_target() {
+    crate::gst::ensure_init().expect("GStreamer initialises");
+    let snap = KeySnap::default();
+    snap.qtdemux.store(true, Ordering::Release);
+    snap.arm(ms(2000));
+    snap.event(&gst::event::FlushStop::new(true));
+    snap.event(&segment_with_time(2017, 1984));
+    let fed = feed(
+        &snap,
+        &[
+            (1033, true),
+            (1050, false),
+            (2016, false),
+            (2033, true),
+            (2050, false),
+        ],
+    );
+    assert_eq!(fed, [false, false, false, true, true]);
+    assert_eq!(snap.first_fed(), Some(ms(2033)));
+    assert_eq!(snap.seek_key(), Some(ms(2033)));
+
+    // Without a keyframe, the skip must bound against `target + offset` (2033 ms),
+    // not unshifted `target` (2000 ms): delta buffer at 2016 ms is still before
+    // the shifted target and must be dropped.
+    let fallback = KeySnap::default();
+    fallback.qtdemux.store(true, Ordering::Release);
+    fallback.arm(ms(2000));
+    fallback.event(&gst::event::FlushStop::new(true));
+    fallback.event(&segment_with_time(2017, 1984));
+    let fed_fallback = feed(
+        &fallback,
+        &[(1033, true), (2016, false), (2050, false), (2067, false)],
+    );
+    assert_eq!(fed_fallback, [false, false, true, true]);
+    assert_eq!(fallback.seek_key(), None);
 }
 
 /// Without a seek nothing is consumed, including after an unrelated flush.
@@ -285,5 +338,61 @@ fn a_seek_between_keyframes_starts_the_decoder_at_the_keyframe_before() {
         let (shown, first_fed) = seek_and_decode(&mut decoder, target as f64 / 1000.0);
         assert_eq!(shown, key, "frame shown after a seek to {target} ms");
         assert_eq!(first_fed, Some(key));
+    }
+}
+
+/// A 4 s 60 fps H.264 MP4 with B-frames (`bframes=2`) and a 48 kHz AAC track,
+/// so `mp4mux` writes an `edts` edit list whose composition offset shifts
+/// `segment.start` ahead of `segment.time` by two frame periods (~33 ms).
+fn h264_bframe_aac_mp4(dir: &std::path::Path) -> std::path::PathBuf {
+    crate::gst::ensure_init().expect("GStreamer initialises");
+    let path = dir.join("keys-60-bframes-aac.mp4");
+    let desc = format!(
+        "videotestsrc num-buffers=240 pattern=ball ! video/x-raw,width=160,height=120,framerate=60/1 \
+         ! x264enc key-int-max=60 bframes=2 b-adapt=false speed-preset=ultrafast option-string=scenecut=0:min-keyint=60 \
+         ! h264parse ! queue ! mp4mux name=mux ! filesink location=\"{}\" \
+         audiotestsrc num-buffers=190 samplesperbuffer=1024 ! audio/x-raw,rate=48000,channels=2 \
+         ! {} ! queue ! mux.",
+        path.display(),
+        aac_encoder()
+    );
+    let pipeline = gst::parse::launch(&desc).expect("the fixture pipeline parses");
+    pipeline
+        .set_state(gst::State::Playing)
+        .expect("the fixture pipeline plays");
+    let bus = pipeline.bus().expect("a pipeline has a bus");
+    let msg = bus
+        .timed_pop_filtered(
+            gst::ClockTime::from_seconds(60),
+            &[gst::MessageType::Eos, gst::MessageType::Error],
+        )
+        .expect("the fixture finishes within 60 s");
+    pipeline
+        .set_state(gst::State::Null)
+        .expect("the fixture pipeline stops");
+    assert!(
+        matches!(msg.view(), gst::MessageView::Eos(_)),
+        "the fixture failed: {msg:?}"
+    );
+    path
+}
+
+#[test]
+fn a_seek_to_a_video_keyframe_in_a_bframe_edit_list_mp4_starts_at_that_keyframe() {
+    let dir = tempfile::tempdir().expect("a scratch directory");
+    let mp4 = h264_bframe_aac_mp4(dir.path());
+    let mut decoder = GstDecoder::open(&mp4, OutputMode::Cpu).expect("open the fixture");
+    for key in [1000, 2000, 3000] {
+        let (shown, first_fed) = seek_and_decode(&mut decoder, key as f64 / 1000.0);
+        assert_eq!(
+            shown, key,
+            "frame shown after a seek to the keyframe at {key} ms"
+        );
+        let fed_ms = first_fed.expect("a keyframe buffer reached the decoder");
+        assert!(
+            (key..=key + 100).contains(&fed_ms),
+            "the decoder started at buffer PTS {fed_ms} ms instead of the shifted keyframe at ~{} ms",
+            key + 33
+        );
     }
 }

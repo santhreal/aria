@@ -27,10 +27,10 @@ use crate::panels::keyframe_icon::{KeyInk, paint_keyframe_icon};
 use crate::shell::Shell;
 use crate::theme::Theme;
 use crate::tooltip::WithTip as _;
+use crate::transport::ticks_to_px_f;
 
 use super::header::HEADER_ROW_H;
 use super::property_rows::{paint_rect, paint_segment};
-use super::ticks_to_px_f;
 
 thread_local! {
     static GRAPH_DRAG_ACTIVE: Cell<bool> = const { Cell::new(false) };

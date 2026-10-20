@@ -9,8 +9,9 @@ use gpui::{
     TextRun, Window, point, px, quad, size,
 };
 
-use crate::panels::timeline::{ticks_to_px, ticks_to_px_f};
+use crate::panels::timeline::ticks_to_px;
 use crate::theme::Theme;
+use crate::transport::ticks_to_px_f;
 use crate::types::{UiClip, UiClipLine, UiFxBadge, UiGenerator, UiTransition};
 
 /// Height of the name strip at the top of every bar.

@@ -15,47 +15,11 @@ use aria_models::{
 use aria_plugin::{PluginContext, SettingsSchema};
 use aria_render::LayerSource;
 
-use super::reference_doc_tests::section_slice;
 use crate::layouts::WORKSPACES;
 use crate::scopes::{TARGET_LEVELS, WaveformMode};
+use crate::test_support::doc_tables::{section_slice, strip_ticks, table_rows};
 use crate::transport::ShuttleSpeed;
 use crate::types::AppMenu;
-
-fn strip_ticks(cell: &str) -> &str {
-    cell.trim().trim_matches('`').trim()
-}
-
-fn parse_table_rows(section: &str) -> Vec<Vec<&str>> {
-    let mut rows = Vec::new();
-    let mut in_table = false;
-    let mut past_sep = false;
-    for line in section.lines() {
-        let trimmed = line.trim();
-        if !trimmed.starts_with('|') {
-            if in_table {
-                in_table = false;
-                past_sep = false;
-            }
-            continue;
-        }
-        let cells: Vec<&str> = trimmed
-            .trim_start_matches('|')
-            .trim_end_matches('|')
-            .split('|')
-            .map(str::trim)
-            .collect();
-        if !in_table {
-            in_table = true;
-            continue;
-        }
-        if !past_sep {
-            past_sep = true;
-            continue;
-        }
-        rows.push(cells);
-    }
-    rows
-}
 
 /// WHY: closes the defect class where `docs/architecture.md` drifts from the
 /// workspace `Cargo.toml` crate list, built-in plugin count, `rfd` dependency
@@ -71,8 +35,8 @@ fn architecture_doc_claims_match_workspace_and_registries() {
         .unwrap_or_else(|e| panic!("failed to read {}: {e}", doc_path.display()));
 
     // 1. Bidirectional workspace crate check (`## Crates` vs root `Cargo.toml`).
-    let cargo_toml = std::fs::read_to_string(repo_root.join("Cargo.toml"))
-        .expect("read workspace Cargo.toml");
+    let cargo_toml =
+        std::fs::read_to_string(repo_root.join("Cargo.toml")).expect("read workspace Cargo.toml");
     let mut workspace_crates = BTreeSet::new();
     for line in cargo_toml.lines() {
         let trimmed = line.trim().trim_matches(',').trim_matches('"');
@@ -84,7 +48,7 @@ fn architecture_doc_claims_match_workspace_and_registries() {
     }
 
     let crates_section = section_slice(&doc, "Crates");
-    let crates_rows = parse_table_rows(crates_section);
+    let crates_rows = table_rows(crates_section);
     let mut doc_crates = BTreeSet::new();
     for row in &crates_rows {
         for part in row[0].split('/') {
@@ -147,7 +111,12 @@ fn architecture_doc_claims_match_workspace_and_registries() {
         !cap.backend.is_empty(),
         "aria_decoder::decoder_capability().backend must be non-empty"
     );
-    for backend in ["AVFoundation", "Media Foundation", "GStreamer", "MediaCodec"] {
+    for backend in [
+        "AVFoundation",
+        "Media Foundation",
+        "GStreamer",
+        "MediaCodec",
+    ] {
         assert!(
             doc.contains(backend),
             "docs/architecture.md must list decoder backend `{backend}`"
@@ -173,7 +142,9 @@ fn architecture_doc_claims_match_workspace_and_registries() {
             doc.contains(harness),
             "docs/architecture.md must list reach harness `{harness}`"
         );
-        let harness_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("src").join(harness);
+        let harness_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src")
+            .join(harness);
         assert!(
             harness_path.is_file(),
             "reach harness `{}` listed in docs/architecture.md does not exist",
@@ -430,10 +401,7 @@ fn features_doc_claims_match_catalogs_and_capabilities() {
         "command-line.md",
         "architecture.md",
     ] {
-        assert!(
-            doc.contains(rel),
-            "docs/features.md must link to `{rel}`"
-        );
+        assert!(doc.contains(rel), "docs/features.md must link to `{rel}`");
         assert!(
             docs_root.join(rel).is_file(),
             "linked file `docs/{rel}` must exist on disk"
@@ -456,12 +424,7 @@ fn install_doc_claims_match_packaging_and_manifests() {
 
     let install_sh = std::fs::read_to_string(repo_root.join("packaging/linux/install.sh"))
         .expect("read packaging/linux/install.sh");
-    for token in [
-        "./install.sh",
-        "--prefix",
-        "--uninstall",
-        "~/.local",
-    ] {
+    for token in ["./install.sh", "--prefix", "--uninstall", "~/.local"] {
         assert!(
             doc.contains(token),
             "docs/install.md must document install.sh token `{token}`"
@@ -517,8 +480,8 @@ fn install_doc_claims_match_packaging_and_manifests() {
         );
     }
 
-    let cargo_toml = std::fs::read_to_string(repo_root.join("Cargo.toml"))
-        .expect("read root Cargo.toml");
+    let cargo_toml =
+        std::fs::read_to_string(repo_root.join("Cargo.toml")).expect("read root Cargo.toml");
     assert!(
         doc.contains("cargo run -p aria-desktop") && cargo_toml.contains("apps/aria-desktop"),
         "docs/install.md `cargo run -p aria-desktop` must match workspace member `apps/aria-desktop`"
@@ -572,98 +535,98 @@ fn mcp_design_doc_claims_match_aria_ai() {
 #[test]
 fn worked_example_doc_manifest_mounts_deferred_contributions() {
     crate::test_support::catalogs::own_process(|| {
-    let doc_path =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/plugins/worked-example.md");
-    let doc = std::fs::read_to_string(&doc_path)
-        .unwrap_or_else(|e| panic!("failed to read {}: {e}", doc_path.display()));
+        let doc_path =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/plugins/worked-example.md");
+        let doc = std::fs::read_to_string(&doc_path)
+            .unwrap_or_else(|e| panic!("failed to read {}: {e}", doc_path.display()));
 
-    let mut toml_blocks = Vec::new();
-    let mut wgsl_blocks = Vec::new();
-    let mut in_toml = false;
-    let mut in_wgsl = false;
-    let mut buf = String::new();
-    for line in doc.lines() {
-        if let Some(tag) = line.strip_prefix("```") {
-            if in_toml {
-                toml_blocks.push(std::mem::take(&mut buf));
-                in_toml = false;
-            } else if in_wgsl {
-                wgsl_blocks.push(std::mem::take(&mut buf));
-                in_wgsl = false;
-            } else {
-                match tag.trim() {
-                    "toml" => in_toml = true,
-                    "wgsl" => in_wgsl = true,
-                    _ => {}
+        let mut toml_blocks = Vec::new();
+        let mut wgsl_blocks = Vec::new();
+        let mut in_toml = false;
+        let mut in_wgsl = false;
+        let mut buf = String::new();
+        for line in doc.lines() {
+            if let Some(tag) = line.strip_prefix("```") {
+                if in_toml {
+                    toml_blocks.push(std::mem::take(&mut buf));
+                    in_toml = false;
+                } else if in_wgsl {
+                    wgsl_blocks.push(std::mem::take(&mut buf));
+                    in_wgsl = false;
+                } else {
+                    match tag.trim() {
+                        "toml" => in_toml = true,
+                        "wgsl" => in_wgsl = true,
+                        _ => {}
+                    }
+                    buf.clear();
                 }
-                buf.clear();
+            } else if in_toml || in_wgsl {
+                buf.push_str(line);
+                buf.push('\n');
             }
-        } else if in_toml || in_wgsl {
-            buf.push_str(line);
-            buf.push('\n');
         }
-    }
-    assert_eq!(
-        toml_blocks.len(),
-        2,
-        "expected 2 toml blocks in worked-example.md"
-    );
-    assert_eq!(
-        wgsl_blocks.len(),
-        1,
-        "expected 1 wgsl block in worked-example.md"
-    );
+        assert_eq!(
+            toml_blocks.len(),
+            2,
+            "expected 2 toml blocks in worked-example.md"
+        );
+        assert_eq!(
+            wgsl_blocks.len(),
+            1,
+            "expected 1 wgsl block in worked-example.md"
+        );
 
-    let scratch_root = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../.internal/agents/DocsEnum/scratch-worked-example");
-    let _ = std::fs::remove_dir_all(&scratch_root);
-    let pkg_dir = scratch_root.join("com.example.color-tools");
-    std::fs::create_dir_all(pkg_dir.join("shaders")).expect("mkdir shaders");
-    std::fs::write(pkg_dir.join("plugin.toml"), &toml_blocks[1]).expect("write plugin.toml");
-    std::fs::write(pkg_dir.join("plugin.wasm"), b"\0asm\x01\0\0\0").expect("write plugin.wasm");
-    std::fs::write(pkg_dir.join("shaders/color-tools.wgsl"), &wgsl_blocks[0])
-        .expect("write shader");
+        let scratch_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../.internal/agents/DocsEnum/scratch-worked-example");
+        let _ = std::fs::remove_dir_all(&scratch_root);
+        let pkg_dir = scratch_root.join("com.example.color-tools");
+        std::fs::create_dir_all(pkg_dir.join("shaders")).expect("mkdir shaders");
+        std::fs::write(pkg_dir.join("plugin.toml"), &toml_blocks[1]).expect("write plugin.toml");
+        std::fs::write(pkg_dir.join("plugin.wasm"), b"\0asm\x01\0\0\0").expect("write plugin.wasm");
+        std::fs::write(pkg_dir.join("shaders/color-tools.wgsl"), &wgsl_blocks[0])
+            .expect("write shader");
 
-    let pkg = aria_plugin::package::Package::open(&pkg_dir)
-        .expect("Package::open on worked-example.md manifest and shader");
-    let ctx = PluginContext::new();
-    let schema = Arc::new(SettingsSchema::default());
-    let _held_schema = ctx.register_arc(Arc::clone(&schema));
-    ctx.defer_package(&pkg, |_pkg| {
-        Err("worked-example deferred activation loader not invoked in declaration check".into())
-    })
-    .expect("defer_package must register declarations from worked-example.md");
+        let pkg = aria_plugin::package::Package::open(&pkg_dir)
+            .expect("Package::open on worked-example.md manifest and shader");
+        let ctx = PluginContext::new();
+        let schema = Arc::new(SettingsSchema::default());
+        let _held_schema = ctx.register_arc(Arc::clone(&schema));
+        ctx.defer_package(&pkg, |_pkg| {
+            Err("worked-example deferred activation loader not invoked in declaration check".into())
+        })
+        .expect("defer_package must register declarations from worked-example.md");
 
-    assert!(
-        ctx.commands()
-            .iter()
-            .any(|c| c.id == "com.example.color-tools.run" && c.title == "Run Color Tools"),
-        "deferred command `com.example.color-tools.run` must be registered"
-    );
-    assert_eq!(
-        ctx.menu_entries().len(),
-        2,
-        "Sequence and Clip menu entries must be registered from worked-example.md"
-    );
-    assert_eq!(
-        ctx.key_defaults().len(),
-        2,
-        "Ctrl+Alt+L and Ctrl+Shift+L key defaults must be registered from worked-example.md"
-    );
-    let section = schema
-        .section_of("com.example.color-tools")
-        .expect("settings section for com.example.color-tools");
-    assert_eq!(section.fields.len(), 1);
-    assert_eq!(
-        section.fields[0].key,
-        "com.example.color-tools.default_gain"
-    );
-    assert!(
-        ctx.waiting_panels()
-            .iter()
-            .any(|p| p.spec.id == "com.example.color-tools.panel"),
-        "waiting sidebar panel `com.example.color-tools.panel` must be registered"
-    );
+        assert!(
+            ctx.commands()
+                .iter()
+                .any(|c| c.id == "com.example.color-tools.run" && c.title == "Run Color Tools"),
+            "deferred command `com.example.color-tools.run` must be registered"
+        );
+        assert_eq!(
+            ctx.menu_entries().len(),
+            2,
+            "Sequence and Clip menu entries must be registered from worked-example.md"
+        );
+        assert_eq!(
+            ctx.key_defaults().len(),
+            2,
+            "Ctrl+Alt+L and Ctrl+Shift+L key defaults must be registered from worked-example.md"
+        );
+        let section = schema
+            .section_of("com.example.color-tools")
+            .expect("settings section for com.example.color-tools");
+        assert_eq!(section.fields.len(), 1);
+        assert_eq!(
+            section.fields[0].key,
+            "com.example.color-tools.default_gain"
+        );
+        assert!(
+            ctx.waiting_panels()
+                .iter()
+                .any(|p| p.spec.id == "com.example.color-tools.panel"),
+            "waiting sidebar panel `com.example.color-tools.panel` must be registered"
+        );
         let _ = std::fs::remove_dir_all(&scratch_root);
     });
 }

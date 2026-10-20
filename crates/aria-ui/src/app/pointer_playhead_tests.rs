@@ -18,12 +18,10 @@ use crate::app::viewer_row_tests::{change, shell_with_take};
 use crate::interned::intern;
 
 /// Where the timeline draws its playhead line, in window pixels.
-fn drawn(visual: &mut VisualTestContext) -> f32 {
-    let head = visual
-        .debug_bounds(intern("timeline-playhead"))
-        .expect("the timeline draws its playhead");
-    // The line stands 5 px into the 11 px head.
-    f32::from(head.left()) + 5.0
+fn drawn() -> f32 {
+    let (_, line) =
+        crate::timeline_playhead::painted_mark().expect("the timeline draws its playhead");
+    f32::from(line.left())
 }
 
 /// Moves the clock past every glide and draws again.
@@ -74,9 +72,9 @@ fn a_ruler_press_and_drag_draw_the_playhead_under_the_pointer_and_a_keyed_step_e
         let tick = at(visual);
         assert_ne!(tick, last, "the {gesture} moved the playhead");
         last = tick;
-        let landed = drawn(visual);
+        let landed = drawn();
         settle(visual);
-        let target = drawn(visual);
+        let target = drawn();
         assert!(
             (landed - target).abs() < 0.5,
             "on the {gesture} the line drew at {landed} px and settled at {target} px: it \
@@ -96,22 +94,22 @@ fn a_ruler_press_and_drag_draw_the_playhead_under_the_pointer_and_a_keyed_step_e
     visual.simulate_mouse_move(past, MouseButton::Left, Modifiers::none());
     visual.run_until_parked();
     assert_eq!(at(visual), duration, "a drag past the end left the end");
-    let landed = drawn(visual);
+    let landed = drawn();
     settle(visual);
     let held = f32::from(ruler.left()) + end;
     assert!(
-        (landed - held).abs() < 0.5 && (drawn(visual) - held).abs() < 0.5,
+        (landed - held).abs() < 0.5 && (drawn() - held).abs() < 0.5,
         "a drag past the end drew the line at {landed} px, not at the end's {held} px"
     );
     visual.simulate_mouse_up(past, MouseButton::Left, Modifiers::none());
     visual.run_until_parked();
 
     // A keyed step eases: the frame it lands on still draws where it was.
-    let before = drawn(visual);
+    let before = drawn();
     change(visual, &state, |state| state.set_playhead(start));
-    let landed = drawn(visual);
+    let landed = drawn();
     settle(visual);
-    let target = drawn(visual);
+    let target = drawn();
     assert!(
         (landed - target).abs() > 1.0,
         "the keyed step drew at its target on its first frame ({landed} px from {before} px): \

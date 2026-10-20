@@ -10,13 +10,22 @@
 //! reach `READY` gets no caps and is not marked, so `decodebin` can still plug
 //! the next one.
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use gstreamer as gst;
 use gstreamer::prelude::*;
 
-const DMABUF_MEMORY: &str = "memory:DMABuf";
+pub(crate) const DMABUF_MEMORY: &str = "memory:DMABuf";
+
+/// Cached result of [`registry_has_dmabuf_video_decoder`]: `0` = uncomputed,
+/// `1` = false, `2` = true. Reset by [`invalidate_dmabuf_decoder_cache`] when
+/// [`crate::gst_unloadable::demote`] takes a plugin out of autoplugging.
+static HAS_DMABUF_DECODER: AtomicU8 = AtomicU8::new(0);
+
+pub(crate) fn invalidate_dmabuf_decoder_cache() {
+    HAS_DMABUF_DECODER.store(0, Ordering::Release);
+}
 
 /// What `uridecodebin` plugged into one DMABuf attempt.
 #[derive(Default)]
@@ -44,9 +53,13 @@ impl DmabufWatch {
     }
 }
 
-/// Record each video decoder `bin` plugs into `watch`, and starve each one that
-/// cannot output DMABuf.
-pub(crate) fn watch_video_decoders(bin: &gst::Bin, watch: &Arc<DmabufWatch>) {
+/// Record each video decoder `bin` plugs into `watch`, and when
+/// `starve_non_dmabuf` holds, starve each one that cannot output DMABuf.
+pub(crate) fn watch_video_decoders(
+    bin: &gst::Bin,
+    watch: &Arc<DmabufWatch>,
+    starve_non_dmabuf: bool,
+) {
     let watch = Arc::clone(watch);
     bin.connect_deep_element_added(move |_, _, element| {
         let Some(factory) = element.factory() else {
@@ -58,7 +71,7 @@ pub(crate) fn watch_video_decoders(bin: &gst::Bin, watch: &Arc<DmabufWatch>) {
         if !(klass.contains("Decoder") && klass.contains("Video")) {
             return;
         }
-        if !offers_dmabuf(&src_caps(&factory)) {
+        if starve_non_dmabuf && !offers_dmabuf(&src_caps(&factory)) {
             starve(element, &watch);
         }
         watch
@@ -67,6 +80,42 @@ pub(crate) fn watch_video_decoders(bin: &gst::Bin, watch: &Arc<DmabufWatch>) {
             .unwrap_or_else(PoisonError::into_inner)
             .push(factory);
     });
+}
+
+/// Whether `factory` is a ranked video decoder whose static source pad
+/// templates explicitly advertise `memory:DMABuf`.
+///
+/// Wrapper bins with `ANY` static source caps (such as `vp8alphadecodebin`) do
+/// not count: when a host has a DMABuf-capable video decoder, that decoder's
+/// own factory is registered and lists `memory:DMABuf`.
+pub(crate) fn factory_advertises_dmabuf(factory: &gst::ElementFactory) -> bool {
+    let klass = factory
+        .metadata(gst::ELEMENT_METADATA_KLASS)
+        .unwrap_or_default();
+    klass.contains("Decoder")
+        && klass.contains("Video")
+        && factory.rank() != gst::Rank::NONE
+        && memory_kinds(&src_caps(factory))
+            .iter()
+            .any(|kind| kind == DMABUF_MEMORY)
+}
+
+/// Whether any ranked video decoder in the GStreamer registry advertises
+/// `memory:DMABuf` output on its static source pad templates.
+pub(crate) fn registry_has_dmabuf_video_decoder() -> bool {
+    crate::gst_context::demote_recorded_unloadable();
+    match HAS_DMABUF_DECODER.load(Ordering::Acquire) {
+        1 => return false,
+        2 => return true,
+        _ => {}
+    }
+    let has = gst::Registry::get()
+        .features(gst::ElementFactory::static_type())
+        .into_iter()
+        .filter_map(|feature| feature.downcast::<gst::ElementFactory>().ok())
+        .any(|factory| factory_advertises_dmabuf(&factory));
+    HAS_DMABUF_DECODER.store(if has { 2 } else { 1 }, Ordering::Release);
+    has
 }
 
 /// Consume the caps event and every buffer before `decoder`'s sink pad, and

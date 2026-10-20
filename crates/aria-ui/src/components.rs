@@ -254,6 +254,27 @@ pub fn text_box(
 ) -> Stateful<Div> {
     let value = value.into();
     let empty = value.is_empty();
+    field_frame(id, focused, theme)
+        .text_color(if empty { theme.text_muted } else { theme.text })
+        // A field narrower than its text ends it in an ellipsis inside the
+        // border rather than drawing past it.
+        .child(div().min_w_0().truncate().child(if empty && !focused {
+            placeholder.into()
+        } else if focused {
+            SharedString::from(format!("{value}|"))
+        } else {
+            value
+        }))
+}
+
+/// The frame of a [`text_box`]: its border, fill, padding and hover fade,
+/// with no text. A field whose text is painted elsewhere, such as the
+/// timeline timecode at rest, is this frame around a box of the text's size.
+pub fn field_frame(
+    id: impl Into<motion::ControlId>,
+    focused: bool,
+    theme: &Theme,
+) -> Stateful<Div> {
     let id = id.into();
     let key = id.motion("field");
     let lit = motion::hover_t(key);
@@ -281,17 +302,7 @@ pub fn text_box(
         .border_color(border)
         .cursor(CursorStyle::IBeam)
         .text_size(Theme::TEXT_UI)
-        .text_color(if empty { theme.text_muted } else { theme.text })
         .on_hover(motion::hover_listener(key))
-        // A field narrower than its text ends it in an ellipsis inside the
-        // border rather than drawing past it.
-        .child(div().min_w_0().truncate().child(if empty && !focused {
-            placeholder.into()
-        } else if focused {
-            SharedString::from(format!("{value}|"))
-        } else {
-            value
-        }))
 }
 
 /// How an icon control identifies itself: the element id it takes this frame,

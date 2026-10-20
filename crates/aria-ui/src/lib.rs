@@ -51,6 +51,7 @@ pub mod surfaces;
 pub mod theme;
 pub mod timecode;
 pub mod timeline_display;
+pub(crate) mod timeline_playhead;
 pub mod tool_catalog;
 pub mod tooltip;
 pub mod transport;

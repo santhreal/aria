@@ -209,7 +209,12 @@ impl Shell {
             this.redraw(Moved::Frame, cx)
         })
         .detach();
-        cx.subscribe(state, |this, _, _: &crate::app::PlayheadMoved, cx| {
+        cx.subscribe(state, |this, _, moved: &crate::app::PlayheadMoved, cx| {
+            // A playhead that ran past the view scrolled it, and the timeline
+            // body draws the scroll.
+            if moved.followed {
+                this.redraw(Moved::View, cx);
+            }
             this.redraw(Moved::Playhead, cx)
         })
         .detach();

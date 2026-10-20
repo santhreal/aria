@@ -37,9 +37,10 @@ use std::path::{Path, PathBuf};
 use super::controls_doc_tests::shipped_control_ids;
 use super::doc_tests::shipped_binding_chords;
 use super::reference_doc_tests::{
-    check_markdown_links_in_files, collect_md_files, extract_markdown_links, section_slice,
-    shipped_menu_paths, shipped_palette_commands, strip_inline_code,
+    check_markdown_links_in_files, collect_md_files, extract_markdown_links, shipped_menu_paths,
+    shipped_palette_commands, strip_inline_code,
 };
+use crate::test_support::doc_tables::section_slice;
 
 fn collapse_ws(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")

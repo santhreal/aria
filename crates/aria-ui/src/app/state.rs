@@ -268,6 +268,9 @@ pub struct AppState {
     /// `None` before the panel has been drawn once, which is before any pointer
     /// can be over it.
     pub timeline_frame: Option<[f32; 4]>,
+    /// Where the last build of the timeline body put the playhead's head, its
+    /// lines and its timecode, which the shell paints from on every frame.
+    pub(crate) timeline_playhead: crate::timeline_playhead::Layer,
     /// Last painted window bounds `[x, y, w, h]` of each docked frame.
     pub(crate) dock_frame_rects: std::sync::Arc<
         parking_lot::Mutex<std::collections::HashMap<crate::dock::FrameId, [f32; 4]>>,
