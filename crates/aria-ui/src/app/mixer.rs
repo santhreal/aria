@@ -72,6 +72,7 @@ pub struct FaderDrag {
 }
 
 /// One send, as the mixer draws it.
+#[derive(Debug, Clone, PartialEq)]
 pub struct MixerSend {
     pub index: usize,
     pub to: u64,
@@ -83,6 +84,7 @@ pub struct MixerSend {
 }
 
 /// One channel strip.
+#[derive(Debug, Clone, PartialEq)]
 pub struct MixerStrip {
     pub track: u64,
     pub name: String,
@@ -114,6 +116,7 @@ pub struct MixerStrip {
 }
 
 /// Where a send on this strip could go, and what a click on it does.
+#[derive(Debug, Clone, PartialEq)]
 pub struct SendTarget {
     pub to: u64,
     pub name: String,
@@ -123,6 +126,7 @@ pub struct SendTarget {
 }
 
 /// Where a strip's output could point.
+#[derive(Debug, Clone, PartialEq)]
 pub struct OutputTarget {
     /// `None` is the master.
     pub to: Option<u64>,
@@ -140,6 +144,7 @@ pub struct OutputTarget {
 /// panel takes no lock and a drawn strip cannot disagree with the timeline
 /// beside it. `Err` when the routing has a cycle: a hand-edited file can hold
 /// one, and the mixer says so rather than guessing a fold order.
+#[derive(Debug, Clone, PartialEq)]
 pub struct MixerFacts {
     /// Behind an `Arc` so a panel can take the whole mix for the length of a
     /// frame with one refcount bump, rather than copying every strip's strings
@@ -150,7 +155,7 @@ pub struct MixerFacts {
 }
 
 /// The master strip's inserts.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MasterChain {
     pub gain: f32,
     pub pan: f32,
@@ -177,9 +182,112 @@ impl Default for MasterChain {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+struct StripBasis {
+    id: TrackId,
+    kind: aria_models::TrackKind,
+    name: String,
+    muted: bool,
+    solo: bool,
+    gain: u32,
+    pan: u32,
+    automation: AutomationMode,
+    volume_envelope: Param<f32>,
+    pan_envelope: Param<f32>,
+    output: TrackOutput,
+    sends: Vec<AudioSend>,
+    audio_effects: Vec<aria_models::AudioEffectInstance>,
+}
+
+impl StripBasis {
+    fn of(track: &aria_models::Track) -> Self {
+        Self {
+            id: track.id,
+            kind: track.kind,
+            name: track.name.clone(),
+            muted: track.muted,
+            solo: track.solo,
+            gain: track.gain.to_bits(),
+            pan: track.pan.to_bits(),
+            automation: track.automation,
+            volume_envelope: track.volume_envelope.clone(),
+            pan_envelope: track.pan_envelope.clone(),
+            output: track.output,
+            sends: track.sends.clone(),
+            audio_effects: track.audio_effects.clone(),
+        }
+    }
+
+    fn matches(&self, track: &aria_models::Track) -> bool {
+        self.id == track.id
+            && self.kind == track.kind
+            && self.name == track.name
+            && self.muted == track.muted
+            && self.solo == track.solo
+            && self.gain == track.gain.to_bits()
+            && self.pan == track.pan.to_bits()
+            && self.automation == track.automation
+            && self.volume_envelope == track.volume_envelope
+            && self.pan_envelope == track.pan_envelope
+            && self.output == track.output
+            && self.sends == track.sends
+            && self.audio_effects == track.audio_effects
+    }
+}
+
+/// Sequence and audio effect catalog state covered by [`MixerFacts`].
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct MixerBasis {
+    catalog_revision: u64,
+    master_gain: u32,
+    master_pan: u32,
+    master_muted: bool,
+    master_automation: AutomationMode,
+    master_volume_envelope: Param<f32>,
+    master_pan_envelope: Param<f32>,
+    master_audio_effects: Vec<aria_models::AudioEffectInstance>,
+    tracks: Vec<StripBasis>,
+}
+
+impl MixerBasis {
+    pub(crate) fn of(timeline: &aria_models::Timeline) -> Self {
+        Self {
+            catalog_revision: aria_models::audio_effect_catalog().revision(),
+            master_gain: timeline.master_gain().to_bits(),
+            master_pan: timeline.master_pan().to_bits(),
+            master_muted: timeline.master_muted(),
+            master_automation: timeline.master_automation(),
+            master_volume_envelope: timeline.master_volume_envelope().clone(),
+            master_pan_envelope: timeline.master_pan_envelope().clone(),
+            master_audio_effects: timeline.master_audio_effects().to_vec(),
+            tracks: timeline.tracks_ordered().map(StripBasis::of).collect(),
+        }
+    }
+
+    pub(crate) fn matches(&self, timeline: &aria_models::Timeline) -> bool {
+        self.catalog_revision == aria_models::audio_effect_catalog().revision()
+            && self.master_gain == timeline.master_gain().to_bits()
+            && self.master_pan == timeline.master_pan().to_bits()
+            && self.master_muted == timeline.master_muted()
+            && self.master_automation == timeline.master_automation()
+            && self.master_volume_envelope == *timeline.master_volume_envelope()
+            && self.master_pan_envelope == *timeline.master_pan_envelope()
+            && self.master_audio_effects.as_slice() == timeline.master_audio_effects()
+            && self.tracks.len() == timeline.track_count()
+            && self
+                .tracks
+                .iter()
+                .zip(timeline.tracks_ordered())
+                .all(|(basis, track)| basis.matches(track))
+    }
+}
+
 impl MixerFacts {
     pub fn of(engine: &aria_engine::Engine) -> Self {
-        let timeline = engine.project().timeline();
+        Self::of_timeline(engine.project().timeline())
+    }
+
+    pub(crate) fn of_timeline(timeline: &aria_models::Timeline) -> Self {
         let master = std::sync::Arc::new(MasterChain {
             gain: timeline.master_gain(),
             pan: timeline.master_pan(),

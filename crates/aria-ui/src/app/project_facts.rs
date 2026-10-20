@@ -103,7 +103,10 @@ impl ProjectFacts {
                 .into(),
             history_depth: engine.history_depth(),
             marker_count,
-            mixer: crate::app::mixer::MixerFacts::of(engine),
+            mixer: match basis {
+                Some(basis) => basis.mixer(),
+                None => crate::app::mixer::MixerFacts::of(engine),
+            },
         }
     }
 }
