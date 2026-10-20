@@ -9,7 +9,8 @@ appears twice, the document listed here for that concern is the one to edit.
 | --- | --- |
 | [install.md](install.md) | Per-platform install, codec support, build from source |
 | [features.md](features.md) | What the editor does, and what it does not |
-| [getting-started.md](getting-started.md) | Every surface, in the order a new project reaches it |
+| [getting-started.md](getting-started.md) | First steps: launch, create a project, import, place a clip, play, and export |
+| [guide/README.md](guide/README.md) | User guide: one chapter per surface and workflow, with worked examples |
 | [keyboard-shortcuts.md](keyboard-shortcuts.md) | Every registered chord |
 | [command-line.md](command-line.md) | The headless CLI |
 | [catalogs.md](catalogs.md) | Effect, transition, filter, and animation data files |
