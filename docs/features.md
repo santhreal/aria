@@ -263,6 +263,7 @@ Named because their absence is a question a Premiere or Resolve user will ask.
 ## Related documents
 
 - [getting-started.md](getting-started.md) walks the editor surface by surface.
+- [reference/README.md](reference/README.md) documents every catalog entry, tool, workspace, panel, menu, command, and setting.
 - [keyboard-shortcuts.md](keyboard-shortcuts.md) lists every binding.
 - [command-line.md](command-line.md) covers the headless CLI.
 - [architecture.md](architecture.md) covers the crates and the UI boundary.

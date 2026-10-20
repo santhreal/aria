@@ -197,15 +197,7 @@ transparent solid the size of the frame, named after the generator, with the
 generator first in its effect chain. The Effects tab of Effect Controls edits and
 keyframes its parameters, and effects added below it process its picture.
 
-| Generator | Draws |
-|---|---|
-| Color Matte | One colour over the frame |
-| Linear Gradient | A ramp between two colours from a start point to an end point |
-| Radial Gradient | A ramp from an inner colour at the centre to an outer colour at the radius |
-| Checkerboard | Square cells of two colours, anchored at a point |
-| Grid | Lines of one colour at an even spacing, anchored at a point |
-| Fractal Noise | Value noise between a dark and a light colour; keyframe Evolution to animate it |
-| Color Bars | SMPTE bars: seven bars at the bar level, the reversed blue row, and a strip of -I, white, +Q, black, and a pluge step |
+See [Generators](reference/generators.md) for each generator and its parameters.
 
 Points and anchors are fractions of the frame from its top-left corner. The
 radius and the noise offset are fractions of the frame height. Cell size,
@@ -1541,14 +1533,8 @@ repeat to restore the split tree. **Add Panel** in the frame menu adds a panel
 the frame does not hold as a new tab.
 
 A workspace is a named arrangement of frames, tabs, and pane sizes. Five ship:
-
-| Workspace | What it arranges |
-| --- | --- |
-| Editing | The default, six panels. Upper row: `Project \| Effect Controls` (320 px) on the left, `Viewer` in the centre, `Effects & Presets` (300 px) on the right. Lower row: `Timeline` and `Audio Meters` (64 px). Audio Track Mixer and Assistant open from **Window** beside the Viewer; Info and Character open beside Effects & Presets. |
-| Animation | `Effect Controls \| Project` on the left, `Viewer \| Audio Track Mixer \| Assistant` in the centre, `Info \| Effects & Presets \| Align` on the right with Effects & Presets in front, and `Timeline` at 50% height with the graph editor open. |
-| Color | `Viewer \| Audio Track Mixer \| Assistant` at 38% width, `Scopes \| Project` at 32%, `Color \| Effect Controls \| Effects & Presets` at 30%, and `Timeline` at 35% height below. |
-| Audio | `Viewer \| Project` at 22% width, `Audio Track Mixer \| Assistant` at 50%, `Audio Meters \| Effects & Presets \| Effect Controls` at 28% with Effects & Presets filtered to Audio Effects, and `Timeline` at 35% height below. In a window of 1440 x 900 or larger, the mixer strips of a new project show without scrolling. |
-| Effects | `Effects & Presets \| Project` at 32% width, `Viewer \| Audio Track Mixer \| Assistant` at 36%, `Effect Controls \| Info` at 32%, and `Timeline` at 40% height below. |
+Editing, Animation, Color, Audio, and Effects; see
+[Workspaces](reference/workspaces.md) for their frame trees and dimensions.
 
 Pick one from **Window**, from Settings > Workspaces, by Shift+Alt+1 through
 Shift+Alt+9, or from the command palette by name. Edits made to a workspace's
@@ -1981,9 +1967,9 @@ a selected clip spans the playhead, or on the sequence ruler otherwise. Pressing
 Marker…**, opens the Edit Marker dialog to set its name, comment, colour
 swatch, duration timecode, and kind (`Comment`, `Chapter`, or `Segmentation`) as
 one undo step. Negative durations and durations that run past the sequence end
-or the clip's source range are rejected with a reason. `Shift+M` removes the
-marker at the playhead, and `Ctrl+Shift+M` / `Ctrl+Shift+Alt+M` step to the
-previous marker or clear all sequence markers.
+or the clip's source range are rejected with a reason. `Shift+M` and
+`Ctrl+Shift+M` step to the next and previous marker, `Ctrl+Alt+M` removes the
+marker at the playhead, and `Ctrl+Shift+Alt+M` clears all sequence markers.
 
 The **Markers** panel (Window > Markers) lists sequence and clip markers in time order with
 colour filter chips (`All` plus the eight palette colours). Each row shows the
@@ -2207,7 +2193,7 @@ the containing folder in the file manager.
 
 ## Assistant
 
-Press A to open the assistant panel. Click the prompt box, type an instruction,
+Press `Shift+0` (or choose **Window > Assistant**) to open the assistant panel. Click the prompt box, type an instruction,
 and press Enter or click **Send**. The label above the box names the provider and
 model the prompt goes to.
 
@@ -2317,4 +2303,4 @@ starting a new one, starts a new conversation.
 - Screenshots are not stored. The assistant already drops them from history
   before each request, so keeping them would store bytes no prompt can use.
 
-See [keyboard-shortcuts.md](keyboard-shortcuts.md) for the full list.
+See [keyboard-shortcuts.md](keyboard-shortcuts.md) for the full shortcut list and [reference/README.md](reference/README.md) for the reference manual.

@@ -32,6 +32,8 @@ mod plugin_keys;
 
 #[cfg(test)]
 mod doc_tests;
+#[cfg(test)]
+mod reference_doc_tests;
 
 /// What the shell does after the action ran.
 ///
