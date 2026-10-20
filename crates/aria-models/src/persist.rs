@@ -30,11 +30,9 @@ impl Project {
     /// from a v1 file may now hold v2-only data like keyframes; persisting
     /// it as "v1" would lie to older readers.)
     pub fn save_to_file(&self, path: &Path) -> io::Result<()> {
-        let json = self.serialize_current().map_err(io::Error::other)?;
-
-        // Keep serialization entirely ahead of filesystem inspection so a
-        // serialization failure cannot disturb an existing project.
-        persist_serialized(path, &json, &StdPersistenceFs)
+        let mut stale = None;
+        let doc = self.stamped_for_save(&mut stale);
+        persist_streaming(path, doc, &StdPersistenceFs)
     }
 
     /// The saved document: pretty JSON with a trailing newline, stamped with
@@ -45,8 +43,15 @@ impl Project {
     /// older one is copied to be restamped, since the copy of a large timeline
     /// costs as much as writing it.
     fn serialize_current(&self) -> serde_json::Result<Vec<u8>> {
-        let stale;
-        let doc = if self.schema.version == PROJECT_SCHEMA_VERSION
+        let mut stale = None;
+        let doc = self.stamped_for_save(&mut stale);
+        let mut json = pretty::to_vec(doc)?;
+        json.push(b'\n');
+        Ok(json)
+    }
+
+    fn stamped_for_save<'a>(&'a self, stale: &'a mut Option<Project>) -> &'a Project {
+        if self.schema.version == PROJECT_SCHEMA_VERSION
             && self.schema.kind == crate::schema::PROJECT_SCHEMA_KIND
         {
             self
@@ -54,12 +59,8 @@ impl Project {
             let mut copy = self.clone();
             copy.schema.version = PROJECT_SCHEMA_VERSION;
             copy.schema.kind = crate::schema::PROJECT_SCHEMA_KIND.into();
-            stale = copy;
-            &stale
-        };
-        let mut json = pretty::to_vec(doc)?;
-        json.push(b'\n');
-        Ok(json)
+            stale.insert(copy)
+        }
     }
 
     /// Deserialize a project from a `.aria` JSON file.
@@ -175,6 +176,100 @@ impl PersistenceFs for StdPersistenceFs {
     }
 }
 
+const STREAM_BUF_CAPACITY: usize = 64 * 1024;
+
+#[cfg(test)]
+std::thread_local! {
+    static STREAM_WRITE_STATS: std::cell::Cell<(usize, usize)> = const { std::cell::Cell::new((0, 0)) };
+}
+
+#[cfg(test)]
+fn reset_stream_write_stats() {
+    STREAM_WRITE_STATS.with(|stats| stats.set((0, 0)));
+}
+
+#[cfg(test)]
+fn stream_write_stats() -> (usize, usize) {
+    STREAM_WRITE_STATS.with(std::cell::Cell::get)
+}
+
+#[cfg(test)]
+fn note_stream_write(len: usize) {
+    STREAM_WRITE_STATS.with(|stats| {
+        let (calls, max_len) = stats.get();
+        stats.set((calls + 1, max_len.max(len)));
+    });
+}
+
+struct FsWriter<'a, F> {
+    file: &'a mut File,
+    fs: &'a F,
+}
+
+impl<F: PersistenceFs> Write for FsWriter<'_, F> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        #[cfg(test)]
+        note_stream_write(buf.len());
+        self.fs
+            .write_all(self.file, buf)
+            .map_err(|error| contextual_error("could not write the temporary project", error))?;
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+fn persist_streaming(
+    destination: &Path,
+    project: &Project,
+    fs: &impl PersistenceFs,
+) -> io::Result<()> {
+    let permissions = destination_permissions(destination, fs)?;
+    let temporary = write_streamed_temp(destination, project, permissions, fs)?;
+    install_temp_with_ops(destination, &temporary, fs)
+}
+
+fn write_streamed_temp(
+    destination: &Path,
+    project: &Project,
+    permissions: Option<Permissions>,
+    fs: &impl PersistenceFs,
+) -> io::Result<PathBuf> {
+    let (temporary, mut file) = create_unique_temp(destination, fs)?;
+    let result = (|| {
+        {
+            let mut writer = io::BufWriter::with_capacity(
+                STREAM_BUF_CAPACITY,
+                FsWriter {
+                    file: &mut file,
+                    fs,
+                },
+            );
+            pretty::to_writer(&mut writer, project).map_err(io::Error::other)?;
+            writer.write_all(b"\n")?;
+            writer.into_inner().map_err(|err| err.into_error())?;
+        }
+        fs.flush(&mut file)
+            .map_err(|error| contextual_error("could not flush the temporary project", error))?;
+        if let Some(permissions) = permissions {
+            fs.set_permissions(&file, permissions).map_err(|error| {
+                contextual_error("could not preserve project file permissions", error)
+            })?;
+        }
+        fs.sync_all(&file)
+            .map_err(|error| contextual_error("could not sync the temporary project", error))
+    })();
+    drop(file);
+
+    match result {
+        Ok(()) => Ok(temporary),
+        Err(error) => Err(cleanup_temp_after_error(fs, &temporary, error)),
+    }
+}
+
+#[cfg(test)]
 fn persist_serialized(
     destination: &Path,
     contents: &[u8],
@@ -207,6 +302,7 @@ fn destination_permissions(
     }
 }
 
+#[cfg(test)]
 fn write_synced_temp(
     destination: &Path,
     contents: &[u8],
