@@ -22,7 +22,7 @@ Place an override file at `~/.aria/catalogs/effects.toml` (or `%APPDATA%\aria\ca
 id = "gaussian_blur"
 label = "Gaussian Blur"
 category = "Blur & Sharpen"
-params = [{ name = "radius", label = "Radius", default = 12.0, min = 0.0, max = 64.0 }]
+params = [{ name = "radius", label = "Radius", default = 12.0, min = 0.0, max = 64.0, unit = "px" }]
 ```
 
 ## Where to apply and edit video effects

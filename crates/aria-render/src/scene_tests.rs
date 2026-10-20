@@ -348,3 +348,207 @@ fn scale_scales_style_lengths_and_mask_expansion() {
     assert_eq!(layer.styles, Some(styles(0.5)));
     assert_eq!(layer.masks, vec![mask(0.5), mask(-0.5)]);
 }
+
+/// Every shipped effect and transition parameter with `unit == Some("px")` has
+/// its shader float slots scaled by [`Scene::scale`], and every other slot stays
+/// unchanged. Derived from the runtime catalogs so adding a parameter checks it
+/// automatically.
+#[test]
+fn scale_scales_only_canvas_px_slots_across_shipped_catalogs() {
+    let mut px_effect_ids = Vec::new();
+    for spec in aria_models::shipped_effect_catalog() {
+        let Some(id) = aria_compositor::pass_id(&spec.id) else {
+            panic!("shipped effect `{}` has a pass id", spec.id);
+        };
+        let total: usize = spec.params.iter().map(|p| p.kind.shader_floats()).sum();
+        let initial: Vec<f32> = (0..total).map(|i| (i as f32 + 1.0) * 10.0).collect();
+        let mut expected = Vec::with_capacity(total);
+        let (mut slot, mut has_px) = (0usize, false);
+        for param in &spec.params {
+            let width = param.kind.shader_floats();
+            let is_px = param.unit.as_deref() == Some("px");
+            has_px |= is_px && width > 0;
+            for &val in &initial[slot..slot + width] {
+                expected.push(if is_px { val * 0.5 } else { val });
+            }
+            slot += width;
+        }
+        if has_px {
+            px_effect_ids.push(spec.id.as_str());
+        }
+        let mut scene = Scene::empty(1920, 1080, [0, 0, 0, 255]);
+        scene.layers.push(SceneLayer {
+            effects: vec![ResolvedPass::new(id, initial)],
+            ..media_layer([960.0, 540.0], [1920.0, 1080.0])
+        });
+        scene.scale(0.5);
+        assert_eq!(scene.layers[0].effects[0].params, expected, "{}", spec.id);
+    }
+    assert_eq!(px_effect_ids, vec!["gaussian_blur", "pixelate"]);
+    for spec in aria_models::shipped_transition_catalog() {
+        let ranges: Vec<_> = aria_models::canvas_px_float_ranges(&spec.params).collect();
+        let Some(desc) = aria_compositor::shipped_transition_descriptors()
+            .iter()
+            .find(|d| d.id == spec.id)
+        else {
+            panic!("shipped transition `{}` has a descriptor", spec.id);
+        };
+        assert_eq!(
+            aria_compositor::PassId::from(desc.id).canvas_px_float_ranges(),
+            ranges.as_slice()
+        );
+    }
+}
+
+#[test]
+fn scale_scales_registered_pass_canvas_px_slots_across_nested_layers() {
+    use aria_compositor::{EffectDefinition, register_effect};
+    use aria_models::{EffectParamSpec, EffectSpec, GraphPass};
+    let spec = EffectSpec {
+        id: "test.pxscale.registered".into(),
+        category: "Blur".into(),
+        label: "Registered Px Scale".into(),
+        params: vec![
+            EffectParamSpec::scalar("radius", "Radius", 10.0, 0.0, 100.0).with_unit("px"),
+            EffectParamSpec::scalar("mix", "Mix", 0.5, 0.0, 1.0),
+            EffectParamSpec::vec2("offset", "Offset", [12.0, -8.0], -100.0, 100.0).with_unit("px"),
+            EffectParamSpec::vec2("center", "Center", [0.25, 0.75], 0.0, 1.0),
+            EffectParamSpec::size("extent", "Extent", [40.0, 20.0], 1.0, 500.0),
+        ],
+        ..EffectSpec::default()
+    };
+    let shader = "@fragment\nfn fs(in: VsOut) -> @location(0) vec4<f32> {\n    return textureSample(input_tex, aria_sampler, in.uv);\n}\n";
+    let Ok(reg) = register_effect(EffectDefinition {
+        spec,
+        passes: vec![GraphPass::fragment(shader)],
+    }) else {
+        panic!("register test effect");
+    };
+    let Some(id) = aria_compositor::pass_id("test.pxscale.registered") else {
+        panic!("registered pass id");
+    };
+    drop(reg);
+    let initial = vec![10.0, 0.5, 12.0, -8.0, 0.25, 0.75, 40.0, 20.0];
+    let expected = vec![5.0, 0.5, 6.0, -4.0, 0.25, 0.75, 20.0, 10.0];
+    let effected = || SceneLayer {
+        effects: vec![ResolvedPass::new(id.clone(), initial.clone())],
+        ..media_layer([960.0, 540.0], [1920.0, 1080.0])
+    };
+    let mut nest = Scene::empty(1920, 1080, [0, 0, 0, 0]);
+    nest.layers.push(effected());
+    let mut scene = Scene::empty(1920, 1080, [0, 0, 0, 255]);
+    scene.layers = vec![
+        effected(),
+        SceneLayer {
+            source: LayerSource::Transition {
+                outgoing: Box::new(effected()),
+                incoming: Box::new(effected()),
+                transition_id: "crossfade".into(),
+                progress: 0.5,
+            },
+            ..effected()
+        },
+        SceneLayer {
+            source: LayerSource::Matte {
+                layers: Box::new([effected(), effected()]),
+                read: aria_models::MatteSource::Alpha,
+                invert: false,
+                softness: 0.0,
+            },
+            ..effected()
+        },
+        SceneLayer {
+            source: LayerSource::Nest {
+                scene: Box::new(nest),
+                frame: [0.0, 0.0, 1.0, 1.0],
+            },
+            ..effected()
+        },
+    ];
+    scene.scale(0.5);
+    for layer in &scene.layers {
+        assert_eq!(layer.effects[0].params, expected);
+        match &layer.source {
+            LayerSource::Transition {
+                outgoing, incoming, ..
+            } => {
+                assert_eq!(outgoing.effects[0].params, expected);
+                assert_eq!(incoming.effects[0].params, expected);
+            }
+            LayerSource::Matte { layers, .. } => {
+                assert_eq!(layers[0].effects[0].params, expected);
+                assert_eq!(layers[1].effects[0].params, expected);
+            }
+            LayerSource::Nest { scene, .. } => {
+                assert_eq!(scene.layers[0].effects[0].params, expected);
+            }
+            _ => {}
+        }
+    }
+}
+
+#[test]
+fn scale_ignores_degenerate_factors_for_effect_params() {
+    let mut scene = Scene::empty(100, 50, [0, 0, 0, 255]);
+    scene.layers.push(SceneLayer {
+        effects: vec![ResolvedPass::new("gaussian_blur", vec![16.0])],
+        ..media_layer([50.0, 25.0], [100.0, 50.0])
+    });
+    for factor in [0.0, -1.0, f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+        scene.scale(factor);
+        scene.layers[0].effects[0].scale_canvas_px(factor);
+        assert_eq!(scene.layers[0].effects[0].params, vec![16.0]);
+    }
+}
+
+#[test]
+fn scaled_gaussian_blur_render_matches_downsampled_full_render() {
+    let Ok(mut renderer) = crate::Renderer::new_headless() else {
+        return;
+    };
+    let project = aria_models::Project::new("px", Rational::FPS_24);
+    let blur_scene = |w: u32, h: u32, radius: f32| {
+        let mut s = Scene::empty(w, h, [0, 0, 0, 255]);
+        s.layers.push(SceneLayer {
+            source: LayerSource::Solid([255, 255, 255, 255]),
+            effects: vec![ResolvedPass::new("gaussian_blur", vec![radius])],
+            rotation: 0.0,
+            opacity: 1.0,
+            uv: [0.0, 0.0, 1.0, 1.0],
+            ..media_layer(
+                [w as f32 * 0.25, h as f32 * 0.5],
+                [w as f32 * 0.5, h as f32],
+            )
+        });
+        s
+    };
+    let full_scene = blur_scene(128, 128, 8.0);
+    let mut scaled_scene = full_scene.clone();
+    scaled_scene.scale(0.5);
+    let unscaled_param_scene = blur_scene(64, 64, 8.0);
+    let (Ok(full), Ok(scaled), Ok(unscaled_param)) = (
+        renderer.render_scene(&project, &full_scene),
+        renderer.render_scene(&project, &scaled_scene),
+        renderer.render_scene(&project, &unscaled_param_scene),
+    ) else {
+        panic!("render blur scenes");
+    };
+    let downsampled_r = |x: u32| -> u8 {
+        let sum = u32::from(full.pixel(x * 2, 64)[0])
+            + u32::from(full.pixel(x * 2 + 1, 64)[0])
+            + u32::from(full.pixel(x * 2, 65)[0])
+            + u32::from(full.pixel(x * 2 + 1, 65)[0]);
+        ((sum + 2) / 4) as u8
+    };
+    for x in 0..64 {
+        assert!(scaled.pixel(x, 32)[0].abs_diff(downsampled_r(x)) <= 16);
+    }
+    let transition_cols =
+        |f: &dyn Fn(u32) -> u8| -> usize { (0..64).filter(|&x| (8..=247).contains(&f(x))).count() };
+    let scaled_extent = transition_cols(&|x| scaled.pixel(x, 32)[0]);
+    let downsampled_extent = transition_cols(&downsampled_r);
+    let unscaled_extent = transition_cols(&|x| unscaled_param.pixel(x, 32)[0]);
+    assert!(scaled_extent.abs_diff(downsampled_extent) <= 1);
+    assert!(unscaled_extent >= scaled_extent + 4);
+    assert!(unscaled_param.pixel(34, 32)[0] >= scaled.pixel(34, 32)[0] + 25);
+}

@@ -322,3 +322,19 @@ impl StoredParams for Defaults {
 pub fn default_flattened_param_floats(params: &[EffectParamSpec]) -> Vec<f32> {
     Defaults.flatten_floats(params, 0.0, None)
 }
+
+/// Float slot ranges in [`StoredParams::flatten_floats`] for parameters in
+/// `params` measured in canvas pixels ([`EffectParamSpec::is_canvas_px`]).
+pub fn canvas_px_float_ranges(
+    params: &[EffectParamSpec],
+) -> impl Iterator<Item = std::ops::Range<usize>> + '_ {
+    params
+        .iter()
+        .scan(0usize, |offset, param| {
+            let start = *offset;
+            let width = param.kind.shader_floats();
+            *offset = start + width;
+            Some((param.is_canvas_px() && width > 0).then_some(start..start + width))
+        })
+        .flatten()
+}

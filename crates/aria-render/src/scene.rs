@@ -229,6 +229,9 @@ fn scale_layer(layer: &mut SceneLayer, factor: f32) {
         pass.center = [pass.center[0] * factor, pass.center[1] * factor];
         pass.size = [pass.size[0] * factor, pass.size[1] * factor];
     }
+    for pass in &mut layer.effects {
+        pass.scale_canvas_px(factor);
+    }
     for mask in &mut layer.masks {
         mask.expansion *= factor;
     }
