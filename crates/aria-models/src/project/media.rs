@@ -1,29 +1,11 @@
-#![allow(unused_imports)]
-
 use std::path::Path;
 
 use crate::bin::Bin;
-use crate::clip::{
-    Clip, ClipParam, ClipSource, ClipTransform, CropRect, Generator, ParamValue, Replaceable,
-    SlotMedia, look_animation_combo_period_ticks, look_animation_window_ticks, split_speed_curve,
-};
-use crate::effects::EffectInstance;
 use crate::error::ModelError;
-use crate::ids::{BinId, ClipId, MediaId, ProjectId, TrackId};
-use crate::look::{
-    AnimationRef, AnimationSlot, AudioRole, ChromaKey, ColorAdjustments, Filter, Lut, Mask,
-    StabilizeLevel, animation_spec,
-};
+use crate::ids::{BinId, MediaId};
 use crate::media::MediaSource;
-use crate::metadata::ProjectMetadata;
-use crate::param::{Easing, Param};
-use crate::schema::ProjectSchema;
-use crate::time::{
-    Rational, RationalTime, TimeRange, check_same_rate, resample, time_add, time_sub,
-};
-use crate::timeline::Timeline;
-use crate::track::{Track, TrackKind};
-use crate::transition::Transition;
+use crate::time::{Rational, TimeRange};
+use crate::track::Track;
 
 use super::Project;
 
