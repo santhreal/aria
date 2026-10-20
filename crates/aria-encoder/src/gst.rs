@@ -46,6 +46,7 @@ pub struct GstEncoder {
     video: gst_app::AppSrc,
     audio: Option<gst_app::AppSrc>,
     buffer_pool: Option<gst::BufferPool>,
+    layout: FrameLayout,
     config: EncoderConfig,
     choice: EncoderChoice,
     finished: bool,
@@ -102,7 +103,8 @@ impl GstEncoder {
 
         let pipeline = gst::Pipeline::new();
         let v_caps = video_caps(width, height, config.frame_rate)?;
-        let frame_bytes = yuv420_len(width, height);
+        let layout = FrameLayout::new(width, height)?;
+        let frame_bytes = layout.buffer_bytes;
         let buffer_pool = open_buffer_pool(&v_caps, frame_bytes);
         let video = gst_app::AppSrc::builder()
             .format(gst::Format::Time)
@@ -162,6 +164,7 @@ impl GstEncoder {
             video,
             audio,
             buffer_pool,
+            layout,
             config,
             choice,
             finished: false,
@@ -181,7 +184,7 @@ impl VideoEncoder for GstEncoder {
             .buffer_pool
             .as_ref()
             .and_then(|pool| pool.acquire_buffer(None).ok())
-            .or_else(|| gst::Buffer::with_size(yuv420_len(width, height)).ok())
+            .or_else(|| gst::Buffer::with_size(self.layout.buffer_bytes).ok())
             .ok_or_else(|| EncodeError::Encode("couldn't allocate an encode buffer.".into()))?;
         {
             let buffer = buffer
@@ -210,6 +213,8 @@ impl VideoEncoder for GstEncoder {
                 matrix_for(&self.config.color),
                 map.as_mut_slice(),
             )?;
+            drop(map);
+            self.layout.describe(buffer)?;
         }
         self.video
             .push_buffer(buffer)
@@ -609,6 +614,64 @@ fn mux_queue(max_time_ns: u64) -> Result<gst::Element, EncodeError> {
         })
 }
 
+/// The size and plane layout of one pushed NV12 buffer.
+///
+/// Every frame is written tight: `Y` rows of `width` bytes, then the `UV`
+/// rows of `width` bytes. GStreamer's default NV12 layout rounds each stride
+/// up to 4 bytes, so at a width that is 2 more than a multiple of 4, such as
+/// 854 or 1366, a buffer without a `GstVideoMeta` reads sheared and is
+/// shorter than the frame `x264enc` maps, which fails the export. The buffer
+/// holds GStreamer's default frame size, which `GstVideoMeta` requires, and a
+/// frame whose tight layout differs from the default carries a
+/// `GstVideoMeta` stating the tight strides and offsets.
+#[derive(Debug, Clone, Copy)]
+struct FrameLayout {
+    width: u32,
+    height: u32,
+    buffer_bytes: usize,
+    /// The tight `UV` offset and stride, when they differ from the defaults.
+    tight: Option<(usize, i32)>,
+}
+
+impl FrameLayout {
+    fn new(width: u32, height: u32) -> Result<Self, EncodeError> {
+        let info = gst_video::VideoInfo::builder(gst_video::VideoFormat::Nv12, width, height)
+            .build()
+            .map_err(|e| {
+                EncodeError::unsupported(format!(
+                    "GStreamer has no NV12 layout for a {width}x{height} frame ({e})."
+                ))
+            })?;
+        let stride = width as usize;
+        let uv_offset = stride * height as usize;
+        let defaults = info.stride()[..2] == [stride as i32; 2] && info.offset()[1] == uv_offset;
+        Ok(Self {
+            width,
+            height,
+            buffer_bytes: info.size().max(yuv420_len(width, height)),
+            tight: (!defaults).then_some((uv_offset, stride as i32)),
+        })
+    }
+
+    /// Attach the tight layout to `buffer` when it differs from the default.
+    fn describe(&self, buffer: &mut gst::BufferRef) -> Result<(), EncodeError> {
+        let Some((uv_offset, stride)) = self.tight else {
+            return Ok(());
+        };
+        gst_video::VideoMeta::add_full(
+            buffer,
+            gst_video::VideoFrameFlags::empty(),
+            gst_video::VideoFormat::Nv12,
+            self.width,
+            self.height,
+            &[0, uv_offset],
+            &[stride, stride],
+        )
+        .map(|_| ())
+        .map_err(|e| EncodeError::Encode(format!("couldn't describe the NV12 frame layout: {e}")))
+    }
+}
+
 fn open_buffer_pool(caps: &gst::Caps, frame_bytes: usize) -> Option<gst::BufferPool> {
     let size = u32::try_from(frame_bytes).ok()?;
     let pool = gst::BufferPool::new();
@@ -995,6 +1058,77 @@ mod tests {
                 .unwrap_or_else(|e| panic!("{name}: {e}"));
             assert_eq!(out, expected, "{name} planes packed wrong");
         }
+    }
+
+    /// WHY: `push` writes each frame tight, `width` bytes a row, while
+    /// GStreamer's default NV12 layout rounds each stride up to 4 bytes. At a
+    /// width of 2 more than a multiple of 4 (854, 1366) the encoder read the
+    /// frame sheared, and `x264enc` failed it as shorter than its layout.
+    /// This maps a buffer `push` would send the way an encoder maps it, with
+    /// the `appsrc` caps, at every even size up to 64x8, so each residue of
+    /// the width and height against GStreamer's alignment is covered, and
+    /// checks every plane row reads the tight bytes written. Does not cover
+    /// an encoder element that ignores `GstVideoMeta`;
+    /// `tests/roundtrip.rs` encodes such a width end to end.
+    #[test]
+    fn a_pushed_frame_reads_back_tight_at_every_even_size() {
+        use gst_video::VideoFrameExt;
+        ensure_init().expect("GStreamer");
+        for width in (2..=64_u32).step_by(2) {
+            for height in (2..=8_u32).step_by(2) {
+                let layout = FrameLayout::new(width, height).expect("layout");
+                let (w, h) = (width as usize, height as usize);
+                let tight: Vec<u8> = (0..w * h * 3 / 2).map(|i| (i % 251) as u8).collect();
+                let mut buffer = gst::Buffer::with_size(layout.buffer_bytes).expect("buffer");
+                {
+                    let buffer = buffer.get_mut().expect("writable");
+                    buffer.map_writable().expect("map").as_mut_slice()[..tight.len()]
+                        .copy_from_slice(&tight);
+                    layout.describe(buffer).expect("describe");
+                }
+                let caps = video_caps(width, height, Rational::FPS_30).expect("caps");
+                let info = gst_video::VideoInfo::from_caps(&caps).expect("info");
+                let frame = gst_video::VideoFrame::from_buffer_readable(buffer, &info)
+                    .unwrap_or_else(|_| panic!("{width}x{height}: the encoder cannot map it"));
+                let (y, uv) = tight.split_at(w * h);
+                for (plane, (expected, rows)) in [(y, h), (uv, h / 2)].into_iter().enumerate() {
+                    let stride = frame.plane_stride()[plane] as usize;
+                    let data = frame.plane_data(plane as u32).expect("plane");
+                    for row in 0..rows {
+                        assert_eq!(
+                            &data[row * stride..row * stride + w],
+                            &expected[row * w..(row + 1) * w],
+                            "{width}x{height}: plane {plane} row {row} reads other bytes"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// WHY: `push` takes its buffers from a `gst::BufferPool` and attaches a
+    /// `GstVideoMeta` to each. The pool drops that meta when the buffer
+    /// returns; if it did not, every reuse would stack one more meta on the
+    /// same buffer for the length of the export.
+    #[test]
+    fn a_reused_pool_buffer_holds_one_layout_meta() {
+        ensure_init().expect("GStreamer");
+        let (width, height) = (854, 480);
+        let layout = FrameLayout::new(width, height).expect("layout");
+        assert!(layout.tight.is_some(), "an 854-wide frame needs its layout");
+        let caps = video_caps(width, height, Rational::FPS_30).expect("caps");
+        let pool = open_buffer_pool(&caps, layout.buffer_bytes).expect("pool");
+        let mut first = None;
+        for round in 0..4 {
+            let mut buffer = pool.acquire_buffer(None).expect("acquire");
+            let ptr = buffer.as_ptr();
+            assert_eq!(*first.get_or_insert(ptr), ptr, "round {round}: another buffer");
+            let buffer = buffer.get_mut().expect("writable");
+            layout.describe(buffer).expect("describe");
+            let metas = buffer.iter_meta::<gst_video::VideoMeta>().count();
+            assert_eq!(metas, 1, "round {round}: {metas} layout metas");
+        }
+        pool.set_active(false).expect("deactivate");
     }
 
     /// WHY: the export reference lists the GStreamer elements in the order

@@ -2345,6 +2345,7 @@ Notes for the latest release. For previous releases, see the
 - Every panel keeps its text inside a 160 px frame: button and chip rows wrap, fields end in an ellipsis, and the Scopes panel narrows its scopes.
 - In a short Timeline frame each side places its tracks in the height it is drawn at, so scrolling a side reaches its last track and V1 stays on the A/V divider, instead of the sides being laid out for a stack of at least 96 px.
 - Export with audio no longer hangs on its first frames: each coded branch reaches the MP4 muxer through its own queue, so video waiting on the first AAC frame no longer blocks the audio push.
+- Linux export at a width 2 more than a multiple of 4, such as 854 or 1366, encodes every frame instead of failing with `x264enc`'s `Failed to map frame` error.
 - Launch no longer prints GStreamer CRITICAL lines for decode plugins that cannot load; each skipped device is logged once with its cause.
 - `aria-bench` ends after a scenario that decoded on an NVIDIA GPU instead of hanging or aborting in the NVDEC library's exit handler, and the editor and `aria` end through the same `_exit` path.
 - `aria-bench startup` starts its private `Xvfb` on the next display when a lock file left by another user's stopped server holds the first one, instead of falling back to the in-process measurement.

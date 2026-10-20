@@ -38,6 +38,8 @@ Defined in `crates/aria-encoder/src/gst.rs` (`candidates`, `SOFTWARE_ENCODERS`, 
 
 The GStreamer encoder takes CPU NV12 frames. An export frame that is one BT.709 NV12 clip decoded on the CPU and drawn unchanged over the whole canvas at the output size goes to the encoder as decoded, with no composite and no RGBA to NV12 conversion. Every other frame is composited on the GPU and converted.
 
+Each NV12 frame is written with rows as wide as the frame. When GStreamer's default NV12 layout pads the rows to 4 bytes, as at a width 2 more than a multiple of 4, the frame buffer has a `GstVideoMeta` stating its row stride and plane offsets.
+
 ### Sound-only and frame-sequence sinks and export constants
 
 | Item | Value | Source |
