@@ -452,7 +452,7 @@ fn effect_bindings() -> [wgpu::BindGroupLayoutEntry; EFFECT_BINDINGS] {
     [tex_entry(0), sampler_entry(1), uniform_entry(2)]
 }
 
-fn tex_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
+pub(crate) fn tex_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
     wgpu::BindGroupLayoutEntry {
         binding,
         visibility: wgpu::ShaderStages::FRAGMENT,
@@ -478,7 +478,7 @@ fn tex3d_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
     }
 }
 
-fn sampler_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
+pub(crate) fn sampler_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
     wgpu::BindGroupLayoutEntry {
         binding,
         visibility: wgpu::ShaderStages::FRAGMENT,
@@ -500,7 +500,9 @@ fn uniform_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
     }
 }
 
-pub(super) const PREMULT_OVER: wgpu::BlendState = wgpu::BlendState {
+/// Premultiplied src-over: the source fragment is already alpha-weighted, so
+/// the color factor is `One`.
+pub(crate) const PREMULT_OVER: wgpu::BlendState = wgpu::BlendState {
     color: wgpu::BlendComponent {
         src_factor: wgpu::BlendFactor::One,
         dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,

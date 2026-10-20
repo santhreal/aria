@@ -190,7 +190,7 @@ impl Timeline {
     ///
     /// [`TrackKindSpec::in_mixer`]: crate::track_catalog::TrackKindSpec::in_mixer
     pub(crate) fn lane_mixes_audio(&self, track: TrackId) -> Result<bool, ModelError> {
-        let track = self.track(track).ok_or(ModelError::UnknownTrack(track))?;
+        let track = self.require_track(track)?;
         Ok(track.kind.spec().in_mixer())
     }
 
@@ -210,9 +210,7 @@ impl Timeline {
         if let Some(to) = output.bus() {
             self.route_refusal(track, to)?;
         }
-        let lane = self
-            .track_mut(track)
-            .ok_or(ModelError::UnknownTrack(track))?;
+        let lane = self.require_track_mut(track)?;
         lane.output = output;
         Ok(())
     }
@@ -234,9 +232,7 @@ impl Timeline {
         }
         self.route_refusal(track, to)?;
         let level = check_send_level(level)?;
-        let lane = self
-            .track_mut(track)
-            .ok_or(ModelError::UnknownTrack(track))?;
+        let lane = self.require_track_mut(track)?;
         if lane.sends.iter().any(|send| send.to == to) {
             return Err(ModelError::DuplicateSend { track, to });
         }
@@ -276,9 +272,7 @@ impl Timeline {
     /// Drop a send, returning what it was so an undo can put it back at the
     /// same index.
     pub fn remove_send(&mut self, track: TrackId, index: usize) -> Result<AudioSend, ModelError> {
-        let lane = self
-            .track_mut(track)
-            .ok_or(ModelError::UnknownTrack(track))?;
+        let lane = self.require_track_mut(track)?;
         if index >= lane.sends.len() {
             return Err(ModelError::UnknownSend { track, index });
         }
@@ -294,9 +288,7 @@ impl Timeline {
     ) -> Result<(), ModelError> {
         self.route_refusal(track, send.to)?;
         check_send_level(send.level)?;
-        let lane = self
-            .track_mut(track)
-            .ok_or(ModelError::UnknownTrack(track))?;
+        let lane = self.require_track_mut(track)?;
         if index > lane.sends.len() {
             return Err(ModelError::UnknownSend { track, index });
         }
@@ -317,9 +309,7 @@ impl Timeline {
             return Err(ModelError::LaneCarriesNoSound(track));
         }
         AudioSend::check_level("lane gain", gain)?;
-        let lane = self
-            .track_mut(track)
-            .ok_or(ModelError::UnknownTrack(track))?;
+        let lane = self.require_track_mut(track)?;
         lane.gain = gain;
         Ok(())
     }
@@ -338,9 +328,7 @@ impl Timeline {
         sends: &[AudioSend],
     ) -> Result<(), ModelError> {
         let (held_gain, held) = {
-            let lane = self
-                .track_mut(track)
-                .ok_or(ModelError::UnknownTrack(track))?;
+            let lane = self.require_track_mut(track)?;
             (
                 lane.gain,
                 LaneRoute {
@@ -534,9 +522,7 @@ impl Timeline {
     }
 
     fn send_mut(&mut self, track: TrackId, index: usize) -> Result<&mut AudioSend, ModelError> {
-        let lane = self
-            .track_mut(track)
-            .ok_or(ModelError::UnknownTrack(track))?;
+        let lane = self.require_track_mut(track)?;
         lane.sends
             .get_mut(index)
             .ok_or(ModelError::UnknownSend { track, index })
@@ -583,7 +569,7 @@ impl Timeline {
         if to == track {
             return Err(ModelError::RoutingCycle(track));
         }
-        let dest = self.track(to).ok_or(ModelError::UnknownTrack(to))?;
+        let dest = self.require_track(to)?;
         if !dest.kind.spec().is_bus {
             return Err(ModelError::NotABus(to));
         }

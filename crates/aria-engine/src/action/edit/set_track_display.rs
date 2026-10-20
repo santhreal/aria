@@ -1,4 +1,4 @@
-use aria_models::{ModelError, TrackDisplay, TrackId};
+use aria_models::{TrackDisplay, TrackId};
 
 use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
@@ -22,11 +22,7 @@ pub fn execute(
     filmstrip: Option<bool>,
     collapsed: Option<bool>,
 ) -> Result<Box<dyn EditAction>, EngineError> {
-    let t = ctx
-        .project
-        .timeline_mut()
-        .track_mut(track)
-        .ok_or(ModelError::UnknownTrack(track))?;
+    let t = ctx.project.timeline_mut().require_track_mut(track)?;
     let inverse = Box::new(SetTrackDisplayAction {
         track,
         display: t.display,

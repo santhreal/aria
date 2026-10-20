@@ -45,10 +45,7 @@ impl Project {
         if let Some(at) = at {
             check_same_rate(at.rate, self.timeline().frame_rate)?;
         }
-        let clip = self
-            .timeline_mut()
-            .clip_mut(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
         match at {
             Some(at) => {
                 let tick = clip.param_tick(at.value);
@@ -71,10 +68,7 @@ impl Project {
     ) -> Result<(), ModelError> {
         transform.validate()?;
         self.check_visual_target(clip_id)?;
-        self.timeline_mut()
-            .clip_mut(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?
-            .transform = transform;
+        self.timeline_mut().require_clip_mut(clip_id)?.transform = transform;
         Ok(())
     }
 
@@ -98,11 +92,7 @@ impl Project {
             .timeline()
             .track_of(clip_id)
             .ok_or(ModelError::UnknownClip(clip_id))?;
-        let kind = self
-            .timeline()
-            .track(track_id)
-            .ok_or(ModelError::UnknownTrack(track_id))?
-            .kind;
+        let kind = self.timeline().require_track(track_id)?.kind;
         if !kind.is_visual() {
             return Err(ModelError::IncompatibleTrackKind {
                 track: track_id,
@@ -117,10 +107,7 @@ impl Project {
     /// media clip (including video with sound), since linkage lands the
     /// audible half on an audio lane.
     fn check_audio_target(&self, clip_id: ClipId) -> Result<(), ModelError> {
-        let clip = self
-            .timeline()
-            .clip(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline().require_clip(clip_id)?;
         if clip.is_generated() {
             return Err(ModelError::InvalidParam(
                 "audio parameters require a media-backed clip".into(),
@@ -134,10 +121,7 @@ impl Project {
     /// the clip it animates).
     fn keyframe_tick(&self, clip_id: ClipId, at: RationalTime) -> Result<i64, ModelError> {
         check_same_rate(at.rate, self.timeline().frame_rate)?;
-        let clip = self
-            .timeline()
-            .clip(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline().require_clip(clip_id)?;
         if !clip.timeline.contains(at)? {
             return Err(ModelError::InvalidParam(format!(
                 "keyframe position {} is outside clip {clip_id}",
@@ -178,10 +162,7 @@ impl Project {
         param.validate_value(value)?;
         self.check_param_target(clip_id, param)?;
         let tick = self.keyframe_tick(clip_id, at)?;
-        let clip = self
-            .timeline_mut()
-            .clip_mut(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
         if param == ClipParam::Position {
             // Write value, easing, and tangents together before solving roving
             // ticks and temporal control points.
@@ -216,10 +197,7 @@ impl Project {
         }
         self.check_visual_target(clip_id)?;
         let tick = self.keyframe_tick(clip_id, at)?;
-        let clip = self
-            .timeline_mut()
-            .clip_mut(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
         clip.transform
             .position
             .set_keyframe_tangents(tick, tangents)
@@ -244,10 +222,7 @@ impl Project {
         }
         self.check_param_target(clip_id, param)?;
         let tick = self.keyframe_tick(clip_id, at)?;
-        let clip = self
-            .timeline_mut()
-            .clip_mut(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
         param.set_keyframe_temporal_ease(clip, tick, in_ease, out_ease, hold)
     }
 
@@ -264,10 +239,7 @@ impl Project {
         self.check_param_target(clip_id, param)?;
         let rate = self.timeline().frame_rate;
         let tick = self.keyframe_tick(clip_id, at)?;
-        let clip = self
-            .timeline_mut()
-            .clip_mut(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
         let start_tick = clip.timeline.start.value;
         let solved_local = param.set_keyframe_roving(clip, tick, roving)?;
         Ok(RationalTime::new(start_tick + solved_local, rate))
@@ -283,10 +255,7 @@ impl Project {
     ) -> Result<(), ModelError> {
         self.check_param_target(clip_id, param)?;
         let tick = self.keyframe_tick(clip_id, at)?;
-        let clip = self
-            .timeline_mut()
-            .clip_mut(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
         param.remove_keyframe(clip, tick)
     }
 
@@ -299,10 +268,7 @@ impl Project {
     ) -> Result<(), ModelError> {
         param.validate_value(value)?;
         self.check_param_target(clip_id, param)?;
-        let clip = self
-            .timeline_mut()
-            .clip_mut(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
         param.set_constant(clip, value)
     }
 
@@ -354,17 +320,14 @@ impl Project {
                 ));
             }
             self.check_param_target(clip_id, param)?;
-            let clip = self.clip(clip_id).ok_or(ModelError::UnknownClip(clip_id))?;
+            let clip = self.require_clip(clip_id)?;
             if param.sample_at(clip, 0.0).is_none() {
                 return Err(ModelError::InvalidParam(format!(
                     "{param:?} is not a property of that clip, so it cannot take a driver"
                 )));
             }
         }
-        let clip = self
-            .timeline_mut()
-            .clip_mut(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
         Ok(clip.put_driver(param, code))
     }
 
@@ -381,10 +344,7 @@ impl Project {
     ) -> Result<(), ModelError> {
         let tick = self.keyframe_tick(clip_id, at)?;
         self.check_param_target(clip_id, param)?;
-        let clip = self
-            .timeline_mut()
-            .clip_mut(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
         param.apply_easing_preset(clip, tick, preset)
     }
 
@@ -395,20 +355,14 @@ impl Project {
         // Reject unknown ids up front (validate also covers an empty chain).
         instance.validate()?;
         self.check_visual_target(clip_id)?;
-        let clip = self
-            .timeline_mut()
-            .clip_mut(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
         clip.effects.push(instance);
         Ok(clip.effects.len() - 1)
     }
 
     /// Remove the effect at `index` from a clip's chain.
     pub fn remove_effect(&mut self, clip_id: ClipId, index: usize) -> Result<(), ModelError> {
-        let clip = self
-            .timeline_mut()
-            .clip_mut(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
         if index >= clip.effects.len() {
             return Err(ModelError::InvalidParam(format!(
                 "effect index {index} out of range"
@@ -432,10 +386,7 @@ impl Project {
             effect.mark_from_catalog();
         }
         self.check_visual_target(clip_id)?;
-        let clip = self
-            .timeline_mut()
-            .clip_mut(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
         clip.effects = effects;
         clip.remap_effect_refs(|_| None);
         Ok(())
@@ -479,10 +430,7 @@ impl Project {
             self.check_audio_target(clip_id)?;
         }
 
-        let clip = self
-            .timeline()
-            .clip(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline().require_clip(clip_id)?;
         let mut staged = clip.clone();
 
         for (id, spec, curve) in resolved_props {
@@ -531,10 +479,7 @@ impl Project {
         staged.effects.extend(shifted.effects);
         staged.audio_effects.extend(shifted.audio_effects);
 
-        *self
-            .timeline_mut()
-            .clip_mut(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))? = staged;
+        *self.timeline_mut().require_clip_mut(clip_id)? = staged;
         Ok(())
     }
 
@@ -547,10 +492,7 @@ impl Project {
         from_index: usize,
         to_index: usize,
     ) -> Result<(), ModelError> {
-        let clip = self
-            .timeline_mut()
-            .clip_mut(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
         let len = clip.effects.len();
         if from_index >= len {
             return Err(ModelError::InvalidParam(format!(
@@ -582,10 +524,7 @@ impl Project {
         param: usize,
         value: f32,
     ) -> Result<(), ModelError> {
-        let clip = self
-            .timeline_mut()
-            .clip_mut(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
         effect_mut(clip, index as u32)?.set_param_constant(param, value)
     }
 
@@ -607,10 +546,7 @@ impl Project {
         clip_id: ClipId,
         index: usize,
     ) -> Result<&EffectInstance, ModelError> {
-        let clip = self
-            .timeline()
-            .clip(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline().require_clip(clip_id)?;
         clip.effects
             .get(index)
             .ok_or_else(|| ModelError::InvalidParam(format!("effect index {index} out of range")))
@@ -622,10 +558,7 @@ impl Project {
         clip_id: ClipId,
         index: usize,
     ) -> Result<&mut EffectInstance, ModelError> {
-        let clip = self
-            .timeline_mut()
-            .clip_mut(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
         effect_mut(clip, index as u32)
     }
 
@@ -697,10 +630,7 @@ impl Project {
         if let Some(err) = self.effect_layer_ref_error(clip_id, &effect) {
             return Err(ModelError::InvalidParam(err));
         }
-        let clip = self
-            .timeline_mut()
-            .clip_mut(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
         let slot = effect_mut(clip, index as u32)?;
         *slot = effect;
         Ok(())

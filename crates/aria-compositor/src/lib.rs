@@ -27,6 +27,7 @@
 //!   GPU-surface import on Android (`AHardwareBuffer`) are recognized but not
 //!   yet handled — they surface as [`CompositorError::UnsupportedFormat`].
 
+mod color_pass;
 mod compositor;
 mod cpu_effect;
 #[cfg(target_os = "windows")]

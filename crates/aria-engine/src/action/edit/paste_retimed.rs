@@ -22,10 +22,7 @@ pub fn execute(
         return Err(EngineError::from(ModelError::InvalidRange));
     }
 
-    let source_clip = ctx
-        .project
-        .clip(clip)
-        .ok_or(ModelError::UnknownClip(clip))?;
+    let source_clip = ctx.project.require_clip(clip)?;
 
     let ClipSource::Media { media: _, source } = &source_clip.content else {
         return Err(EngineError::from(ModelError::InvalidParam(

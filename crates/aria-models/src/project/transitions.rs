@@ -105,17 +105,11 @@ impl Project {
             .timeline()
             .track_of(left)
             .ok_or(ModelError::UnknownClip(left))?;
-        let left_clip = self
-            .timeline()
-            .clip(left)
-            .ok_or(ModelError::UnknownClip(left))?;
+        let left_clip = self.timeline().require_clip(left)?;
         let right_id = self.right_neighbor(track_id, left).ok_or_else(|| {
             ModelError::InvalidParam("clip has no abutting clip to its right".into())
         })?;
-        let right_clip = self
-            .timeline()
-            .clip(right_id)
-            .ok_or(ModelError::UnknownClip(right_id))?;
+        let right_clip = self.timeline().require_clip(right_id)?;
         let limit = match alignment {
             TransitionAlignment::Center => left_clip
                 .timeline

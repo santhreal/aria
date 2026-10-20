@@ -3,6 +3,7 @@
 
 use bytemuck::{Pod, Zeroable};
 
+use crate::color_pass;
 use crate::error::CompositorError;
 use crate::grade::ColorGrade;
 use crate::layer::{CoverageMix, MaskOp, MatteRead};
@@ -27,7 +28,9 @@ pub(crate) use canvas_targets::CanvasTargets;
 pub(crate) use lut::run_lut_pass;
 pub use pass_cache::PassStats;
 pub(crate) use pass_cache::{Bound, PassCache};
-pub(crate) use pipelines::{PassRegistry, SharedPassPipelines};
+pub(crate) use pipelines::{
+    PREMULT_OVER, PassRegistry, SharedPassPipelines, sampler_entry, tex_entry,
+};
 pub(crate) use pool::OffscreenPool;
 pub(crate) use styles::{background_plate_layer, composite_layer_outline, composite_layer_styles};
 
@@ -269,25 +272,7 @@ pub(crate) fn run_transition_pass(
         ],
     );
 
-    let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: None,
-        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-            view: output,
-            depth_slice: None,
-            resolve_target: None,
-            ops: wgpu::Operations {
-                load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                store: wgpu::StoreOp::Store,
-            },
-        })],
-        depth_stencil_attachment: None,
-        timestamp_writes: None,
-        occlusion_query_set: None,
-        multiview_mask: None,
-    });
-    pass.set_pipeline(pipeline);
-    pass.set_bind_group(0, &*bind_group, &[]);
-    pass.draw(0..6, 0..1);
+    color_pass::draw_quad(encoder, output, color_pass::CLEAR, pipeline, &bind_group);
 }
 
 /// Cut `content` by `stencil` into `output`, the stencil's coverage remapped
@@ -324,25 +309,13 @@ pub(crate) fn run_matte_pass(
         ],
     );
 
-    let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: None,
-        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-            view: output,
-            depth_slice: None,
-            resolve_target: None,
-            ops: wgpu::Operations {
-                load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                store: wgpu::StoreOp::Store,
-            },
-        })],
-        depth_stencil_attachment: None,
-        timestamp_writes: None,
-        occlusion_query_set: None,
-        multiview_mask: None,
-    });
-    pass.set_pipeline(registry.matte());
-    pass.set_bind_group(0, &*bind_group, &[]);
-    pass.draw(0..6, 0..1);
+    color_pass::draw_quad(
+        encoder,
+        output,
+        color_pass::CLEAR,
+        registry.matte(),
+        &bind_group,
+    );
 }
 
 /// One mask of a stack, as [`run_mask_stack_pass`] combines it.
@@ -401,25 +374,13 @@ pub(crate) fn run_mask_stack_pass(
         ],
     );
 
-    let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: None,
-        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-            view: output,
-            depth_slice: None,
-            resolve_target: None,
-            ops: wgpu::Operations {
-                load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                store: wgpu::StoreOp::Store,
-            },
-        })],
-        depth_stencil_attachment: None,
-        timestamp_writes: None,
-        occlusion_query_set: None,
-        multiview_mask: None,
-    });
-    pass.set_pipeline(registry.mask_stack());
-    pass.set_bind_group(0, &*bind_group, &[]);
-    pass.draw(0..6, 0..1);
+    color_pass::draw_quad(
+        encoder,
+        output,
+        color_pass::CLEAR,
+        registry.mask_stack(),
+        &bind_group,
+    );
 }
 
 pub(crate) fn run_grade_pass<'a>(
@@ -444,25 +405,13 @@ pub(crate) fn run_grade_pass<'a>(
         ],
     );
 
-    let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: None,
-        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-            view: output,
-            depth_slice: None,
-            resolve_target: None,
-            ops: wgpu::Operations {
-                load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                store: wgpu::StoreOp::Store,
-            },
-        })],
-        depth_stencil_attachment: None,
-        timestamp_writes: None,
-        occlusion_query_set: None,
-        multiview_mask: None,
-    });
-    pass.set_pipeline(registry.grade());
-    pass.set_bind_group(0, &*bind_group, &[]);
-    pass.draw(0..6, 0..1);
+    color_pass::draw_quad(
+        encoder,
+        output,
+        color_pass::CLEAR,
+        registry.grade(),
+        &bind_group,
+    );
     output
 }
 
@@ -495,25 +444,7 @@ pub(super) fn draw_effect_pass(
             Bound::Uniform(bytemuck::bytes_of(&uniforms)),
         ],
     );
-    let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: None,
-        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-            view: output,
-            depth_slice: None,
-            resolve_target: None,
-            ops: wgpu::Operations {
-                load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                store: wgpu::StoreOp::Store,
-            },
-        })],
-        depth_stencil_attachment: None,
-        timestamp_writes: None,
-        occlusion_query_set: None,
-        multiview_mask: None,
-    });
-    pass.set_pipeline(pipeline);
-    pass.set_bind_group(0, &*bind_group, &[]);
-    pass.draw(0..6, 0..1);
+    color_pass::draw_quad(encoder, output, color_pass::CLEAR, pipeline, &bind_group);
     Ok(())
 }
 fn texel_size(width: u32, height: u32) -> [f32; 4] {

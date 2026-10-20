@@ -24,6 +24,7 @@ use super::canvas_targets::CanvasTargets;
 use super::pass_cache::{Bound, PassCache};
 use super::pipelines::PassRegistry;
 use super::pool::OffscreenPool;
+use crate::color_pass;
 use crate::passes::PassInstance;
 use crate::plugin_textures::PluginTexture;
 use crate::registered_graph::{CompiledInput, CompiledPass};
@@ -250,27 +251,6 @@ fn upload(device: &wgpu::Device, queue: &wgpu::Queue, texture: &Arc<PluginTextur
     }
 }
 
-/// Clear `output` to transparent: a compute pass starts from nothing, so a
-/// texel its shader skips holds no earlier frame.
-fn clear(encoder: &mut wgpu::CommandEncoder, output: &wgpu::TextureView) {
-    let _clear = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: None,
-        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-            view: output,
-            depth_slice: None,
-            resolve_target: None,
-            ops: wgpu::Operations {
-                load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                store: wgpu::StoreOp::Store,
-            },
-        })],
-        depth_stencil_attachment: None,
-        timestamp_writes: None,
-        occlusion_query_set: None,
-        multiview_mask: None,
-    });
-}
-
 /// Draw or dispatch one built pass with `bounds` into `output` of `size`.
 fn encode(
     device: &wgpu::Device,
@@ -284,25 +264,7 @@ fn encode(
     let bind_group = cache.bind_group(device, &built.layout, "aria.registered.bg", bounds);
     match &built.pipeline {
         PassPipeline::Render(pipeline) => {
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: None,
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: output,
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
-            pass.set_pipeline(pipeline);
-            pass.set_bind_group(0, &*bind_group, &[]);
-            pass.draw(0..6, 0..1);
+            color_pass::draw_quad(encoder, output, color_pass::CLEAR, pipeline, &bind_group);
         }
         PassPipeline::Compute {
             pipeline,
@@ -398,7 +360,9 @@ pub(super) fn run_registered_effect<'a>(
             if step.is_compute() {
                 bounds[used] = Bound::Texture(output);
                 used += 1;
-                clear(encoder, output);
+                // A compute pass starts from nothing, so a texel its shader
+                // skips holds no earlier frame.
+                color_pass::clear(encoder, output, wgpu::Color::TRANSPARENT);
             }
             encode(device, encoder, cache, built, &bounds[..used], output, size);
             if last && step.is_compute() {

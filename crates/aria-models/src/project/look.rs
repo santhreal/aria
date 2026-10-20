@@ -19,11 +19,7 @@ impl Project {
             .timeline()
             .track_of(clip_id)
             .ok_or(ModelError::UnknownClip(clip_id))?;
-        let kind = self
-            .timeline()
-            .track(track_id)
-            .ok_or(ModelError::UnknownTrack(track_id))?
-            .kind;
+        let kind = self.timeline().require_track(track_id)?.kind;
         Ok((track_id, kind))
     }
 
@@ -44,10 +40,7 @@ impl Project {
     /// a media-backed clip on a visual lane.
     fn require_visual_media(&self, clip_id: ClipId, what: &str) -> Result<(), ModelError> {
         self.require_visual(clip_id, what)?;
-        let clip = self
-            .timeline()
-            .clip(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline().require_clip(clip_id)?;
         if clip.is_generated() {
             return Err(ModelError::InvalidParam(format!(
                 "{what} requires a media-backed clip"
@@ -97,10 +90,7 @@ impl Project {
     /// its properties are dropped; drivers on the masks below it follow them up
     /// one index.
     pub fn remove_clip_mask(&mut self, clip_id: ClipId, index: u32) -> Result<Mask, ModelError> {
-        let clip = self
-            .timeline_mut()
-            .clip_mut(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
         mask_mut(&mut clip.masks, index)?;
         let removed = clip.masks.remove(index as usize);
         clip.remap_mask_refs(index_after_remove(index));
@@ -116,10 +106,7 @@ impl Project {
         from_index: u32,
         to_index: u32,
     ) -> Result<(), ModelError> {
-        let clip = self
-            .timeline_mut()
-            .clip_mut(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
         mask_mut(&mut clip.masks, from_index)?;
         mask_mut(&mut clip.masks, to_index)?;
         if from_index == to_index {
@@ -223,10 +210,7 @@ impl Project {
         stabilize: Option<StabilizeLevel>,
     ) -> Result<(), ModelError> {
         self.require_visual_media(clip_id, "stabilization")?;
-        let clip = self
-            .timeline()
-            .clip(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline().require_clip(clip_id)?;
         if let ClipSource::Media { media, .. } = &clip.content
             && self.media(*media).is_some_and(|m| m.is_image)
         {
@@ -316,10 +300,7 @@ impl Project {
                 )));
             }
             if spec.text_only {
-                let clip = self
-                    .timeline()
-                    .clip(clip_id)
-                    .ok_or(ModelError::UnknownClip(clip_id))?;
+                let clip = self.timeline().require_clip(clip_id)?;
                 if !matches!(clip.content, ClipSource::Generated(Generator::Text { .. })) {
                     return Err(ModelError::InvalidParam(format!(
                         "animation '{}' is a text preset",

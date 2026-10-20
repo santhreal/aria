@@ -185,11 +185,7 @@ impl EditAction for RestoreParamAction {
     ) -> Result<Box<dyn EditAction>, EngineError> {
         let clip_id = self.clip;
         let param = self.param;
-        let clip = ctx
-            .project
-            .timeline_mut()
-            .clip_mut(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = ctx.project.timeline_mut().require_clip_mut(clip_id)?;
         let current_state = self.state.restore(clip, param)?;
         Ok(Box::new(RestoreParamAction {
             clip: clip_id,
@@ -208,10 +204,7 @@ pub fn set_keyframe(
     easing: Easing,
     tangents: Option<SpatialTangents>,
 ) -> Result<Box<dyn EditAction>, EngineError> {
-    let clip_obj = ctx
-        .project
-        .clip(clip)
-        .ok_or(ModelError::UnknownClip(clip))?;
+    let clip_obj = ctx.project.require_clip(clip)?;
     let before = ParamState::capture(clip_obj, param)?;
     ctx.project
         .set_param_keyframe(clip, param, at, value, easing, tangents)?;
@@ -228,10 +221,7 @@ pub fn remove_keyframe(
     param: ClipParam,
     at: RationalTime,
 ) -> Result<Box<dyn EditAction>, EngineError> {
-    let clip_obj = ctx
-        .project
-        .clip(clip)
-        .ok_or(ModelError::UnknownClip(clip))?;
+    let clip_obj = ctx.project.require_clip(clip)?;
     let before = ParamState::capture(clip_obj, param)?;
     ctx.project.remove_param_keyframe(clip, param, at)?;
     Ok(Box::new(RestoreParamAction {
@@ -247,10 +237,7 @@ pub fn set_constant(
     param: ClipParam,
     value: ParamValue,
 ) -> Result<Box<dyn EditAction>, EngineError> {
-    let clip_obj = ctx
-        .project
-        .clip(clip)
-        .ok_or(ModelError::UnknownClip(clip))?;
+    let clip_obj = ctx.project.require_clip(clip)?;
     let before = ParamState::capture(clip_obj, param)?;
     ctx.project.set_param_constant(clip, param, value)?;
     Ok(Box::new(RestoreParamAction {
@@ -267,10 +254,7 @@ pub fn apply_easing_preset(
     at: RationalTime,
     preset: PiecewiseEasingPreset,
 ) -> Result<Box<dyn EditAction>, EngineError> {
-    let clip_obj = ctx
-        .project
-        .clip(clip)
-        .ok_or(ModelError::UnknownClip(clip))?;
+    let clip_obj = ctx.project.require_clip(clip)?;
     let before = ParamState::capture(clip_obj, param)?;
     ctx.project.apply_easing_preset(clip, param, at, preset)?;
     Ok(Box::new(RestoreParamAction {
@@ -289,10 +273,7 @@ pub fn set_keyframe_ease(
     out_ease: Option<TemporalEase>,
     hold: bool,
 ) -> Result<Box<dyn EditAction>, EngineError> {
-    let clip_obj = ctx
-        .project
-        .clip(clip)
-        .ok_or(ModelError::UnknownClip(clip))?;
+    let clip_obj = ctx.project.require_clip(clip)?;
     let before = ParamState::capture(clip_obj, param)?;
     ctx.project
         .set_param_keyframe_ease(clip, param, at, in_ease, out_ease, hold)?;
@@ -310,10 +291,7 @@ pub fn set_keyframe_roving(
     at: RationalTime,
     roving: bool,
 ) -> Result<Box<dyn EditAction>, EngineError> {
-    let clip_obj = ctx
-        .project
-        .clip(clip)
-        .ok_or(ModelError::UnknownClip(clip))?;
+    let clip_obj = ctx.project.require_clip(clip)?;
     let before = ParamState::capture(clip_obj, param)?;
     ctx.project
         .set_param_keyframe_roving(clip, param, at, roving)?;

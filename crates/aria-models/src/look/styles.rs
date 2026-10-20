@@ -343,34 +343,6 @@ pub(crate) fn validate_style_value(param: StyleParam, value: f32) -> Result<(), 
     }
 }
 
-fn expect_scalar(value: ParamValue) -> Result<f32, ModelError> {
-    match value {
-        ParamValue::Scalar(v) => Ok(v),
-        ParamValue::Vec2(_) | ParamValue::Vec3(_) | ParamValue::Color(_) | ParamValue::Rect(_) => {
-            Err(ModelError::InvalidParam("expected a scalar value".into()))
-        }
-    }
-}
-
-fn expect_vec2(value: ParamValue) -> Result<[f32; 2], ModelError> {
-    match value {
-        ParamValue::Vec2(v) => Ok(v),
-        ParamValue::Scalar(_)
-        | ParamValue::Vec3(_)
-        | ParamValue::Color(_)
-        | ParamValue::Rect(_) => Err(ModelError::InvalidParam("expected a vec2 value".into())),
-    }
-}
-
-fn expect_color(value: ParamValue) -> Result<[u8; 4], ModelError> {
-    match value {
-        ParamValue::Color(v) => Ok(v),
-        ParamValue::Scalar(_) | ParamValue::Vec2(_) | ParamValue::Vec3(_) | ParamValue::Rect(_) => {
-            Err(ModelError::InvalidParam("expected a color value".into()))
-        }
-    }
-}
-
 fn validate_style_offset(value: [f32; 2]) -> Result<(), ModelError> {
     if value[0].is_finite() && value[1].is_finite() {
         Ok(())
@@ -398,13 +370,13 @@ pub(crate) fn set_style_param_keyframe(
         | StyleParam::OutlineWidth
         | StyleParam::BackgroundPadding
         | StyleParam::BackgroundRadius => {
-            let v = expect_scalar(value)?;
+            let v = value.scalar()?;
             validate_style_value(param, v)?;
             style_scalar_mut(styles, param)?.set_keyframe(tick, v, easing);
             Ok(())
         }
         StyleParam::ShadowOffset => {
-            let v = expect_vec2(value)?;
+            let v = value.vec2()?;
             validate_style_offset(v)?;
             style_vec2_mut(styles, param)?.set_keyframe(tick, v, easing);
             Ok(())
@@ -413,7 +385,7 @@ pub(crate) fn set_style_param_keyframe(
         | StyleParam::GlowColor
         | StyleParam::OutlineColor
         | StyleParam::BackgroundColor => {
-            let v = expect_color(value)?;
+            let v = value.color()?;
             style_color_mut(styles, param)?.set_keyframe(tick, v, easing);
             Ok(())
         }
@@ -461,13 +433,13 @@ pub(crate) fn set_style_param_constant(
         | StyleParam::OutlineWidth
         | StyleParam::BackgroundPadding
         | StyleParam::BackgroundRadius => {
-            let v = expect_scalar(value)?;
+            let v = value.scalar()?;
             validate_style_value(param, v)?;
             style_scalar_mut(styles, param)?.set_constant(v);
             Ok(())
         }
         StyleParam::ShadowOffset => {
-            let v = expect_vec2(value)?;
+            let v = value.vec2()?;
             validate_style_offset(v)?;
             style_vec2_mut(styles, param)?.set_constant(v);
             Ok(())
@@ -476,7 +448,7 @@ pub(crate) fn set_style_param_constant(
         | StyleParam::GlowColor
         | StyleParam::OutlineColor
         | StyleParam::BackgroundColor => {
-            let v = expect_color(value)?;
+            let v = value.color()?;
             style_color_mut(styles, param)?.set_constant(v);
             Ok(())
         }

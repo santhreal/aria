@@ -2,6 +2,7 @@
 
 use bytemuck::{Pod, Zeroable};
 
+use crate::color_pass;
 use crate::layer::BlendMode;
 
 use super::pipelines::PassRegistry;
@@ -42,26 +43,14 @@ pub(crate) fn run_blend_composite(
         ],
     );
 
-    let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: None,
-        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-            view: output,
-            depth_slice: None,
-            resolve_target: None,
-            ops: wgpu::Operations {
-                // Every pixel is written; Load preserves unread edges if any.
-                load: wgpu::LoadOp::Load,
-                store: wgpu::StoreOp::Store,
-            },
-        })],
-        depth_stencil_attachment: None,
-        timestamp_writes: None,
-        occlusion_query_set: None,
-        multiview_mask: None,
-    });
-    pass.set_pipeline(registry.blend_pipeline(mode));
-    pass.set_bind_group(0, &*bind_group, &[]);
-    pass.draw(0..6, 0..1);
+    // Every pixel is written; Load preserves unread edges if any.
+    color_pass::draw_quad(
+        encoder,
+        output,
+        color_pass::KEEP,
+        registry.blend_pipeline(mode),
+        &bind_group,
+    );
 }
 
 pub(super) const BLEND_MODE_COUNT: usize = BlendMode::ALL.len();

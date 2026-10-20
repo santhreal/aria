@@ -70,7 +70,7 @@ impl Project {
         let timeline = self
             .timeline_with_clip(child)
             .ok_or(ModelError::UnknownClip(child))?;
-        let child_clip = timeline.clip(child).ok_or(ModelError::UnknownClip(child))?;
+        let child_clip = timeline.require_clip(child)?;
         let Some(parent_clip) = timeline.clip(parent) else {
             return Err(match self.clip(parent) {
                 Some(_) => ModelError::ParentElsewhere { child, parent },
@@ -109,7 +109,7 @@ impl Project {
             self.check_parent(child, parent)?;
         }
         transform.validate()?;
-        let clip = self.clip_mut(child).ok_or(ModelError::UnknownClip(child))?;
+        let clip = self.require_clip_mut(child)?;
         clip.transform = transform;
         Ok(std::mem::replace(&mut clip.parent, parent))
     }

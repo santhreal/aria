@@ -92,9 +92,7 @@ fn build_plan(
     let track_id = timeline
         .track_of(clip_id)
         .ok_or(ModelError::UnknownClip(clip_id))?;
-    let track = timeline
-        .track(track_id)
-        .ok_or(ModelError::UnknownTrack(track_id))?;
+    let track = timeline.require_track(track_id)?;
     if track.kind != TrackKind::Video {
         return Err(ModelError::InvalidParam(format!(
             "freeze frame requires a clip on a video track (clip {clip_id} is on {track_id})"

@@ -35,10 +35,7 @@ pub fn execute(
         Ok::<(), ModelError>(())
     })();
     if let Err(error) = result {
-        *ctx.project
-            .timeline_mut()
-            .clip_mut(target)
-            .ok_or(ModelError::UnknownClip(target))? = before;
+        *ctx.project.timeline_mut().require_clip_mut(target)? = before;
         return Err(error.into());
     }
 

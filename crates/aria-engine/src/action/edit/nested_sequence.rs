@@ -111,7 +111,7 @@ pub fn create_nested_sequence(
     let mut first_track_id = None;
 
     for &id in clips {
-        let clip = tl.clip(id).ok_or(ModelError::UnknownClip(id))?;
+        let clip = tl.require_clip(id)?;
         let trk_id = tl.track_of(id).ok_or(ModelError::UnknownClip(id))?;
         if first_track_id.is_none() {
             first_track_id = Some(trk_id);
@@ -143,11 +143,7 @@ pub fn create_nested_sequence(
         let mapped_trk_id = match track_map.get(trk_id) {
             Some(mapped) => *mapped,
             None => {
-                let source = ctx
-                    .project
-                    .timeline()
-                    .track(*trk_id)
-                    .ok_or(ModelError::UnknownTrack(*trk_id))?;
+                let source = ctx.project.timeline().require_track(*trk_id)?;
                 let lane = Track::new(source.kind, source.name.to_string());
                 let mapped = new_seq.timeline.add_track(lane);
                 track_map.insert(*trk_id, mapped);
@@ -168,11 +164,7 @@ pub fn create_nested_sequence(
     // same check inside `add_clip` fires after the sequence is registered and
     // the selection removed, which would leave the clips deleted and an orphan
     // sequence behind. Nothing above this point has mutated the project.
-    let dest = ctx
-        .project
-        .timeline()
-        .track(first_track_id)
-        .ok_or(ModelError::UnknownTrack(first_track_id))?;
+    let dest = ctx.project.timeline().require_track(first_track_id)?;
     if !dest.kind.accepts_clip(&nested_clip) {
         return Err(EngineError::Model(ModelError::IncompatibleTrackKind {
             track: first_track_id,

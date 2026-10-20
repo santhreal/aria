@@ -16,19 +16,13 @@ impl Project {
         clip_id: ClipId,
         attributes: &[ClipAttribute],
     ) -> Result<(), ModelError> {
-        let clip = self
-            .timeline()
-            .clip(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline().require_clip(clip_id)?;
         if attributes.contains(&ClipAttribute::TimeRemapping)
             && ClipAttribute::TimeRemapping.is_set(clip)
         {
             self.set_clip_speed_curve(clip_id, None)?;
         }
-        let clip = self
-            .timeline_mut()
-            .clip_mut(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
         for attribute in attributes {
             attribute.clear(clip);
         }

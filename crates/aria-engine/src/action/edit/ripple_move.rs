@@ -131,15 +131,12 @@ fn members(
     to_track: TrackId,
     start: RationalTime,
 ) -> Result<Vec<Member>, EngineError> {
-    let primary = ctx
-        .project
-        .clip(clip)
-        .ok_or(ModelError::UnknownClip(clip))?;
+    let primary = ctx.project.require_clip(clip)?;
     let delta = start.value - primary.start().value;
     let ids = ctx.project.move_companions(clip);
     let mut group = Vec::with_capacity(ids.len());
     for id in ids {
-        let original = ctx.project.clip(id).ok_or(ModelError::UnknownClip(id))?;
+        let original = ctx.project.require_clip(id)?;
         let from_track = ctx
             .project
             .timeline()

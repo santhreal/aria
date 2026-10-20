@@ -48,7 +48,7 @@ pub struct BakePass {
 /// a lane bar (both refused by the model, so there is one answer), and a clip on
 /// a lane that is neither picture nor sound.
 pub fn bake_project(project: &Project, clip: ClipId) -> Result<BakePass, EngineError> {
-    let source = project.clip(clip).ok_or(ModelError::UnknownClip(clip))?;
+    let source = project.require_clip(clip)?;
     let span = source.timeline;
     let home = home_of(project, clip).ok_or(ModelError::UnknownClip(clip))?;
     let timeline = match home {

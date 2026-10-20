@@ -1,6 +1,6 @@
 //! Track rename: swap a lane's display name as one undoable unit.
 
-use aria_models::{ModelError, TrackId};
+use aria_models::TrackId;
 
 use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
@@ -10,11 +10,7 @@ pub fn set_track_name(
     track: TrackId,
     name: String,
 ) -> Result<Box<dyn EditAction>, EngineError> {
-    let track_mut = ctx
-        .project
-        .timeline_mut()
-        .track_mut(track)
-        .ok_or(ModelError::UnknownTrack(track))?;
+    let track_mut = ctx.project.timeline_mut().require_track_mut(track)?;
     let before = std::mem::replace(&mut track_mut.name, name);
     Ok(Box::new(RestoreTrackNameAction {
         track_id: track,
@@ -35,8 +31,7 @@ impl EditAction for RestoreTrackNameAction {
         let track_mut = ctx
             .project
             .timeline_mut()
-            .track_mut(self.track_id)
-            .ok_or(ModelError::UnknownTrack(self.track_id))?;
+            .require_track_mut(self.track_id)?;
         let current = std::mem::replace(&mut track_mut.name, self.name);
         Ok(Box::new(RestoreTrackNameAction {
             track_id: self.track_id,

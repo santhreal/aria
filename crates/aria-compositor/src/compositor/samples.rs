@@ -7,7 +7,6 @@ use crate::gpu::GpuContext;
 use crate::layer::{BlendMode, CompositeLayer, CompositorConfig, LayerPlacement, LayerStyles};
 
 use super::Compositor;
-use super::draw_layer::clear_view;
 use super::reference::draw_layer_into;
 use super::render::pipeline_for;
 
@@ -43,7 +42,7 @@ impl Compositor {
             );
             return Ok(());
         }
-        clear_view(encoder, "aria.motion_blur.clear", offscreen.view(into));
+        crate::color_pass::clear(encoder, offscreen.view(into), wgpu::Color::TRANSPARENT);
         let weight = 1.0 / passes.len() as f32;
         for placement in passes {
             let sample = content_at(layer, *placement);

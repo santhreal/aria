@@ -1,4 +1,4 @@
-use aria_models::{ClipId, CropRect, ModelError, Param, RationalTime};
+use aria_models::{ClipId, CropRect, Param, RationalTime};
 
 use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
@@ -17,11 +17,7 @@ impl EditAction for RestoreCropAction {
         ctx: &mut ApplyContext<'_>,
     ) -> Result<Box<dyn EditAction>, EngineError> {
         let clip_id = self.clip;
-        let clip = ctx
-            .project
-            .timeline_mut()
-            .clip_mut(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = ctx.project.timeline_mut().require_clip_mut(clip_id)?;
         let current_crop = clip.crop.clone();
         let current_flip_h = clip.flip_h;
         let current_flip_v = clip.flip_v;
@@ -51,10 +47,7 @@ pub fn set_crop(
     flip_v: bool,
     at: Option<RationalTime>,
 ) -> Result<Box<dyn EditAction>, EngineError> {
-    let clip_obj = ctx
-        .project
-        .clip(clip)
-        .ok_or(ModelError::UnknownClip(clip))?;
+    let clip_obj = ctx.project.require_clip(clip)?;
     let prev_crop = clip_obj.crop.clone();
     let prev_flip_h = clip_obj.flip_h;
     let prev_flip_v = clip_obj.flip_v;

@@ -261,6 +261,19 @@ impl Project {
         None
     }
 
+    /// [`Self::clip`], or [`ModelError::UnknownClip`] when no timeline in the
+    /// project holds it.
+    pub fn require_clip(&self, clip_id: ClipId) -> Result<&Clip, ModelError> {
+        self.clip(clip_id).ok_or(ModelError::UnknownClip(clip_id))
+    }
+
+    /// [`Self::clip_mut`], or [`ModelError::UnknownClip`] when no timeline in
+    /// the project holds it.
+    pub fn require_clip_mut(&mut self, clip_id: ClipId) -> Result<&mut Clip, ModelError> {
+        self.clip_mut(clip_id)
+            .ok_or(ModelError::UnknownClip(clip_id))
+    }
+
     /// Find a clip by id mutably anywhere in the project.
     pub fn clip_mut(&mut self, clip_id: ClipId) -> Option<&mut Clip> {
         if self.timeline().clip(clip_id).is_some() {

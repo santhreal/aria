@@ -141,9 +141,7 @@ impl Timeline {
             return Err(ModelError::LaneCarriesNoSound(track));
         }
         let pan = check_track_pan("lane pan", pan)?;
-        let lane = self
-            .track_mut(track)
-            .ok_or(ModelError::UnknownTrack(track))?;
+        let lane = self.require_track_mut(track)?;
         lane.pan = pan;
         Ok(())
     }
@@ -161,9 +159,7 @@ impl Timeline {
         }
         check_track_volume_envelope("lane volume envelope", &volume)?;
         check_track_pan_envelope("lane pan envelope", &pan)?;
-        let lane = self
-            .track_mut(track)
-            .ok_or(ModelError::UnknownTrack(track))?;
+        let lane = self.require_track_mut(track)?;
         lane.automation = mode;
         lane.volume_envelope = volume;
         lane.pan_envelope = pan;

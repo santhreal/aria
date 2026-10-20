@@ -1,4 +1,4 @@
-use aria_models::{ModelError, TrackId};
+use aria_models::TrackId;
 
 use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
@@ -92,11 +92,7 @@ pub fn execute(
     track: TrackId,
     patch: FlagPatch,
 ) -> Result<Box<dyn EditAction>, EngineError> {
-    let t = ctx
-        .project
-        .timeline_mut()
-        .track_mut(track)
-        .ok_or(ModelError::UnknownTrack(track))?;
+    let t = ctx.project.timeline_mut().require_track_mut(track)?;
     // Snapshot the pre-edit flags into the inverse (a full restore).
     let inverse = Box::new(SetTrackFlagsAction {
         track,

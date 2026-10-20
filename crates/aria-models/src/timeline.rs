@@ -179,7 +179,7 @@ impl Timeline {
         patch: Patch,
     ) -> Result<(), ModelError> {
         if let Patch::Track(id) = patch {
-            let lane = self.track(id).ok_or(ModelError::UnknownTrack(id))?;
+            let lane = self.require_track(id)?;
             if lane.kind != channel.lane_kind() {
                 return Err(ModelError::IncompatibleTrackKind {
                     track: id,
@@ -508,6 +508,18 @@ impl Timeline {
         self.lane_mut(&id)
     }
 
+    /// The track `id`, or [`ModelError::UnknownTrack`] when the timeline has
+    /// none.
+    pub fn require_track(&self, id: TrackId) -> Result<&Track, ModelError> {
+        self.track(id).ok_or(ModelError::UnknownTrack(id))
+    }
+
+    /// The track `id` for writing, or [`ModelError::UnknownTrack`] when the
+    /// timeline has none.
+    pub fn require_track_mut(&mut self, id: TrackId) -> Result<&mut Track, ModelError> {
+        self.track_mut(id).ok_or(ModelError::UnknownTrack(id))
+    }
+
     /// The lane `id` for writing. Every `&mut Track` the timeline hands out
     /// comes from here or touches the lane itself, so a lane's
     /// [`revision`](Track::revision) moves with every write.
@@ -732,6 +744,19 @@ impl Timeline {
         self.lane_mut(&track_id)?.clip_mut(clip_id)
     }
 
+    /// The clip `clip_id`, or [`ModelError::UnknownClip`] when no track holds
+    /// it.
+    pub fn require_clip(&self, clip_id: ClipId) -> Result<&Clip, ModelError> {
+        self.clip(clip_id).ok_or(ModelError::UnknownClip(clip_id))
+    }
+
+    /// The clip `clip_id` for writing, or [`ModelError::UnknownClip`] when no
+    /// track holds it.
+    pub fn require_clip_mut(&mut self, clip_id: ClipId) -> Result<&mut Clip, ModelError> {
+        self.clip_mut(clip_id)
+            .ok_or(ModelError::UnknownClip(clip_id))
+    }
+
     pub fn clip_timeline_mut(&mut self, clip_id: ClipId) -> Option<crate::ClipMut<'_>> {
         let track_id = *self.clip_index.get(&clip_id)?;
         self.lane_mut(&track_id)?.clip_timeline_mut(clip_id)
@@ -867,9 +892,7 @@ impl Timeline {
         if self.marker(marker.id).is_some() {
             return Err(ModelError::InvalidRange);
         }
-        let clip = self
-            .clip_mut(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.require_clip_mut(clip_id)?;
         clip.add_marker(marker)
     }
 
@@ -886,7 +909,7 @@ impl Timeline {
             .position(|m| m.id == id)
             .ok_or(ModelError::UnknownMarker(id))?;
         let marker = self.markers[index].clone();
-        let clip = self.clip(clip_id).ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.require_clip(clip_id)?;
         let clip_tick = clip
             .clip_time_at_timeline_tick(marker.tick.value)
             .ok_or_else(|| {
@@ -953,8 +976,7 @@ impl Timeline {
     ) -> Result<(), ModelError> {
         if let Some(clip_id) = self.marker_clip(id) {
             return self
-                .clip_mut(clip_id)
-                .ok_or(ModelError::UnknownClip(clip_id))?
+                .require_clip_mut(clip_id)?
                 .edit_marker(id, tick, duration, name, color, comment, kind);
         }
         if tick.value < 0 || !tick.rate.is_valid() || !duration.rate.is_valid() {

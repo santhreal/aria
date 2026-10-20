@@ -250,10 +250,7 @@ fn clip_snapshot(project: &Project, clip: ClipId) -> Result<(TrackId, Clip), Eng
         .timeline()
         .track_of(clip)
         .ok_or(ModelError::UnknownClip(clip))?;
-    let snapshot = project
-        .timeline()
-        .clip(clip)
-        .ok_or(ModelError::UnknownClip(clip))?;
+    let snapshot = project.timeline().require_clip(clip)?;
     Ok((track, snapshot.clone()))
 }
 
