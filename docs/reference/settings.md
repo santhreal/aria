@@ -54,11 +54,11 @@ api_key_env = "PEXELS_API_KEY"
 | `ai.source` | `string` | `"local"` | `"local"`, `"openrouter"`, `"custom"` (aliases `"or"`, `"advanced"`, `"endpoint"`) | `AI` | Selects the AI provider preset (`AiSource::Local`, `AiSource::OpenRouter`, or `AiSource::Custom`). |
 | `ai.base_url` | `string` | `""` | `""` or an `http://` / `https://` URL with host | `AI` | OpenAI-compatible endpoint URL used by `local` and `custom`. |
 | `ai.model` | `string` | `""` | Model identifier string | `AI` | Model identifier sent in chat completion or responses requests. |
-| `ai.api_protocol` | `string` | `"chat_completions"` | `"chat_completions"`, `"responses"` (aliases `"chat-completions"`, `"chat"`, `"response"`) | `AI` | Selects `/v1/chat/completions` (`ChatCompletions`) or `/v1/responses` (`Responses`). |
-| `ai.reasoning_summary` | `string` | `"auto"` | `"auto"`, `"off"` (aliases `"on"`, `"none"`) | `AI` | Requests provider-generated reasoning summaries in `Responses` mode when `"auto"`. |
+| `ai.api_protocol` | `string` | `"chat_completions"` | `"chat_completions"`, `"responses"` (aliases `"chat-completions"`, `"chat"`, `"response"`) | `AI` | Selects `/v1/chat/completions` (`AiApiProtocol::ChatCompletions`) or `/v1/responses` (`AiApiProtocol::Responses`). |
+| `ai.reasoning_summary` | `string` | `"auto"` | `"auto"`, `"off"` (aliases `"on"`, `"none"`) | `AI` | Requests provider-generated reasoning summaries (`ReasoningSummary`) in `Responses` mode when `"auto"`. |
 | `ai.api_key` | `string` | `none` | Non-empty API key string | `AI` | Literal bearer token for the AI endpoint. |
 | `ai.api_key_env` | `string` | `none` | Environment variable name | `AI` | Environment variable read at request time for the AI bearer token (takes precedence over `ai.api_key`). |
-| `ai.autonomy` | `string` | `"ask"` | `"ask"`, `"full"` (alias `"confirm"`) | `AI` | Controls whether destructive System-tier agent tools prompt for confirmation (`Ask`) or run without confirmation (`Full`). |
+| `ai.autonomy` | `string` | `"ask"` | `"ask"`, `"full"` (alias `"confirm"`) | `AI` | Controls whether destructive System-tier agent tools prompt for confirmation (`Autonomy::Ask`) or run without confirmation (`Autonomy::Full`). |
 | `cloud.base_url` | `string` | `""` | `""` or an `http://` / `https://` URL with host | `Cloud` | Overrides the Aria cloud API host (`""` uses `https://api.aria.sh`). |
 | `storage.root` | `path` | `none` | Absolute directory path (`none` uses `<data dir>`) | `Storage` | Base directory under which default cache folders resolve. |
 | `storage.download_quota_mib` | `integer` | `2048` | `1` to `1048576` MiB (`1 MiB` to `1 TiB`) | `Storage` | Eviction ceiling for the LRU stock, SFX, and cloud asset download cache. |
@@ -145,3 +145,65 @@ The **Canvas** section of `aria.dialog.settings` (implemented in `crates/aria-ui
 - **Frame rate (`RATES`)**: `23.976` (`24000/1001`), `24` (`24/1`), `25` (`25/1`), `29.97` (`30000/1001`), `30` (`30/1`), `50` (`50/1`), `59.94` (`60000/1001`), or `60` (`60/1`) fps (`EditCommand::SetSequenceRate`).
 - **Audio channel layout (`AudioLayout::ALL`)**: `mono` (`Mono (1.0)`, `1` ch), `stereo` (`Stereo (2.0)`, `2` ch, default), or `5.1` (`5.1 Surround`, `6` ch) (`EditCommand::SetAudioLayout`).
 - **Timecode display (`TimeDisplay::ALL`)**: `timecode` (`Timecode`, `HH:MM:SS:FF`, default), `frames` (`Frames`, integer frame count), or `feet_frames` (`Feet + Frames 35mm`, `16` frames per foot) (`EditCommand::SetTimeDisplay`).
+
+## Config refusal reasons (`Refusal::ALL`)
+
+When `Settings::from_document` encounters a field in `config.toml` that fails validation, the field keeps its default value and an entry is appended to `Settings::rejected` with one of four refusal categories (`Refusal::ALL` in `crates/aria-settings/src/read.rs`):
+
+| Variant | Reason (`reason()`) |
+| --- | --- |
+| `WrongType` | `is not the kind of value this key takes` |
+| `NotOneOf` | `is not one of the values this key accepts` |
+| `NotAbsolute` | `is not an absolute path, so it would resolve differently depending on where the editor was started` |
+| `OutOfRange` | `is outside the range this key accepts` |
+
+## Storage cache registry (`CacheId::ALL`)
+
+`CacheId::ALL` (`crates/aria-storage/src/cache_registry.rs`) enumerates the thirteen clearable caches displayed in **Settings > Caches**:
+
+| Variant | Key (`as_str()`) | Label (`descriptor().label`) | Kind (`kind`) | Tier (`tier`) | Default relative path (`default_relative`) |
+| --- | --- | --- | --- | --- | --- |
+| `PreviewFrames` | `preview_frames` | `Preview frames` | `Memory` | `Disposable` | `none` |
+| `LibraryThumbnails` | `library_thumbnails` | `Library thumbnails` | `Disk` | `Disposable` | `library-thumbnails` |
+| `TimelineFilmstrips` | `timeline_filmstrips` | `Timeline filmstrips` | `Memory` | `Disposable` | `none` |
+| `TimelineWaveforms` | `timeline_waveforms` | `Timeline waveforms` | `Memory` | `Disposable` | `none` |
+| `Proxies` | `proxies` | `Proxies` | `Disk` | `Disposable` | `proxies` |
+| `Analysis` | `analysis` | `Media analysis` | `Disk` | `Disposable` | `analysis` |
+| `RenderFiles` | `render_files` | `Render files` | `Disk` | `Disposable` | `render-files` |
+| `AiModels` | `ai_models` | `AI models` | `Disk` | `Redownloadable` | `ai-models` |
+| `Download` | `download` | `Downloads` | `Disk` | `Redownloadable` | `download-cache` |
+| `Catalog` | `catalog` | `Catalog` | `Disk` | `Redownloadable` | `catalog-cache` |
+| `Luts` | `luts` | `LUTs` | `Disk` | `Redownloadable` | `luts` |
+| `Lottie` | `lottie` | `Lottie assets` | `Disk` | `Redownloadable` | `lottie` |
+| `Templates` | `templates` | `Templates` | `Disk` | `Redownloadable` | `templates` |
+
+## Settings dialog text fields and numeric limits (`SettingsField::ALL`, `TimeoutField::ALL`, `WasmLimit::ALL`)
+
+`SettingsField::ALL` (`crates/aria-ui/src/app/settings_form.rs`), `TimeoutField::ALL` (`crates/aria-ui/src/app/models.rs`), and `WasmLimit::ALL` (`crates/aria-ui/src/app/plugin_install.rs`) enumerate the twelve shipped text inputs and numeric limit rows in `aria.dialog.settings`:
+
+| Variant | Element ID | Label |
+| --- | --- | --- |
+| `AiBaseUrl` | `ai-base-url` | `AI base URL` |
+| `AiModel` | `ai-model` | `AI model` |
+| `AiKey` | `ai-key` | `AI key` |
+| `AiKeyEnv` | `ai-key-env` | `AI key variable` |
+| `CloudBaseUrl` | `cloud-base-url` | `Cloud base URL` |
+| `KeymapName` | `keymap-name` | `Save keys as` |
+| `Filter` | `settings-filter` | `Filter` |
+| `Connect` | `model-timeout-connect` | `Connect` |
+| `Read` | `model-timeout-read` | `Read` |
+| `Total` | `model-timeout-total` | `Total` |
+| `Fuel` | `wasm-limit-fuel` | `WASM fuel per call` |
+| `Memory` | `wasm-limit-memory` | `WASM memory` |
+
+## Playback drop causes and decoder output modes (`DropCause::ALL` and `OutputMode::ALL`)
+
+When `logDroppedFrames` is enabled in **Settings > Playback**, `DroppedFrames` classifies each dropped presentation frame into one of three causes (`DropCause::ALL` in `crates/aria-render/src/playback_meter.rs`), and video decoders deliver frames in one of two transfer modes (`OutputMode::ALL` in `crates/aria-decoder/src/lib.rs`):
+
+| Variant | Label (`label()`) |
+| --- | --- |
+| `DecodeLate` | `decode late` |
+| `RenderLate` | `render late` |
+| `PresentLate` | `present late` |
+| `Gpu` | `GPU surfaces` |
+| `Cpu` | `CPU planes` |

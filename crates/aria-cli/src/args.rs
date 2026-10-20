@@ -500,10 +500,15 @@ mod tests {
             h2_sections, expected_h2,
             "H2 sections in docs/command-line.md drifted from Verb::ALL"
         );
+        let verb_set: std::collections::BTreeSet<&str> =
+            Verb::ALL.iter().map(|v| v.key()).collect();
+        let h2_verb_set: std::collections::BTreeSet<&str> = h2_sections[1..h2_sections.len() - 1]
+            .iter()
+            .map(String::as_str)
+            .collect();
         assert_eq!(
-            Verb::ALL.len(),
-            7,
-            "update expected_h2 if Verb::ALL changes"
+            h2_verb_set, verb_set,
+            "H2 verb sections in docs/command-line.md must match Verb::ALL"
         );
 
         // 2. Exit codes table in `docs/command-line.md`.
@@ -702,13 +707,29 @@ mod tests {
 
         // 6. `plugin new`, `plugin dev`, `plugin check`, and `plugin pack` specifics.
         let p_new_sec = doc_subsection(plugin_sec, "plugin new");
-        for tier in crate::plugin::new::NewTier::ALL {
-            assert!(
-                p_new_sec.contains(&format!("`{}`", tier.key())),
-                "`plugin new` must document tier `{}`",
-                tier.key()
-            );
+        let (_, after_tier) = p_new_sec
+            .split_once("NewTier::ALL` in `crates/aria-cli/src/plugin/new.rs`): ")
+            .expect("NewTier::ALL cell in `plugin new` table");
+        let (tier_cell, _) = after_tier
+            .split_once(" |")
+            .expect("closing pipe of `--tier` row");
+        let mut doc_tiers = Vec::new();
+        let mut rem = tier_cell;
+        while let Some((_, after_open)) = rem.split_once('`') {
+            let Some((tok, tail)) = after_open.split_once('`') else {
+                break;
+            };
+            doc_tiers.push(tok);
+            rem = tail;
         }
+        let expected_tiers: Vec<&str> = crate::plugin::new::NewTier::ALL
+            .iter()
+            .map(|t| t.key())
+            .collect();
+        assert_eq!(
+            doc_tiers, expected_tiers,
+            "`plugin new` `--tier` table cell drifted from NewTier::ALL"
+        );
 
         let p_dev_sec = doc_subsection(plugin_sec, "plugin dev");
         assert!(

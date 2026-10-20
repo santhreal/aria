@@ -165,3 +165,37 @@ Defined in `crates/aria-ui/src/types_editor.rs` (`AgentEntryKind::ALL`).
 | `Reasoning` | `thinking` | `reasoning` |
 | `Action` | `edit` | `action` |
 | `Error` | `error` | `error` |
+
+## Cloud library feeds (`CloudFeed::ALL`)
+
+Defined in `crates/aria-ui/src/cloud.rs` (`CloudFeed::ALL`).
+
+| Variant | Label (`label()`) | Search feed (`is_search()`) | Catalog asset kind (`asset_kind()`) |
+| --- | --- | --- | --- |
+| `Stock` | `Stock` | `true` | `none` |
+| `Templates` | `Templates` | `false` | `Template` |
+| `Sfx` | `SFX` | `false` | `Sfx` |
+| `Luts` | `LUTs` | `false` | `Lut` |
+| `TextPresets` | `Text presets` | `false` | `TextPreset` |
+| `Lottie` | `Lottie` | `false` | `Lottie` |
+| `Skills` | `Skills` | `false` | `Skill` |
+
+## Generate panel media kinds (`GenerateKind::ALL`)
+
+Defined in `crates/aria-ui/src/app/generate.rs` (`GenerateKind::ALL`).
+
+| Variant | Label (`label()`) | Fallback extension (`fallback_extension()`) |
+| --- | --- | --- |
+| `Image` | `Image` | `png` |
+| `Video` | `Video` | `mp4` |
+| `Tts` | `Voice` | `mp3` |
+
+## Analysis panel detector kinds (`AnalysisKind::ALL`)
+
+Defined in `crates/aria-ui/src/app/analysis_kind.rs` (`AnalysisKind::ALL`).
+
+| Variant | ID (`id()`) | Label (`label()`) |
+| --- | --- | --- |
+| `Shots` | `shots` | `Shots` |
+| `Silence` | `silence` | `Silence` |
+| `Beats` | `beats` | `Beats` |

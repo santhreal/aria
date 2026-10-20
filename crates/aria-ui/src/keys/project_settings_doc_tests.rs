@@ -11,76 +11,21 @@
 //! Not caught: prose commentary outside the structured tables and constants.
 
 use aria_models::{
-    AudioLayout, AudioRole, BakeMedium, CanvasAspect, CanvasSettings, LabelColor, LaneZone,
-    MarkerColor, MarkerKind, TimeDisplay, TrackDisplay, track_kind_specs,
+    AudioLayout, AudioRole, AutomationMode, BakeMedium, CanvasAspect, CanvasSettings, LabelColor,
+    LaneZone, MarkerColor, MarkerKind, SourceChannel, TimeDisplay, TrackDisplay, track_kind_specs,
 };
 
 use crate::app::project_settings::CANVAS_BASELINES;
 use crate::surfaces::settings_pick::RATES;
 use crate::theme::{Appearance, Theme};
 
-
-fn unquote(cell: &str) -> &str {
-    cell.trim().trim_start_matches('`').trim_end_matches('`')
-}
-
-fn section<'a>(doc: &'a str, heading: &str) -> &'a str {
-    let level = heading.bytes().take_while(|&b| b == b'#').count();
-    let start = doc
-        .find(heading)
-        .unwrap_or_else(|| panic!("missing heading {heading:?}"));
-    let body = &doc[start + heading.len()..];
-    let body = body.strip_prefix('\n').unwrap_or(body);
-    let mut offset = 0usize;
-    for line in body.lines() {
-        let hashes = line.bytes().take_while(|&b| b == b'#').count();
-        if (1..=level).contains(&hashes) && line.as_bytes().get(hashes) == Some(&b' ') {
-            return &body[..offset];
-        }
-        offset += line.len() + 1;
-    }
-    body
-}
-
-fn table_rows(text: &str) -> Vec<Vec<&str>> {
-    let mut rows = Vec::new();
-    let mut in_table = false;
-    let mut past_sep = false;
-    for line in text.lines() {
-        let trimmed = line.trim();
-        if !trimmed.starts_with('|') {
-            if in_table {
-                in_table = false;
-                past_sep = false;
-            }
-            continue;
-        }
-        let cells: Vec<&str> = trimmed
-            .trim_start_matches('|')
-            .trim_end_matches('|')
-            .split('|')
-            .map(str::trim)
-            .collect();
-        if !in_table {
-            in_table = true;
-            continue;
-        }
-        if !past_sep {
-            past_sep = true;
-            continue;
-        }
-        rows.push(cells);
-    }
-    rows
-}
+use crate::test_support::doc_tables::{
+    heading_body as section, read_doc, strip_ticks as unquote, table_rows,
+};
 
 #[test]
 fn project_settings_doc_matches_registries() {
-    let doc_buf = std::fs::read_to_string(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../docs/reference/project-settings.md"),
-    )
-    .expect("read docs/reference/project-settings.md");
+    let doc_buf = read_doc("reference/project-settings.md");
     #[allow(non_snake_case)]
     let DOC = doc_buf.as_str();
     // 1. CanvasAspect::ALL, CanvasSettings::MIN_DIM / MAX_DIM, CANVAS_BASELINES.
@@ -514,5 +459,62 @@ fn project_settings_doc_matches_registries() {
     assert_eq!(
         doc_presets, expected_presets,
         "docs/reference/project-settings.md TrackDisplay::PRESETS table drifted"
+    );
+
+    let auto_rows = table_rows(section(
+        DOC,
+        "## Track automation modes (`AutomationMode::ALL`)",
+    ));
+    let doc_auto: Vec<(String, String, bool, bool, bool)> = auto_rows
+        .iter()
+        .map(|r| {
+            assert!(r.len() >= 5, "malformed AutomationMode row: {r:?}");
+            (
+                unquote(r[0]).to_string(),
+                r[1].to_string(),
+                unquote(r[2]) == "true",
+                unquote(r[3]) == "true",
+                unquote(r[4]) == "yes",
+            )
+        })
+        .collect();
+    let expected_auto: Vec<(String, String, bool, bool, bool)> = AutomationMode::ALL
+        .iter()
+        .map(|&m| {
+            (
+                format!("{m:?}"),
+                m.label().to_string(),
+                m.reads_envelope(),
+                m.writes_envelope(),
+                m == AutomationMode::default(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        doc_auto, expected_auto,
+        "docs/reference/project-settings.md AutomationMode::ALL table drifted"
+    );
+
+    let patch_rows = table_rows(section(
+        DOC,
+        "## Source patching channels (`SourceChannel::ALL`)",
+    ));
+    let doc_patch: Vec<(String, String)> = patch_rows
+        .iter()
+        .map(|r| {
+            assert!(r.len() >= 2, "malformed SourceChannel row: {r:?}");
+            (
+                unquote(r[0]).to_string(),
+                unquote(r[1]).to_string(),
+            )
+        })
+        .collect();
+    let expected_patch: Vec<(String, String)> = SourceChannel::ALL
+        .iter()
+        .map(|&c| (format!("{c:?}"), format!("{:?}", c.lane_kind())))
+        .collect();
+    assert_eq!(
+        doc_patch, expected_patch,
+        "docs/reference/project-settings.md SourceChannel::ALL table drifted"
     );
 }

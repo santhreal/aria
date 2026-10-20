@@ -264,7 +264,7 @@ empty, or `on` contains `"startup"`, `PackageManifest::loads_at_start` returns
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `on` | array of strings | `[]` | Activation events (`Activation`): `"startup"`, `"command:<id>"`, `"panel:<id>"`, `"setting:<key>"`, `"file:<ext>"`, `"effect:<id>"`, `"transition:<id>"`, or `"generator:<id>"`. Duplicate events are deduplicated in declaration order. |
+| `on` | array of strings | `[]` | Activation events (`Activation` / `ActivationKind::ALL`): `"startup"`, `"command:<id>"`, `"panel:<id>"`, `"setting:<key>"`, `"file:<ext>"`, `"effect:<id>"`, `"transition:<id>"`, or `"generator:<id>"`. Duplicate events are deduplicated in declaration order. |
 
 Every `"command:<id>"`, `"panel:<id>"`, and `"setting:<key>"` entry must match
 an entry in `[[commands]]`, `[[panels]]`, or `[[settings]]` of the same

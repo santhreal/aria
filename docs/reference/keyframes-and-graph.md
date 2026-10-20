@@ -71,6 +71,20 @@ The timeline graph editor (`Shift+F3`, `crates/aria-ui/src/app/property_rows_gra
 
 Handle sides (`GraphHandleSide`) are `Incoming` and `Outgoing`. Interactive pointer drags (`GraphDragTarget`) target `Keyframe` (time and value), `Influence` (incoming or outgoing `TemporalEase` speed and influence), or `SpatialTangent` (2D motion-path cubic bezier tangent on `ClipParam::Position`).
 
+### On-canvas motion path (`PathParam::ALL` and `TangentSide::ALL`)
+
+In the Viewer (`crates/aria-ui/src/app/canvas_overlay_motion_path.rs`), when `OverlayMode::Transform` is active and the selected clip has 2 or more keyframes on a 2D spatial property (`PathParam::ALL`), the canvas draws the cubic Bezier motion path and tangent handles (`TangentSide::ALL`):
+
+| `PathParam` Variant | `ClipParam` (`param()`) | Element ID prefix (`id()`) | Bends (`bends()`) |
+| --- | --- | --- | --- |
+| `AnchorPoint` | `AnchorPoint` | `anchor-point-path` | `false` |
+| `Position` | `Position` | `position-path` | `true` |
+
+| `TangentSide` Variant | `SpatialTangents` Field |
+| --- | --- |
+| `In` | `in_tangent` |
+| `Out` | `out_tangent` |
+
 ## Property drivers (`DriverCode`, `PropertyDriver`, `DriverLanguageRegistration`)
 
 A clip stores at most one `PropertyDriver` (`crates/aria-models/src/clip/driver.rs`) per `ClipParam`. `DriverCode` pairs a `language: String` (1 to `MAX_DRIVER_LANGUAGE = 128` ASCII bytes from `a-z`, `A-Z`, `0-9`, `.`, `-`, `_`) with `source: String` (up to `MAX_DRIVER_SOURCE = 65536` bytes).

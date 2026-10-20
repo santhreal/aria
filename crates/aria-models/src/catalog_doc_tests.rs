@@ -17,16 +17,16 @@
 //! Not caught: prose descriptions of shader or DSP math outside the tables.
 
 use crate::{
-    BlendMode, ColorAdjustments, EASING_PRESETS, EffectParamKind, EffectParamSpec,
-    MASK_PATH_VERSION, MAX_CLIP_MASKS, MAX_MASK_EXPANSION, MAX_MASK_PATH_POINTS, MaskKind,
-    MaskMode, MaskParam, ParamKind, ParamRange, animation_catalog, filter_catalog, generator_specs,
+    AudioTransition, BlendMode, ColorAdjustments, DEFAULT_TRANSITION_TICKS, EASING_PRESETS,
+    EXPONENTIAL_FLOOR_DB, EffectParamKind, EffectParamSpec, MASK_PATH_VERSION, MAX_CLIP_MASKS,
+    MAX_MASK_EXPANSION, MAX_MASK_PATH_POINTS, MaskKind, MaskMode, MaskParam, ParamAxis, ParamKind,
+    ParamRange, TransitionAlignment, animation_catalog, filter_catalog, generator_specs,
     mask_catalog, piecewise_presets, shipped_audio_effect_catalog, shipped_effect_catalog,
     shipped_transition_catalog, speed_preset_catalog, sticker_catalog, text_effect_catalog,
 };
 
 const EFFECTS_DOC: &str = include_str!("../../../docs/reference/effects.md");
 const GENERATORS_DOC: &str = include_str!("../../../docs/reference/generators.md");
-const TRANSITIONS_DOC: &str = include_str!("../../../docs/reference/transitions.md");
 const AUDIO_EFFECTS_DOC: &str = include_str!("../../../docs/reference/audio-effects.md");
 const FILTERS_DOC: &str = include_str!("../../../docs/reference/filters.md");
 const ANIMATIONS_DOC: &str = include_str!("../../../docs/reference/animations.md");
@@ -353,9 +353,14 @@ fn generators_reference_matches_shipped_catalogs() {
 /// Not caught: prose descriptions of transition shader math.
 #[test]
 fn transitions_reference_matches_shipped_catalog() {
+    let transitions_doc = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../docs/reference/transitions.md"
+    ))
+    .expect("read docs/reference/transitions.md");
     let catalog = shipped_transition_catalog();
     let sec = section(
-        TRANSITIONS_DOC,
+        &transitions_doc,
         "## Video transition catalog (`transitions.toml`)",
     );
     let summary_rows = table_rows(sec.split("\n### ").next().unwrap_or(sec));
@@ -381,6 +386,82 @@ fn transitions_reference_matches_shipped_catalog() {
     for ((id, _, body), spec) in sections.iter().zip(catalog.iter()) {
         assert_effect_params_match(id, body, &spec.params);
     }
+
+    let align_sec = section(
+        &transitions_doc,
+        "## Transition cut alignment (`TransitionAlignment::ALL`)",
+    );
+    assert!(
+        align_sec.contains(&format!("DEFAULT_TRANSITION_TICKS = {DEFAULT_TRANSITION_TICKS}")),
+        "transitions.md must document DEFAULT_TRANSITION_TICKS"
+    );
+    let align_rows = table_rows(align_sec);
+    let doc_align: Vec<(&str, &str, String, bool)> = align_rows
+        .iter()
+        .map(|r| {
+            assert!(r.len() >= 5, "malformed TransitionAlignment row: {r:?}");
+            (
+                unquote(r[0]),
+                r[1],
+                unquote(r[2]).to_string(),
+                unquote(r[3]) == "yes",
+            )
+        })
+        .collect();
+    let expected_align: Vec<(&str, &str, String, bool)> = TransitionAlignment::ALL
+        .iter()
+        .map(|&a| {
+            (
+                a.id(),
+                a.label(),
+                format!("{a:?}"),
+                a == TransitionAlignment::default(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        doc_align, expected_align,
+        "docs/reference/transitions.md TransitionAlignment table does not match TransitionAlignment::ALL"
+    );
+
+    let audio_tr_sec = section(
+        &transitions_doc,
+        "## Audio transitions (`AudioTransition::ALL`)",
+    );
+    assert!(
+        audio_tr_sec.contains(&format!("EXPONENTIAL_FLOOR_DB = {EXPONENTIAL_FLOOR_DB:.1}")),
+        "transitions.md must document EXPONENTIAL_FLOOR_DB"
+    );
+    let audio_tr_rows = table_rows(audio_tr_sec);
+    let doc_audio_tr: Vec<(&str, &str, String, bool)> = audio_tr_rows
+        .iter()
+        .map(|r| {
+            assert!(r.len() >= 5, "malformed AudioTransition row: {r:?}");
+            (
+                unquote(r[0]),
+                r[1],
+                unquote(r[2]).to_string(),
+                unquote(r[3]) == "yes",
+            )
+        })
+        .collect();
+    let expected_audio_tr: Vec<(&str, &str, String, bool)> = AudioTransition::ALL
+        .iter()
+        .map(|&t| {
+            (
+                t.id(),
+                t.label(),
+                format!("{t:?}"),
+                t == AudioTransition::DEFAULT,
+            )
+        })
+        .collect();
+    assert_eq!(
+        doc_audio_tr, expected_audio_tr,
+        "docs/reference/transitions.md AudioTransition table does not match AudioTransition::ALL"
+    );
+
+    assert_eq!(ParamAxis::ALL.len(), 4);
 }
 
 /// **Every shipped audio effect and parameter matches `docs/reference/audio-effects.md`.**

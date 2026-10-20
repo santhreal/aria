@@ -15,14 +15,23 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
-use aria_models::{AudioLayout, CanvasAspect, CanvasSettings, TimeDisplay};
+use aria_models::{AudioLayout, CanvasAspect, CanvasSettings, MatteSource, TimeDisplay};
 use aria_plugin::PluginContext;
+use aria_settings::{AiApiProtocol, AiSource, Autonomy, ReasoningSummary, ThemeChoice};
 
+use crate::app::analysis::AnalysisKind;
+use crate::app::audio_channels::AudioChannels;
+use crate::app::clip_ops::AudioGainMode;
+use crate::app::decline::Decline;
+use crate::app::generate::GenerateKind;
+use crate::app::models::TimeoutField;
+use crate::app::plugin_install::WasmLimit;
+use crate::app::settings_form::SettingsField;
 use crate::app::project_settings::CANVAS_BASELINES;
 use crate::app::{AppState, DialogKind};
 use crate::appearance::AppearanceMode;
 use crate::chrome::menu_items::items_for;
-use crate::cloud::BYOK_PROVIDERS;
+use crate::cloud::{BYOK_PROVIDERS, CloudFeed};
 use crate::commands::{BUILTIN_COMMANDS, BUILTIN_JOB_COMMANDS};
 use crate::dock::DOCK_VERSION;
 use crate::layouts::WORKSPACES;
@@ -36,19 +45,17 @@ use crate::settings::{
     TIMELINE_MIN_HEIGHT, UiSettings, WindowPlacement,
 };
 use crate::surfaces::settings_pick::RATES;
-use crate::test_support::doc_tables::{parse_table_rows, section_slice, strip_ticks};
+use crate::test_support::doc_tables::{parse_table_rows, read_doc, section_slice, strip_ticks};
 use crate::timeline_display::{Follow, Thumbnails, TimelineDisplay, WaveformScale};
 use crate::tool_catalog::{ToolGroup, tool_specs};
 use crate::types::{
     ActivePanel, AgentEntryKind, AppMenu, HomeRail, MediaSort, OverlayMode, PenVariant, PoolView,
-    SidebarTab,
+    SidebarGroup, SidebarTab,
 };
 
 const TOOLS_DOC: &str = include_str!("../../../../docs/reference/tools.md");
 const WORKSPACES_DOC: &str = include_str!("../../../../docs/reference/workspaces.md");
 const COMMANDS_DOC: &str = include_str!("../../../../docs/reference/commands.md");
-const MENUS_DOC: &str = include_str!("../../../../docs/reference/menus.md");
-const SETTINGS_DOC: &str = include_str!("../../../../docs/reference/settings.md");
 
 /// Closes the class where a timeline tool, toolbar group, or Pen vertex mode is
 /// added, renamed, or re-bound in `tool_catalog.rs` / `types_editor.rs` without
@@ -258,10 +265,7 @@ fn panels_doc_matches_registry() {
         })
         .collect();
 
-    let panels_doc_buf = std::fs::read_to_string(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/reference/panels.md"),
-    )
-    .expect("read docs/reference/panels.md");
+    let panels_doc_buf = read_doc("reference/panels.md");
     #[allow(non_snake_case)]
     let PANELS_DOC = panels_doc_buf.as_str();
     let documented_panels: Vec<(String, String, String, String, String, String, String)> =
@@ -350,6 +354,29 @@ fn panels_doc_matches_registry() {
     assert_eq!(
         documented_tabs, expected_tabs,
         "docs/reference/panels.md Project panel tabs drifted from SidebarTab::ALL"
+    );
+    let expected_sidebar_groups: Vec<String> = SidebarGroup::ALL
+        .iter()
+        .map(|g| {
+            match g {
+                SidebarGroup::Media
+                | SidebarGroup::Graphics
+                | SidebarGroup::Effects
+                | SidebarGroup::Library
+                | SidebarGroup::Analyze => {}
+            }
+            g.label().to_string()
+        })
+        .collect();
+    let mut documented_sidebar_groups: Vec<String> = Vec::new();
+    for (_, group_label, _) in &documented_tabs {
+        if !documented_sidebar_groups.contains(group_label) {
+            documented_sidebar_groups.push(group_label.clone());
+        }
+    }
+    assert_eq!(
+        documented_sidebar_groups, expected_sidebar_groups,
+        "docs/reference/panels.md Project panel tabs groups drifted from SidebarGroup::ALL"
     );
 
     let all_rails = [
@@ -598,6 +625,106 @@ fn panels_doc_matches_registry() {
         documented_agent_kinds, expected_agent_kinds,
         "docs/reference/panels.md Assistant transcript entry kinds drifted from AgentEntryKind::ALL"
     );
+
+    let expected_cloud_feeds: Vec<(String, String, bool, String)> = CloudFeed::ALL
+        .iter()
+        .map(|&f| {
+            match f {
+                CloudFeed::Stock
+                | CloudFeed::Templates
+                | CloudFeed::Sfx
+                | CloudFeed::Luts
+                | CloudFeed::TextPresets
+                | CloudFeed::Lottie
+                | CloudFeed::Skills => {}
+            }
+            (
+                format!("{f:?}"),
+                f.label().to_string(),
+                f.is_search(),
+                f.asset_kind()
+                    .map_or_else(|| "none".to_string(), |k| format!("{k:?}")),
+            )
+        })
+        .collect();
+    let documented_cloud_feeds: Vec<(String, String, bool, String)> = parse_table_rows(
+        section_slice(PANELS_DOC, "Cloud library feeds (`CloudFeed::ALL`)"),
+    )
+    .iter()
+    .map(|cells| {
+        assert!(cells.len() >= 4, "malformed CloudFeed row: {cells:?}");
+        (
+            strip_ticks(cells[0]).to_string(),
+            strip_ticks(cells[1]).to_string(),
+            strip_ticks(cells[2]) == "true",
+            strip_ticks(cells[3]).to_string(),
+        )
+    })
+    .collect();
+    assert_eq!(
+        documented_cloud_feeds, expected_cloud_feeds,
+        "docs/reference/panels.md Cloud library feeds drifted from CloudFeed::ALL"
+    );
+
+    let expected_generate_kinds: Vec<(String, String, String)> = GenerateKind::ALL
+        .iter()
+        .map(|&(k, label, ext)| {
+            match k {
+                GenerateKind::Image | GenerateKind::Video | GenerateKind::Tts => {}
+            }
+            assert_eq!(k.label(), label);
+            assert_eq!(k.fallback_extension(), ext);
+            (format!("{k:?}"), label.to_string(), ext.to_string())
+        })
+        .collect();
+    let documented_generate_kinds: Vec<(String, String, String)> = parse_table_rows(
+        section_slice(PANELS_DOC, "Generate panel media kinds (`GenerateKind::ALL`)"),
+    )
+    .iter()
+    .map(|cells| {
+        assert!(cells.len() >= 3, "malformed GenerateKind row: {cells:?}");
+        (
+            strip_ticks(cells[0]).to_string(),
+            strip_ticks(cells[1]).to_string(),
+            strip_ticks(cells[2]).to_string(),
+        )
+    })
+    .collect();
+    assert_eq!(
+        documented_generate_kinds, expected_generate_kinds,
+        "docs/reference/panels.md Generate panel media kinds drifted from GenerateKind::ALL"
+    );
+
+    let expected_analysis_kinds: Vec<(String, String, String)> = AnalysisKind::ALL
+        .iter()
+        .map(|&k| {
+            match k {
+                AnalysisKind::Shots | AnalysisKind::Silence | AnalysisKind::Beats => {}
+            }
+            (
+                format!("{k:?}"),
+                k.id().to_string(),
+                k.label().to_string(),
+            )
+        })
+        .collect();
+    let documented_analysis_kinds: Vec<(String, String, String)> = parse_table_rows(
+        section_slice(PANELS_DOC, "Analysis panel detector kinds (`AnalysisKind::ALL`)"),
+    )
+    .iter()
+    .map(|cells| {
+        assert!(cells.len() >= 3, "malformed AnalysisKind row: {cells:?}");
+        (
+            strip_ticks(cells[0]).to_string(),
+            strip_ticks(cells[1]).to_string(),
+            strip_ticks(cells[2]).to_string(),
+        )
+    })
+    .collect();
+    assert_eq!(
+        documented_analysis_kinds, expected_analysis_kinds,
+        "docs/reference/panels.md Analysis panel detector kinds drifted from AnalysisKind::ALL"
+    );
 }
 
 /// Closes the class where a state command (`BUILTIN_COMMANDS`) or background
@@ -649,6 +776,9 @@ fn commands_doc_matches_registry() {
 fn menus_doc_matches_registry() {
     let dir = crate::scratch_pool::scratch("reference-menus-doc");
     let state = AppState::new(PluginContext::new(), dir).expect("build headless AppState");
+    let menus_doc_buf = read_doc("reference/menus.md");
+    #[allow(non_snake_case)]
+    let MENUS_DOC = menus_doc_buf.as_str();
 
     for menu in AppMenu::ALL {
         let heading = format!("{} menu", menu.label());
@@ -695,6 +825,145 @@ fn menus_doc_matches_registry() {
             );
         }
     }
+
+    let expected_gain_modes: Vec<(String, String, bool)> = AudioGainMode::ALL
+        .iter()
+        .map(|&m| {
+            match m {
+                AudioGainMode::SetGain
+                | AudioGainMode::AdjustGain
+                | AudioGainMode::NormalizeMaxPeak
+                | AudioGainMode::NormalizeAllPeaks => {}
+            }
+            (
+                format!("{m:?}"),
+                m.label().to_string(),
+                m == AudioGainMode::default(),
+            )
+        })
+        .collect();
+    let documented_gain_modes: Vec<(String, String, bool)> = parse_table_rows(
+        section_slice(MENUS_DOC, "Audio Gain dialog modes (`AudioGainMode::ALL`)"),
+    )
+    .iter()
+    .map(|cells| {
+        assert!(cells.len() >= 4, "malformed AudioGainMode row: {cells:?}");
+        (
+            strip_ticks(cells[0]).to_string(),
+            strip_ticks(cells[1]).to_string(),
+            strip_ticks(cells[2]) == "yes",
+        )
+    })
+    .collect();
+    assert_eq!(
+        documented_gain_modes, expected_gain_modes,
+        "docs/reference/menus.md Audio Gain dialog modes drifted from AudioGainMode::ALL"
+    );
+
+    let expected_audio_channels: Vec<(String, String, String, String)> = AudioChannels::ALL
+        .iter()
+        .map(|&c| {
+            match c {
+                AudioChannels::Stereo
+                | AudioChannels::Swap
+                | AudioChannels::LeftToBoth
+                | AudioChannels::RightToBoth
+                | AudioChannels::Mono => {}
+            }
+            (
+                format!("{c:?}"),
+                c.row().to_string(),
+                c.label().to_string(),
+                c.tool().unwrap_or("none").to_string(),
+            )
+        })
+        .collect();
+    let documented_audio_channels: Vec<(String, String, String, String)> = parse_table_rows(
+        section_slice(MENUS_DOC, "Audio Channels routing presets (`AudioChannels::ALL`)"),
+    )
+    .iter()
+    .map(|cells| {
+        assert!(cells.len() >= 4, "malformed AudioChannels row: {cells:?}");
+        (
+            strip_ticks(cells[0]).to_string(),
+            strip_ticks(cells[1]).to_string(),
+            strip_ticks(cells[2]).to_string(),
+            strip_ticks(cells[3]).to_string(),
+        )
+    })
+    .collect();
+    assert_eq!(
+        documented_audio_channels, expected_audio_channels,
+        "docs/reference/menus.md Audio Channels routing presets drifted from AudioChannels::ALL"
+    );
+
+    let expected_matte_sources: Vec<(String, String, String)> = MatteSource::ALL
+        .iter()
+        .map(|&m| {
+            match m {
+                MatteSource::Alpha | MatteSource::Luma => {}
+            }
+            (
+                format!("{m:?}"),
+                m.id().to_string(),
+                m.label().to_string(),
+            )
+        })
+        .collect();
+    let documented_matte_sources: Vec<(String, String, String)> = parse_table_rows(
+        section_slice(MENUS_DOC, "Track matte sources (`MatteSource::ALL`)"),
+    )
+    .iter()
+    .map(|cells| {
+        assert!(cells.len() >= 3, "malformed MatteSource row: {cells:?}");
+        (
+            strip_ticks(cells[0]).to_string(),
+            strip_ticks(cells[1]).to_string(),
+            strip_ticks(cells[2]).to_string(),
+        )
+    })
+    .collect();
+    assert_eq!(
+        documented_matte_sources, expected_matte_sources,
+        "docs/reference/menus.md Track matte sources drifted from MatteSource::ALL"
+    );
+
+    let expected_declines: Vec<(String, String)> = Decline::ALL
+        .iter()
+        .map(|&d| {
+            match d {
+                Decline::NoSelection
+                | Decline::NoAbuttingCut
+                | Decline::UnknownTransition
+                | Decline::NoTransitionAtCut
+                | Decline::PictureCut
+                | Decline::SoundCut
+                | Decline::OneAngleOnly
+                | Decline::AnglesStillDecoding
+                | Decline::NoAngleSound
+                | Decline::AnglesDoNotMatch
+                | Decline::AnglesRepeat => {}
+            }
+            (format!("{d:?}"), d.reason().to_string())
+        })
+        .collect();
+    let documented_declines: Vec<(String, String)> = parse_table_rows(section_slice(
+        MENUS_DOC,
+        "Action decline reasons (`Decline::ALL`)",
+    ))
+    .iter()
+    .map(|cells| {
+        assert!(cells.len() >= 2, "malformed Decline row: {cells:?}");
+        (
+            strip_ticks(cells[0]).to_string(),
+            strip_ticks(cells[1]).to_string(),
+        )
+    })
+    .collect();
+    assert_eq!(
+        documented_declines, expected_declines,
+        "docs/reference/menus.md Action decline reasons drifted from Decline::ALL"
+    );
 }
 
 /// Every valid menu path (`Menu > Item`, `Menu > Submenu > Item`, and `Menu > Submenu`)
@@ -739,6 +1008,9 @@ pub(super) fn shipped_palette_commands() -> BTreeMap<&'static str, &'static str>
 /// Does not catch prose wording in the Effect column.
 #[test]
 fn settings_doc_matches_registries() {
+    let settings_doc_buf = read_doc("reference/settings.md");
+    #[allow(non_snake_case)]
+    let SETTINGS_DOC = settings_doc_buf.as_str();
     let defaults = aria_settings::Settings::default();
     let aria_settings::Settings {
         appearance: aria_settings::AppearanceSettings { theme },
@@ -894,6 +1166,41 @@ fn settings_doc_matches_registries() {
         )),
         "plugin_limits.wasm_memory_mib bounds drifted"
     );
+    for v in ThemeChoice::ALL {
+        let s = format!("\"{}\"", v.key());
+        assert!(
+            toml_bounds["appearance.theme"].contains(&s),
+            "appearance.theme bounds missing ThemeChoice {s}"
+        );
+    }
+    for v in AiSource::ALL {
+        let s = format!("\"{}\"", v.key());
+        assert!(
+            toml_bounds["ai.source"].contains(&s),
+            "ai.source bounds missing AiSource {s}"
+        );
+    }
+    for v in AiApiProtocol::ALL {
+        let s = format!("\"{}\"", v.key());
+        assert!(
+            toml_bounds["ai.api_protocol"].contains(&s),
+            "ai.api_protocol bounds missing AiApiProtocol {s}"
+        );
+    }
+    for v in ReasoningSummary::ALL {
+        let s = format!("\"{}\"", v.key());
+        assert!(
+            toml_bounds["ai.reasoning_summary"].contains(&s),
+            "ai.reasoning_summary bounds missing ReasoningSummary {s}"
+        );
+    }
+    for v in Autonomy::ALL {
+        let s = format!("\"{}\"", v.key());
+        assert!(
+            toml_bounds["ai.autonomy"].contains(&s),
+            "ai.autonomy bounds missing Autonomy {s}"
+        );
+    }
 
     // Schema versions table.
     let schema_rows = parse_table_rows(section_slice(
@@ -1224,6 +1531,234 @@ fn settings_doc_matches_registries() {
             display.name()
         );
     }
+
+    // Config refusal reasons (`Refusal::ALL`).
+    let expected_refusals: Vec<(String, String)> = aria_settings::Refusal::ALL
+        .iter()
+        .map(|&r| {
+            match r {
+                aria_settings::Refusal::WrongType
+                | aria_settings::Refusal::NotOneOf
+                | aria_settings::Refusal::NotAbsolute
+                | aria_settings::Refusal::OutOfRange => {}
+            }
+            (format!("{r:?}"), r.reason().to_string())
+        })
+        .collect();
+    let documented_refusals: Vec<(String, String)> = parse_table_rows(section_slice(
+        SETTINGS_DOC,
+        "Config refusal reasons (`Refusal::ALL`)",
+    ))
+    .iter()
+    .map(|cells| {
+        assert!(cells.len() >= 2, "malformed Refusal row: {cells:?}");
+        (
+            strip_ticks(cells[0]).to_string(),
+            strip_ticks(cells[1]).to_string(),
+        )
+    })
+    .collect();
+    assert_eq!(
+        documented_refusals, expected_refusals,
+        "docs/reference/settings.md Config refusal reasons drifted from aria_settings::Refusal::ALL"
+    );
+
+    // Storage cache registry (`CacheId::ALL`).
+    let expected_caches: Vec<(String, String, String, String, String, String)> =
+        aria_storage::CacheId::ALL
+            .iter()
+            .map(|&id| {
+                let d = id.descriptor();
+                (
+                    format!("{id:?}"),
+                    id.as_str().to_string(),
+                    d.label.to_string(),
+                    format!("{:?}", d.kind),
+                    format!("{:?}", d.tier),
+                    d.default_relative.unwrap_or("none").to_string(),
+                )
+            })
+            .collect();
+    let documented_caches: Vec<(String, String, String, String, String, String)> =
+        parse_table_rows(section_slice(
+            SETTINGS_DOC,
+            "Storage cache registry (`CacheId::ALL`)",
+        ))
+        .iter()
+        .map(|cells| {
+            assert!(cells.len() >= 6, "malformed CacheId row: {cells:?}");
+            (
+                strip_ticks(cells[0]).to_string(),
+                strip_ticks(cells[1]).to_string(),
+                strip_ticks(cells[2]).to_string(),
+                strip_ticks(cells[3]).to_string(),
+                strip_ticks(cells[4]).to_string(),
+                strip_ticks(cells[5]).to_string(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        documented_caches, expected_caches,
+        "docs/reference/settings.md Storage cache registry drifted from aria_storage::CacheId::ALL"
+    );
+
+    // Settings dialog text fields and numeric limits (`SettingsField::ALL`, `TimeoutField::ALL`, `WasmLimit::ALL`).
+    let fields_section = section_slice(
+        SETTINGS_DOC,
+        "Settings dialog text fields and numeric limits (`SettingsField::ALL`, `TimeoutField::ALL`, `WasmLimit::ALL`)",
+    );
+    let field_rows = parse_table_rows(fields_section);
+    assert_eq!(
+        field_rows.len(),
+        SettingsField::ALL.len() + TimeoutField::ALL.len() + WasmLimit::ALL.len(),
+        "Settings dialog text fields and numeric limits row count drifted"
+    );
+    let expected_settings_fields: Vec<(String, String)> = SettingsField::ALL
+        .iter()
+        .map(|&f| {
+            match f {
+                SettingsField::AiBaseUrl
+                | SettingsField::AiModel
+                | SettingsField::AiKey
+                | SettingsField::AiKeyEnv
+                | SettingsField::CloudBaseUrl
+                | SettingsField::KeymapName
+                | SettingsField::Filter
+                | SettingsField::Plugin(_) => {}
+            }
+            (format!("{f:?}"), f.id().to_string())
+        })
+        .collect();
+    let documented_settings_fields: Vec<(String, String)> = field_rows[..SettingsField::ALL.len()]
+        .iter()
+        .map(|cells| {
+            assert!(cells.len() >= 3, "malformed SettingsField row: {cells:?}");
+            (
+                strip_ticks(cells[0]).to_string(),
+                strip_ticks(cells[1]).to_string(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        documented_settings_fields, expected_settings_fields,
+        "docs/reference/settings.md SettingsField table drifted from SettingsField::ALL"
+    );
+
+    let expected_timeout_fields: Vec<(String, String, String)> = TimeoutField::ALL
+        .iter()
+        .map(|&(f, id, label)| {
+            match f {
+                TimeoutField::Connect | TimeoutField::Read | TimeoutField::Total => {}
+            }
+            (format!("{f:?}"), id.to_string(), label.to_string())
+        })
+        .collect();
+    let timeout_start = SettingsField::ALL.len();
+    let timeout_end = timeout_start + TimeoutField::ALL.len();
+    let documented_timeout_fields: Vec<(String, String, String)> =
+        field_rows[timeout_start..timeout_end]
+            .iter()
+            .map(|cells| {
+                assert!(cells.len() >= 3, "malformed TimeoutField row: {cells:?}");
+                (
+                    strip_ticks(cells[0]).to_string(),
+                    strip_ticks(cells[1]).to_string(),
+                    strip_ticks(cells[2]).to_string(),
+                )
+            })
+            .collect();
+    assert_eq!(
+        documented_timeout_fields, expected_timeout_fields,
+        "docs/reference/settings.md TimeoutField table drifted from TimeoutField::ALL"
+    );
+
+    let expected_wasm_limits: Vec<(String, String, String)> = WasmLimit::ALL
+        .iter()
+        .map(|&(l, id, label)| {
+            match l {
+                WasmLimit::Fuel | WasmLimit::Memory => {}
+            }
+            (format!("{l:?}"), id.to_string(), label.to_string())
+        })
+        .collect();
+    let documented_wasm_limits: Vec<(String, String, String)> = field_rows[timeout_end..]
+        .iter()
+        .map(|cells| {
+            assert!(cells.len() >= 3, "malformed WasmLimit row: {cells:?}");
+            (
+                strip_ticks(cells[0]).to_string(),
+                strip_ticks(cells[1]).to_string(),
+                strip_ticks(cells[2]).to_string(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        documented_wasm_limits, expected_wasm_limits,
+        "docs/reference/settings.md WasmLimit table drifted from WasmLimit::ALL"
+    );
+
+    // Playback drop causes and decoder output modes (`DropCause::ALL` and `OutputMode::ALL`).
+    let drop_output_section = section_slice(
+        SETTINGS_DOC,
+        "Playback drop causes and decoder output modes (`DropCause::ALL` and `OutputMode::ALL`)",
+    );
+    let drop_output_rows = parse_table_rows(drop_output_section);
+    assert_eq!(
+        drop_output_rows.len(),
+        aria_render::DropCause::ALL.len() + aria_decoder::OutputMode::ALL.len(),
+        "Playback drop causes and decoder output modes row count drifted"
+    );
+    let expected_drop_causes: Vec<(String, String)> = aria_render::DropCause::ALL
+        .iter()
+        .map(|&c| {
+            match c {
+                aria_render::DropCause::DecodeLate
+                | aria_render::DropCause::RenderLate
+                | aria_render::DropCause::PresentLate => {}
+            }
+            (format!("{c:?}"), c.label().to_string())
+        })
+        .collect();
+    let documented_drop_causes: Vec<(String, String)> =
+        drop_output_rows[..aria_render::DropCause::ALL.len()]
+            .iter()
+            .map(|cells| {
+                assert!(cells.len() >= 2, "malformed DropCause row: {cells:?}");
+                (
+                    strip_ticks(cells[0]).to_string(),
+                    strip_ticks(cells[1]).to_string(),
+                )
+            })
+        .collect();
+    assert_eq!(
+        documented_drop_causes, expected_drop_causes,
+        "docs/reference/settings.md DropCause table drifted from aria_render::DropCause::ALL"
+    );
+
+    let expected_output_modes: Vec<(String, String)> = aria_decoder::OutputMode::ALL
+        .iter()
+        .map(|&m| {
+            match m {
+                aria_decoder::OutputMode::Gpu | aria_decoder::OutputMode::Cpu => {}
+            }
+            (format!("{m:?}"), m.label().to_string())
+        })
+        .collect();
+    let documented_output_modes: Vec<(String, String)> =
+        drop_output_rows[aria_render::DropCause::ALL.len()..]
+            .iter()
+            .map(|cells| {
+                assert!(cells.len() >= 2, "malformed OutputMode row: {cells:?}");
+                (
+                    strip_ticks(cells[0]).to_string(),
+                    strip_ticks(cells[1]).to_string(),
+                )
+            })
+            .collect();
+    assert_eq!(
+        documented_output_modes, expected_output_modes,
+        "docs/reference/settings.md OutputMode table drifted from aria_decoder::OutputMode::ALL"
+    );
 }
 
 pub(super) fn collect_md_files(dir: &Path, out: &mut Vec<PathBuf>) {
@@ -1842,5 +2377,778 @@ fn plugin_keys_and_basics_docs_match_ui_registries_bidirectionally() {
     assert_eq!(
         key_host_doc_calls, expected_key_host_calls,
         "docs/plugins/keys.md KeyHost calls drifted from impl KeyHost"
+    );
+}
+fn collect_rs_files(dir: &Path, out: &mut Vec<PathBuf>) {
+    let entries = std::fs::read_dir(dir).unwrap_or_else(|e| panic!("read_dir {dir:?}: {e}"));
+    let mut paths: Vec<PathBuf> = entries.map(|e| e.unwrap().path()).collect();
+    paths.sort();
+    for path in paths {
+        if path.is_dir() {
+            collect_rs_files(&path, out);
+        } else if path.extension().and_then(|s| s.to_str()) == Some("rs") {
+            out.push(path);
+        }
+    }
+}
+
+fn is_const_all_decl(trimmed: &str) -> bool {
+    let rest = trimmed
+        .strip_prefix("pub const ALL")
+        .or_else(|| trimmed.strip_prefix("pub(crate) const ALL"));
+    matches!(rest.and_then(|s| s.chars().next()), Some(':' | ' ' | '\t'))
+}
+
+fn extract_impl_type_name(trimmed: &str) -> Option<&str> {
+    if !(trimmed.starts_with("impl ") || trimmed.starts_with("impl<")) || !trimmed.ends_with('{') {
+        return None;
+    }
+    let before_brace = trimmed[..trimmed.len() - 1].trim();
+    let last = before_brace.split_whitespace().last()?;
+    Some(last.split('<').next().unwrap_or(last))
+}
+
+fn scan_workspace_const_all_registries(root: &Path) -> Vec<(String, usize, String)> {
+    let mut rs_files = Vec::new();
+    collect_rs_files(&root.join("crates"), &mut rs_files);
+    let mut results = Vec::new();
+    for rs in rs_files {
+        let rel = rs
+            .strip_prefix(root)
+            .unwrap_or(&rs)
+            .to_string_lossy()
+            .replace('\\', "/");
+        if !rel.contains("/src/") {
+            continue;
+        }
+        let fname = rs.file_name().and_then(|s| s.to_str()).unwrap_or("");
+        if fname == "tests.rs" || fname.ends_with("_tests.rs") {
+            continue;
+        }
+        let text = std::fs::read_to_string(&rs).unwrap_or_else(|e| panic!("read {rs:?}: {e}"));
+        let lines: Vec<&str> = text.lines().collect();
+        let mut in_param_enum_call = false;
+        for (idx0, &line) in lines.iter().enumerate() {
+            let line_no = idx0 + 1;
+            if line.starts_with("param_enum! {") {
+                in_param_enum_call = true;
+                continue;
+            }
+            if in_param_enum_call {
+                if line.starts_with('}') {
+                    in_param_enum_call = false;
+                } else {
+                    let trimmed = line.trim();
+                    if let Some(rest) = trimmed.strip_prefix("pub enum ")
+                        && let Some(name) = rest.strip_suffix('{')
+                    {
+                        results.push((rel.clone(), line_no, name.trim().to_string()));
+                    }
+                }
+                continue;
+            }
+            let trimmed = line.trim();
+            if is_const_all_decl(trimmed) {
+                let mut enclosing = None;
+                for back in (0..idx0).rev() {
+                    if let Some(ty) = extract_impl_type_name(lines[back].trim()) {
+                        enclosing = Some(ty);
+                        break;
+                    }
+                }
+                if let Some(ty) = enclosing
+                    && !ty.starts_with('$')
+                {
+                    results.push((rel.clone(), line_no, ty.to_string()));
+                }
+            }
+        }
+    }
+    results
+}
+
+fn collect_workspace_test_fn_bodies(root: &Path) -> BTreeMap<String, Vec<String>> {
+    let mut rs_files = Vec::new();
+    collect_rs_files(&root.join("crates"), &mut rs_files);
+    let mut bodies: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for rs in rs_files {
+        let text = std::fs::read_to_string(&rs).unwrap_or_else(|e| panic!("read {rs:?}: {e}"));
+        let lines: Vec<&str> = text.lines().collect();
+        let mut test_fn_starts: Vec<(usize, String)> = Vec::new();
+        let mut saw_test_attr = false;
+        for (i, &line) in lines.iter().enumerate() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("#[test]") {
+                saw_test_attr = true;
+                continue;
+            }
+            if saw_test_attr {
+                if trimmed.starts_with("#[") || trimmed.starts_with("//") || trimmed.is_empty() {
+                    continue;
+                }
+                if let Some((_, after_fn)) = trimmed.split_once("fn ")
+                    && let Some((fn_name, _)) = after_fn.split_once('(')
+                {
+                    test_fn_starts.push((i, fn_name.trim().to_string()));
+                }
+                saw_test_attr = false;
+            }
+        }
+        for (idx, (start_line, fn_name)) in test_fn_starts.iter().enumerate() {
+            let end_line = test_fn_starts
+                .get(idx + 1)
+                .map(|(next_start, _)| *next_start)
+                .unwrap_or(lines.len());
+            let body = lines[*start_line..end_line].join("\n");
+            bodies.entry(fn_name.clone()).or_default().push(body);
+        }
+    }
+    bodies
+}
+
+/// Closes the defect class where a `pub const ALL` or `pub(crate) const ALL`
+/// registry is added to `crates/*/src` without either a reference documentation
+/// table + bidirectional doc test (`DOCUMENTED`) or an explicit internal-only
+/// rationale (`INTERNAL`), or where an entry in either table goes stale after a
+/// registry is renamed or removed.
+///
+/// Does not catch registries that do not use the `const ALL` naming convention.
+#[test]
+fn const_all_registries_have_recorded_documentation_decisions() {
+    const DOCUMENTED: &[(&str, &str, &str)] = &[
+        // CLI
+        (
+            "Verb",
+            "docs/command-line.md",
+            "command_line_doc_and_usage_match_cli_registries_bidirectionally",
+        ),
+        (
+            "Subcommand",
+            "docs/command-line.md",
+            "command_line_doc_and_usage_match_cli_registries_bidirectionally",
+        ),
+        (
+            "NewTier",
+            "docs/command-line.md",
+            "command_line_doc_and_usage_match_cli_registries_bidirectionally",
+        ),
+        // Plugins
+        (
+            "ActivationKind",
+            "docs/plugins/activation.md",
+            "activation_doc_matches_activation_registries_bidirectionally",
+        ),
+        (
+            "AiToolTier",
+            "docs/plugins/ai-tools.md",
+            "ai_tools_doc_matches_ai_tool_registries_bidirectionally",
+        ),
+        (
+            "AnalyzerScope",
+            "docs/plugins/analyzers.md",
+            "commands_menus_and_analyzers_docs_match_context_key_menu_location_and_analyzer_scope",
+        ),
+        (
+            "ContextKey",
+            "docs/plugins/commands.md",
+            "commands_menus_and_analyzers_docs_match_context_key_menu_location_and_analyzer_scope",
+        ),
+        (
+            "WireKind",
+            "docs/plugins/events.md",
+            "the_events_chapter_lists_every_kind_with_its_payload_fields",
+        ),
+        (
+            "KeyRoute",
+            "docs/plugins/keys.md",
+            "keys_doc_matches_plugin_key_registries_bidirectionally",
+        ),
+        (
+            "After",
+            "docs/plugins/keys.md",
+            "plugin_keys_and_basics_docs_match_ui_registries_bidirectionally",
+        ),
+        (
+            "MenuLocation",
+            "docs/plugins/menus.md",
+            "commands_menus_and_analyzers_docs_match_context_key_menu_location_and_analyzer_scope",
+        ),
+        (
+            "LogLevel",
+            "docs/plugins/basics.md",
+            "basics_doc_matches_plugin_basics_registries_bidirectionally",
+        ),
+        (
+            "ContributionKind",
+            "docs/plugins/basics.md",
+            "basics_doc_matches_plugin_basics_registries_bidirectionally",
+        ),
+        // Reference: Scopes, Color, Transitions
+        (
+            "WaveformTrace",
+            "docs/reference/scopes.md",
+            "scopes_doc_matches_registries",
+        ),
+        (
+            "YuvMatrix",
+            "docs/reference/color.md",
+            "color_doc_yuv_matrices_match_coefficients",
+        ),
+        (
+            "WheelControl",
+            "docs/reference/color.md",
+            "color_doc_matches_registries",
+        ),
+        (
+            "AudioTransition",
+            "docs/reference/transitions.md",
+            "transitions_reference_matches_shipped_catalog",
+        ),
+        (
+            "TransitionAlignment",
+            "docs/reference/transitions.md",
+            "transitions_reference_matches_shipped_catalog",
+        ),
+        // Reference: Blend modes, Masks, Clip properties
+        (
+            "BlendMode",
+            "docs/reference/blend-modes.md",
+            "clip_properties_doc_matches_registries",
+        ),
+        (
+            "MaskKind",
+            "docs/reference/blend-modes.md",
+            "blend_modes_and_masks_reference_matches_catalog",
+        ),
+        (
+            "MaskMode",
+            "docs/reference/blend-modes.md",
+            "stickers_and_masks_reference_matches_catalogs",
+        ),
+        (
+            "MaskOp",
+            "docs/reference/blend-modes.md",
+            "clip_properties_doc_matches_registries",
+        ),
+        (
+            "MaskHandle",
+            "docs/reference/blend-modes.md",
+            "clip_properties_doc_matches_registries",
+        ),
+        (
+            "MaskParam",
+            "docs/reference/stickers-and-masks.md",
+            "stickers_and_masks_reference_matches_catalogs",
+        ),
+        (
+            "ShapeParam",
+            "docs/reference/clip-properties.md",
+            "clip_properties_doc_matches_registries",
+        ),
+        (
+            "TextParam",
+            "docs/reference/clip-properties.md",
+            "clip_properties_doc_matches_registries",
+        ),
+        (
+            "LookParam",
+            "docs/reference/clip-properties.md",
+            "clip_properties_doc_matches_registries",
+        ),
+        (
+            "StyleParam",
+            "docs/reference/clip-properties.md",
+            "clip_properties_doc_matches_registries",
+        ),
+        (
+            "ParamAxis",
+            "docs/reference/clip-properties.md",
+            "clip_properties_doc_matches_registries",
+        ),
+        (
+            "ClipAttribute",
+            "docs/reference/clip-properties.md",
+            "clip_properties_doc_matches_registries",
+        ),
+        (
+            "TextCase",
+            "docs/reference/clip-properties.md",
+            "clip_properties_doc_matches_registries",
+        ),
+        (
+            "TextAlignH",
+            "docs/reference/clip-properties.md",
+            "clip_properties_doc_matches_registries",
+        ),
+        (
+            "TextAlignV",
+            "docs/reference/clip-properties.md",
+            "clip_properties_doc_matches_registries",
+        ),
+        (
+            "StabilizeLevel",
+            "docs/reference/clip-properties.md",
+            "clip_properties_doc_matches_registries",
+        ),
+        (
+            "AlignTo",
+            "docs/reference/clip-properties.md",
+            "clip_properties_doc_matches_registries",
+        ),
+        (
+            "AlignEdge",
+            "docs/reference/clip-properties.md",
+            "clip_properties_doc_matches_registries",
+        ),
+        (
+            "AlignAxis",
+            "docs/reference/clip-properties.md",
+            "clip_properties_doc_matches_registries",
+        ),
+        (
+            "CropHandle",
+            "docs/reference/clip-properties.md",
+            "clip_properties_doc_matches_registries",
+        ),
+        (
+            "TransformHandle",
+            "docs/reference/clip-properties.md",
+            "clip_properties_doc_matches_registries",
+        ),
+        // Reference: Keyframes and Graph
+        (
+            "PathParam",
+            "docs/reference/keyframes-and-graph.md",
+            "keyframes_and_graph_doc_matches_registries",
+        ),
+        (
+            "TangentSide",
+            "docs/reference/keyframes-and-graph.md",
+            "keyframes_and_graph_doc_matches_registries",
+        ),
+        (
+            "Group",
+            "docs/reference/keyframes-and-graph.md",
+            "keyframes_and_graph_doc_matches_registries",
+        ),
+        (
+            "PropertyGroup",
+            "docs/reference/keyframes-and-graph.md",
+            "keyframes_and_graph_doc_matches_registries",
+        ),
+        // Reference: Project Settings
+        (
+            "LabelColor",
+            "docs/reference/project-settings.md",
+            "project_settings_doc_matches_registries",
+        ),
+        (
+            "AudioRole",
+            "docs/reference/project-settings.md",
+            "project_settings_doc_matches_registries",
+        ),
+        (
+            "SourceChannel",
+            "docs/reference/project-settings.md",
+            "project_settings_doc_matches_registries",
+        ),
+        (
+            "MarkerColor",
+            "docs/reference/project-settings.md",
+            "project_settings_doc_matches_registries",
+        ),
+        (
+            "CanvasAspect",
+            "docs/reference/project-settings.md",
+            "project_settings_doc_matches_registries",
+        ),
+        (
+            "AudioLayout",
+            "docs/reference/project-settings.md",
+            "project_settings_doc_matches_registries",
+        ),
+        (
+            "TimeDisplay",
+            "docs/reference/project-settings.md",
+            "project_settings_doc_matches_registries",
+        ),
+        (
+            "MarkerKind",
+            "docs/reference/project-settings.md",
+            "project_settings_doc_matches_registries",
+        ),
+        (
+            "AutomationMode",
+            "docs/reference/project-settings.md",
+            "project_settings_doc_matches_registries",
+        ),
+        // Reference: Export and Subtitles
+        (
+            "VideoCodec",
+            "docs/reference/export-and-subtitles.md",
+            "export_and_subtitles_doc_matches_registries",
+        ),
+        (
+            "EmptyExport",
+            "docs/reference/export-and-subtitles.md",
+            "export_and_subtitles_doc_matches_registries",
+        ),
+        (
+            "CaptionCommit",
+            "docs/reference/export-and-subtitles.md",
+            "export_and_subtitles_doc_matches_registries",
+        ),
+        (
+            "ExportScale",
+            "docs/reference/export-and-subtitles.md",
+            "export_and_subtitles_doc_matches_registries",
+        ),
+        (
+            "ExportRate",
+            "docs/reference/export-and-subtitles.md",
+            "export_and_subtitles_doc_matches_registries",
+        ),
+        (
+            "ExportGop",
+            "docs/reference/export-and-subtitles.md",
+            "export_and_subtitles_doc_matches_registries",
+        ),
+        (
+            "ExportBitrate",
+            "docs/reference/export-and-subtitles.md",
+            "export_and_subtitles_doc_matches_registries",
+        ),
+        // Reference: Tools, Panels, Menus, Settings
+        (
+            "ToolGroup",
+            "docs/reference/tools.md",
+            "tools_doc_matches_registry",
+        ),
+        (
+            "PenVariant",
+            "docs/reference/tools.md",
+            "tools_doc_matches_registry",
+        ),
+        (
+            "SidebarTab",
+            "docs/reference/panels.md",
+            "panels_doc_matches_registry",
+        ),
+        (
+            "SidebarGroup",
+            "docs/reference/panels.md",
+            "panels_doc_matches_registry",
+        ),
+        (
+            "UiClipKind",
+            "docs/reference/panels.md",
+            "the_panels_reference_lists_every_tab_with_its_clip_kinds",
+        ),
+        (
+            "MediaSort",
+            "docs/reference/panels.md",
+            "panels_doc_matches_registry",
+        ),
+        (
+            "OverlayMode",
+            "docs/reference/panels.md",
+            "panels_doc_matches_registry",
+        ),
+        (
+            "ActivePanel",
+            "docs/reference/panels.md",
+            "panels_doc_matches_registry",
+        ),
+        (
+            "AgentEntryKind",
+            "docs/reference/panels.md",
+            "panels_doc_matches_registry",
+        ),
+        (
+            "EntryKind",
+            "docs/reference/panels.md",
+            "panels_doc_matches_registry",
+        ),
+        (
+            "CloudFeed",
+            "docs/reference/panels.md",
+            "panels_doc_matches_registry",
+        ),
+        (
+            "GenerateKind",
+            "docs/reference/panels.md",
+            "panels_doc_matches_registry",
+        ),
+        (
+            "AnalysisKind",
+            "docs/reference/panels.md",
+            "panels_doc_matches_registry",
+        ),
+        (
+            "AppMenu",
+            "docs/reference/menus.md",
+            "menus_doc_matches_registry",
+        ),
+        (
+            "AudioGainMode",
+            "docs/reference/menus.md",
+            "menus_doc_matches_registry",
+        ),
+        (
+            "AudioChannels",
+            "docs/reference/menus.md",
+            "menus_doc_matches_registry",
+        ),
+        (
+            "MatteSource",
+            "docs/reference/menus.md",
+            "menus_doc_matches_registry",
+        ),
+        (
+            "Decline",
+            "docs/reference/menus.md",
+            "menus_doc_matches_registry",
+        ),
+        (
+            "AppearanceMode",
+            "docs/reference/settings.md",
+            "settings_doc_matches_registries",
+        ),
+        (
+            "MotionPreference",
+            "docs/reference/settings.md",
+            "settings_doc_matches_registries",
+        ),
+        (
+            "PoolView",
+            "docs/reference/settings.md",
+            "settings_doc_matches_registries",
+        ),
+        (
+            "Resolution",
+            "docs/reference/settings.md",
+            "settings_doc_matches_registries",
+        ),
+        (
+            "PlaybackResolution",
+            "docs/reference/settings.md",
+            "settings_doc_matches_registries",
+        ),
+        (
+            "PausedResolution",
+            "docs/reference/settings.md",
+            "settings_doc_matches_registries",
+        ),
+        (
+            "WaveformMode",
+            "docs/reference/settings.md",
+            "settings_doc_matches_registries",
+        ),
+        (
+            "ThemeChoice",
+            "docs/reference/settings.md",
+            "settings_doc_matches_registries",
+        ),
+        (
+            "AiSource",
+            "docs/reference/settings.md",
+            "settings_doc_matches_registries",
+        ),
+        (
+            "AiApiProtocol",
+            "docs/reference/settings.md",
+            "settings_doc_matches_registries",
+        ),
+        (
+            "ReasoningSummary",
+            "docs/reference/settings.md",
+            "settings_doc_matches_registries",
+        ),
+        (
+            "Autonomy",
+            "docs/reference/settings.md",
+            "settings_doc_matches_registries",
+        ),
+        (
+            "Refusal",
+            "docs/reference/settings.md",
+            "settings_doc_matches_registries",
+        ),
+        (
+            "CacheId",
+            "docs/reference/settings.md",
+            "settings_doc_matches_registries",
+        ),
+        (
+            "SettingsField",
+            "docs/reference/settings.md",
+            "settings_doc_matches_registries",
+        ),
+        (
+            "TimeoutField",
+            "docs/reference/settings.md",
+            "settings_doc_matches_registries",
+        ),
+        (
+            "WasmLimit",
+            "docs/reference/settings.md",
+            "settings_doc_matches_registries",
+        ),
+        (
+            "DropCause",
+            "docs/reference/settings.md",
+            "settings_doc_matches_registries",
+        ),
+        (
+            "OutputMode",
+            "docs/reference/settings.md",
+            "settings_doc_matches_registries",
+        ),
+    ];
+
+    const INTERNAL: &[(&str, &str)] = &[
+        (
+            "FixtureId",
+            "benchmark fixture identifier internal to aria-bench",
+        ),
+        (
+            "ScenarioId",
+            "benchmark scenario identifier internal to aria-bench",
+        ),
+        ("HttpCaller", "internal HTTP timeout caller tag in aria-cloud"),
+        (
+            "CoverageMix",
+            "internal test-only coverage generator mix in aria-media",
+        ),
+        (
+            "Rotation",
+            "container display-matrix orientation applied automatically on decode",
+        ),
+        (
+            "WindowReason",
+            "internal whisper windowing split reason in aria-speech",
+        ),
+        ("ChipSize", "internal UI widget size token in aria-ui::components"),
+        (
+            "LabelTarget",
+            "internal context-menu colour-label dispatch target in aria-ui::app",
+        ),
+        (
+            "TextSwitch",
+            "internal boolean toggle tag for inspector text property buttons",
+        ),
+        (
+            "CommandKind",
+            "internal discriminator between state and job commands in aria-ui::commands",
+        ),
+        (
+            "Modifier",
+            "internal keyboard modifier bitmask order for chord formatting in aria-ui::keys",
+        ),
+        (
+            "Zone",
+            "internal dock tab drag drop-target quadrant in aria-ui::dock",
+        ),
+        (
+            "Moved",
+            "internal shell redraw invalidation tag in aria-ui::shell",
+        ),
+        (
+            "SnapKind",
+            "internal magnetic snap candidate tie-break rank in aria-ui::snap",
+        ),
+    ];
+
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+        .expect("canonicalize workspace root");
+    let discovered = scan_workspace_const_all_registries(&root);
+    assert!(
+        discovered.len() >= 110,
+        "expected at least 110 `const ALL` declarations across crates/*/src, found {}",
+        discovered.len()
+    );
+
+    let mut documented_map: BTreeMap<&str, (&str, &str)> = BTreeMap::new();
+    for &(ty, doc_file, test_fn) in DOCUMENTED {
+        assert!(
+            documented_map.insert(ty, (doc_file, test_fn)).is_none(),
+            "duplicate entry `{ty}` in DOCUMENTED table"
+        );
+    }
+
+    let mut internal_map: BTreeMap<&str, &str> = BTreeMap::new();
+    for &(ty, reason) in INTERNAL {
+        assert!(
+            !reason.trim().is_empty(),
+            "INTERNAL entry `{ty}` must state a non-empty rationale"
+        );
+        assert!(
+            !documented_map.contains_key(ty),
+            "type `{ty}` appears in both DOCUMENTED and INTERNAL"
+        );
+        assert!(
+            internal_map.insert(ty, reason).is_none(),
+            "duplicate entry `{ty}` in INTERNAL table"
+        );
+    }
+
+    let mut undecided = Vec::new();
+    let mut discovered_types = BTreeSet::new();
+    for (file_rel, line_no, ty) in &discovered {
+        discovered_types.insert(ty.as_str());
+        if !documented_map.contains_key(ty.as_str()) && !internal_map.contains_key(ty.as_str()) {
+            undecided.push(format!("{file_rel}:{line_no} ({ty}::ALL)"));
+        }
+    }
+    assert!(
+        undecided.is_empty(),
+        "undecided `const ALL` registries found in crates/*/src (record each in DOCUMENTED with a reference doc + bidirectional doc test, or in INTERNAL with a rationale):\n  {}",
+        undecided.join("\n  ")
+    );
+
+    let mut stale = Vec::new();
+    for &ty in documented_map.keys().chain(internal_map.keys()) {
+        if !discovered_types.contains(ty) {
+            stale.push(ty);
+        }
+    }
+    assert!(
+        stale.is_empty(),
+        "stale entries in DOCUMENTED / INTERNAL no longer match any `const ALL` in crates/*/src: {stale:?}"
+    );
+
+    let test_fn_bodies = collect_workspace_test_fn_bodies(&root);
+    let mut doc_cache: BTreeMap<&str, String> = BTreeMap::new();
+    let mut verification_errors = Vec::new();
+    for &(ty, doc_file, test_fn) in DOCUMENTED {
+        let doc_text = doc_cache.entry(doc_file).or_insert_with(|| {
+            let p = root.join(doc_file);
+            std::fs::read_to_string(&p)
+                .unwrap_or_else(|e| panic!("DOCUMENTED[{ty}] missing doc file {p:?}: {e}"))
+        });
+        if !doc_text.contains(ty) {
+            verification_errors.push(format!(
+                "DOCUMENTED[{ty}]: `{doc_file}` does not mention `{ty}`"
+            ));
+        }
+        let needle = format!("{ty}::ALL");
+        match test_fn_bodies.get(test_fn) {
+            None => verification_errors.push(format!(
+                "DOCUMENTED[{ty}]: no #[test] fn `{test_fn}` found in crates/"
+            )),
+            Some(bodies) if !bodies.iter().any(|b| b.contains(&needle)) => {
+                verification_errors.push(format!(
+                    "DOCUMENTED[{ty}]: #[test] fn `{test_fn}` does not reference `{needle}`"
+                ));
+            }
+            Some(_) => {}
+        }
+    }
+    assert!(
+        verification_errors.is_empty(),
+        "DOCUMENTED registry verification failed:\n  {}",
+        verification_errors.join("\n  ")
     );
 }

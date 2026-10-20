@@ -13,71 +13,23 @@
 //!
 //! Not caught: prose descriptions outside the structured tables and constants.
 
+use aria_compositor::{BlendMode as CompositorBlendMode, MaskOp};
 use aria_models::{
-    ClipParam, ClipParamClass, ClipTransform, CropRect, LookParam, MAX_SHAPE_DIM, MAX_SPEED,
-    MAX_STAR_POINTS, MAX_STROKE_WIDTH, MAX_TEXT_RUNS, MIN_CROP_FRACTION, MIN_SPEED, MotionBlur,
-    ParamRange, SPEED_CURVE_SCALE, Scale2, ShapeParam, ShapeStroke, StyleParam, TEXT_RUN_VERSION,
-    TextAlignH, TextAlignV, TextBackground, TextCase, TextParam, TextShadow, TextStroke,
-    TextStyle, clip_param_catalog, generator_specs,
+    BlendMode, ClipAttribute, ClipParam, ClipParamClass, ClipTransform, CropRect, LookParam,
+    MAX_SHAPE_DIM, MAX_SPEED, MAX_STAR_POINTS, MAX_STROKE_WIDTH, MAX_TEXT_RUNS, MIN_CROP_FRACTION,
+    MIN_SPEED, MotionBlur, ParamAxis, ParamRange, SPEED_CURVE_SCALE, Scale2, ShapeParam,
+    ShapeStroke, StabilizeLevel, StyleParam, TEXT_RUN_VERSION, TextAlignH, TextAlignV,
+    TextBackground, TextCase, TextParam, TextShadow, TextStroke, TextStyle, clip_param_catalog,
+    generator_specs,
 };
 
 use crate::app::align::{AlignAxis, AlignEdge, AlignTo, DISTRIBUTE_MIN};
+use crate::app::canvas_overlay::{CropHandle, MaskHandle, TransformHandle};
 use crate::app::clip_frame::CROP_EDGES;
 
-
-fn unquote(cell: &str) -> &str {
-    cell.trim().trim_start_matches('`').trim_end_matches('`')
-}
-
-fn section<'a>(doc: &'a str, heading: &str) -> &'a str {
-    let level = heading.bytes().take_while(|&b| b == b'#').count();
-    let start = doc
-        .find(heading)
-        .unwrap_or_else(|| panic!("missing heading {heading:?}"));
-    let body = &doc[start + heading.len()..];
-    let body = body.strip_prefix('\n').unwrap_or(body);
-    let mut offset = 0usize;
-    for line in body.lines() {
-        let hashes = line.bytes().take_while(|&b| b == b'#').count();
-        if (1..=level).contains(&hashes) && line.as_bytes().get(hashes) == Some(&b' ') {
-            return &body[..offset];
-        }
-        offset += line.len() + 1;
-    }
-    body
-}
-
-fn table_rows(text: &str) -> Vec<Vec<&str>> {
-    let mut rows = Vec::new();
-    let mut in_table = false;
-    let mut past_sep = false;
-    for line in text.lines() {
-        let trimmed = line.trim();
-        if !trimmed.starts_with('|') {
-            if in_table {
-                in_table = false;
-                past_sep = false;
-            }
-            continue;
-        }
-        let cells: Vec<&str> = trimmed
-            .trim_start_matches('|')
-            .trim_end_matches('|')
-            .split('|')
-            .map(str::trim)
-            .collect();
-        if !in_table {
-            in_table = true;
-            continue;
-        }
-        if !past_sep {
-            past_sep = true;
-            continue;
-        }
-        rows.push(cells);
-    }
-    rows
-}
+use crate::test_support::doc_tables::{
+    heading_body as section, read_doc, strip_ticks as unquote, table_rows,
+};
 
 fn format_param_variant(p: ClipParam) -> String {
     match p {
@@ -121,11 +73,7 @@ fn format_range(r: ParamRange) -> String {
 
 #[test]
 fn clip_properties_doc_matches_registries() {
-    let doc_buf = std::fs::read_to_string(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../docs/reference/clip-properties.md"),
-    )
-    .expect("read docs/reference/clip-properties.md");
+    let doc_buf = read_doc("reference/clip-properties.md");
     #[allow(non_snake_case)]
     let DOC = doc_buf.as_str();
     // 1. ClipParam::CENSUS and ClipParamClass.
@@ -492,5 +440,167 @@ fn clip_properties_doc_matches_registries() {
     assert_eq!(
         doc_gens, expected_gens,
         "docs/reference/clip-properties.md generator_specs() table drifted"
+    );
+
+    // 7. ParamAxis::ALL, TransformHandle::ALL, CropHandle::ALL, StabilizeLevel::ALL, ClipAttribute::ALL.
+    let expected_axes: Vec<String> = ParamAxis::ALL
+        .iter()
+        .map(|a| format!("ParamAxis::{a:?}"))
+        .collect();
+    for axis_name in &expected_axes {
+        assert!(
+            census_sec.contains(axis_name),
+            "clip-properties.md must document `{axis_name}`"
+        );
+    }
+
+    let handles_sec = section(
+        DOC,
+        "### On-canvas transform and crop handles (`TransformHandle::ALL` and `CropHandle::ALL`)",
+    );
+    let mut handles_tables = Vec::new();
+    for block in handles_sec.split("\n\n") {
+        let r = table_rows(block);
+        if !r.is_empty() {
+            handles_tables.push(r);
+        }
+    }
+    assert_eq!(
+        handles_tables.len(),
+        2,
+        "expected 2 tables under On-canvas transform and crop handles"
+    );
+    let doc_tf_handles: Vec<(String, String)> = handles_tables[0]
+        .iter()
+        .map(|r| (unquote(r[0]).to_string(), unquote(r[1]).to_string()))
+        .collect();
+    let expected_tf_handles: Vec<(String, String)> = TransformHandle::ALL
+        .iter()
+        .map(|h| (format!("{h:?}"), h.id().to_string()))
+        .collect();
+    assert_eq!(
+        doc_tf_handles, expected_tf_handles,
+        "TransformHandle::ALL table drifted"
+    );
+
+    let doc_crop_handles: Vec<(String, String)> = handles_tables[1]
+        .iter()
+        .map(|r| (unquote(r[0]).to_string(), unquote(r[1]).to_string()))
+        .collect();
+    let expected_crop_handles: Vec<(String, String)> = CropHandle::ALL
+        .iter()
+        .map(|h| (format!("{h:?}"), h.id().to_string()))
+        .collect();
+    assert_eq!(
+        doc_crop_handles, expected_crop_handles,
+        "CropHandle::ALL table drifted"
+    );
+
+    let stab_rows = table_rows(section(
+        DOC,
+        "## Stabilization levels (`StabilizeLevel::ALL`)",
+    ));
+    let doc_stab: Vec<(String, String, String)> = stab_rows
+        .iter()
+        .map(|r| {
+            assert!(r.len() >= 3, "malformed StabilizeLevel row: {r:?}");
+            (
+                unquote(r[0]).to_string(),
+                r[1].to_string(),
+                unquote(r[2]).to_string(),
+            )
+        })
+        .collect();
+    let expected_stab: Vec<(String, String, String)> = StabilizeLevel::ALL
+        .iter()
+        .map(|&s| (s.id().to_string(), s.label().to_string(), format!("{s:?}")))
+        .collect();
+    assert_eq!(
+        doc_stab, expected_stab,
+        "StabilizeLevel::ALL table drifted"
+    );
+
+    let attr_rows = table_rows(section(
+        DOC,
+        "## Copyable and removable clip attributes (`ClipAttribute::ALL`)",
+    ));
+    let doc_attrs: Vec<(String, String, bool)> = attr_rows
+        .iter()
+        .map(|r| {
+            assert!(r.len() >= 3, "malformed ClipAttribute row: {r:?}");
+            (
+                unquote(r[0]).to_string(),
+                r[1].to_string(),
+                unquote(r[2]) == "yes",
+            )
+        })
+        .collect();
+    let expected_attrs: Vec<(String, String, bool)> = ClipAttribute::ALL
+        .iter()
+        .map(|&a| {
+            (
+                format!("{a:?}"),
+                a.label().to_string(),
+                a.is_intrinsic(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        doc_attrs, expected_attrs,
+        "ClipAttribute::ALL table drifted"
+    );
+
+    // 8. Also check `MaskOp::ALL`, `CompositorBlendMode::ALL`, and `MaskHandle::ALL` in `docs/reference/blend-modes.md`.
+    let blend_doc = read_doc("reference/blend-modes.md");
+    assert_eq!(
+        CompositorBlendMode::ALL
+            .iter()
+            .map(|b| format!("{b:?}"))
+            .collect::<Vec<_>>(),
+        BlendMode::ALL
+            .iter()
+            .map(|b| format!("{b:?}"))
+            .collect::<Vec<_>>(),
+        "aria_compositor::BlendMode::ALL must match aria_models::BlendMode::ALL"
+    );
+    let mask_mode_rows = table_rows(section(
+        &blend_doc,
+        "## Mask combination modes (`MaskMode` and `MaskOp`)",
+    ));
+    let doc_mask_ops: Vec<(String, u32, bool)> = mask_mode_rows
+        .iter()
+        .filter(|r| unquote(r[4]) != "none")
+        .map(|r| {
+            (
+                unquote(r[2]).to_string(),
+                unquote(r[4]).parse::<u32>().expect("shader op id"),
+                unquote(r[5]) == "1.0",
+            )
+        })
+        .collect();
+    let expected_mask_ops: Vec<(String, u32, bool)> = MaskOp::ALL
+        .iter()
+        .map(|&op| (format!("{op:?}"), op.id(), (op.start() - 1.0).abs() < f32::EPSILON))
+        .collect();
+    assert_eq!(
+        doc_mask_ops, expected_mask_ops,
+        "docs/reference/blend-modes.md MaskOp rows drifted from MaskOp::ALL"
+    );
+
+    let mask_handle_rows = table_rows(section(
+        &blend_doc,
+        "## On-canvas mask handles (`MaskHandle::ALL`)",
+    ));
+    let doc_mask_handles: Vec<(String, String)> = mask_handle_rows
+        .iter()
+        .map(|r| (unquote(r[0]).to_string(), unquote(r[1]).to_string()))
+        .collect();
+    let expected_mask_handles: Vec<(String, String)> = MaskHandle::ALL
+        .iter()
+        .map(|h| (format!("{h:?}"), h.id().to_string()))
+        .collect();
+    assert_eq!(
+        doc_mask_handles, expected_mask_handles,
+        "docs/reference/blend-modes.md MaskHandle::ALL table drifted"
     );
 }

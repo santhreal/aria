@@ -146,3 +146,24 @@ Default label constants by clip type:
 | Small | `32` |
 | Medium | `48` |
 | Large | `72` |
+
+## Track automation modes (`AutomationMode::ALL`)
+
+Defined in `crates/aria-models/src/track_automation.rs` (`AutomationMode::ALL`, `#[serde(rename_all = "snake_case")]`):
+
+| Variant | Label (`label()`) | Reads Envelope (`reads_envelope()`) | Writes Envelope (`writes_envelope()`) | Default |
+| --- | --- | --- | --- | --- |
+| `Off` | Off | `false` | `false` | `yes` |
+| `Read` | Read | `true` | `false` | `no` |
+| `Write` | Write | `true` | `true` | `no` |
+| `Touch` | Touch | `true` | `true` | `no` |
+| `Latch` | Latch | `true` | `true` | `no` |
+
+## Source patching channels (`SourceChannel::ALL`)
+
+Defined in `crates/aria-models/src/source_patch.rs` (`SourceChannel::ALL`). Three-point editing (`I`, `O`, `,`, `.`) routes each source stream to its patched target lane kind (`lane_kind()`) on the timeline:
+
+| Variant | Target Lane Kind (`lane_kind()`) |
+| --- | --- |
+| `Video` | `Video` |
+| `Audio` | `Audio` |

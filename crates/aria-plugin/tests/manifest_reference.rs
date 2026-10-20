@@ -1928,3 +1928,103 @@ fn basics_doc_matches_plugin_basics_registries_bidirectionally() {
         log_type_map.get("LogLine").expect("LogLine row"),
     );
 }
+
+#[test]
+fn commands_menus_and_analyzers_docs_match_context_key_menu_location_and_analyzer_scope() {
+    // 1. `ContextKey::ALL` in `docs/plugins/commands.md` `## Enablement`.
+    let commands_doc = read_workspace_file("docs/plugins/commands.md");
+    let enablement_tables =
+        parse_markdown_tables(extract_heading_section(&commands_doc, "## Enablement"));
+    assert_eq!(enablement_tables.len(), 1);
+    let doc_context_keys: Vec<String> = enablement_tables[0]
+        .rows
+        .iter()
+        .map(|row| extract_backticked_tokens(&row[0]).remove(0))
+        .collect();
+    let expected_context_keys: Vec<String> = aria_plugin::ContextKey::ALL
+        .iter()
+        .map(|key| match key {
+            aria_plugin::ContextKey::Clips
+            | aria_plugin::ContextKey::Selection
+            | aria_plugin::ContextKey::SingleSelection
+            | aria_plugin::ContextKey::MarkIn
+            | aria_plugin::ContextKey::MarkOut
+            | aria_plugin::ContextKey::InOut
+            | aria_plugin::ContextKey::Playing
+            | aria_plugin::ContextKey::FocusMedia
+            | aria_plugin::ContextKey::FocusViewer
+            | aria_plugin::ContextKey::FocusTimeline
+            | aria_plugin::ContextKey::FocusInspector
+            | aria_plugin::ContextKey::FocusAssistant
+            | aria_plugin::ContextKey::FocusMixer => key.name().to_owned(),
+        })
+        .collect();
+    assert_eq!(
+        doc_context_keys, expected_context_keys,
+        "docs/plugins/commands.md Enablement table drifted from ContextKey::ALL"
+    );
+
+    // 2. `MenuLocation::ALL` in `docs/plugins/menus.md`.
+    let menus_doc = read_workspace_file("docs/plugins/menus.md");
+    let (_, after_starts) = menus_doc
+        .split_once("A path starts with a menu-bar menu (")
+        .expect("menu-bar menu list in docs/plugins/menus.md");
+    let (bar_part, after_bar) = after_starts
+        .split_once(") or a context menu (")
+        .expect("context menu list in docs/plugins/menus.md");
+    let (ctx_part, _) = after_bar
+        .split_once(") from")
+        .expect("closing paren of context menu list in docs/plugins/menus.md");
+    let doc_bar_menus = extract_backticked_tokens(bar_part);
+    let doc_ctx_menus = extract_backticked_tokens(ctx_part);
+    let expected_bar_menus: Vec<String> = aria_plugin::MenuLocation::ALL
+        .iter()
+        .filter(|loc| loc.in_menu_bar())
+        .map(|loc| loc.label().to_owned())
+        .collect();
+    let expected_ctx_menus: Vec<String> = aria_plugin::MenuLocation::ALL
+        .iter()
+        .filter(|loc| !loc.in_menu_bar())
+        .map(|loc| loc.label().to_owned())
+        .collect();
+    assert_eq!(
+        doc_bar_menus, expected_bar_menus,
+        "docs/plugins/menus.md menu-bar locations drifted from MenuLocation::ALL"
+    );
+    assert_eq!(
+        doc_ctx_menus, expected_ctx_menus,
+        "docs/plugins/menus.md context menu locations drifted from MenuLocation::ALL"
+    );
+
+    // 3. `AnalyzerScope::ALL` in `docs/plugins/analyzers.md` `## Scope and menus`.
+    let analyzers_doc = read_workspace_file("docs/plugins/analyzers.md");
+    let scope_tables =
+        parse_markdown_tables(extract_heading_section(&analyzers_doc, "## Scope and menus"));
+    assert_eq!(scope_tables.len(), 1);
+    let doc_scopes: Vec<(String, String)> = scope_tables[0]
+        .rows
+        .iter()
+        .map(|row| {
+            (
+                extract_backticked_tokens(&row[0]).remove(0),
+                row[1].trim().to_owned(),
+            )
+        })
+        .collect();
+    let expected_scopes: Vec<(String, String)> = aria_plugin::AnalyzerScope::ALL
+        .iter()
+        .map(|scope| {
+            let menu = match scope {
+                aria_plugin::AnalyzerScope::Clip => "Clip > Analyze",
+                aria_plugin::AnalyzerScope::Sequence | aria_plugin::AnalyzerScope::InOut => {
+                    "Sequence > Analyze"
+                }
+            };
+            (format!("{scope:?}"), menu.to_owned())
+        })
+        .collect();
+    assert_eq!(
+        doc_scopes, expected_scopes,
+        "docs/plugins/analyzers.md Scope and menus table drifted from AnalyzerScope::ALL"
+    );
+}

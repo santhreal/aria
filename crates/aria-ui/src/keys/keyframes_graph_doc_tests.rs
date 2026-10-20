@@ -22,74 +22,20 @@ use aria_render::{
     InputProperty, driver_languages, register_driver_language,
 };
 
+use crate::app::canvas_overlay::motion_path::{PathParam, TangentSide};
 use crate::app::property_rows::graph::{GRAPH_PAD_Y, graph_axis_ys};
 use crate::app::property_rows::{
     GRAPH_EDITOR_H, GraphHandleSide, GraphMode, KeyframeIconShape, PROPERTY_ROW_H, PropertyGroup,
     RevealAction,
 };
 
-
-fn unquote(cell: &str) -> &str {
-    cell.trim().trim_start_matches('`').trim_end_matches('`')
-}
-
-fn section<'a>(doc: &'a str, heading: &str) -> &'a str {
-    let level = heading.bytes().take_while(|&b| b == b'#').count();
-    let start = doc
-        .find(heading)
-        .unwrap_or_else(|| panic!("missing heading {heading:?}"));
-    let body = &doc[start + heading.len()..];
-    let body = body.strip_prefix('\n').unwrap_or(body);
-    let mut offset = 0usize;
-    for line in body.lines() {
-        let hashes = line.bytes().take_while(|&b| b == b'#').count();
-        if (1..=level).contains(&hashes) && line.as_bytes().get(hashes) == Some(&b' ') {
-            return &body[..offset];
-        }
-        offset += line.len() + 1;
-    }
-    body
-}
-
-fn table_rows(text: &str) -> Vec<Vec<&str>> {
-    let mut rows = Vec::new();
-    let mut in_table = false;
-    let mut past_sep = false;
-    for line in text.lines() {
-        let trimmed = line.trim();
-        if !trimmed.starts_with('|') {
-            if in_table {
-                in_table = false;
-                past_sep = false;
-            }
-            continue;
-        }
-        let cells: Vec<&str> = trimmed
-            .trim_start_matches('|')
-            .trim_end_matches('|')
-            .split('|')
-            .map(str::trim)
-            .collect();
-        if !in_table {
-            in_table = true;
-            continue;
-        }
-        if !past_sep {
-            past_sep = true;
-            continue;
-        }
-        rows.push(cells);
-    }
-    rows
-}
+use crate::test_support::doc_tables::{
+    heading_body as section, read_doc, strip_ticks as unquote, table_rows,
+};
 
 #[test]
 fn keyframes_and_graph_doc_matches_registries() {
-    let doc_buf = std::fs::read_to_string(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../docs/reference/keyframes-and-graph.md"),
-    )
-    .expect("read docs/reference/keyframes-and-graph.md");
+    let doc_buf = read_doc("reference/keyframes-and-graph.md");
     #[allow(non_snake_case)]
     let DOC = doc_buf.as_str();
     // 1. PropertyGroup::ALL & PROPERTY_ROW_H.
@@ -372,7 +318,7 @@ fn keyframes_and_graph_doc_matches_registries() {
             GraphHandleSide::Incoming | GraphHandleSide::Outgoing => {}
         }
     }
-    let mode_rows = table_rows(graph_sec);
+    let mode_rows = table_rows(graph_sec.split("\n### ").next().unwrap_or(graph_sec));
     let doc_modes: Vec<(String, String, String, bool)> = mode_rows
         .iter()
         .map(|r| {
@@ -402,6 +348,60 @@ fn keyframes_and_graph_doc_matches_registries() {
     assert_eq!(
         doc_modes, expected_modes,
         "docs/reference/keyframes-and-graph.md GraphMode table drifted"
+    );
+
+    let path_sec = section(
+        DOC,
+        "### On-canvas motion path (`PathParam::ALL` and `TangentSide::ALL`)",
+    );
+    let mut path_tables = Vec::new();
+    for block in path_sec.split("\n\n") {
+        let r = table_rows(block);
+        if !r.is_empty() {
+            path_tables.push(r);
+        }
+    }
+    assert_eq!(
+        path_tables.len(),
+        2,
+        "expected 2 tables under On-canvas motion path"
+    );
+    let doc_path_params: Vec<(String, String, String, bool)> = path_tables[0]
+        .iter()
+        .map(|r| {
+            (
+                unquote(r[0]).to_string(),
+                unquote(r[1]).to_string(),
+                unquote(r[2]).to_string(),
+                unquote(r[3]) == "true",
+            )
+        })
+        .collect();
+    let expected_path_params: Vec<(String, String, String, bool)> = PathParam::ALL
+        .iter()
+        .map(|&p| {
+            (
+                format!("{p:?}"),
+                format!("{:?}", p.param()),
+                p.id().to_string(),
+                p.bends(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        doc_path_params, expected_path_params,
+        "docs/reference/keyframes-and-graph.md PathParam::ALL table drifted"
+    );
+
+    let doc_tangent_sides: Vec<String> = path_tables[1]
+        .iter()
+        .map(|r| unquote(r[0]).to_string())
+        .collect();
+    let expected_tangent_sides: Vec<String> =
+        TangentSide::ALL.iter().map(|s| format!("{s:?}")).collect();
+    assert_eq!(
+        doc_tangent_sides, expected_tangent_sides,
+        "docs/reference/keyframes-and-graph.md TangentSide::ALL table drifted"
     );
 
     // 5. Property drivers (DriverCode, DriverLanguageRegistration, DEFAULT_DRIVER_BUDGET).

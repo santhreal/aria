@@ -162,6 +162,29 @@ In `aria-ui`, `CROP_EDGES` (`crates/aria-ui/src/app/clip_frame.rs`) defines the 
 | `crop-right` | Right | `1.0 - (crop.x + crop.w)` |
 | `crop-bottom` | Bottom | `1.0 - (crop.y + crop.h)` |
 
+
+### On-canvas transform and crop handles (`TransformHandle::ALL` and `CropHandle::ALL`)
+
+In the Viewer (`crates/aria-ui/src/app/canvas_overlay.rs`), scale and crop drags use the four corner scale handles (`TransformHandle::ALL`) and eight crop handles (`CropHandle::ALL`):
+
+| `TransformHandle` Variant | Element ID (`id()`) | Layer corner (`anchor()`) |
+| --- | --- | --- |
+| `TopLeft` | `scale-handle-top-left` | `[0.0, 0.0]` |
+| `TopRight` | `scale-handle-top-right` | `[1.0, 0.0]` |
+| `BottomRight` | `scale-handle-bottom-right` | `[1.0, 1.0]` |
+| `BottomLeft` | `scale-handle-bottom-left` | `[0.0, 1.0]` |
+
+| `CropHandle` Variant | Element ID (`id()`) | Normalized position on `CropRect` |
+| --- | --- | --- |
+| `Left` | `crop-handle-left` | `[crop.x, crop.y + crop.h * 0.5]` |
+| `Top` | `crop-handle-top` | `[crop.x + crop.w * 0.5, crop.y]` |
+| `Right` | `crop-handle-right` | `[crop.x + crop.w, crop.y + crop.h * 0.5]` |
+| `Bottom` | `crop-handle-bottom` | `[crop.x + crop.w * 0.5, crop.y + crop.h]` |
+| `TopLeft` | `crop-handle-top-left` | `[crop.x, crop.y]` |
+| `TopRight` | `crop-handle-top-right` | `[crop.x + crop.w, crop.y]` |
+| `BottomRight` | `crop-handle-bottom-right` | `[crop.x + crop.w, crop.y + crop.h]` |
+| `BottomLeft` | `crop-handle-bottom-left` | `[crop.x, crop.y + crop.h]` |
+
 ### `MotionBlur`
 
 `MotionBlur` (`crates/aria-models/src/look/motion_blur.rs`) configures temporal supersampling of animated clip transforms:
@@ -253,3 +276,31 @@ In `aria-ui`, `CROP_EDGES` (`crates/aria-ui/src/app/clip_frame.rs`) defines the 
 | `effect` | Effect | `Effect` | `canvas-pass` | `false` | `false` | `false` | `false` | `Sequence` | `false` |
 | `filter` | Filter | `Filter` | `canvas-pass` | `false` | `false` | `false` | `false` | `Sequence` | `false` |
 | `adjustment` | Adjustment | `Adjustment` | `canvas-pass` | `false` | `false` | `false` | `false` | `Sequence` | `false` |
+
+## Stabilization levels (`StabilizeLevel::ALL`)
+
+Defined in `crates/aria-models/src/look/chroma.rs` (`StabilizeLevel::ALL`, `#[serde(rename_all = "snake_case")]`; `None` on the clip means stabilization is off):
+
+| ID | Label | Variant |
+| --- | --- | --- |
+| `recommended` | Recommended | `Recommended` |
+| `smooth` | Smooth | `Smooth` |
+| `max_smooth` | Max smooth | `MaxSmooth` |
+
+## Copyable and removable clip attributes (`ClipAttribute::ALL`)
+
+Defined in `crates/aria-models/src/clip/attributes.rs` (`ClipAttribute::ALL`; `is_intrinsic()` is `true` for the first six intrinsic clip property groups and `false` for the five applied effect/grade/mask/key groups). Used by **Edit > Paste Attributes** and **Edit > Remove Attributes** (`aria.dialog.remove-attributes`):
+
+| Variant | Label | Intrinsic (`is_intrinsic()`) |
+| --- | --- | --- |
+| `Motion` | Motion | `yes` |
+| `Opacity` | Opacity | `yes` |
+| `Crop` | Crop | `yes` |
+| `TimeRemapping` | Time Remapping | `yes` |
+| `Volume` | Volume | `yes` |
+| `Pan` | Pan | `yes` |
+| `Effects` | Effects | `no` |
+| `AudioEffects` | Audio Effects | `no` |
+| `Grade` | Grade | `no` |
+| `Mask` | Mask | `no` |
+| `ChromaKey` | Chroma Key | `no` |

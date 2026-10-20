@@ -173,7 +173,7 @@ ctx.on_serial_with_priority::<ResolveDropped, DropAction, _>(10, |event| {
 
 ## External plugins
 
-A native or WASM plugin subscribes to an event by kind during `mount`:
+A native or WASM plugin subscribes to an event by kind (`WireKind::ALL` in `crates/aria-plugin/src/event_wire.rs`) during `mount`:
 `host.subscribe(kind)` in `aria-sdk`, `subscribe(kind)` in the WIT world. The
 event type name is accepted in place of the kind (`"CommandApplied"` for
 `"command-applied"`), and `"resolve-dropped-path"` is accepted for
