@@ -29,6 +29,7 @@
 //! which is what [`effect_is_noop`] reports for an unknown effect.
 
 use std::collections::HashMap;
+use std::ops::Range;
 use std::sync::{Arc, LazyLock};
 
 use aria_models::EffectParamKind;
@@ -143,6 +144,17 @@ impl PassId {
             PassId::Registered(pass) => pass.is_cpu(),
         }
     }
+
+    /// Float slot ranges in [`PassInstance::params`] for parameters measured in
+    /// canvas pixels (`unit = "px"`).
+    pub fn canvas_px_float_ranges(&self) -> &[Range<usize>] {
+        match self {
+            PassId::Shipped(id) => PX_FLOAT_RANGES_BY_ID
+                .get(id)
+                .map_or(&[], |ranges| ranges.as_ref()),
+            PassId::Registered(pass) => pass.canvas_px_float_ranges(),
+        }
+    }
 }
 
 impl From<&'static str> for PassId {
@@ -226,6 +238,21 @@ impl PassInstance {
     /// Whether this effect runs a CPU callback rather than a WGSL shader.
     pub fn is_cpu(&self) -> bool {
         self.id.is_cpu()
+    }
+
+    /// Scale every parameter float slot measured in canvas pixels (`unit = "px"`)
+    /// by `factor`. Non-positive or non-finite factors are ignored.
+    pub fn scale_canvas_px(&mut self, factor: f32) {
+        if !(factor > 0.0 && factor.is_finite()) {
+            return;
+        }
+        for range in self.id.canvas_px_float_ranges() {
+            if let Some(slots) = self.params.get_mut(range.clone()) {
+                for slot in slots {
+                    *slot *= factor;
+                }
+            }
+        }
     }
 
     /// Offscreen slots the chain needs to draw this instance without writing
@@ -646,6 +673,29 @@ static INERT_PARAM_OFFSET_BY_ID: LazyLock<HashMap<&'static str, usize>> = LazyLo
         })
         .collect()
 });
+
+/// Canvas-pixel (`unit = "px"`) float slot ranges per shipped pass id, derived
+/// once from the shipped effect and transition catalogs.
+static PX_FLOAT_RANGES_BY_ID: LazyLock<HashMap<&'static str, Box<[Range<usize>]>>> =
+    LazyLock::new(|| {
+        let effects = aria_models::shipped_effect_catalog()
+            .iter()
+            .filter_map(|spec| {
+                let id = EFFECTS.iter().find(|pass| pass.id == spec.id)?.id;
+                let ranges: Box<[Range<usize>]> =
+                    aria_models::canvas_px_float_ranges(&spec.params).collect();
+                (!ranges.is_empty()).then_some((id, ranges))
+            });
+        let transitions = aria_models::shipped_transition_catalog()
+            .iter()
+            .filter_map(|spec| {
+                let id = TRANSITIONS.iter().find(|row| row.id == spec.id)?.id;
+                let ranges: Box<[Range<usize>]> =
+                    aria_models::canvas_px_float_ranges(&spec.params).collect();
+                (!ranges.is_empty()).then_some((id, ranges))
+            });
+        effects.chain(transitions).collect()
+    });
 
 /// The public catalog projection of [`TRANSITIONS`], built once.
 /// Precomputed const table of transition pass descriptors.

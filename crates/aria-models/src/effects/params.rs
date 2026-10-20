@@ -469,6 +469,9 @@ impl Default for EffectParamSpec {
     }
 }
 
+/// Unit suffix marking an effect parameter measured in canvas pixels.
+pub const CANVAS_PX_UNIT: &str = "px";
+
 impl EffectParamSpec {
     /// Build a scalar (`f32`) parameter spec.
     pub fn scalar(
@@ -752,6 +755,11 @@ impl EffectParamSpec {
     pub fn with_unit(mut self, unit: impl Into<String>) -> Self {
         self.unit = Some(unit.into());
         self
+    }
+
+    /// Whether this parameter is measured in canvas pixels (`unit == Some("px")`).
+    pub fn is_canvas_px(&self) -> bool {
+        self.unit.as_deref() == Some(CANVAS_PX_UNIT)
     }
 
     /// Set the UI control display hint.

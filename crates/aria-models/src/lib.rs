@@ -100,12 +100,13 @@ pub use effect_graph::{
     MAX_PASS_SIDE, MAX_WORKGROUP_INVOCATIONS, OutputSize, PassInput, PassStage, plan_graph,
 };
 pub use effects::{
-    EFFECT_CURVE_LUT_SAMPLES, EFFECT_GRADIENT_LUT_SAMPLES, EFFECT_NAME_MAX_CHARS, EffectBounds,
-    EffectChoiceOption, EffectCurvePoint, EffectGradientStop, EffectGroupSpec, EffectInstance,
-    EffectParamDisplay, EffectParamKind, EffectParamSpec, EffectSpec, EffectVisibilityCondition,
-    OTHER_VIDEO_CATEGORY, StoredParams, default_flattened_param_floats, effect_catalog,
-    effect_spec, evaluate_effect_curve_lut, evaluate_effect_gradient_lut, sample_effect_curve,
-    sample_effect_gradient, shipped_effect_catalog,
+    CANVAS_PX_UNIT, EFFECT_CURVE_LUT_SAMPLES, EFFECT_GRADIENT_LUT_SAMPLES, EFFECT_NAME_MAX_CHARS,
+    EffectBounds, EffectChoiceOption, EffectCurvePoint, EffectGradientStop, EffectGroupSpec,
+    EffectInstance, EffectParamDisplay, EffectParamKind, EffectParamSpec, EffectSpec,
+    EffectVisibilityCondition, OTHER_VIDEO_CATEGORY, StoredParams, canvas_px_float_ranges,
+    default_flattened_param_floats, effect_catalog, effect_spec, evaluate_effect_curve_lut,
+    evaluate_effect_gradient_lut, sample_effect_curve, sample_effect_gradient,
+    shipped_effect_catalog,
 };
 pub use error::ModelError;
 pub use ids::{

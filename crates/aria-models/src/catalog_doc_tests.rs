@@ -179,6 +179,13 @@ fn assert_effect_params_match(entry_id: &str, section_body: &str, params: &[Effe
         assert_eq!(unquote(row[0]), spec.name, "{ctx}: name mismatch");
         assert_eq!(row[1], spec.label, "{ctx}: label mismatch");
         assert_eq!(unquote(row[2]), spec.kind.as_str(), "{ctx}: kind mismatch");
+        assert_eq!(
+            unquote(row[3]) == crate::CANVAS_PX_UNIT,
+            spec.is_canvas_px(),
+            "{ctx}: documented unit {:?} disagrees with catalog unit {:?}",
+            row[3],
+            spec.unit
+        );
         match spec.kind {
             EffectParamKind::Scalar => {
                 let min = parse_f32(row[4], &ctx);

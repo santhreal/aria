@@ -26,6 +26,7 @@
 //! Each effect parameter gets an accessor named `param_<name>`: `f32` for a
 //! scalar, `vec2<f32>` for a vec2, `vec4<f32>` RGBA in 0..1 for a colour.
 
+use std::ops::Range;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, LazyLock, Mutex, PoisonError, RwLock};
 use std::time::Duration;
@@ -133,8 +134,6 @@ enum PassBackend {
 pub struct RegisteredPass {
     serial: u64,
     id: String,
-    float_count: usize,
-    default_params: Box<[f32]>,
     flags: PassFlags,
     digest: u64,
     backend: PassBackend,
@@ -155,7 +154,7 @@ impl std::fmt::Debug for RegisteredPass {
             .field("bounds", &self.flags.bounds)
             .field("passes", &self.pass_count())
             .field("cpu", &self.is_cpu())
-            .field("float_count", &self.float_count)
+            .field("float_count", &self.flags.float_count)
             .finish_non_exhaustive()
     }
 }
@@ -232,12 +231,18 @@ impl RegisteredPass {
 
     /// Floats the instance parameters flatten to; 0 for a transition.
     pub fn float_count(&self) -> usize {
-        self.float_count
+        self.flags.float_count
     }
 
     /// Default flattened float parameters for this pass.
     pub fn default_params(&self) -> &[f32] {
-        &self.default_params
+        &self.flags.default_params
+    }
+
+    /// Float slot ranges in [`crate::PassInstance::params`] for parameters
+    /// declared with `unit = "px"`.
+    pub fn canvas_px_float_ranges(&self) -> &[Range<usize>] {
+        &self.flags.px_float_ranges
     }
 
     /// Whether the registration was dropped. A removed pass draws nothing.
@@ -520,9 +525,6 @@ pub fn register_effect_with_sinks(
                     param.name
                 )));
             }
-            let float_count: usize = spec.params.iter().map(|p| floats_of(p.kind)).sum();
-            let default_params =
-                aria_models::default_flattened_param_floats(&spec.params).into_boxed_slice();
             let compiled = compile_effect(&spec, &passes)?;
             let id = spec.id.clone();
             let flags = PassFlags::of(&spec);
@@ -536,8 +538,6 @@ pub fn register_effect_with_sinks(
             Ok(insert(
                 Kind::Effect,
                 id,
-                float_count,
-                default_params,
                 flags,
                 PassBackend::Shader(compiled),
                 on_fault,
@@ -546,9 +546,6 @@ pub fn register_effect_with_sinks(
             ))
         }
         EffectRender::Cpu(CpuEffectDefinition { spec, effect }) => {
-            let float_count: usize = spec.params.iter().map(|p| floats_of(p.kind)).sum();
-            let default_params =
-                aria_models::default_flattened_param_floats(&spec.params).into_boxed_slice();
             let params = registered_params(&spec.params);
             let generator = spec.generator;
             let id = spec.id.clone();
@@ -563,8 +560,6 @@ pub fn register_effect_with_sinks(
             Ok(insert(
                 Kind::Effect,
                 id,
-                float_count,
-                default_params,
                 flags,
                 PassBackend::Cpu {
                     effect,
@@ -632,9 +627,6 @@ pub fn register_transition_with_sinks(
             ),
         });
     }
-    let float_count: usize = spec.params.iter().map(|p| floats_of(p.kind)).sum();
-    let default_params =
-        aria_models::default_flattened_param_floats(&spec.params).into_boxed_slice();
     let prelude = transition_prelude(&spec.params);
     let source =
         check_pass(&shader, &prelude, Kind::Transition).map_err(|(location, message)| {
@@ -646,6 +638,7 @@ pub fn register_transition_with_sinks(
             }
         })?;
     let id = spec.id.clone();
+    let flags = PassFlags::transition(&spec);
     let (catalog, _) = aria_models::register_transition(spec).map_err(|message| RegisterError {
         id: id.clone(),
         pass: None,
@@ -655,9 +648,7 @@ pub fn register_transition_with_sinks(
     Ok(insert(
         Kind::Transition,
         id,
-        float_count,
-        default_params,
-        PassFlags::default(),
+        flags,
         PassBackend::Shader(Box::new([CompiledPass::transition(source)])),
         on_fault,
         on_cost,
@@ -666,8 +657,11 @@ pub fn register_transition_with_sinks(
 }
 
 /// What a registered effect declares about its frames beyond its passes.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Default)]
 struct PassFlags {
+    float_count: usize,
+    default_params: Box<[f32]>,
+    px_float_ranges: Box<[Range<usize>]>,
     stateful: bool,
     time_dependent: bool,
     reads_outside: bool,
@@ -675,21 +669,33 @@ struct PassFlags {
 }
 
 impl PassFlags {
+    fn from_params(params: &[EffectParamSpec]) -> Self {
+        Self {
+            float_count: params.iter().map(|p| floats_of(p.kind)).sum(),
+            default_params: aria_models::default_flattened_param_floats(params).into_boxed_slice(),
+            px_float_ranges: aria_models::canvas_px_float_ranges(params).collect(),
+            ..Self::default()
+        }
+    }
+
     fn of(spec: &EffectSpec) -> Self {
         Self {
             stateful: spec.stateful,
             time_dependent: spec.time_dependent,
             reads_outside: spec.reads_outside,
             bounds: spec.bounds,
+            ..Self::from_params(&spec.params)
         }
+    }
+
+    fn transition(spec: &TransitionSpec) -> Self {
+        Self::from_params(&spec.params)
     }
 }
 
 fn insert(
     kind: Kind,
     id: String,
-    float_count: usize,
-    default_params: Box<[f32]>,
     flags: PassFlags,
     backend: PassBackend,
     on_fault: Option<EffectFaultSink>,
@@ -703,8 +709,6 @@ fn insert(
     let pass = Arc::new(RegisteredPass {
         serial: NEXT_SERIAL.fetch_add(1, Ordering::Relaxed),
         id: id.clone(),
-        float_count,
-        default_params,
         flags,
         digest,
         backend,

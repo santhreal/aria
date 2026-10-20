@@ -2721,6 +2721,7 @@ Notes for the latest release. For previous releases, see the
 - The native ABI reference and `aria_plugin.h` state that `register_panel` accepts only the `sidebar`, `inspector`, and `timeline` locations.
 - Two example code blocks in `docs/plugins/panels.md` close before the prose that follows them instead of rendering it as code.
 - The `[[commands]]` example in `docs/plugins/packages.md` uses the `selection` context key, which `plugin.toml` accepts, instead of `clipSelected`, and the preset example in `docs/plugins/presets.md` writes effect parameters as `[name, value]` pairs and the compressor's `threshold` key, as the preset loader reads them.
+- Scaling a scene for preview or non-native export resolution scales effect parameters measured in canvas pixels (`unit = "px"`), including `gaussian_blur.radius`, `pixelate.size`, and registered plugin parameters, on plain and nested layers.
 
 ## [alpha-0.7.0] — 2026-07-22
 
