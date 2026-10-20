@@ -101,8 +101,8 @@ pub(super) fn cache_rows(
     }
     // A line of the config the loader could not use. It sits above the caches
     // because it explains why one of them is not where the file says: a
-    // relative `[storage].root` is refused, and without this the operator's
-    // only evidence is a directory that never fills.
+    // relative `[storage].root` is refused, and without this the only
+    // evidence is a directory that never fills.
     for refusal in state.read(cx).config_refusals() {
         elements.push(kv(theme, "Config refused", refusal).into_any_element());
     }

@@ -222,7 +222,7 @@ pub(super) fn ai_rows(
                     this.state.update(cx, |state, _| {
                         // The directory is created on demand: revealing a path that does
                         // not exist yet would report "the folder is gone" for a fresh
-                        // install, which is not the operator's mistake.
+                        // install, which is not a configuration mistake.
                         if let Err(err) = std::fs::create_dir_all(&path) {
                             state.report_error(format!("{path}: {err}"));
                             return;

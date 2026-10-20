@@ -12,8 +12,8 @@ use crate::fluent::FluentBuilder;
 use crate::surfaces::sidebar_pick::{self, Pick};
 use crate::theme::Theme;
 
-/// Press one row of the registry, reporting a refusal where the operator is
-/// looking rather than swallowing it. The button used to discard the result, so
+/// Press one row of the registry, reporting a refusal in the status line rather
+/// than swallowing it. The button used to discard the result, so
 /// a group the model refused looked like one it built.
 fn press(state: &mut AppState, pick: Pick) {
     if let Err(err) = sidebar_pick::apply(state, pick) {
@@ -90,7 +90,7 @@ fn rows(state: &AppState, group: &crate::types::UiMulticamGroup, fps: f64) -> Ve
         .collect()
 }
 
-/// An offset as the operator nudges it: frames of the sequence rate, signed, so
+/// An offset in nudge units: frames of the sequence rate, signed, so
 /// zero reads as sync rather than as an empty field.
 fn offset_label(offset: i64) -> String {
     match offset {

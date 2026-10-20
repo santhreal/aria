@@ -441,7 +441,7 @@ fn chroma_seeds_a_usable_tolerance_and_keeps_the_colour_across_rows() {
         "a row edit must keep the colour"
     );
 
-    // Re-keying keeps the tolerance the operator dialled in.
+    // Re-keying keeps the dialled-in tolerance.
     state
         .set_selected_chroma_color([0, 71, 187])
         .expect("rekey");

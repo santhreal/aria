@@ -5,7 +5,7 @@
 //! The class this closes is a selection that can only ever hold one item while
 //! several surfaces claim to read a set. These press the set directly: no state,
 //! no device, no list. The list's own order is passed in, because a span is a run
-//! of what the operator saw.
+//! of what the list showed.
 //!
 //! What these cannot see: which write a click's modifiers ask for, and whether
 //! the click also places the clip. Both belong to
@@ -29,8 +29,8 @@ fn a_click_replaces_whatever_was_selected() {
 #[test]
 fn the_selection_keeps_the_order_the_operator_picked() {
     // A multicam group's angle order is this order. Sorting it would pick the
-    // angle order for the operator, and the pool's sort is the order they chose
-    // to look at it in, not the order they want their cameras in.
+    // angle order without a pick, and the pool's sort is a viewing order, not
+    // a camera order.
     let mut selection = PoolSelection::default();
     for id in [40, 10, 30] {
         selection.toggle(id);

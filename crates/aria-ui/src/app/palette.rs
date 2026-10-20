@@ -219,7 +219,7 @@ impl AppState {
                 for item in menus.items(menu, self).iter().copied() {
                     let label = offered_label(&item);
                     // Case aside: "Add cross fade at cut" and "Add Cross Fade at
-                    // Cut" are one row to the operator.
+                    // Cut" are one row on screen.
                     let known = offers.iter().any(|offer| {
                         offer.label.eq_ignore_ascii_case(item.label)
                             || offer.label.eq_ignore_ascii_case(&label)

@@ -115,7 +115,7 @@ fn a_capture_keeps_the_modifiers_it_was_pressed_with() {
     );
 }
 
-/// A refusal that named nothing would leave the operator pressing keys at random.
+/// A refusal that named nothing would leave only random key presses to try.
 #[test]
 fn a_taken_chord_is_refused_and_the_row_stays_armed() {
     let mut state = state("rebind-taken");
@@ -144,8 +144,8 @@ fn a_taken_chord_is_refused_and_the_row_stays_armed() {
     );
 }
 
-/// A modifier arrives as its own keystroke while the operator is still reaching
-/// for the real key, and must not be taken as the answer.
+/// A modifier arrives as its own keystroke before the real key, and must not be
+/// taken as the answer.
 #[test]
 fn a_key_that_cannot_be_bound_leaves_the_capture_waiting() {
     let mut state = state("rebind-unbindable");

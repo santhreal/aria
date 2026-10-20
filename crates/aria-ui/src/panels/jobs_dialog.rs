@@ -10,8 +10,8 @@
 //! - A terminal row stops animating. A finished job that still looks busy is worse than
 //!   no row.
 //! - Cancel appears only while the registry would accept it. Past the commit boundary
-//!   the work finishes regardless, and a button that does nothing is a bug the operator
-//!   has to discover.
+//!   the work finishes regardless, and a button that does nothing is a bug found
+//!   only by pressing it.
 //!
 //! The dialog opens over the panel, so every element id a row builds includes
 //! the surface it is drawn on: one job drawn twice is two rows, not one row

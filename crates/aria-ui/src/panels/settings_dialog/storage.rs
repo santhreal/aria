@@ -113,7 +113,7 @@ pub(super) fn storage_rows(
     rows
 }
 
-/// The quota steppers. A quota is a number the operator reasons about in GiB, so the
+/// The quota steppers. A quota is a number set in GiB, so the
 /// step is 512 MiB rather than one.
 fn quota_row(
     theme: &Theme,

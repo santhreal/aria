@@ -5,7 +5,7 @@
 //! operator path reaches it, so the projection and the model drift". Every
 //! assertion reads the *projected* store after the edit, because the panel draws
 //! from the projection and a command that mutates the model without republishing
-//! is invisible to the operator.
+//! is invisible on screen.
 //!
 //! Not covered: the drawn header chrome and dragging a lane by its header, which
 //! need a render surface.

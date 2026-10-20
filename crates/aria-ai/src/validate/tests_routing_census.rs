@@ -3,7 +3,7 @@
 //!
 //! # Why
 //!
-//! The mixer shipped as an operator surface with no tool behind it: five
+//! The mixer shipped as a UI surface with no tool behind it: five
 //! commands existed, the assistant could not reach any of them, and nothing
 //! was red. The class is "a lane kind, a level, or a route the model can
 //! name and the tools answer differently from the model". So the lane cases

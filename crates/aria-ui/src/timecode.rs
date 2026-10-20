@@ -97,7 +97,7 @@ pub fn format_ticks(frame: i64, num: i32, den: i32) -> String {
     display_ticks(frame, num, den).to_string()
 }
 
-/// Parse an operator-typed timecode into a frame index.
+/// Parse a typed timecode into a frame index.
 ///
 /// Accepts the shapes an editor actually types: a bare frame count (`120`), and
 /// one to four colon-separated fields filled from the right, so `12` is twelve

@@ -22,8 +22,8 @@ pub const TEMPLATE_EXTENSION: &str = "ariat";
 impl AppState {
     /// How many visual fill slots the current project carries. This mirrors
     /// `Template::slots`, which excludes an audio-only slot because that one is
-    /// swapped separately — the count the operator is told must be the count an
-    /// apply will ask them to fill.
+    /// swapped separately: the shown count must be the count an apply will
+    /// prompt to fill.
     pub fn template_slot_count(&self) -> usize {
         self.store
             .sequence
@@ -61,7 +61,7 @@ impl AppState {
     }
 
     /// Ask for a destination and save the template there. The name comes from the
-    /// project, which is the name the operator already chose.
+    /// project, which already has a chosen name.
     pub fn pick_and_save_template(&mut self) {
         let name = self.store.project_name.to_string();
         self.request_pick(
@@ -82,8 +82,8 @@ impl AppState {
     }
 
     /// The slots a bundle on disk exposes, in fill order, as `(label, accepts)`
-    /// pairs. Read before the picks are collected so the operator is asked for the
-    /// media a template actually wants, rather than being handed a blind file
+    /// pairs. Read before the picks are collected so the prompt requests the media
+    /// a template accepts, rather than opening a blind file
     /// dialog per slot.
     pub fn template_slots(&self, path: &Path) -> Result<Vec<String>, EngineError> {
         let template = Template::load_from_file(path)?;

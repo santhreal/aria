@@ -1,7 +1,7 @@
 //! Gain arithmetic: decibels against the linear multiplier a mixer applies, and
 //! the multiplier that moves a measured level onto a target.
 //!
-//! A fader is linear, an operator reads decibels, and a normalisation is the
+//! A fader is linear, a meter reads decibels, and a normalisation is the
 //! difference between a measurement and a target. Those three conversions were
 //! being written at each call site, so a clip's gain, an export's headroom, and
 //! a normalise action could disagree about what −6 dB means. They live here

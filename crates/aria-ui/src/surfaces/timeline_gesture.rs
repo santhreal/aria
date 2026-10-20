@@ -99,7 +99,7 @@ pub enum Gesture {
 }
 
 impl Gesture {
-    /// What the operator did, for a census and for a failure message.
+    /// The gesture, for a census and for a failure message.
     pub fn what(&self) -> &'static str {
         match self {
             Self::Body { drag: None, .. } => "a clip dragged along its lane",

@@ -277,7 +277,7 @@ fn the_codec_and_bitrate_rows_only_offer_what_the_encoder_takes() {
     }
 }
 
-/// The ladder reads in the unit an operator thinks in, and a round megabit is
+/// The ladder reads in the unit encoder settings use, and a round megabit is
 /// not printed as four thousand kilobits.
 #[test]
 fn a_bitrate_reads_as_megabits_when_it_is_a_round_one() {

@@ -212,8 +212,8 @@ impl AppState {
 
     /// Save the conversation, reporting a failure to the log only.
     ///
-    /// Used where saving is a side effect of something else the operator asked
-    /// for (finishing a turn, clearing the conversation). Losing a conversation
+    /// Used where saving is a side effect of another request (finishing a
+    /// turn, clearing the conversation). Losing a conversation
     /// is not worth interrupting that with a dialog, and the caller has no
     /// better answer than the log does.
     pub fn persist_conversation(&self) {

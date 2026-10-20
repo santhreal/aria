@@ -32,8 +32,8 @@ pub(crate) fn shared_device(ctx: &PluginContext) -> Option<GpuContext> {
 
 /// A renderer for background work, on `gpu` when there is one.
 ///
-/// `what` names the work in the refusal, because a host with no GPU at all
-/// refuses here and the operator needs to know which button they pressed:
+/// `what` states the work in the error, because a host with no GPU at all
+/// fails here and the message has to state which button was pressed:
 /// "no GPU for the proxy" rather than a bare device error.
 ///
 /// Take the device with [`shared_device`] on the calling thread and pass it in;

@@ -183,7 +183,7 @@ fn band_for(theme: &Theme, value: f32) -> (&'static str, gpui::Hsla) {
         .map_or(("good", theme.success), |((_, name), color)| (*name, color))
 }
 
-/// The model's certainty, as a percentage the operator can scan down.
+/// The model's certainty, as a percentage that scans down the column.
 ///
 /// Shown because a transcript that reads plausibly and was guessed at is the
 /// expensive failure: it survives review and ships. The number here is the same
@@ -198,7 +198,7 @@ fn confidence_chip(theme: &Theme, value: f32) -> gpui::AnyElement {
         .into_any_element()
 }
 
-/// The transcript itself, so the operator can read what will be committed.
+/// The transcript itself, showing what will be committed.
 fn segment_rows(
     theme: &Theme,
     state: &Entity<AppState>,

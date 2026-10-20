@@ -22,7 +22,7 @@
 //!   that needs a marked range, a second selected clip, a cut under the
 //!   playhead, or a filled clipboard is declared `NoEdit` for that reason, not
 //!   because the command is broken.
-//! - A row that asks the operator for a path is driven with a supplied answer,
+//! - A row that prompts for a path is driven with a supplied answer,
 //!   not with a dialog: see `PICK_ROWS` and the tests under it. What a native
 //!   dialog itself does is not observed here.
 
@@ -146,7 +146,7 @@ const ROWS: &[(&str, Kind)] = &[
     ("pal-track-down", NoEdit),
     ("pal-track-duck", NoEdit),
     ("pal-marker-remove", NoEdit),
-    // Asks the operator for a path. With no answer supplied the row asks and
+    // Prompts for a path. With no answer supplied the row prompts and
     // stops, which is why it writes nothing here; each is driven with an answer
     // by a test at the foot of this file.
     ("pal-relink", NoEdit),
@@ -302,7 +302,7 @@ struct PaletteCensus {
 /// Every command label the drivable palette rows produced. Each row costs a
 /// fresh editor state, so the census is built once and shared.
 ///
-/// Shared with the operator-surface census, which needs the same set from the
+/// Shared with the UI surface census, which needs the same set from the
 /// other direction: this one is what the palette reaches.
 pub(super) fn measured() -> &'static BTreeSet<String> {
     &CENSUS.labels
@@ -394,8 +394,8 @@ fn the_commands_the_palette_sends_only_grow() {
 
 #[test]
 fn every_command_the_palette_sends_is_declared_reachable() {
-    // The inverse direction of `Reach`: a command an operator demonstrably sends
-    // must not be declared internal.
+    // The inverse direction of `Reach`: a command the palette demonstrably
+    // sends must not be declared internal.
     let labels = measured();
     for cmd in every_edit_command() {
         if labels.contains(cmd.label()) && !cmd.reach().is_operator() {
@@ -444,7 +444,7 @@ fn an_internal_command_carries_its_reason_into_the_editor() {
     }
 }
 
-/// Every palette row that asks the operator for a path, each driven below with a
+/// Every palette row that prompts for a path, each driven below with a
 /// supplied answer. The list is checked against the live table at run time by
 /// `every_row_that_asks_for_a_path_is_driven_with_an_answer`.
 const PICK_ROWS: &[&str] = &[
@@ -466,7 +466,7 @@ fn fixture() -> std::path::PathBuf {
     std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/texture.png")
 }
 
-/// The checksum row hashes the file the operator picked and reports it.
+/// The checksum row hashes the picked file and reports it.
 ///
 /// Drives the row the way the palette does rather than calling the hasher: the
 /// class this closes is a picking row that opens a dialog and then does nothing
@@ -555,7 +555,7 @@ fn saving_a_template_writes_the_bundle_the_operator_named() {
     assert_eq!(state.picks_asked(), 1, "the row did not ask for a path");
     assert!(
         path.exists(),
-        "the bundle was not written where the operator said"
+        "the bundle was not written to the picked path"
     );
 }
 

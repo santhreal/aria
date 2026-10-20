@@ -90,8 +90,8 @@ fn workspace_row(
                 }),
         );
     // Forgetting is offered on the row it would empty, not on the hint line: the
-    // slot is the row, and a button somewhere else would ask the operator to
-    // remember which one it meant.
+    // slot is the row, and a button somewhere else would leave it unclear
+    // which one it meant.
     if row.custom {
         actions = actions.child(
             components::ghost_button(

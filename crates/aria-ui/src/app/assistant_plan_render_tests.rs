@@ -3,8 +3,8 @@
 //! The class this closes: a queued render folded into the plan's own history
 //! entry, or started against a half-applied sequence. A plan is one undo, and a
 //! render is not part of it — the file is written after the plan is in force and
-//! is adopted as its own entry, so an operator who undoes the plan does not also
-//! silently undo an import, and a render started mid-replay would encode a
+//! is adopted as its own entry, so undoing the plan does not also silently undo
+//! an import, and a render started mid-replay would encode a
 //! sequence that never existed.
 //!
 //! The ordering is observable without a GPU because the file's name is a digest

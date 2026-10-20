@@ -4,7 +4,7 @@
 //! same signed-distance evaluation the fragment shader runs, answered on the CPU
 //! for a point. It shipped with no caller: selection was reachable only from the
 //! timeline, so a title over a shape over a video was three indistinguishable
-//! bars, and the star the operator was looking at could not be clicked.
+//! bars, and the star on screen could not be clicked.
 //!
 //! What this walks is the resolved scene, not the project. The resolver has
 //! already folded in the transform, the fit, the anchor and the rotation, so the
@@ -33,7 +33,7 @@ impl AppState {
     /// the letterbox, on empty canvas, or on the clip already selected, and the
     /// caller should leave the selection alone rather than clearing it — a
     /// click that deselects on every miss makes a drag on the frame edge lose
-    /// the operator's work.
+    /// the edit in progress.
     ///
     /// With the Type tool the press is the caret's: see
     /// [`AppState::press_type_at`], which `extend` (Shift held) is passed to.
@@ -67,12 +67,12 @@ impl AppState {
         let rate = engine.project().timeline().frame_rate;
         let at = aria_models::RationalTime::new(self.store.playhead_ticks, rate);
         // The previewed scene, not the committed one: mid-gesture the picture on
-        // screen is the override, and a click means the layer the operator sees.
+        // screen is the override, and a click means the layer on screen.
         let scene = engine.preview_scene(at).ok()?;
         let in_canvas = canvas_pixel(canvas, point, [scene.width, scene.height])?;
         let size = [scene.width as f32, scene.height as f32];
         // Top of the stack first: index 0 draws first, so the last layer is the
-        // one an operator sees and therefore the one they mean. Each layer is
+        // one on top and therefore the one a click means. Each layer is
         // measured by the renderer, so a title or pen path is sized from the
         // raster the preview drew.
         scene

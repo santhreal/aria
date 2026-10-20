@@ -145,7 +145,7 @@ impl PluginContext {
     /// Mount a plugin in dependency order.
     ///
     /// Every failure is recorded in the failure ledger as well as returned, so a
-    /// host that keeps going after one bad plugin can still tell the user which
+    /// host that keeps going after one bad plugin can still report which
     /// capability is missing. A later successful mount of the same id clears its
     /// entry.
     pub fn mount(&self, plugin: &dyn Plugin) -> Result<(), PluginError> {

@@ -11,9 +11,9 @@
 //! # Failing closed
 //!
 //! An override that will not parse, or that breaks the catalog's own rules
-//! (duplicate ids, an empty label, an inverted range), is refused and the shipped
-//! catalog is used instead. The reason is recorded in [`problems`] rather than
-//! logged, so a host can show the user why the file they installed is not in
+//! (duplicate ids, an empty label, an inverted range), is refused and the
+//! shipped catalog is used instead. The reason is recorded in [`problems`]
+//! rather than logged, so a host can show why an installed file is not in
 //! effect. A bad file must not leave the app with no transitions.
 
 use std::path::{Path, PathBuf};

@@ -9,7 +9,7 @@ use super::*;
 /// Two peak bars and a clip light, for the transport row.
 ///
 /// Full scale is the width of the strip, so a bar that reaches the end is at 0
-/// dBFS: the last thing an operator needs while mixing is arithmetic. Clicking
+/// dBFS, so reading it needs no arithmetic while mixing. Clicking
 /// the strip acknowledges a clip.
 pub(super) fn peak_meter(
     state: &Entity<AppState>,

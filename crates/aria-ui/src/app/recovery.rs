@@ -10,7 +10,7 @@
 //!   `ProjectCommand::Save`, so the saved baseline never moves and an autosave
 //!   never makes a dirty session look clean.
 //! - The copy is a normal `.aria` file next to a one-line sidecar naming the
-//!   project it shadows, so restoring writes back to the operator's own file
+//!   project it shadows, so restoring writes back to the project file
 //!   rather than to the recovery copy.
 //!
 //! Time is a parameter, never `Instant::now()` read in here, so the interval is
@@ -94,8 +94,8 @@ impl AppState {
     }
 
     /// Forget any recovery copy. Called whenever the real file catches up with
-    /// the session: a stale offer would hand back older work than the operator
-    /// already has.
+    /// the session: a stale offer would hand back older work than the file
+    /// already holds.
     pub fn clear_recovery(&mut self) {
         let _ = std::fs::remove_file(recovery_path(&self.data_dir));
         let _ = std::fs::remove_file(sidecar_path(&self.data_dir));
@@ -130,7 +130,7 @@ impl AppState {
     /// `Load` rather than `Open`: a recovered session must come back even if a
     /// source file moved in the meantime, and a missing path is repaired by
     /// relinking, not by refusing the whole document. The session reads dirty
-    /// afterwards because the operator's own file still holds the older content.
+    /// afterwards because the project file still holds the older content.
     pub fn restore_recovery(&mut self) -> Result<(), EngineError> {
         let Some(offer) = self.pending_recovery() else {
             return Ok(());

@@ -150,7 +150,7 @@ fn a_negative_drop_tick_lands_at_zero_rather_than_being_refused() {
 
 #[test]
 fn a_sticker_dropped_on_a_lane_that_cannot_hold_it_still_lands_at_that_tick() {
-    // The operator aimed at a time. A video lane cannot hold a generated sticker, so
+    // The drop aimed at a time. A video lane cannot hold a generated sticker, so
     // the lane is corrected and the tick is kept.
     let (mut state, _) = with_clip();
     let video_lane = state
@@ -347,7 +347,7 @@ fn an_unknown_mask_id_is_inert_rather_than_applying_a_default_shape() {
 #[test]
 fn a_drop_on_a_clip_that_no_longer_exists_changes_nothing() {
     // A clip can be deleted while a drag is in flight. The drop must not select a
-    // ghost, and must not surface an `UnknownClip` error the operator did not cause.
+    // ghost, and must not surface an `UnknownClip` error no input caused.
     let (mut state, _) = with_clip();
     let held = state.selected_clip().expect("clip");
     let ghost = ClipId::from_raw(u64::MAX);

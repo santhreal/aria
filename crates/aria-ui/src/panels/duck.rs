@@ -3,8 +3,8 @@
 //! `DuckForm` shipped complete — an amount, an attack, a release, five choices
 //! each, a label for every one, and the name of the lane the voice is read from —
 //! and nothing drew it. The dip itself was reachable (the palette starts the job),
-//! so the operator could duck at whatever depth the default happened to be and
-//! had no way to change it. This is the view that was missing, not new behaviour.
+//! so a duck ran at whatever depth the default happened to be with no way to
+//! change it. This is the view that was missing, not new behaviour.
 //!
 //! It shows itself. There is no toggle and no dialog state: the panel is
 //! registered with `duck_precheck().is_ok()` as its visibility, so it appears

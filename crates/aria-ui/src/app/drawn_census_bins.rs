@@ -45,7 +45,7 @@ fn at_the_root() -> AppState {
 }
 
 /// One folder, open, with the name field closed: pressing the strip's buttons
-/// from here is what an operator does after making a folder and naming it.
+/// from here is the next step after making a folder and naming it.
 fn inside_a_folder() -> AppState {
     let (mut state, _) = with_clip();
     state.create_bin().expect("the folder lands");
@@ -197,7 +197,7 @@ fn every_bin_button_has_its_own_element_id() {
 #[test]
 fn a_new_folder_opens_with_the_caret_in_its_name() {
     // A folder called "New bin" is not why anyone made one, so the button that
-    // makes one has to leave the operator typing.
+    // makes one has to leave the name field open for typing.
     let mut state = at_the_root();
     let strip = BinStrip::of(&state);
     let row = BIN_ACTIONS

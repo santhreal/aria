@@ -1,4 +1,4 @@
-//! What an operator presses in the pool sidebar's own controls: Make Subclip,
+//! The controls pressed in the pool sidebar: Make Subclip,
 //! the multicam button, and a group's angle chips.
 //!
 //! Three commands claimed these buttons and nothing could press them. Two of the
@@ -45,7 +45,7 @@ pub enum Pick {
 }
 
 impl Pick {
-    /// What the operator pressed, for a census and for a failure message.
+    /// The pressed control, for a census and for a failure message.
     pub fn what(&self) -> &'static str {
         match self {
             Self::Subclip => "make a subclip of the marked source",
@@ -86,7 +86,7 @@ fn next_group_name(state: &AppState) -> String {
     format!("Multicam {}", state.multicam_groups().len() + 1)
 }
 
-/// Say why the button did nothing, where the operator is looking.
+/// Report in the status line why the button did nothing.
 fn say_the_pool_is_empty(state: &mut AppState) {
     state.status_message = Some("Import media to build a multicam group".into());
 }

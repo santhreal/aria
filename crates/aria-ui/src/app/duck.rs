@@ -3,7 +3,7 @@
 //! There is no duck command, and there is deliberately not going to be one. A
 //! dip is ordinary automation — [`EditCommand::SetParamKeyframe`] on
 //! [`ClipParam::Volume`] — so what ships here is the measurement and the curve,
-//! and the result is an envelope the operator can drag, retime, or undo like any
+//! and the result is an envelope that drags, retimes, and undoes like any
 //! other. A `DuckLanes` command would have produced automation nobody could edit
 //! and a second owner of the volume curve.
 //!
@@ -252,8 +252,8 @@ impl AppState {
     /// Write one dip per music clip as a single undo entry.
     ///
     /// The whole duck is one step: a run that touched four clips must come back
-    /// in one press, or an operator undoing a bad amount walks back through
-    /// dozens of keyframes.
+    /// in one press, or undoing a bad amount walks back through dozens of
+    /// keyframes.
     fn apply_duck(&mut self, voice: &VoiceSpans, music: &[ClipId], form: DuckForm) {
         let rate = self.playhead.rate;
         let attack = ticks_for_seconds(form.attack_seconds, rate);
@@ -326,7 +326,7 @@ impl AppState {
     ) -> Result<(), aria_engine::EngineError> {
         for (clip, base, animated, points) in plans {
             // An existing envelope is replaced rather than merged with: two
-            // ducks written over each other multiply, and the operator asked
+            // ducks written over each other multiply, and the request was
             // for this dip, not for the product of every dip so far.
             if animated {
                 self.apply_command(Command::Edit(EditCommand::SetParamConstant {

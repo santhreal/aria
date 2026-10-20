@@ -69,8 +69,8 @@ pub(super) fn measure(state: &Entity<AppState>) -> impl IntoElement {
 /// row keeps from the next.
 ///
 /// Three toggles rather than one cycling control, because the sets are
-/// mutually exclusive and an operator reaching for the mask handles should not
-/// have to press twice to get there. The list comes from
+/// mutually exclusive and the mask handles should not take two presses to
+/// reach. The list comes from
 /// [`OverlayMode::ALL`], and the match below has no default arm, so a fourth
 /// handle set does not build until it has an icon and a tip.
 pub(super) fn mode_picker(
@@ -219,8 +219,8 @@ pub(super) fn overlay(
             }
         }
         OverlayMode::Crop => {
-            // The crop window itself, so the operator sees the region rather than
-            // only the handles that move it.
+            // The crop window itself, so the region is visible rather than only
+            // the handles that move it.
             let window_origin = frame.local(layer.at([crop.x, crop.y]));
             root = root.child(
                 div()

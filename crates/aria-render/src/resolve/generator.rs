@@ -149,8 +149,8 @@ pub(crate) fn resolve_generator_pooled(
         ),
         // A lane bar covers the canvas and applies what it carries to
         // everything composited below it: its own effect stack, its grade, and
-        // its LUT. The three variants differ only in what an operator reaches
-        // for; dropping a bar's effects made the inspector's effect tab a
+        // its LUT. The three variants differ only in which control creates
+        // them; dropping a bar's effects made the inspector's effect tab a
         // no-op on an adjustment layer.
         Generator::Effect | Generator::Filter | Generator::Adjustment => {
             canvas_pass(effects, color_grade, has_lut, cw, ch)

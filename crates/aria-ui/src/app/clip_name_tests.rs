@@ -132,7 +132,7 @@ fn a_split_carries_the_name_to_both_halves() {
     let (mut state, clip) = with_clip();
     rename(&mut state, clip, "Take 4");
     // Land the playhead inside the clip and cut it: both halves are the same
-    // source, so both keep the name the operator gave it.
+    // source, so both keep the given name.
     state.set_playhead(60);
     state.select_clip(clip);
     state.split_at_playhead().expect("split");

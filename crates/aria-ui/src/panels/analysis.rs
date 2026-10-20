@@ -6,7 +6,7 @@
 //! filtered and ordered by the crate that owns the query.
 //!
 //! A stale row is labelled rather than hidden: the analyzer that wrote it has moved on,
-//! and the operator decides between a re-run and a clear.
+//! and the row offers both a re-run and a clear.
 
 use gpui::{
     Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
@@ -20,8 +20,8 @@ use crate::fluent::FluentBuilder;
 use crate::surfaces::analysis_pick::{self, Pick};
 use crate::theme::Theme;
 
-/// Press one row of the registry, reporting a refusal where the operator is
-/// looking rather than swallowing it.
+/// Press one row of the registry, reporting a refusal in the status line rather
+/// than swallowing it.
 fn press(state: &mut AppState, pick: Pick) {
     if let Err(err) = analysis_pick::apply(state, pick) {
         state.report_error(err);

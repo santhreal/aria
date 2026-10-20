@@ -41,7 +41,7 @@ pub enum PoolView {
     List,
     /// Pictures in a wrapped grid, name underneath, no facts.
     Icons,
-    /// 2D canvas where items can be freely positioned by the operator.
+    /// 2D canvas where items can be positioned freely.
     Freeform,
 }
 

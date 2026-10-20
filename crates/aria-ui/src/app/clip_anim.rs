@@ -1,10 +1,10 @@
 //! Clip animation and audio-role commands.
 //!
 //! `SetClipAnimation` takes one slot at a time and the model enforces the
-//! combo/edge exclusion, so the surface only has to send the slot the operator
-//! touched. `AnimationRef` knobs are normalized against the preset's
-//! [`AnimationKnobs`], so a knob a preset does not expose is refused: the setters
-//! here drop it instead of erroring.
+//! combo/edge exclusion, so the surface only has to send the edited slot.
+//! `AnimationRef` knobs are normalized against the preset's [`AnimationKnobs`],
+//! so a knob a preset does not expose is refused: the setters here drop it
+//! instead of erroring.
 
 use aria_commands::{Command, EditCommand};
 use aria_engine::EngineError;

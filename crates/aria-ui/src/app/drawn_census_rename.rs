@@ -33,7 +33,7 @@ struct Stage {
 
 /// One dressed state per prompt the bar can show.
 ///
-/// A target is not a value an operator supplies: a marker rename needs a marker,
+/// A target is not a typed value: a marker rename needs a marker,
 /// a slot hint needs a clip marked replaceable, and a title's text needs a title.
 /// Each row exists because its target opens on nothing without it.
 const RENAME_STAGES: &[Stage] = &[
@@ -79,7 +79,7 @@ const RENAME_STAGES: &[Stage] = &[
     },
 ];
 
-/// What the operator types into `target`'s draft.
+/// The text typed into `target`'s draft.
 ///
 /// Matched exhaustively on purpose: a new [`RenameTarget`] fails to compile here
 /// until someone says what a keyboard puts into it, and
@@ -276,7 +276,7 @@ fn prompts_in_source() -> BTreeSet<String> {
 fn every_prompt_the_bar_can_show_is_dressed() {
     // Fail by default on a new target: `label` must cover it to compile, so it
     // appears here whether or not anyone gave it a state to open on. A target
-    // with no dressed state is a bar an operator can open onto nothing.
+    // with no dressed state is a bar that opens onto nothing.
     let dressed: BTreeSet<String> = RENAME_STAGES
         .iter()
         .map(|stage| {
@@ -299,7 +299,7 @@ fn every_prompt_the_bar_can_show_is_dressed() {
 #[test]
 fn every_rename_the_bar_opens_asks_for_something() {
     // A prompt that draws, takes typing and dispatches nothing is a field that
-    // eats the operator's name.
+    // discards the typed name.
     for stage in RENAME_STAGES {
         let (mut state, target) = (stage.dress)();
         let watch = Watch::on(&state);
@@ -325,9 +325,9 @@ fn every_rename_the_bar_opens_asks_for_something() {
 
 #[test]
 fn an_unchanged_draft_costs_no_edit() {
-    // Opening the bar and pressing enter is how an operator changes their mind.
-    // Dispatching there would put an undo entry between them and the edit they
-    // actually made.
+    // Opening the bar and pressing enter is how a rename is abandoned.
+    // Dispatching there would put an empty undo entry above the last real
+    // edit.
     for stage in RENAME_STAGES {
         let (mut state, target) = (stage.dress)();
         let watch = Watch::on(&state);

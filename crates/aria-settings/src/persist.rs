@@ -4,7 +4,7 @@
 //! temporary beside the destination, are flushed and synced, and only then
 //! replace the file. A crash, a full disk, or a permission fault leaves either
 //! the old file or the new one, never a truncated mixture of both, because the
-//! config is the only record of the operator's keys and cache locations.
+//! config is the only record of the API keys and cache locations.
 //!
 //! The filesystem calls go through [`PersistenceFs`] so the failure paths
 //! themselves are testable: a rename that fails on the third call is a test,

@@ -1,8 +1,8 @@
 //! Tests for [`super`]: the route transition.
 //!
 //! The class closed here is a transition that restarts. Two one-shots, one per
-//! end, each replayed from zero whenever its route was entered, so an operator
-//! who opened a project and pressed Escape saw two full fades over each other.
+//! end, each replayed from zero whenever its route was entered, so opening a
+//! project and pressing Escape showed two full fades over each other.
 //! A chased value cannot restart, and these are the samples that prove it.
 //!
 //! Each test drives both keys to a known state on its own motion frames before

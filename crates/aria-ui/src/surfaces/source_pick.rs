@@ -1,4 +1,4 @@
-//! What an operator presses on the source monitor's bar: the two marks, the
+//! The controls pressed on the source monitor's bar: the two marks, the
 //! clear, and the two edits that land the marked source on the timeline.
 //!
 //! Three commands claimed this bar and nothing could press it. One of them
@@ -34,7 +34,7 @@ pub enum Pick {
 }
 
 impl Pick {
-    /// What the operator pressed, for a census and for a failure message.
+    /// The pressed control, for a census and for a failure message.
     pub fn what(&self) -> &'static str {
         match self {
             Self::MarkIn => "mark the source in",

@@ -45,7 +45,7 @@ impl Marquee {
 
 impl AppState {
     /// Start a band at a lane and tick. Clears the selection: a band that ends
-    /// on empty space is how an operator deselects.
+    /// on empty space is how a deselect works.
     pub fn begin_marquee(&mut self, track: u64, tick: i64) {
         let Some(row) = self.marquee_track_row(track) else {
             return;

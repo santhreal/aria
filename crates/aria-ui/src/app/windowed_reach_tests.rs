@@ -7,8 +7,8 @@
 //! one, so these rows are driven the same way the menu rows are.
 //!
 //! What is observable is not an edit. A row either queues a job or refuses in
-//! words, and a row that does neither is a dead control: the operator clicks it
-//! and the product says nothing. That is the assertion here.
+//! words, and a row that does neither is a dead control: a click produces no
+//! visible result. That is the assertion here.
 //!
 //! The fixture is one silent 1x1 still on one video track, so every analysis row
 //! is expected to refuse rather than queue. The refusal has to be visible: an

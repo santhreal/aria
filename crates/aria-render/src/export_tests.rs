@@ -60,7 +60,7 @@ fn an_empty_sequence_has_nothing_to_export() {
     assert_eq!(refusal(&project, settings), EmptyExport::Sequence);
 }
 
-/// A lane is not content. Adding a track is the first thing an operator does,
+/// A lane is not content. Adding a track is the first edit in a new project,
 /// and it must not make the export button look like it would produce a file.
 #[test]
 fn a_lane_with_no_clips_is_the_same_refusal() {
@@ -77,9 +77,9 @@ fn a_range_whose_ends_meet_covers_no_frame() {
     assert_eq!(refusal(&project, settings), EmptyExport::Range);
 }
 
-/// An in point after the out point is a marked range the operator dragged
-/// backwards; `frame_span` orders it to an empty span rather than a negative
-/// one, and an empty span is a refusal.
+/// An in point after the out point is a marked range dragged backwards;
+/// `frame_span` orders it to an empty span rather than a negative one, and an
+/// empty span is a refusal.
 #[test]
 fn a_range_that_runs_backwards_covers_no_frame() {
     let project = one_second();
@@ -88,8 +88,8 @@ fn a_range_that_runs_backwards_covers_no_frame() {
 }
 
 /// Past the end both ends clamp to the duration, so the span is empty. The
-/// reason is the range, not the sequence: the sequence has content, and telling
-/// the operator to place a clip would send them to the wrong control.
+/// reason is the range, not the sequence: the sequence has content, and a
+/// message to place a clip would point at the wrong control.
 #[test]
 fn a_range_entirely_past_the_end_is_refused_as_a_range() {
     let project = one_second();
@@ -132,7 +132,7 @@ fn the_count_is_the_span_the_frame_loop_walks() {
 
 /// Every reason says something of its own, and says it inside the refusal.
 /// Derived from [`EmptyExport::ALL`], so a new reason that reuses another's
-/// words — or has none — fails here rather than in front of an operator.
+/// words, or has none, fails here rather than in the export dialog.
 #[test]
 fn every_reason_names_its_own_way_out() {
     let mut seen: Vec<String> = Vec::new();

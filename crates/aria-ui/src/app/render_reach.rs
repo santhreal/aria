@@ -7,7 +7,7 @@
 //!   per filter-catalog recipe, and the only thing that ever called it was the
 //!   authoring binary that uploads the pack to a CDN. In the editor a LUT could
 //!   be loaded from disk or downloaded from the cloud feed, so the ten looks the
-//!   build already contains were the one source the operator could not reach.
+//!   build already contains were the one source no control could reach.
 //!   Baking one is cheap; baking ten is not, so the picker lists
 //!   `starter_lut_entries` and bakes the chosen row on demand, writing it into
 //!   the registered LUT cache so a second use is a file read.
@@ -292,7 +292,7 @@ impl AppState {
     ///
     /// The bin's own notion of "this one", not a second selection: the palette
     /// row and the pool's context menu have to mean the same item, or reloading
-    /// from the keyboard would repair a file the operator is not looking at.
+    /// from the keyboard would repair a file that is not selected.
     pub fn reload_selected_media(&mut self) {
         let Some(id) = self.pool_selection.focus() else {
             self.status_message = Some("Pick a pool item to reload".into());
@@ -337,9 +337,9 @@ impl AppState {
     /// Render the sequence to numbered PNGs in `dir`, as a cancellable job.
     ///
     /// No commit boundary, unlike the video export: a frame sequence has no
-    /// atomic publication step, every frame is visible the moment it is written,
-    /// and a cancel leaves the frames rendered so far where the operator can see
-    /// them. Refusing a directory that already holds frames is what keeps that
+    /// atomic publication step, every frame is visible the moment it is
+    /// written, and a cancel leaves the frames rendered so far in place on
+    /// disk. Refusing a directory that already holds frames is what keeps that
     /// honest — numbering restarts at zero, so a shorter second render into the
     /// same folder would leave the tail of the first behind.
     pub fn export_image_sequence_job(&mut self, dir: PathBuf) -> Result<u64, String> {
@@ -388,7 +388,7 @@ impl AppState {
             )
             .map_err(|err| err.to_string())?;
             // The sink's own count, not the loop's: it is the number of files on
-            // disk, which is what the operator is about to open.
+            // disk, which is what gets opened next.
             let written = encoder.frames_written();
             JobCompletion::new(format!("{written} frame(s)"))
                 .with_output("path", dest.display().to_string())

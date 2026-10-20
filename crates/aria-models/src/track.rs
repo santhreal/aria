@@ -158,7 +158,7 @@ impl TrackKind {
 ///
 /// A lane's height and whether it draws waveforms or filmstrips belong to the
 /// sequence, not to the session: reopening a project must give back the
-/// timeline the operator laid out. Defaults match the shipped lane so old
+/// timeline as it was laid out. Defaults match the shipped lane so old
 /// projects load unchanged and write nothing back.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct TrackDisplay {
@@ -169,7 +169,7 @@ pub struct TrackDisplay {
     /// Draw video filmstrips on this lane's clips.
     pub filmstrip: bool,
     /// Draw the lane as a summary strip instead of full clip cards. The height
-    /// is kept, so expanding restores the lane the operator sized.
+    /// is kept, so expanding restores the lane at its set height.
     pub collapsed: bool,
 }
 

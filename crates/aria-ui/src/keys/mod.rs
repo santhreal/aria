@@ -149,9 +149,9 @@ pub struct KeyConflict {
 #[derive(Clone, Copy)]
 pub struct BindingRow {
     pub binding: Binding,
-    /// The chord it answers to now, or nothing when the operator cleared it.
+    /// The chord bound now, or nothing when the binding was cleared.
     pub chord: Option<Chord>,
-    /// Whether that chord is the operator's choice rather than the shipped one.
+    /// Whether that chord is a rebinding rather than the shipped one.
     pub overridden: bool,
 }
 
@@ -190,7 +190,7 @@ pub fn binding_label(id: &str) -> String {
 }
 
 /// Every binding the shell can dispatch, in registration order, and the chords
-/// the operator put in place of the shipped ones.
+/// rebound in place of the shipped ones.
 ///
 /// The rebindings are held here rather than beside the surface that edits them,
 /// because dispatch is the thing that has to agree with them: a chord shown in
@@ -200,9 +200,9 @@ pub fn binding_label(id: &str) -> String {
 pub struct KeyHost {
     bindings: RwLock<Vec<Binding>>,
     conflicts: RwLock<Vec<KeyConflict>>,
-    /// Rebindings by binding id. A `None` chord is a binding the operator
-    /// cleared, which is not the same as one that was never touched, so an
-    /// absent row and a `None` row mean different things.
+    /// Rebindings by binding id. A `None` chord is a cleared binding, which is
+    /// not the same as one that was never touched, so an absent row and a
+    /// `None` row mean different things.
     overrides: RwLock<Vec<(&'static str, Option<Chord>)>>,
     /// Every plugin key the last sync placed or refused, as `(command, title)`.
     plugin_keys: RwLock<Vec<(&'static str, &'static str)>>,
@@ -351,7 +351,7 @@ pub fn host_of(ctx: &PluginContext) -> Option<std::sync::Arc<KeyHost>> {
 ///
 /// A tooltip is built from an element id and an `&mut App` and nothing else, so
 /// without this it could only read the shipped table and would keep naming a
-/// chord the operator has since rebound. One instance either way: the `Arc` the
+/// chord that has since been rebound. One instance either way: the `Arc` the
 /// plugin mount registered.
 pub struct MountedKeys(std::sync::Arc<KeyHost>);
 

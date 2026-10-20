@@ -5,13 +5,13 @@
 //! A command that finds nothing to act on returned `Ok(())` and said nothing.
 //! The dogfood pass found it on the palette's "Add cross fade at cut": after a
 //! split the selection holds the right half of the cut, whose own right junction
-//! abuts nothing, so the row ran, refused itself and left no trace. From the
-//! operator's side the editor had simply ignored a key, which is the one answer
+//! abuts nothing, so the row ran, refused itself and left no trace. On screen
+//! the editor had ignored a key, which is the one answer
 //! a surface must never give.
 //!
 //! Declining is not an error: nothing failed, and `last_error` is for a failure
-//! an operator has to fix. It is a fact about the state they are looking at, so
-//! it goes in the status line they are already reading. The reasons are a small
+//! that needs a fix. It is a fact about the state on screen, so it goes in the
+//! status line. The reasons are a small
 //! registry rather than strings at the call sites: a command declines for one of
 //! a handful of reasons, and the words for each have one owner.
 
@@ -66,8 +66,8 @@ impl Decline {
         Decline::AnglesRepeat,
     ];
 
-    /// The line the operator reads. Present tense, about the state they are
-    /// looking at rather than about the command that stopped.
+    /// The status line text. Present tense, about the state on screen rather
+    /// than about the command that stopped.
     pub fn reason(self) -> &'static str {
         match self {
             Decline::NoSelection => "Nothing is selected",

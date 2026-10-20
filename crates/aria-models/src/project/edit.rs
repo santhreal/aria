@@ -582,7 +582,7 @@ impl Project {
     /// Set (or clear with `None`) a clip's organizational label colour,
     /// returning the previous value for the inverse.
     ///
-    /// Accepted on every clip kind: a label describes the operator's grouping,
+    /// Accepted on every clip kind: a label describes an editorial grouping,
     /// not the content, so a title and a sound effect can share one.
     pub fn set_clip_label(
         &mut self,

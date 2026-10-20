@@ -160,7 +160,7 @@ pub(crate) enum Beat {
         request: HostRequest,
         reply: crossbeam_channel::Sender<Result<String, String>>,
     },
-    /// A destructive host call the operator has to allow.
+    /// A destructive host call that needs an Allow click.
     Ask(PendingAsk),
     Done(Box<Finished>),
 }
@@ -192,7 +192,7 @@ struct SessionBridge {
     /// thread, and this bridge runs on the turn's thread.
     beats: crate::handoff::Wake<Beat>,
     /// The turn's stop flag, so a render waiting on the UI thread is released
-    /// when the operator presses Stop.
+    /// when Stop is pressed.
     cancel: Arc<AtomicBool>,
 }
 
@@ -252,7 +252,7 @@ impl EngineBridge for SessionBridge {
         match self.lower(command)? {
             // Applied into the turn's group, which the loop rolls back before it
             // returns: the next step is validated against this one, and the
-            // operator's project is the one they left.
+            // project ends the turn as it started.
             Lowered::Edit(lowered) => self.edit(lowered).map(Some),
             // A render is host work, and a rehearsal starts none: validated, and
             // what it would have produced is not projected. Nothing in the wire
@@ -346,7 +346,7 @@ impl AppState {
         self.assistant.reasoning = None;
         // Clearing is a decision, so it reaches the disk now rather than at the
         // next project save: a cleared conversation that came back after a
-        // restart would be a conversation the operator deleted.
+        // restart would be a deleted conversation.
         self.persist_conversation();
         self.status_message = Some("Cleared the conversation".into());
     }

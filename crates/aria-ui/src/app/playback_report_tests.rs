@@ -3,8 +3,8 @@
 //! The class these close: frame cost was measured per frame and against a fixed
 //! 150 ms log threshold, so a preview that ran at half the sequence's rate was
 //! invisible — every frame was well inside the threshold and no counter compared
-//! the run against a rate at all. `aria_render::PlaybackMeter` answers the
-//! operator's question instead, and these assert the wiring around it: which
+//! the run against a rate at all. `aria_render::PlaybackMeter` answers
+//! whether playback kept up instead, and these assert the wiring around it: which
 //! frames are charged to playback, which rate they are charged against, and
 //! that a run never inherits the previous one's drops.
 //!
@@ -84,8 +84,8 @@ fn a_frame_over_its_budget_is_late_and_the_worst_one_is_kept() {
     );
 }
 
-/// A run that starts again starts empty: the drops of the run the operator
-/// already stopped are not this run's, and carrying them over would leave the
+/// A run that starts again starts empty: the drops of the run already stopped
+/// are not this run's, and carrying them over would leave the
 /// panel amber for the rest of the session.
 #[test]
 fn starting_playback_again_forgets_the_previous_run() {
@@ -165,8 +165,8 @@ fn playing_backwards_is_measured_against_the_same_rate_as_forwards() {
 }
 
 /// A stop leaves the last run readable. The transport clears `playback_started`
-/// and the audio, and the report stays: the operator asks "why was that
-/// stuttery" after stopping, not during.
+/// and the audio, and the report stays: "why was that stuttery" comes up
+/// after stopping, not during.
 #[test]
 fn stopping_keeps_the_run_that_just_finished_readable() {
     let (mut state, _) = with_clip();

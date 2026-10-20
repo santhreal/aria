@@ -538,10 +538,10 @@ pub fn tip_for(control: &str) -> Option<ControlTip> {
 
 /// How a tip's shortcut reads now, or nothing when it has none.
 ///
-/// Read from the mounted registry, so a rebound key is named as the operator
-/// bound it and a cleared key claims no chord at all. Falls back to the shipped
-/// table when no shell has published a registry, which is what a unit test and a
-/// headless render see.
+/// Read from the mounted registry, so a rebound key is named as rebound and a
+/// cleared key claims no chord at all. Falls back to the shipped table when no
+/// shell has published a registry, which is what a unit test and a headless
+/// render see.
 pub fn chord_label(tip: &ControlTip, cx: &App) -> Option<String> {
     let id = tip.binding?;
     match crate::keys::mounted(cx) {

@@ -120,8 +120,8 @@ fn bench_set_transform(c: &mut Criterion) {
     });
 }
 
-/// The same edit with its undo and redo, which is what the operator's Ctrl+Z
-/// pays: the inverse the apply recorded, run back and forward again.
+/// The same edit with its undo and redo, which is what Ctrl+Z costs: the
+/// inverse the apply recorded, run back and forward again.
 fn bench_undo_redo(c: &mut Criterion) {
     let mut fixture = large_project();
     let clip = *fixture.clips.first().expect("a clip");

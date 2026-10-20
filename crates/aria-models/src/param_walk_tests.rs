@@ -328,7 +328,7 @@ fn every_curve_a_clip_carries_is_resampled_with_it() {
 
 #[test]
 fn splitting_a_graded_clip_keeps_the_grade_on_the_picture() {
-    // The behaviour the walk exists for, through the operator's own path: a
+    // The behaviour the walk exists for, through the editing path: a
     // split, then the same grade sampled at the same sequence tick.
     let mut project = Project::new("grade", R24);
     let media = project.add_media(crate::MediaSource::new(
@@ -522,7 +522,7 @@ fn the_title_fixture_animates_every_curve_the_text_style_declares() {
 
 #[test]
 fn splitting_a_title_keeps_its_card_on_the_words() {
-    // The operator's path for the carrier the old rebase forgot: a card whose
+    // The editing path for the carrier the old rebase skipped: a card whose
     // corner radius animates, split in half, sampled at the same sequence tick.
     let mut project = Project::new("card", R24);
     let track = project.add_track(TrackKind::Text, "T1");

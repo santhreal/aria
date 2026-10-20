@@ -1,9 +1,9 @@
-//! Rebinding a key, from the operator's side.
+//! Rebinding a key, through the Keys settings.
 //!
 //! The registry holds the chords ([`crate::keys::KeyHost`]); this holds the
 //! gesture. Arming a row makes the next keystroke the answer rather than a
-//! command, which is the only way to name a chord without asking the operator to
-//! spell it: a captured chord is exactly what the shell will see next time.
+//! command, which is the only way to name a chord without spelling it out: a
+//! captured chord is exactly what the shell will see next time.
 //!
 //! The saved form is `ui-settings.json`, keyed by binding id, and the chord is
 //! the same text Settings shows. Ids and keys are both closed sets, so a saved
@@ -53,7 +53,7 @@ impl AppState {
             .unwrap_or_default()
     }
 
-    /// The binding waiting for a chord, if the operator armed one.
+    /// The binding waiting for a chord, if one is armed.
     pub fn rebinding(&self) -> Option<&'static str> {
         self.rebinding
     }

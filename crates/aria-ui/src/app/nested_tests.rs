@@ -1,4 +1,4 @@
-//! Nested sequences driven the way an operator drives them.
+//! Nested sequences driven through the editor's controls.
 //!
 //! Defect class these close: three commands (`CreateNestedSequence`,
 //! `PlaceNestedSequence`, `OpenSequence`) declared themselves reachable by the

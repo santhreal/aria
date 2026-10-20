@@ -368,7 +368,7 @@ pub fn codec_label(codec: Option<&str>) -> String {
 
 /// The one-line caption under a pool row: what the pool can prove about the
 /// file. Shape, length, codec, and whether there is sound in it — a video with
-/// no audio track is the one that surprises an operator halfway through a cut.
+/// no audio track is the one found missing halfway through a cut.
 ///
 /// A proxied row says so last. The substitution changes which file the preview
 /// decodes while every number above it still describes the original, so a row

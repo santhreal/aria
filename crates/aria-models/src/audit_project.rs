@@ -1,4 +1,4 @@
-//! One row per project-wide number an operator wants before an export.
+//! One row per project-wide number to check before an export.
 //!
 //! `media_count`, `bin_count`, `marker_count`, `clip_count` and
 //! `has_transitions` are the counts the model already keeps and nothing showed.

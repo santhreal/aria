@@ -2,8 +2,8 @@
 //!
 //! `aria-cloud` is blocking, so every call here runs on the background executor and
 //! posts its result back into the feed map. Nothing waits on the UI thread and no
-//! call is retried automatically: a failed feed shows the reason and the operator
-//! refetches, because a silent retry loop against a paid provider is worse than a
+//! call is retried automatically: a failed feed shows the reason and Refetch
+//! is pressed by hand, because a silent retry loop against a paid provider is worse than a
 //! visible failure.
 //!
 //! The one rule the panels must not own is routing: a configured stock key means the
@@ -348,8 +348,8 @@ impl AppState {
                             state.report_error(err);
                         }
                     }
-                    // An empty reason is the cancellation case: the operator already
-                    // knows, so it is a status line and not an error.
+                    // An empty reason is the cancellation case: the cancel was
+                    // requested, so it is a status line and not an error.
                     Some(Err(reason)) if reason.is_empty() => {
                         state.status_message = Some(format!("Cancelled {}", card.name));
                     }

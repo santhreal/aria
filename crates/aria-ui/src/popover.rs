@@ -133,7 +133,7 @@ pub fn menu_step(active: Option<usize>, count: usize, delta: isize) -> Option<us
 /// How well `label` matches `query`, lower being better. `None` is no match.
 ///
 /// Four tiers, because a palette that ranks only prefix and substring buries the
-/// row an operator meant: typing `sav` should offer **Save** before **Autosave
+/// intended row: typing `sav` should offer **Save** before **Autosave
 /// interval**, and typing `fs` should still find **Fullscreen preview**.
 ///
 /// 0. the label starts with the query,

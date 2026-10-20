@@ -1,4 +1,4 @@
-//! The effects rack's gestures: what an operator does to a clip's effect chain.
+//! The effects rack's gestures on a clip's effect chain.
 //!
 //! The rack's rows come from the model: the inspector walks each effect's
 //! `EffectSpec::params` in display order, so a plugin's effect draws its own
@@ -7,8 +7,8 @@
 //! the model's commands were reachable only from inside a closure and nothing
 //! could enumerate them.
 //!
-//! Each gesture names an effect by its index in the chain, which is what the row
-//! the operator pressed knows. An index past the end of the chain is inert
+//! Each gesture names an effect by its index in the chain, which is what the
+//! pressed row holds. An index past the end of the chain is inert
 //! rather than an error, because a chain can be shortened by an undo between the
 //! frame that drew the row and the click that pressed it.
 
@@ -40,7 +40,7 @@ pub enum SlotEdit {
     Layer(Option<aria_models::ClipId>),
 }
 
-/// One thing an operator does to the effect chain.
+/// One gesture on the effect chain.
 pub enum Gesture {
     /// Append an effect from the browse list.
     Add(String),
@@ -96,7 +96,7 @@ pub enum Gesture {
 }
 
 impl Gesture {
-    /// What the operator did, for a census and for a failure message.
+    /// The gesture, for a census and for a failure message.
     pub fn what(&self) -> &'static str {
         match self {
             Self::Add(_) => "an effect added from the browse list",
@@ -154,7 +154,7 @@ impl Gesture {
 /// and a switch flipped on the drawn clip is set the same way on the others.
 /// Presets and the preset draft are the selection's already.
 pub fn apply(state: &mut AppState, gesture: Gesture) -> Result<(), EngineError> {
-    // A row the operator can no longer see is not a bug report. The chain can be
+    // A row that is no longer drawn is not a bug report. The chain can be
     // shortened by an undo between the frame that drew the row and the press, so
     // the surface drops the press. The model's setters keep refusing an
     // out-of-range index loudly, which is what the assistant path needs.

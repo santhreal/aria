@@ -79,7 +79,7 @@ pub enum Gesture {
 }
 
 impl Gesture {
-    /// What the operator grabbed, for a census and for a failure message.
+    /// The grabbed handle, for a census and for a failure message.
     pub fn what(&self) -> &'static str {
         match self {
             Self::Move => "the picture dragged to a new position",

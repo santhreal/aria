@@ -63,7 +63,7 @@ fn the_throw_follows_the_rate_and_its_direction() {
 }
 
 /// Every way a release is not a throw, at its boundary. Each of these would
-/// otherwise move the view after the operator had stopped asking it to.
+/// otherwise move the view after the input had stopped.
 #[test]
 fn a_release_that_is_not_a_throw_is_worth_nothing() {
     // Motion off: nothing coasts, however hard it was thrown.

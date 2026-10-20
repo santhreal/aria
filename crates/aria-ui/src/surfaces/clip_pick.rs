@@ -1,4 +1,4 @@
-//! What an operator picks in the inspector's remaining clip blocks: audio,
+//! The picks in the inspector's remaining clip blocks: audio,
 //! animation, speed, template, text and transition, the Transform tab's Parent
 //! row, the swatches of every colour property row, and the Character and
 //! Paragraph panels.
@@ -58,7 +58,7 @@ pub enum TransitionSlotEdit {
     Layer(Option<ClipId>),
 }
 
-/// One thing an operator picks in an audio, animation, speed, template, text or
+/// One pick in an audio, animation, speed, template, text or
 /// transition block, or in the Parent row.
 pub enum Pick {
     /// Play the clip backwards.
@@ -144,7 +144,7 @@ pub enum Pick {
 }
 
 impl Pick {
-    /// What the operator picked, for a census and for a failure message.
+    /// The picked control, for a census and for a failure message.
     pub fn what(&self) -> &'static str {
         match self {
             Self::ToggleReverse => "the clip reversed",

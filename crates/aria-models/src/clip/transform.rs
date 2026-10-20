@@ -21,8 +21,8 @@ impl Scale2 {
         Self { x: s, y: s }
     }
 
-    /// Exact equality — values come from the same slider unless the user
-    /// (or a vec2 keyframe) has split the axes.
+    /// Exact equality: values come from the same slider unless the unlink
+    /// control (or a vec2 keyframe) has split the axes.
     #[inline]
     pub fn is_uniform(self) -> bool {
         self.x == self.y

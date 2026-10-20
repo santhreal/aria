@@ -107,7 +107,7 @@ pub fn render(
                         ))
                         .child(
                             // The label is the fit control: clicking the
-                            // number is how an operator gets back to whole.
+                            // number returns to whole.
                             row_text("preview-zoom-label", zoom_label, theme.text_muted, &theme)
                                 .on_mouse_down(
                                     MouseButton::Left,

@@ -170,7 +170,7 @@ impl PluginContext {
         })
     }
 
-    /// Deliver what the user did to a control of panel `id`, then build its
+    /// Deliver an input event on a control of panel `id`, then build its
     /// tree again. Returns once the event is queued.
     ///
     /// The event is held to the tree the panel shows now, through

@@ -2,7 +2,7 @@
 //!
 //! The class closed here: a search that filters one row kind and not its
 //! siblings (a property row, a mask's Path row, a group header), that matches
-//! by case, that opens clips the operator left shut, that keeps a group with
+//! by case, that opens clips left shut, that keeps a group with
 //! nothing in it, or that writes over the outline each clip had open, so
 //! clearing it leaves the rows changed. The expected rows are read from the
 //! same clip with every group twirled open by hand, so a new property is

@@ -36,9 +36,8 @@ const PROFILE_ROOT_OWNERS: &[(&str, &str)] = &[
 /// pointed at another profile with `ARIA_DATA_DIR` — a second instance, or
 /// any test in this crate — wrote its settings, caches and recovery file
 /// into the scratch directory while loading external plugins, catalog
-/// overrides, speech models and the cloud cache out of the operator's real
-/// `~/.aria`. Six test callers of `mount_all` were reading the operator's
-/// profile that way.
+/// overrides, speech models and the cloud cache out of the real `~/.aria`.
+/// Six test callers of `mount_all` were reading the real profile that way.
 ///
 /// Source-derived, so the next module that resolves its own root is caught
 /// the moment it is written rather than when someone notices files in the

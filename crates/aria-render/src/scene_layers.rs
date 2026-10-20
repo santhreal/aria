@@ -188,7 +188,7 @@ pub enum Nested {
     /// Realized there too, drawing the same pixels it draws at the top level.
     Paints,
     /// Refused there. The refusal names the topology, so a nested wrapper never
-    /// fails with a message an operator cannot act on.
+    /// fails with a message that states no corrective action.
     Refuses,
 }
 

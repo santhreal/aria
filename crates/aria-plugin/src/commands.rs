@@ -57,7 +57,7 @@ impl CommandSpec {
 /// An action a plugin adds to the command palette.
 pub trait PluginCommand: Send + Sync {
     /// Run the command. `ctx` is the registering plugin's view of the context.
-    /// An `Err` is shown to the user as written.
+    /// The host shows an `Err` text as written.
     fn run(&self, ctx: &PluginContext) -> Result<(), String>;
 }
 
@@ -250,7 +250,7 @@ impl PluginContext {
     ///
     /// Held like [`register_command`](Self::register_command). Whether the chord
     /// is free is the host's to settle when it binds: a chord already taken is
-    /// refused there, and recorded where the user rebinds keys. Refused here
+    /// refused there, and recorded in the key bindings settings. Refused here
     /// when the command id is empty or the command already has a default on the
     /// same route.
     pub fn register_key_default(&self, key: KeyDefault) -> Result<Registration, PluginError> {

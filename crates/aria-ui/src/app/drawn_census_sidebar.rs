@@ -13,7 +13,7 @@
 //! does: Make Subclip is only drawn while the monitor holds a marked range, and
 //! an angle chip only exists once a group does. The group the angle rows are
 //! pressed on is built by the button above them, so the census walks the same
-//! order an operator does.
+//! order a click sequence does.
 
 use std::collections::BTreeSet;
 
@@ -197,7 +197,7 @@ fn the_group_holds_one_angle_for_every_pool_item() {
 fn the_button_says_so_rather_than_building_an_empty_group() {
     // An empty pool is the one state the model refuses, and the panel used to
     // discard that refusal. The registry answers before the model does, so the
-    // press is silent and the operator is told why.
+    // press changes nothing and the status line states why.
     let mut state = AppState::new(
         aria_plugin::PluginContext::new(),
         crate::scratch_pool::scratch("sidebar-empty-pool"),

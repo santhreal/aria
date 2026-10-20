@@ -169,12 +169,12 @@ impl MulticamGroup {
     /// Move one angle on the group's common clock, returning the offset it
     /// replaced.
     ///
-    /// An offset is where that camera's first frame sits on the common clock, so
-    /// a camera that started rolling late carries a positive one. Any value is
-    /// legal, including one that puts a camera entirely outside the group's span:
-    /// a file that turns out to be from another shoot is the operator's finding,
-    /// not an invariant to defend, and the resolver already stalls on the first
-    /// frame of a read before a camera started.
+    /// An offset is where that camera's first frame sits on the common clock,
+    /// so a camera that started rolling late has a positive one. Any value
+    /// is legal, including one that puts a camera entirely outside the group's
+    /// span: a file that turns out to be from another shoot is an editorial
+    /// finding, not an invariant for the model to enforce, and the resolver
+    /// already stalls on the first frame of a read before a camera started.
     pub fn set_angle_offset(&mut self, index: usize, sync_offset: i64) -> Result<i64, ModelError> {
         let total = self.angles.len();
         let angle = self

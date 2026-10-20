@@ -1,8 +1,8 @@
 //! The platform menu bar, derived from the registry the CSD bar draws.
 //!
 //! macOS puts an application's menus in the system bar, so a client-side bar is
-//! the wrong shape there: the operator looks at the top of the screen, finds
-//! nothing, and the app reads as a port. The rows are the same rows either way,
+//! the wrong shape there: the top of the screen shows nothing, and the app reads
+//! as a port. The rows are the same rows either way,
 //! so this derives `gpui::Menu` from [`menu_host::MenuHost`] rather than from a
 //! second table — a hand-written native list is exactly how a row comes to exist
 //! in one bar and not the other.

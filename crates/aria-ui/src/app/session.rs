@@ -399,7 +399,7 @@ impl AppState {
             return;
         };
         // Links are followed only while linked selection is on; a group is
-        // the operator's own and always selects whole.
+        // an explicit grouping and always selects whole.
         let follow_links = self.linked_selection;
         let root_link = root.linked_to.filter(|_| follow_links);
         if root_link.is_none() && root.grouped_to.is_none() {
@@ -557,9 +557,8 @@ impl AppState {
         self.ui_settings.home_rail = rail;
     }
 
-    /// Choose how the pool draws itself. Persisted, because the operator who
-    /// wants a dense list of four hundred sources wants it on the next launch
-    /// too.
+    /// Choose how the pool draws itself. Persisted, because a dense list of
+    /// four hundred sources is wanted again on the next launch.
     pub fn set_pool_view(&mut self, view: crate::types::PoolView) {
         self.ui_settings.pool_view = view;
     }
@@ -613,7 +612,7 @@ impl AppState {
         }
         // Leaving the unsaved-changes prompt any other way than answering it —
         // Escape, or a dialog opened over it — drops the parked intent, so it
-        // cannot fire later against a decision the operator never made.
+        // cannot fire later against a decision never made.
         if kind != DialogKind::UnsavedChanges {
             self.pending_intent = None;
         }
@@ -628,7 +627,7 @@ impl AppState {
         }
         self.dialog = kind;
         // The report's counts are walks of the whole project, so they are taken
-        // when the operator asks for them and refreshed on any edit that lands
+        // on request and refreshed on any edit that lands
         // while the report stays open (see `adopt`). Drawing them never asks the
         // session.
         if kind == DialogKind::ProjectReport {

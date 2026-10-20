@@ -200,7 +200,7 @@ impl AppState {
     /// Placement enforces that a source range is authored at the media's own
     /// rate, so a clip whose range is at a different rate has been relinked to a
     /// file with a different cadence: that is reported on its own, because a
-    /// resampled comparison is an approximation and the operator should know the
+    /// resampled comparison is an approximation and the report states that the
     /// number came from one.
     fn build_coverage(&self, lines: &mut Vec<ReportLine>) {
         const SECTION: &str = "Source coverage";

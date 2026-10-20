@@ -23,8 +23,8 @@ use rows::{bubble, empty};
 
 /// Carry the transcript to its newest row when a beat asked for it.
 ///
-/// A jump to the bottom loses the operator: the rows they were reading are
-/// replaced in one frame by rows they have not read. So the view travels, on the
+/// A jump to the bottom loses the reading position: the rows on screen are
+/// replaced in one frame by unread rows. So the view travels, on the
 /// catalog's own scroll glide — the same motion the timeline uses to reach a
 /// view the editor chose.
 ///
@@ -96,8 +96,8 @@ pub fn render(
     }
     // A turn in flight is the panel's only wait, and the transcript is where
     // its answer will land, so the loader waits in the answer's place. A
-    // parked ask is not a wait on the model but a wait on the operator, and
-    // the card already says so.
+    // parked ask is not a wait on the model but a wait for an Allow click,
+    // and the card already shows that.
     if state.read(cx).assistant.running && !asked {
         rows.push(crate::pending::working(&theme, "ai.turn", "Thinking…", cx));
     }
@@ -200,8 +200,8 @@ fn plan_card(
         );
         // The tool the step arrives under, from the command itself. The
         // description says what would happen; the tool name says which
-        // capability the model reached for, which is what an operator compares
-        // against the list beside the panel when a plan is not what they asked
+        // capability the model called, which is what to compare against the
+        // list beside the panel when a plan is not what the prompt asked
         // for.
         steps.push(
             div()

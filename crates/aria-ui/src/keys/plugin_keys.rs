@@ -5,7 +5,7 @@
 //! registry holds those beside the shipped bindings, so dispatch, Settings,
 //! rebinding and the conflict list read one table. A sync replaces every plugin
 //! binding when the context's command revision moves; the shipped bindings and
-//! the operator's rebindings stay.
+//! the rebindings stay.
 
 use std::sync::atomic::Ordering;
 
@@ -84,7 +84,7 @@ impl KeyHost {
     }
 
     /// Make the next sync place the plugin keys again. A rebinding calls it:
-    /// a chord the operator freed may be the one a refused plugin key wanted.
+    /// a freed chord may be the one a refused plugin key wanted.
     pub(super) fn resync_plugin_keys(&self) {
         self.plugin_revision.store(0, Ordering::Relaxed);
     }

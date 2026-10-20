@@ -117,8 +117,8 @@ pub fn run_app(ctx: PluginContext) -> ! {
 /// Run the headed app until it quits, then end the process with
 /// [`aria_decoder::exit_process`].
 pub fn run_app_with(config: UiConfig) -> ! {
-    // This process is the editor, in front of the operator, so a reveal may open
-    // their file manager. Nothing else in the crate switches this on: a test
+    // This process is the editor on a desktop, so a reveal may open the file
+    // manager. Nothing else in the crate switches this on: a test
     // process that reveals a path records the request instead of opening a
     // window on whatever machine is running the suite.
     app::launch::allow_desktop_launch();
@@ -141,7 +141,7 @@ pub fn run_app_with(config: UiConfig) -> ! {
     // Paths from the command line are the same question a drop on Home asks, so
     // they go through the same owner: a project file opens, media is imported and
     // laid end to end in a fresh session, a LUT or a skill installs. Answered
-    // before the window so the operator's first frame is the project they named.
+    // before the window so the first frame is the named project.
     if !config.open_paths.is_empty()
         && let Err(err) = state.drop_on_home(config.open_paths)
     {

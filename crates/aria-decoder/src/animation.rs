@@ -71,7 +71,7 @@ pub fn decode_animation(bytes: &[u8]) -> Result<Vec<AnimationFrame>, DecodeError
 /// magnitude above any real GIF or APNG and still nothing next to a video.
 pub const MAX_ANIMATION_FILE_BYTES: u64 = 64 << 20;
 
-/// [`decode_animation`] for a file the operator chose.
+/// [`decode_animation`] for a file picked in the import dialog.
 ///
 /// Every in-tree caller holds bytes already (stickers are embedded assets), so
 /// the byte entry point came first; a file picked in the editor is a path, and

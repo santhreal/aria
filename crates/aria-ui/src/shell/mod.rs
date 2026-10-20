@@ -120,7 +120,7 @@ impl Shell {
         spawn_meter(cx);
         // A tooltip is handed an `&mut App` and an element id, so the registry
         // has to be reachable from one: without this a hover would keep naming
-        // the shipped chord for a key the operator has rebound.
+        // the shipped chord for a rebound key.
         let host = crate::keys::host_of(&state.read(cx).ctx);
         if let Some(host) = host {
             crate::keys::set_mounted(host, cx);
@@ -448,8 +448,8 @@ impl Shell {
 }
 /// One stage of the editor arriving, drawn at the route value `arrived`.
 ///
-/// The window is on screen before any of this: what the operator watches is the
-/// layout resolving, so the order is the reading order: the bar, then the
+/// The window is on screen before any of this: what is visible is the layout
+/// resolving, so the order is the reading order: the bar, then the
 /// docked panels, each [`motion::OPEN_STAGE_LAG`] of the route behind the one
 /// before it. The stages are read off the route value rather than played as
 /// their own animations, so the editor is drawn by one clock: it lands when the

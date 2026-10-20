@@ -4,8 +4,8 @@
 //! cost nobody had measured looks like: fast hosts waited for the wall and slow
 //! ones were uncovered before the editor was ready. The cover ends on readiness
 //! now, with [`SPLASH_MAX`] only as a ceiling, so the number that matters is how
-//! long the two phases below take — if they run past the ceiling, the operator is
-//! looking at a splash that the timeout ended rather than at a ready editor.
+//! long the two phases below take. If they run past the ceiling, the window shows
+//! a splash that the timeout ended rather than a ready editor.
 //!
 //! The two phases are exactly what `main` runs before the window opens: the
 //! plugin mount, which reads every catalog and registers every panel, command
@@ -190,7 +190,7 @@ fn first_interactive_frame_is_measured_cold_and_warm() {
         assert!(
             start.total() < SPLASH_MAX,
             "{label} start took {:?} (mount {:?}, session {:?}), past the {SPLASH_MAX:?} the boot \
-             cover waits: the operator sees a splash the timeout ended, not a ready editor",
+             cover waits: the window shows a splash the timeout ended, not a ready editor",
             start.total(),
             start.mount,
             start.session

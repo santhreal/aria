@@ -60,7 +60,7 @@ impl AppState {
     /// Set an explicit canvas size, or `None` to derive it again from the aspect
     /// or the footage. The engine refuses a size it cannot encode, and the
     /// refusal is surfaced rather than clamped here: a delivery size is either
-    /// the one the operator meant or a mistake worth naming.
+    /// the intended one or a mistake to report.
     pub fn set_canvas_resolution(
         &mut self,
         resolution: Option<[u32; 2]>,

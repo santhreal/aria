@@ -60,8 +60,8 @@ fn a_clean_session_writes_nothing() {
 #[test]
 fn an_autosave_does_not_make_the_session_look_saved() {
     // The copy goes straight to disk rather than through Save: a session that
-    // read clean after an autosave would let the operator quit on work that only
-    // the recovery file holds.
+    // read clean after an autosave would allow a quit on work that only the
+    // recovery file holds.
     let mut state = dirty(scratch("recovery"));
     let revision = state.revision;
     assert!(state.autosave_tick(Instant::now()));
@@ -123,7 +123,7 @@ fn a_relaunch_offers_the_copy_back_named_after_the_project() {
     );
     assert!(
         relaunched.store.is_dirty,
-        "the recovered session reads saved, so the operator could quit on it"
+        "the recovered session reads saved, so a quit would lose it"
     );
     assert_eq!(relaunched.route, crate::types::UiRoute::Editor);
     assert!(

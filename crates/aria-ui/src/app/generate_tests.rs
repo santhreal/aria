@@ -6,7 +6,7 @@
 //! those were the failure modes:
 //!
 //! - No key means no request, and the refusal names the provider and where the key goes.
-//!   A queued job that dies on the first HTTP round trip teaches the operator nothing.
+//!   A queued job that dies on the first HTTP round trip reports nothing useful.
 //! - No prompt means no request. An empty prompt against a paid provider is a charge for
 //!   nothing.
 //! - Two identical prompts are two generations. Sharing an idempotency key makes the

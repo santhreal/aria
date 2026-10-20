@@ -63,7 +63,7 @@ pub struct MaskTrackReport {
     /// Whether the caller cancelled the pass before it reached the end.
     pub cancelled: bool,
     /// The weakest score any accepted frame scored: how close the pass came to
-    /// giving up, which is what tells an operator to re-draw the mask.
+    /// giving up, which is the signal to re-draw the mask.
     pub weakest: f32,
 }
 
@@ -303,8 +303,8 @@ impl AppState {
     /// Track the selected mask to the end of its clip, as a job.
     ///
     /// The span is the rest of the clip: a track runs until the feature is lost,
-    /// the operator stops it, or the shot ends, and asking for a length would be
-    /// asking an operator to guess how long the shot holds.
+    /// Stop is pressed, or the shot ends, and asking for a length would mean
+    /// guessing how long the shot holds.
     ///
     /// The walk happens on the job's thread over a copy of the project, so the
     /// window keeps drawing and stays scrubbable while it runs. The keyframes
@@ -326,9 +326,8 @@ impl AppState {
         let id = self.spawn_job(format!("Tracking the mask on {name}"), move |context| {
             let renderer = match super::render_device::renderer_on(gpu, "the mask track") {
                 Ok(renderer) => renderer,
-                // Both surfaces are told: the job row carries the refusal for
-                // an operator watching the board, and the window carries it
-                // for the one who pressed the control.
+                // Both surfaces get it: the job row shows the refusal on the
+                // board, and the window shows it beside the pressed control.
                 Err(err) => {
                     wake.wake(Err(err.clone()));
                     return Err(err);
@@ -349,8 +348,8 @@ impl AppState {
                 },
             );
             // Published even when it was stopped: a cancelled track keeps the
-            // frames it already followed, which is what an operator who
-            // stopped it half way asked for. No commit guard for that reason
+            // frames it already followed, which is what stopping it half way
+            // requests. No commit guard for that reason
             // — the publication is a history entry, one keystroke from gone,
             // not a file on disk.
             let written = report.written;
@@ -380,7 +379,7 @@ impl AppState {
         Ok(id.raw())
     }
 
-    /// Start a track, and put its refusal where the operator will see it.
+    /// Start a track, and show its refusal in the status line.
     ///
     /// The wrapper every surface spends: a palette row and a panel button both
     /// want "start it, and if it will not start, say so", and two copies of that
@@ -407,7 +406,7 @@ impl AppState {
     ///
     /// One owner for the questions a track has to have answered, because the
     /// synchronous pass reports "nothing to track" as an empty report and the job
-    /// reports it to the operator in words. Two copies of the questions are two
+    /// reports it in words. Two copies of the questions are two
     /// chances for the two surfaces to disagree about what a trackable mask is.
     fn mask_walk(&self, span: i64, floor: f32) -> Result<(MaskTarget, MaskWalk), &'static str> {
         let clip = self

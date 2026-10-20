@@ -138,7 +138,7 @@ fn every_control_the_panel_draws_is_pressed() {
 fn the_clear_beside_a_detector_drops_that_detector_and_no_other() {
     // The defect the missing surface hid: one clear per detector, and each one
     // keys its own batch. A clear that deleted the wrong batch, or all of them,
-    // would leave the panel showing results for a detector the operator kept.
+    // would leave the panel showing results for a detector that was kept.
     for kind in AnalysisKind::ALL {
         let (mut state, _) = analysed();
         press(&mut state, Pick::Clear(kind));
@@ -188,7 +188,7 @@ fn the_beat_run_writes_what_it_found() {
     // `Set beats` names the run, not a button: this is the adoption path the
     // job's completion takes. The detector reports seconds and the clip keeps
     // source ticks, so what is asserted is the projected position: where the
-    // ruler draws the hairline the operator sees.
+    // ruler draws the hairline.
     let (mut state, clip) = with_video();
     let rate = state.store.media[0].frame_rate;
     let watch = Watch::on(&state);

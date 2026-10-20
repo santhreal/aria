@@ -1,4 +1,4 @@
-//! What an operator picks in the settings dialog's project section: the canvas,
+//! The picks in the settings dialog's project section: the canvas,
 //! the sequence rate, the audio layout and the time display.
 //!
 //! These three commands claimed a surface no test could see. Each row was a
@@ -25,7 +25,7 @@ use aria_models::{AudioLayout, CanvasAspect, Rational, TimeDisplay};
 
 use crate::app::AppState;
 
-/// One thing an operator picks in the project section.
+/// One pick in the project section.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Pick {
     /// The canvas shape.
@@ -42,7 +42,7 @@ pub enum Pick {
 }
 
 impl Pick {
-    /// What the operator picked, for a census and for a failure message.
+    /// The picked control, for a census and for a failure message.
     pub fn what(&self) -> &'static str {
         match self {
             Self::Aspect(_) => "a canvas aspect",

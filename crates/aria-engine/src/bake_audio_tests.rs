@@ -118,7 +118,7 @@ fn a_sound_pass_takes_every_lane_off_the_mix_desk() {
 }
 
 /// The picture path is not touched by the sound one: a video clip still bakes a
-/// picture, and its lane's mix desk is left exactly as the operator set it,
+/// picture, and its lane's mix desk keeps every setting,
 /// because the picture file carries the sound that desk shaped.
 #[test]
 fn a_picture_pass_leaves_the_mix_desk_alone() {

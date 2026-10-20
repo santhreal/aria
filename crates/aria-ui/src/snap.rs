@@ -1,7 +1,7 @@
 //! Magnet snapping for clip drag / trim.
 //!
-//! A magnet has an identity, not just a tick: the operator has to be able to see
-//! what the clip locked onto, otherwise a snap that fired on the wrong edge
+//! A magnet has an identity, not just a tick: what the clip locked onto has to be
+//! visible, otherwise a snap that fired on the wrong edge
 //! looks like a drag that missed. One owner for the candidate set's shape, the
 //! precedence between two magnets at the same distance, and the name shown.
 //!
@@ -347,7 +347,7 @@ mod tests {
         );
         assert!(
             SnapKind::Marker.rank() < SnapKind::Beat.rank(),
-            "a beat must not outrank a marker the operator placed"
+            "a beat must not outrank a placed marker"
         );
     }
 

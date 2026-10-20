@@ -417,7 +417,7 @@ impl AppState {
         Ok(())
     }
 
-    /// The move an operator gesture sends: one that carries the clip's linked
+    /// The move a drag gesture sends: one that includes the clip's linked
     /// companions, or with linked selection off one that leaves them.
     pub(crate) fn move_command(
         &self,
@@ -440,7 +440,7 @@ impl AppState {
         }
     }
 
-    /// The trim an operator gesture sends, by the same rule as
+    /// The trim a drag gesture sends, by the same rule as
     /// [`Self::move_command`].
     pub(crate) fn trim_command(&self, clip: ClipId, timeline: TimeRange) -> EditCommand {
         if self.linked_selection {

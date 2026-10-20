@@ -38,7 +38,7 @@ impl AppState {
     /// Send what the composer holds, expanding a slash command first.
     ///
     /// The expansion happens here rather than inside the agent loop because it is
-    /// a client-side template: the loop must see the prompt the operator meant,
+    /// a client-side template: the loop must see the intended prompt,
     /// and the transcript must show it too, so a `/name` that expanded to
     /// nothing useful is visible as what it became.
     ///
@@ -67,8 +67,8 @@ impl AppState {
     /// appends per turn, and one group per plugin that offers tools, so this is
     /// the vocabulary a prompt actually carries. The
     /// existing settings row counts them; a count is not a capability list, and
-    /// "the assistant can edit the timeline" should not be something an operator
-    /// takes on trust.
+    /// "the assistant can edit the timeline" should not have to be taken on
+    /// trust.
     pub fn ai_tool_groups(&self) -> Vec<(SharedString, Vec<SharedString>)> {
         let mut groups: Vec<(SharedString, Vec<SharedString>)> = aria_ai::wire::tool_groups()
             .iter()
@@ -206,8 +206,8 @@ impl AppState {
     /// Hash a file the way the asset catalog does, so a download can be checked
     /// against a published checksum.
     ///
-    /// A catalog entry carries `checksum_sha256`, and an operator holding a
-    /// downloaded bundle has no way to compare it without a hasher. This app
+    /// A catalog entry contains `checksum_sha256`, and a downloaded bundle has
+    /// no way to be compared against it without a hasher. This app
     /// ships one; asking it is one row.
     pub fn checksum_picked_file(&mut self) {
         let start = self.download_cache_root();

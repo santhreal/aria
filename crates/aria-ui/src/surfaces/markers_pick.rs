@@ -1,4 +1,4 @@
-//! What an operator presses in the markers panel: add one at the playhead, step
+//! The controls pressed in the markers panel: add one at the playhead, step
 //! one's colour, delete one.
 //!
 //! `Remove marker` claimed the panel's delete button and nothing could press it,
@@ -32,7 +32,7 @@ pub enum Pick {
 }
 
 impl Pick {
-    /// What the operator pressed, for a census and for a failure message.
+    /// The pressed control, for a census and for a failure message.
     pub fn what(&self) -> &'static str {
         match self {
             Self::AddAtPlayhead => "add a marker at the playhead",

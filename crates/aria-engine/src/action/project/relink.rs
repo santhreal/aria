@@ -13,8 +13,8 @@ use crate::import::import_media;
 /// clip referencing it recovers without being touched.
 ///
 /// Not undoable (no inverse): relink repairs project state to match the disk
-/// after files moved, and "undo" back to a dead path is never what the user
-/// wants. The session goes dirty so the repaired path gets saved.
+/// after files moved, and "undo" back to a dead path is never a useful
+/// result. The session goes dirty so the repaired path gets saved.
 ///
 /// The new file's metadata wins wholesale (dimensions, duration, rate, audio).
 /// Relinking to a shorter file can leave clips with source windows past the new

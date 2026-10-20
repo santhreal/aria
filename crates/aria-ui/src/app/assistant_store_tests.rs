@@ -2,7 +2,7 @@
 //!
 //! The class of defect these close: a conversation that comes back wrong is
 //! worse than one that does not come back at all, because the next prompt is
-//! built from it and the operator cannot see the provider history. So the round
+//! built from it and the provider history is not on screen. So the round
 //! trip is asserted field by field, a file this build cannot read is refused
 //! rather than partially believed, and a cleared conversation stays cleared
 //! across a restart.

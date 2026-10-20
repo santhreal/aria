@@ -3,8 +3,8 @@
 //! Every apply-to-a-clip setter in this crate addresses the selection, because that
 //! is what the inspector edits. A drop names its own target, so the drop selects
 //! that clip first and then reuses the same setter: one owner per operation, and
-//! the selection visibly follows the drop instead of the operator applying a preset
-//! to a clip they can no longer see.
+//! the selection visibly follows the drop instead of a preset landing on a clip
+//! that is no longer selected.
 
 use aria_engine::EngineError;
 use aria_models::{ClipId, Generator, MaskKind, TrackId};
@@ -27,7 +27,7 @@ impl AppState {
         }
         // A clip can be deleted while a drag is in flight. Selecting a clip that no
         // longer exists would leave the selection pointing at a ghost and turn the
-        // apply into an `UnknownClip` error the operator did not cause, so the drop
+        // apply into an `UnknownClip` error no input caused, so the drop
         // changes nothing instead.
         if self.engine.lock().project().clip(clip).is_none() {
             return Ok(());
@@ -53,7 +53,7 @@ impl AppState {
     ///
     /// Inert for a payload that needs a clip: a preset with nothing under it has
     /// nothing to change, and placing a bare clip to hold it would be inventing an
-    /// edit the operator did not ask for.
+    /// edit nothing requested.
     pub fn drop_catalog_on_track(
         &mut self,
         drag: &CatalogDrag,

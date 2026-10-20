@@ -69,7 +69,7 @@ pub enum ProjectCommand {
     /// re-probe `path` and refresh the entry's metadata in place, keeping
     /// its id so clips stay attached. Not undoable by design — it repairs
     /// project state to match the disk, and undoing back to a dead path is
-    /// never what the user wants.
+    /// never a useful result.
     RelinkMedia { media: MediaId, path: PathBuf },
     /// Set (or clear) a media-pool entry's label colour. Undoable: the inverse
     /// restores the previous colour.
@@ -120,8 +120,8 @@ pub enum EditCommand {
         /// Stack position (0 = bottom layer, composited first). `None`
         /// appends to the top of the stack. Clamped to the stack height.
         index: Option<usize>,
-        /// When true, the lane survives auto-removal while empty until the user
-        /// deletes it (manual "Add track" from the timeline UI).
+        /// When true, the lane survives auto-removal while empty until it is
+        /// deleted (manual "Add track" from the timeline UI).
         #[serde(default)]
         pinned: bool,
     },
@@ -1034,7 +1034,7 @@ pub enum Command {
 }
 
 impl Command {
-    /// The operator-facing name of this command, for the history list and for
+    /// The display name of this command, for the history list and for
     /// any surface that reports what was just applied.
     pub fn label(&self) -> &'static str {
         match self {

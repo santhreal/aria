@@ -106,7 +106,7 @@ fn a_row_per_project_fact() {
     }
 }
 
-/// Ids and labels identify a row to an operator and to the wire; two rows
+/// Ids and labels identify a row on screen and on the wire; two rows
 /// sharing either makes one of them unaddressable.
 #[test]
 fn every_row_is_uniquely_named() {
@@ -161,7 +161,7 @@ fn every_clip_fact_agrees_with_asking_each_clip() {
 }
 
 /// Every project row must read something for a dressed project and for an empty
-/// one: a readout that is blank tells the operator nothing.
+/// one: a blank readout reports nothing.
 #[test]
 fn every_project_fact_reads_on_a_dressed_and_an_empty_project() {
     let empty = Project::new("empty", R24);

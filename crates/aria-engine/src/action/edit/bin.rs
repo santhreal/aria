@@ -5,7 +5,7 @@
 //! deletion: a deleted bin promotes its media and its child bins to its parent,
 //! so undoing it has to put the folder back **and** put its contents back into
 //! it. The delete captures both lists rather than recomputing them, because by
-//! the time the undo runs the operator may have moved other things around and a
+//! the time the undo runs other edits may have moved things around and a
 //! recomputed list would claim sources that were never in the folder.
 
 use aria_models::{Bin, BinId, MediaId, MediaSource, PoolPosition, TimeRange};
@@ -218,7 +218,7 @@ impl EditAction for RestoreBinAction {
         let id = self.bin.id;
         ctx.project.restore_bin(self.bin)?;
         // A child that has since been moved elsewhere stays where it is: the
-        // undo restores the folder's contents, not the operator's later edits.
+        // undo restores the folder's contents, not later edits.
         for child in self.children {
             if ctx.project.bin(child).is_some() {
                 ctx.project.move_bin(child, Some(id))?;

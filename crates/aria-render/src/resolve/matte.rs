@@ -36,7 +36,7 @@ pub(super) fn matte_request<'p>(
 /// composite: two layers in, one wrapper out. A stencil's own matte request is
 /// dropped rather than chained — it is being read, not drawn. A matted layer
 /// with nothing above it keeps drawing unmatted, since a missing stencil is a
-/// stack the operator is still building, not a reason to blank the frame.
+/// stack still under construction, not a reason to blank the frame.
 pub(super) fn fold_mattes(
     layers: Vec<SceneLayer>,
     requests: Vec<Option<MatteRequest>>,

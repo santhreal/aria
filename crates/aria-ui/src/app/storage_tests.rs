@@ -1,6 +1,6 @@
 //! Contracts for the download-cache surface.
 //!
-//! The class closed here is "a setting the operator can change but the running
+//! The class closed here is "a setting that can be changed but the running
 //! session does not honour". A quota that is written to the config and not applied to
 //! the live cache, or applied and not written, both look like the control worked and
 //! fail at the next eviction or the next launch, so every setter is asserted in both
@@ -8,8 +8,8 @@
 //! range cannot leave this file asserting the old one.
 //!
 //! Every path here is under the session's own scratch dir: `AppState::config_path`
-//! is `data_dir/config.toml`, which is the operator's real file in production and a
-//! temporary one here.
+//! is `data_dir/config.toml`, which is the real file in production and a temporary
+//! one here.
 
 use std::path::PathBuf;
 
@@ -87,7 +87,7 @@ fn the_accepted_quota_bounds_are_the_ones_the_config_validates() {
     }
 
     // Out of range is refused by name rather than clamped: a quota that is not the
-    // one the operator typed is worse than a refusal.
+    // typed number is worse than a refusal.
     let before = state.download_quota_mib();
     for refused in [
         MIN_DOWNLOAD_QUOTA_MIB - 1,
@@ -242,9 +242,9 @@ fn byte_sizes_are_reported_in_the_unit_the_operator_reads() {
 /// A relative profile root is resolved where the session is built, so nothing
 /// under it has to assert that it is absolute.
 ///
-/// The class closed here is "a path the operator can type takes the editor
-/// down". `ARIA_DATA_DIR=scratch/profile` reached `storage_layout`, which builds
-/// a `StorageLayout` that refuses a relative root, and the shipped binary
+/// The class closed here is "a typed path takes the editor down".
+/// `ARIA_DATA_DIR=scratch/profile` reached `storage_layout`, which builds a
+/// `StorageLayout` that rejects a relative root, and the shipped binary
 /// panicked before the first frame. Resolving it at the single owner covers the
 /// desktop entry point, the FFI one, and every test.
 #[test]

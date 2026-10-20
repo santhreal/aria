@@ -13,7 +13,7 @@ pub struct ProjectMetadata {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub author: Option<String>,
     /// Per-project AI agent rules, injected into the assistant's system
-    /// prompt alongside the user's `~/.aria/agent/rules`. Prompt-level
+    /// prompt alongside the global `~/.aria/agent/rules`. Prompt-level
     /// only — rules can shape proposals but never bypass command
     /// validation. Travels with an exported `.aria`, so the desktop UI
     /// must show (never silently apply) rules arriving with an imported

@@ -11,7 +11,7 @@
 //! extends the selection, and Ctrl+Z restores the name the rename opened with.
 //!
 //! Closes `SetTrackName` and `SetProjectName`, which had no UI call site, and
-//! gives `SetMarker`'s rename an operator path.
+//! gives `SetMarker`'s rename a UI path.
 
 use std::ops::Range;
 
@@ -289,7 +289,7 @@ impl AppState {
             RenameTarget::Project => self
                 .apply_command(Command::Edit(EditCommand::SetProjectName { name }))
                 .map(|_| ()),
-            // An empty draft is a value: it clears the operator's name so the
+            // An empty draft is a value: it clears the given name so the
             // card takes the source's name again.
             RenameTarget::Clip(id) => self
                 .apply_command(Command::Edit(EditCommand::SetClipName {

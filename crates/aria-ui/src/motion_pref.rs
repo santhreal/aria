@@ -1,4 +1,4 @@
-//! How much motion the app is allowed: the operator's choice, persisted.
+//! How much motion the app is allowed: a persisted setting.
 //!
 //! A choice is a [`MotionPolicy`]: a duration scale that multiplies every
 //! motion duration, and whether motion is reduced. Adding a speed is one
@@ -16,8 +16,8 @@ pub enum MotionPreference {
     /// The catalog as designed.
     #[default]
     Full,
-    /// The same curves over a shorter span, for an operator who knows the app
-    /// and reads a transition as latency.
+    /// The same curves over a shorter span, for a setup where a transition
+    /// reads as latency.
     Brisk,
     /// Longer transitions. Easier to follow, and what a demo wants.
     Relaxed,

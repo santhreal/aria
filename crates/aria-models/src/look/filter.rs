@@ -101,12 +101,12 @@ pub fn filter_spec(id: &str) -> Option<&'static FilterSpec> {
 
 // --- 3D LUTs ----------------------------------------------------------------
 
-/// A `.cube` 3D LUT applied to a clip after its filter/adjust grade. `None`
-/// on the clip ⇔ no LUT. File-backed like Lottie animations: `path` points at
-/// a `.cube` file on disk (downloaded from the asset catalog or supplied by
-/// the user); the renderer parses and uploads it lazily and skips missing
-/// files gracefully. Also valid on `Generator::Filter` lane bars, which apply
-/// the LUT to everything composited beneath them.
+/// A `.cube` 3D LUT applied to a clip after its filter/adjust grade. `None` on
+/// the clip ⇔ no LUT. File-backed like Lottie animations: `path` points at a
+/// `.cube` file on disk (downloaded from the asset catalog or imported); the
+/// renderer parses and uploads it lazily and skips missing files gracefully.
+/// Also valid on `Generator::Filter` lane bars, which apply the LUT to
+/// everything composited beneath them.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Lut {
     /// Absolute path to the `.cube` file.

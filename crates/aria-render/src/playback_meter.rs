@@ -6,7 +6,7 @@
 //! one frame divided its cost and says nothing about whether the run kept up.
 //!
 //! One owner for that question, so the preview HUD, a measured run, and a
-//! report on the operator's own machine all count the same way: a render is
+//! report on any other machine all count the same way: a render is
 //! late when it exceeds the target's budget, the render rate is frames over the
 //! time they took to render, the achieved rate is frames shown over the run's
 //! time, and a frame that was due and not shown is dropped with a

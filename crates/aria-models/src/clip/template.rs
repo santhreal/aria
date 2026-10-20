@@ -38,7 +38,7 @@ impl SlotMedia {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Replaceable {
     /// Fill order: slots are filled in ascending `order`, matching the
-    /// sequence the user/agent picks media in.
+    /// sequence media is picked in, by hand or by the agent.
     pub order: u32,
     /// Media-type restriction for this slot.
     #[serde(default)]

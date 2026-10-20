@@ -238,8 +238,8 @@ impl AppState {
 
     /// Shift every clip on `track` that starts at or after the playhead by
     /// `delta` ticks. Positive opens a hole, negative closes a gap. A shift the
-    /// engine refuses (a collision, or below tick 0) is reported: the operator
-    /// asked for something the timeline cannot hold.
+    /// engine rejects (a collision, or below tick 0) is reported: the request
+    /// is something the timeline cannot hold.
     pub fn shift_clips_from_playhead(
         &mut self,
         track: TrackId,
@@ -261,7 +261,7 @@ impl AppState {
     /// it, in projected (top-first) order.
     ///
     /// The start is where a shift has to begin on that lane: shifting from the
-    /// playhead instead would move clips the operator did not select.
+    /// playhead instead would move unselected clips.
     pub fn selection_shift_origins(&self) -> Vec<(TrackId, i64)> {
         let mut out: Vec<(TrackId, i64)> = Vec::new();
         for lane in &self.store.sequence.tracks {

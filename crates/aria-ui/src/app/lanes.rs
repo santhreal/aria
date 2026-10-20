@@ -2,7 +2,7 @@
 //! filmstrips.
 //!
 //! These live in the project, not in the session, because a timeline layout is
-//! part of the sequence the operator built: a tall dialogue lane with waveforms
+//! part of the sequence as built: a tall dialogue lane with waveforms
 //! on and a short B-roll lane with strips off must come back the way it was
 //! left. One command carries all three so a gesture writes only what it
 //! changed, and the height clamp lives in the engine action that writes it.
@@ -32,7 +32,7 @@ impl AppState {
     }
 
     /// Collapse a lane to a summary strip, or expand it again. The height is
-    /// kept either way, so expanding restores the lane the operator sized.
+    /// kept either way, so expanding restores the lane at its set height.
     pub fn set_lane_collapsed(&mut self, track: u64, collapsed: bool) -> Result<(), EngineError> {
         self.set_lane_display(track, None, None, None, Some(collapsed))
     }

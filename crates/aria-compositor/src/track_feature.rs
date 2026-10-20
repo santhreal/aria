@@ -1,7 +1,7 @@
 //! Following one patch of picture from frame to frame.
 //!
 //! A mask drawn on the preview can be keyframed by hand, one frame at a time,
-//! which is the work an operator asks a tracker to do. The search is a plain
+//! which is the work a tracker automates. The search is a plain
 //! normalized-cross-correlation over a bounded window: no GPU, no model, no
 //! external dependency, and deterministic, so a tracked result is reproducible
 //! and testable without a device.
@@ -63,7 +63,7 @@ pub struct Match {
 ///
 /// Rec.709 weights, because that is what the compositor grades in; the tracker
 /// only needs a monotone channel, but using the same luma keeps a tracked
-/// feature the feature the operator can see.
+/// feature the feature shown on screen.
 fn luma(pixels: &[u8], width: u32, height: u32) -> Vec<u8> {
     let count = (width as usize) * (height as usize);
     let mut out = vec![0u8; count];

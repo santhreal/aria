@@ -747,7 +747,7 @@ impl AppState {
     /// The generation advances on every request, running or not, so a decode
     /// that finishes after a newer request knows its frame is no longer wanted.
     /// A running decode is also cancelled here: knowing the frame is unwanted is
-    /// worth little if the operator still waits for it, because the next decode
+    /// worth little if the window still waits for it, because the next decode
     /// cannot start until the lock comes back.
     pub(crate) fn claim_preview(&mut self) -> bool {
         // The frame asked for here, or the one a running decode starts when it
@@ -787,7 +787,7 @@ impl AppState {
 /// not start a second: it marks that another frame is wanted, and the decode in
 /// flight starts it when it lands. A scrub calls this once per mouse move, and
 /// every decode takes the engine lock for its whole length, so queueing them
-/// meant the operator waited for a dozen frames nobody would see before the one
+/// meant waiting for a dozen frames nobody would see before the one
 /// under the pointer arrived.
 pub fn spawn_preview(state: Entity<AppState>, cx: &mut App) {
     if state.update(cx, |state, _| state.claim_preview()) {
@@ -840,10 +840,10 @@ fn decode_preview(state: Entity<AppState>, cx: &mut App) {
 
 /// Put a rendered frame on screen, or say why there is none.
 ///
-/// A cancelled frame is neither: the operator moved the playhead before it
-/// arrived, the picture on screen is the one from the previous stop, and the
-/// render the cancellation made room for is already starting. Reporting it
-/// would put "cancelled" on the strip once per mouse move of a scrub.
+/// A cancelled frame is neither: the playhead moved before it arrived, the
+/// picture on screen is the one from the previous stop, and the render the
+/// cancellation made room for is already starting. Reporting it would put
+/// "cancelled" on the strip once per mouse move of a scrub.
 fn commit_preview(
     state: &mut AppState,
     cx: &mut gpui::Context<AppState>,

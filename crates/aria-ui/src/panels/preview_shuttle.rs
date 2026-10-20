@@ -4,7 +4,7 @@
 //! picture ran at 4x, or backwards, behind a play button that looks exactly the
 //! way it looks at 1x. The badge is drawn only while the mixer is not following
 //! the transport, states the rate, says the audio is silent there, and takes a
-//! click back to 1x so an operator never has to count key presses to get home.
+//! click back to 1x so getting home never takes counted key presses.
 //!
 //! Presence is [`AppState::audio_follows`], not a second reading of `shuttle`:
 //! the badge is on screen exactly when the mixer has been told to go quiet.

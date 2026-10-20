@@ -145,7 +145,7 @@ fn press<F: Clone>(items: &'static [MenuItem<F>], stages: &[Stage<F>], out: &mut
     }
 }
 
-/// What an operator can see of the session, in one string.
+/// The visible session state, in one string.
 ///
 /// A menu row either edits the project, moves the session, refuses, or does
 /// nothing at all; this is how the last case is told from the other three
@@ -556,7 +556,7 @@ fn every_blend_the_catalog_offers_can_be_put_on_a_junction() {
 #[test]
 fn a_blend_the_catalog_does_not_offer_is_refused_without_an_edit() {
     // A stale surface asking for a blend that no longer exists must not raise an
-    // error the operator did not cause, and must not spend a history entry.
+    // error no input caused, and must not spend a history entry.
     let (mut state, junction) = fixtures::blended_junction();
     let facts = ClipMenu::of(&state, junction.raw());
     let before = state.clip_transition_id(junction);

@@ -1,6 +1,6 @@
 //! Aria user settings: the typed model and IO for `~/.aria/config.toml`.
 //!
-//! This crate is the **single owner** of the user config file. Everything the
+//! This crate is the **single definition** of the config file. Everything the
 //! app persists between runs that isn't project data or the recents/autosave
 //! sidecars (those live in the OS data dir, see `aria-desktop::paths`)
 //! lives here: AI providers, the theme, cloud API endpoint, and storage
@@ -16,7 +16,7 @@
 //!   defaults (app startup does, via `unwrap_or_default`). A value the file
 //!   holds that this build cannot use — a relative storage path, a wrong type,
 //!   a number out of range — keeps the default and is recorded in
-//!   [`Settings::rejected`] so the operator can be told which line had no
+//!   [`Settings::rejected`] so the editor can report which line had no
 //!   effect. See the `read` module.
 //! - **Writing is format-preserving.** [`save`] round-trips the existing file
 //!   through `toml_edit`, so hand-written comments, key ordering, and any
@@ -695,7 +695,7 @@ pub struct Settings {
     /// Every value the file held that this build could not use, in the order
     /// the loader met them. Empty for a fresh install, for a file this build
     /// understands, and for anything [`save`] wrote. A dropped value is a
-    /// message for the operator, not a load failure: see [`Rejected`].
+    /// message to show, not a load failure: see [`Rejected`].
     pub rejected: Vec<Rejected>,
 }
 
@@ -732,7 +732,7 @@ pub fn config_in(data_dir: &Path) -> PathBuf {
     data_dir.join(CONFIG_FILE)
 }
 
-/// `~/.aria/config.toml` — the user's home dir on every platform
+/// `~/.aria/config.toml`, under the home dir on every platform
 /// (`C:\Users\<name>\.aria\config.toml` on Windows, where `HOME` is
 /// unset). Falls back to the temp dir only if the home dir can't be resolved;
 /// never the working directory, which is the read-only install folder on
@@ -745,7 +745,7 @@ pub fn default_config_path() -> PathBuf {
     )
 }
 
-/// `~/.aria/agent/` — the user's AI-assistant extension dir
+/// `~/.aria/agent/`, the AI-assistant extension dir
 /// (`rules/*.md`, `skills/<id>/SKILL.md`, `commands/*.md`), reloaded by
 /// the desktop before every prompt so edits apply without a restart.
 pub fn agent_dir() -> PathBuf {

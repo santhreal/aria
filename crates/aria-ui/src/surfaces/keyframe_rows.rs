@@ -21,7 +21,7 @@ use crate::app::AppState;
 #[derive(Clone, Copy)]
 pub enum Row {
     /// Take a keyframe at the playhead, or remove the one the row was drawn
-    /// with. `keyed` is what the operator saw, not what is there now: a press
+    /// with. `keyed` is what the row showed, not what is there now: a press
     /// answers the dot that was under the pointer.
     Key { param: ClipParam, keyed: bool },
     /// Shape the segment leaving the keyframe under the playhead.
@@ -59,7 +59,7 @@ pub enum Row {
 }
 
 impl Row {
-    /// What the operator pressed, for a census and for a failure message.
+    /// The pressed control, for a census and for a failure message.
     pub fn what(&self) -> &'static str {
         match self {
             Self::Key { .. } => "the key button",
@@ -135,7 +135,7 @@ pub fn apply(state: &mut AppState, row: Row) -> Result<(), EngineError> {
 /// One press on the selected clip.
 fn press(state: &mut AppState, row: Row) -> Result<(), EngineError> {
     match row {
-        // A toggle acts on the state the operator saw, so the row hands over
+        // A toggle acts on the drawn state, so the row hands over
         // what it drew rather than the registry re-reading it.
         Row::Key { param, keyed } => {
             if keyed {

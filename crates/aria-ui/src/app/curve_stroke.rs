@@ -2,7 +2,7 @@
 //!
 //! The graph used to paint one quad per sample pair, two pixels tall, parked at
 //! the pair's mean y — so a diagonal read as a staircase of horizontal bars and
-//! the one surface an operator judges an ease on could not show the ease. A
+//! the one surface for judging an ease could not show the ease. A
 //! segment is drawn as a run of pixel-wide columns instead, each spanning the y
 //! the curve actually crosses in that column, which is a line at any slope.
 //!

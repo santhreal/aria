@@ -7,10 +7,10 @@ use crate::theme::Theme;
 /// One titled group of rows.
 ///
 /// A card rather than a heading and a gap: a dozen sections stacked on one flat
-/// surface leave the operator counting blank space to work out which rows
-/// belong to which title. Opaque and unblurred on purpose — the dialog it sits
-/// in is already frosted, and a second backdrop blur per section would cost a
-/// GPU pass each to make the text behind it muddier.
+/// surface leave only blank space to show which rows belong to which title.
+/// Opaque and unblurred on purpose: the dialog it sits in is already frosted,
+/// and a second backdrop blur per section would cost a GPU pass each to make
+/// the text behind it muddier.
 pub(super) fn section(theme: &Theme, title: &str, rows: Vec<gpui::AnyElement>) -> impl IntoElement {
     div()
         .flex()

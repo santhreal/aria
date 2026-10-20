@@ -26,7 +26,7 @@ fn the_mixer_follows_the_transport_up_to_four_times_speed_in_both_directions() {
     }
 }
 
-/// The ladder as an operator climbs it: L from a stop, then each press doubling
+/// The ladder as repeated presses climb it: L from a stop, then each press doubling
 /// until it clamps at 8x, with audio following up to 4x and muting at 8x.
 #[test]
 fn climbing_the_ladder_follows_audio_through_4x_and_mutes_at_8x() {

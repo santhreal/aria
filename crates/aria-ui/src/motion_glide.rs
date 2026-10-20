@@ -55,7 +55,7 @@ pub(crate) const STATE: MotionSpec = presets::HOVER_FADE;
 
 /// A whole route arriving: Home, or the editor. The dialog beat, because a route
 /// change is the largest thing the window does that is not a boot, and anything
-/// slower keeps the operator waiting for a screen they have already asked for.
+/// slower delays a screen that has already been requested.
 pub(crate) const ROUTE: MotionSpec = presets::DIALOG_IN;
 
 /// A progress fill catching up with a report. The geometry beat, because that is
@@ -65,8 +65,8 @@ pub(crate) const PROGRESS: MotionSpec = presets::RESIZE;
 
 /// How long a wait must last before a loader is shown, spent by [`since`]
 /// rather than as a transition: only the span is read, never the curve.
-/// It is [`super::LOADER_WAIT`], because a wait an operator did not notice must
-/// not be announced, and one they did must not be silent.
+/// It is [`super::LOADER_WAIT`], because a wait too short to notice must not be
+/// announced, and a noticeable one must not be silent.
 pub(crate) const WAIT: MotionSpec = super::LOADER_WAIT;
 
 /// The value `key` shows in the open frame while it travels to `target`.
@@ -75,9 +75,9 @@ pub(crate) const WAIT: MotionSpec = super::LOADER_WAIT;
 /// draws where it is rather than flying in from nowhere.
 ///
 /// `instant` is the caller's override for a value that must not lag the hand
-/// moving it: a splitter under the pointer, a scroll the operator is driving.
+/// moving it: a splitter under the pointer, a scroll under the wheel.
 /// Reduced motion is read from the frame's policy, so a new call site cannot
-/// forget it and leave one pane sliding for an operator who turned motion off.
+/// forget it and leave one pane sliding with motion turned off.
 /// Playback holds the value at its target the same way
 /// ([`super::hold_for_playback`]).
 pub(crate) fn glide(key: MotionKey, target: f32, spec: MotionSpec, instant: bool) -> f32 {

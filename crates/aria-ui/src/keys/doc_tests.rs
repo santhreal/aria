@@ -3,7 +3,7 @@
 //! The class this closes: a chord and its documentation are two lists, and the
 //! second one is maintained by hand. Six chords had shipped undocumented by the
 //! time this test was written — every reach binding added after the doc was last
-//! read — so an operator's only way to learn them was to read the source. The
+//! read, so the only way to learn them was to read the source. The
 //! reverse hole is the same shape: a documented key whose binding was renamed or
 //! re-chorded reads as a promise the app does not keep.
 //!
@@ -17,7 +17,7 @@
 
 use super::bindings::SHIPPED_BINDINGS;
 
-/// The doc, read at compile time from the file the operator reads.
+/// The doc, read at compile time from the shipped file.
 const DOC: &str = include_str!("../../../../docs/keyboard-shortcuts.md");
 
 /// Sections whose first column is not a chord.

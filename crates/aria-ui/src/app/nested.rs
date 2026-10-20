@@ -3,7 +3,7 @@
 //!
 //! The engine has carried `CreateNestedSequence`, `PlaceNestedSequence` and
 //! `OpenSequence` for as long as it has had sequences, and all three declare
-//! `Reach::Operator` — a command the operator is supposed to be able to send.
+//! `Reach::Operator`, a command a UI surface is supposed to send.
 //! Nothing sent them: the three names appeared nowhere in this crate, so a
 //! nest could be created by the assistant or the CLI and then never opened
 //! from the editor. These are the verbs the palette rows and the Sequence menu
@@ -21,8 +21,8 @@ impl AppState {
     ///
     /// The selection is replaced by one clip that plays the new sequence, on
     /// the lane the first selected clip came from. Refused with the engine's
-    /// own error when nothing is selected, so the message an operator reads is
-    /// the message the command layer would have produced anyway.
+    /// own error when nothing is selected, so the shown message is the message
+    /// the command layer would have produced anyway.
     pub fn nest_selection(&mut self, name: impl Into<String>) -> Result<(), EngineError> {
         if self.selection.is_empty() {
             return Err(EngineError::Model(ModelError::InvalidParam(
@@ -152,7 +152,7 @@ impl AppState {
     /// The name of the open sequence, or `None` on the root timeline.
     ///
     /// What a breadcrumb draws: the store carries the id, and an id is not a
-    /// name an operator recognises.
+    /// readable name.
     pub fn open_sequence_name(&self) -> Option<&str> {
         let open = self.store.open_sequence?;
         self.store

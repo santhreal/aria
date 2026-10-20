@@ -88,8 +88,8 @@ pub fn starter_lut_entry(id: &str) -> Option<StarterLutEntry> {
     starter_lut_entries().into_iter().find(|row| row.id == id)
 }
 
-/// Bake one starter LUT by pack id — what a picker needs when the operator
-/// chooses a look, instead of baking the whole pack to use one table.
+/// Bake one starter LUT by pack id. A picker bakes the one table a chosen look
+/// needs instead of baking the whole pack.
 pub fn bake_starter_lut(id: &str) -> Option<StarterLut> {
     starter_lut_entry(id).map(bake)
 }

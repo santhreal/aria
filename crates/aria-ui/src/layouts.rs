@@ -10,7 +10,7 @@
 //! `[[workspaces]]`. Their names are owned strings, interned once for the menu
 //! the way plugin menu rows are; see [`plugin_panes`].
 //!
-//! The operator's own arrangement is the same shape, saved in
+//! The custom arrangement is the same shape, saved in
 //! `ui-settings.json` as one slot rather than a list, because the name of a
 //! saved arrangement would have to be an owned string and a menu row's label is
 //! `&'static str` — a list of user-named rows is a menu the registry cannot
@@ -48,7 +48,7 @@ pub struct PaneLayout {
     pub scopes_open: bool,
     /// Which pane the keyboard is aimed at.
     pub panel: ActivePanel,
-    /// Where the operator was. Home is a route, so an arrangement saved on the
+    /// The current screen. Home is a route, so an arrangement saved on the
     /// start screen restores the start screen.
     pub route: UiRoute,
 }
@@ -63,7 +63,7 @@ pub struct Workspace {
     pub panes: PaneLayout,
 }
 
-/// The operator's own slot.
+/// The custom slot.
 pub const CUSTOM_ID: &str = "win-workspace-custom";
 /// The row that captures the current arrangement into that slot.
 pub const SAVE_ID: &str = "win-workspace-save";

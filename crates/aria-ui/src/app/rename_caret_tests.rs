@@ -243,11 +243,11 @@ fn a_draft_set_without_the_caret_holds_the_caret_inside_it() {
     assert_eq!(draft(&state), ("c".to_string(), (1, 1)));
 }
 
-/// WHY: the selection is a state the operator cannot see unless the bar draws
-/// it. Opens the bar in a drawn shell, checks the tinted run spans the name
-/// with the caret at its right edge, types through the platform input handler
-/// and walks the caret with the shell's own key routing, none of which asks the
-/// Viewer for a frame: a name changes no picture.
+/// WHY: the selection is a state that is invisible unless the bar draws it.
+/// Opens the bar in a drawn shell, checks the tinted run spans the name with
+/// the caret at its right edge, types through the platform input handler and
+/// walks the caret with the shell's own key routing, none of which requests a
+/// Viewer frame: a name changes no picture.
 #[gpui::test]
 fn the_bar_draws_the_selection_and_the_caret_at_its_end(cx: &mut gpui::TestAppContext) {
     let (state, visual) = crate::test_support::drawn_shell(cx, "rename-caret");

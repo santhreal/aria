@@ -5,7 +5,7 @@
 //! round-tripped through JSON by its own name, every marker colour a file may
 //! hold as a label loads as the label the alias names, and an unknown name is
 //! rejected rather than read as a default. Not caught: whether two hues read as
-//! distinct to an operator, which no arithmetic settles.
+//! distinct on screen, which no arithmetic settles.
 
 use super::*;
 

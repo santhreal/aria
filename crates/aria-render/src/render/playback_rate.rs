@@ -3,8 +3,8 @@
 //!
 //! Frame cost was only ever observable one frame at a time
 //! ([`FrameStats`](crate::FrameStats)) and against a fixed millisecond
-//! threshold (`SLOW_FRAME_LOG_MS`). Neither answers the operator's question,
-//! which is whether preview keeps up with the sequence's own rate — so a
+//! threshold (`SLOW_FRAME_LOG_MS`). Neither states whether preview keeps up
+//! with the sequence's own rate, so a
 //! regression that doubled per-frame cost stayed invisible as long as it stayed
 //! under 150 ms.
 //!

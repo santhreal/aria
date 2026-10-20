@@ -15,7 +15,7 @@ use gpui::ElementId;
 /// control per frame — once to format `kind:id`, once for the map's owned copy
 /// — and re-hashed those bytes on every lookup. The timeline builds one per
 /// clip, per trim grip and per header toggle, so the cost scaled with the cut,
-/// not with what the operator was pointing at.
+/// not with what the pointer was on.
 ///
 /// FNV-1a over `kind`, a separator no id contains, and the id's `Display`
 /// bytes. Written straight into the hasher, so no intermediate string exists.

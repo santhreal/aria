@@ -344,7 +344,7 @@ fn paint_clip(
     };
     let color = fill.opacity(alpha);
     // A selected clip takes a 1 px white border in either appearance: the
-    // label fill under it is the operator's colour, not a theme surface.
+    // label fill under it is the clip's label colour, not a theme surface.
     let border = gpui::white();
     let ring = state::selection_t(clip.id, clip.selected, data.reduced);
     if lane.collapsed {

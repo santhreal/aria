@@ -345,7 +345,7 @@ impl AppState {
     /// The stencil is not chosen in the inspector: the renderer reads whatever
     /// layer sits directly above, and a matted clip with nothing above it draws
     /// unmatted. So this is what makes the difference between a matte that cuts
-    /// and one that is inert, and the setters say which the operator just got.
+    /// and one that is inert, and the setters report which one resulted.
     pub fn matte_stencil_ready(&self) -> bool {
         let Some(ui) = self.selected_ui_clip() else {
             return false;

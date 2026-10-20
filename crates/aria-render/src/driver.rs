@@ -124,7 +124,7 @@ pub trait DriverProgram: Send + Sync {
 
 /// A language that compiles driver code.
 pub trait DriverLanguage: Send + Sync {
-    /// Compile `source`. The error is shown to the operator.
+    /// Compile `source`. The editor shows the error text as is.
     fn compile(&self, source: &str) -> Result<Arc<dyn DriverProgram>, String>;
 
     /// Source that reads `input`, which the inspector's pick whip inserts.

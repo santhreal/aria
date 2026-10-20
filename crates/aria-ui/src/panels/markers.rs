@@ -1,7 +1,7 @@
 //! The Markers dock panel: every ruler marker as a row.
 //!
 //! Markers used to exist only as flags on the ruler, so a marker off screen was
-//! a marker the operator could not find, and its colour and note were data
+//! a marker nothing could find, and its colour and note were data
 //! nothing showed. A row here names the time, the label, the colour, and the
 //! note, and every control on it is an existing marker command: click seeks,
 //! the swatch cycles the palette, Rename edits the label, Note edits the
@@ -195,8 +195,8 @@ fn add_button(theme: &Theme, cx: &mut gpui::Context<crate::shell::Shell>) -> gpu
         .into_any_element()
 }
 
-/// Press one row of the registry, reporting a refusal where the operator is
-/// looking rather than swallowing it.
+/// Press one row of the registry, reporting a refusal in the status line rather
+/// than swallowing it.
 fn press(state: &mut AppState, pick: Pick) {
     if let Err(err) = markers_pick::apply(state, pick) {
         state.report_error(&err);

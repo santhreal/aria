@@ -31,8 +31,8 @@
 //! projected state; what it does to pixels is not assertible here until that
 //! rasterizer exists on Linux.
 //!
-//! The other picture an operator judges — the composited preview frame — is not
-//! here either, and deliberately: it comes out of a GPU rasterizer, so the same
+//! The other picture to judge, the composited preview frame, is not here
+//! either, and deliberately: it comes out of a GPU rasterizer, so the same
 //! scene is not bit-identical across a discrete GPU and a software fallback, and
 //! a reference PNG would be a reference to one machine. Composite output is
 //! asserted by readback tests in `aria-compositor`, against values rather than

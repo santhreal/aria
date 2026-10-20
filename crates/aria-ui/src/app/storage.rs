@@ -1,8 +1,8 @@
 //! The download cache: size against quota, clearing, and relocation.
 //!
-//! `aria-cloud`'s `DownloadCache` had no operator surface, so a cache with a quota
-//! nothing could read or change was the only thing standing between the user and a
-//! full disk. One cache instance lives on `AppState` for the session, because
+//! `aria-cloud`'s `DownloadCache` had no UI surface, so a cache with a quota
+//! nothing could read or change was the only thing standing between the session and
+//! a full disk. One cache instance lives on `AppState` for the session, because
 //! protected paths and the current root are session state: rebuilding it per call
 //! would forget both.
 //!
@@ -10,7 +10,7 @@
 //! `data_dir/config.toml` — the same path `aria_settings::default_config_path()`
 //! resolves to in production, and a temporary directory in a test. Nothing in this
 //! module touches an absolute path from outside that tree, so a test that clears the
-//! cache cannot reach the operator's own.
+//! cache cannot reach the real one.
 
 use std::path::{Path, PathBuf};
 
@@ -26,8 +26,8 @@ const MIB: u64 = 1024 * 1024;
 /// Build the session's cache from the config beside `data_dir`.
 ///
 /// A storage-root override redirects the cache; an absent or malformed config
-/// yields the defaults rather than failing startup, because a cache the operator
-/// cannot see is still better than an editor that will not open.
+/// yields the defaults rather than failing startup, because a cache that is not
+/// on screen is still better than an editor that will not open.
 pub(super) fn cache_for(data_dir: &Path) -> DownloadCache {
     let settings = aria_settings::load(&aria_settings::config_in(data_dir)).unwrap_or_default();
     let root = settings
@@ -72,8 +72,8 @@ impl AppState {
     /// Set the quota, persist it, and evict down to it.
     ///
     /// A value outside the range the config accepts is refused by name rather than
-    /// silently clamped: the operator typed a number, and a quota that is not the one
-    /// they typed is worse than a refusal.
+    /// silently clamped: a quota that is not the typed number is worse than a
+    /// refusal.
     pub fn set_download_quota_mib(&mut self, mib: u64) -> Result<(), String> {
         if !aria_settings::StorageSettings::is_valid_download_quota_mib(mib) {
             return Err(format!(
@@ -110,7 +110,7 @@ impl AppState {
     ///
     /// A Clear or a Move that lands mid-download deletes or moves the partial file the
     /// download is still writing, and the import that follows then references a path
-    /// that is gone. The guard is not an operator preference: it is held by the work
+    /// that is gone. The guard is not a preference: it is held by the work
     /// that would be corrupted, and released when that work ends.
     pub(crate) fn hold_download_guard(&mut self) {
         self.download_cache.block_destructive_operations();
@@ -247,7 +247,7 @@ fn describe_switch_error(err: DownloadCacheSwitchError<std::io::Error>) -> Strin
     }
 }
 
-/// Bytes as the operator reads them. Kept here because the dialog and the status
+/// Bytes in display units. Kept here because the dialog and the status
 /// line must agree on the unit.
 pub fn format_bytes(bytes: u64) -> String {
     const GIB: u64 = 1024 * MIB;

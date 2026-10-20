@@ -39,8 +39,8 @@ fn staged() -> Vec<Staged> {
     let mut out = Vec::new();
     let mut push = |row: Row, dress: fn() -> AppState| out.push(Staged { row, dress });
 
-    // Both faces of the toggle: the button is drawn from the state the operator
-    // saw, so the census presses it on a row without a keyframe and on one with.
+    // Both faces of the toggle: the button is drawn from the state on screen,
+    // so the census presses it on a row without a keyframe and on one with.
     push(
         Row::Key {
             param,
@@ -212,7 +212,7 @@ fn the_keyframe_list_calls_no_setter_of_its_own() {
     super::no_setter_escapes(REGISTRY, "inspector");
 }
 
-/// The key button is a toggle on the state the operator saw: pressing it twice
+/// The key button is a toggle on the state on screen: pressing it twice
 /// leaves the curve as it was found.
 #[test]
 fn the_key_button_takes_a_keyframe_and_takes_it_back() {
@@ -243,7 +243,7 @@ fn the_key_button_takes_a_keyframe_and_takes_it_back() {
 }
 
 /// An easing preset shapes the keyframe under the playhead, so with none there
-/// the press is inert rather than an error: the operator can press it on a row
+/// the press is inert rather than an error: it can be pressed on a row
 /// whose keyframe an undo has just removed.
 #[test]
 fn shaping_a_segment_with_no_keyframe_under_the_playhead_is_inert() {

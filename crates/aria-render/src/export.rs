@@ -85,7 +85,7 @@ impl ExportSettings {
         }
     }
 
-    /// The project's output with an operator's [`ExportFormat`] applied, or a
+    /// The project's output with a chosen [`ExportFormat`] applied, or a
     /// refusal naming the choice this machine cannot honour.
     ///
     /// One owner of two rules that used to live in three places — the export

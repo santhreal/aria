@@ -75,7 +75,7 @@ fn drawn<F: Clone + 'static>(
     for entry in items {
         match entry {
             // A row that leaves the editor draws exactly like one that does not:
-            // the distinction is the census's, not the operator's.
+            // the distinction is for the census, not for display.
             MenuItem::Row(row) | MenuItem::Outside(row) => {
                 if !(row.when)(&facts) {
                     continue;

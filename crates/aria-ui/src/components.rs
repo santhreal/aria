@@ -23,8 +23,8 @@ const QUARTER: f32 = std::f32::consts::FRAC_PI_2;
 /// A disclosure chevron that turns between shut and open.
 ///
 /// One glyph and one rotation rather than two glyphs. A swap at 12px reads as a
-/// flicker, and the turn is what tells the operator the click landed on the row
-/// rather than beside it. The rotation eases from wherever the glyph currently
+/// flicker, and the turn is what shows the click landed on the row rather than
+/// beside it. The rotation eases from wherever the glyph currently
 /// points, so a row toggled twice quickly turns back from part way instead of
 /// restarting.
 pub fn chevron(
@@ -138,7 +138,7 @@ impl ChipSize {
 /// A chip: the smallest control that says which one of a set is in force.
 ///
 /// A row of these replaces a dropdown wherever the set is short enough to show
-/// whole, so the operator reads the choices instead of opening them. The active
+/// whole, so the choices are visible without opening them. The active
 /// chip carries a faint wash and full-strength text; the others sit at their
 /// size's colour on nothing, and light towards the active look on hover so the
 /// row answers the pointer before the click.

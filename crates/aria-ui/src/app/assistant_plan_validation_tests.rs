@@ -5,7 +5,7 @@
 //! project as it stands refuses steps Apply would accept. `add_effect` then
 //! `set_effect_param` on the same clip refused the second call as an effect
 //! index that is not there, and the same held for any step naming a clip, track
-//! or marker an earlier step creates. The operator reads that as the plan being
+//! or marker an earlier step creates. The panel then showed the plan as
 //! impossible, when the plan was fine and only the rehearsal was blind.
 //!
 //! Two halves, because a rehearsal has two. It applies each step into a group so

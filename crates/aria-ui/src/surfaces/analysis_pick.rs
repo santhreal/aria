@@ -1,4 +1,4 @@
-//! What an operator presses in the Analysis panel once a detector has run: the
+//! The controls pressed in the Analysis panel once a detector has run: the
 //! clear beside a detector, the refresh, the two filters, the two seeks, and the
 //! two edits that act on what was found.
 //!
@@ -49,7 +49,7 @@ pub enum Pick {
 }
 
 impl Pick {
-    /// What the operator pressed, for a census and for a failure message.
+    /// The pressed control, for a census and for a failure message.
     pub fn what(&self) -> &'static str {
         match self {
             Self::Clear(_) => "clear one detector's results",
@@ -68,7 +68,7 @@ impl Pick {
 ///
 /// The refusals arrive as prose from two places: the index says why a read or a
 /// delete failed, and the model says why an edit was refused. Both are what the
-/// panel puts in front of the operator, so both come back as one string.
+/// panel shows, so both come back as one string.
 pub fn apply(state: &mut AppState, pick: Pick) -> Result<(), String> {
     match pick {
         Pick::Clear(kind) => state.clear_analysis(kind),

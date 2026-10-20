@@ -704,7 +704,7 @@ mod tests {
     }
 
     /// The palette reads the registry, so a command that is in the table but never
-    /// registered simply does not exist for the user. Mount is the only place that
+    /// registered does not exist in the palette. Mount is the only place that
     /// bridges the two.
     #[test]
     fn mounting_offers_every_shipped_command() {
@@ -748,7 +748,7 @@ mod tests {
     ///
     /// The class this closes: the shell now draws whatever the registry holds, so
     /// a `DialogKind` with no entry opens a dialog that draws nothing — a state
-    /// the user cannot see and cannot leave except by Escape. Enumerated over the
+    /// that is invisible and cannot be left except by Escape. Enumerated over the
     /// kinds, so a new variant is red here until it is registered or is
     /// deliberately plugin-owned.
     #[test]

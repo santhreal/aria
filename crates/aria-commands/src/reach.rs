@@ -1,4 +1,4 @@
-//! How an operator reaches each command.
+//! Which UI surface reaches each command.
 //!
 //! The class closed here is "a command is added, dispatched, serialised, tested
 //! at the wire, and never reachable by a person". A command that no surface
@@ -38,12 +38,12 @@ pub enum Reach {
 }
 
 impl Reach {
-    /// Whether an operator can ask for this.
+    /// Whether a UI surface reaches this command.
     pub fn is_operator(self) -> bool {
         matches!(self, Reach::Operator(_))
     }
 
-    /// The surface an operator reaches it through, when there is one.
+    /// The UI surface that reaches it, when there is one.
     pub fn surface(self) -> Option<&'static str> {
         match self {
             Reach::Operator(surface) => Some(surface),

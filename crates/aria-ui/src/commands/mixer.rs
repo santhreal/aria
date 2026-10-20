@@ -3,7 +3,7 @@
 //! One of the groups [`super::BUILTIN_COMMANDS`] joins. Routing itself is not
 //! here on purpose: a send names a source lane and a destination bus, and a
 //! palette row that guessed either would be a control that acts on something
-//! the operator did not point at. The mixer strip is where a route is chosen;
+//! the pointer was not on. The mixer strip is where a route is chosen;
 //! these rows are how the mixer is reached and how it gets a bus to route to.
 
 use crate::types::ActivePanel;

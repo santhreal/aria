@@ -15,8 +15,8 @@
 //! picker is idempotent by design — choosing the aspect the project already has
 //! writes no history and sends no command, which is the right behaviour and the
 //! wrong measurement — so the dressing moves the project to another member of the
-//! same catalog first. That is also what an operator does: a row is worth
-//! clicking when it is not the current one.
+//! same catalog first. A row is only worth clicking when it is not the
+//! current one.
 
 use std::collections::BTreeSet;
 

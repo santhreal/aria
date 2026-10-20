@@ -10,8 +10,8 @@
 //! row claimed "a multi-item selection" that nothing could make.
 //!
 //! The set lives here rather than in the panel, so the order is the product's
-//! and not the list's: a group's angles are the order the operator picked them
-//! in, which a sorted set would decide for them.
+//! and not the list's: a group's angles are in pick order, which a sorted set
+//! would replace.
 //!
 //! What a click means is not here. That is
 //! [`pool_pick`](crate::surfaces::pool_pick), which drives the three writes
@@ -34,7 +34,7 @@ impl PoolSelection {
     /// Everything that acted on `bin_selection` reads this: the properties
     /// table, the source monitor, a reload, a reveal, a ripple insert. One of
     /// several selected items still has to be the one a single-item row means,
-    /// and it is the one the operator touched last.
+    /// and it is the one clicked last.
     pub fn focus(&self) -> Option<u64> {
         self.anchor.or_else(|| self.picked.last().copied())
     }
@@ -57,7 +57,7 @@ impl PoolSelection {
     }
 
     /// Drop the whole selection. Opening another folder does this: a selection
-    /// the operator cannot see is one they cannot correct.
+    /// that is not on screen cannot be corrected.
     pub fn clear(&mut self) {
         self.picked.clear();
         self.anchor = None;

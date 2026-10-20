@@ -341,8 +341,8 @@ pub enum DialogKind {
     Palette,
     Jobs,
     /// What the sequence carries and what the last frame cost. A dialog rather
-    /// than a docked pane: it answers a question the operator asks occasionally
-    /// and reads at length, so it should not spend inspector width permanently.
+    /// than a docked pane: it answers an occasional question and reads at
+    /// length, so it should not spend inspector width permanently.
     ProjectReport,
     /// The prompt standing between unsaved edits and an action that would
     /// replace the session.

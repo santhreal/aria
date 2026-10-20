@@ -95,7 +95,7 @@ fn placed(state: &AppState) -> usize {
 /// over a bare context draws a window with no panels in it and answers no key at
 /// all. These cases used to do exactly that — they asserted that drawing an
 /// empty frame did not panic. The rest of production's mount is not here on
-/// purpose: it reads the operator's own data directory for external plugins and
+/// purpose: it reads the real data directory for external plugins and
 /// catalog overrides, and a test must not.
 macro_rules! shell {
     ($cx:ident, $tag:expr) => {{
@@ -297,8 +297,8 @@ fn leaving_a_dirty_project_draws_the_prompt(cx: &mut gpui::TestAppContext) {
 /// toward the committed one, so a frame caught mid-glide is not the width the
 /// settings hold; and the boot cover is retired on its first frame instead of
 /// fading, so nothing is over the tree while a pointer goes into it. Both are
-/// production paths — the operator who asks for reduced motion gets exactly
-/// this — and both are what makes a position assertible.
+/// production paths (reduced motion produces exactly this), and both are what
+/// makes a position assertible.
 macro_rules! editing {
     ($cx:ident, $tag:expr) => {{
         let (state, visual) = shell!($cx, $tag);

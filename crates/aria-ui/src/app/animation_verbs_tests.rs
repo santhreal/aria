@@ -3,7 +3,7 @@
 //!
 //! # Why
 //!
-//! Each verb writes keyframes the operator did not place one by one, so a
+//! Each verb writes keyframes that were not placed one by one, so a
 //! wrong tick, a value carried to the wrong time, a handle left on the wrong
 //! side, or an edit split across undo steps is invisible until playback. These
 //! tests read the stored curve back after each verb and after its undo.

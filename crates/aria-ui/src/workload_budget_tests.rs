@@ -186,7 +186,7 @@ fn the_magnet_index_holds_every_magnet_the_projection_carries() {
 
 /// Fail-by-default: every [`SnapKind`] is produced either by the index or as a
 /// loose magnet passed to `nearest`. A tenth kind that nothing builds turns
-/// this red instead of shipping a magnet the operator can never hit.
+/// this red instead of shipping a magnet that can never fire.
 #[test]
 fn every_snap_kind_has_a_producer() {
     let store = project_to_ui(&workload::standard(), playhead(), &[]);

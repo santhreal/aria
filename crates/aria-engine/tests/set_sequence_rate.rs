@@ -59,7 +59,7 @@ fn undo_restores_every_tick_and_keyframe_exactly() {
     let clip_id = add_generated(&mut engine, track, matte, tr(0, 48));
 
     // Through the shipped commands, because a rate change has to carry whatever
-    // an operator could have put on the clip — and a test that reaches past the
+    // an edit could have put on the clip, and a test that reaches past the
     // command surface to plant it proves nothing about the path that ships.
     engine
         .apply(Command::Edit(EditCommand::SetParamKeyframe {

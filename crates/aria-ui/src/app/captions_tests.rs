@@ -179,7 +179,7 @@ fn language_and_thread_choices_are_validated_before_a_run() {
     assert!(state.transcription_options().is_err());
 }
 
-/// Every reason a run cannot start, in the order the operator can act on them.
+/// Every reason a run cannot start, in the order they can be fixed.
 #[test]
 fn a_run_is_refused_by_name_and_costs_no_job() {
     let (mut state, _) = with_clip();

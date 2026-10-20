@@ -15,7 +15,7 @@ use super::widgets::kv;
 /// that fixes a missing or corrupt file, followed by the download timeouts.
 ///
 /// A corrupt model offers "Re-download" rather than the same "Install" label: the
-/// failure is on disk, and the operator has to know the file they have is the problem.
+/// failure is on disk, and the label has to state that the local file is the problem.
 ///
 /// The timeout rows are generated from `TimeoutField::ALL`, so a new timeout appears
 /// here without a second edit.
@@ -79,7 +79,7 @@ pub(super) fn model_rows(
 
 /// One row per download timeout: the value and a pair of steppers.
 ///
-/// A timeout is a number the operator reasons about in seconds, and the useful range
+/// A timeout is a number set in seconds, and the useful range
 /// spans a connect timeout and a half-hour deadline, so the step doubles rather than
 /// adding a constant.
 fn timeout_row(

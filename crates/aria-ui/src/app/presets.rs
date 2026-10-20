@@ -614,7 +614,7 @@ impl AppState {
         Ok(())
     }
 
-    /// Import a `.ariapreset` file into the user library, and apply it to the
+    /// Import a `.ariapreset` file into the preset library, and apply it to the
     /// selected clips when any clip is selected.
     pub fn import_preset_file(&mut self, path: &Path) -> Result<String, String> {
         let result: Result<String, String> = (|| {
@@ -659,7 +659,7 @@ impl AppState {
     }
 
     /// Partition `.ariapreset` paths out of `paths` before plugins are asked,
-    /// importing each into the user library (and applying to selected clips).
+    /// importing each into the preset library (and applying to selected clips).
     /// Returns the remaining paths in order.
     pub fn take_preset_files(&mut self, paths: Vec<PathBuf>) -> Vec<PathBuf> {
         let (presets, rest): (Vec<_>, Vec<_>) =

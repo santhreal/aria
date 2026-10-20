@@ -68,7 +68,7 @@ pub(crate) fn stop_id(surface: &str, job: u64) -> motion::ControlId {
 /// stopped.
 ///
 /// One owner, so every surface that shows work in flight offers the same word in
-/// the same place: a job the operator can watch is a job the operator can stop.
+/// the same place: a job that is visible is a job that can be stopped.
 /// Whether it can be is [`UiJob::stoppable`], which is the job's business rather
 /// than each surface's, and the registry has the final say — a stop that arrives
 /// after the commit boundary is refused and says so.
@@ -146,7 +146,7 @@ pub fn job_row(
         .into_any_element()
     });
 
-    // A job the operator can watch is a job the operator can stop, on the same
+    // A job that is visible is a job that can be stopped, on the same
     // row rather than only on the board: hoisted for the same reason the bar is.
     let stop = stop_button("panel", job, theme, cx);
 

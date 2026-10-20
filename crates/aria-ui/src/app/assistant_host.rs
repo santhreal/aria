@@ -18,7 +18,7 @@
 //! - **Plugin tools** run on the job thread through
 //!   [`PluginContext::call_ai_tool`], listed and authorized by the tier the
 //!   plugin registered.
-//! - **Destructive tools** additionally ask the operator. With
+//! - **Destructive tools** additionally prompt for approval. With
 //!   [`Autonomy::Ask`] the panel shows the call and the job thread waits for
 //!   Approve or Deny; with [`Autonomy::Full`] it does not ask. A cancelled turn
 //!   releases the wait, so Stop is never blocked by a question nobody answered.
@@ -75,7 +75,7 @@ impl HostRequest {
     }
 }
 
-/// A destructive call waiting on the operator.
+/// A destructive call waiting on approval.
 ///
 /// Holds the reply channel the job thread is blocked on, so answering it is what
 /// unblocks the turn. Dropping it without answering denies the call, which is the
@@ -431,7 +431,7 @@ impl ToolHost for ShellHost {
 }
 
 impl ShellHost {
-    /// Allow one call at `tier`, asking the operator first for a System call
+    /// Allow one call at `tier`, prompting for approval first for a System call
     /// under [`Autonomy::Ask`]. `plugin` is the current tier and plugin name
     /// of a plugin tool.
     fn allow(

@@ -148,7 +148,7 @@ fn every_edit_row_is_undoable() {
 }
 
 /// The lock exemption is a decision per row, and only unlocking and lane display
-/// may be taken on a locked lane: a lock the operator cannot undo is a trap, and
+/// may be taken on a locked lane: a lock that cannot be undone is a trap, and
 /// how a lane is drawn is not an edit to its clips.
 #[test]
 fn only_the_lock_escape_hatches_ignore_a_locked_lane() {

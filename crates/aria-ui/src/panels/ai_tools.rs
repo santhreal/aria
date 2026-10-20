@@ -1,8 +1,8 @@
 //! What the assistant can actually do, listed rather than counted.
 //!
 //! The Settings AI section says "27 edit(s), 9 app tool(s)". A count answers
-//! "is anything wired" and nothing else: it cannot tell an operator whether the
-//! model can add a marker, or which of two similar phrasings names a tool that
+//! "is anything wired" and nothing else: it cannot show whether the model can
+//! add a marker, or which of two similar phrasings names a tool that
 //! exists. The vocabulary was a registry with no reader.
 //!
 //! Every row here is read from that registry at draw time
@@ -13,8 +13,8 @@
 //!
 //! Docked in the inspector column beside the assistant, and only while the
 //! assistant is the panel being looked at: it explains the surface next to it,
-//! and a capability list over a timeline is a list of things the operator did not
-//! ask about.
+//! and a capability list over a timeline is a list of things nothing asked
+//! about.
 
 use gpui::{IntoElement, ParentElement, SharedString, Styled, div, px};
 

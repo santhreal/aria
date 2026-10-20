@@ -362,8 +362,8 @@ impl Shell {
         let ctrl = mods.control || mods.platform;
         // A capture in flight outranks every other consumer, text boxes
         // included: while Settings waits for a chord, the next keystroke *is*
-        // the chord, and dispatching it would run the very command the operator
-        // is trying to move.
+        // the chord, and dispatching it would run the very command being
+        // rebound.
         if self.state.read(cx).rebinding().is_some() {
             self.state.update(cx, |state, cx| {
                 state.capture_rebind(key, ctrl, mods.shift, mods.alt);
@@ -719,8 +719,8 @@ impl Shell {
                 cx.notify();
                 return;
             }
-            // Fullscreen outranks the selection: leaving it is what Esc means to
-            // an operator who filled the window with the picture.
+            // Fullscreen outranks the selection: leaving it is what Esc means
+            // while the picture fills the window.
             self.state.update(cx, |state, _| {
                 if state.dialog != DialogKind::None {
                     state.open_dialog(DialogKind::None);

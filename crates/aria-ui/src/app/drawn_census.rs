@@ -4,8 +4,8 @@
 //! # Why
 //!
 //! The palette, the menu bar and the chords are tables, so a census can walk
-//! them. Everything else an operator presses — a lane header toggle, a mixer
-//! strip control, an inspector block, a sidebar button — was a `div()` with its
+//! them. Every other pressable control (a lane header toggle, a mixer
+//! strip control, an inspector block, a sidebar button) was a `div()` with its
 //! action sealed inside a gpui closure. Nothing could enumerate those, so the
 //! forward reach census could see about a third of the product and had to take
 //! the rest on trust: ledger row 140 is that gap, and about forty
@@ -329,7 +329,7 @@ fn a_toggle_acts_on_the_lane_it_was_drawn_for() {
         "pressing mute left the lane unmuted"
     );
 
-    // The same flags again: the control the operator saw said "muted: false", so
+    // The same flags again: the control as drawn showed "muted: false", so
     // pressing it a second time from that same draw asks for the same thing.
     (mute.run)(&mut state, lane).expect("mute lands again");
     state.sync_from_engine();
@@ -367,7 +367,7 @@ fn every_lane_toggle_has_its_own_element_id() {
 fn pressing_a_toggle_flips_the_state_it_lights_on() {
     // A control lights on the state its own press produces. Wire `lit` to a
     // neighbouring flag and the button stays dark while the lane obeys it, which
-    // is the failure an operator reads as the click not landing.
+    // looks like the click not landing.
     for row in LANE_TOGGLES {
         let (mut state, _) = with_clip();
         let before = drawn_on(&state, row);
@@ -439,7 +439,7 @@ fn each_toggle_lights_on_one_lane_flag() {
 #[test]
 fn a_hidden_lane_lights_the_visibility_toggle() {
     // The one control whose lit state is not its flag: the eye reads as an alarm,
-    // because a lane that is not drawing is the thing an operator is hunting for.
+    // because a lane that is not drawing is the usual cause of a missing picture.
     let mut lane = LaneFlags {
         id: 0,
         muted: false,

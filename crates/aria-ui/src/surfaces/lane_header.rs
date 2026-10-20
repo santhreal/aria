@@ -68,7 +68,7 @@ impl LaneToggle {
 /// The lane facts a toggle reads and acts on.
 ///
 /// Copied out of the projection while the header draws and carried into the
-/// press, so a toggle acts on the state the operator saw. Small and `Copy` on
+/// press, so a toggle acts on the drawn state. Small and `Copy` on
 /// purpose: there is one of these per toggle per lane per frame, and a press must
 /// not cost a copy of the lane's name.
 #[derive(Clone, Copy)]
@@ -169,7 +169,7 @@ pub const LANE_TOGGLES: &[LaneToggle] = &[
         run: |state, lane| state.set_track_locked(TrackId::from_raw(lane.id), !lane.locked),
     },
     // Lit means hidden: the control reads as an alarm rather than as a state,
-    // because a lane that is not drawing is what an operator is looking for.
+    // because a lane that is not drawing is the usual cause of a missing picture.
     LaneToggle {
         id: "vis",
         shown: every_lane,

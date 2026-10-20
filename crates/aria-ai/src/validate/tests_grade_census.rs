@@ -15,7 +15,7 @@
 use super::*;
 use aria_models::ColorAdjustments;
 
-/// The tool call an operator's phrase turns into: one slider, one value.
+/// The tool call a prompt phrase turns into: one slider, one value.
 fn call(clip: u64, slider: &str, value: f64) -> Result<WireCommand, String> {
     let mut args = serde_json::Map::new();
     args.insert("clip".into(), clip.into());
@@ -105,7 +105,7 @@ fn a_misspelled_slider_is_refused_rather_than_ignored() {
 
 #[test]
 fn the_read_back_names_only_the_sliders_the_call_carries() {
-    // What the operator sees in the transcript: the sliders that moved, by the
+    // What the transcript shows: the sliders that moved, by the
     // same names the tool takes, and nothing else.
     let (_, _, _, _, clip, _) = fixture();
     let cmd = crate::wire::WireCommand::from_tool_call(

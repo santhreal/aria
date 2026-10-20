@@ -433,7 +433,7 @@ fn resample_preserved_across_split_trim_chain() {
 /// earlier by the ratio of the two rates.
 ///
 /// The assertion is on the sampled value at a wall-clock instant, not on tick
-/// numbers: that is what an operator sees, and it stays correct if the resampling
+/// numbers: that is what playback shows, and it stays correct if the resampling
 /// arithmetic is ever rounded differently. Against the unfixed code the midpoint
 /// reads fully faded instead of half faded.
 ///

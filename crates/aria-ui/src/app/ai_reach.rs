@@ -62,7 +62,7 @@ pub struct AiProbe {
     pub busy: bool,
     /// The last result line: what the endpoint said, or why it could not be
     /// asked. Shown verbatim — a provider's own error names the endpoint and the
-    /// status, which is what an operator needs.
+    /// status, which is what a fix needs.
     pub result: Option<String>,
 }
 
@@ -86,7 +86,7 @@ pub struct AiModelRow {
 }
 
 impl AppState {
-    /// The models the operator can choose from, for the configured source.
+    /// The models offered for the configured source.
     ///
     /// Three sources, three honest answers, none of them a hardcoded list:
     ///
@@ -96,7 +96,7 @@ impl AppState {
     /// - **OpenRouter**: the curated slugs, each with the upstream the request
     ///   would be pinned to.
     /// - **Custom**: whatever the endpoint reported, because there is no catalog
-    ///   for an endpoint the operator named.
+    ///   for a custom endpoint.
     ///
     /// Empty before the endpoint is asked for the sources that need asking;
     /// [`AppState::ai_models_hint`] is the line that says so.

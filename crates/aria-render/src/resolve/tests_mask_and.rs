@@ -378,7 +378,7 @@ fn adjustment_lane_resolves_to_canvas_pass_above_lower_layers() {
 
 #[test]
 fn every_lane_bar_variant_applies_both_its_effects_and_its_grade() {
-    // The three lane-bar generators differ only in what an operator reaches for,
+    // The three lane-bar generators differ only in which control creates them,
     // so each one carries everything its bar holds. Half of that was dropped:
     // Adjustment and Filter lost the effect stack, Effect lost the grade.
     for (kind, generator) in [

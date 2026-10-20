@@ -1,4 +1,4 @@
-//! Rebinding: the chords the operator put in place of the shipped ones.
+//! Rebinding: the chords set in place of the shipped ones.
 //!
 //! Split out of [`super`] to stay under the file ceiling. A pure addition to
 //! [`KeyHost`], written here because the registry file holds the shapes and this
@@ -26,7 +26,7 @@ impl KeyHost {
     /// the holder named, so the surface can say what is in the way at the moment
     /// the key is pressed rather than shadowing a binding that still works. A
     /// binding rebound to the chord it already has costs nothing and is still
-    /// recorded, because "the operator chose this" is what Reset undoes.
+    /// recorded, because "this was chosen" is what Reset undoes.
     ///
     /// A plugin key refused for a taken chord is rebound the same way, and the
     /// next sync places it on the chord it was given.
@@ -168,8 +168,7 @@ mod tests {
     }
 
     /// A cleared binding is a binding with no chord, not a binding back on its
-    /// shipped chord: an operator who cleared Ctrl+S must not find it saving
-    /// again after a restart.
+    /// shipped chord: a cleared Ctrl+S must not save again after a restart.
     #[test]
     fn a_cleared_binding_answers_nothing_and_is_not_the_shipped_chord() {
         let host = host();

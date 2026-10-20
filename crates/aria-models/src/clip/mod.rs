@@ -199,7 +199,7 @@ pub struct Clip {
     /// place of the name the clip's source would give it. `None` (and absent
     /// from saves) means the source names it — the media file, the generator, or
     /// the title text — so old files load unchanged and a renamed clip that is
-    /// relinked keeps the name the operator chose.
+    /// relinked keeps its given name.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     /// Noise reduction (CapCut "Reduce noise", M8 Phase 5): run this clip's

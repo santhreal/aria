@@ -127,7 +127,7 @@ icon_assets![
     ),
     // Transport. The strip previously drew the two zoom magnifiers for
     // "go to start/end" and for frame stepping, which read as zoom controls
-    // in the one place an operator looks for playback.
+    // in the one place playback controls are expected.
     (SKIP_BACK, "skip-back.svg", "icon/skip-back.svg"),
     (SKIP_FORWARD, "skip-forward.svg", "icon/skip-forward.svg"),
     (CHEVRON_LEFT, "chevron-left.svg", "icon/chevron-left.svg"),

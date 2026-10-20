@@ -1,12 +1,12 @@
 //! What the loader dropped, and how it says so.
 //!
-//! The class closed here is "a value in the file had no effect and nothing
-//! said so". `root = "cache"` under `[storage]` is the case that was found in
-//! the field: a relative path is refused, the caches stay under the profile
-//! directory, and before this the operator had a config line claiming
-//! otherwise and no way to see it was dead. Every read of an owned key now
-//! records what it stepped over, the session still starts on the defaults, and
-//! the last test here fails if a new read is added that cannot report.
+//! The class closed here is "a value in the file had no effect and nothing said
+//! so". `root = "cache"` under `[storage]` is the case that was found in the
+//! field: a relative path is refused, the caches stay under the profile
+//! directory, and before this a config line could claim otherwise with no
+//! report that it had no effect. Every read of an owned key now records what it
+//! stepped over, the session still starts on the defaults, and the last test
+//! here fails if a new read is added that cannot report.
 
 use super::*;
 

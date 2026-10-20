@@ -173,8 +173,8 @@ fn rollback_restores_state_and_preserves_redo() {
 
 /// A rolled-back group restores the project it started from, so it cannot be
 /// what makes a saved session unsaved. This is what lets a rehearsal (the
-/// agent's dry run) apply its steps and undo them without leaving the operator
-/// holding unsaved changes nothing made.
+/// agent's dry run) apply its steps and undo them without leaving the session
+/// with unsaved changes that nothing made.
 #[test]
 fn a_rolled_back_group_leaves_a_saved_session_saved() {
     let (dir, mut engine) = temp_engine();

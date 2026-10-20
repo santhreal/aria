@@ -109,8 +109,8 @@ pub struct UiCaption {
     /// probabilities, or `None` when the run returned no word timings.
     ///
     /// `None` is not zero. A run with token timestamps off says nothing about
-    /// certainty, and a readout that painted that as 0% would tell the operator
-    /// to re-record a line the model heard perfectly well. The two states are
+    /// certainty, and a readout that painted that as 0% would call for
+    /// re-recording a line the model heard perfectly well. The two states are
     /// distinct on the row too: a number, or no number.
     ///
     /// Read from `TranscriptSegment::mean_word_probability`, which is also what

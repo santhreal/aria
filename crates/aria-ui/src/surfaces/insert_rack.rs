@@ -1,4 +1,4 @@
-//! What an operator does to an audio insert chain: the selected clip's in the
+//! The gestures on an audio insert chain: the selected clip's in the
 //! inspector's Audio block, a lane's or the master's in the mixer.
 //!
 //! Both panels draw the same chain from the projection, so both press the same
@@ -11,7 +11,7 @@ use aria_models::{AudioInsertTarget, TrackId};
 
 use crate::app::AppState;
 
-/// One thing an operator does to an insert chain.
+/// One gesture on an insert chain.
 pub enum Gesture {
     /// Show or hide the chain's Add list.
     TogglePicker(AudioInsertTarget),
@@ -61,7 +61,7 @@ pub enum Gesture {
 }
 
 impl Gesture {
-    /// What the operator did, for a census and for a failure message.
+    /// The gesture, for a census and for a failure message.
     pub fn what(&self) -> &'static str {
         match self {
             Self::TogglePicker(_) => "an insert chain's Add list shown or hidden",
@@ -94,7 +94,7 @@ impl Gesture {
 /// Apply one gesture.
 pub fn apply(state: &mut AppState, gesture: Gesture) -> Result<(), EngineError> {
     // The model's setters refuse an out-of-range index loudly, which is what the
-    // assistant path needs. A row the operator can no longer see is dropped here.
+    // assistant path needs. A row that is no longer drawn is dropped here.
     let gone = gesture
         .insert()
         .is_some_and(|(target, index)| index >= state.audio_insert_count(target));

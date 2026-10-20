@@ -7,8 +7,8 @@ use crate::components;
 use crate::surfaces::sidebar_pick::{self, Pick};
 use crate::theme::Theme;
 
-/// Press one row of the registry, reporting a refusal where the operator is
-/// looking rather than swallowing it.
+/// Press one row of the registry, reporting a refusal in the status line rather
+/// than swallowing it.
 fn press(state: &mut AppState, pick: Pick) {
     if let Err(err) = sidebar_pick::apply(state, pick) {
         state.report_error(&err);

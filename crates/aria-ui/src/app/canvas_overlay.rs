@@ -1,8 +1,8 @@
 //! On-canvas handle geometry for the preview: where a crop or mask handle sits,
 //! and what a drag to a point means.
 //!
-//! Framing and masking were editable only as steppers, so the operator set a
-//! window they could not see. The rules here are pure arithmetic over fractions
+//! Framing and masking were editable only as steppers, which set a window
+//! that was not drawn. The rules here are pure arithmetic over fractions
 //! and window pixels: the panel converts pointer positions with them and never
 //! does geometry of its own, and every rule is testable without a window.
 //!

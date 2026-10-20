@@ -1,4 +1,4 @@
-//! Render and replace, from the operator's side.
+//! Render and replace, through the editor's controls.
 //!
 //! The class these close: a render that goes somewhere it should not, or a swap
 //! that cannot be undone in one step. The rendering itself needs a GPU and an
@@ -71,7 +71,7 @@ fn restoring_a_clip_that_was_never_rendered_is_refused() {
     let refusal = state.restore_unrendered().expect_err("not rendered");
     assert!(
         !refusal.is_empty(),
-        "a refusal with nothing in it tells the operator nothing"
+        "a refusal with nothing in it reports nothing"
     );
 }
 
@@ -290,7 +290,7 @@ fn a_render_the_assistant_starts_is_reported_as_started_with_a_job() {
     );
     assert!(
         reported.contains("Jobs board"),
-        "the operator is not told where to watch it: {reported}"
+        "the report does not state where to watch it: {reported}"
     );
     assert!(
         !state.job_view.is_empty(),

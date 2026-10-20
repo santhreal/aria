@@ -103,7 +103,7 @@ impl UiJob {
     ///
     /// The rule is the job's, not each surface's: a panel row, the board, and the
     /// export sheet all show the same work, and one of them deciding differently
-    /// is an operator watching a running job with no way to stop it. False past
+    /// is a running job on screen with no way to stop it. False past
     /// the commit boundary and on anything terminal, so the control is never
     /// offered for a request the registry would refuse.
     pub fn stoppable(&self) -> bool {
@@ -190,7 +190,7 @@ impl AppState {
     ///
     /// The one place work is handed to the registry from this side. The
     /// subscriber's wake refreshes too, but it lands a scheduler hop later and
-    /// the operator has already pressed the button: the row exists in the same
+    /// the button has already been pressed: the row exists in the same
     /// update that started the work.
     pub(crate) fn spawn_job(
         &mut self,

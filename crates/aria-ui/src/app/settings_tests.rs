@@ -33,8 +33,8 @@ fn type_text(state: &mut AppState, text: &str) {
 }
 /// Focus a field and replace what is there.
 ///
-/// Focusing seeds the draft from the saved value — the operator is usually correcting
-/// one — so a test that wants a fresh value clears it the way a person would.
+/// Focusing seeds the draft from the saved value, since a focus usually precedes a
+/// correction, so a test that needs a fresh value clears it the way a person would.
 fn retype(state: &mut AppState, field: SettingsField, text: &str) {
     state.focus_setting(Some(field));
     while !state.setting_draft(field).0.is_empty() {

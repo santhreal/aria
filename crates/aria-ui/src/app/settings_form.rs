@@ -201,8 +201,8 @@ pub struct SettingsForm {
 impl AppState {
     /// Focus one field, seeding the draft from what is saved.
     ///
-    /// Seeding rather than starting empty: the operator is usually correcting a value,
-    /// and a field that cleared itself on focus would lose the one they meant to fix.
+    /// Seeding rather than starting empty: a focus usually precedes a correction,
+    /// and a field that cleared itself on focus would lose the value being fixed.
     pub fn focus_setting(&mut self, field: Option<SettingsField>) {
         self.settings_form.focused = field;
         self.settings_form.draft = match field {
@@ -349,8 +349,8 @@ impl AppState {
 
     /// Persist the focused field.
     ///
-    /// A refused value keeps the focus and the draft, so the operator can fix the text
-    /// they typed rather than retyping it.
+    /// A refused value keeps the focus and the draft, so the typed text can be fixed
+    /// rather than retyped.
     pub fn commit_setting(&mut self) -> Result<(), String> {
         let Some(field) = self.settings_form.focused else {
             return Ok(());
@@ -507,8 +507,8 @@ impl AppState {
     /// Not a written claim: the edit count is `aria-ai`'s own tool table and the
     /// host count is the desktop's own, so a tool added or removed changes this
     /// line without anyone remembering to edit it. The point of the row is that
-    /// "the assistant can edit the timeline" is not a thing an operator should
-    /// have to take on trust.
+    /// "the assistant can edit the timeline" should not have to be taken on
+    /// trust.
     pub fn agent_capabilities(&self) -> String {
         let edits = aria_ai::wire::tool_specs().len();
         let host = crate::app::assistant_host::host_tool_specs();

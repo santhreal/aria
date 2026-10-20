@@ -52,7 +52,7 @@ fn a_preset_with_a_nonsense_font_size_keeps_the_current_one() {
 #[test]
 fn every_provider_is_listed_even_with_no_key() {
     // The row that matters is the unset one. Enumerating the config's map of
-    // *configured* providers would hide exactly the case the operator is looking for.
+    // *configured* providers would hide the unconfigured case this row is for.
     let (state, _) = with_clip();
     let rows = state.provider_key_status();
     assert_eq!(rows.len(), crate::cloud::BYOK_PROVIDERS.len());

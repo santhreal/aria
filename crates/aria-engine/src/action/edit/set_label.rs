@@ -5,8 +5,8 @@ use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
 
 /// Set (or clear) a clip's label colour (Premiere label colours). Accepted on
-/// every clip kind — a label is the operator's grouping, not a property of the
-/// content — and changes no duration, so there is no neighbour check. The
+/// every clip kind, since a label is an editorial grouping, not a property of
+/// the content, and changes no duration, so there is no neighbour check. The
 /// inverse is a full-clip restore, like the other flag edits.
 pub fn set_label(
     ctx: &mut ApplyContext<'_>,

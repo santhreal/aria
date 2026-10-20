@@ -248,7 +248,7 @@ fn saving_a_named_chain_grows_the_presets_and_writes_them() {
 }
 
 /// A name already taken is refused with the field still open and still holding
-/// what was typed: the operator's next act is to change the name.
+/// what was typed, ready for a different name.
 #[test]
 fn a_name_already_taken_is_refused_without_losing_the_typing() {
     let mut state = a_named_draft();

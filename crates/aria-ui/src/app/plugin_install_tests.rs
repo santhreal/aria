@@ -1,8 +1,8 @@
 //! Installing a plugin package from the editor: the prompt, its answers, and
 //! every way an `.ariaplugin` reaches it.
 //!
-//! The class this closes: a package that runs without the user having seen
-//! what it asks for, and a prompt whose answer leaves the plugin folder in
+//! The class this closes: a package that runs before its requested
+//! capabilities were shown, and a prompt whose answer leaves the plugin folder in
 //! some third state. Each test checks the mounted set and the plugin folder on
 //! disk, not only what the prompt says. Not covered: the prompt as drawn,
 //! which `tests_shell.rs` opens over a real project.

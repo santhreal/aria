@@ -1,6 +1,6 @@
 //! Contracts for the one seam every file dialog goes through.
 //!
-//! The class closed here is "a command that asks the operator for a path cannot
+//! The class closed here is "a command that prompts for a path cannot
 //! be driven, and the window stops redrawing while it waits". Both came from one
 //! cause: fifteen call sites opened a blocking native dialog on the thread that
 //! draws, so a headless run waited for an answer that never came. Waiting for
@@ -129,7 +129,7 @@ fn a_question_answered_no_is_not_permission() {
 #[test]
 fn a_lut_pick_asks_nothing_when_no_clip_is_selected() {
     // The guard belongs before the pick: asking for a file and then dropping the
-    // answer is a dialog the operator filled in for nothing.
+    // answer is a dialog filled in for nothing.
     let (mut state, _) = with_clip();
     state.clear_selection();
     state.pick_and_load_lut();

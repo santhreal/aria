@@ -53,11 +53,11 @@ pub struct UiSettings {
     pub appearance: crate::appearance::AppearanceMode,
     pub home_rail: crate::types::HomeRail,
     /// How much motion runs. Persisted here rather than read from the
-    /// environment on every launch: a choice the operator made in Settings has
-    /// to survive the next start.
+    /// environment on every launch: a choice made in Settings has to survive
+    /// the next start.
     pub motion: crate::motion::MotionPreference,
     /// Rebound keys, by binding id, spelled the way Settings shows them
-    /// (`Ctrl+Shift+P`). A `None` value is a binding the operator cleared, which
+    /// (`Ctrl+Shift+P`). A `None` value is a cleared binding, which
     /// is not the same as an absent one: absent means the shipped chord.
     ///
     /// Sorted rather than insertion-ordered so the saved file does not churn
@@ -67,7 +67,7 @@ pub struct UiSettings {
     /// marks it; the keys in force are `keys` either way.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub keymap: Option<String>,
-    /// The arrangement the operator saved, or nothing when they never did.
+    /// The saved custom arrangement, or nothing when none was saved.
     ///
     /// One slot rather than a list: see [`crate::layouts`] for why a menu of
     /// user-named arrangements is a menu the static bar cannot draw. Absent means
@@ -322,7 +322,7 @@ pub fn clamp_outline(width: f32) -> f32 {
     }
 }
 
-/// `~/.aria` — the user data dir for UI settings.
+/// `~/.aria`, the data dir for UI settings.
 pub fn default_data_dir() -> PathBuf {
     dirs::home_dir()
         .unwrap_or_else(std::env::temp_dir)
@@ -338,7 +338,7 @@ pub fn default_data_dir() -> PathBuf {
 ///
 /// The returned path is absolute or this is an error: a resolution that came
 /// back relative anyway (an unreachable working directory) would put the
-/// assertion back in the reader, one layer further from the operator.
+/// assertion back in the reader, one layer further from the setting.
 pub fn absolute_data_dir(dir: &Path) -> Result<PathBuf, String> {
     if dir.is_absolute() {
         return Ok(dir.to_path_buf());
@@ -371,7 +371,7 @@ mod tests {
 
     /// Resolution keeps what was asked for and refuses only what cannot be a
     /// path at all, so a relative override reaches the storage layout as the
-    /// directory the operator meant.
+    /// intended directory.
     #[test]
     fn a_relative_profile_root_resolves_and_an_empty_one_is_refused() {
         let absolute = std::env::temp_dir().join("aria-absolute-root");
@@ -469,7 +469,7 @@ mod tests {
     /// A file written before keys could be rebound opens with the shipped keys,
     /// and a cleared binding is a `null` rather than an absent row: the two mean
     /// different things, and a serializer that dropped the `null` would put a key
-    /// back that the operator took away.
+    /// back that was removed.
     #[test]
     fn a_cleared_binding_persists_as_null_and_an_older_file_has_no_keys() {
         let older = r#"{"sidebarWidth":300.0}"#;

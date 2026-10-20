@@ -151,8 +151,8 @@ impl AppState {
                 // Cancel pressed in the same instant either wins outright (no
                 // rename happens, the old file survives) or loses outright (the
                 // rename completes and the row stops offering Cancel). Without
-                // the handshake the two race and the operator can cancel a
-                // model that is already installed.
+                // the handshake the two race and Cancel can hit a model that
+                // is already installed.
                 let begin_commit = || context.try_begin_commit();
                 let result = {
                     let downloader = ProgressDownloader {
@@ -189,8 +189,7 @@ impl AppState {
     /// message about tensors. This is the sweep that names the file instead.
     ///
     /// A job because a large model is gigabytes of hashing; cancellable because
-    /// the operator should not have to wait out a sweep they started by
-    /// mistake.
+    /// a sweep started by mistake should not have to run to the end.
     ///
     /// # Errors
     ///
@@ -212,7 +211,7 @@ impl AppState {
                     format!("hashing {}", spec.id()),
                 );
                 // A model nobody installed is not a failure, and re-hashing
-                // one already known corrupt is how the operator learns a
+                // one already known corrupt is how the row confirms a
                 // re-download fixed it.
                 let present = match manager.status(*model) {
                     Ok(ModelStatus::Missing) => false,
@@ -255,8 +254,8 @@ impl AppState {
     /// Persist one download timeout, clamped to what the downloader accepts.
     ///
     /// Clamping rather than refusing: the control steps, and a step that lands out of
-    /// range should stop at the edge instead of reporting an error the operator did not
-    /// ask a question to get.
+    /// range should stop at the edge instead of reporting an error nothing asked
+    /// for.
     pub fn set_model_timeout(&mut self, field: TimeoutField, secs: u64) -> Result<(), String> {
         let path = self.config_path();
         let mut settings = aria_settings::load(&path)?;

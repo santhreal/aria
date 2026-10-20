@@ -261,7 +261,7 @@ fn preset_validation_refuses_empty_duplicate_and_empty_part_selection() {
     assert!(refused.to_string().contains("empty"));
     assert!(
         state.preset_draft_open(),
-        "draft stays open when refused so the operator can re-enable a part"
+        "draft stays open when refused so a part can be re-enabled"
     );
     assert_eq!(state.preset_draft_text(), "Empty Parts");
 }

@@ -59,7 +59,7 @@ fn a_refused_override_reads_as_refused() {
     );
 }
 
-/// A value the config loader refused reaches the operator.
+/// A value the config loader refused reaches the Settings window.
 ///
 /// The class is any dropped value, not the storage case that found it: the
 /// loader records what it stepped over and this reader prints the whole list,
@@ -105,8 +105,8 @@ fn a_value_the_config_loader_refused_reaches_the_report() {
     }
 }
 
-/// The report is a copy an operator has to ask for; the Caches section is the
-/// surface they are already looking at when a cache is not where the config
+/// The report is a copy that has to be requested; the Caches section is the
+/// surface already on screen when a cache is not where the config
 /// says. A refusal that reached one and not the other is the state this started
 /// in, so the panel's own source is read rather than trusted.
 #[test]
