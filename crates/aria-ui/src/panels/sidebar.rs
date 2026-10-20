@@ -35,31 +35,6 @@ pub fn render(
         .map(|[_, _, w, _]| w);
     // for the two tabs that draw one.
     let rows = tab.shows_pool().then(|| state.read(cx).pool_rows(tab));
-    // What the selection already carries, so the browsable catalogs can say so.
-    // Read once, next to the other reads, rather than per row. Animations occupy
-    // three slots at once and a clip holds a stack of masks, which is why each
-    // of these is a set; the masks' shapes are one bit per `MaskKind::ALL` entry.
-    let (animations, mask, transition) = {
-        let state = state.read(cx);
-        let animations = crate::app::clip_anim::SLOTS.map(|slot| {
-            state
-                .selected_animation(slot)
-                .map(|animation| animation.id.clone())
-        });
-        let selected = state.selected_ui_clip_ref();
-        (
-            animations,
-            selected.map_or(0, |clip| {
-                clip.masks
-                    .iter()
-                    .fold(0, |bits, mask| bits | mask_bit(mask.kind))
-            }),
-            selected
-                .and_then(|clip| clip.transition.as_ref())
-                .map(|transition| transition.id.clone()),
-        )
-    };
-
     div()
         .id("sidebar")
         .debug_selector(|| "sidebar".into())
@@ -138,42 +113,66 @@ pub fn render(
                                 .into_any_element()
                         }
                     }
-                    SidebarTab::Animations => catalog_grid(
-                        &theme,
-                        crate::catalog_text::animations(),
-                        CatalogDragKind::Animation,
-                        "Click for the selected clip, or drag onto a clip",
-                        |state, id| state.set_selected_animation(id),
-                        |id| animations.iter().flatten().any(|animation| animation == id),
-                        cx,
-                    )
-                    .into_any_element(),
-                    SidebarTab::Masks => catalog_grid(
-                        &theme,
-                        crate::catalog_text::masks(),
-                        CatalogDragKind::Mask,
-                        "Click for the selected clip, or drag onto a clip",
-                        |state, id| match aria_models::MaskKind::from_id(id) {
-                            Some(kind) => state.add_selected_mask(kind),
-                            None => Ok(()),
-                        },
-                        |id| {
-                            aria_models::MaskKind::from_id(id)
-                                .is_some_and(|kind| mask & mask_bit(kind) != 0)
-                        },
-                        cx,
-                    )
-                    .into_any_element(),
-                    SidebarTab::Transitions => catalog_grid(
-                        &theme,
-                        &crate::catalog_text::transitions(),
-                        CatalogDragKind::Transition,
-                        "Drag onto a cut, or click for the selected clip's right cut",
-                        |state, id| state.set_selected_transition(id),
-                        |id| transition.as_deref() == Some(id),
-                        cx,
-                    )
-                    .into_any_element(),
+                    SidebarTab::Animations => {
+                        let animations = {
+                            let state = state.read(cx);
+                            crate::app::clip_anim::SLOTS.map(|slot| {
+                                state
+                                    .selected_animation(slot)
+                                    .map(|animation| animation.id.clone())
+                            })
+                        };
+                        catalog_grid(
+                            &theme,
+                            crate::catalog_text::animations(),
+                            CatalogDragKind::Animation,
+                            "Click for the selected clip, or drag onto a clip",
+                            |state, id| state.set_selected_animation(id),
+                            |id| animations.iter().flatten().any(|animation| animation == id),
+                            cx,
+                        )
+                        .into_any_element()
+                    }
+                    SidebarTab::Masks => {
+                        let mask = state.read(cx).selected_ui_clip_ref().map_or(0, |clip| {
+                            clip.masks
+                                .iter()
+                                .fold(0, |bits, mask| bits | mask_bit(mask.kind))
+                        });
+                        catalog_grid(
+                            &theme,
+                            crate::catalog_text::masks(),
+                            CatalogDragKind::Mask,
+                            "Click for the selected clip, or drag onto a clip",
+                            |state, id| match aria_models::MaskKind::from_id(id) {
+                                Some(kind) => state.add_selected_mask(kind),
+                                None => Ok(()),
+                            },
+                            |id| {
+                                aria_models::MaskKind::from_id(id)
+                                    .is_some_and(|kind| mask & mask_bit(kind) != 0)
+                            },
+                            cx,
+                        )
+                        .into_any_element()
+                    }
+                    SidebarTab::Transitions => {
+                        let transition = state
+                            .read(cx)
+                            .selected_ui_clip_ref()
+                            .and_then(|clip| clip.transition.as_ref())
+                            .map(|transition| transition.id.clone());
+                        catalog_grid(
+                            &theme,
+                            &crate::catalog_text::transitions(),
+                            CatalogDragKind::Transition,
+                            "Drag onto a cut, or click for the selected clip's right cut",
+                            |state, id| state.set_selected_transition(id),
+                            |id| transition.as_deref() == Some(id),
+                            cx,
+                        )
+                        .into_any_element()
+                    }
                     SidebarTab::Effects => super::effects_browser::effects_panel(&theme, state, cx),
                     SidebarTab::Stock => {
                         cloud_grid(&theme, CloudFeed::Stock, state, cx).into_any_element()

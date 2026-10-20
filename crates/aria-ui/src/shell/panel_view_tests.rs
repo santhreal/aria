@@ -534,3 +534,25 @@ fn a_view_change_builds_only_the_bodies_that_draw_the_view(cx: &mut TestAppConte
         );
     }
 }
+
+#[gpui::test]
+fn a_clip_edit_skips_panels_whose_inputs_did_not_change(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    let (_, visual) = opened(cx, "panel-view-edit-skip");
+    let shell = shell_of(visual);
+    for change in [Change::Param, Change::Marker] {
+        builds::take();
+        make(visual, &shell, change, 1);
+        let built = builds::take();
+        assert!(
+            built.contains(&PANEL_TIMELINE),
+            "a {change:?} change did not rebuild {PANEL_TIMELINE}"
+        );
+        for untouched in [crate::dock::PANEL_EFFECTS, crate::dock::PANEL_AUDIO_METERS] {
+            assert!(
+                !built.contains(&untouched),
+                "a {change:?} change rebuilt {untouched}, whose inputs did not change: {built:?}"
+            );
+        }
+    }
+}
