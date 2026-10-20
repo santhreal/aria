@@ -2,11 +2,10 @@ use std::io::Write;
 use std::path::Path;
 use std::sync::Arc;
 
-use aria_commands::Command;
-use aria_models::{AudioEffectSpec, EffectParamKind, EffectParamSpec, Project};
+use aria_models::{AudioEffectSpec, Project};
 use aria_plugin::{
     CallError, DecoderSpec, EncoderSpec, Exporter, ExporterSpec, ForeignDecoder, Importer,
-    ImporterSpec, InterchangeReport, PluginContext, TransactError, Transaction,
+    ImporterSpec, InterchangeReport, PluginContext, TransactError, Transaction, host_wire,
 };
 
 use super::{
@@ -409,16 +408,7 @@ impl Importer for WasmImporter {
             .shared
             .call_import(&self.ctx, &self.id, file)
             .map_err(TransactError::Aborted)?;
-        let commands: Vec<Command> =
-            serde_json::from_str(&result.commands_json).map_err(|err| {
-                TransactError::Aborted(format!("invalid import commands JSON: {err}"))
-            })?;
-        for command in commands {
-            tx.apply(command)?;
-        }
-        Ok(InterchangeReport {
-            skipped: result.skipped,
-        })
+        host_wire::apply_import_commands(tx, &result.commands_json, result.skipped, false)
     }
 }
 
@@ -560,16 +550,8 @@ impl HostState {
             params: spec
                 .params
                 .into_iter()
-                .map(|p| EffectParamSpec {
-                    name: p.name,
-                    label: p.label,
-                    kind: EffectParamKind::Scalar,
-                    default: p.default_value,
-                    min: p.min,
-                    max: p.max,
-                    default_color: [0; 4],
-                    default_vec2: [0.0; 2],
-                    ..Default::default()
+                .map(|p| {
+                    host_wire::audio_param_spec(p.name, p.label, p.default_value, p.min, p.max)
                 })
                 .collect(),
             latency: spec.latency,

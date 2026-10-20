@@ -3,12 +3,11 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 
 use aria_plugin_abi::{AriaResult, AriaStr};
-use serde_json::json;
 
 use super::{ProjectWrite, call_ctx, read_str};
 use crate::external::HostCallContext;
 use crate::package::Access;
-use crate::{Command, EditorView, Origin, ProjectHost, RationalTime, TransactError};
+use crate::{EditorView, ProjectHost, RationalTime, TransactError, host_wire};
 
 pub(super) extern "C" fn host_project_snapshot(host_ctx: *mut c_void) -> AriaResult {
     // SAFETY: `host_ctx` is valid for the duration of `host_project_snapshot`.
@@ -25,8 +24,7 @@ pub(super) extern "C" fn host_project_snapshot(host_ctx: *mut c_void) -> AriaRes
                 .scoped_ctx
                 .try_get::<ProjectHost>()
                 .ok_or_else(|| "ProjectHost service is not registered".to_owned())?;
-            let project = host.snapshot();
-            serde_json::to_string(project.as_ref()).map_err(|err| err.to_string())
+            host_wire::project_snapshot_json(&host)
         })
     };
     match result {
@@ -50,25 +48,11 @@ pub(super) extern "C" fn host_editor_view(host_ctx: *mut c_void) -> AriaResult {
                 .unscoped_ctx
                 .try_get::<EditorView>()
                 .and_then(|view| view.current());
-            let payload = match view_state {
-                Some(state) => json!({
-                    "selection": state.selection,
-                    "playhead": state.playhead,
-                    "mark_in": state.mark_in,
-                    "mark_out": state.mark_out,
-                    "playing": state.playing,
-                    "speed": state.speed,
-                }),
-                None => json!({
-                    "selection": Vec::<u64>::new(),
-                    "playhead": RationalTime::new(0, aria_core::Rational::FPS_24),
-                    "mark_in": Option::<RationalTime>::None,
-                    "mark_out": Option::<RationalTime>::None,
-                    "playing": false,
-                    "speed": 1,
-                }),
-            };
-            Ok(payload.to_string())
+            Ok(host_wire::editor_view_json(
+                view_state.as_ref(),
+                Some(RationalTime::new(0, aria_core::Rational::FPS_24)),
+                1,
+            ))
         })
     };
     match result {
@@ -165,13 +149,7 @@ pub(super) extern "C" fn host_selected_clips(host_ctx: *mut c_void) -> AriaResul
     let result = unsafe {
         call_ctx(host_ctx).and_then(|ctx| {
             let host = require_project_read_host(&ctx, "selected_clips")?;
-            let selection = ctx
-                .unscoped_ctx
-                .try_get::<EditorView>()
-                .and_then(|view| view.current())
-                .map(|state| state.selection)
-                .unwrap_or_default();
-            let clips = host.selected_clips(&selection);
+            let clips = host_wire::selected_clips_for_view(&ctx.unscoped_ctx, &host);
             serde_json::to_string(&clips).map_err(|err| err.to_string())
         })
     };
@@ -255,20 +233,11 @@ pub(super) extern "C" fn host_project_transact(
             }
             let label = read_str(label, "transaction label")?;
             let commands_raw = read_str(commands_json, "commands JSON")?;
-            let commands: Vec<Command> = serde_json::from_str(commands_raw)
-                .map_err(|err| format!("invalid commands JSON: {err}"))?;
             let host = ctx
                 .scoped_ctx
                 .try_get::<ProjectHost>()
                 .ok_or_else(|| "ProjectHost service is not registered".to_owned())?;
-            let receipt = host
-                .transact(Origin::plugin(&ctx.state.id), label.to_owned(), commands)
-                .map_err(|err| err.to_string())?;
-            Ok(json!({
-                "revision": receipt.revision,
-                "outcomes": receipt.outcomes,
-            })
-            .to_string())
+            host_wire::project_transact_json(&host, &ctx.state.id, label.to_owned(), commands_raw)
         })
     };
     match result {

@@ -1,12 +1,11 @@
 use std::sync::Arc;
 
-use aria_plugin::{PluginCommand, PluginContext, ScopeSpec};
+use aria_plugin::{PluginCommand, PluginContext, ScopeSpec, event_wire};
 
 use super::{ActiveThreadGuard, CallPhase, HostState, InstanceState, PluginKind, WasmPluginShared};
 use crate::ai_tools::{self, WasmAiTool};
 use crate::bindings;
 use crate::contributions;
-use crate::events::subscribe_event;
 use crate::runtime::classify_trap;
 use crate::scopes::WasmScope;
 
@@ -227,7 +226,9 @@ impl HostState {
             .shared
             .upgrade()
             .ok_or_else(|| "plugin dropped".to_owned())?;
-        subscribe_event(&ctx, &shared, &event_kind)
+        event_wire::subscribe(&ctx, &event_kind, move |scoped, kind, payload| {
+            shared.call_event(scoped, kind, payload).ok().flatten()
+        })
     }
 
     pub(super) fn host_register_ai_tool(

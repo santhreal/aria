@@ -7,13 +7,12 @@ use std::sync::{Arc, Weak};
 use std::thread::ThreadId;
 
 use aria_plugin::package::{Access, Package, register_declared};
-use aria_plugin::{Names, Plugin, PluginContext, PluginError, PluginManifest};
+use aria_plugin::{Names, Plugin, PluginContext, PluginError, PluginManifest, host_wire};
 use parking_lot::Mutex;
 use wasmtime::component::{Component as WasmComponent, HasSelf, Linker};
 use wasmtime::{Store, StoreLimits, StoreLimitsBuilder};
 
 use crate::bindings;
-use crate::events::UnmountSentinel;
 use crate::legacy_bindings;
 use crate::runtime::{SharedEngine, classify_trap, deadline_ticks};
 use crate::{Limits, LoadError, WORLD};
@@ -132,17 +131,6 @@ impl Drop for ActiveThreadGuard<'_> {
     }
 }
 
-struct UnmountOnDrop {
-    shared: Arc<WasmPluginShared>,
-    ctx: PluginContext,
-}
-
-impl Drop for UnmountOnDrop {
-    fn drop(&mut self) {
-        let _ = self.shared.on_context_unmount(&self.ctx);
-    }
-}
-
 /// Loaded WebAssembly component plugin implementing [`aria_plugin::Plugin`].
 
 pub struct WasmPlugin {
@@ -244,12 +232,10 @@ impl Plugin for WasmPlugin {
         register_declared(ctx, &self.shared.package)?;
         self.shared.mount(ctx)?;
 
-        let guard = UnmountOnDrop {
-            shared: Arc::clone(&self.shared),
-            ctx: ctx.clone(),
-        };
-        ctx.on_event::<UnmountSentinel, _>(move |_ev| {
-            let _keep_alive = &guard;
+        let shared = Arc::clone(&self.shared);
+        let unmount_ctx = ctx.clone();
+        host_wire::on_unmount(ctx, move || {
+            let _ = shared.on_context_unmount(&unmount_ctx);
         });
 
         Ok(())

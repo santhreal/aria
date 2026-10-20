@@ -26,6 +26,7 @@ mod expressions;
 pub mod external;
 mod foreign_decoder;
 mod hooks;
+pub mod host_wire;
 mod interchange;
 mod jobs;
 pub mod keys;

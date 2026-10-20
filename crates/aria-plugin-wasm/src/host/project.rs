@@ -1,12 +1,10 @@
 use std::sync::Arc;
 
-use aria_commands::Command;
 use aria_models::{ClipId, MarkerColor, MarkerKind, SequenceId};
 use aria_plugin::package::Access;
 use aria_plugin::{
-    ClipRef, EditorView, Origin, PluginContext, ProjectHost, Rational, RationalTime, TimeRange,
+    ClipRef, EditorView, PluginContext, ProjectHost, Rational, RationalTime, TimeRange, host_wire,
 };
-use serde_json::json;
 
 use super::HostState;
 use crate::bindings;
@@ -58,33 +56,13 @@ impl HostState {
 
     pub(super) fn host_project_snapshot(&mut self) -> Result<String, String> {
         let (_ctx, host) = self.require_project_read()?;
-        let snapshot = host.snapshot();
-        serde_json::to_string(snapshot.as_ref()).map_err(|err| err.to_string())
+        host_wire::project_snapshot_json(&host)
     }
 
     pub(super) fn host_editor_view(&mut self) -> Result<String, String> {
         let (ctx, _host) = self.require_project_read()?;
         let state = ctx.try_get::<EditorView>().and_then(|view| view.current());
-        match state {
-            Some(view) => Ok(json!({
-                "selection": view.selection,
-                "playhead": view.playhead,
-                "mark_in": view.mark_in,
-                "mark_out": view.mark_out,
-                "playing": view.playing,
-                "speed": view.speed,
-            })
-            .to_string()),
-            None => Ok(json!({
-                "selection": [],
-                "playhead": null,
-                "mark_in": null,
-                "mark_out": null,
-                "playing": false,
-                "speed": 0,
-            })
-            .to_string()),
-        }
+        Ok(host_wire::editor_view_json(state.as_ref(), None, 0))
     }
 
     pub(super) fn host_clip(&mut self, id: u64) -> Result<Option<bindings::ClipRef>, String> {
@@ -122,13 +100,7 @@ impl HostState {
 
     pub(super) fn host_selected_clips(&mut self) -> Result<Vec<bindings::ClipRef>, String> {
         let (ctx, host) = self.require_project_read()?;
-        let selection = ctx
-            .try_get::<EditorView>()
-            .and_then(|view| view.current())
-            .map(|state| state.selection)
-            .unwrap_or_default();
-        Ok(host
-            .selected_clips(&selection)
+        Ok(host_wire::selected_clips_for_view(&ctx, &host)
             .into_iter()
             .map(clip_ref_to_wit)
             .collect())
@@ -169,13 +141,7 @@ impl HostState {
         commands_json: String,
     ) -> Result<String, String> {
         let (_ctx, host) = self.require_project_write()?;
-        let commands: Vec<Command> = serde_json::from_str(&commands_json)
-            .map_err(|err| format!("invalid commands JSON: {err}"))?;
-        let origin = Origin::plugin(&self.package.manifest.id);
-        let receipt = host
-            .transact(origin, label, commands)
-            .map_err(|err| err.to_string())?;
-        Ok(json!({ "revision": receipt.revision, "outcomes": receipt.outcomes }).to_string())
+        host_wire::project_transact_json(&host, &self.package.manifest.id, label, &commands_json)
     }
 
     pub(super) fn host_project_undo(&mut self) -> Result<bool, String> {

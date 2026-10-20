@@ -3,7 +3,7 @@ use std::io::{Read, Seek, SeekFrom};
 use std::path::{Component, Path, PathBuf};
 
 use aria_plugin::package::FsScope;
-use aria_plugin::{LogLevel, SettingsService};
+use aria_plugin::{LogLevel, host_wire};
 
 use super::HostState;
 use crate::bindings;
@@ -123,10 +123,7 @@ impl HostState {
 
     pub(super) fn host_setting_get(&mut self, key: String) -> Result<Option<String>, String> {
         let ctx = self.require_ctx()?;
-        let Some(settings) = ctx.try_get::<dyn SettingsService>() else {
-            return Ok(None);
-        };
-        Ok(settings.get(&key).map(|v| v.to_string()))
+        host_wire::setting_get_json(&ctx, &key)
     }
 
     pub(super) fn host_fs_read(&mut self, path: String) -> Result<Vec<u8>, String> {

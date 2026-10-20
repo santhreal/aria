@@ -17,11 +17,10 @@ use super::specs::{
 use super::{call_ctx, read_str};
 use crate::external::{ExportCallError, NativePluginState, decoders};
 use crate::{
-    AudioBlock, AudioEffectSpec, AudioProcessor, AudioProcessorFactory, Command,
-    EXPORT_AUDIO_CHANNELS, EXPORT_AUDIO_RATE, EffectParamKind, EffectParamSpec, EncodeError,
-    Encoder, EncoderConfig, EncoderFrame, EncoderSpec, Exporter, ExporterSpec, Importer,
-    ImporterSpec, InterchangeReport, ParamSignal, PluginContext, Project, RationalTime,
-    TransactError, Transaction, VideoEncoder, VideoFrame, encoder_pts,
+    AudioBlock, AudioEffectSpec, AudioProcessor, AudioProcessorFactory, EncodeError, Encoder,
+    EncoderConfig, EncoderFrame, EncoderSpec, Exporter, ExporterSpec, Importer, ImporterSpec,
+    InterchangeReport, ParamSignal, PluginContext, Project, RationalTime, TransactError,
+    Transaction, VideoEncoder, VideoFrame, encoder_pts, host_wire,
 };
 
 pub(super) extern "C" fn host_register_importer(
@@ -115,16 +114,8 @@ pub(super) extern "C" fn host_register_audio_effect(
             let params = raw
                 .params
                 .into_iter()
-                .map(|p| EffectParamSpec {
-                    name: p.name,
-                    label: p.label,
-                    kind: EffectParamKind::Scalar,
-                    default: p.default_value,
-                    min: p.min,
-                    max: p.max,
-                    default_color: [0; 4],
-                    default_vec2: [0.0; 2],
-                    ..Default::default()
+                .map(|p| {
+                    host_wire::audio_param_spec(p.name, p.label, p.default_value, p.min, p.max)
                 })
                 .collect();
             let spec = AudioEffectSpec {
@@ -240,19 +231,7 @@ impl Importer for NativeImporter {
             .call_import(&self.scoped_ctx, &self.importer_id, &path_str)?;
         let parsed: RawImportResult = serde_json::from_str(&raw_json)
             .map_err(|err| TransactError::Aborted(format!("invalid import result JSON: {err}")))?;
-        let commands: Vec<Command> = if parsed.commands_json.trim().is_empty() {
-            Vec::new()
-        } else {
-            serde_json::from_str(&parsed.commands_json).map_err(|err| {
-                TransactError::Aborted(format!("invalid import commands JSON: {err}"))
-            })?
-        };
-        for command in commands {
-            tx.apply(command)?;
-        }
-        Ok(InterchangeReport {
-            skipped: parsed.skipped,
-        })
+        host_wire::apply_import_commands(tx, &parsed.commands_json, parsed.skipped, true)
     }
 }
 
@@ -428,10 +407,8 @@ impl Encoder for NativeEncoder {
     ) -> Result<Box<dyn VideoEncoder>, EncodeError> {
         let path_str = path.to_string_lossy();
         let (width, height) = config.size;
-        let (audio_sample_rate, audio_channels) = config.audio.map_or(
-            (EXPORT_AUDIO_RATE, u32::from(EXPORT_AUDIO_CHANNELS)),
-            |audio| (audio.sample_rate, u32::from(audio.channels)),
-        );
+        let (audio_sample_rate, audio_channels) =
+            host_wire::encoder_audio_rate_and_channels(config);
         let raw_cfg = AriaEncoderConfig {
             width,
             height,

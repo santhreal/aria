@@ -4,9 +4,8 @@ use std::sync::Arc;
 use aria_plugin_abi::{AriaBytes, AriaResult, AriaStr};
 
 use super::{call_ctx, read_str};
-use crate::external::events::subscribe_event;
 use crate::external::{NativePluginState, ai_tools, contributions, scopes};
-use crate::{PluginCommand, PluginContext};
+use crate::{PluginCommand, PluginContext, event_wire};
 
 pub(super) extern "C" fn host_register_command(
     host_ctx: *mut c_void,
@@ -54,7 +53,10 @@ pub(super) extern "C" fn host_subscribe(host_ctx: *mut c_void, event_kind: AriaS
                 return Err("registration calls are permitted only during mount".to_owned());
             }
             let kind = read_str(event_kind, "event kind")?;
-            subscribe_event(ctx.scoped_ctx, ctx.state, kind)
+            let state = Arc::clone(ctx.state);
+            event_wire::subscribe(ctx.scoped_ctx, kind, move |scoped, kind, payload| {
+                state.call_event(scoped, kind, payload).ok()
+            })
         })
     };
     match result {

@@ -7,7 +7,7 @@ use aria_plugin_abi::{
 
 use super::specs::validate_storage_key;
 use super::{call_ctx, read_str};
-use crate::{LogLevel, SettingsService};
+use crate::{LogLevel, host_wire};
 
 pub(super) extern "C" fn host_log(host_ctx: *mut c_void, level: u32, text: AriaStr) {
     // SAFETY: `host_ctx` and `text` are provided by the guest during an active callback.
@@ -125,15 +125,7 @@ pub(super) extern "C" fn host_setting_get(host_ctx: *mut c_void, key: AriaStr) -
     let result = unsafe {
         call_ctx(host_ctx).and_then(|ctx| {
             let key = read_str(key, "setting key")?;
-            let Some(settings) = ctx.scoped_ctx.try_get::<dyn SettingsService>() else {
-                return Ok(None);
-            };
-            match settings.get(key) {
-                Some(val) => serde_json::to_string(&val)
-                    .map(Some)
-                    .map_err(|err| err.to_string()),
-                None => Ok(None),
-            }
+            host_wire::setting_get_json(ctx.scoped_ctx, key)
         })
     };
     match result {

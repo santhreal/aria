@@ -50,7 +50,6 @@ mod audio;
 mod contributions;
 mod decoders;
 mod encoders;
-mod events;
 mod host;
 mod overlays;
 mod panels;
