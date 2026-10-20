@@ -307,10 +307,17 @@ Effect bindings, group 0:
 | 4.. | `pass_<name>`, `layer_<param>`, `texture_<id>` | Each input other than `Source`, in input order (`texture_2d<f32>`) |
 | last | `output_tex` | Compute passes only: `texture_storage_2d<rgba8unorm, write>` |
 
-`AriaPass` fields: `size` (the pass's output size in pixels), `texel`
-(`1 / size`), `time` (seconds since the clip started, or `0.0` for an effect
-that is not `time_dependent`), `pass_index` (the execution index),
-`pass_count`, and `params: array<f32>`.
+`AriaPass` fields:
+
+| Field | WGSL type | Description |
+| --- | --- | --- |
+| `size` | `vec2<f32>` | Output dimensions `[width, height]` of the current pass in pixels. |
+| `texel` | `vec2<f32>` | Reciprocal pixel dimensions `[1.0 / width, 1.0 / height]`. |
+| `time` | `f32` | Seconds since the start of the clip, or `0.0` when `time_dependent` is `false`. |
+| `pass_index` | `u32` | Zero-based execution index of the current pass. |
+| `pass_count` | `u32` | Total number of passes in the effect (`1..=8`). |
+| `pad` | `u32` | Alignment padding word. |
+| `params` | `array<f32>` | Flattened parameter storage (`MAX_EFFECT_FLOATS` = 256 floats max). |
 
 Each shader-visible parameter gets a generated WGSL accessor `param_<name>()`:
 
@@ -332,11 +339,68 @@ on-canvas handles in the Viewer. An `EffectParamSpec` may set `soft_min`,
 `EffectSpec::groups`), and `visible_when` (`EffectVisibilityCondition { param,
 equals }`).
 
-Transition bindings, group 0: `outgoing_tex` (0), `incoming_tex` (1),
-`aria_sampler` (2), and the read-only storage buffer `aria: AriaTransition` (3),
-whose fields are `size`, `texel`, `progress` in `0..1`, and `params:
-array<f32>`. Each parameter declared in `TransitionSpec::params` gets a
-`param_<name>()` accessor with the same return type as an effect parameter.
+Fragment effect pass example (`shaders/warm-grade.wgsl`, with scalar parameter
+`gain`):
+
+```wgsl
+@fragment
+fn fs(in: VsOut) -> @location(0) vec4<f32> {
+    let px = textureSample(input_tex, aria_sampler, in.uv);
+    let g = param_gain();
+    return vec4<f32>(px.rgb * vec3<f32>(g, g * 0.95, g * 0.85), px.a);
+}
+```
+
+Compute pass example (`shaders/grain-half.wgsl`, with `stage = { compute =
+{ workgroup = [8, 8] } }`):
+
+```wgsl
+@compute @workgroup_size(8, 8, 1)
+fn cs(@builtin(global_invocation_id) id: vec3<u32>) {
+    let size = vec2<u32>(aria.size);
+    if (id.x >= size.x || id.y >= size.y) {
+        return;
+    }
+    let c = textureLoad(input_tex, vec2<i32>(id.xy) * 2, 0);
+    textureStore(output_tex, vec2<i32>(id.xy), c);
+}
+```
+
+Transition bindings, group 0:
+
+| Binding | Name | WGSL type | Content |
+| --- | --- | --- | --- |
+| 0 | `outgoing_tex` | `texture_2d<f32>` | Outgoing clip frame (premultiplied RGBA) |
+| 1 | `incoming_tex` | `texture_2d<f32>` | Incoming clip frame (premultiplied RGBA) |
+| 2 | `aria_sampler` | `sampler` | Linear sampler, clamped to edge |
+| 3 | `aria` | `var<storage, read> aria: AriaTransition` | Transition uniform header and parameters |
+
+`AriaTransition` fields:
+
+| Field | WGSL type | Description |
+| --- | --- | --- |
+| `size` | `vec2<f32>` | Output frame dimensions `[width, height]` in pixels. |
+| `texel` | `vec2<f32>` | Reciprocal pixel dimensions `[1.0 / width, 1.0 / height]`. |
+| `progress` | `f32` | Normalized transition progress in `0.0..=1.0`. |
+| `pad0`, `pad1`, `pad2` | `f32` | Alignment padding words. |
+| `params` | `array<f32>` | Flattened transition parameter storage. |
+
+Each parameter declared in `TransitionSpec::params` gets a `param_<name>()`
+accessor with the same return type as an effect parameter.
+
+Transition shader example (`shaders/flash-cut.wgsl`, with scalar parameter
+`softness`):
+
+```wgsl
+@fragment
+fn fs(in: VsOut) -> @location(0) vec4<f32> {
+    let a = textureSample(outgoing_tex, aria_sampler, in.uv);
+    let b = textureSample(incoming_tex, aria_sampler, in.uv);
+    let edge = clamp(param_softness(), 0.01, 1.0);
+    let t = smoothstep(0.5 - edge * 0.5, 0.5 + edge * 0.5, aria.progress);
+    return mix(a, b, t);
+}
+```
 
 ## Limits and refusals
 
