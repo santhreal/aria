@@ -17,9 +17,10 @@
 //! Not caught: prose descriptions of shader or DSP math outside the tables.
 
 use crate::{
-    ColorAdjustments, EASING_PRESETS, EffectParamKind, EffectParamSpec, MaskMode, MaskParam,
-    ParamKind, ParamRange, animation_catalog, filter_catalog, generator_specs, mask_catalog,
-    piecewise_presets, shipped_audio_effect_catalog, shipped_effect_catalog,
+    BlendMode, ColorAdjustments, EASING_PRESETS, EffectParamKind, EffectParamSpec,
+    MASK_PATH_VERSION, MAX_CLIP_MASKS, MAX_MASK_EXPANSION, MAX_MASK_PATH_POINTS, MaskKind,
+    MaskMode, MaskParam, ParamKind, ParamRange, animation_catalog, filter_catalog, generator_specs,
+    mask_catalog, piecewise_presets, shipped_audio_effect_catalog, shipped_effect_catalog,
     shipped_transition_catalog, speed_preset_catalog, sticker_catalog, text_effect_catalog,
 };
 
@@ -30,6 +31,8 @@ const AUDIO_EFFECTS_DOC: &str = include_str!("../../../docs/reference/audio-effe
 const FILTERS_DOC: &str = include_str!("../../../docs/reference/filters.md");
 const ANIMATIONS_DOC: &str = include_str!("../../../docs/reference/animations.md");
 const STICKERS_MASKS_DOC: &str = include_str!("../../../docs/reference/stickers-and-masks.md");
+const BLEND_COMPOSITE_WGSL: &str =
+    include_str!("../../aria-compositor/shaders/blend_composite.wgsl");
 
 /// Extracts the slice of `doc` under `heading` up to the next heading of the
 /// same or outer level.
@@ -706,4 +709,186 @@ fn stickers_and_masks_reference_matches_catalogs() {
             other => panic!("{ctx}: unexpected mask param range {other:?}"),
         }
     }
+}
+
+/// **Every layer blend mode, mask combination mode, and mask shape matches `docs/reference/blend-modes.md`.**
+///
+/// Closes: undocumented or stale `BlendMode`, `MaskMode`, or `MaskKind` variant,
+/// drifted `masks.toml` label, or mismatched `blend_composite.wgsl` shader ID / formula.
+/// Not caught: prose descriptions in the Summary column.
+#[test]
+fn blend_modes_and_masks_reference_matches_catalog() {
+    let blend_modes_doc = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../docs/reference/blend-modes.md"
+    ))
+    .expect("read docs/reference/blend-modes.md");
+    let blend_sec = section(&blend_modes_doc, "## Layer blend modes (`BlendMode`)");
+    let blend_rows = table_rows(blend_sec);
+    let doc_blends: Vec<(&str, &str, &str, usize, bool, &str)> = blend_rows
+        .iter()
+        .map(|r| {
+            assert!(r.len() >= 7, "malformed BlendMode row: {r:?}");
+            let shader_id: usize = unquote(r[3])
+                .parse()
+                .unwrap_or_else(|e| panic!("invalid shader_id in {r:?}: {e}"));
+            (
+                unquote(r[0]),
+                r[1],
+                unquote(r[2]),
+                shader_id,
+                unquote(r[4]) == "yes",
+                unquote(r[5]),
+            )
+        })
+        .collect();
+    let expected_blends: Vec<(&str, &str, String, usize, bool)> = BlendMode::ALL
+        .iter()
+        .enumerate()
+        .map(|(idx, &m)| {
+            (
+                m.id(),
+                m.label(),
+                format!("{m:?}"),
+                idx,
+                m == BlendMode::default(),
+            )
+        })
+        .collect();
+    let doc_blend_meta: Vec<(&str, &str, String, usize, bool)> = doc_blends
+        .iter()
+        .map(|&(id, label, var, sid, is_def, _)| (id, label, var.to_string(), sid, is_def))
+        .collect();
+    assert_eq!(
+        doc_blend_meta, expected_blends,
+        "docs/reference/blend-modes.md BlendMode table does not match BlendMode::ALL"
+    );
+    for &(id, _, variant, shader_id, _, formula) in &doc_blends {
+        if shader_id == 0 {
+            assert_eq!(formula, "cs", "Normal blend mode formula must be `cs`");
+        } else {
+            let case_header = format!("case {shader_id}u:");
+            assert!(
+                BLEND_COMPOSITE_WGSL.contains(&case_header),
+                "blend_composite.wgsl missing `{case_header}` for `{id}` ({variant})"
+            );
+            assert!(
+                BLEND_COMPOSITE_WGSL.contains(formula),
+                "blend_composite.wgsl missing documented formula `{formula}` for `{id}`"
+            );
+        }
+    }
+
+    let mode_sec = section(
+        &blend_modes_doc,
+        "## Mask combination modes (`MaskMode` and `MaskOp`)",
+    );
+    let mode_rows = table_rows(mode_sec);
+    let doc_modes: Vec<(&str, &str, String, bool, &str, &str)> = mode_rows
+        .iter()
+        .map(|r| {
+            assert!(r.len() >= 7, "malformed MaskMode row: {r:?}");
+            (
+                unquote(r[0]),
+                r[1],
+                unquote(r[2]).to_string(),
+                unquote(r[3]) == "yes",
+                unquote(r[4]),
+                unquote(r[5]),
+            )
+        })
+        .collect();
+    let expected_modes: Vec<(&str, &str, String, bool, &str, &str)> = MaskMode::ALL
+        .iter()
+        .map(|&m| {
+            let (op_id, start) = match m {
+                MaskMode::None => ("none", "none"),
+                MaskMode::Add => ("0", "0.0"),
+                MaskMode::Subtract => ("1", "1.0"),
+                MaskMode::Intersect => ("2", "1.0"),
+                MaskMode::Lighten => ("3", "0.0"),
+                MaskMode::Darken => ("4", "1.0"),
+                MaskMode::Difference => ("5", "0.0"),
+            };
+            (
+                m.id(),
+                m.label(),
+                format!("{m:?}"),
+                m == MaskMode::default(),
+                op_id,
+                start,
+            )
+        })
+        .collect();
+    assert_eq!(
+        doc_modes, expected_modes,
+        "docs/reference/blend-modes.md MaskMode table does not match MaskMode::ALL"
+    );
+
+    let shape_sec = section(&blend_modes_doc, "## Mask shapes (`MaskKind` and `masks.toml`)");
+    let shape_rows = table_rows(shape_sec);
+    let doc_shapes: Vec<(&str, &str, String, &str, bool, bool)> = shape_rows
+        .iter()
+        .map(|r| {
+            assert!(r.len() >= 6, "malformed MaskKind row: {r:?}");
+            (
+                unquote(r[0]),
+                r[1],
+                unquote(r[2]).to_string(),
+                unquote(r[3]),
+                unquote(r[4]) == "yes",
+                unquote(r[5]) == "yes",
+            )
+        })
+        .collect();
+    assert_eq!(
+        mask_catalog()
+            .iter()
+            .map(|s| s.kind)
+            .collect::<Vec<MaskKind>>(),
+        MaskKind::ALL.to_vec(),
+        "mask_catalog() order must match MaskKind::ALL"
+    );
+    let expected_shapes: Vec<(&str, &str, String, &str, bool, bool)> = mask_catalog()
+        .iter()
+        .map(|spec| {
+            let shader_kind = match spec.kind {
+                MaskKind::Linear => "0",
+                MaskKind::Mirror => "1",
+                MaskKind::Circle => "2",
+                MaskKind::Rectangle => "3",
+                MaskKind::Heart => "4",
+                MaskKind::Star => "5",
+                MaskKind::Path => "cpu",
+            };
+            (
+                spec.kind.id(),
+                spec.label.as_str(),
+                format!("{:?}", spec.kind),
+                shader_kind,
+                MaskParam::Size.applies_to(spec.kind),
+                MaskParam::Roundness.applies_to(spec.kind),
+            )
+        })
+        .collect();
+    assert_eq!(
+        doc_shapes, expected_shapes,
+        "docs/reference/blend-modes.md MaskKind table does not match mask_catalog()"
+    );
+    assert!(
+        blend_modes_doc.contains(&format!("MAX_CLIP_MASKS = {MAX_CLIP_MASKS}")),
+        "blend-modes.md must document MAX_CLIP_MASKS = {MAX_CLIP_MASKS}"
+    );
+    assert!(
+        blend_modes_doc.contains(&format!("MAX_MASK_EXPANSION = {MAX_MASK_EXPANSION:.1}")),
+        "blend-modes.md must document MAX_MASK_EXPANSION = {MAX_MASK_EXPANSION:.1}"
+    );
+    assert!(
+        blend_modes_doc.contains(&format!("MASK_PATH_VERSION = {MASK_PATH_VERSION}")),
+        "blend-modes.md must document MASK_PATH_VERSION = {MASK_PATH_VERSION}"
+    );
+    assert!(
+        blend_modes_doc.contains(&format!("MAX_MASK_PATH_POINTS = {MAX_MASK_PATH_POINTS}")),
+        "blend-modes.md must document MAX_MASK_PATH_POINTS = {MAX_MASK_PATH_POINTS}"
+    );
 }

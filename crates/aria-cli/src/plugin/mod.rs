@@ -45,6 +45,16 @@ impl Subcommand {
         }
     }
 
+    /// Flags accepted by this sub-command.
+    pub(crate) fn flags(self) -> &'static [&'static str] {
+        match self {
+            Subcommand::New => new::FLAGS,
+            Subcommand::Dev => dev::FLAGS,
+            Subcommand::Check => check::FLAGS,
+            Subcommand::Pack => pack::FLAGS,
+        }
+    }
+
     /// Parse a sub-command word, or return `None`.
     pub(crate) fn parse(word: &str) -> Option<Subcommand> {
         Subcommand::ALL

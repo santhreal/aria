@@ -31,13 +31,27 @@ mod overrides;
 mod plugin_keys;
 
 #[cfg(test)]
+mod clip_properties_doc_tests;
+#[cfg(test)]
+mod color_doc_tests;
+#[cfg(test)]
 mod controls_doc_tests;
 #[cfg(test)]
 mod doc_tests;
 #[cfg(test)]
+mod docs_claims_tests;
+#[cfg(test)]
+mod export_doc_tests;
+#[cfg(test)]
+mod project_settings_doc_tests;
+#[cfg(test)]
+mod keyframes_graph_doc_tests;
+#[cfg(test)]
 mod guide_doc_tests;
 #[cfg(test)]
 mod reference_doc_tests;
+#[cfg(test)]
+mod scopes_doc_tests;
 
 /// What the shell does after the action ran.
 ///
@@ -49,6 +63,11 @@ pub enum After {
     Nothing,
     Play,
     Preview,
+}
+
+impl After {
+    /// Every post-action window side effect.
+    pub const ALL: [Self; 3] = [Self::Nothing, Self::Play, Self::Preview];
 }
 
 /// What a binding does when its chord fires.

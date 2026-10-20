@@ -17,8 +17,8 @@ use crate::fail::Failure;
 
 pub(crate) const FLAGS: &[&str] = &["editor", "data-dir"];
 
-const POLL_INTERVAL: Duration = Duration::from_millis(500);
-const WATCHED_ROOTS: &[&str] = &["Cargo.toml", "src", "wit"];
+pub(crate) const POLL_INTERVAL: Duration = Duration::from_millis(500);
+pub(crate) const WATCHED_ROOTS: &[&str] = &["Cargo.toml", "src", "wit"];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct FileStamp {

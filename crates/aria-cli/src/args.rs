@@ -58,6 +58,20 @@ impl Verb {
         }
     }
 
+    /// Flags accepted by this verb on the top-level command line (`Plugin`
+    /// dispatches to [` crate::plugin::Subcommand::flags`]).
+    pub fn flags(self) -> &'static [&'static str] {
+        match self {
+            Verb::Demo => crate::demo::FLAGS,
+            Verb::New => crate::new::FLAGS,
+            Verb::Frame => crate::frame::FLAGS,
+            Verb::Export => crate::export::FLAGS,
+            Verb::Inspect => crate::inspect::FLAGS,
+            Verb::Analyze => crate::analyze::FLAGS,
+            Verb::Plugin => &[],
+        }
+    }
+
     fn parse(word: &str) -> Option<Verb> {
         Verb::ALL.iter().copied().find(|verb| verb.key() == word)
     }
@@ -232,7 +246,7 @@ COMMANDS
 
     export <project.aria> <out.mp4> [--at SECONDS] [--to SECONDS]
                                    [--size WxH] [--fps N] [--codec h264|h265]
-                                   [--bitrate KBPS] [--no-audio]
+                                   [--bitrate KBPS] [--no-audio] [--quiet]
         Encode a span of the timeline. Defaults to the whole timeline at the
         project's canvas size, rate, and audio.
 
@@ -240,10 +254,9 @@ COMMANDS
         Print the project's canvas, rate, duration, media, and lanes.
         --clips lists every clip on every lane.
 
-    analyze <media> [--beats] [--silence] [--loudness] [--shots]
+    analyze <media> [--beats] [--silence] [--loudness] [--shots] [--limit N]
         Run detectors over a media file and print what they found. With no
         detector flag, every audio detector runs.
-
     plugin new <id> [--tier wasm|native] [--dir PARENT] [--sdk PATH]
         Create a plugin package with a manifest, a sample effect, and a
         sample command.
@@ -344,8 +357,9 @@ mod tests {
         );
     }
 
-    /// Every verb the usage block documents parses, and every parsed verb is
-    /// documented — a new verb that nobody can discover is the same as no verb.
+    /// Every verb and flag the usage block documents parses, and every parsed
+    /// verb, sub-command, and flag is documented in both `USAGE` and
+    /// `docs/command-line.md`.
     #[test]
     fn every_verb_is_documented() {
         for verb in Verb::ALL {
@@ -360,5 +374,401 @@ mod tests {
                 "{key} is undocumented"
             );
         }
+    }
+
+    fn extract_flag_tokens(text: &str) -> Vec<String> {
+        let mut out = Vec::new();
+        for token in text.split(|c: char| {
+            c.is_whitespace() || matches!(c, '[' | ']' | '|' | '`' | ',' | '(' | ')' | ':' | ';')
+        }) {
+            if let Some(name) = token.strip_prefix("--")
+                && !name.is_empty()
+                && name.chars().all(|c| c.is_ascii_lowercase() || c == '-')
+                && !out.iter().any(|existing| existing == name)
+            {
+                out.push(name.to_owned());
+            }
+        }
+        out
+    }
+
+    fn doc_section<'a>(doc: &'a str, heading: &str) -> &'a str {
+        let marker = format!("## {heading}\n");
+        let start = doc
+            .find(&marker)
+            .unwrap_or_else(|| panic!("missing section `## {heading}` in docs/command-line.md"));
+        let rest = &doc[start + marker.len()..];
+        match rest.find("\n## ") {
+            Some(end) => &rest[..end],
+            None => rest,
+        }
+    }
+
+    fn doc_subsection<'a>(section: &'a str, heading: &str) -> &'a str {
+        let marker = format!("### {heading}\n");
+        let start = section.find(&marker).unwrap_or_else(|| {
+            panic!("missing subsection `### {heading}` in docs/command-line.md")
+        });
+        let rest = &section[start + marker.len()..];
+        match rest.find("\n### ") {
+            Some(end) => &rest[..end],
+            None => rest,
+        }
+    }
+
+    fn first_column_cells(section: &str) -> Vec<String> {
+        let mut cells = Vec::new();
+        let mut in_fence = false;
+        for line in section.lines() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("```") {
+                in_fence = !in_fence;
+                continue;
+            }
+            if in_fence || !trimmed.starts_with('|') {
+                continue;
+            }
+            let row: Vec<&str> = trimmed
+                .trim_start_matches('|')
+                .trim_end_matches('|')
+                .split('|')
+                .map(str::trim)
+                .collect();
+            if row.is_empty()
+                || row
+                    .iter()
+                    .all(|c| !c.is_empty() && c.chars().all(|ch| matches!(ch, '-' | ':' | ' ')))
+                || matches!(row[0], "Code" | "Flag" | "Variable")
+            {
+                continue;
+            }
+            cells.push(row[0].trim_matches('`').to_owned());
+        }
+        cells
+    }
+
+    fn first_fence(section: &str) -> &str {
+        let (_, after_open) = section
+            .split_once("```\n")
+            .expect("section must start with a synopsis code fence");
+        let (fence, _) = after_open
+            .split_once("\n```")
+            .expect("synopsis code fence must close");
+        fence
+    }
+
+    /// Closes the defect class where a CLI verb, `aria plugin` sub-command,
+    /// flag, rate, codec, lane flag, detector limit, check step, archive source
+    /// exclusion, exit code, or `aria-desktop` environment variable is added,
+    /// renamed, or removed in code while `USAGE` or `docs/command-line.md`
+    /// retains the old surface or omits the new one.
+    #[test]
+    fn command_line_doc_and_usage_match_cli_registries_bidirectionally() {
+        let command_line_doc_owned = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/command-line.md"),
+        )
+        .expect("read docs/command-line.md");
+        #[allow(non_snake_case)]
+        let COMMAND_LINE_DOC: &str = &command_line_doc_owned;
+        // 1. Top-level H2 sections in `docs/command-line.md` must be Exit codes,
+        // every verb in `Verb::ALL`, and the `aria-desktop` section.
+        let mut h2_sections = Vec::new();
+        let mut in_fence = false;
+        for line in COMMAND_LINE_DOC.lines() {
+            if line.trim_start().starts_with("```") {
+                in_fence = !in_fence;
+                continue;
+            }
+            if !in_fence && let Some(title) = line.strip_prefix("## ") {
+                h2_sections.push(title.trim().to_owned());
+            }
+        }
+        let mut expected_h2 = vec!["Exit codes".to_owned()];
+        for verb in [
+            Verb::New,
+            Verb::Frame,
+            Verb::Export,
+            Verb::Inspect,
+            Verb::Analyze,
+            Verb::Demo,
+            Verb::Plugin,
+        ] {
+            expected_h2.push(verb.key().to_owned());
+        }
+        expected_h2.push("Desktop binary (`aria-desktop`)".to_owned());
+        assert_eq!(
+            h2_sections, expected_h2,
+            "H2 sections in docs/command-line.md drifted from Verb::ALL"
+        );
+        assert_eq!(
+            Verb::ALL.len(),
+            7,
+            "update expected_h2 if Verb::ALL changes"
+        );
+
+        // 2. Exit codes table in `docs/command-line.md`.
+        let exit_sec = doc_section(COMMAND_LINE_DOC, "Exit codes");
+        assert_eq!(
+            first_column_cells(exit_sec),
+            vec!["0".to_owned(), "1".to_owned(), "2".to_owned()]
+        );
+        assert!(exit_sec.contains("`--help`") && exit_sec.contains("`-h`"));
+
+        // 3. Every non-plugin verb's flags in `USAGE` and `docs/command-line.md`
+        // must match `verb.flags()` in both directions.
+        for verb in Verb::ALL {
+            if verb == Verb::Plugin {
+                continue;
+            }
+            let key = verb.key();
+            let sec = doc_section(COMMAND_LINE_DOC, key);
+            let fence = first_fence(sec);
+            let fence_flags = extract_flag_tokens(fence);
+            let table_flags: Vec<String> = first_column_cells(sec)
+                .into_iter()
+                .map(|cell| {
+                    cell.split_whitespace()
+                        .next()
+                        .unwrap_or("")
+                        .strip_prefix("--")
+                        .unwrap_or("")
+                        .to_owned()
+                })
+                .collect();
+            let expected_flags: Vec<String> =
+                verb.flags().iter().map(|flag| (*flag).to_owned()).collect();
+            assert_eq!(
+                fence_flags, expected_flags,
+                "synopsis flags for `{key}` in docs/command-line.md drifted from {key}::FLAGS"
+            );
+            assert_eq!(
+                table_flags, expected_flags,
+                "flag table for `{key}` in docs/command-line.md drifted from {key}::FLAGS"
+            );
+
+            // Verify `USAGE` block entry for this verb.
+            let usage_marker = format!("    {key}");
+            let usage_start = USAGE.find(&usage_marker).expect("verb in USAGE");
+            let usage_rest = &USAGE[usage_start..];
+            let usage_block = usage_rest.split("\n\n").next().unwrap_or(usage_rest);
+            // Only extract flags from the synopsis lines (before the 8-space indented description).
+            let usage_synopsis: String = usage_block
+                .lines()
+                .take_while(|line| {
+                    line.starts_with(&usage_marker) || line.starts_with("          ")
+                })
+                .collect::<Vec<_>>()
+                .join(" ");
+            assert_eq!(
+                extract_flag_tokens(&usage_synopsis),
+                expected_flags,
+                "USAGE synopsis flags for `{key}` drifted from {key}::FLAGS"
+            );
+        }
+
+        // 4. Verb-specific registries and constants in `docs/command-line.md`.
+        let new_sec = doc_section(COMMAND_LINE_DOC, "new");
+        let new_fence = first_fence(new_sec);
+        let rate_list = new_fence
+            .split_once("--fps ")
+            .and_then(|(_, rest)| rest.strip_suffix(']'))
+            .expect("--fps rate list in `new` synopsis");
+        let doc_rates: Vec<&str> = rate_list.split('|').collect();
+        let code_rates: Vec<&str> = crate::new::RATES.iter().map(|(k, _)| *k).collect();
+        assert_eq!(doc_rates, code_rates, "`aria new --fps` rates drifted");
+
+        let frame_sec = doc_section(COMMAND_LINE_DOC, "frame");
+        assert!(
+            frame_sec.contains(&format!("`{}`", crate::frame::DEFAULT_OUT)),
+            "`frame` section must document default output {}",
+            crate::frame::DEFAULT_OUT
+        );
+
+        let export_sec = doc_section(COMMAND_LINE_DOC, "export");
+        let export_fence = first_fence(export_sec);
+        let codec_list = export_fence
+            .split_once("--codec ")
+            .and_then(|(_, rest)| rest.split_once(']'))
+            .map(|(codecs, _)| codecs)
+            .expect("--codec list in `export` synopsis");
+        let doc_codecs: Vec<&str> = codec_list.split('|').collect();
+        let code_codecs: Vec<&str> = aria_core::VideoCodec::ALL.iter().map(|c| c.key()).collect();
+        assert_eq!(
+            doc_codecs, code_codecs,
+            "`aria export --codec` keys drifted"
+        );
+
+        let inspect_sec = doc_section(COMMAND_LINE_DOC, "inspect");
+        let (_, lane_line) = inspect_sec
+            .split_once("Lane state flags appear in brackets:")
+            .expect("lane state flags sentence in `inspect` section");
+        let mut doc_lane_flags = Vec::new();
+        let mut rem = lane_line;
+        while let Some((_, after_open)) = rem.split_once('`') {
+            let Some((flag, tail)) = after_open.split_once('`') else {
+                break;
+            };
+            doc_lane_flags.push(flag);
+            rem = tail;
+        }
+        assert_eq!(
+            doc_lane_flags,
+            crate::inspect::LANE_FLAGS.as_slice(),
+            "`aria inspect` lane flags drifted"
+        );
+
+        let analyze_sec = doc_section(COMMAND_LINE_DOC, "analyze");
+        assert!(
+            analyze_sec.contains(&format!("`{}`", crate::analyze::DEFAULT_LIMIT)),
+            "`analyze` section must document DEFAULT_LIMIT"
+        );
+        assert!(
+            analyze_sec.contains(&format!("`{}` fps", aria_detect::SHOT_SAMPLE_FPS))
+                && analyze_sec.contains(&format!(
+                    "`{}` minutes (`{}`\nseconds)",
+                    (aria_detect::MAX_SHOT_SECONDS as u64) / 60,
+                    aria_detect::MAX_SHOT_SECONDS as u64
+                ))
+                && analyze_sec.contains(&format!("`{}` Hz", aria_detect::ANALYSIS_SAMPLE_RATE)),
+            "`analyze` section constants drifted from aria_detect"
+        );
+
+        let demo_sec = doc_section(COMMAND_LINE_DOC, "demo");
+        assert!(
+            demo_sec.contains(&format!("`{}`", crate::demo::DEFAULT_OUT))
+                && demo_sec.contains(&format!("`{}x{}`", crate::demo::WIDTH, crate::demo::HEIGHT)),
+            "`demo` section constants drifted from demo.rs"
+        );
+
+        // 5. `aria plugin` sub-commands and flags in `USAGE` and `docs/command-line.md`.
+        let plugin_sec = doc_section(COMMAND_LINE_DOC, "plugin");
+        let plugin_fence = first_fence(plugin_sec);
+        let mut h3_subs = Vec::new();
+        for line in plugin_sec.lines() {
+            if let Some(title) = line.strip_prefix("### ") {
+                h3_subs.push(title.trim().to_owned());
+            }
+        }
+        let expected_h3: Vec<String> = crate::plugin::Subcommand::ALL
+            .iter()
+            .map(|sub| format!("plugin {}", sub.key()))
+            .collect();
+        assert_eq!(
+            h3_subs, expected_h3,
+            "`### plugin <sub>` subsections drifted from Subcommand::ALL"
+        );
+
+        for sub in crate::plugin::Subcommand::ALL {
+            let key = sub.key();
+            let sub_sec = doc_subsection(plugin_sec, &format!("plugin {key}"));
+            let table_flags: Vec<String> = first_column_cells(sub_sec)
+                .into_iter()
+                .map(|cell| {
+                    cell.split_whitespace()
+                        .next()
+                        .unwrap_or("")
+                        .strip_prefix("--")
+                        .unwrap_or("")
+                        .to_owned()
+                })
+                .collect();
+            let expected_flags: Vec<String> =
+                sub.flags().iter().map(|flag| (*flag).to_owned()).collect();
+            assert_eq!(
+                table_flags, expected_flags,
+                "flag table for `plugin {key}` drifted from plugin::{key}::FLAGS"
+            );
+
+            let fence_line = plugin_fence
+                .lines()
+                .find(|line| line.starts_with(&format!("aria plugin {key} ")))
+                .unwrap_or_else(|| panic!("missing `aria plugin {key}` line in plugin synopsis"));
+            assert_eq!(
+                extract_flag_tokens(fence_line),
+                expected_flags,
+                "synopsis flags for `aria plugin {key}` drifted"
+            );
+
+            let usage_line = USAGE
+                .lines()
+                .find(|line| line.starts_with(&format!("    plugin {key} ")))
+                .unwrap_or_else(|| panic!("missing `plugin {key}` in USAGE"));
+            assert_eq!(
+                extract_flag_tokens(usage_line),
+                expected_flags,
+                "USAGE flags for `plugin {key}` drifted"
+            );
+        }
+
+        // 6. `plugin new`, `plugin dev`, `plugin check`, and `plugin pack` specifics.
+        let p_new_sec = doc_subsection(plugin_sec, "plugin new");
+        for tier in crate::plugin::new::NewTier::ALL {
+            assert!(
+                p_new_sec.contains(&format!("`{}`", tier.key())),
+                "`plugin new` must document tier `{}`",
+                tier.key()
+            );
+        }
+
+        let p_dev_sec = doc_subsection(plugin_sec, "plugin dev");
+        assert!(
+            p_dev_sec.contains(&format!(
+                "`{}` ms",
+                crate::plugin::dev::POLL_INTERVAL.as_millis()
+            )),
+            "`plugin dev` poll interval drifted"
+        );
+        for watched in crate::plugin::dev::WATCHED_ROOTS {
+            assert!(
+                p_dev_sec.contains(&format!("`{watched}`"))
+                    || p_dev_sec.contains(&format!("`{watched}/`")),
+                "`plugin dev` must document watched root `{watched}`"
+            );
+        }
+
+        let p_check_sec = doc_subsection(plugin_sec, "plugin check");
+        let mut doc_check_steps = Vec::new();
+        for line in p_check_sec.lines() {
+            let trimmed = line.trim_start();
+            if let Some((_, rest)) = trimmed.split_once(". `")
+                && let Some((step, _)) = rest.split_once("`:")
+            {
+                doc_check_steps.push(step);
+            }
+        }
+        assert_eq!(
+            doc_check_steps,
+            crate::plugin::check::CHECK_SECTIONS.as_slice(),
+            "`plugin check` ordered output sections drifted"
+        );
+
+        let p_pack_sec = doc_subsection(plugin_sec, "plugin pack");
+        let (_, after_excluding) = p_pack_sec
+            .split_once("excluding crate build entries\n(")
+            .expect("excluding crate build entries list in `plugin pack`");
+        let (excl_line, _) = after_excluding
+            .split_once(')')
+            .expect("closing paren for excluded entries");
+        let doc_excluded: Vec<&str> = excl_line
+            .split(',')
+            .map(|s| s.trim().trim_matches('`'))
+            .collect();
+        assert_eq!(
+            doc_excluded,
+            aria_plugin::package::SOURCE_ENTRIES.as_slice(),
+            "`plugin pack` excluded entries drifted from SOURCE_ENTRIES"
+        );
+
+        // 7. `aria-desktop` environment variables table.
+        let desktop_sec = doc_section(COMMAND_LINE_DOC, "Desktop binary (`aria-desktop`)");
+        assert_eq!(
+            first_column_cells(desktop_sec),
+            vec![
+                "ARIA_DATA_DIR".to_owned(),
+                "ARIA_PLUGIN_DEV".to_owned(),
+                "ARIA_MOTION_SCALE".to_owned(),
+                "RUST_LOG".to_owned(),
+            ]
+        );
     }
 }

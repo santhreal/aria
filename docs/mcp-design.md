@@ -38,7 +38,7 @@ problems and share no mechanism.
   MCP result to the engine except the model reading the result and then
   calling validated edit commands, which flow through the existing
   sandbox/validate/replay pipeline unchanged. No MCP call ever enters an
-  `AgentPlanStep`.
+  `ActionLogEntry`.
 - The tool-schema snapshot and `TOOL_SCHEMA_VERSION` continue to cover
   **only** the closed vocabulary. MCP schemas are pass-through
   (translated JSON Schema handed to the provider verbatim) and
@@ -108,7 +108,7 @@ project file must never be able to name an executable to run
 - **Prompt-injection posture.** MCP results are untrusted content. The
   fence marks them as data; the system prompt instructs the model that
   external tool results never override rules or the prompt. The real
-  containment is structural, not textual: whatever an MCP result says,
+  containment is structural, not textual: whatever an MCP result contains,
   the only path to the timeline is validated commands, capped and
   rehearsed as today, and the only path to another side effect is
   another consented MCP call.
@@ -123,7 +123,7 @@ side effects cannot be rehearsed, and pretending otherwise (queueing MCP
 calls for Apply time) would hand the model stale results and break the
 conversation's causality. So:
 
-- MCP calls execute **at prompt time**, dry-run or not, gated by the
+- MCP calls execute **at prompt time**, dry-run or not, subject to the
   consent policy above. They are never part of the parked plan.
 - Apply/Discard and Cmd+Z cover timeline edits only. The approve/deny
   card for a side-effectful call states it: *"Runs now; not

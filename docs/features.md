@@ -89,7 +89,7 @@ Anything not listed here is not in the build.
 
 ## Effects, transitions, and generators
 
-- Twelve effects and eight transitions, resolved from data files rather than
+- Nineteen effects and eight transitions, resolved from data files rather than
   code. Every catalog id has a GPU pass; an unknown effect is skipped and an
   unknown transition cross-dissolves.
 - Effect parameters per clip, including colour and vector slots, with
@@ -110,9 +110,9 @@ Anything not listed here is not in the build.
   shadow and card, and shape fill, stroke and geometry. A property whose block
   is absent is not offered.
 - Effect Controls numeric rows come from the same catalog as the keyframe strip.
-  A block names its property group; the rows are whatever the selected clip owns
-  in it, so the transform block carries the anchor point, the text block carries the
-  twelve text properties, and a shape clip gets a Shape tab with its geometry and
+  A block specifies its property group; the rows are the properties defined for the
+  selected clip in that group, so the transform block includes the anchor point, the
+  text block includes the eleven text properties, and a shape clip gets a Shape tab with its geometry and
   stroke. Each row takes a keyframe under the playhead when the property is
   animated and a constant when it is not, so a nudge moves a curve instead of
   replacing it.
@@ -160,7 +160,7 @@ Anything not listed here is not in the build.
 - Track mattes: a clip is cut by the layer directly above it, reading either that
   layer's alpha or its luma, with an invert toggle and a softness that blurs the
   matte edge. Set one from the inspector, the Sequence menu, or the palette. A
-  clip with nothing above it draws unmatted, and the inspector says so. The
+  clip with nothing above it draws unmatted, and the inspector displays a notice. The
   clips in a matte, and each side of a transition, draw their masks, effects,
   LUTs, motion blur, and blend modes as they do alone.
 
@@ -195,7 +195,7 @@ Anything not listed here is not in the build.
   turns red.
 - Submix buses: add one from the mixer or the palette, route lanes and other
   buses into it, and mix it with one fader. A level outside 0 to +12 dB, a route
-  that would loop, and a second send to the same bus are refused by name rather
+  that would loop, and a second send to the same bus are rejected by name rather
   than clamped or silently merged. Deleting a bus returns its feeders to the
   master, and one undo restores both the lane and the routing that pointed at it.
 
@@ -207,7 +207,7 @@ Anything not listed here is not in the build.
   that plan, unchanged, as one undo entry.
 - Per-project conversation history, kept beside the app's session data rather
   than in the project file.
-- Skills can be switched off for one conversation. Host tools are gated by an
+- Skills can be switched off for one conversation. Host tools are controlled by an
   autonomy setting, and a confirmation is a card in the transcript.
 
 ## Jobs, analysis, and cloud

@@ -18,7 +18,7 @@ use std::path::{Path, PathBuf};
 use aria_models::{AudioLayout, CanvasAspect, CanvasSettings, TimeDisplay};
 use aria_plugin::PluginContext;
 
-use crate::app::AppState;
+use crate::app::{AppState, DialogKind};
 use crate::app::project_settings::CANVAS_BASELINES;
 use crate::appearance::AppearanceMode;
 use crate::chrome::menu_items::items_for;
@@ -38,11 +38,13 @@ use crate::settings::{
 use crate::surfaces::settings_pick::RATES;
 use crate::timeline_display::{Follow, Thumbnails, TimelineDisplay, WaveformScale};
 use crate::tool_catalog::{ToolGroup, tool_specs};
-use crate::types::{AppMenu, HomeRail, PenVariant, PoolView, SidebarTab};
+use crate::types::{
+    ActivePanel, AgentEntryKind, AppMenu, HomeRail, MediaSort, OverlayMode, PenVariant, PoolView,
+    SidebarTab, UiClipKind,
+};
 
 const TOOLS_DOC: &str = include_str!("../../../../docs/reference/tools.md");
 const WORKSPACES_DOC: &str = include_str!("../../../../docs/reference/workspaces.md");
-const PANELS_DOC: &str = include_str!("../../../../docs/reference/panels.md");
 const COMMANDS_DOC: &str = include_str!("../../../../docs/reference/commands.md");
 const MENUS_DOC: &str = include_str!("../../../../docs/reference/menus.md");
 const SETTINGS_DOC: &str = include_str!("../../../../docs/reference/settings.md");
@@ -300,6 +302,12 @@ fn panels_doc_matches_registry() {
         })
         .collect();
 
+    let panels_doc_buf = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/reference/panels.md"),
+    )
+    .expect("read docs/reference/panels.md");
+    #[allow(non_snake_case)]
+    let PANELS_DOC = panels_doc_buf.as_str();
     let documented_panels: Vec<(String, String, String, String, String, String, String)> =
         parse_table_rows(section_slice(PANELS_DOC, "Built-in panels"))
             .iter()
@@ -321,11 +329,40 @@ fn panels_doc_matches_registry() {
         "docs/reference/panels.md Built-in panels table drifted from PanelHost"
     );
 
-    let expected_overlays: Vec<String> = overlays.ids().into_iter().map(str::to_string).collect();
-    let documented_overlays: Vec<String> =
+    for kind in overlays.dialog_kinds() {
+        match kind {
+            DialogKind::None
+            | DialogKind::Export
+            | DialogKind::Settings
+            | DialogKind::Palette
+            | DialogKind::Jobs
+            | DialogKind::ProjectReport
+            | DialogKind::UnsavedChanges
+            | DialogKind::InstallPlugin
+            | DialogKind::SpeedDuration
+            | DialogKind::AudioGain
+            | DialogKind::About
+            | DialogKind::RemoveAttributes
+            | DialogKind::KeyframeVelocity
+            | DialogKind::MarkerEdit
+            | DialogKind::Plugin(_) => {}
+        }
+    }
+    let expected_overlays: Vec<(String, String)> = overlays
+        .entries_meta()
+        .into_iter()
+        .map(|(id, when)| (id.to_string(), format!("{when:?}")))
+        .collect();
+    let documented_overlays: Vec<(String, String)> =
         parse_table_rows(section_slice(PANELS_DOC, "Built-in dialogs and overlays"))
             .iter()
-            .map(|cells| strip_ticks(cells[0]).to_string())
+            .map(|cells| {
+                assert!(cells.len() >= 2, "malformed overlay row: {cells:?}");
+                (
+                    strip_ticks(cells[0]).to_string(),
+                    strip_ticks(cells[1]).to_string(),
+                )
+            })
             .collect();
     assert_eq!(
         documented_overlays, expected_overlays,
@@ -390,6 +427,261 @@ fn panels_doc_matches_registry() {
     assert_eq!(
         documented_rails, expected_rails,
         "docs/reference/panels.md Home rail items drifted from HomeRail"
+    );
+
+    let inspector_host = crate::panels::inspector::host_of();
+    let expected_insp_tabs: Vec<(String, String, String)> = inspector_host
+        .tabs()
+        .iter()
+        .map(|tab| {
+            let kinds: Vec<String> = UiClipKind::ALL
+                .iter()
+                .copied()
+                .filter(|&k| (tab.applies)(k))
+                .map(|k| format!("{k:?}"))
+                .collect();
+            (
+                tab.id.to_string(),
+                tab.label.to_string(),
+                kinds.join(", "),
+            )
+        })
+        .collect();
+    let documented_insp_tabs: Vec<(String, String, String)> = parse_table_rows(section_slice(
+        PANELS_DOC,
+        "Effect Controls inspector tabs",
+    ))
+    .iter()
+    .map(|cells| {
+        assert!(cells.len() >= 3, "malformed inspector tab row: {cells:?}");
+        (
+            strip_ticks(cells[0]).to_string(),
+            cells[1].to_string(),
+            strip_ticks(cells[2]).to_string(),
+        )
+    })
+    .collect();
+    assert_eq!(
+        documented_insp_tabs, expected_insp_tabs,
+        "docs/reference/panels.md Effect Controls inspector tabs drifted from TabHost"
+    );
+
+    let expected_pool_views: Vec<(
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+        bool,
+    )> = PoolView::ALL
+        .iter()
+        .map(|&v| {
+            match v {
+                PoolView::Tiles | PoolView::List | PoolView::Icons | PoolView::Freeform => {}
+            }
+            let serde_s = serde_json::to_value(v)
+                .expect("serialize PoolView")
+                .as_str()
+                .expect("string")
+                .to_string();
+            let width_s = v
+                .width()
+                .map_or_else(|| "none".to_string(), |w| format!("{w:.1}"));
+            (
+                format!("{v:?}"),
+                serde_s,
+                v.label().to_string(),
+                v.picture().to_string(),
+                v.facts().to_string(),
+                v.inline().to_string(),
+                v.wraps().to_string(),
+                v.freeform().to_string(),
+                width_s,
+                format!("{:?}", v.layout()),
+                v == PoolView::default(),
+            )
+        })
+        .collect();
+    let documented_pool_views: Vec<(
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+        bool,
+    )> = parse_table_rows(section_slice(
+        PANELS_DOC,
+        "Media pool views and sort orders",
+    ))
+    .iter()
+    .map(|cells| {
+        assert!(cells.len() >= 11, "malformed PoolView row: {cells:?}");
+        (
+            strip_ticks(cells[0]).to_string(),
+            strip_ticks(cells[1]).to_string(),
+            cells[2].to_string(),
+            strip_ticks(cells[3]).to_string(),
+            strip_ticks(cells[4]).to_string(),
+            strip_ticks(cells[5]).to_string(),
+            strip_ticks(cells[6]).to_string(),
+            strip_ticks(cells[7]).to_string(),
+            strip_ticks(cells[8]).to_string(),
+            strip_ticks(cells[9]).to_string(),
+            strip_ticks(cells[10]) == "yes",
+        )
+    })
+    .collect();
+    assert_eq!(
+        documented_pool_views, expected_pool_views,
+        "docs/reference/panels.md Media pool views drifted from PoolView::ALL"
+    );
+
+    let expected_sorts: Vec<(String, String, bool)> = MediaSort::ALL
+        .iter()
+        .map(|&s| {
+            match s {
+                MediaSort::Name
+                | MediaSort::Duration
+                | MediaSort::Resolution
+                | MediaSort::DateAdded => {}
+            }
+            (
+                format!("{s:?}"),
+                s.label().to_string(),
+                s == MediaSort::default(),
+            )
+        })
+        .collect();
+    let documented_sorts: Vec<(String, String, bool)> =
+        parse_table_rows(section_slice(PANELS_DOC, "Media pool sort orders"))
+            .iter()
+            .map(|cells| {
+                assert!(cells.len() >= 3, "malformed MediaSort row: {cells:?}");
+                (
+                    strip_ticks(cells[0]).to_string(),
+                    cells[1].to_string(),
+                    strip_ticks(cells[2]) == "yes",
+                )
+            })
+            .collect();
+    assert_eq!(
+        documented_sorts, expected_sorts,
+        "docs/reference/panels.md Media pool sort orders drifted from MediaSort::ALL"
+    );
+
+    let expected_overlay_modes: Vec<(String, String, String, bool)> = OverlayMode::ALL
+        .iter()
+        .map(|&m| {
+            match m {
+                OverlayMode::Transform | OverlayMode::Crop | OverlayMode::Mask => {}
+            }
+            (
+                format!("{m:?}"),
+                m.label().to_string(),
+                format!("{:?}", m.next()),
+                m == OverlayMode::default(),
+            )
+        })
+        .collect();
+    let documented_overlay_modes: Vec<(String, String, String, bool)> =
+        parse_table_rows(section_slice(PANELS_DOC, "Viewer overlay modes"))
+            .iter()
+            .map(|cells| {
+                assert!(cells.len() >= 4, "malformed OverlayMode row: {cells:?}");
+                (
+                    strip_ticks(cells[0]).to_string(),
+                    cells[1].to_string(),
+                    strip_ticks(cells[2]).to_string(),
+                    strip_ticks(cells[3]) == "yes",
+                )
+            })
+            .collect();
+    assert_eq!(
+        documented_overlay_modes, expected_overlay_modes,
+        "docs/reference/panels.md Viewer overlay modes drifted from OverlayMode::ALL"
+    );
+
+    let expected_focus: Vec<(String, String, String)> = ActivePanel::ALL
+        .iter()
+        .map(|&p| {
+            match p {
+                ActivePanel::Media
+                | ActivePanel::Preview
+                | ActivePanel::Timeline
+                | ActivePanel::Inspector
+                | ActivePanel::Ai
+                | ActivePanel::Mixer => {}
+            }
+            let serde_s = serde_json::to_value(p)
+                .expect("serialize ActivePanel")
+                .as_str()
+                .expect("string")
+                .to_string();
+            (format!("{p:?}"), serde_s, p.panel_id().to_string())
+        })
+        .collect();
+    let documented_focus: Vec<(String, String, String)> =
+        parse_table_rows(section_slice(PANELS_DOC, "Keyboard focus targets"))
+            .iter()
+            .map(|cells| {
+                assert!(cells.len() >= 3, "malformed ActivePanel row: {cells:?}");
+                (
+                    strip_ticks(cells[0]).to_string(),
+                    strip_ticks(cells[1]).to_string(),
+                    strip_ticks(cells[2]).to_string(),
+                )
+            })
+            .collect();
+    assert_eq!(
+        documented_focus, expected_focus,
+        "docs/reference/panels.md Keyboard focus targets drifted from ActivePanel::ALL"
+    );
+
+    let expected_agent_kinds: Vec<(String, String, String)> = AgentEntryKind::ALL
+        .iter()
+        .map(|&k| {
+            match k {
+                AgentEntryKind::You
+                | AgentEntryKind::Assistant
+                | AgentEntryKind::Reasoning
+                | AgentEntryKind::Action
+                | AgentEntryKind::Error => {}
+            }
+            assert_eq!(AgentEntryKind::from_key(k.key()), Some(k));
+            (
+                format!("{k:?}"),
+                k.label().to_string(),
+                k.key().to_string(),
+            )
+        })
+        .collect();
+    let documented_agent_kinds: Vec<(String, String, String)> = parse_table_rows(section_slice(
+        PANELS_DOC,
+        "Assistant transcript entry kinds",
+    ))
+    .iter()
+    .map(|cells| {
+        assert!(cells.len() >= 3, "malformed AgentEntryKind row: {cells:?}");
+        (
+            strip_ticks(cells[0]).to_string(),
+            strip_ticks(cells[1]).to_string(),
+            strip_ticks(cells[2]).to_string(),
+        )
+    })
+    .collect();
+    assert_eq!(
+        documented_agent_kinds, expected_agent_kinds,
+        "docs/reference/panels.md Assistant transcript entry kinds drifted from AgentEntryKind::ALL"
     );
 }
 
@@ -1441,5 +1733,199 @@ fn docs_prose_has_no_em_dash_or_persona_noun() {
         found.is_empty(),
         "docs prose outside the register:\n{}",
         found.join("\n")
+    );
+}
+
+#[test]
+fn plugin_keys_and_basics_docs_match_ui_registries_bidirectionally() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let keys_plugin_doc =
+        std::fs::read_to_string(root.join("docs/plugins/keys.md")).expect("read keys.md");
+    let basics_plugin_doc =
+        std::fs::read_to_string(root.join("docs/plugins/basics.md")).expect("read basics.md");
+    const KEYS_MOD_SRC: &str = include_str!("mod.rs");
+    const KEYS_OVERRIDES_SRC: &str = include_str!("overrides.rs");
+    const KEYS_PLUGIN_KEYS_SRC: &str = include_str!("plugin_keys.rs");
+
+    // 1. Verify `docs/plugins/basics.md` `## Mount order` matches `aria_ui::plugins::builtin(None)`.
+    let mount_section = section_slice(&basics_plugin_doc, "Mount order");
+    let list_paragraph = mount_section
+        .split("\n\n")
+        .nth(1)
+        .expect("mount order plugin list paragraph");
+    let mut doc_builtins = Vec::new();
+    let mut rest = list_paragraph;
+    while let Some((_, after_open)) = rest.split_once('`') {
+        let Some((id, tail)) = after_open.split_once('`') else {
+            break;
+        };
+        doc_builtins.push(id.to_owned());
+        rest = tail;
+    }
+    let expected_builtins: Vec<String> = crate::plugins::builtin(std::path::Path::new(""))
+        .iter()
+        .map(|p| p.manifest().id.to_string())
+        .collect();
+    assert_eq!(
+        doc_builtins, expected_builtins,
+        "docs/plugins/basics.md ## Mount order drifted from aria_ui::plugins::builtin(data_dir)"
+    );
+
+    // 2. Verify `After::ALL` and `KeyHost` tables in `docs/plugins/keys.md`.
+    let rows = parse_table_rows(&keys_plugin_doc);
+    let mut type_members: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let mut key_host_doc_calls: Vec<String> = Vec::new();
+    for row in &rows {
+        if row.len() == 2 {
+            let first = strip_ticks(&row[0]);
+            if first.contains('(') {
+                key_host_doc_calls.push(first.split('(').next().unwrap_or(first).to_owned());
+            } else {
+                let mut members = Vec::new();
+                let mut r: &str = row[1];
+                while let Some((_, after_open)) = r.split_once('`') {
+                    let Some((tok, tail)) = after_open.split_once('`') else {
+                        break;
+                    };
+                    members.push(tok.to_owned());
+                    r = tail;
+                }
+                type_members.insert(first.to_owned(), members);
+            }
+        }
+    }
+
+    let expected_after: Vec<String> = super::After::ALL
+        .iter()
+        .map(|after| match after {
+            super::After::Nothing | super::After::Play | super::After::Preview => {
+                format!("{after:?}")
+            }
+        })
+        .collect();
+    assert_eq!(
+        type_members.get("After").expect("After row in keys.md"),
+        &expected_after,
+        "docs/plugins/keys.md After variants drifted from After::ALL"
+    );
+
+    // Exhaustive destructuring of Binding, KeyConflict, BindingRow and match on KeyBody / KeyOverrideError.
+    let sample_binding = super::Binding {
+        id: "sample",
+        chord: super::Chord::plain("a"),
+        route: super::KeyRoute::Editor,
+        run: super::KeyBody::Command("sample"),
+        after: super::After::Nothing,
+    };
+    let super::Binding {
+        id: _,
+        chord: _,
+        route: _,
+        run,
+        after: _,
+    } = sample_binding;
+    match run {
+        super::KeyBody::Plain(_) | super::KeyBody::Windowed(_) | super::KeyBody::Command(_) => {}
+    }
+    let sample_conflict = super::KeyConflict {
+        held_by: "a",
+        refused: "b",
+        chord: super::Chord::plain("a"),
+    };
+    let super::KeyConflict {
+        held_by: _,
+        refused: _,
+        chord: _,
+    } = sample_conflict;
+    let sample_row = super::BindingRow {
+        binding: sample_binding,
+        chord: None,
+        overridden: false,
+    };
+    let super::BindingRow {
+        binding: _,
+        chord: _,
+        overridden: _,
+    } = sample_row;
+    let sample_err = super::KeyOverrideError::Unknown;
+    match sample_err {
+        super::KeyOverrideError::Unknown | super::KeyOverrideError::Taken { .. } => {}
+    }
+
+    assert_eq!(
+        type_members.get("KeyBody").expect("KeyBody row"),
+        &vec![
+            "Plain".to_string(),
+            "Windowed".to_string(),
+            "Command".to_string()
+        ],
+    );
+    assert_eq!(
+        type_members.get("Binding").expect("Binding row"),
+        &vec![
+            "id".to_string(),
+            "chord".to_string(),
+            "route".to_string(),
+            "run".to_string(),
+            "after".to_string(),
+        ],
+    );
+    assert_eq!(
+        type_members.get("KeyConflict").expect("KeyConflict row"),
+        &vec![
+            "held_by".to_string(),
+            "refused".to_string(),
+            "chord".to_string()
+        ],
+    );
+    assert_eq!(
+        type_members.get("BindingRow").expect("BindingRow row"),
+        &vec![
+            "binding".to_string(),
+            "chord".to_string(),
+            "overridden".to_string()
+        ],
+    );
+    assert_eq!(
+        type_members
+            .get("KeyOverrideError")
+            .expect("KeyOverrideError row"),
+        &vec!["Unknown".to_string(), "Taken".to_string()],
+    );
+
+    let mut expected_key_host_calls = Vec::new();
+    for src in [KEYS_MOD_SRC, KEYS_OVERRIDES_SRC, KEYS_PLUGIN_KEYS_SRC] {
+        let mut in_key_host = false;
+        let mut depth = 0usize;
+        for line in src.lines() {
+            let trimmed = line.trim();
+            if !in_key_host {
+                if line.starts_with("impl KeyHost {") {
+                    in_key_host = true;
+                } else {
+                    continue;
+                }
+            }
+            if depth == 1
+                && let Some(rest) = trimmed.strip_prefix("pub fn ")
+            {
+                let ident: String = rest
+                    .chars()
+                    .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+                    .collect();
+                expected_key_host_calls.push(ident);
+            }
+            let code = trimmed.split("//").next().unwrap_or(trimmed);
+            let opens = code.chars().filter(|&c| c == '{').count();
+            let closes = code.chars().filter(|&c| c == '}').count();
+            depth = depth + opens - closes;
+            if in_key_host && depth == 0 {
+                in_key_host = false;
+            }
+        }
+    }
+    assert_eq!(
+        key_host_doc_calls, expected_key_host_calls,
+        "docs/plugins/keys.md KeyHost calls drifted from impl KeyHost"
     );
 }

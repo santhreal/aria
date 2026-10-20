@@ -18,25 +18,88 @@ pub trait Plugin: Send + Sync {
 }
 ```
 
-`ctx.mount(plugin)` refuses a plugin whose `requires` ids are not already
+`ctx.mount(plugin)` rejects a plugin whose `requires` ids are not already
 mounted. Services registered during `mount` stay alive until `unmount`.
 
 A failed mount is recorded as well as returned. `ctx.failures()` lists every
 plugin that did not mount and the reason it gave; a later successful mount of the
 same id clears its entry. `ctx.mounted()` lists what did mount, each with the
-service type names it registered. Settings shows both.
+service type names and contributions it registered. Settings shows both.
 
 `ctx.unmount(id)` drops that plugin's registrations, so its services are gone from
-the registry. A surface that needs one asks `try_get` and hides itself when the
+the registry. A surface that needs one calls `try_get` and hides itself when the
 answer is `None`.
+
+| Type | Fields |
+| --- | --- |
+| `PluginManifest` | `id`, `name`, `version`, `requires`, `uses` |
+| `MountedPluginInfo` | `manifest`, `services`, `contributions`, `mount`, `frame_cost`, `block_cost` |
+| `MountFailure` | `id`, `name`, `reason` |
+| `CapabilityDenial` | `plugin`, `service` |
+| `PluginFault` | `plugin`, `message` |
+| `Contribution` | `kind`, `id` |
+| `CostMetric` | `calls`, `last`, `mean`, `max` |
+| `PluginCost` | `plugin`, `frame`, `block` |
+
+| `ContributionKind` | `label()` |
+| --- | --- |
+| `Command` | `"command"` |
+| `Menu` | `"menu item"` |
+| `Key` | `"key"` |
+| `Settings` | `"settings"` |
+| `Panel` | `"panel"` |
+| `Overlay` | `"viewer overlay"` |
+| `Importer` | `"importer"` |
+| `Exporter` | `"exporter"` |
+| `Encoder` | `"encoder"` |
+| `Decoder` | `"decoder"` |
+| `DriverLanguage` | `"driver language"` |
+| `Effect` | `"effect"` |
+| `Transition` | `"transition"` |
+| `AudioEffect` | `"audio effect"` |
+| `Analyzer` | `"analyzer"` |
+| `Preset` | `"preset"` |
+| `Theme` | `"theme"` |
+| `AiTool` | `"AI tool"` |
+| `Scope` | `"scope"` |
+| `Workspace` | `"workspace"` |
+| `ClipType` | `"clip type"` |
+| `Texture` | `"texture"` |
+
+| `PluginError` variant | Meaning |
+| --- | --- |
+| `MountFailed` | Plugin `mount` returned an error |
+| `MissingDependency` | A plugin id in `requires` is not currently mounted |
+| `ServiceConflict` | Service registration conflicted |
+| `UnmountFailed` | Plugin `unmount` failed |
+| `DependencyCycle` | Dependency cycle detected in `load_order` |
+| `RegisterRefused` | Compositor effect or transition definition rejected |
+| `AudioEffectRefused` | Audio effect catalog or processor registration rejected |
+| `AnalyzerRefused` | Audio analyzer registration rejected |
+| `InterchangeRefused` | Timeline importer or exporter registration rejected |
+| `EncoderRefused` | Media encoder registration rejected |
+| `DecoderRefused` | Media decoder registration rejected |
+| `DriverLanguageRefused` | Property driver language registration rejected |
+| `JobRefused` | Background job launch rejected (`JobManager` unavailable) |
+| `CommandRefused` | Command, menu entry, or key default registration rejected |
+| `SettingsRefused` | Settings section registration rejected |
+| `PanelRefused` | Docked panel registration rejected |
+| `OverlayRefused` | Viewer overlay registration rejected |
+| `PresetRefused` | Animation preset registration rejected |
+| `ThemeRefused` | Theme registration rejected |
+| `AiToolRefused` | Assistant tool registration rejected |
+| `ScopeRefused` | Video scope registration rejected |
+| `WorkspaceRefused` | Workspace layout registration rejected |
+| `ClipTypeRefused` | Generator clip type registration rejected |
+| `TextureRefused` | Plugin texture registration rejected |
 
 ## Load order
 
 `aria_plugin::load_order(&manifests)` returns the order to mount in, derived from
 `requires`. Plugins that do not depend on each other keep the order they were
-listed in, because mount order is handler order. A cycle is refused and the error
-names every plugin in it. A dependency outside the set is left to `mount`, which
-names it.
+listed in, because mount order is handler order. A cycle is rejected and the error
+lists every plugin in it. A dependency outside the set is left to `mount`, which
+reports it.
 
 ## Mount order
 
@@ -44,8 +107,8 @@ names it.
 
 `aria.storage`, `aria.settings`, `aria.decoder`, `aria.encoder`,
 `aria.compositor`, `aria.render`, `aria.effects`, `aria.transitions`,
-`aria.engine`, `aria.interchange`, `aria.cloud`, `aria.analysis`, `aria.jobs`,
-`aria.transcription`, `aria.ai`, `aria.ui`.
+`aria.engine`, `aria.expressions`, `aria.interchange`, `aria.cloud`,
+`aria.analysis`, `aria.jobs`, `aria.transcription`, `aria.ai`, `aria.ui`.
 
 `mount_all` mounts every one of them and returns the failures instead of stopping
 at the first, so a host without a GPU still starts. `builtin_by_id` returns one
@@ -57,8 +120,8 @@ another profile does not load code and catalogs from the default one.
 
 That directory reaches one plugin and no other. `aria.storage` holds the root and
 registers a `StorageLayout` and a `StorageService` for it; a plugin that needs a
-directory asks that service instead of resolving one. `aria.transcription`
-refuses to mount without it rather than downloading models into a directory the
+directory calls that service instead of resolving one. `aria.transcription`
+fails to mount without it rather than downloading models into a directory the
 session never reads.
 
 ## Capabilities
@@ -96,7 +159,7 @@ Service traits in `aria_plugin::service`:
 | `SettingsService` | `~/.aria/config.toml` get / set / save |
 | `UiPanelService` | Panel metadata; see [Panels](panels.md#panels) for the host that draws it |
 
-A service holds one value per type. Anything several plugins must see in order is
+A service holds one value per type. Anything several plugins must receive in order is
 an event instead.
 
 ## Logging
@@ -109,13 +172,25 @@ Log a line at a level with the call of the plugin's tier:
 | WASM component | `log(log-level, text)`, a host import |
 | Native library | `aria_sdk::Host::log(LogLevel, &str)` |
 
-Levels are `trace`, `debug`, `info`, `warn`, and `error`. A host that runs a
-plugin's code logs for it with `ctx.log_for(id, level, text)`.
+| `LogLevel` | `as_str()` |
+| --- | --- |
+| `Trace` | `"trace"` |
+| `Debug` | `"debug"` |
+| `Info` | `"info"` |
+| `Warn` | `"warn"` |
+| `Error` | `"error"` |
 
-Settings > Plugins keeps the newest 256 lines of each plugin for the session.
-A line longer than 4096 bytes is cut on a character boundary and ends with
-` [truncated]`. Each line is also sent to `tracing` with the plugin id. The
-host logs a failed mount and a failure after mount at `error`, with the
+| Type | Fields |
+| --- | --- |
+| `LogLine` | `level`, `text`, `at` |
+
+A host that runs a plugin's code logs for it with `ctx.log_for(id, level, text)`.
+
+Settings > Plugins keeps the newest `256` (`LOG_LINES_PER_PLUGIN`) lines of
+each plugin for the session. A line longer than `4096` (`LOG_LINE_MAX_BYTES`)
+bytes is cut on a character boundary and ends with ` [truncated]`
+(`LOG_LINE_TRUNCATED`). Each line is also sent to `tracing` with the plugin id.
+The host logs a failed mount and a failure after mount at `error`, with the
 backtrace from the panicking frame when a panic caused it, and a recovered
 fault at `warn`.
 

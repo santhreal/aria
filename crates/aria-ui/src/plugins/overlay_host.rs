@@ -182,6 +182,15 @@ impl OverlayHost {
         self.entries.read().iter().map(|entry| entry.id).collect()
     }
 
+    /// Every registered overlay id and trigger condition, in registration order.
+    pub fn entries_meta(&self) -> Vec<(&'static str, OverlayWhen)> {
+        self.entries
+            .read()
+            .iter()
+            .map(|entry| (entry.id, entry.when))
+            .collect()
+    }
+
     /// The kinds a dialog is registered for, in registration order.
     pub fn dialog_kinds(&self) -> Vec<DialogKind> {
         self.entries

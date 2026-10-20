@@ -25,6 +25,8 @@ pub(crate) enum NewTier {
 }
 
 impl NewTier {
+    pub(crate) const ALL: [Self; 2] = [Self::Wasm, Self::Native];
+
     pub(crate) fn key(self) -> &'static str {
         match self {
             Self::Wasm => "wasm",

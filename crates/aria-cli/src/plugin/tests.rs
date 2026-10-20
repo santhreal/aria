@@ -846,3 +846,143 @@ fn end_to_end_new_pack_check_and_mount_for_native_and_wasm() {
     );
     wasm_ctx.unmount(wasm_id).expect("unmount wasm plugin");
 }
+
+/// WHY: closes the defect class where `docs/plugins/worked-example.md` drifts from
+/// `aria plugin new` scaffold output (`plugin.toml`, `shaders/<slug>.wgsl`, file tree),
+/// `PackageManifest` schema rules, or `aria plugin` sub-commands (`new`, `dev`, `check`,
+/// `pack`) and their accepted flags.
+/// Does not catch runtime behavior of custom Rust snippets outside the scaffolded files.
+#[test]
+fn worked_example_doc_matches_scaffold_and_subcommands() {
+    let doc_path = Path::new(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../docs/plugins/worked-example.md"
+    ));
+    let doc = fs::read_to_string(doc_path).expect("read docs/plugins/worked-example.md");
+
+    let scratch = tempfile::tempdir().expect("tempdir");
+    let pkg_dir = create_package(
+        "com.example.color-tools",
+        NewTier::Wasm,
+        scratch.path(),
+        None,
+    )
+    .expect("scaffold com.example.color-tools");
+
+    let created_files = collect_relative_files(&pkg_dir);
+    assert_eq!(
+        created_files,
+        vec![
+            ".gitignore",
+            "Cargo.toml",
+            "plugin.toml",
+            "shaders/color-tools.wgsl",
+            "src/lib.rs",
+            "wit/plugin.wit",
+        ],
+        "scaffolded file list must match worked-example.md tree"
+    );
+    for rel in &created_files {
+        let file_name = rel.rsplit('/').next().unwrap_or(rel);
+        assert!(
+            doc.contains(file_name),
+            "docs/plugins/worked-example.md is missing scaffolded file `{rel}`"
+        );
+    }
+
+    // Extract fenced blocks by language tag.
+    let mut toml_blocks = Vec::new();
+    let mut wgsl_blocks = Vec::new();
+    let mut text_blocks = Vec::new();
+    let mut current_lang: Option<&str> = None;
+    let mut current_buf = String::new();
+    for line in doc.lines() {
+        if let Some(rest) = line.strip_prefix("```") {
+            if let Some(lang) = current_lang.take() {
+                match lang {
+                    "toml" => toml_blocks.push(std::mem::take(&mut current_buf)),
+                    "wgsl" => wgsl_blocks.push(std::mem::take(&mut current_buf)),
+                    "text" => text_blocks.push(std::mem::take(&mut current_buf)),
+                    _ => current_buf.clear(),
+                }
+            } else {
+                current_lang = Some(rest.trim());
+                current_buf.clear();
+            }
+        } else if current_lang.is_some() {
+            current_buf.push_str(line);
+            current_buf.push('\n');
+        }
+    }
+
+    assert_eq!(
+        toml_blocks.len(),
+        2,
+        "worked-example.md must contain 2 ```toml blocks (scaffolded and expanded)"
+    );
+    assert_eq!(
+        wgsl_blocks.len(),
+        1,
+        "worked-example.md must contain 1 ```wgsl block"
+    );
+
+    let generated_toml = fs::read_to_string(pkg_dir.join("plugin.toml")).expect("read plugin.toml");
+    assert_eq!(
+        toml_blocks[0].trim(),
+        generated_toml.trim(),
+        "first ```toml block in worked-example.md must match `aria plugin new com.example.color-tools` output"
+    );
+
+    let generated_wgsl = fs::read_to_string(pkg_dir.join("shaders/color-tools.wgsl"))
+        .expect("read shaders/color-tools.wgsl");
+    assert_eq!(
+        wgsl_blocks[0].trim(),
+        generated_wgsl.trim(),
+        "```wgsl block in worked-example.md must match `shaders/color-tools.wgsl`"
+    );
+
+    // Expanded plugin.toml in section 2 must parse cleanly and pass manifest/shader/permission checks.
+    let expanded_manifest = aria_plugin::package::PackageManifest::parse(&toml_blocks[1])
+        .expect("second ```toml block in worked-example.md must parse as PackageManifest");
+    assert_eq!(expanded_manifest.id, "com.example.color-tools");
+    assert_eq!(expanded_manifest.effects.len(), 1);
+    assert_eq!(expanded_manifest.commands.len(), 1);
+    assert_eq!(expanded_manifest.menus.len(), 2);
+    assert_eq!(expanded_manifest.keys.len(), 2);
+    assert_eq!(expanded_manifest.panels.len(), 1);
+    assert_eq!(expanded_manifest.settings.len(), 1);
+
+    // Verify every `aria plugin <subcommand>` invocation in the text blocks uses real subcommands and flags.
+    let mut seen_subcommands = BTreeSet::new();
+    for block in &text_blocks {
+        for line in block.lines() {
+            let trimmed = line.trim();
+            if let Some(rest) = trimmed.strip_prefix("aria plugin ") {
+                let tokens: Vec<&str> = rest.split_whitespace().collect();
+                let sub_word = tokens.first().copied().expect("subcommand word");
+                let sub = Subcommand::parse(sub_word).unwrap_or_else(|| {
+                    panic!("worked-example.md invokes unknown `aria plugin {sub_word}`")
+                });
+                seen_subcommands.insert(sub.key());
+                for tok in &tokens[1..] {
+                    if let Some(flag_part) = tok.strip_prefix("--") {
+                        let flag_name = flag_part.split('=').next().unwrap_or(flag_part);
+                        assert!(
+                            sub.flags().contains(&flag_name),
+                            "worked-example.md passes unknown flag `--{flag_name}` to `aria plugin {}` (accepted: {:?})",
+                            sub.key(),
+                            sub.flags()
+                        );
+                    }
+                }
+            }
+        }
+    }
+    for sub in Subcommand::ALL {
+        assert!(
+            seen_subcommands.contains(sub.key()),
+            "worked-example.md must demonstrate `aria plugin {}`",
+            sub.key()
+        );
+    }
+}
