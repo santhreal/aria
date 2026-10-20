@@ -598,6 +598,7 @@ fn no_timeline_panel_file_calls_a_setter_itself() {
     for panel in [
         "timeline/clip.rs",
         "timeline/clip/finish.rs",
+        "timeline/clip/hit.rs",
         "timeline/ruler.rs",
     ] {
         super::no_setter_escapes(REGISTRY, panel);

@@ -297,9 +297,9 @@ pub(super) fn lane_group(
                         gpui::CursorStyle::PointingHand
                     } else {
                         let local = at - bounds.origin;
-                        clip::finish::cursor_for(
+                        clip::hit::cursor_for(
                             tool,
-                            clip::finish::hit_test(
+                            clip::hit::hit_test(
                                 &paint_data.visible_lanes,
                                 f32::from(local.x).max(0.0),
                                 f32::from(local.y).max(0.0),
