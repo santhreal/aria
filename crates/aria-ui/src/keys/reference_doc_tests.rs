@@ -2637,7 +2637,7 @@ fn const_all_registries_have_recorded_documentation_decisions() {
         ),
         (
             "MaskParam",
-            "docs/reference/blend-modes.md",
+            "docs/reference/stickers-and-masks.md",
             "stickers_and_masks_reference_matches_catalogs",
         ),
         (
