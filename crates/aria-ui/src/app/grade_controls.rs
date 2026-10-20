@@ -266,6 +266,13 @@ impl Default for GradeControls {
     }
 }
 
+impl GradeControls {
+    /// Whether section `index` is open.
+    pub fn section_open(&self, index: usize) -> bool {
+        self.open & section_bit(index) != 0
+    }
+}
+
 impl std::fmt::Debug for GradeControls {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let held = self.held.as_ref();
@@ -292,7 +299,7 @@ fn section_bit(index: usize) -> u32 {
 impl AppState {
     /// Whether the Color panel draws section `index` open.
     pub fn color_section_open(&self, index: usize) -> bool {
-        self.grade_controls.open & section_bit(index) != 0
+        self.grade_controls.section_open(index)
     }
 
     /// Open Color panel section `index` when it is closed, close it when open.
