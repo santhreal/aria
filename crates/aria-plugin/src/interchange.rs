@@ -380,6 +380,16 @@ impl VideoEncoder for GuardedEncoder {
             aria_core::EncoderChoice::only(self.id.clone(), None)
         })
     }
+
+    /// The plugin encoder's own answer; a panic in it fails the plugin and
+    /// reports `false`, so export composites every frame.
+    fn accepts_cpu_nv12(&self) -> bool {
+        let inner = &self.inner;
+        catch_unwind(AssertUnwindSafe(|| inner.accepts_cpu_nv12())).unwrap_or_else(|payload| {
+            self.fail_on_panic("accepts_cpu_nv12", payload.as_ref());
+            false
+        })
+    }
 }
 
 /// The lowercase extension of `path`, if it has one.

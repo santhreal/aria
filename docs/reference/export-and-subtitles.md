@@ -25,6 +25,19 @@ Defined in `crates/aria-encoder/src/lib.rs` (`capability()` and `AUDIO_CAPABILIT
 | `target_os = "linux"` | `GStreamer` | `MP4` | `mp4` | `H.264` | `AAC` | `true` | `H.264, H.265` | `true` |
 | `other` | `none` | `none` | `(empty)` | `none` | `none` | `false` | `none` | `false` |
 
+### Linux encoder elements (`aria_encoder::gst`)
+
+Defined in `crates/aria-encoder/src/gst.rs` (`candidates`, `SOFTWARE_ENCODERS`, `SOFTWARE_SPEED_PRESET`). The GStreamer backend builds each element in order and encodes with the first one that opens its device.
+
+| Codec | Elements in order | Software element | Software speed preset |
+| --- | --- | --- | --- |
+| `H.264` | `nvh264enc`, `nvcudah264enc`, `vaapih264enc`, `x264enc` | `x264enc` | `veryfast` |
+| `H.265` | `nvh265enc`, `nvcudah265enc`, `vaapih265enc`, `x265enc` | `x265enc` | `veryfast` |
+
+`x264enc` also runs `tune=zerolatency` with trellis quantization off. A hardware element whose GStreamer plugin failed to load in the process is skipped without being built again. Only `x265enc` has `videoconvert` in front of it, because it takes no NV12.
+
+The GStreamer encoder takes CPU NV12 frames. An export frame that is one BT.709 NV12 clip decoded on the CPU and drawn unchanged over the whole canvas at the output size goes to the encoder as decoded, with no composite and no RGBA to NV12 conversion. Every other frame is composited on the GPU and converted.
+
 ### Sound-only and frame-sequence sinks and export constants
 
 | Item | Value | Source |

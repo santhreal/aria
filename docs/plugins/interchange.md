@@ -197,7 +197,7 @@ listed as `ContributionKind::Encoder`.
 | `EncoderSpec` | `id`, `name`, `extension`, `audio` |
 | `EncoderFrame` | `rgba`, `width`, `height`, `stride`, `pts` |
 | `Encoder` | `open` |
-| `VideoEncoder` | `push`, `push_audio`, `finish`, `choice` |
+| `VideoEncoder` | `push`, `push_audio`, `finish`, `choice`, `accepts_cpu_nv12` |
 
 Selecting a registered encoder in the Export dialog sets the destination file
 extension to `spec.extension`, hides the platform Codec and Bitrate rows, and
@@ -215,10 +215,18 @@ encoder name, `Some(true)` for a GPU or media engine, `Some(false)` for the
 CPU, `None` when unknown, and the reasons earlier candidates were skipped.
 `aria export` prints it.
 
+`VideoEncoder::accepts_cpu_nv12` defaults to `false`, and export then passes
+`push` packed RGBA frames only. An encoder that returns `true` also receives
+CPU NV12 frames of the configured size, with the planes and strides of the
+decoder that produced them, for frames that are one clip drawn unchanged over
+the whole canvas.
+
 A panic in `Encoder::open`, `VideoEncoder::push`, `VideoEncoder::push_audio`,
-`VideoEncoder::finish` or `VideoEncoder::choice` is caught and fails the owning
-plugin for the session, dropping its registrations. `choice` then reports the
-encoder id with the processor unknown; the others return `EncodeError`.
+`VideoEncoder::finish`, `VideoEncoder::choice` or
+`VideoEncoder::accepts_cpu_nv12` is caught and fails the owning plugin for the
+session, dropping its registrations. `choice` then reports the encoder id with
+the processor unknown, `accepts_cpu_nv12` reports `false`, and the others
+return `EncodeError`.
 
 `register_encoder` returns `PluginError::EncoderRefused(message)` when:
 

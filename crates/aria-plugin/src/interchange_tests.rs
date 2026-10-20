@@ -743,6 +743,12 @@ impl VideoEncoder for TestEncoderSession {
     fn choice(&self) -> aria_core::EncoderChoice {
         aria_core::EncoderChoice::only(format!("test {}", self.header), Some(false))
     }
+
+    /// `true` only for the 4x2 session, so a wrapper that answers on its own
+    /// rather than forwarding reads as `false` there.
+    fn accepts_cpu_nv12(&self) -> bool {
+        self.header == "4x2"
+    }
 }
 
 struct EncoderPlugin {
@@ -794,6 +800,10 @@ fn an_encoder_registers_opens_writes_frames_and_audio_and_unregisters() {
         session.choice().to_string(),
         "encoder test 4x2 (software)",
         "the guarded session reports the plugin encoder's own choice"
+    );
+    assert!(
+        session.accepts_cpu_nv12(),
+        "the guarded session answers with the plugin encoder's accepts_cpu_nv12"
     );
     let frame = test_video_frame(4, 2);
     session.push(&frame).expect("push 1");

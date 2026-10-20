@@ -366,6 +366,9 @@ fn candidates(codec: VideoCodec) -> &'static [&'static str] {
 /// a GPU or media engine.
 const SOFTWARE_ENCODERS: &[&str] = &["x264enc", "x265enc"];
 
+/// The `speed-preset` both software encoders run.
+const SOFTWARE_SPEED_PRESET: &str = "veryfast";
+
 /// The first candidate `open` succeeds on, in order, with the reasons of the
 /// ones before it, or every reason when none succeeds.
 ///
@@ -465,7 +468,7 @@ pub(crate) fn can_encode(codec: VideoCodec) -> bool {
 /// alone rather than refused: the encode is still the codec that was asked for.
 fn configure_encoder(encoder: &gst::Element, config: &EncoderConfig, name: &str) {
     if name == "x264enc" || name == "x265enc" {
-        encoder.set_property_from_str("speed-preset", "veryfast");
+        encoder.set_property_from_str("speed-preset", SOFTWARE_SPEED_PRESET);
     }
     if name == "x264enc" {
         encoder.set_property_from_str("tune", "zerolatency");
@@ -722,6 +725,7 @@ fn copy_plane(plane: &aria_core::Plane, dest: &mut [u8], dest_stride: usize, row
 #[cfg(test)]
 mod tests {
     use super::*;
+    use aria_core::Rational;
 
     /// The walk returns the first candidate that opens and stops there; a
     /// candidate that fails (a registered NVENC whose driver does not answer)
@@ -978,7 +982,7 @@ mod tests {
             let mut expected = picture(&y, y_rows);
             expected.extend(picture(&uv, uv_rows));
             let frame = VideoFrame::new(
-                RationalTime::new(0, aria_core::Rational::FPS_30),
+                RationalTime::new(0, Rational::FPS_30),
                 PixelFormat::Nv12,
                 ColorSpace::BT709,
                 (width, height),
@@ -991,5 +995,67 @@ mod tests {
                 .unwrap_or_else(|e| panic!("{name}: {e}"));
             assert_eq!(out, expected, "{name} planes packed wrong");
         }
+    }
+
+    /// WHY: the export reference lists the GStreamer elements in the order
+    /// `pick_encoder` tries them and the preset the software ones run. Closes
+    /// a candidate added, removed or reordered, a software element changed,
+    /// or the preset changed without the reference following. Does not cover
+    /// the prose about `tune` and trellis, which
+    /// `x264enc_runs_the_veryfast_preset_without_trellis` pins in code.
+    #[test]
+    fn the_export_reference_lists_the_linux_encoder_elements() {
+        let doc = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../docs/reference/export-and-subtitles.md"
+        ))
+        .expect("read docs/reference/export-and-subtitles.md");
+        let heading = "### Linux encoder elements (`aria_encoder::gst`)";
+        let start = doc
+            .find(heading)
+            .expect("missing the Linux encoder section")
+            + heading.len();
+        let section = &doc[start..];
+        let section = &section[..section.find("\n#").unwrap_or(section.len())];
+        let rows: Vec<Vec<String>> = section
+            .lines()
+            .filter(|line| line.starts_with('|'))
+            .skip(2)
+            .map(|line| {
+                line.trim_matches('|')
+                    .split('|')
+                    .map(|cell| cell.trim().to_string())
+                    .collect()
+            })
+            .collect();
+        let expected: Vec<Vec<String>> = VideoCodec::ALL
+            .into_iter()
+            .map(|codec| {
+                let elements = candidates(codec);
+                let software: Vec<&str> = elements
+                    .iter()
+                    .copied()
+                    .filter(|name| SOFTWARE_ENCODERS.contains(name))
+                    .collect();
+                vec![
+                    format!("`{}`", codec.label()),
+                    elements
+                        .iter()
+                        .map(|name| format!("`{name}`"))
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                    software
+                        .iter()
+                        .map(|name| format!("`{name}`"))
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                    format!("`{SOFTWARE_SPEED_PRESET}`"),
+                ]
+            })
+            .collect();
+        assert_eq!(
+            rows, expected,
+            "docs/reference/export-and-subtitles.md Linux encoder table drifted from candidates / SOFTWARE_ENCODERS / SOFTWARE_SPEED_PRESET"
+        );
     }
 }
