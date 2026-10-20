@@ -98,7 +98,7 @@ fn one_module_brings_up_the_gpu() {
 /// The files that call a plugin's own `mount`, and why each one may.
 const MOUNT_CALLERS: &[(&str, &str)] = &[
     (
-        "crates/aria-plugin/src/context.rs",
+        "crates/aria-plugin/src/context_lifecycle.rs",
         "`PluginContext::mount` itself, which hands the plugin a view that \
          collects what it registers",
     ),
