@@ -58,7 +58,7 @@ fn run(args: &Args) -> Result<(), Failure> {
         .map_err(|err| Failure::Failed(err.to_string()))?;
     match args.verb {
         Verb::Demo => {
-            args.reject_unknown(&[])?;
+            args.reject_unknown(demo::FLAGS)?;
             demo::run(args.positional.first().map(Into::into)).map_err(Failure::Failed)
         }
         Verb::New => {

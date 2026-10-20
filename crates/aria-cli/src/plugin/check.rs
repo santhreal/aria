@@ -15,6 +15,15 @@ use crate::args::Args;
 use crate::fail::Failure;
 
 pub(crate) const FLAGS: &[&str] = &[];
+pub(crate) const CHECK_SECTIONS: [&str; 7] = [
+    "manifest",
+    "shaders",
+    "textures",
+    "presets",
+    "contributes",
+    "permissions",
+    "abi",
+];
 
 pub(crate) fn run(args: &Args) -> Result<(), Failure> {
     let path = args.required_path(1, "a plugin directory or .ariaplugin archive")?;

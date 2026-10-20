@@ -12,6 +12,16 @@ use crate::fail::Failure;
 use crate::project;
 
 pub const FLAGS: &[&str] = &["clips"];
+pub(crate) const LANE_FLAGS: [&str; 8] = [
+    "disabled",
+    "muted",
+    "solo",
+    "locked",
+    "main",
+    "duck source",
+    "not targeted",
+    "no sync lock",
+];
 
 pub fn run(args: &Args) -> Result<(), Failure> {
     let path = args.required_path(0, "a project file")?;
@@ -68,29 +78,19 @@ pub fn run(args: &Args) -> Result<(), Failure> {
     for track in tracks {
         let clips = track.clips_ordered();
         let mut notes = Vec::new();
-        if !track.enabled {
-            notes.push("disabled");
-        }
-        if track.muted {
-            notes.push("muted");
-        }
-        if track.solo {
-            notes.push("solo");
-        }
-        if track.locked {
-            notes.push("locked");
-        }
-        if track.main {
-            notes.push("main");
-        }
-        if track.duck_source {
-            notes.push("duck source");
-        }
-        if !track.targeted {
-            notes.push("not targeted");
-        }
-        if !track.sync_lock {
-            notes.push("no sync lock");
+        for (active, label) in [
+            (!track.enabled, LANE_FLAGS[0]),
+            (track.muted, LANE_FLAGS[1]),
+            (track.solo, LANE_FLAGS[2]),
+            (track.locked, LANE_FLAGS[3]),
+            (track.main, LANE_FLAGS[4]),
+            (track.duck_source, LANE_FLAGS[5]),
+            (!track.targeted, LANE_FLAGS[6]),
+            (!track.sync_lock, LANE_FLAGS[7]),
+        ] {
+            if active {
+                notes.push(label);
+            }
         }
         let notes = if notes.is_empty() {
             String::new()
