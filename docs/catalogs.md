@@ -11,6 +11,7 @@ it.
 ```text
 ~/.aria/catalogs/transitions.toml
 ~/.aria/catalogs/effects.toml
+~/.aria/catalogs/audio_effects.toml
 ~/.aria/catalogs/filters.toml
 ~/.aria/catalogs/animations.toml
 ~/.aria/catalogs/text_effects.toml
@@ -39,10 +40,10 @@ it, so add an entry rather than rename one. `label` is what the UI shows.
 
 ## Transitions
 
-`id` must be a transition the compositor renders. The shipped ids are
-`crossfade`, `dip_to_black`, `dip_to_white`, `wipe_left`, `wipe_right`,
-`wipe_up`, `wipe_down`, and `slide`, and each one has its own pass. An id with
-no shader behind it cross-dissolves.
+`id` must be a transition the compositor renders, and an id with no shader
+behind it cross-dissolves. Each entry may also declare `[[entry.params]]` rows
+(`name`, `label`, `min`, `max`, `default`, `step`). For the shipped transitions
+and their parameters, see [Transitions](reference/transitions.md).
 
 ## Filters
 
@@ -135,13 +136,22 @@ Clip intensity scales the whole recipe, so keep the numbers at what the preset
 looks like at full strength. An additive key scales toward zero and a
 multiplying key scales toward one.
 
+For the shipped filter presets and color grading sliders, see
+[Filters and color grading](reference/filters.md).
+
 ## Effects
 
-`id` must be an effect the compositor dispatches. `params` is the shader's
-uniform order, so append a parameter rather than reorder one. Each parameter
-takes `name`, `label`, and a `kind` of `scalar`, `vec2`, or `color`; a scalar uses
-`default`, `min`, and `max`, a vec2 uses `default_vec2` with `min`/`max` bounding
-each component, and a colour uses `default_color` as RGBA 0 … 255.
+`id` must be an effect the compositor (`effects.toml`) or audio mixer
+(`audio_effects.toml`) dispatches. `params` is the uniform or parameter slot
+order, so append a parameter rather than reorder one. In `effects.toml`,
+`generator = true` marks a procedural generator, and each parameter takes
+`name`, `label`, and a `kind` of `scalar` (`default`, `min`, `max`), `vec2`
+(`default_vec2`, `min`, `max`), or `color` (`default_color` as RGBA 0 … 255).
+In `audio_effects.toml`, every parameter is a scalar (`default`, `min`, `max`),
+`latency` is in 48 kHz frames, and `sidechain = true` enables sidechain routing.
+For the shipped entries, see [Video effects](reference/effects.md),
+[Generators](reference/generators.md), and
+[Audio effects](reference/audio-effects.md).
 
 ## Animations, text effects, easings, speed presets
 
@@ -154,6 +164,9 @@ An animation id needs a sampler behind it. An entry the renderer has no
 implementation for is still listed, labelled `(no renderer)`, and applying it
 animates nothing. An effect id with no pass behind it is skipped rather than
 dispatched, so it changes nothing.
+
+For the shipped animations, text style presets, easings, and speed ramps, see
+[Animations, text effects, easings, and speed presets](reference/animations.md).
 
 ## Stickers
 
@@ -178,6 +191,9 @@ The file name is a name, not a path: a `/` or a `..` in it is refused. An entry
 whose art is found in neither place is dropped from the catalog, and the reason
 appears in **Settings > Catalogs**.
 
+For the shipped sticker entries, see
+[Stickers and masks](reference/stickers-and-masks.md#stickers-stickerstoml).
+
 ## Masks
 
 A mask entry names the `kind` it labels rather than an `id`:
@@ -188,10 +204,11 @@ kind = "circle"
 label = "Round"
 ```
 
-The shipped kinds are `linear`, `mirror`, `circle`, `rectangle`, `heart`, `star`,
-and `path`. A kind is a shape the renderer draws, so the set is fixed: a file may
-relabel or reorder the shapes, and a file that names an unknown kind, or leaves
-one out, is refused whole.
+A `kind` is a shape the renderer draws (`MaskKind`), so the set is fixed: a file
+may relabel or reorder the shapes, and a file that names an unknown kind, or
+leaves one out, is refused whole. For the shipped mask shapes, modes, and
+parameters, see
+[Stickers and masks](reference/stickers-and-masks.md#mask-shapes-maskstoml).
 
 ## A file that will not load
 
