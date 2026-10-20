@@ -51,6 +51,11 @@ pub enum After {
     Preview,
 }
 
+impl After {
+    /// Every post-action window side effect.
+    pub const ALL: [Self; 3] = [Self::Nothing, Self::Play, Self::Preview];
+}
+
 /// What a binding does when its chord fires.
 ///
 /// Mirrors [`CommandBody`](crate::commands::host::CommandBody), and for

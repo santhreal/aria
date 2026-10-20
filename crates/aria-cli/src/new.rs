@@ -23,7 +23,7 @@ pub const FLAGS: &[&str] = &["fps"];
 /// A timeline rate is not a free number: 23.976 and 29.97 are `24000/1001` and
 /// `30000/1001`, and a project written at a rounded `24/1` drifts against the
 /// footage. A caller names a rate that exists or is told which ones do.
-const RATES: [(&str, Rational); 7] = [
+pub(crate) const RATES: [(&str, Rational); 7] = [
     ("23.976", Rational::FPS_23_976),
     ("24", Rational::FPS_24),
     ("25", Rational::FPS_25),

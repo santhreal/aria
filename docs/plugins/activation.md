@@ -21,10 +21,10 @@ on = ["command:grade.match", "file:cube", "effect:com.example.grade.film"]
 | `setting:<key>` | the declared setting is read through `SettingsService` or saved from Settings |
 
 `command:`, `panel:`, and `setting:` name an entry of `[[commands]]`,
-`[[panels]]`, or `[[settings]]` in the same manifest; any other id is refused
-when the package is read. A `setting:` key is qualified by the package id, as
-`[[settings]]` keys are. `file:cube`, `file:.cube`, and `file:.CUBE` are the
-same event, and a path matches without case.
+`[[panels]]`, or `[[settings]]` in the same manifest; any other id is rejected
+when the package is read. A `setting:` identifier is qualified by the package
+id, as `[[settings]]` entries are. `file:cube`, `file:.cube`, and `file:.CUBE`
+are the same event, and a path matches without case.
 
 ## While a package waits
 
@@ -69,21 +69,31 @@ a waiting one leaves it waiting for the new manifest's events.
 ## Host calls
 
 A host that loads packages defers each with `PluginContext::defer_package`,
-passing the loader for its tier, and fires the events:
+passing the loader for its tier, and fires or inspects activation state with
+the following `PluginContext` calls:
 
-| Call | Fires |
+| Call | Effect |
 | --- | --- |
-| `activate(&Activation)` | one event, such as `Activation::Panel(id)` |
-| `activate_for_file(path)` | `file:` events for the path's extension |
-| `activate_setting(key)` | `setting:` events for the qualified key |
-| `project_activations(&project, revision)` | returns the `effect:`, `transition:`, and `generator:` events the project uses, for the caller to `activate` once it no longer holds the project |
+| `defer_package(package, load)` | Registers stand-ins for `package` and waits for its first activation event |
+| `activate(&Activation)` | Mounts waiting packages matching one event, such as `Activation::Panel(id)` |
+| `activate_for_file(path)` | Fires `file:` events for `path`'s extension (case-insensitive) |
+| `activate_setting(key)` | Fires `setting:` events for the qualified `key` |
+| `project_activations(&project, revision)` | Returns the `effect:`, `transition:`, and `generator:` events `project` uses, for the caller to pass to `activate` after releasing the project lock |
+| `cancel_activation(id)` | Stops waiting for `id` and drops its stand-ins, returning whether it was waiting |
+| `is_waiting(id)` | Returns whether the package `id` is waiting for an activation event |
+| `waiting_plugins()` | Returns every `WaitingPlugin` (`id`, `name`, `events`) in deferral order |
+| `waiting_panels()` | Returns every `WaitingPanel` (`plugin`, `plugin_name`, `spec`) in deferral order |
+| `activation_revision()` | Monotonic counter incremented whenever a package starts or stops waiting |
+
+| Type | Fields |
+| --- | --- |
+| `WaitingPlugin` | `id`, `name`, `events` |
+| `WaitingPanel` | `plugin`, `plugin_name`, `spec` |
+| `Activated` | `id`, `name`, `result` |
 
 Each `activate` call returns an `Activated` per package with the load's result.
-`waiting_plugins`, `waiting_panels`, `is_waiting`, and `cancel_activation`
-read and drop the waiting set. `activation_revision` moves whenever a package
-starts or stops waiting, and `panel_revision` moves when a waiting panel
-appears or goes. `defer_package` refuses a package that loads at start, and is
-refused while a plugin mounts.
+`panel_revision` moves when a waiting panel appears or leaves. `defer_package`
+rejects a package that loads at start, and fails while another plugin mounts.
 
 Aria fires `file:` before it classifies a drop or reads an import,
 `effect:`, `transition:`, and `generator:` each time the editor's projection

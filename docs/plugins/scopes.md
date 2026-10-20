@@ -52,13 +52,32 @@ same frame the built-in scopes read, at the size the Viewer rendered it,
 which can be smaller than the sequence. `pixel(x, y)` returns `None` outside
 the frame.
 
+| `ScopeFrame` call | Return |
+| --- | --- |
+| `new(width, height, pixels)` | `Option<Self>` when dimensions are non-zero and `pixels.len() == width * height * 4` |
+| `width()` | Frame width in pixels |
+| `height()` | Frame height in pixels |
+| `pixels()` | `&[u8]` RGBA8 buffer (`width() * height() * 4` bytes) |
+| `pixel(x, y)` | `Option<[u8; 4]>` at `(x, y)`, or `None` outside the frame |
+
 ## The image
 
-`ScopeImage` is `width` by `height` from the spec, transparent black on entry
+`ScopeImage` is `width` by `height` from `ScopeSpec`, transparent black on entry
 to every call. `put(x, y, rgba)` sets one pixel and ignores a position outside
 the image; `pixels_mut()` exposes the whole buffer. `set_readout(text)` sets
 the line under the image. The host keeps one image per scope and clears it in
 place, so a measurement allocates nothing on the host side.
+
+| `ScopeImage` call | Effect |
+| --- | --- |
+| `new(width, height)` | Transparent `width` by `height` image with empty readout |
+| `width()` | Output width in pixels |
+| `height()` | Output height in pixels |
+| `pixels()` | `&[u8]` RGBA8 buffer (`width() * height() * 4` bytes) |
+| `pixels_mut()` | `&mut [u8]` RGBA8 buffer |
+| `put(x, y, rgba)` | Writes one RGBA8 pixel when `(x, y)` is in bounds |
+| `readout()` | Current readout text, if set |
+| `set_readout(text)` | Sets the readout text below the scope image |
 
 The strip draws the image 192 pixels wide and as tall as the spec's aspect
 ratio makes it, up to 384 pixels; the Scopes panel draws it 192 pixels wide
@@ -86,13 +105,26 @@ pass to one sweep over the pixels.
 | --- | --- |
 | `Ok(())` | The image and the readout |
 | `Err(reason)` | `reason` in place of the image |
-| A readout over `MAX_SCOPE_READOUT` (160) bytes or holding a line break | The refusal in place of the image |
+| A readout over `MAX_SCOPE_READOUT` (`160`) bytes or holding a line break | The refusal in place of the image |
 | A panic | The panic message for that frame; the plugin is failed for the session and its scopes leave the strip |
+
+| Type | Fields / Variants |
+| --- | --- |
+| `ScopeSpec` | `id`, `name`, `width`, `height` |
+| `PluginScope` | `plugin_id`, `plugin_name`, `spec` |
+| `ScopeError` | `Unknown`, `Failed`, `Panicked` |
+
+| `PluginContext` call | Effect |
+| --- | --- |
+| `register_scope(spec, scope)` | Validates `spec` and registers `scope` |
+| `scopes()` | Every registered `PluginScope` in registration order |
+| `scopes_revision()` | Monotonic counter incremented when a scope is registered or removed |
+| `measure_scope(id, &frame, &mut image)` | Runs the scope registered as `id` on `frame` and writes into `image` |
 
 `register_scope` returns `PluginError::ScopeRefused(message)` when the id is
 empty, over 128 bytes, or holds a byte other than an ASCII letter, digit, `.`,
 `-` or `_`; when the name is blank; when a side is outside 1 to
-`MAX_SCOPE_SIDE` (512); and when any plugin already registered the id.
+`MAX_SCOPE_SIDE` (`512`); and when any plugin already registered the id.
 The returned `Registration` is held on the terms of `register_effect`. A scope
 whose registration is removed leaves the strip on the next frame.
 

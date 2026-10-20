@@ -9,21 +9,41 @@ it; a plugin declares `uses: &["ProjectHost"]` and takes it with
 
 | Call | Result |
 | --- | --- |
+| `new(engine, ctx)` | Wraps `Arc<Mutex<Engine>>` in a `ProjectHost` using `ctx`'s event bus |
+| `engine()` | The underlying `&Arc<Mutex<Engine>>` |
 | `snapshot()` | The project as an immutable `Arc<Project>`. A snapshot held across an edit costs one copy of the project |
 | `revision()` | The engine revision, bumped by every change |
-| `apply(&origin, command)` | Proposes and applies one command as its own undo step, or as part of this thread's open group |
-| `transact(origin, label, commands)` | Applies the commands as one undo step named `label`, or none of them |
-| `transact_with(origin, label, body)` | Runs `body` with a `Transaction`: `tx.apply(command)` and `tx.project()`. An `Err` or a panic from `body` reverts it |
-| `group(&origin)` | Opens an `EditGroup`: every command this thread applies until `commit` is one undo step. Dropping it rolls it back |
-| `undo()`, `redo()`, `history_jump(depth)` | Step history. `Ok(false)` while this thread has a group open |
-| `replace_session(&origin, f)` | Runs `f` on the engine with no edit in flight, for a session replacement that is not a command, then posts `ProjectClosed` and `ProjectOpened` |
-| `holder()` | The origin holding the project from another thread, if any |
 | `clip(id)` | `Option<ClipRef>` (`id`, `track`, `start`, `end`, `kind`, `name`) across the root timeline and nested sequences |
 | `clips_in_range(sequence, range)` | `Vec<ClipRef>` overlapping the half-open `range` (`None` for the open sequence, `Some(id)` for a nested one), in track order then time order |
 | `clips_at(sequence, tick)` | `Vec<ClipRef>` covering `tick` (`start <= tick < end`), in track order then time order |
 | `selected_clips(selection)` | `Vec<ClipRef>` for `selection` in selection order, omitting ids no longer in the project (`ctx.selected_clips()` reads `EditorView` directly) |
 | `markers_in_range(sequence, range)` | `Vec<Marker>` in the sequence whose point or span overlaps the half-open `range`, ordered by tick then id |
-| `ctx.in_out()` | `InOut { mark_in, mark_out }` from `EditorView` (`None` when unset) |
+| `holder()` | The origin holding the project from another thread, if any |
+| `apply(&origin, command)` | Proposes and applies one command as its own undo step, or as part of this thread's open group |
+| `apply_observed(&origin, command, before_event)` | Proposes and applies one command, running `before_event` under the engine lock before announcing |
+| `group(&origin)` | Opens an `EditGroup`: every command this thread applies until `commit` is one undo step. Dropping it rolls it back |
+| `transact_with(origin, label, body)` | Runs `body` with a `Transaction`: `tx.apply(command)` and `tx.project()`. An `Err` or a panic from `body` reverts it |
+| `transact(origin, label, commands)` | Applies the commands as one undo step named `label`, or none of them |
+| `undo()` | Undoes the latest step (`Ok(false)` while this thread has a group open) |
+| `redo()` | Redoes the latest undone step (`Ok(false)` while this thread has a group open) |
+| `history_jump(depth)` | Jumps undo history to `depth` (`Ok(false)` while this thread has a group open) |
+| `replace_session(&origin, f)` | Runs `f` on the engine with no edit in flight, for a session replacement that is not a command, then posts `ProjectClosed` and `ProjectOpened` |
+
+`PluginContext` also exposes convenience query methods (`ctx.clip(id)`,
+`ctx.clips_in_range(sequence, range)`, `ctx.clips_at(sequence, tick)`,
+`ctx.selected_clips()`, `ctx.in_out()`, `ctx.markers_in_range(sequence, range)`)
+that read `ProjectHost` and `EditorView`.
+
+| Type | Fields / Variants / Methods |
+| --- | --- |
+| `Origin` | `Editor`, `Assistant`, `Plugin` |
+| `CommandApplied` | `command`, `outcome`, `revision`, `origin` |
+| `Receipt` | `revision`, `outcomes` |
+| `EditGroup` | `commit`, `commit_as`, `rollback` |
+| `Transaction` | `project`, `origin`, `apply` |
+| `TransactError` | `Busy`, `NotUndoable`, `Refused`, `Failed`, `Aborted`, `Panicked`, `Reentrant` |
+| `ClipRef` | `id`, `track`, `start`, `end`, `kind`, `name` |
+| `InOut` | `mark_in`, `mark_out` |
 
 ```rust
 // `get` panics unless the manifest lists "ProjectHost" in `uses`.
@@ -67,11 +87,12 @@ not wait on the preview.
 
 | Call | Result |
 | --- | --- |
+| `new(gpu)` | Creates a `RenderHost` on `GpuContext` |
+| `gpu()` | The `GpuContext` the host renders on, for creating a target texture |
+| `frame_size(&project, &request)` | The width and height of a frame of `request` |
 | `frame(&project, time, &request)` | The frame at `time` as a straight-alpha `RgbaImage` |
 | `frames(&project, range, &request, each)` | One frame per tick of `range` at the range's rate, passed to `each` until it returns `ControlFlow::Break` |
 | `frame_to_texture(&project, time, &request, &texture)` | The frame written premultiplied into an `Rgba8Unorm` texture with `COPY_DST` usage, with no copy to the CPU |
-| `frame_size(&project, &request)` | The width and height of a frame of `request` |
-| `gpu()` | The `GpuContext` the host renders on, for creating a target texture |
 
 A `FrameRequest` sets the source, the size, and motion blur. The constructors
 `FrameRequest::open()`, `sequence(id)`, and `clip(id)` take canvas size without
@@ -134,6 +155,7 @@ threads run side by side.
 
 | Call | Result |
 | --- | --- |
+| `new()` | Creates an `AudioHost` |
 | `mix(&project, source, range, each)` | Blocks of `range` of `source`, in order, passed to `each` with the sample frame each starts at, until it returns `ControlFlow::Break` |
 
 `source` is `AudioSource::Open`, `AudioSource::Sequence(None)` for the root

@@ -76,10 +76,20 @@ Both returned `Registration`s are held on the terms of `register_effect`.
 
 | Call | Result |
 | --- | --- |
-| `ctx.importers()`, `ctx.exporters()` | Every registered spec, in registration order |
-| `ctx.importer_for(path)` | The importer for the extension of `path` |
-| `ctx.import_file(&host, path)` | Runs that importer and returns its report and the transaction's `Receipt` |
-| `ctx.export_file(id, &project, path)` | Runs the exporter registered as `id` and returns its report |
+| `register_importer(spec, importer)` | Validates `spec` and registers `importer` |
+| `register_exporter(spec, exporter)` | Validates `spec` and registers `exporter` |
+| `importers()` | Every registered `Arc<ImporterSpec>`, in registration order |
+| `exporters()` | Every registered `Arc<ExporterSpec>`, in registration order |
+| `importer_for(path)` | The `Arc<ImporterSpec>` for the extension of `path` |
+| `import_file(&host, path)` | Runs that importer and returns `(InterchangeReport, Receipt)` |
+| `export_file(id, &project, path)` | Runs the exporter registered as `id` and returns `InterchangeReport` |
+
+| Type | Fields / Variants |
+| --- | --- |
+| `ImporterSpec` | `id`, `name`, `extensions` |
+| `ExporterSpec` | `id`, `name`, `extension` |
+| `InterchangeReport` | `skipped` |
+| `InterchangeError` | `NoImporter`, `NoExporter`, `Import`, `Export`, `ExportPanicked` |
 
 Extensions match without regard to case and are stored lowercase. When two
 importers list one extension, the one registered first reads it. Built-in
@@ -94,11 +104,11 @@ An export writes to `.<file name>.partial` beside the destination, syncs it,
 and renames it over the destination after the exporter returns. When the
 exporter returns an error or panics, the destination is unchanged, the partial
 file is removed, and `export_file` returns `InterchangeError::Export` or
-`InterchangeError::ExportPanicked`. An exporter refuses a timeline its format
+`InterchangeError::ExportPanicked`. An exporter rejects a timeline its format
 cannot hold with `std::io::Error::other(reason)`.
 
 `InterchangeReport::skipped` lists, one line each, what the file held or the
-project holds that the format could not carry.
+project holds that the format could not include.
 
 A panic in `import` or `export` fails the plugin for the session.
 
@@ -177,9 +187,17 @@ listed as `ContributionKind::Encoder`.
 
 | Call | Result |
 | --- | --- |
-| `ctx.encoders()` | Every registered `Arc<EncoderSpec>`, in registration order |
-| `ctx.encoder(id)` | The `Arc<EncoderSpec>` registered under `id` |
-| `ctx.open_encoder(id, path, &config)` | Opens a guarded `Box<dyn VideoEncoder>` writing to `path` |
+| `register_encoder(spec, encoder)` | Validates `spec` and registers `encoder` |
+| `encoders()` | Every registered `Arc<EncoderSpec>`, in registration order |
+| `encoder(id)` | The `Arc<EncoderSpec>` registered under `id` |
+| `open_encoder(id, path, &config)` | Opens a guarded `Box<dyn VideoEncoder>` writing to `path` |
+
+| Type | Fields / Methods |
+| --- | --- |
+| `EncoderSpec` | `id`, `name`, `extension`, `audio` |
+| `EncoderFrame` | `rgba`, `width`, `height`, `stride`, `pts` |
+| `Encoder` | `open` |
+| `VideoEncoder` | `push`, `push_audio`, `finish`, `choice` |
 
 Selecting a registered encoder in the Export dialog sets the destination file
 extension to `spec.extension`, hides the platform Codec and Bitrate rows, and
@@ -265,7 +283,14 @@ listed as `ContributionKind::Decoder`.
 | `ExternalDecoder::probe` | Size, frame rate, frame count, audio presence, and codec names, without decoding |
 | `ExternalDecoder::open_video` | A `VideoDecoder` over the video track |
 | `ExternalDecoder::open_audio` | An `AudioReader` producing interleaved `f32` at the mixer's rate and channel count; the default returns `DecodeError::Unsupported` |
-| `ctx.decoders()` | Every registered `PluginDecoder` (plugin id and `Arc<DecoderSpec>`), in registration order |
+| `register_decoder(spec, decoder)` | Validates `spec` and registers `decoder` |
+| `decoders()` | Every registered `PluginDecoder` (`plugin_id` and `spec`), in registration order |
+| `decoders_revision()` | Monotonic counter incremented when a decoder is registered or removed |
+
+| Type | Fields |
+| --- | --- |
+| `DecoderSpec` | `id`, `name`, `extensions`, `priority` |
+| `PluginDecoder` | `plugin_id`, `spec` |
 
 The decoders that claim a file's extension are tried by descending
 `priority`, then in registration order, and the platform decoder is tried

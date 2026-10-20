@@ -9,6 +9,7 @@ use crate::fail::Failure;
 use crate::project;
 
 pub const FLAGS: &[&str] = &["at", "fit"];
+pub(crate) const DEFAULT_OUT: &str = "aria-frame.png";
 
 pub fn run(args: &Args) -> Result<(), Failure> {
     let path = args.required_path(0, "a project file")?;
@@ -16,7 +17,7 @@ pub fn run(args: &Args) -> Result<(), Failure> {
         .positional
         .get(1)
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("aria-frame.png"));
+        .unwrap_or_else(|| PathBuf::from(DEFAULT_OUT));
     let at = args.seconds("at")?.unwrap_or(0.0);
     let fit = args.size("fit")?;
 
