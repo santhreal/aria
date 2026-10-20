@@ -1266,3 +1266,80 @@ fn every_fenced_code_block_in_docs_closes() {
         unclosed.join("\n")
     );
 }
+
+/// WHY: a pipe table continues to the first blank line or block start, so a
+/// paragraph written on the line after the last row renders as one more row
+/// of the table, its text in the first column. This walks each file under
+/// `docs/` outside fenced blocks and fails on a table followed by a line that
+/// is neither a row, a blank line, nor the start of another block. Not caught:
+/// a row whose cell count differs from the header's.
+#[test]
+fn every_table_in_docs_ends_at_a_blank_line() {
+    let docs_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs");
+    let mut md_files = Vec::new();
+    collect_md_files(&docs_root, &mut md_files);
+    let starts_block = |line: &str| {
+        let t = line.trim_start();
+        let ordered = t
+            .split_once(". ")
+            .is_some_and(|(n, _)| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()));
+        ["#", "```", "~~~", ">", "- ", "* ", "+ ", "<"]
+            .iter()
+            .any(|p| t.starts_with(p))
+            || ordered
+    };
+    let mut tables = 0usize;
+    let mut runons: Vec<String> = Vec::new();
+    for md_file in &md_files {
+        let text =
+            std::fs::read_to_string(md_file).unwrap_or_else(|e| panic!("read {md_file:?}: {e}"));
+        let lines: Vec<&str> = text.lines().collect();
+        let mut in_fence = false;
+        let mut in_table = false;
+        for (idx, line) in lines.iter().enumerate() {
+            if line.trim_start().starts_with("```") {
+                in_fence = !in_fence;
+                in_table = false;
+                continue;
+            }
+            if in_fence {
+                continue;
+            }
+            let row = line.trim_start().starts_with('|');
+            if in_table {
+                if row {
+                    continue;
+                }
+                in_table = false;
+                if !line.trim().is_empty() && !starts_block(line) {
+                    runons.push(format!(
+                        "{}:{}: {:?} continues the table above it",
+                        md_file.display(),
+                        idx + 1,
+                        line.trim()
+                    ));
+                }
+                continue;
+            }
+            let delimiter = lines.get(idx + 1).is_some_and(|next| {
+                let next = next.trim();
+                next.starts_with('|')
+                    && next.contains('-')
+                    && next.chars().all(|c| matches!(c, '|' | '-' | ':' | ' '))
+            });
+            if row && delimiter {
+                in_table = true;
+                tables += 1;
+            }
+        }
+    }
+    assert!(
+        tables >= 100,
+        "expected at least 100 tables across docs/, found {tables}"
+    );
+    assert!(
+        runons.is_empty(),
+        "table rows run into the next paragraph in docs/:\n{}",
+        runons.join("\n")
+    );
+}

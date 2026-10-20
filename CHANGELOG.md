@@ -1385,6 +1385,8 @@ Notes for the latest release. For previous releases, see the
 - `docs/reference/` documents every built-in video effect, generator, clip type, transition, audio effect, colour filter, grading control, clip animation, text effect, easing curve, speed-ramp preset, sticker, and mask parameter, and tests fail when a registry member has no entry.
 - `docs/reference/` documents every tool, workspace, dock panel, overlay dialog, Project sidebar tab, Home rail view, command palette action, menu item, and configuration setting, and tests fail when one has no entry or when a relative link or anchor under `docs/` does not resolve.
 - Every public `aria-sdk` item is documented, and the crate denies `missing_docs`.
+- `docs/plugins/packages.md`, `presets.md`, `workspaces.md`, and `effects.md` and `docs/theme-tokens.md` document every `plugin.toml` table and key, preset field, workspace key, effect WGSL header field, and theme token with its type and default, and tests fail when a parser accepts a key the documents omit or a documented example does not parse.
+- Tests fail when a fenced code block under `docs/` never closes or a table runs into the paragraph after it.
 
 ### Changed
 
@@ -2699,6 +2701,7 @@ Notes for the latest release. For previous releases, see the
 - A native CPU effect built on `aria-sdk` reads each parameter after a `Layer` parameter from its own floats instead of the float before them, and `CpuFrameIn::text`, `font`, `file`, and `layer` return the effect instance's values instead of the default text and `None`.
 - The native ABI reference and `aria_plugin.h` state that `register_panel` accepts only the `sidebar`, `inspector`, and `timeline` locations.
 - Two example code blocks in `docs/plugins/panels.md` close before the prose that follows them instead of rendering it as code.
+- The `[[commands]]` example in `docs/plugins/packages.md` uses the `selection` context key, which `plugin.toml` accepts, instead of `clipSelected`, and the preset example in `docs/plugins/presets.md` writes effect parameters as `[name, value]` pairs and the compressor's `threshold` key, as the preset loader reads them.
 
 ## [alpha-0.7.0] — 2026-07-22
 
