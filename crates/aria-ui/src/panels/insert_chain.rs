@@ -105,7 +105,7 @@ pub fn render(
     } else {
         rows.push(
             pressed(
-                components::ghost_button(base.with("add"), "+ Audio effect", theme),
+                components::ghost_button(("insert-add", base.with("add")), "+ Audio effect", theme),
                 move || Gesture::TogglePicker(target),
                 cx,
             )
@@ -173,7 +173,7 @@ fn header(
     };
     let bypass = pressed(
         components::chip(
-            key.with("bypass"),
+            ("insert-bypass", key.with("bypass")),
             if insert.bypass { "Bypassed" } else { "On" },
             !insert.bypass,
             ChipSize::Compact,
@@ -184,7 +184,7 @@ fn header(
     );
     let up = (index > 0).then(|| {
         pressed(
-            components::ghost_button(key.with("up"), "↑", theme)
+            components::ghost_button(("insert-up", key.with("up")), "↑", theme)
                 .when_some(crate::tooltip::builder("insert-up"), |el, tip| {
                     el.with_tip(tip)
                 }),
@@ -194,7 +194,7 @@ fn header(
     });
     let down = (!last).then(|| {
         pressed(
-            components::ghost_button(key.with("down"), "↓", theme)
+            components::ghost_button(("insert-down", key.with("down")), "↓", theme)
                 .when_some(crate::tooltip::builder("insert-down"), |el, tip| {
                     el.with_tip(tip)
                 }),
@@ -248,7 +248,7 @@ fn keys(
     chips.push(
         pressed(
             components::chip(
-                key.with("key-none"),
+                ("insert-key-none", key.with("key-none")),
                 "No key",
                 current.is_none(),
                 ChipSize::Compact,
@@ -268,7 +268,7 @@ fn keys(
         chips.push(
             pressed(
                 components::chip(
-                    key.with("key").with(choice.track),
+                    ("insert-key", key.with("key").with(choice.track)),
                     choice.name.clone(),
                     current == Some(choice.track),
                     ChipSize::Compact,
@@ -321,7 +321,7 @@ fn add_list(
             let effect = choice.id.clone();
             pressed(
                 components::chip(
-                    base.with("add").with(&choice.id),
+                    ("insert-add-effect", base.with("add").with(&choice.id)),
                     choice.label.clone(),
                     false,
                     ChipSize::Compact,

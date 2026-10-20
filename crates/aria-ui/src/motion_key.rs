@@ -109,6 +109,33 @@ impl From<MotionKey> for ControlId {
     }
 }
 
+/// One row of a documented control: `(name, part)`.
+///
+/// `name` is the control's id in `docs/reference/controls.md`, written as a
+/// literal at the call so the controls census reads it from the source; `part`
+/// tells one row from another. Both fold into the hash, so the same part under
+/// two names is two controls.
+impl From<(&'static str, &str)> for ControlId {
+    fn from((name, part): (&'static str, &str)) -> Self {
+        Self::Key(MotionKey::new(name, part))
+    }
+}
+
+/// One row of a documented control, told apart by its position in the row.
+impl From<(&'static str, usize)> for ControlId {
+    fn from((name, index): (&'static str, usize)) -> Self {
+        Self::Key(MotionKey::new(name, index))
+    }
+}
+
+/// One row of a documented control whose row identity is already a key, such
+/// as an effect slot's parameter.
+impl From<(&'static str, MotionKey)> for ControlId {
+    fn from((name, key): (&'static str, MotionKey)) -> Self {
+        Self::Key(key.with(name))
+    }
+}
+
 impl ControlId {
     /// The element id GPUI addresses this control by.
     ///

@@ -109,7 +109,7 @@ fn spec_tool_btn(
     let item = spec.tool;
     let has_variants = item.has_variants();
     let key = motion::MotionKey::new("icon", id);
-    crate::components::icon_button(id, spec.icon, theme)
+    crate::components::icon_button(spec.id, spec.icon, theme)
         .size(px(Theme::ICON_HIT_LARGE))
         .debug_selector(move || id.into())
         .relative()

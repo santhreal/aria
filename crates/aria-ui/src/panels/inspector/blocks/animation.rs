@@ -66,7 +66,7 @@ pub fn animation_block(
                         (true, false) => format!("• {} (no renderer)", choice.label),
                         (false, false) => format!("{} (no renderer)", choice.label),
                     };
-                    components::ghost_button(id, label, theme)
+                    components::ghost_button(("anim-preset", id), label, theme)
                         .on_mouse_down(
                             MouseButton::Left,
                             cx.listener(move |this, _: &MouseDownEvent, _, cx| {
@@ -125,19 +125,20 @@ pub fn animation_block(
                 .children(chips)
                 .when(applied.is_some(), |this| {
                     this.children(knobs).child(
-                        components::ghost_button(clear_id(slot), "Clear", theme).on_mouse_down(
-                            MouseButton::Left,
-                            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                                this.state.update(cx, |state, _| {
-                                    if let Err(err) =
-                                        clip_pick::apply(state, Pick::ClearAnimation(slot))
-                                    {
-                                        state.report_error(&err);
-                                    }
-                                });
-                                cx.notify();
-                            }),
-                        ),
+                        components::ghost_button(("anim-clear", clear_id(slot)), "Clear", theme)
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                                    this.state.update(cx, |state, _| {
+                                        if let Err(err) =
+                                            clip_pick::apply(state, Pick::ClearAnimation(slot))
+                                        {
+                                            state.report_error(&err);
+                                        }
+                                    });
+                                    cx.notify();
+                                }),
+                            ),
                     )
                 })
                 .into_any_element()

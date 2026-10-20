@@ -40,19 +40,23 @@ pub fn mask_block(
             // draws what the catalog offers rather than deciding what a shape is.
             let kind = aria_models::MaskKind::from_id(choice.id.as_str())?;
             Some(
-                components::ghost_button(choice.id.as_str(), choice.label.clone(), theme)
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                            this.state.update(cx, |state, _| {
-                                if let Err(err) = inspector_pick::apply(state, Pick::Mask(kind)) {
-                                    state.report_error(&err);
-                                }
-                            });
-                            cx.notify();
-                        }),
-                    )
-                    .into_any_element(),
+                components::ghost_button(
+                    ("mask-shape", choice.id.as_str()),
+                    choice.label.clone(),
+                    theme,
+                )
+                .on_mouse_down(
+                    MouseButton::Left,
+                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                        this.state.update(cx, |state, _| {
+                            if let Err(err) = inspector_pick::apply(state, Pick::Mask(kind)) {
+                                state.report_error(&err);
+                            }
+                        });
+                        cx.notify();
+                    }),
+                )
+                .into_any_element(),
             )
         })
         .collect();
@@ -76,7 +80,7 @@ pub fn mask_block(
         .iter()
         .map(|(id, label, rgb)| {
             let rgb = *rgb;
-            components::ghost_button(*id, *label, theme)
+            components::ghost_button(("chroma-key-color", *id), *label, theme)
                 .on_mouse_down(
                     MouseButton::Left,
                     cx.listener(move |this, _: &MouseDownEvent, _, cx| {
@@ -176,7 +180,7 @@ fn mask_header(
         .map(|mode| {
             let mode = *mode;
             components::chip(
-                key.with("mode").with(mode.id()),
+                ("mask-mode", key.with("mode").with(mode.id())),
                 mode.label(),
                 mask.mode == mode,
                 ChipSize::Compact,
@@ -198,7 +202,7 @@ fn mask_header(
         })
         .collect();
     let mut actions = vec![pick_button(
-        key.with("invert"),
+        ("mask-invert", key.with("invert")),
         "Invert",
         Pick::ToggleMaskInvert(index),
         theme,
@@ -206,7 +210,7 @@ fn mask_header(
     )];
     if index > 0 {
         actions.push(pick_button(
-            key.with("up"),
+            ("mask-up", key.with("up")),
             "Move up",
             Pick::MoveMask {
                 from: index,
@@ -218,7 +222,7 @@ fn mask_header(
     }
     if index < last {
         actions.push(pick_button(
-            key.with("down"),
+            ("mask-down", key.with("down")),
             "Move down",
             Pick::MoveMask {
                 from: index,
@@ -229,7 +233,7 @@ fn mask_header(
         ));
     }
     actions.push(pick_button(
-        key.with("remove"),
+        ("mask-remove", key.with("remove")),
         "Remove",
         Pick::RemoveMask(index),
         theme,
@@ -274,7 +278,7 @@ fn mask_header(
 
 /// A ghost button that files `pick`.
 fn pick_button(
-    id: MotionKey,
+    id: impl Into<crate::motion::ControlId>,
     label: &'static str,
     pick: Pick,
     theme: &Theme,

@@ -35,7 +35,7 @@ pub fn matte_block(
             let source = *source;
             let selected = matte.map(|m| m.source) == Some(source);
             components::ghost_button(
-                source.id(),
+                ("matte-source", source.id()),
                 if selected {
                     format!("• {}", source.label())
                 } else {

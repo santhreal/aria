@@ -15,7 +15,9 @@ use crate::app::AppState;
 use crate::app::canvas_overlay::{
     CropHandle, MaskHandle, Rect, TransformHandle, crop_handle_anchor, mask_box, mask_handle_anchor,
 };
+use crate::chrome::tool_strip::lit_icon;
 use crate::fluent::FluentBuilder;
+use crate::icons;
 use crate::surfaces::overlay_gesture::{self, Gesture, Step};
 use crate::theme::Theme;
 use crate::types::OverlayMode;
@@ -85,21 +87,22 @@ pub(super) fn mode_picker(
         .items_center()
         .gap(px(Theme::SPACE_XS));
     for mode in OverlayMode::ALL {
-        let (id, path) = match mode {
-            OverlayMode::Transform => ("preview-handles-transform", crate::icons::TRANSFORM),
-            OverlayMode::Crop => ("preview-handles-crop", crate::icons::CROP),
-            OverlayMode::Mask => ("preview-handles-mask", crate::icons::MASK),
+        let on = mode == live;
+        let icon = match mode {
+            OverlayMode::Transform => {
+                lit_icon("preview-handles-transform", icons::TRANSFORM, on, theme)
+            }
+            OverlayMode::Crop => lit_icon("preview-handles-crop", icons::CROP, on, theme),
+            OverlayMode::Mask => lit_icon("preview-handles-mask", icons::MASK, on, theme),
         };
-        row = row.child(
-            crate::chrome::tool_strip::lit_icon(id, path, mode == live, theme).on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                    this.state
-                        .update(cx, |state, _| state.set_overlay_mode(mode));
-                    cx.notify();
-                }),
-            ),
-        );
+        row = row.child(icon.on_mouse_down(
+            MouseButton::Left,
+            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                this.state
+                    .update(cx, |state, _| state.set_overlay_mode(mode));
+                cx.notify();
+            }),
+        ));
     }
     row
 }

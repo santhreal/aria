@@ -422,6 +422,12 @@ fn field_states(theme: &Theme, state: GalleryState, cx: &mut Context<Gallery>) -
                         theme,
                     )),
                 ),
+                specimen(
+                    theme,
+                    "frame only (timecode)",
+                    components::field_frame("st-field-frame", false, theme)
+                        .child(div().child("00:00:12:05")),
+                ),
             ])),
     )
 }

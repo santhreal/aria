@@ -71,7 +71,7 @@ pub fn template_block(
         .map(|(kind, label)| {
             let selected = slot.as_ref().is_some_and(|s| s.accepts == kind);
             components::ghost_button(
-                label,
+                ("template-accepts", label),
                 if selected {
                     format!("• {label}")
                 } else {

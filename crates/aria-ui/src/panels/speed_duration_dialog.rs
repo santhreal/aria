@@ -74,7 +74,14 @@ pub fn render(
             .gap(px(Theme::SPACE_XS))
             .children(SPEED_PRESETS.iter().map(|&(pct, id, label)| {
                 let active = (form.speed_percent - pct).abs() < 0.05;
-                components::chip(id, label, active, ChipSize::Compact, &theme).on_mouse_down(
+                components::chip(
+                    ("speed-duration-preset", id),
+                    label,
+                    active,
+                    ChipSize::Compact,
+                    &theme,
+                )
+                .on_mouse_down(
                     MouseButton::Left,
                     cx.listener(move |this, _: &MouseDownEvent, _, cx| {
                         this.state.update(cx, |state, _| {
@@ -92,15 +99,16 @@ pub fn render(
             .gap(px(Theme::SPACE_XS))
             .children(SPEED_STEPS.iter().map(|&(delta, id, label)| {
                 let current = form.speed_percent;
-                components::ghost_button(id, label, &theme).on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                        this.state.update(cx, |state, _| {
-                            let _ = state.set_speed_duration_percent(current + delta);
-                        });
-                        cx.notify();
-                    }),
-                )
+                components::ghost_button(("speed-duration-speed-step", id), label, &theme)
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                            this.state.update(cx, |state, _| {
+                                let _ = state.set_speed_duration_percent(current + delta);
+                            });
+                            cx.notify();
+                        }),
+                    )
             }));
 
     let duration_steppers =
@@ -110,15 +118,16 @@ pub fn render(
             .gap(px(Theme::SPACE_XS))
             .children(DURATION_STEPS.iter().map(|&(delta, id, label)| {
                 let current = form.duration_ticks;
-                components::ghost_button(id, label, &theme).on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                        this.state.update(cx, |state, _| {
-                            let _ = state.set_speed_duration_ticks(current + delta);
-                        });
-                        cx.notify();
-                    }),
-                )
+                components::ghost_button(("speed-duration-length-step", id), label, &theme)
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                            this.state.update(cx, |state, _| {
+                                let _ = state.set_speed_duration_ticks(current + delta);
+                            });
+                            cx.notify();
+                        }),
+                    )
             }));
 
     let reverse_chip = components::chip(

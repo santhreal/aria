@@ -71,6 +71,12 @@ const ACTIONS: &[Action] = &[
     },
 ];
 
+/// Every id in [`ACTIONS`], for the controls census.
+#[cfg(test)]
+pub(crate) fn action_ids() -> impl Iterator<Item = &'static str> {
+    ACTIONS.iter().map(|action| action.id)
+}
+
 /// Whether the panel has anything to draw.
 pub(crate) fn has_report(state: &AppState) -> bool {
     state.media_reach.report.is_some()

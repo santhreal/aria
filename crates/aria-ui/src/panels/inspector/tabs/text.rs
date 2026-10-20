@@ -55,7 +55,7 @@ pub fn text_tab(
             } else {
                 choice.label.clone()
             };
-            components::ghost_button(id, label, theme)
+            components::ghost_button(("text-effect", id), label, theme)
                 .on_mouse_down(
                     MouseButton::Left,
                     cx.listener(move |this, _: &MouseDownEvent, _, cx| {

@@ -67,7 +67,7 @@ The Viewer and Source Monitor (`crates/aria-ui/src/panels/preview*.rs`) render t
 
 ## Timeline
 
-The Timeline pane (`crates/aria-ui/src/panels/timeline/*.rs` and `crates/aria-ui/src/panels/timeline_report.rs`) renders header toggles, sequence timecode and property search fields, track creation and zoom-fit controls, and graph editor tangent buttons.
+The Timeline pane (`crates/aria-ui/src/panels/timeline/*.rs` and `crates/aria-ui/src/panels/timeline_report.rs`) renders header toggles, sequence timecode and property search fields, track creation and zoom-fit controls, and graph editor mode chips and tangent buttons.
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
@@ -75,6 +75,8 @@ The Timeline pane (`crates/aria-ui/src/panels/timeline/*.rs` and `crates/aria-ui
 | `fit-timeline` | Zoom percentage | Displays the timeline zoom percentage and fits the entire sequence into the viewport when clicked. | `\` |
 | `graph-btn-easy-ease` | Easy Ease | Converts selected keyframes or the keyframe at the playhead to smooth Bézier tangents. | `F9` |
 | `graph-btn-hold` | Hold | Toggles hold interpolation on selected keyframes or the keyframe at the playhead. | `Ctrl+Alt+H` |
+| `graph-mode-speed` | Speed | Switches the graph editor to the speed curve of the selected property. | None |
+| `graph-mode-value` | Value | Switches the graph editor to the value curve of the selected property. | None |
 | `property-search` | Search | Filters visible timeline property and keyframe rows by name. | None |
 | `property-search-clear` | Clear search | Clears the active timeline property search filter. | None |
 | `timeline-display-settings` | Timeline display settings | Opens the timeline display menu for video thumbnails, audio waveforms, and duplicate frame bars. | None |
@@ -87,16 +89,21 @@ The Timeline pane (`crates/aria-ui/src/panels/timeline/*.rs` and `crates/aria-ui
 
 ## Inspector
 
-The Inspector panel (`crates/aria-ui/src/panels/inspector/**/*.rs`) renders parameter reset buttons, transform parenting chips and pick whip, effect rack row controls, preset management controls, framing and matte buttons, clip link controls, and transition pickers.
+The Inspector panel (`crates/aria-ui/src/panels/inspector/**/*.rs`) renders parameter reset buttons, transform parenting chips and pick whip, effect rack row controls, preset management controls, framing, mask, and matte buttons, animation, speed ramp, and layer style presets, audio role and ducking controls, template slot chips, clip link controls, and transition pickers.
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
+| `anim-clear` (per row) | Clear | Removes the in, out, or combo animation preset from the selected clip. | None |
+| `anim-preset` (per row) | Preset name | Applies the animation preset (Fade in, Slide up, Zoom in, and the rest of the animation catalog) to the in, out, or combo slot of the selected clip; a preset with no renderer is labelled `(no renderer)`. | None |
+| `aud-role` (per row) | Music / Sound FX / Voiceover / Extracted | Tags the selected clip with the audio role. | None |
 | `aud-role-clear` | Untag | Clears the assigned audio role tag (Dialogue, Music, Effects) from the selected clip. | None |
 | `blur-toggle` | On / Off | Toggles motion blur evaluation for transform animation on the selected clip. | None |
 | `chroma-clear` | Remove key | Removes the chroma key filter from the selected clip. | None |
+| `chroma-key-color` (per row) | Green / Blue / Cyan | Keys the selected clip on the green, blue, or cyan screen colour. | None |
 | `clip-type-detach` | Detach | Detaches the linked audio stream from the selected video clip onto its own track item. | None |
 | `crop-clear` | Reset framing | Resets all crop insets, feathering, and flip flags on the selected clip to their defaults. | None |
 | `duck-run` | Duck under voice | Computes and applies volume keyframes that lower music or effects gain during dialogue segments. | None |
+| `duck-setting` (per row) | Dip to / Attack / Release value | Steps the duck depth, attack time, or release time to its next value. | None |
 | `flip-h` | Flip H | Toggles horizontal mirroring of the selected clip. | None |
 | `flip-v` | Flip V | Toggles vertical mirroring of the selected clip. | None |
 | `fx-add` (per row) | Effect name | Appends the chosen effect from the inline picker to the selected clip's effect stack. | None |
@@ -136,14 +143,25 @@ The Inspector panel (`crates/aria-ui/src/panels/inspector/**/*.rs`) renders para
 | `look-clear` | Clear | Clears the applied creative look from the selected clip. | None |
 | `lut-clear` | Remove LUT | Removes the loaded 3D `.cube` LUT from the selected clip. | None |
 | `lut-load` | Load .cube… | Opens a file picker to load a `.cube` 3D LUT file onto the selected clip. | None |
+| `mask-down` (per row) | Move down | Moves the mask one place lower in the selected clip's mask stack. | None |
+| `mask-invert` (per row) | Invert | Inverts the mask at that place in the mask stack. | None |
+| `mask-mode` (per row) | None / Add / Subtract / Intersect / Lighten / Darken / Difference | Sets how the mask combines with the masks above it in the stack. | None |
+| `mask-remove` (per row) | Remove | Deletes the mask from the selected clip's mask stack. | None |
+| `mask-shape` (per row) | Linear / Mirror / Circle / Rectangle / Heart / Star / Path | Adds a mask of the shape to the bottom of the selected clip's mask stack. | None |
+| `mask-up` (per row) | Move up | Moves the mask one place higher in the selected clip's mask stack. | None |
 | `matte-clear` | Remove matte | Clears the track matte assignment from the selected clip. | None |
 | `matte-invert` | Invert | Inverts the alpha or luma channel read from the assigned matte clip. | None |
+| `matte-source` (per row) | Alpha / Luma | Sets whether the track matte reads the alpha or the luma of the layer above the selected clip. | None |
 | `parent-choice` (per row) | Clip name | Assigns the clicked timeline clip as the transform parent of the selected clip. | None |
 | `parent-none` | None | Detaches the selected clip from its current transform parent. | None |
 | `parent-whip` | @ | Arms or disarms the transform parent pick whip for clicking or dragging onto a target clip. | None |
 | `relink-media` | Relink | Opens a file picker to relink an offline source file from the Info tab. | None |
 | `speed-clear` | Clear ramp | Removes variable speed ramp segments and returns the clip to constant speed. | None |
+| `speed-preset` (per row) | Ramp up / Ramp down / Montage / Hero / Bullet / Jump cut / Flash in / Flash out | Applies the speed ramp preset to the selected clip. | None |
+| `style-color` (per row) | Black / White / Half black | Sets the colour of the shadow, glow, outline, or background layer style. | None |
+| `style-toggle` (per row) | Shadow / Glow / Outline / Background | Adds or removes the layer style on the selected clip; an applied style is labelled `on`. | None |
 | `styles-clear` | Clear styles | Removes drop shadow, stroke, glow, and background layer styles from the selected clip. | None |
+| `template-accepts` (per row) | Any visual / Video only / Image only / Audio only | Sets the media a template slot on the selected clip accepts when the template is filled. | None |
 | `tr-bool` (per row) | On / Off | Toggles a boolean parameter on the selected timeline transition. | None |
 | `tr-choice` (per row) | Option label | Selects an enum option for a parameter on the selected timeline transition. | None |
 | `transition-align` (per row) | Alignment | Sets transition placement across the cut (Center at Cut, Start at Cut, End at Cut). | None |
@@ -152,7 +170,7 @@ The Inspector panel (`crates/aria-ui/src/panels/inspector/**/*.rs`) renders para
 
 ## Project Panel
 
-The Project panel (`crates/aria-ui/src/panels/sidebar_*.rs`, `crates/aria-ui/src/surfaces/bin_strip.rs`, `crates/aria-ui/src/panels/generate.rs`, and `crates/aria-ui/src/panels/analysis.rs`) renders bin management buttons, media pool search and layout toggles, multicam sync and angle controls, subclip and generator actions, and media analysis controls.
+The Project panel (`crates/aria-ui/src/panels/sidebar_*.rs`, `crates/aria-ui/src/surfaces/bin_strip.rs`, `crates/aria-ui/src/panels/generate.rs`, and `crates/aria-ui/src/panels/analysis.rs`) renders bin management buttons, media pool search and layout toggles, multicam sync and angle controls, subclip and generator actions, stock media kind chips, media support actions (`crates/aria-ui/src/panels/media_support.rs`), and media analysis controls.
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
@@ -164,6 +182,7 @@ The Project panel (`crates/aria-ui/src/panels/sidebar_*.rs`, `crates/aria-ui/src
 | `analysis-next` | Next | Moves the playhead to the next detected analysis moment. | None |
 | `analysis-prev` | Previous | Moves the playhead to the previous detected analysis moment. | None |
 | `analysis-refresh` | Refresh | Re-runs the active media analysis pass on the selected clip. | None |
+| `analysis-run` (per row) | Shots / Silence / Beats | Runs the shot, silence, or beat detector on the selected clip. | None |
 | `analysis-split-shots` | Split at shots | Splits the selected timeline clip at every detected shot boundary. | None |
 | `bin-delete` | Delete bin | Deletes the currently open media bin and moves its contents to the parent bin. | None |
 | `bin-name` | Bin name | Edits the name of the bin currently being renamed. | None |
@@ -173,8 +192,13 @@ The Project panel (`crates/aria-ui/src/panels/sidebar_*.rs`, `crates/aria-ui/src
 | `create-subclip` | Make Subclip | Creates a new subclip item in the media pool from the current Source Monitor in/out range. | None |
 | `generate-kind` (per row) | Generator kind | Selects the procedural generator category in the Project panel Generate tab. | None |
 | `generate-submit` | Generate | Creates the configured procedural generator item and adds it to the media pool. | None |
+| `media-exposure` | Measure exposure | Measures the exposure of the frame on screen and keeps the readout. | None |
 | `media-import` | Import | Opens the file picker to import video, audio, or image files into the active bin. | None |
+| `media-loudness` | Loudness overview | Reports where the loudest moment of the selected source's audio stream is. | None |
+| `media-normalise` | Normalise selection | Sets the selected clip's gain so its measured peak lands on the target, from the loudness contour the Analysis panel measured. | None |
 | `media-query` | Search | Filters media pool items in the active bin by filename or metadata. | None |
+| `media-refresh` | Re-read | Rebuilds the media support report. | None |
+| `media-verify` | Verify decode | Decodes the selected clip's still or animation from its path and from its bytes and compares the two. | None |
 | `nudge-multicam-back` (per row) | Nudge angle back | Shifts the multicam angle offset one frame earlier relative to the group sync map. | None |
 | `nudge-multicam-forward` (per row) | Nudge angle forward | Shifts the multicam angle offset one frame later relative to the group sync map. | None |
 | `place-multicam-group` (per row) | Place | Places the multicam group onto the active sequence at the playhead. | None |
@@ -186,6 +210,8 @@ The Project panel (`crates/aria-ui/src/panels/sidebar_*.rs`, `crates/aria-ui/src
 | `pool-view-tiles` | Tiles | Switches the media pool layout to compact tiles with metadata. | None |
 | `relink-all` | Relink All | Opens a file picker to relink all missing media items in the project. | None |
 | `sidebar-group` (per row) | Group tab | Switches the top-level Project panel category (Media, Stock, Templates, Audio, Generate, Analyze). | None |
+| `sidebar-tab` (per row) | Tab label | Switches the Project panel to the tab (Media, Titles, Shapes, Stickers, Generators, Animations, Masks, Transitions, Effects, Stock, SFX, Generate, Captions, Analysis, Audio) within the open group. | None |
+| `stock-kind` (per row) | Video / Photo / Audio | Selects the media kind a stock search returns. | None |
 | `stock-search` | Search | Executes a stock media search query against the configured stock catalog. | None |
 | `switch-multicam-angle` (per row) | Angle label | Switches the active camera angle for the multicam group. | None |
 | `sync-multicam-group` (per row) | Sync angles | Aligns all angles in the multicam group by matching their audio waveforms. | None |
@@ -202,11 +228,16 @@ The Effects Browser panel (`crates/aria-ui/src/panels/effects_browser.rs`) rende
 
 ## Audio Mixer
 
-The Audio Mixer and shared audio insert chain (`crates/aria-ui/src/panels/insert_chain.rs`) render per-slot effect ordering and removal controls for track, clip, and master insert racks.
+The Audio Mixer and shared audio insert chain (`crates/aria-ui/src/panels/insert_chain.rs`) render per-slot effect adding, bypass, key lane, ordering, and removal controls for track, clip, and master insert racks.
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
+| `insert-add` (per row) | + Audio effect | Opens or closes the audio effect picker for the track, clip, or master insert chain. | None |
+| `insert-add-effect` (per row) | Effect name | Appends the audio effect to the end of the insert chain. | None |
+| `insert-bypass` (per row) | On / Bypassed | Bypasses the audio insert effect, or puts it back in the signal path. | None |
 | `insert-down` | ↓ | Moves the audio insert effect one slot later in the track or master insert chain. | None |
+| `insert-key` (per row) | Lane name | Sets the lane whose audio keys the insert effect, such as a sidechain compressor. | None |
+| `insert-key-none` (per row) | No key | Clears the key lane of the insert effect. | None |
 | `insert-remove` | Remove audio effect | Removes the audio insert effect from the track, clip, or master insert chain. | None |
 | `insert-up` | ↑ | Moves the audio insert effect one slot earlier in the track or master insert chain. | None |
 
@@ -224,27 +255,34 @@ The Captions panel (`crates/aria-ui/src/panels/captions.rs`) renders speech-to-t
 
 ## Text
 
-The Character, Paragraph, and Inspector Text surfaces (`crates/aria-ui/src/panels/inspector/tabs/text.rs` and `crates/aria-ui/src/panels/text_panel.rs`) render title text editing and font size stepping controls.
+The Character, Paragraph, and Inspector Text surfaces (`crates/aria-ui/src/panels/inspector/tabs/text.rs` and `crates/aria-ui/src/panels/text_panel.rs`) render title text editing, font size stepping, alignment, letter case, text style, and text effect controls.
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
 | `font-step` (per row) | − / + | Steps the selected title's font size down or up in the Character and Inspector Text panels. | None |
+| `text-align-h` (per row) | Left / Center / Right / Justify | Sets the horizontal alignment of the selected title. | None |
+| `text-align-v` (per row) | Top / Middle / Bottom | Sets the vertical alignment of the selected title block in the canvas. | None |
+| `text-case` (per row) | As typed / Upper / Lower / Title | Sets the letter case the selected title is drawn in. | None |
 | `text-edit` | Edit text… | Opens the text content prompt for the selected title clip. | None |
+| `text-effect` (per row) | Neon / Shadow / Outline / Glow / Retro / Chrome | Applies the text effect preset to the selected title, or removes it when it is already applied. | None |
+| `text-switch` (per row) | Bold / Italic / Underline / Kerning / Wrap / Stroke / Shadow / Card | Toggles the text style on the selected title. | None |
 
 ## Markers
 
-The Markers panel (`crates/aria-ui/src/panels/markers.rs`) renders playhead marker creation, colour filter reset, and per-marker edit and removal controls.
+The Markers panel (`crates/aria-ui/src/panels/markers.rs`) renders playhead marker creation, colour filter reset, and per-marker edit, rename, note, and removal controls.
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
 | `marker-add` | Add at playhead | Adds a new sequence marker at the current playhead frame. | None |
 | `marker-edit` (per row) | Edit… | Opens the Marker Edit dialog for the marker row. | None |
 | `marker-filter-all` | All | Clears the marker colour filter in the Markers panel to show all markers. | None |
+| `marker-note` (per row) | Note | Opens the inline editor for the marker's comment. | None |
 | `marker-remove` (per row) | Remove | Deletes the marker row from the sequence or clip. | None |
+| `marker-rename` (per row) | Rename | Opens the inline editor for the marker's name. | None |
 
 ## Color
 
-The Color panel and grading blocks (`crates/aria-ui/src/panels/color_panel.rs`, `crates/aria-ui/src/panels/inspector/blocks/grade.rs`, `wheels.rs`, and `curve_editor/picker.rs`) render section headers, colour wheel resets, curve channel and axis chips, and grade reset buttons.
+The Color panel and grading blocks (`crates/aria-ui/src/panels/color_panel.rs`, `crates/aria-ui/src/panels/inspector/blocks/grade.rs`, `wheels.rs`, and `curve_editor/picker.rs`) render section headers, colour wheel resets, curve channel and axis chips, blend mode and stabilization level buttons, and grade reset buttons.
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
@@ -254,17 +292,20 @@ The Color panel and grading blocks (`crates/aria-ui/src/panels/color_panel.rs`, 
 | `curve-axis` (per row) | Curve axis | Selects the active hue or luma curve axis in the colour curve editor. | None |
 | `curve-param` (per row) | Curve channel | Selects the active RGB or luma channel in the colour curve editor. | None |
 | `denoise-toggle` | On / Off | Toggles temporal/spatial video denoise on the selected clip. | None |
+| `grade-blend` (per row) | Normal / Darken / Multiply / Color Burn / Lighten / Screen / Color Dodge / Add / Overlay / Soft Light / Hard Light / Difference / Exclusion | Sets the blend mode the selected clip composites with. | None |
 | `grade-clear` | Reset grade | Resets all colour grade adjustments on the selected clip from the Inspector Look tab. | None |
 | `inspector-wheel-reset` | Reset wheel | Resets the Lift, Gamma, or Gain colour wheel back to neutral. | None |
+| `stabilize-level` (per row) | Recommended / Smooth / Max smooth | Enables video stabilization on the selected clip at the smoothing level. | None |
 | `stabilize-off` | Off | Disables video stabilization on the selected clip. | None |
 
 ## Scopes
 
-The Scopes surface (`crates/aria-ui/src/panels/preview/scopes.rs`) renders the Viewer scope strip toggle for histogram, waveform, RGB parade, and vectorscope displays.
+The Scopes surface (`crates/aria-ui/src/panels/preview/scopes.rs`) renders the Viewer scope strip toggle for histogram, waveform, RGB parade, and vectorscope displays, and the waveform mode chips.
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
 | `preview-scopes-toggle` | Scope strip | Toggles the video scopes strip (Histogram, Waveform, Parade, Vectorscope) in the Viewer. | None |
+| `scope-waveform-mode` (per row) | Luma / RGB / YCbCr | Sets whether the waveform monitor shows luma, an RGB parade, or a YCbCr parade. | None |
 
 ## Audio Meters
 
@@ -276,25 +317,30 @@ The Audio Meters surface (`crates/aria-ui/src/panels/preview_peak.rs` and `crate
 
 ## Alignment
 
-The Alignment panel (`crates/aria-ui/src/panels/align_panel.rs`) renders the alignment reference target chips (Selection or Frame).
+The Alignment panel (`crates/aria-ui/src/panels/align_panel.rs`) renders the alignment reference target chips (Selection or Frame) and the align and distribute buttons.
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
+| `align-edge` (per row) | Left / Centre / Right / Top / Middle / Bottom | Aligns the selected clips to the edge or centre line of the selection bounds or the frame. | None |
+| `align-spread` (per row) | Across / Down | Distributes three or more selected clips evenly across or down. | None |
 | `align-to` (per row) | Selection / Frame | Selects whether the Alignment panel aligns clips relative to the selection bounds or the sequence frame. | None |
 
 ## Keyframes
 
-The Keyframes panel and property row keyframe navigator (`crates/aria-ui/src/panels/inspector/blocks/keyframes.rs`, `widgets.rs`, and `crates/aria-ui/src/panels/timeline/property_rows.rs`) render keyframe stepping, keyframe toggle diamonds, animation stopwatches, procedural driver controls, and property resets.
+The Keyframes panel and property row keyframe navigator (`crates/aria-ui/src/panels/inspector/blocks/keyframes.rs`, `widgets.rs`, and `crates/aria-ui/src/panels/timeline/property_rows.rs`) render keyframe stepping, keyframe toggle diamonds, easing presets, animation stopwatches, procedural driver controls and pick whips, and property resets.
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
 | `inspector-driver-whip` | Driver pick whip | Arms the expression driver pick whip to bind a parameter to another property. | None |
+| `keyframe-easing` (per row) | Snappy / Overshoot / Anticipate | Applies the bezier easing preset to the segment leaving the keyframe at the playhead. | None |
+| `keyframe-piecewise` (per row) | Bounce out / Elastic out / Back out | Applies the piecewise easing preset to the segment leaving the keyframe at the playhead. | None |
 | `kf-at` | ◆ / ◇ | Adds a keyframe at the playhead or removes the existing keyframe on the property row. | None |
 | `kf-driver` | ƒ Driver / ƒ Remove | Attaches or removes a procedural parameter driver on the selected property. | None |
 | `kf-flatten` | Flatten | Bakes an active procedural driver into explicit keyframes across the clip. | None |
 | `kf-next` | › | Moves the playhead to the next keyframe on the property. | None |
 | `kf-prev` | ‹ | Moves the playhead to the previous keyframe on the property. | None |
 | `kf-toggle` | ◆ / ◇ | Toggles a keyframe at the current playhead frame in the Keyframes panel. | None |
+| `param-whip` (per row) | @ | Arms or disarms the driver pick whip for the property row being edited. | None |
 | `path-watch` | Stopwatch | Enables or disables keyframe animation for a mask path on the timeline. | None |
 | `prop-reset` | Reset property | Resets the property to its default value, writing a keyframe when the property is animated. | None |
 | `prop-watch` | Stopwatch | Enables or disables keyframe animation on the property; Alt-click attaches or removes a driver. | None |
@@ -334,12 +380,16 @@ The Export surface (`crates/aria-ui/src/panels/export_dialog.rs`) renders destin
 
 ## Settings
 
-The Settings dialog (`crates/aria-ui/src/panels/settings_dialog.rs` and `crates/aria-ui/src/panels/settings_dialog/*.rs`) renders preferences controls across AI providers, cache directories, keyboard shortcut sets, workspace layouts, plugins, storage quotas, and local transcription models.
+The Settings dialog (`crates/aria-ui/src/panels/settings_dialog.rs` and `crates/aria-ui/src/panels/settings_dialog/*.rs`) renders preferences controls across AI providers, playback, cache directories, keyboard shortcut sets, workspace layouts, plugins and their settings and WASM limits, storage quotas, and local transcription models.
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
 | `agent-dir-reveal` | Reveal agent files | Creates the AI agent configuration directory on demand and opens it in the system file manager. | None |
+| `ai-autonomy` (per row) | ask / full | Sets whether each destructive AI agent tool call needs a confirmation in the agent panel (`ask`) or every tool runs without one (`full`). | None |
 | `ai-list-models` | List models | Queries the configured AI provider endpoint for available model identifiers. | None |
+| `ai-protocol` (per row) | chat_completions / responses | Selects the API the AI provider is called through: Chat Completions or Responses. | None |
+| `ai-reasoning` (per row) | auto / off | Requests the most detailed reasoning summary the AI provider supports, or none. | None |
+| `ai-source` (per row) | local / openrouter / custom | Selects the AI provider: a local OpenAI-compatible server, the OpenRouter gateway, or a custom endpoint. | None |
 | `ai-test-connection` | Test connection | Verifies network and credential connectivity with the configured AI provider. | None |
 | `analysis-cache-clear` | Clear analysis | Deletes cached shot, silence, and loudness analysis records from disk. | None |
 | `cache-clear` (per row) | Clear | Deletes all cached files inside the selected storage cache category. | None |
@@ -352,17 +402,22 @@ The Settings dialog (`crates/aria-ui/src/panels/settings_dialog.rs` and `crates/
 | `plugin-folder` | Open Folder | Opens the installed plugins directory in the system file manager. | None |
 | `plugin-install` | Install Plugin… | Opens a file picker to install a `.ariap` plugin archive. | None |
 | `plugin-log-copy` (per row) | Copy | Copies the diagnostic log output of the selected plugin to the clipboard. | None |
+| `plugin-row-action` (per row) | Enable / Disable / Reload / Uninstall / Open Folder / Log / Hide Log | Enables, disables, reloads, or uninstalls the plugin, opens its folder, or shows or hides its log. | None |
+| `plugin-setting-option` (per row) | Option label | Saves the option of a plugin's toggle or choice setting. | None |
 | `quota-dec` | −512 MiB | Decreases the download cache quota by 512 MiB. | None |
 | `quota-inc` | +512 MiB | Increases the download cache quota by 512 MiB. | None |
+| `settings-audio-scrubbing` | Audio scrubbing: On / Off | Toggles a 40 ms audio grain at each pointer position while the playhead, the ruler, or a timeline scrub is dragged. | None |
 | `settings-done` | Done | Closes the Settings dialog. | None |
 | `settings-key-clear` (per row) | Clear | Unbinds the keyboard shortcut from the command row. | None |
 | `settings-key-keep` | Keep | Keeps the existing binding when a newly pressed chord conflicts with another command. | None |
 | `settings-key-move` | Move | Reassigns a conflicting keyboard chord to the newly selected command. | None |
 | `settings-key-revert` (per row) | Revert | Restores the command row's keyboard shortcut to its shipped default chord. | None |
+| `settings-keymap` (per row) | Keymap set name | Loads the saved keyboard shortcut set and makes it active. | None |
 | `settings-keymap-delete` | Delete set | Deletes the selected custom keymap preset from disk. | None |
 | `settings-keymap-export` | Export… | Exports the current keyboard shortcut bindings to a `.json` keymap file. | None |
 | `settings-keymap-import` | Import… | Imports keyboard shortcut bindings from a `.json` keymap file. | None |
 | `settings-keys-reset` | Reset all | Restores every keyboard shortcut in the active set to its default chord. | None |
+| `settings-log-dropped-frames` | Log dropped frames: On / Off | Toggles writing each dropped playback frame and its cause to the log under the `aria::playback` target. | None |
 | `settings-workspace-forget` (per row) | Forget | Deletes the saved custom workspace layout. | None |
 | `settings-workspace-reset` | Reset | Resets the active workspace dock layout to its factory pane arrangement. | None |
 | `settings-workspace-save` | Save layout / Overwrite | Saves the current dock pane arrangement into the active workspace slot. | None |
@@ -370,6 +425,8 @@ The Settings dialog (`crates/aria-ui/src/panels/settings_dialog.rs` and `crates/
 | `storage-relocate` | Move storage… | Opens a folder picker to relocate the root storage directory. | None |
 | `timeout-dec` (per row) | Halve | Halves the execution timeout in seconds for the selected transcription step. | None |
 | `timeout-inc` (per row) | Double | Doubles the execution timeout in seconds for the selected transcription step. | None |
+| `wasm-limit-dec` (per row) | Halve | Halves the WASM fuel per call or the WASM memory limit for plugins. | None |
+| `wasm-limit-inc` (per row) | Double | Doubles the WASM fuel per call or the WASM memory limit for plugins. | None |
 
 ## Project Home
 
@@ -381,7 +438,7 @@ The Project Home surface (`crates/aria-ui/src/panels/home/*.rs` and `crates/aria
 
 ## Window & Dock Chrome
 
-The application window frame, dock tab bars, and status strip (`crates/aria-ui/src/chrome.rs`, `crates/aria-ui/src/shell/frame_menu.rs`, and `crates/aria-ui/src/shell/strip.rs`) render client-side window caption buttons, dock tab overflow menus, nested sequence breadcrumbs, and dropped-frame counters.
+The application window frame, dock tab bars, and status strip (`crates/aria-ui/src/chrome.rs`, `crates/aria-ui/src/shell/frame_menu.rs`, and `crates/aria-ui/src/shell/strip.rs`) render client-side window caption buttons, dock tab overflow menus, nested sequence breadcrumbs, and dropped-frame counters. Docked plugin panels (`crates/aria-ui/src/panels/plugin_panel.rs`) draw the controls a plugin declares with the same shared widgets.
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
@@ -389,6 +446,11 @@ The application window frame, dock tab bars, and status strip (`crates/aria-ui/s
 | `caption-max` | Maximise window | Toggles the application window between maximised and restored geometry. | None |
 | `caption-min` | Minimise window | Minimises the application window to the system taskbar or dock. | None |
 | `dock-tab-more` (per row) | More panels | Opens the overflow menu listing dock panels hidden by narrow frame width. | None |
+| `plugin-panel-open` (per row) | Open | Loads the plugin package that declares the waiting panel and opens the panel. | None |
+| `plugin-ui-button` (per row) | Button text | Sends a press event to the plugin that declared the panel button. | None |
+| `plugin-ui-choice` (per row) | Option text | Sends the chosen option of a panel choice control to the plugin. | None |
+| `plugin-ui-input` (per row) | Field text | Gives the plugin panel text field keyboard focus. | None |
+| `plugin-ui-toggle` (per row) | Toggle text | Sends the new state of a panel toggle control to the plugin. | None |
 | `status-dropped-frames` | Dropped frames | Displays the count of dropped playback frames in the status strip and resets the counter when clicked. | None |
 | `status-nest-breadcrumb` | Nest breadcrumb | Returns the timeline from an opened nested sequence back to its parent sequence. | None |
 
@@ -402,6 +464,9 @@ Modal dialogs (`crates/aria-ui/src/panels/*_dialog.rs` and `crates/aria-ui/src/p
 | `about-data` | Open Data Folder | Opens the application data directory in the system file manager. | None |
 | `audio-gain-apply` | Apply | Applies the configured gain or peak normalization settings to the selected clips. | None |
 | `audio-gain-cancel` | Cancel | Closes the Audio Gain dialog without modifying clip gain. | None |
+| `audio-gain-mode` (per row) | Set Gain to / Adjust Gain by / Normalize Max Peak to / Normalize All Peaks to | Selects how the Audio Gain dialog changes the gain of the selected clips. | None |
+| `audio-gain-preset` (per row) | -12 dB … +6 dB / -12 dBFS … 0 dBFS | Sets the gain or the normalization target in the Audio Gain dialog to the preset value. | None |
+| `audio-gain-step` (per row) | -3 dB / -1 dB / -0.5 dB / +0.5 dB / +1 dB / +3 dB | Steps the gain or the normalization target in the Audio Gain dialog by the value. | None |
 | `install-plugin-cancel` | Cancel | Cancels the pending plugin archive installation and closes the confirmation dialog. | None |
 | `install-plugin-confirm` | Install / Update | Confirms permissions and installs or updates the selected plugin package. | None |
 | `job-reveal` (per row) | Reveal | Reveals the output file of a completed background job in the system file manager. | None |
@@ -411,13 +476,18 @@ Modal dialogs (`crates/aria-ui/src/panels/*_dialog.rs` and `crates/aria-ui/src/p
 | `keyframe-velocity-cancel` | Cancel | Closes the Keyframe Velocity dialog without changing keyframe tangents. | None |
 | `keyframe-velocity-continuous` | Continuous: On / Off | Toggles continuous Bézier tangent coupling between incoming and outgoing keyframe handles. | None |
 | `marker-edit-cancel` | Cancel | Closes the Marker Edit dialog without saving changes. | None |
+| `marker-edit-kind` (per row) | Comment / Chapter / Segmentation | Sets the kind of the marker in the Marker Edit dialog. | None |
 | `marker-edit-save` | Save | Saves the edited marker name, notes, duration, colour, and kind. | None |
+| `remove-attr` (per row) | Motion / Opacity / Crop / Time Remapping / Volume / Pan / Effects / Audio Effects / Grade / Mask / Chroma Key | Ticks or unticks the attribute group the Remove Attributes dialog strips. | None |
 | `remove-attr-apply` | Remove | Strips the checked attribute groups and effects from the selected timeline clips. | None |
 | `remove-attr-cancel` | Cancel | Closes the Remove Attributes dialog without modifying selected clips. | None |
 | `speed-duration-apply` | Apply | Applies the configured playback speed percentage, duration, reverse, and pitch settings to the selected clip. | None |
 | `speed-duration-cancel` | Cancel | Closes the Speed / Duration dialog without modifying the clip. | None |
+| `speed-duration-length-step` (per row) | -24f / -5f / -1f / +1f / +5f / +24f | Steps the clip duration in the Speed / Duration dialog by the number of frames. | None |
 | `speed-duration-pitch` | Maintain Audio Pitch: On / Off | Toggles audio pitch preservation in the Speed / Duration dialog. | None |
+| `speed-duration-preset` (per row) | 25% … 400% | Sets the speed in the Speed / Duration dialog to the preset percentage. | None |
 | `speed-duration-reverse` | Reverse Speed: On / Off | Toggles reverse playback in the Speed / Duration dialog. | None |
+| `speed-duration-speed-step` (per row) | -25% / -5% / -1% / +1% / +5% / +25% | Steps the speed in the Speed / Duration dialog by the percentage. | None |
 | `unsaved-cancel` | Stay | Cancels the pending close, quit, or project switch and returns to the open project. | None |
 | `unsaved-discard` | Discard | Discards unsaved project modifications and proceeds with the pending action. | None |
 | `unsaved-save` | Save | Saves the current project and proceeds with the pending close, quit, or project switch. | None |

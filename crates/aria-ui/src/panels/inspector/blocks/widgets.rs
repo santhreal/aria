@@ -464,7 +464,7 @@ fn driver_source(
             }),
         );
     let whip = line.editing.then(|| {
-        crate::components::ghost_button(key.with("whip"), "@", theme)
+        crate::components::ghost_button(("param-whip", key.with("whip")), "@", theme)
             .when(line.picking, |el| {
                 el.bg(theme.accent).text_color(theme.text)
             })

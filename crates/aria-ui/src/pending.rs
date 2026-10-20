@@ -60,8 +60,8 @@ pub fn job_rows(
 /// panel that owns the same job: two live rows for one job would otherwise share
 /// one element id, and GPUI keys hover and press state by id, so the pointer
 /// over one would light the other.
-pub(crate) fn stop_id(surface: &str, job: u64) -> motion::ControlId {
-    motion::ControlId::Key(motion::MotionKey::new("job-stop", surface).with(job))
+pub(crate) fn stop_id(surface: &str, job: u64) -> motion::MotionKey {
+    motion::MotionKey::new(surface, job)
 }
 
 /// The control that stops a job, and nothing at all for a job that cannot be
@@ -83,7 +83,7 @@ pub fn stop_button(
     }
     let id = job.id;
     Some(
-        crate::components::ghost_button(stop_id(surface, id), "Stop", theme)
+        crate::components::ghost_button(("job-stop", stop_id(surface, id)), "Stop", theme)
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |this, _: &MouseDownEvent, _, cx| {

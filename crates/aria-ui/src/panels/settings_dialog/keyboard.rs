@@ -18,7 +18,6 @@ use crate::app::settings_form::SettingsField;
 use crate::components;
 use crate::keys::BindingRow;
 use crate::keys::keyboard_image::{self, Cap, CapKind, CommandKind, Held, Mods};
-use crate::motion;
 use crate::theme::Theme;
 
 /// One key unit on the image, in pixels. Fifteen of them fit the dialog card.
@@ -83,11 +82,10 @@ pub(super) fn keymap_rows(
         );
     }
     for (index, name) in sets.iter().enumerate() {
-        let id = motion::MotionKey::new("settings-keymap", index);
         let chip = if active.as_ref() == Some(name) {
-            components::button(id, name.clone(), theme)
+            components::button(("settings-keymap", index), name.clone(), theme)
         } else {
-            components::ghost_button(id, name.clone(), theme)
+            components::ghost_button(("settings-keymap", index), name.clone(), theme)
         };
         let picked = name.clone();
         chips = chips.child(chip.on_mouse_down(
