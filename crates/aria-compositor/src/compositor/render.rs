@@ -6,6 +6,7 @@ use crate::lut::CubeLut;
 use crate::passes::PassInstance;
 
 use super::items::frame_items;
+use super::draw_layer::clear_view_color;
 use super::scene::Scene;
 use super::{
     CANVAS_FORMAT, Compositor, FrameSink, LUT_CACHE_MAX, LayerGpu, LayerPipeline, LutTexture,
@@ -265,6 +266,23 @@ impl Compositor {
         config: &CompositorConfig,
         scene: Scene<'_>,
     ) -> Result<wgpu::CommandEncoder, CompositorError> {
+        self.prepare_scene(gpu, config, &scene)?;
+        self.ensure_target(&gpu.device, config.width, config.height);
+        let target = self
+            .target
+            .as_ref()
+            .expect("ensure_target populates the cache");
+        self.encode_prepared_scene(gpu, config, scene, (&target.texture, &target.view))
+    }
+
+    /// Ensure offscreen pools, reference/nest targets, LUT uploads, and
+    /// per-frame cache epochs are ready to encode `scene`.
+    pub(super) fn prepare_scene(
+        &mut self,
+        gpu: &GpuContext,
+        config: &CompositorConfig,
+        scene: &Scene<'_>,
+    ) -> Result<(), CompositorError> {
         if config.width == 0 || config.height == 0 {
             return Err(CompositorError::InvalidDimensions {
                 width: config.width,
@@ -273,13 +291,12 @@ impl Compositor {
         }
 
         let device = &gpu.device;
-        self.ensure_target(device, config.width, config.height);
-        self.ensure_offscreen(gpu, config.width, config.height, scene_demand(&scene));
+        self.ensure_offscreen(gpu, config.width, config.height, scene_demand(scene));
         self.references.ensure(
             device,
             config.width,
             config.height,
-            frame_items(&scene).filter_map(|item| match item {
+            frame_items(scene).filter_map(|item| match item {
                 CompositorLayer::Reference { clip, .. } => Some(clip),
                 _ => None,
             }),
@@ -297,7 +314,7 @@ impl Compositor {
         self.glyph_atlases.borrow_mut().begin_frame();
         // Upload every LUT the scene references before target/offscreen are
         // borrowed; the loop below only reads the cache.
-        for item in frame_items(&scene) {
+        for item in frame_items(scene) {
             for LayerLut { key, lut, .. } in item_luts(&item).into_iter().flatten() {
                 self.ensure_lut(gpu, key, lut);
             }
@@ -305,57 +322,59 @@ impl Compositor {
         self.layer_passes.begin_frame();
         self.plane_textures.borrow_mut().begin_frame();
         self.rgba_textures.borrow_mut().begin_frame();
-        let target = self
-            .target
-            .as_ref()
-            .expect("ensure_target populates the cache");
         let offscreen = self.offscreen.as_ref().expect("offscreen pool");
         offscreen.passes().begin_frame();
         offscreen.passes().set_frame_budget(config.frame_budget);
+        Ok(())
+    }
 
-        let mut encoder =
-            device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+    /// Encode `scene` onto `canvas` after [`Self::prepare_scene`] has run.
+    pub(super) fn encode_prepared_scene(
+        &self,
+        gpu: &GpuContext,
+        config: &CompositorConfig,
+        scene: Scene<'_>,
+        canvas: (&wgpu::Texture, &wgpu::TextureView),
+    ) -> Result<wgpu::CommandEncoder, CompositorError> {
+        let offscreen = self.offscreen.as_ref().expect("offscreen pool");
+        let mut encoder = gpu
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
 
-        // Clear canvas.
-        {
-            let bg = config.background;
-            let _clear = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: None,
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &target.view,
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: f64::from(bg[0]) / 255.0,
-                            g: f64::from(bg[1]) / 255.0,
-                            b: f64::from(bg[2]) / 255.0,
-                            a: f64::from(bg[3]) / 255.0,
-                        }),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
-        }
+        let bg = config.background;
+        let mut pending_clear = Some(wgpu::Color {
+            r: f64::from(bg[0]) / 255.0,
+            g: f64::from(bg[1]) / 255.0,
+            b: f64::from(bg[2]) / 255.0,
+            a: f64::from(bg[3]) / 255.0,
+        });
         self.references.clear(&mut encoder);
         self.nests.clear(&mut encoder);
 
         // Every nest draws before the items that show it; the frame draws the
-        // rest of its items onto the canvas.
-        let canvas = (&target.texture, &target.view);
+        // rest of its items onto the canvas, fusing the background clear into
+        // the first direct layer pass when possible.
         for item in scene.iter() {
             match item {
                 CompositorLayer::Nest { nest, items } => {
                     self.draw_nest(gpu, &mut encoder, config, offscreen, nest, items)?;
                 }
                 item => {
-                    self.draw_item(gpu, &mut encoder, config, offscreen, &item, canvas, false)?
+                    self.draw_item(
+                        gpu,
+                        &mut encoder,
+                        config,
+                        offscreen,
+                        &item,
+                        canvas,
+                        false,
+                        &mut pending_clear,
+                    )?;
                 }
             }
+        }
+        if let Some(color) = pending_clear.take() {
+            clear_view_color(&mut encoder, "aria.clear", canvas.1, color);
         }
 
         Ok(encoder)

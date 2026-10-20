@@ -325,6 +325,9 @@ pub struct Compositor {
     glyphs_layout: wgpu::BindGroupLayout,
     sampler: wgpu::Sampler,
     target: Option<TargetCache>,
+    /// Cached texture views for caller-owned `FrameTarget` textures rendered
+    /// directly without going through `target`.
+    frame_target_views: Vec<(wgpu::Texture, wgpu::TextureView)>,
     pass_registry: PassRegistry,
     offscreen: Option<OffscreenPool>,
     /// Frames of clips that registered effects read through layer parameters.

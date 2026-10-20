@@ -43,6 +43,9 @@ fn vs(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
 @fragment
 fn fs(in: VertexOutput) -> @location(0) vec4<f32> {
     let o = s.trans_opacity.z;
-    let rgb = apply_color_grade(s.color.rgb, s.grade);
+    var rgb = s.color.rgb;
+    if s.grade[0].w > 0.5 {
+        rgb = apply_color_grade(rgb, s.grade);
+    }
     return vec4(rgb, s.color.a * o);
 }

@@ -66,8 +66,10 @@ fn fs(in: VertexOutput) -> @location(0) vec4<f32> {
     if premul.a > 0.0 {
         rgb = rgb / premul.a;
     }
-    rgb = apply_color_grade(rgb, p.grade);
-    rgb = apply_grade_sharpness(rgb, in.uv, tex, samp, grade_sharpness(p.grade));
-    rgb = apply_grade_vignette(rgb, in.quad_uv, grade_vignette(p.grade));
+    if p.grade[0].w > 0.5 {
+        rgb = apply_color_grade(rgb, p.grade);
+        rgb = apply_grade_sharpness(rgb, in.uv, tex, samp, grade_sharpness(p.grade));
+        rgb = apply_grade_vignette(rgb, in.quad_uv, grade_vignette(p.grade));
+    }
     return vec4(rgb * layer_a, layer_a);
 }

@@ -29,10 +29,9 @@ pub(super) struct BlendDest<'a> {
 pub(super) struct LayerTarget<'a> {
     pub(super) texture: &'a wgpu::Texture,
     pub(super) view: &'a wgpu::TextureView,
-    /// Clear the target before drawing, so the layer draws as it would alone
-    /// on a transparent canvas: its blend mode composites it over its own
-    /// background, shadow and glow, and over nothing else.
-    pub(super) clear: bool,
+    /// Clear color applied before drawing when `Some`, or `None` to load the
+    /// existing target contents.
+    pub(super) clear: Option<wgpu::Color>,
     pub(super) label: &'static str,
 }
 
@@ -62,8 +61,8 @@ impl Compositor {
             );
             return Ok(());
         }
-        if target.clear {
-            clear_view(encoder, target.label, target.view);
+        if let Some(color) = target.clear {
+            clear_view_color(encoder, target.label, target.view, color);
         }
         let device = &gpu.device;
         // The content cut by its mask, or the average of its motion-blur
@@ -85,7 +84,7 @@ impl Compositor {
                 encoder,
                 "aria.style.background",
                 target.view,
-                false,
+                None,
                 pipeline,
                 &built,
             );
@@ -201,8 +200,18 @@ pub(super) fn copy_canvas(
 /// Clear `view` to transparent.
 pub(super) fn clear_view(
     encoder: &mut wgpu::CommandEncoder,
+    label: &'static str,
+    view: &wgpu::TextureView,
+) {
+    clear_view_color(encoder, label, view, wgpu::Color::TRANSPARENT);
+}
+
+/// Clear `view` to `color`.
+pub(super) fn clear_view_color(
+    encoder: &mut wgpu::CommandEncoder,
     _label: &'static str,
     view: &wgpu::TextureView,
+    color: wgpu::Color,
 ) {
     let _clear = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
         label: None,
@@ -211,7 +220,7 @@ pub(super) fn clear_view(
             depth_slice: None,
             resolve_target: None,
             ops: wgpu::Operations {
-                load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                load: wgpu::LoadOp::Clear(color),
                 store: wgpu::StoreOp::Store,
             },
         })],
