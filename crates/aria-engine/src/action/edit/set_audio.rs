@@ -1,4 +1,4 @@
-use aria_models::{ClipId, ModelError, Param, RationalTime};
+use aria_models::{ClipId, Param, RationalTime};
 
 use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
@@ -17,11 +17,7 @@ impl EditAction for RestoreAudioAction {
         ctx: &mut ApplyContext<'_>,
     ) -> Result<Box<dyn EditAction>, EngineError> {
         let clip_id = self.clip;
-        let clip = ctx
-            .project
-            .timeline_mut()
-            .clip_mut(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = ctx.project.timeline_mut().require_clip_mut(clip_id)?;
         let current_volume = clip.volume.clone();
         let current_fade_in = clip.fade_in;
         let current_fade_out = clip.fade_out;
@@ -50,10 +46,7 @@ pub fn set_audio(
     fade_in: RationalTime,
     fade_out: RationalTime,
 ) -> Result<Box<dyn EditAction>, EngineError> {
-    let clip_obj = ctx
-        .project
-        .clip(clip)
-        .ok_or(ModelError::UnknownClip(clip))?;
+    let clip_obj = ctx.project.require_clip(clip)?;
     let prev_volume = clip_obj.volume.clone();
     let prev_fade_in = clip_obj.fade_in;
     let prev_fade_out = clip_obj.fade_out;

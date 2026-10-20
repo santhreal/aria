@@ -111,12 +111,7 @@ fn check(
         (SourceChannel::Audio, sound.lane()),
     ] {
         let Some(lane) = lane else { continue };
-        let kind = ctx
-            .project
-            .timeline()
-            .track(lane)
-            .ok_or(ModelError::UnknownTrack(lane))?
-            .kind;
+        let kind = ctx.project.timeline().require_track(lane)?.kind;
         if kind != channel.lane_kind() {
             return Err(ModelError::IncompatibleTrackKind { track: lane, kind }.into());
         }
@@ -126,10 +121,7 @@ fn check(
 
 /// Mute a placed picture whose sound was patched off.
 fn silence(ctx: &mut ApplyContext<'_>, clip: ClipId) -> Result<Box<dyn EditAction>, EngineError> {
-    let placed = ctx
-        .project
-        .clip(clip)
-        .ok_or(ModelError::UnknownClip(clip))?;
+    let placed = ctx.project.require_clip(clip)?;
     let rate = placed.start().rate;
     let (fade_in, fade_out) = (
         RationalTime::new(placed.fade_in, rate),

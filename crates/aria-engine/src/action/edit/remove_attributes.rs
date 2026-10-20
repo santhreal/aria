@@ -22,10 +22,7 @@ pub fn execute(
         .cloned()
         .ok_or(ModelError::UnknownClip(clip))?;
     if let Err(error) = ctx.project.remove_clip_attributes(clip, attributes) {
-        *ctx.project
-            .timeline_mut()
-            .clip_mut(clip)
-            .ok_or(ModelError::UnknownClip(clip))? = before;
+        *ctx.project.timeline_mut().require_clip_mut(clip)? = before;
         return Err(error.into());
     }
     Ok(Box::new(RestoreClipAction { clip: before }))

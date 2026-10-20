@@ -1,4 +1,4 @@
-use aria_models::{AudioSend, AutomationMode, ModelError, Param, TrackId, TrackOutput};
+use aria_models::{AudioSend, AutomationMode, Param, TrackId, TrackOutput};
 
 use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
@@ -64,9 +64,7 @@ pub fn execute(
     edit: RouteEdit,
 ) -> Result<Box<dyn EditAction>, EngineError> {
     let timeline = ctx.project.timeline_mut();
-    let lane = timeline
-        .track(track)
-        .ok_or(ModelError::UnknownTrack(track))?;
+    let lane = timeline.require_track(track)?;
     // Snapshot the pre-edit route into the inverse (a full restore).
     let inverse = Box::new(SetTrackRoutingAction {
         track,
@@ -117,9 +115,7 @@ impl EditAction for SetTrackRoutingAction {
         ctx: &mut ApplyContext<'_>,
     ) -> Result<Box<dyn EditAction>, EngineError> {
         let timeline = ctx.project.timeline_mut();
-        let lane = timeline
-            .track(self.track)
-            .ok_or(ModelError::UnknownTrack(self.track))?;
+        let lane = timeline.require_track(self.track)?;
         let inverse = Box::new(SetTrackRoutingAction {
             track: self.track,
             gain: lane.gain,

@@ -65,12 +65,8 @@ fn build_plan(
     let source_track_id = timeline
         .track_of(clip_id)
         .ok_or(ModelError::UnknownClip(clip_id))?;
-    let source_track = timeline
-        .track(source_track_id)
-        .ok_or(ModelError::UnknownTrack(source_track_id))?;
-    let source = timeline
-        .clip(clip_id)
-        .ok_or(ModelError::UnknownClip(clip_id))?;
+    let source_track = timeline.require_track(source_track_id)?;
+    let source = timeline.require_clip(clip_id)?;
     let ClipSource::Media { media, .. } = &source.content else {
         return Err(ModelError::InvalidParam(
             "extract audio requires a media-backed clip".into(),
@@ -120,9 +116,7 @@ fn build_plan(
 
     let destination = match to_track {
         Some(track_id) => {
-            let track = timeline
-                .track(track_id)
-                .ok_or(ModelError::UnknownTrack(track_id))?;
+            let track = timeline.require_track(track_id)?;
             if track.kind != TrackKind::Audio {
                 return Err(ModelError::IncompatibleTrackKind {
                     track: track_id,

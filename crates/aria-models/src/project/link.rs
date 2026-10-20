@@ -52,7 +52,7 @@ impl Project {
         }
         let mut touched = BTreeSet::new();
         for &clip_id in clips {
-            let clip = self.clip(clip_id).ok_or(ModelError::UnknownClip(clip_id))?;
+            let clip = self.require_clip(clip_id)?;
             if let Some(link) = clip.link {
                 touched.insert(link);
             }
@@ -86,10 +86,7 @@ impl Project {
         }
         let mut inverse = Vec::with_capacity(plan.len());
         for &(clip_id, link) in plan {
-            let clip = self
-                .timeline_mut()
-                .clip_mut(clip_id)
-                .ok_or(ModelError::UnknownClip(clip_id))?;
+            let clip = self.timeline_mut().require_clip_mut(clip_id)?;
             inverse.push((clip_id, clip.link));
             clip.link = link;
         }
@@ -172,7 +169,7 @@ impl Project {
         }
         let mut touched = BTreeSet::new();
         for &clip_id in clips {
-            let clip = self.clip(clip_id).ok_or(ModelError::UnknownClip(clip_id))?;
+            let clip = self.require_clip(clip_id)?;
             if let Some(group) = clip.group {
                 touched.insert(group);
             }
@@ -203,10 +200,7 @@ impl Project {
         }
         let mut inverse = Vec::with_capacity(plan.len());
         for &(clip_id, group) in plan {
-            let clip = self
-                .timeline_mut()
-                .clip_mut(clip_id)
-                .ok_or(ModelError::UnknownClip(clip_id))?;
+            let clip = self.timeline_mut().require_clip_mut(clip_id)?;
             inverse.push((clip_id, clip.group));
             clip.group = group;
         }
@@ -336,10 +330,7 @@ impl Project {
         }
         let mut inverse = Vec::with_capacity(plan.len());
         for &(clip_id, enabled) in plan {
-            let clip = self
-                .timeline_mut()
-                .clip_mut(clip_id)
-                .ok_or(ModelError::UnknownClip(clip_id))?;
+            let clip = self.timeline_mut().require_clip_mut(clip_id)?;
             inverse.push((clip_id, clip.enabled));
             clip.enabled = enabled;
         }

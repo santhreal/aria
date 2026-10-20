@@ -105,14 +105,12 @@ pub fn reparented(
     at: RationalTime,
     keep: ParentKeep,
 ) -> Result<AnimatedTransform, ModelError> {
-    let clip = project
-        .clip(clip_id)
-        .ok_or(ModelError::UnknownClip(clip_id))?;
+    let clip = project.require_clip(clip_id)?;
     let mut transform = clip.transform.clone();
     let new_parent = match parent {
         Some(id) => {
             project.check_parent(clip_id, id)?;
-            Some(project.clip(id).ok_or(ModelError::UnknownClip(id))?)
+            Some(project.require_clip(id)?)
         }
         None => None,
     };

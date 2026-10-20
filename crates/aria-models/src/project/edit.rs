@@ -209,10 +209,7 @@ impl Project {
             .timeline()
             .track_of(clip_id)
             .ok_or(ModelError::UnknownClip(clip_id))?;
-        let clip = self
-            .timeline()
-            .clip(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline().require_clip(clip_id)?;
         let old_tl = clip.timeline;
         let tl_rate = self.timeline().frame_rate;
         check_same_rate(new_timeline.start.rate, tl_rate)?;
@@ -350,10 +347,7 @@ impl Project {
     /// held frame), and a still (whose window is duration bookkeeping, not a
     /// position in a take).
     pub fn slip_clip(&mut self, clip_id: ClipId, by: i64) -> Result<(), ModelError> {
-        let clip = self
-            .timeline()
-            .clip(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline().require_clip(clip_id)?;
         if clip.freeze_frame {
             return Err(ModelError::InvalidParam(
                 "a freeze frame holds one frame; there is nothing to slip".into(),
@@ -439,10 +433,7 @@ impl Project {
             .timeline()
             .track_of(clip_id)
             .ok_or(ModelError::UnknownClip(clip_id))?;
-        let clip = self
-            .timeline()
-            .clip(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline().require_clip(clip_id)?;
         if clip.freeze_frame {
             return Err(ModelError::InvalidParam(
                 "freeze-frame clips cannot be retimed".into(),
@@ -504,10 +495,7 @@ impl Project {
             .timeline()
             .track_of(clip_id)
             .ok_or(ModelError::UnknownClip(clip_id))?;
-        let clip = self
-            .timeline()
-            .clip(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline().require_clip(clip_id)?;
         if clip.freeze_frame {
             return Err(ModelError::InvalidParam(
                 "freeze-frame clips cannot use speed curves".into(),
@@ -567,10 +555,7 @@ impl Project {
         clip_id: ClipId,
         preserve_pitch: bool,
     ) -> Result<(), ModelError> {
-        let clip = self
-            .timeline_mut()
-            .clip_mut(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
         if clip.source_range().is_none() {
             return Err(ModelError::InvalidParam(
                 "pitch lock requires a media-backed clip".into(),
@@ -585,10 +570,7 @@ impl Project {
     /// the clip's audio through RNNoise when set. Rejected on generated clips
     /// (no source audio to clean).
     pub fn set_clip_denoise(&mut self, clip_id: ClipId, denoise: bool) -> Result<bool, ModelError> {
-        let clip = self
-            .timeline_mut()
-            .clip_mut(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
         if clip.source_range().is_none() {
             return Err(ModelError::InvalidParam(
                 "noise reduction requires a media-backed clip".into(),
@@ -607,10 +589,7 @@ impl Project {
         clip_id: ClipId,
         label: Option<crate::LabelColor>,
     ) -> Result<Option<crate::LabelColor>, ModelError> {
-        let clip = self
-            .timeline_mut()
-            .clip_mut(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
         Ok(std::mem::replace(&mut clip.label, label))
     }
 
@@ -626,10 +605,7 @@ impl Project {
         name: Option<String>,
     ) -> Result<Option<String>, ModelError> {
         let name = name.filter(|text| !text.trim().is_empty());
-        let clip = self
-            .timeline_mut()
-            .clip_mut(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
         Ok(std::mem::replace(&mut clip.name, name))
     }
 
@@ -662,10 +638,7 @@ impl Project {
                 return Err(ModelError::InvalidParam(fault));
             }
         }
-        let clip = self
-            .timeline_mut()
-            .clip_mut(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
         Ok(std::mem::replace(&mut clip.clip_type, clip_type))
     }
 
@@ -683,10 +656,7 @@ impl Project {
             .track_of(clip_id)
             .and_then(|track| self.timeline().track(track))
             .is_some_and(|track| track.kind.is_audio());
-        let clip = self
-            .timeline_mut()
-            .clip_mut(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
         if let Some(param) = param
             && clip.line_row(param, audio_lane).is_none()
         {
@@ -719,10 +689,7 @@ impl Project {
         check_same_rate(fade_in.rate, tl_rate)?;
         check_same_rate(fade_out.rate, tl_rate)?;
 
-        let clip = self
-            .timeline()
-            .clip(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline().require_clip(clip_id)?;
         if clip.is_generated() {
             return Err(ModelError::InvalidParam(
                 "audio parameters require a media-backed clip".into(),
@@ -777,11 +744,7 @@ impl Project {
             .timeline()
             .track_of(clip_id)
             .ok_or(ModelError::UnknownClip(clip_id))?;
-        let kind = self
-            .timeline()
-            .track(track_id)
-            .ok_or(ModelError::UnknownTrack(track_id))?
-            .kind;
+        let kind = self.timeline().require_track(track_id)?.kind;
         if !kind.is_visual() {
             return Err(ModelError::IncompatibleTrackKind {
                 track: track_id,
@@ -791,10 +754,7 @@ impl Project {
         if let Some(at) = at {
             check_same_rate(at.rate, self.timeline().frame_rate)?;
         }
-        let clip = self
-            .timeline_mut()
-            .clip_mut(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
         match at {
             Some(at) if clip.crop.is_animated() => {
                 let tick = clip.param_tick(at.value);
@@ -818,10 +778,7 @@ impl Project {
         clip_id: ClipId,
         beats: Vec<i64>,
     ) -> Result<Vec<i64>, ModelError> {
-        let clip = self
-            .timeline()
-            .clip(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline().require_clip(clip_id)?;
         let source = clip
             .source_range()
             .ok_or_else(|| ModelError::InvalidParam("beats require a media-backed clip".into()))?;

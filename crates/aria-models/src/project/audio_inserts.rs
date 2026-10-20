@@ -61,9 +61,7 @@ impl Project {
         let timeline = self.timeline();
         match target {
             AudioInsertTarget::Clip(clip_id) => {
-                let clip = timeline
-                    .clip(clip_id)
-                    .ok_or(ModelError::UnknownClip(clip_id))?;
+                let clip = timeline.require_clip(clip_id)?;
                 let lane = timeline
                     .track_of(clip_id)
                     .ok_or(ModelError::UnknownClip(clip_id))?;

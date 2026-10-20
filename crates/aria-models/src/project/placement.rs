@@ -121,14 +121,8 @@ impl Project {
             return Err(ModelError::InvalidRange);
         }
 
-        let source = self
-            .timeline()
-            .clip(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
-        let destination = self
-            .timeline()
-            .track(to_track)
-            .ok_or(ModelError::UnknownTrack(to_track))?;
+        let source = self.timeline().require_clip(clip_id)?;
+        let destination = self.timeline().require_track(to_track)?;
         if !destination.kind.accepts_content(&source.content) {
             return Err(ModelError::IncompatibleTrackKind {
                 track: to_track,
@@ -168,14 +162,8 @@ impl Project {
             return Err(ModelError::InvalidRange);
         }
 
-        let source = self
-            .timeline()
-            .clip(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
-        let destination = self
-            .timeline()
-            .track(to_track)
-            .ok_or(ModelError::UnknownTrack(to_track))?;
+        let source = self.timeline().require_clip(clip_id)?;
+        let destination = self.timeline().require_track(to_track)?;
         if !destination.kind.accepts_content(&source.content) {
             return Err(ModelError::IncompatibleTrackKind {
                 track: to_track,
@@ -213,15 +201,8 @@ impl Project {
             .timeline()
             .track_of(clip_id)
             .ok_or(ModelError::UnknownClip(clip_id))?;
-        let kind = self
-            .timeline()
-            .track(track_id)
-            .ok_or(ModelError::UnknownTrack(track_id))?
-            .kind;
-        let clip = self
-            .timeline()
-            .clip(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let kind = self.timeline().require_track(track_id)?.kind;
+        let clip = self.timeline().require_clip(clip_id)?;
         // Media clips have no generator to replace; reject rather than convert.
         if !clip.is_generated() {
             return Err(ModelError::IncompatibleTrackKind {
@@ -245,10 +226,7 @@ impl Project {
                 kind,
             });
         }
-        self.timeline_mut()
-            .clip_mut(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?
-            .content = content;
+        self.timeline_mut().require_clip_mut(clip_id)?.content = content;
         Ok(())
     }
 
@@ -268,17 +246,8 @@ impl Project {
             .timeline()
             .track_of(clip_id)
             .ok_or(ModelError::UnknownClip(clip_id))?;
-        let kind = self
-            .timeline()
-            .track(track_id)
-            .ok_or(ModelError::UnknownTrack(track_id))?
-            .kind;
-        if self
-            .timeline()
-            .clip(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?
-            .freeze_frame
-        {
+        let kind = self.timeline().require_track(track_id)?.kind;
+        if self.timeline().require_clip(clip_id)?.freeze_frame {
             return Err(ModelError::InvalidParam(
                 "cannot replace the media of a freeze-frame clip".into(),
             ));
@@ -306,10 +275,7 @@ impl Project {
                 kind,
             });
         }
-        self.timeline_mut()
-            .clip_mut(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?
-            .content = content;
+        self.timeline_mut().require_clip_mut(clip_id)?.content = content;
         Ok(())
     }
 
@@ -334,15 +300,8 @@ impl Project {
                 .timeline()
                 .track_of(clip_id)
                 .ok_or(ModelError::UnknownClip(clip_id))?;
-            let kind = self
-                .timeline()
-                .track(track_id)
-                .ok_or(ModelError::UnknownTrack(track_id))?
-                .kind;
-            let clip = self
-                .timeline()
-                .clip(clip_id)
-                .ok_or(ModelError::UnknownClip(clip_id))?;
+            let kind = self.timeline().require_track(track_id)?.kind;
+            let clip = self.timeline().require_clip(clip_id)?;
             if clip.media().is_none() {
                 return Err(ModelError::InvalidParam(
                     "replaceable slots apply only to media clips".into(),
@@ -360,10 +319,7 @@ impl Project {
                 )));
             }
         }
-        self.timeline_mut()
-            .clip_mut(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?
-            .replaceable = replaceable;
+        self.timeline_mut().require_clip_mut(clip_id)?.replaceable = replaceable;
         Ok(())
     }
 
@@ -371,10 +327,7 @@ impl Project {
     /// a template (the text keeps its style and animation). Errors if the clip
     /// is unknown or is not a [`Generator::Text`] clip.
     pub fn set_text_editable(&mut self, clip_id: ClipId, editable: bool) -> Result<(), ModelError> {
-        let clip = self
-            .timeline_mut()
-            .clip_mut(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
         if !matches!(clip.content, ClipSource::Generated(Generator::Text { .. })) {
             return Err(ModelError::InvalidParam(
                 "text editability applies only to text generator clips".into(),

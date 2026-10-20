@@ -11,10 +11,7 @@ pub fn execute(
     clip: ClipId,
     timeline: TimeRange,
 ) -> Result<Box<dyn EditAction>, EngineError> {
-    let primary = ctx
-        .project
-        .clip(clip)
-        .ok_or(ModelError::UnknownClip(clip))?;
+    let primary = ctx.project.require_clip(clip)?;
     let start_delta = timeline.start.value - primary.timeline.start.value;
     let end_delta = timeline.end_tick() - primary.timeline.end_tick();
     let ids = match primary.link {
@@ -31,7 +28,7 @@ pub fn execute(
         let target = if id == clip {
             timeline
         } else {
-            let other = ctx.project.clip(id).ok_or(ModelError::UnknownClip(id))?;
+            let other = ctx.project.require_clip(id)?;
             let new_start = other.timeline.start.value + start_delta;
             let new_end = other.timeline.end_tick() + end_delta;
             if new_start < 0 || new_end <= new_start {

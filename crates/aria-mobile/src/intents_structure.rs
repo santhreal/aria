@@ -102,8 +102,7 @@ pub(super) fn move_lane(
             let kind = engine
                 .project()
                 .timeline()
-                .track(current_track)
-                .ok_or(ModelError::UnknownTrack(current_track))?
+                .require_track(current_track)?
                 .kind;
             ensure_host_lane(engine, kind, range, Some(clip))?
         }
@@ -139,11 +138,7 @@ pub(super) fn insert_into_main(
     let (current_track, snapshot) = clip_snapshot(engine.project(), clip)?;
     let len = snapshot.timeline.duration.value;
 
-    let track = engine
-        .project()
-        .timeline()
-        .track(main)
-        .ok_or(ModelError::UnknownTrack(main))?;
+    let track = engine.project().timeline().require_track(main)?;
     let on_main = current_track == main;
 
     // Boundaries of the (post-removal, for reorders) slot layout.

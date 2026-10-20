@@ -17,10 +17,7 @@ pub fn set_speed(
     speed: Rational,
     reversed: bool,
 ) -> Result<Box<dyn EditAction>, EngineError> {
-    let primary = ctx
-        .project
-        .clip(clip)
-        .ok_or(ModelError::UnknownClip(clip))?;
+    let primary = ctx.project.require_clip(clip)?;
     let ids = match primary.link {
         Some(link) => ctx.project.linked_clips(link),
         None => vec![clip],

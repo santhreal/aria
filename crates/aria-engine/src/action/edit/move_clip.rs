@@ -45,10 +45,7 @@ fn move_with(
     start: RationalTime,
     mut ids: Vec<ClipId>,
 ) -> Result<Box<dyn EditAction>, EngineError> {
-    let primary = ctx
-        .project
-        .clip(clip)
-        .ok_or(ModelError::UnknownClip(clip))?;
+    let primary = ctx.project.require_clip(clip)?;
     let delta = start.value - primary.start().value;
     ids.sort_by_key(|&id| {
         let tick = ctx.project.clip(id).map_or(0, |c| c.start().value);
@@ -61,7 +58,7 @@ fn move_with(
 
     let mut inverses: Vec<Box<dyn EditAction>> = Vec::new();
     for id in ids {
-        let original = ctx.project.clip(id).ok_or(ModelError::UnknownClip(id))?;
+        let original = ctx.project.require_clip(id)?;
         let from_track = ctx
             .project
             .timeline()
@@ -101,11 +98,7 @@ fn move_one(
         .timeline()
         .track_of(clip)
         .ok_or(ModelError::UnknownClip(clip))?;
-    let from_start = ctx
-        .project
-        .clip(clip)
-        .ok_or(ModelError::UnknownClip(clip))?
-        .start();
+    let from_start = ctx.project.require_clip(clip)?.start();
     ctx.project.move_clip(clip, to_track, start)?;
     Ok(Box::new(MoveClipAction {
         clip,

@@ -72,10 +72,7 @@ impl EditAction for MergeSplitAction {
             .ok_or(ModelError::UnknownClip(self.left_id))?;
         // Tail is gone, so restoring the left half to its full pre-split range
         // can't overlap anything.
-        *ctx.project
-            .timeline_mut()
-            .clip_mut(self.left_id)
-            .ok_or(ModelError::UnknownClip(self.left_id))? = self.restored;
+        *ctx.project.timeline_mut().require_clip_mut(self.left_id)? = self.restored;
         Ok(Box::new(ReapplySplitAction {
             left_id: self.left_id,
             left_after,
@@ -98,10 +95,7 @@ impl EditAction for ReapplySplitAction {
             .ok_or(ModelError::UnknownClip(self.left_id))?;
         // Shrink the left half first: it currently spans the full pre-split
         // range, which would overlap the tail we're about to re-insert.
-        *ctx.project
-            .timeline_mut()
-            .clip_mut(self.left_id)
-            .ok_or(ModelError::UnknownClip(self.left_id))? = self.left_after;
+        *ctx.project.timeline_mut().require_clip_mut(self.left_id)? = self.left_after;
         ctx.project
             .timeline_mut()
             .add_clip(self.track, self.right)?;

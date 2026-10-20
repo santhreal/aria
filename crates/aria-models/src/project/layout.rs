@@ -23,16 +23,9 @@ impl Project {
             .timeline()
             .track_of(clip_id)
             .ok_or(ModelError::UnknownClip(clip_id))?;
-        let clip_content = &self
-            .timeline()
-            .clip(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?
-            .content;
+        let clip_content = &self.timeline().require_clip(clip_id)?.content;
 
-        let dest = self
-            .timeline()
-            .track(to_track)
-            .ok_or(ModelError::UnknownTrack(to_track))?;
+        let dest = self.timeline().require_track(to_track)?;
 
         if !dest.kind.accepts_content(clip_content) {
             return Err(ModelError::IncompatibleTrackKind {
@@ -101,10 +94,7 @@ impl Project {
             return Err(ModelError::InvalidRange);
         }
 
-        let track = self
-            .timeline()
-            .track(track_id)
-            .ok_or(ModelError::UnknownTrack(track_id))?;
+        let track = self.timeline().require_track(track_id)?;
 
         // Clips never overlap, so the shifted set is a contiguous suffix in
         // start order; only its first member can collide when moving left.

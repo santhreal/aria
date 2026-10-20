@@ -36,9 +36,7 @@ impl Project {
             .lane_kind(clip_id)
             .ok_or(ModelError::UnknownClip(clip_id))?;
         let medium = BakeMedium::for_lane(kind)?;
-        self.clip(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?
-            .bakeable()?;
+        self.require_clip(clip_id)?.bakeable()?;
         Ok(medium)
     }
 
@@ -84,10 +82,7 @@ impl Project {
         }
         let media_rate = rendered.frame_rate;
         let available = rendered.duration.value;
-        let clip = self
-            .timeline()
-            .clip(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = self.timeline().require_clip(clip_id)?;
         let span = crate::time::resample(clip.timeline.duration, media_rate).value;
         if available < span {
             return Err(ModelError::InvalidParam(format!(
@@ -101,20 +96,13 @@ impl Project {
     /// Put back what a bake replaced, over whatever span the baked clip now
     /// covers.
     pub fn restore_baked_clip(&mut self, clip_id: ClipId) -> Result<(), ModelError> {
-        let restored = self
-            .timeline()
-            .clip(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?
-            .unbaked()?;
+        let restored = self.timeline().require_clip(clip_id)?.unbaked()?;
         self.replace_clip(clip_id, restored)
     }
 
     /// Swap one clip for a rewritten copy of itself, in place.
     fn replace_clip(&mut self, clip_id: ClipId, next: Clip) -> Result<(), ModelError> {
-        let slot = self
-            .timeline_mut()
-            .clip_mut(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let slot = self.timeline_mut().require_clip_mut(clip_id)?;
         *slot = next;
         Ok(())
     }

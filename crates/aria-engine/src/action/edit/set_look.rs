@@ -7,7 +7,7 @@
 
 use aria_models::{
     AnimationRef, AnimationSlot, AudioRole, BlendMode, ChromaKey, ClipId, ColorAdjustments, Filter,
-    LayerStyles, Lut, ModelError, MotionBlur, StabilizeLevel, TrackMatte,
+    LayerStyles, Lut, MotionBlur, StabilizeLevel, TrackMatte,
 };
 
 use crate::action::{ApplyContext, EditAction};
@@ -71,11 +71,7 @@ impl EditAction for RestoreLookPropertyAction {
         ctx: &mut ApplyContext<'_>,
     ) -> Result<Box<dyn EditAction>, EngineError> {
         let clip_id = self.clip;
-        let clip = ctx
-            .project
-            .timeline_mut()
-            .clip_mut(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let clip = ctx.project.timeline_mut().require_clip_mut(clip_id)?;
 
         let current = match self.property {
             LookProperty::BlendMode(mode) => {
@@ -147,10 +143,7 @@ pub fn set_blend_mode(
     clip: ClipId,
     mode: BlendMode,
 ) -> Result<Box<dyn EditAction>, EngineError> {
-    let clip_obj = ctx
-        .project
-        .clip(clip)
-        .ok_or(ModelError::UnknownClip(clip))?;
+    let clip_obj = ctx.project.require_clip(clip)?;
     let prev = clip_obj.blend_mode;
     ctx.project.set_blend_mode(clip, mode)?;
     Ok(Box::new(RestoreLookPropertyAction {
@@ -164,10 +157,7 @@ pub fn set_motion_blur(
     clip: ClipId,
     motion_blur: MotionBlur,
 ) -> Result<Box<dyn EditAction>, EngineError> {
-    let clip_obj = ctx
-        .project
-        .clip(clip)
-        .ok_or(ModelError::UnknownClip(clip))?;
+    let clip_obj = ctx.project.require_clip(clip)?;
     let prev = clip_obj.motion_blur;
     ctx.project.set_motion_blur(clip, motion_blur)?;
     Ok(Box::new(RestoreLookPropertyAction {
@@ -181,10 +171,7 @@ pub fn set_layer_styles(
     clip: ClipId,
     styles: LayerStyles,
 ) -> Result<Box<dyn EditAction>, EngineError> {
-    let clip_obj = ctx
-        .project
-        .clip(clip)
-        .ok_or(ModelError::UnknownClip(clip))?;
+    let clip_obj = ctx.project.require_clip(clip)?;
     let prev = clip_obj.styles.clone();
     ctx.project.set_layer_styles(clip, styles)?;
     Ok(Box::new(RestoreLookPropertyAction {
@@ -198,10 +185,7 @@ pub fn set_chroma(
     clip: ClipId,
     chroma: Option<ChromaKey>,
 ) -> Result<Box<dyn EditAction>, EngineError> {
-    let clip_obj = ctx
-        .project
-        .clip(clip)
-        .ok_or(ModelError::UnknownClip(clip))?;
+    let clip_obj = ctx.project.require_clip(clip)?;
     let prev = clip_obj.chroma_key.clone();
     ctx.project.set_clip_chroma_key(clip, chroma)?;
     Ok(Box::new(RestoreLookPropertyAction {
@@ -215,10 +199,7 @@ pub fn set_matte(
     clip: ClipId,
     matte: Option<TrackMatte>,
 ) -> Result<Box<dyn EditAction>, EngineError> {
-    let clip_obj = ctx
-        .project
-        .clip(clip)
-        .ok_or(ModelError::UnknownClip(clip))?;
+    let clip_obj = ctx.project.require_clip(clip)?;
     let prev = clip_obj.matte.clone();
     ctx.project.set_clip_matte(clip, matte)?;
     Ok(Box::new(RestoreLookPropertyAction {
@@ -232,10 +213,7 @@ pub fn set_stabilize(
     clip: ClipId,
     stabilize: Option<StabilizeLevel>,
 ) -> Result<Box<dyn EditAction>, EngineError> {
-    let clip_obj = ctx
-        .project
-        .clip(clip)
-        .ok_or(ModelError::UnknownClip(clip))?;
+    let clip_obj = ctx.project.require_clip(clip)?;
     let prev = clip_obj.stabilize;
     ctx.project.set_clip_stabilize(clip, stabilize)?;
     Ok(Box::new(RestoreLookPropertyAction {
@@ -249,10 +227,7 @@ pub fn set_filter(
     clip: ClipId,
     filter: Option<Filter>,
 ) -> Result<Box<dyn EditAction>, EngineError> {
-    let clip_obj = ctx
-        .project
-        .clip(clip)
-        .ok_or(ModelError::UnknownClip(clip))?;
+    let clip_obj = ctx.project.require_clip(clip)?;
     let prev = clip_obj.filter.clone();
     ctx.project.set_clip_filter(clip, filter)?;
     Ok(Box::new(RestoreLookPropertyAction {
@@ -266,10 +241,7 @@ pub fn set_lut(
     clip: ClipId,
     lut: Option<Lut>,
 ) -> Result<Box<dyn EditAction>, EngineError> {
-    let clip_obj = ctx
-        .project
-        .clip(clip)
-        .ok_or(ModelError::UnknownClip(clip))?;
+    let clip_obj = ctx.project.require_clip(clip)?;
     let prev = clip_obj.lut.clone();
     ctx.project.set_clip_lut(clip, lut)?;
     Ok(Box::new(RestoreLookPropertyAction {
@@ -283,10 +255,7 @@ pub fn set_adjustments(
     clip: ClipId,
     adjust: ColorAdjustments,
 ) -> Result<Box<dyn EditAction>, EngineError> {
-    let clip_obj = ctx
-        .project
-        .clip(clip)
-        .ok_or(ModelError::UnknownClip(clip))?;
+    let clip_obj = ctx.project.require_clip(clip)?;
     let prev = clip_obj.adjust.clone();
     ctx.project.set_clip_adjustments(clip, adjust)?;
     Ok(Box::new(RestoreLookPropertyAction {
@@ -301,11 +270,7 @@ pub fn set_animation(
     slot: AnimationSlot,
     animation: Option<AnimationRef>,
 ) -> Result<Box<dyn EditAction>, EngineError> {
-    let prev = AnimationSlots::of(
-        ctx.project
-            .clip(clip)
-            .ok_or(ModelError::UnknownClip(clip))?,
-    );
+    let prev = AnimationSlots::of(ctx.project.require_clip(clip)?);
     ctx.project.set_clip_animation(clip, slot, animation)?;
     Ok(Box::new(RestoreLookPropertyAction {
         clip,
@@ -318,10 +283,7 @@ pub fn set_audio_role(
     clip: ClipId,
     role: Option<AudioRole>,
 ) -> Result<Box<dyn EditAction>, EngineError> {
-    let clip_obj = ctx
-        .project
-        .clip(clip)
-        .ok_or(ModelError::UnknownClip(clip))?;
+    let clip_obj = ctx.project.require_clip(clip)?;
     let prev = clip_obj.audio_role;
     ctx.project.set_clip_audio_role(clip, role)?;
     Ok(Box::new(RestoreLookPropertyAction {

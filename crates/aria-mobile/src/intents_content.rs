@@ -14,12 +14,7 @@ pub(super) fn duplicate(
     let rate = engine.project().timeline().frame_rate;
     let main = crate::ui_state::main_track(engine.project());
     let (track_id, snapshot) = clip_snapshot(engine.project(), clip)?;
-    let track_kind = engine
-        .project()
-        .timeline()
-        .track(track_id)
-        .ok_or(ModelError::UnknownTrack(track_id))?
-        .kind;
+    let track_kind = engine.project().timeline().require_track(track_id)?.kind;
 
     let s = snapshot.timeline.start.value;
     let d = snapshot.timeline.duration.value;
@@ -31,8 +26,7 @@ pub(super) fn duplicate(
             let lane = if !engine
                 .project()
                 .timeline()
-                .track(track_id)
-                .ok_or(ModelError::UnknownTrack(track_id))?
+                .require_track(track_id)?
                 .has_overlap(range, None)?
             {
                 track_id
@@ -74,8 +68,7 @@ pub(super) fn duplicate(
                 let lane = if !engine
                     .project()
                     .timeline()
-                    .track(track_id)
-                    .ok_or(ModelError::UnknownTrack(track_id))?
+                    .require_track(track_id)?
                     .has_overlap(range, None)?
                 {
                     track_id
