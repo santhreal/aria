@@ -35,6 +35,8 @@ mod controls_doc_tests;
 #[cfg(test)]
 mod doc_tests;
 #[cfg(test)]
+mod guide_doc_tests;
+#[cfg(test)]
 mod reference_doc_tests;
 
 /// What the shell does after the action ran.

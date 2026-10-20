@@ -69,6 +69,14 @@ fn shipped() -> Vec<String> {
         .collect()
 }
 
+/// Every shipped binding id paired with its display chord label.
+pub(super) fn shipped_binding_chords() -> std::collections::BTreeMap<&'static str, String> {
+    SHIPPED_BINDINGS
+        .iter()
+        .map(|binding| (binding.id, binding.chord.label()))
+        .collect()
+}
+
 #[test]
 fn the_sections_the_check_skips_are_still_there() {
     // Without this, renaming a heading would silently exempt every row under it.

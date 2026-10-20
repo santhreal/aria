@@ -10,7 +10,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
-use crate::keys::bindings::SHIPPED_BINDINGS;
 use crate::test_support::collect_rs;
 use crate::test_support::sources::without_test_items;
 use crate::tooltip::CONTROL_TIPS;
@@ -191,6 +190,15 @@ fn extract_source_controls() -> BTreeSet<String> {
     extracted
 }
 
+/// Every valid UI control identifier from `CONTROL_TIPS` and shared widget calls.
+pub(super) fn shipped_control_ids() -> BTreeSet<String> {
+    let mut ids = extract_source_controls();
+    for tip in CONTROL_TIPS {
+        ids.insert(tip.control.to_string());
+    }
+    ids
+}
+
 /// WHY: closes the defect class where a named UI control, tooltip entry, or
 /// bound shortcut is added, renamed, or removed in `aria-ui` while
 /// `docs/reference/controls.md` drifts out of step, or where a row in
@@ -301,10 +309,7 @@ fn controls_doc_matches_source() {
         }
     }
 
-    let shipped_chords: BTreeMap<&str, String> = SHIPPED_BINDINGS
-        .iter()
-        .map(|b| (b.id, b.chord.label()))
-        .collect();
+    let shipped_chords = super::doc_tests::shipped_binding_chords();
     let mut tip_controls: BTreeSet<&str> = BTreeSet::new();
 
     for tip in CONTROL_TIPS {
