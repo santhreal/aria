@@ -6,6 +6,10 @@ use crate::fixtures::{FixtureId, ensure_fixture};
 use crate::scenarios::{BenchContext, open_editor, open_marked_project, timed_frame};
 use crate::{Comparison, SampleSeries, ScenarioId, ScenarioReport, TargetEvaluation};
 
+/// The time between two playback vsyncs: longer than one tick of a 24 fps
+/// sequence played at 2x (20.8 ms), so each vsync moves the playhead.
+const PLAYBACK_GAP: std::time::Duration = std::time::Duration::from_millis(25);
+
 pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     let fixture = ensure_fixture(&ctx.fixtures_dir, FixtureId::Project10k)?;
     let scratch = ctx.ensure_scratch_subdir("timeline-frame")?;
@@ -75,6 +79,36 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
         }));
     }
 
+    // 5. Playback at 2x: each sample is one vsync, which moves the playhead to
+    // the playback clock and shows the newest frame rendered ahead or counts
+    // the slot due as dropped. The vsyncs are at least `PLAYBACK_GAP` apart, so
+    // each one moves the playhead. Not part of the target.
+    app.update(|cx| {
+        state.update(cx, |s, cx| {
+            s.set_shuttle(1);
+            s.set_shuttle(1);
+            cx.notify();
+        })
+    });
+    if !app.update(|cx| state.read(cx).playing) {
+        return Err("project-10k did not start playing at 2x".to_string());
+    }
+    window.update(|_, window, cx| aria_ui::app::start_playback(state.clone(), window, cx));
+    let mut playback_samples = Vec::with_capacity(30);
+    for _ in 0..30 {
+        std::thread::sleep(PLAYBACK_GAP);
+        playback_samples.push(timed_frame(&app, &mut window, |_, window, cx| {
+            window.simulate_next_frame(cx);
+        }));
+    }
+    let playback = app.update(|cx| state.read(cx).playback_report());
+    app.update(|cx| {
+        state.update(cx, |s, cx| {
+            s.toggle_playback();
+            cx.notify();
+        })
+    });
+
     let paint_stats = app.update(|cx| state.read(cx).timeline_paint_stats);
 
     drop(state);
@@ -92,6 +126,7 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     let zoom_series = SampleSeries::from_values("zoom_frame_ms", "ms", zoom_samples);
     let drag_series = SampleSeries::from_values("drag_frame_ms", "ms", drag_samples);
     let chrome_series = SampleSeries::from_values("chrome_frame_ms", "ms", chrome_samples);
+    let playback_series = SampleSeries::from_values("playback_vsync_ms", "ms", playback_samples);
 
     let targets = vec![TargetEvaluation::measured(
         "ui_frame_build_ms",
@@ -103,12 +138,16 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     )];
 
     let notes = vec![format!(
-        "project-10k GPUI Shell frame, one update and the draw it causes: scroll p50={:.2} ms, zoom p50={:.2} ms, drag p50={:.2} ms, overall p95={:.2} ms, chrome alone p50={:.2} ms; TimelinePaintStats: total_lanes={}, visible_lanes={}, total_clips={}, visible_clips={}, canvas_elements={}, paint_calls={}",
+        "project-10k GPUI Shell frame, one update and the draw it causes: scroll p50={:.2} ms, zoom p50={:.2} ms, drag p50={:.2} ms, overall p95={:.2} ms, chrome alone p50={:.2} ms, playback vsync p50={:.2} ms (p95={:.2} ms; {} presented, {} dropped); TimelinePaintStats: total_lanes={}, visible_lanes={}, total_clips={}, visible_clips={}, canvas_elements={}, paint_calls={}",
         scroll_series.p50,
         zoom_series.p50,
         drag_series.p50,
         all_series.p95,
         chrome_series.p50,
+        playback_series.p50,
+        playback_series.p95,
+        playback.presented,
+        playback.dropped.total(),
         paint_stats.total_lanes,
         paint_stats.visible_lanes,
         paint_stats.total_clips,
@@ -128,6 +167,7 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
             zoom_series,
             drag_series,
             chrome_series,
+            playback_series,
         ],
         notes,
     ))
