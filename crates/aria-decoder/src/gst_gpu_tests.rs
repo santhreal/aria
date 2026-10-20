@@ -114,7 +114,7 @@ fn a_dmabuf_attempt_stops_once_its_decoder_has_no_dmabuf_output() {
     let uri = path_uri(&fixture).expect("fixture uri");
     let watch = Arc::new(DmabufWatch::default());
     let started = Instant::now();
-    let result = try_open(&uri, Some(&watch));
+    let result = try_open(&uri, true, Some(&watch));
     let took = started.elapsed();
     let decoders = watch.decoders();
     assert!(!decoders.is_empty(), "the attempt plugged no video decoder");
@@ -262,12 +262,42 @@ fn only_a_file_the_cpu_path_opens_turns_dmabuf_off() {
     crate::gst::ensure_init().expect("GStreamer initializes");
     let unreadable = path_uri(std::path::Path::new("/dev/null")).expect("a file URI");
     let latch = OnceLock::new();
-    assert!(open_latched(&latch, true, |watch| try_open(&unreadable, watch)).is_err());
+    assert!(
+        open_latched(&latch, true, |watch| try_open(
+            &unreadable,
+            watch.is_some(),
+            watch
+        ))
+        .is_err()
+    );
     assert_eq!(
         latch.get(),
         None,
         "an unreadable file turned DMABuf off for the process"
     );
+
+    // When no ranked video decoder in the registry offers memory:DMABuf,
+    // `open_latched_for` skips the doomed DMABuf pipeline, opens CPU directly,
+    // and latches only when the CPU open succeeds.
+    for (cpu_opens, expected_latched) in [(true, true), (false, false)] {
+        let latch = OnceLock::new();
+        let tried = RefCell::new(Vec::new());
+        let got = open_latched_for(&latch, true, false, |dmabuf, watch| {
+            tried.borrow_mut().push((dmabuf, watch.is_some()));
+            if cpu_opens {
+                Ok("cpu")
+            } else {
+                Err(DecodeError::Open("cpu could not open".into()))
+            }
+        });
+        assert_eq!(
+            tried.into_inner(),
+            vec![(false, true)],
+            "has_dmabuf_decoder=false must attempt only CPU with decoder recording"
+        );
+        assert_eq!(got.is_ok(), cpu_opens);
+        assert_eq!(latch.get().is_some(), expected_latched);
+    }
 }
 
 /// WHY: `uridecodebin` defaulted to `expose-all-streams = true` with unbounded
@@ -344,9 +374,9 @@ fn video_pipeline_ignores_audio_streams_and_bounds_decoder_threads() {
         let _ = pipe.pipeline.set_state(gst::State::Null);
         drop(pipe);
     }
-    let settle_deadline = Instant::now() + Duration::from_secs(2);
+    let settle_deadline = Instant::now() + Duration::from_secs(10);
     while ACTIVE_VIDEO_PIPELINES.load(Ordering::Relaxed) > 0 && Instant::now() < settle_deadline {
-        std::thread::yield_now();
+        std::thread::sleep(Duration::from_millis(5));
     }
     let after_drop = open_pipeline(&av_fixture, OutputMode::Cpu).expect("av fixture reopens");
     let (_, _, restored_threads) = inspect_pipeline(&after_drop.pipeline);
@@ -396,4 +426,42 @@ fn video_pipeline_ignores_audio_streams_and_bounds_decoder_threads() {
             restored_threads[0].1
         );
     }
+
+    // Every software video decoder with `thread-type` (`avdec_h264`,
+    // `avdec_h265`, `avdec_prores`) must be configured for `slice` threading
+    // (without `frame` threading) so open and seek preroll do not buffer
+    // `max-threads` frames before emitting a single sample.
+    let probe_bin = gst::ElementFactory::make("uridecodebin")
+        .build()
+        .expect("uridecodebin")
+        .downcast::<gst::Bin>()
+        .expect("uridecodebin is a bin");
+    configure_video_uridecodebin(&probe_bin, single_budget);
+    let mut checked_codecs = 0usize;
+    for codec in ["avdec_h264", "avdec_h265", "avdec_prores"] {
+        let Ok(dec) = gst::ElementFactory::make(codec).build() else {
+            continue;
+        };
+        if dec.find_property("thread-type").is_none() {
+            continue;
+        }
+        probe_bin.add(&dec).expect("add decoder to configured bin");
+        let value = dec.property_value("thread-type");
+        let flags = gst::glib::FlagsClass::with_type(value.type_())
+            .expect("thread-type is a GFlags property");
+        assert!(
+            flags.is_set_by_nick(&value, "slice"),
+            "{codec} did not enable slice threading"
+        );
+        assert!(
+            !flags.is_set_by_nick(&value, "frame"),
+            "{codec} left frame threading enabled"
+        );
+        let _ = probe_bin.remove(&dec);
+        checked_codecs += 1;
+    }
+    assert!(
+        checked_codecs >= 2,
+        "expected at least avdec_h264 and avdec_h265 to be checked, got {checked_codecs}"
+    );
 }

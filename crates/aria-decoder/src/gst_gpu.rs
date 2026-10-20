@@ -69,9 +69,13 @@ pub(crate) fn open_pipeline(
 ) -> Result<OpenedPipeline, DecodeError> {
     let uri = path_uri(path)?;
     crate::gst_context::await_warm_up();
-    open_latched(&DMABUF_FAILED, matches!(mode, OutputMode::Gpu), |watch| {
-        try_open(&uri, watch)
-    })
+    let has_dmabuf = crate::gst_dmabuf_watch::registry_has_dmabuf_video_decoder();
+    open_latched_for(
+        &DMABUF_FAILED,
+        matches!(mode, OutputMode::Gpu),
+        has_dmabuf,
+        |dmabuf, watch| try_open(&uri, dmabuf, watch),
+    )
 }
 
 /// Open through `open` with a DMABuf watch when `gpu` holds and `latch` is
@@ -80,20 +84,45 @@ pub(crate) fn open_pipeline(
 /// A failed DMABuf attempt sets `latch` only when the CPU attempt then opens
 /// the same file. An unreadable, empty, or audio-only source fails both, says
 /// nothing about DMABuf, and leaves every later GPU open its DMABuf attempt.
+#[cfg(test)]
 fn open_latched<T>(
     latch: &std::sync::OnceLock<String>,
     gpu: bool,
     open: impl Fn(Option<&Arc<DmabufWatch>>) -> Result<T, DecodeError>,
 ) -> Result<T, DecodeError> {
+    open_latched_for(latch, gpu, true, |dmabuf, watch| {
+        open(if dmabuf { watch } else { None })
+    })
+}
+
+fn open_latched_for<T>(
+    latch: &std::sync::OnceLock<String>,
+    gpu: bool,
+    has_dmabuf_decoder: bool,
+    open: impl Fn(bool, Option<&Arc<DmabufWatch>>) -> Result<T, DecodeError>,
+) -> Result<T, DecodeError> {
     if !gpu || latch.get().is_some() {
-        return open(None);
+        return open(false, None);
     }
     let watch = Arc::new(DmabufWatch::default());
-    let failed = match open(Some(&watch)) {
+    if !has_dmabuf_decoder {
+        let opened = open(false, Some(&watch))?;
+        let reason = format!(
+            "{} (no ranked video decoder offers memory:DMABuf)",
+            dmabuf_cause(&watch.decoders())
+        );
+        tracing::info!(
+            cause = %reason,
+            "DMABuf decode is unavailable; this process decodes to CPU NV12 from now on"
+        );
+        let _ = latch.set(reason);
+        return Ok(opened);
+    }
+    let failed = match open(true, Some(&watch)) {
         Ok(opened) => return Ok(opened),
         Err(err) => err,
     };
-    let opened = open(None)?;
+    let opened = open(false, None)?;
     let reason = format!("{} ({failed})", dmabuf_cause(&watch.decoders()));
     tracing::warn!(
         cause = %reason,
@@ -202,67 +231,115 @@ fn configure_video_uridecodebin(bin: &gst::Bin, thread_budget: i32) {
         let klass = factory
             .metadata(gst::ELEMENT_METADATA_KLASS)
             .unwrap_or_default();
-        if klass.contains("Decoder")
-            && klass.contains("Video")
-            && element.find_property("max-threads").is_some()
-        {
-            element.set_property("max-threads", thread_budget);
+        if klass.contains("Decoder") && klass.contains("Video") {
+            if element.find_property("max-threads").is_some() {
+                element.set_property("max-threads", thread_budget);
+            }
+            if element.find_property("thread-type").is_some() {
+                element.set_property_from_str("thread-type", "slice");
+            }
         }
         None
     });
 }
 
-/// Open `uri` for DMABuf output when `watch` is set, recording the video
-/// decoders plugged into it; for CPU NV12 otherwise.
+/// Build the decode pipeline directly without `gst::parse::launch` grammar
+/// parsing or static pad-template caps intersection across converter elements.
+fn build_decode_pipeline(
+    uri: &str,
+    dmabuf: bool,
+) -> Result<(PipelineGuard, gst::Bin, gst_app::AppSink), DecodeError> {
+    let make = |factory: &str, name: Option<&str>| -> Result<gst::Element, DecodeError> {
+        let mut builder = gst::ElementFactory::make(factory);
+        if let Some(name) = name {
+            builder = builder.name(name);
+        }
+        builder.build().map_err(|e| {
+            DecodeError::Open(format!(
+                "couldn't build the GStreamer decode pipeline ({factory}: {e}). Install gstreamer1.0-plugins-base."
+            ))
+        })
+    };
+    let pipeline = PipelineGuard::new(gst::Pipeline::new());
+    let src = make("uridecodebin", Some("src"))?;
+    src.set_property("uri", uri);
+    let filter = make("capsfilter", None)?;
+    let sink = gst_app::AppSink::builder()
+        .name("out")
+        .sync(false)
+        .max_buffers(4)
+        .drop(false)
+        .build();
+    let sink_el = sink.upcast_ref::<gst::Element>();
+
+    let first_downstream = if dmabuf {
+        let caps = gst::Caps::builder("video/x-raw")
+            .features([crate::gst_dmabuf_watch::DMABUF_MEMORY])
+            .build();
+        filter.set_property("caps", &caps);
+        pipeline
+            .add_many([&src, &filter, sink_el])
+            .map_err(|e| DecodeError::Open(format!("couldn't build decode pipeline: {e}")))?;
+        filter
+            .link_pads_full(
+                Some("src"),
+                sink_el,
+                Some("sink"),
+                gst::PadLinkCheck::empty(),
+            )
+            .map_err(|e| DecodeError::Open(format!("couldn't link decode sink: {e}")))?;
+        filter
+    } else {
+        let convert = make("videoconvert", None)?;
+        convert.set_property("n-threads", CONVERT_THREADS);
+        let scale = make("videoscale", None)?;
+        scale.set_property("n-threads", CONVERT_THREADS);
+        let caps = gst::Caps::builder("video/x-raw")
+            .field("format", "NV12")
+            .build();
+        filter.set_property("caps", &caps);
+        pipeline
+            .add_many([&src, &convert, &scale, &filter, sink_el])
+            .map_err(|e| DecodeError::Open(format!("couldn't build decode pipeline: {e}")))?;
+        for (up, down) in [(&convert, &scale), (&scale, &filter), (&filter, sink_el)] {
+            up.link_pads_full(Some("src"), down, Some("sink"), gst::PadLinkCheck::empty())
+                .map_err(|e| DecodeError::Open(format!("couldn't link decode pipeline: {e}")))?;
+        }
+        convert
+    };
+    src.connect_pad_added(move |_, pad| {
+        if let Some(sink_pad) = first_downstream.static_pad("sink")
+            && !sink_pad.is_linked()
+        {
+            let _ = pad.link_full(&sink_pad, gst::PadLinkCheck::empty());
+        }
+    });
+    let bin = src
+        .downcast::<gst::Bin>()
+        .map_err(|_| DecodeError::Open("uridecodebin is not a GstBin.".into()))?;
+    Ok((pipeline, bin, sink))
+}
+
+/// Open `uri` for DMABuf output when `dmabuf` holds, or for CPU NV12
+/// otherwise, recording plugged video decoders into `watch` when provided.
 fn try_open(
     uri: &glib::GString,
+    dmabuf: bool,
     watch: Option<&Arc<DmabufWatch>>,
 ) -> Result<OpenedPipeline, DecodeError> {
     let slot = VideoPipelineSlot::acquire();
-    let dmabuf = watch.is_some();
-    let desc = if dmabuf {
-        format!(
-            "uridecodebin name=src uri=\"{uri}\" ! video/x-raw(memory:DMABuf) ! appsink name=out sync=false max-buffers=4 drop=false"
-        )
-    } else {
-        format!(
-            "uridecodebin name=src uri=\"{uri}\" ! videoconvert n-threads={CONVERT_THREADS} ! videoscale n-threads={CONVERT_THREADS} ! video/x-raw,format=NV12 ! appsink name=out sync=false max-buffers=4 drop=false"
-        )
-    };
-    let pipeline = PipelineGuard::new(
-        gst::parse::launch(&desc)
-            .map_err(|e| {
-                DecodeError::Open(format!(
-                    "couldn't build the GStreamer decode pipeline: {e}. Install gstreamer1.0-plugins-base."
-                ))
-            })?
-            .downcast::<gst::Pipeline>()
-            .map_err(|_| {
-                DecodeError::Open("GStreamer did not return a pipeline. Retry the install.".into())
-            })?,
-    );
+    let (pipeline, bin, sink) = build_decode_pipeline(uri.as_str(), dmabuf)?;
     crate::gst_context::share(&pipeline);
     let snap = Arc::new(KeySnap::default());
-    if let Some(bin) = pipeline
-        .by_name("src")
-        .and_then(|src| src.downcast::<gst::Bin>().ok())
-    {
-        configure_video_uridecodebin(&bin, slot.thread_budget());
-        snap_video_to_keyframes(&bin, &snap);
-        if let Some(watch) = watch {
-            watch_video_decoders(&bin, watch);
-        }
+    configure_video_uridecodebin(&bin, slot.thread_budget());
+    snap_video_to_keyframes(&bin, &snap);
+    if let Some(watch) = watch {
+        watch_video_decoders(&bin, watch, dmabuf);
     }
-    let sink = pipeline
-        .by_name("out")
-        .ok_or_else(|| DecodeError::Open("decode pipeline is missing appsink.".into()))?
-        .downcast::<gst_app::AppSink>()
-        .map_err(|_| DecodeError::Open("decode sink is not an appsink.".into()))?;
-
     pipeline
         .set_state(gst::State::Paused)
         .map_err(|e| gst_err(DecodeError::Open, e))?;
-    let stopped = || watch.is_some_and(|watch| watch.stopped());
+    let stopped = || dmabuf && watch.is_some_and(|watch| watch.stopped());
     // One clean retry: `Async` after the wait means the pipeline was still
     // prerolling when it expired — on a host busy with other work (a full test
     // run, a cold codec plugin), not necessarily a broken file. A real defect

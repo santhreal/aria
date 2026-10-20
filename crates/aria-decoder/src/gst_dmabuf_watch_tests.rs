@@ -63,6 +63,56 @@ fn only_a_decoder_without_dmabuf_output_is_starved() {
     assert!(offers_dmabuf(&caps("video/x-raw(ANY)")));
 }
 
+/// WHY: on a software-only host (or one whose CUDA decoder plugin was demoted),
+/// building and starving a doomed `video/x-raw(memory:DMABuf)` `uridecodebin`
+/// pipeline still demuxes the file and polls state before falling back to CPU.
+/// Checking the registry's static pad templates skips that attempt up front,
+/// and must not be fooled by wrapper bins (`vp8alphadecodebin`) whose static
+/// source template is `ANY` rather than `memory:DMABuf`.
+#[test]
+fn factory_advertises_dmabuf_matches_only_ranked_video_decoders_with_explicit_dmabuf_caps() {
+    crate::gst::ensure_init().expect("GStreamer initializes");
+    let avdec = gst::ElementFactory::find("avdec_h264").expect("avdec_h264 factory");
+    assert!(
+        !factory_advertises_dmabuf(&avdec),
+        "software decoder avdec_h264 must not advertise memory:DMABuf"
+    );
+    let convert = gst::ElementFactory::find("videoconvert").expect("videoconvert factory");
+    assert!(
+        !factory_advertises_dmabuf(&convert),
+        "non-decoder videoconvert must not advertise memory:DMABuf"
+    );
+    if let Some(alpha_bin) = gst::ElementFactory::find("vp8alphadecodebin") {
+        assert!(
+            !factory_advertises_dmabuf(&alpha_bin),
+            "ANY-caps wrapper bin vp8alphadecodebin must not advertise memory:DMABuf"
+        );
+    }
+    for feature in gst::Registry::get().features(gst::ElementFactory::static_type()) {
+        let Ok(factory) = feature.downcast::<gst::ElementFactory>() else {
+            continue;
+        };
+        let klass = factory
+            .metadata(gst::ELEMENT_METADATA_KLASS)
+            .unwrap_or_default();
+        let expected = klass.contains("Decoder")
+            && klass.contains("Video")
+            && factory.rank() != gst::Rank::NONE
+            && !src_caps(&factory).is_any()
+            && src_caps(&factory)
+                .iter_with_features()
+                .any(|(_, f)| !f.is_any() && f.contains(DMABUF_MEMORY));
+        assert_eq!(
+            factory_advertises_dmabuf(&factory),
+            expected,
+            "factory {} (klass={klass}, rank={:?}, caps={})",
+            factory.name(),
+            factory.rank(),
+            src_caps(&factory)
+        );
+    }
+}
+
 /// WHY: the decoder of a doomed DMABuf attempt must not open. The starved
 /// element receives no caps and no buffer, so it creates no decoder session,
 /// while the stream-start and EOS events still reach it and the pipeline ends
