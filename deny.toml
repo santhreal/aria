@@ -10,6 +10,7 @@ ignore = [
     { id = "RUSTSEC-2026-0370", reason = "zvariant is transitive through zbus 5 in GPUI's accesskit, ashpd, atspi, and notify-rust; it merged into zbus 6, which none of them depend on, and the advisory reports no safe upgrade" },
     { id = "RUSTSEC-2026-0371", reason = "zbus_names is transitive through zbus 5 in GPUI's accesskit, ashpd, atspi, and notify-rust; it merged into zbus 6, which none of them depend on, and the advisory reports no safe upgrade" },
     { id = "RUSTSEC-2026-0372", reason = "zvariant_derive is transitive through zbus 5 in GPUI's accesskit, ashpd, atspi, and notify-rust; it merged into zbus 6, which none of them depend on, and the advisory reports no safe upgrade" },
+    { id = "RUSTSEC-2026-0381", reason = "webpki-roots 0.26.11 is transitive through ureq 2, which has no release on webpki-roots 1; 0.26.11 contains no roots and re-exports webpki-roots 1, which bans.deny holds at 1.0.10 or later" },
 ]
 
 [licenses]
@@ -56,7 +57,10 @@ workspace-default-features = "allow"
 external-default-features = "allow"
 allow = []
 allow-workspace = true
-deny = []
+deny = [
+    { crate = "webpki-roots:>=1.0.0,<1.0.10", reason = "RUSTSEC-2026-0381: releases before 1.0.10 include emSign ECC Root CA - G3" },
+    { crate = "webpki-roots:<1.0.0", wrappers = ["ureq"], reason = "RUSTSEC-2026-0381 is ignored for the 0.26 shim that ureq 2 depends on, and for no other dependent" },
+]
 skip = []
 skip-tree = []
 
