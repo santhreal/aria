@@ -7,26 +7,27 @@ use serde::{Deserialize, Serialize};
 
 use crate::Host;
 
-/// Where a contributed panel docks in the editor shell.
-///
-/// External plugins may register panels in [`Self::Sidebar`], [`Self::Inspector`],
-/// or [`Self::Timeline`].
+/// The frame a declared panel docks in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PanelLocation {
+    /// The right frame.
     Inspector,
+    /// The left frame.
     Sidebar,
-    Overlay,
+    /// The bottom frame.
     Timeline,
-    Viewer,
-    Home,
 }
 
 /// Registration metadata for a plugin panel.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PanelSpec {
+    /// Not empty, and unique among panels. By convention
+    /// `<plugin id>.<panel>`.
     pub id: String,
+    /// The dock tab title and the Window menu row. Not empty.
     pub title: String,
+    /// The frame the panel opens in.
     pub location: PanelLocation,
 }
 
@@ -45,11 +46,16 @@ impl PanelSpec {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Tone {
+    /// The body text colour.
     #[default]
     Normal,
+    /// The secondary text colour.
     Muted,
+    /// The theme's success colour.
     Success,
+    /// The theme's warning colour.
     Warning,
+    /// The theme's danger colour.
     Danger,
 }
 
@@ -62,68 +68,108 @@ fn empty() -> Arc<str> {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum UiNode {
     /// Children top to bottom.
-    Column { children: Vec<UiNode> },
+    Column {
+        /// The children, top to bottom.
+        children: Vec<UiNode>,
+    },
     /// Children left to right, wrapping onto further lines when narrow.
-    Row { children: Vec<UiNode> },
+    Row {
+        /// The children, left to right.
+        children: Vec<UiNode>,
+    },
     /// A section title.
-    Heading { text: Arc<str> },
+    Heading {
+        /// The title.
+        text: Arc<str>,
+    },
     /// A paragraph, wrapped at word boundaries.
     Text {
+        /// The paragraph.
         text: Arc<str>,
+        /// Its colour.
         #[serde(default)]
         tone: Tone,
     },
     /// A label and its value on one line.
-    Field { label: Arc<str>, value: Arc<str> },
+    Field {
+        /// The label on the left.
+        label: Arc<str>,
+        /// The value on the right.
+        value: Arc<str>,
+    },
     /// A horizontal rule.
     Separator,
     /// A push button. Pressing it sends [`PanelEvent::Pressed`].
     Button {
+        /// Control id: unique in the tree, 1 to 128 bytes, no control characters.
         id: Arc<str>,
+        /// The button text.
         label: Arc<str>,
+        /// Drawn disabled. A press sends no event.
         #[serde(default)]
         disabled: bool,
     },
     /// An on/off switch. Clicking it sends [`PanelEvent::Toggled`] with the opposite of `on`.
     Toggle {
+        /// Control id: unique in the tree, 1 to 128 bytes, no control characters.
         id: Arc<str>,
+        /// The switch label.
         label: Arc<str>,
+        /// The current state.
         on: bool,
     },
     /// A value dragged between `min` and `max`. Releasing the drag sends [`PanelEvent::Slid`].
     Slider {
+        /// Control id: unique in the tree, 1 to 128 bytes, no control characters.
         id: Arc<str>,
+        /// The slider label.
         label: Arc<str>,
+        /// The current value, inside `min..=max`.
         value: f64,
+        /// The lowest value: finite and below `max`.
         min: f64,
+        /// The highest value: finite.
         max: f64,
+        /// The snap step, in `0..=max - min`. 0 clamps without snapping.
         #[serde(default)]
         step: f64,
     },
     /// A one-line text box. Enter sends [`PanelEvent::Submitted`].
     Input {
+        /// Control id: unique in the tree, 1 to 128 bytes, no control characters.
         id: Arc<str>,
+        /// The current text.
         value: Arc<str>,
+        /// The text shown while the box is empty.
         #[serde(default = "empty")]
         placeholder: Arc<str>,
     },
     /// One of a short list of options, drawn as a row of chips. Clicking an option sends [`PanelEvent::Chose`].
     Choice {
+        /// Control id: unique in the tree, 1 to 128 bytes, no control characters.
         id: Arc<str>,
+        /// The selector label.
         label: Arc<str>,
+        /// The chip labels: 1 to 64.
         options: Vec<Arc<str>>,
+        /// Index of the selected option, below the option count.
         selected: usize,
     },
     /// A bar filled to `fraction`, in `0.0..=1.0`.
     Progress {
+        /// The bar label.
         #[serde(default = "empty")]
         label: Arc<str>,
+        /// The filled fraction.
         fraction: f32,
     },
     /// Straight-alpha RGBA8 pixels, `width * height * 4` bytes.
     Image {
+        /// Width in pixels, 1 to 2048.
         width: u32,
+        /// Height in pixels, 1 to 2048.
         height: u32,
+        /// `width * height * 4` bytes of straight-alpha RGBA8.
         rgba: Arc<[u8]>,
     },
 }
@@ -292,15 +338,39 @@ impl UiNode {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum PanelEvent {
     /// A [`UiNode::Button`] was pressed.
-    Pressed { id: Arc<str> },
+    Pressed {
+        /// The control's id.
+        id: Arc<str>,
+    },
     /// A [`UiNode::Toggle`] was switched to `on`.
-    Toggled { id: Arc<str>, on: bool },
+    Toggled {
+        /// The control's id.
+        id: Arc<str>,
+        /// The new state.
+        on: bool,
+    },
     /// A [`UiNode::Slider`] was released at `value`.
-    Slid { id: Arc<str>, value: f64 },
+    Slid {
+        /// The control's id.
+        id: Arc<str>,
+        /// The released value, clamped to the slider's range and snapped to its
+        /// step.
+        value: f64,
+    },
     /// Enter was pressed in a [`UiNode::Input`] holding `text`.
-    Submitted { id: Arc<str>, text: Arc<str> },
+    Submitted {
+        /// The control's id.
+        id: Arc<str>,
+        /// The box's text, at most 16 KiB.
+        text: Arc<str>,
+    },
     /// Option `index` of a [`UiNode::Choice`] was clicked.
-    Chose { id: Arc<str>, index: usize },
+    Chose {
+        /// The control's id.
+        id: Arc<str>,
+        /// Index of the clicked option, below the option count.
+        index: usize,
+    },
 }
 
 impl PanelEvent {

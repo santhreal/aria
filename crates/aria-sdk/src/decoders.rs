@@ -18,7 +18,9 @@ use crate::Host;
 /// What a decoder reads, registered during `mount`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DecoderSpec {
+    /// Not empty, and unique among the plugin's decoders.
     pub id: String,
+    /// The format name, such as `YUV4MPEG2`.
     pub name: String,
     /// File extensions without the dot: ASCII letters and digits.
     pub extensions: Vec<String>,
@@ -31,16 +33,24 @@ pub struct DecoderSpec {
 /// What [`Decoder::probe`] reports about a file.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DecoderProbe {
+    /// Frame width in pixels.
     pub width: u32,
+    /// Frame height in pixels.
     pub height: u32,
+    /// Frame rate numerator: `frame_rate_num / frame_rate_den` frames per
+    /// second.
     pub frame_rate_num: i32,
+    /// Frame rate denominator.
     pub frame_rate_den: i32,
     /// Length in whole frames at the frame rate, 0 when unknown.
     pub frame_count: i64,
+    /// The file has a sound track.
     pub has_audio: bool,
     /// The file is a still image: one frame, no time base.
     pub is_image: bool,
+    /// The video codec name, or `None` when unknown.
     pub video_codec: Option<String>,
+    /// The audio codec name, or `None` when unknown.
     pub audio_codec: Option<String>,
 }
 
@@ -57,9 +67,13 @@ pub enum FrameFormat {
 /// Color space of the frames a [`VideoStream`] writes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FrameColor {
+    /// BT.709, limited range.
     Bt709,
+    /// BT.601, limited range.
     Bt601,
+    /// BT.2020 primaries with the PQ transfer.
     Bt2020Pq,
+    /// sRGB, full range.
     Srgb,
 }
 
@@ -70,13 +84,19 @@ pub struct VideoInfo {
     pub width: u32,
     /// Frame height in pixels: even, at most 16384.
     pub height: u32,
+    /// Pixel layout of every frame.
     pub format: FrameFormat,
+    /// Colour space of every frame.
     pub color: FrameColor,
+    /// Frame rate numerator: `frame_rate_num / frame_rate_den` frames per
+    /// second.
     pub frame_rate_num: i32,
+    /// Frame rate denominator.
     pub frame_rate_den: i32,
     /// Every pts the stream reports counts ticks at
     /// `time_base_num / time_base_den` ticks per second.
     pub time_base_num: i32,
+    /// Time base denominator.
     pub time_base_den: i32,
     /// Length in time-base ticks, when known.
     pub duration: Option<i64>,
@@ -110,8 +130,12 @@ impl VideoInfo {
 /// `stride` bytes.
 #[derive(Debug)]
 pub struct FramePlane<'a> {
+    /// The plane's `rows * stride` bytes, zeroed on entry.
     pub data: &'a mut [u8],
+    /// Bytes per row: the frame width, or half of it for the U and V planes of
+    /// [`FrameFormat::Yuv420p`].
     pub stride: usize,
+    /// Rows: the frame height for the Y plane, half of it for the others.
     pub rows: usize,
 }
 

@@ -853,7 +853,7 @@ pub struct AriaHostV1 {
     /// to undo. Requires `project = "read-write"`.
     pub project_undo: unsafe extern "C" fn(host_ctx: *mut c_void) -> AriaResult,
     /// Register a panel. `spec_json` is an object with `id`, `title`, and `location`:
-    /// `sidebar`, `inspector`, `timeline`, `overlay`, `viewer`, or `home`. Drawing it
+    /// `sidebar`, `inspector`, or `timeline`. Any other location is refused. Drawing it
     /// calls [`AriaPluginV1::panel_view`]. Fails unless the plugin table has the panel
     /// slots.
     pub register_panel:

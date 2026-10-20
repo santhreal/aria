@@ -19,7 +19,8 @@ use aria_compositor::{
     f16_to_f32, f32_to_f16, pass_id, registered_effect, renders_effect, renders_transition,
 };
 use aria_models::{
-    ClipParam, DriverCode, ParamValue, clip_type_spec, effect_spec, transition_spec,
+    ClipId, ClipParam, DriverCode, EffectInstance, EffectParamKind as HostParamKind, ParamValue,
+    clip_type_spec, effect_spec, transition_spec,
 };
 use aria_plugin::external::{from_table, host_table};
 use aria_plugin::package::{MANIFEST_FILE, Package};
@@ -29,9 +30,9 @@ use aria_render::compile_driver;
 use aria_sdk::{
     Analyzer as SdkAnalyzer, AnalyzerMarker, AnalyzerResult, AnalyzerRun, AnalyzerScope,
     AnalyzerSpec, ClipTypeSpec, CpuEffect, CpuFrameIn, CpuFrameOut, DriverLanguage,
-    DriverLanguageSpec, DriverVars, EffectParamSpec, EffectSpec, Host, MarkerColor,
-    ParamValue as SdkParamValue, Plugin as SdkPlugin, PluginRuntime, PresetSpec, TransitionSpec,
-    WorkspaceFocus, WorkspacePanes, WorkspaceSpec,
+    DriverLanguageSpec, DriverVars, EffectParamKind as SdkParamKind, EffectParamSpec, EffectSpec,
+    Host, MarkerColor, ParamValue as SdkParamValue, Plugin as SdkPlugin, PluginRuntime, PresetSpec,
+    TransitionSpec, WorkspaceFocus, WorkspacePanes, WorkspaceSpec,
 };
 use parking_lot::Mutex;
 use tempfile::TempDir;
@@ -260,6 +261,63 @@ fn bound_parity() -> PluginRuntime<ParityGuest> {
 
 fn bound_legacy() -> PluginRuntime<LegacyGuest> {
     let runtime = PluginRuntime::new(LegacyGuest);
+    // SAFETY: `host_table()` is the host's static `AriaHostV1`.
+    assert!(unsafe { runtime.bind_host(host_table(), ARIA_API_MAJOR) });
+    runtime
+}
+
+/// What [`ParamReader`] read through the `CpuFrameIn` getters on its last frame.
+#[derive(Debug, Clone, PartialEq)]
+struct ReadParams {
+    matte: Option<u64>,
+    gain: Option<f32>,
+    caption: Option<String>,
+    on: Option<bool>,
+    /// `text("gain")`: a scalar parameter read as text.
+    gain_as_text: Option<String>,
+}
+
+static READ_PARAMS: Mutex<Option<ReadParams>> = Mutex::new(None);
+
+struct ParamReader;
+
+impl CpuEffect for ParamReader {
+    fn process(
+        &self,
+        _host: &Host,
+        frame_in: &CpuFrameIn<'_>,
+        frame_out: &mut CpuFrameOut<'_>,
+    ) -> Result<(), String> {
+        *READ_PARAMS.lock() = Some(ReadParams {
+            matte: frame_in.layer("matte"),
+            gain: frame_in.scalar("gain"),
+            caption: frame_in.text("caption"),
+            on: frame_in.boolean("on"),
+            gain_as_text: frame_in.text("gain"),
+        });
+        frame_out.pixels_mut().copy_from_slice(frame_in.pixels());
+        Ok(())
+    }
+}
+
+struct ParamsGuest;
+
+impl SdkPlugin for ParamsGuest {
+    fn mount(&self, host: &Host) -> Result<(), String> {
+        host.register_cpu_effect(
+            EffectSpec::new("native.params.reader", "Native Param Reader").with_params(vec![
+                EffectParamSpec::layer("matte", "Matte"),
+                EffectParamSpec::scalar("gain", "Gain", 0.5, 0.0, 1.0),
+                EffectParamSpec::text("caption", "Caption", "Untitled"),
+                EffectParamSpec::boolean("on", "On", false),
+            ]),
+            ParamReader,
+        )
+    }
+}
+
+fn bound_params() -> PluginRuntime<ParamsGuest> {
+    let runtime = PluginRuntime::new(ParamsGuest);
     // SAFETY: `host_table()` is the host's static `AriaHostV1`.
     assert!(unsafe { runtime.bind_host(host_table(), ARIA_API_MAJOR) });
     runtime
@@ -665,4 +723,143 @@ fn old_abi_native_plugin_with_smaller_struct_size_still_loads_and_refuses_missin
         .to_string();
     assert!(err.contains("cpu_effect_process"), "{err}");
     assert!(effect_spec("native.parity.wgsl_invert").is_none());
+}
+
+/// Every unit variant serde accepts for `T`, keyed by the name it serializes
+/// to. The list is read from serde's error for a name that is no variant, so a
+/// variant added to the enum is enumerated with no edit to this file.
+fn serde_variants<T>() -> Vec<(String, T)>
+where
+    T: serde::de::DeserializeOwned + serde::Serialize + PartialEq,
+{
+    let err = serde_json::from_str::<T>("\"\"")
+        .err()
+        .expect("the empty name is not a variant")
+        .to_string();
+    let (_, listed) = err
+        .split_once("expected one of ")
+        .unwrap_or_else(|| panic!("serde listed no variants: {err}"));
+    let mut variants: Vec<(String, T)> = Vec::new();
+    for listed_name in listed.split('`').skip(1).step_by(2) {
+        let variant: T = serde_json::from_value(serde_json::Value::String(listed_name.to_owned()))
+            .unwrap_or_else(|err| panic!("listed variant `{listed_name}` does not parse: {err}"));
+        if variants.iter().any(|(_, seen)| *seen == variant) {
+            continue;
+        }
+        let name = serde_json::to_value(&variant)
+            .ok()
+            .and_then(|value| value.as_str().map(str::to_owned))
+            .unwrap_or_else(|| panic!("`{listed_name}` does not serialize to a name"));
+        variants.push((name, variant));
+    }
+    variants
+}
+
+/// WHY: a native CPU effect finds a parameter's floats by summing
+/// `aria_sdk::EffectParamKind::flattened_floats` over the parameters before it,
+/// and the host lays the floats out by
+/// `aria_models::EffectParamKind::shader_floats`. A kind the two count
+/// differently moves every later parameter onto its neighbour's floats: the
+/// SDK counted `Layer` as 0 floats and the host as 1. Both enums are enumerated
+/// through serde, so a kind added to one side only, or counted differently,
+/// fails here. Not caught: a kind both sides count equally but order
+/// differently inside its span.
+#[test]
+fn sdk_and_host_count_the_same_floats_for_every_parameter_kind() {
+    let sdk = serde_variants::<SdkParamKind>();
+    let host = serde_variants::<HostParamKind>();
+    let mut sdk_names: Vec<&str> = sdk.iter().map(|(name, _)| name.as_str()).collect();
+    let mut host_names: Vec<&str> = host.iter().map(|(name, _)| name.as_str()).collect();
+    sdk_names.sort_unstable();
+    host_names.sort_unstable();
+    assert_eq!(
+        sdk_names, host_names,
+        "the SDK and the host declare different kinds"
+    );
+    assert!(host_names.contains(&"layer"), "{host_names:?}");
+    for (name, host_kind) in &host {
+        let (_, sdk_kind) = sdk
+            .iter()
+            .find(|(sdk_name, _)| sdk_name == name)
+            .expect("names compared equal above");
+        assert_eq!(
+            sdk_kind.flattened_floats(),
+            host_kind.shader_floats(),
+            "`{name}` occupies a different float count in the SDK and on the host"
+        );
+    }
+}
+
+/// WHY: the `CpuFrameIn` getters of a native CPU effect read what the host
+/// sends: the flattened floats in parameter order and the effect instance as
+/// JSON, each instance map a list of `[name, value]` pairs. The SDK read every
+/// parameter after a `Layer` parameter one float early, so `gain` read the
+/// layer's clip id, and read text and layer values from `text_values` and
+/// `layer_values`, keys the instance never holds, so `text` returned the
+/// default and `layer` returned `None` for every instance. The effect runs
+/// through the host's registered CPU pass, once with every value set away from
+/// its default and once with none set. Not caught: the getters of kinds this
+/// effect does not declare, whose offsets
+/// `sdk_and_host_count_the_same_floats_for_every_parameter_kind` covers.
+#[test]
+fn native_cpu_effect_reads_instance_values_after_a_layer_parameter() {
+    let _serial = SERIAL.lock();
+    static RT: LazyLock<PluginRuntime<ParamsGuest>> = LazyLock::new(bound_params);
+    let temp = TempDir::new().expect("temp dir");
+    let plugin_id = "test.native.params";
+    let (ctx, plugin) = loaded(&temp, plugin_id, &plugin_table!(RT));
+    ctx.mount(plugin.as_ref()).expect("mount params plugin");
+    let pass = registered_effect("native.params.reader").expect("registered native cpu effect");
+    let input = vec![0u16; 2 * 2 * 4];
+    let mut output = vec![0u16; 2 * 2 * 4];
+    let mut read = |instance: &EffectInstance| {
+        let values = instance
+            .sample_flattened_floats(0.0, None)
+            .expect("flatten parameters");
+        *READ_PARAMS.lock() = None;
+        assert!(pass.run_cpu_with_instance(
+            HostCpuFrameIn::new(&input, 2, 2, 2 * 4),
+            &mut HostCpuFrameOut::new(&mut output, 2, 2, 2 * 4),
+            &values,
+            Some(instance),
+            0.0,
+        ));
+        (values, READ_PARAMS.lock().take())
+    };
+
+    let mut set = EffectInstance::new("native.params.reader");
+    set.set_layer_param(0, Some(ClipId::from_raw(7)))
+        .expect("set matte");
+    set.set_param_constant(1, 0.75).expect("set gain");
+    set.set_text_param(2, "Opening titles")
+        .expect("set caption");
+    set.set_bool_param(3, true).expect("set on");
+    let (values, seen) = read(&set);
+    assert_eq!(values, [7.0, 0.75, 1.0]);
+    assert_eq!(
+        seen,
+        Some(ReadParams {
+            matte: Some(7),
+            gain: Some(0.75),
+            caption: Some("Opening titles".to_owned()),
+            on: Some(true),
+            gain_as_text: None,
+        })
+    );
+
+    let (values, seen) = read(&EffectInstance::new("native.params.reader"));
+    assert_eq!(values, [0.0, 0.5, 0.0]);
+    assert_eq!(
+        seen,
+        Some(ReadParams {
+            matte: None,
+            gain: Some(0.5),
+            caption: Some("Untitled".to_owned()),
+            on: Some(false),
+            gain_as_text: None,
+        })
+    );
+
+    ctx.unmount(plugin_id).expect("unmount params plugin");
+    assert!(effect_spec("native.params.reader").is_none());
 }

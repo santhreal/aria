@@ -649,7 +649,7 @@ typedef struct AriaHostV1 {
     AriaResult (*project_undo)(void *host_ctx);
 
     /// Register a panel. `spec_json` is an object with `id`, `title`, and `location`:
-    /// `sidebar`, `inspector`, `timeline`, `overlay`, `viewer`, or `home`. Drawing it
+    /// `sidebar`, `inspector`, or `timeline`. Any other location is refused. Drawing it
     /// calls `AriaPluginV1.panel_view`. Fails unless the plugin table has the panel
     /// slots.
     AriaResult (*register_panel)(void *host_ctx, AriaStr spec_json);

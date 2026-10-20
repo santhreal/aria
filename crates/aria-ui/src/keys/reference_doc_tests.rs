@@ -1196,3 +1196,73 @@ fn all_markdown_links_and_anchors_in_docs_resolve() {
         broken.join("\n")
     );
 }
+
+/// WHY: a fenced code block closes only on a fence line with no info string.
+/// A block left open swallows every following line, so a ```` ```rust ````
+/// meant to open the next example renders as code text, the prose between
+/// the two examples renders as code, and the link check above, which toggles
+/// on every fence line, reads code as prose and prose as code. This walks each
+/// file under `docs/` with the closing rule a renderer uses and fails on a
+/// fence that opens inside an open block or a block still open at the end of
+/// the file. Not caught: a bare fence meant to open a block that instead
+/// closes the one before it.
+#[test]
+fn every_fenced_code_block_in_docs_closes() {
+    let docs_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs");
+    let mut md_files = Vec::new();
+    collect_md_files(&docs_root, &mut md_files);
+    let mut fences = 0usize;
+    let mut unclosed: Vec<String> = Vec::new();
+    for md_file in &md_files {
+        let text =
+            std::fs::read_to_string(md_file).unwrap_or_else(|e| panic!("read {md_file:?}: {e}"));
+        let mut open: Option<(usize, char, usize)> = None;
+        for (idx, line) in text.lines().enumerate() {
+            let trimmed = line.trim_start_matches(' ');
+            if line.len() - trimmed.len() > 3 {
+                continue;
+            }
+            let Some(mark) = trimmed.chars().next().filter(|c| *c == '`' || *c == '~') else {
+                continue;
+            };
+            let run = trimmed.chars().take_while(|c| *c == mark).count();
+            if run < 3 {
+                continue;
+            }
+            let info = trimmed[run..].trim();
+            match open {
+                None => {
+                    open = Some((idx + 1, mark, run));
+                    fences += 1;
+                }
+                Some((_, open_mark, open_run))
+                    if mark == open_mark && run >= open_run && info.is_empty() =>
+                {
+                    open = None;
+                }
+                Some((opened, _, _)) if !info.is_empty() => unclosed.push(format!(
+                    "{}:{}: the fence line {:?} opens inside the block opened at line {opened}",
+                    md_file.display(),
+                    idx + 1,
+                    trimmed.trim_end()
+                )),
+                Some(_) => {}
+            }
+        }
+        if let Some((opened, _, _)) = open {
+            unclosed.push(format!(
+                "{}:{opened}: fenced block never closes",
+                md_file.display()
+            ));
+        }
+    }
+    assert!(
+        fences >= 100,
+        "expected at least 100 fenced blocks across docs/, found {fences}"
+    );
+    assert!(
+        unclosed.is_empty(),
+        "unbalanced code fences in docs/:\n{}",
+        unclosed.join("\n")
+    );
+}

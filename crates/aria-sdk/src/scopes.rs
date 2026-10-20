@@ -23,8 +23,11 @@ pub struct ScopeSpec {
 /// alpha, top row first.
 #[derive(Debug, Clone, Copy)]
 pub struct ScopeFrame<'a> {
+    /// Frame width in pixels.
     pub width: u32,
+    /// Frame height in pixels.
     pub height: u32,
+    /// `width * height * 4` bytes.
     pub pixels: &'a [u8],
 }
 
@@ -45,8 +48,11 @@ impl ScopeFrame<'_> {
 /// top row first, transparent black on entry.
 #[derive(Debug)]
 pub struct ScopeImage<'a> {
+    /// Image width in pixels: the [`ScopeSpec::width`] the scope registered.
     pub width: u32,
+    /// Image height in pixels: the [`ScopeSpec::height`] the scope registered.
     pub height: u32,
+    /// `width * height * 4` bytes.
     pub pixels: &'a mut [u8],
 }
 

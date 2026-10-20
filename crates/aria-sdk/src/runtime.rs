@@ -217,10 +217,13 @@ impl<P: Plugin> PluginRuntime<P> {
         unsafe { raw.as_str() }.map_err(|err| format!("invalid UTF-8 in {label}: {err}"))
     }
 
+    /// Run [`Plugin::mount`].
     pub fn handle_mount(&self, host_ctx: *mut c_void) -> AriaResult {
         self.run_unit(host_ctx, |plugin, host| plugin.mount(host))
     }
 
+    /// Run [`Plugin::unmount`], then drop the plugin's audio instances, panels,
+    /// encoders, encoder sessions, CPU effects, and driver languages.
     pub fn handle_unmount(&self, host_ctx: *mut c_void) -> AriaResult {
         let res = self.run_unit(host_ctx, |plugin, host| plugin.unmount(host));
         self.audio_instances.lock().clear();
@@ -232,6 +235,7 @@ impl<P: Plugin> PluginRuntime<P> {
         res
     }
 
+    /// Run the command `id` with `args_json` through [`Plugin::command_run`].
     pub fn handle_command_run(
         &self,
         host_ctx: *mut c_void,
@@ -533,6 +537,9 @@ impl<P: Plugin> PluginRuntime<P> {
         }
     }
 
+    /// Deliver the event `kind` with `event_json` to [`Plugin::event`] and
+    /// return its [`EventResponse`](crate::EventResponse) as JSON, or an empty
+    /// string for [`EventResponse::Pass`](crate::EventResponse::Pass).
     pub fn handle_event(
         &self,
         host_ctx: *mut c_void,
@@ -547,6 +554,8 @@ impl<P: Plugin> PluginRuntime<P> {
         })
     }
 
+    /// Read `path` with importer `importer_id` through [`Plugin::import`] and
+    /// return its [`ImportResult`](crate::ImportResult) as JSON.
     pub fn handle_import(
         &self,
         host_ctx: *mut c_void,
@@ -561,6 +570,9 @@ impl<P: Plugin> PluginRuntime<P> {
         })
     }
 
+    /// Write `project_json` to `path` with exporter `exporter_id` through
+    /// [`Plugin::export`] and return its [`ExportReport`](crate::ExportReport)
+    /// as JSON.
     pub fn handle_export(
         &self,
         host_ctx: *mut c_void,
@@ -577,6 +589,8 @@ impl<P: Plugin> PluginRuntime<P> {
         })
     }
 
+    /// Create an instance of audio effect `effect_id` at `sample_rate` through
+    /// [`Plugin::audio_create`] and return its instance id.
     pub fn handle_audio_create(
         &self,
         host_ctx: *mut c_void,
@@ -721,6 +735,7 @@ impl<P: Plugin> PluginRuntime<P> {
         }
     }
 
+    /// Reset audio instance `instance`.
     pub fn handle_audio_reset(&self, _host_ctx: *mut c_void, instance: u64) -> AriaResult {
         match catch_unwind(AssertUnwindSafe(|| {
             let mut map = self.audio_instances.lock();
@@ -736,6 +751,7 @@ impl<P: Plugin> PluginRuntime<P> {
         }
     }
 
+    /// Drop audio instance `instance`.
     pub fn handle_audio_drop(&self, _host_ctx: *mut c_void, instance: u64) -> AriaResult {
         match catch_unwind(AssertUnwindSafe(|| {
             let removed = self.audio_instances.lock().remove(&instance);

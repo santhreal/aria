@@ -117,12 +117,16 @@ impl GraphPass {
 /// expand, negative values shrink.
 #[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
 pub struct EffectBounds {
+    /// Margin past the left edge, in pixels.
     #[serde(default)]
     pub left: f32,
+    /// Margin past the top edge, in pixels.
     #[serde(default)]
     pub top: f32,
+    /// Margin past the right edge, in pixels.
     #[serde(default)]
     pub right: f32,
+    /// Margin past the bottom edge, in pixels.
     #[serde(default)]
     pub bottom: f32,
 }

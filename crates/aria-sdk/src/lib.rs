@@ -5,6 +5,8 @@
 //! the C ABI boundary so a panic becomes an `ARIA_STATUS_PANIC` return rather
 //! than unwinding across `extern "C"`.
 
+#![deny(missing_docs)]
+
 mod ai_tools;
 mod clip_type_schema;
 mod contributions;
@@ -51,10 +53,15 @@ use serde::{Deserialize, Serialize};
 /// Severity of a plugin log line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LogLevel {
+    /// Step-by-step detail.
     Trace,
+    /// Diagnostic detail.
     Debug,
+    /// Normal operation.
     Info,
+    /// A problem the plugin recovered from.
     Warn,
+    /// A failure.
     Error,
 }
 
@@ -73,25 +80,41 @@ impl LogLevel {
 /// Specification of a timeline importer registered during `mount`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ImporterSpec {
+    /// Not empty, and unique among importers and exporters.
     pub id: String,
+    /// The format as a menu lists it, such as `CMX 3600 EDL`.
     pub name: String,
+    /// The file extensions it reads, without the dot: at least one, each ASCII
+    /// letters and digits. Matched without regard to case.
     pub extensions: Vec<String>,
 }
 
 /// Specification of a timeline exporter registered during `mount`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExporterSpec {
+    /// Not empty, and unique among importers and exporters.
     pub id: String,
+    /// The format as a menu lists it.
     pub name: String,
+    /// The extension of the file it writes, without the dot: ASCII letters and
+    /// digits, stored lowercase.
     pub extension: String,
 }
 
 /// Specification of a media format encoder registered during `mount`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EncoderSpec {
+    /// Not empty, and unique among encoders.
     pub id: String,
+    /// The format as the Export dialog lists it, such as `Apple ProRes 422`.
     pub name: String,
+    /// The extension of the file it writes, without the dot: ASCII letters and
+    /// digits, stored lowercase. Selecting the encoder sets the destination's
+    /// extension.
     pub extension: String,
+    /// The encoder takes audio through [`EncoderSession::push_audio`]. When
+    /// `false`, the Export dialog hides the Audio row and the export is video
+    /// only.
     #[serde(default)]
     pub audio: bool,
 }
@@ -99,32 +122,52 @@ pub struct EncoderSpec {
 /// Configuration passed when opening an [`EncoderSession`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EncoderConfig {
+    /// Frame width in pixels.
     pub width: u32,
+    /// Frame height in pixels.
     pub height: u32,
+    /// Frame rate numerator: `fps_num / fps_den` frames per second.
     pub fps_num: i64,
+    /// Frame rate denominator.
     pub fps_den: i32,
+    /// Requested video bitrate in kilobits per second, or 0 when the export
+    /// requests none.
     pub video_bitrate_kbps: u32,
+    /// Requested audio bitrate in kilobits per second. The host passes 0.
     pub audio_bitrate_kbps: u32,
 }
 
 /// One RGBA video frame handed to [`EncoderSession::push_frame`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EncoderFrame<'a> {
+    /// Straight-alpha RGBA8 pixels: `height` rows of `stride` bytes, top row
+    /// first.
     pub rgba: &'a [u8],
+    /// Frame width in pixels.
     pub width: u32,
+    /// Frame height in pixels.
     pub height: u32,
+    /// Bytes per row, at least `width * 4`.
     pub stride: u32,
+    /// Presentation time in ticks of `pts_rate`: the frame starts
+    /// `pts_value / pts_rate` seconds into the file.
     pub pts_value: i64,
+    /// Ticks per second of `pts_value`.
     pub pts_rate: i32,
 }
 
 /// One interleaved `f32` audio block handed to [`EncoderSession::push_audio`].
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct EncoderAudio<'a> {
+    /// Interleaved samples, `channels` per sample frame.
     pub samples: &'a [f32],
+    /// Sample frames per second.
     pub sample_rate: u32,
+    /// Channels per sample frame.
     pub channels: u32,
+    /// Presentation time of the first sample frame in ticks of `pts_rate`.
     pub pts_value: i64,
+    /// Ticks per second of `pts_value`.
     pub pts_rate: i32,
 }
 
@@ -198,19 +241,18 @@ pub struct ExportReport {
     pub skipped: Vec<String>,
 }
 
-fn default_scalar_kind() -> String {
-    "scalar".to_owned()
-}
-
 /// Scalar parameter specification for an audio effect.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AudioParamSpec {
+    /// Parameter key, unique within the effect.
     pub name: String,
+    /// The parameter's row label.
     pub label: String,
-    #[serde(default = "default_scalar_kind")]
-    pub kind: String,
+    /// Value of a new insert, inside `min..=max`.
     pub default: f32,
+    /// Lowest value.
     pub min: f32,
+    /// Highest value, not below `min`.
     pub max: f32,
 }
 
@@ -226,7 +268,6 @@ impl AudioParamSpec {
         Self {
             name: name.into(),
             label: label.into(),
-            kind: default_scalar_kind(),
             default,
             min,
             max,
@@ -237,16 +278,25 @@ impl AudioParamSpec {
 /// Specification of an audio effect registered during `mount`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AudioEffectSpec {
+    /// Namespaced id with at least one `.`, such as `com.example.drive`. A
+    /// shipped id or an id already registered is refused.
     pub id: String,
+    /// The name the Effect menu and the mixer inserts list. Not empty.
     pub label: String,
     /// The Effect submenu and Effects browser group the effect is listed
     /// under. Empty lists it under Other Audio.
     #[serde(default)]
     pub category: String,
+    /// Scalar parameters in slot order: the order the processor receives their
+    /// values.
     #[serde(default)]
     pub params: Vec<AudioParamSpec>,
+    /// Sample frames at 48 kHz by which the output trails the input, at most
+    /// 48000. The mixer delays every parallel path by the same amount.
     #[serde(default)]
     pub latency: u32,
+    /// The effect reads a key signal: a mixer strip shows a Key from row, and
+    /// each audio block includes the key lane.
     #[serde(default)]
     pub sidechain: bool,
 }
@@ -254,27 +304,41 @@ pub struct AudioEffectSpec {
 /// Action claimed for a `resolve-dropped` serial event.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DropAction {
+    /// Open it as an Aria project.
     OpenProject,
+    /// Register it in the media pool.
     ImportMedia,
+    /// Load it as a 3D LUT.
     ApplyLut,
+    /// Install it as an assistant skill.
     InstallSkill,
+    /// Read it into the open project through the importer registered for its
+    /// extension.
     ImportTimeline,
+    /// The plugin handled the dropped item itself.
     Handled,
 }
 
 /// Rational frame rate or timebase (`num / den` ticks per second).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Rational {
+    /// Numerator.
     pub num: i64,
+    /// Denominator.
     pub den: i64,
 }
 
 impl Rational {
+    /// 24 per second.
     pub const FPS_24: Self = Self { num: 24, den: 1 };
+    /// 25 per second.
     pub const FPS_25: Self = Self { num: 25, den: 1 };
+    /// 30 per second.
     pub const FPS_30: Self = Self { num: 30, den: 1 };
+    /// 60 per second.
     pub const FPS_60: Self = Self { num: 60, den: 1 };
 
+    /// The rate `num / den` per second.
     pub const fn new(num: i64, den: i64) -> Self {
         Self { num, den }
     }
@@ -283,11 +347,14 @@ impl Rational {
 /// Exact timestamp `value / rate` seconds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct RationalTime {
+    /// Tick count.
     pub value: i64,
+    /// Ticks per second.
     pub rate: Rational,
 }
 
 impl RationalTime {
+    /// The time `value / rate` seconds.
     pub const fn new(value: i64, rate: Rational) -> Self {
         Self { value, rate }
     }
@@ -296,11 +363,14 @@ impl RationalTime {
 /// Half-open time interval `[start, start + duration)`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TimeRange {
+    /// The first tick.
     pub start: RationalTime,
+    /// The length.
     pub duration: RationalTime,
 }
 
 impl TimeRange {
+    /// The range from `start` lasting `duration`.
     pub const fn new(start: RationalTime, duration: RationalTime) -> Self {
         Self { start, duration }
     }
@@ -309,18 +379,28 @@ impl TimeRange {
 /// Summary of a timeline clip returned by [`Host`] project queries.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ClipRef {
+    /// The clip id.
     pub id: u64,
+    /// Id of the track holding the clip.
     pub track: u64,
+    /// The clip's first tick on the timeline.
     pub start: RationalTime,
+    /// The tick after the clip's last frame.
     pub end: RationalTime,
+    /// `media`, `sequence`, `multicam`, the generator id of a generated clip,
+    /// or the clip type id of a typed clip.
     pub kind: String,
+    /// The clip's title. A typed clip with no name of its own reads the type's
+    /// name.
     pub name: String,
 }
 
 /// Sequence In and Out points returned by [`Host::in_out`].
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InOut {
+    /// The In point, or `None` when unset.
     pub mark_in: Option<RationalTime>,
+    /// The Out point, or `None` when unset.
     pub mark_out: Option<RationalTime>,
 }
 
@@ -328,13 +408,18 @@ pub struct InOut {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum MarkerKind {
+    /// A note.
     #[default]
     Comment,
+    /// A chapter point.
     Chapter,
+    /// A segment, such as a range an analyzer writes.
     Segmentation,
 }
 
 impl MarkerKind {
+    /// Whether this is [`Self::Comment`], the kind of a marker whose JSON omits
+    /// `kind`.
     pub fn is_default(&self) -> bool {
         *self == Self::Comment
     }
@@ -351,17 +436,24 @@ fn is_zero_marker_duration(duration: &RationalTime) -> bool {
 /// A ruler marker returned by [`Host::markers_in_range`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Marker {
+    /// The marker id.
     pub id: u64,
+    /// Position on the sequence timeline.
     pub tick: RationalTime,
+    /// Span of a range marker, or 0 ticks for a point marker.
     #[serde(
         default = "zero_marker_duration",
         skip_serializing_if = "is_zero_marker_duration"
     )]
     pub duration: RationalTime,
+    /// The marker name.
     pub name: String,
+    /// The marker colour.
     pub color: MarkerColor,
+    /// Comment text, empty when none.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub comment: String,
+    /// The marker category.
     #[serde(default, skip_serializing_if = "MarkerKind::is_default")]
     pub kind: MarkerKind,
 }

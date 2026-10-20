@@ -29,6 +29,7 @@ fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
     }
     Ok(())
 }
+```
 
 `render` is an `aria-ui` function pointer, so `aria-plugin` stays free of GPUI.
 Registering an id that already exists replaces that panel, which is how a plugin
@@ -53,6 +54,7 @@ host.add(PanelEntry {
     visible: |state| state.active_panel == ActivePanel::Preview,
     dock: DockSpec::for_location(PanelLocation::Viewer),
 });
+```
 
 A docked pane uses `ALWAYS`. Two entries whose predicates hold at once both
 draw, so a replacement body must either take over an existing id or narrow its
@@ -187,7 +189,7 @@ fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
 }
 ```
 
-Open it with `state.open_dialog(DialogKind::Plugin("example.dialog.notes"))` —
+Open it with `state.open_dialog(DialogKind::Plugin("example.dialog.notes"))`
 from a command, a menu item, or a key binding. One dialog is on screen at a
 time, so opening yours closes whatever was up, and Escape closes it.
 

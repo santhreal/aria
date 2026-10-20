@@ -1384,6 +1384,7 @@ Notes for the latest release. For previous releases, see the
 - `docs/plugins/native-abi-reference.md` documents every define, type, field and table slot of the native C ABI, and `aria_plugin.h`, generated from the same doc comments, gains them along with `AriaTableHeader`, the table size defines and `ARIA_PLUGIN_ENTRY_SYMBOL`.
 - `docs/reference/` documents every built-in video effect, generator, clip type, transition, audio effect, colour filter, grading control, clip animation, text effect, easing curve, speed-ramp preset, sticker, and mask parameter, and tests fail when a registry member has no entry.
 - `docs/reference/` documents every tool, workspace, dock panel, overlay dialog, Project sidebar tab, Home rail view, command palette action, menu item, and configuration setting, and tests fail when one has no entry or when a relative link or anchor under `docs/` does not resolve.
+- Every public `aria-sdk` item is documented, and the crate denies `missing_docs`.
 
 ### Changed
 
@@ -2296,6 +2297,7 @@ Notes for the latest release. For previous releases, see the
   to the sequence. Titlebar, transport, and track headers use the shipped
   Lucide icons instead of letter placeholders.
 - The native plugin table slots `import` and `export` are named `import_file` and `export_file`, so `aria_plugin.h` compiles as C++.
+- `aria_sdk::PanelLocation` holds only `Sidebar`, `Inspector`, and `Timeline`, the locations the host docks a declared panel in, and `aria_sdk::AudioParamSpec` has no `kind` field, which the host never read.
 
 ### Fixed
 
@@ -2694,6 +2696,9 @@ Notes for the latest release. For previous releases, see the
 - A plugin encoder at a fractional frame rate such as 29.97 fps receives each frame's `pts_value` in ticks of `pts_rate` per second, instead of the frame number, which placed frame 30000 at 1 s instead of 1001 s.
 - A native plugin's `render-finished` event names an image sequence render `"image-sequence"`, as a WASM plugin's does, instead of `"image_sequence"`.
 - A WASM plugin's `command-proposed` reply accepts `{"rewrite": <command>}` and its `resolve-dropped` reply accepts `{"claim_drop": "<action>"}`, as a native plugin's does.
+- A native CPU effect built on `aria-sdk` reads each parameter after a `Layer` parameter from its own floats instead of the float before them, and `CpuFrameIn::text`, `font`, `file`, and `layer` return the effect instance's values instead of the default text and `None`.
+- The native ABI reference and `aria_plugin.h` state that `register_panel` accepts only the `sidebar`, `inspector`, and `timeline` locations.
+- Two example code blocks in `docs/plugins/panels.md` close before the prose that follows them instead of rendering it as code.
 
 ## [alpha-0.7.0] — 2026-07-22
 
