@@ -171,3 +171,6 @@ pub use transition::{
     DEFAULT_TRANSITION_TICKS, Transition, TransitionAlignment, TransitionSpec,
     shipped_transition_catalog, transition_catalog, transition_spec, transition_window,
 };
+
+#[cfg(test)]
+mod catalog_doc_tests;
