@@ -117,7 +117,7 @@ aria analyze <media> [--beats] [--silence] [--loudness] [--shots] [--limit N]
 Run detectors and print what they found. Nothing is written: the moments index
 belongs to a project.
 
-With no detector flag, all three audio detectors run — they share one decode, so
+With no detector flag, all three audio detectors run. They share one decode, so
 asking for every one costs what asking for one costs. `--shots` samples video
 frames instead, at 2 fps up to 30 minutes. `--limit` caps the rows per detector
 (40 by default) and the remainder is counted, never dropped silently.

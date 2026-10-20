@@ -55,7 +55,7 @@ plugin for re-mounting after it was disabled.
 overrides from. Pass the same directory the session uses, so a process pointed at
 another profile does not load code and catalogs from the default one.
 
-That directory reaches exactly one plugin. `aria.storage` owns the root and
+That directory reaches one plugin and no other. `aria.storage` holds the root and
 registers a `StorageLayout` and a `StorageService` for it; a plugin that needs a
 directory asks that service instead of resolving one. `aria.transcription`
 refuses to mount without it rather than downloading models into a directory the
@@ -70,7 +70,7 @@ uses: &["StorageService", "SettingsService"],
 ```
 
 `mount` hands the plugin a context scoped to that list. `try_get` of anything else
-returns `None` and `get` panics, whatever is in the registry — a plugin cannot
+returns `None` and `get` panics, whatever is in the registry. A plugin cannot
 reach a capability it did not declare. The refusal is recorded, not logged:
 `ctx.denials()` names the plugin and the service, and the Plugins list shows it as
 `refused <Service>`. A clone of the scoped context keeps the scope, so a handler

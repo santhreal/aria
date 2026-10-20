@@ -218,7 +218,7 @@ starting the app with no transitions.
 
 **Settings > Catalogs** lists every catalog, how many entries are in effect,
 whether the source is your file or the shipped copy, and the reason a file on disk
-was refused. A refused file is the case that otherwise looks exactly like having
+was refused. A refused file is the case that otherwise looks the same as having
 installed nothing.
 
 Catalogs are read once, at startup. Restart after editing one.

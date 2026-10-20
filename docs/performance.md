@@ -68,7 +68,7 @@ separately below.
 `cargo bench -p aria-decoder --bench seek_latency` measures the two seeks a
 scrub makes, over `tests/fixtures/fixture-640x360-24fps-3s.mp4`:
 
-- `cold_open_and_seek` opens the decoder and decodes a mid-clip frame — what
+- `cold_open_and_seek` opens the decoder and decodes a mid-clip frame: what
   clicking into the middle of an unopened clip costs, demuxer setup included.
 - `warm_scrub` holds one open decoder and asks for a backward jump, a one-frame
   step, and a long forward jump: the three gestures the preview issues once a
@@ -95,7 +95,7 @@ profile directory; warm is the same directory after a session has written its
 settings and a project into it.
 
 The boot cover ends on readiness, so these are the numbers that decide whether
-the operator ever sees it. `aria_ui::shell::SPLASH_MAX` (2 s) is the ceiling the
+the boot cover is ever shown. `aria_ui::shell::SPLASH_MAX` (2 s) is the ceiling the
 test asserts against: a start past it is a start the cover's timeout ended.
 
 | Phase | Cold | Warm |
@@ -134,7 +134,7 @@ parallelism in 127.53 s.
 costs to dispatch. An effect pass is three things: the pipeline it draws with,
 the texture it reads, and the constants it reads them with. Layers agreeing on
 all three issue the same draw, so one bind group and one uniform buffer serve
-all of them — the binding is shared, the draw is not, which is why a grade on
+all of them. The binding is shared and the draw is not, which is why a grade on
 eight clips still grades each clip's own pixels.
 
 Every pass used to build both and drop them at submit. Twelve layers with two
@@ -151,8 +151,8 @@ median of 15 rounds that alternate the two modes one frame at a time: a frame
 this size is readback-bound, and a block of frames per mode measures whatever
 else the machine was doing during that block. 24 allocations per frame become 0
 once the descriptors repeat. The counts are the test's contract; the clock is
-reported. The same numbers reach the operator in the Render cost panel and the
-status line, so a frame that is dear because of a chain someone stacked says so.
+reported. The same numbers are shown in the Render cost panel and the
+status line, so a frame that is dear because of a stacked chain shows the cause.
 
 The table is bounded (128 entries) and keyed on the pool's own views, so it is
 built and dropped with the pool that owns them: resizing the canvas cannot
@@ -188,6 +188,6 @@ inside a ceiling and grows with the clip count rather than faster. The ceilings
 are set for a tenfold regression, not for these numbers: a machine several
 times slower than the one above still passes.
 
-The budget test also asserts the magnet index holds exactly the magnets the
-projection carries, and that every `SnapKind` has something that produces it,
+The budget test also asserts the magnet index holds the magnets the
+projection holds and no others, and that every `SnapKind` has something that produces it,
 so a magnet nobody builds fails the suite instead of shipping.

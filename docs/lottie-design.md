@@ -1,9 +1,9 @@
-# Lottie support — decoder, frame strategy, asset model
+# Lottie support: decoder, frame strategy, asset model
 
 **Status (macos-dev, Jul 2026):** design locked, implementation landing with
 this doc. Lottie is for **stickers and overlays** (Workstream 8 of the cloud
 roadmap): vector animations downloaded from the asset catalog and placed on
-sticker lanes. Lottie-based *text* stays off the table — Lottie text layers
+sticker lanes. Lottie-based *text* stays off the table: Lottie text layers
 aren't content-editable in practice; animated titles are native text presets
 ([cloud-roadmap.md](cloud-roadmap.md)).
 
@@ -29,19 +29,19 @@ Rationale:
   motion blur, split rotations) hurt full After Effects exports, not the
   simple looping stickers we curate. The catalog is first-party curated
   (CC0 in, CC0 out), so every shipped asset is validated against the real
-  decoder by a drift test before it ships — coverage gaps become curation
-  rejects, not user-visible breakage.
+  decoder by a drift test before it ships, so coverage gaps become curation
+  rejects, not visible breakage.
 - **`vello_cpu` as the raster backend.** velato's optional `vello`
   integration drags in wgpu; our compositor already owns the GPU. Instead
   we implement velato's `RenderSink` (4 required methods) over
-  `vello_cpu::RenderContext` — verified end-to-end (fills, strokes, clip
+  `vello_cpu::RenderContext`, verified end-to-end (fills, strokes, clip
   layers, gradients render correctly to RGBA pixmaps). `vello_cpu` is
   SIMD-optimized and fast enough for on-demand 512 px frames; kurbo/peniko
   versions unify across both crates.
 - **Known sharp edge: velato's importer panics** (`todo!()`) on some
   unsupported features (observed: split rotation) rather than returning
   `Err`. Parsing therefore runs under `catch_unwind`, mapping panics to
-  `DecodeError` — a hostile or over-fancy file yields a failed load, never
+  `DecodeError`: a hostile or over-fancy file yields a failed load, never
   a crashed editor. The curation drift test catches these before shipping.
 
 The module lives in `aria-decoder` (`lottie.rs`), mirroring the
@@ -59,7 +59,7 @@ arbitrarily long. Policy instead:
 - **Sample at a capped fps.** Frames are sampled at
   `min(composition fps, 20)`. Requested times quantize to that grid, so a
   60 fps timeline scrubbing over a Lottie clip hits at most 20 distinct
-  frames per second of animation — cache hits, not re-renders. 20 fps is
+  frames per second of animation: cache hits, not re-renders. 20 fps is
   visually fine for decorative stickers (hand-tuned GIF stickers ship at
   ~12 fps).
 - **Cap render resolution.** Frames rasterize at the composition's
@@ -72,7 +72,7 @@ arbitrarily long. Policy instead:
 - **Render on demand behind a per-asset LRU.** Nothing pre-renders. Each
   loaded animation keeps an LRU of rasterized frames with a byte budget
   (`LOTTIE_CACHE_BYTES` = 32 MB per asset); at 512 px (1 MB/frame) that's
-  ~32 frames — a full loop of a typical 1.5 s sticker, so steady-state
+  ~32 frames, a full loop of a typical 1.5 s sticker, so steady-state
   playback costs zero rasterization. Frames used by the scene currently
   being composed are never evicted (scene-stamped), so multi-clip frames
   can't alias mid-frame.
@@ -83,7 +83,7 @@ arbitrarily long. Policy instead:
 ## Asset model: file-backed `Generator::Lottie`
 
 `Generator::Sticker { asset }` references the compile-time embedded
-catalog — that can't work for downloaded content. Lottie assets are
+catalog, which cannot work for downloaded content. Lottie assets are
 **file-backed, path-referenced like media**:
 
 ```rust
@@ -112,9 +112,9 @@ Generator::Lottie {
   offline-relink story, not an error.
 - **Serialization** is additive: a new externally-tagged variant next to
   `Sticker`, mirrored in the hand-written back-compat deserializer. Old
-  builds refuse projects using it (unknown variant) — the standard
+  builds refuse projects using it (unknown variant), the standard
   additive-format position, surfaced by the app-update nudge.
-- Lane rules: `Generator::Lottie` lands on **sticker lanes**, exactly like
+- Lane rules: `Generator::Lottie` lands on **sticker lanes**, like
   `Sticker`/`Shape`.
 
 ## Distribution

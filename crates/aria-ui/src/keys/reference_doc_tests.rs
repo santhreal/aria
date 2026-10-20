@@ -1343,3 +1343,61 @@ fn every_table_in_docs_ends_at_a_blank_line() {
         runons.join("\n")
     );
 }
+
+/// WHY: the documentation register states the control, setting, or file
+/// that acts, in flat sentences, so an em dash and the persona nouns "the
+/// user" and "the operator" are out of the register. Rewriting the instances
+/// leaves the class open, so this walks the repository README and every file
+/// under `docs/` outside fenced blocks and inline code spans and fails on an
+/// em dash or one of those phrases. Not caught: the other banned filler and
+/// metaphor words, and a persona phrased another way, such as "users".
+#[test]
+fn docs_prose_has_no_em_dash_or_persona_noun() {
+    const BANNED: [&str; 4] = ["\u{2014}", "the user", "the operator", "an operator"];
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let mut md_files = vec![root.join("README.md")];
+    collect_md_files(&root.join("docs"), &mut md_files);
+    let mut prose_lines = 0usize;
+    let mut found: Vec<String> = Vec::new();
+    for md_file in &md_files {
+        let text =
+            std::fs::read_to_string(md_file).unwrap_or_else(|e| panic!("read {md_file:?}: {e}"));
+        let mut fence: Option<&str> = None;
+        for (idx, line) in text.lines().enumerate() {
+            let trimmed = line.trim_start();
+            match fence {
+                Some(mark) if trimmed.starts_with(mark) => {
+                    fence = None;
+                    continue;
+                }
+                Some(_) => continue,
+                None => {
+                    if let Some(mark) = ["```", "~~~"].into_iter().find(|m| trimmed.starts_with(m))
+                    {
+                        fence = Some(mark);
+                        continue;
+                    }
+                }
+            }
+            prose_lines += 1;
+            let prose = strip_inline_code(line).to_lowercase();
+            for banned in BANNED.iter().filter(|b| prose.contains(*b)) {
+                found.push(format!(
+                    "{}:{}: {banned:?} in {:?}",
+                    md_file.display(),
+                    idx + 1,
+                    line.trim()
+                ));
+            }
+        }
+    }
+    assert!(
+        prose_lines >= 10_000,
+        "expected at least 10000 prose lines across docs/ and README.md, read {prose_lines}"
+    );
+    assert!(
+        found.is_empty(),
+        "docs prose outside the register:\n{}",
+        found.join("\n")
+    );
+}

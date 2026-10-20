@@ -1,4 +1,4 @@
-# Cloud Roadmap — backend, asset catalog, and BYOK architecture
+# Cloud Roadmap: backend, asset catalog, and BYOK architecture
 
 **Status (macos-dev, Jul 2026):** desktop v1 ships **anonymous cloud + BYOK
 only**. Aria account / device sign-in / managed credits are **not in the
@@ -9,22 +9,22 @@ generation, and the update check. The backend's own technical notes live in
 `aria-backend/docs/ARCHITECTURE.md`.
 
 Policy: **Aria is free, and the cloud is optional.** The backend exists so
-anonymous catalogs and stock search work without users juggling provider
-accounts for those surfaces — never to gate the editor.
+anonymous catalogs and stock search work without provider
+accounts for those surfaces, never as a requirement for the editor.
 
 ## Governing principles (apply to every phase)
 
-- **BYOK always works.** Inference and paid generation use the user's own
-  key(s); the backend is uninvolved. There is no managed / credits path in
+- **BYOK always works.** Inference and paid generation use a key from Settings
+  (BYOK); the backend is uninvolved. There is no managed / credits path in
   the desktop client for v1.
 - **Free assets are free and anonymous.** Stock, SFX, LUTs, templates, and
-  text presets cost no credits and need no account — anonymous,
+  text presets cost no credits and need no account: anonymous,
   rate-limited, cacheable access.
 - **The backend never touches projects/timelines/encoding.** It is an
   I/O gateway: read-mostly asset catalog, stock search, latest-version.
   Heavy work stays in the editor or at upstream providers.
 - **No media bytes through the backend.** Stock *search* goes through the
-  backend (the provider API keys must stay server-side — an embedded key in
+  backend (the provider API keys must stay server-side: an embedded key in
   an open-source binary is public, and rate limits are per key). The actual
   media files download **directly from the provider CDNs** (keyless URLs),
   so stock bandwidth never hits our egress. Aria-owned assets (template
@@ -59,14 +59,14 @@ tests use scripted fakes.
   provider directly; else anonymous access only (assets/stock yes,
   inference no).
 - **`StockProvider` trait** with two impls: backend-routed (anonymous) and
-  direct-Pexels/Pixabay (user-supplied stock keys — then even search skips
+  direct-Pexels/Pixabay (stock keys from Settings, so even search skips
   the backend).
 - **Downloads** (stock files, template bundles, packs) follow the
   `proxy.rs` worker pattern: progress callbacks, cancellation, atomic
   tmp-then-rename writes.
 - **Cache management:** downloads land in a quota-managed cache dir (LRU
   eviction above a configurable cap; files imported into a project are
-  exempt — they're pool media). Settings gets a "clear download cache"
+  exempt, as pool media). Settings gets a "clear download cache"
   action.
 - **Account / auth modules are out of the client** for v1 (no keychain
   session, no device flow, no managed generation provider).
@@ -76,7 +76,7 @@ tests use scripted fakes.
 - `~/.aria/config.toml` (single owner: `aria-settings`) holds a
   `[providers.<name>]` key registry (literal key or `_env` indirection,
   the `AiSettings` pattern) and a `[cloud]` table (`base_url` for the API
-  host — override only). Legacy `[account].base_url` still loads into
+  host, override only). Legacy `[account].base_url` still loads into
   `[cloud]`.
 - The assistant uses the `[ai]` endpoint / model / key fields only
   (OpenAI-compatible or local). Library AI media generation uses
@@ -99,7 +99,7 @@ tests use scripted fakes.
 ## Scope statements
 
 - **Desktop-first.** `aria-cloud` is engine-free Rust, so
-  `aria-mobile` can expose it over FFI later — but mobile parity for
+  `aria-mobile` can expose it over FFI later, but mobile parity for
   stock/templates/AI generation is out of scope for this roadmap.
 - **`aria-py` gets none of this.** It stays a local scripting wrapper.
 - **Launch rail "Learn" tab**: out of scope. If it ever ships, it rides
@@ -113,38 +113,38 @@ tests use scripted fakes.
 Ordered; each lands independently. Details per workstream live with the
 code and in `aria-backend/docs/ARCHITECTURE.md`.
 
-1. **Architecture docs** — this file plus the backend architecture update
+1. **Architecture docs**: this file plus the backend architecture update
    (stock search, asset catalog).
-2. **`aria-cloud`, anonymous half** — DTOs, stock/catalog client,
+2. **`aria-cloud`, anonymous half**: DTOs, stock/catalog client,
    `StockProvider` trait, download cache. No auth anywhere.
-3. **Backend foundation & ops** — Postgres + migrations, config,
+3. **Backend foundation & ops**: Postgres + migrations, config,
    rate-limit middleware, staging/prod deploy, observability, CI with
    DTO contract tests.
-4. **Stock media slice** — `/v1/stock/search` (metadata only) + Library
+4. **Stock media slice**: `/v1/stock/search` (metadata only) + Library
    Stock sections browsing → direct-CDN download → existing import path.
-5. **Templates** — bundle format (a raw `.ariat` references sample
+5. **Templates**: bundle format (a raw `.ariat` references sample
    media by local path and is not distributable), minimal authoring flow
    (slot-marking UI or `aria-py` script), backend catalog, launch-rail
    gallery, `ApplyTemplate` pick flow. Text presets ride along
    (bundled-OFL-fonts-only).
-6. **Update check** — anonymous `latest-version` + launch-screen chip
+6. **Update check**: anonymous `latest-version` + launch-screen chip
    (`UpdateBackend` / `src/updates.rs`).
-7. **AI generation surfaces** — Library AI sections (prompt → fal job →
+7. **AI generation surfaces**: Library AI sections (prompt → fal job →
    poll → download → import), TTS/voiceover; assistant via `[ai]` BYOK /
    local endpoint only.
-8. **Lottie** — decoder backend (dotlottie-rs vs velato vs rlottie),
+8. **Lottie**: decoder backend (dotlottie-rs vs velato vs rlottie),
    capped-fps/on-demand frame strategy (never pre-render-all like
    stickers), file-backed animated asset model.
-9. **SFX + LUT packs** — catalog browsing/import; LUT browsing gates on
+9. **SFX + LUT packs**: catalog browsing/import; LUT browsing gates on
    the `.cube` compositor pass landing (no phantom features).
-10. **Agent rules & skills** — `~/.aria/agent/` (rules, skills, slash
+10. **Agent rules & skills**: `~/.aria/agent/` (rules, skills, slash
     commands), read-only `read_skill` tool via the vocabulary growth
     checklist, project rules in `ProjectMetadata` (shown before first use
     on imported projects), bundled first-party skills; skills packs join
-    the asset catalog later. Prompt-level only — the closed command
+    the asset catalog later. Prompt-level only; the closed command
     vocabulary is untouched.
-11. **MCP tools for the assistant** — design doc first
+11. **MCP tools for the assistant**: design doc first
     ([docs/mcp-design.md](mcp-design.md)); no implementation until it
     exists. Rules/skills shape *how* the closed vocabulary is used; MCP
-    *adds tools* (a new trust surface) — different problems, never one
+    *adds tools* (a new trust surface): different problems, never one
     mechanism.

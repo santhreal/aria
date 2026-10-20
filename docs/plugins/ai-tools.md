@@ -61,7 +61,7 @@ and the tool leaves the assistant's next turn.
 | --- | --- |
 | `ReadOnly` | Without asking. Reads state and changes nothing. |
 | `Workspace` | Without asking. Changes the project or the editor in a way an undo reverses. |
-| `System` | After the operator allows the call, unless Settings > AI > Autonomy is Full. Deletes data, writes outside the project, or reaches another system. |
+| `System` | After the call is allowed on its confirmation card, unless Settings > AI > Autonomy is Full. Deletes data, writes outside the project, or reaches another system. |
 
 The host authorizes a call at the tier the plugin registers when the call is
 made, not the tier listed when the turn began. A call runs at no more trust

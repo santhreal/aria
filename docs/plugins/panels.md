@@ -63,8 +63,8 @@ own predicate to a state no shipped entry claims.
 ### Declared panels
 
 A plugin that does not link `aria-ui` declares a panel as a `UiNode` tree. The
-window draws the tree with the editor's own controls and sends what the user
-does to a control back to the plugin as a `PanelEvent`. Native and WASM plugins
+window draws the tree with the editor's own controls and sends each interaction
+with a control back to the plugin as a `PanelEvent`. Native and WASM plugins
 declare panels the same way through their own tiers ([Native
 plugins](native.md), [WebAssembly plugins](wasm.md)).
 

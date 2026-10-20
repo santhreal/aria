@@ -42,7 +42,7 @@ boolean expression over these keys:
 | --- | --- |
 | `clips` | The sequence holds at least one clip |
 | `selection` | At least one clip is selected |
-| `single-selection` | Exactly one clip is selected |
+| `single-selection` | A single clip is selected |
 | `mark-in` | The sequence has an In point |
 | `mark-out` | The sequence has an Out point |
 | `in-out` | The sequence has both an In and an Out point |

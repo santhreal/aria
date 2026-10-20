@@ -14,7 +14,8 @@ pub enum AiToolTier {
     /// without asking.
     Workspace,
     /// Deletes data, writes outside the project, or reaches another system.
-    /// Runs after the operator allows the call, unless autonomy is Full.
+    /// Runs after the call is allowed on its confirmation card, unless
+    /// autonomy is Full.
     System,
 }
 

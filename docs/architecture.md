@@ -70,7 +70,7 @@ differ in `playhead_ticks` and nowhere else, and what a scrub leaves must equal 
 full re-projection at the same tick.
 
 What may still take the session is declared, with a reason, in
-`app/engine_lock_tests.rs`: a report the operator asked for, a job about to
+`app/engine_lock_tests.rs`: a report requested from a control, a job about to
 start, a pointer hit test, a republish to the audio engine. `engine_lock_census`
 parses every `&self` method in the crate, follows calls to a fixed point, and
 fails on a lock without a row.
@@ -101,9 +101,9 @@ Nothing in `aria-ui` calls a blocking `recv()`, `recv_timeout()`, or `join()`
 inside a task. A task runs on a scheduler thread, and under the test scheduler
 that thread is the one ticking the run loop: a blocking wait there stops the
 application instead of costing a frame. Two rules in `test_support` are derived
-from the sources — one refuses a blocking call inside a `background_executor()`
-expression anywhere in the workspace, the other refuses a thread started outside
-the modules that declare why they need one.
+from the sources: one rejects a blocking call inside a `background_executor()`
+expression anywhere in the workspace, the other rejects a thread started outside
+the modules that state why they need one.
 
 ### Asking for a path
 
@@ -155,7 +155,7 @@ decoder opened during the warm-up waits for it.
 
 The warm-up loads each device element's plugin before it opens the device. A
 plugin that fails to load (a CUDA plugin registered while a working driver was
-present) is recorded in `aria/unloadable-plugins` under the user cache directory
+present) is recorded in `aria/unloadable-plugins` under the per-user cache directory
 (`$XDG_CACHE_HOME`, by default `~/.cache`), with the plugin file's path, size,
 and modification time and the boot id. The process that failed, and every later
 process on the same boot whose plugin file matches the record, sets the rank of
@@ -182,8 +182,8 @@ their length and its exhaustive variant-name matches refuse to compile when a
 variant is added, so a command cannot exist without appearing in the census.
 
 `EditCommand::reach()` and `ProjectCommand::reach()` are exhaustive and return
-one of three declarations. `Reach::Operator(surface)` names the control an
-operator uses: a palette row, a menu item, a chord, an inspector block, a
+one of three declarations. `Reach::Operator(surface)` states the control that
+sends it: a palette row, a menu item, a chord, an inspector block, a
 context-menu item, a timeline gesture. `Reach::Planned(missing)` says nothing
 sends it yet and names the work that blocks it, plus the ledger row that owns
 that work. `Reach::Internal(reason)` says it never gets a control, because
@@ -196,7 +196,7 @@ moment a missing control is noticed. `AddClip` is `Internal`, because a drop
 resolves through `OverwriteClip` or `RippleInsert`, which also decide what
 happens to what is already there.
 
-The editor measures the other direction. Every operator surface that can be
+The editor measures the other direction. Every control surface that can be
 driven headlessly is driven, and what it produces is recorded:
 
 | Surface | Harness | What is measured |
@@ -217,10 +217,10 @@ observed at `apply_command` through a `CommandProposed` subscription rather than
 read out of the history list, because saving, opening and exporting ask for a
 command and write no history entry. A command a driven table sends may not be
 declared `Planned` or `Internal`, and a row whose surface text names the palette
-or a chord has to be sent by one. A row that names a drawn control — an
-inspector block, a context-menu item, an on-canvas handle — is a statement a
+or a chord has to be sent by one. A row that names a drawn control (an
+inspector block, a context-menu item, an on-canvas handle) is a statement a
 reader checks: gpui keeps a drawn element's action in a closure, so nothing can
-enumerate those surfaces. Ledger row 140 is the registry that would.
+enumerate those surfaces.
 
 A row that asks for a path is driven like any other. The pick is supplied to the
 state before the row runs, so the row applies it and the test asserts the model
@@ -279,7 +279,7 @@ variant list twice: once as the enum, once as `ALL`. A new variant therefore
 appears in the census by construction, and the conformance test that walks
 `LookParam::ALL`, `StyleParam::ALL`, `TextParam::ALL`, and `ShapeParam::ALL`
 fails until the variant has a catalog row. Direct `ClipParam` variants cannot be
-enumerated that way — they carry data and `variant_count` is unstable — so an
+enumerated that way, since they hold data and `variant_count` is unstable, so an
 exhaustive `direct_param_id` match plus a `DIRECT` list stands in, which still
 refuses to compile when a variant is added.
 
@@ -318,7 +318,7 @@ otherwise. The rule matters because the block commands (`SetClipMask`,
 `SetClipChroma`, `SetClipLayerStyles`, `SetClipAdjustments`) each carry a whole
 block: a panel that rebuilds the block from its projection in order to change
 one knob deletes every keyframe in it, which is what the per-block knob tables
-did — `MASK_KNOBS`, `CHROMA_KNOBS`, `STYLE_KNOBS`, and `ADJUSTMENTS`, all now
+`MASK_KNOBS`, `CHROMA_KNOBS`, `STYLE_KNOBS`, and `ADJUSTMENTS` did; all four are
 deleted. Addressing the single property instead makes that class
 unrepresentable.
 

@@ -818,8 +818,8 @@ Each strip carries:
 `Mixer: add a submix bus` in the palette does the same. Deleting a bus returns
 everything that fed it to the master; undo restores both the bus and the routing.
 
-A strip whose signal cannot arrive at the master — behind a muted bus, or with
-its fader at silence — is bordered and reads `not in the mix`. Those lanes are
+A strip whose signal cannot arrive at the master, behind a muted bus or with
+its fader at silence, is bordered and reads `not in the mix`. Those lanes are
 not decoded during export.
 
 The assistant routes too: it adds a submix lane, moves a fader, points a lane's
@@ -988,7 +988,7 @@ layer's look to the masked area. The Look tab holds:
 - A chroma key. Pick Green, Blue, or Cyan to key on that colour at a
   starting tolerance, then adjust Strength and Shadow. Re-keying keeps the
   tolerance. Remove key clears it.
-- Four layer styles — shadow, glow, outline, background. Click one to add it
+- Four layer styles: shadow, glow, outline, background. Click one to add it
   at its default, then adjust its knobs and pick a colour. Clear styles
   removes all four.
 - A `.cube` LUT. **Load .cube…** picks a file; Intensity blends it over the
@@ -1163,8 +1163,8 @@ The Info tab carries the template block.
 
 ## Keyframes
 
-The Transform tab carries a Keyframes block with one row per animatable
-property: position, scale, rotation, opacity, and — on a media clip — volume and
+The Transform tab has a Keyframes block with one row per animatable
+property: position, scale, rotation, opacity, and on a media clip volume and
 pan. Each row shows how many keyframes the property holds.
 
 - ◇ writes a keyframe at the playhead, pinning the value the property already
@@ -1358,7 +1358,7 @@ Preview and export both follow the choice, and it is undoable.
 The section also shows the size the project renders at and where it came from,
 `explicit` or `derived`. Pick **Derived** to hand the size back to the aspect
 (1080 on the shorter edge) or, under `auto`, to the largest video on the
-timeline. Pick a baseline row — 720p through 4320p — to set the size in pixels.
+timeline. Pick a baseline row, 720p through 4320p, to set the size in pixels.
 The baseline is the shorter edge, so 1080p is 1920×1080 in a wide project and
 1080×1920 in a vertical one. A baseline whose long edge the encoder cannot take
 is not offered.
@@ -1383,8 +1383,8 @@ trim readout all read in it. It is saved with the sequence and is one undo step.
 
 ## Provider keys
 
-Settings carries a Provider keys section listing every BYOK provider Aria can use —
-`pexels`, `pixabay`, `elevenlabs`, `fal` — with what each one powers and where its
+Settings has a Provider keys section listing every BYOK provider Aria can use
+(`pexels`, `pixabay`, `elevenlabs`, `fal`), with what each one powers and where its
 key comes from. A provider with no key is listed as unset rather than omitted.
 
 Set a key in `~/.aria/config.toml`:
@@ -1471,7 +1471,7 @@ analysis, jobs, transcription, and the assistant. Settings carries a Plugins
 section listing all of them in mount order.
 
 A row names the plugin, its version, and the services it registered. A plugin that
-did not mount says why instead — a missing GPU, an unreadable config file, a
+did not mount shows the reason instead: a missing GPU, an unreadable config file, a
 dependency that failed first. A failed plugin does not stop the app: the rest mount
 and the capability is absent, not broken.
 
@@ -1502,8 +1502,8 @@ Settings carries an AI section.
   Chat Completions.
 - **Autonomy** is `ask` or `full`: whether destructive assistant tools need a
   confirmation.
-- **Status** is the same check the assistant runs. It names what is missing — no base
-  URL, an unsupported model, a key variable that is not set — rather than reporting a
+- **Status** is the same check the assistant runs. It states what is missing (no base
+  URL, an unsupported model, a key variable that is not set) rather than reporting a
   bare "not configured". No request is made; whether the endpoint answers is found out
   when a prompt runs.
 - **Limits** shows the caps one prompt is held to: edit-tool calls, host-tool calls,
@@ -1601,7 +1601,7 @@ Three more catalogs load the same way, with **Load catalog**:
 - **Look tab > Cloud LUTs** applies the picked `.cube` to the selected clip. With
   nothing selected the click is refused and says so.
 - **Home > Samples > Cloud templates** downloads a bundle and then asks for one
-  file per slot, exactly as **File > Use Template…** does.
+  file per slot, as **File > Use Template…** does.
 - **Text tab > Cloud presets** downloads a *pack*. The pack's presets then list
   below it; clicking one writes its font, size, and fill onto the selected title
   and applies its animations. A preset the pack names but this build does not carry
@@ -1653,7 +1653,7 @@ offline, no model is installed, or the language is one Whisper does not know.
 
 **Text clips** and **Markers** choose what a commit writes. **One clip per word**
 splits each segment by its word timings; a segment the model gave no word timings
-for stays whole. **Commit** writes the units at their own times — caption clips
+for stays whole. **Commit** writes the units at their own times: caption clips
 onto the text lane, markers onto the timeline. Each unit is its own undo entry.
 
 Limits: audio longer than 30 minutes is refused, the window comes from the clip's
@@ -2020,8 +2020,8 @@ See [Templates](#templates) for the marks.
   untouched: no rename, no dirty flag, no change to the project path. The status
   line reports how many slots the bundle carries.
 - **File > Use Template…**, or the Use Template tile on Home, opens a bundle,
-  asks for one file per slot in fill order — using the slot's hint as the prompt
-  — and replaces the session with the filled result. Cancelling the picker stops
+  prompts for one file per slot in fill order, using the slot's hint as the prompt,
+  and replaces the session with the filled result. Cancelling the picker stops
   asking and applies what was chosen, so a bundle can be opened unfilled with its
   own sample media in place.
 
@@ -2111,7 +2111,7 @@ While a project has unsaved edits, a copy is written to `~/.aria/recovery.aria`
 every twenty seconds. Saving, opening, or starting a project deletes it, so the
 copy only ever exists when the file on disk is behind the session.
 
-If the app stops without saving — a crash, a kill, a power cut — Home shows the
+If the app stops without saving (a crash, a kill, a power cut), Home shows the
 copy on the next launch:
 
 - **Restore** loads it and aims Save back at the project it came from. The
@@ -2155,7 +2155,7 @@ The row the project is at is marked **current**. Clicking any other row moves
 the project to the state after that step, in either direction; it is undo and
 redo without counting keystrokes. A step that has been undone stays in the list,
 dimmed, because redo can still reach it. Making a new edit while dimmed rows are
-present replaces them, exactly as Ctrl+Z then a new edit always has.
+present replaces them, as Ctrl+Z then a new edit always has.
 
 History is per session. Saving does not clear it; opening or loading a project
 does.
@@ -2205,7 +2205,7 @@ While a turn runs it appears on the Jobs board and the panel's **Stop** ends it.
 Stop is read between deltas, so it lands mid-answer rather than at the end of
 one. A stopped turn is undone: the edits it had already applied are rolled back,
 the project is left where the prompt found it, and no undo entry is added. A turn
-that stops because the assistant hit its edit cap is different — those edits are
+that stops because the assistant hit its edit cap is different: those edits are
 kept, and Ctrl+Z undoes them as one step.
 
 The transcript shows the answer as it streams, in the pieces the provider sends,

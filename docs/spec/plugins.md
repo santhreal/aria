@@ -208,7 +208,7 @@ again.
 | `media` | Probing and decoding media referenced by the project, thumbnails, waveforms |
 | `gpu` | Creating GPU resources and submitting compute and render passes |
 | `net` | HTTP and WebSocket connections to the listed hosts |
-| `fs` | `project`: the project folder; `pick`: paths the user picks in a host dialog; `paths`: listed absolute paths |
+| `fs` | `project`: the project folder; `pick`: paths picked in a host dialog; `paths`: listed absolute paths |
 | `process` | Spawning listed executables |
 | `clipboard` | Reading the clipboard (writing needs no permission) |
 

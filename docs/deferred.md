@@ -1,9 +1,9 @@
 # Deferred work
 
-Every entry is parked, and says what would end the parking. An entry carries
-either an **Acceptance** line — the observable result that closes it, so the work
-can be picked up without re-deciding what it means — or an **Out of scope** line
-naming why it will not be done. Nothing here is parked without one.
+Every entry is parked, and states what would end the parking. An entry has
+either an **Acceptance** line, the observable result that closes it, so the work
+can be picked up without re-deciding what it means, or an **Out of scope** line
+stating why it will not be done. Nothing here is parked without one.
 
 When something here ships, delete the entry, update
 [spec/status.md](spec/status.md), and fix any README or overview claim that

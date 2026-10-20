@@ -1388,6 +1388,7 @@ Notes for the latest release. For previous releases, see the
 - `docs/plugins/packages.md`, `presets.md`, `workspaces.md`, and `effects.md` and `docs/theme-tokens.md` document every `plugin.toml` table and key, preset field, workspace key, effect WGSL header field, and theme token with its type and default, and tests fail when a parser accepts a key the documents omit or a documented example does not parse.
 - Tests fail when a fenced code block under `docs/` never closes or a table runs into the paragraph after it.
 - `docs/icons.md` lists every registered icon constant with its file and the controls that draw it, and a test fails when the page and `icon_assets!` disagree.
+- Tests fail when prose in `README.md` or under `docs/` has an em dash or a persona noun in place of the control, setting, or file that acts.
 
 ### Changed
 

@@ -60,8 +60,8 @@ pub enum AiToolTier {
     /// reverses. Runs without asking.
     Workspace,
     /// Deletes data, writes outside the project, or reaches another system.
-    /// Runs after the operator allows it, unless the assistant's autonomy is
-    /// Full.
+    /// Runs after the call is allowed on its confirmation card, unless the
+    /// assistant's autonomy is Full.
     System,
 }
 

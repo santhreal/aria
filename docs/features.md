@@ -103,7 +103,7 @@ Anything not listed here is not in the build.
   plugins contribute read-only presets via `register_preset` or
   `presets/*.ariapreset`.
 - Keyframes on every animatable clip property, not a fixed list: the strip reads
-  `clip_params_for(clip)` and offers what the selected clip can animate —
+  `clip_params_for(clip)` and offers what the selected clip can animate:
   transform, opacity, volume, pan, crop, colour grade, each mask's geometry,
   path, feather, opacity, and expansion, each effect's parameters, chroma tolerance,
   matte softness, layer shadow, glow, outline and background, text stroke,
@@ -203,8 +203,8 @@ Anything not listed here is not in the build.
 
 - Prompts run as jobs against a configured provider. Edits land in the live
   session as the model makes them and undo like any other edit.
-- Plan-only mode reports the edits a turn would make; Apply replays exactly
-  that plan as one undo entry.
+- Plan-only mode reports the edits a turn would make; Apply replays
+  that plan, unchanged, as one undo entry.
 - Per-project conversation history, kept beside the app's session data rather
   than in the project file.
 - Skills can be switched off for one conversation. Host tools are gated by an
@@ -254,7 +254,7 @@ Anything not listed here is not in the build.
 
 ## Not in the build
 
-Named because their absence is a question a Premiere or Resolve user will ask.
+Listed because Premiere and Resolve have them.
 
 | Absent | Nearest shipped surface |
 | --- | --- |

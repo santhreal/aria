@@ -1,7 +1,7 @@
 # Viewer overlays
 
 A viewer overlay draws over the sequence frame in the Viewer: guides, a
-tracked region, a motion path, labels, and handles the user drags. A plugin
+tracked region, a motion path, labels, and draggable handles. A plugin
 returns an `OverlayScene`, and the Viewer sends each drag of one of its
 handles back as an `OverlayEvent`.
 
