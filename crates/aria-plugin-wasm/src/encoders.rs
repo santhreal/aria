@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use aria_plugin::{
-    EXPORT_AUDIO_CHANNELS, EXPORT_AUDIO_RATE, EncodeError, Encoder, EncoderConfig, EncoderFrame,
-    PluginContext, RationalTime, VideoEncoder, VideoFrame, encoder_pts,
+    EncodeError, Encoder, EncoderConfig, EncoderFrame, PluginContext, RationalTime, VideoEncoder,
+    VideoFrame, encoder_pts, host_wire,
 };
 
 use crate::bindings;
@@ -31,10 +31,8 @@ impl Encoder for WasmEncoder {
         config: &EncoderConfig,
     ) -> Result<Box<dyn VideoEncoder>, EncodeError> {
         let (width, height) = config.size;
-        let (audio_sample_rate, audio_channels) = config.audio.map_or(
-            (EXPORT_AUDIO_RATE, u32::from(EXPORT_AUDIO_CHANNELS)),
-            |audio| (audio.sample_rate, u32::from(audio.channels)),
-        );
+        let (audio_sample_rate, audio_channels) =
+            host_wire::encoder_audio_rate_and_channels(config);
         let wit_cfg = bindings::EncoderConfig {
             width,
             height,

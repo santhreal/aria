@@ -22,7 +22,6 @@
 mod ai_tools;
 mod contributions;
 mod decoders;
-mod events;
 mod host_table;
 mod scopes;
 
@@ -42,7 +41,6 @@ use aria_plugin_abi::{
 use libloading::{Library, Symbol};
 use parking_lot::Mutex;
 
-use self::events::UnmountSentinel;
 use self::host_table::{HOST_V1, register_native_command};
 use crate::context::{MountFailure, PluginContext};
 use crate::error::PluginError;
@@ -75,19 +73,10 @@ fn refused_tree(reason: impl std::fmt::Display) -> crate::UiNode {
 }
 
 fn refused_scene(reason: impl std::fmt::Display) -> crate::OverlayScene {
-    let raw = reason.to_string();
-    let mut sanitized = String::with_capacity(raw.len().min(crate::MAX_WIDGET_ID_BYTES));
-    for ch in raw.chars().filter(|c| !c.is_control()) {
-        if sanitized.len() + ch.len_utf8() > crate::MAX_WIDGET_ID_BYTES {
-            break;
-        }
-        sanitized.push(ch);
-    }
-    let id: Arc<str> = if sanitized.trim().is_empty() {
-        Arc::from("malformed overlay scene JSON")
-    } else {
-        Arc::from(sanitized)
-    };
+    let id = crate::host_wire::sanitize_fault_widget_id(
+        &reason.to_string(),
+        "malformed overlay scene JSON",
+    );
     let handle = crate::OverlayShape::Handle {
         id,
         at: [0.0, 0.0],
@@ -312,17 +301,6 @@ impl std::fmt::Debug for NativePlugin {
     }
 }
 
-struct UnmountGuard {
-    state: Arc<NativePluginState>,
-    scoped_ctx: PluginContext,
-}
-
-impl Drop for UnmountGuard {
-    fn drop(&mut self) {
-        self.state.call_unmount(&self.scoped_ctx);
-    }
-}
-
 impl Plugin for NativePlugin {
     fn manifest(&self) -> &PluginManifest {
         &self.manifest
@@ -336,12 +314,10 @@ impl Plugin for NativePlugin {
             ));
         }
         register_declared(ctx, &self.package)?;
-        let guard = UnmountGuard {
-            state: Arc::clone(&self.state),
-            scoped_ctx: ctx.clone(),
-        };
-        ctx.on_event(move |_ev: &UnmountSentinel| {
-            let _keep = &guard;
+        let state = Arc::clone(&self.state);
+        let scoped_ctx = ctx.clone();
+        crate::host_wire::on_unmount(ctx, move || {
+            state.call_unmount(&scoped_ctx);
         });
         self.state.call_mount(ctx)?;
         for cmd in &self.package.manifest.commands {

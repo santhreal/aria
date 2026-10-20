@@ -4,19 +4,18 @@
 use std::sync::Arc;
 
 use aria_compositor::{
-    CpuEffect, CpuFrameIn, CpuFrameOut, EffectDefinition, EffectParams, RgbaImage,
-    TransitionDefinition,
+    CpuEffect, CpuFrameIn, CpuFrameOut, EffectDefinition, EffectParams, TransitionDefinition,
 };
 use aria_models::{
-    ClipTypeIcon, ClipTypeSpec, EffectBounds, EffectChoiceOption, EffectCurvePoint,
-    EffectGradientStop, EffectGroupSpec, EffectParamDisplay, EffectParamKind, EffectParamSpec,
-    EffectSpec, EffectVisibilityCondition, GraphPass, MarkerColor, OutputSize, ParamValue,
-    PassInput, PassStage, Preset, TransitionSpec,
+    ClipTypeSpec, EffectBounds, EffectChoiceOption, EffectCurvePoint, EffectGradientStop,
+    EffectGroupSpec, EffectParamDisplay, EffectParamKind, EffectParamSpec, EffectSpec,
+    EffectVisibilityCondition, GraphPass, MarkerColor, OutputSize, ParamValue, PassInput,
+    PassStage, TransitionSpec,
 };
 use aria_plugin::{
     Analyzer, AnalyzerResult, AnalyzerRun, AnalyzerScope, AnalyzerSpec, DriverInput,
     DriverLanguage, DriverLanguageSpec, DriverProgram, DriverScope, PluginContext, WorkspaceFocus,
-    WorkspacePanes, WorkspaceSpec,
+    WorkspacePanes, WorkspaceSpec, host_wire,
 };
 use parking_lot::Mutex;
 
@@ -216,11 +215,7 @@ pub(crate) fn register_texture(
     height: u32,
     pixels: Vec<u8>,
 ) -> Result<(), String> {
-    let image = RgbaImage::try_new(width, height, pixels)
-        .map_err(|err| format!("texture `{id}`: {err}"))?;
-    ctx.register_texture(id, &image)
-        .map(drop)
-        .map_err(|err| err.to_string())
+    host_wire::register_rgba_texture(ctx, id, width, height, pixels)
 }
 
 pub(crate) fn register_cpu_effect(
@@ -275,10 +270,7 @@ fn host_clip_type_spec(spec: bindings::ClipTypeSpec) -> ClipTypeSpec {
         bindings::MarkerColor::Yellow => MarkerColor::Yellow,
         bindings::MarkerColor::Green => MarkerColor::Green,
     };
-    let icon = spec.icon_svg.map(|svg| ClipTypeIcon {
-        svg: Arc::from(svg),
-        key: 0,
-    });
+    let icon = host_wire::clip_type_icon(spec.icon_svg);
     ClipTypeSpec {
         id: spec.id,
         label: spec.label,
@@ -314,17 +306,11 @@ pub(crate) fn register_driver_language(
 }
 
 pub(crate) fn register_preset(ctx: &PluginContext, preset_json: &str) -> Result<(), String> {
-    let preset: Preset =
-        serde_json::from_str(preset_json).map_err(|err| format!("invalid preset JSON: {err}"))?;
-    ctx.register_preset(preset)
-        .map(drop)
-        .map_err(|err| err.to_string())
+    host_wire::register_preset_json(ctx, preset_json)
 }
 
 pub(crate) fn register_theme(ctx: &PluginContext, id: &str, toml: &str) -> Result<(), String> {
-    ctx.register_theme(id, toml)
-        .map(drop)
-        .map_err(|err| err.to_string())
+    host_wire::register_theme_toml(ctx, id, toml)
 }
 
 pub(crate) fn register_workspace(
@@ -430,11 +416,7 @@ impl CpuEffect for WasmCpuEffect {
             held.width = width;
             held.height = height;
             held.time = time;
-            held.pixels.clear();
-            held.pixels.reserve(expected_len);
-            for y in 0..height {
-                held.pixels.extend_from_slice(input.row(y));
-            }
+            host_wire::pack_cpu_frame_in(input, &mut held.pixels);
             self.shared
                 .call_cpu_effect_process(&self.ctx, &self.id, params.values(), &held)?
         };
@@ -445,9 +427,7 @@ impl CpuEffect for WasmCpuEffect {
                 out_frame.pixels.len()
             ));
         }
-        for (y, row) in out_frame.pixels.chunks_exact(row_elems).enumerate() {
-            output.row_mut(y as u32).copy_from_slice(row);
-        }
+        host_wire::unpack_cpu_frame_out(&out_frame.pixels, output);
         Ok(())
     }
 }
@@ -460,9 +440,7 @@ struct WasmDriverLanguage {
 
 impl DriverLanguage for WasmDriverLanguage {
     fn compile(&self, source: &str) -> Result<Arc<dyn DriverProgram>, String> {
-        if source.trim().is_empty() {
-            return Err("driver expression is empty".to_owned());
-        }
+        host_wire::validate_driver_source(source)?;
         Ok(Arc::new(WasmDriverProgram {
             language_id: Arc::clone(&self.id),
             expr: Arc::from(source),
@@ -587,7 +565,7 @@ impl AnalyzerRun for WasmAnalyzerRun {
             return Err("analyzer session was not opened".to_owned());
         };
         let json = self.shared.call_analyzer_finish(&self.ctx, instance)?;
-        serde_json::from_str(&json).map_err(|err| format!("invalid analyzer result JSON: {err}"))
+        host_wire::parse_analyzer_result(&json)
     }
 }
 

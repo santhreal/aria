@@ -3,8 +3,8 @@
 use std::sync::Arc;
 
 use aria_plugin::{
-    MAX_TREE_NODES, MAX_WIDGET_ID_BYTES, PanelEvent, PanelLocation, PanelSpec, PanelView,
-    PluginContext, Tone, UiNode,
+    MAX_TREE_NODES, PanelEvent, PanelLocation, PanelSpec, PanelView, PluginContext, Tone, UiNode,
+    host_wire,
 };
 
 use crate::bindings;
@@ -269,18 +269,9 @@ pub(crate) fn decode_flat_ui_tree(nodes: &[bindings::UiNode]) -> Result<UiNode, 
 /// keeps the last valid panel tree and records a `PluginFault` without unmounting
 /// the plugin.
 fn refused_flat_tree_sentinel(reason: &str) -> UiNode {
-    let sanitized: String = reason
-        .chars()
-        .filter(|c| !c.is_control())
-        .take(MAX_WIDGET_ID_BYTES)
-        .collect();
-    let id = if sanitized.trim().is_empty() {
-        "node 0: malformed flat ui-node list".to_owned()
-    } else {
-        sanitized
-    };
+    let id = host_wire::sanitize_fault_widget_id(reason, "node 0: malformed flat ui-node list");
     UiNode::Choice {
-        id: Arc::from(id),
+        id,
         label: Arc::from(""),
         options: Vec::new(),
         selected: 0,

@@ -11,10 +11,7 @@ use std::sync::atomic::Ordering;
 use aria_compositor::{
     CpuEffect, CpuFrameIn, CpuFrameOut, EffectDefinition, EffectParams, TransitionDefinition,
 };
-use aria_models::{
-    ClipTypeIcon, ClipTypeSpec, EffectSpec, GraphPass, MarkerColor, ParamValue, Preset,
-    TransitionSpec,
-};
+use aria_models::{ClipTypeSpec, EffectSpec, GraphPass, MarkerColor, ParamValue, TransitionSpec};
 use aria_plugin_abi::{
     ARIA_PARAM_COLOR, ARIA_PARAM_RECT, ARIA_PARAM_SCALAR, ARIA_PARAM_VEC2, ARIA_PARAM_VEC3,
     ARIA_STATUS_OK, ARIA_STATUS_PANIC, AriaCpuEffectCall, AriaDriverEvalCall, AriaParamValue,
@@ -27,6 +24,7 @@ use super::{HostCallContext, NativePluginState};
 use crate::analyzers::{Analyzer, AnalyzerResult, AnalyzerRun, AnalyzerSpec};
 use crate::context::PluginContext;
 use crate::drivers::DriverLanguageSpec;
+use crate::host_wire;
 use crate::workspaces::WorkspaceSpec;
 
 #[path = "clip_type_schema.rs"]
@@ -163,10 +161,7 @@ pub(super) fn register_generator(
 pub(super) fn register_clip_type(ctx: &HostCallContext<'_>, spec_json: &str) -> Result<(), String> {
     let raw: RawClipTypeSpec = serde_json::from_str(spec_json)
         .map_err(|err| format!("invalid clip type spec JSON: {err}"))?;
-    let icon = raw.icon_svg.map(|svg| ClipTypeIcon {
-        svg: Arc::from(svg),
-        key: 0,
-    });
+    let icon = host_wire::clip_type_icon(raw.icon_svg);
     let spec = ClipTypeSpec {
         id: raw.id,
         label: raw.label,
@@ -206,12 +201,7 @@ pub(super) fn register_driver_language(
 }
 
 pub(super) fn register_preset(ctx: &HostCallContext<'_>, preset_json: &str) -> Result<(), String> {
-    let preset: Preset =
-        serde_json::from_str(preset_json).map_err(|err| format!("invalid preset JSON: {err}"))?;
-    ctx.scoped_ctx
-        .register_preset(preset)
-        .map(drop)
-        .map_err(|err| err.to_string())
+    host_wire::register_preset_json(ctx.scoped_ctx, preset_json)
 }
 
 pub(super) fn register_theme(
@@ -219,10 +209,7 @@ pub(super) fn register_theme(
     id: &str,
     toml: &str,
 ) -> Result<(), String> {
-    ctx.scoped_ctx
-        .register_theme(id, toml)
-        .map(drop)
-        .map_err(|err| err.to_string())
+    host_wire::register_theme_toml(ctx.scoped_ctx, id, toml)
 }
 
 pub(super) fn register_texture(
@@ -232,12 +219,7 @@ pub(super) fn register_texture(
     height: u32,
     pixels: &[u8],
 ) -> Result<(), String> {
-    let image = aria_core::RgbaImage::try_new(width, height, pixels.to_vec())
-        .map_err(|err| format!("texture `{id}`: {err}"))?;
-    ctx.scoped_ctx
-        .register_texture(id, &image)
-        .map(drop)
-        .map_err(|err| err.to_string())
+    host_wire::register_rgba_texture(ctx.scoped_ctx, id, width, height, pixels.to_vec())
 }
 
 pub(super) fn register_workspace(ctx: &HostCallContext<'_>, spec_json: &str) -> Result<(), String> {
@@ -287,10 +269,8 @@ impl CpuEffect for NativeCpuEffect {
         let height = input.height();
         let row_elems = (width as usize) * 4;
         let pixels_len = (height as usize) * row_elems;
-        let mut input_f16 = Vec::with_capacity(pixels_len);
-        for y in 0..height {
-            input_f16.extend_from_slice(input.row(y));
-        }
+        let mut input_f16 = Vec::new();
+        host_wire::pack_cpu_frame_in(input, &mut input_f16);
         let mut output_f16 = vec![0u16; pixels_len];
         let param_values = params.values();
         let params_json = params
@@ -326,9 +306,7 @@ impl CpuEffect for NativeCpuEffect {
         let text = self.state.take_guest_string(result.value);
         match result.status {
             ARIA_STATUS_OK => {
-                for (y, row) in output_f16.chunks_exact(row_elems).enumerate() {
-                    output.row_mut(y as u32).copy_from_slice(row);
-                }
+                host_wire::unpack_cpu_frame_out(&output_f16, output);
                 Ok(())
             }
             ARIA_STATUS_PANIC => {
@@ -349,9 +327,7 @@ struct NativeDriverLanguage {
 
 impl DriverLanguage for NativeDriverLanguage {
     fn compile(&self, source: &str) -> Result<Arc<dyn DriverProgram>, String> {
-        if source.trim().is_empty() {
-            return Err("driver expression is empty".to_owned());
-        }
+        host_wire::validate_driver_source(source)?;
         Ok(Arc::new(NativeDriverProgram {
             language_id: Arc::clone(&self.id),
             expr: Arc::from(source),
@@ -541,8 +517,7 @@ impl AnalyzerRun for NativeAnalyzerRun {
         };
         let text = self.state.take_guest_string(result.value);
         match result.status {
-            ARIA_STATUS_OK => serde_json::from_str(&text)
-                .map_err(|err| format!("invalid analyzer result JSON: {err}")),
+            ARIA_STATUS_OK => host_wire::parse_analyzer_result(&text),
             ARIA_STATUS_PANIC => {
                 resume_unwind(Box::new(text));
             }
