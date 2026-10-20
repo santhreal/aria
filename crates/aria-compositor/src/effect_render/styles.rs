@@ -182,7 +182,7 @@ fn run_silhouette(
         occlusion_query_set: None,
         multiview_mask: None,
     });
-    pass.set_pipeline(&registry.silhouette_pipeline);
+    pass.set_pipeline(registry.silhouette_pipeline());
     pass.set_bind_group(0, &*bind_group, &[]);
     pass.draw(0..6, 0..1);
 }
@@ -226,7 +226,7 @@ fn blit_offset_premultiplied_to_canvas(
         occlusion_query_set: None,
         multiview_mask: None,
     });
-    pass.set_pipeline(&registry.offset_blit_pipeline);
+    pass.set_pipeline(registry.offset_blit_pipeline());
     pass.set_bind_group(0, &*bind_group, &[]);
     pass.draw(0..6, 0..1);
 }
@@ -262,7 +262,7 @@ fn blit_additive_to_canvas(
         occlusion_query_set: None,
         multiview_mask: None,
     });
-    pass.set_pipeline(&registry.additive_blit_pipeline);
+    pass.set_pipeline(registry.additive_blit_pipeline());
     pass.set_bind_group(0, &*bind_group, &[]);
     pass.draw(0..6, 0..1);
 }
@@ -313,7 +313,7 @@ fn blit_outline_harden_to_canvas(
         occlusion_query_set: None,
         multiview_mask: None,
     });
-    pass.set_pipeline(&registry.harden_pipeline);
+    pass.set_pipeline(registry.harden_pipeline());
     pass.set_bind_group(0, &*bind_group, &[]);
     pass.draw(0..6, 0..1);
 }

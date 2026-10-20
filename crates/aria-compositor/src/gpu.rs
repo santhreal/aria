@@ -15,6 +15,9 @@ pub struct GpuContext {
     pub adapter: wgpu::Adapter,
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
+    pub(crate) pipelines: std::sync::Arc<
+        std::sync::OnceLock<std::sync::Arc<crate::compositor::pipelines::SharedLayerPipelines>>,
+    >,
 }
 
 impl std::fmt::Debug for GpuContext {
@@ -34,6 +37,12 @@ impl GpuContext {
         // full backend set if it somehow isn't.
         #[cfg(target_os = "windows")]
         if let Ok(gpu) = Self::new_headless_with(wgpu::Backends::DX12).await {
+            return Ok(gpu);
+        }
+        // Try primary backends (Vulkan / Metal / DX12) before falling back to
+        // GL/EGL, so hosts with a primary adapter do not dlopen and initialize
+        // a second EGL/DRI driver stack inside `wgpu::Instance::new`.
+        if let Ok(gpu) = Self::new_headless_with(wgpu::Backends::PRIMARY).await {
             return Ok(gpu);
         }
         Self::new_headless_with(wgpu::Backends::all()).await
@@ -70,6 +79,7 @@ impl GpuContext {
             adapter,
             device,
             queue,
+            pipelines: std::sync::Arc::new(std::sync::OnceLock::new()),
         })
     }
 
@@ -125,6 +135,7 @@ impl GpuContext {
             adapter,
             device,
             queue,
+            pipelines: std::sync::Arc::new(std::sync::OnceLock::new()),
         }
     }
 
@@ -143,6 +154,7 @@ impl GpuContext {
             adapter: self.adapter.clone(),
             device: self.device.clone(),
             queue: self.queue.clone(),
+            pipelines: std::sync::Arc::clone(&self.pipelines),
         }
     }
 

@@ -19,7 +19,7 @@ mod items;
 mod layers;
 mod lru;
 mod pairs;
-mod pipelines;
+pub(crate) mod pipelines;
 mod readback;
 mod reference;
 mod render;
@@ -123,6 +123,11 @@ impl Compositor {
     /// it.
     pub fn registered_pipeline_builds(&self) -> u64 {
         self.pass_registry.registered_pipeline_builds()
+    }
+
+    /// Built-in layer and pass pipelines compiled on this compositor's device.
+    pub fn builtin_pipeline_builds(&self) -> usize {
+        self.pipelines.compiled_count()
     }
 
     /// CPU video-plane texture allocations and retained storage from the last composite.
@@ -309,13 +314,7 @@ pub(super) struct TargetCache {
 
 /// A WGPU alpha-over compositor. Build once (pipelines are reused), render many.
 pub struct Compositor {
-    yuv_pipeline: wgpu::RenderPipeline,
-    yuv_fx_pipeline: wgpu::RenderPipeline,
-    rgba_pipeline: wgpu::RenderPipeline,
-    rgba_fx_pipeline: wgpu::RenderPipeline,
-    solid_pipeline: wgpu::RenderPipeline,
-    sdf_pipeline: wgpu::RenderPipeline,
-    glyphs_pipeline: wgpu::RenderPipeline,
+    pipelines: std::sync::Arc<pipelines::SharedLayerPipelines>,
     yuv_layout: wgpu::BindGroupLayout,
     yuv_fx_layout: wgpu::BindGroupLayout,
     rgba_layout: wgpu::BindGroupLayout,

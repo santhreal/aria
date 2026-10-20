@@ -502,15 +502,7 @@ pub(super) fn pipeline_for<'a>(
     kind: &LayerPipeline,
     comp: &'a Compositor,
 ) -> &'a wgpu::RenderPipeline {
-    match kind {
-        LayerPipeline::Yuv => &comp.yuv_pipeline,
-        LayerPipeline::YuvFx => &comp.yuv_fx_pipeline,
-        LayerPipeline::Rgba => &comp.rgba_pipeline,
-        LayerPipeline::RgbaFx => &comp.rgba_fx_pipeline,
-        LayerPipeline::Solid => &comp.solid_pipeline,
-        LayerPipeline::Sdf => &comp.sdf_pipeline,
-        LayerPipeline::Glyphs => &comp.glyphs_pipeline,
-    }
+    comp.pipelines.layer_pipeline(kind)
 }
 
 #[cfg(test)]

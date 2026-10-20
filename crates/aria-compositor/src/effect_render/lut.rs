@@ -66,7 +66,7 @@ pub(crate) fn run_lut_pass<'a>(
         occlusion_query_set: None,
         multiview_mask: None,
     });
-    pass.set_pipeline(&registry.lut);
+    pass.set_pipeline(registry.lut());
     pass.set_bind_group(0, &*bind_group, &[]);
     pass.draw(0..6, 0..1);
     output
