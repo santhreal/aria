@@ -1382,6 +1382,8 @@ Notes for the latest release. For previous releases, see the
 - `docs/plugins/wit-reference.md` documents every type, field, case and function of the WASM `plugin` world from the `///` comments in `plugin.wit`, which `wit-bindgen` copies into guest bindings.
 - `docs/plugins/events.md` lists every event kind an external plugin subscribes to, with its payload fields and the replies the host reads.
 - `docs/plugins/native-abi-reference.md` documents every define, type, field and table slot of the native C ABI, and `aria_plugin.h`, generated from the same doc comments, gains them along with `AriaTableHeader`, the table size defines and `ARIA_PLUGIN_ENTRY_SYMBOL`.
+- `docs/reference/` documents every built-in video effect, generator, clip type, transition, audio effect, colour filter, grading control, clip animation, text effect, easing curve, speed-ramp preset, sticker, and mask parameter, and tests fail when a registry member has no entry.
+- `docs/reference/` documents every tool, workspace, dock panel, overlay dialog, Project sidebar tab, Home rail view, command palette action, menu item, and configuration setting, and tests fail when one has no entry or when a relative link or anchor under `docs/` does not resolve.
 
 ### Changed
 
