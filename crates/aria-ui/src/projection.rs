@@ -93,12 +93,16 @@ pub(crate) fn project_to_ui_from(
             clip_rate: None,
         })
         .collect();
-    for track in &tracks {
-        for clip in &track.clips {
-            markers.extend(clip.markers.iter().cloned());
+    if basis.clip_marker_count() > 0 {
+        for track in &tracks {
+            if basis.lane_has_clip_markers(track.id) {
+                for clip in &track.clips {
+                    markers.extend(clip.markers.iter().cloned());
+                }
+            }
         }
+        markers.sort_by_key(|m| (m.tick, m.id));
     }
-    markers.sort_by_key(|m| (m.tick, m.id));
 
     let mut sequence = UiSequence {
         tracks,
@@ -173,3 +177,5 @@ pub(crate) use lanes::{LaneBasis, Previous, reselect};
 pub(crate) fn invalidate_media_statuses() {
     clip::invalidate_media_statuses();
 }
+#[cfg(test)]
+pub(crate) use lanes::{built_clip_probes, reset_built_clip_probes};

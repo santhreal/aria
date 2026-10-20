@@ -46,9 +46,97 @@ pub(crate) struct LaneBasis {
 }
 
 /// One lane as the projection built it.
+#[derive(Clone)]
 struct Built {
     revision: u64,
     clips: Weak<Vec<UiClip>>,
+    has_links: bool,
+    has_effects: bool,
+    has_transitions: bool,
+    has_clip_types: bool,
+    clip_markers: usize,
+    media_in_use: Arc<[u64]>,
+}
+
+#[cfg(test)]
+std::thread_local! {
+    static BUILT_CLIP_PROBES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+pub(crate) fn reset_built_clip_probes() {
+    BUILT_CLIP_PROBES.with(|n| n.set(0));
+}
+
+#[cfg(test)]
+pub(crate) fn built_clip_probes() -> usize {
+    BUILT_CLIP_PROBES.with(std::cell::Cell::get)
+}
+
+impl Built {
+    fn of(track: &aria_models::Track, clips: &UiClips) -> Self {
+        let mut has_links = false;
+        let mut has_effects = false;
+        let mut has_clip_types = false;
+        let mut clip_markers = 0usize;
+        let mut media: Vec<u64> = Vec::new();
+        for clip in track.clips() {
+            #[cfg(test)]
+            BUILT_CLIP_PROBES.with(|n| n.set(n.get() + 1));
+            has_links |= clip.link.is_some();
+            has_effects |= !clip.effects.is_empty();
+            has_clip_types |= clip.clip_type.is_some();
+            clip_markers += clip.markers.len();
+            if let Some(m) = clip.media() {
+                media.push(m.raw());
+            }
+        }
+        media.sort_unstable();
+        media.dedup();
+        Self {
+            revision: track.revision(),
+            clips: clips.downgrade(),
+            has_links,
+            has_effects,
+            has_transitions: !track.transitions().is_empty(),
+            has_clip_types,
+            clip_markers,
+            media_in_use: media.into(),
+        }
+    }
+}
+
+impl LaneBasis {
+    pub(crate) fn catalog_usage(&self) -> (bool, bool, bool) {
+        let (mut effects, mut transitions, mut clip_types) = (false, false, false);
+        for built in self.lanes.values() {
+            effects |= built.has_effects;
+            transitions |= built.has_transitions;
+            clip_types |= built.has_clip_types;
+        }
+        (effects, transitions, clip_types)
+    }
+
+    pub(crate) fn clip_marker_count(&self) -> usize {
+        self.lanes.values().map(|b| b.clip_markers).sum()
+    }
+
+    pub(crate) fn lane_has_clip_markers(&self, track_id: u64) -> bool {
+        self.lanes
+            .get(&track_id)
+            .is_some_and(|b| b.clip_markers > 0)
+    }
+
+    pub(crate) fn media_in_use(&self) -> Vec<u64> {
+        let mut used: Vec<u64> = self
+            .lanes
+            .values()
+            .flat_map(|b| b.media_in_use.iter().copied())
+            .collect();
+        used.sort_unstable();
+        used.dedup();
+        used
+    }
 }
 
 /// What a clip reads from outside its own lane.
@@ -128,25 +216,32 @@ pub(super) fn lanes(
         .map(|previous| kept(project, selection, previous))
         .unwrap_or_default();
     let mut drifts = None;
+    let empty_drifts = HashMap::new();
     let mut built = HashMap::with_capacity(timeline.track_count());
     let lanes = timeline
         .tracks_ordered()
         .map(|track| {
             let id = track.id.raw();
-            let clips = match kept.get(&id) {
-                Some(clips) => UiClips::clone(clips),
+            let (clips, lane_built) = match kept.get(&id) {
+                Some((clips, prev_built)) => {
+                    let cloned = UiClips::clone(clips);
+                    let mut b = (*prev_built).clone();
+                    b.clips = cloned.downgrade();
+                    (cloned, b)
+                }
                 None => {
-                    let drifts = drifts.get_or_insert_with(|| project.link_drifts());
-                    lane_clips(project, track, selection, drifts)
+                    let has_links = track.clips().any(|c| c.link.is_some());
+                    let drifts = if has_links {
+                        drifts.get_or_insert_with(|| project.link_drifts())
+                    } else {
+                        &empty_drifts
+                    };
+                    let clips = lane_clips(project, track, selection, drifts);
+                    let b = Built::of(track, &clips);
+                    (clips, b)
                 }
             };
-            built.insert(
-                id,
-                Built {
-                    revision: track.revision(),
-                    clips: clips.downgrade(),
-                },
-            );
+            built.insert(id, lane_built);
             lane_to_ui(track, clips)
         })
         .collect();
@@ -199,7 +294,7 @@ fn kept<'a>(
     project: &Project,
     selection: &[ClipId],
     previous: Previous<'a>,
-) -> HashMap<u64, &'a UiClips> {
+) -> HashMap<u64, (&'a UiClips, &'a Built)> {
     let timeline = project.timeline();
     let held: HashMap<u64, &UiTrack> = previous
         .store
@@ -214,15 +309,11 @@ fn kept<'a>(
     for track in timeline.tracks_ordered() {
         let id = track.id.raw();
         let lane = held.get(&id);
-        let unmoved = lane
-            .zip(previous.basis.lanes.get(&id))
-            .is_some_and(|(lane, built)| {
-                built.revision == track.revision() && lane.clips.is(&built.clips)
-            });
-        if unmoved {
-            if let Some(lane) = lane {
-                kept.insert(id, &lane.clips);
-            }
+        if let Some((lane, built)) = lane.zip(previous.basis.lanes.get(&id))
+            && built.revision == track.revision()
+            && lane.clips.is(&built.clips)
+        {
+            kept.insert(id, (&lane.clips, built));
             continue;
         }
         links.extend(
@@ -253,7 +344,10 @@ fn kept<'a>(
         .iter()
         .copied());
     if reordered || !links.is_empty() {
-        kept.retain(|id, _| {
+        kept.retain(|id, (_, built)| {
+            if !built.has_links {
+                return true;
+            }
             timeline.track(TrackId::from_raw(*id)).is_some_and(|track| {
                 !track.clips().any(|clip| {
                     clip.link

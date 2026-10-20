@@ -57,19 +57,19 @@ pub struct ProjectFacts {
 
 impl ProjectFacts {
     pub fn of(engine: &aria_engine::Engine) -> Self {
+        Self::of_with_basis(engine, None)
+    }
+
+    pub(crate) fn of_with_basis(
+        engine: &aria_engine::Engine,
+        basis: Option<&crate::projection::LaneBasis>,
+    ) -> Self {
         let project: &Project = engine.project();
         let (w, h) = aria_render::canvas_size(project);
         let (dw, dh) = aria_render::derived_canvas_size(project);
-        Self {
-            canvas: project.timeline().canvas(),
-            audio_layout: project.timeline().audio_layout(),
-            largest_source_rate: project.largest_source_frame_rate(),
-            canvas_size: [w, h],
-            derived_shape: [dw, dh],
-            // One walk of the timeline rather than one per pool item: asking
-            // `is_media_referenced` per item is the pool size times the clip
-            // count, and both grow with the project.
-            media_in_use: {
+        let media_in_use = match basis {
+            Some(basis) => basis.media_in_use(),
+            None => {
                 let mut used: Vec<u64> = project
                     .timeline()
                     .tracks_ordered()
@@ -79,7 +79,19 @@ impl ProjectFacts {
                 used.sort_unstable();
                 used.dedup();
                 used
-            },
+            }
+        };
+        let marker_count = match basis {
+            Some(basis) => project.timeline().markers().len() + basis.clip_marker_count(),
+            None => project.timeline().marker_count(),
+        };
+        Self {
+            canvas: project.timeline().canvas(),
+            audio_layout: project.timeline().audio_layout(),
+            largest_source_rate: project.largest_source_frame_rate(),
+            canvas_size: [w, h],
+            derived_shape: [dw, dh],
+            media_in_use,
             history: engine
                 .history_entries()
                 .into_iter()
@@ -90,7 +102,7 @@ impl ProjectFacts {
                 .collect::<Vec<_>>()
                 .into(),
             history_depth: engine.history_depth(),
-            marker_count: project.timeline().marker_count(),
+            marker_count,
             mixer: crate::app::mixer::MixerFacts::of(engine),
         }
     }

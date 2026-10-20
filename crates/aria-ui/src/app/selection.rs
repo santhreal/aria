@@ -630,7 +630,12 @@ impl AppState {
             let rate = engine.project().timeline().frame_rate;
             let at = RationalTime::new(self.playhead.value, rate);
             let selected = selected_detail::SelectedDetail::of(&mut engine, &self.selection, at);
-            let mut key = ProjectionKey::of(&engine, self.playhead, &self.selection);
+            let mut key = ProjectionKey::of_with_basis(
+                &engine,
+                self.playhead,
+                &self.selection,
+                held.as_ref().and_then(|held| held.basis.as_ref()),
+            );
             // The store keeps the names it was built with, so the key keeps
             // the catalog revisions they were read at.
             if let Some(held) = &held {
@@ -683,10 +688,9 @@ impl AppState {
         self.reconcile_bins();
         self.announce_offline_media();
         self.reconcile_source_view();
-        // The magnets are a fact about the sequence, so this is the one moment
-        // they can have changed. A drag frame reads the index and never builds
-        // one.
-        self.snap_index = self.build_snap_index();
+        // Reset the lazy magnet index so the next drag frame builds it once
+        // from the newly adopted sequence.
+        self.snap_index = std::sync::OnceLock::new();
         // A report on screen follows the edit that just landed. Closed, it
         // costs nothing: the counts are walks of the whole project and nobody
         // is reading them.
@@ -793,8 +797,7 @@ impl AppState {
             Poll::Moved(at, selected)
         } else {
             let previous = self.projected.take().and_then(|key| key.basis);
-            self.projected = Some(ProjectionKey::of(&engine, self.playhead, &self.selection));
-            Poll::Rebuilt(Snapshot::from_engine(
+            let snapshot = Snapshot::from_engine(
                 &mut engine,
                 self.playhead,
                 &self.selection,
@@ -802,7 +805,14 @@ impl AppState {
                     store: &self.store,
                     basis,
                 }),
-            ))
+            );
+            self.projected = Some(ProjectionKey::of_with_basis(
+                &engine,
+                self.playhead,
+                &self.selection,
+                Some(&snapshot.basis),
+            ));
+            Poll::Rebuilt(snapshot)
         })
     }
 
@@ -815,8 +825,7 @@ impl AppState {
         let snapshot = {
             let mut engine = self.engine.lock();
             let previous = self.projected.take().and_then(|key| key.basis);
-            self.projected = Some(ProjectionKey::of(&engine, self.playhead, &self.selection));
-            Snapshot::from_engine(
+            let snapshot = Snapshot::from_engine(
                 &mut engine,
                 self.playhead,
                 &self.selection,
@@ -824,7 +833,14 @@ impl AppState {
                     store: &self.store,
                     basis,
                 }),
-            )
+            );
+            self.projected = Some(ProjectionKey::of_with_basis(
+                &engine,
+                self.playhead,
+                &self.selection,
+                Some(&snapshot.basis),
+            ));
+            snapshot
         };
         self.adopt(snapshot);
     }
@@ -858,7 +874,12 @@ pub(crate) struct ProjectionKey {
 }
 
 impl ProjectionKey {
-    fn of(engine: &Engine, playhead: RationalTime, selection: &[ClipId]) -> Self {
+    fn of_with_basis(
+        engine: &Engine,
+        playhead: RationalTime,
+        selection: &[ClipId],
+        basis: Option<&crate::projection::LaneBasis>,
+    ) -> Self {
         Self {
             revision: engine.revision(),
             proxy_revision: engine.proxy_revision(),
@@ -866,7 +887,7 @@ impl ProjectionKey {
             selection: selection.to_vec(),
             dirty: engine.is_dirty(),
             history: engine.history_generation(),
-            catalogs: CatalogRevisions::of(engine.project()),
+            catalogs: CatalogRevisions::of_with_basis(engine.project(), basis),
             basis: None,
         }
     }
@@ -909,15 +930,24 @@ pub(crate) struct CatalogRevisions {
 }
 
 impl CatalogRevisions {
-    fn of(project: &aria_models::Project) -> Self {
-        let (mut effects, mut transitions, mut clip_types) = (false, false, false);
-        for track in project.timeline().tracks_ordered() {
-            transitions |= !track.transitions().is_empty();
-            for clip in track.clips() {
-                effects |= !clip.effects.is_empty();
-                clip_types |= clip.clip_type.is_some();
+    fn of_with_basis(
+        project: &aria_models::Project,
+        basis: Option<&crate::projection::LaneBasis>,
+    ) -> Self {
+        let (mut effects, transitions, clip_types) = match basis {
+            Some(basis) => basis.catalog_usage(),
+            None => {
+                let (mut effects, mut transitions, mut clip_types) = (false, false, false);
+                for track in project.timeline().tracks_ordered() {
+                    transitions |= !track.transitions().is_empty();
+                    for clip in track.clips() {
+                        effects |= !clip.effects.is_empty();
+                        clip_types |= clip.clip_type.is_some();
+                    }
+                }
+                (effects, transitions, clip_types)
             }
-        }
+        };
         // A clip type is drawn from its generator's effect row.
         effects |= clip_types;
         Self {
