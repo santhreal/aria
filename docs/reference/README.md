@@ -16,6 +16,7 @@ Complete reference for Aria's built-in catalogs, user interface controls, menus,
 | [tools.md](tools.md) | 13 editor tools (`crates/aria-ui/src/tool_catalog.rs`) | `aria_ui::keys::reference_doc_tests::tools_doc_matches_registry` |
 | [workspaces.md](workspaces.md) | 5 shipped workspaces and dock trees (`crates/aria-ui/src/layouts.rs`) | `aria_ui::keys::reference_doc_tests::workspaces_doc_matches_registry` |
 | [panels.md](panels.md) | 24 panels, 15 dialogs/overlays, 15 Project tabs, and 5 Home rail views (`crates/aria-ui/src/plugins/ui.rs`) | `aria_ui::keys::reference_doc_tests::panels_doc_matches_registry` |
+| [controls.md](controls.md) | 262 named UI controls across 22 shell surfaces (`crates/aria-ui/src/tooltip.rs` and `crates/aria-ui/src/components.rs`) | `aria_ui::keys::controls_doc_tests::controls_doc_matches_source` |
 | [menus.md](menus.md) | 10 application menus and all menu rows (`crates/aria-ui/src/chrome/menu_items.rs`) | `aria_ui::keys::reference_doc_tests::menus_doc_matches_registry` |
 | [commands.md](commands.md) | 149 state commands and 10 job commands (`crates/aria-ui/src/commands/`) | `aria_ui::keys::reference_doc_tests::commands_doc_matches_registry` |
 | [settings.md](settings.md) | `config.toml` keys, `[schema]` versions, `ui-settings.json` fields, and project canvas settings (`crates/aria-settings/` and `crates/aria-ui/src/settings.rs`) | `aria_ui::keys::reference_doc_tests::settings_doc_matches_registries` |
