@@ -278,6 +278,40 @@ fn split_clip_uses_reversed_constant_speed_source_boundary() {
     }
 }
 
+/// A nested sequence clip at another rate splits its source window at the
+/// sequence's rate, from its own source position on each side of the cut.
+#[test]
+fn split_clip_divides_a_sequence_window_at_the_sequence_rate() {
+    let mut project = Project::new("test", R24);
+    let track = project.add_track(TrackKind::Video, "V1");
+    let sequence = project.create_sequence("Nest", R30);
+    let clip_id = project
+        .add_sequence_clip(track, sequence, tr_at(30, 60, R30), rt(0))
+        .unwrap();
+    let before = project.clip(clip_id).unwrap().clone();
+    assert_eq!(before.timeline, tr(0, 48));
+
+    let right_id = project.split_clip(clip_id, rt(12)).unwrap();
+    let left = project.clip(clip_id).unwrap();
+    let right = project.clip(right_id).unwrap();
+    assert_eq!(left.timeline, tr(0, 12));
+    assert_eq!(right.timeline, tr(12, 36));
+    assert_eq!(left.source_range(), Some(tr_at(30, 15, R30)));
+    assert_eq!(right.source_range(), Some(tr_at(45, 45, R30)));
+    for tick in [0, 6, 11] {
+        assert_eq!(
+            left.source_time_at(rt(tick)),
+            before.source_time_at(rt(tick))
+        );
+    }
+    for tick in [12, 16, 32, 44] {
+        assert_eq!(
+            right.source_time_at(rt(tick)),
+            before.source_time_at(rt(tick))
+        );
+    }
+}
+
 #[test]
 fn split_clip_segments_speed_curve_and_preserves_source_mapping() {
     let (mut project, media_id, track) = project_with_media(1_000);
