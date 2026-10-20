@@ -13,7 +13,7 @@ appears twice, the document listed here for that concern is the one to edit.
 | [keyboard-shortcuts.md](keyboard-shortcuts.md) | Every registered chord |
 | [command-line.md](command-line.md) | The headless CLI |
 | [catalogs.md](catalogs.md) | Effect, transition, filter, and animation data files |
-| [reference/README.md](reference/README.md) | Built-in effects, generators, transitions, audio effects, filters, animations, stickers, masks, tools, workspaces, panels, menus, commands, and settings |
+| [reference/README.md](reference/README.md) | Built-in effects, generators, transitions, audio effects, filters, animations, stickers, masks, tools, workspaces, panels, menus, commands, settings, and named controls |
 
 ## Extending Aria
 
