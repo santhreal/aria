@@ -121,11 +121,19 @@ pub(crate) fn open_marked_project(
 /// decode, or the redraw of the frame they land, falls outside the sample, as
 /// it runs on pool threads and in a frame of its own in the editor. The sample
 /// is one update and the one draw its flush makes.
+///
+/// gpui animations sample the test executor's clock, which moves only when it
+/// is advanced. Each sample first advances it to the wall clock, so an entrance
+/// or a fade runs for the span it runs in the editor. Without that, every
+/// one-shot animation mounted since the window opened stays on its first frame
+/// and requests the next one, and each vsync rebuilds the views that hold it.
 pub(crate) fn timed_frame(
     app: &gpui::TestApp,
     window: &mut gpui::TestAppWindow<Shell>,
     change: impl FnOnce(&mut Shell, &mut gpui::Window, &mut gpui::Context<Shell>),
 ) -> f64 {
+    let lag = Instant::now().saturating_duration_since(app.background_executor().now());
+    app.advance_clock(lag);
     app.run_until_parked();
     window.draw();
     app.run_until_parked();
@@ -213,3 +221,6 @@ pub fn run_scenario(ctx: &BenchContext, id: ScenarioId) -> Result<ScenarioReport
         ScenarioId::PluginCost => plugin_cost::run(ctx),
     }
 }
+
+#[cfg(test)]
+mod tests;
