@@ -577,9 +577,7 @@ fn worked_example_doc_manifest_mounts_deferred_contributions() {
             "expected 1 wgsl block in worked-example.md"
         );
 
-        let scratch_root = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../.internal/agents/DocsEnum/scratch-worked-example");
-        let _ = std::fs::remove_dir_all(&scratch_root);
+        let scratch_root = crate::scratch_pool::scratch("worked-example");
         let pkg_dir = scratch_root.join("com.example.color-tools");
         std::fs::create_dir_all(pkg_dir.join("shaders")).expect("mkdir shaders");
         std::fs::write(pkg_dir.join("plugin.toml"), &toml_blocks[1]).expect("write plugin.toml");

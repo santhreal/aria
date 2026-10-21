@@ -15,9 +15,6 @@ fn find_aria_desktop_binary() -> Option<PathBuf> {
             candidates.push(parent.join("aria-desktop"));
         }
     }
-    candidates.push(PathBuf::from(
-        "/var/santh-cargo-target/release/aria-desktop",
-    ));
     candidates.into_iter().find(|p| p.is_file())
 }
 fn measure_inproc_interactive(data_dir: &Path) -> Result<f64, String> {
