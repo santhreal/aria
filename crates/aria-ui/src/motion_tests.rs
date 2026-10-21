@@ -242,8 +242,6 @@ fn mix_endpoints_and_transparent_blend() {
     let mid = mix(rest, hover, 0.5);
     assert!(mid.l > rest.l && mid.l < hover.l, "mid lightness {}", mid.l);
 
-    let _guard = crate::theme::lock_appearance();
-    crate::theme::set_current_appearance(crate::theme::Appearance::Dark);
     let wash = crate::theme::ink(0.06);
     let half = mix(gpui::transparent_black(), wash, 0.5);
     assert!((half.a - 0.03).abs() < 1e-4, "alpha midpoint {}", half.a);

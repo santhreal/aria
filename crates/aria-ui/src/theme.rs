@@ -32,30 +32,66 @@ impl Appearance {
         }
     }
 }
-static CURRENT_APPEARANCE: AtomicU8 = AtomicU8::new(0);
-static THEME_GENERATION: AtomicU32 = AtomicU32::new(0);
+/// The installed theme's appearance and a count of its changes, for the
+/// drawing helpers below, which have no `App` to read the installed theme
+/// from.
+struct Painted {
+    appearance: AtomicU8,
+    generation: AtomicU32,
+}
+
+impl Painted {
+    const fn new() -> Self {
+        Self {
+            appearance: AtomicU8::new(0),
+            generation: AtomicU32::new(0),
+        }
+    }
+}
+
+/// The editor installs its theme and draws on one UI thread.
+#[cfg(not(test))]
+static PAINTED: Painted = Painted::new();
+
+// Unit tests run on parallel threads of one process, each drawing the window
+// of an `App` of its own. A copy per thread keeps a test that installs the
+// light theme from changing the colours and panel stamps of another test's
+// window while it draws.
+#[cfg(test)]
+thread_local! {
+    static PAINTED: Painted = const { Painted::new() };
+}
+
+fn painted<R>(read: impl FnOnce(&Painted) -> R) -> R {
+    #[cfg(not(test))]
+    {
+        read(&PAINTED)
+    }
+    #[cfg(test)]
+    {
+        PAINTED.with(read)
+    }
+}
+
 pub fn current_appearance() -> Appearance {
-    match CURRENT_APPEARANCE.load(Ordering::Relaxed) {
+    match painted(|painted| painted.appearance.load(Ordering::Relaxed)) {
         1 => Appearance::Light,
         _ => Appearance::Dark,
     }
 }
 pub fn theme_generation() -> u32 {
-    THEME_GENERATION.load(Ordering::Relaxed)
-}
-#[cfg(test)]
-pub(crate) fn lock_appearance() -> std::sync::MutexGuard<'static, ()> {
-    static APPEARANCE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-    APPEARANCE_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+    painted(|painted| painted.generation.load(Ordering::Relaxed))
 }
 pub fn set_current_appearance(appearance: Appearance) {
     let encoded = match appearance {
         Appearance::Dark => 0,
         Appearance::Light => 1,
     };
-    if CURRENT_APPEARANCE.swap(encoded, Ordering::Relaxed) != encoded {
-        THEME_GENERATION.fetch_add(1, Ordering::Relaxed);
-    }
+    painted(|painted| {
+        if painted.appearance.swap(encoded, Ordering::Relaxed) != encoded {
+            painted.generation.fetch_add(1, Ordering::Relaxed);
+        }
+    });
 }
 pub const INK_FILL_SCALE: f32 = 1.0;
 pub const INK_HAIRLINE_SCALE: f32 = 1.35;

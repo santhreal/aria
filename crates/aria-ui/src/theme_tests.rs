@@ -82,7 +82,6 @@ fn wcag_contrast_conformance_for_text_on_surfaces() {
 
 #[test]
 fn current_appearance_tracks_set() {
-    let _guard = lock_appearance();
     set_current_appearance(Appearance::Light);
     assert_eq!(current_appearance(), Appearance::Light);
     let generation = theme_generation();
@@ -91,16 +90,39 @@ fn current_appearance_tracks_set() {
     assert!(theme_generation() > generation);
 }
 
+/// An appearance one unit test installs never reaches another test's window.
+///
+/// Unit tests run on parallel threads of one process. With one appearance for
+/// the whole process, a test installing the light theme changed the ink of a
+/// window another test was drawing and moved the theme generation its panel
+/// stamps compare, so a redraw test compared a cached panel body against a
+/// stamp of another test's theme and failed at random. Not caught: other
+/// process-wide state a panel draws from, such as the plugin catalogs.
+#[test]
+fn an_appearance_set_on_another_thread_stays_on_it() {
+    let appearance = current_appearance();
+    let generation = theme_generation();
+    std::thread::spawn(|| {
+        set_current_appearance(Appearance::Light);
+        set_current_appearance(Appearance::Dark);
+        set_current_appearance(Appearance::Light);
+        assert_eq!(current_appearance(), Appearance::Light);
+        assert_eq!(theme_generation(), 3);
+    })
+    .join()
+    .expect("the other thread installs its appearance");
+    assert_eq!(current_appearance(), appearance);
+    assert_eq!(theme_generation(), generation);
+}
+
 #[test]
 fn ink_hairline_wash_visible_in_both_appearances() {
-    let _guard = lock_appearance();
     for appearance in [Appearance::Dark, Appearance::Light] {
         set_current_appearance(appearance);
         assert!(ink(0.5).a > 0.0);
         assert!(hairline(0.2).a > 0.0);
         assert!(wash(0.1).a > 0.0);
     }
-    set_current_appearance(Appearance::Dark);
 }
 
 #[test]
