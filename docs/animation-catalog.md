@@ -70,7 +70,7 @@ that hull, so the overshoot is bounded by construction. `ease_out_back` peaks
 | `RESIZE` | `presets` | 200 ms | 0 | `ease_out` | `motion::glide::EDIT`, `ZOOM`, and `PROGRESS`: rippled clips, the horizontal scale and scroll offset when the editor chose them, and a progress fill catching up with a report |
 | `TAB_SLIDE` | `presets` | 150 ms | 0 | `ease_out` | `inspector::tab_strip`: the tab indicator |
 | `COLLAPSE` | `presets` | 180 ms | 0 | `ease_out` | `motion::glide::LANE`: lane heights and the property rows a twirl opens |
-| `CHEVRON` | `presets` | 200 ms | 0 | `ease` | `components::chevron`: every disclosure arrow, and `panels/inspector/blocks/widgets.rs`' stopwatch |
+| `CHEVRON` | `presets` | 200 ms | 0 | `ease` | `components::chevron`: every disclosure arrow, and `panels/inspector/blocks/widgets_keys.rs`' stopwatch |
 | `SCROLL_GLIDE` | `presets` | 500 ms | 0 | `ease_in_out` | `motion::glide::SCROLL`: the assistant transcript reaching its newest row |
 | `FLING` | `motion` | 500 ms | 0 | `ease_out_back` | `motion::glide::FLING`: the timeline offset after a pan is released |
 | `HOVER_FADE` | `presets` | 150 ms | 0 | `standard` | `motion::hover_blend` on interactive chrome, and `motion::glide::STATE`: a clip card's selection ring and lock badge |

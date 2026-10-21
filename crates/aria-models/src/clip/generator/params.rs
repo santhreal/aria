@@ -4,7 +4,8 @@
 use crate::error::ModelError;
 use crate::param::{Easing, Param};
 
-use crate::clip::transform::{ParamValue, ShapeParam, TextParam};
+use crate::clip::clip_param::{ShapeParam, TextParam};
+use crate::clip::param_value::ParamValue;
 
 use super::{Generator, Shape};
 use crate::clip::generator_catalog::{

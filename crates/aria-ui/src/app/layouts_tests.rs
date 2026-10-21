@@ -73,7 +73,7 @@ fn window_ids(entity: &gpui::Entity<AppState>, cx: &gpui::TestAppContext) -> Vec
 /// generated row that does not open and close its panel, turns this red.
 #[test]
 fn every_registered_dock_panel_has_a_window_row_checked_while_open() {
-    use crate::chrome::menu_items::{PANEL_PREFIX, PANEL_ROWS};
+    use crate::chrome::menu_window::{PANEL_PREFIX, PANEL_ROWS};
     let cx = gpui::TestAppContext::single();
     let subject = entity(state_in(&dir()), &cx);
     let panels = cx.update(|app| subject.read(app).registered_panel_ids());
@@ -130,7 +130,7 @@ fn every_registered_dock_panel_has_a_window_row_checked_while_open() {
 /// is defined.
 #[test]
 fn every_hand_written_panel_row_is_checked_while_its_panel_is_open() {
-    use crate::chrome::menu_items::{PANEL_PREFIX, PANEL_ROWS};
+    use crate::chrome::menu_window::{PANEL_PREFIX, PANEL_ROWS};
     use crate::dock::{PANEL_HISTORY, PANEL_MARKERS};
     let cx = gpui::TestAppContext::single();
     let subject = entity(state_in(&dir()), &cx);

@@ -151,7 +151,7 @@ graphs with incoming and outgoing influence handles and spatial tangent handles;
 
 ## Editing ([editing.md](editing.md))
 
-The command set in `crates/aria-commands/src/command.rs` covers moves, trims,
+The command set in `crates/aria-commands/src/edit_command.rs` covers moves, trims,
 ripple, roll, slip, slide, rate, split, lift, extract, insert, overwrite,
 nesting, multicam, sync lock, clip enable/disable (`SetClipsEnabled`), clip
 groups (`GroupClips`, `UngroupClips`), sequence and clip markers with range durations and kinds (`Comment`, `Chapter`, `Segmentation`), and keyframes, with linked

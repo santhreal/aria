@@ -30,7 +30,8 @@
 //! no undo step says so and says why, so "no inverse" is a declaration rather
 //! than a silent no-op nobody noticed.
 
-use crate::command::{EditCommand, EditTargets, ProjectCommand};
+use crate::command::{EditTargets, ProjectCommand};
+use crate::edit_command::EditCommand;
 use crate::reach::Reach;
 
 mod clip;

@@ -411,7 +411,7 @@ fn features_doc_claims_match_catalogs_and_capabilities() {
 
 /// WHY: closes the defect class where `docs/install.md` drifts from
 /// `packaging/linux/install.sh` package lists, GStreamer encoder element names
-/// in `crates/aria-encoder/src/gst.rs`, or `rust-version` in root `Cargo.toml`.
+/// in `crates/aria-encoder/src/gst_element.rs`, or `rust-version` in root `Cargo.toml`.
 #[test]
 fn install_doc_claims_match_packaging_and_manifests() {
     let repo_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -461,8 +461,8 @@ fn install_doc_claims_match_packaging_and_manifests() {
         );
     }
 
-    let gst_rs = std::fs::read_to_string(repo_root.join("crates/aria-encoder/src/gst.rs"))
-        .expect("read crates/aria-encoder/src/gst.rs");
+    let gst_rs = std::fs::read_to_string(repo_root.join("crates/aria-encoder/src/gst_element.rs"))
+        .expect("read crates/aria-encoder/src/gst_element.rs");
     for elem in ["x264enc", "x265enc"] {
         assert!(
             doc.contains(elem),
@@ -470,13 +470,13 @@ fn install_doc_claims_match_packaging_and_manifests() {
         );
         assert!(
             gst_rs.contains(&format!("\"{elem}\"")),
-            "crates/aria-encoder/src/gst.rs must contain encoder element `{elem}`"
+            "crates/aria-encoder/src/gst_element.rs must contain encoder element `{elem}`"
         );
     }
     for hw_elem in ["nvh264enc", "vaapih264enc", "nvh265enc", "vaapih265enc"] {
         assert!(
             gst_rs.contains(&format!("\"{hw_elem}\"")),
-            "crates/aria-encoder/src/gst.rs must contain hardware encoder `{hw_elem}`"
+            "crates/aria-encoder/src/gst_element.rs must contain hardware encoder `{hw_elem}`"
         );
     }
 

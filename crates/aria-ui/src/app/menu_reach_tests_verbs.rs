@@ -7,7 +7,8 @@
 
 use super::menu_reach_dress::with_timeline_plugin;
 use super::*;
-use crate::chrome::menu_items::{EXPORT_PREFIX, MenuItem, RECENT_PREFIX};
+use crate::chrome::menu_file::{EXPORT_PREFIX, RECENT_PREFIX};
+use crate::chrome::menu_items::MenuItem;
 
 fn row(menu: AppMenu, state: &AppState, id: &str) -> MenuItem {
     items_of(menu, state)

@@ -31,7 +31,7 @@ use std::path::PathBuf;
 use aria_models::MediaId;
 
 use super::AppState;
-use crate::chrome::menu_items::VIEWER_DISPLAY;
+use crate::chrome::menu_view_rows::VIEWER_DISPLAY;
 use crate::dock::{PANEL_INSPECTOR, PANEL_TIMELINE, PANEL_VIEWER};
 use crate::interned::intern;
 use crate::settings::{MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH};

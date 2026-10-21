@@ -7,8 +7,9 @@
 //! `pub(super)` from this child grants, so no field is reachable from anywhere
 //! it was not reachable before.
 //!
-//! Behaviour lives in the siblings `edits.rs` and `selection.rs`. Methods keep
-//! their paths there because a method hangs off the type, not the module.
+//! Behaviour lives in the siblings `edits.rs`, `selection.rs` and
+//! `engine_sync.rs`. Methods keep their paths there because a method hangs off
+//! the type, not the module.
 
 use super::*;
 
@@ -110,8 +111,8 @@ pub struct AppState {
     pub store: Arc<UiEditorStore>,
     /// What [`Self::store`] was projected from, or `None` before the first
     /// projection. A poll whose inputs match this key skips the projection
-    /// entirely; see [`ProjectionKey`](crate::app::selection::ProjectionKey).
-    pub(crate) projected: Option<crate::app::selection::ProjectionKey>,
+    /// entirely; see [`ProjectionKey`](crate::app::engine_sync::ProjectionKey).
+    pub(crate) projected: Option<crate::app::engine_sync::ProjectionKey>,
     /// The selected clip as the model holds it, projected beside
     /// [`Self::store`] and refreshed by the same poll.
     ///

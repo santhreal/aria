@@ -37,7 +37,7 @@ fn header(visual: &mut VisualTestContext, state: &gpui::Entity<AppState>) -> Hea
             state.linked_selection,
             state.timeline_graph_open(),
             state.store.sequence.markers.len(),
-            state.display_menu() == Some(crate::chrome::menu_items::TIMELINE_DISPLAY),
+            state.display_menu() == Some(crate::chrome::menu_view_rows::TIMELINE_DISPLAY),
         )
     })
 }

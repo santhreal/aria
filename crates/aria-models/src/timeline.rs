@@ -4,7 +4,7 @@ use crate::Map;
 use crate::audio_effects::AudioEffectInstance;
 use crate::clip::Clip;
 use crate::error::ModelError;
-use crate::ids::{ClipId, MarkerId, TrackId};
+use crate::ids::{ClipId, TrackId};
 use crate::param::{Param, default_zero_param, is_zero_param};
 use crate::source_patch::{Patch, SourceChannel, SourcePatching};
 use crate::time::{Rational, RationalTime, resample};
@@ -14,6 +14,10 @@ use crate::track_routing::{AutomationMode, LaneRoute};
 
 #[path = "timeline_canvas.rs"]
 mod canvas;
+#[path = "timeline_markers.rs"]
+mod markers;
+#[path = "timeline_master.rs"]
+mod master;
 
 pub use canvas::{
     AudioLayout, CanvasAspect, CanvasSettings, Marker, MarkerColor, MarkerKind, TimeDisplay,
@@ -32,26 +36,7 @@ pub struct RemovedTrack {
     /// The routes taken off other lanes because they pointed at it.
     pub detached: Vec<LaneRoute>,
 }
-/// The single sequence of a [`Project`](crate::Project): an ordered stack of
-/// tracks plus a clip-location index.
-///
-/// - `tracks` is keyed by [`TrackId`] for O(1) lookup.
-/// - `order` is the z-stack from bottom (index 0) to top; the topmost enabled
-///   video track wins when compositing. The UI renders it top-first, so index 0
-///   shows at the *bottom* of the lane list.
-/// - **Lane-zone invariant (CapCut):** `order` is always partitioned into
-///   zones, bottom to top: every bus lane ([`TrackKind::Submix`]), then every
-///   [`TrackKind::Audio`] lane, then the main video track ([`Track::main`]),
-///   then every other visual lane (overlay video / sticker / effect / filter /
-///   adjustment), then every [`TrackKind::Text`] lane. So the mix floor is at
-///   the bottom, text on top, and nothing but audio ever sits below the main
-///   track. Maintained by every add/insert/move/restore path.
-/// - **Main-track invariant:** at most one track is flagged [`Track::main`],
-///   it is always a video lane, and one exists whenever any video lane does
-///   (the first video track added is designated automatically; removing the
-///   main lane promotes the next bottom-most video lane).
-/// - `clip_index` maps every [`ClipId`] to the track containing it, so a clip
-///   can be found across the whole timeline in O(1) without scanning tracks.
+
 fn unity_master_gain() -> f32 {
     1.0
 }
@@ -79,6 +64,26 @@ fn is_default_master_volume_envelope(envelope: &Param<f32>) -> bool {
     envelope.constant() == Some(1.0)
 }
 
+/// The single sequence of a [`Project`](crate::Project): an ordered stack of
+/// tracks plus a clip-location index.
+///
+/// - `tracks` is keyed by [`TrackId`] for O(1) lookup.
+/// - `order` is the z-stack from bottom (index 0) to top; the topmost enabled
+///   video track wins when compositing. The UI renders it top-first, so index 0
+///   shows at the *bottom* of the lane list.
+/// - **Lane-zone invariant (CapCut):** `order` is always partitioned into
+///   zones, bottom to top: every bus lane ([`TrackKind::Submix`]), then every
+///   [`TrackKind::Audio`] lane, then the main video track ([`Track::main`]),
+///   then every other visual lane (overlay video / sticker / effect / filter /
+///   adjustment), then every [`TrackKind::Text`] lane. So the mix floor is at
+///   the bottom, text on top, and nothing but audio ever sits below the main
+///   track. Maintained by every add/insert/move/restore path.
+/// - **Main-track invariant:** at most one track is flagged [`Track::main`],
+///   it is always a video lane, and one exists whenever any video lane does
+///   (the first video track added is designated automatically; removing the
+///   main lane promotes the next bottom-most video lane).
+/// - `clip_index` maps every [`ClipId`] to the track containing it, so a clip
+///   can be found across the whole timeline in O(1) without scanning tracks.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Timeline {
     /// Editing/playback frame rate. Clip `timeline` ranges are in these frames.
@@ -222,83 +227,6 @@ impl Timeline {
 
     pub fn set_time_display(&mut self, display: TimeDisplay) {
         self.time_display = display;
-    }
-
-    /// The master insert chain, in signal order.
-    pub fn master_audio_effects(&self) -> &[AudioEffectInstance] {
-        &self.master_audio_effects
-    }
-
-    pub(crate) fn master_audio_effects_mut(&mut self) -> &mut Vec<AudioEffectInstance> {
-        &mut self.master_audio_effects
-    }
-
-    /// Master strip static fader, as linear gain.
-    pub fn master_gain(&self) -> f32 {
-        self.master_gain
-    }
-
-    /// Master strip static stereo pan (`-1.0..=1.0`).
-    pub fn master_pan(&self) -> f32 {
-        self.master_pan
-    }
-
-    /// Whether the master strip is muted.
-    pub fn master_muted(&self) -> bool {
-        self.master_muted
-    }
-
-    /// Master strip automation mode.
-    pub fn master_automation(&self) -> AutomationMode {
-        self.master_automation
-    }
-
-    /// Master strip sequence-tick volume automation curve.
-    pub fn master_volume_envelope(&self) -> &Param<f32> {
-        &self.master_volume_envelope
-    }
-
-    /// Master strip sequence-tick pan automation curve.
-    pub fn master_pan_envelope(&self) -> &Param<f32> {
-        &self.master_pan_envelope
-    }
-
-    /// Effective master linear gain at sequence `tick` (`0.0` when muted).
-    pub fn master_gain_at(&self, tick: i64) -> f32 {
-        if self.master_muted {
-            return 0.0;
-        }
-        if self.master_automation.reads_envelope() && self.master_volume_envelope.is_animated() {
-            self.master_volume_envelope.sample(tick)
-        } else {
-            self.master_gain
-        }
-    }
-
-    /// Effective master stereo pan (`-1.0..=1.0`) at sequence `tick`.
-    pub fn master_pan_at(&self, tick: i64) -> f32 {
-        if self.master_automation.reads_envelope() && self.master_pan_envelope.is_animated() {
-            self.master_pan_envelope.sample(tick)
-        } else {
-            self.master_pan
-        }
-    }
-
-    pub(crate) fn set_master_mix_unchecked(
-        &mut self,
-        gain: f32,
-        pan: f32,
-        muted: bool,
-        automation: AutomationMode,
-        volume: Param<f32>,
-        pan_envelope: Param<f32>,
-    ) {
-        self.master_gain = gain;
-        self.master_pan = pan;
-        self.master_muted = muted;
-        self.master_automation = automation;
-        self.master_volume_envelope = volume;
-        self.master_pan_envelope = pan_envelope;
     }
 
     // --- frame rate & resampling --------------------------------------------
@@ -806,207 +734,6 @@ impl Timeline {
 
     pub fn clip_count(&self) -> usize {
         self.clip_index.len()
-    }
-
-    // --- markers ------------------------------------------------------------
-
-    /// Ruler markers in `(tick, id)` order.
-    pub fn markers(&self) -> &[Marker] {
-        &self.markers
-    }
-
-    /// Find a marker by id across both sequence ruler markers and clip markers.
-    pub fn marker(&self, id: MarkerId) -> Option<&Marker> {
-        self.markers.iter().find(|m| m.id == id).or_else(|| {
-            self.tracks
-                .values()
-                .flat_map(Track::clips)
-                .find_map(|clip| clip.marker(id))
-        })
-    }
-
-    /// Return the owning [`ClipId`] when `id` is a clip marker, or `None` when
-    /// it is a sequence marker (or absent).
-    pub fn marker_clip(&self, id: MarkerId) -> Option<ClipId> {
-        self.tracks
-            .values()
-            .flat_map(Track::clips)
-            .find_map(|clip| clip.marker(id).map(|_| clip.id))
-    }
-
-    /// Total number of markers in the sequence (ruler markers plus clip markers).
-    pub fn marker_count(&self) -> usize {
-        self.markers.len()
-            + self
-                .tracks
-                .values()
-                .flat_map(Track::clips)
-                .map(|clip| clip.markers.len())
-                .sum::<usize>()
-    }
-
-    /// Insert a sequence marker on the ruler, keeping `(tick, id)` order. The
-    /// tick and duration are resampled to the timeline rate so every stored
-    /// marker shares it. Rejects negative positions, negative durations, range
-    /// durations that run past [`Self::duration`], and duplicate ids.
-    pub fn add_marker(&mut self, mut marker: Marker) -> Result<MarkerId, ModelError> {
-        if marker.tick.value < 0 || !marker.tick.rate.is_valid() || !marker.duration.rate.is_valid()
-        {
-            return Err(ModelError::InvalidRange);
-        }
-        if marker.duration.value < 0 {
-            return Err(ModelError::InvalidParam(format!(
-                "marker duration must be non-negative (got {})",
-                marker.duration.value
-            )));
-        }
-        if self.marker(marker.id).is_some() {
-            return Err(ModelError::InvalidRange);
-        }
-        marker.tick = resample(marker.tick, self.frame_rate);
-        marker.duration = resample(marker.duration, self.frame_rate);
-        if marker.duration.value > 0 {
-            let seq_end = self.duration().value;
-            let marker_end = marker.tick.value + marker.duration.value;
-            if marker_end > seq_end {
-                return Err(ModelError::InvalidParam(format!(
-                    "marker range end ({marker_end}) exceeds sequence end ({seq_end})"
-                )));
-            }
-        }
-        let id = marker.id;
-        let at = self
-            .markers
-            .partition_point(|m| (m.tick.value, m.id) <= (marker.tick.value, marker.id));
-        self.markers.insert(at, marker);
-        Ok(id)
-    }
-
-    /// Insert a marker on `clip_id` in clip time, keeping `(tick, id)` order
-    /// and validating against the clip's source range.
-    pub fn add_clip_marker(
-        &mut self,
-        clip_id: ClipId,
-        marker: Marker,
-    ) -> Result<MarkerId, ModelError> {
-        if self.marker(marker.id).is_some() {
-            return Err(ModelError::InvalidRange);
-        }
-        let clip = self.require_clip_mut(clip_id)?;
-        clip.add_marker(marker)
-    }
-
-    /// Attach an existing sequence marker at its timeline tick onto `clip_id`
-    /// in clip time.
-    pub fn attach_marker_to_clip(
-        &mut self,
-        id: MarkerId,
-        clip_id: ClipId,
-    ) -> Result<(), ModelError> {
-        let index = self
-            .markers
-            .iter()
-            .position(|m| m.id == id)
-            .ok_or(ModelError::UnknownMarker(id))?;
-        let marker = self.markers[index].clone();
-        let clip = self.require_clip(clip_id)?;
-        let clip_tick = clip
-            .clip_time_at_timeline_tick(marker.tick.value)
-            .ok_or_else(|| {
-                ModelError::InvalidParam(format!(
-                    "marker tick ({}) is outside clip {clip_id:?} timeline span",
-                    marker.tick.value
-                ))
-            })?;
-        let clip_duration = resample(marker.duration, clip_tick.rate);
-        let mut clip_marker = marker.clone();
-        clip_marker.tick = clip_tick;
-        clip_marker.duration = clip_duration;
-        self.markers.remove(index);
-        if let Err(err) = self
-            .clip_mut(clip_id)
-            .expect("clip checked above")
-            .add_marker(clip_marker)
-        {
-            let restored = self.add_marker(marker);
-            debug_assert!(restored.is_ok(), "re-inserting sequence marker");
-            return Err(err);
-        }
-        Ok(())
-    }
-
-    /// Remove a marker by id (from the sequence ruler or from a clip),
-    /// returning it for undo capture.
-    pub fn remove_marker(&mut self, id: MarkerId) -> Option<Marker> {
-        if let Some(index) = self.markers.iter().position(|m| m.id == id) {
-            return Some(self.markers.remove(index));
-        }
-        let clip_id = self.marker_clip(id)?;
-        self.clip_mut(clip_id)?.remove_marker(id)
-    }
-
-    /// Move / rename / recolor / re-annotate a marker in one shot (preserving
-    /// its existing `duration` and `kind`).
-    pub fn set_marker(
-        &mut self,
-        id: MarkerId,
-        tick: RationalTime,
-        name: String,
-        color: MarkerColor,
-        comment: String,
-    ) -> Result<(), ModelError> {
-        let current = self.marker(id).ok_or(ModelError::UnknownMarker(id))?;
-        let duration = current.duration;
-        let kind = current.kind;
-        self.edit_marker(id, tick, duration, name, color, comment, kind)
-    }
-
-    /// Update all fields (`tick`, `duration`, `name`, `color`, `comment`,
-    /// `kind`) of a sequence or clip marker in one atomic operation.
-    #[allow(clippy::too_many_arguments)]
-    pub fn edit_marker(
-        &mut self,
-        id: MarkerId,
-        tick: RationalTime,
-        duration: RationalTime,
-        name: String,
-        color: MarkerColor,
-        comment: String,
-        kind: MarkerKind,
-    ) -> Result<(), ModelError> {
-        if let Some(clip_id) = self.marker_clip(id) {
-            return self
-                .require_clip_mut(clip_id)?
-                .edit_marker(id, tick, duration, name, color, comment, kind);
-        }
-        if tick.value < 0 || !tick.rate.is_valid() || !duration.rate.is_valid() {
-            return Err(ModelError::InvalidRange);
-        }
-        if duration.value < 0 {
-            return Err(ModelError::InvalidParam(format!(
-                "marker duration must be non-negative (got {})",
-                duration.value
-            )));
-        }
-        let mut marker = self
-            .remove_marker(id)
-            .ok_or(ModelError::UnknownMarker(id))?;
-        let before = marker.clone();
-        marker.tick = tick;
-        marker.duration = duration;
-        marker.name = name;
-        marker.color = color;
-        marker.comment = comment;
-        marker.kind = kind;
-        match self.add_marker(marker) {
-            Ok(_) => Ok(()),
-            Err(e) => {
-                // Validation failed: put the original back untouched.
-                let restored = self.add_marker(before);
-                debug_assert!(restored.is_ok(), "re-inserting the removed marker");
-                Err(e)
-            }
-        }
     }
 
     /// Total timeline length: the end of the last-ending clip at [`frame_rate`](Self::frame_rate).

@@ -866,12 +866,15 @@ mod pool_rows_tests;
 #[path = "app/pool_selection_tests.rs"]
 mod pool_selection_tests;
 
-// `AppState` is defined in `state.rs`, its methods in `commands.rs` and
-// `selection.rs`. Re-exported so every existing path still resolves.
+// `AppState` is defined in `state.rs`, its methods in `commands.rs`,
+// `selection.rs` and `engine_sync.rs`. Re-exported so every existing path
+// still resolves.
 #[path = "app/state.rs"]
 mod state;
 pub use state::*;
 #[path = "app/commands.rs"]
 mod commands;
+#[path = "app/engine_sync.rs"]
+mod engine_sync;
 #[path = "app/selection.rs"]
 mod selection;

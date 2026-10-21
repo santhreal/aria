@@ -9,14 +9,7 @@ use crate::app::effects_browser::EntryKind;
 use crate::types::ActivePanel;
 
 use super::menu_guards as guards;
-use super::menu_items::{MenuItem, MenuItems};
-
-/// Report a failed edit on the status line.
-fn report(state: &mut AppState, result: Result<(), aria_engine::EngineError>) {
-    if let Err(err) = result {
-        state.report_error(&err);
-    }
-}
+use super::menu_items::{MenuItem, MenuItems, report};
 
 static EFFECT_HEAD: MenuItem = MenuItem::new("fx-controls", "Effect Controls", |_, s, _| {
     s.focus_pane(ActivePanel::Inspector)

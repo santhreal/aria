@@ -474,7 +474,7 @@ fn the_info_and_align_panels_dock_from_the_window_menu(cx: &mut gpui::TestAppCon
         (crate::dock::PANEL_INFO, "info-panel", Some("Shift+8")),
         (crate::dock::PANEL_ALIGN, "align-panel", None),
     ] {
-        let row = format!("{}{panel}", crate::chrome::menu_items::PANEL_PREFIX);
+        let row = format!("{}{panel}", crate::chrome::menu_window::PANEL_PREFIX);
         let shown = visual.read(|app| {
             let state = state.read(app);
             crate::chrome::menu_items::items_of(crate::types::AppMenu::Window, state)

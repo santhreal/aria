@@ -284,7 +284,7 @@ fn the_character_and_paragraph_panels_dock_from_the_window_menu(cx: &mut gpui::T
         (crate::dock::PANEL_CHARACTER, "character-panel"),
         (crate::dock::PANEL_PARAGRAPH, "paragraph-panel"),
     ] {
-        let row = format!("{}{panel}", crate::chrome::menu_items::PANEL_PREFIX);
+        let row = format!("{}{panel}", crate::chrome::menu_window::PANEL_PREFIX);
         let press = |visual: &mut gpui::VisualTestContext| {
             let found = visual.update(|_, app| {
                 state.update(app, |state, cx| {

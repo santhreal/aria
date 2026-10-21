@@ -331,7 +331,7 @@ fn by_prefix(id: &str) -> Option<(Kind, Dress)> {
         Some((Edits, Sound))
     } else if id.starts_with(APPLY_PREFIX) {
         Some((Edits, Clip))
-    } else if id.starts_with(crate::chrome::menu_items::PANEL_PREFIX) {
+    } else if id.starts_with(crate::chrome::menu_window::PANEL_PREFIX) {
         Some((NoEdit, Clip))
     } else {
         None

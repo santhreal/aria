@@ -15,7 +15,7 @@ Expanding a timeline clip opens its outline mode (`ClipRevealMode::Outline`) wit
 
 ## Property reveal actions (`RevealAction`)
 
-`AppState::reveal_properties(action, shift)` reveals or toggles explicit property rows on the selected clips (or clips under the playhead on unlocked targeted tracks when no clip is selected). Holding `Shift` adds or removes the action's properties from the open set.
+`AppState::reveal_properties(action, shift)` (`crates/aria-ui/src/app/property_rows_reveal.rs`) reveals or toggles explicit property rows on the selected clips (or clips under the playhead on unlocked targeted tracks when no clip is selected). Holding `Shift` adds or removes the action's properties from the open set.
 
 | Variant | Shortcut | Revealed Properties |
 | --- | --- | --- |

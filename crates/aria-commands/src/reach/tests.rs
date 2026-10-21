@@ -12,7 +12,8 @@
 //! `aria-ui`. This crate cannot see a menu.
 
 use super::Reach;
-use crate::command::{EditCommand, ProjectCommand};
+use crate::command::ProjectCommand;
+use crate::edit_command::EditCommand;
 use crate::samples::{every_edit_command, every_project_command};
 
 /// Every command's label paired with its declared reach.

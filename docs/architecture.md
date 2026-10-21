@@ -59,7 +59,7 @@ frame's stage timings recorded in `commit_preview` under the lock that produced
 the frame.
 
 A poll compares the inputs the projection reads against the key the current
-store was built from (`ProjectionKey` in `app/selection.rs`). Nothing moved: the
+store was built from (`ProjectionKey` in `app/engine_sync.rs`). Nothing moved: the
 poll returns. Only the playhead moved: the store keeps its projection, because
 the projection carries the tick as a value and derives nothing from it, and the
 poll re-samples what is read at the playhead instead. That is every frame of

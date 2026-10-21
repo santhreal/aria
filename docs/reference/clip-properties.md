@@ -1,6 +1,6 @@
 # Clip Properties, Transform, Alignment, Text, and Shapes Reference
 
-Every animatable clip property in Aria is registered in `crates/aria-models/src/clip/param_catalog.rs` (`clip_param_catalog()`) and dispatched through `ClipParam` (`crates/aria-models/src/clip/transform.rs` and `crates/aria-models/src/clip/param_axis.rs`). Structural clip properties and UI alignment/framing controls are defined in `crates/aria-models/src/clip/crop.rs`, `crates/aria-models/src/look/motion_blur.rs`, `crates/aria-models/src/clip/text.rs`, `crates/aria-models/src/clip/generator.rs`, `crates/aria-models/src/clip/generator_catalog.rs`, `crates/aria-ui/src/app/clip_frame.rs`, and `crates/aria-ui/src/app/align.rs`.
+Every animatable clip property in Aria is registered in `crates/aria-models/src/clip/param_catalog/rows.rs` (`clip_param_catalog()` in `crates/aria-models/src/clip/param_catalog.rs`) and dispatched through `ClipParam` (`crates/aria-models/src/clip/clip_param.rs` and `crates/aria-models/src/clip/param_axis.rs`), which carries a `ParamValue` (`crates/aria-models/src/clip/param_value.rs`). Structural clip properties and UI alignment/framing controls are defined in `crates/aria-models/src/clip/crop.rs`, `crates/aria-models/src/look/motion_blur.rs`, `crates/aria-models/src/clip/text.rs`, `crates/aria-models/src/clip/generator.rs`, `crates/aria-models/src/clip/generator_catalog.rs`, `crates/aria-ui/src/app/clip_frame.rs`, and `crates/aria-ui/src/app/align.rs`.
 
 ## `ClipParam` variants and classification (`ClipParam::CENSUS` and `ClipParamClass`)
 

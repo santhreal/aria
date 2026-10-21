@@ -10,14 +10,7 @@ use crate::app::AppState;
 use crate::commands::reach;
 
 use super::menu_guards as guards;
-use super::menu_items::{MenuItem, MenuItems};
-
-/// Report a failed edit on the status line.
-fn report<T>(state: &mut AppState, result: Result<T, aria_engine::EngineError>) {
-    if let Err(err) = result {
-        state.report_error(&err);
-    }
-}
+use super::menu_items::{MenuItem, MenuItems, report};
 
 /// Add a lane of `kind`, named after the lanes of that kind already there.
 fn add_lane(state: &mut AppState, kind: aria_models::TrackKind) {

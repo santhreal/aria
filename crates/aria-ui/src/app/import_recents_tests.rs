@@ -18,7 +18,8 @@ use gpui::AppContext;
 use super::{LIMIT, file, load, promoted};
 use crate::app::AppState;
 use crate::app::premiere_tests::with_clip;
-use crate::chrome::menu_items::{IMPORT_RECENT_PREFIX, items_of};
+use crate::chrome::menu_file::IMPORT_RECENT_PREFIX;
+use crate::chrome::menu_items::items_of;
 use crate::types::AppMenu;
 
 fn fixture() -> PathBuf {

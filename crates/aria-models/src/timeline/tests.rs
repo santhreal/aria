@@ -1,5 +1,6 @@
 use super::*;
 use crate::clip::{Clip, Generator};
+use crate::ids::MarkerId;
 use crate::time::TimeRange;
 use crate::track::{Track, TrackKind};
 

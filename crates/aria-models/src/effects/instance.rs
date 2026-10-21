@@ -4,11 +4,13 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 use super::catalog::{EffectSpec, effect_spec};
-use super::params::{
-    EffectCurvePoint, EffectGradientStop, EffectParamKind, EffectParamSpec, choice_check,
-    curve_check, gradient_check, holds_scalar, holds_text, holds_vec2, int_range_check,
-    linear_color_check, scalar_or_int_range_check, stored_slot, vector_range_check,
+use super::curve::{EffectCurvePoint, EffectGradientStop};
+use super::param_check::{
+    choice_check, curve_check, gradient_check, holds_scalar, holds_text, holds_vec2,
+    int_range_check, linear_color_check, scalar_or_int_range_check, stored_slot,
+    vector_range_check,
 };
+use super::params::{EffectParamKind, EffectParamSpec};
 use super::stored::StoredParams;
 use crate::Map;
 use crate::clip::ParamValue;

@@ -154,7 +154,7 @@ pub(super) fn tab_row(
         // with an even step over and under it.
         .child(crate::chrome::tool_strip::display_btn(
             "viewer-display-settings",
-            crate::chrome::menu_items::VIEWER_DISPLAY,
+            crate::chrome::menu_view_rows::VIEWER_DISPLAY,
             Theme::ICON_HIT_ROW,
             theme,
             state,

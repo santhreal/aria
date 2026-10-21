@@ -24,7 +24,8 @@ use aria_models::{ClipId, ClipParam, LookParam};
 
 use super::premiere_tests::with_clip;
 use super::scope_view::{ScopeBuffers, ScopeTextures, measure};
-use crate::chrome::menu_items::{PANEL_PREFIX, items_of, run_item};
+use crate::chrome::menu_items::{items_of, run_item};
+use crate::chrome::menu_window::PANEL_PREFIX;
 use crate::dock::{PANEL_COLOR, PANEL_HISTORY, PANEL_MARKERS, PANEL_SCOPES, PanelId};
 use crate::types::AppMenu;
 

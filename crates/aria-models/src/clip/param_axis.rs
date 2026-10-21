@@ -22,10 +22,10 @@ use crate::effects::EffectInstance;
 use crate::error::ModelError;
 use crate::param::{Easing, Param, PiecewiseEasingPreset, TemporalEase};
 
+use super::clip_param::{ClipParam, ClipParamClass, ParamExclusion};
 use super::param_catalog::{ParamKind, ParamRange, ParamRoute, ParamScope, param_spec};
-use super::transform::{
-    ClipParam, ClipParamClass, ParamExclusion, ParamValue, Scale2, crop_rect, scale_value,
-};
+use super::param_value::{ParamValue, crop_rect, scale_value};
+use super::transform::Scale2;
 use super::{Clip, ClipSource, CropRect, Generator};
 
 /// The [`Param`] a row addresses, borrowed mutably and typed by value kind.

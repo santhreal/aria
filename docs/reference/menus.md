@@ -1,6 +1,6 @@
 # Menus Reference
 
-The application menu bar contains ten top-level menus (`AppMenu::ALL` in `crates/aria-ui/src/types_editor.rs`), assembled by `items_for(menu, state)` in `crates/aria-ui/src/chrome/menu_items.rs`, `menu_sequence.rs`, `menu_markers.rs`, `menu_effect.rs`, and `menu_animation.rs`. Each row includes a stable ID, an optional submenu caption (`under`), a display label, an optional keyboard binding ID (`key`), a disabled-when condition (`RowBlocked` in `crates/aria-ui/src/chrome/menu_guards.rs`), an optional check-mark predicate (`RowChecked`), and an action handler (`RowRun`).
+The application menu bar contains ten top-level menus (`AppMenu::ALL` in `crates/aria-ui/src/types_editor.rs`), assembled by `items_for(menu, state)` in `crates/aria-ui/src/chrome/menu_items.rs` from one module per menu: `menu_file.rs`, `menu_edit.rs`, `menu_clip.rs`, `menu_sequence.rs`, `menu_markers.rs`, `menu_effect.rs`, `menu_animation.rs`, `menu_view_rows.rs`, `menu_window.rs`, and `menu_help.rs`. Each row includes a stable ID, an optional submenu caption (`under`), a display label, an optional keyboard binding ID (`key`), a disabled-when condition (`RowBlocked` in `crates/aria-ui/src/chrome/menu_guards.rs`), an optional check-mark predicate (`RowChecked`), and an action handler (`RowRun`).
 
 ## Worked example
 
@@ -297,7 +297,7 @@ In addition to the eight fixed rows above, `items_for(AppMenu::Effect, state)` a
 
 ## Dynamic menu rows
 
-Several menus append rows at render time when session state or mounted plugins provide them (`crates/aria-ui/src/chrome/menu_items.rs`):
+Several menus append rows at render time when session state or mounted plugins provide them (`crates/aria-ui/src/chrome/menu_file.rs`, `menu_effect.rs`, and `menu_window.rs`):
 
 - `file-recent:<path>` (under **File > Open Recent**): opens the recent `.aria` project at `<path>` from `state.recents()`, disabled when the file is missing on disk (`guards::recent`).
 - `file-import-recent:<path>` (under **File > Import Recent**): imports the recent media file at `<path>` from `state.import_recents()`, disabled when the file is missing on disk (`guards::import_recent`).

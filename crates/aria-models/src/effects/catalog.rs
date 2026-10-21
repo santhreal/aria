@@ -2,7 +2,8 @@ use std::sync::{Arc, LazyLock};
 
 use serde::{Deserialize, Serialize};
 
-use super::params::{EffectGroupSpec, EffectParamSpec, check_params};
+use super::param_check::check_params;
+use super::params::{EffectGroupSpec, EffectParamSpec};
 
 /// Category label used when an [`EffectSpec`] leaves [`EffectSpec::category`] empty.
 pub const OTHER_VIDEO_CATEGORY: &str = "Other";

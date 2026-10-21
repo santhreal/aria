@@ -598,6 +598,8 @@ fn no_timeline_panel_file_calls_a_setter_itself() {
     for panel in [
         "timeline/clip.rs",
         "timeline/clip/finish.rs",
+        "timeline/clip/finish_drag.rs",
+        "timeline/clip/finish_press.rs",
         "timeline/clip/hit.rs",
         "timeline/ruler.rs",
     ] {

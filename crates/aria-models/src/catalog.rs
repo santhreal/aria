@@ -330,7 +330,7 @@ mod tests {
             "every row carries fn(&Project) -> String: the readout is code",
         ),
         (
-            "src/clip/param_catalog.rs",
+            "src/clip/param_catalog/rows.rs",
             "every row carries the route to its field in the model",
         ),
         (

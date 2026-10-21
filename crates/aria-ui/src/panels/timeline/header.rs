@@ -205,7 +205,7 @@ pub(super) fn header_controls(
                 )
                 .child(display_btn(
                     "timeline-display-settings",
-                    crate::chrome::menu_items::TIMELINE_DISPLAY,
+                    crate::chrome::menu_view_rows::TIMELINE_DISPLAY,
                     Theme::ICON_HIT_ROW,
                     theme,
                     state,

@@ -27,7 +27,7 @@ Defined in `crates/aria-encoder/src/lib.rs` (`capability()` and `AUDIO_CAPABILIT
 
 ### Linux encoder elements (`aria_encoder::gst`)
 
-Defined in `crates/aria-encoder/src/gst.rs` (`candidates`, `SOFTWARE_ENCODERS`, `SOFTWARE_SPEED_PRESET`). The GStreamer backend builds each element in order and encodes with the first one that opens its device.
+Defined in `crates/aria-encoder/src/gst_element.rs` (`candidates`, `SOFTWARE_ENCODERS`, `SOFTWARE_SPEED_PRESET`). The GStreamer backend builds each element in order and encodes with the first one that opens its device.
 
 | Codec | Elements in order | Software element | Software speed preset |
 | --- | --- | --- | --- |

@@ -7,14 +7,7 @@ use crate::app::menu_verbs::KeyInterpolation;
 use crate::app::property_rows::RevealAction;
 
 use super::menu_guards as guards;
-use super::menu_items::{MenuItem, MenuItems};
-
-/// Report a failed edit on the status line.
-fn report(state: &mut AppState, result: Result<(), aria_engine::EngineError>) {
-    if let Err(err) = result {
-        state.report_error(&err);
-    }
-}
+use super::menu_items::{MenuItem, MenuItems, report};
 
 const INTERPOLATION: &str = "Keyframe Interpolation";
 const ASSISTANT: &str = "Keyframe Assistant";

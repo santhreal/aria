@@ -21,10 +21,18 @@ use crate::types::AppMenu;
 pub mod dialog;
 #[path = "chrome/menu_animation.rs"]
 mod menu_animation;
+#[path = "chrome/menu_clip.rs"]
+mod menu_clip;
+#[path = "chrome/menu_edit.rs"]
+mod menu_edit;
 #[path = "chrome/menu_effect.rs"]
 pub(crate) mod menu_effect;
+#[path = "chrome/menu_file.rs"]
+pub(crate) mod menu_file;
 #[path = "chrome/menu_guards.rs"]
 pub(crate) mod menu_guards;
+#[path = "chrome/menu_help.rs"]
+mod menu_help;
 #[path = "chrome/menu_host.rs"]
 pub mod menu_host;
 #[path = "chrome/menu_items.rs"]
@@ -35,6 +43,10 @@ mod menu_markers;
 pub(crate) mod menu_sequence;
 #[path = "chrome/menu_view.rs"]
 mod menu_view;
+#[path = "chrome/menu_view_rows.rs"]
+pub(crate) mod menu_view_rows;
+#[path = "chrome/menu_window.rs"]
+pub(crate) mod menu_window;
 #[path = "chrome/native_menus.rs"]
 pub mod native_menus;
 #[path = "chrome/plugin_menus.rs"]

@@ -161,7 +161,7 @@ Defined in `crates/aria-ui/src/panels/inspector/tabs/effects.rs`.
 
 | Constant | File | Use |
 | --- | --- | --- |
-| `ROTATE_CCW` | `assets/icon/inspector/rotate-ccw.svg` | Reset an effect, the transform (`tabs/transform.rs`), a colour wheel (`blocks/wheels.rs`), and a property row (`blocks/widgets.rs`, `panels/timeline/property_rows.rs`). |
+| `ROTATE_CCW` | `assets/icon/inspector/rotate-ccw.svg` | Reset an effect, the transform (`tabs/transform.rs`), a colour wheel (`blocks/wheels.rs`), and a property row (`blocks/widgets_keys.rs`, `panels/timeline/property_rows.rs`). |
 | `ELLIPSIS` | `assets/icon/inspector/ellipsis.svg` | An effect's menu. |
 | `TRASH` | `assets/icon/inspector/trash-2.svg` | Remove an effect, and remove an audio insert (`panels/insert_chain.rs`). |
 | `STAR` | `assets/icon/ui/star.svg` | Favourite an entry in Effects & Presets (`panels/effects_browser.rs`). |

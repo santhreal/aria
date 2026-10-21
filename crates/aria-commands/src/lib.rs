@@ -4,11 +4,13 @@
 //! undo-friendly once wired through `aria-engine`.
 
 mod command;
+mod edit_command;
 mod reach;
 mod samples;
 mod spec;
 
-pub use command::{Command, EditCommand, EditOutcome, EditTargets, ProjectCommand, TemplatePick};
+pub use command::{Command, EditOutcome, EditTargets, ProjectCommand, TemplatePick};
+pub use edit_command::EditCommand;
 pub use reach::Reach;
 pub use samples::{every_edit_command, every_project_command};
 pub use spec::{EditSpec, Inverse, ProjectSpec, edit_specs, project_specs};

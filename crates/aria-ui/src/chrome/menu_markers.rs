@@ -5,14 +5,7 @@ use std::borrow::Cow;
 use crate::app::AppState;
 
 use super::menu_guards as guards;
-use super::menu_items::{MenuItem, MenuItems};
-
-/// Report a failed edit on the status line.
-fn report(state: &mut AppState, result: Result<(), aria_engine::EngineError>) {
-    if let Err(err) = result {
-        state.report_error(&err);
-    }
-}
+use super::menu_items::{MenuItem, MenuItems, report};
 
 static MARKER_ITEMS: &[MenuItem] = &[
     MenuItem::new("seq-mark-in", "Mark In", |_, s, _| s.mark_in_here()).key("key-mark-in"),

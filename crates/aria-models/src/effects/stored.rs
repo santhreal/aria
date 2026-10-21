@@ -9,10 +9,11 @@
 //! [`EffectParamSpec`], how a `visible_when` condition is evaluated, and the
 //! layout of the shader storage buffer.
 
-use super::params::{
-    EffectCurvePoint, EffectGradientStop, EffectParamKind, EffectParamSpec,
-    evaluate_effect_curve_lut, evaluate_effect_gradient_lut, holds_text, holds_vec2,
+use super::curve::{
+    EffectCurvePoint, EffectGradientStop, evaluate_effect_curve_lut, evaluate_effect_gradient_lut,
 };
+use super::param_check::{holds_text, holds_vec2};
+use super::params::{EffectParamKind, EffectParamSpec};
 use crate::ids::ClipId;
 
 /// The values stored on an effect instance or a transition, read by

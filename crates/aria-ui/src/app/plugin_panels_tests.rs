@@ -423,7 +423,7 @@ fn a_plugin_panel_is_a_window_row_until_its_registration_drops() {
     let probe = Probe::default();
     let registration = register(&state, &probe);
     settle(&mut state);
-    let row = format!("{}{PANEL}", crate::chrome::menu_items::PANEL_PREFIX);
+    let row = format!("{}{PANEL}", crate::chrome::menu_window::PANEL_PREFIX);
     let find = |state: &AppState| {
         crate::chrome::menu_items::items_of(crate::types::AppMenu::Window, state)
             .into_iter()

@@ -23,7 +23,7 @@
 
 use super::*;
 use crate::MaskKind;
-use crate::clip::{Clip, ClipParamClass, Generator, ParamAxis, Shape, TextStyle};
+use crate::clip::{Clip, ClipParamClass, Generator, ParamAxis, Shape, TextParam, TextStyle};
 use crate::look::{
     ChromaKey, Filter, LayerBackground, LayerGlow, LayerOutline, LayerShadow, LayerStyles, Lut,
     Mask, MatteSource, TrackMatte,

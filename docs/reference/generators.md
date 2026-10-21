@@ -76,7 +76,7 @@ A `shape` generator (`Generator::Shape`) draws one of eight geometry variants (`
 
 ### Animatable shape properties (`ClipParam::Shape`)
 
-Configured in **Effect Controls > Shape** (`crates/aria-models/src/clip/param_catalog.rs`):
+Configured in **Effect Controls > Shape** (`crates/aria-models/src/clip/param_catalog/rows.rs`):
 
 | ID | Label | Kind | Unit | Min | Max | Default | Animates |
 | --- | --- | --- | --- | --- | --- | --- | --- |

@@ -151,7 +151,7 @@ pub const CATALOG: &[SpecRow] = &[
         delay_ms: 0,
         duration_ms: 200,
         purpose: "A disclosure arrow rotating, so the arrow and the section agree.",
-        file: "crates/aria-ui/src/panels/inspector/blocks/widgets.rs",
+        file: "crates/aria-ui/src/panels/inspector/blocks/widgets_keys.rs",
         symbol: "CHEVRON",
     },
     SpecRow {
