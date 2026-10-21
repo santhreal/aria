@@ -332,12 +332,7 @@ fn steady_frame_render_allocations_stay_at_wgpu_floor() {
                 ..Default::default()
             }))
             .expect("a device of the test's own");
-        aria_compositor::GpuContext::from_parts(
-            shared.instance.clone(),
-            shared.adapter.clone(),
-            device,
-            queue,
-        )
+        aria_compositor::GpuContext::from_parts(shared.instance, shared.adapter, device, queue)
     };
     let mut renderer = Renderer::with_gpu(gpu);
     let adapter = renderer.gpu().adapter.get_info();
