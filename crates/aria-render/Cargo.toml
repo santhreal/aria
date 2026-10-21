@@ -38,6 +38,8 @@ aria-models = { path = "../aria-models" }
 # (software) hosts where the Apple import path doesn't apply.
 wgpu = { workspace = true }
 parking_lot = { workspace = true }
+# The steady-frame allocation test brings up a device of its own.
+pollster = { workspace = true }
 
 [[bench]]
 name = "resolve"

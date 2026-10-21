@@ -304,8 +304,11 @@ fn steady_resolve_and_look_ahead_allocate_zero_heap_blocks() {
 /// fails. Every counted frame starts on an idle device: `Queue::submit` retires
 /// the finished submissions it finds, and while earlier frames are still in
 /// flight `wgpu` grows its submission and encoder pools by a count that depends
-/// on GPU timing, which a loaded host turns into a different count per run.
-/// The absolute floor is checked on lavapipe, the adapter CI renders on.
+/// on GPU timing. The device is the test's own: the process-wide headless
+/// device also takes the other tests' submissions, and the poll that ends
+/// `Queue::submit` retires whichever of them have finished on the submitting
+/// thread, inside this test's count. The absolute floor is checked on
+/// lavapipe, the adapter CI renders on.
 /// Does not catch allocations inside hardware-only video decoder backends
 /// (NVDEC/VideoToolbox), or allocations made only while earlier frames are
 /// still in flight.
@@ -317,7 +320,26 @@ fn steady_frame_render_allocations_stay_at_wgpu_floor() {
 
     const STEADY_FRAMES: usize = 8;
     let started = Instant::now();
-    let mut renderer = Renderer::new_headless().expect("headless renderer");
+    let shared = aria_compositor::GpuContext::new_headless_blocking().expect("headless GPU");
+    // `new_headless_blocking` hands a GL device out unshared already.
+    let gpu = if shared.adapter.get_info().backend == wgpu::Backend::Gl {
+        shared
+    } else {
+        let (device, queue) =
+            pollster::block_on(shared.adapter.request_device(&wgpu::DeviceDescriptor {
+                label: Some("steady-frame-allocations"),
+                required_limits: shared.adapter.limits(),
+                ..Default::default()
+            }))
+            .expect("a device of the test's own");
+        aria_compositor::GpuContext::from_parts(
+            shared.instance.clone(),
+            shared.adapter.clone(),
+            device,
+            queue,
+        )
+    };
+    let mut renderer = Renderer::with_gpu(gpu);
     let adapter = renderer.gpu().adapter.get_info();
     let device = renderer.gpu().device.clone();
     let idle = || {
