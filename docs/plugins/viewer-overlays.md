@@ -156,3 +156,10 @@ impl aria_sdk::Plugin for MyPlugin {
     }
 }
 ```
+
+`aria_sdk::OverlayEvent::Drag` holds `handle` (the handle id), `phase`, and
+`at` (the pointer position in sequence frame pixels). `phase` is a
+`DragPhase`: `Start` when the button is pressed on the handle, `Move` for each
+pointer move while dragging, and `End` when the button is released.
+`OverlayScene::new(shapes)` builds a scene drawn back to front, and
+`has_handle(id)` reports whether the scene holds a handle with `id`.

@@ -484,6 +484,29 @@ inputs = ["source", { pass = "downsample" }, { texture = "dirt" }]
 output = "same"
 ```
 
+A native plugin builds the same tables with `aria-sdk`. Each
+`EffectParamSpec` constructor takes `name` and `label`, then the kind's
+default and range: `scalar(name, label, default, min, max)`,
+`int(name, label, default_int, min, max)`, `boolean(name, label, default_bool)`,
+`choice(name, label, choices, default_choice)`,
+`vec2(name, label, default_vec2, min, max)`,
+`point3(name, label, default_vec3, min, max)`,
+`size(name, label, default_vec2, min, max)`,
+`angle(name, label, default, min, max)`, `color(name, label, default_color)`,
+`curve(name, label, default_curve)`, `gradient(name, label, default_gradient)`,
+`text`, `font`, and `file` with `default_text`, and `layer(name, label)`.
+`with_display`, `with_unit`, `with_tooltip`, `with_group`, and
+`with_visible_when` set the key of the same name, `with_soft_range(soft_min,
+soft_max)` sets both soft bounds, and `flattened_floats()` is the number of
+floats the parameter occupies in shader storage. `EffectGroupSpec::new(id,
+label)` builds an expanded group and `with_collapsed(collapsed)` sets
+`collapsed`. `EffectVisibilityCondition::when_bool(param, value)`,
+`when_int(param, value)`, and `when_choice(param, choice)` show the row while
+`param` equals the value, setting `equals_bool`, `equals_int`, or
+`equals_choice`. `EffectChoiceOption::new(id, label)`,
+`EffectCurvePoint::new(x, y)`, and `EffectGradientStop::new(position, color)`
+build the entries of `choices`, `default_curve`, and `default_gradient`.
+
 ### `[[transitions]]`
 
 Optional single-pass GPU transitions between adjacent timeline clips. See

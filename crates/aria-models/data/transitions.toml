@@ -27,7 +27,6 @@ label = "Feather"
 min = 0.0
 max = 0.5
 default = 0.0
-step = 0.05
 
 [[entry]]
 id = "wipe_right"
@@ -38,7 +37,6 @@ label = "Feather"
 min = 0.0
 max = 0.5
 default = 0.0
-step = 0.05
 
 [[entry]]
 id = "wipe_up"
@@ -49,7 +47,6 @@ label = "Feather"
 min = 0.0
 max = 0.5
 default = 0.0
-step = 0.05
 
 [[entry]]
 id = "wipe_down"
@@ -60,7 +57,6 @@ label = "Feather"
 min = 0.0
 max = 0.5
 default = 0.0
-step = 0.05
 
 [[entry]]
 id = "slide"

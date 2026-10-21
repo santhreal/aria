@@ -27,7 +27,6 @@ label = "Feather"
 min = 0.0
 max = 0.5
 default = 0.1
-step = 0.05
 ```
 
 ## Where to apply and edit transitions
@@ -82,9 +81,9 @@ Evaluates `transition_wipe.wgsl` with `direction = 0` (`coord = 1.0 - uv.x`). Fo
 
 UI location: **Effects & Presets > Transitions > Wipe Left** and **Project > Transitions > Wipe Left**.
 
-| Name | Label | Kind | Unit | Min | Max | Default | Step | Animates |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `feather` | Feather | `scalar` | UV fraction | `0.0` | `0.5` | `0.0` | `0.05` | `no` |
+| Name | Label | Kind | Unit | Min | Max | Default | Animates |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `feather` | Feather | `scalar` | UV fraction | `0.0` | `0.5` | `0.0` | `no` |
 
 ### Wipe Right (`wipe_right`)
 
@@ -92,9 +91,9 @@ Evaluates `transition_wipe.wgsl` with `direction = 1` (`coord = uv.x`) and the s
 
 UI location: **Effects & Presets > Transitions > Wipe Right** and **Project > Transitions > Wipe Right**.
 
-| Name | Label | Kind | Unit | Min | Max | Default | Step | Animates |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `feather` | Feather | `scalar` | UV fraction | `0.0` | `0.5` | `0.0` | `0.05` | `no` |
+| Name | Label | Kind | Unit | Min | Max | Default | Animates |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `feather` | Feather | `scalar` | UV fraction | `0.0` | `0.5` | `0.0` | `no` |
 
 ### Wipe Up (`wipe_up`)
 
@@ -102,9 +101,9 @@ Evaluates `transition_wipe.wgsl` with `direction = 2` (`coord = 1.0 - uv.y`) and
 
 UI location: **Effects & Presets > Transitions > Wipe Up** and **Project > Transitions > Wipe Up**.
 
-| Name | Label | Kind | Unit | Min | Max | Default | Step | Animates |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `feather` | Feather | `scalar` | UV fraction | `0.0` | `0.5` | `0.0` | `0.05` | `no` |
+| Name | Label | Kind | Unit | Min | Max | Default | Animates |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `feather` | Feather | `scalar` | UV fraction | `0.0` | `0.5` | `0.0` | `no` |
 
 ### Wipe Down (`wipe_down`)
 
@@ -112,9 +111,9 @@ Evaluates `transition_wipe.wgsl` with `direction = 3` (`coord = uv.y`) and the s
 
 UI location: **Effects & Presets > Transitions > Wipe Down** and **Project > Transitions > Wipe Down**.
 
-| Name | Label | Kind | Unit | Min | Max | Default | Step | Animates |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `feather` | Feather | `scalar` | UV fraction | `0.0` | `0.5` | `0.0` | `0.05` | `no` |
+| Name | Label | Kind | Unit | Min | Max | Default | Animates |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `feather` | Feather | `scalar` | UV fraction | `0.0` | `0.5` | `0.0` | `no` |
 
 ### Slide (`slide`)
 

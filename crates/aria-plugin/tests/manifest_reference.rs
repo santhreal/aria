@@ -1110,7 +1110,9 @@ fn count_braces_outside_comments(line: &str) -> (usize, usize) {
     (opens, closes)
 }
 
-fn extract_struct_pub_fields(src: &str, struct_name: &str) -> Vec<String> {
+/// The `pub` fields of `pub struct struct_name` in `src`, empty when `src`
+/// does not define it with named fields.
+fn struct_pub_fields(src: &str, struct_name: &str) -> Vec<String> {
     let prefix = format!("pub struct {struct_name}");
     let mut in_struct = false;
     let mut depth = 0usize;
@@ -1142,6 +1144,11 @@ fn extract_struct_pub_fields(src: &str, struct_name: &str) -> Vec<String> {
             break;
         }
     }
+    fields
+}
+
+fn extract_struct_pub_fields(src: &str, struct_name: &str) -> Vec<String> {
+    let fields = struct_pub_fields(src, struct_name);
     assert!(
         !fields.is_empty(),
         "failed to extract pub fields for `pub struct {struct_name}`"
@@ -1149,7 +1156,9 @@ fn extract_struct_pub_fields(src: &str, struct_name: &str) -> Vec<String> {
     fields
 }
 
-fn extract_enum_variants(src: &str, enum_name: &str) -> Vec<String> {
+/// The variants of `pub enum enum_name` in `src`, empty when `src` does not
+/// define it.
+fn enum_variants(src: &str, enum_name: &str) -> Vec<String> {
     let prefix = format!("pub enum {enum_name}");
     let mut in_enum = false;
     let mut depth = 0usize;
@@ -1187,6 +1196,11 @@ fn extract_enum_variants(src: &str, enum_name: &str) -> Vec<String> {
             break;
         }
     }
+    variants
+}
+
+fn extract_enum_variants(src: &str, enum_name: &str) -> Vec<String> {
+    let variants = enum_variants(src, enum_name);
     assert!(
         !variants.is_empty(),
         "failed to extract variants for `pub enum {enum_name}`"
@@ -1204,10 +1218,12 @@ fn is_inherent_impl_for(line: &str, type_name: &str) -> bool {
     base == type_name
 }
 
-fn extract_impl_pub_fns(src: &str, type_name: &str) -> Vec<String> {
+/// The `pub fn` and `pub const fn` names, and with `with_consts` the
+/// `pub const` names, of every inherent `impl type_name` block in `src`.
+fn impl_pub_items(src: &str, type_name: &str, with_consts: bool) -> Vec<String> {
     let mut in_impl = false;
     let mut depth = 0usize;
-    let mut fns = Vec::new();
+    let mut items = Vec::new();
     for line in src.lines() {
         let trimmed = line.trim();
         if !in_impl {
@@ -1220,14 +1236,19 @@ fn extract_impl_pub_fns(src: &str, type_name: &str) -> Vec<String> {
         if depth == 1 {
             let after_pub = trimmed
                 .strip_prefix("pub const fn ")
-                .or_else(|| trimmed.strip_prefix("pub fn "));
+                .or_else(|| trimmed.strip_prefix("pub fn "))
+                .or_else(|| {
+                    with_consts
+                        .then(|| trimmed.strip_prefix("pub const "))
+                        .flatten()
+                });
             if let Some(rest) = after_pub {
                 let ident: String = rest
                     .chars()
                     .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
                     .collect();
                 if !ident.is_empty() {
-                    fns.push(ident);
+                    items.push(ident);
                 }
             }
         }
@@ -1237,6 +1258,11 @@ fn extract_impl_pub_fns(src: &str, type_name: &str) -> Vec<String> {
             in_impl = false;
         }
     }
+    items
+}
+
+fn extract_impl_pub_fns(src: &str, type_name: &str) -> Vec<String> {
+    let fns = impl_pub_items(src, type_name, false);
     assert!(
         !fns.is_empty(),
         "failed to extract inherent pub fns for `impl {type_name}`"
@@ -1244,7 +1270,9 @@ fn extract_impl_pub_fns(src: &str, type_name: &str) -> Vec<String> {
     fns
 }
 
-fn extract_trait_fns(src: &str, trait_name: &str) -> Vec<String> {
+/// The method names of `pub trait trait_name` in `src`, empty when `src` does
+/// not define it.
+fn trait_fns(src: &str, trait_name: &str) -> Vec<String> {
     let prefix = format!("pub trait {trait_name}");
     let mut in_trait = false;
     let mut depth = 0usize;
@@ -1280,6 +1308,11 @@ fn extract_trait_fns(src: &str, trait_name: &str) -> Vec<String> {
             break;
         }
     }
+    fns
+}
+
+fn extract_trait_fns(src: &str, trait_name: &str) -> Vec<String> {
+    let fns = trait_fns(src, trait_name);
     assert!(
         !fns.is_empty(),
         "failed to extract trait fns for `pub trait {trait_name}`"
@@ -1301,6 +1334,247 @@ fn extract_pub_traits(src: &str) -> Vec<String> {
         }
     }
     traits
+}
+
+fn leading_ident(s: &str) -> String {
+    s.chars()
+        .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+        .collect()
+}
+
+/// Every `.rs` file under `dir`, recursively, with its text, sorted by path.
+fn rust_sources_under(dir: &Path) -> Vec<(PathBuf, String)> {
+    let mut pending = vec![dir.to_path_buf()];
+    let mut files = Vec::new();
+    while let Some(next) = pending.pop() {
+        let entries = std::fs::read_dir(&next)
+            .unwrap_or_else(|err| panic!("failed to list {}: {err}", next.display()));
+        for entry in entries {
+            let path = entry
+                .unwrap_or_else(|err| {
+                    panic!("failed to read an entry of {}: {err}", next.display())
+                })
+                .path();
+            if path.is_dir() {
+                pending.push(path);
+            } else if path.extension().is_some_and(|ext| ext == "rs") {
+                let src = std::fs::read_to_string(&path)
+                    .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+                files.push((path, src));
+            }
+        }
+    }
+    files.sort_by(|a, b| a.0.cmp(&b.0));
+    files
+}
+
+/// Whether the trimmed line `trimmed` opens `pub <kind> <name>`.
+fn opens_item(trimmed: &str, kind: &str, name: &str) -> bool {
+    trimmed
+        .strip_prefix("pub ")
+        .and_then(|rest| rest.strip_prefix(kind))
+        .and_then(|rest| rest.strip_prefix(' '))
+        .and_then(|rest| rest.strip_prefix(name))
+        .is_some_and(|rest| {
+            rest.chars()
+                .next()
+                .is_none_or(|c| !(c.is_ascii_alphanumeric() || c == '_'))
+        })
+}
+
+/// The name a `pub use` item brings into scope: its alias, or its last path
+/// segment.
+fn use_item_name(item: &str) -> String {
+    match item.split_once(" as ") {
+        Some((_, alias)) => alias.trim().to_owned(),
+        None => item.rsplit("::").next().unwrap_or(item).trim().to_owned(),
+    }
+}
+
+/// Every name `aria_sdk` exports: each `pub use` name or alias in `lib.rs`,
+/// each item declared `pub` at the root of `lib.rs`, and each
+/// `#[macro_export]` macro under `src/` as `name!`.
+fn sdk_exports(lib_src: &str, sdk_sources: &[(PathBuf, String)]) -> Vec<String> {
+    let mut exports = Vec::new();
+    let mut rest = lib_src;
+    while let Some(start) = rest.find("\npub use ") {
+        let statement_start = &rest[start + "\npub use ".len()..];
+        let end = statement_start
+            .find(';')
+            .expect("a `pub use` statement in aria-sdk lib.rs ends with `;`");
+        let statement = statement_start[..end]
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        match statement.split_once("::{") {
+            Some((_, group)) => {
+                let group = group
+                    .strip_suffix('}')
+                    .unwrap_or_else(|| panic!("unterminated `pub use` group: {statement}"));
+                assert!(
+                    !group.contains('{'),
+                    "nested `pub use` group in aria-sdk lib.rs: {statement}"
+                );
+                exports.extend(
+                    group
+                        .split(',')
+                        .map(str::trim)
+                        .filter(|item| !item.is_empty())
+                        .map(use_item_name),
+                );
+            }
+            None => exports.push(use_item_name(&statement)),
+        }
+        rest = &statement_start[end..];
+    }
+    for line in lib_src.lines() {
+        let Some(item) = line.strip_prefix("pub ") else {
+            continue;
+        };
+        if item.starts_with("use ") {
+            continue;
+        }
+        let after_keyword = [
+            "const fn ",
+            "unsafe fn ",
+            "fn ",
+            "struct ",
+            "enum ",
+            "trait ",
+            "type ",
+            "const ",
+            "static ",
+            "mod ",
+            "union ",
+        ]
+        .into_iter()
+        .find_map(|keyword| item.strip_prefix(keyword))
+        .unwrap_or_else(|| panic!("unrecognised root item in aria-sdk lib.rs: `{line}`"));
+        exports.push(leading_ident(after_keyword));
+    }
+    for (path, src) in sdk_sources {
+        let mut rest = src.as_str();
+        while let Some(at) = rest.find("#[macro_export]") {
+            let after = &rest[at..];
+            let name_start = after.find("macro_rules!").unwrap_or_else(|| {
+                panic!(
+                    "`#[macro_export]` without `macro_rules!` in {}",
+                    path.display()
+                )
+            }) + "macro_rules!".len();
+            exports.push(format!(
+                "{}!",
+                leading_ident(after[name_start..].trim_start())
+            ));
+            rest = &after[name_start..];
+        }
+    }
+    exports
+}
+
+/// The members the chapter documenting the `aria_sdk` item `name` must state:
+/// a struct's `pub` fields, an enum's variants, a trait's methods, and the
+/// `pub` functions and constants of its inherent impls in any SDK file. An
+/// item that is not a struct, enum, or trait (a module, function, constant,
+/// macro, alias, or re-exported crate) and a type marked `#[doc(hidden)]` have
+/// none.
+fn sdk_item_members(sdk_sources: &[(PathBuf, String)], name: &str) -> Vec<String> {
+    let mut members = Vec::new();
+    let mut definitions = 0usize;
+    for (_, src) in sdk_sources {
+        let lines: Vec<&str> = src.lines().collect();
+        for (idx, line) in lines.iter().enumerate() {
+            let trimmed = line.trim();
+            let Some(kind) = ["struct", "enum", "trait"]
+                .into_iter()
+                .find(|kind| opens_item(trimmed, kind, name))
+            else {
+                continue;
+            };
+            definitions += 1;
+            let hidden = lines[..idx]
+                .iter()
+                .rev()
+                .map(|above| above.trim())
+                .take_while(|above| above.starts_with("///") || above.starts_with("#["))
+                .any(|above| above == "#[doc(hidden)]");
+            if hidden {
+                return Vec::new();
+            }
+            members.extend(match kind {
+                "struct" => struct_pub_fields(src, name),
+                "enum" => enum_variants(src, name),
+                _ => trait_fns(src, name),
+            });
+        }
+        members.extend(impl_pub_items(src, name, true));
+    }
+    assert!(
+        definitions <= 1,
+        "`{name}` is defined {definitions} times in aria-sdk"
+    );
+    members
+}
+
+/// Every identifier inside an inline code span or a fenced code block of
+/// `markdown`.
+fn markdown_code_identifiers(markdown: &str) -> BTreeSet<String> {
+    let mut code = String::new();
+    let mut prose = String::new();
+    let mut in_fence = false;
+    for line in markdown.lines() {
+        if line.trim_start().starts_with("```") {
+            in_fence = !in_fence;
+            continue;
+        }
+        let target = if in_fence { &mut code } else { &mut prose };
+        target.push_str(line);
+        target.push('\n');
+    }
+    for token in extract_backticked_tokens(&prose) {
+        code.push_str(&token);
+        code.push('\n');
+    }
+    code.split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+        .filter(|word| !word.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
+
+/// The identifiers of the backticked tokens in `cell` that are called as
+/// `ident<marker>`, such as `clip(` or `mount(&self`.
+fn called_idents(cell: &str, marker: &str) -> Vec<String> {
+    extract_backticked_tokens(cell)
+        .into_iter()
+        .filter_map(|token| {
+            let ident = leading_ident(&token);
+            (!ident.is_empty() && token[ident.len()..].starts_with(marker)).then_some(ident)
+        })
+        .collect()
+}
+
+/// The file a Markdown link in `cell` points to, without its fragment.
+fn link_target(cell: &str) -> &str {
+    let (_, after) = cell
+        .split_once("](")
+        .unwrap_or_else(|| panic!("cell `{cell}` holds no Markdown link"));
+    let (target, _) = after
+        .split_once(')')
+        .unwrap_or_else(|| panic!("unterminated Markdown link in `{cell}`"));
+    target.split('#').next().unwrap_or(target)
+}
+
+/// The backticked tokens of the text in `markdown` that follows `intro` and
+/// ends at `end`, with line breaks read as spaces.
+fn listed_after(markdown: &str, intro: &str, end: &str) -> Vec<String> {
+    let flat = markdown.split_whitespace().collect::<Vec<_>>().join(" ");
+    let (_, after) = flat
+        .split_once(intro)
+        .unwrap_or_else(|| panic!("no text `{intro}` in the chapter"));
+    let (list, _) = after
+        .split_once(end)
+        .unwrap_or_else(|| panic!("no `{end}` after `{intro}` in the chapter"));
+    extract_backticked_tokens(list)
 }
 
 #[test]
@@ -1633,7 +1907,7 @@ fn interchange_doc_matches_interchange_encoder_decoder_registries_bidirectionall
     let enc_tables = parse_markdown_tables(extract_heading_section(&doc, "## Encoders"));
     assert_eq!(enc_tables.len(), 2);
     let dec_tables = parse_markdown_tables(extract_heading_section(&doc, "## Decoders"));
-    assert_eq!(dec_tables.len(), 2);
+    assert_eq!(dec_tables.len(), 3);
 
     // Combined PluginContext calls in interchange.rs (importers/exporters + encoders).
     let mut doc_interchange_calls = extract_call_names_from_table(&imp_tables[0]);
@@ -1701,6 +1975,19 @@ fn interchange_doc_matches_interchange_encoder_decoder_registries_bidirectionall
                 .unwrap_or_else(|| panic!("missing `{ty}` row")),
         );
     }
+
+    // Native decoders: the `FrameFormat` table lists every SDK pixel layout.
+    let sdk_decoders_src = read_workspace_file("crates/aria-sdk/src/decoders.rs");
+    let doc_formats: Vec<String> = dec_tables[2]
+        .rows
+        .iter()
+        .map(|row| extract_backticked_tokens(&row[0]).remove(0))
+        .collect();
+    assert_key_parity(
+        "interchange.md aria_sdk::FrameFormat variants",
+        &extract_enum_variants(&sdk_decoders_src, "FrameFormat"),
+        &doc_formats,
+    );
 }
 
 #[test]
@@ -2029,4 +2316,257 @@ fn commands_menus_and_analyzers_docs_match_context_key_menu_location_and_analyze
         doc_scopes, expected_scopes,
         "docs/plugins/analyzers.md Scope and menus table drifted from AnalyzerScope::ALL"
     );
+}
+
+/// `docs/plugins/native.md` against `crates/aria-sdk/src`, every member set
+/// enumerated from the source at run time:
+/// - the host API table lists each `pub fn` of every inherent `impl Host` in
+///   any SDK file, and each `Plugin` trait method as `name(&self`;
+/// - the project types table lists each type `project.rs` declares with its
+///   fields or variants and its inherent `pub` functions and constants;
+/// - the SDK exports table lists each `aria_sdk` export once, and the linked
+///   chapter states the export and each of its members inside code.
+///
+/// Closes the class where an SDK method, callback, type, field, variant, or
+/// export is added without documentation, or the documentation keeps a removed
+/// one. It does not catch a member whose name is a common word (`new`, `id`)
+/// that the linked chapter states for another reason, nor a wrong description.
+#[test]
+fn native_doc_matches_sdk_host_plugin_project_and_export_registries() {
+    let doc = read_workspace_file("docs/plugins/native.md");
+    let sdk_dir = workspace_root().join("crates/aria-sdk/src");
+    let sdk_sources = rust_sources_under(&sdk_dir);
+    let sdk_file = |rel: &str| {
+        let path = sdk_dir.join(rel);
+        sdk_sources
+            .iter()
+            .position(|(candidate, _)| *candidate == path)
+            .unwrap_or_else(|| panic!("missing aria-sdk source {rel}"))
+    };
+    let lib_src = sdk_sources[sdk_file("lib.rs")].1.as_str();
+
+    // 1. The host API table.
+    let api_tables = parse_markdown_tables(extract_heading_section(&doc, "## `aria-sdk` host API"));
+    assert_eq!(api_tables.len(), 2, "host API and project types tables");
+    assert_eq!(
+        api_tables[0].headers,
+        ["Group", "`Host` calls", "`Plugin` callbacks"]
+    );
+    let mut doc_host_calls = Vec::new();
+    let mut doc_plugin_callbacks = Vec::new();
+    for row in &api_tables[0].rows {
+        assert_eq!(row.len(), 3, "host API row {row:?} does not have 3 columns");
+        doc_host_calls.extend(called_idents(&row[1], "("));
+        doc_plugin_callbacks.extend(called_idents(&row[2], "(&self"));
+    }
+    let host_fns: Vec<String> = sdk_sources
+        .iter()
+        .flat_map(|(_, src)| impl_pub_items(src, "Host", false))
+        .collect();
+    assert!(!host_fns.is_empty(), "no `impl Host` pub fns in aria-sdk");
+    assert_key_parity(
+        "docs/plugins/native.md Host calls",
+        &host_fns,
+        &doc_host_calls,
+    );
+    assert_key_parity(
+        "docs/plugins/native.md Plugin callbacks",
+        &extract_trait_fns(lib_src, "Plugin"),
+        &doc_plugin_callbacks,
+    );
+
+    // 2. The project types table.
+    let project_src = sdk_sources[sdk_file("project.rs")].1.as_str();
+    let project_types: Vec<String> = project_src
+        .lines()
+        .filter_map(|line| {
+            ["pub struct ", "pub enum "]
+                .into_iter()
+                .find_map(|keyword| line.strip_prefix(keyword))
+        })
+        .map(leading_ident)
+        .collect();
+    let doc_types = extract_type_members_map(&api_tables[1]);
+    assert_key_parity(
+        "docs/plugins/native.md aria_sdk project types",
+        &project_types,
+        &doc_types.keys().cloned().collect::<Vec<_>>(),
+    );
+    for ty in &project_types {
+        assert_key_parity(
+            &format!("docs/plugins/native.md aria_sdk::{ty} members"),
+            &sdk_item_members(&sdk_sources, ty),
+            &doc_types[ty],
+        );
+    }
+
+    // 3. The SDK exports table.
+    let export_tables = parse_markdown_tables(extract_heading_section(&doc, "## SDK exports"));
+    assert_eq!(export_tables.len(), 1);
+    assert_eq!(export_tables[0].headers, ["Chapter", "Exports"]);
+    let mut doc_exports = Vec::new();
+    for row in &export_tables[0].rows {
+        let chapter_path = format!("docs/plugins/{}", link_target(&row[0]));
+        let chapter = read_workspace_file(&chapter_path);
+        let stated = markdown_code_identifiers(&chapter);
+        for export in extract_backticked_tokens(&row[1]) {
+            let ident = export.strip_suffix('!').unwrap_or(&export);
+            assert!(
+                stated.contains(ident) && chapter.contains(export.as_str()),
+                "{chapter_path} does not state `{export}` in code"
+            );
+            let missing: Vec<String> = sdk_item_members(&sdk_sources, ident)
+                .into_iter()
+                .filter(|member| !stated.contains(member))
+                .collect();
+            assert!(
+                missing.is_empty(),
+                "{chapter_path} documents `{export}` without its members {missing:?}"
+            );
+            doc_exports.push(export);
+        }
+    }
+    assert_key_parity(
+        "docs/plugins/native.md SDK exports",
+        &sdk_exports(lib_src, &sdk_sources),
+        &doc_exports,
+    );
+}
+
+/// `docs/plugins/panels.md` states that the `aria-sdk` `UiNode`, `PanelEvent`,
+/// and `Tone` have the variants of the in-process types, lists the SDK
+/// `PanelLocation` variants, and lists every `Tone`.
+#[test]
+fn panels_doc_states_sdk_panel_variants_and_tones() {
+    let doc = read_workspace_file("docs/plugins/panels.md");
+    let sdk_src = read_workspace_file("crates/aria-sdk/src/panels.rs");
+    let host_src = read_workspace_file("crates/aria-plugin/src/ui_tree.rs");
+    for ty in ["UiNode", "PanelEvent", "Tone"] {
+        assert_key_parity(
+            &format!("aria_sdk::{ty} against aria_plugin::{ty}"),
+            &extract_enum_variants(&host_src, ty),
+            &extract_enum_variants(&sdk_src, ty),
+        );
+    }
+    assert_key_parity(
+        "docs/plugins/panels.md SDK PanelLocation",
+        &extract_enum_variants(&sdk_src, "PanelLocation"),
+        &listed_after(&doc, "the SDK `PanelLocation` is ", "."),
+    );
+    assert_key_parity(
+        "docs/plugins/panels.md Tone",
+        &extract_enum_variants(&host_src, "Tone"),
+        &listed_after(&doc, "A `Tone` is ", ", drawn"),
+    );
+}
+
+/// `docs/plugins/audio-effects.md`: the `AudioBlock` call table lists each
+/// `pub fn` of `aria_render::AudioBlock`, and its `param` row states each
+/// `ParamSignal` variant and method.
+#[test]
+fn audio_effects_doc_matches_audio_block_and_param_signal() {
+    let doc = read_workspace_file("docs/plugins/audio-effects.md");
+    let src = read_workspace_file("crates/aria-render/src/audio_processor.rs");
+    let tables = parse_markdown_tables(extract_heading_section(&doc, "## Processing"));
+    assert_eq!(tables.len(), 1);
+    assert_eq!(tables[0].headers, ["`AudioBlock` call", "Result"]);
+    assert_key_parity(
+        "docs/plugins/audio-effects.md AudioBlock calls",
+        &extract_impl_pub_fns(&src, "AudioBlock"),
+        &extract_call_names_from_table(&tables[0]),
+    );
+    let param_row = tables[0]
+        .rows
+        .iter()
+        .find(|row| row[0] == "`param(slot)`")
+        .expect("`param(slot)` row");
+    let stated = markdown_code_identifiers(&param_row[1]);
+    let mut signal_members = extract_enum_variants(&src, "ParamSignal");
+    signal_members.extend(extract_impl_pub_fns(&src, "ParamSignal"));
+    let missing: Vec<&String> = signal_members
+        .iter()
+        .filter(|member| !stated.contains(*member))
+        .collect();
+    assert!(
+        missing.is_empty(),
+        "docs/plugins/audio-effects.md `param(slot)` row omits ParamSignal {missing:?}"
+    );
+}
+
+/// `docs/plugins/settings.md`: the kind table lists each `SettingKind`
+/// variant, and each `plugin.toml` `type` value the chapter lists parses
+/// through `PackageManifest::parse` to a distinct variant that
+/// `SettingKind::label` spells the same way. A new variant fails until the
+/// chapter lists its row and its `type` spelling.
+#[test]
+fn settings_doc_matches_setting_kind_variants_and_plugin_toml_types() {
+    let doc = read_workspace_file("docs/plugins/settings.md");
+    let src = read_workspace_file("crates/aria-plugin/src/settings_schema.rs");
+    let variants = extract_enum_variants(&src, "SettingKind");
+    let tables = parse_markdown_tables(&doc);
+    assert_eq!(tables.len(), 1);
+    assert_eq!(tables[0].headers, ["Kind", "Row", "Stored as"]);
+    let doc_kinds: Vec<String> = tables[0]
+        .rows
+        .iter()
+        .map(|row| leading_ident(&extract_backticked_tokens(&row[0]).remove(0)))
+        .collect();
+    assert_key_parity(
+        "docs/plugins/settings.md SettingKind rows",
+        &variants,
+        &doc_kinds,
+    );
+    let parsed_variants: Vec<String> = listed_after(&doc, "`type` is ", ".")
+        .into_iter()
+        .map(|type_name| {
+            let options = if type_name == "choice" {
+                "options = [\"a\"]\n"
+            } else {
+                ""
+            };
+            let manifest = format!(
+                "{MINIMAL_PLUGIN_HEADER}\n[[settings]]\nkey = \"k\"\nlabel = \"K\"\ntype = \"{type_name}\"\n{options}"
+            );
+            let parsed = PackageManifest::parse(&manifest).unwrap_or_else(|err| {
+                panic!("docs/plugins/settings.md `type = \"{type_name}\"` failed to parse: {err}")
+            });
+            let [setting] = parsed.settings.as_slice() else {
+                panic!("`type = \"{type_name}\"` parsed to {} settings", parsed.settings.len());
+            };
+            assert_eq!(
+                setting.kind.label(),
+                type_name,
+                "SettingKind::label spells `type = \"{type_name}\"` differently"
+            );
+            leading_ident(&format!("{:?}", setting.kind))
+        })
+        .collect();
+    assert_key_parity(
+        "docs/plugins/settings.md plugin.toml `type` values",
+        &variants,
+        &parsed_variants,
+    );
+}
+
+/// `docs/plugins/effects.md` states the `Curve` and `Gradient` lookup table
+/// sizes, and `aria_plugin` and `aria_sdk` define the same sizes.
+#[test]
+fn effects_doc_states_lut_sample_counts_of_both_tiers() {
+    let doc = read_workspace_file("docs/plugins/effects.md");
+    let curve = aria_plugin::EFFECT_CURVE_LUT_SAMPLES;
+    let gradient = aria_plugin::EFFECT_GRADIENT_LUT_SAMPLES;
+    assert_eq!(aria_sdk::EFFECT_CURVE_LUT_SAMPLES, curve);
+    assert_eq!(aria_sdk::EFFECT_GRADIENT_LUT_SAMPLES, gradient);
+    for row in [
+        format!("| `Curve` | `array<f32, {curve}>` ({curve}-sample LUT over `0..1`) | {curve} |"),
+        format!(
+            "| `Gradient` | `array<vec4<f32>, {gradient}>` ({gradient}-sample linear RGBA LUT over `0..1`) | {} |",
+            gradient * 4
+        ),
+    ] {
+        assert!(
+            doc.contains(&row),
+            "docs/plugins/effects.md has no parameter row `{row}`"
+        );
+    }
 }

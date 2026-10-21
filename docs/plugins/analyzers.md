@@ -61,6 +61,9 @@ unmounts, or the plugin fails.
 | `category` | Optional grouping. |
 | `scope` | `Clip`, `Sequence`, or `InOut`. |
 
+`AnalyzerSpec::new(id, label, scope)` builds a spec with no category, and
+`with_category(category)` sets it.
+
 Registration fails with `PluginError::AnalyzerRefused` for an empty,
 unnamespaced, or malformed id, an id already registered on the context, or a
 blank label.
@@ -130,6 +133,16 @@ They run through the same contribution point as plugin analyzers.
 A native plugin built with `aria-sdk` calls `Host::register_analyzer(spec,
 analyzer)`. `Analyzer::open(host, sample_rate, channels)` returns an
 `AnalyzerRun`; the host calls `push(samples)` per block and `finish()` once.
+`Host::register_analyzer_spec(&spec)` registers the spec with no `Analyzer`
+object, and the host opens each run through
+`Plugin::analyzer_open(&self, host, id, sample_rate, channels)`.
+
+`finish` returns `aria_sdk::AnalyzerResult` with the fields under
+[Results](#results). Its `markers` are `AnalyzerMarker` values (`frame`,
+`duration_frames`, `name`, and `color`, a `MarkerColor`), its `ranges` are
+`AnalyzerRange` values (`start`, the first frame; `end`, the frame after the
+span; `label`), and its `loudness` is an `AnalyzerLoudness`
+(`integrated_lufs`, `true_peak_db`, and `range_lu`).
 
 A WebAssembly component imports `register-analyzer(spec)` and exports
 `analyzer-open(id, sample-rate, channels)`, `analyzer-push(instance,

@@ -119,6 +119,16 @@ Registration returns `PluginError::InterchangeRefused(message)` when:
 - an extension is empty or holds anything but ASCII letters and digits,
   such as a leading dot.
 
+In the native C ABI tier (`aria-sdk`), register an importer with
+`Host::register_importer(&ImporterSpec)` and an exporter with
+`Host::register_exporter(&ExporterSpec)`; both specs hold the fields above.
+`Plugin::import(&self, host, importer_id, path)` returns an `ImportResult`:
+`commands_json`, a JSON array of `aria_commands::Command` that the host
+applies as one transaction, and `skipped`. `ImportResult::new(commands_json,
+skipped)` builds one. `Plugin::export(&self, host, exporter_id, project_json,
+path)` writes `path` and returns an `ExportReport` whose `skipped` lists what
+the format could not represent.
+
 ## Encoders
 
 A plugin adds an output format to the media Export dialog by registering an
@@ -242,6 +252,17 @@ least `ARIA_PLUGIN_V1_ENCODERS_SIZE` (`AriaPluginV1::has_encoders()`) participat
 encoder registration; earlier `ARIA_PLUGIN_V1_MIN_SIZE` and
 `ARIA_PLUGIN_V1_PANELS_SIZE` tables remain loadable without encoder callbacks.
 
+`Encoder::open(host, path, config)` and `Plugin::encoder_open` receive an
+`EncoderConfig`: `width` and `height` in pixels, the frame rate as
+`fps_num / fps_den`, `video_bitrate_kbps` (0 when the export requests none),
+and `audio_bitrate_kbps` (0). `EncoderSession::push_frame` receives an
+`EncoderFrame`: `rgba` holds `height` rows of `stride` bytes of straight-alpha
+RGBA8, top row first, and the frame starts `pts_value / pts_rate` seconds into
+the file. `EncoderSession::push_audio` receives an `EncoderAudio`: `samples`
+interleaved at `channels` per sample frame and `sample_rate` frames per
+second, starting `pts_value / pts_rate` seconds into the file.
+`EncoderSession::finish` writes the container and flushes the file.
+
 ## Decoders
 
 A plugin reads a media format by registering a [`DecoderSpec`] and an
@@ -330,11 +351,39 @@ In the native C ABI tier (`aria-sdk`), register a decoder with
 `Host::register_decoder(DecoderSpec, impl Decoder)`. `Decoder::probe` returns a
 `DecoderProbe`, `Decoder::open_video` returns a `VideoInfo` and a
 `Box<dyn VideoStream>` whose `next_frame` fills host-allocated planes, and
-`Decoder::open_audio` returns a `Box<dyn AudioStream>`. Return
-`DecodeFailure::Unsupported` to pass the file to the next decoder. Tables whose
+`Decoder::open_audio` returns a `Box<dyn AudioStream>`. `DecoderProbe` holds
+`width`, `height`, the frame rate as `frame_rate_num / frame_rate_den`,
+`frame_count` (0 when unknown), `has_audio`, `is_image`, and `video_codec` and
+`audio_codec` (`None` when unknown). A call fails with a `DecodeFailure`:
+`Unsupported(reason)` passes the file to the next decoder, and
+`Failed(reason)` reports that the decoder reads the file and failed. Tables whose
 `struct_size` is at least `ARIA_PLUGIN_V1_DECODERS_SIZE` (`AriaPluginV1::has_decoders()`)
 register decoders; shorter tables remain loadable without them. See
 [Native plugins](native.md#c-abi-tables-and-size-negotiation).
+
+`VideoInfo` reports `width` and `height` (even, at most 16384), `format`,
+`color`, the frame rate as `frame_rate_num / frame_rate_den`, the time base of
+every pts as `time_base_num / time_base_den`, and `duration` in time-base
+ticks when known. `format` is a `FrameFormat`:
+
+| `FrameFormat` | Planes |
+| --- | --- |
+| `Nv12` | A full-size Y plane, then one plane of interleaved U and V at half width and half height |
+| `Yuv420p` | Y, U, and V planes; U and V at half width and half height |
+
+`color` is a `FrameColor`: `Bt709` and `Bt601` (limited range), `Bt2020Pq`
+(BT.2020 primaries with the PQ transfer), or `Srgb` (full range).
+
+`VideoStream::next_frame(planes)` receives one `FramePlane` per plane, in plane
+order. `data` holds `rows * stride` bytes, zeroed on entry; `stride` is the
+frame width, or half of it for the U and V planes of `Yuv420p`; `rows` is the
+frame height for the Y plane and half of it for the others. It returns the
+frame's pts in time-base ticks, or `None` at end of stream.
+`VideoStream::seek(pts)` positions the stream at the sync frame at or before
+`pts`. `AudioStream::read(out)` writes interleaved samples at the rate and
+channel count the stream was opened with and returns the count written, a
+multiple of the channel count; `AudioStream::seek(frame)` positions the next
+read at sample frame `frame`.
 
 In the WebAssembly tier, call `register-decoder` during `mount` and implement
 the `decoder-*` exports; see [Media Decoders](wasm.md#media-decoders).

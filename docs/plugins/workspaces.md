@@ -63,6 +63,11 @@ fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
 | `focus` | `"media"`, `"preview"`, `"timeline"`, `"inspector"`, `"assistant"`, or `"mixer"` (`WorkspaceFocus`) | none (`"timeline"`) | Pane receiving keyboard focus when the workspace is applied. |
 | `tree` | string | none (derived from pane sizes and visibility) | Serialized `DockTree` JSON string overriding the default dock split tree. |
 
+`WorkspaceFocus` is `Media` (the Project panel), `Preview` (the Viewer),
+`Timeline`, `Inspector` (Effect Controls), `Assistant`, or `Mixer`, spelled in
+lowercase in TOML and JSON. In `aria-sdk`, `WorkspaceSpec::new(id, name)`
+builds a spec with default panes, and `with_panes(panes)` sets them.
+
 Applying a workspace sets the panes, opens or closes the scope strip, moves
 the keyboard to the focus pane, and goes to the editor. It never changes the
 project and adds no undo step. Sizes are clamped to the range each pane

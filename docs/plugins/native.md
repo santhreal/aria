@@ -121,9 +121,14 @@ an unsandboxed-code confirmation prompt in the editor.
 
 `aria_sdk::export!(PluginType)` requires `PluginType: Plugin + Default + Send +
 Sync + 'static` (or pass an explicit initializer with
-`aria_sdk::export!(PluginType, init_expr)`). During `Plugin::mount(&self, host:
-&Host)` and inside trait or handler callbacks, `Host` methods forward through
-the `AriaHostV1` function table:
+`aria_sdk::export!(PluginType, init_expr)`). `export!` builds a static
+`aria_sdk::PluginRuntime<PluginType>` that dispatches each `AriaPluginV1`
+callback into the plugin; `PluginRuntime` is public only for the macro's
+expansion. `aria_sdk::panic_message(payload)` returns the text of a panic
+payload caught with `std::panic::catch_unwind`, or `plugin panicked` when the
+payload holds no string. During `Plugin::mount(&self, host: &Host)` and inside
+trait or handler callbacks, `Host` methods forward through the `AriaHostV1`
+function table:
 
 | Group | `Host` calls | `Plugin` callbacks |
 | --- | --- | --- |
@@ -132,9 +137,10 @@ the `AriaHostV1` function table:
 | Settings | `setting_get(key)` (`Result<Option<Value>, String>`), `setting_get_json(key)` | |
 | Commands | `register_command(id, title)` | `command_run(&self, host, id, args_json)` |
 | Events | `subscribe(event_kind)`, `subscribe_with_priority(event_kind, priority)` ([kinds and payloads](events.md#external-plugins)) | `event(&self, host, kind, event_json) -> Result<EventResponse, String>` |
-| Project & view | `project_snapshot()`, `project_snapshot_json()`, `editor_view()`, `editor_view_json()`, `clip(id)`, `clips_in_range(sequence, range)`, `clips_at(sequence, tick)`, `selected_clips()`, `markers_in_range(sequence, range)`, `in_out()`, `project_transact(label, commands)`, `project_transact_json(label, commands_json)`, `project_undo()` | |
+| Project & view | `project_snapshot()`, `project_snapshot_json()`, `editor_view()`, `editor_view_json()`, `clip(id)`, `clip_json(id)`, `clips_in_range(sequence, range)`, `clips_in_range_json(sequence, range_json)`, `clips_at(sequence, tick)`, `clips_at_json(sequence, tick_json)`, `selected_clips()`, `selected_clips_json()`, `markers_in_range(sequence, range)`, `markers_in_range_json(sequence, range_json)`, `in_out()`, `in_out_json()`, `project_transact(label, commands)`, `project_transact_json(label, commands_json)`, `project_undo()` | |
 | Interchange | `register_importer(&ImporterSpec)`, `register_exporter(&ExporterSpec)`, `register_encoder(EncoderSpec, impl Encoder)`, `register_encoder_spec(&EncoderSpec)` | `import(&self, host, importer_id, path)`, `export(&self, host, exporter_id, project_json, path)`, `encoder_open(&self, host, encoder_id, path, config)` |
 | Audio effects | `register_audio_effect(&AudioEffectSpec)` | `audio_create(&self, host, effect_id, sample_rate) -> Result<Box<dyn AudioProcessor>, String>` |
+| Analyzers | `register_analyzer(AnalyzerSpec, impl Analyzer)`, `register_analyzer_spec(&AnalyzerSpec)` | `analyzer_open(&self, host, id, sample_rate, channels) -> Result<Box<dyn AnalyzerRun>, String>` ([Analyzers](analyzers.md)) |
 | Panels | `register_panel(PanelSpec, impl Panel)`, `register_panel_spec(&PanelSpec)`, `refresh_panel(id)` | `panel_view(&self, host, panel_id)`, `panel_event(&self, host, panel_id, event)` |
 | Viewer overlays | `register_viewer_overlay(id, title)`, `refresh_viewer_overlay(id)` | `overlay_scene(&self, host, id) -> OverlayScene`, `overlay_event(&self, host, id, event)` |
 | Jobs | `start_job(label) -> Result<u64, String>` | `job_step(&self, host, job) -> Result<JobStep, String>`, `job_end(&self, host, job, cancelled)` |
@@ -145,6 +151,29 @@ the `AriaHostV1` function table:
 | Clip types | `register_clip_type(&ClipTypeSpec)`, `define_clip_type(&ClipTypeSpec, &ClipTypeSchema, &[GraphPass])`, `define_cpu_clip_type(&ClipTypeSpec, &ClipTypeSchema, impl CpuEffect)`, `define_cpu_clip_type_spec(&ClipTypeSpec, &ClipTypeSchema)` | `cpu_effect_process` called with the type's id for a CPU type ([Clip types](clip-types.md#defined-types)) |
 | Drivers | `register_driver_language(DriverLanguageSpec, impl DriverLanguage)`, `register_driver_language_spec(&DriverLanguageSpec)` | `driver_evaluate(&self, host, id, expr, &DriverVars) -> Result<ParamValue, String>` ([Drivers](drivers.md)) |
 | Presets, themes & workspaces | `register_preset(&PresetSpec)`, `register_preset_json(preset_json)`, `register_theme(id, toml)`, `register_workspace(&WorkspaceSpec)` | ([Presets](presets.md), [Workspaces](workspaces.md)) |
+
+Each project query has a `_json` form that takes and returns the JSON text
+crossing the C ABI. The clip, marker, and In and Out queries require the
+`project = "read"` or `"read-write"` permission. `sequence` is `None` for the
+open sequence. The typed forms use these `aria_sdk` types:
+
+| Type | Fields / Variants / Methods |
+| --- | --- |
+| `ClipRef` | `id`, `track`, `start`, `end`, `kind`, `name` |
+| `InOut` | `mark_in`, `mark_out` |
+| `Marker` | `id`, `tick`, `duration`, `name`, `color`, `comment`, `kind` |
+| `MarkerKind` | `Comment`, `Chapter`, `Segmentation`, `is_default` |
+| `Rational` | `num`, `den`, `FPS_24`, `FPS_25`, `FPS_30`, `FPS_60`, `new` |
+| `RationalTime` | `value`, `rate`, `new` |
+| `TimeRange` | `start`, `duration`, `new` |
+
+`Rational` is `num / den` ticks per second, and `RationalTime` is `value / rate`
+seconds. `TimeRange` is the half-open interval `[start, start + duration)`. A
+point marker has a `duration` of 0 ticks. A marker with no `kind` in its JSON
+is a `Comment`, and `MarkerKind::is_default()` reports a `Comment`.
+
+`LogLevel` is `Trace`, `Debug`, `Info`, `Warn`, or `Error`, the severity of a
+`log` line.
 
 `aria_sdk::GraphPass`, `PassStage`, `PassInput`, and `OutputSize` mirror the
 host's [effect graph](effects.md#effect-graphs) types, and `EffectSpec` sets the
@@ -168,6 +197,34 @@ Declared contributions in `plugin.toml` (`[[effects]]`, `[[generators]]`,
 `Plugin::mount` runs. If `[[commands]]` declares a command ID that
 `Plugin::mount` did not register with `host.register_command`, the host binds
 that ID to `Plugin::command_run` automatically after `mount` returns.
+
+## SDK exports
+
+Each item exported from `aria_sdk` is documented in one chapter:
+
+| Chapter | Exports |
+| --- | --- |
+| [Native plugins](native.md) | `Plugin`, `Host`, `LogLevel`, `export!`, `PluginRuntime`, `panic_message`, `ClipRef`, `InOut`, `Marker`, `MarkerKind`, `Rational`, `RationalTime`, `TimeRange`, `abi`, `serde_json` |
+| [Events](events.md) | `EventResponse`, `DropAction` |
+| [Jobs](jobs.md) | `JobStep` |
+| [Panels](panels.md) | `Panel`, `PanelEvent`, `PanelLocation`, `PanelSpec`, `PanelView`, `Tone`, `UiNode` |
+| [Viewer overlays](viewer-overlays.md) | `OverlaySpec`, `OverlayScene`, `OverlayShape`, `OverlayColor`, `HandleLook`, `OverlayEvent`, `DragPhase` |
+| [Effects](effects.md) | `EffectSpec`, `TransitionSpec`, `EffectParamKind`, `EffectParamDisplay`, `EFFECT_CURVE_LUT_SAMPLES`, `EFFECT_GRADIENT_LUT_SAMPLES`, `EffectBounds`, `GraphPass`, `PassStage`, `PassInput`, `OutputSize`, `CpuEffect`, `CpuFrameIn`, `CpuFrameOut`, `f16` |
+| [Packages](packages.md) | `EffectParamSpec`, `EffectChoiceOption`, `EffectCurvePoint`, `EffectGradientStop`, `EffectGroupSpec`, `EffectVisibilityCondition` |
+| [Clip types](clip-types.md) | `ClipTypeSpec`, `ClipTypeSchema`, `MarkerColor` |
+| [Audio effects](audio-effects.md) | `AudioEffectSpec`, `AudioParamSpec`, `AudioProcessor`, `AudioParam`, `AudioBlock` |
+| [Analyzers](analyzers.md) | `Analyzer`, `AnalyzerRun`, `AnalyzerSpec`, `AnalyzerScope`, `AnalyzerResult`, `AnalyzerMarker`, `AnalyzerRange`, `AnalyzerLoudness` |
+| [Interchange](interchange.md) | `ImporterSpec`, `ExporterSpec`, `ImportResult`, `ExportReport`, `Encoder`, `EncoderSpec`, `EncoderConfig`, `EncoderSession`, `EncoderFrame`, `EncoderAudio`, `Decoder`, `DecoderSpec`, `DecoderProbe`, `DecodeFailure`, `VideoInfo`, `VideoStream`, `AudioStream`, `FrameFormat`, `FrameColor`, `FramePlane` |
+| [Drivers](drivers.md) | `DriverLanguage`, `DriverLanguageSpec`, `DriverVars`, `ParamValue` |
+| [AI tools](ai-tools.md) | `AiToolSpec`, `AiToolTier`, `AiToolOutput`, `AiToolImage` |
+| [Scopes](scopes.md) | `ScopeSpec`, `ScopeFrame`, `ScopeImage` |
+| [Presets](presets.md) | `PresetSpec` |
+| [Workspaces](workspaces.md) | `WorkspaceSpec`, `WorkspacePanes`, `WorkspaceFocus` |
+
+`aria_sdk::abi` is the `aria-plugin-abi` crate, described in the
+[native ABI reference](native-abi-reference.md). `aria_sdk::serde_json` is the
+`serde_json` crate the SDK builds its JSON with, so a plugin needs no
+`serde_json` dependency of its own to match the SDK's version.
 
 ## C ABI tables and size negotiation
 

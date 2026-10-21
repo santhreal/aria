@@ -12,7 +12,7 @@
 //!
 //! Each test below reads the chapter via `include_str!` and compares its tables
 //! and per-entry sections against the runtime catalog in both directions, plus
-//! each parameter's `(name, label, kind, min, max, default)`.
+//! each parameter's `(name, label, kind, unit, min, max, default, animates)`.
 //!
 //! Not caught: prose descriptions of shader or DSP math outside the tables.
 
@@ -159,9 +159,39 @@ fn parse_color(cell: &str, context: &str) -> [u8; 4] {
         .unwrap_or_else(|_| panic!("{context}: expected 4 RGBA bytes in {cell:?}"))
 }
 
+/// Column headers of every effect, generator, transition, and audio effect
+/// parameter table. [`assert_effect_params_match`] compares each column with
+/// the catalog, so a column with no catalog field behind it fails the header
+/// check instead of shipping unverified.
+const PARAM_COLUMNS: [&str; 8] = [
+    "Name", "Label", "Kind", "Unit", "Min", "Max", "Default", "Animates",
+];
+
 /// Verifies that `section_body` documents `params` bijectively with matching
-/// `(name, label, kind, min, max, default)`.
-fn assert_effect_params_match(entry_id: &str, section_body: &str, params: &[EffectParamSpec]) {
+/// `(name, label, kind, unit, min, max, default, animates)`, where `animates`
+/// states whether the instance type stores the parameter as a keyframeable
+/// `Param`.
+fn assert_effect_params_match(
+    entry_id: &str,
+    section_body: &str,
+    params: &[EffectParamSpec],
+    animates: fn(&EffectParamSpec) -> bool,
+) {
+    for header in section_body
+        .lines()
+        .filter(|line| line.trim_start().starts_with("| Name |"))
+    {
+        let columns: Vec<&str> = header
+            .trim()
+            .trim_matches('|')
+            .split('|')
+            .map(str::trim)
+            .collect();
+        assert_eq!(
+            columns, PARAM_COLUMNS,
+            "{entry_id}: parameter table columns"
+        );
+    }
     let rows = table_rows(section_body);
     let doc_names: Vec<&str> = rows.iter().map(|r| unquote(r[0])).collect();
     let expected_names: Vec<&str> = params.iter().map(|p| p.name.as_str()).collect();
@@ -172,19 +202,40 @@ fn assert_effect_params_match(entry_id: &str, section_body: &str, params: &[Effe
 
     for (row, spec) in rows.iter().zip(params.iter()) {
         let ctx = format!("{entry_id}.{}", spec.name);
-        assert!(
-            row.len() >= 7,
-            "{ctx}: expected at least 7 columns, got {row:?}"
+        assert_eq!(
+            row.len(),
+            PARAM_COLUMNS.len(),
+            "{ctx}: expected {} columns, got {row:?}",
+            PARAM_COLUMNS.len()
         );
         assert_eq!(unquote(row[0]), spec.name, "{ctx}: name mismatch");
         assert_eq!(row[1], spec.label, "{ctx}: label mismatch");
         assert_eq!(unquote(row[2]), spec.kind.as_str(), "{ctx}: kind mismatch");
+        // A catalog unit is the suffix the inspector prints, so the table shows
+        // it verbatim. With no catalog unit the cell describes the scale, and
+        // `px` would claim canvas-pixel scaling the parameter does not get.
+        match spec.unit.as_deref() {
+            Some(unit) => assert_eq!(
+                unquote(row[3]),
+                unit,
+                "{ctx}: documented unit disagrees with the catalog unit"
+            ),
+            None => assert_ne!(
+                unquote(row[3]),
+                crate::CANVAS_PX_UNIT,
+                "{ctx}: documented as canvas pixels, but the catalog states no unit"
+            ),
+        }
+        let documented_animates = match unquote(row[7]) {
+            "yes" => true,
+            "no" => false,
+            other => panic!("{ctx}: Animates cell {other:?} is neither `yes` nor `no`"),
+        };
         assert_eq!(
-            unquote(row[3]) == crate::CANVAS_PX_UNIT,
-            spec.is_canvas_px(),
-            "{ctx}: documented unit {:?} disagrees with catalog unit {:?}",
-            row[3],
-            spec.unit
+            documented_animates,
+            animates(spec),
+            "{ctx}: documented Animates `{}` disagrees with the instance storage",
+            row[7]
         );
         match spec.kind {
             EffectParamKind::Scalar => {
@@ -244,10 +295,23 @@ fn assert_effect_params_match(entry_id: &str, section_body: &str, params: &[Effe
     }
 }
 
+/// Effect, generator, and audio effect instances store every keyframeable kind
+/// as a `Param` (`EffectInstance`, `AudioEffectInstance`), so those parameters
+/// animate exactly when their kind is keyframeable.
+fn keyframeable(spec: &EffectParamSpec) -> bool {
+    spec.kind.is_keyframeable()
+}
+
+/// A `Transition` stores its parameters as constants (`Map<String, f32>` and
+/// siblings), so no transition parameter animates.
+fn constant(_: &EffectParamSpec) -> bool {
+    false
+}
+
 /// **Every non-generator video effect and parameter in `effects.toml` matches `docs/reference/effects.md`.**
 ///
 /// Closes: undocumented video effect, stale effect entry, or drifted parameter
-/// `(kind, min, max, default)` in `docs/reference/effects.md`.
+/// `(kind, unit, min, max, default, animates)` in `docs/reference/effects.md`.
 /// Not caught: prose descriptions of WGSL formulas.
 #[test]
 fn video_effects_reference_matches_shipped_catalog() {
@@ -283,14 +347,14 @@ fn video_effects_reference_matches_shipped_catalog() {
     );
 
     for ((id, _, body), spec) in sections.iter().zip(catalog.iter()) {
-        assert_effect_params_match(id, body, &spec.params);
+        assert_effect_params_match(id, body, &spec.params, keyframeable);
     }
 }
 
 /// **Every clip generator and GPU effect generator matches `docs/reference/generators.md`.**
 ///
 /// Closes: undocumented `Generator` variant or GPU generator entry, stale
-/// entry, or drifted generator parameter `(kind, min, max, default)`.
+/// entry, or drifted generator parameter `(kind, unit, min, max, default, animates)`.
 /// Not caught: prose descriptions of generator shader internals.
 #[test]
 fn generators_reference_matches_shipped_catalogs() {
@@ -349,14 +413,14 @@ fn generators_reference_matches_shipped_catalogs() {
     );
 
     for ((id, _, body), spec) in sections.iter().zip(gpu_catalog.iter()) {
-        assert_effect_params_match(id, body, &spec.params);
+        assert_effect_params_match(id, body, &spec.params, keyframeable);
     }
 }
 
 /// **Every shipped transition and transition parameter matches `docs/reference/transitions.md`.**
 ///
 /// Closes: undocumented transition, stale transition entry, or drifted
-/// transition parameter `(kind, min, max, default)`.
+/// transition parameter `(kind, unit, min, max, default, animates)`.
 /// Not caught: prose descriptions of transition shader math.
 #[test]
 fn transitions_reference_matches_shipped_catalog() {
@@ -391,7 +455,7 @@ fn transitions_reference_matches_shipped_catalog() {
     );
 
     for ((id, _, body), spec) in sections.iter().zip(catalog.iter()) {
-        assert_effect_params_match(id, body, &spec.params);
+        assert_effect_params_match(id, body, &spec.params, constant);
     }
 
     let align_sec = section(
@@ -476,7 +540,7 @@ fn transitions_reference_matches_shipped_catalog() {
 /// **Every shipped audio effect and parameter matches `docs/reference/audio-effects.md`.**
 ///
 /// Closes: undocumented audio effect, stale audio effect entry, or drifted
-/// parameter `(kind, min, max, default)`, `latency`, or `sidechain`.
+/// parameter `(kind, unit, min, max, default, animates)`, `latency`, or `sidechain`.
 /// Not caught: prose descriptions of DSP algorithms.
 #[test]
 fn audio_effects_reference_matches_shipped_catalog() {
@@ -527,7 +591,7 @@ fn audio_effects_reference_matches_shipped_catalog() {
     );
 
     for ((id, _, body), spec) in sections.iter().zip(catalog.iter()) {
-        assert_effect_params_match(id, body, &spec.params);
+        assert_effect_params_match(id, body, &spec.params, keyframeable);
     }
 }
 

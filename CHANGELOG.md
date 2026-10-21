@@ -1394,6 +1394,9 @@ Notes for the latest release. For previous releases, see the
 - `docs/command-line.md` and `docs/plugins/` document every CLI verb, flag, plugin host call, type field, enum variant, and constant, and tests fail when a registry member and its page disagree.
 - `docs/reference/` documents every blend mode, mask mode, colour space, YUV matrix, starter LUT, project and sequence setting, animatable clip property, keyframe and graph editor control, export and subtitle preset, and video scope setting, and tests fail when a registry member has no entry.
 - Tests fail when a crate, count, package, encoder element, or registry identifier cited in `docs/architecture.md`, `features.md`, `install.md`, or `mcp-design.md` disagrees with the source, or when the `plugin.toml` in `docs/plugins/worked-example.md` does not parse and register.
+- `docs/plugins/native.md` lists each `aria_sdk` export with the chapter that documents it, each chapter states the export's fields, variants, and methods, and a test fails when an SDK host call, callback, project type, export, or member has no entry.
+- `docs/plugins/panels.md`, `audio-effects.md`, `settings.md`, and `effects.md` state the SDK panel locations and tones, every `AudioBlock` call and `ParamSignal` form, every setting kind with its `plugin.toml` `type` spelling, and the curve and gradient lookup table sizes, and tests fail when one disagrees with the source.
+- The parameter tables in `docs/reference/` state whether each effect, generator, transition, and audio effect parameter animates, and a test fails when a table's unit or Animates column disagrees with the catalog.
 
 ### Changed
 
@@ -2323,6 +2326,7 @@ Notes for the latest release. For previous releases, see the
 
 ### Fixed
 
+- The Rust example in `docs/plugins/presets.md` registers its preset in the `aria_sdk` `mount` callback instead of an `activate` method that no `Plugin` trait has, the `docs/plugins/audio-effects.md` example builds its parameter with `EffectParamSpec::scalar` instead of a struct literal missing fields, and `docs/reference/transitions.md` drops a Step column and `transitions.toml` a `step` key that no parser reads.
 - The Audio Meters clip light spans the panel, so its `CLIP` label stays inside the light in the 64 px launch frame, and the bars take the width the narrower scale gives up.
 - The Project panel's properties state a still's frame rate as `still image` instead of the 1000.000 fps tick base it was probed in.
 - The Project panel's group chips take the compact padding when their labels at the regular padding do not fit the panel, measured in the drawn face, so the launch layout reads Graphics, Effects, Library, and Analyze in full instead of cutting them at a fixed 260 px threshold.

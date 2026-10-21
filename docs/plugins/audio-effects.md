@@ -5,9 +5,7 @@ factory. The mixer runs it like a shipped effect: in a clip's chain, a lane's,
 or the master's, in playback, in export, and in `AudioHost` mixes.
 
 ```rust
-use aria_plugin::{
-    AudioBlock, AudioEffectSpec, AudioProcessor, EffectParamKind, EffectParamSpec,
-};
+use aria_plugin::{AudioBlock, AudioEffectSpec, AudioProcessor, EffectParamSpec};
 
 struct Drive {
     memory: [f32; 2],
@@ -35,16 +33,7 @@ fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
             id: "example.drive".into(),
             label: "Drive".into(),
             category: "Distortion".into(),
-            params: vec![EffectParamSpec {
-                name: "amount".into(),
-                label: "Amount".into(),
-                kind: EffectParamKind::Scalar,
-                default: 1.0,
-                min: 1.0,
-                max: 20.0,
-                default_color: [0; 4],
-                default_vec2: [0.0; 2],
-            }],
+            params: vec![EffectParamSpec::scalar("amount", "Amount", 1.0, 1.0, 20.0)],
             latency: 0,
             sidechain: false,
         },
@@ -79,11 +68,12 @@ perform I/O in `process`.
 
 | `AudioBlock` call | Result |
 | --- | --- |
+| `new(left, right, position, sample_rate, params, sidechain)` | A block over caller-built channels and `ParamSignal`s, for driving a processor outside the mixer; panics when a channel, a per-frame signal, or a key is not as long as `left` |
 | `frames()` | Frames in the block |
 | `channels()` | Left and right, planar, written in place |
 | `position()` | The sequence position of the first frame, in frames at the sample rate |
 | `sample_rate()` | Frames per second |
-| `param(slot)` | The parameter in spec order: `ParamSignal::Constant(value)`, or `ParamSignal::PerFrame(values)` when it is keyframed and changes within the block. `at(frame)` reads either |
+| `param(slot)` | The parameter in spec order: `ParamSignal::Constant(value)`, or `ParamSignal::PerFrame(values)` when it is keyframed and changes within the block. `at(frame)` reads either, holding the last value past the end of `values`; `constant()` is the value when it holds for the whole block |
 | `sidechain()` | The key signal, planar, when the spec sets `sidechain` and the insert has a key lane |
 
 Consecutive blocks continue each other. `reset` is called before a block that
@@ -123,3 +113,23 @@ Registration returns `PluginError::AudioEffectRefused(message)` when:
 - a parameter is not `EffectParamKind::Scalar`, or its default lies outside
   its range;
 - the latency exceeds `MAX_AUDIO_LATENCY`.
+
+## Native plugins
+
+A native plugin built with `aria-sdk` registers an audio effect with
+`Host::register_audio_effect(&AudioEffectSpec)` during `mount`, and the host
+creates each processor through
+`Plugin::audio_create(&self, host, effect_id, sample_rate)`.
+`aria_sdk::AudioEffectSpec` holds `id`, `label`, `category`, `params`,
+`latency`, and `sidechain` with the meanings above. Each entry of `params` is
+an `AudioParamSpec` (`name`, `label`, `default`, `min`, `max`), and
+`AudioParamSpec::scalar(name, label, default, min, max)` builds one.
+
+`aria_sdk::AudioProcessor::process(&mut self, params, block)` receives one
+`AudioParam` per parameter in spec order and an `aria_sdk::AudioBlock`.
+`AudioParam::constant()` is the value for the block, or the first frame's
+value when the parameter is automated; `per_frame()` holds one value per frame
+when it is automated; `at(frame)` reads either. The SDK `AudioBlock` has
+`frames()`, `position()`, `sample_rate()`, `channels()`, and `sidechain()`
+with the results in the table above. `reset(&mut self)` has the meaning
+above.

@@ -73,7 +73,14 @@ Native `aria-sdk` plugins register a driver language with
 `Plugin::driver_evaluate`. WebAssembly guests call
 `register-driver-language(spec)` and export `driver-evaluate(id, expr, vars) ->
 result<param-value, string>`. Both external tiers pass `time`, `clip_time`,
-`frame_rate`, `duration`, `canvas`, `value`, and `seed` to the guest evaluator.
+`frame_rate`, `duration`, `canvas`, `value`, and `seed` to the guest evaluator;
+in `aria-sdk` they are the fields of `DriverVars`: `time` (sequence seconds),
+`clip_time` (seconds since the clip's first frame), `frame_rate` (sequence
+frames per second), `duration` (sequence length in seconds), `canvas`
+(`[width, height]` in pixels), `value` (the property's keyframed value at
+`time`, a `ParamValue`), and `seed` (a number fixed per clip and property).
+The SDK `ParamValue` is `Scalar(f32)`, `Vec2([x, y])`, `Vec3([x, y, z])`,
+`Color([r, g, b, a])` in RGBA8, or `Rect([x, y, width, height])`.
 
 ## Language
 

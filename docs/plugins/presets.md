@@ -194,29 +194,36 @@ Unmounting or deactivating the plugin removes them.
 
 ## Registering from code
 
-A native plugin registers a preset in `activate`:
+A Rust plugin registers a preset in `mount`:
 
 ```rust
 use aria_models::{EffectInstance, Preset};
-use aria_plugin::{Plugin, PluginContext, PluginError};
+use aria_plugin::{PluginContext, PluginError};
 
-impl Plugin for MyPlugin {
-    fn activate(&mut self, ctx: &PluginContext) -> Result<(), PluginError> {
-        let preset = Preset::new(
-            "Soft Vignette",
-            vec![EffectInstance::new("vignette")],
-            Vec::new(),
-            Vec::new(),
-        );
-        self.handles.push(ctx.register_preset(preset)?);
-        Ok(())
-    }
+fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
+    let preset = Preset::new(
+        "Soft Vignette",
+        vec![EffectInstance::new("vignette")],
+        Vec::new(),
+        Vec::new(),
+    );
+    ctx.register_preset(preset)?;
+    Ok(())
 }
 ```
 
+A registration made during `mount` lasts until the plugin unmounts.
+
 Native `aria-sdk` plugins register presets with `Host::register_preset(&spec)`
-or `Host::register_preset_json(json)`. WebAssembly guests pass the preset JSON
-string to `register-preset(preset-json)`.
+or `Host::register_preset_json(json)`. `aria_sdk::PresetSpec` holds `version`
+(`1`), `name`, `effects`, `audio_effects`, and `properties`; the three lists
+hold JSON values with the shapes under
+[`Preset` root object](#preset-root-object). `PresetSpec::new(name)` builds a
+version 1 preset with empty lists, `with_effect(effect_id)` appends an effect
+instance with default parameters, and `with_scalar_property(id, value)` appends
+a constant curve of `value` for the clip property `id`, such as `opacity`.
+WebAssembly guests pass the preset JSON string to
+`register-preset(preset-json)`.
 
 `PluginContext::register_preset` trims the name, validates the preset, and
 fails with `PluginError::PresetRefused` when the preset is invalid or the same

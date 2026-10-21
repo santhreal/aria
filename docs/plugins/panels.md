@@ -66,7 +66,12 @@ A plugin that does not link `aria-ui` declares a panel as a `UiNode` tree. The
 window draws the tree with the editor's own controls and sends each interaction
 with a control back to the plugin as a `PanelEvent`. Native and WASM plugins
 declare panels the same way through their own tiers ([Native
-plugins](native.md), [WebAssembly plugins](wasm.md)).
+plugins](native.md), [WebAssembly plugins](wasm.md)). In `aria-sdk`, a panel
+implements `aria_sdk::Panel` (also exported as `PanelView`) with
+`view(&self, host) -> UiNode` and `event(&self, host, event)`, and
+`Host::register_panel(PanelSpec, panel)` registers it. The SDK `UiNode`,
+`PanelEvent`, and `Tone` have the variants of the types on this page; the SDK
+`PanelLocation` is `Inspector`, `Sidebar`, or `Timeline`.
 
 ```rust
 use parking_lot::Mutex;
@@ -121,6 +126,19 @@ frame (`Left`, `Right`, or `Bottom`) and an entry in the **Window** menu.
 | `Choice { id, label, options, selected }` | A row of chips | `Chose { id, index }` |
 | `Progress { label, fraction }` | Bar filled to `fraction` | |
 | `Image { width, height, rgba }` | Straight-alpha RGBA8 pixels, narrowed to fit | |
+
+A `Tone` is `Normal`, `Muted`, `Success`, `Warning`, or `Danger`, drawn in the
+theme's text, muted text, success, warning, and danger colours. `Normal` is the
+default.
+
+`UiNode::column(children)`, `row(children)`, `heading(text)`, `text(text)`,
+`toned(text, tone)`, `field(label, value)`, `button(id, label)`,
+`toggle(id, label, on)`, `slider(id, label, value, min..=max)`,
+`input(id, value, placeholder)`, `choice(id, label, options, selected)`, and
+`progress(label, fraction)` build the nodes above. A built button is enabled,
+and a built slider has a `step` of 0, which clamps without snapping.
+`widget_id()` returns the id of a control node, and `find(id)` returns the
+control with `id` in a subtree.
 
 `view` and `event` run on the event delivery thread, never on the thread that
 draws. The tree is built when the window first reads the panel, after every

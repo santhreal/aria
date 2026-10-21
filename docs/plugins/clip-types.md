@@ -70,6 +70,13 @@ fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
 }
 ```
 
+`aria_sdk::ClipTypeSpec` holds `id`, `label` (the `name` field above),
+`generator`, `colour`, `icon_svg` (the SVG source of the icon, or `None`), and
+`handles`. `ClipTypeSpec::new(id, label, generator, colour)` builds one with no
+icon and no handles; `with_icon_svg(svg)` and `with_handles(handles)` set
+them. `aria_sdk::MarkerColor` is `Teal`, `Blue`, `Purple`, `Pink`, `Red`,
+`Orange`, `Yellow`, or `Green`, the variants of the `colour` names above.
+
 ## Handles
 
 A handle value is a point on the clip's layer, as fractions of its width and

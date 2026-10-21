@@ -249,3 +249,6 @@ is not delivered; the host logs a warning naming the kind.
   `handled`; each `DropAction` variant name is accepted too. In `aria-sdk`
   this is `EventResponse::ClaimDrop`. Any other reply claims nothing.
 - Every other kind ignores the reply.
+
+In `aria-sdk`, `EventResponse::Pass` (the default) sends no reply, and
+`EventResponse::Json(text)` sends `text` as the reply unchanged.

@@ -165,6 +165,23 @@ height * 4` premultiplied `RGBA16F` (`u16` IEEE-754 binary16) channels directly
 with the guest without `u8` quantization; `aria_sdk::f16::to_f32` and
 `aria_sdk::f16::from_f32` convert individual channels on the native guest side.
 
+The SDK `CpuFrameIn` has `width()`, `height()`, `pixels()` (the packed
+channels, top row first, without row padding), `pixel(x, y)` and
+`pixel_f32(x, y)` (zero outside the frame), and `time()` (clip seconds). It
+reads parameters by name with the `EffectParams` names above, as flattened
+floats with `params()` and `param_at(index)`, and as the effect instance JSON
+with `params_json()` (empty when there is none). The SDK `CpuFrameOut` has
+`width()`, `height()`, `pixels()`, `pixels_mut()`, `set_pixel(x, y, rgba)` and
+`set_pixel_f32(x, y, rgba)` (ignored outside the frame), and `fill(rgba)` and
+`fill_f32(rgba)`, which set every pixel.
+
+`aria_sdk::EffectSpec::new` takes the id and label, and `with_category`,
+`with_params`, `with_groups`, `with_generator`, `with_stateful`,
+`with_bounds`, `with_reads_outside`, and `with_time_dependent` set the field of
+the same name. `TransitionSpec::new` takes the id and label, and
+`with_params` sets its parameters. `EffectParamKind::flattened_floats()` is the
+storage float count in the table under [Shader source](#shader-source).
+
 ## Effect graphs
 
 An effect is a list of `GraphPass`es. Each pass has a name, a stage, the
@@ -338,6 +355,15 @@ on-canvas handles in the Viewer. An `EffectParamSpec` may set `soft_min`,
 `group` (referencing an `EffectGroupSpec { id, label, collapsed }` in
 `EffectSpec::groups`), and `visible_when` (`EffectVisibilityCondition { param,
 equals }`).
+
+In `aria-sdk`, `EffectParamSpec::display` is an `EffectParamDisplay`, each
+entry of `choices` is an `EffectChoiceOption { id, label }`, each entry of
+`default_curve` is an `EffectCurvePoint { x, y }` with `x` in `0..1`, and each
+entry of `default_gradient` is an `EffectGradientStop { position, color }` with
+`position` in `0..1` and `color` linear RGBA. An empty `default_curve` is the
+identity from `(0, 0)` to `(1, 1)`, and an empty `default_gradient` is black to
+white. `EFFECT_CURVE_LUT_SAMPLES` and `EFFECT_GRADIENT_LUT_SAMPLES` are the
+sample counts of the `Curve` and `Gradient` lookup tables in the table above.
 
 Fragment effect pass example (`shaders/warm-grade.wgsl`, with scalar parameter
 `gain`):
