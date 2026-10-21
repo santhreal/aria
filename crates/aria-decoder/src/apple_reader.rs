@@ -158,7 +158,7 @@ impl AvfDecoder {
 /// `NSError` → "description [domain code]", recursing one level into the
 /// underlying error, which for AVFoundation decode failures holds the
 /// otherwise-invisible VideoToolbox `OSStatus`.
-fn describe_ns_error(err: &NSError) -> String {
+pub(super) fn describe_ns_error(err: &NSError) -> String {
     let mut text = format!(
         "{} [{} {}]",
         err.localizedDescription(),
@@ -187,7 +187,7 @@ fn rt_secs(t: RationalTime) -> f64 {
 
 /// One second expressed in ticks of `rate`, rounded up, at least one tick —
 /// the base step of the seek-point recovery back-off.
-fn one_second_ticks(rate: Rational) -> i64 {
+pub(super) fn one_second_ticks(rate: Rational) -> i64 {
     let num = i64::from(rate.num.max(1));
     let den = i64::from(rate.den.max(1));
     ((num + den - 1) / den).max(1)

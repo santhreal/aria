@@ -8,8 +8,8 @@
 use super::*;
 
 // `android.media.AudioFormat` ENCODING_* values (KEY_PCM_ENCODING).
-const ENCODING_PCM_16BIT: i32 = 2;
-const ENCODING_PCM_FLOAT: i32 = 4;
+pub(super) const ENCODING_PCM_16BIT: i32 = 2;
+pub(super) const ENCODING_PCM_FLOAT: i32 = 4;
 
 /// Safety net on the audio decode pump (whole stream, so a larger budget than
 /// the per-frame video pump).

@@ -28,6 +28,7 @@ use objc2_foundation::{NSMutableDictionary, NSNumber, NSString, NSURL};
 use aria_core::{AudioReader, DecodeError, Rational, RationalTime};
 
 use crate::apple::rational_to_cmtime;
+use crate::pending::{PendingSamples, PendingSource, read_frames};
 
 // CoreAudio `AudioFormatID` FourCC for uncompressed linear PCM (`'lpcm'`).
 const K_AUDIO_FORMAT_LINEAR_PCM: u32 = u32::from_be_bytes(*b"lpcm");
@@ -57,8 +58,7 @@ pub struct AvfAudioReader {
     channels: usize,
     started: bool,
     /// Decoded interleaved samples pulled but not yet handed out.
-    pending: Vec<f32>,
-    pending_cursor: usize,
+    pending: PendingSamples,
     /// Output-frame position of the next sample [`read`](AudioReader::read)
     /// emits, anchored from the first decoded buffer's PTS.
     position: Option<i64>,
@@ -98,17 +98,25 @@ impl AvfAudioReader {
             out_rate,
             channels: channels as usize,
             started: false,
-            pending: Vec::new(),
-            pending_cursor: 0,
+            pending: PendingSamples::default(),
             position: None,
             eos: false,
         })
+    }
+}
+
+impl PendingSource for AvfAudioReader {
+    fn pending(&mut self) -> &mut PendingSamples {
+        &mut self.pending
     }
 
     /// Pull the next sample buffer into `pending`, anchoring `position` on the
     /// first buffer. Returns `false` at end of stream. Pooled for the same
     /// reason as the video path: worker threads have no autorelease pool.
     fn fill_pending(&mut self) -> Result<bool, DecodeError> {
+        if self.eos {
+            return Ok(false);
+        }
         if !self.started {
             if !unsafe { self.reader.startReading() } {
                 return Err(self.reader_error("startReading failed"));
@@ -157,16 +165,18 @@ impl AvfAudioReader {
                 }
 
                 // LPCM float output is native-endian interleaved f32.
-                self.pending = bytes
-                    .chunks_exact(4)
-                    .map(|b| f32::from_ne_bytes([b[0], b[1], b[2], b[3]]))
-                    .collect();
-                self.pending_cursor = 0;
+                self.pending.refill().extend(
+                    bytes
+                        .chunks_exact(4)
+                        .map(|b| f32::from_ne_bytes([b[0], b[1], b[2], b[3]])),
+                );
                 return Ok(true);
             }
         })
     }
+}
 
+impl AvfAudioReader {
     /// Cancel in-flight decode work before the reader is replaced or dropped
     /// (see [`AvfDecoder`](crate::AvfDecoder)'s module docs for the leak this
     /// prevents).
@@ -187,34 +197,7 @@ impl AvfAudioReader {
 
 impl AudioReader for AvfAudioReader {
     fn read(&mut self, out: &mut [f32]) -> Result<usize, DecodeError> {
-        let channels = self.channels;
-        debug_assert_eq!(out.len() % channels, 0, "buffer not a frame multiple");
-        let want_frames = out.len() / channels;
-        let mut produced = 0;
-
-        while produced < want_frames {
-            if self.pending_cursor >= self.pending.len() {
-                if self.eos {
-                    break;
-                }
-                if !self.fill_pending()? {
-                    break;
-                }
-                continue;
-            }
-            let avail_frames = (self.pending.len() - self.pending_cursor) / channels;
-            let take = (want_frames - produced).min(avail_frames);
-            if take == 0 {
-                // A partial trailing frame should never occur; guard anyway.
-                self.pending_cursor = self.pending.len();
-                continue;
-            }
-            let src = &self.pending[self.pending_cursor..self.pending_cursor + take * channels];
-            out[produced * channels..(produced + take) * channels].copy_from_slice(src);
-            self.pending_cursor += take * channels;
-            produced += take;
-        }
-
+        let produced = read_frames(self, out, self.channels)?;
         if let Some(pos) = self.position.as_mut() {
             *pos += produced as i64;
         }
@@ -244,7 +227,6 @@ impl AudioReader for AvfAudioReader {
         self.output = output;
         self.started = false;
         self.pending.clear();
-        self.pending_cursor = 0;
         self.position = None;
         self.eos = false;
         Ok(())

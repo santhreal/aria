@@ -108,10 +108,10 @@ fn read_planes_nv12_copies_luma_and_chroma() {
     assert_eq!(planes.len(), 2);
     assert_eq!(planes[0].stride, stride);
     assert_eq!(planes[0].rows, slice_height);
-    assert_eq!(planes[0].data.as_ref(), &buffer[..y_len]);
+    assert_eq!(planes[0].data.as_slice(), &buffer[..y_len]);
     assert_eq!(planes[1].stride, stride);
     assert_eq!(planes[1].rows, chroma_rows);
-    assert_eq!(planes[1].data.as_ref(), &buffer[y_len..total_len]);
+    assert_eq!(planes[1].data.as_slice(), &buffer[y_len..total_len]);
 }
 
 #[test]
@@ -144,14 +144,17 @@ fn read_planes_yuv420p_copies_three_planes() {
     assert_eq!(planes.len(), 3);
     assert_eq!(planes[0].stride, stride);
     assert_eq!(planes[0].rows, slice_height);
-    assert_eq!(planes[0].data.as_ref(), &buffer[..y_len]);
+    assert_eq!(planes[0].data.as_slice(), &buffer[..y_len]);
     assert_eq!(planes[1].stride, chroma_stride);
     assert_eq!(planes[1].rows, chroma_rows);
-    assert_eq!(planes[1].data.as_ref(), &buffer[y_len..y_len + chroma_len]);
+    assert_eq!(
+        planes[1].data.as_slice(),
+        &buffer[y_len..y_len + chroma_len]
+    );
     assert_eq!(planes[2].stride, chroma_stride);
     assert_eq!(planes[2].rows, chroma_rows);
     assert_eq!(
-        planes[2].data.as_ref(),
+        planes[2].data.as_slice(),
         &buffer[y_len + chroma_len..total_len]
     );
 }
@@ -201,7 +204,7 @@ fn append_pcm_16bit_decoding_and_mixing() {
     android_audio::append_pcm(
         bytes.as_ptr(),
         bytes.len(),
-        ENCODING_PCM_16BIT,
+        android_audio::ENCODING_PCM_16BIT,
         2, // src_channels
         2, // out_channels
         &mut mixed,
@@ -220,7 +223,7 @@ fn append_pcm_16bit_decoding_and_mixing() {
     android_audio::append_pcm(
         mono_bytes.as_ptr(),
         mono_bytes.len(),
-        ENCODING_PCM_16BIT,
+        android_audio::ENCODING_PCM_16BIT,
         1, // src_channels (mono)
         2, // out_channels (stereo)
         &mut mono_mixed,
@@ -240,7 +243,7 @@ fn append_pcm_float_decoding() {
     android_audio::append_pcm(
         bytes.as_ptr(),
         bytes.len(),
-        ENCODING_PCM_FLOAT,
+        android_audio::ENCODING_PCM_FLOAT,
         2,
         2,
         &mut mixed,

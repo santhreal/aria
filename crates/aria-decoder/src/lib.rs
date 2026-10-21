@@ -55,6 +55,11 @@ pub use wmf_audio::WmfAudioReader;
 /// (Media Foundation today; usable by any backend with the same gap).
 #[cfg(target_os = "windows")]
 mod mp4_duration;
+/// Decoded-sample queue and frame read loop of the GStreamer and AVFoundation
+/// audio readers. Also compiled under `cfg(test)` so the loop is tested on
+/// every host.
+#[cfg(any(target_os = "linux", target_vendor = "apple", test))]
+mod pending;
 /// Shared D3D11 device + DXGI device manager backing hardware decode.
 #[cfg(target_os = "windows")]
 mod wmf_d3d;

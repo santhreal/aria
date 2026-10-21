@@ -13,6 +13,7 @@ use gstreamer_app as gst_app;
 use gstreamer_audio as gst_audio;
 
 use crate::gst::{NS_PER_SEC, PipelineGuard, ensure_init, gst_err, path_uri};
+use crate::pending::{PendingSamples, PendingSource, read_frames};
 
 const PULL_TIMEOUT: Duration = Duration::from_secs(8);
 
@@ -22,8 +23,7 @@ pub struct GstAudioReader {
     sink: gst_app::AppSink,
     out_rate: u32,
     channels: usize,
-    pending: Vec<f32>,
-    pending_cursor: usize,
+    pending: PendingSamples,
     position: Option<i64>,
     eos: bool,
 }
@@ -86,11 +86,16 @@ impl GstAudioReader {
             sink,
             out_rate,
             channels: usize::from(channels),
-            pending: Vec::new(),
-            pending_cursor: 0,
+            pending: PendingSamples::default(),
             position: Some(0),
             eos: false,
         })
+    }
+}
+
+impl PendingSource for GstAudioReader {
+    fn pending(&mut self) -> &mut PendingSamples {
+        &mut self.pending
     }
 
     fn fill_pending(&mut self) -> Result<bool, DecodeError> {
@@ -114,20 +119,22 @@ impl GstAudioReader {
                         "decoded audio is not aligned f32. Try another file.".into(),
                     ));
                 }
-                self.pending.clear();
-                self.pending.reserve(bytes.len() / 4);
-                for chunk in bytes.as_chunks::<4>().0 {
-                    self.pending
-                        .push(f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]));
-                }
-                self.pending_cursor = 0;
+                let samples = self.pending.refill();
+                samples.extend(
+                    bytes
+                        .as_chunks::<4>()
+                        .0
+                        .iter()
+                        .map(|b| f32::from_le_bytes(*b)),
+                );
+                let filled = !samples.is_empty();
                 if self.position.is_none()
                     && let Some(ns) = crate::gst::stream_time_ns(&sample, buffer)
                 {
                     self.position =
                         Some(ns.saturating_mul(i64::from(self.out_rate)) / 1_000_000_000);
                 }
-                Ok(!self.pending.is_empty())
+                Ok(filled)
             }
             None if self.sink.is_eos() => {
                 self.eos = true;
@@ -191,33 +198,7 @@ fn expose_all_but_audio(src: &gst::Element) -> Result<(), DecodeError> {
 
 impl AudioReader for GstAudioReader {
     fn read(&mut self, out: &mut [f32]) -> Result<usize, DecodeError> {
-        let channels = self.channels;
-        debug_assert_eq!(out.len() % channels, 0, "buffer not a frame multiple");
-        let want_frames = out.len() / channels;
-        let mut produced = 0;
-
-        while produced < want_frames {
-            if self.pending_cursor >= self.pending.len() {
-                if self.eos {
-                    break;
-                }
-                if !self.fill_pending()? {
-                    break;
-                }
-                continue;
-            }
-            let avail_frames = (self.pending.len() - self.pending_cursor) / channels;
-            let take = (want_frames - produced).min(avail_frames);
-            if take == 0 {
-                self.pending_cursor = self.pending.len();
-                continue;
-            }
-            let src = &self.pending[self.pending_cursor..self.pending_cursor + take * channels];
-            out[produced * channels..(produced + take) * channels].copy_from_slice(src);
-            self.pending_cursor += take * channels;
-            produced += take;
-        }
-
+        let produced = read_frames(self, out, self.channels)?;
         if let Some(pos) = self.position.as_mut() {
             *pos += produced as i64;
         }
@@ -239,7 +220,6 @@ impl AudioReader for GstAudioReader {
                 DecodeError::Seek(format!("GStreamer could not seek audio to sample {frame}."))
             })?;
         self.pending.clear();
-        self.pending_cursor = 0;
         self.position = Some(frame.max(0));
         self.eos = false;
         Ok(())
