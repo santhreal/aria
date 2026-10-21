@@ -52,7 +52,7 @@ const WINDOW_W: f32 = 1920.0;
 const SPLITTER_SLACK: f32 = 8.0;
 /// The line heights text is set in, in ems: gpui's default, the golden
 /// ratio, first, then the ones a panel sets.
-const LINE_HEIGHTS: [f32; 4] = [1.618034, 1.5, 1.25, 1.0];
+const LINE_HEIGHTS: [f32; 4] = [std::f32::consts::GOLDEN_RATIO, 1.5, 1.25, 1.0];
 /// Regions that scroll sideways by design: the Audio Track Mixer's strips, as
 /// a console's do, and the Timeline's ruler, which runs on with time.
 const SIDEWAYS_SCROLLERS: &[&str] = &["mixer-strips", "timeline-ruler"];
