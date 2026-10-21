@@ -41,6 +41,8 @@ jobs:
       # Linux media uses GStreamer, and the export tests encode through x264enc
       # (plugins-ugly). fontconfig, xkbcommon and ALSA support GPUI text, keys
       # and cpal audio; Vulkan gives wgpu a headless adapter for compositor tests.
+      # aria-bench encodes its media fixtures with ffmpeg, and its fixture tests
+      # run those recipes.
       - name: Install system development libraries
         run: |
           sudo apt-get update
@@ -51,7 +53,7 @@ jobs:
             libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
             gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
             gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav \
-            mesa-vulkan-drivers libvulkan1
+            mesa-vulkan-drivers libvulkan1 ffmpeg
 
       # The plugin CLI tests build a WebAssembly plugin crate end to end.
       - name: Install Rust toolchain
