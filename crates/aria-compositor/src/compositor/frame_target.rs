@@ -105,7 +105,7 @@ impl Compositor {
             let view_idx = self.ensure_frame_target_view_index(texture);
             let view = &self.frame_target_views[view_idx].1;
             let encoder = self.encode_prepared_scene(gpu, config, scene, (texture, view))?;
-            gpu.queue.submit(std::iter::once(encoder.finish()));
+            self.submit_frame(gpu, encoder);
             return Ok(());
         }
         let mut encoder = self.encode_scene(gpu, config, scene)?;
@@ -123,7 +123,7 @@ impl Compositor {
                 depth_or_array_layers: 1,
             },
         );
-        gpu.queue.submit(std::iter::once(encoder.finish()));
+        self.submit_frame(gpu, encoder);
         Ok(())
     }
 }

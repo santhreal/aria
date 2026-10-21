@@ -195,7 +195,7 @@ impl Compositor {
         view: &wgpu::TextureView,
     ) -> Result<(), CompositorError> {
         if draws_content_direct(layer) {
-            let built = self.build_layer(gpu, config, layer)?;
+            let built = self.build_layer(gpu, encoder, config, layer)?;
             let pipeline = pipeline_for(&built.pipeline, self);
             draw_layer_into(encoder, "aria.reference", view, None, pipeline, &built);
             return Ok(());

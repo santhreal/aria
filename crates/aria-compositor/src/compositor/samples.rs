@@ -30,7 +30,7 @@ impl Compositor {
         scratch: usize,
     ) -> Result<(), CompositorError> {
         if passes.is_empty() {
-            let built = self.build_layer(gpu, config, layer)?;
+            let built = self.build_layer(gpu, encoder, config, layer)?;
             let pipeline = pipeline_for(&built.pipeline, self);
             draw_layer_into(
                 encoder,
@@ -46,7 +46,7 @@ impl Compositor {
         let weight = 1.0 / passes.len() as f32;
         for placement in passes {
             let sample = content_at(layer, *placement);
-            let built = self.build_layer(gpu, config, &sample)?;
+            let built = self.build_layer(gpu, encoder, config, &sample)?;
             let pipeline = pipeline_for(&built.pipeline, self);
             draw_layer_into(
                 encoder,

@@ -262,6 +262,8 @@ mod effects;
 mod grade;
 #[path = "render_pass_batching.rs"]
 mod pass_batching;
+#[path = "render_planes.rs"]
+mod planes;
 #[path = "render_rgba.rs"]
 mod rgba;
 #[path = "render_sdf.rs"]

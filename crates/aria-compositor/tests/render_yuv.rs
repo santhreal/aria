@@ -1,4 +1,4 @@
-//! Video-frame layers: NV12 and I420 upload, range handling, and the
+//! Video-frame layers: NV12 and I420 color conversion, range handling, and the
 //! YUV→RGB matrix, each against the CPU reference in the parent file.
 
 use super::*;

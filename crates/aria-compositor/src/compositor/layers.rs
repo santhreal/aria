@@ -10,7 +10,7 @@ use crate::planes::PlaneSet;
 
 use super::upload::{
     luma_coeffs, pack_grade, placement_affine, placement_affine_rot, placement_rotation,
-    rgba_image_key, upload_cpu_planes, visible_uv_rect,
+    rgba_image_key, visible_uv_rect,
 };
 use super::{
     Bound, Compositor, FxEffectsUniform, LayerGpu, LayerPipeline, RgbaUniforms, SdfUniforms,
@@ -18,16 +18,21 @@ use super::{
 };
 
 impl Compositor {
+    /// Build `layer`'s pipeline and bindings. A CPU video frame's plane copies
+    /// are recorded into `encoder` ahead of the pass that draws the layer.
     pub(super) fn build_layer(
         &self,
         gpu: &GpuContext,
+        encoder: &mut wgpu::CommandEncoder,
         config: &CompositorConfig,
         layer: &CompositeLayer<'_>,
     ) -> Result<LayerGpu, CompositorError> {
         let grade = layer.color_grade;
         match &layer.content {
             LayerContent::Solid(rgba) => self.build_solid(gpu, config, layer, *rgba, grade),
-            LayerContent::Frame(frame) => self.build_frame(gpu, config, layer, frame, grade),
+            LayerContent::Frame(frame) => {
+                self.build_frame(gpu, encoder, config, layer, frame, grade)
+            }
             LayerContent::Rgba(image) => self.build_rgba(gpu, config, layer, image, grade),
             LayerContent::Sdf(shape) => self.build_sdf(gpu, config, layer, shape, grade),
             LayerContent::Glyphs(glyphs) => self.build_glyphs(gpu, config, layer, glyphs, grade),
@@ -142,6 +147,7 @@ impl Compositor {
     fn build_frame(
         &self,
         gpu: &GpuContext,
+        encoder: &mut wgpu::CommandEncoder,
         config: &CompositorConfig,
         layer: &CompositeLayer<'_>,
         frame: &VideoFrame,
@@ -160,14 +166,10 @@ impl Compositor {
         // wrappers (e.g. CVMetalTexture) that must outlive the GPU read.
         let (planes, keep_alive) = match &frame.data {
             FrameData::Cpu(image) => {
-                let planes = upload_cpu_planes(
-                    gpu,
-                    &mut self.plane_textures.borrow_mut(),
-                    frame,
-                    image,
-                    cw,
-                    ch,
-                )?;
+                let planes = self
+                    .plane_textures
+                    .borrow_mut()
+                    .frame_planes(gpu, encoder, frame, image)?;
                 (planes, None)
             }
             FrameData::Gpu(surface) => self.import_gpu_planes(gpu, frame, surface, cw, ch)?,

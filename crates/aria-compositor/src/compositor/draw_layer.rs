@@ -49,7 +49,7 @@ impl Compositor {
     ) -> Result<(), CompositorError> {
         let mode = layer.blend_mode;
         if draws_content_direct(layer) && mode == BlendMode::Normal && layer.styles.is_empty() {
-            let built = self.build_layer(gpu, config, layer)?;
+            let built = self.build_layer(gpu, encoder, config, layer)?;
             let pipeline = pipeline_for(&built.pipeline, self);
             draw_layer_into(
                 encoder,
@@ -78,7 +78,7 @@ impl Compositor {
             .expect("effect/lut output is an offscreen pool view");
         if let Some(bg) = layer.styles.background.filter(|b| b.rgba[3] > 0) {
             let plate = background_plate_layer(&layer.placement, bg);
-            let built = self.build_layer(gpu, config, &plate)?;
+            let built = self.build_layer(gpu, encoder, config, &plate)?;
             let pipeline = pipeline_for(&built.pipeline, self);
             draw_layer_into(
                 encoder,

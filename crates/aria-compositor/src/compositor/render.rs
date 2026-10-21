@@ -246,7 +246,7 @@ impl Compositor {
                 depth_or_array_layers: 1,
             },
         );
-        gpu.queue.submit(std::iter::once(encoder.finish()));
+        self.submit_frame(gpu, encoder);
         self.readback_count += 1;
         Ok(PendingReadback::begin(
             &gpu.device,
@@ -255,6 +255,13 @@ impl Compositor {
             config.width,
             config.height,
         ))
+    }
+
+    /// Submit a frame's commands, then recall the plane staging they copy from,
+    /// so the upload pool reuses it once the GPU has read it.
+    pub(super) fn submit_frame(&self, gpu: &GpuContext, encoder: wgpu::CommandEncoder) {
+        gpu.queue.submit(std::iter::once(encoder.finish()));
+        self.plane_textures.borrow_mut().recall();
     }
 
     /// Draw `scene` onto the cached canvas and return the unsubmitted encoder,

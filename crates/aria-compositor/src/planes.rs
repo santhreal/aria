@@ -17,6 +17,7 @@
 pub(crate) type PlaneTexture = (wgpu::Texture, wgpu::TextureView);
 
 /// The plane textures of one layer.
+#[derive(Clone)]
 pub(crate) enum PlaneSet {
     /// A single packed texture: an RGBA bitmap or a glyph atlas.
     ///
