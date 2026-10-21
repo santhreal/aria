@@ -8,8 +8,8 @@ use crate::passes::PassInstance;
 use super::items::frame_items;
 use super::scene::Scene;
 use super::{
-    CANVAS_FORMAT, Compositor, FrameSink, LUT_CACHE_MAX, LayerGpu, LayerPipeline, LutTexture,
-    PendingReadback, ReadbackPool, TargetCache,
+    CANVAS_FORMAT, Compositor, FrameSink, LUT_CACHE_MAX, LayerGpu, LutTexture, PendingReadback,
+    ReadbackPool, TargetCache,
 };
 use aria_core::RgbaImage;
 
@@ -521,13 +521,6 @@ fn layer_slots(layer: &CompositeLayer<'_>) -> usize {
         layer_slots = layer_slots.max(3);
     }
     layer_slots
-}
-
-pub(super) fn pipeline_for<'a>(
-    kind: &LayerPipeline,
-    comp: &'a Compositor,
-) -> &'a wgpu::RenderPipeline {
-    comp.pipelines.layer_pipeline(kind)
 }
 
 #[cfg(test)]

@@ -11,8 +11,8 @@ use super::{CANVAS_FORMAT, Compositor, LayerPipeline};
 use crate::grade::GRADE_WGSL;
 
 /// Straight-alpha src-over: the source fragment carries un-premultiplied color,
-/// so the source color is weighted by its own alpha. Used by the solid and YUV
-/// (fully-opaque) pipelines.
+/// so the source color is weighted by its own alpha. Used by the solid, SDF,
+/// and YUV pipelines.
 const STRAIGHT_OVER: wgpu::BlendState = wgpu::BlendState {
     color: wgpu::BlendComponent {
         src_factor: wgpu::BlendFactor::SrcAlpha,
@@ -37,10 +37,12 @@ pub(crate) struct SharedLayerPipelines {
     pub(super) glyphs_layout: wgpu::BindGroupLayout,
     pub(super) sampler: wgpu::Sampler,
     yuv_pipeline: OnceLock<wgpu::RenderPipeline>,
+    yuv_cover_pipeline: OnceLock<wgpu::RenderPipeline>,
     yuv_fx_pipeline: OnceLock<wgpu::RenderPipeline>,
     rgba_pipeline: OnceLock<wgpu::RenderPipeline>,
     rgba_fx_pipeline: OnceLock<wgpu::RenderPipeline>,
     solid_pipeline: OnceLock<wgpu::RenderPipeline>,
+    solid_cover_pipeline: OnceLock<wgpu::RenderPipeline>,
     sdf_pipeline: OnceLock<wgpu::RenderPipeline>,
     glyphs_pipeline: OnceLock<wgpu::RenderPipeline>,
     pub(super) pass_pipelines: Arc<SharedPassPipelines>,
@@ -123,10 +125,12 @@ impl SharedLayerPipelines {
             glyphs_layout,
             sampler,
             yuv_pipeline: OnceLock::new(),
+            yuv_cover_pipeline: OnceLock::new(),
             yuv_fx_pipeline: OnceLock::new(),
             rgba_pipeline: OnceLock::new(),
             rgba_fx_pipeline: OnceLock::new(),
             solid_pipeline: OnceLock::new(),
+            solid_cover_pipeline: OnceLock::new(),
             sdf_pipeline: OnceLock::new(),
             glyphs_pipeline: OnceLock::new(),
             pass_pipelines: Arc::new(SharedPassPipelines::new(device)),
@@ -135,21 +139,12 @@ impl SharedLayerPipelines {
 
     pub(super) fn layer_pipeline(&self, kind: &LayerPipeline) -> &wgpu::RenderPipeline {
         match kind {
-            LayerPipeline::Yuv => self.yuv_pipeline.get_or_init(|| {
-                let shader = self
-                    .device
-                    .create_shader_module(wgpu::ShaderModuleDescriptor {
-                        label: Some("aria.yuv.wgsl"),
-                        source: wgsl_with_grade(include_str!("../../shaders/yuv.wgsl")),
-                    });
-                build_pipeline(
-                    &self.device,
-                    "aria.yuv",
-                    &self.yuv_layout,
-                    &shader,
-                    STRAIGHT_OVER,
-                )
-            }),
+            LayerPipeline::Yuv => self
+                .yuv_pipeline
+                .get_or_init(|| self.yuv("aria.yuv", Some(STRAIGHT_OVER))),
+            LayerPipeline::YuvCover => self
+                .yuv_cover_pipeline
+                .get_or_init(|| self.yuv("aria.yuv.cover", None)),
             LayerPipeline::YuvFx => self.yuv_fx_pipeline.get_or_init(|| {
                 let shader = self
                     .device
@@ -170,7 +165,7 @@ impl SharedLayerPipelines {
                     "aria.yuv_fx",
                     &self.yuv_fx_layout,
                     &shader,
-                    STRAIGHT_OVER,
+                    Some(STRAIGHT_OVER),
                 )
             }),
             LayerPipeline::Rgba => self.rgba_pipeline.get_or_init(|| {
@@ -185,7 +180,7 @@ impl SharedLayerPipelines {
                     "aria.rgba",
                     &self.rgba_layout,
                     &shader,
-                    PREMULT_OVER,
+                    Some(PREMULT_OVER),
                 )
             }),
             LayerPipeline::RgbaFx => self.rgba_fx_pipeline.get_or_init(|| {
@@ -208,24 +203,15 @@ impl SharedLayerPipelines {
                     "aria.rgba_fx",
                     &self.rgba_fx_layout,
                     &shader,
-                    PREMULT_OVER,
+                    Some(PREMULT_OVER),
                 )
             }),
-            LayerPipeline::Solid => self.solid_pipeline.get_or_init(|| {
-                let shader = self
-                    .device
-                    .create_shader_module(wgpu::ShaderModuleDescriptor {
-                        label: Some("aria.solid.wgsl"),
-                        source: wgsl_with_grade(include_str!("../../shaders/solid.wgsl")),
-                    });
-                build_pipeline(
-                    &self.device,
-                    "aria.solid",
-                    &self.solid_layout,
-                    &shader,
-                    STRAIGHT_OVER,
-                )
-            }),
+            LayerPipeline::Solid => self
+                .solid_pipeline
+                .get_or_init(|| self.solid("aria.solid", Some(STRAIGHT_OVER))),
+            LayerPipeline::SolidCover => self
+                .solid_cover_pipeline
+                .get_or_init(|| self.solid("aria.solid.cover", None)),
             LayerPipeline::Sdf => self.sdf_pipeline.get_or_init(|| {
                 let shader = self
                     .device
@@ -238,7 +224,7 @@ impl SharedLayerPipelines {
                     "aria.sdf",
                     &self.sdf_layout,
                     &shader,
-                    STRAIGHT_OVER,
+                    Some(STRAIGHT_OVER),
                 )
             }),
             LayerPipeline::Glyphs => self.glyphs_pipeline.get_or_init(|| {
@@ -253,20 +239,44 @@ impl SharedLayerPipelines {
                     "aria.glyphs",
                     &self.glyphs_layout,
                     &shader,
-                    PREMULT_OVER,
+                    Some(PREMULT_OVER),
                     &[GlyphInstanceGpu::LAYOUT],
                 )
             }),
         }
     }
 
+    /// The YUV pipeline, blending with `blend` or replacing its target.
+    fn yuv(&self, label: &str, blend: Option<wgpu::BlendState>) -> wgpu::RenderPipeline {
+        let shader = self
+            .device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("aria.yuv.wgsl"),
+                source: wgsl_with_grade(include_str!("../../shaders/yuv.wgsl")),
+            });
+        build_pipeline(&self.device, label, &self.yuv_layout, &shader, blend)
+    }
+
+    /// The solid-fill pipeline, blending with `blend` or replacing its target.
+    fn solid(&self, label: &str, blend: Option<wgpu::BlendState>) -> wgpu::RenderPipeline {
+        let shader = self
+            .device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("aria.solid.wgsl"),
+                source: wgsl_with_grade(include_str!("../../shaders/solid.wgsl")),
+            });
+        build_pipeline(&self.device, label, &self.solid_layout, &shader, blend)
+    }
+
     pub(super) fn compiled_count(&self) -> usize {
         let layers = [
             &self.yuv_pipeline,
+            &self.yuv_cover_pipeline,
             &self.yuv_fx_pipeline,
             &self.rgba_pipeline,
             &self.rgba_fx_pipeline,
             &self.solid_pipeline,
+            &self.solid_cover_pipeline,
             &self.sdf_pipeline,
             &self.glyphs_pipeline,
         ]
@@ -356,7 +366,7 @@ fn build_pipeline(
     label: &str,
     layout: &wgpu::BindGroupLayout,
     shader: &wgpu::ShaderModule,
-    blend: wgpu::BlendState,
+    blend: Option<wgpu::BlendState>,
 ) -> wgpu::RenderPipeline {
     build_instanced_pipeline(device, label, layout, shader, blend, &[])
 }
@@ -366,7 +376,7 @@ fn build_instanced_pipeline(
     label: &str,
     layout: &wgpu::BindGroupLayout,
     shader: &wgpu::ShaderModule,
-    blend: wgpu::BlendState,
+    blend: Option<wgpu::BlendState>,
     vertex_buffers: &[wgpu::VertexBufferLayout<'_>],
 ) -> wgpu::RenderPipeline {
     let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -394,7 +404,7 @@ fn build_instanced_pipeline(
             entry_point: Some("fs"),
             targets: &[Some(wgpu::ColorTargetState {
                 format: CANVAS_FORMAT,
-                blend: Some(blend),
+                blend,
                 write_mask: wgpu::ColorWrites::ALL,
             })],
             compilation_options: wgpu::PipelineCompilationOptions::default(),

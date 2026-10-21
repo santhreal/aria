@@ -44,18 +44,16 @@ impl Compositor {
     /// composites the side over its own styles only, as it draws alone on a
     /// transparent canvas; with one, each starts as a copy of `under` and the
     /// side composites over it.
-    #[allow(clippy::too_many_arguments)]
     fn draw_sides(
         &self,
         gpu: &GpuContext,
         encoder: &mut wgpu::CommandEncoder,
         config: &CompositorConfig,
         offscreen: &OffscreenPool,
-        labels: [&'static str; 2],
         sides: [&CompositeLayer<'_>; 2],
         under: Option<&wgpu::Texture>,
     ) -> Result<(), CompositorError> {
-        for (index, (label, side)) in labels.into_iter().zip(sides).enumerate() {
+        for (index, side) in sides.into_iter().enumerate() {
             let (texture, view) = offscreen.side(index);
             if let Some(under) = under {
                 copy_canvas(encoder, offscreen, under, texture);
@@ -64,7 +62,6 @@ impl Compositor {
                 texture,
                 view,
                 clear: under.is_none().then_some(wgpu::Color::TRANSPARENT),
-                label,
             };
             self.draw_layer_onto(gpu, encoder, config, offscreen, side, &target)?;
         }
@@ -92,7 +89,6 @@ impl Compositor {
             encoder,
             config,
             offscreen,
-            ["aria.transition.out", "aria.transition.in"],
             [draw.outgoing, draw.incoming],
             under,
         )?;
@@ -142,7 +138,6 @@ impl Compositor {
             encoder,
             config,
             offscreen,
-            ["aria.matte.content", "aria.matte.stencil"],
             [draw.content, draw.stencil],
             None,
         )?;

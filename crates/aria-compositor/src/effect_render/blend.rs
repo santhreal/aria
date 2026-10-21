@@ -2,7 +2,7 @@
 
 use bytemuck::{Pod, Zeroable};
 
-use crate::color_pass;
+use crate::color_pass::{self, ReplacePipeline};
 use crate::layer::BlendMode;
 
 use super::pipelines::PassRegistry;
@@ -43,51 +43,50 @@ pub(crate) fn run_blend_composite(
         ],
     );
 
-    // Every pixel is written; Load preserves unread edges if any.
-    color_pass::draw_quad(
-        encoder,
-        output,
-        color_pass::KEEP,
-        registry.blend_pipeline(mode),
-        &bind_group,
-    );
+    color_pass::replace_quad(encoder, output, registry.blend_pipeline(mode), &bind_group);
 }
 
 pub(super) const BLEND_MODE_COUNT: usize = BlendMode::ALL.len();
 
+/// The dst-sampling blend shader and its pipeline layout, shared by the
+/// pipeline of every blend mode.
+pub(super) struct BlendShader {
+    shader: wgpu::ShaderModule,
+    layout: wgpu::PipelineLayout,
+}
+
 pub(super) fn build_blend_shader(
     device: &wgpu::Device,
     layout: &wgpu::BindGroupLayout,
-) -> (wgpu::ShaderModule, wgpu::PipelineLayout) {
+) -> BlendShader {
     let source = include_str!("../../shaders/blend_composite.wgsl");
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("aria.blend_composite"),
         source: wgpu::ShaderSource::Wgsl(source.into()),
     });
-    let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+    let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("aria.blend_composite"),
         bind_group_layouts: &[Some(layout)],
         immediate_size: 0,
     });
-    (shader, pipeline_layout)
+    BlendShader { shader, layout }
 }
 
 pub(super) fn build_blend_pipeline(
     device: &wgpu::Device,
-    shader: &wgpu::ShaderModule,
-    pipeline_layout: &wgpu::PipelineLayout,
+    blend: &BlendShader,
     mode: BlendMode,
-) -> wgpu::RenderPipeline {
+) -> ReplacePipeline {
     let constants = [("0", mode.shader_id() as f64)];
     let compilation_options = wgpu::PipelineCompilationOptions {
         constants: &constants,
         zero_initialize_workgroup_memory: true,
     };
-    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+    let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some(&format!("aria.blend_composite.{mode:?}")),
-        layout: Some(pipeline_layout),
+        layout: Some(&blend.layout),
         vertex: wgpu::VertexState {
-            module: shader,
+            module: &blend.shader,
             entry_point: Some("vs"),
             buffers: &[],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
@@ -96,7 +95,7 @@ pub(super) fn build_blend_pipeline(
         depth_stencil: None,
         multisample: wgpu::MultisampleState::default(),
         fragment: Some(wgpu::FragmentState {
-            module: shader,
+            module: &blend.shader,
             entry_point: Some("fs"),
             targets: &[Some(wgpu::ColorTargetState {
                 format: RT_FORMAT,
@@ -107,5 +106,9 @@ pub(super) fn build_blend_pipeline(
         }),
         multiview_mask: None,
         cache: None,
-    })
+    });
+    // SAFETY: blending is off and every channel is written, and
+    // `blend_composite.wgsl`, the one shader a `BlendShader` holds, draws the
+    // full-screen quad from vertices `0..6` and never discards.
+    unsafe { ReplacePipeline::new(pipeline) }
 }

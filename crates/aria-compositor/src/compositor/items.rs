@@ -64,7 +64,6 @@ impl Compositor {
                     texture,
                     view,
                     clear: pending_clear.take(),
-                    label: "aria.pass",
                 };
                 self.draw_layer_onto(gpu, encoder, config, offscreen, layer, &onto)
             }

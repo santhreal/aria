@@ -4,7 +4,7 @@ use crate::color_pass;
 
 /// A full-screen quad that samples `tex` at its UV: the source of the plain,
 /// additive, and replacing blits.
-const BLIT_WGSL: &str = r#"
+pub(super) const BLIT_WGSL: &str = r#"
 struct VsOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32> }
 @vertex fn vs(@builtin(vertex_index) vi: u32) -> VsOut {
     var positions = array<vec2<f32>, 6>(
@@ -64,20 +64,14 @@ pub(crate) fn blit_replace(
         "aria.blit_replace.bg",
         &[Bound::Texture(source), Bound::Sampler(&registry.sampler)],
     );
-    color_pass::draw_quad(
-        encoder,
-        output,
-        color_pass::CLEAR,
-        registry.replace_pipeline(),
-        &bind_group,
-    );
+    color_pass::replace_quad(encoder, output, registry.replace_pipeline(), &bind_group);
 }
 
 pub(super) fn build_blit_pipeline(
     device: &wgpu::Device,
     layout: &wgpu::BindGroupLayout,
 ) -> wgpu::RenderPipeline {
-    build_blended_pipeline(device, "aria.blit", layout, BLIT_WGSL, Some(PREMULT_OVER))
+    build_blended_pipeline(device, "aria.blit", layout, BLIT_WGSL, PREMULT_OVER)
 }
 
 /// Premultiplied blit with UV offset (shadow placement onto the canvas).
@@ -90,7 +84,7 @@ pub(super) fn build_offset_blit_pipeline(
         "aria.offset_blit",
         layout,
         include_str!("../../shaders/style_offset_blit.wgsl"),
-        Some(PREMULT_OVER),
+        PREMULT_OVER,
     )
 }
 
@@ -141,13 +135,7 @@ pub(super) fn build_additive_blit_pipeline(
             operation: wgpu::BlendOperation::Add,
         },
     };
-    build_blended_pipeline(
-        device,
-        "aria.additive_blit",
-        layout,
-        BLIT_WGSL,
-        Some(ADDITIVE),
-    )
+    build_blended_pipeline(device, "aria.additive_blit", layout, BLIT_WGSL, ADDITIVE)
 }
 
 pub(super) fn build_accumulate_blit_pipeline(
@@ -171,13 +159,6 @@ pub(super) fn build_accumulate_blit_pipeline(
         "aria.accumulate_blit",
         layout,
         include_str!("../../shaders/accumulate_blit.wgsl"),
-        Some(ACCUM),
+        ACCUM,
     )
-}
-
-pub(super) fn build_replace_pipeline(
-    device: &wgpu::Device,
-    layout: &wgpu::BindGroupLayout,
-) -> wgpu::RenderPipeline {
-    build_blended_pipeline(device, "aria.blit_replace", layout, BLIT_WGSL, None)
 }

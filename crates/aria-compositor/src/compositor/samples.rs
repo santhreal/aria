@@ -7,8 +7,6 @@ use crate::gpu::GpuContext;
 use crate::layer::{BlendMode, CompositeLayer, CompositorConfig, LayerPlacement, LayerStyles};
 
 use super::Compositor;
-use super::reference::draw_layer_into;
-use super::render::pipeline_for;
 
 impl Compositor {
     /// Clear pool slot `into` and draw `layer` into it at its placement, or,
@@ -31,13 +29,10 @@ impl Compositor {
     ) -> Result<(), CompositorError> {
         if passes.is_empty() {
             let built = self.build_layer(gpu, encoder, config, layer)?;
-            let pipeline = pipeline_for(&built.pipeline, self);
-            draw_layer_into(
+            self.draw_layer_into(
                 encoder,
-                "aria.offscreen.base",
                 offscreen.view(into),
                 Some(wgpu::Color::TRANSPARENT),
-                pipeline,
                 &built,
             );
             return Ok(());
@@ -47,13 +42,10 @@ impl Compositor {
         for placement in passes {
             let sample = content_at(layer, *placement);
             let built = self.build_layer(gpu, encoder, config, &sample)?;
-            let pipeline = pipeline_for(&built.pipeline, self);
-            draw_layer_into(
+            self.draw_layer_into(
                 encoder,
-                "aria.motion_blur.sample",
                 offscreen.view(scratch),
                 Some(wgpu::Color::TRANSPARENT),
-                pipeline,
                 &built,
             );
             blit_weighted_additive(

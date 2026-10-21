@@ -10,8 +10,12 @@
 //!   stills; premultiplied on upload and composited premultiplied src-over so
 //!   anti-aliased edges stay clean.
 //! - **solid fills** — a fast no-texture path; straight-alpha src-over.
+//!
+//! A video frame or solid fill that covers the whole canvas at full opacity
+//! replaces the canvas without blending, and the clear before it is skipped.
 
 mod canvas_pass;
+mod cover;
 mod draw_layer;
 mod frame_target;
 mod glyphs;
@@ -253,15 +257,29 @@ pub(super) struct SdfUniforms {
 }
 
 /// Which pipeline draws a built layer.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum LayerPipeline {
     Yuv,
+    /// [`Self::Yuv`] with blending disabled, for a layer that covers its
+    /// target with opaque pixels.
+    YuvCover,
     YuvFx,
     Rgba,
     RgbaFx,
     Solid,
+    /// [`Self::Solid`] with blending disabled, for a layer that covers its
+    /// target with opaque pixels.
+    SolidCover,
     Sdf,
     Glyphs,
+}
+
+impl LayerPipeline {
+    /// Whether the pipeline writes every pixel of its target without
+    /// blending, so a pass that draws it first never reads the target.
+    pub(super) fn overwrites_target(self) -> bool {
+        matches!(self, Self::YuvCover | Self::SolidCover)
+    }
 }
 
 /// Instanced draw payload (glyph atlas quads).

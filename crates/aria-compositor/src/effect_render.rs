@@ -3,7 +3,7 @@
 
 use bytemuck::{Pod, Zeroable};
 
-use crate::color_pass;
+use crate::color_pass::{self, ReplacePipeline};
 use crate::error::CompositorError;
 use crate::grade::ColorGrade;
 use crate::layer::{CoverageMix, MaskOp, MatteRead};
@@ -272,7 +272,7 @@ pub(crate) fn run_transition_pass(
         ],
     );
 
-    color_pass::draw_quad(encoder, output, color_pass::CLEAR, pipeline, &bind_group);
+    color_pass::replace_quad(encoder, output, pipeline, &bind_group);
 }
 
 /// Cut `content` by `stencil` into `output`, the stencil's coverage remapped
@@ -309,13 +309,7 @@ pub(crate) fn run_matte_pass(
         ],
     );
 
-    color_pass::draw_quad(
-        encoder,
-        output,
-        color_pass::CLEAR,
-        registry.matte(),
-        &bind_group,
-    );
+    color_pass::replace_quad(encoder, output, registry.matte(), &bind_group);
 }
 
 /// One mask of a stack, as [`run_mask_stack_pass`] combines it.
@@ -374,13 +368,7 @@ pub(crate) fn run_mask_stack_pass(
         ],
     );
 
-    color_pass::draw_quad(
-        encoder,
-        output,
-        color_pass::CLEAR,
-        registry.mask_stack(),
-        &bind_group,
-    );
+    color_pass::replace_quad(encoder, output, registry.mask_stack(), &bind_group);
 }
 
 pub(crate) fn run_grade_pass<'a>(
@@ -405,13 +393,7 @@ pub(crate) fn run_grade_pass<'a>(
         ],
     );
 
-    color_pass::draw_quad(
-        encoder,
-        output,
-        color_pass::CLEAR,
-        registry.grade(),
-        &bind_group,
-    );
+    color_pass::replace_quad(encoder, output, registry.grade(), &bind_group);
     output
 }
 
@@ -421,7 +403,7 @@ pub(super) fn draw_effect_pass(
     encoder: &mut wgpu::CommandEncoder,
     registry: &PassRegistry,
     cache: &PassCache,
-    pipeline: &wgpu::RenderPipeline,
+    pipeline: &ReplacePipeline,
     input: &wgpu::TextureView,
     output: &wgpu::TextureView,
     width: u32,
@@ -444,7 +426,7 @@ pub(super) fn draw_effect_pass(
             Bound::Uniform(bytemuck::bytes_of(&uniforms)),
         ],
     );
-    color_pass::draw_quad(encoder, output, color_pass::CLEAR, pipeline, &bind_group);
+    color_pass::replace_quad(encoder, output, pipeline, &bind_group);
     Ok(())
 }
 fn texel_size(width: u32, height: u32) -> [f32; 4] {

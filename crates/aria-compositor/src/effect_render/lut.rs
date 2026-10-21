@@ -51,12 +51,6 @@ pub(crate) fn run_lut_pass<'a>(
         ],
     );
 
-    color_pass::draw_quad(
-        encoder,
-        output,
-        color_pass::CLEAR,
-        registry.lut(),
-        &bind_group,
-    );
+    color_pass::replace_quad(encoder, output, registry.lut(), &bind_group);
     output
 }

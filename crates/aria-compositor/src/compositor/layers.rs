@@ -8,6 +8,7 @@ use crate::grade::ColorGrade;
 use crate::layer::{CompositeLayer, CompositorConfig, LayerContent, LayerEffects, LayerPlacement};
 use crate::planes::PlaneSet;
 
+use super::cover::covers_target;
 use super::upload::{
     luma_coeffs, pack_grade, placement_affine, placement_affine_rot, placement_rotation,
     rgba_image_key, visible_uv_rect,
@@ -135,8 +136,14 @@ impl Compositor {
             "aria.solid.bg",
             &[Bound::Uniform(bytemuck::bytes_of(&uniforms))],
         );
+        // An opaque fill over the whole target replaces it.
+        let pipeline = if rgba[3] == u8::MAX && covers_target(linear, trans) {
+            LayerPipeline::SolidCover
+        } else {
+            LayerPipeline::Solid
+        };
         Ok(LayerGpu {
-            pipeline: LayerPipeline::Solid,
+            pipeline,
             bind_group,
             _planes: None,
             _keep_alive: None,
@@ -213,8 +220,14 @@ impl Compositor {
                     Bound::Uniform(bytemuck::bytes_of(&uniforms)),
                 ],
             );
+            // A YUV frame is opaque: over the whole target it replaces it.
+            let pipeline = if covers_target(linear, trans) {
+                LayerPipeline::YuvCover
+            } else {
+                LayerPipeline::Yuv
+            };
             return Ok(LayerGpu {
-                pipeline: LayerPipeline::Yuv,
+                pipeline,
                 bind_group,
                 _planes: Some(planes),
                 _keep_alive: keep_alive,

@@ -13,8 +13,7 @@ use crate::gpu::GpuContext;
 use crate::layer::{BlendMode, CompositeLayer, CompositorConfig};
 
 use super::Compositor;
-use super::reference::{draw_layer_into, draws_content_direct};
-use super::render::pipeline_for;
+use super::reference::draws_content_direct;
 
 /// A destination a pool slot composites over: the canvas, or the reference
 /// target of a clip.
@@ -32,7 +31,6 @@ pub(super) struct LayerTarget<'a> {
     /// Clear color applied before drawing when `Some`, or `None` to load the
     /// existing target contents.
     pub(super) clear: Option<wgpu::Color>,
-    pub(super) label: &'static str,
 }
 
 impl Compositor {
@@ -50,15 +48,7 @@ impl Compositor {
         let mode = layer.blend_mode;
         if draws_content_direct(layer) && mode == BlendMode::Normal && layer.styles.is_empty() {
             let built = self.build_layer(gpu, encoder, config, layer)?;
-            let pipeline = pipeline_for(&built.pipeline, self);
-            draw_layer_into(
-                encoder,
-                target.label,
-                target.view,
-                target.clear,
-                pipeline,
-                &built,
-            );
+            self.draw_layer_into(encoder, target.view, target.clear, &built);
             return Ok(());
         }
         if let Some(color) = target.clear {
@@ -79,15 +69,7 @@ impl Compositor {
         if let Some(bg) = layer.styles.background.filter(|b| b.rgba[3] > 0) {
             let plate = background_plate_layer(&layer.placement, bg);
             let built = self.build_layer(gpu, encoder, config, &plate)?;
-            let pipeline = pipeline_for(&built.pipeline, self);
-            draw_layer_into(
-                encoder,
-                "aria.style.background",
-                target.view,
-                None,
-                pipeline,
-                &built,
-            );
+            self.draw_layer_into(encoder, target.view, None, &built);
         }
         if layer.styles.shadow.is_some() || layer.styles.glow.is_some() {
             composite_layer_styles(

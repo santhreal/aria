@@ -1,12 +1,13 @@
+use crate::color_pass::ReplacePipeline;
 use crate::passes::{GAUSSIAN_BLUR, TransitionPass, WipeDirection, effect_passes, transition_pass};
 use std::collections::HashMap;
 use std::sync::{Arc, LazyLock, OnceLock};
 
 use super::RT_FORMAT;
-use super::blend::{BLEND_MODE_COUNT, build_blend_pipeline, build_blend_shader};
+use super::blend::{BLEND_MODE_COUNT, BlendShader, build_blend_pipeline, build_blend_shader};
 use super::blit::{
-    build_accumulate_blit_pipeline, build_additive_blit_pipeline, build_blit_pipeline,
-    build_offset_blit_pipeline, build_replace_pipeline,
+    BLIT_WGSL, build_accumulate_blit_pipeline, build_additive_blit_pipeline, build_blit_pipeline,
+    build_offset_blit_pipeline,
 };
 
 static EFFECT_PIPELINE_INDEX_BY_ID: LazyLock<HashMap<&'static str, usize>> = LazyLock::new(|| {
@@ -22,22 +23,22 @@ static EFFECT_PIPELINE_INDEX_BY_ID: LazyLock<HashMap<&'static str, usize>> = Laz
 pub(crate) struct SharedPassPipelines {
     device: wgpu::Device,
     /// Drawn for an id with no registry row: the frame, unchanged.
-    passthrough: OnceLock<wgpu::RenderPipeline>,
+    passthrough: OnceLock<ReplacePipeline>,
     /// One entry per row of [`effect_passes`], in registry order; each entry
     /// holds that row's shaders built on first dispatch. Adding an effect adds
     /// a row, not a field here.
-    effects: Box<[Box<[OnceLock<wgpu::RenderPipeline>]>]>,
-    crossfade: OnceLock<wgpu::RenderPipeline>,
-    dip: OnceLock<wgpu::RenderPipeline>,
-    wipe: OnceLock<wgpu::RenderPipeline>,
-    slide: OnceLock<wgpu::RenderPipeline>,
+    effects: Box<[Box<[OnceLock<ReplacePipeline>]>]>,
+    crossfade: OnceLock<ReplacePipeline>,
+    dip: OnceLock<ReplacePipeline>,
+    wipe: OnceLock<ReplacePipeline>,
+    slide: OnceLock<ReplacePipeline>,
     /// Track-matte cut: two textures in, the content cut by the stencil out.
-    matte: OnceLock<wgpu::RenderPipeline>,
+    matte: OnceLock<ReplacePipeline>,
     /// One mask combined with the stack above it: two coverages in, the
     /// combined coverage out.
-    mask_stack: OnceLock<wgpu::RenderPipeline>,
-    grade: OnceLock<wgpu::RenderPipeline>,
-    lut: OnceLock<wgpu::RenderPipeline>,
+    mask_stack: OnceLock<ReplacePipeline>,
+    grade: OnceLock<ReplacePipeline>,
+    lut: OnceLock<ReplacePipeline>,
     pub effect_layout: wgpu::BindGroupLayout,
     pub lut_layout: wgpu::BindGroupLayout,
     pub transition_layout: wgpu::BindGroupLayout,
@@ -45,15 +46,15 @@ pub(crate) struct SharedPassPipelines {
     /// Full-canvas blit of an offscreen texture (premultiplied src-over).
     blit_pipeline: OnceLock<wgpu::RenderPipeline>,
     /// Full-canvas replacement blit for canvas-wide passes.
-    replace_pipeline: OnceLock<wgpu::RenderPipeline>,
+    replace_pipeline: OnceLock<ReplacePipeline>,
     pub blit_layout: wgpu::BindGroupLayout,
     /// Shared WGSL shader module and pipeline layout for dst-sampling blend modes.
-    blend_shader: OnceLock<(wgpu::ShaderModule, wgpu::PipelineLayout)>,
+    blend_shader: OnceLock<BlendShader>,
     /// Specialized dst-sampling blend pipelines (one per BlendMode).
-    blend_pipelines: [OnceLock<wgpu::RenderPipeline>; BLEND_MODE_COUNT],
+    blend_pipelines: [OnceLock<ReplacePipeline>; BLEND_MODE_COUNT],
     pub blend_layout: wgpu::BindGroupLayout,
     /// Layer-alpha silhouette tint (shadow/glow seed).
-    silhouette_pipeline: OnceLock<wgpu::RenderPipeline>,
+    silhouette_pipeline: OnceLock<ReplacePipeline>,
     /// Premultiplied blit with UV offset (shadow placement).
     offset_blit_pipeline: OnceLock<wgpu::RenderPipeline>,
     pub offset_blit_layout: wgpu::BindGroupLayout,
@@ -164,7 +165,7 @@ impl SharedPassPipelines {
             ],
         });
 
-        let effects: Box<[Box<[OnceLock<wgpu::RenderPipeline>]>]> = effect_passes()
+        let effects: Box<[Box<[OnceLock<ReplacePipeline>]>]> = effect_passes()
             .iter()
             .map(|pass| pass.shaders.iter().map(|_| OnceLock::new()).collect())
             .collect();
@@ -203,41 +204,79 @@ impl SharedPassPipelines {
     }
 
     pub(crate) fn compiled_count(&self) -> usize {
-        let singles = [
-            &self.passthrough,
-            &self.crossfade,
-            &self.dip,
-            &self.wipe,
-            &self.slide,
-            &self.matte,
-            &self.mask_stack,
-            &self.grade,
-            &self.lut,
-            &self.blit_pipeline,
-            &self.replace_pipeline,
-            &self.silhouette_pipeline,
-            &self.offset_blit_pipeline,
-            &self.additive_blit_pipeline,
-            &self.accumulate_blit_pipeline,
-            &self.harden_pipeline,
-        ]
-        .into_iter()
-        .filter(|cell| cell.get().is_some())
-        .count();
-        let effects: usize = self
-            .effects
-            .iter()
-            .map(|row| row.iter().filter(|cell| cell.get().is_some()).count())
-            .sum();
-        let blends = self
-            .blend_pipelines
-            .iter()
-            .filter(|cell| cell.get().is_some())
-            .count();
-        singles + effects + blends
+        let (replacing, blending) = self.cells();
+        replacing.filter(|cell| cell.get().is_some()).count()
+            + blending.filter(|cell| cell.get().is_some()).count()
     }
 
-    fn passthrough(&self) -> &wgpu::RenderPipeline {
+    /// Every pipeline cell: the replacing ones, then the blending ones. The
+    /// destructure names every field, so a new field does not compile until
+    /// it is sorted into one of the two.
+    fn cells(
+        &self,
+    ) -> (
+        impl Iterator<Item = &OnceLock<ReplacePipeline>>,
+        impl Iterator<Item = &OnceLock<wgpu::RenderPipeline>>,
+    ) {
+        let Self {
+            device: _,
+            passthrough,
+            effects,
+            crossfade,
+            dip,
+            wipe,
+            slide,
+            matte,
+            mask_stack,
+            grade,
+            lut,
+            effect_layout: _,
+            lut_layout: _,
+            transition_layout: _,
+            sampler: _,
+            blit_pipeline,
+            replace_pipeline,
+            blit_layout: _,
+            blend_shader: _,
+            blend_pipelines,
+            blend_layout: _,
+            silhouette_pipeline,
+            offset_blit_pipeline,
+            offset_blit_layout: _,
+            additive_blit_pipeline,
+            accumulate_blit_pipeline,
+            accumulate_blit_layout: _,
+            harden_pipeline,
+            harden_layout: _,
+        } = self;
+        let replacing = [
+            passthrough,
+            crossfade,
+            dip,
+            wipe,
+            slide,
+            matte,
+            mask_stack,
+            grade,
+            lut,
+            replace_pipeline,
+            silhouette_pipeline,
+        ]
+        .into_iter()
+        .chain(effects.iter().flat_map(|row| row.iter()))
+        .chain(blend_pipelines);
+        let blending = [
+            blit_pipeline,
+            offset_blit_pipeline,
+            additive_blit_pipeline,
+            accumulate_blit_pipeline,
+            harden_pipeline,
+        ]
+        .into_iter();
+        (replacing, blending)
+    }
+
+    fn passthrough(&self) -> &ReplacePipeline {
         self.passthrough.get_or_init(|| {
             build_effect_pipeline(
                 &self.device,
@@ -248,7 +287,7 @@ impl SharedPassPipelines {
         })
     }
 
-    fn effect_pass(&self, row: usize, index: usize) -> &wgpu::RenderPipeline {
+    fn effect_pass(&self, row: usize, index: usize) -> &ReplacePipeline {
         self.effects[row][index].get_or_init(|| {
             let pass = &effect_passes()[row];
             build_effect_pipeline(
@@ -262,7 +301,7 @@ impl SharedPassPipelines {
 
     /// The first pass of `id`. An id with no row never reaches here — the chain
     /// skips it as a no-op — so the passthrough is a last resort, not a path.
-    pub(super) fn effect_pipeline(&self, id: &str) -> &wgpu::RenderPipeline {
+    pub(super) fn effect_pipeline(&self, id: &str) -> &ReplacePipeline {
         match EFFECT_PIPELINE_INDEX_BY_ID.get(id) {
             Some(&row) if !self.effects[row].is_empty() => self.effect_pass(row, 0),
             _ => self.passthrough(),
@@ -271,7 +310,7 @@ impl SharedPassPipelines {
 
     /// The separable blur's horizontal and vertical passes. Layer styles blur
     /// with the same two passes as the effect, so both read one registry row.
-    pub(super) fn blur_passes(&self) -> (&wgpu::RenderPipeline, &wgpu::RenderPipeline) {
+    pub(super) fn blur_passes(&self) -> (&ReplacePipeline, &ReplacePipeline) {
         let Some(&row) = EFFECT_PIPELINE_INDEX_BY_ID.get(GAUSSIAN_BLUR) else {
             panic!("the '{GAUSSIAN_BLUR}' row must declare its H and V shaders");
         };
@@ -283,16 +322,16 @@ impl SharedPassPipelines {
         (self.effect_pass(row, 0), self.effect_pass(row, 1))
     }
 
-    pub(crate) fn blend_pipeline(&self, mode: crate::layer::BlendMode) -> &wgpu::RenderPipeline {
+    pub(crate) fn blend_pipeline(&self, mode: crate::layer::BlendMode) -> &ReplacePipeline {
         self.blend_pipelines[mode.shader_id() as usize].get_or_init(|| {
-            let (shader, pipeline_layout) = self
+            let shader = self
                 .blend_shader
                 .get_or_init(|| build_blend_shader(&self.device, &self.blend_layout));
-            build_blend_pipeline(&self.device, shader, pipeline_layout, mode)
+            build_blend_pipeline(&self.device, shader, mode)
         })
     }
 
-    pub(super) fn transition_pipeline(&self, id: &str) -> &wgpu::RenderPipeline {
+    pub(super) fn transition_pipeline(&self, id: &str) -> &ReplacePipeline {
         // One pipeline per variant kind, not per row: dip switches black/white
         // and wipe switches its four edges on the mode slot, so the sources come
         // from a representative variant of each kind.
@@ -335,7 +374,7 @@ impl SharedPassPipelines {
         }
     }
 
-    pub(super) fn matte(&self) -> &wgpu::RenderPipeline {
+    pub(super) fn matte(&self) -> &ReplacePipeline {
         self.matte.get_or_init(|| {
             build_effect_pipeline(
                 &self.device,
@@ -346,7 +385,7 @@ impl SharedPassPipelines {
         })
     }
 
-    pub(super) fn mask_stack(&self) -> &wgpu::RenderPipeline {
+    pub(super) fn mask_stack(&self) -> &ReplacePipeline {
         self.mask_stack.get_or_init(|| {
             build_effect_pipeline(
                 &self.device,
@@ -357,7 +396,7 @@ impl SharedPassPipelines {
         })
     }
 
-    pub(super) fn grade(&self) -> &wgpu::RenderPipeline {
+    pub(super) fn grade(&self) -> &ReplacePipeline {
         self.grade.get_or_init(|| {
             build_effect_pipeline(
                 &self.device,
@@ -372,7 +411,7 @@ impl SharedPassPipelines {
         })
     }
 
-    pub(super) fn lut(&self) -> &wgpu::RenderPipeline {
+    pub(super) fn lut(&self) -> &ReplacePipeline {
         self.lut.get_or_init(|| {
             build_effect_pipeline(
                 &self.device,
@@ -388,12 +427,18 @@ impl SharedPassPipelines {
             .get_or_init(|| build_blit_pipeline(&self.device, &self.blit_layout))
     }
 
-    pub(super) fn replace_pipeline(&self) -> &wgpu::RenderPipeline {
-        self.replace_pipeline
-            .get_or_init(|| build_replace_pipeline(&self.device, &self.blit_layout))
+    pub(super) fn replace_pipeline(&self) -> &ReplacePipeline {
+        self.replace_pipeline.get_or_init(|| {
+            build_effect_pipeline(
+                &self.device,
+                "aria.blit_replace",
+                &self.blit_layout,
+                BLIT_WGSL,
+            )
+        })
     }
 
-    pub(super) fn silhouette_pipeline(&self) -> &wgpu::RenderPipeline {
+    pub(super) fn silhouette_pipeline(&self) -> &ReplacePipeline {
         self.silhouette_pipeline.get_or_init(|| {
             build_effect_pipeline(
                 &self.device,
@@ -427,7 +472,7 @@ impl SharedPassPipelines {
                 "aria.style_harden",
                 &self.harden_layout,
                 include_str!("../../shaders/style_harden.wgsl"),
-                Some(PREMULT_OVER),
+                PREMULT_OVER,
             )
         })
     }
@@ -517,19 +562,41 @@ pub(crate) const PREMULT_OVER: wgpu::BlendState = wgpu::BlendState {
 };
 
 /// A full-screen pipeline of `source` (`vs` and `fs` entry points) that
-/// writes a cleared offscreen target without blending.
-pub(super) fn build_effect_pipeline(
+/// replaces its target.
+///
+/// Every caller passes a shader of this crate whose `vs` covers the target
+/// with vertices `0..6` and whose `fs` never discards;
+/// `tests::every_replacing_pipeline_writes_every_pixel` draws each pipeline
+/// built here over two different targets.
+fn build_effect_pipeline(
     device: &wgpu::Device,
     label: &str,
     layout: &wgpu::BindGroupLayout,
     source: &str,
-) -> wgpu::RenderPipeline {
-    build_blended_pipeline(device, label, layout, source, None)
+) -> ReplacePipeline {
+    let pipeline = build_full_screen_pipeline(device, label, layout, source, None);
+    // SAFETY: blending is off and every channel is written below, and every
+    // caller in this file passes a full-screen `vs` and an `fs` that never
+    // discards.
+    unsafe { ReplacePipeline::new(pipeline) }
 }
 
 /// A full-screen pipeline of `source` (`vs` and `fs` entry points) that
-/// writes its target with `blend`, or replaces it when `blend` is `None`.
+/// writes its target with `blend`.
 pub(super) fn build_blended_pipeline(
+    device: &wgpu::Device,
+    label: &str,
+    layout: &wgpu::BindGroupLayout,
+    source: &str,
+    blend: wgpu::BlendState,
+) -> wgpu::RenderPipeline {
+    build_full_screen_pipeline(device, label, layout, source, Some(blend))
+}
+
+/// A full-screen pipeline of `source` (`vs` and `fs` entry points) that
+/// writes every channel of its target with `blend`, or replaces it when
+/// `blend` is `None`.
+fn build_full_screen_pipeline(
     device: &wgpu::Device,
     label: &str,
     layout: &wgpu::BindGroupLayout,
@@ -571,3 +638,7 @@ pub(super) fn build_blended_pipeline(
         cache: None,
     })
 }
+
+#[cfg(test)]
+#[path = "pipelines_tests.rs"]
+mod tests;

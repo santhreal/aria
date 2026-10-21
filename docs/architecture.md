@@ -420,6 +420,13 @@ rejects it with a diagnostic message. `LayerSource::kind()` returns one of the
   effect share one binding and a repeated frame allocates nothing. The table is
   keyed on that pool's views and lives with it, and a fourth binding on the
   effect layout fails the build until the key covers it.
+- A video frame drawn without layer effects, or an opaque solid fill, at full
+  opacity and with a placed quad that contains every corner of its target draws
+  with blending off in a render pass that neither clears nor loads the target.
+  Every built-in effect, transition, matte, mask stack, colour grade, LUT and
+  blend-mode pass draws its offscreen target the same way through a
+  `ReplacePipeline`, which is built only from compositor shaders that write
+  every pixel of the target. A plugin pass draws blended over a cleared target.
 
 ## Persistence
 

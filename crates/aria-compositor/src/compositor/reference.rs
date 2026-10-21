@@ -14,7 +14,7 @@ use crate::layer::{CompositeLayer, CompositorConfig, CompositorLayer};
 
 use super::draw_layer::BlendDest;
 use super::pairs::{MatteDraw, TransitionDraw};
-use super::render::{draw_built_layer, pipeline_for};
+use super::render::draw_built_layer;
 use super::{Compositor, LayerGpu};
 
 /// Whether `layer` draws its content straight onto a target: no mask, effect
@@ -27,24 +27,32 @@ pub(super) fn draws_content_direct(layer: &CompositeLayer<'_>) -> bool {
         && layer.blur_passes.is_empty()
 }
 
-/// Draw `built` into `view`, clearing it first when `clear` is `Some`.
-pub(super) fn draw_layer_into(
-    encoder: &mut wgpu::CommandEncoder,
-    _label: &'static str,
-    view: &wgpu::TextureView,
-    clear: Option<wgpu::Color>,
-    pipeline: &wgpu::RenderPipeline,
-    built: &LayerGpu,
-) {
-    let load = match clear {
-        Some(color) => wgpu::LoadOp::Clear(color),
-        None => wgpu::LoadOp::Load,
-    };
-    let mut pass = color_pass::begin(encoder, view, load);
-    draw_built_layer(&mut pass, pipeline, built);
-}
-
 impl Compositor {
+    /// Draw `built` into `view` through its pipeline, clearing `view` first
+    /// when `clear` is `Some`. A layer that overwrites its target draws onto
+    /// it unloaded instead.
+    pub(super) fn draw_layer_into(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        view: &wgpu::TextureView,
+        clear: Option<wgpu::Color>,
+        built: &LayerGpu,
+    ) {
+        let pipeline = self.pipelines.layer_pipeline(&built.pipeline);
+        let mut pass = if built.pipeline.overwrites_target() {
+            // SAFETY: the pass's only draw is `built`, whose pipeline writes
+            // every pixel of the target with blending disabled.
+            unsafe { color_pass::begin_overwrite(encoder, view) }
+        } else {
+            let load = match clear {
+                Some(color) => wgpu::LoadOp::Clear(color),
+                None => wgpu::LoadOp::Load,
+            };
+            color_pass::begin(encoder, view, load)
+        };
+        draw_built_layer(&mut pass, pipeline, built);
+    }
+
     /// Draw `layer`'s content, or the average of its motion-blur samples, cut
     /// by its mask into pool slot 0, run its effect chain and LUT, and return
     /// the pool view holding the result.
@@ -196,8 +204,7 @@ impl Compositor {
     ) -> Result<(), CompositorError> {
         if draws_content_direct(layer) {
             let built = self.build_layer(gpu, encoder, config, layer)?;
-            let pipeline = pipeline_for(&built.pipeline, self);
-            draw_layer_into(encoder, "aria.reference", view, None, pipeline, &built);
+            self.draw_layer_into(encoder, view, None, &built);
             return Ok(());
         }
         let result = self.layer_result(gpu, encoder, config, offscreen, layer)?;

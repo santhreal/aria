@@ -167,13 +167,7 @@ fn run_silhouette(
             Bound::Uniform(bytemuck::bytes_of(&uniforms)),
         ],
     );
-    color_pass::draw_quad(
-        encoder,
-        output,
-        color_pass::CLEAR,
-        registry.silhouette_pipeline(),
-        &bind_group,
-    );
+    color_pass::replace_quad(encoder, output, registry.silhouette_pipeline(), &bind_group);
 }
 
 /// Premultiplied-over blit of `source` onto the canvas with a UV offset.
