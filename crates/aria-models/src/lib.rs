@@ -29,6 +29,7 @@ mod capabilities;
 pub mod catalog;
 mod clip;
 mod clip_types;
+mod content_hash;
 mod effect_graph;
 mod effects;
 mod error;

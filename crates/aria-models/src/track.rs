@@ -357,21 +357,6 @@ impl Clone for Revision {
     }
 }
 
-/// Feeds serialized bytes to a hasher, so a lane hashes without building its
-/// JSON in memory.
-struct HashWriter(std::collections::hash_map::DefaultHasher);
-
-impl std::io::Write for HashWriter {
-    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-        std::hash::Hasher::write(&mut self.0, bytes);
-        Ok(bytes.len())
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
-}
-
 #[cfg(test)]
 thread_local! {
     /// Lanes [`Track::revision`] hashed on this thread.
@@ -505,17 +490,13 @@ impl Track {
     /// drops the kept value, and a clone keeps it. Reading the revision of a
     /// lane nothing wrote to since the last read costs one load.
     pub fn revision(&self) -> u64 {
-        use std::hash::Hasher;
         use std::sync::atomic::Ordering;
         let kept = self.revision.0.load(Ordering::Relaxed);
         if kept != 0 {
             return kept;
         }
-        let mut hasher = HashWriter(std::collections::hash_map::DefaultHasher::new());
-        // Writing to a hasher cannot fail, and every field serializes.
-        let _ = serde_json::to_writer(&mut hasher, self);
         // Zero marks a revision not computed yet.
-        let hashed = hasher.0.finish().max(1);
+        let hashed = crate::content_hash::content_hash(self).max(1);
         #[cfg(test)]
         HASHED.with(|count| count.set(count.get() + 1));
         self.revision.0.store(hashed, Ordering::Relaxed);

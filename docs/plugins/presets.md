@@ -103,9 +103,11 @@ property `id` may appear at most once in `properties`.
 ### `Param<T>` and `Keyframe<T>`
 
 Every `Param<T>` (in `effects[].params`, `effects[].*_params`,
-`audio_effects[].params`, and `properties[].curve`) serializes as an untagged
-union: either a bare constant `T` or an object `{"kf": [...]}` containing 1 to
-`MAX_PRESET_KEYFRAMES` (`4096`) keyframes sorted by strictly increasing `t`.
+`audio_effects[].params`, and `properties[].curve`) is either a bare constant
+`T` or an object `{"kf": [...]}` containing 1 to `MAX_PRESET_KEYFRAMES`
+(`4096`) keyframes sorted by strictly increasing `t`. The first key of an
+object selects the form: `kf` first is a curve, and any other object is the
+constant `T`. Keys after `kf` are ignored, and a second `kf` is an error.
 
 `Keyframe<T>` object keys:
 

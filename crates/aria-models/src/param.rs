@@ -25,6 +25,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::ModelError;
 
+mod deserialize;
 mod easing;
 mod interpolate;
 mod presets;
@@ -93,13 +94,13 @@ fn is_linear(easing: &Easing) -> bool {
 /// Invariants when keyframed: at least one keyframe, sorted by strictly
 /// increasing `tick`. Mutators preserve this; deserialization re-validates
 /// through [`Param::validate_shape`].
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+///
+/// Deserializes in place: a map whose first key is `kf` is a curve, and any
+/// other value is the constant.
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum Param<T> {
     /// Keyframed curve. Serializes as `{"kf":[{"t":..,"v":..},..]}`.
-    ///
-    /// Listed before `Constant` so untagged deserialization tries the map
-    /// shape first — a bare value can never parse as `{"kf": ...}`.
     Keyframed {
         #[serde(rename = "kf")]
         keyframes: Vec<Keyframe<T>>,
