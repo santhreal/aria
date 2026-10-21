@@ -1122,7 +1122,11 @@ mod tests {
         for round in 0..4 {
             let mut buffer = pool.acquire_buffer(None).expect("acquire");
             let ptr = buffer.as_ptr();
-            assert_eq!(*first.get_or_insert(ptr), ptr, "round {round}: another buffer");
+            assert_eq!(
+                *first.get_or_insert(ptr),
+                ptr,
+                "round {round}: another buffer"
+            );
             let buffer = buffer.get_mut().expect("writable");
             layout.describe(buffer).expect("describe");
             let metas = buffer.iter_meta::<gst_video::VideoMeta>().count();
