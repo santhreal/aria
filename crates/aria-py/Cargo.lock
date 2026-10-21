@@ -44,6 +44,7 @@ dependencies = [
  "aria-shapes",
  "ash",
  "bytemuck",
+ "half",
  "image",
  "naga",
  "objc2",

@@ -99,6 +99,9 @@ wgpu = "29"
 naga = { version = "29", features = ["wgsl-in"] }
 bytemuck = { version = "1", features = ["derive"] }
 pollster = "0.4"
+# IEEE-754 binary16 conversion for RGBA16F CPU-effect frames, host and SDK.
+# Const conversions only, so no `std` runtime feature detection.
+half = { version = "2.7", default-features = false }
 # GPUI from santhreal/santh-gpui, the framework shared with iris and Veyyon.
 # License: Apache-2.0; text in LICENSES/zed-Apache-2.0.txt.
 gpui = { git = "https://github.com/santhreal/santh-gpui", rev = "d6143b31d663858d95bc59f6375d78a517dbbd66" }

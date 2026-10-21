@@ -568,7 +568,8 @@ fn native_plugin_registers_all_contributions_renders_on_lavapipe_and_cleans_up_o
     assert_eq!(grad_out, grad_in);
 
     // 3c. Verify `aria_sdk::f16::{to_f32, from_f32}` agree with `aria_compositor`
-    // on all 65,536 `u16` bit patterns.
+    // on all 65,536 `u16` bit patterns, and on the midpoint between each
+    // pattern and the next, where the rounding mode selects the result.
     for bits in 0u16..=u16::MAX {
         let sdk_f = aria_sdk::f16::to_f32(bits);
         let host_f = f16_to_f32(bits);
@@ -582,6 +583,14 @@ fn native_plugin_registers_all_contributions_renders_on_lavapipe_and_cleans_up_o
             f32_to_f16(host_f),
             "from_f32 mismatch at {bits:#06x}"
         );
+        if (bits & 0x7fff) < 0x7bff {
+            let mid = (host_f + f16_to_f32(bits + 1)) / 2.0;
+            assert_eq!(
+                aria_sdk::f16::from_f32(mid),
+                f32_to_f16(mid),
+                "from_f32 mismatch at midpoint above {bits:#06x}"
+            );
+        }
     }
     // CPU effect guest error (> 1.0): bypasses for the frame, records a fault, stays mounted.
     let err_pass = PassInstance::new(

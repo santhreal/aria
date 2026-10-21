@@ -18,67 +18,20 @@ use aria_models::{
 use crate::registered_passes::EffectDefinition;
 
 /// IEEE-754 binary16 representation of `1.0`.
-pub const F16_ONE: u16 = 0x3c00;
+pub const F16_ONE: u16 = half::f16::ONE.to_bits();
 
-/// Convert an IEEE-754 binary16 (`f16`) bit pattern to `f32`.
+/// Convert an IEEE-754 binary16 (`f16`) bit pattern to `f32`. Exact for every
+/// non-NaN pattern; a NaN decodes to a quiet NaN of the same sign.
 #[inline]
 pub const fn f16_to_f32(bits: u16) -> f32 {
-    let sign = ((bits & 0x8000) as u32) << 16;
-    let exp = ((bits >> 10) & 0x1f) as u32;
-    let mant = (bits & 0x03ff) as u32;
-    if exp == 0 {
-        if mant == 0 {
-            return f32::from_bits(sign);
-        }
-        let shift = mant.leading_zeros() - 21;
-        let mant = (mant << shift) & 0x03ff;
-        let exp = (127 - 15 + 1) - shift;
-        f32::from_bits(sign | (exp << 23) | (mant << 13))
-    } else if exp == 0x1f {
-        f32::from_bits(sign | 0x7f80_0000 | (mant << 13))
-    } else {
-        f32::from_bits(sign | ((exp + (127 - 15)) << 23) | (mant << 13))
-    }
+    half::f16::from_bits(bits).to_f32_const()
 }
 
 /// Convert an `f32` to an IEEE-754 binary16 (`f16`) bit pattern (round to
 /// nearest, ties to even).
 #[inline]
 pub const fn f32_to_f16(value: f32) -> u16 {
-    let bits = value.to_bits();
-    let sign = ((bits >> 16) & 0x8000) as u16;
-    let exp = ((bits >> 23) & 0xff) as i32;
-    let mant = bits & 0x007f_ffff;
-    if exp == 0xff {
-        return if mant == 0 {
-            sign | 0x7c00
-        } else {
-            sign | 0x7e00 | ((mant >> 13) as u16)
-        };
-    }
-    let half_exp = exp - 127 + 15;
-    if half_exp >= 0x1f {
-        return sign | 0x7c00;
-    }
-    if half_exp <= 0 {
-        if half_exp < -10 {
-            return sign;
-        }
-        let full_mant = mant | 0x0080_0000;
-        let shift = (14 - half_exp) as u32;
-        let round_bit = 1u32 << (shift - 1);
-        let mask = round_bit - 1;
-        let mut half_mant = (full_mant >> shift) as u16;
-        if (full_mant & round_bit) != 0 && ((full_mant & mask) != 0 || (half_mant & 1) != 0) {
-            half_mant += 1;
-        }
-        return sign | half_mant;
-    }
-    let mut half_mant = (mant >> 13) as u16;
-    if (mant & 0x1000) != 0 && ((mant & 0x0fff) != 0 || (half_mant & 1) != 0) {
-        half_mant += 1;
-    }
-    sign | (((half_exp as u16) << 10) + half_mant)
+    half::f16::from_f32_const(value).to_bits()
 }
 
 /// Precomputed `u8` (`0..=255`) to normalized `f16` (`0.0..=1.0`) table.

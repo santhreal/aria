@@ -17,6 +17,7 @@ aria-core = { path = "../aria-core" }
 # holds no second list of its own. Data only — no GPU, no UI.
 aria-models = { path = "../aria-models" }
 aria-shapes = { path = "../aria-shapes" }
+half = { workspace = true }
 image = { version = "0.25", default-features = false }
 naga = { workspace = true }
 rustc-hash = { workspace = true }

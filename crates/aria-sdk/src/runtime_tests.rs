@@ -2086,3 +2086,29 @@ fn f16_helpers_round_trip_every_u16_bit_pattern() {
     assert_eq!(crate::f16::to_f32(crate::f16::from_f32(4.0)), 4.0);
     assert_eq!(crate::f16::to_f32(crate::f16::from_f32(-1.25)), -1.25);
 }
+
+/// Closes the defect class where `aria_sdk::f16::from_f32` truncates, rounds
+/// ties away from zero, or rounds to the wrong neighbour. Over every pair of
+/// adjacent finite binary16 values of either sign, the exact midpoint rounds
+/// to the even pattern and one `f32` ulp to either side rounds to the nearer
+/// value; past the largest finite value, the overflow midpoint rounds to
+/// infinity.
+#[test]
+fn f16_from_f32_rounds_every_midpoint_to_nearest_even() {
+    for lo in (0u16..0x7bff).chain(0x8000..0xfbff) {
+        let hi = lo + 1;
+        let mid = (crate::f16::to_f32(lo) + crate::f16::to_f32(hi)) / 2.0;
+        let even = if lo % 2 == 0 { lo } else { hi };
+        assert_eq!(crate::f16::from_f32(mid), even, "tie {lo:#06x}/{hi:#06x}");
+        let nearer_lo = f32::from_bits(mid.to_bits() - 1);
+        assert_eq!(crate::f16::from_f32(nearer_lo), lo, "below tie {lo:#06x}");
+        let nearer_hi = f32::from_bits(mid.to_bits() + 1);
+        assert_eq!(crate::f16::from_f32(nearer_hi), hi, "above tie {lo:#06x}");
+    }
+    assert_eq!(crate::f16::from_f32(65520.0), 0x7c00);
+    assert_eq!(crate::f16::from_f32(-65520.0), 0xfc00);
+    assert_eq!(
+        crate::f16::from_f32(f32::from_bits(65520f32.to_bits() - 1)),
+        0x7bff
+    );
+}

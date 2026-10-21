@@ -9,6 +9,7 @@ description = "Safe Rust SDK for authoring Aria native plugins over the stable C
 
 [dependencies]
 aria-plugin-abi = { path = "../aria-plugin-abi" }
+half = { workspace = true }
 parking_lot = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
