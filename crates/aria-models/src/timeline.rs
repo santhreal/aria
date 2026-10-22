@@ -4,7 +4,7 @@ use crate::Map;
 use crate::audio_effects::AudioEffectInstance;
 use crate::clip::Clip;
 use crate::error::ModelError;
-use crate::ids::{ClipId, TrackId};
+use crate::ids::{ClipId, LinkId, TrackId};
 use crate::param::{Param, default_zero_param, is_zero_param};
 use crate::source_patch::{Patch, SourceChannel, SourcePatching};
 use crate::time::{Rational, RationalTime, resample};
@@ -708,28 +708,50 @@ impl Timeline {
     /// Callers still layer mute / silence / `has_audio` on top; this answers
     /// only "does this clip's media audio belong to *this* lane?". The detach
     /// scan only runs for *linked* video clips, so undetached drops (the common
-    /// case, `link == None`) short-circuit.
+    /// case, `link == None`) short-circuit. A caller that needs every clip
+    /// reads [`Timeline::audio_lane_links`] once and calls
+    /// [`AudioLaneLinks::carries_own_audio`] instead.
     pub fn carries_own_audio(&self, clip_id: ClipId) -> bool {
-        if self.clip(clip_id).is_none_or(|clip| clip.freeze_frame) {
-            return false;
-        }
-        let Some(track) = self.track_of(clip_id).and_then(|t| self.track(t)) else {
+        let Some(clip) = self.clip(clip_id) else {
             return false;
         };
-        if !track.kind.carries_audio() {
+        let Some(lane) = self.track_of(clip_id).and_then(|t| self.track(t)) else {
             return false;
-        }
-        track.kind.is_audio() || !self.detached_to_audio_lane(clip_id)
+        };
+        own_audio(lane, clip, || self.detached_to_audio_lane(clip_id))
     }
 
     /// Whether `clip_id` shares a link group with a clip on an audio lane — the
     /// CapCut "separate audio" companion that took over its sound.
+    ///
+    /// Scans the audio lanes. A caller that needs every clip reads
+    /// [`Timeline::audio_lane_links`] once and calls
+    /// [`AudioLaneLinks::detached`] instead.
     pub fn detached_to_audio_lane(&self, clip_id: ClipId) -> bool {
-        let Some(link) = self.clip(clip_id).and_then(|c| c.link) else {
-            return false;
-        };
+        self.clip(clip_id)
+            .and_then(|c| c.link)
+            .is_some_and(|link| self.audio_lane_partner(link).is_some())
+    }
+
+    /// A clip on an audio lane in link group `link`: the companion that plays
+    /// a detached picture clip's sound. `None` when no member of the group is
+    /// on an audio lane.
+    pub fn audio_lane_partner(&self, link: LinkId) -> Option<&Clip> {
+        self.audio_lane_clips().find(|c| c.link == Some(link))
+    }
+
+    /// Every link group with a member on an audio lane, read in one pass, so
+    /// [`Timeline::detached_to_audio_lane`] for each clip of the timeline is
+    /// one set lookup rather than one scan.
+    pub fn audio_lane_links(&self) -> AudioLaneLinks {
+        AudioLaneLinks(self.audio_lane_clips().filter_map(|c| c.link).collect())
+    }
+
+    /// Every clip on an audio lane, in lane order.
+    fn audio_lane_clips(&self) -> impl Iterator<Item = &Clip> {
         self.tracks_ordered()
-            .any(|t| t.kind.is_audio() && t.clips().any(|c| c.link == Some(link)))
+            .filter(|t| t.kind.is_audio())
+            .flat_map(Track::clips)
     }
 
     pub fn clip_count(&self) -> usize {
@@ -746,6 +768,31 @@ impl Timeline {
             .unwrap_or(0);
         RationalTime::new(tick, self.frame_rate)
     }
+}
+
+/// The link groups with a member on an audio lane, as
+/// [`Timeline::audio_lane_links`] read them. A write to a clip's link, or a
+/// move of a clip between lanes, makes it stale.
+#[derive(Debug, Default, Clone)]
+pub struct AudioLaneLinks(rustc_hash::FxHashSet<LinkId>);
+
+impl AudioLaneLinks {
+    /// [`Timeline::detached_to_audio_lane`] for `clip`.
+    pub fn detached(&self, clip: &Clip) -> bool {
+        clip.link.is_some_and(|link| self.0.contains(&link))
+    }
+
+    /// [`Timeline::carries_own_audio`] for `clip` on `lane`.
+    pub fn carries_own_audio(&self, lane: &Track, clip: &Clip) -> bool {
+        own_audio(lane, clip, || self.detached(clip))
+    }
+}
+
+/// Whether `clip`'s media audio is heard from `lane`, its own lane, given
+/// whether its sound was detached to an audio lane. `detached` is called only
+/// for a clip on a picture lane that carries sound.
+fn own_audio(lane: &Track, clip: &Clip, detached: impl FnOnce() -> bool) -> bool {
+    !clip.freeze_frame && lane.kind.carries_audio() && (lane.kind.is_audio() || !detached())
 }
 
 /// Move a lane or master insert's sequence-tick keyframes onto `new_rate`.

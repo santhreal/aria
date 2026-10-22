@@ -192,6 +192,106 @@ fn the_cut_row_finds_the_abutting_pair() {
     );
 }
 
+/// What each question answers for one clip, read the way the model reads it
+/// for a single clip: the clip's own predicate, the timeline's per-clip scan,
+/// or the lane's abutment rule asked about every neighbour. Exhaustive, so a
+/// question added to [`ClipFact`] does not compile here until it has one.
+fn read_alone(fact: ClipFact, timeline: &Timeline, lane: &Track, clip: &Clip) -> bool {
+    match fact {
+        ClipFact::CustomCrop => clip.has_custom_crop(),
+        ClipFact::CustomAudio => clip.has_custom_audio(),
+        ClipFact::VolumeEnvelope => clip.has_volume_envelope(),
+        ClipFact::PanEnvelope => clip.has_pan_envelope(),
+        ClipFact::SpeedCurve => clip.has_speed_curve(),
+        ClipFact::Beats => clip.has_beats(),
+        ClipFact::PitchRidesSpeed => clip.audio_pitch_factor() != 1.0,
+        ClipFact::OwnAudio => timeline.carries_own_audio(clip.id),
+        ClipFact::DetachedAudio => timeline.detached_to_audio_lane(clip.id),
+        ClipFact::AtACut => lane
+            .clips()
+            .any(|other| other.id != clip.id && lane.clips_abut(clip.id, other.id)),
+    }
+}
+
+/// Every row answers as the model reads the same question for one clip, for
+/// every clip, whether asked through [`clips_with_fact`] or
+/// [`ClipFact::holds`].
+///
+/// The class: a row answered from a read a walk takes once (the audio-lane
+/// link set, the lane's start order) that disagrees with the per-clip read it
+/// replaced. The shapes: a picture linked to an audio-lane partner, a linked
+/// freeze frame, two picture clips linked only to each other, a junction, a
+/// gap, a clip starting on another lane where one ends, a zero-length clip at
+/// a junction, and a lone zero-length clip whose start is its own end. What
+/// this does not catch: a per-clip read and a row that are wrong the same way.
+#[test]
+fn every_row_answers_as_the_clip_alone_reads() {
+    let mut timeline = Timeline::new(R24);
+    let v1 = timeline.add_track(Track::new(TrackKind::Video, "V1"));
+    let v2 = timeline.add_track(Track::new(TrackKind::Video, "V2"));
+    let a1 = timeline.add_track(Track::new(TrackKind::Audio, "A1"));
+    let media = crate::ids::MediaId::from_raw(1);
+    let place = |timeline: &mut Timeline, lane, start, len, frozen| {
+        let mut clip = Clip::from_media(
+            media,
+            TimeRange::at_rate(0, len, R24),
+            TimeRange::at_rate(start, len, R24),
+        );
+        clip.freeze_frame = frozen;
+        timeline.add_clip(lane, clip).expect("placed")
+    };
+    let link = |timeline: &mut Timeline, clips: [ClipId; 2]| {
+        let group = crate::ids::LinkId::next();
+        for clip in clips {
+            timeline.clip_mut(clip).expect("placed").link = Some(group);
+        }
+    };
+    let picture = place(&mut timeline, v1, 0, 24, false);
+    let sound = place(&mut timeline, a1, 0, 24, false);
+    link(&mut timeline, [picture, sound]);
+    place(&mut timeline, v1, 24, 24, false);
+    let gap = place(&mut timeline, v1, 60, 12, false);
+    let across = place(&mut timeline, v2, 48, 24, false);
+    link(&mut timeline, [gap, across]);
+    let frozen = place(&mut timeline, v2, 96, 24, true);
+    let held = place(&mut timeline, a1, 96, 24, false);
+    link(&mut timeline, [frozen, held]);
+    let before = place(&mut timeline, v1, 200, 10, false);
+    let between = place(&mut timeline, v1, 210, 0, false);
+    place(&mut timeline, v1, 210, 10, false);
+    place(&mut timeline, v2, 150, 0, false);
+
+    for spec in clip_facts() {
+        let found = clips_with_fact(&timeline, spec.fact);
+        let mut expected = Vec::new();
+        for lane in timeline.tracks_ordered() {
+            for clip in lane.clips_ordered() {
+                let alone = read_alone(spec.fact, &timeline, lane, clip);
+                let case = format!("'{}' for {:?} on {}", spec.id, clip.id, lane.name);
+                assert_eq!(spec.fact.holds(&timeline, clip), alone, "{case}");
+                if alone {
+                    expected.push(clip.id);
+                }
+            }
+        }
+        assert_eq!(found, expected, "'{}' over the sequence", spec.id);
+    }
+    let sorted = |mut ids: Vec<ClipId>| {
+        ids.sort_unstable_by_key(|id| id.raw());
+        ids
+    };
+    assert_eq!(
+        sorted(clips_with_fact(&timeline, ClipFact::AtACut)),
+        sorted(vec![picture, before, between]),
+        "the two junctions on V1, and nothing across lanes"
+    );
+    assert_eq!(
+        sorted(clips_with_fact(&timeline, ClipFact::DetachedAudio)),
+        sorted(vec![picture, sound, frozen, held]),
+        "every member of a link reaching an audio lane"
+    );
+}
+
 /// Soloing one lane must show up in the soloed-kinds readout, and clearing it
 /// must take it away. The label comes from the lane catalog, so this also
 /// proves the readout is derived rather than written here.

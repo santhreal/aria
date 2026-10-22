@@ -195,14 +195,10 @@ pub(super) fn set_denoise(project: &Project, args: &SetDenoise) -> Result<EditCo
     // set_clip_audio).
     let timeline = project.timeline();
     if !timeline.carries_own_audio(clip.id) {
-        let companion = clip.link.and_then(|link| {
-            timeline
-                .tracks_ordered()
-                .filter(|t| t.kind.is_audio())
-                .flat_map(|t| t.clips())
-                .find(|c| c.link == Some(link))
-                .map(|c| c.id.raw())
-        });
+        let companion = clip
+            .link
+            .and_then(|link| timeline.audio_lane_partner(link))
+            .map(|c| c.id.raw());
         return Err(Rejection::new(match companion {
             Some(id) => format!(
                 "clip {} is not on an audio lane; its audio plays through \
@@ -239,14 +235,10 @@ pub(super) fn set_clip_audio(
     // linked audio lane, where the audible half now lives.
     let timeline = project.timeline();
     if !timeline.carries_own_audio(clip.id) {
-        let companion = clip.link.and_then(|link| {
-            timeline
-                .tracks_ordered()
-                .filter(|t| t.kind.is_audio())
-                .flat_map(|t| t.clips())
-                .find(|c| c.link == Some(link))
-                .map(|c| c.id.raw())
-        });
+        let companion = clip
+            .link
+            .and_then(|link| timeline.audio_lane_partner(link))
+            .map(|c| c.id.raw());
         return Err(Rejection::new(match companion {
             Some(id) => format!(
                 "clip {} is not on an audio lane; its audio plays through \

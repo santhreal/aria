@@ -21,7 +21,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Weak};
 
-use aria_models::{ClipId, MediaKind, Project, Rational, TrackId};
+use aria_models::{AudioLaneLinks, ClipId, MediaKind, Project, Rational, TrackId};
 use gpui::SharedString;
 
 use super::clip::{lane_clips, lane_to_ui};
@@ -155,16 +155,41 @@ pub(super) struct Globals {
     multicam: Arc<[UiMulticamGroup]>,
 }
 
-/// What a clip reads of the media it places: its name (from the path), what
-/// it can do (kind, still or moving, sound), and whether the file is there.
+/// What a clip reads of the media it places: its name, what it can do (kind,
+/// still or moving, sound), and whether the file is there.
 #[derive(PartialEq)]
-struct MediaFact {
+pub(super) struct MediaFact {
     id: u64,
-    path: SharedString,
+    pub(super) name: SharedString,
+    pub(super) path: SharedString,
     kind: MediaKind,
     is_image: bool,
     has_audio: bool,
-    missing: bool,
+    pub(super) missing: bool,
+}
+
+/// The media facts of a projection by media id: a clip placing media finds its
+/// facts with one lookup.
+pub(super) type MediaFacts<'a> = aria_models::Map<u64, &'a MediaFact>;
+
+/// What a linked clip reads of its link partners. Read once per projection,
+/// and only when a rebuilt lane holds a linked clip; a lane holding none reads
+/// the empty default.
+#[derive(Default)]
+pub(super) struct LinkFacts {
+    /// How far each drifted linked clip sits from its partner, by clip.
+    pub(super) drifts: HashMap<ClipId, i64>,
+    /// The link groups with a member on an audio lane.
+    pub(super) audio: AudioLaneLinks,
+}
+
+impl LinkFacts {
+    fn of(project: &Project) -> Self {
+        Self {
+            drifts: project.link_drifts(),
+            audio: project.timeline().audio_lane_links(),
+        }
+    }
 }
 
 impl Globals {
@@ -190,6 +215,7 @@ impl Globals {
                 .zip(media)
                 .map(|(source, item)| MediaFact {
                     id: item.id,
+                    name: item.name.clone(),
                     path: item.path.clone(),
                     kind: source.kind(),
                     is_image: source.is_image,
@@ -220,36 +246,39 @@ pub(super) fn lanes(
         .filter(|previous| previous.basis.globals == globals)
         .map(|previous| kept(project, selection, previous))
         .unwrap_or_default();
-    let mut drifts = None;
-    let empty_drifts = HashMap::new();
+    let mut linked = None;
+    let unlinked = LinkFacts::default();
     let mut built = HashMap::with_capacity(timeline.track_count());
-    let lanes = timeline
-        .tracks_ordered()
-        .map(|track| {
-            let id = track.id.raw();
-            let (clips, lane_built) = match kept.get(&id) {
-                Some((clips, prev_built)) => {
-                    let cloned = UiClips::clone(clips);
-                    let mut b = (*prev_built).clone();
-                    b.clips = cloned.downgrade();
-                    (cloned, b)
-                }
-                None => {
-                    let has_links = track.clips().any(|c| c.link.is_some());
-                    let drifts = if has_links {
-                        drifts.get_or_insert_with(|| project.link_drifts())
-                    } else {
-                        &empty_drifts
-                    };
-                    let clips = lane_clips(project, track, selection, drifts);
-                    let b = Built::of(track, &clips);
-                    (clips, b)
-                }
-            };
-            built.insert(id, lane_built);
-            lane_to_ui(track, clips)
-        })
-        .collect();
+    let lanes = {
+        let facts: MediaFacts<'_> = globals.media.iter().map(|fact| (fact.id, fact)).collect();
+        timeline
+            .tracks_ordered()
+            .map(|track| {
+                let id = track.id.raw();
+                let (clips, lane_built) = match kept.get(&id) {
+                    Some((clips, prev_built)) => {
+                        let cloned = UiClips::clone(clips);
+                        let mut b = (*prev_built).clone();
+                        b.clips = cloned.downgrade();
+                        (cloned, b)
+                    }
+                    None => {
+                        let has_links = track.clips().any(|c| c.link.is_some());
+                        let links = if has_links {
+                            linked.get_or_insert_with(|| LinkFacts::of(project))
+                        } else {
+                            &unlinked
+                        };
+                        let clips = lane_clips(project, track, selection, links, &facts);
+                        let b = Built::of(track, &clips);
+                        (clips, b)
+                    }
+                };
+                built.insert(id, lane_built);
+                lane_to_ui(track, clips)
+            })
+            .collect()
+    };
     let mixer = match previous.filter(|prev| prev.basis.mixer.0.matches(timeline)) {
         Some(prev) => Arc::clone(&prev.basis.mixer),
         None => Arc::new((

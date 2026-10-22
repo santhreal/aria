@@ -30,6 +30,17 @@ impl fmt::Display for NonDropTimecode {
         let hours = total_seconds / 3600;
         let minutes = (total_seconds / 60) % 60;
         let seconds = total_seconds % 60;
+        // A time from zero to under 100 hours, at a rate whose frame field
+        // fits two digits, is four two-digit fields: written as bytes, since
+        // every clip bar and ruler label formats one.
+        if (0..100 * 3600).contains(&total_seconds) && frame_part < 100 {
+            let mut text = *b"00:00:00:00";
+            for (at, field) in [(0, hours), (3, minutes), (6, seconds), (9, frame_part)] {
+                text[at] += (field / 10) as u8;
+                text[at + 1] += (field % 10) as u8;
+            }
+            return output.write_str(std::str::from_utf8(&text).map_err(|_| fmt::Error)?);
+        }
         write!(
             output,
             "{hours:02}:{minutes:02}:{seconds:02}:{frame_part:02}"
@@ -358,6 +369,52 @@ mod tests {
         assert_eq!(parse_ticks("0+15", 24, 1), Some(15));
         for text in ["0+16", "+4", "4+", "1+2+3", "a+1", "1:00+02"] {
             assert_eq!(parse_ticks(text, 24, 1), None, "{text:?} was accepted");
+        }
+    }
+
+    /// Non-drop timecode reads every field as two zero-padded digits, wider
+    /// only when a field outgrows two.
+    ///
+    /// The class: a byte-written shortcut for the common case (zero to under
+    /// 100 hours, a frame field under 100) that disagrees with the padded
+    /// form at a field boundary, a negative tick, an hour count of 100 or
+    /// more, or a rate counting 100 frames or more a second. Each tick here
+    /// sits on one of those edges and is compared with the padded form.
+    #[test]
+    fn non_drop_timecode_pads_every_field_at_every_boundary() {
+        for fps in [1_i64, 24, 30, 60, 99, 100, 101, 120, 1000] {
+            let hour = fps * 3600;
+            let ticks = [
+                i64::MIN / 2,
+                -hour,
+                -fps - 1,
+                -1,
+                0,
+                1,
+                fps - 1,
+                fps,
+                fps * 59 + fps - 1,
+                fps * 60,
+                hour - 1,
+                hour,
+                hour * 10 - 1,
+                hour * 99 + fps * 3599 + fps - 1,
+                hour * 100 - 1,
+                hour * 100,
+                hour * 1000 + fps * 61 + 5,
+            ];
+            for tick in ticks {
+                let seconds = tick.div_euclid(fps);
+                let frame = tick.rem_euclid(fps);
+                let padded = format!(
+                    "{:02}:{:02}:{:02}:{frame:02}",
+                    seconds / 3600,
+                    (seconds / 60) % 60,
+                    seconds % 60,
+                );
+                let rate = i32::try_from(fps).expect("test rates fit an i32");
+                assert_eq!(format_ticks(tick, rate, 1), padded, "tick {tick} at {fps}");
+            }
         }
     }
 }

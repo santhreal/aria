@@ -25,6 +25,7 @@
 
 use crate::clip::{Clip, ClipParam, ParamValue};
 use crate::effects::{EffectInstance, EffectParamKind, EffectParamSpec, EffectSpec};
+use crate::param::Easing;
 
 use super::{ParamKind, ParamRange, ParamRoute, ParamScope, ParamSpec, Route};
 
@@ -37,9 +38,13 @@ pub(crate) fn effect_route(clip: &Clip, effect: u32, param: u32) -> ParamRoute<'
     let Some(spec) = crate::effect_spec(&instance.effect_id) else {
         return ParamRoute::Absent;
     };
-    let Some(pspec) = spec.param_at(param as usize) else {
-        return ParamRoute::Absent;
-    };
+    spec.param_at(param as usize)
+        .map_or(ParamRoute::Absent, |pspec| slot_route(instance, pspec))
+}
+
+/// Where the parameter `pspec` describes lives on `instance`: its stored curve,
+/// else its catalog default, or `Absent` on a kind no curve carries.
+fn slot_route<'a>(instance: &'a EffectInstance, pspec: &EffectParamSpec) -> ParamRoute<'a> {
     let Some(default) = pspec.default_param_value() else {
         return ParamRoute::Absent;
     };
@@ -179,6 +184,36 @@ pub fn visit_clip_params(clip: &Clip, mut visit: impl FnMut(&ParamSpec)) {
             }
             if let Some(dynamic) = row(index as u32, &spec, slot as u32, pspec) {
                 visit(&dynamic);
+            }
+        }
+    }
+}
+
+/// Call `visit` with every keyframe of every property [`visit_clip_params`]
+/// offers on `clip`, as `(clip-local tick, easing)`: each row's keyframes in
+/// tick order, and the rows in the order that function visits them.
+///
+/// What [`ParamSpec::visit_keyframes`] reports for each offered row, read with
+/// one route lookup per property and one catalog lookup per effect, and
+/// without building a mask or effect row.
+pub fn visit_clip_keyframes(clip: &Clip, mut visit: impl FnMut(i64, Easing)) {
+    // A row that is not available has no route or is out of scope, and
+    // `visit_keyframes` reports nothing for either, so no row is filtered.
+    for spec in super::clip_param_catalog() {
+        spec.visit_keyframes(clip, &mut visit);
+    }
+    for mask in &clip.masks {
+        for param in super::mask_rows::params_of(mask) {
+            super::route_keyframes(super::mask_rows::property_route(mask, param), &mut visit);
+        }
+    }
+    for instance in &clip.effects {
+        let Some(spec) = crate::effect_spec(&instance.effect_id) else {
+            continue;
+        };
+        for pspec in &spec.params {
+            if instance.is_param_visible(pspec, &spec, 0.0) {
+                super::route_keyframes(slot_route(instance, pspec), &mut visit);
             }
         }
     }

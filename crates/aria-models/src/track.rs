@@ -594,6 +594,21 @@ impl Track {
         }
         self.order[lo..hi].iter().map(move |id| &self.clips[id])
     }
+
+    /// Clips starting at `tick`, in id order: one, or more where zero-length
+    /// clips share the tick. Found by the start order, so a lane is not walked.
+    pub fn clips_starting_at(&self, tick: i64) -> impl Iterator<Item = &Clip> {
+        let from = self.order.partition_point(|id| {
+            #[cfg(test)]
+            ORDER_PROBES.with(|c| c.set(c.get() + 1));
+            self.clips[id].timeline.start.value < tick
+        });
+        self.order[from..]
+            .iter()
+            .map(move |id| &self.clips[id])
+            .take_while(move |clip| clip.timeline.start.value == tick)
+    }
+
     /// The clip occupying `timeline_pos`, if any. (At most one, since clips on a
     /// track never overlap.)
     pub fn clip_at(&self, timeline_pos: RationalTime) -> Result<Option<&Clip>, ModelError> {

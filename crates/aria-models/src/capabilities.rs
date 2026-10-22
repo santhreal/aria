@@ -9,6 +9,7 @@
 
 use crate::clip::{Clip, ClipSource};
 use crate::project::Project;
+use crate::timeline::AudioLaneLinks;
 use crate::track::TrackKind;
 
 /// What a clip supports for inspector panels and context-menu actions.
@@ -68,6 +69,33 @@ impl ClipCapabilities {
     /// Derive capabilities from the clip's content, the lane it sits on, and
     /// project context (media `has_audio`, already-detached link state).
     pub fn for_clip(project: &Project, clip: &Clip, kind: TrackKind) -> Self {
+        Self::derive(project, clip, kind, || {
+            project.timeline().detached_to_audio_lane(clip.id)
+        })
+    }
+
+    /// [`ClipCapabilities::for_clip`] for a caller deriving many clips of the
+    /// open timeline: `links`, read once with
+    /// [`Timeline::audio_lane_links`](crate::Timeline::audio_lane_links),
+    /// replaces the scan of the audio lanes each linked clip would take.
+    pub fn for_clip_with(
+        project: &Project,
+        clip: &Clip,
+        kind: TrackKind,
+        links: &AudioLaneLinks,
+    ) -> Self {
+        Self::derive(project, clip, kind, || links.detached(clip))
+    }
+
+    /// The derivation behind both constructors. `detached` reports whether the
+    /// clip's sound was separated to an audio lane; it is called only for a
+    /// clip that could otherwise extract its audio.
+    fn derive(
+        project: &Project,
+        clip: &Clip,
+        kind: TrackKind,
+        detached: impl FnOnce() -> bool,
+    ) -> Self {
         let is_visual = kind.is_visual();
         let is_media = clip.source_range().is_some();
         let can_retime = is_media && !clip.freeze_frame;
@@ -85,30 +113,27 @@ impl ClipCapabilities {
             | ClipSource::Sequence { .. } => (false, false),
         };
 
+        // The pool entry a media clip places, looked up once.
+        let placed = clip.media().and_then(|media| project.media(media));
         let media_kind = match &clip.content {
-            ClipSource::Media { media, .. } => project.media(*media).map(|media| media.kind()),
+            ClipSource::Media { .. } => placed.map(|media| media.kind()),
             ClipSource::Multicam { .. } => Some(crate::MediaKind::Video),
             ClipSource::Generated(_) | ClipSource::Sequence { .. } => None,
         };
         let is_video_media = media_kind == Some(crate::MediaKind::Video);
         let media_is_still = match &clip.content {
-            ClipSource::Media { media, .. } => {
-                project.media(*media).is_some_and(|media| media.is_image)
-            }
+            ClipSource::Media { .. } => placed.is_some_and(|media| media.is_image),
             ClipSource::Multicam { .. } | ClipSource::Sequence { .. } => false,
             ClipSource::Generated(_) => true,
         };
         let media_is_video_with_audio = match &clip.content {
-            ClipSource::Media { media, .. } => project
-                .media(*media)
+            ClipSource::Media { .. } => placed
                 .is_some_and(|media| media.kind() == crate::MediaKind::Video && media.has_audio),
             ClipSource::Multicam { .. } | ClipSource::Sequence { .. } => false,
             ClipSource::Generated(_) => false,
         };
-        let can_extract_audio = kind.extracts_audio()
-            && !clip.freeze_frame
-            && media_is_video_with_audio
-            && !project.timeline().detached_to_audio_lane(clip.id);
+        let can_extract_audio =
+            kind.extracts_audio() && !clip.freeze_frame && media_is_video_with_audio && !detached();
 
         Self {
             has_transform: is_visual,
@@ -451,6 +476,53 @@ mod tests {
             ClipCapabilities::for_clip(&project, project.clip(video.id).unwrap(), TrackKind::Video);
         assert!(!caps.can_extract_audio);
         assert!(!project.timeline().carries_own_audio(video.id));
+    }
+
+    /// [`ClipCapabilities::for_clip_with`] derives what
+    /// [`ClipCapabilities::for_clip`] derives for every clip, with the link
+    /// set read once. The extract flag differs between a detached video clip,
+    /// two video clips linked only to each other, and an unlinked one, so a
+    /// set that answers wrongly changes a derived value.
+    #[test]
+    fn deriving_with_the_link_set_matches_deriving_alone() {
+        let (mut project, media) = project_with_media(true);
+        let timeline = project.timeline_mut();
+        let v1 = timeline.add_track(Track::new(TrackKind::Video, "V1"));
+        let v2 = timeline.add_track(Track::new(TrackKind::Video, "V2"));
+        let a1 = timeline.add_track(Track::new(TrackKind::Audio, "A1"));
+        let mut place = |lane, start| {
+            timeline
+                .add_clip(lane, Clip::from_media(media, tr(start, 24), tr(start, 24)))
+                .expect("place clip")
+        };
+        let pairs = [[place(v1, 0), place(a1, 0)], [place(v1, 48), place(v2, 48)]];
+        place(v2, 96);
+        for pair in pairs {
+            let link = LinkId::next();
+            for clip in pair {
+                project.timeline_mut().clip_mut(clip).unwrap().link = Some(link);
+            }
+        }
+
+        let links = project.timeline().audio_lane_links();
+        let mut extractable = 0;
+        for lane in project.timeline().tracks_ordered() {
+            for clip in lane.clips() {
+                let alone = ClipCapabilities::for_clip(&project, clip, lane.kind);
+                assert_eq!(
+                    ClipCapabilities::for_clip_with(&project, clip, lane.kind, &links),
+                    alone,
+                    "{:?} on {}",
+                    clip.id,
+                    lane.name
+                );
+                extractable += usize::from(alone.can_extract_audio);
+            }
+        }
+        assert_eq!(
+            extractable, 3,
+            "the video-linked pair and the unlinked clip extract, the detached one does not"
+        );
     }
 
     #[test]

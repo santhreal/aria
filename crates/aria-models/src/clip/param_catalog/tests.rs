@@ -291,3 +291,6 @@ mod mask_rows;
 
 #[path = "tests_defaults.rs"]
 mod defaults;
+
+#[path = "tests_clip_keyframes.rs"]
+mod clip_keyframes;

@@ -1,7 +1,8 @@
 //! The open timeline as a [`Cut`], with what the cut cannot hold.
 
 use aria_models::{
-    Clip, ClipSource, MediaSource, Param, Project, Timeline, Track, TrackKind, generator_spec,
+    AudioLaneLinks, Clip, ClipSource, MediaSource, Param, Project, Timeline, Track, TrackKind,
+    generator_spec,
 };
 
 use crate::model::{Cut, Event, Lane, LaneKind, Mark, Read, Source, file_stem};
@@ -17,6 +18,7 @@ pub fn cut(project: &Project) -> Read {
     let mut writer = Writer {
         project,
         timeline,
+        links: timeline.audio_lane_links(),
         drop: timecode::is_drop_rate(timeline.frame_rate),
         skipped: Vec::new(),
     };
@@ -50,6 +52,8 @@ pub fn cut(project: &Project) -> Read {
 struct Writer<'a> {
     project: &'a Project,
     timeline: &'a Timeline,
+    /// Which clips had their sound detached, read once for every clip.
+    links: AudioLaneLinks,
     drop: bool,
     skipped: Vec<String>,
 }
@@ -157,7 +161,7 @@ impl Writer<'_> {
             LaneKind::Audio => true,
             LaneKind::Video => {
                 media.has_audio
-                    && self.timeline.carries_own_audio(clip.id)
+                    && self.links.carries_own_audio(track, clip)
                     && clip.volume.constant() != Some(0.0)
             }
         };

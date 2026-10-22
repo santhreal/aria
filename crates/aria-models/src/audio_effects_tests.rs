@@ -273,6 +273,33 @@ fn an_insert_chain_sits_only_where_there_is_sound() {
     }
 }
 
+/// A clip with sound, read against a lane of every kind the catalog lists,
+/// carries it to an insert only on a lane in the mix. Media lanes are all in
+/// the mix, so no placement reaches the lane clause; this reads it directly,
+/// and a kind added later is read without being named here.
+#[test]
+fn a_clip_with_sound_holds_inserts_only_on_a_lane_in_the_mix() {
+    let Stage { project, sound, .. } = stage();
+    let clip = project
+        .timeline()
+        .require_clip(sound)
+        .expect("the audio clip");
+    for spec in crate::track_kind_specs() {
+        let lane = crate::track::Track::new(spec.kind, spec.id);
+        let want = if spec.in_mixer() {
+            Ok(())
+        } else {
+            Err(ModelError::ClipCarriesNoSound(sound))
+        };
+        assert_eq!(
+            project.clip_insert_refusal(clip, &lane),
+            want,
+            "{}",
+            spec.id
+        );
+    }
+}
+
 #[test]
 fn an_unknown_effect_is_refused_before_the_chain_changes() {
     let Stage {

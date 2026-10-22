@@ -338,6 +338,9 @@ impl ExportAudioMixer {
         let mut clip_inserts: Vec<&[AudioEffectInstance]> = Vec::new();
         // One lane's spans, for its crossfades.
         let mut lane = Vec::new();
+        // Read once: the per-clip detach query scans the audio lanes for each
+        // linked clip.
+        let links = timeline.audio_lane_links();
         for track in timeline.tracks_ordered() {
             let Some(bus) = index_of(track.id) else {
                 continue;
@@ -350,7 +353,7 @@ impl ExportAudioMixer {
                 if clip.is_silent() {
                     continue;
                 }
-                if !timeline.carries_own_audio(clip.id) {
+                if !links.carries_own_audio(track, clip) {
                     continue;
                 }
                 let Some(media_id) = clip.media() else {

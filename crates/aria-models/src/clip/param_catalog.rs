@@ -251,20 +251,7 @@ impl ParamSpec {
         {
             return;
         }
-        fn marks<T: Clone>(p: &Param<T>, visit: &mut impl FnMut(i64, Easing)) {
-            p.keyframes().iter().for_each(|k| visit(k.tick, k.easing));
-        }
-        match self.resolve(clip) {
-            ParamRoute::Scalar(p) => marks(p, &mut visit),
-            ParamRoute::Vec2(p) => marks(p, &mut visit),
-            ParamRoute::Vec3(p) => marks(p, &mut visit),
-            ParamRoute::Scale(p) => marks(p, &mut visit),
-            ParamRoute::Color(p) => marks(p, &mut visit),
-            ParamRoute::Rect(p) => marks(p, &mut visit),
-            // A value the clip does not store cannot be keyframed until someone
-            // writes one, which turns the route into a real `Param`.
-            ParamRoute::Const(_) | ParamRoute::Absent => {}
-        }
+        route_keyframes(self.resolve(clip), &mut visit);
     }
 
     /// The easing on the keyframe at `local`, if there is one.
@@ -335,6 +322,25 @@ impl ParamSpec {
     }
 }
 
+/// Call `visit` with every keyframe on the curve `route` reaches as
+/// `(clip-local tick, easing)`, in tick order.
+fn route_keyframes(route: ParamRoute<'_>, visit: &mut impl FnMut(i64, Easing)) {
+    fn marks<T: Clone>(p: &Param<T>, visit: &mut impl FnMut(i64, Easing)) {
+        p.keyframes().iter().for_each(|k| visit(k.tick, k.easing));
+    }
+    match route {
+        ParamRoute::Scalar(p) => marks(p, visit),
+        ParamRoute::Vec2(p) => marks(p, visit),
+        ParamRoute::Vec3(p) => marks(p, visit),
+        ParamRoute::Scale(p) => marks(p, visit),
+        ParamRoute::Color(p) => marks(p, visit),
+        ParamRoute::Rect(p) => marks(p, visit),
+        // A value the clip does not store cannot be keyframed until someone
+        // writes one, which turns the route into a real `Param`.
+        ParamRoute::Const(_) | ParamRoute::Absent => {}
+    }
+}
+
 /// Every animatable clip property, in the order a surface should browse them.
 pub fn clip_param_catalog() -> &'static [ParamSpec] {
     &CATALOG
@@ -368,7 +374,7 @@ pub fn property_row(id: &str) -> Option<std::borrow::Cow<'static, ParamSpec>> {
 
 mod effect_rows;
 mod mask_rows;
-pub use effect_rows::{clip_params_for, visit_clip_params};
+pub use effect_rows::{clip_params_for, visit_clip_keyframes, visit_clip_params};
 /// The `ClipParam::Effect` row reads its route and its reset value here: an
 /// effect slot is addressed by position, so both need the clip's chain.
 pub(crate) use effect_rows::{effect_default, effect_range, effect_route};

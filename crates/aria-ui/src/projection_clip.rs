@@ -5,6 +5,7 @@
 //! reach it by name; nothing else changed.
 
 use super::effect::{effect_to_ui, track_tint, transition_to_ui};
+use super::lanes::{LinkFacts, MediaFact, MediaFacts};
 use super::*;
 use aria_models::LabelColor;
 use gpui::SharedString;
@@ -57,12 +58,15 @@ pub(super) fn invalidate_media_statuses() {
     MEDIA_STATUS.lock().by_path.clear();
 }
 
-/// The clips of `track`, as its lane draws them.
+/// The clips of `track`, as its lane draws them. `links` holds what a linked
+/// clip reads of its partners, and `facts` the media pool of this projection
+/// by id.
 pub(super) fn lane_clips(
     project: &Project,
     track: &Track,
     selection: &[ClipId],
-    drifts: &std::collections::HashMap<ClipId, i64>,
+    links: &LinkFacts,
+    facts: &MediaFacts<'_>,
 ) -> UiClips {
     let ordered = track.clips_ordered();
     ordered
@@ -72,8 +76,10 @@ pub(super) fn lane_clips(
             let abuts_right = ordered
                 .get(index + 1)
                 .is_some_and(|next| clip.timeline.end_tick() == next.timeline.start.value);
-            let drift = drifts.get(&clip.id).copied();
-            clip_to_ui(project, clip, track, selection, abuts_right, drift)
+            let fact = clip
+                .media()
+                .and_then(|media| facts.get(&media_id(media)).copied());
+            clip_to_ui(project, clip, track, selection, abuts_right, links, fact)
         })
         .collect()
 }
@@ -137,13 +143,18 @@ fn default_label(content: &ClipSource, track: TrackKind) -> LabelColor {
     }
 }
 
+/// `clip` on `track` as its bar draws it. `links` holds what a linked clip
+/// reads of its partners. `fact` is the pool entry of the media the clip
+/// places, `None` for a clip placing none or placing media no longer in the
+/// pool.
 pub(super) fn clip_to_ui(
     project: &Project,
     clip: &Clip,
     track: &Track,
     selection: &[ClipId],
     abuts_right: bool,
-    drift: Option<i64>,
+    links: &LinkFacts,
+    fact: Option<&MediaFact>,
 ) -> UiClip {
     let transform = clip.transform.sample(0);
     let (
@@ -165,7 +176,10 @@ pub(super) fn clip_to_ui(
                 .unwrap_or(source.start.seconds()),
             source.start.value,
             source.end_tick(),
-            media_clip_name(project, *media),
+            fact.map_or_else(
+                || SharedString::from(format!("Media {}", media.raw())),
+                |fact| fact.name.clone(),
+            ),
             media_clip_kind(track.kind),
             None,
         ),
@@ -209,7 +223,8 @@ pub(super) fn clip_to_ui(
 
     // Capabilities come from the engine's own computation so a menu can never
     // offer an action the command layer would refuse.
-    let caps = ClipCapabilities::for_clip(project, clip, track.kind);
+    let caps = ClipCapabilities::for_clip_with(project, clip, track.kind, &links.audio);
+    let drift = links.drifts.get(&clip.id).copied();
     // The text-effect chip the Text tab marks active. Read from the style rather
     // than remembered in the UI, so a preset applied by any path shows here.
     let text_effect = match &clip.content {
@@ -272,9 +287,7 @@ pub(super) fn clip_to_ui(
         filter: clip.filter.as_ref().map(filter_to_ui),
         effects: clip.effects.iter().map(effect_to_ui).collect(),
         audio_inserts: crate::app::audio_inserts::rows(&clip.audio_effects),
-        can_hold_inserts: project
-            .insert_target_refusal(aria_models::AudioInsertTarget::Clip(clip.id))
-            .is_ok(),
+        can_hold_inserts: project.clip_insert_refusal(clip, track).is_ok(),
         generator,
         kind,
         locked: track.locked,
@@ -406,7 +419,9 @@ pub(super) fn clip_to_ui(
         speed_label: super::bar::speed_label(clip),
         drift,
         line: super::bar::clip_line(clip, track.kind.is_audio()),
-        offline: super::bar::offline(project, clip, media_missing),
+        offline: fact
+            .filter(|fact| fact.missing)
+            .map(|fact| super::bar::offline(&fact.path)),
         fx: super::bar::fx_badge(clip),
     }
 }
@@ -540,10 +555,8 @@ pub(super) fn animation_to_ui(animation: &aria_models::AnimationRef) -> UiAnimat
 pub(super) fn keyframe_ticks(clip: &Clip) -> Vec<i64> {
     let mut ticks = Vec::new();
     let start = clip.timeline.start.value;
-    aria_models::visit_clip_params(clip, |spec| {
-        spec.visit_keyframes(clip, |tick, _| {
-            ticks.push(clip.param_timeline_tick(tick) - start);
-        });
+    aria_models::visit_clip_keyframes(clip, |tick, _| {
+        ticks.push(clip.param_timeline_tick(tick) - start);
     });
     ticks.sort_unstable();
     ticks.dedup();
@@ -651,15 +664,6 @@ pub(super) fn bins_to_ui(project: &Project) -> Vec<crate::types::UiBin> {
         }
     }
     out
-}
-
-/// The card name of an unnamed clip placing `id`: the media's own name, or
-/// its id for a clip whose media is no longer in the pool.
-fn media_clip_name(project: &Project, id: aria_models::MediaId) -> SharedString {
-    project.media(id).map_or_else(
-        || SharedString::from(format!("Media {}", id.raw())),
-        media_name,
-    )
 }
 
 pub(super) fn generator_view(generator: &Generator) -> (UiClipKind, SharedString, UiGenerator) {

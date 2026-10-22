@@ -52,7 +52,7 @@ pub use line::default_line_param;
 pub(crate) use param_axis::effect_mut;
 pub use param_catalog::{
     ParamKind, ParamRange, ParamScope, ParamSpec, clip_param_catalog, clip_params_for,
-    mask_param_group, param_spec, property_row, visit_clip_params,
+    mask_param_group, param_spec, property_row, visit_clip_keyframes, visit_clip_params,
 };
 pub use param_value::ParamValue;
 pub use parent::{MAX_PARENT_DEPTH, ParentFrame, ParentKeep};

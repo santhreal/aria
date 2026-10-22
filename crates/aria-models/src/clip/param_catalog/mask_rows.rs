@@ -14,9 +14,13 @@ use super::{ParamRoute, ParamScope, ParamSpec, Route};
 /// Where one mask property lives on `clip`, or `Absent` when the mask index
 /// does not exist.
 pub(crate) fn mask_route(clip: &Clip, mask: u32, param: MaskParam) -> ParamRoute<'_> {
-    let Some(mask) = clip.masks.get(mask as usize) else {
-        return ParamRoute::Absent;
-    };
+    clip.masks
+        .get(mask as usize)
+        .map_or(ParamRoute::Absent, |mask| property_route(mask, param))
+}
+
+/// Where one property lives on `mask`.
+pub(super) fn property_route(mask: &Mask, param: MaskParam) -> ParamRoute<'_> {
     match param {
         MaskParam::Feather => ParamRoute::Scalar(&mask.feather),
         MaskParam::Center => ParamRoute::Vec2(&mask.center),
@@ -68,11 +72,16 @@ pub(super) fn row(index: u32, param: MaskParam) -> ParamSpec {
     }
 }
 
+/// The properties `mask` draws with, in [`MaskParam`] order.
+pub(super) fn params_of(mask: &Mask) -> impl Iterator<Item = MaskParam> + '_ {
+    MaskParam::ALL
+        .iter()
+        .copied()
+        .filter(|param| param.applies_to(mask.kind))
+}
+
 /// One row per property `mask` draws with, in [`MaskParam`] order, for the
 /// mask at `index` in its clip's stack.
 pub(super) fn rows_of(index: u32, mask: &Mask) -> impl Iterator<Item = ParamSpec> + '_ {
-    MaskParam::ALL
-        .iter()
-        .filter(|param| param.applies_to(mask.kind))
-        .map(move |&param| row(index, param))
+    params_of(mask).map(move |param| row(index, param))
 }

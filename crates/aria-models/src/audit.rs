@@ -16,9 +16,12 @@
 //! the numbers to check before an export, and none of them had a
 //! surface either.
 
+use std::cell::OnceCell;
+
 use crate::clip::Clip;
 use crate::ids::ClipId;
-use crate::timeline::Timeline;
+use crate::timeline::{AudioLaneLinks, Timeline};
+use crate::track::Track;
 
 #[path = "audit_project.rs"]
 mod project_facts;
@@ -53,9 +56,10 @@ pub enum ClipFact {
 
 /// What one clip question is called, and how it is answered.
 ///
-/// The timeline is passed alongside the clip because some questions are about
-/// the clip's place in the sequence (its lane, its neighbours) rather than
-/// about the clip alone.
+/// The clip's lane and the walk are passed alongside it because some
+/// questions are about the clip's place in the sequence (its lane, its
+/// neighbours, a linked companion on another lane) rather than about the clip
+/// alone.
 #[derive(Debug, Clone, Copy)]
 pub struct ClipFactSpec {
     /// The question this row describes.
@@ -64,23 +68,39 @@ pub struct ClipFactSpec {
     pub id: &'static str,
     /// Operator-facing label, phrased as what the clip carries.
     pub label: &'static str,
-    /// Answer it for one clip.
-    pub test: fn(&Timeline, &Clip) -> bool,
+    /// Answer it for one clip on its lane.
+    pub test: fn(&FactWalk<'_>, &Track, &Clip) -> bool,
 }
 
-/// Whether any other clip on the same lane starts exactly where `clip` ends.
-///
-/// The lane owns the abutment rule ([`crate::Track::clips_abut`]); this only
-/// asks it about every neighbour, because "is there a cut here" is what a
-/// transition needs and a clip alone cannot say.
-fn at_a_cut(timeline: &Timeline, clip: &Clip) -> bool {
-    let Some(track) = timeline.track_of(clip.id).and_then(|id| timeline.track(id)) else {
-        return false;
-    };
-    track
-        .clips_ordered()
-        .iter()
-        .any(|other| other.id != clip.id && track.clips_abut(clip.id, other.id))
+/// One walk over a sequence's clips, with the sequence-wide reads a question
+/// needs taken once per walk rather than once per clip.
+#[derive(Debug)]
+pub struct FactWalk<'a> {
+    timeline: &'a Timeline,
+    audio_links: OnceCell<AudioLaneLinks>,
+}
+
+impl<'a> FactWalk<'a> {
+    fn new(timeline: &'a Timeline) -> Self {
+        Self {
+            timeline,
+            audio_links: OnceCell::new(),
+        }
+    }
+
+    /// Every link group with a member on an audio lane, read on first use.
+    pub fn audio_links(&self) -> &AudioLaneLinks {
+        self.audio_links
+            .get_or_init(|| self.timeline.audio_lane_links())
+    }
+}
+
+/// Whether another clip on `lane` starts exactly where `clip` ends: the
+/// junction [`crate::Track::clips_abut`] reads, found by the lane's start
+/// order rather than by asking it about every neighbour.
+fn at_a_cut(_: &FactWalk<'_>, lane: &Track, clip: &Clip) -> bool {
+    lane.clips_starting_at(clip.timeline.end_tick())
+        .any(|next| next.id != clip.id)
 }
 
 /// The shipped questions, in the order a surface offers them.
@@ -89,55 +109,55 @@ const SHIPPED: &[ClipFactSpec] = &[
         fact: ClipFact::CustomCrop,
         id: "custom_crop",
         label: "Cropped or mirrored",
-        test: |_, clip| clip.has_custom_crop(),
+        test: |_, _, clip| clip.has_custom_crop(),
     },
     ClipFactSpec {
         fact: ClipFact::CustomAudio,
         id: "custom_audio",
         label: "Audio mix changed",
-        test: |_, clip| clip.has_custom_audio(),
+        test: |_, _, clip| clip.has_custom_audio(),
     },
     ClipFactSpec {
         fact: ClipFact::VolumeEnvelope,
         id: "volume_envelope",
         label: "Volume envelope",
-        test: |_, clip| clip.has_volume_envelope(),
+        test: |_, _, clip| clip.has_volume_envelope(),
     },
     ClipFactSpec {
         fact: ClipFact::PanEnvelope,
         id: "pan_envelope",
         label: "Pan envelope",
-        test: |_, clip| clip.has_pan_envelope(),
+        test: |_, _, clip| clip.has_pan_envelope(),
     },
     ClipFactSpec {
         fact: ClipFact::SpeedCurve,
         id: "speed_curve",
         label: "Speed ramp",
-        test: |_, clip| clip.has_speed_curve(),
+        test: |_, _, clip| clip.has_speed_curve(),
     },
     ClipFactSpec {
         fact: ClipFact::Beats,
         id: "beats",
         label: "Detected beats",
-        test: |_, clip| clip.has_beats(),
+        test: |_, _, clip| clip.has_beats(),
     },
     ClipFactSpec {
         fact: ClipFact::PitchRidesSpeed,
         id: "pitch_rides_speed",
         label: "Pitch rides speed",
-        test: |_, clip| clip.audio_pitch_factor() != 1.0,
+        test: |_, _, clip| clip.audio_pitch_factor() != 1.0,
     },
     ClipFactSpec {
         fact: ClipFact::OwnAudio,
         id: "own_audio",
         label: "Sounds on its own lane",
-        test: |timeline, clip| timeline.carries_own_audio(clip.id),
+        test: |walk, lane, clip| walk.audio_links().carries_own_audio(lane, clip),
     },
     ClipFactSpec {
         fact: ClipFact::DetachedAudio,
         id: "detached_audio",
         label: "Audio separated to a lane",
-        test: |timeline, clip| timeline.detached_to_audio_lane(clip.id),
+        test: |walk, _, clip| walk.audio_links().detached(clip),
     },
     ClipFactSpec {
         fact: ClipFact::AtACut,
@@ -192,20 +212,28 @@ impl ClipFact {
         self.spec().label
     }
 
-    /// Answer this question for one clip of `timeline`.
+    /// Answer this question for one clip of `timeline`: `false` for a clip on
+    /// no lane of it.
     pub fn holds(self, timeline: &Timeline, clip: &Clip) -> bool {
-        (self.spec().test)(timeline, clip)
+        let lane = timeline.track_of(clip.id).and_then(|id| timeline.track(id));
+        lane.is_some_and(|lane| (self.spec().test)(&FactWalk::new(timeline), lane, clip))
     }
 }
 
 /// Every clip in `timeline` this question holds for, in lane then start order.
+///
+/// One [`FactWalk`] serves every clip, so a question reading the whole
+/// sequence reads it once per call and not once per clip.
 pub fn clips_with_fact(timeline: &Timeline, fact: ClipFact) -> Vec<ClipId> {
     let test = fact.spec().test;
+    let walk = &FactWalk::new(timeline);
     timeline
         .tracks_ordered()
-        .flat_map(|track| track.clips_ordered())
-        .filter(|clip| test(timeline, clip))
-        .map(|clip| clip.id)
+        .flat_map(|lane| {
+            lane.clips_ordered()
+                .filter(move |clip| test(walk, lane, clip))
+                .map(|clip| clip.id)
+        })
         .collect()
 }
 

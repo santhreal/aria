@@ -70,7 +70,7 @@ pub use audio_effects::{
 };
 pub use audio_transition::{AudioTransition, EXPONENTIAL_FLOOR_DB, TransitionMedia};
 pub use audit::{
-    ClipFact, ClipFactSpec, ProjectFact, ProjectFactSpec, clip_fact_by_id, clip_facts,
+    ClipFact, ClipFactSpec, FactWalk, ProjectFact, ProjectFactSpec, clip_fact_by_id, clip_facts,
     clips_with_fact, project_facts,
 };
 pub use bin::{Bin, PoolPosition};
@@ -89,7 +89,8 @@ pub use clip::{
     look_animation_combo_period_ticks, look_animation_window_ticks, mask_param_group, param_spec,
     property_row, retimed_duration, speed_curve_integral, speed_curve_source_fraction,
     speed_preset, speed_preset_catalog, speed_preset_id, validate_pan, validate_pan_envelope,
-    validate_speed_curve, validate_volume, validate_volume_envelope, visit_clip_params,
+    validate_speed_curve, validate_volume, validate_volume_envelope, visit_clip_keyframes,
+    visit_clip_params,
 };
 pub use clip::{GeneratorSpec, generator_spec, generator_spec_by_id, generator_specs};
 pub use clip_types::{
@@ -158,8 +159,8 @@ pub use time::{
     time_sub,
 };
 pub use timeline::{
-    AudioLayout, CanvasAspect, CanvasSettings, Marker, MarkerColor, MarkerKind, RemovedTrack,
-    TimeDisplay, Timeline,
+    AudioLaneLinks, AudioLayout, CanvasAspect, CanvasSettings, Marker, MarkerColor, MarkerKind,
+    RemovedTrack, TimeDisplay, Timeline,
 };
 pub use track::{ClipMut, ClipsOrdered, Track, TrackDisplay, TrackKind};
 pub use track_catalog::{

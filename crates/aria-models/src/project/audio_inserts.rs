@@ -5,9 +5,11 @@
 //! refused, so an insert never sits where the mixer cannot reach it.
 
 use crate::audio_effects::{AudioEffectInstance, AudioInsertTarget, audio_effect_spec};
+use crate::clip::Clip;
 use crate::error::ModelError;
 use crate::ids::TrackId;
 use crate::param::Param;
+use crate::track::Track;
 
 use super::Project;
 
@@ -65,14 +67,7 @@ impl Project {
                 let lane = timeline
                     .track_of(clip_id)
                     .ok_or(ModelError::UnknownClip(clip_id))?;
-                let silent_media = clip
-                    .media()
-                    .and_then(|media| self.media(media))
-                    .is_some_and(|media| !media.has_audio);
-                if clip.is_generated() || silent_media || !timeline.lane_mixes_audio(lane)? {
-                    return Err(ModelError::ClipCarriesNoSound(clip_id));
-                }
-                Ok(())
+                self.clip_insert_refusal(clip, timeline.require_track(lane)?)
             }
             AudioInsertTarget::Track(track) => {
                 if !timeline.lane_mixes_audio(track)? {
@@ -82,6 +77,21 @@ impl Project {
             }
             AudioInsertTarget::Master => Ok(()),
         }
+    }
+
+    /// Why an insert chain on `clip`, which sits on `lane`, would be refused,
+    /// if it would be: [`Project::insert_target_refusal`] for a clip and lane
+    /// already in hand. A projection over every clip calls this, so neither is
+    /// looked up again.
+    pub fn clip_insert_refusal(&self, clip: &Clip, lane: &Track) -> Result<(), ModelError> {
+        let silent_media = clip
+            .media()
+            .and_then(|media| self.media(media))
+            .is_some_and(|media| !media.has_audio);
+        if clip.is_generated() || silent_media || !lane.kind.spec().in_mixer() {
+            return Err(ModelError::ClipCarriesNoSound(clip.id));
+        }
+        Ok(())
     }
 
     /// Append a registered audio effect to the chain at `target`, with every

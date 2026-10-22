@@ -5,7 +5,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use aria_models::{Clip, ClipAttribute, ClipParam, ClipSource, ParamKind, ParamRange, Project};
+use aria_models::{Clip, ClipAttribute, ClipParam, ParamKind, ParamRange};
 use gpui::SharedString;
 
 use crate::app::curve_geometry::sample_param_scalar;
@@ -46,25 +46,15 @@ pub(super) fn fx_badge(clip: &Clip) -> UiFxBadge {
     badge
 }
 
-/// The file name of the media `clip` places, when `missing` reports the file
-/// gone. `None` for a clip that places no file.
-pub(super) fn offline(
-    project: &Project,
-    clip: &Clip,
-    missing: impl FnOnce(&Path) -> bool,
-) -> Option<SharedString> {
-    let ClipSource::Media { media, .. } = &clip.content else {
-        return None;
-    };
-    let path = &project.media(*media)?.path;
-    if !missing(path) {
-        return None;
-    }
-    let name = path.file_name().map_or_else(
-        || path.display().to_string(),
-        |name| name.to_string_lossy().into_owned(),
-    );
-    Some(name.into())
+/// The name an offline clip shows for its media file at `path`: the file name,
+/// or the whole path when it ends in no file name.
+pub(super) fn offline(path: &str) -> SharedString {
+    Path::new(path)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(path)
+        .to_owned()
+        .into()
 }
 
 /// The line `clip`'s bar draws: the property chosen for it, else the lane's

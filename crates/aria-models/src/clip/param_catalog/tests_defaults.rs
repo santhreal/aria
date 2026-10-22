@@ -7,25 +7,39 @@
 //! missing, of the wrong kind, or outside the range the model validates would
 //! draw a reset button that does nothing or reports an error. The rows are read
 //! from `clip_params_for` on every dressed clip and on a clip carrying every
-//! effect the catalog holds, so a new property, axis member or effect slot is
-//! covered without being named here.
+//! shipped effect and a test effect with a parameter of every kind, so a new
+//! property, axis member, effect slot or parameter kind is covered without
+//! being named here. The catalog is process-wide, and other tests register and
+//! drop effects while these run, so the clip names only effects that stay
+//! registered for the whole test: a row whose effect left the catalog between
+//! listing and reading answers no reset value.
 //!
 //! Not caught: whether a declared default is the value the surface that creates
 //! the block starts it at. That is a fact about the creating surface.
 
 use super::*;
-use crate::effects::EffectInstance;
+use crate::effects::{EffectInstance, EffectSpec};
 
-/// Every dressed clip, and a clip with one of each catalog effect on it.
-fn clips() -> Vec<Clip> {
+/// Every dressed clip, and a clip with one of each shipped effect and the test
+/// effect `id` on it. The effect stays registered while the guard is held.
+fn clips(id: &str) -> (crate::Registered, Vec<Clip>) {
+    let (registered, _) = crate::register_effect(EffectSpec {
+        id: id.into(),
+        label: "Every kind".into(),
+        category: "Test".into(),
+        params: crate::effects::typed_tests::every_kind(),
+        ..EffectSpec::default()
+    })
+    .expect("the test effect registers");
     let mut clips = all_dressed();
     let mut effects = fully_dressed_clip();
-    effects.effects = crate::effect_catalog()
-        .into_iter()
+    effects.effects = crate::shipped_effect_catalog()
+        .iter()
         .map(|spec| EffectInstance::new(spec.id.clone()))
+        .chain(std::iter::once(EffectInstance::new(id)))
         .collect();
     clips.push(effects);
-    clips
+    (registered, clips)
 }
 
 fn kind_of(value: ParamValue) -> ParamKind {
@@ -42,7 +56,8 @@ fn kind_of(value: ParamValue) -> ParamKind {
 fn every_offered_row_resets_to_a_value_the_model_takes_back() {
     let mut checked = 0usize;
     let mut effect_rows = 0usize;
-    for clip in clips() {
+    let (_registered, dressed) = clips("test.defaults.resets");
+    for clip in dressed {
         for spec in clip_params_for(&clip) {
             let Some(value) = spec.default_value(&clip) else {
                 panic!("{} is offered and has nothing to reset to", spec.id);
@@ -123,7 +138,8 @@ fn a_row_that_is_not_offered_has_no_reset_value() {
 /// moving a property and reading its reset value back gives the same answer.
 #[test]
 fn a_reset_value_does_not_follow_the_value_the_clip_holds() {
-    for clip in clips() {
+    let (_registered, dressed) = clips("test.defaults.does-not-follow");
+    for clip in dressed {
         for spec in clip_params_for(&clip) {
             let Some(value) = spec.default_value(&clip) else {
                 continue;

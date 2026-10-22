@@ -421,6 +421,97 @@ fn carries_own_audio_follows_lane_and_detach() {
     );
 }
 
+/// [`Timeline::audio_lane_links`] is the one-pass form of the per-clip scans:
+/// for every clip, the set gives the answer [`Timeline::detached_to_audio_lane`]
+/// and [`Timeline::carries_own_audio`] give, and
+/// [`Timeline::audio_lane_partner`] finds the audio-lane member of its link
+/// group. Closes the class where a caller deriving every clip through the set
+/// disagrees with one asking about a single clip. The shapes: a video clip
+/// linked to an audio-lane partner, two video clips linked only to each other,
+/// a linked freeze frame, a link from a lane that carries no sound, and
+/// unlinked clips on every lane.
+#[test]
+fn the_audio_lane_link_set_answers_as_the_scans_do() {
+    fn link(timeline: &mut Timeline, clips: &[ClipId]) {
+        let link = crate::ids::LinkId::next();
+        for clip in clips {
+            timeline.clip_mut(*clip).unwrap().link = Some(link);
+        }
+    }
+    let mut timeline = Timeline::new(R24);
+    let v1 = timeline.add_track(Track::new(TrackKind::Video, "V1"));
+    let v2 = timeline.add_track(Track::new(TrackKind::Video, "V2"));
+    let a1 = timeline.add_track(Track::new(TrackKind::Audio, "A1"));
+    let fx = timeline.add_track(Track::new(TrackKind::Adjustment, "FX1"));
+    let media = crate::ids::MediaId::from_raw(1);
+    let media_clip = |start, dur| Clip::from_media(media, tr(start, dur), tr(start, dur));
+
+    let picture = timeline.add_clip(v1, media_clip(0, 24)).unwrap();
+    let sound = timeline.add_clip(a1, media_clip(0, 24)).unwrap();
+    link(&mut timeline, &[picture, sound]);
+    let left = timeline.add_clip(v1, media_clip(48, 24)).unwrap();
+    let right = timeline.add_clip(v2, media_clip(48, 24)).unwrap();
+    link(&mut timeline, &[left, right]);
+    let mut still = media_clip(96, 24);
+    still.freeze_frame = true;
+    let frozen = timeline.add_clip(v2, still).unwrap();
+    let held = timeline.add_clip(a1, media_clip(96, 24)).unwrap();
+    link(&mut timeline, &[frozen, held]);
+    let adjust = timeline.add_clip(fx, generated_clip(144, 24)).unwrap();
+    let under = timeline.add_clip(a1, media_clip(144, 24)).unwrap();
+    link(&mut timeline, &[adjust, under]);
+    for lane in [v1, v2, a1] {
+        timeline.add_clip(lane, media_clip(200, 24)).unwrap();
+    }
+    timeline.add_clip(fx, generated_clip(200, 24)).unwrap();
+
+    let links = timeline.audio_lane_links();
+    let partners = [
+        (picture, sound),
+        (sound, sound),
+        (frozen, held),
+        (held, held),
+        (adjust, under),
+        (under, under),
+    ];
+    let mut detached = Vec::new();
+    for lane in timeline.tracks_ordered() {
+        for clip in lane.clips() {
+            let case = format!("{:?} on {}", clip.id, lane.name);
+            assert_eq!(
+                links.detached(clip),
+                timeline.detached_to_audio_lane(clip.id),
+                "{case}"
+            );
+            assert_eq!(
+                links.carries_own_audio(lane, clip),
+                timeline.carries_own_audio(clip.id),
+                "{case}"
+            );
+            assert_eq!(
+                clip.link
+                    .and_then(|link| timeline.audio_lane_partner(link))
+                    .map(|partner| partner.id),
+                partners
+                    .iter()
+                    .find(|(member, _)| *member == clip.id)
+                    .map(|(_, partner)| *partner),
+                "{case}: the audio-lane member of its link group"
+            );
+            if links.detached(clip) {
+                detached.push(clip.id.raw());
+            }
+        }
+    }
+    detached.sort_unstable();
+    let mut reaching = [picture, sound, frozen, held, adjust, under].map(ClipId::raw);
+    reaching.sort_unstable();
+    assert_eq!(
+        detached, reaching,
+        "every member of a link reaching an audio lane, and no other clip"
+    );
+}
+
 // --- remove_clip / lookup ---------------------------------------------
 
 #[test]
