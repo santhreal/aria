@@ -226,10 +226,7 @@ pub(crate) fn snap_video_to_keyframes(bin: &gst::Bin, snap: &Arc<KeySnap>) {
             snap.qtdemux.store(true, Ordering::Release);
             return;
         }
-        let klass = factory
-            .metadata(gst::ELEMENT_METADATA_KLASS)
-            .unwrap_or_default();
-        if !(klass.contains("Decoder") && klass.contains("Video")) {
+        if !crate::gst::is_video_decoder(&factory) {
             return;
         }
         let Some(pad) = element.static_pad("sink") else {

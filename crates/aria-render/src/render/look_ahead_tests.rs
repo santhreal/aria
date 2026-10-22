@@ -432,7 +432,7 @@ fn a_repeat_render_takes_the_shown_frame_back_without_decoding() {
         clip: Some(a),
     };
     let calls = Arc::new(AtomicUsize::new(0));
-    let inner = open_video_decoder(&fixture(), aria_decoder::OutputMode::Cpu)
+    let inner = aria_decoder::open_video_decoder(&fixture(), aria_decoder::OutputMode::Cpu)
         .unwrap_or_else(|error| panic!("fixture: {error}"));
     let decoder = AheadDecoder::new(Box::new(Counting {
         inner,
@@ -636,7 +636,7 @@ fn stacked_clips_of_one_media_at_one_source_time_share_one_decoder_and_stay_with
         return;
     };
     let calls = Arc::new(AtomicUsize::new(0));
-    let inner = open_video_decoder(&av_fixture(), aria_decoder::OutputMode::Cpu)
+    let inner = aria_decoder::open_video_decoder(&av_fixture(), aria_decoder::OutputMode::Cpu)
         .unwrap_or_else(|e| panic!("av fixture: {e}"));
     let decoder = AheadDecoder::new(Box::new(Counting {
         inner,

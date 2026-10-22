@@ -3,7 +3,7 @@
 use std::time::Instant;
 
 use aria_compositor::GpuContext;
-use aria_decoder::{OutputMode, open_video_decoder};
+use aria_decoder::{OutputMode, open_video_decoder, open_video_decoder_at};
 use aria_models::{MediaSource, Project, Rational, RationalTime, TimeRange, TrackKind};
 use aria_render::{Renderer, ResolveOverrides, SeekPolicy};
 
@@ -97,34 +97,39 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
         warm_renderer_samples.push(t0.elapsed().as_secs_f64() * 1000.0);
     }
 
-    // 2. Cold seek: open decoder + seek to distant targets across all 4 media fixtures.
+    // 2. Cold seek: open a decoder at a distant target and decode the frame
+    // there, as the renderer opens one for a clip it has no decoder for,
+    // across 3 of the 4 media fixtures.
     let mut cold_seek_samples = Vec::new();
     for &tick in &[300i64, 1_200, 2_700] {
         let t0 = Instant::now();
-        let mut dec = open_video_decoder(&h264.path, OutputMode::Cpu)
+        let target = RationalTime::new(tick, rate60);
+        let mut dec = open_video_decoder_at(&h264.path, OutputMode::Cpu, target)
             .map_err(|err| format!("cold open {} failed: {err}", h264.path.display()))?;
         let f = dec
-            .frame_at(RationalTime::new(tick, rate60))
+            .frame_at(target)
             .map_err(|err| format!("cold seek h264 at {tick} failed: {err}"))?;
         std::hint::black_box(f.map(|x| x.pts));
         cold_seek_samples.push(t0.elapsed().as_secs_f64() * 1000.0);
     }
     for &tick in &[300i64, 1_500] {
         let t0 = Instant::now();
-        let mut dec = open_video_decoder(&hevc.path, OutputMode::Cpu)
+        let target = RationalTime::new(tick, rate60);
+        let mut dec = open_video_decoder_at(&hevc.path, OutputMode::Cpu, target)
             .map_err(|err| format!("cold open {} failed: {err}", hevc.path.display()))?;
         let f = dec
-            .frame_at(RationalTime::new(tick, rate60))
+            .frame_at(target)
             .map_err(|err| format!("cold seek hevc at {tick} failed: {err}"))?;
         std::hint::black_box(f.map(|x| x.pts));
         cold_seek_samples.push(t0.elapsed().as_secs_f64() * 1000.0);
     }
     for &tick in &[150i64, 600] {
         let t0 = Instant::now();
-        let mut dec = open_video_decoder(&prores.path, OutputMode::Cpu)
+        let target = RationalTime::new(tick, rate30);
+        let mut dec = open_video_decoder_at(&prores.path, OutputMode::Cpu, target)
             .map_err(|err| format!("cold open {} failed: {err}", prores.path.display()))?;
         let f = dec
-            .frame_at_nearest(RationalTime::new(tick, rate30))
+            .frame_at_nearest(target)
             .map_err(|err| format!("cold seek prores at {tick} failed: {err}"))?;
         std::hint::black_box(f.map(|x| x.pts));
         cold_seek_samples.push(t0.elapsed().as_secs_f64() * 1000.0);

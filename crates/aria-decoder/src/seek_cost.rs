@@ -64,7 +64,7 @@ pub(crate) const SNAP_PRIOR_FRAMES: f64 = 8.0;
 ///
 /// The defaults (300 ms per seek, 10 ms per frame) reproduce the previous
 /// fixed 1-second window at 30 fps until real measurements replace them.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SeekStats {
     /// EMA of a full seek-path `frame_at`: `seek()` plus the keyframe-prefix
     /// walk to the covering frame, in milliseconds.

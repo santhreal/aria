@@ -65,10 +65,7 @@ pub(crate) fn watch_video_decoders(
         let Some(factory) = element.factory() else {
             return;
         };
-        let klass = factory
-            .metadata(gst::ELEMENT_METADATA_KLASS)
-            .unwrap_or_default();
-        if !(klass.contains("Decoder") && klass.contains("Video")) {
+        if !crate::gst::is_video_decoder(&factory) {
             return;
         }
         if starve_non_dmabuf && !offers_dmabuf(&src_caps(&factory)) {
@@ -89,11 +86,7 @@ pub(crate) fn watch_video_decoders(
 /// not count: when a host has a DMABuf-capable video decoder, that decoder's
 /// own factory is registered and lists `memory:DMABuf`.
 pub(crate) fn factory_advertises_dmabuf(factory: &gst::ElementFactory) -> bool {
-    let klass = factory
-        .metadata(gst::ELEMENT_METADATA_KLASS)
-        .unwrap_or_default();
-    klass.contains("Decoder")
-        && klass.contains("Video")
+    crate::gst::is_video_decoder(factory)
         && factory.rank() != gst::Rank::NONE
         && memory_kinds(&src_caps(factory))
             .iter()

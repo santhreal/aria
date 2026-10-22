@@ -95,6 +95,10 @@ mod gst_gpu;
 #[cfg(target_os = "linux")]
 mod gst_key_snap;
 #[cfg(target_os = "linux")]
+mod gst_start;
+#[cfg(all(test, target_os = "linux"))]
+mod gst_test_media;
+#[cfg(target_os = "linux")]
 mod gst_unloadable;
 #[cfg(target_os = "linux")]
 pub use gst_audio::GstAudioReader;
@@ -172,7 +176,7 @@ pub use lottie::{LOTTIE_MAX_DIMENSION, LOTTIE_MAX_SAMPLE_FPS, LottieAnimation};
 
 use std::path::Path;
 
-use aria_core::{AudioReader, DecodeError, VideoDecoder};
+use aria_core::{AudioReader, DecodeError, Rational, RationalTime, VideoDecoder};
 
 /// What the platform's decoder backend can deliver, answerable without opening
 /// a file.
@@ -279,21 +283,38 @@ pub fn open_video_decoder(
     path: &Path,
     mode: OutputMode,
 ) -> Result<Box<dyn VideoDecoder>, DecodeError> {
+    open_video_decoder_at(path, mode, RationalTime::new(0, Rational::new(1, 1)))
+}
+
+/// [`open_video_decoder`] for a caller whose first request is for the frame
+/// at `start`. The Linux backend prerolls its pipeline at the sync sample at
+/// or before `start` instead of at stream start, so that first
+/// `seek`, `frame_at` or `frame_at_nearest` at `start` decodes no frame
+/// twice ([`GstDecoder::open_at`]). Other backends and registered decoders
+/// open at stream start and seek on the first request.
+pub fn open_video_decoder_at(
+    path: &Path,
+    mode: OutputMode,
+    start: RationalTime,
+) -> Result<Box<dyn VideoDecoder>, DecodeError> {
     external::dispatch(
         path,
         |decoder| decoder.open_video(path),
-        || open_native_video_decoder(path, mode),
+        || open_native_video_decoder(path, mode, start),
     )
 }
 
 fn open_native_video_decoder(
     path: &Path,
     mode: OutputMode,
+    start: RationalTime,
 ) -> Result<Box<dyn VideoDecoder>, DecodeError> {
     let capability = decoder_capability();
     if !capability.supports(mode) {
         return Err(DecodeError::unsupported(unsupported_mode(capability, mode)));
     }
+    #[cfg(not(target_os = "linux"))]
+    let _ = start;
     #[cfg(target_vendor = "apple")]
     {
         Ok(Box::new(AvfDecoder::open(path, mode)?))
@@ -308,7 +329,7 @@ fn open_native_video_decoder(
     }
     #[cfg(target_os = "linux")]
     {
-        Ok(Box::new(GstDecoder::open(path, mode)?))
+        Ok(Box::new(GstDecoder::open_at(path, mode, start)?))
     }
     #[cfg(not(any(
         target_vendor = "apple",

@@ -113,14 +113,37 @@ pub(crate) fn gst_err(kind: fn(String) -> DecodeError, e: impl std::fmt::Display
     kind(e.to_string())
 }
 
+/// Whether `factory` makes a video decoder: its class lists both `Decoder`
+/// and `Video`.
+pub(crate) fn is_video_decoder(factory: &gst::ElementFactory) -> bool {
+    let klass = factory
+        .metadata(gst::ELEMENT_METADATA_KLASS)
+        .unwrap_or_default();
+    klass.contains("Decoder") && klass.contains("Video")
+}
+
+/// The seek every decode pipeline takes: flushing, to the sync sample at or
+/// before `at`.
+pub(crate) fn key_unit_seek(at: gst::ClockTime) -> gst::Event {
+    gst::event::Seek::new(
+        1.0,
+        gst::SeekFlags::FLUSH | gst::SeekFlags::KEY_UNIT | gst::SeekFlags::SNAP_BEFORE,
+        gst::SeekType::Set,
+        at,
+        gst::SeekType::None,
+        gst::ClockTime::NONE,
+    )
+}
+
 /// A pull-based decoder over one video file, backed by GStreamer.
 pub struct GstDecoder {
     pipeline: gst::Pipeline,
     sink: gst_app::AppSink,
     info: SourceInfo,
-    /// True right after `open` prerolls at stream start, before any sample is
-    /// pulled or any seek flushes the pipeline.
-    at_start: bool,
+    /// The seek point, in nanoseconds, the pipeline prerolled at when `open`
+    /// returned: zero at stream start, the start of [`GstDecoder::open_at`].
+    /// Cleared once a sample is pulled or a seek flushes the pipeline.
+    preroll_at: Option<i64>,
     /// Whether a frame has been returned since the last seek. Until one has,
     /// corrupt frames are skipped.
     settled: bool,
@@ -143,21 +166,42 @@ unsafe impl Send for GstDecoder {}
 
 impl GstDecoder {
     pub fn open(path: &Path, mode: OutputMode) -> Result<Self, DecodeError> {
+        Self::open_at(path, mode, RationalTime::new(0, Rational::new(1, 1)))
+    }
+
+    /// [`open`](Self::open) with the pipeline prerolled at the sync sample at
+    /// or before `start`, so a first [`seek`](VideoDecoder::seek) to `start`
+    /// decodes no frame of its own. A start at or before zero, at or past the
+    /// stream's end, or in a stream the demuxer cannot seek opens at stream
+    /// start.
+    pub fn open_at(
+        path: &Path,
+        mode: OutputMode,
+        start: RationalTime,
+    ) -> Result<Self, DecodeError> {
         ensure_init()?;
         if gst::ElementFactory::find("decodebin").is_none() {
             return Err(DecodeError::unsupported(
                 "GStreamer decodebin is missing. Install gstreamer1.0-plugins-base and retry.",
             ));
         }
-        let opened = crate::gst_gpu::open_pipeline(path, mode)?;
+        let start_ns = start.in_units(NS_PER_SEC).max(0);
+        let opened = crate::gst_gpu::open_pipeline(
+            path,
+            mode,
+            gst::ClockTime::from_nseconds(start_ns as u64),
+        )?;
+        let preroll_at = i64::try_from(opened.start.nseconds()).unwrap_or(i64::MAX);
         Ok(Self {
             pipeline: opened.pipeline,
             sink: opened.sink,
             info: opened.info,
-            at_start: true,
+            preroll_at: Some(preroll_at),
             // The preroll sample is not kept: appsink hands it out again as
-            // the first `pull_sample` once the pipeline plays.
-            settled: true,
+            // the first `pull_sample` once the pipeline plays. A preroll at a
+            // start position follows a seek, and skips corrupt frames as a
+            // seek does.
+            settled: preroll_at == 0,
             pending: None,
             last_pts: None,
             seek_stats: SeekStats::default(),
@@ -168,7 +212,7 @@ impl GstDecoder {
     }
 
     fn pull_sample(&mut self) -> Result<Option<gst::Sample>, DecodeError> {
-        self.at_start = false;
+        self.preroll_at = None;
         match self
             .sink
             .try_pull_sample(gst::ClockTime::from_nseconds(PULL_TIMEOUT.as_nanos() as u64))
@@ -201,28 +245,65 @@ impl GstDecoder {
         &self.snap
     }
 
+    #[cfg(test)]
+    pub(crate) fn pipeline(&self) -> &gst::Pipeline {
+        &self.pipeline
+    }
+
+    #[cfg(test)]
+    pub(crate) fn seek_stats(&self) -> SeekStats {
+        self.seek_stats
+    }
+
+    /// Whether a seek to `target` takes the preroll frame: `open` prerolled
+    /// there and no sample has been pulled since.
+    fn prerolled_at(&self, target: RationalTime) -> bool {
+        self.preroll_at == Some(target.in_units(NS_PER_SEC).max(0))
+    }
+
+    /// Run `walk` for `target` with this decoder's seek costs, and keep the
+    /// costs it measured unless the preroll served its seek: that seek costs
+    /// nothing at request time, and a seek or snap measured as free shuts the
+    /// roll windows, so each later step forward seeks instead of rolling.
+    fn rolling(
+        &mut self,
+        target: RationalTime,
+        walk: fn(
+            &mut Self,
+            Option<RationalTime>,
+            &mut SeekStats,
+            RationalTime,
+        ) -> Result<Option<VideoFrame>, DecodeError>,
+    ) -> Result<Option<VideoFrame>, DecodeError> {
+        let last_pts = self.last_pts;
+        let mut stats = self.seek_stats;
+        let measured = !self.prerolled_at(target);
+        let result = walk(self, last_pts, &mut stats, target);
+        if measured {
+            self.seek_stats = stats;
+        }
+        result
+    }
+
     /// One flushing key-unit seek to the sync sample at or before `target`.
     fn seek_pipeline(&mut self, target: RationalTime) -> Result<(), DecodeError> {
         let ns = target.in_units(NS_PER_SEC);
-        self.at_start = false;
+        self.preroll_at = None;
         self.pending = None;
         self.settled = false;
         self.last_pts = None;
-        self.snap.arm(gst::ClockTime::from_nseconds(ns as u64));
-        self.pipeline
-            .seek_simple(
-                gst::SeekFlags::FLUSH | gst::SeekFlags::KEY_UNIT | gst::SeekFlags::SNAP_BEFORE,
-                gst::ClockTime::from_nseconds(ns as u64),
-            )
-            .map_err(|_| {
-                bus_or(
-                    &self.pipeline,
-                    DecodeError::Seek(format!(
-                        "GStreamer could not seek to {:.3}s.",
-                        ns as f64 / NS_PER_SEC as f64
-                    )),
-                )
-            })
+        let at = gst::ClockTime::from_nseconds(ns as u64);
+        self.snap.arm(at);
+        if self.pipeline.send_event(key_unit_seek(at)) {
+            return Ok(());
+        }
+        Err(bus_or(
+            &self.pipeline,
+            DecodeError::Seek(format!(
+                "GStreamer could not seek to {:.3}s.",
+                ns as f64 / NS_PER_SEC as f64
+            )),
+        ))
     }
 }
 
@@ -237,14 +318,15 @@ impl VideoDecoder for GstDecoder {
     /// without an IDR there), so the seek moves earlier, one second then
     /// doubling, until the first frame decodes clean. A leading frame the
     /// seek's segment clipped is skipped: its time was moved, so returning it
-    /// would show one frame under another's time.
+    /// would show one frame under another's time. A seek to the point `open`
+    /// prerolled at, before a sample is pulled, takes the preroll frame and
+    /// sends no seek.
     fn seek(&mut self, target: RationalTime) -> Result<(), DecodeError> {
         let mut backoff = crate::seek::Backoff::new(target);
         let mut point = target;
         let period = frame_period_ns(self.info.frame_rate);
         loop {
-            if self.at_start && point.in_units(NS_PER_SEC) <= 0 {
-                self.at_start = false;
+            if self.prerolled_at(point) {
                 self.pending = None;
                 self.settled = false;
                 self.last_pts = None;
@@ -294,22 +376,14 @@ impl VideoDecoder for GstDecoder {
     }
 
     fn frame_at(&mut self, target: RationalTime) -> Result<Option<VideoFrame>, DecodeError> {
-        let last_pts = self.last_pts;
-        let mut stats = self.seek_stats;
-        let result = crate::seek::frame_at_rolling(self, last_pts, &mut stats, target);
-        self.seek_stats = stats;
-        result
+        self.rolling(target, crate::seek::frame_at_rolling)
     }
 
     fn frame_at_nearest(
         &mut self,
         target: RationalTime,
     ) -> Result<Option<VideoFrame>, DecodeError> {
-        let last_pts = self.last_pts;
-        let mut stats = self.seek_stats;
-        let result = crate::seek::frame_at_nearest_rolling(self, last_pts, &mut stats, target);
-        self.seek_stats = stats;
-        result
+        self.rolling(target, crate::seek::frame_at_nearest_rolling)
     }
 }
 

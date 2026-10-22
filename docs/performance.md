@@ -68,20 +68,21 @@ separately below.
 `cargo bench -p aria-decoder --bench seek_latency` measures the two seeks a
 scrub makes, over `tests/fixtures/fixture-640x360-24fps-3s.mp4`:
 
-- `cold_open_and_seek` opens the decoder and decodes a mid-clip frame: what
-  clicking into the middle of an unopened clip costs, demuxer setup included.
+- `cold_open_and_seek` opens the decoder at a mid-clip frame and decodes it,
+  as the renderer opens a clip's decoder: what clicking into the middle of an
+  unopened clip costs, demuxer setup included.
 - `warm_scrub` holds one open decoder and asks for a backward jump, a one-frame
   step, and a long forward jump: the three gestures the preview issues once a
   clip is open.
 
 | Bench | Time | What it is |
 | --- | --- | --- |
-| `cold_open_and_seek` | 151 ms | Opening the file and landing on a mid-clip frame |
-| `warm_scrub` | 2.53 ms | Three seeks through an already open decoder |
+| `cold_open_and_seek` | 6.24 ms | Opening the file at a mid-clip frame and decoding it |
+| `warm_scrub` | 8.06 ms | Four requests through an already open decoder |
 
-Recorded on a Ryzen 9 9950X, Linux, release profile. A warm seek is around
-0.8 ms, about 1/180 of a cold open, so the preview holds one decoder per clip
-instead of opening per frame.
+Recorded on Server (Intel Core i7-11700K), Linux, release profile. A warm
+request averages 2.0 ms, a third of a cold open. The preview holds one decoder
+per clip.
 
 A host with no native decoder prints why and measures nothing.
 

@@ -36,6 +36,7 @@ use crate::OutputMode;
 use crate::gst::{PipelineGuard, bus_error, bus_or, gst_err, path_uri};
 use crate::gst_dmabuf_watch::{DmabufWatch, dmabuf_cause, watch_video_decoders};
 use crate::gst_key_snap::{KeySnap, snap_video_to_keyframes};
+use crate::gst_start::{StartHold, seek_held};
 
 #[link(name = "gstallocators-1.0")]
 unsafe extern "C" {
@@ -51,6 +52,9 @@ pub(crate) struct OpenedPipeline {
     pub mode: OutputMode,
     /// Corrects where the video decoder starts after a key-unit seek.
     pub snap: Arc<KeySnap>,
+    /// The seek point the preroll is at: the open's start, or zero when the
+    /// pipeline prerolled at stream start.
+    pub start: gst::ClockTime,
     /// Counts this pipeline while it is open so concurrent software video
     /// decoders share the host's CPU thread budget.
     pub slot: VideoPipelineSlot,
@@ -62,10 +66,12 @@ pub(crate) struct OpenedPipeline {
 static DMABUF_FAILED: std::sync::OnceLock<String> = std::sync::OnceLock::new();
 
 /// Try DMABuf first when the caller asked for GPU and no DMABuf open has
-/// failed in this process; otherwise CPU NV12.
+/// failed in this process; otherwise CPU NV12. A nonzero `start` prerolls at
+/// the sync sample at or before it ([`crate::gst_start`]).
 pub(crate) fn open_pipeline(
     path: &std::path::Path,
     mode: OutputMode,
+    start: gst::ClockTime,
 ) -> Result<OpenedPipeline, DecodeError> {
     let uri = path_uri(path)?;
     crate::gst_context::await_warm_up();
@@ -74,7 +80,7 @@ pub(crate) fn open_pipeline(
         &DMABUF_FAILED,
         matches!(mode, OutputMode::Gpu),
         has_dmabuf,
-        |dmabuf, watch| try_open(&uri, dmabuf, watch),
+        |dmabuf, watch| try_open(&uri, dmabuf, watch, start),
     )
 }
 
@@ -243,10 +249,7 @@ fn configure_video_uridecodebin(bin: &gst::Bin, thread_budget: i32) {
             return None;
         };
         let factory = element.factory()?;
-        let klass = factory
-            .metadata(gst::ELEMENT_METADATA_KLASS)
-            .unwrap_or_default();
-        if klass.contains("Decoder") && klass.contains("Video") {
+        if crate::gst::is_video_decoder(&factory) {
             if element.find_property("max-threads").is_some() {
                 element.set_property("max-threads", thread_budget);
             }
@@ -262,7 +265,7 @@ fn configure_video_uridecodebin(bin: &gst::Bin, thread_budget: i32) {
 
 /// Build the decode pipeline directly without `gst::parse::launch` grammar
 /// parsing or static pad-template caps intersection across converter elements.
-fn build_decode_pipeline(
+pub(crate) fn build_decode_pipeline(
     uri: &str,
     dmabuf: bool,
 ) -> Result<(PipelineGuard, gst::Bin, gst_app::AppSink), DecodeError> {
@@ -338,11 +341,13 @@ fn build_decode_pipeline(
 }
 
 /// Open `uri` for DMABuf output when `dmabuf` holds, or for CPU NV12
-/// otherwise, recording plugged video decoders into `watch` when provided.
+/// otherwise, recording plugged video decoders into `watch` when provided,
+/// and prerolled at `start` when it is nonzero.
 fn try_open(
     uri: &glib::GString,
     dmabuf: bool,
     watch: Option<&Arc<DmabufWatch>>,
+    start: gst::ClockTime,
 ) -> Result<OpenedPipeline, DecodeError> {
     let slot = VideoPipelineSlot::acquire();
     let (pipeline, bin, sink) = build_decode_pipeline(uri.as_str(), dmabuf)?;
@@ -353,10 +358,21 @@ fn try_open(
     if let Some(watch) = watch {
         watch_video_decoders(&bin, watch, dmabuf);
     }
-    pipeline
-        .set_state(gst::State::Paused)
-        .map_err(|e| gst_err(DecodeError::Open, e))?;
+    let hold = (!start.is_zero()).then(|| StartHold::install(&bin));
+    let changed = pipeline.set_state(gst::State::Paused);
     let stopped = || dmabuf && watch.is_some_and(|watch| watch.stopped());
+    let start = match &hold {
+        Some(hold) if changed.is_ok() => seek_held(hold, &snap, start, PREROLL_WAIT, || {
+            stopped()
+                || pipeline.state(gst::ClockTime::ZERO).0 != Ok(gst::StateChangeSuccess::Async)
+        }),
+        Some(hold) => {
+            hold.release();
+            gst::ClockTime::ZERO
+        }
+        None => gst::ClockTime::ZERO,
+    };
+    changed.map_err(|e| gst_err(DecodeError::Open, e))?;
     // One clean retry: `Async` after the wait means the pipeline was still
     // prerolling when it expired — on a host busy with other work (a full test
     // run, a cold codec plugin), not necessarily a broken file. A real defect
@@ -420,6 +436,7 @@ fn try_open(
             OutputMode::Cpu
         },
         snap,
+        start,
         slot,
     })
 }

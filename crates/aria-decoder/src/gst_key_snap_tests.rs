@@ -16,6 +16,7 @@ use aria_core::{Rational, RationalTime, VideoDecoder};
 use gstreamer as gst;
 
 use super::*;
+use crate::gst_test_media::h264_aac_mp4;
 use crate::{GstDecoder, OutputMode};
 
 fn ms(n: u64) -> gst::ClockTime {
@@ -255,50 +256,6 @@ fn the_seek_key_is_withheld_only_for_codecs_whose_leading_frames_decode() {
     assert_eq!(snap.seek_key(), Some(ms(1000)));
 }
 
-/// The AAC encoder this host has; a missing one is a hard failure, as for
-/// every other plugin the product needs.
-fn aac_encoder() -> &'static str {
-    ["avenc_aac", "voaacenc", "fdkaacenc"]
-        .into_iter()
-        .find(|name| gst::ElementFactory::find(name).is_some())
-        .expect("an AAC encoder (gstreamer1.0-libav avenc_aac)")
-}
-
-/// A 4 s 60 fps H.264 MP4 with a keyframe every 60 frames and a 48 kHz AAC
-/// track, whose 1024-sample packets never start on a whole second.
-fn h264_aac_mp4(dir: &std::path::Path) -> std::path::PathBuf {
-    crate::gst::ensure_init().expect("GStreamer initialises");
-    let path = dir.join("keys-60-aac.mp4");
-    let desc = format!(
-        "videotestsrc num-buffers=240 pattern=ball ! video/x-raw,width=160,height=120,framerate=60/1 \
-         ! x264enc key-int-max=60 bframes=0 speed-preset=ultrafast option-string=scenecut=0:min-keyint=60 \
-         ! h264parse ! queue ! mp4mux name=mux ! filesink location=\"{}\" \
-         audiotestsrc num-buffers=190 samplesperbuffer=1024 ! audio/x-raw,rate=48000,channels=2 \
-         ! {} ! queue ! mux.",
-        path.display(),
-        aac_encoder()
-    );
-    let pipeline = gst::parse::launch(&desc).expect("the fixture pipeline parses");
-    pipeline
-        .set_state(gst::State::Playing)
-        .expect("the fixture pipeline plays");
-    let bus = pipeline.bus().expect("a pipeline has a bus");
-    let msg = bus
-        .timed_pop_filtered(
-            gst::ClockTime::from_seconds(60),
-            &[gst::MessageType::Eos, gst::MessageType::Error],
-        )
-        .expect("the fixture finishes within 60 s");
-    pipeline
-        .set_state(gst::State::Null)
-        .expect("the fixture pipeline stops");
-    assert!(
-        matches!(msg.view(), gst::MessageView::Eos(_)),
-        "the fixture failed: {msg:?}"
-    );
-    path
-}
-
 /// Seek `decoder` to `secs` and decode one frame: the frame's time and the
 /// first buffer the video decoder received, both in whole milliseconds.
 fn seek_and_decode(decoder: &mut GstDecoder, secs: f64) -> (u64, Option<u64>) {
@@ -313,7 +270,7 @@ fn seek_and_decode(decoder: &mut GstDecoder, secs: f64) -> (u64, Option<u64>) {
 #[test]
 fn a_seek_to_a_video_keyframe_starts_the_decoder_at_that_keyframe() {
     let dir = tempfile::tempdir().expect("a scratch directory");
-    let mp4 = h264_aac_mp4(dir.path());
+    let mp4 = h264_aac_mp4(dir.path(), 0);
     let mut decoder = GstDecoder::open(&mp4, OutputMode::Cpu).expect("open the fixture");
     for key in [1000, 2000, 3000] {
         let (shown, first_fed) = seek_and_decode(&mut decoder, key as f64 / 1000.0);
@@ -332,7 +289,7 @@ fn a_seek_to_a_video_keyframe_starts_the_decoder_at_that_keyframe() {
 #[test]
 fn a_seek_between_keyframes_starts_the_decoder_at_the_keyframe_before() {
     let dir = tempfile::tempdir().expect("a scratch directory");
-    let mp4 = h264_aac_mp4(dir.path());
+    let mp4 = h264_aac_mp4(dir.path(), 0);
     let mut decoder = GstDecoder::open(&mp4, OutputMode::Cpu).expect("open the fixture");
     for (target, key) in [(1500, 1000), (2750, 2000)] {
         let (shown, first_fed) = seek_and_decode(&mut decoder, target as f64 / 1000.0);
@@ -341,46 +298,10 @@ fn a_seek_between_keyframes_starts_the_decoder_at_the_keyframe_before() {
     }
 }
 
-/// A 4 s 60 fps H.264 MP4 with B-frames (`bframes=2`) and a 48 kHz AAC track,
-/// so `mp4mux` writes an `edts` edit list whose composition offset shifts
-/// `segment.start` ahead of `segment.time` by two frame periods (~33 ms).
-fn h264_bframe_aac_mp4(dir: &std::path::Path) -> std::path::PathBuf {
-    crate::gst::ensure_init().expect("GStreamer initialises");
-    let path = dir.join("keys-60-bframes-aac.mp4");
-    let desc = format!(
-        "videotestsrc num-buffers=240 pattern=ball ! video/x-raw,width=160,height=120,framerate=60/1 \
-         ! x264enc key-int-max=60 bframes=2 b-adapt=false speed-preset=ultrafast option-string=scenecut=0:min-keyint=60 \
-         ! h264parse ! queue ! mp4mux name=mux ! filesink location=\"{}\" \
-         audiotestsrc num-buffers=190 samplesperbuffer=1024 ! audio/x-raw,rate=48000,channels=2 \
-         ! {} ! queue ! mux.",
-        path.display(),
-        aac_encoder()
-    );
-    let pipeline = gst::parse::launch(&desc).expect("the fixture pipeline parses");
-    pipeline
-        .set_state(gst::State::Playing)
-        .expect("the fixture pipeline plays");
-    let bus = pipeline.bus().expect("a pipeline has a bus");
-    let msg = bus
-        .timed_pop_filtered(
-            gst::ClockTime::from_seconds(60),
-            &[gst::MessageType::Eos, gst::MessageType::Error],
-        )
-        .expect("the fixture finishes within 60 s");
-    pipeline
-        .set_state(gst::State::Null)
-        .expect("the fixture pipeline stops");
-    assert!(
-        matches!(msg.view(), gst::MessageView::Eos(_)),
-        "the fixture failed: {msg:?}"
-    );
-    path
-}
-
 #[test]
 fn a_seek_to_a_video_keyframe_in_a_bframe_edit_list_mp4_starts_at_that_keyframe() {
     let dir = tempfile::tempdir().expect("a scratch directory");
-    let mp4 = h264_bframe_aac_mp4(dir.path());
+    let mp4 = h264_aac_mp4(dir.path(), 2);
     let mut decoder = GstDecoder::open(&mp4, OutputMode::Cpu).expect("open the fixture");
     for key in [1000, 2000, 3000] {
         let (shown, first_fed) = seek_and_decode(&mut decoder, key as f64 / 1000.0);

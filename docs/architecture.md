@@ -190,6 +190,21 @@ MediaCodec and Media Foundation accept only pixel layouts with declared plane
 mappings. An unknown output format stops decode before its bytes reach the
 compositor.
 
+### Opening a decoder at a frame
+
+`aria_decoder::open_video_decoder_at(path, mode, start)` opens a decoder with
+its pipeline prerolled at the sync sample at or before `start`. The renderer
+opens each clip's decoder at the source time of the first frame it needs, so no
+frame at stream start is decoded for a clip entered in the middle. On Linux the
+GStreamer pipeline blocks the input of each video decoder it plugs. Once a
+buffer reaches one, the demuxer has parsed the file, and the seek to `start`
+goes upstream from that decoder's sink pad before the block is removed. The
+first seek to `start` then takes the preroll frame and sends no seek. A start
+at or before zero, at or past the stream's duration, in a stream with no known
+duration, or one the demuxer rejects opens at stream start, as
+`open_video_decoder(path, mode)` does. Other platforms and plugin decoders open
+at stream start and seek on the first request.
+
 ## Command reach
 
 `aria_commands::every_edit_command()` and `every_project_command()` are the

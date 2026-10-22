@@ -5,9 +5,10 @@
 //! A scrub is a seek per mouse move, and the number nobody had was what one
 //! costs. Two shapes, because they are different products:
 //!
-//! - **Cold** opens the decoder and asks for one frame far from the start. This
-//!   is what clicking into the middle of a clip costs, and it includes demuxer
-//!   setup and the walk from the preceding keyframe.
+//! - **Cold** opens the decoder at one frame far from the start and asks for
+//!   it, as the renderer opens a clip's decoder. This is what clicking into the
+//!   middle of a clip costs, and it includes demuxer setup and the walk from the
+//!   preceding keyframe.
 //! - **Warm** holds one open decoder and asks for a sequence of times: a
 //!   backward jump (which must re-seek), a short forward step inside the same
 //!   GOP (which a backend may serve by rolling forward), and a long forward
@@ -24,7 +25,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use aria_core::{Rational, RationalTime, VideoDecoder};
-use aria_decoder::{OutputMode, open_video_decoder};
+use aria_decoder::{OutputMode, open_video_decoder, open_video_decoder_at};
 use criterion::{Criterion, criterion_group, criterion_main};
 
 /// The committed clip: 640x360, 24 fps, three seconds.
@@ -78,7 +79,7 @@ fn bench_seek(c: &mut Criterion) {
     group.bench_function("cold_open_and_seek", |b| {
         b.iter(|| {
             let mut decoder =
-                open_video_decoder(&path, OutputMode::Cpu).expect("the fixture opens");
+                open_video_decoder_at(&path, OutputMode::Cpu, at(MID)).expect("the fixture opens");
             let frame = decoder
                 .frame_at(at(MID))
                 .expect("seek into the fixture")

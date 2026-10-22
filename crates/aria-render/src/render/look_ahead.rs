@@ -27,7 +27,7 @@
 use std::path::PathBuf;
 
 use aria_core::{FrameData, RationalTime, VideoDecoder, VideoFrame};
-use aria_decoder::{AheadDecoder, OpeningDecoder, open_ahead, open_video_decoder};
+use aria_decoder::{AheadDecoder, OpeningDecoder, open_ahead, open_video_decoder_at};
 use aria_models::{ClipId, MediaId, Project, Timeline};
 
 use crate::error::RenderError;
@@ -340,7 +340,8 @@ impl Renderer {
         }
         if !self.decoders.contains_key(&key) {
             let path = self.decoder_path(project, key.media)?;
-            let decoder = AheadDecoder::new(open_video_decoder(&path, self.decode_mode)?);
+            let decoder =
+                AheadDecoder::new(open_video_decoder_at(&path, self.decode_mode, source_time)?);
             if self.decoders.len() >= MAX_DECODERS {
                 self.evict_decoders_to(MAX_DECODERS - 1, true);
             }
@@ -445,7 +446,11 @@ impl Renderer {
             return;
         };
         let mode = self.decode_mode;
-        let opening = open_ahead(move || open_video_decoder(&path, mode), source_time, false);
+        let opening = open_ahead(
+            move || open_video_decoder_at(&path, mode, source_time),
+            source_time,
+            false,
+        );
         self.decoders
             .insert(key, DecoderSlot::new(None, Some(opening), stamp));
     }

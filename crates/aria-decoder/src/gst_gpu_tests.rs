@@ -114,7 +114,7 @@ fn a_dmabuf_attempt_stops_once_its_decoder_has_no_dmabuf_output() {
     let uri = path_uri(&fixture).expect("fixture uri");
     let watch = Arc::new(DmabufWatch::default());
     let started = Instant::now();
-    let result = try_open(&uri, true, Some(&watch));
+    let result = try_open(&uri, true, Some(&watch), gst::ClockTime::ZERO);
     let took = started.elapsed();
     let decoders = watch.decoders();
     assert!(!decoders.is_empty(), "the attempt plugged no video decoder");
@@ -150,7 +150,8 @@ fn a_failed_dmabuf_open_records_the_decoder_it_plugged() {
     let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../tests/fixtures/fixture-640x360-30fps-3s.mp4");
     gst::init().expect("GStreamer initializes");
-    let opened = open_pipeline(&fixture, OutputMode::Gpu).expect("the fixture opens");
+    let opened =
+        open_pipeline(&fixture, OutputMode::Gpu, gst::ClockTime::ZERO).expect("the fixture opens");
     let _ = opened.pipeline.set_state(gst::State::Null);
     if let Some(reason) = DMABUF_FAILED.get() {
         assert!(
@@ -266,7 +267,8 @@ fn only_a_file_the_cpu_path_opens_turns_dmabuf_off() {
         open_latched(&latch, true, |watch| try_open(
             &unreadable,
             watch.is_some(),
-            watch
+            watch,
+            gst::ClockTime::ZERO
         ))
         .is_err()
     );
@@ -363,7 +365,8 @@ fn video_pipeline_ignores_audio_streams_and_bounds_decoder_threads() {
     let mut opened = Vec::new();
     let mut thread_budgets = Vec::new();
     for idx in 0..8 {
-        let pipe = open_pipeline(&av_fixture, OutputMode::Cpu).expect("av fixture opens");
+        let pipe = open_pipeline(&av_fixture, OutputMode::Cpu, gst::ClockTime::ZERO)
+            .expect("av fixture opens");
         let (expose_all, pads, threads) = inspect_pipeline(&pipe.pipeline);
         println!("DECODER_PIPE idx={idx} expose_all={expose_all} pads={pads} threads={threads:?}");
         opened.push(pipe);
@@ -378,7 +381,8 @@ fn video_pipeline_ignores_audio_streams_and_bounds_decoder_threads() {
     while ACTIVE_VIDEO_PIPELINES.load(Ordering::Relaxed) > 0 && Instant::now() < settle_deadline {
         std::thread::sleep(Duration::from_millis(5));
     }
-    let after_drop = open_pipeline(&av_fixture, OutputMode::Cpu).expect("av fixture reopens");
+    let after_drop = open_pipeline(&av_fixture, OutputMode::Cpu, gst::ClockTime::ZERO)
+        .expect("av fixture reopens");
     let (_, _, restored_threads) = inspect_pipeline(&after_drop.pipeline);
     let _ = after_drop.pipeline.set_state(gst::State::Null);
     drop(after_drop);
