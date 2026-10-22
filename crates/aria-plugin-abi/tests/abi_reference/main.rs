@@ -1,5 +1,5 @@
 //! `include/aria_plugin.h` and `docs/plugins/native-abi-reference.md` are
-//! generated from `src/lib.rs`. The doc comments there are the single
+//! generated from the crate source under `src/`. The doc comments there are the single
 //! definition of what every define, type, field and table slot of the native
 //! ABI means; rustdoc, the C header and the reference contain the same text.
 //!
@@ -344,17 +344,124 @@ fn define_value(name: &str, ty: &Type, expr: &Expr, defines: &BTreeSet<String>) 
 }
 
 /// Whether `item` stays out of the C ABI: a function (the `free_rust_*`
-/// helpers free Rust allocations only), or a private item.
+/// helpers free Rust allocations only), or a private constant, struct, or type.
 fn outside_the_abi(item: &Item) -> bool {
     match item {
         Item::Fn(_) => true,
         Item::Const(item) => !is_pub(&item.vis),
         Item::Struct(item) => !is_pub(&item.vis),
         Item::Type(item) => !is_pub(&item.vis),
-        Item::Use(item) => !is_pub(&item.vis),
-        Item::Mod(item) => !is_pub(&item.vis),
         _ => false,
     }
+}
+
+fn is_cfg_test(attrs: &[Attribute]) -> bool {
+    attrs.iter().any(|attr| {
+        attr.path().is_ident("cfg")
+            && attr
+                .parse_args::<syn::Ident>()
+                .is_ok_and(|ident| ident == "test")
+    })
+}
+
+fn module_reexport(item: &syn::ItemUse) -> Option<String> {
+    if !is_pub(&item.vis) || item.leading_colon.is_some() {
+        return None;
+    }
+    let syn::UseTree::Path(path) = &item.tree else {
+        return None;
+    };
+    if !matches!(*path.tree, syn::UseTree::Glob(_)) {
+        return None;
+    }
+    Some(path.ident.to_string())
+}
+
+fn allowed_submodule_use(item: &syn::ItemUse) -> bool {
+    if is_pub(&item.vis) {
+        return false;
+    }
+    match &item.tree {
+        syn::UseTree::Path(path) => matches!(
+            path.ident.to_string().as_str(),
+            "super" | "crate" | "std" | "core"
+        ),
+        _ => false,
+    }
+}
+
+/// Expand `src/lib.rs` into `(file_label, item)` pairs in declaration order,
+/// splicing each non-test `mod <name>;` from `src/<name>.rs` in place.
+fn expand_crate_items(
+    root_source: &str,
+    src_dir: &std::path::Path,
+) -> (Vec<String>, Vec<(String, Item)>) {
+    let file = syn::parse_file(root_source).unwrap_or_else(|err| panic!("src/lib.rs: {err}"));
+    let mut modules = BTreeSet::new();
+    let mut reexported = BTreeSet::new();
+    let mut items = Vec::new();
+    for item in file.items {
+        match item {
+            Item::Mod(item) if is_cfg_test(&item.attrs) => {}
+            Item::Mod(item) => {
+                let mod_name = item.ident.to_string();
+                assert!(
+                    !is_pub(&item.vis) && item.content.is_none(),
+                    "src/lib.rs module `{mod_name}` must be a private non-inline `mod {mod_name};`"
+                );
+                let rel = format!("src/{mod_name}.rs");
+                let path = src_dir.join(format!("{mod_name}.rs"));
+                let mod_src = std::fs::read_to_string(&path).unwrap_or_else(|err| {
+                    panic!(
+                        "src/lib.rs declares `mod {mod_name};`, failed to read {rel} ({}): {err}",
+                        path.display()
+                    )
+                });
+                let mod_file =
+                    syn::parse_file(&mod_src).unwrap_or_else(|err| panic!("{rel}: {err}"));
+                for sub_item in mod_file.items {
+                    match sub_item {
+                        Item::Use(use_item) if allowed_submodule_use(&use_item) => {}
+                        Item::Use(_) => panic!(
+                            "{rel} declares an unexpected use item; only private `use` imports \
+                             are allowed in ABI submodules"
+                        ),
+                        Item::Mod(nested) => panic!(
+                            "{rel} declares nested module `{}`; ABI submodules must not declare \
+                             submodules",
+                            nested.ident
+                        ),
+                        other => items.push((rel.clone(), other)),
+                    }
+                }
+                modules.insert(mod_name);
+            }
+            Item::Use(item) if is_cfg_test(&item.attrs) => {}
+            Item::Use(item) => {
+                let Some(name) = module_reexport(&item) else {
+                    panic!(
+                        "src/lib.rs declares a use item other than a `pub use <module>::*;` \
+                         re-export"
+                    );
+                };
+                reexported.insert(name);
+            }
+            other => items.push(("src/lib.rs".to_owned(), other)),
+        }
+    }
+    for name in &reexported {
+        assert!(
+            modules.contains(name),
+            "src/lib.rs declares `pub use {name}::*;` for an undeclared module `{name}`"
+        );
+    }
+    for name in &modules {
+        assert!(
+            reexported.contains(name),
+            "src/lib.rs declares `mod {name};` without `pub use {name}::*;`"
+        );
+    }
+    (docs(&file.attrs), items)
 }
 
 /// `name` declared with type `ty`, as C spells it.

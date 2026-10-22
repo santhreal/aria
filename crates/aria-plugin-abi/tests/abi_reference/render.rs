@@ -8,12 +8,12 @@ use super::*;
 
 impl Abi {
     pub(super) fn parse() -> Self {
-        let file = syn::parse_file(SOURCE).unwrap_or_else(|err| panic!("src/lib.rs: {err}"));
+        let (crate_docs, items) = expand_crate_items(SOURCE, &crate_dir().join("src"));
         let mut types = BTreeSet::new();
         let mut defines = BTreeSet::new();
         let mut methods: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
         let mut decls = Vec::new();
-        for item in &file.items {
+        for (file, item) in &items {
             match item {
                 Item::Const(item) if is_pub(&item.vis) => {
                     let name = item.ident.to_string();
@@ -97,7 +97,7 @@ impl Abi {
                 }
                 other => assert!(
                     outside_the_abi(other),
-                    "src/lib.rs declares a public item with no rule in tests/abi_reference/main.rs: \
+                    "{file} declares a public item with no rule in tests/abi_reference/main.rs: \
                      the C ABI holds `u32`, `usize` and byte-string consts, `#[repr(C)]` \
                      structs and function pointer aliases"
                 ),
@@ -109,7 +109,7 @@ impl Abi {
             }
         }
         Self {
-            docs: docs(&file.attrs),
+            docs: crate_docs,
             decls,
         }
     }
@@ -289,8 +289,8 @@ impl Abi {
     fn header(&self) -> String {
         let mut out = String::new();
         out.push_str(
-            "// Generated from crates/aria-plugin-abi/src/lib.rs by\n\
-             // crates/aria-plugin-abi/tests/abi_reference/render.rs. Edit the doc comments there, then run\n",
+            "// Generated from crates/aria-plugin-abi/src/ by\n\
+             // crates/aria-plugin-abi/tests/abi_reference/render.rs. Edit the doc comments in src/, then run\n",
         );
         let _ = writeln!(out, "// `{REGENERATE}`.\n//");
         self.comment(&mut out, "aria_plugin_abi", "", "//", &self.docs);
@@ -341,8 +341,8 @@ impl Abi {
         let mut md = String::from("# Native ABI reference\n\n");
         let _ = writeln!(
             md,
-            "<!-- Generated from crates/aria-plugin-abi/src/lib.rs by \
-             crates/aria-plugin-abi/tests/abi_reference/render.rs. Edit the doc comments, then run \
+            "<!-- Generated from crates/aria-plugin-abi/src/ by \
+             crates/aria-plugin-abi/tests/abi_reference/render.rs. Edit the doc comments in src/, then run \
              `{REGENERATE}`. -->\n"
         );
         for paragraph in self.paragraphs("aria_plugin_abi", &self.docs) {

@@ -1,5 +1,5 @@
-// Generated from crates/aria-plugin-abi/src/lib.rs by
-// crates/aria-plugin-abi/tests/abi_reference/render.rs. Edit the doc comments there, then run
+// Generated from crates/aria-plugin-abi/src/ by
+// crates/aria-plugin-abi/tests/abi_reference/render.rs. Edit the doc comments in src/, then run
 // `ARIA_BLESS_DOCS=1 cargo test -p aria-plugin-abi --test abi_reference`.
 //
 // Stable C ABI types and versioned function tables shared by the Aria host and native plugins.
