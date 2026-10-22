@@ -100,15 +100,13 @@ impl AtomicMetric {
     pub(crate) fn record(&self, duration: Duration) {
         let sample_ns = u64::try_from(duration.as_nanos()).unwrap_or(UNSET_NS - 1);
         self.last_ns.store(sample_ns, Ordering::Relaxed);
-        let _ = self
-            .mean_ns
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |prev| {
-                let next = if prev == UNSET_NS {
+        self.mean_ns
+            .update(Ordering::Relaxed, Ordering::Relaxed, |prev| {
+                if prev == UNSET_NS {
                     sample_ns
                 } else {
                     ((u128::from(prev) * 7 + u128::from(sample_ns) + 4) / 8) as u64
-                };
-                Some(next)
+                }
             });
         self.max_ns.fetch_max(sample_ns, Ordering::Relaxed);
         self.calls.fetch_add(1, Ordering::Release);
