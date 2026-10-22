@@ -1,5 +1,5 @@
 //! Media fixtures are constant frame rate, and a fixture made by an older
-//! recipe is made again rather than reused.
+//! recipe, or missing a file it shows, is made again rather than reused.
 //!
 //! Closes the class where looping an audio-and-video segment left a hole in
 //! the video track at every loop (AAC padding makes the segment longer than
@@ -9,7 +9,8 @@
 use std::path::{Path, PathBuf};
 
 use super::{
-    FixtureId, MEDIA_FIXTURE_VERSION, build_stack_4k, is_valid_fixture, loop_segment, version_path,
+    FixtureId, MEDIA_FIXTURE_VERSION, PHOTO_SIZE, build_stack_4k, ensure_fixture, is_valid_fixture,
+    loop_segment, photo_paths, version_path,
 };
 
 fn scratch(tag: &str) -> PathBuf {
@@ -133,5 +134,49 @@ fn a_project_fixture_from_an_older_schema_is_not_reused() {
         !is_valid_fixture(&dir, id, &path),
         "a fixture an older schema wrote was reused"
     );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// The stills fixture is reused only with every photo it shows on disk, and
+/// each photo decodes at the size its project states, so `playback` measures
+/// 12 MP pictures rather than a missing file drawn as nothing.
+#[test]
+fn a_stills_fixture_missing_a_photo_is_made_again() {
+    let dir = scratch("stills");
+    let id = FixtureId::Stills4k;
+    let made = ensure_fixture(&dir, id).expect("make the stills-4k fixture");
+    assert!(!made.cached, "an empty directory held a fixture");
+    let photos = photo_paths(&dir);
+    let project = aria_models::Project::load_from_file(&id.path(&dir)).expect("open stills-4k");
+    let shown: Vec<_> = project
+        .media_iter()
+        .map(|media| (media.path().to_path_buf(), media.width, media.height))
+        .collect();
+    for photo in &photos {
+        let image = aria_decoder::decode_image(photo).expect("decode a stills-4k photo");
+        assert_eq!(
+            [image.width, image.height],
+            PHOTO_SIZE,
+            "{}",
+            photo.display()
+        );
+        assert!(
+            shown.contains(&(photo.clone(), PHOTO_SIZE[0], PHOTO_SIZE[1])),
+            "{} is not in the project at its size: {shown:?}",
+            photo.display()
+        );
+    }
+    assert!(
+        ensure_fixture(&dir, id).expect("reuse stills-4k").cached,
+        "a complete fixture was made again"
+    );
+
+    std::fs::remove_file(&photos[1]).expect("remove a photo");
+    assert!(
+        !is_valid_fixture(&dir, id, &id.path(&dir)),
+        "a fixture missing a photo was reused"
+    );
+    assert!(!ensure_fixture(&dir, id).expect("remake stills-4k").cached);
+    assert!(photos[1].exists(), "the missing photo was not made again");
     let _ = std::fs::remove_dir_all(&dir);
 }

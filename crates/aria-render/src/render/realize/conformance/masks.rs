@@ -33,7 +33,7 @@ const TOLERANCE: i32 = 3;
 
 /// A shape mask and a path mask, each keeping the left [`KEEP`] of the quad
 /// and overhanging its other three edges.
-fn masks() -> [(&'static str, SceneMask); 2] {
+pub(super) fn masks() -> [(&'static str, SceneMask); 2] {
     let shape = SceneMask {
         kind: MaskKind::Rectangle,
         feather: 0.0,
@@ -61,7 +61,7 @@ fn masks() -> [(&'static str, SceneMask); 2] {
     [("shape mask", shape), ("path mask", path)]
 }
 
-fn lone(layer: SceneLayer) -> Scene {
+pub(super) fn lone(layer: SceneLayer) -> Scene {
     let mut scene = Scene::empty(W, H, [0, 0, 0, 0]);
     scene.layers.push(layer);
     scene
@@ -136,7 +136,7 @@ fn assert_cut(what: &str, cut: &RgbaImage, alone: &RgbaImage, edge: f32) {
 
 /// Every topology that draws its own picture, and text drawn as glyphs,
 /// named.
-fn painting_layers(fx: &Fixtures, renderer: &mut Renderer) -> Vec<(String, SceneLayer)> {
+pub(super) fn painting_layers(fx: &Fixtures, renderer: &mut Renderer) -> Vec<(String, SceneLayer)> {
     let mut out = Vec::new();
     for topology in topologies(fx, renderer) {
         let spec = topology.layer.source.spec();

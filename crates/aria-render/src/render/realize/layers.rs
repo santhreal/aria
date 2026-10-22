@@ -7,6 +7,8 @@
 //! realize after the level that shows them. The conversion to a borrowed
 //! [`aria_compositor::CompositeLayer`] is in the sibling `composite.rs`.
 
+use std::sync::Arc;
+
 use aria_compositor::{
     BlendMode, ColorGrade, FULL_UV, GlyphInstance, LayerEffects, LayerPlacement, LayerStencil,
     LayerStyles, RgbaImage, SdfLayer, StencilCoverage, StencilMask,
@@ -77,7 +79,8 @@ pub(super) enum Pixels {
         path: String,
         frame_index: usize,
     },
-    Bitmap(RgbaImage),
+    /// A path raster held in `Renderer::paths`.
+    Bitmap(Arc<RgbaImage>),
     /// Static text bitmap cached in `Renderer::text_memo`.
     CachedText(u64),
     Solid([u8; 4]),
@@ -151,8 +154,9 @@ fn uv_within([u0, v0, u1, v1]: [f32; 4], [sx, sy]: [f32; 2]) -> [f32; 4] {
 /// A mask stack placed on the canvas; see [`LayerStencil`].
 pub(super) struct Stencil {
     masks: Vec<StencilMask>,
-    /// The rasterized path masks, alpha the coverage, in stack order.
-    images: Vec<RgbaImage>,
+    /// The rasterized path masks, alpha the coverage, in stack order, held in
+    /// `Renderer::paths`.
+    images: Vec<Arc<RgbaImage>>,
     placement: LayerPlacement,
 }
 

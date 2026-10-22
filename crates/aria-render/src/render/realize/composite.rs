@@ -1,9 +1,11 @@
 //! One realized [`Leaf`] → the borrowed [`CompositeLayer`]s it draws as.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use aria_compositor::{
-    CompositeLayer, FULL_UV, GlyphsLayer, LayerContent, LayerStyles, PassInstance, RgbaImage,
+    Bitmap, CompositeLayer, FULL_UV, GlyphsLayer, LayerContent, LayerStyles, PassInstance,
+    RgbaImage,
 };
 use aria_models::MediaId;
 
@@ -12,19 +14,22 @@ use super::layers::{Leaf, Pixels};
 
 /// The renderer caches the pixels of a realized layer are read from.
 pub(super) struct Caches<'a> {
-    pub(super) stills: &'a HashMap<MediaId, RgbaImage>,
+    pub(super) stills: &'a HashMap<MediaId, Arc<RgbaImage>>,
     pub(super) stickers: &'a HashMap<String, StickerSequence>,
     pub(super) lottie: &'a HashMap<String, LottieState>,
     pub(super) luts: &'a HashMap<String, CubeLutState>,
-    pub(super) text_memo: &'a HashMap<u64, RgbaImage>,
+    pub(super) text_memo: &'a HashMap<u64, Arc<RgbaImage>>,
 }
 
+/// What `pixels` draw. A bitmap held in a renderer cache is passed shared: the
+/// compositor hashes a shared bitmap on its first draw only, and a borrowed
+/// one on every draw.
 fn content<'a>(pixels: &'a Pixels, caches: &Caches<'a>) -> LayerContent<'a> {
     match pixels {
         Pixels::Frame(shown) => LayerContent::Frame(&shown.frame),
-        Pixels::Still(media) => LayerContent::Rgba(&caches.stills[media]),
+        Pixels::Still(media) => LayerContent::Rgba(Bitmap::Shared(&caches.stills[media])),
         Pixels::Sticker { asset, frame_index } => {
-            LayerContent::Rgba(&caches.stickers[asset].frames[*frame_index])
+            LayerContent::Rgba(Bitmap::Shared(&caches.stickers[asset].frames[*frame_index]))
         }
         Pixels::Lottie { path, frame_index } => {
             // Realize only emits Lottie pixels after `ensure_lottie_frame`
@@ -33,10 +38,10 @@ fn content<'a>(pixels: &'a Pixels, caches: &Caches<'a>) -> LayerContent<'a> {
             let LottieState::Loaded(player) = &caches.lottie[path] else {
                 unreachable!("realized lottie layer without a loaded player")
             };
-            LayerContent::Rgba(&player.frames[frame_index].0)
+            LayerContent::Rgba(Bitmap::Shared(&player.frames[frame_index].0))
         }
-        Pixels::Bitmap(image) => LayerContent::Rgba(image),
-        Pixels::CachedText(key) => LayerContent::Cutout(&caches.text_memo[key]),
+        Pixels::Bitmap(image) => LayerContent::Rgba(Bitmap::Shared(image)),
+        Pixels::CachedText(key) => LayerContent::Cutout(Bitmap::Shared(&caches.text_memo[key])),
         Pixels::Solid(rgba) => LayerContent::Solid(*rgba),
         Pixels::Sdf(shape) => LayerContent::Sdf(*shape),
         Pixels::Glyphs {
@@ -92,7 +97,7 @@ pub(super) fn composite_card<'a>(
         return None;
     };
     Some(CompositeLayer {
-        content: LayerContent::Cutout(image),
+        content: LayerContent::Cutout(Bitmap::Borrowed(image)),
         placement: *placement,
         uv: FULL_UV,
         styles: LayerStyles::default(),

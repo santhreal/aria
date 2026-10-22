@@ -194,6 +194,61 @@ fn static_rgba_textures_upload_once_per_image_digest() {
     );
 }
 
+/// WHY: a still or a cached title is drawn on every frame it is on screen, and
+/// hashing the pixels of a 12-megapixel still takes tens of milliseconds. A
+/// shared bitmap must be hashed on its first draw only and a borrowed one on
+/// every draw, and a shared bitmap changed through its `Arc` must draw its new
+/// pixels.
+#[test]
+fn shared_bitmaps_hash_once_and_draw_their_current_pixels() {
+    let gpu = gpu_or_skip!();
+    let config = CompositorConfig::new(64, 32).with_background([0, 0, 0, 255]);
+    let placement = LayerPlacement::full_canvas(&config);
+    let mut comp = Compositor::new(&gpu);
+    let mut still = std::sync::Arc::new(rgba_uniform(64, 32, [24, 80, 160, 255]));
+    let raster = rgba_uniform(64, 32, [24, 80, 160, 255]);
+
+    let mut hashed = Vec::new();
+    for _ in 0..3 {
+        let layers = [
+            CompositeLayer::rgba(&still, placement),
+            CompositeLayer::cutout(&still, placement),
+        ];
+        comp.render(&gpu, &config, &layers).expect("shared bitmap");
+        hashed.push(comp.bitmaps_hashed());
+    }
+    assert_eq!(hashed, [2, 0, 0], "shared bitmap hashes per frame");
+
+    for _ in 0..2 {
+        let layers = [CompositeLayer::rgba(&raster, placement)];
+        comp.render(&gpu, &config, &layers)
+            .expect("borrowed bitmap");
+        assert_eq!(
+            comp.bitmaps_hashed(),
+            1,
+            "a borrowed bitmap skipped its hash"
+        );
+        assert_eq!(
+            comp.rgba_cache_stats().textures_created,
+            0,
+            "a borrowed bitmap of the shared pixels was uploaded again"
+        );
+    }
+
+    std::sync::Arc::make_mut(&mut still)
+        .pixels
+        .copy_from_slice(&rgba_uniform(64, 32, [192, 48, 16, 255]).pixels);
+    let changed = comp
+        .render(&gpu, &config, &[CompositeLayer::rgba(&still, placement)])
+        .expect("changed shared bitmap");
+    assert_eq!(comp.bitmaps_hashed(), 1);
+    assert_eq!(
+        changed.pixel(32, 16),
+        [192, 48, 16, 255],
+        "a shared bitmap changed through its Arc drew its old pixels"
+    );
+}
+
 /// WHY: export must submit the next GPU frame before copying and encoding the
 /// prior one. Two retained slots preserve order and pixels; a third unresolved
 /// frame fails with bounded backpressure instead of allocating without limit.

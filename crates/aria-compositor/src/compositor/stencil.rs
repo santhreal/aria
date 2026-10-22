@@ -7,7 +7,7 @@
 //! above it into one of two slots it alternates between, so a stack of any
 //! length holds three slots.
 
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock};
 
 use aria_core::RgbaImage;
 
@@ -26,8 +26,10 @@ use super::Compositor;
 
 /// One opaque white texel. Stretched over a placed quad and cut by a shape in
 /// the fx pipeline, it draws that shape's coverage for any layer content,
-/// including content drawn by a pipeline with no fx variant.
-static WHITE: LazyLock<RgbaImage> = LazyLock::new(|| RgbaImage::new(1, 1, vec![255; 4]));
+/// including content drawn by a pipeline with no fx variant. Shared, so it is
+/// hashed once.
+static WHITE: LazyLock<Arc<RgbaImage>> =
+    LazyLock::new(|| Arc::new(RgbaImage::new(1, 1, vec![255; 4])));
 
 /// The layer that draws `mask`'s coverage, before its inversion and mix.
 fn coverage_layer<'a>(
@@ -46,7 +48,7 @@ fn coverage_layer<'a>(
             CompositeLayer::rgba(image, stencil.placement)
         }
         StencilCoverage::Shape(shape) => {
-            CompositeLayer::rgba(&WHITE, stencil.placement).with_fx(LayerEffects {
+            CompositeLayer::rgba(&*WHITE, stencil.placement).with_fx(LayerEffects {
                 mask: Some(shape),
                 chroma_key: None,
             })

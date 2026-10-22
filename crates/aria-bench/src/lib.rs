@@ -823,7 +823,7 @@ mod tests {
     /// `long-gop-10m` alias from `docs/spec/performance.md`.
     #[test]
     fn fixture_ids_and_rule_checks_round_trip() {
-        assert_eq!(fixtures::FixtureId::ALL.len(), 6);
+        assert_eq!(fixtures::FixtureId::ALL.len(), 7);
         for fixture in fixtures::FixtureId::ALL {
             let parsed = fixtures::FixtureId::parse(fixture.as_str())
                 .unwrap_or_else(|| panic!("failed to parse {}", fixture.as_str()));

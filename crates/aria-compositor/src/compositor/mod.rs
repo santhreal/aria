@@ -144,6 +144,13 @@ impl Compositor {
         self.rgba_textures.borrow().stats()
     }
 
+    /// Bitmaps the last composite hashed to find the texture they uploaded
+    /// to. A [`Bitmap::Shared`](crate::Bitmap::Shared) is hashed on its
+    /// first draw only, so a repeated frame of shared bitmaps hashes none.
+    pub fn bitmaps_hashed(&self) -> u32 {
+        self.rgba_textures.borrow().bitmaps_hashed()
+    }
+
     /// Cumulative number of GPU-to-CPU frame readbacks (`copy_texture_to_buffer`
     /// + `map_async`) submitted by this compositor.
     pub const fn readback_count(&self) -> u64 {

@@ -1,3 +1,5 @@
+use std::sync::{Arc, Weak};
+
 use aria_core::{CpuImage, MatrixCoefficients, PixelFormat, Plane, RgbaImage, VideoFrame};
 use rustc_hash::FxHashMap;
 use sha2::{Digest, Sha256};
@@ -5,11 +7,14 @@ use sha2::{Digest, Sha256};
 use crate::error::CompositorError;
 use crate::gpu::GpuContext;
 use crate::grade::ColorGrade;
-use crate::layer::{CompositeLayer, CompositorConfig, LayerPlacement};
+use crate::layer::{Bitmap, CompositeLayer, CompositorConfig, LayerPlacement};
 use crate::planes::{PlaneSet, PlaneTexture};
 
 const MAX_RETAINED_PLANE_TEXTURES: usize = 16;
 const MAX_RETAINED_RGBA_TEXTURES: usize = 32;
+/// Shared bitmaps whose texture keys are kept. Past this many, the keys of
+/// bitmaps no longer alive are dropped, or every key when all are alive.
+const MAX_SHARED_BITMAP_KEYS: usize = 256;
 /// Staging chunk for plane uploads. A frame's planes are closed for copying as
 /// soon as they are written, so each uploaded frame occupies its own chunk
 /// until the GPU has read it: a 1080p NV12 frame (3.3 MB padded) fits one, and
@@ -212,14 +217,22 @@ struct RgbaSlot {
 #[derive(Default)]
 pub(super) struct RgbaTextureCache {
     entries: FxHashMap<[u8; 32], RgbaSlot>,
+    /// The key of each shared bitmap hashed so far, by the address of its
+    /// allocation and the border it was keyed with. The [`Weak`] keeps the
+    /// allocation, so no other bitmap takes that address while the entry
+    /// stands, and the bitmap cannot change while the [`Weak`] exists (see
+    /// [`Bitmap`]).
+    shared_keys: FxHashMap<(usize, u32), (Weak<RgbaImage>, [u8; 32])>,
     frame: u64,
     textures_created: u32,
+    bitmaps_hashed: u32,
 }
 
 impl RgbaTextureCache {
     pub(super) fn begin_frame(&mut self) {
         self.frame = self.frame.wrapping_add(1);
         self.textures_created = 0;
+        self.bitmaps_hashed = 0;
     }
 
     pub(super) fn stats(&self) -> TexturePoolStats {
@@ -227,6 +240,44 @@ impl RgbaTextureCache {
             textures_created: self.textures_created,
             retained_textures: self.entries.len(),
         }
+    }
+
+    /// Bitmaps hashed during the last frame.
+    pub(super) fn bitmaps_hashed(&self) -> u32 {
+        self.bitmaps_hashed
+    }
+
+    /// The texture key of `bitmap` uploaded inside a `border`-texel
+    /// transparent ring. `expected` is the byte length of its pixels.
+    pub(super) fn key(&mut self, bitmap: Bitmap<'_>, expected: usize, border: u32) -> [u8; 32] {
+        let Bitmap::Shared(shared) = bitmap else {
+            return self.hash(bitmap.image(), expected, border);
+        };
+        let address = (Arc::as_ptr(shared) as usize, border);
+        if let Some((_, key)) = self.shared_keys.get(&address) {
+            return *key;
+        }
+        let key = self.hash(shared, expected, border);
+        if self.shared_keys.len() >= MAX_SHARED_BITMAP_KEYS {
+            self.shared_keys
+                .retain(|_, (bitmap, _)| bitmap.strong_count() > 0);
+            if self.shared_keys.len() >= MAX_SHARED_BITMAP_KEYS {
+                self.shared_keys.clear();
+            }
+        }
+        self.shared_keys
+            .insert(address, (Arc::downgrade(shared), key));
+        key
+    }
+
+    fn hash(&mut self, image: &RgbaImage, expected: usize, border: u32) -> [u8; 32] {
+        self.bitmaps_hashed = self.bitmaps_hashed.saturating_add(1);
+        let mut digest = Sha256::new();
+        digest.update(image.width.to_le_bytes());
+        digest.update(image.height.to_le_bytes());
+        digest.update(border.to_le_bytes());
+        digest.update(&image.pixels[..expected]);
+        digest.finalize().into()
     }
 
     pub(super) fn get(&mut self, key: &[u8; 32]) -> Option<PlaneTexture> {
@@ -255,17 +306,6 @@ impl RgbaTextureCache {
             },
         );
     }
-}
-
-/// The texture cache key of `image` uploaded inside a `border`-texel
-/// transparent ring.
-pub(super) fn rgba_image_key(image: &RgbaImage, expected: usize, border: u32) -> [u8; 32] {
-    let mut digest = Sha256::new();
-    digest.update(image.width.to_le_bytes());
-    digest.update(image.height.to_le_bytes());
-    digest.update(border.to_le_bytes());
-    digest.update(&image.pixels[..expected]);
-    digest.finalize().into()
 }
 
 fn create_plane_texture(device: &wgpu::Device, key: PlaneKey) -> PlaneTexture {
@@ -470,3 +510,7 @@ pub(super) fn pack_grade(grade: Option<ColorGrade>) -> [[f32; 4]; ColorGrade::LA
         None => ColorGrade::IDENTITY.lanes(0.0),
     }
 }
+
+#[cfg(test)]
+#[path = "upload_tests.rs"]
+mod tests;

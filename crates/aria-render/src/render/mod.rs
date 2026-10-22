@@ -134,8 +134,9 @@ pub struct Renderer {
     /// Decode-once cache for still images: one straight-alpha RGBA bitmap per
     /// media source, reused for every frame the still is on screen. Bounded by
     /// the project's still count, with each entry capped at
-    /// [`aria_decoder::image::MAX_DECODE_DIMENSION`] on the long side.
-    stills: HashMap<MediaId, RgbaImage>,
+    /// [`aria_decoder::image::MAX_DECODE_DIMENSION`] on the long side. Shared,
+    /// so the compositor hashes each still once rather than on every frame.
+    stills: HashMap<MediaId, Arc<RgbaImage>>,
     /// Decode-once cache for bundled stickers, keyed by catalog id: the whole
     /// frame sequence (a static sticker is one frame) plus per-frame delays.
     /// Bounded by the catalog (small, embedded assets); frame lookup on the
@@ -207,8 +208,9 @@ pub struct Renderer {
     look_ahead_pool: crate::resolve::ResolvePool,
     /// Memo of static text bitmaps keyed by [`text_anim::static_raster_key`],
     /// avoiding `ShapeKey::new` (`String`) and `RgbaImage::clone` (`Vec<u8>`)
-    /// on steady frames when the same static text layer is realized.
-    text_memo: HashMap<u64, RgbaImage>,
+    /// on steady frames when the same static text layer is realized. Shared,
+    /// so the compositor hashes each bitmap once.
+    text_memo: HashMap<u64, Arc<RgbaImage>>,
     /// A stop the next frame may honour, set by
     /// [`cancel_next_frame`](Renderer::cancel_next_frame) and taken by the
     /// realize pass. Frame-scoped by construction: a token left behind cannot

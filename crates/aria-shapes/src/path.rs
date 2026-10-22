@@ -11,6 +11,7 @@
 //! [`path_hit_test`]), matching the pen-tool convention in Photoshop/AE.
 
 use std::collections::{HashMap, VecDeque};
+use std::sync::Arc;
 
 use aria_core::RgbaImage;
 use tiny_skia::{FillRule, LineCap, LineJoin, Paint, PathBuilder, Pixmap, Transform};
@@ -28,9 +29,10 @@ const RASTER_PAD: f32 = 2.0;
 
 /// Rasterizes pen paths, memoizing recent results. Owned by the renderer next
 /// to the `TextRenderer`; reuse one across frames so unchanged paths cost a
-/// memo lookup plus a bitmap copy-out.
+/// memo lookup. A raster is shared with the memo, so the compositor hashes it
+/// once rather than on every frame.
 pub struct PathRaster {
-    memo: HashMap<PathKey, RgbaImage>,
+    memo: HashMap<PathKey, Arc<RgbaImage>>,
     order: VecDeque<PathKey>,
 }
 
@@ -61,7 +63,12 @@ impl PathRaster {
     /// The bounds center lands on the image center — the point the renderer
     /// places at the layer center. Returns a zero-area image for paths with
     /// nothing to draw (fewer than 2 points, or no fill and no stroke).
-    pub fn rasterize(&mut self, path: &BezierPath, style: &ShapeStyle, scale: f32) -> RgbaImage {
+    pub fn rasterize(
+        &mut self,
+        path: &BezierPath,
+        style: &ShapeStyle,
+        scale: f32,
+    ) -> Arc<RgbaImage> {
         let key = PathKey::new(path, style, scale);
         self.memoized(key, || rasterize_uncached(path, style, scale))
     }
@@ -79,7 +86,7 @@ impl PathRaster {
         center: [f32; 2],
         rotation_rad: f32,
         expansion: f32,
-    ) -> RgbaImage {
+    ) -> Arc<RgbaImage> {
         let (w, h) = (width.max(1), height.max(1));
         let (wf, hf) = (w as f32, h as f32);
         let map = |v: [f32; 2]| [(v[0] + center[0]) * wf, (v[1] + center[1]) * hf];
@@ -115,15 +122,15 @@ impl PathRaster {
         })
     }
 
-    fn memoized(&mut self, key: PathKey, build: impl FnOnce() -> RgbaImage) -> RgbaImage {
+    fn memoized(&mut self, key: PathKey, build: impl FnOnce() -> RgbaImage) -> Arc<RgbaImage> {
         if let Some(hit) = self.memo.get(&key) {
             if let Some(pos) = self.order.iter().position(|k| k == &key) {
                 self.order.remove(pos);
                 self.order.push_back(key);
             }
-            return hit.clone();
+            return Arc::clone(hit);
         }
-        let image = build();
+        let image = Arc::new(build());
         const MEMO_CAP: usize = 32;
         while self.memo.len() >= MEMO_CAP {
             let Some(oldest) = self.order.pop_front() else {
@@ -132,7 +139,7 @@ impl PathRaster {
             self.memo.remove(&oldest);
         }
         self.order.push_back(key.clone());
-        self.memo.insert(key, image.clone());
+        self.memo.insert(key, Arc::clone(&image));
         image
     }
 }

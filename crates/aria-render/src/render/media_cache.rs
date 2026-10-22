@@ -1,4 +1,5 @@
 use std::collections::{HashMap, hash_map::Entry};
+use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver};
 
 use aria_compositor::{CubeLut, LayerLut, RgbaImage};
@@ -141,14 +142,15 @@ pub(super) struct LottiePlayer {
     pub(super) animation: aria_decoder::LottieAnimation,
     /// Rasterized frames keyed by sampled-frame index, stamped with the
     /// scene counter of their last use (the LRU key).
-    pub(super) frames: HashMap<usize, (RgbaImage, u64)>,
+    pub(super) frames: HashMap<usize, (Arc<RgbaImage>, u64)>,
 }
 
 /// Make one sampled frame resident while keeping cache memory bounded.
 ///
 /// An evicted frame's pixel vector becomes the next render target. Once the
 /// byte budget is warm, playback therefore replaces cached frames without a
-/// new frame-sized allocation.
+/// new frame-sized allocation. The compositor keeps only weak references to a
+/// frame, so an evicted frame is unique and gives its pixels back.
 fn cache_lottie_frame(
     player: &mut LottiePlayer,
     index: usize,
@@ -178,20 +180,22 @@ fn cache_lottie_frame(
         };
         let (evicted, _) = player.frames.remove(&victim).expect("victim exists");
         total -= evicted.pixels.len();
-        if evicted.pixels.capacity() > recycled.capacity() {
+        if let Some(evicted) = Arc::into_inner(evicted)
+            && evicted.pixels.capacity() > recycled.capacity()
+        {
             recycled = evicted.pixels;
         }
     }
 
     let image = player.animation.render_frame_reusing(index, recycled)?;
-    player.frames.insert(index, (image, stamp));
+    player.frames.insert(index, (Arc::new(image), stamp));
     Ok(())
 }
 
 /// A decoded sticker asset: every frame up front plus cumulative frame ends,
 /// so per-composite frame selection is logarithmic and decode-free.
 pub(super) struct StickerSequence {
-    pub(super) frames: Vec<RgbaImage>,
+    pub(super) frames: Vec<Arc<RgbaImage>>,
     /// Exclusive display end for each frame in milliseconds.
     pub(super) ends_ms: Vec<u64>,
     /// End of the final frame.
@@ -226,7 +230,7 @@ impl StickerSequence {
             })
             .collect();
         Self {
-            frames,
+            frames: frames.into_iter().map(Arc::new).collect(),
             ends_ms,
             total_ms: elapsed,
         }
@@ -270,7 +274,7 @@ impl Renderer {
             .media(media)
             .ok_or(RenderError::MissingMedia(media))?;
         let image = aria_decoder::decode_image(src.path())?;
-        self.stills.insert(media, image);
+        self.stills.insert(media, Arc::new(image));
         Ok(())
     }
 

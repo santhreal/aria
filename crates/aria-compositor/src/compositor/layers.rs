@@ -5,13 +5,15 @@ use aria_core::{FrameData, RgbaImage, VideoFrame};
 use crate::error::CompositorError;
 use crate::gpu::GpuContext;
 use crate::grade::ColorGrade;
-use crate::layer::{CompositeLayer, CompositorConfig, LayerContent, LayerEffects, LayerPlacement};
+use crate::layer::{
+    Bitmap, CompositeLayer, CompositorConfig, LayerContent, LayerEffects, LayerPlacement,
+};
 use crate::planes::PlaneSet;
 
 use super::cover::covers_target;
 use super::upload::{
     luma_coeffs, pack_grade, placement_affine, placement_affine_rot, placement_rotation,
-    rgba_image_key, visible_uv_rect,
+    visible_uv_rect,
 };
 use super::{
     Bound, Compositor, FxEffectsUniform, LayerGpu, LayerPipeline, RgbaUniforms, SdfUniforms,
@@ -34,11 +36,11 @@ impl Compositor {
             LayerContent::Frame(frame) => {
                 self.build_frame(gpu, encoder, config, layer, frame, grade)
             }
-            LayerContent::Rgba(image) => {
-                self.build_rgba(gpu, config, layer, image, Edges::Repeat, grade)
+            LayerContent::Rgba(bitmap) => {
+                self.build_rgba(gpu, config, layer, *bitmap, Edges::Repeat, grade)
             }
-            LayerContent::Cutout(image) => {
-                self.build_rgba(gpu, config, layer, image, Edges::Clear, grade)
+            LayerContent::Cutout(bitmap) => {
+                self.build_rgba(gpu, config, layer, *bitmap, Edges::Clear, grade)
             }
             LayerContent::Sdf(shape) => self.build_sdf(gpu, config, layer, shape, grade),
             LayerContent::Glyphs(glyphs) => self.build_glyphs(gpu, config, layer, glyphs, grade),
@@ -374,10 +376,11 @@ impl Compositor {
         gpu: &GpuContext,
         config: &CompositorConfig,
         layer: &CompositeLayer<'_>,
-        image: &RgbaImage,
+        bitmap: Bitmap<'_>,
         edges: Edges,
         color_grade: Option<ColorGrade>,
     ) -> Result<LayerGpu, CompositorError> {
+        let image = bitmap.image();
         if image.width == 0 || image.height == 0 {
             return Err(CompositorError::MalformedFrame(format!(
                 "rgba bitmap is {}x{}",
@@ -398,7 +401,10 @@ impl Compositor {
         }
 
         let border = edges.border();
-        let image_key = rgba_image_key(image, expected, border);
+        let image_key = self
+            .rgba_textures
+            .borrow_mut()
+            .key(bitmap, expected, border);
         let cached = self.rgba_textures.borrow_mut().get(&image_key);
         let (texture, view) = if let Some(cached) = cached {
             cached

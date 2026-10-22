@@ -207,15 +207,26 @@ fn a_raster_pixel_hits_the_path_where_the_raster_inks_it() {
     assert!(!path_raster_hit(&triangle, &nothing, 1.0, [0.0, 0.0]));
 }
 
+/// A repeat request returns the memo's raster itself, not a copy: the
+/// compositor keys a shared raster by its allocation, so a copy per frame
+/// would hash the pixels on every frame.
 #[test]
 fn memo_hits_repeat_requests() {
     let mut r = PathRaster::new();
     let a = r.rasterize(&diamond(10.0), &filled([1, 2, 3, 255]), 1.0);
     let b = r.rasterize(&diamond(10.0), &filled([1, 2, 3, 255]), 1.0);
-    assert_eq!(a, b);
+    assert!(Arc::ptr_eq(&a, &b), "a memo hit copied the raster");
     assert_eq!(r.memo.len(), 1);
     let _ = r.rasterize(&diamond(11.0), &filled([1, 2, 3, 255]), 1.0);
     assert_eq!(r.memo.len(), 2, "different geometry is a new entry");
+    let pts = [
+        PathPoint::corner([0.25, 0.25]),
+        PathPoint::corner([0.75, 0.25]),
+        PathPoint::corner([0.5, 0.75]),
+    ];
+    let m1 = r.rasterize_mask(40, 40, &pts, [0.0, 0.0], 0.0, 0.0);
+    let m2 = r.rasterize_mask(40, 40, &pts, [0.0, 0.0], 0.0, 0.0);
+    assert!(Arc::ptr_eq(&m1, &m2), "a mask memo hit copied the raster");
 }
 
 #[test]

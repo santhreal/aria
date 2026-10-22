@@ -1,6 +1,8 @@
 //! The scene description a composite pass renders: a canvas plus an ordered
 //! stack of placed layers.
 
+use std::sync::Arc;
+
 use aria_core::{RgbaImage, VideoFrame};
 use aria_shapes::{SdfShape, Stroke};
 
@@ -479,6 +481,45 @@ pub struct GlyphsLayer<'a> {
     pub instances: &'a [GlyphInstance],
 }
 
+/// The pixels of a bitmap layer.
+///
+/// The compositor finds the texture a bitmap uploaded to by a SHA-256 digest
+/// of its pixels. A borrowed bitmap is hashed on every draw. A shared bitmap
+/// is hashed on the first draw of its allocation only: a bitmap held in an
+/// [`Arc`] cannot change while the compositor holds a [`Weak`](std::sync::Weak)
+/// to it, since [`Arc::get_mut`] then fails and [`Arc::make_mut`] moves it to
+/// a new allocation.
+#[derive(Debug, Clone, Copy)]
+pub enum Bitmap<'a> {
+    /// Pixels that may change between draws, such as a raster made for one
+    /// frame.
+    Borrowed(&'a RgbaImage),
+    /// Pixels kept across frames, such as a decoded still.
+    Shared(&'a Arc<RgbaImage>),
+}
+
+impl<'a> Bitmap<'a> {
+    /// The pixels.
+    pub fn image(self) -> &'a RgbaImage {
+        match self {
+            Self::Borrowed(image) => image,
+            Self::Shared(image) => image,
+        }
+    }
+}
+
+impl<'a> From<&'a RgbaImage> for Bitmap<'a> {
+    fn from(image: &'a RgbaImage) -> Self {
+        Self::Borrowed(image)
+    }
+}
+
+impl<'a> From<&'a Arc<RgbaImage>> for Bitmap<'a> {
+    fn from(image: &'a Arc<RgbaImage>) -> Self {
+        Self::Shared(image)
+    }
+}
+
 /// The pixel source for a [`CompositeLayer`].
 ///
 /// Frames are borrowed: the engine pulls a [`VideoFrame`] from the decoder for
@@ -490,7 +531,7 @@ pub enum LayerContent<'a> {
     /// stickers, or a decoded still. The compositor premultiplies it on
     /// upload so its anti-aliased edges blend cleanly. Past its edges the
     /// sampler repeats the outermost texels.
-    Rgba(&'a RgbaImage),
+    Rgba(Bitmap<'a>),
     /// A straight-alpha RGBA bitmap cut from a transparent plane: a text run,
     /// or the card behind one. The compositor uploads it inside a transparent
     /// one-texel border and draws its quad half a texel past each uncropped
@@ -498,7 +539,7 @@ pub enum LayerContent<'a> {
     /// [`GlyphInstance`]. A quad edge between pixels fades the outer texels
     /// instead of repeating them, so the run draws the same pixels as one
     /// bitmap and as glyphs. A crop edge stays hard.
-    Cutout(&'a RgbaImage),
+    Cutout(Bitmap<'a>),
     /// A solid RGBA fill across the placed quad.
     Solid([u8; 4]),
     /// A parametric vector shape evaluated in the fragment shader.
@@ -557,8 +598,9 @@ pub struct CompositeLayer<'a> {
 pub struct LayerStencil<'a> {
     /// The masks, top first.
     pub masks: &'a [StencilMask],
-    /// The rasterized coverages [`StencilCoverage::Image`] indexes.
-    pub images: &'a [RgbaImage],
+    /// The rasterized coverages [`StencilCoverage::Image`] indexes, drawn as
+    /// [`Bitmap::Shared`].
+    pub images: &'a [Arc<RgbaImage>],
     /// Where the coverage lands on the canvas.
     pub placement: LayerPlacement,
     /// Motion-blur sample placements of the coverage, drawn and averaged as a
@@ -770,14 +812,14 @@ impl<'a> CompositeLayer<'a> {
     }
 
     /// An RGBA bitmap layer (shape/sticker/still) with no crop/mirror.
-    pub fn rgba(image: &'a RgbaImage, placement: LayerPlacement) -> Self {
-        Self::plain(LayerContent::Rgba(image), placement)
+    pub fn rgba(image: impl Into<Bitmap<'a>>, placement: LayerPlacement) -> Self {
+        Self::plain(LayerContent::Rgba(image.into()), placement)
     }
 
     /// A bitmap cut from a transparent plane (text, a text card) with no
     /// crop/mirror; see [`LayerContent::Cutout`].
-    pub fn cutout(image: &'a RgbaImage, placement: LayerPlacement) -> Self {
-        Self::plain(LayerContent::Cutout(image), placement)
+    pub fn cutout(image: impl Into<Bitmap<'a>>, placement: LayerPlacement) -> Self {
+        Self::plain(LayerContent::Cutout(image.into()), placement)
     }
 
     /// A solid-color layer.

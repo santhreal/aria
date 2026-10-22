@@ -68,7 +68,7 @@ pub use error::CompositorError;
 pub use gpu::GpuContext;
 pub use grade::ColorGrade;
 pub use layer::{
-    BlendMode, CompositeLayer, CompositorConfig, CompositorLayer, CoverageMix, FULL_UV,
+    Bitmap, BlendMode, CompositeLayer, CompositorConfig, CompositorLayer, CoverageMix, FULL_UV,
     GlyphInstance, GlyphsLayer, LayerBackground, LayerChromaKey, LayerContent, LayerEffects,
     LayerGlow, LayerLut, LayerMask, LayerOutline, LayerPlacement, LayerShadow, LayerStencil,
     LayerStyles, MaskOp, MatteRead, SdfLayer, StencilCoverage, StencilMask, mask_kind,

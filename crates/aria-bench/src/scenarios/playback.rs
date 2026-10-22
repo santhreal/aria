@@ -18,7 +18,7 @@ use parking_lot::Mutex;
 
 use crate::alloc_tracker::measure_thread_allocs;
 use crate::env_probe::current_thread_count;
-use crate::fixtures::{FixtureId, build_stack_4k, ensure_fixture};
+use crate::fixtures::{FixtureId, build_stack_4k, build_stills_4k, ensure_fixture};
 use crate::scenarios::{BenchContext, GpuTextureSink};
 use crate::{
     Comparison, MachineProfile, RuleCheck, SampleSeries, ScenarioId, ScenarioReport,
@@ -296,6 +296,7 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     let h264 = ensure_fixture(&ctx.fixtures_dir, FixtureId::H264_1080p60)?;
     let hevc = ensure_fixture(&ctx.fixtures_dir, FixtureId::Hevc2160p60)?;
     let _ = ensure_fixture(&ctx.fixtures_dir, FixtureId::Stack4k)?;
+    let _ = ensure_fixture(&ctx.fixtures_dir, FixtureId::Stills4k)?;
 
     let gpu = GpuContext::new_headless_blocking()
         .map_err(|err| format!("failed to create GpuContext: {err}"))?;
@@ -349,14 +350,21 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     };
     let stack_res = run_forward_stream(&gpu, &stack_proj, rate60, stack_fit, 15, 15)?;
 
-    // 4. Reverse long-gop-scrub at 1x after the first GOP.
+    // 4. stills-4k at 1/2 on Desktop/Server, 1/4 on Laptop.
+    let stills_proj = build_stills_4k(&ctx.fixtures_dir)?;
+    let stills_res = run_forward_stream(&gpu, &stills_proj, rate60, stack_fit, 30, 30)?;
+
+    // 5. Reverse long-gop-scrub at 1x after the first GOP.
     let rev_res = run_reverse_long_gop(&gpu, ctx)?;
 
-    // 5. Check PreviewWorker off-UI-thread scopes and non-blocking present.
+    // 6. Check PreviewWorker off-UI-thread scopes and non-blocking present.
     let (scopes_off_ui, max_ui_poll_ms) = check_preview_worker_rules(h264_proj)?;
 
-    let total_readbacks =
-        h264_res.readbacks + hevc_res.readbacks + stack_res.readbacks + rev_res.readbacks;
+    let total_readbacks = h264_res.readbacks
+        + hevc_res.readbacks
+        + stack_res.readbacks
+        + stills_res.readbacks
+        + rev_res.readbacks;
 
     let rules = vec![
         RuleCheck {
@@ -440,6 +448,7 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     let h264_series = SampleSeries::from_values("h264_1080p60_frame_ms", "ms", h264_res.frame_ms);
     let hevc_series = SampleSeries::from_values("hevc_2160p60_frame_ms", "ms", hevc_res.frame_ms);
     let stack_series = SampleSeries::from_values("stack_4k_frame_ms", "ms", stack_res.frame_ms);
+    let stills_series = SampleSeries::from_values("stills_4k_frame_ms", "ms", stills_res.frame_ms);
     let rev_series = SampleSeries::from_values("reverse_long_gop_frame_ms", "ms", rev_res.frame_ms);
 
     let targets = vec![
@@ -466,6 +475,14 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
             0.0,
             "frames",
             f64::from(stack_res.dropped.total()),
+        ),
+        TargetEvaluation::measured(
+            "stills_4k_dropped_frames",
+            "stills-4k at 1/2 (Laptop: 1/4): 0 dropped frames",
+            Comparison::AtMost,
+            0.0,
+            "frames",
+            f64::from(stills_res.dropped.total()),
         ),
         TargetEvaluation::measured(
             "reverse_long_gop_dropped_frames",
@@ -500,6 +517,13 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
             stack_res.dropped.render_late
         ),
         format!(
+            "stills-4k p50={:.2} ms (dropped={}: decode_late={}, render_late={})",
+            stills_series.p50,
+            stills_res.dropped.total(),
+            stills_res.dropped.decode_late,
+            stills_res.dropped.render_late
+        ),
+        format!(
             "reverse long-gop-scrub p50={:.2} ms (dropped={}); render-thread allocs/frame after 1s={:.1}",
             rev_series.p50,
             rev_res.dropped.total(),
@@ -512,7 +536,13 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
         ctx.env.clone(),
         targets,
         rules,
-        vec![h264_series, hevc_series, stack_series, rev_series],
+        vec![
+            h264_series,
+            hevc_series,
+            stack_series,
+            stills_series,
+            rev_series,
+        ],
         notes,
     ))
 }

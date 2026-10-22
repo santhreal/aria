@@ -9,6 +9,8 @@
 //! every op gives a different result. Not caught: the shape of a mask's edge,
 //! which the `masks` and `stencils` suites check.
 
+use std::sync::Arc;
+
 use aria_compositor::{
     ColorGrade, CompositeLayer, Compositor, CompositorConfig, CompositorError, CompositorLayer,
     CoverageMix, GpuContext, LayerEffects, LayerMask, LayerPlacement, LayerStencil, MaskOp,
@@ -105,7 +107,7 @@ fn columns(from: u32, to: u32) -> RgbaImage {
     RgbaImage::new(WIDTH, HEIGHT, pixels)
 }
 
-fn image_masks(case: &[Case]) -> (Vec<StencilMask>, Vec<RgbaImage>) {
+fn image_masks(case: &[Case]) -> (Vec<StencilMask>, Vec<Arc<RgbaImage>>) {
     case.iter()
         .enumerate()
         .map(|(index, &(op, opacity, invert, alpha))| {
@@ -116,7 +118,7 @@ fn image_masks(case: &[Case]) -> (Vec<StencilMask>, Vec<RgbaImage>) {
                 op,
                 opacity,
             };
-            (mask, flat(alpha))
+            (mask, Arc::new(flat(alpha)))
         })
         .unzip()
 }
@@ -241,7 +243,7 @@ fn a_canvas_pass_replaces_the_canvas_under_its_whole_stack() {
         saturation: -1.0,
         ..ColorGrade::IDENTITY
     };
-    let images = [columns(0, WIDTH / 2), columns(0, WIDTH / 4)];
+    let images = [columns(0, WIDTH / 2), columns(0, WIDTH / 4)].map(Arc::new);
     let masks = [
         StencilMask::keep(StencilCoverage::Image(0)),
         StencilMask {
@@ -294,7 +296,7 @@ fn a_canvas_pass_replaces_the_canvas_under_its_whole_stack() {
 fn a_mask_naming_a_missing_image_fails_the_frame() {
     let gpu = gpu_or_skip!();
     let mut comp = Compositor::new(&gpu);
-    let images = [flat(255)];
+    let images = [Arc::new(flat(255))];
     let masks = [
         StencilMask::keep(StencilCoverage::Image(0)),
         StencilMask::keep(StencilCoverage::Image(1)),

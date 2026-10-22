@@ -2,6 +2,8 @@
 //! its styles, keeps where its coverage is opaque, averages its motion-blur
 //! samples, and limits a canvas pass to its coverage.
 
+use std::sync::Arc;
+
 use aria_compositor::{
     ColorGrade, CompositeLayer, Compositor, CompositorConfig, CompositorLayer, GlyphsLayer,
     GpuContext, LayerContent, LayerEffects, LayerMask, LayerOutline, LayerPlacement, LayerStencil,
@@ -63,7 +65,7 @@ fn tolerance(gpu: &GpuContext) -> i32 {
 
 /// A stencil drawing `masks` over the whole canvas, their image coverages
 /// read from `images`.
-fn full_stencil<'a>(masks: &'a [StencilMask], images: &'a [RgbaImage]) -> LayerStencil<'a> {
+fn full_stencil<'a>(masks: &'a [StencilMask], images: &'a [Arc<RgbaImage>]) -> LayerStencil<'a> {
     LayerStencil {
         masks,
         images,
@@ -299,7 +301,7 @@ fn a_mask_cuts_before_the_layers_styles() {
 #[test]
 fn an_image_mask_keeps_where_its_alpha_is_opaque() {
     let gpu = gpu_or_skip!();
-    let images = [left_half()];
+    let images = [Arc::new(left_half())];
     let mut comp = Compositor::new(&gpu);
     for invert in [false, true] {
         let masks = [StencilMask {
@@ -321,7 +323,7 @@ fn an_image_mask_keeps_where_its_alpha_is_opaque() {
 #[test]
 fn a_masks_blur_samples_average_its_coverage() {
     let gpu = gpu_or_skip!();
-    let images = [left_half()];
+    let images = [Arc::new(left_half())];
     let masks = [StencilMask::keep(StencilCoverage::Image(0))];
     let samples: Vec<LayerPlacement> = [-8.0, -4.0, 0.0, 4.0, 8.0]
         .into_iter()
@@ -355,7 +357,7 @@ fn a_masks_blur_samples_average_its_coverage() {
 #[test]
 fn a_masked_canvas_pass_keeps_the_canvas_outside_its_mask() {
     let gpu = gpu_or_skip!();
-    let images = [left_half()];
+    let images = [Arc::new(left_half())];
     let plate = CompositeLayer::solid(PLATE, full());
     let grade = ColorGrade {
         saturation: -1.0,

@@ -9,7 +9,8 @@ use std::time::Instant;
 use aria_models::{
     CanvasAspect, CanvasSettings, ClipParam, ClipTransform, ColorAdjustments, Easing,
     EffectInstance, Generator, Marker, MarkerColor, MediaSource, PROJECT_SCHEMA_VERSION, Param,
-    ParamValue, Project, Rational, RationalTime, Scale2, TextStyle, TimeRange, TrackKind,
+    ParamValue, Project, Rational, RationalTime, STILL_TICK_RATE, Scale2, TextStyle, TimeRange,
+    TrackKind,
 };
 use serde::{Deserialize, Serialize};
 
@@ -22,16 +23,18 @@ pub enum FixtureId {
     LongGopScrub,
     Project10k,
     Stack4k,
+    Stills4k,
 }
 
 impl FixtureId {
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::H264_1080p60,
         Self::Hevc2160p60,
         Self::ProRes2160p30,
         Self::LongGopScrub,
         Self::Project10k,
         Self::Stack4k,
+        Self::Stills4k,
     ];
 
     pub const fn name(self) -> &'static str {
@@ -42,6 +45,7 @@ impl FixtureId {
             Self::LongGopScrub => "long-gop-scrub",
             Self::Project10k => "project-10k",
             Self::Stack4k => "stack-4k",
+            Self::Stills4k => "stills-4k",
         }
     }
 
@@ -57,6 +61,7 @@ impl FixtureId {
             "long-gop-scrub" | "long-gop-10m" => Some(Self::LongGopScrub),
             "project-10k" => Some(Self::Project10k),
             "stack-4k" => Some(Self::Stack4k),
+            "stills-4k" => Some(Self::Stills4k),
             _ => None,
         }
     }
@@ -69,6 +74,7 @@ impl FixtureId {
             Self::LongGopScrub => "long-gop-scrub.mp4",
             Self::Project10k => "project-10k.aria",
             Self::Stack4k => "stack-4k.aria",
+            Self::Stills4k => "stills-4k.aria",
         }
     }
 
@@ -87,7 +93,7 @@ pub struct FixtureSummary {
     pub generation_ms: f64,
 }
 
-/// Ensure all 6 benchmark fixtures exist in `fixtures_dir`, generating any
+/// Ensure every benchmark fixture exists in `fixtures_dir`, generating any
 /// missing or incomplete fixture locally.
 pub fn ensure_all_fixtures(fixtures_dir: &Path) -> Result<Vec<FixtureSummary>, String> {
     std::fs::create_dir_all(fixtures_dir).map_err(|err| {
@@ -153,6 +159,15 @@ pub fn ensure_fixture(fixtures_dir: &Path, id: FixtureId) -> Result<FixtureSumma
                 .save_to_file(&path)
                 .map_err(|err| format!("failed to save {}: {err}", path.display()))?;
         }
+        FixtureId::Stills4k => {
+            for (photo, source) in photo_paths(fixtures_dir).iter().zip(PHOTO_SOURCES) {
+                generate_photo(source, photo)?;
+            }
+            let project = build_stills_4k(fixtures_dir)?;
+            project
+                .save_to_file(&path)
+                .map_err(|err| format!("failed to save {}: {err}", path.display()))?;
+        }
     }
     if is_media(id) {
         std::fs::write(version_path(&path), MEDIA_FIXTURE_VERSION.to_string())
@@ -202,7 +217,7 @@ fn version_path(path: &Path) -> PathBuf {
     PathBuf::from(name)
 }
 
-fn is_valid_fixture(_fixtures_dir: &Path, id: FixtureId, path: &Path) -> bool {
+fn is_valid_fixture(fixtures_dir: &Path, id: FixtureId, path: &Path) -> bool {
     let Ok(meta) = std::fs::metadata(path) else {
         return false;
     };
@@ -244,6 +259,17 @@ fn is_valid_fixture(_fixtures_dir: &Path, id: FixtureId, path: &Path) -> bool {
             };
             let tracks = project.timeline().tracks_ordered().count();
             tracks >= 4 && project.timeline().canvas().resolution == Some([3840, 2160])
+        }
+        FixtureId::Stills4k => {
+            let Some(project) = current_project(path) else {
+                return false;
+            };
+            let photos = photo_paths(fixtures_dir);
+            project.timeline().tracks_ordered().count() == photos.len()
+                && project.timeline().canvas().resolution == Some([3840, 2160])
+                && photos
+                    .iter()
+                    .all(|photo| std::fs::metadata(photo).is_ok_and(|m| m.len() > 4096))
         }
     }
 }
@@ -460,6 +486,41 @@ fn generate_long_gop_scrub(fixtures_dir: &Path, out_path: &Path) -> Result<(), S
     )
 }
 
+/// The lavfi source of each `stills-4k` photo, in track order.
+const PHOTO_SOURCES: [&str; 3] = ["testsrc2", "smptehdbars", "mandelbrot"];
+
+/// The size of each `stills-4k` photo, a 12 MP phone camera picture.
+const PHOTO_SIZE: [u32; 2] = [4032, 3024];
+
+/// The photos of the `stills-4k` fixture, in track order.
+fn photo_paths(fixtures_dir: &Path) -> [PathBuf; 3] {
+    ["a", "b", "c"].map(|name| fixtures_dir.join(format!("stills-4k-{name}.jpg")))
+}
+
+/// Encode one frame of the lavfi `source` at [`PHOTO_SIZE`] as a JPEG.
+fn generate_photo(source: &str, out_path: &Path) -> Result<(), String> {
+    let input = format!("{source}=size={}x{}", PHOTO_SIZE[0], PHOTO_SIZE[1]);
+    let out = out_path.to_string_lossy();
+    run_ffmpeg(
+        &[
+            "-y",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            &input,
+            "-frames:v",
+            "1",
+            "-q:v",
+            "3",
+            &*out,
+        ],
+        &format!("stills-4k photo {source}"),
+    )
+}
+
 /// Build the `project-10k` fixture in memory:
 /// 1 sequence, 10,000 clips on 50 tracks (25 video + 25 audio, 200 clips each),
 /// 2,000 keyframes, and 500 markers.
@@ -659,6 +720,45 @@ pub fn build_stack_4k(fixtures_dir: &Path) -> Result<Project, String> {
         )
         .map_err(|err| format!("failed to add text clip on stack-4k: {err}"))?;
 
+    Ok(project)
+}
+
+/// Build the `stills-4k` fixture in memory: the three photos side by side on
+/// a 4K canvas for 30 s, one track each, each scaled to a third.
+pub fn build_stills_4k(fixtures_dir: &Path) -> Result<Project, String> {
+    let rate = Rational::FPS_60;
+    let mut project = Project::new("stills-4k", rate);
+    let canvas = CanvasSettings::custom(CanvasAspect::Auto, [0, 0, 0], Some([3840, 2160]))
+        .map_err(|err| format!("invalid 4K canvas settings: {err}"))?;
+    project.timeline_mut().set_canvas(canvas);
+    let photos = photo_paths(fixtures_dir);
+    let count = photos.len() as f32;
+    let scale = 1.0 / count;
+    for (index, photo) in photos.iter().enumerate() {
+        let media = project.add_media(MediaSource::image(photo, PHOTO_SIZE[0], PHOTO_SIZE[1]));
+        let track = project.add_track(TrackKind::Video, format!("V{}", index + 1));
+        let clip = project
+            .add_clip(
+                track,
+                media,
+                TimeRange::at_rate(0, 30_000, STILL_TICK_RATE),
+                RationalTime::new(0, rate),
+            )
+            .map_err(|err| format!("failed to add photo {index} on stills-4k: {err}"))?;
+        project
+            .set_transform(
+                clip,
+                ClipTransform {
+                    position: [(index as f32 - (count - 1.0) / 2.0) * scale, 0.0],
+                    anchor_point: [0.5, 0.5],
+                    scale: Scale2::uniform(scale),
+                    rotation: 0.0,
+                    opacity: 1.0,
+                },
+                None,
+            )
+            .map_err(|err| format!("set_transform failed on photo {index}: {err}"))?;
+    }
     Ok(project)
 }
 
