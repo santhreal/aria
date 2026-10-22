@@ -4,7 +4,7 @@
 //! `use super::*` exactly as it did inline.
 
 use super::*;
-use crate::style::{TextBackground, TextShadow, TextStroke};
+use crate::style::{TextBackground, TextRun, TextShadow, TextStroke};
 use crate::{TextRenderer, TextStyle};
 
 const TEST_FONT: &[u8] = include_bytes!("../assets/Micro5-Regular.ttf");
@@ -209,4 +209,52 @@ fn underline_adds_a_fill_colored_rule_below_the_glyphs() {
     assert!(underlined.height > plain.height);
     assert!(covered(&underlined) > covered(&plain));
     assert!(count_near(&underlined, [255, 0, 0], 20) > covered(&plain));
+}
+
+/// Closes the class where an underline set on a run rather than on the whole
+/// style is left out of the bitmap's padding or its rules: a run underlining
+/// the first letter draws the run-wide rule under that letter, in a bitmap the
+/// size a run-wide underline draws, and no rule under the other letter.
+#[test]
+fn a_run_underline_draws_under_its_letters_only() {
+    let mut r = renderer();
+    let base = TextStyle::new(48.0).with_color([255, 0, 0, 255]);
+    let first = base.clone().with_runs(vec![TextRun {
+        range: 0..1,
+        underline: Some(true),
+        ..TextRun::default()
+    }]);
+    let whole = r.rasterize("HH", &base.with_underline(true));
+    let one = r.rasterize("HH", &first);
+    assert_eq!((one.width, one.height), (whole.width, whole.height));
+
+    // Rows below the ink hold only the rule.
+    let shaped = r.shape("HH", &first);
+    let pad = effect_padding(&first);
+    let below = pad + shaped.extent.1;
+    let [left, right] = [&shaped.clusters[0], &shaped.clusters[1]];
+    let first_end = pad + (left.offset[0] as u32 + left.image.width);
+    let second_start = pad + right.offset[0] as u32;
+    let lit = |img: &RgbaImage, xs: std::ops::Range<u32>| {
+        (below..img.height)
+            .flat_map(|y| xs.clone().map(move |x| (x, y)))
+            .filter(|&(x, y)| img.pixels[((y * img.width + x) * 4 + 3) as usize] > 0)
+            .count()
+    };
+    let under_first = lit(&whole, 0..first_end);
+    assert!(
+        under_first > 0,
+        "the run-wide rule runs under the first letter"
+    );
+    assert_eq!(
+        lit(&one, 0..first_end),
+        under_first,
+        "the first letter's rule"
+    );
+    assert!(lit(&whole, second_start..whole.width) > 0);
+    assert_eq!(
+        lit(&one, second_start..one.width),
+        0,
+        "no rule under the second letter"
+    );
 }

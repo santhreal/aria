@@ -43,7 +43,7 @@ pub fn run(out: Option<PathBuf>) -> Result<(), String> {
         // run by half a texel.
         let left = (WIDTH as f32 / 2.0 - tw / 2.0).round();
         let top = (HEIGHT as f32 / 2.0 - th / 2.0).round();
-        layers.push(CompositeLayer::rgba(
+        layers.push(CompositeLayer::cutout(
             &title,
             LayerPlacement {
                 center: [left + tw / 2.0, top + th / 2.0],

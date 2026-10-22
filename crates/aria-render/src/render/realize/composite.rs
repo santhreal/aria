@@ -36,7 +36,7 @@ fn content<'a>(pixels: &'a Pixels, caches: &Caches<'a>) -> LayerContent<'a> {
             LayerContent::Rgba(&player.frames[frame_index].0)
         }
         Pixels::Bitmap(image) => LayerContent::Rgba(image),
-        Pixels::CachedText(key) => LayerContent::Rgba(&caches.text_memo[key]),
+        Pixels::CachedText(key) => LayerContent::Cutout(&caches.text_memo[key]),
         Pixels::Solid(rgba) => LayerContent::Solid(*rgba),
         Pixels::Sdf(shape) => LayerContent::Sdf(*shape),
         Pixels::Glyphs {
@@ -92,7 +92,7 @@ pub(super) fn composite_card<'a>(
         return None;
     };
     Some(CompositeLayer {
-        content: LayerContent::Rgba(image),
+        content: LayerContent::Cutout(image),
         placement: *placement,
         uv: FULL_UV,
         styles: LayerStyles::default(),

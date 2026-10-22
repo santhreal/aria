@@ -4,6 +4,9 @@ struct Placement {
     linear: vec4<f32>,
     trans_opacity: vec4<f32>,
     uv_rect: vec4<f32>,
+    // How far the drawn quad reaches past its left, top, right and bottom
+    // edges, as fractions of the quad; zero draws the quad to its edges.
+    bleed: vec4<f32>,
     // Packed color-grade lanes; read with the generated `grade_*` accessors.
     grade: array<vec4<f32>, GRADE_LANES>,
 }
@@ -43,9 +46,15 @@ fn quad_corner(vertex_index: u32) -> vec2<f32> {
     return corners[vertex_index];
 }
 
+// `c` moved past the quad edges it lies on by `bleed`, in quad units. The
+// mask and the vignette read the moved corner in the quad's own coordinates.
+fn bled_corner(c: vec2<f32>, bleed: vec4<f32>) -> vec2<f32> {
+    return c + select(bleed.zw, -bleed.xy, c < vec2(0.0, 0.0));
+}
+
 @vertex
 fn vs(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
-    let c = quad_corner(vertex_index);
+    let c = bled_corner(quad_corner(vertex_index), p.bleed);
     let m = p.linear;
     let t = p.trans_opacity;
     var out: VertexOutput;

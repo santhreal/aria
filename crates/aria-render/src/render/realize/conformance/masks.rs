@@ -95,10 +95,7 @@ pub(super) fn assert_same(what: &str, got: &RgbaImage, want: &RgbaImage) {
             let (have, expect) = (got.pixel(x, y), want.pixel(x, y));
             let off =
                 (0..4).any(|ch| (i32::from(have[ch]) - i32::from(expect[ch])).abs() > TOLERANCE);
-            assert!(
-                !off,
-                "{what}: pixel({x}, {y}) = {have:?}, alone it is {expect:?}"
-            );
+            assert!(!off, "{what}: pixel({x}, {y}) = {have:?}, want {expect:?}");
         }
     }
 }

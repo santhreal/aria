@@ -1,5 +1,17 @@
 //! Glyph atlas + instanced draw parity: compositing shaped clusters through
-//! the GPU glyph pipeline must match CPU `rasterize` of the same run.
+//! the GPU glyph pipeline must match CPU `rasterize` of the same run drawn as
+//! one cutout bitmap, wherever the run lands and at any scale.
+//!
+//! The two draws sample different textures: each glyph sits in the atlas
+//! inside transparent padding, and the run's bitmap holds every glyph. A
+//! quad drawn to its texture rect's edges clips the bilinear footprint, which
+//! reaches half a texel past the edge texels, so at a quad edge between
+//! pixels the glyph quads and the bitmap quad dropped different texels, and a
+//! bitmap sampled past its edge repeated the edge texel where the atlas read
+//! transparent. The sweep crosses sub-pixel origins with scales.
+//!
+//! What this does not catch: glyphs closer than a texel, where two glyph
+//! quads blend where the bitmap interpolates, and rotation.
 
 use aria_compositor::{
     CompositeLayer, Compositor, CompositorConfig, GlyphsLayer, GpuContext, LayerPlacement,
@@ -65,8 +77,15 @@ fn assert_images_agree(gpu_img: &RgbaImage, cpu_img: &RgbaImage, what: &str, tol
     );
 }
 
+/// Origins of the run on the canvas, in pixels: on the grid, halfway between
+/// pixels, and a quarter off on each axis.
+const ORIGINS: [[f32; 2]; 3] = [[8.0, 8.0], [8.5, 8.5], [8.25, 8.75]];
+
+/// Run scales: drawn at its texels, larger, and smaller.
+const SCALES: [f32; 3] = [1.0, 1.5, 0.75];
+
 #[test]
-fn glyph_instances_match_rgba_bitmap_path() {
+fn glyph_instances_match_the_cutout_bitmap_at_any_placement() {
     let gpu = gpu_or_skip!();
     let mut comp = Compositor::new(&gpu);
     let mut text = test_renderer();
@@ -76,42 +95,50 @@ fn glyph_instances_match_rgba_bitmap_path() {
     let shaped = text.shape(content, &style);
     assert!(shaped.has_ink());
     // CPU rasterize of the same run — the shape() docs guarantee compositing
-    // clusters reproduces this. We compare through the compositor's existing
-    // RGBA path so both sides share premultiplied blend/readback semantics.
+    // clusters reproduces this.
     let cpu = text.rasterize(content, &style);
     assert!(cpu.width > 0 && cpu.height > 0);
 
     let glyphs: Vec<RgbaImage> = shaped.clusters.iter().map(|c| c.image.clone()).collect();
     let offsets: Vec<[f32; 2]> = shaped.clusters.iter().map(|c| c.offset).collect();
-    let instances = identity_instances(&glyphs, &offsets, [0.0, 0.0], 1.0);
 
-    // Opaque background so fringe premultiply differences don't dominate.
-    let config = CompositorConfig::new(cpu.width, cpu.height).with_background([0, 0, 0, 255]);
-    let placement = LayerPlacement {
-        center: [cpu.width as f32 * 0.5, cpu.height as f32 * 0.5],
-        size: [cpu.width as f32, cpu.height as f32],
-        rotation: 0.0,
-        opacity: 1.0,
-    };
-    let glyph_layer = CompositeLayer::glyphs(
-        GlyphsLayer {
-            atlas_key: 1,
-            glyphs: &glyphs,
-            instances: &instances,
-        },
-        placement,
-    );
-    let rgba_layer = CompositeLayer::rgba(&cpu, placement);
-
-    let glyph_img = comp
-        .render(&gpu, &config, &[glyph_layer])
-        .expect("render glyphs");
-    let rgba_img = comp
-        .render(&gpu, &config, &[rgba_layer])
-        .expect("render rgba");
-
+    // Opaque background so fringe premultiply differences don't dominate,
+    // with room around the largest run for the quad edges to land on.
+    let config = CompositorConfig::new(cpu.width * 2 + 16, cpu.height * 2 + 16)
+        .with_background([0, 0, 0, 255]);
     let tol = if gpu.is_software() { 8 } else { 4 };
-    assert_images_agree(&glyph_img, &rgba_img, "glyph vs rgba path", tol);
+    for scale in SCALES {
+        for origin in ORIGINS {
+            let instances = identity_instances(&glyphs, &offsets, origin, scale);
+            let size = [cpu.width as f32 * scale, cpu.height as f32 * scale];
+            let placement = LayerPlacement {
+                center: [origin[0] + size[0] * 0.5, origin[1] + size[1] * 0.5],
+                size,
+                rotation: 0.0,
+                opacity: 1.0,
+            };
+            let glyph_layer = CompositeLayer::glyphs(
+                GlyphsLayer {
+                    atlas_key: 1,
+                    glyphs: &glyphs,
+                    instances: &instances,
+                },
+                placement,
+            );
+            let glyph_img = comp
+                .render(&gpu, &config, &[glyph_layer])
+                .expect("render glyphs");
+            let cutout_img = comp
+                .render(&gpu, &config, &[CompositeLayer::cutout(&cpu, placement)])
+                .expect("render cutout");
+            assert_images_agree(
+                &glyph_img,
+                &cutout_img,
+                &format!("glyphs vs cutout at scale {scale}, origin {origin:?}"),
+                tol,
+            );
+        }
+    }
 }
 
 #[test]

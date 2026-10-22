@@ -2744,6 +2744,8 @@ Notes for the latest release. For previous releases, see the
 - Two example code blocks in `docs/plugins/panels.md` close before the prose that follows them instead of rendering it as code.
 - The `[[commands]]` example in `docs/plugins/packages.md` uses the `selection` context key, which `plugin.toml` accepts, instead of `clipSelected`, and the preset example in `docs/plugins/presets.md` writes effect parameters as `[name, value]` pairs and the compressor's `threshold` key, as the preset loader reads them.
 - Scaling a scene for preview or non-native export resolution scales effect parameters measured in canvas pixels (`unit = "px"`), including `gaussian_blur.radius`, `pixelate.size`, and registered plugin parameters, on plain and nested layers, which also brings the `stack-4k` playback frame p50 at 1/2 resolution on Server from 98.92 ms and 99.17 ms to 82.58 ms and 82.79 ms over two paired runs.
+- Text drawn as one bitmap and as per-character glyphs draws the same pixels at any sub-pixel position and scale, so a title no longer shifts its edges when a character animation, transition, or matte starts or ends, and the outer edges of a title or text card between pixels fade instead of repeating the edge pixels.
+- Text under a character animation draws each letter once and in its place over its background card and underline, instead of over a card holding a second copy of the text, without its underline, or, when underlined, with each letter drawn up and to the left of its place.
 
 ## [alpha-0.7.0] — 2026-07-22
 

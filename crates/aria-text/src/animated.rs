@@ -1,10 +1,10 @@
 //! Per-cluster effect paint for character-level animation.
 //!
 //! Stroke and shadow are folded into each cluster's bitmap so outlines move
-//! with their letter. The background card stays a whole-run quad drawn behind
-//! the glyphs (CapCut-style).
+//! with their letter. The background card and the underlines stay a
+//! whole-run quad drawn behind the glyphs (CapCut-style).
 
-use crate::effects::{effect_padding, paint as paint_run};
+use crate::effects::{effect_padding, paint as paint_run, paint_card};
 use crate::style::TextStyle;
 use crate::{ClusterBox, ShapedText};
 use aria_core::RgbaImage;
@@ -31,9 +31,10 @@ impl AnimatedText {
     }
 }
 
-/// Paint stroke / shadow per cluster and an optional background card for
-/// character-level animation. When the style has no per-glyph treatments and
-/// no background, this is equivalent to cloning the shaped clusters.
+/// Paint stroke / shadow per cluster, and the background card with the run's
+/// underlines, for character-level animation. When the style has no stroke,
+/// shadow, card, or underline, this is equivalent to cloning the shaped
+/// clusters.
 pub fn paint_animated(shaped: &ShapedText, style: &TextStyle) -> AnimatedText {
     if !shaped.has_ink() {
         return AnimatedText {
@@ -44,12 +45,15 @@ pub fn paint_animated(shaped: &ShapedText, style: &TextStyle) -> AnimatedText {
         };
     }
 
-    let needs_cluster_fx = style.stroke.is_some() || style.shadow.is_some() || style.underline;
-    let clusters = if needs_cluster_fx {
+    // Underlines need line context, so they go on the card; each cluster
+    // paints its own stroke and shadow.
+    let clusters = if style.stroke.is_some() || style.shadow.is_some() {
+        let local = cluster_style(style);
+        let pad = effect_padding(&local);
         shaped
             .clusters
             .iter()
-            .map(|c| paint_cluster(c, style))
+            .map(|c| paint_cluster(c, &local, pad))
             .collect()
     } else {
         shaped.clusters.clone()
@@ -65,23 +69,23 @@ pub fn paint_animated(shaped: &ShapedText, style: &TextStyle) -> AnimatedText {
     }
 }
 
-/// Cluster-local pad for stroke / shadow (no background inset — that lives on
-/// the whole-run card).
-fn cluster_pad(style: &TextStyle) -> u32 {
-    // Reuse the run padding helper but ignore background-only growth by
-    // painting against a style without background.
+/// `style` for painting one cluster alone: its stroke and shadow, without the
+/// run's padding, card, or underlines.
+fn cluster_style(style: &TextStyle) -> TextStyle {
     let mut local = style.clone();
     local.background = None;
     local.padding = 0;
-    effect_padding(&local)
+    local.underline = false;
+    for run in &mut local.runs {
+        run.underline = None;
+    }
+    local
 }
 
-fn paint_cluster(cluster: &ClusterBox, style: &TextStyle) -> ClusterBox {
-    if cluster.image.width == 0 || cluster.image.height == 0 {
-        return cluster.clone();
-    }
-    let pad = cluster_pad(style);
-    if pad == 0 && !style.underline {
+/// `cluster` painted alone under `style`, a [`cluster_style`], into a bitmap
+/// `pad` pixels larger on every side, the padding `style` paints.
+fn paint_cluster(cluster: &ClusterBox, style: &TextStyle, pad: u32) -> ClusterBox {
+    if cluster.image.width == 0 || cluster.image.height == 0 || pad == 0 {
         return cluster.clone();
     }
 
@@ -97,13 +101,7 @@ fn paint_cluster(cluster: &ClusterBox, style: &TextStyle) -> ClusterBox {
             image: cluster.image.clone(),
         }],
     };
-    let mut local_style = style.clone();
-    local_style.background = None;
-    local_style.padding = 0;
-    // Underlines need line context; skip on the isolated cluster and paint
-    // them into the background card instead.
-    local_style.underline = false;
-    let painted = paint_run(&local, &local_style);
+    let painted = paint_run(&local, style);
     ClusterBox {
         text_range: cluster.text_range.clone(),
         line: cluster.line,
@@ -117,27 +115,22 @@ fn paint_cluster(cluster: &ClusterBox, style: &TextStyle) -> ClusterBox {
 }
 
 fn paint_background(shaped: &ShapedText, style: &TextStyle) -> (Option<RgbaImage>, [f32; 2]) {
-    let has_bg = style.background.is_some();
-    let has_underline = style.underline;
-    if !has_bg && !has_underline {
+    if style.background.is_none() && !style.any_underline() {
         return (None, [0.0, 0.0]);
     }
 
-    // Paint the full run with fill alpha zeroed so only bg + underline remain.
-    let mut ghost = style.clone();
-    ghost.color = [style.color[0], style.color[1], style.color[2], 0];
-    ghost.stroke = None;
-    ghost.shadow = None;
-    if !has_bg {
-        ghost.background = None;
-    }
-    let painted = paint_run(shaped, &ghost);
+    // The card and the underlines alone, padded as a run without stroke or
+    // shadow: the glyphs draw over it wherever they move.
+    let mut card = style.clone();
+    card.stroke = None;
+    card.shadow = None;
+    let painted = paint_card(shaped, &card);
     if painted.width == 0 || painted.height == 0 {
         return (None, [0.0, 0.0]);
     }
-    // `paint_run` pads symmetrically; origin of the padded bitmap relative to
-    // the ink-tight extent is (−pad, −pad).
-    let pad = effect_padding(&ghost) as f32;
+    // The padded bitmap's origin relative to the ink-tight extent is
+    // (−pad, −pad).
+    let pad = effect_padding(&card) as f32;
     // Strip fully-transparent results (e.g. underline-only with no coverage).
     let lit = painted.pixels.as_chunks::<4>().0.iter().any(|p| p[3] > 0);
     if !lit {
@@ -149,7 +142,6 @@ fn paint_background(shaped: &ShapedText, style: &TextStyle) -> (Option<RgbaImage
 /// Composite animated clusters at identity into a single bitmap — test helper
 /// and documentation of the placement contract.
 #[cfg(test)]
-#[allow(dead_code)]
 pub(crate) fn composite_animated(anim: &AnimatedText) -> RgbaImage {
     if !anim.has_ink() {
         return RgbaImage::transparent(0, 0);
@@ -227,7 +219,7 @@ fn blit(dst: &mut [u8], dw: u32, dh: u32, src: &RgbaImage, ox: f32, oy: f32) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::style::{TextBackground, TextStroke};
+    use crate::style::{TextBackground, TextRun, TextShadow, TextStroke};
     use crate::{TextRenderer, TextStyle};
 
     const TEST_FONT: &[u8] = include_bytes!("../assets/Micro5-Regular.ttf");
@@ -271,5 +263,141 @@ mod tests {
         assert!(anim.background.is_some());
         // Fill glyphs stay ink-tight (no stroke/shadow).
         assert_eq!(anim.clusters[0].image.width, shaped.clusters[0].image.width);
+    }
+
+    /// Closes the class where the parts a character animation draws, the card
+    /// with its underlines and then each glyph over it, composite to other
+    /// pixels than the one bitmap a static run draws: a card that also held
+    /// the glyphs drew every letter twice, and a card painted with the fill's
+    /// alpha zeroed dropped the underlines.
+    ///
+    /// Not caught: stroke and shadow, which a static run paints around the
+    /// whole run and an animated run around each letter; an underline over a
+    /// descender, which a static run draws over the glyph and an animated run
+    /// under it.
+    #[test]
+    fn animated_parts_composite_to_the_static_raster() {
+        let mut r = renderer();
+        // A translucent fill shows a letter drawn twice.
+        let base = TextStyle::new(40.0).with_color([255, 220, 0, 200]);
+        let card = TextBackground {
+            rgba: [20, 40, 200, 255],
+            radius: 0.3,
+        };
+        let underlined = TextStyle {
+            underline: true,
+            ..base.clone()
+        };
+        let first_underlined = base.clone().with_runs(vec![TextRun {
+            range: 0..1,
+            underline: Some(true),
+            ..TextRun::default()
+        }]);
+        let styles = [
+            ("plain", base.clone()),
+            ("on a card", base.with_background(card)),
+            ("underlined", underlined.clone()),
+            ("underlined on a card", underlined.with_background(card)),
+            ("one letter underlined", first_underlined.clone()),
+            (
+                "one letter underlined on a card",
+                first_underlined.with_background(card),
+            ),
+        ];
+        for (what, style) in styles {
+            let shaped = r.shape("HI", &style);
+            let parts = composite_animated(&paint_animated(&shaped, &style));
+            let whole = r.rasterize("HI", &style);
+            assert_eq!(
+                (parts.width, parts.height),
+                (whole.width, whole.height),
+                "{what}: size"
+            );
+            let worst = parts
+                .pixels
+                .iter()
+                .zip(&whole.pixels)
+                .map(|(a, b)| a.abs_diff(*b))
+                .max();
+            assert!(
+                worst <= Some(1),
+                "{what}: the animated parts differ from the static raster by {worst:?}"
+            );
+        }
+    }
+
+    /// Closes the class where an underline, which a character animation draws
+    /// on the card, also reaches a letter's own bitmap or its padding: each
+    /// letter painted with its stroke or shadow is the same under a run-wide
+    /// or a per-run underline as with none. A letter padded for an underline
+    /// its bitmap did not hold drew up and to the left of its place.
+    #[test]
+    fn underlines_stay_off_the_letters() {
+        let mut r = renderer();
+        let stroked = TextStyle::new(40.0).with_stroke(TextStroke {
+            rgba: [0, 0, 0, 255],
+            width: 3.0,
+        });
+        let shadowed = TextStyle::new(40.0).with_shadow(TextShadow {
+            rgba: [0, 0, 0, 160],
+            blur: 0.1,
+            distance: 4.0,
+        });
+        for (what, plain) in [("stroked", stroked), ("shadowed", shadowed)] {
+            let shaped = r.shape("HI", &plain);
+            let want = paint_animated(&shaped, &plain).clusters;
+            let underlined = TextStyle {
+                underline: true,
+                ..plain.clone()
+            };
+            let first_underlined = plain.clone().with_runs(vec![TextRun {
+                range: 0..1,
+                underline: Some(true),
+                ..TextRun::default()
+            }]);
+            for (how, style) in [
+                ("run-wide", underlined),
+                ("on one letter", first_underlined),
+            ] {
+                let got = paint_animated(&r.shape("HI", &style), &style).clusters;
+                assert_eq!(got, want, "{what}, underlined {how}");
+            }
+        }
+    }
+
+    /// Closes the class where a letter's stroke or shadow, which a character
+    /// animation paints around each letter, also pads or moves the card and
+    /// underline drawn behind them: a static run draws its card at one place
+    /// around the ink whatever the letters' effects.
+    #[test]
+    fn stroke_and_shadow_leave_the_card_in_place() {
+        let mut r = renderer();
+        let plain = TextStyle {
+            underline: true,
+            ..TextStyle::new(40.0).with_background(TextBackground {
+                rgba: [20, 40, 200, 255],
+                radius: 0.3,
+            })
+        };
+        let shaped = r.shape("HI", &plain);
+        let want = paint_animated(&shaped, &plain);
+        assert!(want.background.is_some(), "the card is drawn");
+        let stroked = plain.clone().with_stroke(TextStroke {
+            rgba: [0, 0, 0, 255],
+            width: 3.0,
+        });
+        let shadowed = plain.clone().with_shadow(TextShadow {
+            rgba: [0, 0, 0, 160],
+            blur: 0.1,
+            distance: 4.0,
+        });
+        for (what, style) in [("stroked", stroked), ("shadowed", shadowed)] {
+            let got = paint_animated(&r.shape("HI", &style), &style);
+            assert_eq!(
+                (got.background, got.background_offset),
+                (want.background.clone(), want.background_offset),
+                "{what}"
+            );
+        }
     }
 }

@@ -144,6 +144,60 @@ fn circle_mask_cuts_rgba_corners() {
     assert_px(&img, 61, 61, [0, 0, 255, 255], 2);
 }
 
+/// A cutout fades half a texel past each uncropped quad edge, as bilinear
+/// sampling of a bitmap on a transparent plane reads there, and stops at a
+/// crop edge, where the plane is the bitmap's own cropped-away texels.
+///
+/// The quad shows the right half of a white bitmap, one texel per pixel, a
+/// quarter pixel off the grid: its left edge is the crop, its top and right
+/// edges are the bitmap's own. A chroma key that keeps white draws it through
+/// the effects pipeline as well. The same bitmap drawn first as a plain
+/// bitmap stops at the quad's edges and repeats its edge texels: the texture
+/// cache holds one texture per kind.
+#[test]
+fn a_cutout_fades_past_its_own_edges_and_stops_at_a_crop() {
+    let gpu = gpu_or_skip!();
+    let mut comp = Compositor::new(&gpu);
+    let config = CompositorConfig::new(32, 16).with_background([0, 0, 0, 255]);
+    let bmp = rgba_uniform(16, 8, [255, 255, 255, 255]);
+    // x 4.75..12.75, y 3.75..11.75.
+    let placement = LayerPlacement {
+        center: [8.75, 7.75],
+        size: [8.0, 8.0],
+        rotation: 0.0,
+        opacity: 1.0,
+    };
+    let keep_white = LayerEffects {
+        mask: None,
+        chroma_key: Some(LayerChromaKey {
+            rgb: [0.0, 1.0, 0.0],
+            strength: 0.1,
+            shadow: 0.0,
+        }),
+    };
+    let plain = CompositeLayer::rgba(&bmp, placement).with_uv([0.5, 0.0, 1.0, 1.0]);
+    let img = comp.render(&gpu, &config, &[plain]).expect("render");
+    assert_px(&img, 8, 3, [0, 0, 0, 255], 1);
+    assert_px(&img, 12, 8, [255, 255, 255, 255], 1);
+    for fx in [LayerEffects::default(), keep_white] {
+        let layer = CompositeLayer::cutout(&bmp, placement)
+            .with_uv([0.5, 0.0, 1.0, 1.0])
+            .with_fx(fx);
+        let img = comp.render(&gpu, &config, &[layer]).expect("render");
+
+        // Row 3's centers lie a quarter texel above the top edge: a quarter
+        // of the edge texel.
+        assert_px(&img, 8, 3, [64, 64, 64, 255], 3);
+        // Column 12's centers lie a quarter texel inside the right edge:
+        // three quarters of the edge texel.
+        assert_px(&img, 12, 8, [191, 191, 191, 255], 3);
+        // Column 4's centers lie a quarter texel outside the crop: nothing.
+        assert_px(&img, 4, 8, [0, 0, 0, 255], 1);
+        // Inside: the bitmap.
+        assert_px(&img, 8, 8, [255, 255, 255, 255], 1);
+    }
+}
+
 #[test]
 fn rgba_undersized_bitmap_is_rejected() {
     let gpu = gpu_or_skip!();

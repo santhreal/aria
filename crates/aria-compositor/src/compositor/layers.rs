@@ -34,7 +34,12 @@ impl Compositor {
             LayerContent::Frame(frame) => {
                 self.build_frame(gpu, encoder, config, layer, frame, grade)
             }
-            LayerContent::Rgba(image) => self.build_rgba(gpu, config, layer, image, grade),
+            LayerContent::Rgba(image) => {
+                self.build_rgba(gpu, config, layer, image, Edges::Repeat, grade)
+            }
+            LayerContent::Cutout(image) => {
+                self.build_rgba(gpu, config, layer, image, Edges::Clear, grade)
+            }
             LayerContent::Sdf(shape) => self.build_sdf(gpu, config, layer, shape, grade),
             LayerContent::Glyphs(glyphs) => self.build_glyphs(gpu, config, layer, glyphs, grade),
             LayerContent::Nest(nest) => self.build_nest(gpu, config, layer, *nest, grade),
@@ -370,6 +375,7 @@ impl Compositor {
         config: &CompositorConfig,
         layer: &CompositeLayer<'_>,
         image: &RgbaImage,
+        edges: Edges,
         color_grade: Option<ColorGrade>,
     ) -> Result<LayerGpu, CompositorError> {
         if image.width == 0 || image.height == 0 {
@@ -391,7 +397,8 @@ impl Compositor {
             )));
         }
 
-        let image_key = rgba_image_key(image, expected);
+        let border = edges.border();
+        let image_key = rgba_image_key(image, expected, border);
         let cached = self.rgba_textures.borrow_mut().get(&image_key);
         let (texture, view) = if let Some(cached) = cached {
             cached
@@ -402,14 +409,19 @@ impl Compositor {
             // on-canvas placement below remains unchanged.
             let max_dimension = gpu.device.limits().max_texture_dimension_2d;
             let mut premul = self.premul_scratch.borrow_mut();
-            let (upload_width, upload_height) =
-                premultiply_for_upload(image, expected, max_dimension, &mut premul)?;
+            let (upload_width, upload_height) = premultiply_for_upload(
+                image,
+                expected,
+                max_dimension.saturating_sub(2 * border),
+                &mut premul,
+            )?;
             let upload_len = upload_width as usize * upload_height as usize * 4;
+            // A new texture reads zero, so the border needs no upload.
             let texture = gpu.device.create_texture(&wgpu::TextureDescriptor {
                 label: Some("aria.rgba.tex"),
                 size: wgpu::Extent3d {
-                    width: upload_width,
-                    height: upload_height,
+                    width: upload_width + 2 * border,
+                    height: upload_height + 2 * border,
                     depth_or_array_layers: 1,
                 },
                 mip_level_count: 1,
@@ -423,7 +435,11 @@ impl Compositor {
                 wgpu::TexelCopyTextureInfo {
                     texture: &texture,
                     mip_level: 0,
-                    origin: wgpu::Origin3d::ZERO,
+                    origin: wgpu::Origin3d {
+                        x: border,
+                        y: border,
+                        z: 0,
+                    },
                     aspect: wgpu::TextureAspect::All,
                 },
                 &premul[..upload_len],
@@ -444,17 +460,23 @@ impl Compositor {
                 .insert(image_key, (texture.clone(), view.clone()));
             (texture, view)
         };
-        Ok(self.bind_rgba(gpu, config, layer, (texture, view), color_grade))
+        let sampling = match edges {
+            Edges::Repeat => Sampling::within(layer.uv),
+            Edges::Clear => Sampling::cutout(layer.uv, [texture.width(), texture.height()], border),
+        };
+        Ok(self.bind_rgba(gpu, config, layer, (texture, view), sampling, color_grade))
     }
 
     /// Bind `view`, premultiplied RGBA, as the content of `layer` through the
-    /// RGBA pipelines. The layer holds `texture` alive with its bind group.
+    /// RGBA pipelines, sampled as `sampling` sets. The layer holds `texture`
+    /// alive with its bind group.
     pub(super) fn bind_rgba(
         &self,
         gpu: &GpuContext,
         config: &CompositorConfig,
         layer: &CompositeLayer<'_>,
         (texture, view): (wgpu::Texture, wgpu::TextureView),
+        sampling: Sampling,
         color_grade: Option<ColorGrade>,
     ) -> LayerGpu {
         let (linear, trans) = placement_affine(config, &layer.placement, 0.0);
@@ -462,7 +484,8 @@ impl Compositor {
         let placement_uniforms = RgbaUniforms {
             linear,
             trans_opacity: trans,
-            uv_rect: layer.uv,
+            uv_rect: sampling.uv,
+            bleed: sampling.bleed,
             grade,
         };
 
@@ -506,6 +529,87 @@ impl Compositor {
             _planes: Some(PlaneSet::Single((texture, view))),
             _keep_alive: None,
             instances: None,
+        }
+    }
+}
+
+/// What a bitmap layer's sampler reads past the bitmap's edges.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Edges {
+    /// The outermost texels again: the sampler clamps to the edge.
+    Repeat,
+    /// Transparent: the texture holds the bitmap inside a transparent border.
+    Clear,
+}
+
+impl Edges {
+    /// Transparent texels around the bitmap in its texture.
+    fn border(self) -> u32 {
+        match self {
+            Self::Repeat => 0,
+            Self::Clear => 1,
+        }
+    }
+}
+
+/// Where a bitmap layer samples its texture: the UV rect across the quad,
+/// and how far the drawn quad reaches past each quad edge (left, top, right,
+/// bottom, as fractions of the quad's width and height). Positions past an
+/// edge extend the quad's own coordinates, so a mask or a vignette stays
+/// where the quad puts it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct Sampling {
+    pub(super) uv: [f32; 4],
+    pub(super) bleed: [f32; 4],
+}
+
+impl Sampling {
+    /// `uv` across the quad, drawn to its edges.
+    pub(super) fn within(uv: [f32; 4]) -> Self {
+        Self {
+            uv,
+            bleed: [0.0; 4],
+        }
+    }
+
+    /// `uv` over a picture held inside a `border`-texel transparent ring of a
+    /// `texture`-sized texture, drawn half a texel of the picture past each
+    /// edge `uv` leaves uncropped. Bilinear sampling reaches half a texel past
+    /// the picture's edge texels, and the ring is what it reads there.
+    fn cutout(uv: [f32; 4], [width, height]: [u32; 2], border: u32) -> Self {
+        let (width, height, border) = (width as f32, height as f32, border as f32);
+        let inner = [
+            border / width,
+            border / height,
+            1.0 - border / width,
+            1.0 - border / height,
+        ];
+        let span = [inner[2] - inner[0], inner[3] - inner[1]];
+        // The picture texels the quad shows across each axis.
+        let shown = [
+            (uv[2] - uv[0]).abs() * (width - 2.0 * border),
+            (uv[3] - uv[1]).abs() * (height - 2.0 * border),
+        ];
+        let past = |edge: f32, shown: f32| {
+            if (edge <= 0.0 || edge >= 1.0) && shown > 0.0 {
+                0.5 / shown
+            } else {
+                0.0
+            }
+        };
+        Self {
+            uv: [
+                inner[0] + uv[0] * span[0],
+                inner[1] + uv[1] * span[1],
+                inner[0] + uv[2] * span[0],
+                inner[1] + uv[3] * span[1],
+            ],
+            bleed: [
+                past(uv[0], shown[0]),
+                past(uv[1], shown[1]),
+                past(uv[2], shown[0]),
+                past(uv[3], shown[1]),
+            ],
         }
     }
 }
@@ -651,11 +755,17 @@ mod tests {
         let width = gpu.device.limits().max_texture_dimension_2d + 1;
         let bitmap = RgbaImage::new(width, 2, vec![255; width as usize * 2 * 4]);
         let config = CompositorConfig::new(8, 8);
-        let layer = CompositeLayer::rgba(&bitmap, LayerPlacement::full_canvas(&config));
+        let placement = LayerPlacement::full_canvas(&config);
         let mut compositor = Compositor::new(&gpu);
-        let rendered = compositor
-            .render(&gpu, &config, &[layer])
-            .expect("oversized RGBA layer should be fitted before upload");
-        assert_eq!(rendered.pixel(4, 4), [255, 255, 255, 255]);
+        // A cutout's texture adds its transparent border to the fitted size.
+        for layer in [
+            CompositeLayer::rgba(&bitmap, placement),
+            CompositeLayer::cutout(&bitmap, placement),
+        ] {
+            let rendered = compositor
+                .render(&gpu, &config, &[layer])
+                .expect("oversized RGBA layer should be fitted before upload");
+            assert_eq!(rendered.pixel(4, 4), [255, 255, 255, 255]);
+        }
     }
 }

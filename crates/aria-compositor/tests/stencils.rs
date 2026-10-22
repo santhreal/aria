@@ -149,12 +149,15 @@ fn assert_same(what: &str, got: &RgbaImage, want: &RgbaImage, tol: i32) {
 /// draws, one per pipeline family. [`kind_of`] has no wildcard arm: a new kind
 /// does not compile until it has a name, and fails the test until it has a
 /// case.
-const KINDS: [&str; 6] = ["frame", "bitmap", "solid", "shape", "glyphs", "nest"];
+const KINDS: [&str; 7] = [
+    "frame", "bitmap", "cutout", "solid", "shape", "glyphs", "nest",
+];
 
 fn kind_of(content: &LayerContent<'_>) -> &'static str {
     match content {
         LayerContent::Frame(_) => "frame",
         LayerContent::Rgba(_) => "bitmap",
+        LayerContent::Cutout(_) => "cutout",
         LayerContent::Solid(_) => "solid",
         LayerContent::Sdf(_) => "shape",
         LayerContent::Glyphs(_) => "glyphs",
@@ -196,6 +199,7 @@ fn a_mask_cuts_every_content_kind_as_it_cuts_a_bitmap() {
     let layers = [
         CompositeLayer::frame(&frame, full),
         CompositeLayer::rgba(&bitmap, full),
+        CompositeLayer::cutout(&bitmap, full),
         CompositeLayer::solid(PLATE, full),
         CompositeLayer::sdf(shape, full),
         CompositeLayer::glyphs(

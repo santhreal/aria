@@ -247,6 +247,11 @@ impl TextStyle {
             .and_then(|r| r.underline)
             .unwrap_or(self.underline)
     }
+
+    /// Whether any byte of the shaped string is underlined.
+    pub fn any_underline(&self) -> bool {
+        self.underline || self.runs.iter().any(|r| r.underline == Some(true))
+    }
 }
 
 #[cfg(test)]

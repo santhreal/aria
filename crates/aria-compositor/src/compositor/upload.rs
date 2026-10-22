@@ -257,10 +257,13 @@ impl RgbaTextureCache {
     }
 }
 
-pub(super) fn rgba_image_key(image: &RgbaImage, expected: usize) -> [u8; 32] {
+/// The texture cache key of `image` uploaded inside a `border`-texel
+/// transparent ring.
+pub(super) fn rgba_image_key(image: &RgbaImage, expected: usize, border: u32) -> [u8; 32] {
     let mut digest = Sha256::new();
     digest.update(image.width.to_le_bytes());
     digest.update(image.height.to_le_bytes());
+    digest.update(border.to_le_bytes());
     digest.update(&image.pixels[..expected]);
     digest.finalize().into()
 }

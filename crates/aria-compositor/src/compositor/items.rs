@@ -183,6 +183,7 @@ impl Compositor {
             return Err(CompositorError::UndrawnNest(nest));
         };
         let target = (texture.clone(), view.clone());
-        Ok(self.bind_rgba(gpu, config, layer, target, grade))
+        let sampling = super::layers::Sampling::within(layer.uv);
+        Ok(self.bind_rgba(gpu, config, layer, target, sampling, grade))
     }
 }

@@ -486,10 +486,19 @@ pub struct GlyphsLayer<'a> {
 pub enum LayerContent<'a> {
     /// A decoded video frame (CPU planes or imported GPU surfaces).
     Frame(&'a VideoFrame),
-    /// A pre-rasterized straight-alpha RGBA bitmap: text, pen-tool shape
-    /// paths, stickers, or a decoded still. The compositor premultiplies it
-    /// on upload so its anti-aliased edges blend cleanly.
+    /// A pre-rasterized straight-alpha RGBA bitmap: pen-tool shape paths,
+    /// stickers, or a decoded still. The compositor premultiplies it on
+    /// upload so its anti-aliased edges blend cleanly. Past its edges the
+    /// sampler repeats the outermost texels.
     Rgba(&'a RgbaImage),
+    /// A straight-alpha RGBA bitmap cut from a transparent plane: a text run,
+    /// or the card behind one. The compositor uploads it inside a transparent
+    /// one-texel border and draws its quad half a texel past each uncropped
+    /// edge, over the bitmap's whole bilinear footprint, as it draws each
+    /// [`GlyphInstance`]. A quad edge between pixels fades the outer texels
+    /// instead of repeating them, so the run draws the same pixels as one
+    /// bitmap and as glyphs. A crop edge stays hard.
+    Cutout(&'a RgbaImage),
     /// A solid RGBA fill across the placed quad.
     Solid([u8; 4]),
     /// A parametric vector shape evaluated in the fragment shader.
@@ -760,9 +769,15 @@ impl<'a> CompositeLayer<'a> {
         Self::plain(LayerContent::Frame(frame), placement)
     }
 
-    /// An RGBA bitmap layer (text/shape/sticker/still) with no crop/mirror.
+    /// An RGBA bitmap layer (shape/sticker/still) with no crop/mirror.
     pub fn rgba(image: &'a RgbaImage, placement: LayerPlacement) -> Self {
         Self::plain(LayerContent::Rgba(image), placement)
+    }
+
+    /// A bitmap cut from a transparent plane (text, a text card) with no
+    /// crop/mirror; see [`LayerContent::Cutout`].
+    pub fn cutout(image: &'a RgbaImage, placement: LayerPlacement) -> Self {
+        Self::plain(LayerContent::Cutout(image), placement)
     }
 
     /// A solid-color layer.

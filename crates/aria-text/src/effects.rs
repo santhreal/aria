@@ -23,29 +23,14 @@ const MAX_EFFECT_EXTENT_PX: f32 = 4096.0;
 /// Compose stroke / background / shadow around an already-shaped run.
 pub(crate) fn paint(shaped: &ShapedText, style: &TextStyle) -> RgbaImage {
     let pad = effect_padding(style);
-    let width = shaped.extent.0.saturating_add(pad.saturating_mul(2));
-    let height = shaped.extent.1.saturating_add(pad.saturating_mul(2));
-    let Some(pixel_len) = (width as usize)
-        .checked_mul(height as usize)
-        .and_then(|pixels| pixels.checked_mul(4))
-    else {
+    let Some((width, height, mut pixels)) = blank(shaped, pad) else {
         return RgbaImage::transparent(0, 0);
     };
-    let mut pixels = vec![0u8; pixel_len];
 
     // Coverage of the fill glyphs — substrate for stroke dilation and shadow blur.
     let cover = glyph_coverage(shaped, style, pad, width, height);
 
-    if let Some(bg) = style.background {
-        let inset = effect_extent(style.font_size * BG_INSET_FRAC).max(2.0);
-        let rect = CardRect {
-            x0: pad as f32 - inset,
-            y0: pad as f32 - inset,
-            x1: pad as f32 + shaped.extent.0 as f32 + inset,
-            y1: pad as f32 + shaped.extent.1 as f32 + inset,
-        };
-        fill_rounded_rect(&mut pixels, width, height, rect, bg.radius, bg.rgba);
-    }
+    fill_card(&mut pixels, width, height, shaped, style, pad);
 
     // Stroke is the expensive mask operation. Compute it once: a shadow can
     // bloom from the stroked silhouette and the visible outline uses the same
@@ -85,7 +70,7 @@ pub(crate) fn effect_padding(style: &TextStyle) -> u32 {
         .stroke
         .map_or(0.0, |stroke| effect_extent(stroke.width));
     let mut need = (style.padding as f32).min(MAX_EFFECT_EXTENT_PX);
-    let has_underline = style.underline || style.runs.iter().any(|r| r.underline == Some(true));
+    let has_underline = style.any_underline();
     let underline_extent = if has_underline {
         // The line sits just below the baseline. Capital-only runs otherwise
         // have no descender ink reserving that part of the bitmap.
@@ -111,6 +96,53 @@ pub(crate) fn effect_padding(style: &TextStyle) -> u32 {
         need = need.max(inset);
     }
     need.min(MAX_EFFECT_EXTENT_PX).ceil() as u32
+}
+
+/// The background card and underlines [`paint`] draws for `shaped` under
+/// `style`, in a bitmap of the size it draws, without the glyphs, stroke, or
+/// shadow: what character animation draws behind glyphs that move.
+pub(crate) fn paint_card(shaped: &ShapedText, style: &TextStyle) -> RgbaImage {
+    let pad = effect_padding(style);
+    let Some((width, height, mut pixels)) = blank(shaped, pad) else {
+        return RgbaImage::transparent(0, 0);
+    };
+    fill_card(&mut pixels, width, height, shaped, style, pad);
+    blit_underlines(&mut pixels, width, height, shaped, style, pad);
+    RgbaImage::new(width, height, pixels)
+}
+
+/// A transparent RGBA buffer the size of `shaped`'s extent with `pad` on every
+/// side, or `None` when its byte length overflows.
+fn blank(shaped: &ShapedText, pad: u32) -> Option<(u32, u32, Vec<u8>)> {
+    let width = shaped.extent.0.saturating_add(pad.saturating_mul(2));
+    let height = shaped.extent.1.saturating_add(pad.saturating_mul(2));
+    let len = (width as usize)
+        .checked_mul(height as usize)?
+        .checked_mul(4)?;
+    Some((width, height, vec![0u8; len]))
+}
+
+/// Fill the background card of `style`, if it has one, around the ink of
+/// `shaped` drawn `pad` pixels in.
+fn fill_card(
+    pixels: &mut [u8],
+    width: u32,
+    height: u32,
+    shaped: &ShapedText,
+    style: &TextStyle,
+    pad: u32,
+) {
+    let Some(bg) = style.background else {
+        return;
+    };
+    let inset = effect_extent(style.font_size * BG_INSET_FRAC).max(2.0);
+    let rect = CardRect {
+        x0: pad as f32 - inset,
+        y0: pad as f32 - inset,
+        x1: pad as f32 + shaped.extent.0 as f32 + inset,
+        y1: pad as f32 + shaped.extent.1 as f32 + inset,
+    };
+    fill_rounded_rect(pixels, width, height, rect, bg.radius, bg.rgba);
 }
 
 fn effect_extent(value: f32) -> f32 {
@@ -231,7 +263,7 @@ fn underline_rects(
     width: u32,
     height: u32,
 ) -> Vec<UnderlineRect> {
-    if !style.underline && !style.runs.iter().any(|r| r.underline == Some(true)) {
+    if !style.any_underline() {
         return Vec::new();
     }
     let mut spans: Vec<(usize, f32, f32, f32, [u8; 4])> = Vec::new();

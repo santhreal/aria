@@ -258,6 +258,7 @@ fn prove(kind: &str) {
 mod looks;
 mod masks;
 mod per_topology;
+mod text_parity;
 
 // ---------------------------------------------------------------------------
 // The sweep

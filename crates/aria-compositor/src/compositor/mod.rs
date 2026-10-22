@@ -221,6 +221,9 @@ pub(super) struct RgbaUniforms {
     linear: [f32; 4],
     trans_opacity: [f32; 4],
     uv_rect: [f32; 4],
+    /// How far the drawn quad reaches past each edge (left, top, right,
+    /// bottom), as fractions of the quad; see `layers::Sampling`.
+    bleed: [f32; 4],
     grade: [[f32; 4]; ColorGrade::LANES],
 }
 

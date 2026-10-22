@@ -113,6 +113,12 @@ impl Compositor {
 
         // Instance staging reuses the compositor's buffer. A cached atlas makes
         // every later frame nothing but this restage, so it must not allocate.
+        //
+        // Each quad reaches half a texel past its glyph on every side, into
+        // the atlas's transparent padding: bilinear sampling reads that far
+        // past the edge texels, so a quad edge between pixels fades them as
+        // the same glyph drawn inside one bitmap does.
+        let atlas = [atlas_tex.width() as f32, atlas_tex.height() as f32];
         let mut instances = self.glyph_instances.borrow_mut();
         instances.clear();
         for inst in glyphs.instances {
@@ -126,10 +132,22 @@ impl Compositor {
             if inst.size[0] <= 0.0 || inst.size[1] <= 0.0 || inst.opacity <= 0.0 {
                 continue;
             }
+            let texels = [(uv[2] - uv[0]) * atlas[0], (uv[3] - uv[1]) * atlas[1]];
+            let half = [0.5 / atlas[0], 0.5 / atlas[1]];
             instances.push(GlyphInstanceGpu {
-                center_size: [inst.center[0], inst.center[1], inst.size[0], inst.size[1]],
+                center_size: [
+                    inst.center[0],
+                    inst.center[1],
+                    inst.size[0] * (texels[0] + 1.0) / texels[0],
+                    inst.size[1] * (texels[1] + 1.0) / texels[1],
+                ],
                 rot_opacity: [inst.rotation, inst.opacity.clamp(0.0, 1.0), 0.0, 0.0],
-                uv_rect: uv,
+                uv_rect: [
+                    uv[0] - half[0],
+                    uv[1] - half[1],
+                    uv[2] + half[0],
+                    uv[3] + half[1],
+                ],
             });
         }
         if instances.is_empty() {
