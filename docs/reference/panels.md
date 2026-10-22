@@ -199,3 +199,32 @@ Defined in `crates/aria-ui/src/app/analysis_kind.rs` (`AnalysisKind::ALL`).
 | `Shots` | `shots` | `Shots` |
 | `Silence` | `silence` | `Silence` |
 | `Beats` | `beats` | `Beats` |
+
+## Effects browser entry kinds (`EntryKind::ALL`)
+
+`EntryKind::ALL` (`crates/aria-ui/src/app/effects_browser.rs`) defines the entry kinds listed in the **Project > Effects** browser (`sidebar-tab-effects`):
+
+| Variant | Folder (`group().label()`) | Favourite prefix (`tag()`) | Drag payload (`drag()`) |
+| --- | --- | --- | --- |
+| `VideoEffect` | `Video Effects` | `video` | `Effect` |
+| `AudioEffect` | `Audio Effects` | `audio` | `AudioEffect` |
+| `Transition` | `Video Transitions` | `transition` | `Transition` |
+| `AudioTransition` | `Audio Transitions` | `audio-transition` | `Transition` |
+| `Generator` | `Generators` | `generator` | `Generator` |
+| `ClipType` | `Generators` | `clip-type` | `ClipType` |
+| `Preset` | `Animation Presets` | `preset` | `Preset` |
+
+## Effects browser folder groups (`Group::ALL`)
+
+`Group::ALL` (`crates/aria-ui/src/app/effects_browser.rs`) defines the top-level folders in the **Project > Effects** tree (`sidebar-tab-effects`):
+
+| Variant | Label (`label()`) | Single-group caption (`only_label()`) |
+| --- | --- | --- |
+| `Favourites` | `Favourites` | `Favourites only` |
+| `VideoEffects` | `Video Effects` | `Video effects only` |
+| `AudioEffects` | `Audio Effects` | `Audio effects only` |
+| `Transitions` | `Video Transitions` | `Video transitions only` |
+| `AudioTransitions` | `Audio Transitions` | `Audio transitions only` |
+| `Generators` | `Generators` | `Generators only` |
+| `Presets` | `Animation Presets` | `Animation presets only` |
+| `Failed` | `Failed to Load` | `Failures only` |

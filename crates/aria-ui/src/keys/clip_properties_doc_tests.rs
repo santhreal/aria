@@ -173,6 +173,34 @@ fn clip_properties_doc_matches_registries() {
         doc_catalog, expected_catalog,
         "docs/reference/clip-properties.md clip_param_catalog() table drifted"
     );
+    for &param in LookParam::ALL {
+        let p = ClipParam::Look { param };
+        assert!(
+            catalog.iter().any(|s| s.param == p),
+            "clip_param_catalog() missing {p:?}"
+        );
+    }
+    for &param in StyleParam::ALL {
+        let p = ClipParam::Style { param };
+        assert!(
+            catalog.iter().any(|s| s.param == p),
+            "clip_param_catalog() missing {p:?}"
+        );
+    }
+    for &param in TextParam::ALL {
+        let p = ClipParam::Text { param };
+        assert!(
+            catalog.iter().any(|s| s.param == p),
+            "clip_param_catalog() missing {p:?}"
+        );
+    }
+    for &param in ShapeParam::ALL {
+        let p = ClipParam::Shape { param };
+        assert!(
+            catalog.iter().any(|s| s.param == p),
+            "clip_param_catalog() missing {p:?}"
+        );
+    }
     assert_eq!(
         LookParam::ALL.len()
             + StyleParam::ALL.len()

@@ -36,7 +36,7 @@ pub const POOL_ITEMS: &[MenuItem<PoolMenu>] = &[
     // them to be hunted for.
     MenuItem::Row(MenuRow {
         id: "ctx-pool-in-use",
-        label: |_| "Used by the timeline — select those clips",
+        label: |_| "Used by the timeline: select those clips",
         when: |pool| pool.in_use,
         run: |state, pool| {
             state.select_media_clips(MediaId::from_raw(pool.media));

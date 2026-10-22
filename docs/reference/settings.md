@@ -207,3 +207,14 @@ When `logDroppedFrames` is enabled in **Settings > Playback**, `DroppedFrames` c
 | `PresentLate` | `present late` |
 | `Gpu` | `GPU surfaces` |
 | `Cpu` | `CPU planes` |
+
+## Render resolution levels (`Resolution::ALL`)
+
+`Resolution::ALL` (`crates/aria-ui/src/resolution.rs`) defines the viewer and canvas downsampling divisors returned by `PlaybackResolution::resolve()` and `PausedResolution::resolve()`:
+
+| Variant | Divisor (`divisor()`) | Label (`label()`) | Lower (`lower()`) | Higher (`higher()`) | Default |
+| --- | --- | --- | --- | --- | --- |
+| `Full` | `1` | `Full` | `Half` | `Full` | `yes` |
+| `Half` | `2` | `1/2` | `Quarter` | `Full` | `no` |
+| `Quarter` | `4` | `1/4` | `Eighth` | `Half` | `no` |
+| `Eighth` | `8` | `1/8` | `Eighth` | `Quarter` | `no` |

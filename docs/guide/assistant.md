@@ -113,6 +113,91 @@ starting a new one, starts a new conversation.
   before each request, so keeping them would store bytes no prompt can use.
 
 
+### Model catalogs (`LOCAL_MODELS` and `OPENROUTER_MODELS`)
+
+`LOCAL_MODELS` (`crates/aria-ai/src/catalog.rs`, default `DEFAULT_LOCAL_MODEL = "qwen3:14b"`) lists the curated Ollama model presets offered when `ai.source` is `"local"`:
+
+| Model ID (`id`) | Display (`display`) | Aliases (`aliases`) |
+| --- | --- | --- |
+| `qwen3:14b` | `Qwen3 14B` | `qwen3:14b, qwen3-14b` |
+| `qwen3:32b` | `Qwen3 32B` | `qwen3:32b, qwen3-32b` |
+| `llama3.3:70b` | `Llama 3.3 70B` | `llama3.3:70b, llama-3.3-70b` |
+| `gpt-oss:20b` | `GPT-OSS 20B` | `gpt-oss:20b, gpt-oss-20b` |
+| `gpt-oss:120b` | `GPT-OSS 120B` | `gpt-oss:120b, gpt-oss-120b` |
+
+`OPENROUTER_MODELS` (`crates/aria-ai/src/catalog.rs`, default `DEFAULT_OPENROUTER_MODEL = "openai/gpt-5.6-sol"`, gateway `OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"`) lists the curated OpenRouter model presets offered when `ai.source` is `"openrouter"`:
+
+| Model ID (`id`) | Display (`display`) | Vendor (`vendor`) | Provider pin (`pin`) |
+| --- | --- | --- | --- |
+| `openai/gpt-5.5` | `GPT-5.5` | `OpenAI` | `none` |
+| `openai/gpt-5.6-sol` | `GPT-5.6` | `OpenAI` | `none` |
+| `google/gemini-3.5-flash` | `Gemini 3.5 Flash` | `Google` | `none` |
+| `google/gemini-3.1-pro-preview` | `Gemini 3.1 Pro` | `Google` | `none` |
+| `google/gemini-3-flash-preview` | `Gemini 3 Flash` | `Google` | `none` |
+| `anthropic/claude-sonnet-4` | `Claude Sonnet 4` | `Anthropic` | `none` |
+| `anthropic/claude-sonnet-4.5` | `Claude Sonnet 4.5` | `Anthropic` | `none` |
+| `anthropic/claude-sonnet-4.6` | `Claude Sonnet 4.6` | `Anthropic` | `none` |
+| `anthropic/claude-opus-4.8` | `Claude Opus 4.8` | `Anthropic` | `none` |
+| `anthropic/claude-fable-5` | `Claude Fable 5` | `Anthropic` | `none` |
+| `x-ai/grok-4.5` | `Grok 4.5` | `xAI` | `none` |
+| `x-ai/grok-4.3` | `Grok 4.3` | `xAI` | `none` |
+| `x-ai/grok-4.20` | `Grok 4.20 Reasoning` | `xAI` | `none` |
+| `moonshotai/kimi-k3` | `Kimi K3` | `Kimi` | `moonshotai` |
+| `moonshotai/kimi-k2.6` | `Kimi K2.6` | `Kimi` | `moonshotai` |
+| `moonshotai/kimi-k2.7-code` | `Kimi K2.7 Code` | `Kimi` | `moonshotai` |
+| `moonshotai/kimi-k2.7-code-highspeed` | `Kimi K2.7 Code Highspeed` | `Kimi` | `moonshotai` |
+| `z-ai/glm-5` | `GLM-5` | `GLM` | `z-ai` |
+| `z-ai/glm-5.1` | `GLM-5.1` | `GLM` | `z-ai` |
+| `z-ai/glm-5.2` | `GLM-5.2` | `GLM` | `z-ai` |
+| `z-ai/glm-4.5` | `GLM-4.5` | `GLM` | `z-ai` |
+| `openai/gpt-oss-120b` | `GPT-OSS 120B` | `Open weight` | `groq` |
+| `meta-llama/llama-3.3-70b-instruct` | `Llama 3.3 70B` | `Open weight` | `groq` |
+
+### Bundled skills (`bundled_skills()`)
+
+`aria_ai::bundled_skills()` (`crates/aria-ai/src/extend.rs`) returns the built-in workflow playbooks that `read_skill` loads on demand; a project or profile skill file with the same ID overrides the bundled definition:
+
+| Skill ID (`id`) | Name (`name`) | Summary |
+| --- | --- | --- |
+| `social-media-cut` | `Social media cut` | Short vertical 9:16 cut with an opening hook, caption-style title, and fast pacing. |
+| `podcast-cleanup` | `Podcast cleanup` | Spoken-word recording edit: voice denoise, level matching, music ducking, and fades. |
+| `highlights-reel` | `Highlights reel` | Montage built from marked timeline moments with crossfades and an end title. |
+
+### Built-in loop and host tools
+
+Each turn offers the loop tools `describe_project`, `commit_progress` and `read_skill` and the desktop host tools in `crates/aria-ui/src/app/assistant_host.rs`, besides the timeline edit tools:
+
+| Tool (`name`) | Tier (`tier`) | Summary |
+| --- | --- | --- |
+| `describe_project` | `ReadOnly` | Inspects a time window or track slice of the active sequence in full clip-level detail. |
+| `commit_progress` | `ReadOnly` | Marks the edits applied so far as a named undo phase within a multi-stage prompt. |
+| `read_skill` | `ReadOnly` | Loads the markdown playbook body for a named skill from the active skill catalog. |
+| `media_screenshot_timeline` | `ReadOnly` | Renders the sequence frame at `at_seconds` to a downscaled PNG and attaches it to the turn. |
+| `media_probe` | `ReadOnly` | Reads a media file's dimensions, frame rate, duration, and codecs from `path`. |
+| `app_seek` | `Workspace` | Moves the sequence playhead to `at_seconds` (in seconds, clamped to `>= 0`). |
+| `app_save_project` | `Workspace` | Saves the open project to its current `.aria` path on disk (fails when untitled). |
+| `system_clear_cache` | `System` | Empties one cache directory (`cache`) on disk so its files rebuild on demand. |
+
+### Timeline edit tool groups (`tool_groups()` / `ai_tool_groups()`)
+
+`aria_ai::wire::tool_groups()` (`crates/aria-ai/src/wire.rs`) and `AppState::ai_tool_groups()` (`crates/aria-ui/src/panels/ai_tools.rs`) partition the validated timeline edit tools (`TOOL_SCHEMA_VERSION = 51`) into groups:
+
+| Group (`name`) | Count | Tools (`tools`) |
+| --- | --- | --- |
+| `tracks` | `7` | `add_track`, `remove_track`, `set_track_enabled`, `set_track_muted`, `set_track_locked`, `set_track_targeted`, `set_track_sync_lock` |
+| `clips` | `9` | `add_clip`, `extract_audio`, `duplicate_clip`, `add_generated`, `set_generator`, `split_clip`, `trim_clip`, `move_clip`, `remove_clip` |
+| `timeline` | `7` | `ripple_delete`, `shift_clips`, `ripple_insert`, `overwrite_clip`, `fit_to_fill`, `link_clips`, `unlink_clips` |
+| `effects` | `4` | `add_effect`, `remove_effect`, `move_effect`, `set_effect_param` |
+| `transitions` | `3` | `add_transition`, `remove_transition`, `set_transition` |
+| `animation` | `5` | `set_param_keyframe`, `remove_param_keyframe`, `set_param_constant`, `set_param_driver`, `apply_easing_preset` |
+| `retime` | `3` | `set_clip_speed`, `set_speed_curve`, `set_clip_pitch` |
+| `audio` | `3` | `set_clip_audio`, `set_denoise`, `set_audio_role` |
+| `routing` | `5` | `set_track_gain`, `set_track_output`, `add_send`, `set_send`, `remove_send` |
+| `look` | `15` | `set_clip_transform`, `set_clip_crop`, `add_clip_mask`, `set_clip_mask`, `remove_clip_mask`, `move_clip_mask`, `set_clip_chroma`, `set_clip_matte`, `set_clip_stabilize`, `set_clip_filter`, `set_clip_blend_mode`, `set_motion_blur`, `set_layer_styles`, `set_clip_adjustments`, `set_clip_animation` |
+| `markers` | `3` | `add_marker`, `remove_marker`, `set_marker` |
+| `bake` | `2` | `render_and_replace`, `restore_unrendered` |
+| `project` | `1` | `set_canvas` |
+
 ## Example
 
 Preview a multi-step edit in Plan only mode and apply the validated plan:

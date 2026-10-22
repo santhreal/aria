@@ -40,7 +40,9 @@ use super::reference_doc_tests::{
     check_markdown_links_in_files, collect_md_files, extract_markdown_links, shipped_menu_paths,
     shipped_palette_commands, strip_inline_code,
 };
-use crate::test_support::doc_tables::section_slice;
+use crate::test_support::doc_tables::{
+    heading_body, read_doc, section_slice, strip_ticks, table_rows,
+};
 
 fn collapse_ws(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
@@ -492,5 +494,243 @@ fn every_guide_names_real_controls_menus_and_keys() {
     assert!(
         total_example_steps >= 80,
         "expected at least 80 numbered walkthrough steps across guides, found {total_example_steps}"
+    );
+}
+
+/// Closes the class where a curated local or OpenRouter model preset
+/// (`LOCAL_MODELS`, `OPENROUTER_MODELS`), bundled workflow skill
+/// (`bundled_skills()`), built-in loop or desktop host tool
+/// (`describe_project_spec`, `commit_progress_spec`, `read_skill_spec`,
+/// `host_tool_specs`), or validated timeline edit tool group (`tool_groups()`)
+/// is added, removed, or renamed without updating `docs/guide/assistant.md`.
+/// Does not catch prose wording in the Summary column.
+#[test]
+fn assistant_guide_matches_ai_registries_bidirectionally() {
+    let doc = read_doc("guide/assistant.md");
+
+    // 1. Model catalogs (`LOCAL_MODELS` and `OPENROUTER_MODELS`).
+    let models_sec = heading_body(
+        &doc,
+        "### Model catalogs (`LOCAL_MODELS` and `OPENROUTER_MODELS`)",
+    );
+    assert!(
+        models_sec.contains(&format!(
+            "DEFAULT_LOCAL_MODEL = \"{}\"",
+            aria_ai::DEFAULT_LOCAL_MODEL
+        )),
+        "docs/guide/assistant.md missing DEFAULT_LOCAL_MODEL"
+    );
+    assert!(
+        models_sec.contains(&format!(
+            "DEFAULT_OPENROUTER_MODEL = \"{}\"",
+            aria_ai::DEFAULT_OPENROUTER_MODEL
+        )) && models_sec.contains(&format!(
+            "OPENROUTER_BASE_URL = \"{}\"",
+            aria_ai::OPENROUTER_BASE_URL
+        )),
+        "docs/guide/assistant.md missing DEFAULT_OPENROUTER_MODEL or OPENROUTER_BASE_URL"
+    );
+    let model_rows = table_rows(models_sec);
+    assert_eq!(
+        model_rows.len(),
+        aria_ai::LOCAL_MODELS.len() + aria_ai::OPENROUTER_MODELS.len(),
+        "docs/guide/assistant.md model catalog row count drifted"
+    );
+    let expected_local: Vec<(String, String, String)> = aria_ai::LOCAL_MODELS
+        .iter()
+        .map(|m| {
+            assert!(!m.role.is_empty(), "LOCAL_MODELS role must be non-empty");
+            (
+                m.id.to_string(),
+                m.display.to_string(),
+                m.aliases.join(", "),
+            )
+        })
+        .collect();
+    let documented_local: Vec<(String, String, String)> = model_rows[..aria_ai::LOCAL_MODELS.len()]
+        .iter()
+        .map(|cells| {
+            assert!(cells.len() >= 3, "malformed LOCAL_MODELS row: {cells:?}");
+            (
+                strip_ticks(cells[0]).to_string(),
+                strip_ticks(cells[1]).to_string(),
+                strip_ticks(cells[2]).to_string(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        documented_local, expected_local,
+        "docs/guide/assistant.md LOCAL_MODELS table drifted"
+    );
+
+    let expected_openrouter: Vec<(String, String, String, String)> = aria_ai::OPENROUTER_MODELS
+        .iter()
+        .map(|m| {
+            assert!(
+                !m.role.is_empty(),
+                "OPENROUTER_MODELS role must be non-empty"
+            );
+            let pin = m
+                .pin
+                .and_then(|p| p.order.first().copied())
+                .unwrap_or("none")
+                .to_string();
+            (
+                m.id.to_string(),
+                m.display.to_string(),
+                m.vendor.to_string(),
+                pin,
+            )
+        })
+        .collect();
+    let documented_openrouter: Vec<(String, String, String, String)> = model_rows
+        [aria_ai::LOCAL_MODELS.len()..]
+        .iter()
+        .map(|cells| {
+            assert!(
+                cells.len() >= 4,
+                "malformed OPENROUTER_MODELS row: {cells:?}"
+            );
+            (
+                strip_ticks(cells[0]).to_string(),
+                strip_ticks(cells[1]).to_string(),
+                strip_ticks(cells[2]).to_string(),
+                strip_ticks(cells[3]).to_string(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        documented_openrouter, expected_openrouter,
+        "docs/guide/assistant.md OPENROUTER_MODELS table drifted"
+    );
+
+    // 2. Bundled skills (`bundled_skills()`).
+    let skills_sec = heading_body(&doc, "### Bundled skills (`bundled_skills()`)");
+    let expected_skills: Vec<(String, String)> = aria_ai::bundled_skills()
+        .into_iter()
+        .map(|s| {
+            assert!(
+                !s.description.trim().is_empty() && !s.body.trim().is_empty(),
+                "bundled skill {} must have non-empty description and body",
+                s.id
+            );
+            (s.id, s.name)
+        })
+        .collect();
+    let documented_skills: Vec<(String, String)> = table_rows(skills_sec)
+        .iter()
+        .map(|cells| {
+            assert!(cells.len() >= 3, "malformed bundled skill row: {cells:?}");
+            (
+                strip_ticks(cells[0]).to_string(),
+                strip_ticks(cells[1]).to_string(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        documented_skills, expected_skills,
+        "docs/guide/assistant.md Bundled skills table drifted from bundled_skills()"
+    );
+
+    // 3. Built-in loop and host tools.
+    let host_sec = heading_body(&doc, "### Built-in loop and host tools");
+    let mut expected_host_tools: Vec<(String, String)> = Vec::new();
+    for spec in [
+        aria_ai::wire::describe_project_spec(),
+        aria_ai::agent::commit_progress_spec(),
+        aria_ai::extend::read_skill_spec(),
+    ] {
+        assert!(
+            !spec.description.trim().is_empty(),
+            "loop tool {} must have non-empty description",
+            spec.name
+        );
+        expected_host_tools.push((spec.name, format!("{:?}", aria_ai::ToolTier::ReadOnly)));
+    }
+    for spec in crate::app::assistant_host::host_tool_specs() {
+        assert!(
+            !spec.description.trim().is_empty(),
+            "host tool {} must have non-empty description",
+            spec.name
+        );
+        expected_host_tools.push((spec.name, format!("{:?}", spec.tier)));
+    }
+    let documented_host_tools: Vec<(String, String)> = table_rows(host_sec)
+        .iter()
+        .map(|cells| {
+            assert!(cells.len() >= 3, "malformed loop/host tool row: {cells:?}");
+            (
+                strip_ticks(cells[0]).to_string(),
+                strip_ticks(cells[1]).to_string(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        documented_host_tools, expected_host_tools,
+        "docs/guide/assistant.md Built-in loop and host tools table drifted"
+    );
+
+    // 4. Timeline edit tool groups (`tool_groups()` / `ai_tool_groups()`).
+    let groups_sec = heading_body(
+        &doc,
+        "### Timeline edit tool groups (`tool_groups()` / `ai_tool_groups()`)",
+    );
+    assert!(
+        groups_sec.contains(&format!(
+            "TOOL_SCHEMA_VERSION = {}",
+            aria_ai::TOOL_SCHEMA_VERSION
+        )),
+        "docs/guide/assistant.md missing TOOL_SCHEMA_VERSION = {}",
+        aria_ai::TOOL_SCHEMA_VERSION
+    );
+    let expected_groups: Vec<(String, String, Vec<String>)> = aria_ai::wire::tool_groups()
+        .iter()
+        .map(|g| {
+            (
+                g.name.to_string(),
+                g.tools.len().to_string(),
+                g.tools.iter().map(|t| (*t).to_string()).collect(),
+            )
+        })
+        .collect();
+    let documented_groups: Vec<(String, String, Vec<String>)> = table_rows(groups_sec)
+        .iter()
+        .map(|cells| {
+            assert!(cells.len() >= 3, "malformed tool_groups row: {cells:?}");
+            let tools: Vec<String> = cells[2]
+                .split(',')
+                .map(strip_ticks)
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+                .collect();
+            (
+                strip_ticks(cells[0]).to_string(),
+                strip_ticks(cells[1]).to_string(),
+                tools,
+            )
+        })
+        .collect();
+    assert_eq!(
+        documented_groups, expected_groups,
+        "docs/guide/assistant.md Timeline edit tool groups table drifted from aria_ai::wire::tool_groups()"
+    );
+    let flat_from_groups: Vec<String> = expected_groups
+        .iter()
+        .flat_map(|(_, _, tools)| tools.iter().cloned())
+        .collect();
+    let flat_from_specs: Vec<String> = aria_ai::wire::tool_specs()
+        .into_iter()
+        .map(|s| {
+            assert!(
+                !s.description.trim().is_empty(),
+                "wire tool {} must have non-empty description",
+                s.name
+            );
+            s.name
+        })
+        .collect();
+    assert_eq!(
+        flat_from_groups, flat_from_specs,
+        "tool_groups() and tool_specs() tool names must match in order"
     );
 }

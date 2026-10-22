@@ -23,6 +23,7 @@ use crate::app::analysis::AnalysisKind;
 use crate::app::audio_channels::AudioChannels;
 use crate::app::clip_ops::AudioGainMode;
 use crate::app::decline::Decline;
+use crate::app::effects_browser::{EntryKind, Group};
 use crate::app::generate::GenerateKind;
 use crate::app::models::TimeoutField;
 use crate::app::plugin_install::WasmLimit;
@@ -38,14 +39,20 @@ use crate::layouts::WORKSPACES;
 use crate::motion::MotionPreference;
 use crate::plugins::UiPlugin;
 use crate::plugins::{overlay_host, panel_host};
-use crate::resolution::{PausedResolution, PlaybackResolution};
+use crate::resolution::{PausedResolution, PlaybackResolution, Resolution};
 use crate::scopes::WaveformMode;
 use crate::settings::{
     INSPECTOR_MAX, INSPECTOR_MIN, OUTLINE_MAX, OUTLINE_MIN, SIDEBAR_MAX, SIDEBAR_MIN,
     TIMELINE_MIN_HEIGHT, UiSettings, WindowPlacement,
 };
+use crate::surfaces::context_menu::{
+    BADGE_ITEMS, BadgeMenu, CLIP_ITEMS, ClipMenu, EFFECT_ITEMS, EffectMenu, MenuItem, POOL_ITEMS,
+    PREVIEW_ITEMS, PoolMenu, RECENT_ITEMS, TRACK_ITEMS, TRANSITION_ITEMS, TrackMenu,
+};
 use crate::surfaces::settings_pick::RATES;
-use crate::test_support::doc_tables::{parse_table_rows, read_doc, section_slice, strip_ticks};
+use crate::test_support::doc_tables::{
+    parse_table_rows, read_doc, section_slice, strip_ticks, table_rows,
+};
 use crate::timeline_display::{Follow, Thumbnails, TimelineDisplay, WaveformScale};
 use crate::tool_catalog::{ToolGroup, tool_specs};
 use crate::types::{
@@ -723,6 +730,84 @@ fn panels_doc_matches_registry() {
         documented_analysis_kinds, expected_analysis_kinds,
         "docs/reference/panels.md Analysis panel detector kinds drifted from AnalysisKind::ALL"
     );
+
+    let expected_entry_kinds: Vec<(String, String, String, String)> = EntryKind::ALL
+        .iter()
+        .map(|&k| {
+            match k {
+                EntryKind::VideoEffect
+                | EntryKind::AudioEffect
+                | EntryKind::Transition
+                | EntryKind::AudioTransition
+                | EntryKind::Generator
+                | EntryKind::ClipType
+                | EntryKind::Preset => {}
+            }
+            (
+                format!("{k:?}"),
+                k.group().label().to_string(),
+                k.tag().to_string(),
+                format!("{:?}", k.drag()),
+            )
+        })
+        .collect();
+    let documented_entry_kinds: Vec<(String, String, String, String)> = parse_table_rows(
+        section_slice(PANELS_DOC, "Effects browser entry kinds (`EntryKind::ALL`)"),
+    )
+    .iter()
+    .map(|cells| {
+        assert!(cells.len() >= 4, "malformed EntryKind row: {cells:?}");
+        (
+            strip_ticks(cells[0]).to_string(),
+            strip_ticks(cells[1]).to_string(),
+            strip_ticks(cells[2]).to_string(),
+            strip_ticks(cells[3]).to_string(),
+        )
+    })
+    .collect();
+    assert_eq!(
+        documented_entry_kinds, expected_entry_kinds,
+        "docs/reference/panels.md Effects browser entry kinds drifted from EntryKind::ALL"
+    );
+
+    let expected_browser_groups: Vec<(String, String, String)> = Group::ALL
+        .iter()
+        .map(|&g| {
+            match g {
+                Group::Favourites
+                | Group::VideoEffects
+                | Group::AudioEffects
+                | Group::Transitions
+                | Group::AudioTransitions
+                | Group::Generators
+                | Group::Presets
+                | Group::Failed => {}
+            }
+            (
+                format!("{g:?}"),
+                g.label().to_string(),
+                g.only_label().to_string(),
+            )
+        })
+        .collect();
+    let documented_browser_groups: Vec<(String, String, String)> = parse_table_rows(section_slice(
+        PANELS_DOC,
+        "Effects browser folder groups (`Group::ALL`)",
+    ))
+    .iter()
+    .map(|cells| {
+        assert!(cells.len() >= 3, "malformed Group row: {cells:?}");
+        (
+            strip_ticks(cells[0]).to_string(),
+            strip_ticks(cells[1]).to_string(),
+            strip_ticks(cells[2]).to_string(),
+        )
+    })
+    .collect();
+    assert_eq!(
+        documented_browser_groups, expected_browser_groups,
+        "docs/reference/panels.md Effects browser folder groups drifted from Group::ALL"
+    );
 }
 
 /// Closes the class where a state command (`BUILTIN_COMMANDS`) or background
@@ -961,6 +1046,131 @@ fn menus_doc_matches_registry() {
     assert_eq!(
         documented_declines, expected_declines,
         "docs/reference/menus.md Action decline reasons drifted from Decline::ALL"
+    );
+
+    fn collect_ctx_items<F>(
+        slice_name: &str,
+        items: &[MenuItem<F>],
+        facts: &F,
+        out: &mut Vec<(String, String, String, String)>,
+    ) {
+        for item in items {
+            let (kind, id, label) = match item {
+                MenuItem::Row(row) => ("Row", row.id.to_string(), (row.label)(facts).to_string()),
+                MenuItem::Outside(row) => (
+                    "Outside",
+                    row.id.to_string(),
+                    (row.label)(facts).to_string(),
+                ),
+                MenuItem::Labels => ("Labels", "none".to_string(), "none".to_string()),
+                MenuItem::Blends => ("Blends", "none".to_string(), "none".to_string()),
+                MenuItem::Properties => ("Properties", "none".to_string(), "none".to_string()),
+            };
+            out.push((slice_name.to_string(), kind.to_string(), id, label));
+        }
+    }
+    let clip_facts = ClipMenu {
+        clip: 0,
+        multi: false,
+        linked: false,
+        grouped: false,
+        enabled: true,
+        can_time_remap: false,
+        has_audio: false,
+        can_extract_audio: false,
+        can_freeze_frame: false,
+        parented: false,
+        transition_alignment: None,
+    };
+    let track_facts = TrackMenu {
+        track: 0,
+        muted: false,
+        audio: false,
+        row: 0,
+        lanes: 1,
+        lane: aria_models::TrackDisplay::default(),
+    };
+    let pool_facts = PoolMenu {
+        media: 0,
+        in_use: false,
+        has_proxy: false,
+    };
+    let recent_facts = PathBuf::new();
+    let effect_facts = EffectMenu {
+        clip: 0,
+        index: 0,
+        copied: false,
+    };
+    let badge_facts = BadgeMenu {
+        clip: 0,
+        track: 0,
+        audio: false,
+        drawn: None,
+        chosen: false,
+        properties: std::sync::Arc::from([]),
+    };
+    let mut expected_ctx_items = Vec::new();
+    collect_ctx_items("PREVIEW_ITEMS", PREVIEW_ITEMS, &(), &mut expected_ctx_items);
+    collect_ctx_items(
+        "CLIP_ITEMS",
+        CLIP_ITEMS,
+        &clip_facts,
+        &mut expected_ctx_items,
+    );
+    collect_ctx_items(
+        "TRANSITION_ITEMS",
+        TRANSITION_ITEMS,
+        &clip_facts,
+        &mut expected_ctx_items,
+    );
+    collect_ctx_items(
+        "TRACK_ITEMS",
+        TRACK_ITEMS,
+        &track_facts,
+        &mut expected_ctx_items,
+    );
+    collect_ctx_items(
+        "POOL_ITEMS",
+        POOL_ITEMS,
+        &pool_facts,
+        &mut expected_ctx_items,
+    );
+    collect_ctx_items(
+        "RECENT_ITEMS",
+        RECENT_ITEMS,
+        &recent_facts,
+        &mut expected_ctx_items,
+    );
+    collect_ctx_items(
+        "EFFECT_ITEMS",
+        EFFECT_ITEMS,
+        &effect_facts,
+        &mut expected_ctx_items,
+    );
+    collect_ctx_items(
+        "BADGE_ITEMS",
+        BADGE_ITEMS,
+        &badge_facts,
+        &mut expected_ctx_items,
+    );
+    let documented_ctx_items: Vec<(String, String, String, String)> = table_rows(section_slice(
+        MENUS_DOC,
+        "Context menu item tables (`PREVIEW_ITEMS`, `CLIP_ITEMS`, `TRANSITION_ITEMS`, `TRACK_ITEMS`, `POOL_ITEMS`, `RECENT_ITEMS`, `EFFECT_ITEMS`, `BADGE_ITEMS`)",
+    ))
+    .iter()
+    .map(|cells| {
+        assert!(cells.len() >= 4, "malformed context menu row: {cells:?}");
+        (
+            strip_ticks(cells[0]).to_string(),
+            strip_ticks(cells[1]).to_string(),
+            strip_ticks(cells[2]).to_string(),
+            strip_ticks(cells[3]).to_string(),
+        )
+    })
+    .collect();
+    assert_eq!(
+        documented_ctx_items, expected_ctx_items,
+        "docs/reference/menus.md Context menu item tables drifted from context_menu slices"
     );
 }
 
@@ -1756,6 +1966,45 @@ fn settings_doc_matches_registries() {
     assert_eq!(
         documented_output_modes, expected_output_modes,
         "docs/reference/settings.md OutputMode table drifted from aria_decoder::OutputMode::ALL"
+    );
+
+    let expected_resolutions: Vec<(String, String, String, String, String, bool)> = Resolution::ALL
+        .iter()
+        .map(|&r| {
+            match r {
+                Resolution::Full | Resolution::Half | Resolution::Quarter | Resolution::Eighth => {}
+            }
+            (
+                format!("{r:?}"),
+                format!("{}", r.divisor()),
+                r.label().to_string(),
+                format!("{:?}", r.lower()),
+                format!("{:?}", r.higher()),
+                r == Resolution::default(),
+            )
+        })
+        .collect();
+    let documented_resolutions: Vec<(String, String, String, String, String, bool)> =
+        parse_table_rows(section_slice(
+            SETTINGS_DOC,
+            "Render resolution levels (`Resolution::ALL`)",
+        ))
+        .iter()
+        .map(|cells| {
+            assert!(cells.len() >= 6, "malformed Resolution row: {cells:?}");
+            (
+                strip_ticks(cells[0]).to_string(),
+                strip_ticks(cells[1]).to_string(),
+                strip_ticks(cells[2]).to_string(),
+                strip_ticks(cells[3]).to_string(),
+                strip_ticks(cells[4]).to_string(),
+                strip_ticks(cells[5]) == "yes",
+            )
+        })
+        .collect();
+    assert_eq!(
+        documented_resolutions, expected_resolutions,
+        "docs/reference/settings.md Render resolution levels drifted from Resolution::ALL"
     );
 }
 
@@ -2726,8 +2975,8 @@ fn const_all_registries_have_recorded_documentation_decisions() {
         ),
         (
             "Group",
-            "docs/reference/keyframes-and-graph.md",
-            "keyframes_and_graph_doc_matches_registries",
+            "docs/reference/panels.md",
+            "panels_doc_matches_registry",
         ),
         (
             "PropertyGroup",
@@ -3132,9 +3381,9 @@ fn const_all_registries_have_recorded_documentation_decisions() {
             std::fs::read_to_string(&p)
                 .unwrap_or_else(|e| panic!("DOCUMENTED[{ty}] missing doc file {p:?}: {e}"))
         });
-        if !doc_text.contains(ty) {
+        if standalone(doc_text, ty).next().is_none() {
             verification_errors.push(format!(
-                "DOCUMENTED[{ty}]: `{doc_file}` does not mention `{ty}`"
+                "DOCUMENTED[{ty}]: `{doc_file}` does not mention `{ty}` as a standalone identifier"
             ));
         }
         let needle = format!("{ty}::ALL");
@@ -3142,9 +3391,13 @@ fn const_all_registries_have_recorded_documentation_decisions() {
             None => verification_errors.push(format!(
                 "DOCUMENTED[{ty}]: no #[test] fn `{test_fn}` found in crates/"
             )),
-            Some(bodies) if !bodies.iter().any(|b| b.contains(&needle)) => {
+            Some(bodies)
+                if !bodies
+                    .iter()
+                    .any(|b| standalone(b, &needle).any(|end| !b[end..].starts_with(".len()"))) =>
+            {
                 verification_errors.push(format!(
-                    "DOCUMENTED[{ty}]: #[test] fn `{test_fn}` does not reference `{needle}`"
+                    "DOCUMENTED[{ty}]: #[test] fn `{test_fn}` does not iterate or match `{needle}` (a standalone `{needle}` reference not followed by `.len()` is required)"
                 ));
             }
             Some(_) => {}
@@ -3155,4 +3408,16 @@ fn const_all_registries_have_recorded_documentation_decisions() {
         "DOCUMENTED registry verification failed:\n  {}",
         verification_errors.join("\n  ")
     );
+}
+
+/// The end of each occurrence of `ident` in `haystack` that is not part of a
+/// longer identifier.
+fn standalone<'a>(haystack: &'a str, ident: &'a str) -> impl Iterator<Item = usize> + 'a {
+    let bytes = haystack.as_bytes();
+    let word = |b: u8| b.is_ascii_alphanumeric() || b == b'_';
+    haystack.match_indices(ident).filter_map(move |(at, _)| {
+        let end = at + ident.len();
+        let alone = (at == 0 || !word(bytes[at - 1])) && bytes.get(end).is_none_or(|&b| !word(b));
+        alone.then_some(end)
+    })
 }

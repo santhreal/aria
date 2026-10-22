@@ -43,8 +43,9 @@ mod tests;
 
 pub use bridge::{Applied, EngineBridge};
 use history::{collect_turn_messages, enforce_image_budget, enforce_tool_output_image_budget};
+pub use prompt::commit_progress_spec;
 pub use prompt::system_prompt;
-use prompt::{HOST_TOOLS_RULES, commit_progress_spec, engine_sense_rules, read_skill_result};
+use prompt::{HOST_TOOLS_RULES, engine_sense_rules, read_skill_result};
 pub use transcript::describe_action;
 use transcript::host_action_summary;
 pub use types::{ActionLogEntry, AgentConfig, AgentEvent, PromptOutcome, PromptStatus};

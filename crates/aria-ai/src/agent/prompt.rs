@@ -146,7 +146,7 @@ pub(crate) fn engine_sense_rules(specs: &[wire::ToolSpec]) -> String {
 
 /// The phase marker (a loop concern, not a wire command): lets a long
 /// task land as several undo steps instead of one monolith.
-pub(crate) fn commit_progress_spec() -> wire::ToolSpec {
+pub fn commit_progress_spec() -> wire::ToolSpec {
     wire::ToolSpec {
         name: "commit_progress".into(),
         description: "Mark the edits so far as one completed phase so they land as \
