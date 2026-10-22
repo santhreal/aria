@@ -1,6 +1,6 @@
 # Color Spaces, YUV Matrices, Starter LUT Pack, and Grading Controls Reference
 
-Frame colorimetry metadata, CPU RGBA/BGRA-to-YUV 4:2:0 conversion matrices, the baked `.cube` starter LUT pack, and Color panel sections and wheels defined in `crates/aria-core/src/color.rs`, `crates/aria-encoder/src/yuv.rs`, `crates/aria-render/src/lut_pack.rs`, `crates/aria-ui/src/panels/color_panel.rs`, and `crates/aria-ui/src/app/grade_controls.rs`. For the 10 colour filter presets (`filters.toml`) and all 62 individual `ColorAdjustments::SLIDERS` rows, see [filters.md](filters.md).
+Frame colorimetry metadata, CPU RGBA/BGRA-to-YUV 4:2:0 conversion matrices, the baked `.cube` starter LUT pack, and Color panel sections and wheels defined in `crates/aria-core/src/color.rs`, `crates/aria-encoder/src/yuv.rs`, `crates/aria-render/src/lut_pack.rs`, `crates/aria-ui/src/panels/color_panel.rs`, and `crates/aria-ui/src/app/grade_controls.rs`. For the colour filter presets (`filters.toml`) and the individual `ColorAdjustments::SLIDERS` rows, see [filters.md](filters.md).
 
 ## Frame colorimetry (`ColorSpace`)
 
@@ -90,7 +90,7 @@ Chroma `(R, G, B)` inputs are 2x2 box-averaged (`(p00 + p01 + p10 + p11) >> 2`) 
 
 ## Color panel sections and grading wheels (`SECTIONS` and `WheelControl`)
 
-`crates/aria-ui/src/panels/color_panel.rs` partitions all 62 rows of the clip parameter catalog's `grade` group into 7 collapsible sections (`SECTIONS`, bitmask capacity `COLOR_SECTIONS = 32`). Section `0` (`Basic Correction`) starts open by default (`GradeControls::default()`); sections `1..=6` start closed.
+`crates/aria-ui/src/panels/color_panel.rs` partitions the rows of the clip parameter catalog's `grade` group into the collapsible sections below (`SECTIONS`, bitmask capacity `COLOR_SECTIONS = 32`). Section `0` (`Basic Correction`) starts open by default (`GradeControls::default()`); sections `1..=6` start closed.
 
 | Section Index | Section Title | Default Open | Row Count | Catalog Row IDs |
 | --- | --- | --- | --- | --- |

@@ -1,6 +1,7 @@
 //! Markdown checks over every file under `docs/`: relative links and
 //! `#anchor` fragments resolve, fenced code blocks close, tables end at a
-//! blank line, and prose stays in the documentation register.
+//! blank line, and prose stays in the documentation register and counts no
+//! catalog members.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -372,6 +373,24 @@ fn every_table_in_docs_ends_at_a_blank_line() {
     );
 }
 
+/// The lines of `text` outside fenced code blocks, with their 1-based numbers.
+fn prose_lines(text: &str) -> Vec<(usize, &str)> {
+    let mut fence: Option<&'static str> = None;
+    let mut lines = Vec::new();
+    for (idx, line) in text.lines().enumerate() {
+        let trimmed = line.trim_start();
+        match fence {
+            Some(mark) if trimmed.starts_with(mark) => fence = None,
+            Some(_) => {}
+            None => match ["```", "~~~"].into_iter().find(|m| trimmed.starts_with(m)) {
+                Some(mark) => fence = Some(mark),
+                None => lines.push((idx + 1, line)),
+            },
+        }
+    }
+    lines
+}
+
 /// WHY: the documentation register states the control, setting, or file
 /// that acts, in flat sentences, so an em dash and the persona nouns "the
 /// user" and "the operator" are out of the register. Rewriting the instances
@@ -385,47 +404,182 @@ fn docs_prose_has_no_em_dash_or_persona_noun() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let mut md_files = vec![root.join("README.md")];
     collect_md_files(&root.join("docs"), &mut md_files);
-    let mut prose_lines = 0usize;
+    let mut read = 0usize;
     let mut found: Vec<String> = Vec::new();
     for md_file in &md_files {
         let text =
             std::fs::read_to_string(md_file).unwrap_or_else(|e| panic!("read {md_file:?}: {e}"));
-        let mut fence: Option<&str> = None;
-        for (idx, line) in text.lines().enumerate() {
-            let trimmed = line.trim_start();
-            match fence {
-                Some(mark) if trimmed.starts_with(mark) => {
-                    fence = None;
-                    continue;
-                }
-                Some(_) => continue,
-                None => {
-                    if let Some(mark) = ["```", "~~~"].into_iter().find(|m| trimmed.starts_with(m))
-                    {
-                        fence = Some(mark);
-                        continue;
-                    }
-                }
-            }
-            prose_lines += 1;
+        for (line_no, line) in prose_lines(&text) {
+            read += 1;
             let prose = strip_inline_code(line).to_lowercase();
             for banned in BANNED.iter().filter(|b| prose.contains(*b)) {
                 found.push(format!(
-                    "{}:{}: {banned:?} in {:?}",
+                    "{}:{line_no}: {banned:?} in {:?}",
                     md_file.display(),
-                    idx + 1,
                     line.trim()
                 ));
             }
         }
     }
     assert!(
-        prose_lines >= 10_000,
-        "expected at least 10000 prose lines across docs/ and README.md, read {prose_lines}"
+        read >= 10_000,
+        "expected at least 10000 prose lines across docs/ and README.md, read {read}"
     );
     assert!(
         found.is_empty(),
         "docs prose outside the register:\n{}",
+        found.join("\n")
+    );
+}
+
+/// Plural nouns that name catalog members, registry rows, or shell elements.
+/// A number before one of them counts entries a chapter already lists.
+const CATALOG_NOUNS: [&str; 37] = [
+    "animations",
+    "bindings",
+    "codecs",
+    "commands",
+    "controls",
+    "crossfades",
+    "curves",
+    "dialogs",
+    "easings",
+    "effects",
+    "encoders",
+    "entries",
+    "fields",
+    "formats",
+    "generators",
+    "keys",
+    "kinds",
+    "menus",
+    "modes",
+    "panels",
+    "parameters",
+    "presets",
+    "properties",
+    "rows",
+    "sections",
+    "shapes",
+    "shortcuts",
+    "sliders",
+    "stickers",
+    "surfaces",
+    "tabs",
+    "tools",
+    "transitions",
+    "variants",
+    "views",
+    "wheels",
+    "workspaces",
+];
+
+/// Lines whose count `docs_claims_tests` derives from a registry, so the
+/// count cannot go stale: the file, by its path under the repository root,
+/// and the start of the line.
+const PINNED_COUNT_LINES: [(&str, &str); 1] = [("docs/architecture.md", "| Menu rows, all ")];
+
+/// The phrases of `prose` that count catalog members: an integer word
+/// followed, within four words of the same clause, by a word in
+/// `CATALOG_NOUNS`. A word ending in `,`, `.`, `;`, `:`, or `)` ends the
+/// clause. `prose` has its inline code removed.
+fn catalog_counts(prose: &str) -> Vec<String> {
+    let words: Vec<&str> = prose.split_whitespace().collect();
+    let mut counts = Vec::new();
+    for (at, word) in words.iter().enumerate() {
+        let digits = word.trim_start_matches(['(', '*']);
+        if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
+            continue;
+        }
+        for (ahead, next) in words.iter().enumerate().skip(at + 1).take(4) {
+            let bare = next
+                .trim_matches(|c: char| !c.is_alphanumeric() && c != '-')
+                .to_lowercase();
+            if CATALOG_NOUNS.contains(&bare.as_str()) {
+                counts.push(words[at..=ahead].join(" "));
+                break;
+            }
+            if next.ends_with([',', '.', ';', ':', ')']) {
+                break;
+            }
+        }
+    }
+    counts
+}
+
+#[test]
+fn catalog_counts_finds_member_counts_and_skips_measures() {
+    let cases: [(&str, &[&str]); 10] = [
+        (
+            "| 24 Panels, 15 Project tabs |",
+            &["24 Panels,", "15 Project tabs"],
+        ),
+        (
+            "Aria ships 8 video transition entries in",
+            &["8 video transition entries"],
+        ),
+        (
+            "| 17 animations, 6 text style presets |",
+            &["17 animations,", "6 text style presets"],
+        ),
+        ("expose 149 state commands (", &["149 state commands"]),
+        ("lists (128 entries) here", &["(128 entries)"]),
+        ("the 15  variants in order", &["15 variants"]),
+        ("a 40 ms audio grain at each position", &[]),
+        ("8 parallel lowpass-feedback comb filters", &[]),
+        ("move 12 frames, then the presets", &[]),
+        ("3 more steps across the five presets", &[]),
+    ];
+    for (prose, want) in cases {
+        assert_eq!(catalog_counts(prose), want, "catalog_counts({prose:?})");
+    }
+}
+
+/// WHY: a number that counts catalog members in a manual page goes stale
+/// when the catalog grows, and no registry test reads it: the reference
+/// landing page once counted 17 animations and 16 colour filter presets
+/// against catalogs of 31 and 10. Each chapter lists its members, so prose
+/// and table cells state no count of them. This walks the repository README
+/// and every file under `docs/` outside fenced blocks and inline code spans
+/// and fails on a phrase `catalog_counts` reports. `docs/spec/` and
+/// `docs/performance.md` are skipped: they state measured workloads and pixel
+/// sizes, where the number is the fact, and so are the lines in
+/// `PINNED_COUNT_LINES`. Not caught: a count spelled as a word, or a count of
+/// a noun outside `CATALOG_NOUNS`.
+#[test]
+fn docs_prose_counts_no_catalog_members() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let mut md_files = vec![root.join("README.md")];
+    collect_md_files(&root.join("docs"), &mut md_files);
+    let skipped = [root.join("docs/spec"), root.join("docs/performance.md")];
+    md_files.retain(|path| !skipped.iter().any(|skip| path.starts_with(skip)));
+    let mut read = 0usize;
+    let mut found: Vec<String> = Vec::new();
+    for md_file in &md_files {
+        let text =
+            std::fs::read_to_string(md_file).unwrap_or_else(|e| panic!("read {md_file:?}: {e}"));
+        let pinned: Vec<&str> = PINNED_COUNT_LINES
+            .iter()
+            .filter(|(path, _)| md_file.ends_with(path))
+            .map(|(_, start)| *start)
+            .collect();
+        for (line_no, line) in prose_lines(&text) {
+            read += 1;
+            if pinned.iter().any(|start| line.starts_with(start)) {
+                continue;
+            }
+            for count in catalog_counts(&strip_inline_code(line)) {
+                found.push(format!("{}:{line_no}: {count:?}", md_file.display()));
+            }
+        }
+    }
+    assert!(
+        read >= 10_000,
+        "expected at least 10000 prose lines across docs/ and README.md, read {read}"
+    );
+    assert!(
+        found.is_empty(),
+        "docs count catalog members a chapter lists; drop the number:\n{}",
         found.join("\n")
     );
 }

@@ -51,4 +51,4 @@ Colour-correct a video clip and apply a filter preset:
 
 ## Reference
 
-See [Filters and color grading](../reference/filters.md), [Controls](../reference/controls.md#color), and [Menus](../reference/menus.md#effect-menu) for all 16 filter presets and 62 grading sliders.
+See [Filters and color grading](../reference/filters.md), [Controls](../reference/controls.md#color), and [Menus](../reference/menus.md#effect-menu) for every filter preset and grading slider.

@@ -29,9 +29,9 @@ params = [{ name = "color", label = "Color", kind = "color", default_color = [18
 
 ## Where to place and edit generators
 
-- **Effects & Presets (`Window > Effects & Presets > Generators`)**: lists the 7 GPU effect generators (`generator = true`). Double-clicking with no clip selected creates a 5-second `Generator::Effect` clip at the playhead with that generator as its first effect; double-clicking with a video clip selected appends the generator to that clip's effect chain.
+- **Effects & Presets (`Window > Effects & Presets > Generators`)**: lists the GPU effect generators (`generator = true`). Double-clicking with no clip selected creates a 5-second `Generator::Effect` clip at the playhead with that generator as its first effect; double-clicking with a video clip selected appends the generator to that clip's effect chain.
 - **Project panel (`Window > Project`)**:
-  - **Effects > Generators**: lists plugin clip types (`clip_types()`) and the 7 GPU effect generators (`color_matte`, `linear_gradient`, `radial_gradient`, `checkerboard`, `grid`, `fractal_noise`, `color_bars`).
+  - **Effects > Generators**: lists plugin clip types (`clip_types()`) and the GPU effect generators (`color_matte`, `linear_gradient`, `radial_gradient`, `checkerboard`, `grid`, `fractal_noise`, `color_bars`).
   - **Graphics > Titles**: places a `text` generator clip (`Generator::text("Title")`).
   - **Graphics > Shapes**: places a `shape` generator clip (`Rectangle` or `Ellipse`, `200 x 200` reference pixels).
   - **Graphics > Stickers**: places a `sticker` generator clip from `stickers.toml` (see [Stickers and masks](stickers-and-masks.md)).
@@ -90,7 +90,7 @@ Configured in **Effect Controls > Shape** (`crates/aria-models/src/clip/param_ca
 
 ## GPU effect generators
 
-The 7 entries in `crates/aria-models/data/effects.toml` marked `generator = true` synthesize a full frame in the GPU effect pass:
+The entries in `crates/aria-models/data/effects.toml` marked `generator = true` synthesize a full frame in the GPU effect pass:
 
 | ID | Label | Category | Shader pass | Summary |
 | --- | --- | --- | --- | --- |

@@ -11,7 +11,7 @@ Task-oriented manual for the Aria desktop editor. Each chapter covers one editor
 4. [Trimming](trimming.md) - Slip, Slide, Rolling edit, Rate stretch, and Ripple trim tools
 5. [Tracks and routing](tracks-and-routing.md) - Track headers, solo and mute, clip bars, source patching, sync lock, and nested sequences
 6. [The viewer](viewer.md) - Transport, zoom, scopes, safe areas, rulers and guides, compare wipe, resolution, proxies, render files, info, framing, and alignment
-7. [Colour](colour.md) - Look presets, Lift/Gamma/Gain colour wheels, 62 grading sliders, curves, HSL secondary, LUTs, and the Color panel
+7. [Colour](colour.md) - Look presets, Lift/Gamma/Gain colour wheels, grading sliders, curves, HSL secondary, LUTs, and the Color panel
 8. [Masks and keys](masks-and-keys.md) - Shape and Bézier path masks, mask stack modes, mask tracking, chroma key, layer styles, and clip animations
 9. [Effects](effects.md) - Effects & Presets browser, procedural generators, the Effect Controls stack, and effect presets
 10. [Audio](audio.md) - Audio Track Mixer, submix buses, pre/post-fader sends, and clip, track, and master audio DSP chains

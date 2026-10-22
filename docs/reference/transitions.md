@@ -1,6 +1,6 @@
 # Transitions
 
-Aria ships 8 video transition entries in `crates/aria-models/data/transitions.toml` (overridden at `<data dir>/catalogs/transitions.toml`; see [Catalogs](../catalogs.md)) and 3 audio crossfade transitions (`AudioTransition::ALL`).
+Aria ships the video transition entries in `crates/aria-models/data/transitions.toml` (overridden at `<data dir>/catalogs/transitions.toml`; see [Catalogs](../catalogs.md)) and the audio crossfade transitions (`AudioTransition::ALL`).
 
 A video transition (`Transition`) attaches to a cut between two abutting clips on the same track over `duration` ticks (`DEFAULT_TRANSITION_TICKS = 24`) with window placement `alignment: TransitionAlignment` (`TransitionAlignment::Center` by default). Normalized progress `t` runs from `0.0` at the transition window start to `1.0` at the transition window end.
 

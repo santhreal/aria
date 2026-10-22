@@ -1,6 +1,6 @@
 # Commands Reference
 
-The Command Palette (`Ctrl+Shift+P` or **Window > Command Palette**) and plugin command registry expose 149 state commands (`BUILTIN_COMMANDS` in `crates/aria-ui/src/commands/mod.rs`) and 10 background job commands (`BUILTIN_JOB_COMMANDS` in `crates/aria-ui/src/commands/mod.rs`). Plugins and tests invoke them through `CommandHost` (`crates/aria-ui/src/commands/host.rs`).
+The Command Palette (`Ctrl+Shift+P` or **Window > Command Palette**) and plugin command registry expose the state commands (`BUILTIN_COMMANDS` in `crates/aria-ui/src/commands/mod.rs`) and the background job commands (`BUILTIN_JOB_COMMANDS` in `crates/aria-ui/src/commands/mod.rs`). Plugins and tests invoke them through `CommandHost` (`crates/aria-ui/src/commands/host.rs`).
 
 ## Worked example
 

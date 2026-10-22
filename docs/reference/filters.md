@@ -3,7 +3,7 @@
 Aria provides two color-grading mechanisms that share the same GPU color pipeline (`crates/aria-compositor/shaders/grade.wgsl` and `lut.wgsl`):
 
 1. **Filter presets (`filters.toml`)**: 10 named color-grade recipes (`vivid`, `warm`, `cool`, `mono`, `fade`, `chrome`, `noir`, `sunset`, `forest`, `berry`) scaled by the clip's animatable `filter-intensity` parameter (`0.0..=1.0`, default `1.0`).
-2. **Per-clip color adjustments (`ColorAdjustments::SLIDERS`)**: 62 animatable color-grading sliders declared in `crates/aria-models/src/look/adjust_rows.rs`, plus 3D `.cube` LUT application (`lut-intensity`).
+2. **Per-clip color adjustments (`ColorAdjustments::SLIDERS`)**: animatable color-grading sliders declared in `crates/aria-models/src/look/adjust_rows.rs`, plus 3D `.cube` LUT application (`lut-intensity`).
 
 ## Examples
 
@@ -14,7 +14,7 @@ Aria provides two color-grading mechanisms that share the same GPU color pipelin
 
 ### Override `filters.toml` to tune the Noir recipe
 
-Place an override file at `<data dir>/catalogs/filters.toml` using any subset of the 62 recipe keys documented in [Catalogs](../catalogs.md#filters):
+Place an override file at `<data dir>/catalogs/filters.toml` using any subset of the recipe keys documented in [Catalogs](../catalogs.md#filters):
 
 ```toml
 [[entry]]
@@ -33,7 +33,7 @@ vignette = 0.30
 - **Lumetri Color panel (`Window > Lumetri Color`)** and **Effect Controls (`Window > Effect Controls > Color` tab)**:
   - Pick a filter preset and drag **Filter intensity** (`0.0..=1.0`).
   - Load a `.cube` 3D LUT file and set **LUT intensity** (`0.0..=1.0`).
-  - Adjust or keyframe any of the 62 `ColorAdjustments::SLIDERS` color sliders across `Basic`, `Tone`, `Detail`, `Lift / Gamma / Gain`, `Master / Red / Green / Blue Curve`, `Hue vs Sat / Hue / Luma`, and `HSL Secondary`.
+  - Adjust or keyframe any `ColorAdjustments::SLIDERS` color slider across `Basic`, `Tone`, `Detail`, `Lift / Gamma / Gain`, `Master / Red / Green / Blue Curve`, `Hue vs Sat / Hue / Luma`, and `HSL Secondary`.
 
 ## Filter presets (`filters.toml`)
 

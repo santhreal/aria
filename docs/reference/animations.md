@@ -4,8 +4,8 @@ Aria ships four motion, text-style, and timing catalogs under `crates/aria-model
 
 1. **Clip and per-character animations (`animations.toml`)**: 31 entrance (`in`), exit (`out`), and looping (`combo`) presets evaluated in `crates/aria-render/src/animation.rs` (whole-layer) and `crates/aria-render/src/render/text_anim.rs` (`text_only = true` per-cluster glyph animations).
 2. **Text style presets (`text_effects.toml`)**: 6 stroke and drop-shadow combinations (`neon`, `shadow`, `outline`, `glow`, `retro`, `chrome`) applied to `TextStyle` (`crates/aria-models/src/text.rs`).
-3. **Easing curves (`easings.toml` and `preset_catalog.rs`)**: 3 named cubic-bezier curves (`snappy`, `overshoot`, `anticipate`), 6 core `Easing` modes (`linear`, `ease_in`, `ease_out`, `ease_in_out`, `hold`, `cubic_bezier`), and 3 multi-keyframe piecewise presets (`bounce_out`, `elastic_out`, `back_out`).
-4. **Speed-ramp presets (`speed_presets.toml`)**: 8 normalized speed multiplier curves (`ramp_up`, `ramp_down`, `montage`, `hero`, `bullet`, `jump_cut`, `flash_in`, `flash_out`).
+3. **Easing curves (`easings.toml` and `preset_catalog.rs`)**: named cubic-bezier curves (`snappy`, `overshoot`, `anticipate`), the core `Easing` modes (`linear`, `ease_in`, `ease_out`, `ease_in_out`, `hold`, `cubic_bezier`), and multi-keyframe piecewise presets (`bounce_out`, `elastic_out`, `back_out`).
+4. **Speed-ramp presets (`speed_presets.toml`)**: normalized speed multiplier curves (`ramp_up`, `ramp_down`, `montage`, `hero`, `bullet`, `jump_cut`, `flash_in`, `flash_out`).
 
 ## Examples
 

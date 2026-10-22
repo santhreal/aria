@@ -4,10 +4,10 @@ Every animatable clip property in Aria is registered in `crates/aria-models/src/
 
 ## `ClipParam` variants and classification (`ClipParam::CENSUS` and `ClipParamClass`)
 
-`ClipParam::CENSUS` lists one representative value for each of the 15 `ClipParam` variants in declaration order. `ClipParam::class()` classifies each variant as:
+`ClipParam::CENSUS` lists one representative value for each `ClipParam` variant in declaration order. `ClipParam::class()` classifies each variant as:
 - `Direct(&'static str)` for a single clip property with one static row in `clip_param_catalog()`.
 - `Delegated(ParamAxis)` for a wrapper over a sub-enum (`ParamAxis::Look`, `ParamAxis::Style`, `ParamAxis::Text`, or `ParamAxis::Shape`), where each member of the sub-enum (`LookParam::ALL`, `StyleParam::ALL`, `TextParam::ALL`, `ShapeParam::ALL`) has its own row in `clip_param_catalog()`.
-- `Excluded(ParamExclusion)` for a parameter with no static row in `clip_param_catalog()`: `ParamExclusion::SpeedCurve` (edited via `EditCommand::SetClipSpeedCurve` on `0..=SPEED_CURVE_SCALE` with `SPEED_CURVE_SCALE = 1000` and speed bounds `MIN_SPEED = 0.05` to `MAX_SPEED = 100.0`), `ParamExclusion::EffectSlot` (built per effect instance via `clip_params_for`), and `ParamExclusion::MaskSlot` (built per mask via `clip_params_for` over the 7 `MaskParam::ALL` variants).
+- `Excluded(ParamExclusion)` for a parameter with no static row in `clip_param_catalog()`: `ParamExclusion::SpeedCurve` (edited via `EditCommand::SetClipSpeedCurve` on `0..=SPEED_CURVE_SCALE` with `SPEED_CURVE_SCALE = 1000` and speed bounds `MIN_SPEED = 0.05` to `MAX_SPEED = 100.0`), `ParamExclusion::EffectSlot` (built per effect instance via `clip_params_for`), and `ParamExclusion::MaskSlot` (built per mask via `clip_params_for` over the `MaskParam::ALL` variants).
 
 | Variant | Class | Scope | Kind | Easing Preset (`supports_easing_preset`) |
 | --- | --- | --- | --- | --- |
@@ -29,7 +29,7 @@ Every animatable clip property in Aria is registered in `crates/aria-models/src/
 
 ## Static animatable clip parameter catalog (`clip_param_catalog()`)
 
-`clip_param_catalog()` returns all 104 static `ParamSpec` rows in browse order: 8 direct rows, 67 `LookParam` rows (`filter`, `lut`, `grade`, `chroma`, `matte`), 11 `StyleParam` rows (`shadow`, `glow`, `outline`, `background`), 11 `TextParam` rows (`text`), and 7 `ShapeParam` rows (`shape`).
+`clip_param_catalog()` returns every static `ParamSpec` row in browse order: the direct rows, then the `LookParam` rows (`filter`, `lut`, `grade`, `chroma`, `matte`), the `StyleParam` rows (`shadow`, `glow`, `outline`, `background`), the `TextParam` rows (`text`), and the `ShapeParam` rows (`shape`).
 
 | Catalog ID | Label | Group | `ClipParam` | Kind | Scope | Range |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -264,7 +264,7 @@ In the Viewer (`crates/aria-ui/src/app/canvas_overlay.rs`), scale and crop drags
 
 ## Generators and vector shapes (`generator_specs()` and `Shape`)
 
-`generator_specs()` (`crates/aria-models/src/clip/generator_catalog.rs`) defines the 8 `Generator` variants (`crates/aria-models/src/clip/generator.rs`). Freshly created `Generator::Shape` clips use `SHAPE_DROP_WIDTH = 200.0` and `SHAPE_DROP_HEIGHT = 200.0` (legacy default `960.0` x `540.0`), with dimensions and path coordinates bounded by `MAX_SHAPE_DIM = 8192.0`, polygon sides and star points in `3..=20` (`MAX_STAR_POINTS = 20`), star `inner_ratio` default `0.5` in `0.0..=1.0`, and `ShapeStroke` default `rgba = [0, 0, 0, 255]`, `width = 4.0` bounded by `MAX_STROKE_WIDTH = 512.0`.
+`generator_specs()` (`crates/aria-models/src/clip/generator_catalog.rs`) defines the `Generator` variants (`crates/aria-models/src/clip/generator.rs`). Freshly created `Generator::Shape` clips use `SHAPE_DROP_WIDTH = 200.0` and `SHAPE_DROP_HEIGHT = 200.0` (legacy default `960.0` x `540.0`), with dimensions and path coordinates bounded by `MAX_SHAPE_DIM = 8192.0`, polygon sides and star points in `3..=20` (`MAX_STAR_POINTS = 20`), star `inner_ratio` default `0.5` in `0.0..=1.0`, and `ShapeStroke` default `rgba = [0, 0, 0, 255]`, `width = 4.0` bounded by `MAX_STROKE_WIDTH = 512.0`.
 
 | Wire ID | Label | Target Lane (`TrackKind`) | Layer Topologies (`renders_with`) | Text Block | Shape Block | Needs Asset | Paints | Param Time | Animatable |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |

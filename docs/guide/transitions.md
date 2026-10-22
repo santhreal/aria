@@ -61,4 +61,4 @@ Add a video transition and an audio crossfade across an edit cut:
 
 ## Reference
 
-See [Transitions](../reference/transitions.md), [Controls](../reference/controls.md#inspector), and [Menus](../reference/menus.md#sequence-menu) for all 8 video transitions and 3 audio crossfade curves.
+See [Transitions](../reference/transitions.md), [Controls](../reference/controls.md#inspector), and [Menus](../reference/menus.md#sequence-menu) for every video transition and audio crossfade curve.

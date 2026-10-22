@@ -3,7 +3,7 @@
 Aria includes two shape and overlay catalogs under `crates/aria-models/data/`:
 
 1. **Stickers (`stickers.toml`)**: 8 built-in static and animated raster overlays (`heart`, `star`, `smiley`, `bolt`, `bubble`, `flower`, `star_spin`, `heart_beat`) decoded from `crates/aria-models/data/stickers/` or `<data dir>/catalogs/stickers/`.
-2. **Mask shapes (`masks.toml`)**: 7 mask shape entries (`linear`, `mirror`, `circle`, `rectangle`, `heart`, `star`, `path`) evaluated on the GPU in `crates/aria-compositor/shaders/mask.wgsl`, `matte.wgsl`, and `mask_stack.wgsl`.
+2. **Mask shapes (`masks.toml`)**: mask shape entries (`linear`, `mirror`, `circle`, `rectangle`, `heart`, `star`, `path`) evaluated on the GPU in `crates/aria-compositor/shaders/mask.wgsl`, `matte.wgsl`, and `mask_stack.wgsl`.
 
 ## Examples
 
@@ -85,7 +85,7 @@ A clip can hold up to `MAX_CLIP_MASKS = 32` masks in `clip.masks`, combined in s
 
 ### Animatable mask parameters (`MaskParam` / `mask_rows.rs`)
 
-Each mask at index `<index>` (`0..32`) in `clip.masks` exposes 7 animatable parameters (`mask-<index>-<id>`, with clip-first shorthand aliases `mask-feather`, `mask-expansion`, `mask-roundness`, `mask-opacity` for mask `0` in `crates/aria-models/src/clip/param_catalog/mask_rows.rs`):
+Each mask at index `<index>` (`0..32`) in `clip.masks` exposes these animatable parameters (`mask-<index>-<id>`, with clip-first shorthand aliases `mask-feather`, `mask-expansion`, `mask-roundness`, `mask-opacity` for mask `0` in `crates/aria-models/src/clip/param_catalog/mask_rows.rs`):
 
 | ID (`MaskParam::id`) | Shorthand (mask `0`) | Label | Kind | Unit | Min | Max | Default | Applies to | Animates |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
