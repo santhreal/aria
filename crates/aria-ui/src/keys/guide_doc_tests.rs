@@ -36,10 +36,10 @@ use std::path::{Path, PathBuf};
 
 use super::controls_doc_tests::shipped_control_ids;
 use super::doc_tests::shipped_binding_chords;
-use super::reference_doc_tests::{
-    check_markdown_links_in_files, collect_md_files, extract_markdown_links, shipped_menu_paths,
-    shipped_palette_commands, strip_inline_code,
+use super::docs_markdown_tests::{
+    check_markdown_links_in_files, collect_md_files, extract_markdown_links, strip_inline_code,
 };
+use super::reference_doc_tests::{shipped_menu_paths, shipped_palette_commands};
 use crate::test_support::doc_tables::{
     heading_body, read_doc, section_slice, strip_ticks, table_rows,
 };

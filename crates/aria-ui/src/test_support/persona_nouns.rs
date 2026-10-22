@@ -33,7 +33,7 @@ const CHAT_ROLE_ROOT: &str = "crates/aria-ai/";
 /// exemption cannot outlive its reason.
 const EXEMPT: &[(&str, &str)] = &[
     (
-        "crates/aria-ui/src/keys/reference_doc_tests.rs",
+        "crates/aria-ui/src/keys/docs_markdown_tests.rs",
         "the docs register test lists the phrases it rejects in docs/",
     ),
     (

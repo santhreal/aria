@@ -41,17 +41,27 @@ mod doc_tests;
 #[cfg(test)]
 mod docs_claims_tests;
 #[cfg(test)]
+mod docs_markdown_tests;
+#[cfg(test)]
 mod export_doc_tests;
 #[cfg(test)]
 mod guide_doc_tests;
 #[cfg(test)]
 mod keyframes_graph_doc_tests;
 #[cfg(test)]
+mod panels_doc_tests;
+#[cfg(test)]
+mod plugin_keys_doc_tests;
+#[cfg(test)]
 mod project_settings_doc_tests;
 #[cfg(test)]
 mod reference_doc_tests;
 #[cfg(test)]
+mod registry_doc_tests;
+#[cfg(test)]
 mod scopes_doc_tests;
+#[cfg(test)]
+mod settings_doc_tests;
 
 /// What the shell does after the action ran.
 ///
