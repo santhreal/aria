@@ -814,6 +814,10 @@ fn reloader_swaps_behaviour_when_wasm_fixture_changes_on_disk() {
     assert_eq!(markers.len(), 1);
     assert_eq!(markers[0].name, "wasm-marker-v2");
 
+    // The plugin's event handler writes its storage under the package
+    // directory on the delivery thread. Every event posted so far runs before
+    // the directory goes, or a write lands mid-removal and the removal fails.
+    assert!(ctx.events().flush(FLUSH_TIMEOUT));
     // Removing the package directory and polling unmounts the plugin.
     fs::remove_dir_all(&pkg_dir).expect("remove package dir");
     let removed_outcomes = reloader.poll(&ctx);

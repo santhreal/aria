@@ -9,6 +9,7 @@
 
 use std::sync::Condvar;
 use std::sync::atomic::AtomicUsize;
+use std::time::Instant;
 
 use super::*;
 
@@ -66,6 +67,21 @@ impl Watched {
             .find(|seen| seen.id == id)
             .expect("no events for the job")
     }
+}
+
+/// Assert every slot is freed within [`SETTLE`] and no job waits. A job's
+/// thread publishes its terminal state before it passes on or frees its slot,
+/// so the last terminal event can arrive while that slot is still held.
+fn assert_slots_freed(manager: &JobManager) {
+    let deadline = Instant::now() + SETTLE;
+    while manager.shared.active_threads.load(Ordering::SeqCst) != 0 {
+        assert!(
+            Instant::now() < deadline,
+            "a slot stayed held after every job finished"
+        );
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    assert!(manager.shared.waiting.lock().unwrap().is_empty());
 }
 
 /// A gate jobs wait on until a test opens it.
@@ -140,11 +156,7 @@ fn exactly_the_limit_runs_at_once_and_every_job_finishes() {
         for id in &ids {
             assert_eq!(watched.last(*id).state, JobState::Done);
         }
-        assert_eq!(
-            watched.manager.shared.active_threads.load(Ordering::SeqCst),
-            0
-        );
-        assert!(watched.manager.shared.waiting.lock().unwrap().is_empty());
+        assert_slots_freed(&watched.manager);
     }
     assert!(
         JobManager::new().shared.concurrency_limit.is_some(),
@@ -243,10 +255,7 @@ fn a_job_cancelled_while_it_waits_never_runs() {
     // The slot passed on: the job behind it still ran.
     assert_eq!(watched.last(after).state, JobState::Done);
     assert_eq!(watched.last(after).detail, "ran");
-    assert_eq!(
-        watched.manager.shared.active_threads.load(Ordering::SeqCst),
-        0
-    );
+    assert_slots_freed(&watched.manager);
 }
 
 /// The export queue's shape: each job spawns the next from inside its own
@@ -321,9 +330,5 @@ fn concurrent_spawners_never_strand_a_job() {
             .all(|id| watched.last(*id).state == JobState::Done)
     );
     assert!(peak.load(Ordering::SeqCst) <= 2);
-    assert_eq!(
-        watched.manager.shared.active_threads.load(Ordering::SeqCst),
-        0
-    );
-    assert!(watched.manager.shared.waiting.lock().unwrap().is_empty());
+    assert_slots_freed(&watched.manager);
 }
