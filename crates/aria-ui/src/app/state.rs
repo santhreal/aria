@@ -535,9 +535,9 @@ pub struct AppState {
     /// Set once leaving the app has been answered, or needed no answer. The
     /// shell quits on the next frame it draws.
     pub(crate) quit_requested: bool,
-    /// When the last recovery copy was written. `None` means none this session,
-    /// so the first dirty tick writes one.
-    pub(crate) last_autosave: Option<Instant>,
+    /// The recovery copy: when the last one started, and the one still being
+    /// written.
+    pub(crate) autosave: recovery::Autosave,
     /// Which on-canvas handles the preview offers. Session state: how you are
     /// looking at the picture, not part of the project.
     pub(crate) overlay_mode: crate::types::OverlayMode,

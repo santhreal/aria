@@ -335,7 +335,7 @@ impl AppState {
             align_to: align::AlignTo::default(),
             pending_intent: None,
             quit_requested: false,
-            last_autosave: None,
+            autosave: Default::default(),
             overlay_mode: crate::types::OverlayMode::default(),
             rebinding: None,
             meter: meter::MeterReading::default(),

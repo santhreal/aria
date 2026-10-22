@@ -13,14 +13,25 @@
 //!   project it shadows, so restoring writes back to the project file
 //!   rather than to the recovery copy.
 //!
+//! The copy is written on a thread of its own, from a snapshot of the project
+//! that costs a reference count: serializing and syncing `project-10k` takes
+//! about 200 ms, which on the window's thread froze the editor every twenty
+//! seconds of editing. At most one copy is in flight. Rewriting or removing the
+//! copy, and dropping the session, first wait for the copy in flight, so a
+//! late copy never replaces a newer one or lands after the offer was cleared.
+//!
 //! Time is a parameter, never `Instant::now()` read in here, so the interval is
 //! testable without sleeping.
 
+use std::io;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
 use aria_commands::{Command, ProjectCommand};
 use aria_engine::EngineError;
+use aria_models::Project;
 
 use super::AppState;
 
@@ -30,6 +41,10 @@ use super::AppState;
 /// project is not being serialized constantly, short enough that a crash costs
 /// less than an edit or two.
 pub const AUTOSAVE_INTERVAL: Duration = Duration::from_secs(20);
+
+/// The thread that writes a recovery copy, as `/proc/<pid>/task/*/comm` shows
+/// it.
+const THREAD_NAME: &str = "aria-autosave";
 
 /// The recovery copy for `data_dir`.
 pub fn recovery_path(data_dir: &Path) -> PathBuf {
@@ -52,54 +67,154 @@ pub struct RecoveryOffer {
     pub name: String,
 }
 
-impl AppState {
-    /// Write a recovery copy if one is due. Returns true when one was written.
-    ///
-    /// Called from the same half-second ticker that ages the status line: a
-    /// dedicated timer would wake the app more often to do nothing.
-    pub fn autosave_tick(&mut self, now: Instant) -> bool {
-        if !self.store.is_dirty {
-            return false;
-        }
-        if let Some(last) = self.last_autosave
-            && now.duration_since(last) < AUTOSAVE_INTERVAL
-        {
-            return false;
-        }
-        self.last_autosave = Some(now);
-        self.write_recovery().is_ok()
+/// When the last recovery copy started, and the one still being written.
+///
+/// Dropping it waits for the copy in flight. A session dropped mid-write would
+/// otherwise leave a thread writing into a data directory the session no
+/// longer holds, and a process ending mid-write leaves the temporary behind.
+#[derive(Debug, Default)]
+pub(crate) struct Autosave {
+    /// When the last copy started. `None` means none since the file last caught
+    /// up with the session, so the first dirty tick writes one.
+    last: Option<Instant>,
+    /// The copy being written, if one is.
+    writing: Option<JoinHandle<io::Result<()>>>,
+}
+
+impl Autosave {
+    /// Whether a copy may start at `now`: the interval since the last one has
+    /// passed and no copy is still being written.
+    pub(super) fn due(&self, now: Instant) -> bool {
+        self.last
+            .is_none_or(|last| now.duration_since(last) >= AUTOSAVE_INTERVAL)
+            && self.writing.as_ref().is_none_or(JoinHandle::is_finished)
     }
 
-    /// Write the recovery copy and its sidecar now, whatever the clock says.
+    /// Run `write` on the autosave thread, as the copy started at `now`.
+    ///
+    /// An error means the thread did not start and nothing was written.
+    pub(super) fn start(
+        &mut self,
+        now: Instant,
+        write: impl FnOnce() -> io::Result<()> + Send + 'static,
+    ) -> io::Result<()> {
+        self.finish();
+        self.last = Some(now);
+        let writing = thread::Builder::new()
+            .name(THREAD_NAME.to_owned())
+            .spawn(write)?;
+        self.writing = Some(writing);
+        Ok(())
+    }
+
+    /// Wait for the copy being written, if one is, and log how it failed.
+    pub(super) fn finish(&mut self) {
+        let Some(writing) = self.writing.take() else {
+            return;
+        };
+        match writing.join() {
+            Ok(Ok(())) => {}
+            Ok(Err(err)) => tracing::warn!(error = %err, "the recovery copy was not written"),
+            Err(_) => {
+                tracing::error!("the {THREAD_NAME} thread panicked writing the recovery copy")
+            }
+        }
+    }
+}
+
+impl Drop for Autosave {
+    fn drop(&mut self) {
+        self.finish();
+    }
+}
+
+/// Write `project` as the recovery copy in `data_dir`, then the sidecar naming
+/// `origin`, the project file it shadows.
+fn write_copy(data_dir: &Path, project: &Project, origin: &str) -> io::Result<()> {
+    let _ = std::fs::create_dir_all(data_dir);
+    project.save_to_file(&recovery_path(data_dir))?;
+    let _ = std::fs::write(sidecar_path(data_dir), origin);
+    Ok(())
+}
+
+impl AppState {
+    /// Start a recovery copy if one is due. Returns true when one started.
+    ///
+    /// Called from the same half-second ticker that ages the status line: a
+    /// dedicated timer would wake the app more often to do nothing. The copy
+    /// is written on the autosave thread; a tick while it is still being
+    /// written starts nothing, and the next tick after it finishes starts the
+    /// next one. A preview decode holds the session for the whole decode, so a
+    /// tick that finds it held starts nothing either, and the next tick tries
+    /// again.
+    pub fn autosave_tick(&mut self, now: Instant) -> bool {
+        if !self.store.is_dirty || !self.autosave.due(now) {
+            return false;
+        }
+        let Some(project) = self.engine.try_lock().map(|engine| engine.snapshot()) else {
+            return false;
+        };
+        let write = self.recovery_write(project);
+        match self.autosave.start(now, write) {
+            Ok(()) => true,
+            Err(err) => {
+                tracing::warn!(
+                    error = %err,
+                    "could not start the {THREAD_NAME} thread; writing the recovery copy on the window's thread"
+                );
+                self.write_recovery().is_ok()
+            }
+        }
+    }
+
+    /// Wait for the recovery copy being written, if one is.
+    ///
+    /// For a caller that reads the copy back, such as a test, or that times the
+    /// tick apart from the write, such as a benchmark.
+    pub fn finish_autosave(&mut self) {
+        self.autosave.finish();
+    }
+
+    /// Write the recovery copy and its sidecar now, on this thread, whatever
+    /// the clock says.
     ///
     /// Separate from the tick so a test — and a future "save on suspend" — can
     /// ask for the copy without arranging a time.
     pub fn write_recovery(&mut self) -> Result<(), EngineError> {
-        let file = recovery_path(&self.data_dir);
-        if let Some(parent) = file.parent() {
-            let _ = std::fs::create_dir_all(parent);
-        }
-        self.engine
-            .lock()
-            .project()
-            .save_to_file(&file)
-            .map_err(EngineError::Io)?;
+        // A copy still in flight would land after this one and replace it
+        // with older work.
+        self.autosave.finish();
+        let project = self.engine.lock().snapshot();
+        let write = self.recovery_write(project);
+        write().map_err(EngineError::Io)
+    }
+
+    /// The write of a recovery copy of `project`, a snapshot of the session.
+    ///
+    /// The snapshot costs a reference count; an edit made while the write
+    /// still holds it copies the project once.
+    fn recovery_write(
+        &self,
+        project: Arc<Project>,
+    ) -> impl FnOnce() -> io::Result<()> + Send + 'static {
+        let data_dir = self.data_dir.clone();
         let origin = self
             .project_path
             .as_ref()
             .map(|path| path.display().to_string())
             .unwrap_or_default();
-        let _ = std::fs::write(sidecar_path(&self.data_dir), origin);
-        Ok(())
+        move || write_copy(&data_dir, &project, &origin)
     }
 
     /// Forget any recovery copy. Called whenever the real file catches up with
     /// the session: a stale offer would hand back older work than the file
     /// already holds.
     pub fn clear_recovery(&mut self) {
+        // A copy still in flight would land after the removal and offer it.
+        self.autosave.finish();
         let _ = std::fs::remove_file(recovery_path(&self.data_dir));
         let _ = std::fs::remove_file(sidecar_path(&self.data_dir));
-        self.last_autosave = None;
+        self.autosave.last = None;
     }
 
     /// The recovery copy waiting to be offered, if any.

@@ -170,6 +170,12 @@ const THREAD_OWNERS: &[(&str, &str)] = &[
         "the render bar: at most one thread drains the latest segment request, \
          is never joined, and reports through a handoff wake",
     ),
+    (
+        "crates/aria-ui/src/app/recovery.rs",
+        "the autosave writer: at most one recovery copy in flight, joined on \
+         the window's thread before the copy is rewritten or removed and when \
+         the session drops; the write never needs the scheduler",
+    ),
 ];
 
 /// **Handing work to a thread belongs to one module.**

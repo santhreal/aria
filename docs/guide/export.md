@@ -90,8 +90,9 @@ loaded. With unsaved edits in the project, each one prompts first:
 - **Stay** cancels. Nothing is saved and nothing is replaced.
 
 While a project has unsaved edits, a copy is written to `~/.aria/recovery.aria`
-every twenty seconds. Saving, opening, or starting a project deletes it, so the
-copy only ever exists when the file on disk is behind the session.
+every twenty seconds, in the background, so editing continues while it is
+written. Saving, opening, or starting a project deletes it, so the copy only
+ever exists when the file on disk is behind the session.
 
 If the app stops without saving (a crash, a kill, a power cut), Home shows the
 copy on the next launch:

@@ -35,7 +35,7 @@ the media fixtures with the `ffmpeg` on `PATH`; none is downloaded.
 | Area | Target | Scenario |
 | --- | --- | --- |
 | Start | Window interactive in 1 s cold, 500 ms warm | `startup` |
-| Project open | `project-10k` open to interactive in 500 ms; save in 200 ms | `project-io` |
+| Project open | `project-10k` open to interactive in 500 ms; save in 200 ms; an autosave holds the UI thread at most 4 ms | `project-io` |
 | Play start | Space to the first new frame on screen: 100 ms warm, 300 ms with no decoder open | `play-start` |
 | Playback | `h264-1080p60` and `hevc-2160p60` at Full: 0 dropped frames in 60 s (Laptop: `hevc-2160p60` at 1/2) | `playback` |
 | Playback, effects | `stack-4k` at 1/2: 0 dropped frames in 30 s (Laptop: 1/4) | `playback` |
