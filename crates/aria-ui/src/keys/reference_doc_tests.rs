@@ -129,68 +129,41 @@ fn tools_doc_matches_registry() {
     );
 }
 
-/// Closes the class where a shipped workspace or its pane geometry changes in
-/// `layouts.rs` or `DOCK_VERSION` changes in `dock/mod.rs` without updating
+/// Closes the class where a shipped workspace, its place in the
+/// `Shift+Alt+<n>` slots, or its pane arrangement changes in `layouts.rs`, or
+/// `DOCK_VERSION` changes in `dock/mod.rs`, without updating
 /// `docs/reference/workspaces.md`.
 /// Does not catch prose edits in the worked example section.
 #[test]
 fn workspaces_doc_matches_registry() {
     let rows = parse_table_rows(section_slice(WORKSPACES_DOC, "Shipped workspaces"));
-    let expected: Vec<(
-        String,
-        String,
-        String,
-        String,
-        String,
-        String,
-        String,
-        String,
-        String,
-        String,
-    )> = WORKSPACES
+    let expected: Vec<Vec<String>> = WORKSPACES
         .iter()
-        .map(|ws| {
-            (
+        .enumerate()
+        .map(|(slot, ws)| {
+            vec![
                 ws.id.to_string(),
                 ws.name.to_string(),
+                format!("Shift+Alt+{}", slot + 1),
                 format!("{}", ws.panes.sidebar_width as u32),
                 format!("{}", ws.panes.sidebar_collapsed),
                 format!("{}", ws.panes.inspector_width as u32),
                 format!("{}", ws.panes.inspector_collapsed),
                 format!("{}", ws.panes.timeline_height as u32),
                 format!("{}", ws.panes.scopes_open),
+                format!("{}", ws.panes.graph_open),
                 format!("{:?}", ws.panes.panel),
                 format!("{:?}", ws.panes.route),
-            )
+            ]
         })
         .collect();
-    let documented: Vec<(
-        String,
-        String,
-        String,
-        String,
-        String,
-        String,
-        String,
-        String,
-        String,
-        String,
-    )> = rows
+    let documented: Vec<Vec<String>> = rows
         .iter()
         .map(|cells| {
-            assert!(cells.len() >= 11, "malformed workspace row: {cells:?}");
-            (
-                strip_ticks(cells[0]).to_string(),
-                cells[1].to_string(),
-                strip_ticks(cells[3]).to_string(),
-                strip_ticks(cells[4]).to_string(),
-                strip_ticks(cells[5]).to_string(),
-                strip_ticks(cells[6]).to_string(),
-                strip_ticks(cells[7]).to_string(),
-                strip_ticks(cells[8]).to_string(),
-                strip_ticks(cells[9]).to_string(),
-                strip_ticks(cells[10]).to_string(),
-            )
+            cells
+                .iter()
+                .map(|cell| strip_ticks(cell).to_string())
+                .collect()
         })
         .collect();
     assert_eq!(

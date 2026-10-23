@@ -1,6 +1,6 @@
 # Workspaces Reference
 
-A workspace is a named arrangement of dock frames, split ratios, panel tabs, and pane dimensions (`crates/aria-ui/src/layouts.rs` and `crates/aria-ui/src/dock/mod.rs`). Switching workspaces updates the dock tree, the sidebar and inspector widths, the timeline height, the scope strip, the focused panel, and the Effects & Presets category filter.
+A workspace is a named arrangement of dock frames, split ratios, panel tabs, and pane dimensions (`crates/aria-ui/src/layouts.rs` and `crates/aria-ui/src/dock/mod.rs`). Switching workspaces updates the dock tree, the sidebar and inspector widths, the timeline height, the scope strip, the timeline graph editor, the focused panel, and the Effects & Presets category filter. A workspace with **Graph open** set to `false` closes the graph editor.
 
 ## Worked example
 
@@ -12,13 +12,13 @@ Switch to the **Audio** workspace, adjust a splitter, save the arrangement, and 
 
 ## Shipped workspaces
 
-| ID | Name | Shortcut | Sidebar width | Sidebar collapsed | Inspector width | Inspector collapsed | Timeline height | Scopes open | Focused panel | Route |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `win-workspace-editing` | Editing | `Shift+Alt+1` | `256` | `false` | `520` | `false` | `280` | `false` | `Timeline` | `Editor` |
-| `win-workspace-animation` | Animation | `Shift+Alt+2` | `280` | `false` | `480` | `false` | `360` | `false` | `Timeline` | `Editor` |
-| `win-workspace-colour` | Color | `Shift+Alt+3` | `208` | `true` | `700` | `false` | `200` | `false` | `Preview` | `Editor` |
-| `win-workspace-audio` | Audio | `Shift+Alt+4` | `240` | `false` | `440` | `false` | `420` | `false` | `Timeline` | `Editor` |
-| `win-workspace-effects` | Effects | `Shift+Alt+5` | `208` | `true` | `760` | `false` | `240` | `false` | `Inspector` | `Editor` |
+| ID | Name | Shortcut | Sidebar width | Sidebar collapsed | Inspector width | Inspector collapsed | Timeline height | Scopes open | Graph open | Focused panel | Route |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `win-workspace-editing` | Editing | `Shift+Alt+1` | `256` | `false` | `520` | `false` | `280` | `false` | `false` | `Timeline` | `Editor` |
+| `win-workspace-animation` | Animation | `Shift+Alt+2` | `280` | `false` | `480` | `false` | `360` | `false` | `true` | `Timeline` | `Editor` |
+| `win-workspace-colour` | Color | `Shift+Alt+3` | `208` | `true` | `700` | `false` | `200` | `false` | `false` | `Preview` | `Editor` |
+| `win-workspace-audio` | Audio | `Shift+Alt+4` | `240` | `false` | `440` | `false` | `420` | `false` | `false` | `Timeline` | `Editor` |
+| `win-workspace-effects` | Effects | `Shift+Alt+5` | `208` | `true` | `760` | `false` | `240` | `false` | `false` | `Inspector` | `Editor` |
 
 ## Default dock trees
 
@@ -44,4 +44,4 @@ Each shipped workspace builds a two-row vertical `DockTree` (`DOCK_VERSION = 2`)
 
 - **Per-workspace persistence**: splitter drags, tab reorders, docks, and undocks are saved per workspace ID in `workspaceTrees` inside `ui-settings.json`.
 - **Custom workspace (`win-workspace-custom`)**: created by **Window > Workspaces > Save Workspace** (`win-workspace-save`) or the **Save current** button in **Settings > Workspaces**. Named workspace files are written to `<data dir>/workspaces/<name>.json`. **Reset to Saved Layout** (`win-workspace-reset`) restores the active workspace to its saved or shipped arrangement.
-- **Plugin workspaces (`win-workspace-plugin:<id>`)**: plugins register workspaces on `PluginContext::register_workspace`. Shortcut slots `Shift+Alt+1` through `Shift+Alt+9` address the first nine rows in `AppState::workspace_rows()` (the five shipped workspaces followed by `Custom` when present and any plugin workspaces in registration order).
+- **Plugin workspaces (`win-workspace-plugin:<id>`)**: plugins register workspaces on `PluginContext::register_workspace`. A plugin workspace opens with the timeline graph editor closed. Shortcut slots `Shift+Alt+1` through `Shift+Alt+9` address the first nine rows in `AppState::workspace_rows()`: the shipped workspaces in the order of the table above, then `Custom` when present, then plugin workspaces in registration order.

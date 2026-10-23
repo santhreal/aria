@@ -47,6 +47,7 @@ impl AppState {
             inspector_collapsed: self.ui_settings.inspector_collapsed,
             timeline_height: self.ui_settings.timeline_height,
             scopes_open: self.scopes_open,
+            graph_open: self.timeline_graph_open(),
             panel: self.active_panel,
             route: self.route,
         }
@@ -740,9 +741,10 @@ impl AppState {
         } else {
             self.set_effects_filter(None);
         }
-        if id == "win-workspace-animation" && !self.timeline_graph_open() {
+        if self.timeline_graph_open() != panes.graph_open {
             self.toggle_timeline_graph_editor();
         }
+        // Home goes through the unsaved-changes prompt, so a workspace
         // cannot walk away from an unsaved project.
         match panes.route {
             UiRoute::Home if self.route != UiRoute::Home => self.request_go_home(),

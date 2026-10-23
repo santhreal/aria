@@ -1,8 +1,8 @@
 //! Workspaces: a named arrangement of the editor.
 //!
-//! A workspace is data. The four shipped ones are the rows of [`WORKSPACES`], the
+//! A workspace is data. The shipped ones are the rows of [`WORKSPACES`], the
 //! Window menu draws one entry per row, and Settings lists the same rows, so a
-//! fifth arrangement is one row here and nothing else. What a row cannot express
+//! new arrangement is one row here and nothing else. What a row cannot express
 //! is deliberate: a workspace names panes, not project state, so applying one can
 //! never lose an edit.
 //!
@@ -46,6 +46,9 @@ pub struct PaneLayout {
     pub inspector_collapsed: bool,
     pub timeline_height: f32,
     pub scopes_open: bool,
+    /// Whether the timeline graph editor is open below the lanes. A workspace
+    /// that leaves it shut closes it, so it never follows into the next one.
+    pub graph_open: bool,
     /// Which pane the keyboard is aimed at.
     pub panel: ActivePanel,
     /// The current screen. Home is a route, so an arrangement saved on the
@@ -87,6 +90,7 @@ pub const WORKSPACES: [Workspace; 5] = [
             inspector_collapsed: false,
             timeline_height: TIMELINE_DEFAULT_HEIGHT,
             scopes_open: false,
+            graph_open: false,
             panel: ActivePanel::Timeline,
             route: UiRoute::Editor,
         },
@@ -101,6 +105,7 @@ pub const WORKSPACES: [Workspace; 5] = [
             inspector_collapsed: false,
             timeline_height: 360.0,
             scopes_open: false,
+            graph_open: true,
             panel: ActivePanel::Timeline,
             route: UiRoute::Editor,
         },
@@ -117,6 +122,7 @@ pub const WORKSPACES: [Workspace; 5] = [
             // The Scopes panel is in front instead, so the strip stays shut and
             // the frame is measured once.
             scopes_open: false,
+            graph_open: false,
             panel: ActivePanel::Preview,
             route: UiRoute::Editor,
         },
@@ -132,6 +138,7 @@ pub const WORKSPACES: [Workspace; 5] = [
             // Tall, because audio work is lane work.
             timeline_height: 420.0,
             scopes_open: false,
+            graph_open: false,
             panel: ActivePanel::Timeline,
             route: UiRoute::Editor,
         },
@@ -146,6 +153,7 @@ pub const WORKSPACES: [Workspace; 5] = [
             inspector_collapsed: false,
             timeline_height: 240.0,
             scopes_open: false,
+            graph_open: false,
             panel: ActivePanel::Inspector,
             route: UiRoute::Editor,
         },
@@ -468,6 +476,7 @@ pub fn plugin_panes(panes: &aria_plugin::WorkspacePanes) -> PaneLayout {
             .unwrap_or(editing.inspector_collapsed),
         timeline_height: panes.timeline_height.unwrap_or(editing.timeline_height),
         scopes_open: panes.scopes.unwrap_or(editing.scopes_open),
+        graph_open: editing.graph_open,
         panel: panes.focus.map_or(editing.panel, focus_panel),
         route: UiRoute::Editor,
     }

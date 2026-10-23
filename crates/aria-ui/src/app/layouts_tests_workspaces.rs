@@ -174,35 +174,37 @@ fn each_shift_digit_panel_comes_forward_under_its_spec_name() {
     }
 }
 
+/// Every shipped workspace restores the whole arrangement it states, whichever
+/// workspace was applied before it. The comparison is of the whole
+/// [`PaneLayout`], so a field added to it is covered with no edit here, and
+/// every ordered pair is walked, so state one workspace sets and another
+/// leaves alone (the graph editor followed the Animation workspace into all the
+/// others) turns this red.
+///
+/// Not covered: state outside `PaneLayout`, such as the Effects & Presets
+/// filter, which has its own case.
 #[test]
-fn every_shipped_workspace_arranges_the_panes_it_names() {
+fn every_shipped_workspace_arranges_the_panes_it_names_after_any_other() {
     let cx = gpui::TestAppContext::single();
     let subject = entity(state_in(&dir()), &cx);
-    for ws in &layouts::WORKSPACES {
-        assert!(apply(&subject, &cx, ws.id), "{} was refused", ws.id);
-        let here = panes_of(&subject, &cx);
-        assert_eq!(here.sidebar_width, ws.panes.sidebar_width, "{}", ws.id);
-        assert_eq!(
-            here.sidebar_collapsed, ws.panes.sidebar_collapsed,
-            "{}",
-            ws.id
-        );
-        assert_eq!(here.inspector_width, ws.panes.inspector_width, "{}", ws.id);
-        assert_eq!(
-            here.inspector_collapsed, ws.panes.inspector_collapsed,
-            "{}",
-            ws.id
-        );
-        assert_eq!(here.timeline_height, ws.panes.timeline_height, "{}", ws.id);
-        assert_eq!(here.scopes_open, ws.panes.scopes_open, "{}", ws.id);
-        assert_eq!(here.panel, ws.panes.panel, "{}", ws.id);
-        assert_eq!(here.route, ws.panes.route, "{}", ws.id);
-        assert_eq!(
-            cx.update(|app| active_id(&subject, app)),
-            Some(ws.id),
-            "{} did not read back as the active workspace",
-            ws.id
-        );
+    for before in &layouts::WORKSPACES {
+        for ws in &layouts::WORKSPACES {
+            assert!(apply(&subject, &cx, before.id), "{} was refused", before.id);
+            assert!(apply(&subject, &cx, ws.id), "{} was refused", ws.id);
+            assert_eq!(
+                panes_of(&subject, &cx),
+                ws.panes,
+                "{} after {} did not restore its arrangement",
+                ws.id,
+                before.id
+            );
+            assert_eq!(
+                cx.update(|app| active_id(&subject, app)),
+                Some(ws.id),
+                "{} did not read back as the active workspace",
+                ws.id
+            );
+        }
     }
 }
 
@@ -367,6 +369,7 @@ fn a_saved_arrangement_comes_back_whole_after_a_relaunch() {
         inspector_collapsed: true,
         timeline_height: 377.0,
         scopes_open: false,
+        graph_open: true,
         panel: ActivePanel::Inspector,
         route: UiRoute::Home,
     };
@@ -378,6 +381,7 @@ fn a_saved_arrangement_comes_back_whole_after_a_relaunch() {
             state.ui_settings.inspector_collapsed = wanted.inspector_collapsed;
             state.ui_settings.timeline_height = wanted.timeline_height;
             state.active_panel = wanted.panel;
+            state.toggle_timeline_graph_editor();
             state.save_workspace(cx);
             state.ui_settings.save(&state.data_dir).expect("save");
         })

@@ -100,7 +100,8 @@ windows. The shipped workspaces are:
 | Effects | Effects & Presets and Effect Controls enlarged, Viewer centre. |
 
 The workspace switcher sits in the tool bar. Changing workspace rearranges the
-frames over 180 ms; panel contents are not rebuilt. A workspace keeps
+frames over 180 ms; panel contents are not rebuilt. A workspace that does not
+open the graph editor closes it. A workspace keeps
 changes made to it. Window > Workspaces > Reset to Saved Layout restores the
 saved arrangement, and Save as New Workspace stores the current arrangement
 under a new name. Workspaces are stored in `<data dir>/workspaces/<name>.json`

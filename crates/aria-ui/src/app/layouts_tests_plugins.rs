@@ -60,6 +60,7 @@ fn a_plugin_workspace_is_offered_applied_and_withdrawn() {
         inspector_collapsed: false,
         timeline_height: 230.0,
         scopes_open: true,
+        graph_open: false,
         panel: ActivePanel::Preview,
         route: here.route,
     };
