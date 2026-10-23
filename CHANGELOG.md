@@ -2772,6 +2772,7 @@ Notes for the latest release. For previous releases, see the
 - A press anywhere on a Home recent card opens or relinks its project instead of only a press on its Open action, and Home draws no title bar under a window manager's frame and no second `Aria` title in the bar it draws.
 - `docs/theme-tokens.md` lists `font_mono` for expressions and plugin logs, where it is drawn, instead of also for timecode, which is drawn in Inter with tabular figures.
 - Relinking a moved recent project from Home opens the Unsaved Changes dialog first when the session has unsaved edits, instead of opening the chosen project over them.
+- Info panel and Inspector rows draw a value that does not fit beside its label on the next line, wrapping it at the row's width, instead of past the panel's edge.
 - `docs/reference/commands.md`, `controls.md`, and `menus.md` describe rows as the code runs them, such as 90% title-safe and 93% action-safe rectangles instead of 80% and 90%, a gain range of −60 to +12 dB instead of −96 to +24 dB, and Paste Attributes copying the transform, filter preset, and video effect chain.
 
 ## [alpha-0.7.0] — 2026-07-22

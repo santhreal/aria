@@ -76,6 +76,7 @@ pub fn controls(theme: &Theme, cx: &mut Context<Gallery>) -> AnyElement {
             ))
             .child(chip_rows(theme, cx))
             .child(disclosure_rows(theme, cx.reduce_motion()))
+            .child(menu_lead_rows(theme))
             .child(icon_rows(theme, cx))
             .into_any_element(),
     )
@@ -173,6 +174,34 @@ fn disclosure_rows(theme: &Theme, reduced: bool) -> AnyElement {
                     .text_color(theme.text_faint)
                     .child(format!("band_fill row {index}"))
             })),
+    )
+}
+
+/// The lead column of a menu row in its three states, a check mark on a toggle
+/// that holds, an icon, and the empty column of a plain row, each beside a
+/// caption so the captions are seen to line up.
+fn menu_lead_rows(theme: &Theme) -> AnyElement {
+    let row = |checked: bool, icon: Option<&'static str>, caption: &'static str| {
+        div()
+            .px(px(Theme::SPACE_SM))
+            .h(px(Theme::ROW_HEIGHT))
+            .flex()
+            .items_center()
+            .gap(px(Theme::SPACE_SM))
+            .text_size(Theme::TEXT_UI)
+            .text_color(theme.text)
+            .child(components::menu_lead(checked, icon, theme))
+            .child(caption)
+    };
+    group(
+        theme,
+        "menu_lead(checked, icon, theme) — checked / icon / empty",
+        div()
+            .flex()
+            .flex_col()
+            .child(row(true, None, "Snapping"))
+            .child(row(false, Some(icons::SCISSORS), "Split at Playhead"))
+            .child(row(false, None, "Ripple Delete")),
     )
 }
 

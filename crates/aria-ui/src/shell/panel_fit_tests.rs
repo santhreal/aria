@@ -149,6 +149,20 @@ fn every_panel_keeps_its_text_inside_a_side_frame_down_to_its_minimum_width(
                     measure(&frame, 0, WaveformTrace::Luma, &mut ScopeBuffers::default())
                         .expect("a well-formed frame measures")
                 });
+                // The Info panel's widest frame reading, every stage in
+                // seconds. Without it the panel states a frame only when the
+                // preview worker lands one before the draw.
+                state.frame_stats = if measured {
+                    aria_render::FrameStats {
+                        decode_ms: 1234.56,
+                        raster_ms: 1234.56,
+                        composite_ms: 1234.56,
+                        effect_passes: 1234,
+                        effect_pass_bind_groups: 1234,
+                    }
+                } else {
+                    aria_render::FrameStats::default()
+                };
                 if !bin_open {
                     state.open_bin(None);
                 } else if state.current_bin.is_none() {
