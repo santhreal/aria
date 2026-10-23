@@ -340,11 +340,12 @@ impl AppState {
 
     /// Start or stop measuring so it matches [`Self::scopes_wanted`].
     ///
-    /// Starting asks the preview worker to measure the frame on screen; the
-    /// reading arrives through [`Self::take_preview_mail`]. Stopping drops the
-    /// reading, so scopes shown again later read the frame then on screen
-    /// rather than the one they were hidden on. Call it after anything that
-    /// opens the strip or changes which dock tab is in front.
+    /// Starting asks the preview worker to measure the frame on screen, from
+    /// its CPU copy or, for a frame held only as a GPU texture, by rendering
+    /// its tick again; the reading arrives through [`Self::take_preview_mail`].
+    /// Stopping drops the reading, so scopes shown again later read the frame
+    /// then on screen rather than the one they were hidden on. Call it after
+    /// anything that opens the strip or changes which dock tab is in front.
     pub(crate) fn sync_scope_demand(&mut self) {
         let wanted = self.scopes_wanted();
         if !self.preview_worker.set_scopes(wanted) {
@@ -354,9 +355,7 @@ impl AppState {
             self.retire_scopes(None);
             return;
         }
-        if let (Some(frame), Some(tick)) = (&self.last_frame, self.shown_tick) {
-            self.preview_worker.measure(Arc::clone(frame), tick);
-        }
+        self.measure_shown();
     }
 
     /// Measure the frame on screen unless the scopes are hidden or already
@@ -441,12 +440,17 @@ impl AppState {
         }
     }
 
-    /// What the scopes' header says: which frame, and how much of it was read.
+    /// What the scopes' header says: the frame the reading is for, in the
+    /// sequence's time display, or why there is no reading.
     pub fn scope_summary(&self) -> String {
         match &self.scope_textures {
             None if !self.scopes_wanted() => "Scopes off".to_string(),
             None => "No frame".to_string(),
-            Some(textures) => format!("{} px sampled", textures.sampled),
+            Some(textures) if textures.sampled == 0 => format!(
+                "Frame {}, no opaque pixels",
+                self.sequence_time(textures.tick)
+            ),
+            Some(textures) => format!("Frame {}", self.sequence_time(textures.tick)),
         }
     }
 }

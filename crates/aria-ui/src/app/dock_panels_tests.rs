@@ -160,7 +160,7 @@ fn the_scopes_tab_measures_only_while_it_is_in_front() {
     let shown = reading(&picture, 4);
     let waveform = Arc::clone(&shown.waveform);
     assert!(state.adopt_scopes(Some(shown)));
-    assert_eq!(state.scope_summary(), "256 px sampled");
+    assert_eq!(state.scope_summary(), "Frame 00:00:00:04");
 
     let neighbour = state
         .dock_tree

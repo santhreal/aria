@@ -28,6 +28,7 @@ use super::premiere_tests::with_clip;
 use super::scope_view::{ScopeBuffers, ScopeTextures, measure};
 use super::viewer_resolution_tests::run_view_row;
 use super::{AppState, Mail};
+use crate::dock::PANEL_SCOPES;
 use crate::interned::intern;
 use crate::scopes::WaveformMode;
 use crate::settings::UiSettings;
@@ -131,7 +132,37 @@ fn a_reading_is_shown_only_under_its_own_frame() {
     );
     assert!(state.scope_textures.is_none());
     assert!(state.adopt_scopes(Some(reading(&picture, 4))));
-    assert_eq!(state.scope_summary(), "256 px sampled");
+    assert_eq!(state.scope_summary(), "Frame 00:00:00:04");
+}
+
+/// The header names the frame the reading is for, in the sequence's time
+/// display, and says so when the frame has no opaque pixel to count.
+///
+/// The class: a header that prints a pixel count, or a time in a display the
+/// sequence does not use. The displays are the model's own list, each mapped
+/// to its header by an exhaustive match, so a new display without one does not
+/// compile.
+#[test]
+fn the_header_names_the_frame_read_in_the_sequences_time_display() {
+    use aria_models::TimeDisplay;
+    let header = |display: TimeDisplay| match display {
+        TimeDisplay::Timecode => "Frame 00:00:00:04",
+        TimeDisplay::Frames => "Frame 4",
+        TimeDisplay::FeetFrames => "Frame 0000+04",
+    };
+    let (mut state, _) = with_clip();
+    let picture = frame(16, 16, [10, 20, 30, 255]);
+    state.last_frame = Some(Arc::clone(&picture));
+    state.shown_tick = Some(4);
+    state.toggle_scopes();
+    assert!(state.adopt_scopes(Some(reading(&picture, 4))));
+    for display in TimeDisplay::ALL {
+        state.store_mut().sequence.time_display = display;
+        assert_eq!(state.scope_summary(), header(display), "{display:?}");
+    }
+    let clear = frame(8, 8, [0, 0, 0, 0]);
+    assert!(state.adopt_scopes(Some(reading(&clear, 4))));
+    assert_eq!(state.scope_summary(), "Frame 0000+04, no opaque pixels");
 }
 
 /// Closing the strip, and a newer reading, put the textures they replace in
@@ -364,34 +395,77 @@ fn a_replaced_reading_releases_its_plugin_textures() {
     );
 }
 
-/// Opening the strip over a frame already on screen measures that frame on the
+/// Opening scopes over a frame already on screen measures that frame on the
 /// preview worker, never on the calling thread, and the reading arrives
-/// through the mailbox.
+/// through the mailbox. That holds for a frame with a CPU copy and for one
+/// held only as a GPU texture, which the worker renders again at the tick on
+/// screen, from the strip and from the Scopes tab alike.
+///
+/// The class closed: a frame on screen measured on open only when it had a
+/// CPU copy, which left the scopes of a texture frame on "No frame" until the
+/// next frame arrived. Not covered: counting the texture on the device, which
+/// `preview_worker_tests` asserts.
 #[gpui::test]
-async fn opening_the_strip_measures_the_frame_on_screen_on_the_worker(
-    cx: &mut gpui::TestAppContext,
-) {
+async fn opening_scopes_measures_the_frame_on_screen_on_the_worker(cx: &mut gpui::TestAppContext) {
     let executor = cx.executor();
     executor.allow_parking();
-    let (mut state, _) = with_clip();
-    let wakes = state.preview_worker.wakes();
-    state.last_frame = Some(frame(64, 32, [200, 200, 200, 255]));
-    state.shown_tick = Some(9);
-    state.toggle_scopes();
-    assert!(
-        state.scope_textures.is_none(),
-        "the scopes were measured on the calling thread"
-    );
-    assert_eq!(wakes.next_from_a_thread(&executor).await, Some(()));
-    assert_eq!(
-        state.take_preview_mail(),
-        Mail::Reading,
-        "the reading did not arrive"
-    );
-    let textures = state.scope_textures.as_ref().expect("measured on open");
-    assert_eq!(textures.sampled, 64 * 32);
-    assert_eq!(textures.tick, 9);
-    assert!(state.scope_summary().contains("2048"));
+    let openers: [(&str, fn(&mut AppState)); 2] = [
+        ("the strip", AppState::toggle_scopes),
+        ("the Scopes tab", |state| {
+            state.focus_dock_panel(PANEL_SCOPES)
+        }),
+    ];
+    for (opener, open) in openers {
+        for on_cpu in [true, false] {
+            let held = if on_cpu {
+                "a CPU copy"
+            } else {
+                "a GPU texture only"
+            };
+            let case = format!("{opener} over {held}");
+            let (mut state, _) = with_clip();
+            if state.dock_tree.is_open(PANEL_SCOPES) {
+                state.toggle_dock_panel(PANEL_SCOPES);
+            }
+            assert!(!state.scopes_wanted(), "{case}: a scope was shown before");
+            let wakes = state.preview_worker.wakes();
+            let tick = if on_cpu { 9 } else { 2 };
+            state.last_frame = on_cpu.then(|| frame(64, 32, [200, 200, 200, 255]));
+            state.shown_tick = Some(tick);
+            open(&mut state);
+            assert!(state.scopes_wanted(), "{case}: no scope was shown");
+            assert!(
+                state.scope_textures.is_none(),
+                "{case}: the scopes were measured on the calling thread"
+            );
+            next_wake(&wakes, &executor, &case).await;
+            assert_eq!(
+                state.take_preview_mail(),
+                Mail::Reading,
+                "{case}: the reading did not arrive"
+            );
+            let measured = state
+                .scope_textures
+                .as_ref()
+                .map(|textures| (textures.tick, textures.sampled));
+            let sampled = if on_cpu {
+                64 * 32
+            } else {
+                let at = aria_models::RationalTime::new(tick, state.playhead.rate);
+                let fit = state.preview_fit();
+                let rendered = state
+                    .preview_worker
+                    .frame(&executor, at, fit, aria_core::Cancel::never())
+                    .await;
+                let Some(Ok(rendered)) = rendered else {
+                    panic!("{case}: the frame did not render: {rendered:?}");
+                };
+                reading(&rendered.rgba, tick).sampled
+            };
+            assert!(sampled > 0, "{case}: the frame on screen has no pixels");
+            assert_eq!(measured, Some((tick, sampled)), "{case}");
+        }
+    }
 }
 
 /// While the strip is open a Viewer frame arrives with its scopes, measured

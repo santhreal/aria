@@ -189,8 +189,6 @@ struct Shared {
     session_gpu_name: Option<SharedString>,
     /// The GPU texture of the frame currently shown in the Viewer.
     shown_texture: Mutex<Option<GpuTexture>>,
-    /// Most recent Viewer frame request `(time, fit)`, used when scopes open on a GPU-only frame.
-    last_request: Mutex<Option<(RationalTime, Option<(u32, u32)>)>>,
     /// Cumulative GPU-to-CPU frame readbacks observed on the session renderer.
     readbacks: AtomicU64,
     /// The latest pixel the Info panel asked for and the worker has not read.
@@ -269,7 +267,6 @@ impl PreviewWorker {
                 .try_get::<GpuContext>()
                 .map(|gpu| SharedString::from(gpu.adapter.get_info().name)),
             shown_texture: Mutex::new(None),
-            last_request: Mutex::new(None),
             readbacks: AtomicU64::new(0),
             probe: Mutex::new(None),
         });
@@ -294,7 +291,6 @@ impl PreviewWorker {
         fit: Option<(u32, u32)>,
         cancel: Cancel,
     ) -> Task<Option<Result<PreviewFrame, EngineError>>> {
-        *self.shared.last_request.lock() = Some((time, fit));
         let (reply, answer) = async_channel::bounded(1);
         // A send to a stopped worker drops the job and with it the reply, which
         // resolves the wait to `None`.
@@ -362,16 +358,13 @@ impl PreviewWorker {
     }
 
     /// Measure Viewer frames for the scopes, or stop measuring them. Returns
-    /// whether the setting changed.
+    /// whether the setting changed. The frame already on screen is not
+    /// measured here: the caller has its tick and asks for it with
+    /// [`Self::measure`] or [`Self::measure_at`].
     pub fn set_scopes(&self, open: bool) -> bool {
         let was_open = self.shared.scopes.swap(open, Ordering::Relaxed);
         if open && !was_open {
             self.shared.cache.lock().drop_texture_only();
-            if self.shared.shown_texture.lock().is_some()
-                && let Some((time, fit)) = *self.shared.last_request.lock()
-            {
-                let _ = self.first_lane.send(Job::MeasureAt { time, fit });
-            }
         }
         open != was_open
     }
