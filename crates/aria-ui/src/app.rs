@@ -662,6 +662,9 @@ mod effect_header_tests;
 #[path = "app/key_strip_tests.rs"]
 mod key_strip_tests;
 #[cfg(test)]
+#[path = "app/menu_dialog_tests.rs"]
+mod menu_dialog_tests;
+#[cfg(test)]
 #[path = "app/menu_press_tests.rs"]
 mod menu_press_tests;
 #[cfg(test)]

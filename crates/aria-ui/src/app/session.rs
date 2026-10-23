@@ -116,8 +116,7 @@ impl AppState {
     pub fn enter_editor(&mut self) {
         self.route = UiRoute::Editor;
         self.dialog = DialogKind::None;
-        self.context_menu = None;
-        self.close_menu();
+        self.close_popovers();
     }
 
     pub fn go_home(&mut self) {
@@ -125,8 +124,7 @@ impl AppState {
             self.toggle_playback();
         }
         self.dialog = DialogKind::None;
-        self.context_menu = None;
-        self.close_menu();
+        self.close_popovers();
         self.route = UiRoute::Home;
         // The list is about files on disk, and anything could have happened to
         // them while the editor was open.
@@ -152,6 +150,19 @@ impl AppState {
         self.menu_row = None;
         self.menu_flyout = None;
         self.menu_owner = None;
+    }
+
+    /// Close every popover: the menu bar's drop and flyout, the context menu,
+    /// the keyframe and mask-path key menus, and the tool variants. A dialog
+    /// and a change of screen call this, because a popover left open under a
+    /// dialog keeps the keys the dialog owns: the menu bar answers letters
+    /// ahead of a focused box.
+    pub(crate) fn close_popovers(&mut self) {
+        self.close_menu();
+        self.close_context();
+        self.close_keyframe_context_menu();
+        self.close_mask_path_key_menu();
+        self.close_tool_variants();
     }
 
     pub fn pick_and_open_project(&mut self) {
@@ -609,6 +620,9 @@ impl AppState {
         if kind != DialogKind::Palette {
             self.palette_query.clear();
             self.palette_restart();
+        }
+        if kind != DialogKind::None {
+            self.close_popovers();
         }
         // Leaving the unsaved-changes prompt any other way than answering it —
         // Escape, or a dialog opened over it — drops the parked intent, so it

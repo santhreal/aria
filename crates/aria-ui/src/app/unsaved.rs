@@ -71,8 +71,7 @@ impl AppState {
         // dialog that must open on Home too, because a dirty session stays
         // loaded on the way back to Home.
         self.dialog = DialogKind::UnsavedChanges;
-        self.context_menu = None;
-        self.close_menu();
+        self.close_popovers();
         false
     }
 
