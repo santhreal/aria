@@ -62,6 +62,13 @@ impl Frame {
     pub(crate) fn draws_controls(self) -> bool {
         !matches!(self, Self::Platform)
     }
+
+    /// Whether the window's top edge is the app's to draw: the bar holds the
+    /// window controls it draws, or sits under macOS's traffic lights over the
+    /// transparent title bar. Under a window manager's title bar it is not.
+    pub(crate) fn has_title_bar(self) -> bool {
+        self.draws_controls() || cfg!(target_os = "macos")
+    }
 }
 
 /// One resize band: the edge or corner a press on it resizes from, and where

@@ -215,11 +215,21 @@ fn recent_card(
     recent: &RecentView,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
+    let missing = recent.missing;
+    // Which row a moved project offers is the card's own answer: the label
+    // and the row change together, so a Relink can never run an Open.
+    let open = move |path: &std::sync::Arc<std::path::PathBuf>| {
+        if missing {
+            Pick::RelinkRecent((**path).clone())
+        } else {
+            Pick::OpenRecent((**path).clone())
+        }
+    };
     let path = recent.path.clone();
+    let card_path = path.clone();
     let open_path = path.clone();
     let reveal_path = path.clone();
     let menu_path = path;
-    let missing = recent.missing;
     let status = if missing {
         SharedString::new_static("Missing")
     } else {
@@ -249,6 +259,7 @@ fn recent_card(
         .border_1()
         .border_color(if missing { theme.danger } else { theme.border })
         .cursor(CursorStyle::PointingHand)
+        .active(|style| style.opacity(0.92))
         .on_hover(motion::hover_listener(fade))
         .flex()
         .flex_col()
@@ -289,25 +300,28 @@ fn recent_card(
                     if missing { "Relink" } else { "Open" },
                     theme,
                     cx,
-                    move |state| {
-                        // Which row a moved project offers is the card's own
-                        // answer: the label and the row change together, so a
-                        // Relink can never run an Open.
-                        let pick = if missing {
-                            Pick::RelinkRecent((*open_path).clone())
-                        } else {
-                            Pick::OpenRecent((*open_path).clone())
-                        };
-                        press(state, pick);
-                    },
+                    move |state| press(state, open(&open_path)),
                 ))
-                .child(card_action(
-                    motion::MotionKey::new("recent-reveal", index),
-                    "Reveal",
-                    theme,
-                    cx,
-                    move |state| press(state, Pick::Reveal((*reveal_path).clone())),
-                )),
+                .child(
+                    card_action(
+                        motion::MotionKey::new("recent-reveal", index),
+                        "Reveal",
+                        theme,
+                        cx,
+                        move |state| press(state, Pick::Reveal((*reveal_path).clone())),
+                    )
+                    .debug_selector(move || format!("recent-reveal-{index}")),
+                ),
+        )
+        // The whole card opens the project, as a hero tile runs its row; the
+        // actions on it stop the press, so Reveal does not open it too.
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                this.state
+                    .update(cx, |state, _| press(state, open(&card_path)));
+                cx.notify();
+            }),
         )
         .on_mouse_down(
             MouseButton::Right,
@@ -332,36 +346,23 @@ fn recent_card(
     .into_any_element()
 }
 
+/// A small action on a card: a ghost button whose press stops at it, so the
+/// card under it does not run its own row as well.
 pub(super) fn card_action(
     key: motion::MotionKey,
     label: &'static str,
     theme: &Theme,
     cx: &mut gpui::Context<crate::shell::Shell>,
     action: impl Fn(&mut AppState) + 'static,
-) -> impl IntoElement {
-    div()
-        .id(key.element_id("card-action"))
-        .px(px(Theme::SPACE_SM))
-        .py(px(Theme::SPACE_XS))
-        .rounded(px(Theme::CONTROL_RADIUS))
-        .text_size(Theme::TEXT_UI)
-        .text_color(theme.text_muted)
-        .cursor(CursorStyle::PointingHand)
-        .active(|style| style.opacity(0.92))
-        .bg(motion::hover_blend(
-            key,
-            theme.wash(0.0),
-            theme.element_hover,
-        ))
-        .on_hover(motion::hover_listener(key))
-        .child(label)
-        .on_mouse_down(
-            MouseButton::Left,
-            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                this.state.update(cx, |state, _| action(state));
-                cx.notify();
-            }),
-        )
+) -> gpui::Stateful<gpui::Div> {
+    crate::components::ghost_button(key, label, theme).on_mouse_down(
+        MouseButton::Left,
+        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+            cx.stop_propagation();
+            this.state.update(cx, |state, _| action(state));
+            cx.notify();
+        }),
+    )
 }
 
 #[cfg(test)]

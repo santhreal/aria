@@ -248,3 +248,74 @@ fn the_content_fills_the_window_and_a_band_press_never_reaches_it(cx: &mut TestA
         );
     }
 }
+
+/// WHY: Home drew a title bar of its own under a window manager's frame: a
+/// second strip below the manager's title, holding nothing to drag and no
+/// window buttons. A frame has the bar when the application draws the top
+/// edge: its own window buttons, or macOS's traffic lights over a transparent
+/// title bar. Every frame is matched, so a frame added later states its answer
+/// here before it builds.
+#[test]
+fn only_a_frame_whose_top_edge_the_app_draws_has_a_title_bar() {
+    let frames = [Frame::Platform, Frame::Caption]
+        .into_iter()
+        .chain(tilings().map(Frame::Client));
+    for frame in frames {
+        let expected = match frame {
+            Frame::Platform => cfg!(target_os = "macos"),
+            Frame::Caption | Frame::Client(_) => true,
+        };
+        assert_eq!(frame.has_title_bar(), expected, "{frame:?}");
+    }
+}
+
+/// WHY: the shell is what reads [`Frame::has_title_bar`]; the rule above holds
+/// nothing if Home draws its bar regardless. The test window reports server
+/// decorations, so on Linux its frame is the window manager's and Home starts
+/// at the window's top edge.
+#[gpui::test]
+fn home_draws_its_title_bar_only_on_a_frame_that_has_one(cx: &mut TestAppContext) {
+    let (state, visual) = crate::test_support::drawn_shell(cx, "home-title-bar");
+    visual.update(|_, app| app.set_reduce_motion(true));
+    visual.update(|_, app| {
+        state.update(app, |state, cx| {
+            state.go_home();
+            cx.notify();
+        })
+    });
+    visual.run_until_parked();
+    let frame = visual.update(|window, _| Frame::of(window));
+    let body = visual
+        .debug_bounds("home-body")
+        .unwrap_or_else(|| panic!("{frame:?}: Home was not drawn"));
+    let bar = visual.debug_bounds("home-titlebar");
+    if frame.has_title_bar() {
+        let bar = bar.unwrap_or_else(|| panic!("{frame:?}: Home drew no title bar"));
+        assert_eq!(
+            bar.origin.y,
+            px(0.),
+            "{frame:?}: the bar is off the top edge"
+        );
+        assert!(
+            body.origin.y >= bar.origin.y + bar.size.height,
+            "{frame:?}: Home's body at {body:?} runs under its bar at {bar:?}"
+        );
+    } else {
+        assert_eq!(
+            bar, None,
+            "{frame:?}: Home drew a title bar under the platform's"
+        );
+        assert_eq!(
+            body.origin.y,
+            px(0.),
+            "{frame:?}: Home's body leaves a strip above it with no bar in it"
+        );
+    }
+    if cfg!(target_os = "linux") {
+        assert_eq!(
+            frame,
+            Frame::Platform,
+            "the test window reports server decorations, so the branch above that ran is the platform's"
+        );
+    }
+}

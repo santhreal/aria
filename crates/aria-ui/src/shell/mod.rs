@@ -555,7 +555,9 @@ impl Render for Shell {
                 .flex_1()
                 .min_h_0()
                 .opacity(arrived)
-                .child(crate::chrome::home_bar(&theme, window, cx))
+                .when(frame.has_title_bar(), |el| {
+                    el.child(crate::chrome::home_bar(&theme, window, cx))
+                })
                 .children(self.slot(PanelLocation::Home, cx))
                 .into_any_element()
         } else if self.state.read(cx).preview_view.fullscreen {

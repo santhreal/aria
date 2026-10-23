@@ -11,6 +11,8 @@
 
 mod cards;
 mod panes;
+#[cfg(test)]
+mod press_tests;
 mod rail;
 #[cfg(test)]
 mod scroll_tests;

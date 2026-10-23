@@ -97,10 +97,14 @@ impl BarDrop {
     }
 }
 
+/// Home's title bar: the drag strip and the window controls, for a frame whose
+/// top edge the app draws. The rail under it states the application's name,
+/// so the bar holds no title of its own.
 pub fn home_bar(theme: &Theme, window: &mut Window, cx: &mut Context<Shell>) -> impl IntoElement {
     let frame = Frame::of(window);
     div()
         .id("home-titlebar")
+        .debug_selector(|| "home-titlebar".into())
         .h(px(Theme::TITLEBAR_HEIGHT))
         .w_full()
         .flex()
@@ -110,13 +114,6 @@ pub fn home_bar(theme: &Theme, window: &mut Window, cx: &mut Context<Shell>) -> 
         .bg(theme.glass())
         .border_b_1()
         .border_color(theme.border)
-        .child(
-            div()
-                .text_size(Theme::TEXT_HEADING)
-                .font_weight(gpui::FontWeight::SEMIBOLD)
-                .text_color(theme.text)
-                .child("Aria"),
-        )
         .child(drag_strip("home-drag", frame, cx))
         .when(frame.draws_controls(), |el| {
             el.child(caption_buttons(theme, window, cx))

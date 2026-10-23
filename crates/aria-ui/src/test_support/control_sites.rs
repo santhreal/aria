@@ -111,6 +111,10 @@ const FORWARDERS: &[Forwarder] = &[
         name: "graph_tool",
         arg: 0,
     },
+    Forwarder {
+        name: "card_action",
+        arg: 0,
+    },
 ];
 
 /// A widget call whose id is a field of a static table.
