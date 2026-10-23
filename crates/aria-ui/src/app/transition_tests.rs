@@ -527,10 +527,10 @@ fn transition_alignment_projects_and_switches_from_menu_and_inspector() {
         Some(TransitionAlignment::Center)
     );
 
-    for (align, expected_checked, expected_window) in [
-        (TransitionAlignment::Start, "• Start at Cut", (48, 72)),
-        (TransitionAlignment::End, "• End at Cut", (24, 48)),
-        (TransitionAlignment::Center, "• Center at Cut", (36, 60)),
+    for (align, expected_id, expected_window) in [
+        (TransitionAlignment::Start, "ctx-transition-align-start", (48, 72)),
+        (TransitionAlignment::End, "ctx-transition-align-end", (24, 48)),
+        (TransitionAlignment::Center, "ctx-transition-align-center", (36, 60)),
     ] {
         clip_pick::apply(&mut state, Pick::TransitionAlignment(align)).expect("pick alignment");
         assert_eq!(state.selected_transition_alignment(), Some(align));
@@ -540,13 +540,16 @@ fn transition_alignment_projects_and_switches_from_menu_and_inspector() {
             .expect("projected transition");
         assert_eq!(ui_tr.window(48), expected_window);
         let facts = ClipMenu::of(&state, left.raw());
-        let labels: Vec<&str> = TRANSITION_ITEMS
+        let checked: Vec<&str> = TRANSITION_ITEMS
             .iter()
-            .filter_map(|item| item.row().map(|row| (row.label)(&facts)))
+            .filter_map(|item| item.row())
+            .filter(|row| row.is_checked(&facts))
+            .map(|row| row.id)
             .collect();
-        assert!(
-            labels.contains(&expected_checked),
-            "expected {expected_checked:?} in {labels:?}"
+        assert_eq!(
+            checked,
+            [expected_id],
+            "with {align:?} set, the junction menu checked {checked:?}"
         );
     }
 }

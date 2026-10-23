@@ -360,67 +360,67 @@ Defined in `crates/aria-ui/src/app/decline.rs` (`Decline::ALL`). When a command 
 
 ## Context menu item tables (`PREVIEW_ITEMS`, `CLIP_ITEMS`, `TRANSITION_ITEMS`, `TRACK_ITEMS`, `POOL_ITEMS`, `RECENT_ITEMS`, `EFFECT_ITEMS`, `BADGE_ITEMS`)
 
-Defined in `crates/aria-ui/src/surfaces/context_menu.rs` and `crates/aria-ui/src/surfaces/context_menu/*.rs`. Each context menu target draws its rows in slice order; `Labels`, `Blends`, and `Properties` expand inline from the label swatch list, transition catalog, and clip line-parameter list.
+Defined in `crates/aria-ui/src/surfaces/context_menu.rs` and `crates/aria-ui/src/surfaces/context_menu/*.rs`. Each context menu target draws its rows in slice order; `Labels`, `Blends`, and `Properties` expand inline from the label swatch list, transition catalog, and clip line-parameter list. A row whose `checked` is set draws a check mark in its lead column while that state holds; `Default check` is `on` or `off` for such a row against the default facts (an enabled clip, a Medium lane, no transition alignment), and `none` for a row that draws no check mark. The applied blend and the drawn property are checked the same way.
 
-| Target slice | Entry kind | Row ID | Default label |
-| --- | --- | --- | --- |
-| `PREVIEW_ITEMS` | `Row` | `ctx-fit` | `Fit Timeline` |
-| `PREVIEW_ITEMS` | `Row` | `ctx-reset-transform` | `Reset Transform` |
-| `CLIP_ITEMS` | `Row` | `ctx-split` | `Split` |
-| `CLIP_ITEMS` | `Row` | `ctx-delete` | `Delete` |
-| `CLIP_ITEMS` | `Row` | `ctx-duplicate` | `Duplicate` |
-| `CLIP_ITEMS` | `Row` | `ctx-copy` | `Copy` |
-| `CLIP_ITEMS` | `Row` | `ctx-rename-clip` | `Rename Clip` |
-| `CLIP_ITEMS` | `Row` | `ctx-freeze` | `Freeze Frame` |
-| `CLIP_ITEMS` | `Row` | `ctx-extract-audio` | `Extract Audio` |
-| `CLIP_ITEMS` | `Row` | `ctx-link` | `Link Clips` |
-| `CLIP_ITEMS` | `Row` | `ctx-unlink` | `Unlink Clips` |
-| `CLIP_ITEMS` | `Row` | `ctx-enable` | `Enable` |
-| `CLIP_ITEMS` | `Row` | `ctx-group` | `Group` |
-| `CLIP_ITEMS` | `Row` | `ctx-ungroup` | `Ungroup` |
-| `CLIP_ITEMS` | `Row` | `ctx-release-parent` | `Release Parent` |
-| `CLIP_ITEMS` | `Row` | `ctx-speed-duration` | `Speed/Duration…` |
-| `CLIP_ITEMS` | `Row` | `ctx-time-remap` | `Time Remapping` |
-| `CLIP_ITEMS` | `Row` | `ctx-audio-gain` | `Audio Gain…` |
-| `CLIP_ITEMS` | `Row` | `ctx-shift-selection` | `Shift Selection…` |
-| `CLIP_ITEMS` | `Labels` | `none` | `none` |
-| `CLIP_ITEMS` | `Row` | `ctx-properties` | `Properties` |
-| `TRANSITION_ITEMS` | `Row` | `ctx-transition-remove` | `Remove Transition` |
-| `TRANSITION_ITEMS` | `Row` | `ctx-transition-align-center` | `Center at Cut` |
-| `TRANSITION_ITEMS` | `Row` | `ctx-transition-align-start` | `Start at Cut` |
-| `TRANSITION_ITEMS` | `Row` | `ctx-transition-align-end` | `End at Cut` |
-| `TRANSITION_ITEMS` | `Blends` | `none` | `none` |
-| `TRACK_ITEMS` | `Row` | `ctx-add-track` | `Add Track` |
-| `TRACK_ITEMS` | `Row` | `ctx-rename-track` | `Rename Track` |
-| `TRACK_ITEMS` | `Row` | `ctx-delete-track` | `Delete Track` |
-| `TRACK_ITEMS` | `Row` | `ctx-mute-track` | `Mute` |
-| `TRACK_ITEMS` | `Row` | `ctx-track-up` | `Move Track Up` |
-| `TRACK_ITEMS` | `Row` | `ctx-track-down` | `Move Track Down` |
-| `TRACK_ITEMS` | `Row` | `ctx-track-duck` | `Duck Source` |
-| `TRACK_ITEMS` | `Row` | `ctx-track-open-gap` | `Open Gap at Playhead` |
-| `TRACK_ITEMS` | `Row` | `ctx-track-close-gap` | `Close Gap at Playhead` |
-| `TRACK_ITEMS` | `Row` | `ctx-lane-collapse` | `Collapse Lane` |
-| `TRACK_ITEMS` | `Row` | `ctx-lane-waveform` | `Hide Waveforms` |
-| `TRACK_ITEMS` | `Row` | `ctx-lane-filmstrip` | `Hide Filmstrips` |
-| `TRACK_ITEMS` | `Row` | `ctx-lane-mini` | `Lane Height: Mini` |
-| `TRACK_ITEMS` | `Row` | `ctx-lane-small` | `Lane Height: Small` |
-| `TRACK_ITEMS` | `Row` | `ctx-lane-medium` | `• Lane Height: Medium` |
-| `TRACK_ITEMS` | `Row` | `ctx-lane-large` | `Lane Height: Large` |
-| `POOL_ITEMS` | `Row` | `ctx-pool-in-use` | `Select Clips in Timeline` |
-| `POOL_ITEMS` | `Row` | `ctx-pool-remove` | `Remove from Project` |
-| `POOL_ITEMS` | `Row` | `ctx-pool-proxy-clear` | `Decode from Original File` |
-| `POOL_ITEMS` | `Row` | `ctx-pool-proxy-use` | `Decode from Proxy` |
-| `POOL_ITEMS` | `Labels` | `none` | `none` |
-| `RECENT_ITEMS` | `Row` | `ctx-recent-open` | `Open` |
-| `RECENT_ITEMS` | `Outside` | `ctx-recent-reveal` | `Reveal` |
-| `RECENT_ITEMS` | `Row` | `ctx-recent-remove` | `Remove from List` |
-| `RECENT_ITEMS` | `Row` | `ctx-recent-delete` | `Delete File…` |
-| `EFFECT_ITEMS` | `Row` | `ctx-fx-reset` | `Reset` |
-| `EFFECT_ITEMS` | `Row` | `ctx-fx-rename` | `Rename Effect` |
-| `EFFECT_ITEMS` | `Row` | `ctx-fx-duplicate` | `Duplicate` |
-| `EFFECT_ITEMS` | `Row` | `ctx-fx-copy` | `Copy` |
-| `EFFECT_ITEMS` | `Row` | `ctx-fx-paste` | `Paste Below` |
-| `EFFECT_ITEMS` | `Row` | `ctx-fx-save-preset` | `Save as Preset…` |
-| `EFFECT_ITEMS` | `Row` | `ctx-fx-remove` | `Remove Effect` |
-| `BADGE_ITEMS` | `Row` | `ctx-badge-controls` | `Show in Effect Controls` |
-| `BADGE_ITEMS` | `Properties` | `none` | `none` |
+| Target slice | Entry kind | Row ID | Default label | Default check |
+| --- | --- | --- | --- | --- |
+| `PREVIEW_ITEMS` | `Row` | `ctx-fit` | `Fit Timeline` | `none` |
+| `PREVIEW_ITEMS` | `Row` | `ctx-reset-transform` | `Reset Transform` | `none` |
+| `CLIP_ITEMS` | `Row` | `ctx-split` | `Split` | `none` |
+| `CLIP_ITEMS` | `Row` | `ctx-delete` | `Delete` | `none` |
+| `CLIP_ITEMS` | `Row` | `ctx-duplicate` | `Duplicate` | `none` |
+| `CLIP_ITEMS` | `Row` | `ctx-copy` | `Copy` | `none` |
+| `CLIP_ITEMS` | `Row` | `ctx-rename-clip` | `Rename Clip` | `none` |
+| `CLIP_ITEMS` | `Row` | `ctx-freeze` | `Freeze Frame` | `none` |
+| `CLIP_ITEMS` | `Row` | `ctx-extract-audio` | `Extract Audio` | `none` |
+| `CLIP_ITEMS` | `Row` | `ctx-link` | `Link Clips` | `none` |
+| `CLIP_ITEMS` | `Row` | `ctx-unlink` | `Unlink Clips` | `none` |
+| `CLIP_ITEMS` | `Row` | `ctx-enable` | `Enable` | `on` |
+| `CLIP_ITEMS` | `Row` | `ctx-group` | `Group` | `none` |
+| `CLIP_ITEMS` | `Row` | `ctx-ungroup` | `Ungroup` | `none` |
+| `CLIP_ITEMS` | `Row` | `ctx-release-parent` | `Release Parent` | `none` |
+| `CLIP_ITEMS` | `Row` | `ctx-speed-duration` | `Speed/Duration…` | `none` |
+| `CLIP_ITEMS` | `Row` | `ctx-time-remap` | `Time Remapping` | `off` |
+| `CLIP_ITEMS` | `Row` | `ctx-audio-gain` | `Audio Gain…` | `none` |
+| `CLIP_ITEMS` | `Row` | `ctx-shift-selection` | `Shift Selection…` | `none` |
+| `CLIP_ITEMS` | `Labels` | `none` | `none` | `none` |
+| `CLIP_ITEMS` | `Row` | `ctx-properties` | `Properties` | `none` |
+| `TRANSITION_ITEMS` | `Row` | `ctx-transition-remove` | `Remove Transition` | `none` |
+| `TRANSITION_ITEMS` | `Row` | `ctx-transition-align-center` | `Center at Cut` | `off` |
+| `TRANSITION_ITEMS` | `Row` | `ctx-transition-align-start` | `Start at Cut` | `off` |
+| `TRANSITION_ITEMS` | `Row` | `ctx-transition-align-end` | `End at Cut` | `off` |
+| `TRANSITION_ITEMS` | `Blends` | `none` | `none` | `none` |
+| `TRACK_ITEMS` | `Row` | `ctx-add-track` | `Add Track` | `none` |
+| `TRACK_ITEMS` | `Row` | `ctx-rename-track` | `Rename Track` | `none` |
+| `TRACK_ITEMS` | `Row` | `ctx-delete-track` | `Delete Track` | `none` |
+| `TRACK_ITEMS` | `Row` | `ctx-mute-track` | `Mute` | `none` |
+| `TRACK_ITEMS` | `Row` | `ctx-track-up` | `Move Track Up` | `none` |
+| `TRACK_ITEMS` | `Row` | `ctx-track-down` | `Move Track Down` | `none` |
+| `TRACK_ITEMS` | `Row` | `ctx-track-duck` | `Duck Source` | `off` |
+| `TRACK_ITEMS` | `Row` | `ctx-track-open-gap` | `Open Gap at Playhead` | `none` |
+| `TRACK_ITEMS` | `Row` | `ctx-track-close-gap` | `Close Gap at Playhead` | `none` |
+| `TRACK_ITEMS` | `Row` | `ctx-lane-collapse` | `Collapse Lane` | `none` |
+| `TRACK_ITEMS` | `Row` | `ctx-lane-waveform` | `Hide Waveforms` | `none` |
+| `TRACK_ITEMS` | `Row` | `ctx-lane-filmstrip` | `Hide Filmstrips` | `none` |
+| `TRACK_ITEMS` | `Row` | `ctx-lane-mini` | `Lane Height: Mini` | `off` |
+| `TRACK_ITEMS` | `Row` | `ctx-lane-small` | `Lane Height: Small` | `off` |
+| `TRACK_ITEMS` | `Row` | `ctx-lane-medium` | `Lane Height: Medium` | `on` |
+| `TRACK_ITEMS` | `Row` | `ctx-lane-large` | `Lane Height: Large` | `off` |
+| `POOL_ITEMS` | `Row` | `ctx-pool-in-use` | `Select Clips in Timeline` | `none` |
+| `POOL_ITEMS` | `Row` | `ctx-pool-remove` | `Remove from Project` | `none` |
+| `POOL_ITEMS` | `Row` | `ctx-pool-proxy-clear` | `Decode from Original File` | `none` |
+| `POOL_ITEMS` | `Row` | `ctx-pool-proxy-use` | `Decode from Proxy` | `none` |
+| `POOL_ITEMS` | `Labels` | `none` | `none` | `none` |
+| `RECENT_ITEMS` | `Row` | `ctx-recent-open` | `Open` | `none` |
+| `RECENT_ITEMS` | `Outside` | `ctx-recent-reveal` | `Reveal` | `none` |
+| `RECENT_ITEMS` | `Row` | `ctx-recent-remove` | `Remove from List` | `none` |
+| `RECENT_ITEMS` | `Row` | `ctx-recent-delete` | `Delete File…` | `none` |
+| `EFFECT_ITEMS` | `Row` | `ctx-fx-reset` | `Reset` | `none` |
+| `EFFECT_ITEMS` | `Row` | `ctx-fx-rename` | `Rename Effect` | `none` |
+| `EFFECT_ITEMS` | `Row` | `ctx-fx-duplicate` | `Duplicate` | `none` |
+| `EFFECT_ITEMS` | `Row` | `ctx-fx-copy` | `Copy` | `none` |
+| `EFFECT_ITEMS` | `Row` | `ctx-fx-paste` | `Paste Below` | `none` |
+| `EFFECT_ITEMS` | `Row` | `ctx-fx-save-preset` | `Save as Preset…` | `none` |
+| `EFFECT_ITEMS` | `Row` | `ctx-fx-remove` | `Remove Effect` | `none` |
+| `BADGE_ITEMS` | `Row` | `ctx-badge-controls` | `Show in Effect Controls` | `none` |
+| `BADGE_ITEMS` | `Properties` | `none` | `none` | `none` |

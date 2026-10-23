@@ -377,28 +377,25 @@ fn the_track_context_menu_offers_every_height_preset_and_marks_the_active_one() 
 
         let facts = TrackMenu::of(&state, track).expect("track menu at preset");
         for (other_row, &(other_name, _)) in preset_rows.iter().zip(TrackDisplay::PRESETS.iter()) {
-            let label = (other_row.label)(&facts);
-            if other_name == name {
-                assert_eq!(
-                    label,
-                    format!("• Lane Height: {other_name}"),
-                    "active preset {name} must be marked"
-                );
-            } else {
-                assert_eq!(
-                    label,
-                    format!("Lane Height: {other_name}"),
-                    "inactive preset {other_name} must be unmarked when {name} is active"
-                );
-            }
+            assert_eq!(
+                (other_row.label)(&facts),
+                format!("Lane Height: {other_name}"),
+                "a preset's label must read the same whether or not it is active"
+            );
+            assert_eq!(
+                other_row.is_checked(&facts),
+                other_name == name,
+                "with {name} active, {other_name} drew the wrong check mark"
+            );
         }
     }
 
-    // A custom dragged height marks none of the presets.
+    // A custom dragged height checks none of the presets.
     state.set_lane_height(track, 60.0).expect("set custom 60");
     let facts = TrackMenu::of(&state, track).expect("track menu at custom height");
     for (row, &(name, _)) in preset_rows.iter().zip(TrackDisplay::PRESETS.iter()) {
         assert_eq!((row.label)(&facts), format!("Lane Height: {name}"));
+        assert!(!row.is_checked(&facts), "a 60 px lane checked {name}");
     }
 }
 

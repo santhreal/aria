@@ -238,6 +238,25 @@ pub fn band_fill(theme: &Theme, index: usize) -> gpui::Hsla {
     }
 }
 
+/// The lead column of a menu row: the check mark while `checked` holds,
+/// otherwise the icon at the asset path `icon`, otherwise nothing.
+///
+/// Drawn on every row of a menu bar drop and of a context menu, so the
+/// captions line up whether or not a row is a toggle or has an icon.
+pub fn menu_lead(checked: bool, icon: Option<&'static str>, theme: &Theme) -> Div {
+    div()
+        .w(px(Theme::ICON_SIZE))
+        .flex_none()
+        .flex()
+        .justify_center()
+        .text_color(theme.text_muted)
+        .children(match (checked, icon) {
+            (true, _) => Some("✓".into_any_element()),
+            (false, Some(path)) => Some(crate::icons::icon(path).into_any_element()),
+            (false, None) => None,
+        })
+}
+
 /// A key-routed text box: the value, a caret while it holds focus, and the
 /// placeholder while it is empty.
 ///

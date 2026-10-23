@@ -21,9 +21,9 @@ use std::path::PathBuf;
 use crate::app::AppState;
 use crate::app::premiere_tests::with_clip;
 use crate::surfaces::context_menu::{
-    BADGE_ITEMS, BadgeMenu, CLIP_ITEMS, ClipMenu, EFFECT_ITEMS, EffectMenu, MenuItem, POOL_ITEMS,
-    PREVIEW_ITEMS, PoolMenu, RECENT_ITEMS, TRACK_ITEMS, TRANSITION_ITEMS, TrackMenu, apply_blend,
-    draw_property,
+    BADGE_ITEMS, BadgeMenu, CLIP_ITEMS, ClipMenu, EFFECT_ITEMS, EffectMenu, MenuItem, MenuRow,
+    POOL_ITEMS, PREVIEW_ITEMS, PoolMenu, RECENT_ITEMS, TRACK_ITEMS, TRANSITION_ITEMS, TrackMenu,
+    apply_blend, draw_property,
 };
 use crate::types::ActivePanel;
 
@@ -43,6 +43,63 @@ struct Pressed {
     /// Each row's id and the text it draws, once per dressed state that offers
     /// it, rows that leave the editor included.
     labels: Vec<(&'static str, &'static str)>,
+    /// Every state the census saw a row that draws a check mark in: checked or
+    /// not, in a dressed state and in the state each press of its table left.
+    checks: BTreeSet<(&'static str, bool)>,
+    /// Each press of a row that draws a check mark: its id, and whether it was
+    /// checked before the press and after it.
+    toggled: Vec<(&'static str, bool, bool)>,
+}
+
+/// The facts a table's rows read, gathered again from the state a press left,
+/// as a menu opened on the same target would gather them, or `None` when the
+/// target is gone.
+trait Reread: Clone {
+    fn reread(&self, state: &AppState) -> Option<Self>;
+}
+
+impl Reread for ClipMenu {
+    fn reread(&self, state: &AppState) -> Option<Self> {
+        Some(Self::of(state, self.clip))
+    }
+}
+
+impl Reread for TrackMenu {
+    fn reread(&self, state: &AppState) -> Option<Self> {
+        Self::of(state, self.track)
+    }
+}
+
+impl Reread for PoolMenu {
+    fn reread(&self, state: &AppState) -> Option<Self> {
+        Some(Self::of(state, self.media))
+    }
+}
+
+impl Reread for EffectMenu {
+    fn reread(&self, state: &AppState) -> Option<Self> {
+        Some(Self::of(state, self.clip, self.index))
+    }
+}
+
+impl Reread for BadgeMenu {
+    fn reread(&self, state: &AppState) -> Option<Self> {
+        Self::of(state, self.clip)
+    }
+}
+
+/// The preview menu reads no facts.
+impl Reread for () {
+    fn reread(&self, _: &AppState) -> Option<Self> {
+        Some(())
+    }
+}
+
+/// A recents menu reads only the path it was opened on.
+impl Reread for PathBuf {
+    fn reread(&self, _: &AppState) -> Option<Self> {
+        Some(self.clone())
+    }
 }
 
 /// One dressed state a table is pressed against, with the facts a menu opened on
@@ -66,6 +123,8 @@ fn pressed() -> Pressed {
         unoffered: Vec::new(),
         ids: Vec::new(),
         labels: Vec::new(),
+        checks: BTreeSet::new(),
+        toggled: Vec::new(),
     };
     press(CLIP_ITEMS, CLIP_STAGES, &mut out);
     press(TRANSITION_ITEMS, JUNCTION_STAGES, &mut out);
@@ -114,8 +173,16 @@ fn blends() -> BTreeSet<&'static str> {
 }
 
 /// Press one table across its states, and read the text of every row each
-/// state offers. A row that leaves the editor is read and never pressed.
-fn press<F: Clone>(items: &'static [MenuItem<F>], stages: &[Stage<F>], out: &mut Pressed) {
+/// state offers. A row that leaves the editor is read and never pressed. After
+/// each press the facts are read again, and every check mark the table draws
+/// is read against them.
+fn press<F: Reread>(items: &'static [MenuItem<F>], stages: &[Stage<F>], out: &mut Pressed) {
+    let checkable = || {
+        items
+            .iter()
+            .filter_map(MenuItem::row)
+            .filter(|row| row.checked.is_some())
+    };
     for entry in items {
         let Some(row) = entry.row() else {
             continue;
@@ -129,6 +196,9 @@ fn press<F: Clone>(items: &'static [MenuItem<F>], stages: &[Stage<F>], out: &mut
                 continue;
             }
             out.labels.push((row.id, (row.label)(&facts)));
+            if row.checked.is_some() {
+                out.checks.insert((row.id, row.is_checked(&facts)));
+            }
             if outside {
                 continue;
             }
@@ -142,6 +212,15 @@ fn press<F: Clone>(items: &'static [MenuItem<F>], stages: &[Stage<F>], out: &mut
             let sent = watch.take();
             acted |= refused || !sent.is_empty() || fingerprint(&state) != before;
             out.sent.extend(sent);
+            if let Some(after) = facts.reread(&state) {
+                for other in checkable() {
+                    out.checks.insert((other.id, other.is_checked(&after)));
+                }
+                if row.checked.is_some() {
+                    out.toggled
+                        .push((row.id, row.is_checked(&facts), row.is_checked(&after)));
+                }
+            }
             let _ = stage.what;
         }
         if outside {
@@ -489,6 +568,130 @@ fn every_context_menu_row_is_in_title_case() {
         })
         .collect();
     assert!(offenders.is_empty(), "{}", offenders.join("\n"));
+}
+
+/// A row that switches a state draws a check mark while the state holds, and
+/// its label reads the same in both states.
+///
+/// The class closed here: a toggle that drew no state, as Enable did, so the
+/// row read the same over an enabled clip and a disabled one; and a choice that
+/// spelled its state with a `• ` prefix, as the lane heights and the transition
+/// alignments did. Every row that declares `checked` must be seen checked and
+/// seen unchecked, across the dressed states and the states each press of its
+/// table leaves, and a press on an unchecked row must check it. The rows are
+/// the ones the census reads, so a row that declares `checked` later is held to
+/// both on the run that adds it.
+///
+/// Not covered: a check that reads the opposite of its state, which
+/// `a_toggle_row_is_checked_while_its_state_holds` and the lane height and
+/// alignment tests catch, and the blend and property rows, whose checks
+/// `panels::context_menu::grid_tests` reads from the drawn menu.
+#[test]
+fn a_row_that_switches_a_state_shows_it_with_a_check_mark() {
+    let pressed = pressed();
+    let spelled: Vec<String> = pressed
+        .labels
+        .iter()
+        .filter(|(_, label)| label.contains('•'))
+        .map(|(id, label)| format!("{id}: {label:?}"))
+        .collect();
+    assert!(
+        spelled.is_empty(),
+        "these rows spell their state in their label instead of a check mark:\n{}",
+        spelled.join("\n")
+    );
+    let checkable: BTreeSet<&str> = pressed.checks.iter().map(|&(id, _)| id).collect();
+    assert!(
+        checkable.contains("ctx-enable"),
+        "the census read no Enable check mark: {checkable:?}"
+    );
+    let one_sided: Vec<String> = checkable
+        .iter()
+        .filter_map(|&id| {
+            let seen = |checked| pressed.checks.contains(&(id, checked));
+            match (seen(true), seen(false)) {
+                (true, true) => None,
+                (true, false) => Some(format!("{id} was never seen unchecked")),
+                (false, _) => Some(format!("{id} was never seen checked")),
+            }
+        })
+        .collect();
+    assert!(one_sided.is_empty(), "{}", one_sided.join("\n"));
+    let unmoved: Vec<&str> = pressed
+        .toggled
+        .iter()
+        .filter(|&&(_, before, after)| !before && !after)
+        .map(|&(id, _, _)| id)
+        .collect();
+    assert!(
+        unmoved.is_empty(),
+        "a press on these unchecked rows left them unchecked: {unmoved:?}"
+    );
+}
+
+/// Enable, Time Remapping and Duck Source are checked exactly while the state
+/// their press switches holds, as a menu opened on the target reads it.
+///
+/// The class closed here: a check that reads the opposite of its state, which
+/// the census cannot tell from a right one, since both are seen checked and
+/// unchecked.
+#[test]
+fn a_toggle_row_is_checked_while_its_state_holds() {
+    let (mut state, clip) = with_clip();
+    let enable = row_in(CLIP_ITEMS, "ctx-enable");
+    let remap = row_in(CLIP_ITEMS, "ctx-time-remap");
+    let facts = ClipMenu::of(&state, clip.raw());
+    assert!(
+        enable.is_checked(&facts),
+        "an enabled clip drew Enable unchecked"
+    );
+    assert!(
+        !remap.is_checked(&facts),
+        "a clip at flat speed drew Time Remapping checked"
+    );
+    state.toggle_enabled_selected().expect("the clip disables");
+    state.toggle_time_remap().expect("the clip takes a ramp");
+    let facts = ClipMenu::of(&state, clip.raw());
+    assert!(
+        !enable.is_checked(&facts),
+        "a disabled clip drew Enable checked"
+    );
+    assert!(
+        remap.is_checked(&facts),
+        "a ramped clip drew Time Remapping unchecked"
+    );
+
+    let (mut state, _) = fixtures::with_audio();
+    let lane = state
+        .store
+        .sequence
+        .tracks
+        .iter()
+        .find(|lane| lane.kind == crate::types::UiTrackKind::Audio)
+        .map(|lane| lane.id)
+        .expect("the audio fixture lands on a sound lane");
+    let duck = row_in(TRACK_ITEMS, "ctx-track-duck");
+    let facts = |state: &AppState| TrackMenu::of(state, lane).expect("the lane is projected");
+    assert!(
+        !duck.is_checked(&facts(&state)),
+        "a lane that is not the voice drew Duck Source checked"
+    );
+    state
+        .toggle_track_duck_source(aria_models::TrackId::from_raw(lane))
+        .expect("the lane becomes the voice");
+    assert!(
+        duck.is_checked(&facts(&state)),
+        "the voice lane drew Duck Source unchecked"
+    );
+}
+
+/// The row `id` of `items`.
+fn row_in<F>(items: &'static [MenuItem<F>], id: &str) -> &'static MenuRow<F> {
+    items
+        .iter()
+        .filter_map(MenuItem::row)
+        .find(|row| row.id == id)
+        .unwrap_or_else(|| panic!("no menu row {id}"))
 }
 
 #[test]

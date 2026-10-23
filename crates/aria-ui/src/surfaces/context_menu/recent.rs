@@ -17,6 +17,7 @@ pub const RECENT_ITEMS: &[MenuItem<PathBuf>] = &[
         id: "ctx-recent-open",
         label: |_| "Open",
         when: always(),
+        checked: None,
         run: |state, path| {
             // A project that moved is relinked rather than reported: the request
             // is to open this project, and the answer is a file dialog, not an
@@ -45,6 +46,7 @@ pub const RECENT_ITEMS: &[MenuItem<PathBuf>] = &[
         id: "ctx-recent-reveal",
         label: |_| "Reveal",
         when: always(),
+        checked: None,
         run: |_state, path| {
             crate::app::recents::reveal_in_folder(path);
             Ok(())
@@ -54,6 +56,7 @@ pub const RECENT_ITEMS: &[MenuItem<PathBuf>] = &[
         id: "ctx-recent-remove",
         label: |_| "Remove from List",
         when: always(),
+        checked: None,
         run: |state, path| {
             state.forget_recent(path);
             Ok(())
@@ -63,6 +66,7 @@ pub const RECENT_ITEMS: &[MenuItem<PathBuf>] = &[
         id: "ctx-recent-delete",
         label: |_| "Delete File…",
         when: always(),
+        checked: None,
         run: |state, path| {
             // A file leaves the disk only after the question is answered, and the
             // question names the file.

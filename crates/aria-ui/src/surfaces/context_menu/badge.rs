@@ -129,6 +129,7 @@ pub const BADGE_ITEMS: &[MenuItem<BadgeMenu>] = &[
         id: "ctx-badge-controls",
         label: |_| "Show in Effect Controls",
         when: always(),
+        checked: None,
         run: |state, menu| {
             state.select_clip(menu.clip());
             state.focus_pane(ActivePanel::Inspector);

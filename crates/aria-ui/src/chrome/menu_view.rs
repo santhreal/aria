@@ -564,21 +564,12 @@ fn menu_row(
             }
         })
         // The lead column is drawn on every row and holds the check mark or a
-        // plugin row's icon, so captions line up whether or not a row is a
-        // toggle or has an icon. A checked row shows its check.
-        .child(
-            div()
-                .w(px(Theme::ICON_SIZE))
-                .flex_none()
-                .flex()
-                .justify_center()
-                .text_color(theme.text_muted)
-                .children(match (checked, icon) {
-                    (Some(true), _) => Some("✓".into_any_element()),
-                    (_, Some(path)) => Some(crate::icons::icon(path).into_any_element()),
-                    _ => None,
-                }),
-        )
+        // plugin row's icon. A checked row shows its check.
+        .child(crate::components::menu_lead(
+            checked == Some(true),
+            icon,
+            theme,
+        ))
         .child(
             div()
                 .flex_1()

@@ -40,9 +40,11 @@ mod track;
 /// One row in a context menu.
 ///
 /// `label` is a function because several rows name the state they would move to
-/// (`Mute` against `Unmute`), and `when` because several are offered only when
-/// the edit is possible. Both read the facts gathered when the menu opened, so a
-/// row never re-reads the session while the menu is on screen.
+/// (`Mute` against `Unmute`), `when` because several are offered only when the
+/// edit is possible, and `checked` because a row that switches a state draws a
+/// check mark while that state holds, as a toggle row on the menu bar does. All
+/// three read the facts gathered when the menu opened, so a row never re-reads
+/// the session while the menu is on screen.
 pub struct MenuRow<F> {
     /// Element id, which the row builder also uses as its hover key.
     pub id: &'static str,
@@ -50,9 +52,19 @@ pub struct MenuRow<F> {
     pub label: fn(&F) -> &'static str,
     /// Whether the row is offered at all.
     pub when: fn(&F) -> bool,
+    /// `Some` for a row that switches a state: the row draws a check mark while
+    /// this holds, and its label reads the same either way.
+    pub checked: Option<fn(&F) -> bool>,
     /// What clicking it asks for. An engine refusal is reported by the builder,
     /// once, rather than by each row.
     pub run: fn(&mut AppState, &F) -> Result<(), EngineError>,
+}
+
+impl<F> MenuRow<F> {
+    /// Whether the row draws its check mark against `facts`.
+    pub fn is_checked(&self, facts: &F) -> bool {
+        self.checked.is_some_and(|checked| checked(facts))
+    }
 }
 
 /// One entry in a menu: a command row, or a block the panel owns.
@@ -68,12 +80,12 @@ pub enum MenuItem<F> {
     /// The label palette: one swatch per colour, plus the groups already in use.
     /// The panel draws it, because a swatch row is not a text row.
     Labels,
-    /// Every blend the transition catalog offers, with the applied one marked.
+    /// Every blend the transition catalog offers, with the applied one checked.
     /// The rows are data, so they are generated where their data is rather than
     /// listed here; what they ask for is [`apply_blend`].
     Blends,
     /// Every property a clip bar can draw as its line, with the drawn one
-    /// marked. Generated from the clip like [`MenuItem::Blends`]; what each row
+    /// checked. Generated from the clip like [`MenuItem::Blends`]; what each row
     /// asks for is [`draw_property`].
     Properties,
 }
@@ -100,6 +112,7 @@ pub const PREVIEW_ITEMS: &[MenuItem<()>] = &[
         id: "ctx-fit",
         label: |_| "Fit Timeline",
         when: always(),
+        checked: None,
         run: |state, _| {
             state.zoom_fit_sequence();
             Ok(())
@@ -109,6 +122,7 @@ pub const PREVIEW_ITEMS: &[MenuItem<()>] = &[
         id: "ctx-reset-transform",
         label: |_| "Reset Transform",
         when: always(),
+        checked: None,
         run: |state, _| state.reset_selected_transform(),
     }),
 ];

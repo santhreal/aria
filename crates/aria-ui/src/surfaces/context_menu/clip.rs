@@ -22,10 +22,13 @@ pub struct ClipMenu {
     pub linked: bool,
     /// The selection forms a clip group, so ungrouping is possible.
     pub grouped: bool,
-    /// Whether the clip under the pointer is currently enabled.
+    /// Every selected clip is enabled, which Enable's check mark shows.
     pub enabled: bool,
     /// Whether the clip supports time remapping.
     pub can_time_remap: bool,
+    /// The selected clip plays through a time remap, which Time Remapping's
+    /// check mark shows.
+    pub remapped: bool,
     /// Whether the selection carries audio for Audio Gain.
     pub has_audio: bool,
     pub can_extract_audio: bool,
@@ -47,10 +50,9 @@ impl ClipMenu {
             multi: state.selection.len() > 1,
             linked: state.selection_is_linked(),
             grouped: state.selection_is_grouped(),
-            enabled: state
-                .ui_clip_ref(ClipId::from_raw(clip))
-                .is_none_or(|c| c.enabled),
+            enabled: state.selection_is_enabled(),
             can_time_remap: state.selected_can_ramp(),
+            remapped: state.selection_is_remapped(),
             has_audio: !state.selected_audio_clips().is_empty(),
             can_extract_audio: state.selected_can_extract_audio(),
             can_freeze_frame: state.selected_can_freeze_frame(),
@@ -70,24 +72,28 @@ pub const CLIP_ITEMS: &[MenuItem<ClipMenu>] = &[
         id: "ctx-split",
         label: |_| "Split",
         when: always(),
+        checked: None,
         run: |state, _| state.split_at_playhead(),
     }),
     MenuItem::Row(MenuRow {
         id: "ctx-delete",
         label: |_| "Delete",
         when: always(),
+        checked: None,
         run: |state, _| state.clear_selected(),
     }),
     MenuItem::Row(MenuRow {
         id: "ctx-duplicate",
         label: |_| "Duplicate",
         when: always(),
+        checked: None,
         run: |state, _| state.duplicate_selected(),
     }),
     MenuItem::Row(MenuRow {
         id: "ctx-copy",
         label: |_| "Copy",
         when: always(),
+        checked: None,
         run: |state, _| {
             state.copy_selected();
             Ok(())
@@ -97,6 +103,7 @@ pub const CLIP_ITEMS: &[MenuItem<ClipMenu>] = &[
         id: "ctx-rename-clip",
         label: |_| "Rename Clip",
         when: always(),
+        checked: None,
         run: |state, clip| {
             // The rename bar takes the keyboard, and a menu still on screen would
             // eat the first keystroke.
@@ -109,48 +116,56 @@ pub const CLIP_ITEMS: &[MenuItem<ClipMenu>] = &[
         id: "ctx-freeze",
         label: |_| "Freeze Frame",
         when: |clip| clip.can_freeze_frame,
+        checked: None,
         run: |state, _| state.freeze_selected_frame(),
     }),
     MenuItem::Row(MenuRow {
         id: "ctx-extract-audio",
         label: |_| "Extract Audio",
         when: |clip| clip.can_extract_audio,
+        checked: None,
         run: |state, _| state.extract_selected_audio(),
     }),
     MenuItem::Row(MenuRow {
         id: "ctx-link",
         label: |_| "Link Clips",
         when: |clip| clip.multi,
+        checked: None,
         run: |state, _| state.link_selected(),
     }),
     MenuItem::Row(MenuRow {
         id: "ctx-unlink",
         label: |_| "Unlink Clips",
         when: |clip| clip.linked,
+        checked: None,
         run: |state, _| state.unlink_selected(),
     }),
     MenuItem::Row(MenuRow {
         id: "ctx-enable",
         label: |_| "Enable",
         when: always(),
+        checked: Some(|clip| clip.enabled),
         run: |state, _| state.toggle_enabled_selected(),
     }),
     MenuItem::Row(MenuRow {
         id: "ctx-group",
         label: |_| "Group",
         when: |clip| clip.multi,
+        checked: None,
         run: |state, _| state.group_selected(),
     }),
     MenuItem::Row(MenuRow {
         id: "ctx-ungroup",
         label: |_| "Ungroup",
         when: |clip| clip.grouped,
+        checked: None,
         run: |state, _| state.ungroup_selected(),
     }),
     MenuItem::Row(MenuRow {
         id: "ctx-release-parent",
         label: |_| "Release Parent",
         when: |clip| clip.parented,
+        checked: None,
         // The clip stays where it is drawn at the playhead.
         run: |state, clip| {
             state.set_clip_parent(ClipId::from_raw(clip.clip), None, ParentKeep::Place)
@@ -160,6 +175,7 @@ pub const CLIP_ITEMS: &[MenuItem<ClipMenu>] = &[
         id: "ctx-speed-duration",
         label: |_| "Speed/Duration…",
         when: always(),
+        checked: None,
         run: |state, _| {
             state.open_speed_duration();
             Ok(())
@@ -169,12 +185,14 @@ pub const CLIP_ITEMS: &[MenuItem<ClipMenu>] = &[
         id: "ctx-time-remap",
         label: |_| "Time Remapping",
         when: |clip| clip.can_time_remap,
+        checked: Some(|clip| clip.remapped),
         run: |state, _| state.toggle_time_remap(),
     }),
     MenuItem::Row(MenuRow {
         id: "ctx-audio-gain",
         label: |_| "Audio Gain…",
         when: |clip| clip.has_audio,
+        checked: None,
         run: |state, _| {
             state.open_audio_gain();
             Ok(())
@@ -184,6 +202,7 @@ pub const CLIP_ITEMS: &[MenuItem<ClipMenu>] = &[
         id: "ctx-shift-selection",
         label: |_| "Shift Selection…",
         when: always(),
+        checked: None,
         run: |state, _| {
             state.begin_rename(RenameTarget::ShiftFrames);
             Ok(())
@@ -194,6 +213,7 @@ pub const CLIP_ITEMS: &[MenuItem<ClipMenu>] = &[
         id: "ctx-properties",
         label: |_| "Properties",
         when: always(),
+        checked: None,
         run: |state, _| {
             state.active_panel = ActivePanel::Inspector;
             Ok(())
@@ -207,18 +227,14 @@ pub const TRANSITION_ITEMS: &[MenuItem<ClipMenu>] = &[
         id: "ctx-transition-remove",
         label: |_| "Remove Transition",
         when: always(),
+        checked: None,
         run: |state, clip| state.clear_clip_transition(ClipId::from_raw(clip.clip)),
     }),
     MenuItem::Row(MenuRow {
         id: "ctx-transition-align-center",
-        label: |clip| {
-            if clip.transition_alignment == Some(TransitionAlignment::Center) {
-                "• Center at Cut"
-            } else {
-                "Center at Cut"
-            }
-        },
+        label: |_| "Center at Cut",
         when: always(),
+        checked: Some(|clip| clip.transition_alignment == Some(TransitionAlignment::Center)),
         run: |state, clip| {
             state.set_clip_transition_alignment(
                 ClipId::from_raw(clip.clip),
@@ -228,14 +244,9 @@ pub const TRANSITION_ITEMS: &[MenuItem<ClipMenu>] = &[
     }),
     MenuItem::Row(MenuRow {
         id: "ctx-transition-align-start",
-        label: |clip| {
-            if clip.transition_alignment == Some(TransitionAlignment::Start) {
-                "• Start at Cut"
-            } else {
-                "Start at Cut"
-            }
-        },
+        label: |_| "Start at Cut",
         when: always(),
+        checked: Some(|clip| clip.transition_alignment == Some(TransitionAlignment::Start)),
         run: |state, clip| {
             state.set_clip_transition_alignment(
                 ClipId::from_raw(clip.clip),
@@ -245,14 +256,9 @@ pub const TRANSITION_ITEMS: &[MenuItem<ClipMenu>] = &[
     }),
     MenuItem::Row(MenuRow {
         id: "ctx-transition-align-end",
-        label: |clip| {
-            if clip.transition_alignment == Some(TransitionAlignment::End) {
-                "• End at Cut"
-            } else {
-                "End at Cut"
-            }
-        },
+        label: |_| "End at Cut",
         when: always(),
+        checked: Some(|clip| clip.transition_alignment == Some(TransitionAlignment::End)),
         run: |state, clip| {
             state.set_clip_transition_alignment(
                 ClipId::from_raw(clip.clip),

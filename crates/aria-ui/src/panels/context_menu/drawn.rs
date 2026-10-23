@@ -81,9 +81,10 @@ fn drawn<F: Clone + 'static>(
                     continue;
                 }
                 let label = (row.label)(&facts);
+                let checked = row.is_checked(&facts);
                 let run = row.run;
                 let facts = facts.clone();
-                out.push(item(row.id, label, theme, cx, move |state| {
+                out.push(item(row.id, label, checked, theme, cx, move |state| {
                     if let Err(err) = run(state, &facts) {
                         state.report_error(&err);
                     }
@@ -104,20 +105,16 @@ fn drawn<F: Clone + 'static>(
                 };
                 // The catalog is the single owner of what is offerable, so a new
                 // blend appears here without a second list; a cut between sounds
-                // lists the crossfades instead. The applied one takes the same
-                // `• ` prefix the inspector and the sidebar use.
+                // lists the crossfades instead. The applied one draws the check
+                // mark a toggle row draws.
                 let applied = blends.applied.as_deref();
                 let junction = blends.junction;
                 let mut blend = |catalog_id: &str, name: &str| {
-                    let label = if applied == Some(catalog_id) {
-                        format!("• {name}")
-                    } else {
-                        name.to_owned()
-                    };
                     let picked = catalog_id.to_owned();
                     out.push(item(
                         crate::motion::MotionKey::new("ctx-blend", catalog_id),
-                        label,
+                        name.to_owned(),
+                        applied == Some(catalog_id),
                         theme,
                         cx,
                         move |state: &mut AppState| {
@@ -144,13 +141,8 @@ fn drawn<F: Clone + 'static>(
                 let Some(menu) = blocks.properties.as_ref() else {
                     continue;
                 };
-                // The drawn property takes the `• ` prefix the blend rows use.
+                // The drawn property draws the check mark the blend rows draw.
                 for property in menu.properties.iter() {
-                    let label = if menu.drawn == Some(property.param) {
-                        format!("• {}", property.label).into()
-                    } else {
-                        property.label.clone()
-                    };
                     let param = property.param;
                     let menu = menu.clone();
                     out.push(item(
@@ -158,7 +150,8 @@ fn drawn<F: Clone + 'static>(
                             "ctx-badge-property",
                             format_args!("{param:?}"),
                         ),
-                        label,
+                        property.label.clone(),
+                        menu.drawn == Some(param),
                         theme,
                         cx,
                         move |state: &mut AppState| {

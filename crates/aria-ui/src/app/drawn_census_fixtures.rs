@@ -17,7 +17,7 @@ use crate::app::AppState;
 use crate::app::premiere_tests::{with_clip, with_media};
 
 /// A file from the repository's fixture set.
-pub(super) fn asset(name: &str) -> PathBuf {
+pub(crate) fn asset(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../tests/fixtures")
         .join(name)
@@ -301,6 +301,14 @@ pub(super) fn proxied_pool_item() -> (AppState, u64) {
 /// on a request to blend into nothing.
 pub(super) fn blended_junction() -> (AppState, ClipId) {
     let (mut state, first) = with_clip();
+    blend_right_junction(&mut state, first);
+    (state, first)
+}
+
+/// Place a neighbour against the right edge of `first`, the only clip on the
+/// first lane, and apply the catalog's first blend to the junction between
+/// them, for a test whose state is already open in a drawn window.
+pub(crate) fn blend_right_junction(state: &mut AppState, first: ClipId) {
     let lane = state
         .store
         .sequence
@@ -337,7 +345,6 @@ pub(super) fn blended_junction() -> (AppState, ClipId) {
         state.clip_transition_id(first).is_some(),
         "the junction did not take a blend, so nothing here has one to remove"
     );
-    (state, first)
 }
 
 /// A project remembered on the recents list, and the file it points at.

@@ -129,8 +129,11 @@ A row with a parenthesised list is a submenu. Plugin menu rows follow the
 shipped rows of their menu; a plugin row placed in a group sits in a submenu
 named after the group ([plugins/menus.md](../plugins/menus.md)).
 
-Every menu row is 22 px. A 16 px lead column holds a toggle's check mark while
-it is on, or a plugin row's icon; the row's current chord is right-aligned. A disabled item is drawn at 40 % opacity and states
+Every menu row is 22 px, in the menu bar and in a context menu. A 16 px lead
+column holds a toggle's check mark while it is on, or a plugin row's icon, and
+the caption starts one gap past it; the row's current chord is right-aligned.
+A context menu row that switches a state, such as Enable or a lane height,
+reads the same label in both states. A disabled item is drawn at 40 % opacity and states
 why in its tooltip; chosen from the keyboard or the palette anyway, it runs
 nothing and the reason goes to the status line, and a press on it leaves the
 drop open. Pointing at a submenu entry or pressing it opens its flyout. A

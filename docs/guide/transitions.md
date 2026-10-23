@@ -27,8 +27,9 @@ The timeline draws the window as a band at the cut according to its alignment.
 Drag either edge of the band to set the length: a centered band moves both
 edges symmetrically around the cut, and a start-aligned or end-aligned band
 changes length 1:1 with the dragged edge. Right-click the band for **Remove
-transition**, **Center at Cut**, **Start at Cut**, **End at Cut**, and the
-blend catalog. All act on that cut whatever is selected.
+Transition**, **Center at Cut**, **Start at Cut**, **End at Cut**, and the
+blend catalog. All act on that cut whatever is selected. The band's current
+alignment and the blend already on the cut draw a check mark.
 
 Deleting or moving either clip so the two no longer touch drops the transition;
 undo restores it.

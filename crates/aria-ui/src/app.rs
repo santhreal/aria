@@ -449,10 +449,11 @@ pub(crate) mod premiere_tests;
 // The dressed states every census and every reach test presses against. Declared
 // here rather than inside one census: a menu row and an inspector chip want the
 // same clip with sound, and a fixture that only one census can see grows a second
-// copy in the next one.
+// copy in the next one. `pub(crate)` for the drawn menu tests, which dress the
+// state a window already holds.
 #[cfg(test)]
 #[path = "app/drawn_census_fixtures.rs"]
-mod fixtures;
+pub(crate) mod fixtures;
 
 #[cfg(test)]
 #[path = "app/reach_tests.rs"]

@@ -122,6 +122,24 @@ fn linear_for_db(db: f32) -> f32 {
 }
 
 impl AppState {
+    /// Whether every selected clip is enabled, with at least one selected: the
+    /// check mark on Clip > Enable and on a clip menu's Enable row.
+    pub fn selection_is_enabled(&self) -> bool {
+        !self.selection.is_empty()
+            && self
+                .selection
+                .iter()
+                .all(|clip| self.ui_clip_ref(*clip).is_some_and(|ui| ui.enabled))
+    }
+
+    /// Whether the selected clip plays through a time remap, as the timeline
+    /// draws it: the check mark on Clip > Time Remapping and on a clip menu's
+    /// Time Remapping row.
+    pub fn selection_is_remapped(&self) -> bool {
+        self.selected_ui_clip_ref()
+            .is_some_and(|clip| clip.time_remap)
+    }
+
     /// Toggle `enabled` on the selected clips as one undo step (`Shift+E`).
     ///
     /// If any selected clip is disabled, enables the whole selection; otherwise

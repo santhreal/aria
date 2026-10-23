@@ -31,15 +31,6 @@ fn audio_channels_checked(id: &str, state: &AppState) -> bool {
     AudioChannels::of_row(id).is_some_and(|choice| state.selection_audio_channels() == Some(choice))
 }
 
-/// Whether every selected clip is enabled, with at least one selected.
-fn selection_enabled(_: &str, state: &AppState) -> bool {
-    !state.selection.is_empty()
-        && state
-            .selection
-            .iter()
-            .all(|clip| state.ui_clip_ref(*clip).is_some_and(|ui| ui.enabled))
-}
-
 static CLIP_ITEMS: &[MenuItem] = &[
     MenuItem::new("clip-rename", "Rename…", |_, s, _| {
         if let Some(clip) = s.selected_clip() {
@@ -63,14 +54,14 @@ static CLIP_ITEMS: &[MenuItem] = &[
     })
     .key("key-time-remap")
     .when(super::menu_guards::selection)
-    .checked(|_, s| s.selected_ui_clip_ref().is_some_and(|clip| clip.time_remap)),
+    .checked(|_, s| s.selection_is_remapped()),
     MenuItem::new("clip-enable", "Enable", |_, s, _| {
         let toggled = s.toggle_enabled_selected();
         report(s, toggled)
     })
     .key("key-clip-enable")
     .when(super::menu_guards::selection)
-    .checked(selection_enabled),
+    .checked(|_, s| s.selection_is_enabled()),
     MenuItem::new("seq-link", "Link", |_, s, _| {
         let linked = s.link_selected();
         report(s, linked)

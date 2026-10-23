@@ -15,8 +15,9 @@ Right-click a track header for the rest:
 
 - **Move Track Up** / **Move Track Down** move the track one row, which is one
   layer in the composite. The main track stays at the bottom of the stack.
-- **Duck Source** marks an audio track as the voice that auto-duck listens to.
-  Only audio tracks can be the source.
+- **Duck Source** marks an audio track as the voice that auto-duck listens to,
+  and draws a check mark while the track is the voice. Only audio tracks can
+  be the source.
 - **Open Gap at Playhead** shifts every clip on that track starting at or after
   the playhead one second later. **Close Gap at Playhead** shifts them back. A
   shift that would collide with another clip, or move one before the start of the
@@ -25,7 +26,8 @@ Right-click a track header for the rest:
 - **Hide Waveforms** / **Show Waveforms** and **Hide Filmstrips** / **Show
   Filmstrips** turn that lane's strips on or off.
 - **Lane Height: Mini**, **Small**, **Medium**, and **Large** set the lane to
-  20, 32, 48, and 72 pixels.
+  20, 32, 48, and 72 pixels. The lane's current height draws a check mark; a
+  lane at any other height draws none.
 
 Drag a track header onto another header to move that lane to the row you release
 over. The target row is marked while the pointer is over it, Escape abandons the

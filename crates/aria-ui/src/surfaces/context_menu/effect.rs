@@ -48,6 +48,7 @@ pub const EFFECT_ITEMS: &[MenuItem<EffectMenu>] = &[
         id: "ctx-fx-reset",
         label: |_| "Reset",
         when: always(),
+        checked: None,
         run: |state, fx| {
             state.effect_verb(fx.clip(), fx.index, None, |state, clip| {
                 state.reset_effect(clip, fx.index)
@@ -58,6 +59,7 @@ pub const EFFECT_ITEMS: &[MenuItem<EffectMenu>] = &[
         id: "ctx-fx-rename",
         label: |_| "Rename Effect",
         when: always(),
+        checked: None,
         run: |state, fx| {
             state.begin_rename(RenameTarget::Effect {
                 clip: fx.clip,
@@ -70,6 +72,7 @@ pub const EFFECT_ITEMS: &[MenuItem<EffectMenu>] = &[
         id: "ctx-fx-duplicate",
         label: |_| "Duplicate",
         when: always(),
+        checked: None,
         run: |state, fx| {
             state.effect_verb(
                 fx.clip(),
@@ -83,6 +86,7 @@ pub const EFFECT_ITEMS: &[MenuItem<EffectMenu>] = &[
         id: "ctx-fx-copy",
         label: |_| "Copy",
         when: always(),
+        checked: None,
         run: |state, fx| {
             state.copy_effect(fx.clip(), fx.index);
             Ok(())
@@ -94,6 +98,7 @@ pub const EFFECT_ITEMS: &[MenuItem<EffectMenu>] = &[
         id: "ctx-fx-paste",
         label: |_| "Paste Below",
         when: |fx| fx.copied,
+        checked: None,
         run: |state, fx| {
             state.effect_verb(
                 fx.clip(),
@@ -107,6 +112,7 @@ pub const EFFECT_ITEMS: &[MenuItem<EffectMenu>] = &[
         id: "ctx-fx-save-preset",
         label: |_| "Save as Preset…",
         when: always(),
+        checked: None,
         run: |state, fx| {
             state.save_effect_as_preset(fx.clip(), fx.index);
             Ok(())
@@ -116,6 +122,7 @@ pub const EFFECT_ITEMS: &[MenuItem<EffectMenu>] = &[
         id: "ctx-fx-remove",
         label: |_| "Remove Effect",
         when: always(),
+        checked: None,
         run: |state, fx| {
             state.effect_verb(fx.clip(), fx.index, None, |state, clip| {
                 state.remove_effect(clip, fx.index)

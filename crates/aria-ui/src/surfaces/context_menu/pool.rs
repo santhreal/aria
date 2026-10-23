@@ -38,6 +38,7 @@ pub const POOL_ITEMS: &[MenuItem<PoolMenu>] = &[
         id: "ctx-pool-in-use",
         label: |_| "Select Clips in Timeline",
         when: |pool| pool.in_use,
+        checked: None,
         run: |state, pool| {
             state.select_media_clips(MediaId::from_raw(pool.media));
             Ok(())
@@ -47,6 +48,7 @@ pub const POOL_ITEMS: &[MenuItem<PoolMenu>] = &[
         id: "ctx-pool-remove",
         label: |_| "Remove from Project",
         when: |pool| !pool.in_use,
+        checked: None,
         run: |state, pool| state.remove_media(MediaId::from_raw(pool.media)),
     }),
     // Which way the substitution can move, named on the row: the substitution is
@@ -56,6 +58,7 @@ pub const POOL_ITEMS: &[MenuItem<PoolMenu>] = &[
         id: "ctx-pool-proxy-clear",
         label: |_| "Decode from Original File",
         when: |pool| pool.has_proxy,
+        checked: None,
         run: |state, pool| {
             state.clear_media_proxy(MediaId::from_raw(pool.media));
             Ok(())
@@ -68,6 +71,7 @@ pub const POOL_ITEMS: &[MenuItem<PoolMenu>] = &[
         id: "ctx-pool-proxy-use",
         label: |_| "Decode from Proxy",
         when: |pool| !pool.has_proxy,
+        checked: None,
         run: |state, pool| {
             if let Err(err) = state.use_media_proxy(MediaId::from_raw(pool.media)) {
                 state.status_message = Some(err);

@@ -418,21 +418,35 @@ fn menus_doc_matches_registry() {
         slice_name: &str,
         items: &[MenuItem<F>],
         facts: &F,
-        out: &mut Vec<(String, String, String, String)>,
+        out: &mut Vec<(String, String, String, String, String)>,
     ) {
         for item in items {
-            let (kind, id, label) = match item {
-                MenuItem::Row(row) => ("Row", row.id.to_string(), (row.label)(facts).to_string()),
-                MenuItem::Outside(row) => (
-                    "Outside",
+            let kind = match item {
+                MenuItem::Row(_) => "Row",
+                MenuItem::Outside(_) => "Outside",
+                MenuItem::Labels => "Labels",
+                MenuItem::Blends => "Blends",
+                MenuItem::Properties => "Properties",
+            };
+            let (id, label, check) = match item.row() {
+                Some(row) => (
                     row.id.to_string(),
                     (row.label)(facts).to_string(),
+                    match row.checked {
+                        Some(_) if row.is_checked(facts) => "on",
+                        Some(_) => "off",
+                        None => "none",
+                    },
                 ),
-                MenuItem::Labels => ("Labels", "none".to_string(), "none".to_string()),
-                MenuItem::Blends => ("Blends", "none".to_string(), "none".to_string()),
-                MenuItem::Properties => ("Properties", "none".to_string(), "none".to_string()),
+                None => ("none".to_string(), "none".to_string(), "none"),
             };
-            out.push((slice_name.to_string(), kind.to_string(), id, label));
+            out.push((
+                slice_name.to_string(),
+                kind.to_string(),
+                id,
+                label,
+                check.to_string(),
+            ));
         }
     }
     let clip_facts = ClipMenu {
@@ -442,6 +456,7 @@ fn menus_doc_matches_registry() {
         grouped: false,
         enabled: true,
         can_time_remap: false,
+        remapped: false,
         has_audio: false,
         can_extract_audio: false,
         can_freeze_frame: false,
@@ -452,6 +467,7 @@ fn menus_doc_matches_registry() {
         track: 0,
         muted: false,
         audio: false,
+        duck_source: false,
         row: 0,
         lanes: 1,
         lane: aria_models::TrackDisplay::default(),
@@ -519,18 +535,19 @@ fn menus_doc_matches_registry() {
         &badge_facts,
         &mut expected_ctx_items,
     );
-    let documented_ctx_items: Vec<(String, String, String, String)> = table_rows(section_slice(
+    let documented_ctx_items: Vec<(String, String, String, String, String)> = table_rows(section_slice(
         MENUS_DOC,
         "Context menu item tables (`PREVIEW_ITEMS`, `CLIP_ITEMS`, `TRANSITION_ITEMS`, `TRACK_ITEMS`, `POOL_ITEMS`, `RECENT_ITEMS`, `EFFECT_ITEMS`, `BADGE_ITEMS`)",
     ))
     .iter()
     .map(|cells| {
-        assert!(cells.len() >= 4, "malformed context menu row: {cells:?}");
+        assert!(cells.len() >= 5, "malformed context menu row: {cells:?}");
         (
             strip_ticks(cells[0]).to_string(),
             strip_ticks(cells[1]).to_string(),
             strip_ticks(cells[2]).to_string(),
             strip_ticks(cells[3]).to_string(),
+            strip_ticks(cells[4]).to_string(),
         )
     })
     .collect();

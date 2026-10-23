@@ -34,6 +34,14 @@ pub(crate) fn with_media(asset: PathBuf) -> (AppState, ClipId) {
     crate::test_support::catalogs::assert_catalogs_only_grew();
     let mut state = AppState::new(PluginContext::new(), scratch()).unwrap();
     state.new_project().unwrap();
+    let clip = place_media(&mut state, asset);
+    (state, clip)
+}
+
+/// Import `asset` into `state`'s pool, place it at the start of the timeline,
+/// and select the clip it lands as, for a test whose state is already open in
+/// a drawn window.
+pub(crate) fn place_media(state: &mut AppState, asset: PathBuf) -> ClipId {
     let media = state.import_media(asset).expect("import fixture");
     state
         .drop_media_on_timeline(media, None, 0)
@@ -48,7 +56,7 @@ pub(crate) fn with_media(asset: PathBuf) -> (AppState, ClipId) {
         .next()
         .expect("one clip");
     state.select_clip(clip);
-    (state, clip)
+    clip
 }
 
 /// A state carrying a measurement-sized sequence: `lanes` lane pairs of

@@ -2348,6 +2348,7 @@ Notes for the latest release. For previous releases, see the
 - The Viewer draws its Program and Source tab row only while a Source tab is open, and its display wrench sits at the right end of the control row instead of the tab row.
 - The Command Palette, Unsaved Changes, Install Plugin, and Update Plugin dialog titles use Title Case, as the other dialog titles do.
 - Context menu rows use Title Case, such as `Remove from Project` and `Delete File…`, and the pool rows read `Select Clips in Timeline` and `Decode from Proxy` in place of `Used by the timeline: select those clips` and `Decode through a proxy`.
+- Context menu rows that switch a state, such as Enable, Time Remapping, Duck Source, a lane height, a transition alignment, the applied blend, and the drawn property, draw a check mark in a lead column while that state holds, as menu bar rows do, in place of a `• ` prefix or no mark.
 
 ### Fixed
 

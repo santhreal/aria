@@ -1,27 +1,28 @@
-//! Row: 1 helper from [`super`].
+//! Row: the one builder every context menu row is drawn by.
 //!
-//! Split out of `context_menu_drawn.rs` to stay under the file ceiling. A pure
-//! move. The item is `pub(super)` so the parent and its other children can
-//! reach it by name; nothing else changed.
+//! The row is the menu bar's row in a context menu's card: one row height, the
+//! lead column [`crate::components::menu_lead`] draws, then the caption, so a
+//! check mark, a plugin's icon and a plain row keep one caption column.
 
 use super::*;
 use crate::theme::Theme;
 
-/// One menu row.
+/// One menu row, with its check mark drawn while `checked` holds.
 ///
 /// `id` and `label` are owned: a catalog entry's text comes from a data file
 /// now, so a caller cannot hand over a `&'static str` for it.
 pub(super) fn item(
     id: impl Into<motion::ControlId>,
     label: impl Into<gpui::SharedString>,
+    checked: bool,
     theme: &Theme,
     cx: &mut gpui::Context<crate::shell::Shell>,
     action: impl Fn(&mut AppState) + 'static,
 ) -> gpui::AnyElement {
-    item_with_icon(id, label, None, theme, cx, action)
+    row(id, label, checked, None, theme, cx, action)
 }
 
-/// One menu row with the icon at the asset path `icon` before its label.
+/// One menu row with the icon at the asset path `icon` in its lead column.
 pub(super) fn item_with_icon(
     id: impl Into<motion::ControlId>,
     label: impl Into<gpui::SharedString>,
@@ -30,7 +31,18 @@ pub(super) fn item_with_icon(
     cx: &mut gpui::Context<crate::shell::Shell>,
     action: impl Fn(&mut AppState) + 'static,
 ) -> gpui::AnyElement {
-    let text = theme.text;
+    row(id, label, false, icon, theme, cx, action)
+}
+
+fn row(
+    id: impl Into<motion::ControlId>,
+    label: impl Into<gpui::SharedString>,
+    checked: bool,
+    icon: Option<&'static str>,
+    theme: &Theme,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+    action: impl Fn(&mut AppState) + 'static,
+) -> gpui::AnyElement {
     let label = label.into();
     // The row id doubles as the fade key: it is already unique per row, and a
     // shared key would make one hovered row light up several.
@@ -42,9 +54,10 @@ pub(super) fn item_with_icon(
         .h(px(Theme::ROW_HEIGHT))
         .flex()
         .items_center()
+        .gap(px(Theme::SPACE_SM))
         .rounded(px(Theme::CONTROL_RADIUS))
         .text_size(Theme::TEXT_UI)
-        .text_color(text)
+        .text_color(theme.text)
         .cursor(CursorStyle::PointingHand)
         .active(|style| style.opacity(0.92))
         .bg(motion::hover_blend(
@@ -53,9 +66,7 @@ pub(super) fn item_with_icon(
             theme.glass_hover(),
         ))
         .on_hover(motion::hover_listener(fade))
-        .when_some(icon, |el, path| {
-            el.gap(px(Theme::SPACE_SM)).child(crate::icons::icon(path))
-        })
+        .child(crate::components::menu_lead(checked, icon, theme))
         .child(label)
         .on_mouse_down(
             MouseButton::Left,

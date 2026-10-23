@@ -33,10 +33,13 @@
   arrow, Home, or End selects; Ctrl with an arrow moves by word; Ctrl+Z puts
   back the name the field opened with. Enter applies the name and Esc cancels.
 - `\` fits the timeline to the sequence, Shift+F to the selection. + / - zoom.
-- Right-click a clip, track, or the preview for a context menu.
-- **Clip > Enable** enables or disables the selected clips. A disabled clip
-  draws at 40 per cent opacity on its lane and produces no picture or sound in
-  preview or export.
+- Right-click a clip, track, or the preview for a context menu. A row that
+  switches a state draws a check mark in its lead column while the state
+  holds, as a menu bar row does.
+- **Clip > Enable** enables or disables the selected clips, and draws a check
+  mark while every selected clip is enabled; the clip context menu's
+  **Enable** reads the same. A disabled clip draws at 40 per cent opacity on
+  its lane and produces no picture or sound in preview or export.
 - **Clip > Group** joins two or more selected clips into a clip group, marked
   with `[G]` on each card. Clicking or moving one member selects or moves the
   group, while trimming an edge trims only that clip (or its linked A/V pair).

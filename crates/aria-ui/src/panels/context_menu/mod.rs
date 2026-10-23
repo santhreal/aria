@@ -94,6 +94,7 @@ pub fn render(
 
     let card = div()
         .id("context-menu-card")
+        .debug_selector(|| "context-menu-card".into())
         .min_w(px(180.))
         .max_h(px(room))
         .overflow_y_scroll()
@@ -194,3 +195,6 @@ mod drawn;
 mod label;
 mod row;
 use drawn::{drawn_target, items, plugin_items};
+
+#[cfg(test)]
+mod grid_tests;
