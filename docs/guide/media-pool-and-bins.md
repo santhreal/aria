@@ -101,10 +101,11 @@ playhead, end to end in the order you clicked them, and `.` overwrites with them
 Both go through the patched lanes, and the placement is one undo step. An item
 whose file is missing is skipped.
 
-Right-click a pool item for **Remove from project** and for the label swatches.
+Right-click a pool item for **Remove from Project** and for the label swatches.
 An item is removable only
 while no clip references it; a removal that a clip still holds is refused with
-the reason. Removal is undoable, and the undo reattaches any clips removed
+the reason. The menu of an item a clip uses offers **Select Clips in Timeline**
+in place of **Remove from Project**, which selects every clip that uses it. Removal is undoable, and the undo reattaches any clips removed
 alongside it.
 
 ### Bins

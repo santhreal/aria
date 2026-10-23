@@ -12,7 +12,8 @@ abutting it on the right, and on lanes that cannot hold a transition.
   The applied blend is marked. Picking another replaces it.
 - Duration sets the window length in ticks.
 - **Center at Cut**, **Start at Cut**, and **End at Cut** position the window across the cut, after the cut, or before the cut.
-- **Remove transition** clears it.
+- **Remove transition** clears it. The junction's context menu offers the same
+  as **Remove Transition**.
 
 Ctrl+T puts the default picture transition, the first in the catalog, at the
 selected edge or at the cut nearest the playhead on the targeted picture lanes.

@@ -31,12 +31,12 @@ impl PoolMenu {
 
 /// A media-pool menu, in the order it draws.
 pub const POOL_ITEMS: &[MenuItem<PoolMenu>] = &[
-    // The removal is refused while a clip holds the item, so the row states that
-    // and acts on it: it selects the clips holding the item rather than leaving
-    // them to be hunted for.
+    // The removal is refused while a clip holds the item, so this row stands in
+    // its place and selects the clips holding the item rather than leaving them
+    // to be hunted for.
     MenuItem::Row(MenuRow {
         id: "ctx-pool-in-use",
-        label: |_| "Used by the timeline: select those clips",
+        label: |_| "Select Clips in Timeline",
         when: |pool| pool.in_use,
         run: |state, pool| {
             state.select_media_clips(MediaId::from_raw(pool.media));
@@ -45,7 +45,7 @@ pub const POOL_ITEMS: &[MenuItem<PoolMenu>] = &[
     }),
     MenuItem::Row(MenuRow {
         id: "ctx-pool-remove",
-        label: |_| "Remove from project",
+        label: |_| "Remove from Project",
         when: |pool| !pool.in_use,
         run: |state, pool| state.remove_media(MediaId::from_raw(pool.media)),
     }),
@@ -54,7 +54,7 @@ pub const POOL_ITEMS: &[MenuItem<PoolMenu>] = &[
     // states would say nothing about which is true.
     MenuItem::Row(MenuRow {
         id: "ctx-pool-proxy-clear",
-        label: |_| "Decode from original file",
+        label: |_| "Decode from Original File",
         when: |pool| pool.has_proxy,
         run: |state, pool| {
             state.clear_media_proxy(MediaId::from_raw(pool.media));
@@ -66,7 +66,7 @@ pub const POOL_ITEMS: &[MenuItem<PoolMenu>] = &[
     // the two it is, is not a display question.
     MenuItem::Row(MenuRow {
         id: "ctx-pool-proxy-use",
-        label: |_| "Decode through a proxy",
+        label: |_| "Decode from Proxy",
         when: |pool| !pool.has_proxy,
         run: |state, pool| {
             if let Err(err) = state.use_media_proxy(MediaId::from_raw(pool.media)) {

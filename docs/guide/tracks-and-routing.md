@@ -43,7 +43,7 @@ The chevron collapses a lane to a 20-pixel strip: each clip is drawn as a flat
 bar in its own colour, so the cut pattern stays readable while the lane takes
 almost no room. The height is kept, so expanding restores the lane you sized.
 
-**Shift selection…**, in a clip's context menu, or **Shift Selection by Frames…** (`pal-shift-selection`) in the command palette, prompts for a
+**Shift Selection…**, in a clip's context menu, or **Shift Selection by Frames…** (`pal-shift-selection`) in the command palette, prompts for a
 signed frame count. The offset moves the selection on every lane it spans, from
 the earliest selected clip on each, shifting everything later on those lanes with
 it. A leading `+` is accepted. An offset that would move a clip before the start

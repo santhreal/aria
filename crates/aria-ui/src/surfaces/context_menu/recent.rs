@@ -52,7 +52,7 @@ pub const RECENT_ITEMS: &[MenuItem<PathBuf>] = &[
     }),
     MenuItem::Row(MenuRow {
         id: "ctx-recent-remove",
-        label: |_| "Remove from list",
+        label: |_| "Remove from List",
         when: always(),
         run: |state, path| {
             state.forget_recent(path);
@@ -61,7 +61,7 @@ pub const RECENT_ITEMS: &[MenuItem<PathBuf>] = &[
     }),
     MenuItem::Row(MenuRow {
         id: "ctx-recent-delete",
-        label: |_| "Delete file",
+        label: |_| "Delete File…",
         when: always(),
         run: |state, path| {
             // A file leaves the disk only after the question is answered, and the
@@ -69,7 +69,7 @@ pub const RECENT_ITEMS: &[MenuItem<PathBuf>] = &[
             let doomed = path.to_path_buf();
             state.request_pick(
                 Ask::Confirm {
-                    title: "Delete project file".into(),
+                    title: "Delete Project File".into(),
                     question: format!("Delete {}?", path.display()),
                 },
                 move |state, answer| {

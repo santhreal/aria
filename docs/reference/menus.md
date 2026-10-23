@@ -364,7 +364,7 @@ Defined in `crates/aria-ui/src/surfaces/context_menu.rs` and `crates/aria-ui/src
 
 | Target slice | Entry kind | Row ID | Default label |
 | --- | --- | --- | --- |
-| `PREVIEW_ITEMS` | `Row` | `ctx-fit` | `Fit timeline` |
+| `PREVIEW_ITEMS` | `Row` | `ctx-fit` | `Fit Timeline` |
 | `PREVIEW_ITEMS` | `Row` | `ctx-reset-transform` | `Reset Transform` |
 | `CLIP_ITEMS` | `Row` | `ctx-split` | `Split` |
 | `CLIP_ITEMS` | `Row` | `ctx-delete` | `Delete` |
@@ -382,10 +382,10 @@ Defined in `crates/aria-ui/src/surfaces/context_menu.rs` and `crates/aria-ui/src
 | `CLIP_ITEMS` | `Row` | `ctx-speed-duration` | `Speed/Duration…` |
 | `CLIP_ITEMS` | `Row` | `ctx-time-remap` | `Time Remapping` |
 | `CLIP_ITEMS` | `Row` | `ctx-audio-gain` | `Audio Gain…` |
-| `CLIP_ITEMS` | `Row` | `ctx-shift-selection` | `Shift selection…` |
+| `CLIP_ITEMS` | `Row` | `ctx-shift-selection` | `Shift Selection…` |
 | `CLIP_ITEMS` | `Labels` | `none` | `none` |
 | `CLIP_ITEMS` | `Row` | `ctx-properties` | `Properties` |
-| `TRANSITION_ITEMS` | `Row` | `ctx-transition-remove` | `Remove transition` |
+| `TRANSITION_ITEMS` | `Row` | `ctx-transition-remove` | `Remove Transition` |
 | `TRANSITION_ITEMS` | `Row` | `ctx-transition-align-center` | `Center at Cut` |
 | `TRANSITION_ITEMS` | `Row` | `ctx-transition-align-start` | `Start at Cut` |
 | `TRANSITION_ITEMS` | `Row` | `ctx-transition-align-end` | `End at Cut` |
@@ -406,15 +406,15 @@ Defined in `crates/aria-ui/src/surfaces/context_menu.rs` and `crates/aria-ui/src
 | `TRACK_ITEMS` | `Row` | `ctx-lane-small` | `Lane Height: Small` |
 | `TRACK_ITEMS` | `Row` | `ctx-lane-medium` | `• Lane Height: Medium` |
 | `TRACK_ITEMS` | `Row` | `ctx-lane-large` | `Lane Height: Large` |
-| `POOL_ITEMS` | `Row` | `ctx-pool-in-use` | `Used by the timeline: select those clips` |
-| `POOL_ITEMS` | `Row` | `ctx-pool-remove` | `Remove from project` |
-| `POOL_ITEMS` | `Row` | `ctx-pool-proxy-clear` | `Decode from original file` |
-| `POOL_ITEMS` | `Row` | `ctx-pool-proxy-use` | `Decode through a proxy` |
+| `POOL_ITEMS` | `Row` | `ctx-pool-in-use` | `Select Clips in Timeline` |
+| `POOL_ITEMS` | `Row` | `ctx-pool-remove` | `Remove from Project` |
+| `POOL_ITEMS` | `Row` | `ctx-pool-proxy-clear` | `Decode from Original File` |
+| `POOL_ITEMS` | `Row` | `ctx-pool-proxy-use` | `Decode from Proxy` |
 | `POOL_ITEMS` | `Labels` | `none` | `none` |
 | `RECENT_ITEMS` | `Row` | `ctx-recent-open` | `Open` |
 | `RECENT_ITEMS` | `Outside` | `ctx-recent-reveal` | `Reveal` |
-| `RECENT_ITEMS` | `Row` | `ctx-recent-remove` | `Remove from list` |
-| `RECENT_ITEMS` | `Row` | `ctx-recent-delete` | `Delete file` |
+| `RECENT_ITEMS` | `Row` | `ctx-recent-remove` | `Remove from List` |
+| `RECENT_ITEMS` | `Row` | `ctx-recent-delete` | `Delete File…` |
 | `EFFECT_ITEMS` | `Row` | `ctx-fx-reset` | `Reset` |
 | `EFFECT_ITEMS` | `Row` | `ctx-fx-rename` | `Rename Effect` |
 | `EFFECT_ITEMS` | `Row` | `ctx-fx-duplicate` | `Duplicate` |

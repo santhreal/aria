@@ -93,7 +93,7 @@ at the sequence size.
 
 ### Proxies
 
-Right-click a pool item and choose **Decode through a proxy** to render a
+Right-click a pool item and choose **Decode from Proxy** to render a
 smaller intra-frame copy as a background job; the command palette's **Proxy
 Every Pool Item** (`pal-proxy-create-all`) does the same for the whole pool. The Proxies toggle in the
 control row, and **View > Proxies**, switch the viewer between proxies and the

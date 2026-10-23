@@ -182,7 +182,7 @@ pub const CLIP_ITEMS: &[MenuItem<ClipMenu>] = &[
     }),
     MenuItem::Row(MenuRow {
         id: "ctx-shift-selection",
-        label: |_| "Shift selection…",
+        label: |_| "Shift Selection…",
         when: always(),
         run: |state, _| {
             state.begin_rename(RenameTarget::ShiftFrames);
@@ -205,7 +205,7 @@ pub const CLIP_ITEMS: &[MenuItem<ClipMenu>] = &[
 pub const TRANSITION_ITEMS: &[MenuItem<ClipMenu>] = &[
     MenuItem::Row(MenuRow {
         id: "ctx-transition-remove",
-        label: |_| "Remove transition",
+        label: |_| "Remove Transition",
         when: always(),
         run: |state, clip| state.clear_clip_transition(ClipId::from_raw(clip.clip)),
     }),

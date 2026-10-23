@@ -40,6 +40,9 @@ struct Pressed {
     unoffered: Vec<&'static str>,
     /// Rows the census pressed at least once, in table order.
     ids: Vec<&'static str>,
+    /// Each row's id and the text it draws, once per dressed state that offers
+    /// it, rows that leave the editor included.
+    labels: Vec<(&'static str, &'static str)>,
 }
 
 /// One dressed state a table is pressed against, with the facts a menu opened on
@@ -62,6 +65,7 @@ fn pressed() -> Pressed {
         inert: Vec::new(),
         unoffered: Vec::new(),
         ids: Vec::new(),
+        labels: Vec::new(),
     };
     press(CLIP_ITEMS, CLIP_STAGES, &mut out);
     press(TRANSITION_ITEMS, JUNCTION_STAGES, &mut out);
@@ -109,17 +113,23 @@ fn blends() -> BTreeSet<&'static str> {
     out
 }
 
-/// Press one table across its states.
+/// Press one table across its states, and read the text of every row each
+/// state offers. A row that leaves the editor is read and never pressed.
 fn press<F: Clone>(items: &'static [MenuItem<F>], stages: &[Stage<F>], out: &mut Pressed) {
     for entry in items {
-        let MenuItem::Row(row) = entry else {
+        let Some(row) = entry.row() else {
             continue;
         };
+        let outside = matches!(entry, MenuItem::Outside(_));
         let mut offered = false;
         let mut acted = false;
         for stage in stages {
             let (mut state, facts) = (stage.dress)();
             if !(row.when)(&facts) {
+                continue;
+            }
+            out.labels.push((row.id, (row.label)(&facts)));
+            if outside {
                 continue;
             }
             // Dressed away from the panel a row switches to, so a row whose whole
@@ -133,6 +143,9 @@ fn press<F: Clone>(items: &'static [MenuItem<F>], stages: &[Stage<F>], out: &mut
             acted |= refused || !sent.is_empty() || fingerprint(&state) != before;
             out.sent.extend(sent);
             let _ = stage.what;
+        }
+        if outside {
+            continue;
         }
         if !offered {
             out.unoffered.push(row.id);
@@ -447,6 +460,37 @@ fn the_census_presses_every_row_it_can() {
     );
 }
 
+/// Every context menu row is in Title Case, as the menu bar's rows and the
+/// palette's entries are.
+///
+/// The class closed here: a row in sentence case beside Title Case ones, as
+/// `Fit timeline`, `Remove from project` and `Delete file` were. The text is
+/// read from each row's own label in every dressed state that offers it, so a
+/// row whose label follows the facts is read in each state the census reaches,
+/// and a new row or table is read on the run that adds it.
+///
+/// Not covered: the blend and property rows, whose text is catalog data, and a
+/// label variant no dressed state reaches.
+#[test]
+fn every_context_menu_row_is_in_title_case() {
+    let labels = pressed().labels;
+    let read: BTreeSet<&str> = labels.iter().map(|&(id, _)| id).collect();
+    let unread: Vec<&str> = all_ids()
+        .into_iter()
+        .filter(|id| !read.contains(id))
+        .collect();
+    assert!(unread.is_empty(), "the census read no label for {unread:?}");
+    let offenders: Vec<String> = labels
+        .iter()
+        .filter_map(|&(id, label)| {
+            crate::commands::casing_tests::check_title_case(label)
+                .err()
+                .map(|reason| format!("{id}: {reason}"))
+        })
+        .collect();
+    assert!(offenders.is_empty(), "{}", offenders.join("\n"));
+}
+
 #[test]
 fn every_menu_row_has_its_own_element_id() {
     // gpui keys hover state by element id, so two rows sharing one light up
@@ -524,11 +568,11 @@ fn a_row_is_offered_only_when_its_edit_is_possible() {
         .collect();
     assert!(
         !rows.contains(&"ctx-pool-remove"),
-        "an item the timeline holds was offered Remove from project"
+        "an item the timeline holds was offered Remove from Project"
     );
     assert!(
         rows.contains(&"ctx-pool-in-use"),
-        "an item the timeline holds did not say so"
+        "an item the timeline holds did not offer Select Clips in Timeline"
     );
 }
 

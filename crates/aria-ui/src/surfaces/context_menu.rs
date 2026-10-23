@@ -98,7 +98,7 @@ const fn always<F>() -> fn(&F) -> bool {
 pub const PREVIEW_ITEMS: &[MenuItem<()>] = &[
     MenuItem::Row(MenuRow {
         id: "ctx-fit",
-        label: |_| "Fit timeline",
+        label: |_| "Fit Timeline",
         when: always(),
         run: |state, _| {
             state.zoom_fit_sequence();

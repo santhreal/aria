@@ -2347,6 +2347,7 @@ Notes for the latest release. For previous releases, see the
 - The Info panel states what the last rendered frame cost, stage by stage, and the rate playback held, in place of the Effect Controls Last frame card and the Project Report's Last frame table, and Last Frame Cost (`pal-render-cost`) replaces Report Last Frame Cost (`pal-project-frame-cost`).
 - The Viewer draws its Program and Source tab row only while a Source tab is open, and its display wrench sits at the right end of the control row instead of the tab row.
 - The Command Palette, Unsaved Changes, Install Plugin, and Update Plugin dialog titles use Title Case, as the other dialog titles do.
+- Context menu rows use Title Case, such as `Remove from Project` and `Delete File…`, and the pool rows read `Select Clips in Timeline` and `Decode from Proxy` in place of `Used by the timeline: select those clips` and `Decode through a proxy`.
 
 ### Fixed
 
