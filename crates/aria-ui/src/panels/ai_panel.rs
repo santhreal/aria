@@ -1,6 +1,7 @@
 //! AI transcript and composer.
 
 use crate::components::Wraps as _;
+use aria_core::count::counted;
 use gpui::{
     Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
     StatefulInteractiveElement, Styled, div, px,
@@ -227,8 +228,8 @@ fn plan_card(
                 .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_faint)
                 .child(gpui::SharedString::from(format!(
-                    "planned · {} edit(s), nothing applied",
-                    plan.len()
+                    "planned · {}, nothing applied",
+                    counted(plan.len(), "edit", "edits")
                 ))),
         )
         .children(steps)

@@ -250,7 +250,7 @@ The Captions panel (`crates/aria-ui/src/panels/captions.rs`) renders speech-to-t
 | `caption-commit` | Commit | Writes the transcript into the project as the text clips or markers `caption-target` selects, one undo entry per caption. | None |
 | `caption-run` | Transcribe | Starts speech-to-text transcription on the selected media-backed timeline clip. | None |
 | `caption-target` (per row) | Text clips / Markers | Selects whether Commit places one timed text clip per caption or one timeline marker per caption. | None |
-| `caption-threads` (per row) | 1 / 2 / 4 / 8 thread(s) | Sets how many CPU threads the transcription model decodes with. | None |
+| `caption-threads` (per row) | 1 thread / 2 threads / 4 threads / 8 threads | Sets how many CPU threads the transcription model decodes with. | None |
 | `caption-words` | One clip per word | Commits one caption per transcribed word instead of one per segment, for segments that carry word timings. | None |
 
 ## Text

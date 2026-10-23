@@ -1,6 +1,8 @@
 //! Pointer travel and release on a lane-group canvas: the drag a press started,
 //! the hover cursor, and the edit a release commits.
 
+use aria_core::count::counted;
+
 use super::*;
 
 #[allow(clippy::too_many_arguments)]
@@ -236,7 +238,8 @@ pub(super) fn on_left_up(
                 if moved {
                     let count = state.commit_marquee();
                     if count > 0 {
-                        state.status_message = Some(format!("Selected {count} clip(s)"));
+                        state.status_message =
+                            Some(format!("Selected {}", counted(count, "clip", "clips")));
                     }
                 } else {
                     state.marquee = None;

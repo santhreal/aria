@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 use aria_core::RationalTime;
+use aria_core::count::counted;
 use aria_jobs::JobCompletion;
 use aria_plugin::PluginContext;
 use aria_render::RenderFiles;
@@ -269,7 +270,11 @@ impl AppState {
         let generation = Arc::clone(&self.render_files_generation);
         let bar_weak = Arc::downgrade(&self.render_bar_state.shared);
         let preview_worker = self.preview_worker.clone_wake();
-        self.status_message = Some(format!("Rendering {total} frame(s) {}", scope.what()));
+        self.status_message = Some(format!(
+            "Rendering {} {}",
+            counted(total, "frame", "frames"),
+            scope.what()
+        ));
         let id = self.spawn_job(scope.job_label(), move |context| {
             let mut gpu = gpu;
             let mut renderer: Option<aria_render::Renderer> = None;
@@ -324,7 +329,8 @@ impl AppState {
             }
             preview_worker.wake(());
             JobCompletion::new(format!(
-                "{rendered} frame(s) rendered, {skipped} already cached"
+                "{} rendered, {skipped} already cached",
+                counted(rendered, "frame", "frames")
             ))
             .with_output("rendered", rendered.to_string())
             .and_then(|c| c.with_output("cached", skipped.to_string()))
@@ -354,7 +360,10 @@ impl AppState {
         let bar_weak = Arc::downgrade(&self.render_bar_state.shared);
         let preview_worker = self.preview_worker.clone_wake();
         self.preview_worker.clear();
-        self.status_message = Some(format!("Deleting render files for {total} frame(s)"));
+        self.status_message = Some(format!(
+            "Deleting render files for {}",
+            counted(total, "frame", "frames")
+        ));
         let id = self.spawn_job("Deleting render files", move |context| {
             let mut removed = 0_u64;
             for (idx, f) in (0..end_frame).enumerate() {
@@ -381,9 +390,12 @@ impl AppState {
                 bar_shared.record_from_job(job_stamp, segments);
             }
             preview_worker.wake(());
-            JobCompletion::new(format!("Removed {removed} render file(s)"))
-                .with_output("removed", removed.to_string())
-                .map_err(String::from)
+            JobCompletion::new(format!(
+                "Removed {}",
+                counted(removed, "render file", "render files")
+            ))
+            .with_output("removed", removed.to_string())
+            .map_err(String::from)
         });
         Ok(id.raw())
     }

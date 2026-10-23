@@ -28,6 +28,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use aria_ai::tools::{HostToolSpec, ToolHost, ToolOutput, ToolTier};
+use aria_core::count::counted;
 use aria_engine::Engine;
 use aria_models::RationalTime;
 use aria_plugin::{AI_TOOL_PREFIX, AiToolTier, PluginContext};
@@ -202,12 +203,12 @@ impl ShellHost {
             return Ok(ToolOutput::text(text));
         }
         text.push_str(&format!(
-            "{}x{} at {}/{} fps, {} frame(s)",
+            "{}x{} at {}/{} fps, {}",
             probe.width,
             probe.height,
             probe.frame_rate.num,
             probe.frame_rate.den,
-            probe.frame_count
+            counted(probe.frame_count, "frame", "frames")
         ));
         match &probe.video_codec {
             Some(codec) => text.push_str(&format!(", video {codec}")),

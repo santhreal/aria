@@ -189,7 +189,7 @@ fn names_set_in_proportional_figures_and_playhead_readouts_in_tabular() {
     // The timeline's and the Viewer's playhead fields, and the ruler's labels.
     assert!(
         clocks.len() >= 3,
-        "{} timecode line(s) drawn, short of the two playhead fields and a ruler label: {lines:?}",
+        "timecode lines drawn: {}, short of the two playhead fields and a ruler label: {lines:?}",
         clocks.len()
     );
     for (text, tabular) in clocks {

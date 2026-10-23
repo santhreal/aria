@@ -30,6 +30,7 @@
 
 use std::path::{Path, PathBuf};
 
+use aria_core::count::counted;
 use aria_jobs::JobCompletion;
 use aria_models::MediaId;
 use aria_render::{ExportSettings, StarterLut};
@@ -174,9 +175,10 @@ impl AppState {
             }
             written += 1;
         }
+        let looks = counted(written, "look", "looks");
         self.status_message = Some(match self.storage_layout().resolve(CacheId::Luts) {
-            Some(dir) => format!("Baked {written} look(s) into {}", dir.display()),
-            None => format!("Baked {written} look(s)"),
+            Some(dir) => format!("Baked {looks} into {}", dir.display()),
+            None => format!("Baked {looks}"),
         });
     }
 
@@ -233,9 +235,12 @@ impl AppState {
             }
         }
         self.status_message = Some(if failed == 0 {
-            format!("Reloaded {reloaded} item(s) from disk")
+            format!("Reloaded {} from disk", counted(reloaded, "item", "items"))
         } else {
-            format!("Reloaded {reloaded} item(s); {failed} could not be read")
+            format!(
+                "Reloaded {}; {failed} could not be read",
+                counted(reloaded, "item", "items")
+            )
         });
     }
 
@@ -301,7 +306,7 @@ impl AppState {
             // The sink's own count, not the loop's: it is the number of files on
             // disk, which is what gets opened next.
             let written = encoder.frames_written();
-            JobCompletion::new(format!("{written} frame(s)"))
+            JobCompletion::new(counted(written, "frame", "frames").to_string())
                 .with_output("path", dest.display().to_string())
                 .map_err(String::from)
         });

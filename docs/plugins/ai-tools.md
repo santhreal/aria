@@ -30,7 +30,7 @@ fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
             }
             let host = ctx.try_get::<ProjectHost>().ok_or("no project is open")?;
             let markers = host.snapshot().timeline().markers().len();
-            Ok(AiToolOutput::text(format!("{markers} marker(s)")))
+            Ok(AiToolOutput::text(format!("markers: {markers}")))
         },
     )?;
     Ok(())

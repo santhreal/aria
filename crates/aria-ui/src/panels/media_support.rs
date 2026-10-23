@@ -12,6 +12,7 @@
 //! rows, so a catalog row added anywhere upstream draws itself.
 
 use crate::components::Wraps as _;
+use aria_core::count::counted;
 use gpui::{
     CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
     ParentElement, SharedString, StatefulInteractiveElement, Styled, div, px,
@@ -94,7 +95,7 @@ pub(crate) fn render(
         let count = report.map_or(0, |report| report.lines.len());
         (
             if warnings == 0 {
-                format!("Media support — {count} fact(s)")
+                format!("Media support — {}", counted(count, "fact", "facts"))
             } else {
                 format!("Media support — {warnings} of {count} to look at")
             },

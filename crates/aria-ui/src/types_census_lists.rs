@@ -244,7 +244,7 @@ fn no_draw_builds_the_job_list() {
     }
     assert!(
         builds.is_empty(),
-        "{} draw(s) build the job list instead of reading `job_view`:\n  {}",
+        "draws that build the job list instead of reading `job_view`: {}\n  {}",
         builds.len(),
         builds.join("\n  ")
     );
@@ -322,7 +322,7 @@ fn only_the_projection_enumerates_the_property_catalog() {
     }
     assert!(
         readers.is_empty(),
-        "{} site(s) enumerate the property catalog themselves, which clones every row \
+        "sites that enumerate the property catalog themselves: {}, which clones every row \
          that applies to the clip — read the projected rows through `key_params` or \
          `key_param` instead:\n  {}",
         readers.len(),
@@ -354,7 +354,7 @@ fn no_draw_walks_the_pool_folders() {
     }
     assert!(
         walkers.is_empty(),
-        "{} site(s) in the draw layer walk the folder list, which copies every folder \
+        "sites in the draw layer that walk the folder list: {}, which copies every folder \
          it keeps on every frame — read `bin_path()` or `child_bins()` instead:\n  {}",
         walkers.len(),
         walkers.join("\n  ")
@@ -396,7 +396,7 @@ fn no_draw_copies_a_list_it_reached_through_the_state() {
     }
     assert!(
         copies.is_empty(),
-        "{} site(s) in the draw layer copy a whole projected list on every frame — hold \
+        "sites in the draw layer that copy a whole projected list on every frame: {} — hold \
          the list as an `Arc<[_]>` and hand back a handle instead:\n  {}",
         copies.len(),
         copies.join("\n  ")
@@ -439,7 +439,7 @@ fn one_place_decides_which_folder_is_open() {
     assert_eq!(
         writes.len(),
         1,
-        "which folder is open is assigned in {} place(s); it has one owner, \
+        "places that assign which folder is open: {}; it has one owner, \
          `AppState::set_open_bin`, because writing it without rebuilding the folder \
          views leaves them describing the folder before the move:\n  {}",
         writes.len(),

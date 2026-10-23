@@ -7,7 +7,7 @@ GPUI.
 
 | Crate | Role |
 | --- | --- |
-| `aria-core` | Time, color, pixels, decode/encode contracts |
+| `aria-core` | Time, color, pixels, decode/encode contracts, count wording |
 | `aria-models` | Project, timeline, media pool, `.aria` schema |
 | `aria-commands` | Edit and project command vocabulary |
 | `aria-decoder` / `aria-encoder` | Platform-native media |

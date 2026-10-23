@@ -7,6 +7,7 @@ use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
 use aria_commands::{EditOutcome, ProjectCommand};
+use aria_core::count::counted;
 use aria_models::{
     CanvasSettings, ClipId, MAX_SPEED, MIN_SPEED, MediaId, MediaSource, Project, Rational,
     RationalTime, TimeRange, TrackId, TrackKind, rate_eq, resample, retimed_duration,
@@ -259,9 +260,10 @@ impl Placer<'_, '_> {
             lanes.push(events);
         }
         for (reason, events) in missing {
-            let plural = if events == 1 { "" } else { "s" };
-            self.skipped
-                .push(format!("{reason}; {events} event{plural} not placed"));
+            self.skipped.push(format!(
+                "{reason}; {} not placed",
+                counted(events, "event", "events")
+            ));
         }
         Ok((pool, lanes))
     }

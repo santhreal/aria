@@ -2,6 +2,7 @@
 //! writes on timeline property rows.
 
 use aria_commands::{Command, EditCommand};
+use aria_core::count::counted;
 use aria_engine::EngineError;
 use aria_models::{ClipId, ClipParam, Easing, ParamKind, ParamValue, RationalTime, TemporalEase};
 
@@ -324,7 +325,10 @@ impl AppState {
             s.copied_keyframes = copied;
         });
         if count > 0 {
-            self.status_message = Some(format!("Copied {count} keyframe(s)"));
+            self.status_message = Some(format!(
+                "Copied {}",
+                counted(count, "keyframe", "keyframes")
+            ));
         }
         count
     }

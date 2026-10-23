@@ -285,6 +285,7 @@ version = "0.7.0-alpha.0"
 dependencies = [
  "aria-cloud",
  "aria-commands",
+ "aria-core",
  "aria-engine",
  "aria-models",
  "aria-settings",
@@ -520,6 +521,7 @@ name = "aria-interchange"
 version = "0.7.0-alpha.0"
 dependencies = [
  "aria-commands",
+ "aria-core",
  "aria-engine",
  "aria-models",
  "aria-plugin",

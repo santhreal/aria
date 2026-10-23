@@ -4,7 +4,7 @@
 //! to a wgpu compositor, and presents into a native surface. Three crates have
 //! to agree on the *shape* of the data flowing across that path — the decoder
 //! (platform-specific), the compositor (wgpu), and the engine that drives them.
-//! This crate is that shared vocabulary, and nothing more:
+//! This crate is that shared vocabulary:
 //!
 //! - [`time`] — exact, OTIO-style [`RationalTime`] / [`Rational`] / [`TimeRange`].
 //!   The timeline clock and stream PTS both live here, so a frame's presentation
@@ -28,6 +28,9 @@
 //! - [`cancel`] — [`Cancel`], the one-way stop a scrub uses to drop the frame it
 //!   has already moved past. Here because the decoder, the renderer and the
 //!   engine all have to honour the same signal.
+//! - [`count`]: [`counted`](count::counted), a count written with the noun that
+//!   agrees with it, for every crate that writes a message about how many of
+//!   something it touched.
 //!
 //! ## Deliberately dependency-light
 //!
@@ -41,6 +44,7 @@
 pub mod audio;
 pub mod cancel;
 pub mod color;
+pub mod count;
 pub mod decode;
 pub mod encode;
 pub mod frame;

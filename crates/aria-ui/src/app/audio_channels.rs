@@ -8,6 +8,7 @@
 //! clip that carries sound.
 
 use aria_commands::{Command, EditCommand};
+use aria_core::count::counted;
 use aria_engine::EngineError;
 use aria_models::{AudioInsertTarget, ClipId};
 
@@ -184,11 +185,10 @@ impl AppState {
             }
             Ok(())
         })?;
-        let noun = if clips.len() == 1 { "clip" } else { "clips" };
         self.status_message = Some(format!(
-            "Audio channels: {} on {} {noun}",
+            "Audio channels: {} on {}",
             choice.label(),
-            clips.len()
+            counted(clips.len(), "clip", "clips")
         ));
         Ok(())
     }

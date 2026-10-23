@@ -8,6 +8,7 @@
 //! A stale row is labelled rather than hidden: the analyzer that wrote it has moved on,
 //! and the row offers both a re-run and a clear.
 
+use aria_core::count::counted;
 use gpui::{
     Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
     SharedString, Styled, div, px,
@@ -144,7 +145,8 @@ pub(crate) fn analysis_panel(
                     "Nothing detected for this media yet".to_string()
                 } else {
                     format!(
-                        "{total} moment(s){}",
+                        "{}{}",
+                        counted(total, "moment", "moments"),
                         match peak {
                             Some(dbfs) if clipping => format!(" · peak {dbfs:.1} dBFS, clipping"),
                             Some(dbfs) => format!(" · peak {dbfs:.1} dBFS"),

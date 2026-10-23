@@ -97,7 +97,7 @@ fn no_crate_names_a_temp_path_that_grows() {
     assert!(
         offenders.is_empty(),
         "a temp path must be reusable: use a fixed name, or a counter that restarts \
-         at zero, never a clock or a pid ({} exception(s) declared):\n  {}",
+         at zero, never a clock or a pid (exceptions declared: {}):\n  {}",
         GROWING_NAMES_ALLOWED.len(),
         offenders.join("\n  ")
     );

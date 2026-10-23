@@ -284,7 +284,7 @@ fn steady_resolve_and_look_ahead_allocate_zero_heap_blocks() {
             res.expect("steady resolve");
             assert_eq!(
                 allocs, 0,
-                "steady resolve_with_into allocated {allocs} heap block(s) at tick {tick} for {case:?}"
+                "steady resolve_with_into allocated heap blocks: {allocs}, at tick {tick} for {case:?}"
             );
         }
     }

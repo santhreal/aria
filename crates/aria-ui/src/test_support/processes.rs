@@ -110,7 +110,7 @@ fn only_one_module_starts_another_program() {
     assert!(
         offenders.is_empty(),
         "starting another application belongs to aria-ui/src/app/launch.rs, which \
-         refuses until the headed editor allows it ({} owner(s) declared):\n  {}",
+         refuses until the headed editor allows it (owners declared: {}):\n  {}",
         SPAWN_OWNERS.len(),
         offenders.join("\n  ")
     );

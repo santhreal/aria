@@ -30,6 +30,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use aria_commands::{Command, EditCommand};
 use aria_core::RgbaImage;
+use aria_core::count::counted;
 use aria_engine::EngineError;
 use aria_jobs::JobCompletion;
 use aria_models::{ClipId, ClipParam, Easing, Mask, MaskParam, ParamValue, Project, RationalTime};
@@ -354,10 +355,11 @@ impl AppState {
             // not a file on disk.
             let written = report.written;
             wake.wake(Ok((keys, report)));
+            let keyframes = counted(written, "keyframe", "keyframes");
             let detail = match (report.lost_at, report.cancelled) {
-                (Some(tick), _) => format!("{written} keyframe(s), lost the feature at {tick}"),
-                (None, true) => format!("{written} keyframe(s) before it was stopped"),
-                (None, false) => format!("{written} keyframe(s)"),
+                (Some(tick), _) => format!("{keyframes}, lost the feature at {tick}"),
+                (None, true) => format!("{keyframes} before it was stopped"),
+                (None, false) => keyframes.to_string(),
             };
             JobCompletion::new(detail)
                 .with_output("keyframes", written.to_string())
@@ -484,10 +486,16 @@ impl AppState {
         let written = report.written;
         self.status_message = Some(match (report.lost_at, report.cancelled) {
             (Some(_), _) => {
-                format!("Tracked {written} frame(s) and stopped where the feature was lost")
+                format!(
+                    "Tracked {} and stopped where the feature was lost",
+                    counted(written, "frame", "frames")
+                )
             }
-            (None, true) => format!("Stopped the track after {written} frame(s)"),
-            (None, false) => format!("Tracked {written} frame(s)"),
+            (None, true) => format!(
+                "Stopped the track after {}",
+                counted(written, "frame", "frames")
+            ),
+            (None, false) => format!("Tracked {}", counted(written, "frame", "frames")),
         });
     }
 

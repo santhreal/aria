@@ -7,6 +7,7 @@
 use std::path::Path;
 
 use aria_commands::{Command, EditCommand};
+use aria_core::count::counted;
 use aria_engine::EngineError;
 use aria_models::{ClipId, MediaId, RationalTime, TimeRange, TrackId, resample};
 
@@ -215,7 +216,7 @@ impl AppState {
             }
             Ok(())
         })?;
-        self.status_message = Some(format!("Removed {removed} effect(s)"));
+        self.status_message = Some(format!("Removed {}", counted(removed, "effect", "effects")));
         Ok(())
     }
 
@@ -269,7 +270,10 @@ impl AppState {
             }
             Ok(())
         })?;
-        self.status_message = Some(format!("Deleted {count} empty track(s)"));
+        self.status_message = Some(format!(
+            "Deleted {}",
+            counted(count, "empty track", "empty tracks")
+        ));
         Ok(())
     }
 

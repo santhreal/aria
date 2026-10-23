@@ -142,7 +142,7 @@ fn two_enqueued_jobs_run_in_order_and_both_report_done() {
             log.push(format!("end:{name}"));
         }
         let _ = context.try_begin_commit();
-        JobCompletion::new("10 frame(s)")
+        JobCompletion::new("10 frames")
             .with_output("path", dest.display().to_string())
             .map_err(String::from)
     });

@@ -39,6 +39,7 @@ use aria_ai::{
     WireCommand, compose_rules, load_agent_dir, merge_skills, summarize_for, validate,
 };
 use aria_commands::{Command, EditOutcome};
+use aria_core::count::counted;
 use aria_engine::ApplyOutcome;
 use aria_jobs::JobCompletion;
 use aria_plugin::{EditGroup, Origin, ProjectHost};
@@ -437,7 +438,7 @@ impl AppState {
         self.sync_from_engine();
         self.push_agent_message(
             AgentEntryKind::Action,
-            format!("Applied the plan: {applied} edit(s)"),
+            format!("Applied the plan: {}", counted(applied, "edit", "edits")),
         );
         for clip in renders {
             let line = match self.render_clip(clip) {
@@ -453,7 +454,10 @@ impl AppState {
             };
             self.push_agent_message(AgentEntryKind::Action, line);
         }
-        self.status_message = Some(format!("Applied {applied} planned edit(s)"));
+        self.status_message = Some(format!(
+            "Applied {}",
+            counted(applied, "planned edit", "planned edits")
+        ));
         Ok(applied)
     }
 
@@ -472,7 +476,10 @@ impl AppState {
         self.assistant.plan = Arc::default();
         self.push_agent_message(
             AgentEntryKind::Action,
-            format!("Discarded the plan: {dropped} edit(s) not applied"),
+            format!(
+                "Discarded the plan: {} not applied",
+                counted(dropped, "edit", "edits")
+            ),
         );
         self.status_message = Some("Discarded the plan".into());
     }

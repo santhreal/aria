@@ -3,6 +3,8 @@
 //! Split out of [`super`] to keep that file readable. Pure move — both functions
 //! are unchanged, and both are still only called from the panel that owns them.
 
+use aria_core::count::counted;
+
 use super::*;
 use crate::theme::Theme;
 
@@ -131,8 +133,8 @@ pub(super) fn skills_block(
                     "No skills installed".to_string()
                 } else {
                     format!(
-                        "{offered} of {} skill(s) offered to the agent",
-                        installed.len()
+                        "{offered} of {} offered to the agent",
+                        counted(installed.len(), "skill", "skills")
                     )
                 })),
         )

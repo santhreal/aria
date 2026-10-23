@@ -104,7 +104,7 @@ fn a_catalog_card_carries_what_the_operator_needs_to_choose() {
     let cards = cards_from_catalog(CloudFeed::Templates, &response);
     let card = &cards[0];
     assert_eq!(card.name, "t name");
-    for part in ["4s", "3 slot(s)", "2.0 MiB", "CC0"] {
+    for part in ["4s", "3 slots", "2.0 MiB", "CC0"] {
         assert!(
             card.detail.contains(part),
             "the detail line lost {part}: {}",

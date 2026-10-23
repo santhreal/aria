@@ -217,7 +217,7 @@ fn syncing_by_sound_places_the_late_camera_and_undoes_in_one_step() {
     assert_eq!(offsets(&state), vec![0, 24]);
     assert_eq!(
         state.status_message.as_deref(),
-        Some("Synced 1 angle(s) by sound")
+        Some("Synced 1 angle by sound")
     );
     assert!(
         state.undo(),

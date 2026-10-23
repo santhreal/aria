@@ -47,7 +47,7 @@ fn every_menu_carries_every_row_the_registry_offers() {
         assert_eq!(
             native.items.len(),
             entries.len(),
-            "{} has {} native item(s) for {} drop entries",
+            "{} has {} native items for {} drop entries",
             menu.label(),
             native.items.len(),
             entries.len()

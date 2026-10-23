@@ -73,7 +73,7 @@ fn the_pool_is_the_only_temp_owner() {
     assert!(
         offenders.is_empty(),
         "these name a path in the system temp dir, and only the pool may \
-         ({} owner(s) declared):\n  {}",
+         (owners declared: {}):\n  {}",
         TEMP_OWNERS.len(),
         offenders.join("\n  ")
     );

@@ -10,6 +10,8 @@
 //! audio, or no selection at all is answered on the status strip before a job is
 //! ever started, so the board never carries an entry that could not have run.
 
+use aria_core::count::counted;
+
 use super::*;
 
 impl AppState {
@@ -112,9 +114,9 @@ impl AppState {
                 .map(|db| format!("{db:.1} dBFS"))
                 .unwrap_or_else(|| "silence".to_string());
             JobCompletion::new(format!(
-                "loudest {level} at {across:.0}% in; {loud}/{} bucket(s) over \
+                "loudest {level} at {across:.0}% in; {loud} of {} over \
                      {LOUD_THRESHOLD_DBFS:.0} dBFS",
-                peaks.len()
+                counted(peaks.len(), "bucket", "buckets")
             ))
             .with_output("peak_at_percent", format!("{across:.1}"))?
             .with_output("loud_buckets", loud.to_string())
@@ -130,17 +132,17 @@ fn verify_animation(path: &std::path::Path, bytes: &[u8]) -> Result<JobCompletio
     let embedded = decode_animation(bytes).map_err(|err| err.to_string())?;
     if framed.len() != embedded.len() {
         return Err(format!(
-            "{}: {} frame(s) from the path and {} from memory",
+            "{}: {} from the path and {} from memory",
             path.display(),
-            framed.len(),
+            counted(framed.len(), "frame", "frames"),
             embedded.len()
         ));
     }
     let millis: u32 = framed.iter().map(|frame| frame.delay_ms).sum();
     let first = &framed[0].image;
     JobCompletion::new(format!(
-        "{} frame(s), {}×{}, {:.2}s per loop",
-        framed.len(),
+        "{}, {}×{}, {:.2}s per loop",
+        counted(framed.len(), "frame", "frames"),
         first.width,
         first.height,
         f64::from(millis) / 1000.0

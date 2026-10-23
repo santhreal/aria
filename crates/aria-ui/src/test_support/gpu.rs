@@ -81,7 +81,7 @@ fn one_module_brings_up_the_gpu() {
     }
     assert!(
         offenders.is_empty(),
-        "these bring up a GPU device of their own, and only {} module(s) may: share \
+        "these bring up a GPU device of their own, and only the declared modules may ({}): share \
          the mounted one with `GpuContext::share` and `Renderer::with_gpu`\n  {}",
         DEVICE_OWNERS.len(),
         offenders.join("\n  ")

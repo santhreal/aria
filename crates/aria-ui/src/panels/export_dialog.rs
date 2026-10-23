@@ -1,5 +1,6 @@
 //! Export dialog.
 
+use aria_core::count::counted;
 use gpui::{
     Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
     SharedString, StatefulInteractiveElement, Styled, div, px,
@@ -173,7 +174,10 @@ pub fn render(
         in_flight.push(
             crate::loaders::pending_row(
                 "export-inflight",
-                SharedString::from(format!("{} render(s) in flight", running.len())),
+                SharedString::from(format!(
+                    "{} in flight",
+                    counted(running.len(), "render", "renders")
+                )),
                 &theme,
                 cx.entity_id(),
                 cx,

@@ -41,6 +41,7 @@ mod types;
 #[cfg(test)]
 mod tests;
 
+use aria_core::count::counted;
 pub use bridge::{Applied, EngineBridge};
 use history::{collect_turn_messages, enforce_image_budget, enforce_tool_output_image_budget};
 pub use prompt::commit_progress_spec;
@@ -482,10 +483,9 @@ pub fn run_prompt_with_host(
 
         if edit_cap_tripped {
             final_text = format!(
-                "Reached the {}-edit cap for one prompt; kept the {} edit{} already applied.",
+                "Reached the {}-edit cap for one prompt; kept the {} already applied.",
                 config.max_tool_calls,
-                actions.len(),
-                if actions.len() == 1 { "" } else { "s" }
+                counted(actions.len(), "edit", "edits")
             );
             break;
         }

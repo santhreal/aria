@@ -2,6 +2,7 @@
 //! the selected keyframes, with Continuous to keep one speed on both sides.
 
 use crate::components::Wraps as _;
+use aria_core::count::counted;
 use gpui::{
     Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled,
     div, px,
@@ -232,10 +233,7 @@ pub fn render(
             div()
                 .text_size(Theme::TEXT_TITLE)
                 .text_color(theme.text_muted)
-                .child(format!(
-                    "{count} keyframe{}",
-                    if count == 1 { "" } else { "s" }
-                )),
+                .child(counted(count, "keyframe", "keyframes").to_string()),
         )
         .child(side_block(VelocitySide::Incoming, &form, &theme, cx))
         .child(side_block(VelocitySide::Outgoing, &form, &theme, cx))

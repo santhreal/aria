@@ -245,7 +245,7 @@ mod tests {
             );
             assert!(
                 usize::from(spec.bit_depth) <= spec.bytes_per_sample * 8,
-                "{} claims {} bits in {} byte(s)",
+                "{} claims {} bits with bytes_per_sample {}",
                 spec.id,
                 spec.bit_depth,
                 spec.bytes_per_sample

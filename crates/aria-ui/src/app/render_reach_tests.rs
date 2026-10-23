@@ -16,6 +16,7 @@
 
 use std::collections::BTreeSet;
 
+use aria_core::count::counted;
 use aria_storage::CacheId;
 
 use super::super::premiere_tests::with_clip;
@@ -271,7 +272,7 @@ fn reloading_everything_reports_what_it_read() {
     state.reload_all_media_from_disk();
     assert_eq!(
         state.status_message.as_deref(),
-        Some(format!("Reloaded {count} item(s) from disk").as_str())
+        Some(format!("Reloaded {} from disk", counted(count, "item", "items")).as_str())
     );
 
     state.new_project().expect("empty the pool");

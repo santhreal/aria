@@ -16,6 +16,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use aria_cloud::dto::StockKind;
 use aria_cloud::{CloudClient, DirectStockProvider, StockProvider, stock::BackendStockProvider};
+use aria_core::count::counted;
 use gpui::Context;
 
 use super::AppState;
@@ -447,7 +448,11 @@ impl AppState {
         }
         let count = pack.presets.len();
         self.text_presets = pack.presets.into();
-        self.status_message = Some(format!("Loaded {count} text preset(s) from {}", card.name));
+        self.status_message = Some(format!(
+            "Loaded {} from {}",
+            counted(count, "text preset", "text presets"),
+            card.name
+        ));
         Ok(())
     }
 

@@ -9,6 +9,7 @@ repository.workspace = true
 
 [dependencies]
 aria-commands = { path = "../aria-commands" }
+aria-core = { path = "../aria-core" }
 aria-models = { path = "../aria-models" }
 aria-plugin = { path = "../aria-plugin" }
 aria-render = { path = "../aria-render" }

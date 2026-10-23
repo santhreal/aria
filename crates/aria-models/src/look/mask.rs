@@ -2,6 +2,7 @@
 
 use std::sync::LazyLock;
 
+use aria_core::count::counted;
 use serde::{Deserialize, Serialize};
 
 use crate::clip::{MaskParam, ParamKind, ParamRange, ParamValue, ShapePathPoint};
@@ -413,7 +414,8 @@ pub(crate) fn mask_mut(masks: &mut [Mask], index: u32) -> Result<&mut Mask, Mode
     let count = masks.len();
     masks.get_mut(index as usize).ok_or_else(|| {
         ModelError::InvalidParam(format!(
-            "mask {index} does not exist; the clip has {count} mask(s)"
+            "mask {index} does not exist; the clip has {}",
+            counted(count, "mask", "masks")
         ))
     })
 }

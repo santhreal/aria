@@ -479,7 +479,7 @@ fn only_one_module_registers_a_job() {
     }
     assert!(
         reaches.is_empty(),
-        "{} producer(s) register a job without projecting the board — go through \
+        "producers that register a job without projecting the board: {} — go through \
          `AppState::spawn_job`:\n  {}",
         reaches.len(),
         reaches.join("\n  ")

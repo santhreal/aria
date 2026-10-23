@@ -1,5 +1,6 @@
 //! The Storage section: the download cache, the registered caches, and their paths.
 
+use aria_core::count::counted;
 use gpui::{
     Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
     SharedString, Styled, div, px,
@@ -41,10 +42,7 @@ pub(super) fn storage_rows(
             kv(
                 theme,
                 "In use",
-                format!(
-                    "{protected} file{} pinned",
-                    crate::app::project_reach::plural(protected),
-                ),
+                format!("{} pinned", counted(protected, "file", "files")),
             )
             .into_any_element(),
         );

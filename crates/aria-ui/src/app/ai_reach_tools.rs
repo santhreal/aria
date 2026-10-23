@@ -8,6 +8,7 @@
 //! with a leading slash, and what the settings file records.
 
 use super::*;
+use aria_core::count::counted;
 use gpui::SharedString;
 
 impl AppState {
@@ -51,9 +52,9 @@ impl AppState {
         match aria_ai::extend::expand_slash_command(&typed, &commands) {
             Some(expanded) => {
                 self.status_message = Some(format!(
-                    "Expanded {} into {} character(s)",
+                    "Expanded {} into {}",
                     typed.split_whitespace().next().unwrap_or("the command"),
-                    expanded.len()
+                    counted(expanded.chars().count(), "character", "characters")
                 ));
                 self.send_agent_prompt(expanded, cx);
             }
@@ -139,7 +140,8 @@ impl AppState {
         let bytes = prompt.len();
         self.push_agent_message(AgentEntryKind::Action, prompt);
         self.status_message = Some(format!(
-            "The next turn carries {bytes} byte(s) of system prompt"
+            "The next turn carries {} of system prompt",
+            counted(bytes, "byte", "bytes")
         ));
     }
 
@@ -197,7 +199,10 @@ impl AppState {
             .map(|row| row.table)
             .collect();
         if refused.is_empty() {
-            format!("{} table(s), all readable by this build", rows.len())
+            format!(
+                "{}, all readable by this build",
+                counted(rows.len(), "table", "tables")
+            )
         } else {
             format!("refused: {}", refused.join(", "))
         }

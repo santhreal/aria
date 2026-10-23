@@ -10,6 +10,7 @@
 //! server, and keeping them apart is what stops a chip row from growing a
 //! network call.
 
+use aria_core::count::counted;
 use aria_settings::{AiApiProtocol, AiSource, Autonomy, ReasoningSummary};
 use gpui::{
     Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
@@ -94,10 +95,7 @@ pub(super) fn field_row(
         look.placeholder.to_string()
     } else if look.kind == aria_plugin::SettingKind::Secret && !focused {
         let count = value.chars().count();
-        format!(
-            "stored, {count} character{}",
-            crate::app::project_reach::plural(count)
-        )
+        format!("stored, {}", counted(count, "character", "characters"))
     } else {
         value
     };

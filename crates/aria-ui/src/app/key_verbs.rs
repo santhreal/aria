@@ -7,6 +7,7 @@
 //! on writes a status line rather than doing nothing silently.
 
 use aria_commands::{Command, EditCommand};
+use aria_core::count::counted;
 use aria_engine::EngineError;
 use aria_models::{ClipId, RationalTime, TrackId};
 
@@ -211,7 +212,10 @@ impl AppState {
         self.clear_selection();
         self.set_playhead(from);
         let verb = if close_gap { "Extracted" } else { "Lifted" };
-        self.status_message = Some(format!("{verb} {removed} clip(s) from In to Out"));
+        self.status_message = Some(format!(
+            "{verb} {} from In to Out",
+            counted(removed, "clip", "clips")
+        ));
         Ok(())
     }
 
@@ -371,7 +375,7 @@ impl AppState {
             }
             Ok(())
         })?;
-        self.status_message = Some(format!("Cleared {count} marker(s)"));
+        self.status_message = Some(format!("Cleared {}", counted(count, "marker", "markers")));
         Ok(())
     }
 

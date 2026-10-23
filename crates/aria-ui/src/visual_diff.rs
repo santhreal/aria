@@ -41,6 +41,7 @@
 use std::path::PathBuf;
 
 use aria_core::RgbaImage;
+use aria_core::count::{counted, noun};
 
 /// Per-channel difference a pixel may carry and still count as unchanged.
 ///
@@ -215,10 +216,11 @@ pub fn check(name: &str, actual: &RgbaImage) -> Result<(), String> {
     };
     let (x, y, w, h) = difference.region;
     Err(format!(
-        "'{name}' changed: {} pixel(s) differ by up to {} in {w}x{h} at ({x}, {y}) of a \
+        "'{name}' changed: {} {} by up to {} in {w}x{h} at ({x}, {y}) of a \
          {}x{} picture. Reference: {}\n{}\nIf the new picture is right, record it with \
          `{BLESS}=1 cargo test -p aria-ui --lib snapshot_diff`.",
-        difference.pixels,
+        counted(difference.pixels, "pixel", "pixels"),
+        noun(difference.pixels, "differs", "differ"),
         difference.worst,
         actual.width,
         actual.height,

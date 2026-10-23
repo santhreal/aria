@@ -22,6 +22,7 @@
 use std::path::PathBuf;
 
 use aria_commands::{Command, EditCommand};
+use aria_core::count::counted;
 use aria_core::{Rational, RationalTime};
 use aria_jobs::JobCompletion;
 use aria_models::{ClipId, ClipParam, Easing, MAX_CLIP_VOLUME, ParamValue};
@@ -145,7 +146,7 @@ impl AppState {
     /// have produced.
     pub(crate) fn duck_precheck(&self) -> Result<DuckRequest, String> {
         if self.selection.is_empty() {
-            return Err("Select the music clip(s) to duck".into());
+            return Err("Select the music clip or clips to duck".into());
         }
         let mut music = Vec::new();
         let mut voice = Vec::new();
@@ -198,7 +199,10 @@ impl AppState {
             });
         }
         Ok(DuckRequest {
-            label: format!("Ducking {} clip(s) under {lane}", music.len()),
+            label: format!(
+                "Ducking {} under {lane}",
+                counted(music.len(), "clip", "clips")
+            ),
             voice,
             music,
             tuning: self
@@ -225,7 +229,7 @@ impl AppState {
             };
             wake.wake(reported);
             let spans: usize = outcome?.iter().map(|(_, spans)| spans.len()).sum();
-            JobCompletion::new(format!("{spans} voice span(s)"))
+            JobCompletion::new(counted(spans, "voice span", "voice spans").to_string())
                 .with_output("spans", spans.to_string())
                 .map_err(String::from)
         });
@@ -299,7 +303,7 @@ impl AppState {
             }
         }
         if plans.is_empty() {
-            self.status_message = Some("No voice overlaps the selected clip(s)".into());
+            self.status_message = Some("No voice overlaps the selection".into());
             return;
         }
 
@@ -310,8 +314,10 @@ impl AppState {
         match self.one_step(|this| this.duck_steps(plans, rate)) {
             Ok(()) => {
                 self.status_message = Some(format!(
-                    "Ducked {clips} clip(s) with {written} keyframe(s) under {} voice span(s)",
-                    spans.len()
+                    "Ducked {} with {} under {}",
+                    counted(clips, "clip", "clips"),
+                    counted(written, "keyframe", "keyframes"),
+                    counted(spans.len(), "voice span", "voice spans")
                 ));
             }
             Err(err) => self.report_error(&err),

@@ -1,6 +1,7 @@
 //! The Audio Gain dialog (`G`).
 
 use crate::components::Wraps as _;
+use aria_core::count::counted;
 use gpui::{
     Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled,
     div, px,
@@ -165,14 +166,12 @@ pub fn render(
 
     let peak_text = match form.max_peak_dbfs {
         Some(peak) => format!(
-            "Peak Amplitude: {peak:.1} dBFS ({} audio clip{})",
-            form.clip_count,
-            if form.clip_count == 1 { "" } else { "s" }
+            "Peak Amplitude: {peak:.1} dBFS ({})",
+            counted(form.clip_count, "audio clip", "audio clips")
         ),
         None => format!(
-            "Peak Amplitude: silence ({} audio clip{})",
-            form.clip_count,
-            if form.clip_count == 1 { "" } else { "s" }
+            "Peak Amplitude: silence ({})",
+            counted(form.clip_count, "audio clip", "audio clips")
         ),
     };
 

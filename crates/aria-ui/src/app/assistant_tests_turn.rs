@@ -5,6 +5,8 @@
 //! parent, reached through `use super::*`, so no two children of this parent
 //! reference each other.
 
+use aria_core::count::counted;
+
 use super::*;
 
 /// The refusal order is a promise: an empty box is answered before anything
@@ -123,7 +125,7 @@ fn a_completed_turn_keeps_the_conversation() {
     assert!(!state.assistant.running);
     assert_eq!(
         state.status_message.as_deref(),
-        Some("The assistant made 2 edit(s)")
+        Some("The assistant made 2 edits")
     );
 }
 /// The class this closes: an interrupted turn whose partial conversation was
@@ -150,10 +152,10 @@ fn an_aborted_turn_is_not_remembered() {
         kinds(&state),
         vec![AgentEntryKind::Error, AgentEntryKind::Action]
     );
-    assert_eq!(state.transcript[1].content, "1 edit(s) undone");
+    assert_eq!(state.transcript[1].content, "1 edit undone");
     assert_eq!(
         state.status_message.as_deref(),
-        Some("The assistant stopped: cancelled, 1 edit(s) undone")
+        Some("The assistant stopped: cancelled, 1 edit undone")
     );
     assert!(!state.assistant.running);
 }
@@ -193,7 +195,10 @@ fn a_dry_run_says_nothing_was_applied() {
     );
     assert_eq!(
         state.transcript[1].content,
-        format!("{steps} planned edit(s), nothing applied")
+        format!(
+            "{}, nothing applied",
+            counted(steps, "planned edit", "planned edits")
+        )
     );
     assert_eq!(state.assistant.plan.len(), steps, "Apply replays this plan");
 }

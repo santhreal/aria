@@ -93,7 +93,7 @@ fn dependency_direction_runs_from_the_ui_to_the_plugin_boundary() {
         "a file outside panels/ names a panel module: ask a registry instead — panels \
          resolve through crate::plugins::panel_host, dialogs and overlays through \
          crate::plugins::overlay_host, commands through crate::commands, and shared \
-         state through its own owner ({} registrar(s) declared):\n  {}",
+         state through its own owner (registrars declared: {}):\n  {}",
         PANEL_REGISTRARS.len(),
         offenders.join("\n  ")
     );

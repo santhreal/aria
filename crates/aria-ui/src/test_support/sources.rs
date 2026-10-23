@@ -1,5 +1,6 @@
 //! Source text with its test-only items blanked, for the censuses that read
-//! the code a release build compiles.
+//! the code a release build compiles, and the string literals of a source, for
+//! the censuses that read the text it writes.
 //!
 //! A test-only item is an item, statement, field, or arm under `#[cfg(test)]`,
 //! `#[test]`, or `#[gpui::test]`. It can sit anywhere in a file: a
@@ -74,6 +75,29 @@ pub(crate) fn without_test_items(text: &str) -> String {
 /// Each line of `text`, as `str::lines` splits it, with comments and the
 /// contents of string and character literals replaced by spaces.
 fn code_lines(text: &str) -> Vec<String> {
+    lex(text, None)
+}
+
+/// Each string literal in `text`, raw and byte strings included: the line it
+/// opens on, counted from 1, and its contents between the quotes with escapes
+/// as written. A character literal is not a string literal, and neither is a
+/// quote in a comment.
+pub(crate) fn string_literals(text: &str) -> Vec<(usize, String)> {
+    let mut literals = Vec::new();
+    lex(text, Some(&mut literals));
+    literals
+}
+
+/// Appends `c` to the literal being read, when literals are collected.
+fn extend_literal(literals: &mut Option<&mut Vec<(usize, String)>>, c: char) {
+    if let Some((_, contents)) = literals.as_deref_mut().and_then(|all| all.last_mut()) {
+        contents.push(c);
+    }
+}
+
+/// The lexer behind [`code_lines`] and [`string_literals`]: the blanked lines,
+/// and each string literal pushed onto `literals` when they are collected.
+fn lex(text: &str, mut literals: Option<&mut Vec<(usize, String)>>) -> Vec<String> {
     enum Lexed {
         Code,
         LineComment,
@@ -92,8 +116,10 @@ fn code_lines(text: &str) -> Vec<String> {
         let next = chars.get(at + 1).copied();
         if c == '\n' {
             lines.push(std::mem::take(&mut line));
-            if matches!(state, Lexed::LineComment) {
-                state = Lexed::Code;
+            match state {
+                Lexed::LineComment => state = Lexed::Code,
+                Lexed::Str | Lexed::RawStr(_) => extend_literal(&mut literals, c),
+                Lexed::Code | Lexed::BlockComment(_) => {}
             }
             at += 1;
             continue;
@@ -112,6 +138,9 @@ fn code_lines(text: &str) -> Vec<String> {
                 '"' => {
                     state = Lexed::Str;
                     line.push('"');
+                    if let Some(all) = literals.as_deref_mut() {
+                        all.push((lines.len() + 1, String::new()));
+                    }
                 }
                 'r' if at == 0
                     || !is_ident(chars[at - 1])
@@ -122,6 +151,9 @@ fn code_lines(text: &str) -> Vec<String> {
                         line.push('r');
                         line.push('"');
                         state = Lexed::RawStr(hashes);
+                        if let Some(all) = literals.as_deref_mut() {
+                            all.push((lines.len() + 1, String::new()));
+                        }
                         at += 2 + hashes;
                         continue;
                     }
@@ -168,8 +200,10 @@ fn code_lines(text: &str) -> Vec<String> {
             Lexed::Str => {
                 if c == '\\' {
                     line.push(' ');
-                    if next.is_some_and(|c| c != '\n') {
+                    extend_literal(&mut literals, c);
+                    if let Some(escaped) = next.filter(|&c| c != '\n') {
                         line.push(' ');
+                        extend_literal(&mut literals, escaped);
                         at += 1;
                     }
                 } else if c == '"' {
@@ -177,6 +211,7 @@ fn code_lines(text: &str) -> Vec<String> {
                     line.push('"');
                 } else {
                     line.push(' ');
+                    extend_literal(&mut literals, c);
                 }
             }
             Lexed::RawStr(hashes) => {
@@ -189,6 +224,7 @@ fn code_lines(text: &str) -> Vec<String> {
                     at += hashes;
                 } else {
                     line.push(' ');
+                    extend_literal(&mut literals, c);
                 }
             }
         }
@@ -198,6 +234,31 @@ fn code_lines(text: &str) -> Vec<String> {
         lines.push(line);
     }
     lines
+}
+
+/// Each literal form the lexer reads, with the line it opens on and its
+/// contents. A quote in a comment or a character literal opens none, and a
+/// lifetime is not a character literal.
+#[test]
+fn each_string_literal_is_read_with_its_line_and_contents() {
+    let text = r##"let a = "one"; // "not a literal"
+let b = '"'; let c = '\''; fn f<'a>(x: &'a str) {}
+let d = r#"raw "quoted" text"#;
+let e = b"bytes\"";
+let g = "first
+second";
+/* "block" */ let h = br"x";
+"##;
+    assert_eq!(
+        string_literals(text),
+        [
+            (1, "one".to_owned()),
+            (3, r#"raw "quoted" text"#.to_owned()),
+            (4, r#"bytes\""#.to_owned()),
+            (5, "first\nsecond".to_owned()),
+            (7, "x".to_owned()),
+        ]
+    );
 }
 
 /// Each case marks the lines it expects blanked with a trailing `//~`.

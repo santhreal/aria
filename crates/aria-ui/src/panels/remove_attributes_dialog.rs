@@ -1,6 +1,7 @@
 //! The Remove Attributes dialog (Edit > Remove Attributes).
 
 use crate::components::Wraps as _;
+use aria_core::count::counted;
 use aria_models::ClipAttribute;
 use gpui::{
     Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled,
@@ -86,7 +87,8 @@ pub fn render(
                 .text_size(Theme::TEXT_TITLE)
                 .text_color(theme.text_faint)
                 .child(format!(
-                    "Return the lit attributes of {clips} clip(s) to their defaults, keyframes included."
+                    "Return the lit attributes of {} to their defaults, keyframes included.",
+                    counted(clips, "clip", "clips")
                 )),
         )
         .child(toggles);

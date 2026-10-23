@@ -8,6 +8,7 @@
 //! With no model installed the panel says where to install one instead of offering a
 //! button whose only outcome is that message.
 
+use aria_core::count::counted;
 use gpui::{
     CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
     ParentElement, SharedString, Styled, div, px,
@@ -128,7 +129,7 @@ pub(crate) fn captions_panel(
                 } else if units == 0 {
                     "Select a clip with audio, then transcribe".to_string()
                 } else {
-                    format!("{units} caption(s) ready to commit")
+                    format!("{} ready to commit", counted(units, "caption", "captions"))
                 })),
         )
         .when(installed, |el| {
@@ -279,7 +280,7 @@ fn thread_chip(
     let active = target == current;
     components::chip(
         crate::motion::MotionKey::new("caption-threads", target),
-        SharedString::from(format!("{target} thread(s)")),
+        SharedString::from(counted(target, "thread", "threads").to_string()),
         active,
         components::ChipSize::Regular,
         theme,

@@ -119,7 +119,7 @@ fn a_mask_the_target_lacks_is_refused_and_the_target_keeps_its_masks() {
             .to_string();
         assert!(
             err.contains("mask-1-feather") && err.contains("not available"),
-            "{masks} mask(s): {err}"
+            "masks: {masks}, error: {err}"
         );
         assert_eq!(project.clip(b).unwrap().masks, before);
     }

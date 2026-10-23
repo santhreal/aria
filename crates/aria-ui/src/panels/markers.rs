@@ -12,6 +12,7 @@
 //! ruler draws them in.
 
 use crate::components::Wraps as _;
+use aria_core::count::counted;
 use gpui::{
     CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
     ParentElement, SharedString, StatefulInteractiveElement, Styled, div, px,
@@ -167,7 +168,7 @@ fn filter_bar(
 /// them.
 fn count_line(theme: &Theme, shown: usize, held: usize) -> gpui::AnyElement {
     let text = if shown == held {
-        format!("{held} marker{}", if held == 1 { "" } else { "s" })
+        counted(held, "marker", "markers").to_string()
     } else {
         format!("{shown} of {held} markers shown")
     };

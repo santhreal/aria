@@ -1,6 +1,7 @@
 //! Multicam UI in the pool sidebar: create a multicam source, switch active
 //! angles, and place each camera on the group's clock against its sound.
 
+use aria_core::count::counted;
 use gpui::{
     Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
     SharedString, Styled, div, px,
@@ -173,10 +174,7 @@ pub fn multicam_section(
     for (group, angles) in groups.iter().zip(strips) {
         let gid = aria_models::MulticamGroupId::from_raw(group.id);
         let angle_count = group.angles.len();
-        let count_label = format!(
-            "{angle_count} angle{}",
-            if angle_count == 1 { "" } else { "s" }
-        );
+        let count_label = counted(angle_count, "angle", "angles").to_string();
         let active_angle = group.active_angle_at(playhead);
 
         let mut angle_buttons = Vec::new();

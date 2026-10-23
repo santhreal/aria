@@ -70,7 +70,7 @@ impl Plugin for Tools {
                 let host = ctx.try_get::<ProjectHost>().ok_or("no project")?;
                 let markers = host.snapshot().timeline().markers().len();
                 Ok(AiToolOutput {
-                    text: format!("the project has {markers} marker(s)"),
+                    text: format!("the project has {markers} markers"),
                     images: vec![AiToolImage {
                         png: png(),
                         label: "the markers".into(),
@@ -304,7 +304,7 @@ fn a_turn_calls_plugin_tools_that_read_and_edit_the_project() {
     assert_eq!(
         results,
         [
-            ("c1".to_owned(), "the project has 0 marker(s)".to_owned(), 1),
+            ("c1".to_owned(), "the project has 0 markers".to_owned(), 1),
             ("c2".to_owned(), "added From a plugin".to_owned(), 0),
         ]
     );

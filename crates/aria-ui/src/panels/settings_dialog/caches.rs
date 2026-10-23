@@ -8,6 +8,7 @@
 //! Usage is blank until **Measure** is pressed. Measuring walks every cache tree, and
 //! doing that while the dialog renders would turn opening Settings into a disk scan.
 
+use aria_core::count::counted;
 use gpui::{
     Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled,
     div, px,
@@ -30,9 +31,9 @@ fn describe(row: &UiCache) -> String {
     ];
     if let Some((bytes, files)) = row.usage {
         parts.push(format!(
-            "{} in {files} file{}",
+            "{} in {}",
             crate::app::storage::format_bytes(bytes),
-            crate::app::project_reach::plural(files as usize),
+            counted(files, "file", "files"),
         ));
     }
     match &row.path {

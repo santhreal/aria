@@ -107,8 +107,10 @@ m = p.add_marker(1.5, 'beat', color = 'red', comment = 'chorus starts')
         |py, globals| {
             Ok((
                 py.eval(c"m.time", Some(globals), None)?.extract::<f64>()?,
-                py.eval(c"m.name", Some(globals), None)?.extract::<String>()?,
-                py.eval(c"m.color", Some(globals), None)?.extract::<String>()?,
+                py.eval(c"m.name", Some(globals), None)?
+                    .extract::<String>()?,
+                py.eval(c"m.color", Some(globals), None)?
+                    .extract::<String>()?,
                 py.eval(c"m.comment", Some(globals), None)?
                     .extract::<String>()?,
                 py.eval(c"len(p.markers)", Some(globals), None)?
@@ -182,7 +184,8 @@ fn every_palette_colour_is_nameable_from_a_script() {
         ))
         .expect("a palette name holds no NUL");
         let read = script(&source, |py, globals| {
-            py.eval(c"m.color", Some(globals), None)?.extract::<String>()
+            py.eval(c"m.color", Some(globals), None)?
+                .extract::<String>()
         });
         assert_eq!(
             read,
@@ -238,7 +241,8 @@ fn a_ramp_a_script_writes_is_the_ramp_the_clip_plays() {
             Ok((
                 py.eval(c"c.speed_curve", Some(globals), None)?
                     .extract::<Vec<(f64, f32)>>()?,
-                py.eval(c"c.duration", Some(globals), None)?.extract::<f64>()?,
+                py.eval(c"c.duration", Some(globals), None)?
+                    .extract::<f64>()?,
             ))
         },
     );
@@ -294,13 +298,20 @@ fn clearing_a_ramp_returns_the_clip_to_one_rate() {
                     .extract::<Option<Vec<(f64, f32)>>>()?,
                 py.eval(c"c.speed_preset", Some(globals), None)?
                     .extract::<Option<String>>()?,
-                py.eval(c"c.duration", Some(globals), None)?.extract::<f64>()?,
+                py.eval(c"c.duration", Some(globals), None)?
+                    .extract::<f64>()?,
             ))
         },
     );
-    assert!(curve.is_none(), "a cleared ramp still reads back as {curve:?}");
+    assert!(
+        curve.is_none(),
+        "a cleared ramp still reads back as {curve:?}"
+    );
     assert!(preset.is_none());
-    assert_eq!(duration, 2.0, "clearing the ramp did not restore the length");
+    assert_eq!(
+        duration, 2.0,
+        "clearing the ramp did not restore the length"
+    );
 }
 
 #[test]
@@ -315,7 +326,10 @@ fn a_malformed_ramp_is_refused_with_the_rule_it_broke() {
             "c.set_speed_curve([(0.5, 1.0), (0.5, 2.0)])\n",
             "share one position",
         ),
-        ("c.set_speed_curve('not-a-preset')\n", "unknown speed preset"),
+        (
+            "c.set_speed_curve('not-a-preset')\n",
+            "unknown speed preset",
+        ),
     ] {
         let message = refused(&code(body));
         assert!(
@@ -329,17 +343,15 @@ fn a_malformed_ramp_is_refused_with_the_rule_it_broke() {
 
 #[test]
 fn relinking_a_clip_changes_the_file_and_keeps_the_placement() {
-    let (start, duration, path) = script(
-        &code("c.set_media(other)\n"),
-        |py, globals| {
-            Ok((
-                py.eval(c"c.start", Some(globals), None)?.extract::<f64>()?,
-                py.eval(c"c.duration", Some(globals), None)?.extract::<f64>()?,
-                py.eval(c"c.media.path", Some(globals), None)?
-                    .extract::<String>()?,
-            ))
-        },
-    );
+    let (start, duration, path) = script(&code("c.set_media(other)\n"), |py, globals| {
+        Ok((
+            py.eval(c"c.start", Some(globals), None)?.extract::<f64>()?,
+            py.eval(c"c.duration", Some(globals), None)?
+                .extract::<f64>()?,
+            py.eval(c"c.media.path", Some(globals), None)?
+                .extract::<String>()?,
+        ))
+    });
     assert_eq!((start, duration), (0.0, 2.0), "a relink moved the clip");
     assert!(
         path.ends_with("heart.png"),
@@ -425,7 +437,8 @@ fn filling_a_template_puts_the_callers_media_in_the_authors_timing() {
         Ok((
             py.eval(c"clip.duration", Some(globals), None)?
                 .extract::<f64>()?,
-            py.eval(c"clip.start", Some(globals), None)?.extract::<f64>()?,
+            py.eval(c"clip.start", Some(globals), None)?
+                .extract::<f64>()?,
             py.eval(c"clip.media.path", Some(globals), None)?
                 .extract::<String>()?,
             py.eval(c"filled.duration", Some(globals), None)?
@@ -457,7 +470,7 @@ fn filling_with_the_wrong_number_of_picks_is_refused_rather_than_half_done() {
     )));
     let _ = std::fs::remove_file(&path);
     assert!(
-        message.contains("1 slot(s) need 1 pick(s), got 0"),
+        message.contains("1 slot needs 1 pick, got 0"),
         "an empty pick list reported {message:?}"
     );
 }
@@ -545,7 +558,10 @@ fn linked_clips_know_about_each_other() {
             ))
         },
     );
-    assert_eq!(linked_names, 1, "a linked clip listed {linked_names} partners");
+    assert_eq!(
+        linked_names, 1,
+        "a linked clip listed {linked_names} partners"
+    );
     assert_eq!(back, 1, "the link was one-way");
 }
 
@@ -561,7 +577,8 @@ fn unlinking_dissolves_the_whole_group() {
         ),
         |py, globals| {
             Ok((
-                py.eval(c"before", Some(globals), None)?.extract::<usize>()?,
+                py.eval(c"before", Some(globals), None)?
+                    .extract::<usize>()?,
                 py.eval(c"len(c.linked)", Some(globals), None)?
                     .extract::<usize>()?,
                 py.eval(c"len(d.linked)", Some(globals), None)?

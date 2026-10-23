@@ -12,6 +12,7 @@ use std::ops::RangeInclusive;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
+use aria_core::count::counted;
 use aria_plugin::package::{self, Staged, Tier};
 use aria_settings::PluginLimitSettings;
 
@@ -402,8 +403,9 @@ impl AppState {
         self.status_message = Some(match remounted.len() {
             0 => format!("{label} set to {}", limit.describe(clamped)),
             count => format!(
-                "{label} set to {}; remounted {count} plugin(s)",
-                limit.describe(clamped)
+                "{label} set to {}; remounted {}",
+                limit.describe(clamped),
+                counted(count, "plugin", "plugins")
             ),
         });
         Ok(())

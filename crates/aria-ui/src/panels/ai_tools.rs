@@ -16,6 +16,7 @@
 //! and a capability list over a timeline is a list of things nothing asked
 //! about.
 
+use aria_core::count::{counted, noun};
 use gpui::{IntoElement, ParentElement, SharedString, Styled, div, px};
 
 use crate::app::AppState;
@@ -56,8 +57,10 @@ pub fn render(
                 .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_faint)
                 .child(SharedString::from(format!(
-                    "{total} tool(s) in {} group(s); {flat} of them edit the project",
-                    groups.len()
+                    "{} in {}; {flat} of them {} the project",
+                    counted(total, "tool", "tools"),
+                    counted(groups.len(), "group", "groups"),
+                    noun(flat, "edits", "edit")
                 ))),
         );
     for (name, tools) in groups {

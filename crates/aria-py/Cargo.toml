@@ -21,6 +21,7 @@ name = "aria"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+aria-core = { path = "../aria-core" }
 aria-decoder = { path = "../aria-decoder" }
 aria-models = { path = "../aria-models" }
 aria-render = { path = "../aria-render" }

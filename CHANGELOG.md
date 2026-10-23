@@ -541,7 +541,7 @@ Notes for the latest release. For previous releases, see the
   turn back — an interrupted plan half-applied is worse than none — but the panel
   kept the action rows it had printed and said only "stopped", leaving an
   operator to discover by looking that the split they had just watched was gone.
-  A stopped turn that had applied edits now prints "N edit(s) undone" in the
+  A stopped turn that had applied edits now prints "1 edit undone" or "3 edits undone" in the
   transcript and the status line, and a turn that edited nothing still says only
   that it stopped. Stop itself is read between deltas, so it lands mid-answer.
   The manual said the opposite of the code and now matches it.
@@ -2351,6 +2351,7 @@ Notes for the latest release. For previous releases, see the
 - Context menu rows that switch a state, such as Enable, Time Remapping, Duck Source, a lane height, a transition alignment, the applied blend, and the drawn property, draw a check mark in a lead column while that state holds, as menu bar rows do, in place of a `• ` prefix or no mark.
 - File, folder, and question dialogs are titled in Title Case after the command or button that opens them, such as `Open Project`, `Relink Media`, `Export Image Sequence`, `Move Cache`, and `Install Plugin`.
 - The Project panel's Import button opens the File > Import dialog, so a timeline file it picks is read into the timeline and every file it imports heads File > Import Recent.
+- Status lines, job details, dialogs, and command-line output write each count with the noun that agrees with it, such as `1 frame` and `3 frames`, instead of `frame(s)`.
 
 ### Fixed
 

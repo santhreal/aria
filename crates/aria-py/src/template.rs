@@ -7,9 +7,8 @@
 
 use std::path::Path;
 
-use aria_models::{
-    Generator, MediaSource, Pick, Template as Model, TemplateMeta, template_bundle,
-};
+use aria_core::count::{counted, noun};
+use aria_models::{Generator, MediaSource, Pick, Template as Model, TemplateMeta, template_bundle};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
@@ -47,7 +46,10 @@ impl Template {
                     "a pick tuple is (media, start_seconds)",
                 ));
             }
-            (tuple.get_item(0)?.extract()?, Some(tuple.get_item(1)?.extract()?))
+            (
+                tuple.get_item(0)?.extract()?,
+                Some(tuple.get_item(1)?.extract()?),
+            )
         } else {
             (item.extract()?, None)
         };
@@ -96,7 +98,11 @@ impl Template {
 
     #[getter]
     fn description(&self) -> Option<String> {
-        self.model.meta().description.as_ref().map(|d| d.to_string())
+        self.model
+            .meta()
+            .description
+            .as_ref()
+            .map(|d| d.to_string())
     }
 
     #[getter]
@@ -171,9 +177,10 @@ impl Template {
         }
         if model_picks.len() != self.model.slot_count() {
             return Err(AriaError::new_err(format!(
-                "{} slot(s) need {} pick(s), got {}",
-                self.model.slot_count(),
-                self.model.slot_count(),
+                "{} {} {}, got {}",
+                counted(self.model.slot_count(), "slot", "slots"),
+                noun(self.model.slot_count(), "needs", "need"),
+                counted(self.model.slot_count(), "pick", "picks"),
                 model_picks.len()
             )));
         }

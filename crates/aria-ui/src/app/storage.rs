@@ -15,6 +15,7 @@
 use std::path::{Path, PathBuf};
 
 use aria_cloud::cache::{DownloadCache, DownloadCacheClear, DownloadCacheSwitchError};
+use aria_core::count::counted;
 
 use super::AppState;
 use super::picker::{Ask, FileSpec};
@@ -132,8 +133,8 @@ impl AppState {
             .clear()
             .map_err(|err| format!("clearing the download cache: {err}"))?;
         let removed = format!(
-            "Cleared {} file(s), {}",
-            cleared.removed_files,
+            "Cleared {}, {}",
+            counted(cleared.removed_files, "file", "files"),
             format_bytes(cleared.removed_bytes)
         );
         self.status_message = Some(match cleared.retained_protected_files {

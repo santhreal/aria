@@ -104,7 +104,7 @@ fn srt_markup_is_removed_and_counted_and_text_that_opens_nothing_is_kept() {
                 cue(1000, 2000, "Hi there"),
                 cue(2000, 3000, "a < b & {curly} &amp; <i"),
             ],
-            &["1 cue(s): styling tags dropped"],
+            &["1 cue: styling tags dropped"],
         )
     );
 }
@@ -202,9 +202,9 @@ fn vtt_reads_ids_settings_entities_and_short_times_and_passes_over_other_blocks(
                 cue(3000, 4000, "Plain &unknown; text AB"),
             ],
             &[
-                "2 style or region block(s) dropped",
-                "1 cue(s): styling tags dropped",
-                "1 cue(s): position and alignment settings dropped",
+                "2 style or region blocks dropped",
+                "1 cue: styling tags dropped",
+                "1 cue: position and alignment settings dropped",
             ],
         )
     );
@@ -288,7 +288,7 @@ fn every_format_leaves_out_and_counts_blank_lines_inside_cue_text() {
         let (text, report) = written(format, &cues);
         assert_eq!(
             report,
-            ["2 cue(s): blank lines inside the text are not written"],
+            ["2 cues: blank lines inside the text are not written"],
             "{}",
             format.id
         );
@@ -484,7 +484,7 @@ fn only_shown_text_tracks_are_written_and_what_a_cue_cannot_hold_is_reported() {
     assert_eq!(
         skipped,
         [
-            "1 text clip(s): font, colour, size and position are not written",
+            "1 text clip: font, colour, size and position are not written",
             "Hidden: a hidden text track, not written",
             "Shown at 00:00:01.000: a text clip with no text",
         ]

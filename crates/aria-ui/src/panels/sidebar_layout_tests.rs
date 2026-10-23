@@ -120,7 +120,7 @@ fn the_project_panel_rows_fit_the_panel(cx: &mut TestAppContext) {
         .collect();
     let count = inside
         .iter()
-        .find(|run| run.text.as_ref() == "1 item(s)")
+        .find(|run| run.text.as_ref() == "1 item")
         .expect("the pool's count is not drawn");
     // The first group chip, the filter row and the count start on one edge:
     // a chip's box stands where every other row's box or bare text starts.

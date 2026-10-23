@@ -5,6 +5,7 @@
 //! not to the file, so no caller changes.
 
 use super::*;
+use aria_core::count::counted;
 use gpui::SharedString;
 
 impl AppState {
@@ -206,8 +207,8 @@ impl AppState {
                 )
             };
             let summary = match &outcome.status {
-                PromptStatus::Completed => format!("{edits} edit(s)"),
-                PromptStatus::DryRun => format!("{edits} planned edit(s)"),
+                PromptStatus::Completed => counted(edits, "edit", "edits").to_string(),
+                PromptStatus::DryRun => counted(edits, "planned edit", "planned edits").to_string(),
                 PromptStatus::Aborted(reason) => format!("stopped: {reason}"),
             };
             let status = outcome.status.clone();
@@ -429,14 +430,20 @@ impl AppState {
                         self.status_message = Some(if finished.edits == 0 {
                             "The assistant answered".into()
                         } else {
-                            format!("The assistant made {} edit(s)", finished.edits)
+                            format!(
+                                "The assistant made {}",
+                                counted(finished.edits, "edit", "edits")
+                            )
                         });
                     }
                     PromptStatus::DryRun => {
                         self.assistant.history.extend(finished.messages);
                         self.push_agent_message(
                             AgentEntryKind::Action,
-                            format!("{} planned edit(s), nothing applied", finished.plan.len()),
+                            format!(
+                                "{}, nothing applied",
+                                counted(finished.plan.len(), "planned edit", "planned edits")
+                            ),
                         );
                         // The validated commands are kept so Apply replays this
                         // exact plan. Asking the model again would be a second
@@ -456,7 +463,8 @@ impl AppState {
                         let undone = if finished.edits == 0 {
                             String::new()
                         } else {
-                            let note = format!("{} edit(s) undone", finished.edits);
+                            let note =
+                                format!("{} undone", counted(finished.edits, "edit", "edits"));
                             self.push_agent_message(AgentEntryKind::Action, note.clone());
                             format!(", {note}")
                         };

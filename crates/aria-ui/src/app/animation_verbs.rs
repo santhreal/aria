@@ -5,6 +5,7 @@
 use std::collections::BTreeMap;
 
 use aria_commands::{Command, EditCommand};
+use aria_core::count::counted;
 use aria_engine::EngineError;
 use aria_models::{
     Clip, ClipId, ClipParam, Easing, Keyframe, MAX_TEMPORAL_INFLUENCE, MIN_TEMPORAL_INFLUENCE,
@@ -202,8 +203,10 @@ impl AppState {
             }
             Ok(())
         })?;
-        let noun = if count == 1 { "keyframe" } else { "keyframes" };
-        self.status_message = Some(format!("Added {count} {noun} at the playhead"));
+        self.status_message = Some(format!(
+            "Added {} at the playhead",
+            counted(count, "keyframe", "keyframes")
+        ));
         Ok(count)
     }
 
@@ -449,8 +452,10 @@ impl AppState {
         match result {
             Ok(()) => {
                 let count = form.targets.len();
-                let noun = if count == 1 { "keyframe" } else { "keyframes" };
-                self.status_message = Some(format!("Set the velocity of {count} {noun}"));
+                self.status_message = Some(format!(
+                    "Set the velocity of {}",
+                    counted(count, "keyframe", "keyframes")
+                ));
                 self.open_dialog(DialogKind::None);
             }
             Err(err) => self.report_error(&err),

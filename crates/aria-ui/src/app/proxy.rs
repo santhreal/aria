@@ -25,6 +25,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use aria_core::count::counted;
 use aria_engine::{PROXY_MAX_EDGE, proxy_project};
 use aria_jobs::JobCompletion;
 use aria_models::MediaId;
@@ -137,9 +138,12 @@ impl AppState {
             // file that is still being written.
             let published = dest.display().to_string();
             engine.lock().set_media_proxy(media, dest);
-            JobCompletion::new(format!("{frames} frame(s) at {width}×{height}"))
-                .with_output("path", published)
-                .map_err(String::from)
+            JobCompletion::new(format!(
+                "{} at {width}×{height}",
+                counted(frames, "frame", "frames")
+            ))
+            .with_output("path", published)
+            .map_err(String::from)
         });
         self.status_message = Some(format!("Proxying {name} · {width} × {height}"));
         Ok(id.raw())
@@ -172,7 +176,8 @@ impl AppState {
             }
         }
         self.status_message = Some(format!(
-            "{queued} proxy job(s) started · {ready} already proxied · {refused} cannot be proxied"
+            "{} started · {ready} already proxied · {refused} cannot be proxied",
+            counted(queued, "proxy job", "proxy jobs")
         ));
     }
 

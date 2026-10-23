@@ -10,6 +10,7 @@ use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 
 use aria_commands::{Command, ProjectCommand, TemplatePick};
+use aria_core::count::counted;
 use aria_engine::EngineError;
 use aria_models::{Template, TemplateMeta};
 
@@ -53,9 +54,9 @@ impl AppState {
             meta: TemplateMeta::new(name),
         }))?;
         self.status_message = Some(format!(
-            "Saved template to {} ({slots} slot{})",
+            "Saved template to {} ({})",
             path.display(),
-            if slots == 1 { "" } else { "s" }
+            counted(slots, "slot", "slots")
         ));
         Ok(())
     }

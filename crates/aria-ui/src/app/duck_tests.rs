@@ -150,7 +150,7 @@ fn a_duck_refuses_before_it_costs_a_decode() {
     state.clear_selection();
     assert_eq!(
         state.duck_precheck().unwrap_err(),
-        "Select the music clip(s) to duck"
+        "Select the music clip or clips to duck"
     );
 
     state.select_clip(clip);

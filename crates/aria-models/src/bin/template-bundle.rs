@@ -19,6 +19,7 @@
 use std::path::Path;
 use std::process::ExitCode;
 
+use aria_core::count::counted;
 use aria_models::{
     ClipId, Project, Replaceable, SlotMedia, Template, TemplateCategory, TemplateMeta,
     template_bundle,
@@ -90,9 +91,13 @@ fn mark(args: &[String]) -> Result<(), String> {
         .save_to_file(Path::new(out_path))
         .map_err(|e| e.to_string())?;
     println!(
-        "wrote {out_path}: {} slot(s), {} editable text(s){}",
-        template.slot_count(),
-        template.editable_texts().len(),
+        "wrote {out_path}: {}, {}{}",
+        counted(template.slot_count(), "slot", "slots"),
+        counted(
+            template.editable_texts().len(),
+            "editable text",
+            "editable texts"
+        ),
         if template.music().is_some() {
             ", swappable music"
         } else {
@@ -111,9 +116,13 @@ fn pack(args: &[String]) -> Result<(), String> {
     template_bundle::write(&template, Path::new(out_path)).map_err(|e| e.to_string())?;
     let size = std::fs::metadata(out_path).map(|m| m.len()).unwrap_or(0);
     println!(
-        "wrote {out_path}: {} slot(s), {} sample file(s), {:.1} MiB",
-        template.slot_count(),
-        template.project().media_count(),
+        "wrote {out_path}: {}, {}, {:.1} MiB",
+        counted(template.slot_count(), "slot", "slots"),
+        counted(
+            template.project().media_count(),
+            "sample file",
+            "sample files"
+        ),
         size as f64 / (1024.0 * 1024.0)
     );
     Ok(())

@@ -38,6 +38,7 @@ use aria_analysis::{
     MAX_NORMALISATION_BOOST_DB, Rgba8Frame, ScopeConfig, db_from_linear, linear_from_db,
     measure_scopes, normalisation_gain,
 };
+use aria_core::count::counted;
 use aria_decoder::{
     LottieAnimation, decode_animation, decode_animation_file, decode_image, decode_image_bytes,
     probe_image, sniff_bytes, sniff_image,
@@ -330,7 +331,8 @@ impl AppState {
                 return;
             }
             state.status_message = Some(format!(
-                "Placed {width}×{height} Lottie, {frames} frame(s) over {seconds:.2}s"
+                "Placed {width}×{height} Lottie, {} over {seconds:.2}s",
+                counted(frames, "frame", "frames")
             ));
         });
     }
@@ -362,7 +364,10 @@ impl AppState {
                     }
                 }
             }
-            state.status_message = Some(format!("Imported {imported} of {wanted} file(s)"));
+            state.status_message = Some(format!(
+                "Imported {imported} of {}",
+                counted(wanted, "file", "files")
+            ));
         });
     }
 }

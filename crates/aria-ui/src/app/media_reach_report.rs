@@ -16,6 +16,7 @@ use std::time::Duration;
 use aria_analysis::moments::{
     MAX_MOMENTS_QUERY_LIMIT, MomentQuery, MomentsIndex, MomentsIndexConfig,
 };
+use aria_core::count::counted;
 use aria_core::{TimeRange, every_pixel_format, rate_eq, resample, time_sub};
 use aria_decoder::{OutputMode, decoder_capability, every_image_format};
 use aria_models::ClipSource;
@@ -49,7 +50,10 @@ impl AppState {
         self.status_message = Some(if warnings == 0 {
             "Media support read; nothing to flag".into()
         } else {
-            format!("Media support read; {warnings} thing(s) to look at")
+            format!(
+                "Media support read; {} to look at",
+                counted(warnings, "thing", "things")
+            )
         });
     }
 
@@ -70,12 +74,12 @@ impl AppState {
             section: SECTION,
             label: item.name.to_string().into(),
             value: format!(
-                "{}×{} at {}/{}, {} tick(s){}",
+                "{}×{} at {}/{}, {}{}",
                 item.width,
                 item.height,
                 item.frame_rate.num,
                 item.frame_rate.den,
-                item.duration_ticks,
+                counted(item.duration_ticks, "tick", "ticks"),
                 if item.has_audio { ", with audio" } else { "" }
             )
             .into(),
@@ -179,9 +183,9 @@ impl AppState {
                     section,
                     label: "Moments index".into(),
                     value: if count >= MAX_MOMENTS_QUERY_LIMIT {
-                        format!("{count}+ record(s) — at the query ceiling").into()
+                        format!("{count}+ records, at the query ceiling").into()
                     } else {
-                        format!("{count} record(s)").into()
+                        counted(count, "record", "records").to_string().into()
                     },
                     warn: false,
                 }
@@ -262,7 +266,11 @@ impl AppState {
         lines.push(ReportLine {
             section: SECTION,
             label: "Checked".into(),
-            value: format!("{checked} media clip(s), {flagged} to look at").into(),
+            value: format!(
+                "{}, {flagged} to look at",
+                counted(checked, "media clip", "media clips")
+            )
+            .into(),
             warn: false,
         });
     }
@@ -290,16 +298,16 @@ fn overhang(source: TimeRange, full: TimeRange) -> Option<String> {
     let past = time_sub(&source_end, &full_end).ok()?;
     if past.value > 0 {
         return Some(format!(
-            "reaches {:.2}s past the end of the file ({} tick(s))",
+            "reaches {:.2}s past the end of the file ({})",
             seconds(past.value, past.rate),
-            past.value
+            counted(past.value, "tick", "ticks")
         ));
     }
     let before = time_sub(&full.start, &source.start).ok()?;
     Some(format!(
-        "starts {:.2}s before the file does ({} tick(s))",
+        "starts {:.2}s before the file does ({})",
         seconds(before.value, before.rate),
-        before.value
+        counted(before.value, "tick", "ticks")
     ))
 }
 
@@ -389,10 +397,10 @@ fn build_pixel_layouts(lines: &mut Vec<ReportLine>) {
             section: SECTION,
             label: spec.label.to_string().into(),
             value: format!(
-                "{} plane(s) · {}-bit in {} byte(s) · {sampling} · {}{}",
-                spec.planes,
+                "{} · {}-bit in {} · {sampling} · {}{}",
+                counted(spec.planes, "plane", "planes"),
                 spec.bit_depth,
-                spec.bytes_per_sample,
+                counted(spec.bytes_per_sample, "byte", "bytes"),
                 if spec.is_yuv { "YUV" } else { "RGB" },
                 if format.requires_even_dimensions() {
                     " · even dimensions"

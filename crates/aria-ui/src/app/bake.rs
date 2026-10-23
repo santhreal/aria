@@ -26,6 +26,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use aria_commands::{Command, EditCommand, ProjectCommand};
+use aria_core::count::counted;
 use aria_engine::{ApplyOutcome, BakeMedium, BakePass, bake_project};
 use aria_jobs::JobCompletion;
 use aria_models::ClipId;
@@ -211,9 +212,12 @@ impl AppState {
                         result => break result.map_err(|err| err.to_string())?,
                     }
                 }
-                JobCompletion::new(format!("{label}: {frames} frame(s) at {written}"))
-                    .with_output("path", published)
-                    .map_err(String::from)
+                JobCompletion::new(format!(
+                    "{label}: {} at {written}",
+                    counted(frames, "frame", "frames")
+                ))
+                .with_output("path", published)
+                .map_err(String::from)
             },
         );
         Ok(id.raw())

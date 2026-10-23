@@ -18,6 +18,7 @@
 //! that blocked on a network round trip would be worse than one that says "not
 //! configured".
 
+use aria_core::count::{counted, noun};
 use aria_plugin::{SettingKind, SettingSpec};
 use aria_settings::{
     AiApiProtocol, AiSource, Autonomy, ReasoningSummary, Settings, ThemeChoice, load, save,
@@ -563,7 +564,8 @@ impl AppState {
     }
 }
 
-/// Format the AI `Can do` capability summary with singular/plural agreement.
+/// Format the AI `Can do` capability summary, each count with the noun or verb
+/// that agrees with it.
 pub(crate) fn format_agent_capabilities(
     edits: usize,
     app: usize,
@@ -571,15 +573,13 @@ pub(crate) fn format_agent_capabilities(
     confirms: usize,
     plugins: usize,
 ) -> String {
-    let plural = super::project_reach::plural;
     format!(
-        "{edits} edit{}, {app} app tool{} of which {senses} look{} and {confirms} ask{} first, \
-         {plugins} plugin tool{}",
-        plural(edits),
-        plural(app),
-        if senses == 1 { "s" } else { "" },
-        if confirms == 1 { "s" } else { "" },
-        plural(plugins),
+        "{}, {} of which {senses} {} and {confirms} {} first, {}",
+        counted(edits, "edit", "edits"),
+        counted(app, "app tool", "app tools"),
+        noun(senses, "looks", "look"),
+        noun(confirms, "asks", "ask"),
+        counted(plugins, "plugin tool", "plugin tools"),
     )
 }
 

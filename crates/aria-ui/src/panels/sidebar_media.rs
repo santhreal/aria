@@ -5,6 +5,8 @@
 //! it draws lives in `sidebar_media_grid.rs` for the same reason. Each item is
 //! `pub(super)` so the parent and its other children can reach it by name.
 
+use aria_core::count::counted;
+
 use super::*;
 use crate::app::pool_rows::PoolRows;
 use crate::theme::Theme;
@@ -33,7 +35,7 @@ pub(super) fn bin(
     let view = state.read(cx).pool_view();
     let properties = state.read(cx).media_properties();
     let count = if query.trim().is_empty() {
-        format!("{total} item(s)")
+        counted(total, "item", "items").to_string()
     } else {
         format!("{shown} of {total}")
     };

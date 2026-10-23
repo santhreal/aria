@@ -564,7 +564,7 @@ fn pack_excludes_crate_sources_and_check_validates_archive() {
     assert_eq!(checked_pkg.presets, vec![preset]);
     assert_eq!(
         super::check::format_presets_line(&checked_pkg),
-        "presets      1 preset(s) (Warm Vignette)"
+        "presets      1 preset (Warm Vignette)"
     );
     let bad_preset_path = pkg_dir.join("presets/broken.ariapreset");
     fs::write(&bad_preset_path, b"not valid json").expect("write bad preset");

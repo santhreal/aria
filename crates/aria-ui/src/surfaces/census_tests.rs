@@ -144,7 +144,7 @@ fn no_surface_dispatch_falls_through_to_a_catch_all() {
 
     assert!(
         match_sites >= MATCH_FLOOR && arms >= ARM_FLOOR,
-        "walked {} file(s) and found {match_sites} match site(s) and {arms} arm(s), under the \
+        "walked files: {}, match sites: {match_sites}, arms: {arms}, under the \
          {MATCH_FLOOR}/{ARM_FLOOR} floor: the surfaces stopped dispatching, or this walk stopped \
          reading them",
         sources.len()

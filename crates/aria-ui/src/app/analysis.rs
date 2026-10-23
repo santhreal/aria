@@ -28,6 +28,7 @@ use aria_analysis::moments::{
     silence_spans_to_moment_batch,
 };
 use aria_commands::{Command, EditCommand};
+use aria_core::count::counted;
 use aria_core::{Rational, RationalTime};
 use aria_engine::EngineError;
 use aria_jobs::JobCompletion;
@@ -188,7 +189,7 @@ impl AppState {
             };
             wake.wake(reported);
             let count = outcome?.count;
-            JobCompletion::new(format!("{count} moment(s)"))
+            JobCompletion::new(counted(count, "moment", "moments").to_string())
                 .with_output("moments", count.to_string())
                 .map_err(String::from)
         });
@@ -198,7 +199,10 @@ impl AppState {
             let _ = this.update(cx, |state, cx| {
                 match outcome {
                     Some(Ok(report)) => {
-                        state.status_message = Some(format!("Detected {} moment(s)", report.count));
+                        state.status_message = Some(format!(
+                            "Detected {}",
+                            counted(report.count, "moment", "moments")
+                        ));
                         if let Err(err) = state.refresh_moments() {
                             state.report_error(err);
                         }
@@ -619,7 +623,10 @@ impl AppState {
             }))?;
             split += 1;
         }
-        self.status_message = Some(format!("Split at {split} shot boundary(ies)"));
+        self.status_message = Some(format!(
+            "Split at {}",
+            counted(split, "shot boundary", "shot boundaries")
+        ));
         Ok(())
     }
 
@@ -657,7 +664,10 @@ impl AppState {
             removed += 1;
         }
         self.clear_selection();
-        self.status_message = Some(format!("Removed {removed} silent span(s)"));
+        self.status_message = Some(format!(
+            "Removed {}",
+            counted(removed, "silent span", "silent spans")
+        ));
         Ok(())
     }
 }

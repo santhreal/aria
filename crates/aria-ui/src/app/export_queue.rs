@@ -23,6 +23,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use aria_core::count::counted;
 use aria_jobs::{JobCompletion, JobId, JobManager};
 use aria_models::Project;
 use aria_plugin::{EventBus, ExportFinished, ExportStarted, PluginContext, RenderResult};
@@ -95,7 +96,7 @@ pub fn default_export_runner(gpu: Option<aria_compositor::GpuContext>) -> Export
             guard.committed(),
             "the export published without the boundary"
         );
-        JobCompletion::new(format!("{frames} frame(s)"))
+        JobCompletion::new(counted(frames, "frame", "frames").to_string())
             .with_output("path", dest.display().to_string())
             .map_err(String::from)
     })
@@ -146,7 +147,7 @@ fn run_plugin_export(
         guard.committed(),
         "the export published without the boundary"
     );
-    JobCompletion::new(format!("{frames} frame(s)"))
+    JobCompletion::new(counted(frames, "frame", "frames").to_string())
         .with_output("path", dest.display().to_string())
         .map_err(String::from)
 }

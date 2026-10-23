@@ -4,6 +4,7 @@
 use std::fs;
 use std::path::Path;
 
+use aria_core::count::counted;
 use aria_plugin::package::{
     Access, COMPONENT_FILE, FsScope, LIBRARY_DIR, MANIFEST_FILE, Package, PackageManifest,
     Permissions, Tier, is_archive, library_name, register_declared, unpack,
@@ -103,11 +104,14 @@ fn check_shaders(package: &Package) -> Result<(), Failure> {
         println!("shaders      none");
     } else {
         println!(
-            "shaders      {effects} effect(s), {generators} generator(s), {transitions} transition(s)"
+            "shaders      {}, {}, {}",
+            counted(effects, "effect", "effects"),
+            counted(generators, "generator", "generators"),
+            counted(transitions, "transition", "transitions")
         );
     }
     if textures > 0 {
-        println!("textures     {textures} texture(s)");
+        println!("textures     {}", counted(textures, "texture", "textures"));
     }
     Ok(())
 }
@@ -122,8 +126,8 @@ pub(crate) fn format_presets_line(package: &Package) -> String {
             .map(|preset| preset.name.as_str())
             .collect();
         format!(
-            "presets      {} preset(s) ({})",
-            package.presets.len(),
+            "presets      {} ({})",
+            counted(package.presets.len(), "preset", "presets"),
             names.join(", ")
         )
     }
@@ -136,13 +140,13 @@ fn print_presets(package: &Package) {
 fn print_contributions(package: &Package) {
     let manifest = &package.manifest;
     println!(
-        "contributes  {} command(s), {} menu row(s), {} key(s), {} setting(s), {} preset(s), {} theme(s)",
-        manifest.commands.len(),
-        manifest.menus.len(),
-        manifest.keys.len(),
-        manifest.settings.len(),
-        package.presets.len(),
-        package.themes.len()
+        "contributes  {}, {}, {}, {}, {}, {}",
+        counted(manifest.commands.len(), "command", "commands"),
+        counted(manifest.menus.len(), "menu row", "menu rows"),
+        counted(manifest.keys.len(), "key", "keys"),
+        counted(manifest.settings.len(), "setting", "settings"),
+        counted(package.presets.len(), "preset", "presets"),
+        counted(package.themes.len(), "theme", "themes")
     );
 }
 

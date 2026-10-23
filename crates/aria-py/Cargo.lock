@@ -79,6 +79,7 @@ dependencies = [
  "gstreamer-pbutils",
  "gstreamer-video",
  "kurbo",
+ "libc",
  "ndk-sys",
  "objc2",
  "objc2-av-foundation",
@@ -90,6 +91,7 @@ dependencies = [
  "objc2-image-io",
  "peniko",
  "png 0.17.16",
+ "rustix",
  "thiserror",
  "tracing",
  "velato",
@@ -103,6 +105,7 @@ name = "aria-encoder"
 version = "0.7.0-alpha.0"
 dependencies = [
  "aria-core",
+ "aria-decoder",
  "block2",
  "bytemuck",
  "dispatch2",
@@ -137,6 +140,7 @@ dependencies = [
 name = "aria-py"
 version = "0.5.3-alpha.1"
 dependencies = [
+ "aria-core",
  "aria-decoder",
  "aria-models",
  "aria-render",

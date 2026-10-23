@@ -3,6 +3,8 @@
 //! A pure move: the same `impl AppState` methods, under the same names, so
 //! every call site keeps its path.
 
+use aria_core::count::counted;
+
 use super::*;
 
 impl AppState {
@@ -23,7 +25,7 @@ impl AppState {
             };
             wake.wake(reported);
             let points = outcome?;
-            JobCompletion::new(format!("{} window(s)", points.len()))
+            JobCompletion::new(counted(points.len(), "window", "windows").to_string())
                 .with_output("windows", points.len().to_string())
                 .map_err(String::from)
         });
@@ -33,8 +35,10 @@ impl AppState {
             let _ = this.update(cx, |state, cx| {
                 match outcome {
                     Some(Ok(points)) => {
-                        state.status_message =
-                            Some(format!("Measured {} loudness window(s)", points.len()));
+                        state.status_message = Some(format!(
+                            "Measured {}",
+                            counted(points.len(), "loudness window", "loudness windows")
+                        ));
                         state.analysis.loudness = points.into();
                     }
                     Some(Err(reason)) if reason.is_empty() => {

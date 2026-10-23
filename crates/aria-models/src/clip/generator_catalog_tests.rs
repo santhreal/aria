@@ -95,7 +95,7 @@ fn the_animatable_column_matches_what_the_walk_finds() {
         assert_eq!(
             spec.animatable,
             curves > 0,
-            "'{}' declares animatable={} but the walk found {curves} curve(s)",
+            "'{}' declares animatable={} but the walk found curves: {curves}",
             spec.id,
             spec.animatable
         );

@@ -9,6 +9,7 @@
 //! stack. That is what redo can still reach, so the list covers both
 //! directions rather than only the past.
 
+use aria_core::count::counted;
 use gpui::{
     AnyElement, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
     SharedString, StatefulInteractiveElement, Styled, div, px,
@@ -39,7 +40,10 @@ pub fn render(
     let pending = (rebuilding > 0).then(|| {
         crate::loaders::pending_row(
             "history-rebuild",
-            format!("{rebuilding} job(s) still writing history"),
+            format!(
+                "{} still writing history",
+                counted(rebuilding, "job", "jobs")
+            ),
             &theme,
             cx.entity_id(),
             cx,

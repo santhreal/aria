@@ -13,6 +13,7 @@
 //! selected.
 
 use aria_commands::Command;
+use aria_core::count::counted;
 use aria_engine::EngineError;
 use aria_models::{ClipId, RationalTime, TrackId};
 
@@ -224,11 +225,12 @@ impl AppState {
             }
             Ok(())
         })?;
-        let noun = if count == 1 { "clip" } else { "clips" };
-        let frames = delta.unsigned_abs();
-        let unit = if frames == 1 { "frame" } else { "frames" };
         let way = if delta > 0 { "later" } else { "earlier" };
-        self.status_message = Some(format!("Moved {count} {noun} {frames} {unit} {way}"));
+        self.status_message = Some(format!(
+            "Moved {} {} {way}",
+            counted(count, "clip", "clips"),
+            counted(delta.unsigned_abs(), "frame", "frames")
+        ));
         Ok(())
     }
 }

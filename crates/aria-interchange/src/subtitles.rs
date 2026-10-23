@@ -11,6 +11,7 @@ use std::borrow::Cow;
 use std::io::{self, Write};
 
 use aria_commands::EditOutcome;
+use aria_core::count::counted;
 use aria_models::{
     ClipSource, Generator, Project, Rational, TextStyle, TimeRange, TrackId, TrackKind,
 };
@@ -127,8 +128,10 @@ pub fn read_vtt(text: &str) -> Result<Cues, String> {
         }
     }
     if styles > 0 {
-        read.skipped
-            .push(format!("{styles} style or region block(s) dropped"));
+        read.skipped.push(format!(
+            "{} dropped",
+            counted(styles, "style or region block", "style or region blocks")
+        ));
     }
     read.finish()
 }
@@ -220,7 +223,8 @@ pub fn cues(project: &Project) -> Cues {
     cues.sort_by_key(|cue| (cue.start_ms, cue.end_ms));
     if styled > 0 {
         skipped.push(format!(
-            "{styled} text clip(s): font, colour, size and position are not written"
+            "{}: font, colour, size and position are not written",
+            counted(styled, "text clip", "text clips")
         ));
     }
     Cues { cues, skipped }
@@ -322,13 +326,15 @@ impl Reader {
             });
         }
         if self.styled > 0 {
-            self.skipped
-                .push(format!("{} cue(s): styling tags dropped", self.styled));
+            self.skipped.push(format!(
+                "{}: styling tags dropped",
+                counted(self.styled, "cue", "cues")
+            ));
         }
         if self.settings > 0 {
             self.skipped.push(format!(
-                "{} cue(s): position and alignment settings dropped",
-                self.settings
+                "{}: position and alignment settings dropped",
+                counted(self.settings, "cue", "cues")
             ));
         }
         Ok(Cues {
@@ -507,7 +513,8 @@ fn blank_report(blank: usize) -> Vec<String> {
     match blank {
         0 => Vec::new(),
         blank => vec![format!(
-            "{blank} cue(s): blank lines inside the text are not written"
+            "{}: blank lines inside the text are not written",
+            counted(blank, "cue", "cues")
         )],
     }
 }

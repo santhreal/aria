@@ -26,6 +26,7 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+use aria_core::count::counted;
 use aria_storage::{
     CacheId, CacheKind, CacheTier, NeverCancelled, StorageLayout, clear_cache, measure_disk_usage,
     relocate_cache,
@@ -252,8 +253,8 @@ impl AppState {
         // The measurement the panel is showing described the tree that just went away.
         self.caches.usage.insert(id.as_str(), (0, 0));
         self.status_message = Some(format!(
-            "Cleared {} file(s), {} from {}",
-            report.removed_files,
+            "Cleared {}, {} from {}",
+            counted(report.removed_files, "file", "files"),
             super::storage::format_bytes(report.removed_bytes),
             id.descriptor().label
         ));

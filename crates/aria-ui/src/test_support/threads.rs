@@ -247,7 +247,7 @@ fn only_one_module_hands_work_to_a_thread() {
     assert!(
         offenders.is_empty(),
         "work that blocks goes to aria_ui::handoff::on_a_thread, which reports the \
-         result as a future ({} owner(s) declared):\n  {}",
+         result as a future (owners declared: {}):\n  {}",
         THREAD_OWNERS.len(),
         offenders.join("\n  ")
     );

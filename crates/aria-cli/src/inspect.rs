@@ -5,6 +5,7 @@
 //! is called offline here, because a project that opens with three missing files
 //! looks identical to a healthy one in a directory listing.
 
+use aria_core::count::counted;
 use aria_models::{ClipSource, Generator, Project};
 
 use crate::args::Args;
@@ -98,9 +99,9 @@ pub fn run(args: &Args) -> Result<(), Failure> {
             format!("  [{}]", notes.join(", "))
         };
         let count_str = if clips.is_empty() {
-            "0 clip(s) (empty)".to_string()
+            "0 clips (empty)".to_string()
         } else {
-            format!("{} clip(s)", clips.len())
+            counted(clips.len(), "clip", "clips").to_string()
         };
         println!(
             "  {:?} \"{}\"  {}{}",

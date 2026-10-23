@@ -21,6 +21,7 @@
 
 use std::path::Path;
 
+use aria_core::count::counted;
 use aria_render::LayerSource;
 use aria_text::{TextRenderer, TextStyle};
 
@@ -112,9 +113,18 @@ fn font_file_report(path: &Path) -> String {
         |name| name.to_string_lossy().into_owned(),
     );
     if added == 0 {
-        return format!("{name}: {bytes} bytes, not a parseable font ({installed} system faces)");
+        return format!(
+            "{name}: {}, not a parseable font ({})",
+            counted(bytes, "byte", "bytes"),
+            counted(installed, "system face", "system faces")
+        );
     }
-    format!("{name}: {added} face(s) parsed from {bytes} bytes, beside {installed} system faces")
+    format!(
+        "{name}: {} parsed from {}, beside {}",
+        counted(added, "face", "faces"),
+        counted(bytes, "byte", "bytes"),
+        counted(installed, "system face", "system faces")
+    )
 }
 
 /// Whether a shaped run produces coverage, and what its animated paint adds.
@@ -132,12 +142,18 @@ fn shaping_report(content: &str, style: &TextStyle, animated: bool) -> String {
         // an empty string, clusters with no extent is whitespace or a font that
         // produced no glyphs, and no faces at all is a host with no fonts.
         return format!(
-            "Draws nothing: {clusters} cluster(s), no coverage, {faces} face(s) available"
+            "Draws nothing: {}, no coverage, {} available",
+            counted(clusters, "cluster", "clusters"),
+            counted(faces, "face", "faces")
         );
     }
     let (w, h) = shaped.extent;
     if !animated {
-        return format!("{w}x{h} px of ink from {clusters} cluster(s), {faces} face(s) available");
+        return format!(
+            "{w}x{h} px of ink from {}, {} available",
+            counted(clusters, "cluster", "clusters"),
+            counted(faces, "face", "faces")
+        );
     }
     let painted = aria_text::paint_animated(&shaped, style);
     let (pw, ph) = painted.extent;
@@ -146,8 +162,8 @@ fn shaping_report(content: &str, style: &TextStyle, animated: bool) -> String {
         None => String::new(),
     };
     format!(
-        "{w}x{h} px of ink; animated paint {pw}x{ph} over {} cluster(s){card}",
-        painted.clusters.len()
+        "{w}x{h} px of ink; animated paint {pw}x{ph} over {}{card}",
+        counted(painted.clusters.len(), "cluster", "clusters")
     )
 }
 

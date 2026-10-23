@@ -80,7 +80,7 @@ fn the_profile_root_is_resolved_once_by_the_entry_point() {
     assert!(
         offenders.is_empty(),
         "these resolve the default profile directory themselves, and only an entry \
-         point may ({} owner(s) declared): a session's root is a parameter, and \
+         point may (owners declared: {}): a session's root is a parameter, and \
          storage is what turns it into directories\n  {}",
         PROFILE_ROOT_OWNERS.len(),
         offenders.join("\n  ")

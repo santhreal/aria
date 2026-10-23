@@ -13,6 +13,7 @@
 use std::error::Error;
 use std::path::PathBuf;
 
+use aria_core::count::counted;
 use aria_models::{
     CanvasAspect, CanvasSettings, Generator, Project, Rational, TextStyle, TimeRange, TrackKind,
 };
@@ -76,7 +77,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
 
     println!(
-        "exported {written} frame(s) at 1920x1080 to {}",
+        "exported {} at 1920x1080 to {}",
+        counted(written, "frame", "frames"),
         out.display()
     );
     Ok(())

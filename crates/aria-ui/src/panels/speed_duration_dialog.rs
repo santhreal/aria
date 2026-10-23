@@ -1,6 +1,7 @@
 //! The Speed/Duration dialog (`Ctrl+R`).
 
 use crate::components::Wraps as _;
+use aria_core::count::counted;
 use gpui::{
     Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled,
     div, px,
@@ -178,11 +179,7 @@ pub fn render(
             div()
                 .text_size(Theme::TEXT_TITLE)
                 .text_color(theme.text_muted)
-                .child(format!(
-                    "{} selected clip{}",
-                    selected_count,
-                    if selected_count == 1 { "" } else { "s" }
-                )),
+                .child(counted(selected_count, "selected clip", "selected clips").to_string()),
         )
         .child(
             div()

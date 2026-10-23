@@ -2,6 +2,7 @@
 //! group's clock.
 
 use aria_commands::{Command, EditCommand};
+use aria_core::count::counted;
 use aria_engine::EngineError;
 use aria_models::{MediaId, MulticamAngle, MulticamGroupId};
 
@@ -206,10 +207,10 @@ impl AppState {
                 this.set_multicam_angle_offset(group, *angle, *offset)
             })
         })?;
-        let placed = moved.len();
+        let angles = counted(moved.len(), "angle", "angles");
         self.status_message = Some(match measurement.refused {
-            Some(why) => format!("Synced {placed} angle(s): {}", why.reason()),
-            None => format!("Synced {placed} angle(s) by sound"),
+            Some(why) => format!("Synced {angles}: {}", why.reason()),
+            None => format!("Synced {angles} by sound"),
         });
         Ok(())
     }

@@ -8,6 +8,7 @@
 use std::path::PathBuf;
 
 use aria_commands::{Command, EditCommand, ProjectCommand};
+use aria_core::count::counted;
 use aria_core::{Rational, RationalTime, TimeRange, resample};
 use aria_engine::{ApplyOutcome, Engine, EngineConfig};
 use aria_models::{TrackId, TrackKind};
@@ -119,12 +120,12 @@ pub fn run(args: &Args) -> Result<(), Failure> {
         .map_err(|err| err.to_string())?;
     let duration = engine.project().timeline().duration();
     println!(
-        "wrote {} — {} at {}/{}, {} clip(s)",
+        "wrote {} — {} at {}/{}, {}",
         out.display(),
         clock(duration.seconds()),
         rate.num,
         rate.den,
-        media.len()
+        counted(media.len(), "clip", "clips")
     );
     Ok(())
 }

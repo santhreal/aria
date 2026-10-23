@@ -19,6 +19,7 @@ use std::sync::Arc;
 use aria_analysis::moments::{AnalyzerIdentity, AnalyzerVersion, MediaContentKey, MomentsIndex};
 use aria_commands::{Command, EditCommand};
 use aria_core::Rational;
+use aria_core::count::counted;
 use aria_engine::EngineError;
 use aria_jobs::{CancellationToken, JobCompletion};
 use aria_models::{Generator, RationalTime, TimeRange, TrackKind};
@@ -243,7 +244,7 @@ impl AppState {
             };
             wake.wake(reported);
             let captions = outcome?;
-            JobCompletion::new(format!("{} segment(s)", captions.len()))
+            JobCompletion::new(counted(captions.len(), "segment", "segments").to_string())
                 .with_output("segments", captions.len().to_string())
                 .map_err(String::from)
         });
@@ -253,8 +254,10 @@ impl AppState {
             let _ = this.update(cx, |state, cx| {
                 match outcome {
                     Some(Ok(captions)) => {
-                        state.status_message =
-                            Some(format!("Transcribed {} segment(s)", captions.len()));
+                        state.status_message = Some(format!(
+                            "Transcribed {}",
+                            counted(captions.len(), "segment", "segments")
+                        ));
                         state.captions.segments = captions;
                     }
                     Some(Err(reason)) if reason.is_empty() => {
@@ -355,8 +358,13 @@ impl AppState {
             }
         }
         self.status_message = Some(match target {
-            CaptionCommit::Markers => format!("Wrote {written} marker(s)"),
-            CaptionCommit::TextClips => format!("Wrote {written} caption clip(s)"),
+            CaptionCommit::Markers => format!("Wrote {}", counted(written, "marker", "markers")),
+            CaptionCommit::TextClips => {
+                format!(
+                    "Wrote {}",
+                    counted(written, "caption clip", "caption clips")
+                )
+            }
         });
         Ok(())
     }

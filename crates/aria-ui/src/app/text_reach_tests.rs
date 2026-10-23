@@ -187,7 +187,7 @@ fn the_font_preflight_reports_on_the_file_it_was_handed() {
         "the report must name the file that was picked: {line}"
     );
     assert!(
-        line.contains("face(s) parsed"),
+        line.contains(" parsed from "),
         "a shipped font parsed as nothing: {line}"
     );
     assert!(state.last_error.is_none(), "{:?}", state.last_error);

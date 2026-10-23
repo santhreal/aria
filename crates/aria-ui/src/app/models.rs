@@ -11,6 +11,7 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
+use aria_core::count::{counted, noun};
 use aria_jobs::JobCompletion;
 use aria_transcription::{
     HttpDownloader, ModelDownloader, ModelManager, ModelStatus, WhisperModel,
@@ -231,7 +232,10 @@ impl AppState {
             }
             if failures.is_empty() {
                 return Ok(JobCompletion::new(format!(
-                    "{checked} installed model(s) still match their digest"
+                    "{} still {} {} digest",
+                    counted(checked, "installed model", "installed models"),
+                    noun(checked, "matches", "match"),
+                    noun(checked, "its", "their")
                 )));
             }
             Err(failures.join("; "))

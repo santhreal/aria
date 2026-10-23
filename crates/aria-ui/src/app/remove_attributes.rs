@@ -1,6 +1,7 @@
 //! Edit > Remove Attributes: the dialog's form and the edit it commits.
 
 use aria_commands::{Command, EditCommand};
+use aria_core::count::counted;
 use aria_models::{ClipAttribute, ClipId};
 
 use super::{AppState, DialogKind};
@@ -106,7 +107,10 @@ impl AppState {
         match removed {
             Ok(()) => {
                 self.open_dialog(DialogKind::None);
-                self.status_message = Some(format!("Removed attributes from {clips} clip(s)"));
+                self.status_message = Some(format!(
+                    "Removed attributes from {}",
+                    counted(clips, "clip", "clips")
+                ));
             }
             Err(err) => self.report_error(&err),
         }

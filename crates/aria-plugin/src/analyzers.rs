@@ -23,6 +23,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
 use aria_commands::{Command, EditCommand, EditOutcome};
+use aria_core::count::counted;
 use aria_core::{Rational, RationalTime, TimeRange};
 use aria_engine::ApplyOutcome;
 use aria_models::{ClipId, MarkerColor, MarkerKind, Project};
@@ -315,18 +316,15 @@ impl AnalyzerResult {
         let mut parts = Vec::new();
         if !self.beats.is_empty() {
             let n = self.beats.len();
-            parts.push(format!("{n} beat{}", if n == 1 { "" } else { "s" }));
+            parts.push(counted(n, "beat", "beats").to_string());
         }
         if !self.markers.is_empty() {
             let n = self.markers.len();
-            parts.push(format!("{n} marker{}", if n == 1 { "" } else { "s" }));
+            parts.push(counted(n, "marker", "markers").to_string());
         }
         if !self.ranges.is_empty() {
             let n = self.ranges.len();
-            parts.push(format!(
-                "{n} silence range{}",
-                if n == 1 { "" } else { "s" }
-            ));
+            parts.push(counted(n, "silence range", "silence ranges").to_string());
         }
         if let Some(loudness) = self.loudness {
             if loudness.integrated_lufs.is_finite() {

@@ -8,6 +8,7 @@
 //! user through the backend, and a test can assert the routing without a socket.
 
 use aria_cloud::dto::{AssetKind, CatalogEntry, CatalogResponse, StockItem, StockSearchResponse};
+use aria_core::count::counted;
 use gpui::SharedString;
 
 /// A browsable cloud surface.
@@ -206,7 +207,7 @@ fn card_from_entry(entry: &CatalogEntry) -> CloudCard {
         detail.push_str(&format!("{seconds:.0}s"));
     }
     if let Some(slots) = entry.slot_count {
-        push_part(&mut detail, &format!("{slots} slot(s)"));
+        push_part(&mut detail, &counted(slots, "slot", "slots").to_string());
     }
     if entry.size_bytes > 0 {
         push_part(

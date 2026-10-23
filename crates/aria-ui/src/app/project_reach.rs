@@ -18,6 +18,7 @@
 use std::path::Path;
 
 use aria_commands::{Command, EditCommand};
+use aria_core::count::counted;
 use aria_engine::EngineError;
 use aria_models::{
     BinId, ClipId, RationalTime, Template, TrackId, clip_fact_by_id, clips_with_fact,
@@ -285,7 +286,7 @@ impl AppState {
         self.pool_selection.replace(media);
         self.status_message = Some(match depth {
             0 => "Revealed at the pool root".to_string(),
-            depth => format!("Revealed {depth} folder{} down", plural(depth)),
+            depth => format!("Revealed {} down", counted(depth, "folder", "folders")),
         });
         true
     }
@@ -321,9 +322,9 @@ impl AppState {
             ""
         };
         Ok(format!(
-            "{slots} slot{}, {texts} editable text{}{music}",
-            plural(slots),
-            plural(texts)
+            "{}, {}{music}",
+            counted(slots, "slot", "slots"),
+            counted(texts, "editable text", "editable texts")
         ))
     }
 
@@ -345,11 +346,6 @@ impl AppState {
             },
         );
     }
-}
-
-/// `"s"` unless there is exactly one of them.
-pub(crate) fn plural(count: usize) -> &'static str {
-    if count == 1 { "" } else { "s" }
 }
 
 #[cfg(test)]

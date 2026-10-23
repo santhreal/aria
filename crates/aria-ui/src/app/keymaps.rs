@@ -10,6 +10,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
+use aria_core::count::counted;
 use gpui::SharedString;
 
 use super::AppState;
@@ -365,10 +366,7 @@ impl AppState {
         self.mirror_overrides();
         self.ui_settings.keymap = Some(name.to_owned());
         let installed = set.len().saturating_sub(skipped.len());
-        let mut said = format!(
-            "Loaded {name}: {installed} key{}",
-            if installed == 1 { "" } else { "s" }
-        );
+        let mut said = format!("Loaded {name}: {}", counted(installed, "key", "keys"));
         if !skipped.is_empty() {
             let reasons: Vec<String> = skipped.iter().map(|skip| self.skip_reason(skip)).collect();
             said.push_str(&format!(

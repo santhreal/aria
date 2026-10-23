@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use std::io::{self, Write};
 use std::path::PathBuf;
 
+use aria_core::count::counted;
 use aria_models::{MarkerColor, Rational, RationalTime, resample};
 
 use crate::model::{Cut, Event, Lane, LaneKind, Mark, Read, Source, file_stem};
@@ -587,9 +588,9 @@ pub fn write(cut: &Cut, out: &mut dyn Write) -> io::Result<Vec<String>> {
         notes += usize::from(!mark.comment.is_empty());
     }
     if notes > 0 {
-        let plural = if notes == 1 { "" } else { "s" };
         skipped.push(format!(
-            "{notes} marker note{plural}: an EDL marker holds a name only"
+            "{}: an EDL marker holds a name only",
+            counted(notes, "marker note", "marker notes")
         ));
     }
     Ok(skipped)

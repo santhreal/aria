@@ -13,6 +13,7 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use aria_core::count::counted;
 use aria_engine::EngineError;
 use aria_models::RationalTime;
 use aria_render::DroppedFrames;
@@ -514,7 +515,8 @@ impl AppState {
                         target: "aria::playback",
                         tick = self.playhead.value,
                         frames,
-                        "dropped {frames} frame(s) at tick {}: {cause}",
+                        "dropped {} at tick {}: {cause}",
+                        counted(frames, "frame", "frames"),
                         self.playhead.value
                     );
                 }
