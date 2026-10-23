@@ -2352,6 +2352,17 @@ Notes for the latest release. For previous releases, see the
 - File, folder, and question dialogs are titled in Title Case after the command or button that opens them, such as `Open Project`, `Relink Media`, `Export Image Sequence`, `Move Cache`, and `Install Plugin`.
 - The Project panel's Import button opens the File > Import dialog, so a timeline file it picks is read into the timeline and every file it imports heads File > Import Recent.
 - Status lines, job details, dialogs, and command-line output write each count with the noun that agrees with it, such as `1 frame` and `3 frames`, instead of `frame(s)`.
+- The command palette offers each effect once, as its Effect menu row under its category, such as `Blur & Sharpen: Gaussian Blur`, instead of a second row named by the effect alone.
+- Values and descriptions in Settings and the Export dialog start with a capital letter, such as `Included`, `Unbound`, and `Every transition at its designed speed`, and the Export Keyframes value reads `Every 15 frames` instead of `every 15`.
+- Settings > Catalogs lists each catalog by the file that overrides it, such as `transitions.toml`, instead of by its bare kind.
+- The Canvas aspect that follows the footage reads `Match footage` in Settings instead of `auto`, and a project or setting file still writes `auto`.
+- The Unsaved Changes dialog quotes the project's name inside its line, such as `Changes to “untitled” are not saved.`, instead of starting the line with the name.
+- The transcription model row in Settings states the model's size on disk once, from its verified byte count, and the memory it takes during inference.
+- Settings and the Generate tab name the fal provider `fal.ai`.
+- Status lines, error lines, and disabled menu rows' reasons start with a capital, and a line of one sentence ends without a period, such as `Select a clip with sound`.
+- An error a lower layer reports in lower case, such as a refused preset name, is shown starting with a capital.
+- A command run with no clip selected reports `No clip is selected`, the same words as its disabled menu row, instead of `Select a clip first` or `Nothing is selected`.
+- The Export sheet refuses an empty timeline with `Nothing to export. Your timeline is empty. Import media and place a clip first.`, the words an empty export reports everywhere else, instead of a wording of its own.
 
 ### Fixed
 
@@ -2774,7 +2785,13 @@ Notes for the latest release. For previous releases, see the
 - `docs/theme-tokens.md` lists `font_mono` for expressions and plugin logs, where it is drawn, instead of also for timecode, which is drawn in Inter with tabular figures.
 - Relinking a moved recent project from Home opens the Unsaved Changes dialog first when the session has unsaved edits, instead of opening the chosen project over them.
 - Info panel and Inspector rows draw a value that does not fit beside its label on the next line, wrapping it at the row's width, instead of past the panel's edge.
+- An audio effect a plugin registers after the command palette first lists its rows is offered in the palette instead of missing until another change rebuilds the list.
 - `docs/reference/commands.md`, `controls.md`, and `menus.md` describe rows as the code runs them, such as 90% title-safe and 93% action-safe rectangles instead of 80% and 90%, a gain range of −60 to +12 dB instead of −96 to +24 dB, and Paste Attributes copying the transform, filter preset, and video effect chain.
+- Quitting with Ctrl+Q, File > Quit, or the window's close control saves the window's size, position, and maximized state for the next launch, as a window manager's close request does, instead of reopening the window where the previous session left it.
+- On X11, a window that opens maximized, such as the first window of a fresh profile or one closed maximized, opens maximized instead of at its unmaximized size.
+- On X11, a window reopens at the position it closed at instead of moving down and right by the size of its frame on every launch.
+- Playback or audio scrubbing whose sound cannot start, such as on a machine with no output device, states the reason on the error line, such as `No audio output device. Plug in speakers or a headset.`, instead of playing the picture in silence with no word.
+- Closing a floating panel window while the sequence plays leaves the picture following the sound between audio blocks, instead of advancing once per audio block for the rest of that play.
 
 ## [alpha-0.7.0] — 2026-07-22
 
