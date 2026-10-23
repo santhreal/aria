@@ -17,20 +17,20 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | --- | --- | --- | --- | --- | --- |
 | `file-new` | `none` | New Project | `Ctrl+Alt+N` | Always enabled | Starts a new project (opens `aria.dialog.unsaved` first when the active project has unsaved edits). |
 | `file-new-sequence` | `none` | New Sequence | `Ctrl+N` | Always enabled | Creates a new sequence in the open project and switches the timeline to it. |
-| `file-open` | `none` | Open… | `Ctrl+O` | Always enabled | Opens the file picker for `.aria` project files. |
+| `file-open` | `none` | Open… | `Ctrl+O` | Always enabled | Opens the file picker for `.aria` project files (opens `aria.dialog.unsaved` first when the active project has unsaved edits). |
 | `file-use-template` | `none` | Use Template… | `none` | Always enabled | Opens the file picker for `.ariat` template bundles and prompts for each replaceable media slot. |
 | `file-home` | `Open Recent` | All Recent Projects… | `none` | Always enabled | Switches the window route to Home (`UiRoute::Home`). |
-| `file-close` | `none` | Close | `Ctrl+Shift+W` | Always enabled | Closes the open project and returns to Home (`close_project`). |
+| `file-close` | `none` | Close | `Ctrl+Shift+W` | Always enabled | Closes the open project and returns to Home (`close_project`, opening `aria.dialog.unsaved` first when the active project has unsaved edits). |
 | `file-rename` | `none` | Rename Project… | `none` | Always enabled | Opens `aria.overlay.rename` (`RenameTarget::Project`) to rename the project. |
-| `file-save` | `none` | Save | `Ctrl+S` | Always enabled | Saves the project to its `.aria` path, or opens the Save As file picker when untitled. |
+| `file-save` | `none` | Save | `Ctrl+S` | Always enabled | Saves the project to its `.aria` path, or to `<data dir>/untitled.aria` when untitled. |
 | `file-save-as` | `none` | Save As… | `Ctrl+Shift+S` | Always enabled | Prompts for a new `.aria` path, writes the project there, and updates the session path. |
 | `file-save-copy` | `none` | Save a Copy… | `Ctrl+Alt+S` | Always enabled | Writes a copy of the project to a chosen `.aria` path without changing the session path. |
 | `file-save-template` | `none` | Save as Template… | `none` | Always enabled | Prompts for a destination `.ariat` path and packages the project as a template bundle. |
 | `file-revert` | `none` | Revert | `none` | Project has never been saved or has no unsaved changes (`guards::revertible`) | Reloads the project from its last saved `.aria` file on disk. |
-| `file-import` | `none` | Import… | `Ctrl+I` | Always enabled | Opens the media file picker and imports chosen files into the media pool. |
+| `file-import` | `none` | Import… | `Ctrl+I` | Always enabled | Opens the Import file picker: preset files go to the preset library, a timeline file is read into the timeline, and other files are imported into the media pool and placed on the timeline from the playhead. Each timeline or media file that arrives heads File > Import Recent. |
 | `file-import-recent-clear` | `Import Recent` | Clear Recent Imports | `none` | No file has been imported yet (`guards::import_recents`) | Clears the persisted recent imports list (`import-recents.json`). |
 | `file-import-timeline` | `none` | Import Timeline… | `none` | Always enabled | Opens the file picker for timeline interchange files (`.fcpxml`, `.otio`, `.edl`, `.srt`, `.vtt`). |
-| `file-relink-all` | `none` | Relink All… | `none` | Always enabled | Prompts for a search folder and relinks offline media pool items whose filenames match. |
+| `file-relink-all` | `none` | Relink All… | `none` | Always enabled | Prompts for a search folder and relinks each offline media pool item that has a unique filename match with matching frame size, duration, and audio presence. |
 | `file-export` | `Export` | Media… | `Ctrl+M` | Always enabled | Opens the Export dialog (`aria.dialog.export`). |
 | `file-export-frame` | `Export` | Frame… | `Ctrl+Shift+E` | Always enabled | Renders the frame at the playhead at full sequence resolution and saves it as a PNG file. |
 | `file-export-timeline` | `Export` | Timeline… | `none` | No timeline exporter is mounted (`guards::exporters`) | Prompts for a destination file and exports the active sequence through the chosen timeline exporter. |
@@ -46,9 +46,9 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `edit-redo` | `none` | Redo | `Ctrl+Shift+Z` | Nothing to redo (`guards::redo`) | Reapplies the most recently undone edit step. |
 | `edit-cut` | `none` | Cut | `Ctrl+X` | No clip is selected (`guards::selection`) | Copies selected clips to the clipboard and removes them from the sequence. |
 | `edit-copy` | `none` | Copy | `Ctrl+C` | No clip is selected (`guards::selection`) | Copies selected clips and their attributes to the clipboard. |
-| `edit-paste` | `none` | Paste | `Ctrl+V` | Nothing has been copied or cut (`guards::clipboard`) | Pastes clipboard clips at the playhead by overwriting overlapping material. |
+| `edit-paste` | `none` | Paste | `Ctrl+V` | Nothing has been copied or cut (`guards::clipboard`) | Pastes the clipboard clip onto its source track at the playhead when the target span is free. |
 | `edit-paste-insert` | `none` | Paste Insert | `Ctrl+Shift+V` | Nothing has been copied or cut (`guards::clipboard`) | Ripple-inserts clipboard clips at the playhead, shifting downstream clips right. |
-| `edit-paste-attributes` | `none` | Paste Attributes | `Ctrl+Alt+V` | Nothing has been copied or cut (`guards::clipboard`) | Copies transform, opacity, crop, speed, volume, pan, effects, grade, mask, and chroma key from the clipboard onto selected clips. |
+| `edit-paste-attributes` | `none` | Paste Attributes | `Ctrl+Alt+V` | Nothing has been copied or cut (`guards::clipboard`) | Copies the animated transform, filter preset, and video effect chain from the clipboard clip onto selected clips. |
 | `edit-remove-attributes` | `none` | Remove Attributes… | `none` | No clip is selected (`guards::selection`) | Opens `aria.dialog.remove-attributes` to reset chosen attribute categories on selected clips. |
 | `edit-paste-fit` | `none` | Paste to Fit | `none` | Nothing has been copied or cut (`guards::clipboard`) | Pastes the clipboard clip scaled in speed to fit the active In-to-Out span. |
 | `edit-clear` | `none` | Clear | `Backspace` | No clip is selected (`guards::selection`) | Deletes selected clips without closing the timeline gap. |
@@ -98,8 +98,8 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `clip-audio-gain` | `none` | Audio Gain… | `G` | No clip is selected (`guards::selection`) | Opens `aria.dialog.audio-gain`. |
 | `clip-channels-stereo` | `Audio Channels` | Stereo | `none` | Select a clip with sound (`guards::sound`) | Routes the clip's left and right source channels as normal stereo (`AudioChannels::Stereo`). |
 | `clip-channels-swap` | `Audio Channels` | Swap Channels | `none` | Select a clip with sound (`guards::sound`) | Swaps the clip's left and right audio channels (`AudioChannels::Swap`). |
-| `clip-channels-left` | `Audio Channels` | Left to Both | `none` | Select a clip with sound (`guards::sound`) | Sends the clip's left source channel to both stereo outputs (`AudioChannels::FillLeft`). |
-| `clip-channels-right` | `Audio Channels` | Right to Both | `none` | Select a clip with sound (`guards::sound`) | Sends the clip's right source channel to both stereo outputs (`AudioChannels::FillRight`). |
+| `clip-channels-left` | `Audio Channels` | Left to Both | `none` | Select a clip with sound (`guards::sound`) | Sends the clip's left source channel to both stereo outputs (`AudioChannels::LeftToBoth`). |
+| `clip-channels-right` | `Audio Channels` | Right to Both | `none` | Select a clip with sound (`guards::sound`) | Sends the clip's right source channel to both stereo outputs (`AudioChannels::RightToBoth`). |
 | `clip-channels-mono` | `Audio Channels` | Mono | `none` | Select a clip with sound (`guards::sound`) | Sums the clip's left and right channels to mono (`AudioChannels::Mono`). |
 | `seq-extract-audio` | `none` | Extract Audio | `none` | No clip is selected (`guards::selection`) | Extracts the selected video clip's audio stream onto an audio lane. |
 | `seq-flip-h` | `Transform` | Flip Horizontal | `none` | No clip is selected (`guards::selection`) | Toggles horizontal mirror flip on the selected clips. |
@@ -129,8 +129,8 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `seq-linked-selection` | `none` | Linked Selection | `none` | Always enabled | Toggles whether clicking a linked clip selects its linked siblings (`linked_selection`). |
 | `seq-v` | `Add Tracks` | Video Track | `none` | Always enabled | Appends a new video track (`V<n>`) to the active sequence. |
 | `seq-a` | `Add Tracks` | Audio Track | `none` | Always enabled | Appends a new audio track (`A<n>`) to the active sequence. |
-| `seq-delete-tracks` | `none` | Delete Empty Tracks | `none` | Every track holds a clip (`guards::empty_tracks`) | Deletes all empty tracks from the active sequence. |
-| `seq-adjustment` | `none` | Add Adjustment Layer | `none` | Always enabled | Places an adjustment layer clip at the playhead. |
+| `seq-delete-tracks` | `none` | Delete Empty Tracks | `none` | Every track holds a clip (`guards::empty_tracks`) | Deletes empty unlocked video and audio tracks from the active sequence while keeping at least one video track and one audio track. |
+| `seq-adjustment` | `none` | Add Adjustment Layer | `none` | Always enabled | Places an adjustment layer clip on a free or new adjustment track across the marked In/Out range, the selected clips' span, the full sequence, or five seconds from the start of an empty sequence. |
 | `seq-match-frame` | `none` | Match Frame | `F` | No clip is selected (`guards::selection`) | Opens the selected clip's source in the Source monitor at the matching source frame. |
 | `seq-source-insert` | `Source` | Insert | `none` | Open a source in the Source monitor first (`guards::source_range`) | Ripple-inserts the active Source monitor range at the playhead. |
 | `seq-source-overwrite` | `Source` | Overwrite | `none` | Open a source in the Source monitor first (`guards::source_range`) | Overwrites the active Source monitor range onto the sequence at the playhead. |
@@ -146,7 +146,7 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `seq-duck-attack` | `Ducking` | Cycle Duck Attack | `none` | Always enabled | Cycles the sidechain ducking attack time. |
 | `seq-duck-release` | `Ducking` | Cycle Duck Release | `none` | Always enabled | Cycles the sidechain ducking release time. |
 | `seq-nest-open` | `Nested Sequence` | Open Nested Sequence | `none` | Always enabled | Opens the selected nested sequence clip's timeline. |
-| `seq-nest-leave` | `Nested Sequence` | Leave Nested Sequence | `none` | Always enabled | Returns from an open nested sequence to the parent sequence. |
+| `seq-nest-leave` | `Nested Sequence` | Leave Nested Sequence | `none` | Always enabled | Returns from an open nested sequence to the root sequence. |
 | `seq-nest-place` | `Nested Sequence` | Place Nest at Playhead | `none` | Always enabled | Places a clip referencing the selected nested sequence at the playhead. |
 | `seq-analyze:aria.silence` | `Analyze` | Detect Silence | `none` | The sequence has no clips (`guards::clips`) | Runs the registered silence analyzer (`aria.silence`) across the active sequence. |
 | `seq-analyze:aria.loudness` | `Analyze` | Measure Loudness | `none` | The sequence has no clips (`guards::clips`) | Runs the registered EBU R128 loudness analyzer (`aria.loudness`) across the sequence or In/Out range. |
@@ -178,9 +178,9 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `fx-controls` | `none` | Effect Controls | `Shift+4` | Always enabled | Opens and focuses `aria.panel.inspector`. |
 | `fx-last` | `none` | Apply Last Effect | `none` | No effect has been applied yet or no clip is selected (`guards::last_effect`) | Applies the most recently applied video effect (`last_effect`) to the selected clips. |
 | `fx-paste` | `none` | Paste Effect | `none` | No effect has been copied or no clip is selected (`guards::copied_effect`) | Pastes the copied effect onto the selected clips. |
-| `fx-remove-all` | `none` | Remove All Effects | `none` | Selected clips have no effects (`guards::effects`) | Removes all video and audio effects from the selected clips. |
+| `fx-remove-all` | `none` | Remove All Effects | `none` | Selected clips have no effects (`guards::effects`) | Removes all video effects from the selected clips. |
 | `seq-effect-reset` | `none` | Reset Effect Parameters | `Ctrl+Alt+R` | Selected clips have no effects (`guards::effects`) | Resets every parameter of every effect on the selected clip to its catalog default. |
-| `seq-grade-reset` | `none` | Reset Grade | `none` | No clip is selected (`guards::selection`) | Clears colour adjustments (`ColorAdjustments`) and LUT on the selected clips. |
+| `seq-grade-reset` | `none` | Reset Grade | `none` | No clip is selected (`guards::selection`) | Clears colour adjustments (`ColorAdjustments`) on the selected clips. |
 | `seq-mask-clear` | `none` | Remove Mask | `none` | The selected clip has no mask (`guards::mask`) | Removes all masks from the selected clips. |
 | `seq-chroma-clear` | `none` | Remove Chroma Key | `none` | No clip is selected (`guards::selection`) | Removes the chroma keyer from the selected clips. |
 
@@ -222,10 +222,10 @@ In addition to the eight fixed rows above, `items_for(AppMenu::Effect, state)` a
 | `view-guides-show` | `Viewer Display Settings` | Show Guides | `none` | Always enabled | Toggles visibility of custom Viewer guide lines. |
 | `view-guide-snap` | `Viewer Display Settings` | Snap to Guides | `none` | Always enabled | Toggles snapping of Viewer canvas drags to custom guide lines. |
 | `view-guides-clear` | `Viewer Display Settings` | Clear Guides | `none` | Always enabled | Removes all custom guide lines from the Viewer. |
-| `view-title-safe` | `Viewer Display Settings` | Title Safe | `none` | Always enabled | Toggles the 80% title-safe rectangle in the Viewer. |
-| `view-action-safe` | `Viewer Display Settings` | Action Safe | `none` | Always enabled | Toggles the 90% action-safe rectangle in the Viewer. |
+| `view-title-safe` | `Viewer Display Settings` | Title Safe | `none` | Always enabled | Toggles the 90% title-safe rectangle (5% inset per edge) in the Viewer. |
+| `view-action-safe` | `Viewer Display Settings` | Action Safe | `none` | Always enabled | Toggles the 93% action-safe rectangle (3.5% inset per edge) in the Viewer. |
 | `view-transparency-grid` | `Viewer Display Settings` | Transparency Grid | `none` | Always enabled | Toggles the checkerboard transparency backdrop in the Viewer. |
-| `view-grid` | `Viewer Display Settings` | Grid | `none` | Always enabled | Toggles the proportional grid overlay in the Viewer. |
+| `view-grid` | `Viewer Display Settings` | Grid | `none` | Always enabled | Toggles the rule-of-thirds grid overlay in the Viewer. |
 | `view-proxies` | `none` | Proxies | `none` | Always enabled | Toggles whether the Viewer decodes media pool items through their proxy files. |
 | `view-compare-frame` | `Compare` | Current Frame | `none` | Always enabled | Captures the current Program frame as the comparison reference (`Reference::Frame`). |
 | `view-compare-still` | `Compare` | Still… | `none` | Always enabled | Prompts for an image file on disk as the comparison reference (`Reference::Still`). |
@@ -314,7 +314,7 @@ Defined in `crates/aria-ui/src/app/clip_ops.rs` (`AudioGainMode::ALL`, opened by
 
 | Variant | Label (`label()`) | Default | Summary |
 | --- | --- | --- | --- |
-| `SetGain` | `Set Gain to` | `yes` | Sets `clip.gain_db` to the target dB value (`-96.0..=+24.0`). |
+| `SetGain` | `Set Gain to` | `yes` | Sets `ClipParam::Volume` on selected audio clips to the linear gain for the target dB value (`-60.0..=+12.0` dB). |
 | `AdjustGain` | `Adjust Gain by` | `no` | Adds the signed dB delta to each selected clip's existing `gain_db`. |
 | `NormalizeMaxPeak` | `Normalize Max Peak to` | `no` | Shifts all selected clips by a single dB offset so the loudest clip peak across the selection lands at the target dB ceiling. |
 | `NormalizeAllPeaks` | `Normalize All Peaks to` | `no` | Shifts each selected clip independently so every clip's own maximum sample peak lands at the target dB ceiling. |

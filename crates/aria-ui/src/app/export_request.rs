@@ -19,6 +19,7 @@ use std::path::PathBuf;
 
 use aria_core::ExportFormat;
 
+use super::picker::{Ask, FileSpec};
 use super::{AppState, DialogKind};
 
 /// One export, as the sheet's rows describe it.
@@ -82,5 +83,31 @@ impl AppState {
             Ok(_) => self.open_dialog(DialogKind::Jobs),
             Err(err) => self.report_error(err),
         }
+    }
+
+    /// Ask where to write the export the sheet is describing, then queue it
+    /// there: the sheet's Choose button.
+    ///
+    /// The dialog offers the format's own extension and proposes the name the
+    /// sheet prints, so a save that keeps the proposal writes where Export would.
+    pub fn pick_export_destination(&mut self) {
+        let ext = self.export_extension();
+        let name = self
+            .export_destination()
+            .file_name()
+            .and_then(|name| name.to_str())
+            .map_or_else(|| format!("export.{ext}"), ToOwned::to_owned);
+        let spec = FileSpec::new("Export")
+            .filter(self.export_format_label(), &[ext.as_str()])
+            .file_name(name);
+        self.request_pick(Ask::SaveFile(spec), |state, answer| {
+            let Some(path) = answer.one() else {
+                return;
+            };
+            match state.export_job(path) {
+                Ok(_) => state.open_dialog(DialogKind::Jobs),
+                Err(err) => state.report_error(err),
+            }
+        });
     }
 }

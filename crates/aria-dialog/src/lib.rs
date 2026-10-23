@@ -33,6 +33,11 @@ impl FileSpec {
         }
     }
 
+    /// The dialog's title.
+    pub fn title(&self) -> &str {
+        &self.title
+    }
+
     /// Offer one named group of extensions, written without the dot. Groups
     /// accumulate in the order they are added, which is the order the dialog
     /// lists them in.

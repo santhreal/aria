@@ -32,6 +32,7 @@ use aria_storage::{
 };
 
 use super::AppState;
+use super::picker::{Ask, FileSpec};
 
 /// One registry row as the dialog needs it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -341,6 +342,38 @@ impl AppState {
             self.refresh_render_files();
         }
         Ok(())
+    }
+
+    /// Ask for a folder, then move cache `key` there with its contents: the
+    /// cache row's Move button.
+    pub fn pick_cache_move(&mut self, key: &'static str) {
+        self.request_pick(
+            Ask::Folder(FileSpec::new("Move Cache")),
+            move |state, answer| {
+                let Some(picked) = answer.one() else {
+                    return;
+                };
+                if let Err(err) = state.relocate_registered_cache(key, &picked) {
+                    state.report_error(err);
+                }
+            },
+        );
+    }
+
+    /// Ask for a folder, then point cache `key` at it, leaving what it holds
+    /// where it is: the cache row's Redirect button.
+    pub fn pick_cache_redirect(&mut self, key: &'static str) {
+        self.request_pick(
+            Ask::Folder(FileSpec::new("Redirect Cache")),
+            move |state, answer| {
+                let Some(picked) = answer.one() else {
+                    return;
+                };
+                if let Err(err) = state.set_cache_override(key, &picked) {
+                    state.report_error(err);
+                }
+            },
+        );
     }
 
     /// Drop one cache's override, returning it to the storage root.

@@ -1,12 +1,13 @@
 //! `AppState` media: the import verbs, and the formats an import accepts.
 //!
-//! The format list is here rather than on a panel because three surfaces offer
-//! the same import — the media bin's button, the inspector's relink, a template
-//! asking for a slot's media — and the drop claim has to accept exactly what
-//! those file dialogs offer. A list owned by whichever panel happened to draw
-//! the first dialog is a list the other two copy.
+//! The format list is here rather than on a panel because several file dialogs
+//! offer the same media — a missing item's Relink, in the pool and in the
+//! inspector, and a template asking for a slot's media — and the drop claim has
+//! to accept exactly what those dialogs offer. A list owned by whichever panel
+//! happened to draw the first dialog is a list the others copy.
 
 use super::*;
+use crate::app::picker::{Ask, FileSpec};
 
 /// The extensions the platform decoders read, offered by every import dialog.
 pub const MEDIA_IMPORT_EXTENSIONS: &[&str] = &[
@@ -49,6 +50,20 @@ impl AppState {
         }))?;
         self.status_message = Some("Relinked".into());
         Ok(())
+    }
+
+    /// Ask for the file a missing item now lives at, then relink it: the Relink
+    /// button a missing item draws in the pool and in the inspector.
+    pub fn pick_and_relink(&mut self, media: MediaId) {
+        let spec = FileSpec::new("Relink Media").filter("Media", &media_import_extensions());
+        self.request_pick(Ask::OpenFile(spec), move |state, answer| {
+            let Some(path) = answer.one() else {
+                return;
+            };
+            if let Err(err) = state.relink_media(media, path) {
+                state.report_error(&err);
+            }
+        });
     }
 
     pub fn import_dropped_paths(&mut self, paths: Vec<PathBuf>) -> Result<(), EngineError> {

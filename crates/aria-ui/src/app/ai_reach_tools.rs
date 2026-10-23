@@ -212,7 +212,7 @@ impl AppState {
     pub fn checksum_picked_file(&mut self) {
         let start = self.download_cache_root();
         self.request_pick(
-            Ask::OpenFile(FileSpec::new("Checksum a file").directory(start)),
+            Ask::OpenFile(FileSpec::new("Checksum a Downloaded File").directory(start)),
             |state, answer: Answer| {
                 let Some(path) = answer.one() else {
                     state.status_message = Some("Nothing to checksum".into());

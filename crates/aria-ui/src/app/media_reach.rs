@@ -303,7 +303,7 @@ impl AppState {
     /// first sampled frame before placing, so a composition this build cannot
     /// draw is refused at import instead of appearing as an empty rectangle.
     pub fn import_lottie(&mut self) {
-        let spec = FileSpec::new("Import Lottie animation").filter("Lottie", &["json", "lottie"]);
+        let spec = FileSpec::new("Import Lottie Animation").filter("Lottie", &["json", "lottie"]);
         self.request_pick(Ask::OpenFile(spec), |state, answer: Answer| {
             let Some(path) = answer.one() else {
                 return;
@@ -345,7 +345,7 @@ impl AppState {
     /// edit here and none in the dialog.
     pub fn import_still_image(&mut self) {
         let extensions = aria_decoder::image_extensions();
-        let spec = FileSpec::new("Import still or animation").filter("Images", &extensions);
+        let spec = FileSpec::new("Import Still or Animation").filter("Images", &extensions);
         self.request_pick(Ask::OpenFiles(spec), |state, answer: Answer| {
             let paths = answer.all();
             if paths.is_empty() {

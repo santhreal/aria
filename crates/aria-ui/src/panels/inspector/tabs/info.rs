@@ -6,7 +6,6 @@ use gpui::{
     InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled, div, px,
 };
 
-use crate::app::picker::{Ask, FileSpec};
 use crate::components;
 use crate::fluent::FluentBuilder;
 use crate::theme::Theme;
@@ -40,22 +39,8 @@ pub fn info_tab(
         components::ghost_button("relink-media", "Relink", theme).on_mouse_down(
             MouseButton::Left,
             cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                this.state.update(cx, |state, _| {
-                    state.request_pick(
-                        Ask::OpenFile(FileSpec::new("Relink media").filter(
-                            "Media",
-                            &crate::app::media::import::media_import_extensions(),
-                        )),
-                        move |state, answer| {
-                            let Some(path) = answer.one() else {
-                                return;
-                            };
-                            if let Err(err) = state.relink_media(MediaId::from_raw(id), path) {
-                                state.report_error(&err);
-                            }
-                        },
-                    );
-                });
+                this.state
+                    .update(cx, |state, _| state.pick_and_relink(MediaId::from_raw(id)));
                 cx.notify();
             }),
         )

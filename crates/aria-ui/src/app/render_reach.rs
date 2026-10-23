@@ -354,7 +354,7 @@ impl AppState {
     /// Ask where the frames go, then start the render.
     pub fn pick_and_export_image_sequence(&mut self) {
         self.request_pick(
-            Ask::Folder(FileSpec::new("Render image sequence")),
+            Ask::Folder(FileSpec::new("Export Image Sequence")),
             |state, answer| {
                 let Some(dir) = answer.one() else {
                     return;

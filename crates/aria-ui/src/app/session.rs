@@ -167,7 +167,7 @@ impl AppState {
 
     pub fn pick_and_open_project(&mut self) {
         self.request_pick(
-            Ask::OpenFile(FileSpec::new("Open project").filter("Aria project", &["aria"])),
+            Ask::OpenFile(FileSpec::new("Open Project").filter("Aria project", &["aria"])),
             |state, answer| {
                 let Some(path) = answer.one() else {
                     return;

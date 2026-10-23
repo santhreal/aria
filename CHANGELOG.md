@@ -2349,6 +2349,8 @@ Notes for the latest release. For previous releases, see the
 - The Command Palette, Unsaved Changes, Install Plugin, and Update Plugin dialog titles use Title Case, as the other dialog titles do.
 - Context menu rows use Title Case, such as `Remove from Project` and `Delete File…`, and the pool rows read `Select Clips in Timeline` and `Decode from Proxy` in place of `Used by the timeline: select those clips` and `Decode through a proxy`.
 - Context menu rows that switch a state, such as Enable, Time Remapping, Duck Source, a lane height, a transition alignment, the applied blend, and the drawn property, draw a check mark in a lead column while that state holds, as menu bar rows do, in place of a `• ` prefix or no mark.
+- File, folder, and question dialogs are titled in Title Case after the command or button that opens them, such as `Open Project`, `Relink Media`, `Export Image Sequence`, `Move Cache`, and `Install Plugin`.
+- The Project panel's Import button opens the File > Import dialog, so a timeline file it picks is read into the timeline and every file it imports heads File > Import Recent.
 
 ### Fixed
 
@@ -2769,6 +2771,8 @@ Notes for the latest release. For previous releases, see the
 - Audio Track Mixer faders stand level across strips and run the height of the panel, a fader drag moves the value by the pointer's travel over the drawn fader, and Audio Meters bars fill the panel's width instead of stopping at 22 px.
 - A press anywhere on a Home recent card opens or relinks its project instead of only a press on its Open action, and Home draws no title bar under a window manager's frame and no second `Aria` title in the bar it draws.
 - `docs/theme-tokens.md` lists `font_mono` for expressions and plugin logs, where it is drawn, instead of also for timecode, which is drawn in Inter with tabular figures.
+- Relinking a moved recent project from Home opens the Unsaved Changes dialog first when the session has unsaved edits, instead of opening the chosen project over them.
+- `docs/reference/commands.md`, `controls.md`, and `menus.md` describe rows as the code runs them, such as 90% title-safe and 93% action-safe rectangles instead of 80% and 90%, a gain range of −60 to +12 dB instead of −96 to +24 dB, and Paste Attributes copying the transform, filter preset, and video effect chain.
 
 ## [alpha-0.7.0] — 2026-07-22
 

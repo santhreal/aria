@@ -41,7 +41,7 @@ impl AppState {
     /// count the bytes added to a throwaway font set: `0` means `fontdb`
     /// refused them, which is the only failure a bad font file reports.
     pub fn check_font_file(&mut self) {
-        let spec = FileSpec::new("Check a font file").filter(FONT_FILTER.0, FONT_FILTER.1);
+        let spec = FileSpec::new("Check a Font File").filter(FONT_FILTER.0, FONT_FILTER.1);
         self.request_pick(Ask::OpenFile(spec), |state, answer: Answer| {
             let Some(path) = answer.one() else {
                 return;

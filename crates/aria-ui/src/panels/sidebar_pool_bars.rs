@@ -63,30 +63,15 @@ pub(super) fn header(
         .child(import_button(theme, cx))
 }
 
-/// Import: the file picker, filtered to what the pool reads.
+/// Import: File > Import's own pick, so a file chosen here is read the same way
+/// and heads File > Import Recent.
 fn import_button(theme: &Theme, cx: &mut gpui::Context<crate::shell::Shell>) -> impl IntoElement {
     components::icon_button("media-import", icons::IMPORT, theme)
         .debug_selector(|| "media-import".into())
         .on_mouse_down(
             MouseButton::Left,
             cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                this.state.update(cx, |state, _| {
-                    state.request_pick(
-                        Ask::OpenFiles(
-                            FileSpec::new("Import media")
-                                .filter("Media", &media_import_extensions()),
-                        ),
-                        |state, answer| {
-                            let paths = answer.all();
-                            if paths.is_empty() {
-                                return;
-                            }
-                            if let Err(err) = state.import_dropped_paths(paths) {
-                                state.report_error(&err);
-                            }
-                        },
-                    );
-                });
+                this.state.update(cx, |state, _| state.pick_and_import());
                 cx.notify();
             }),
         )

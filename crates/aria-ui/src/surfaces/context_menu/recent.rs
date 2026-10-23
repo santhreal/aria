@@ -5,7 +5,7 @@
 
 use std::path::PathBuf;
 
-use crate::app::picker::{Ask, FileSpec};
+use crate::app::picker::Ask;
 
 use super::{MenuItem, MenuRow, always};
 
@@ -23,19 +23,7 @@ pub const RECENT_ITEMS: &[MenuItem<PathBuf>] = &[
             // is to open this project, and the answer is a file dialog, not an
             // error about a path they did not type.
             if !path.exists() {
-                let missing = path.to_path_buf();
-                state.request_pick(
-                    Ask::OpenFile(
-                        FileSpec::new("Relink project").filter("Aria project", &["aria"]),
-                    ),
-                    move |state, answer| {
-                        let Some(picked) = answer.one() else {
-                            return;
-                        };
-                        state.forget_recent(&missing);
-                        state.request_open_project(picked);
-                    },
-                );
+                crate::app::recents::relink_recent(state, path);
                 return Ok(());
             }
             state.request_open_project(path.to_path_buf());

@@ -38,7 +38,7 @@ impl AppState {
             .iter()
             .flat_map(|importer| importer.extensions.iter().map(String::as_str))
             .collect();
-        let mut spec = FileSpec::new("Import timeline").filter("Timeline files", &every);
+        let mut spec = FileSpec::new("Import Timeline").filter("Timeline files", &every);
         for importer in &importers {
             let extensions: Vec<&str> = importer.extensions.iter().map(String::as_str).collect();
             spec = spec.filter(importer.name.as_str(), &extensions);
@@ -100,7 +100,7 @@ impl AppState {
             return;
         };
         let name = format!("{}.{}", self.host().snapshot().name, first.extension);
-        let mut spec = FileSpec::new("Export timeline").file_name(name);
+        let mut spec = FileSpec::new("Export Timeline").file_name(name);
         for exporter in &exporters {
             spec = spec.filter(exporter.name.as_str(), &[exporter.extension.as_str()]);
         }

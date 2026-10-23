@@ -151,7 +151,7 @@ impl AppState {
     /// Ask for an `.ariaplugin` and install it.
     pub fn pick_plugin_archive(&mut self) {
         let spec =
-            FileSpec::new("Install plugin").filter("Aria plugin", &[package::ARCHIVE_EXTENSION]);
+            FileSpec::new("Install Plugin").filter("Aria plugin", &[package::ARCHIVE_EXTENSION]);
         self.request_pick(Ask::OpenFile(spec), |state, answer: Answer| {
             if let Some(path) = answer.one() {
                 state.install_plugin_archives(vec![path]);
@@ -312,7 +312,7 @@ impl AppState {
         );
         self.request_pick(
             Ask::Confirm {
-                title: format!("Uninstall {name}"),
+                title: format!("Uninstall Plugin: {name}"),
                 question,
             },
             move |state, answer| {

@@ -15,7 +15,6 @@ use gpui::{
 
 use crate::app::AppState;
 use crate::app::caches::UiCache;
-use crate::app::picker::{Ask, FileSpec};
 use crate::components;
 use crate::theme::Theme;
 
@@ -141,19 +140,7 @@ pub(super) fn cache_rows(
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                    this.state.update(cx, |state, _| {
-                        state.request_pick(
-                            Ask::Folder(FileSpec::new("Move this cache to")),
-                            move |state, answer| {
-                                let Some(picked) = answer.one() else {
-                                    return;
-                                };
-                                if let Err(err) = state.relocate_registered_cache(key, &picked) {
-                                    state.report_error(err);
-                                }
-                            },
-                        );
-                    });
+                    this.state.update(cx, |state, _| state.pick_cache_move(key));
                     cx.notify();
                 }),
             ),
@@ -167,19 +154,8 @@ pub(super) fn cache_rows(
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                    this.state.update(cx, |state, _| {
-                        state.request_pick(
-                            Ask::Folder(FileSpec::new("Point this cache at")),
-                            move |state, answer| {
-                                let Some(picked) = answer.one() else {
-                                    return;
-                                };
-                                if let Err(err) = state.set_cache_override(key, &picked) {
-                                    state.report_error(err);
-                                }
-                            },
-                        );
-                    });
+                    this.state
+                        .update(cx, |state, _| state.pick_cache_redirect(key));
                     cx.notify();
                 }),
             ),

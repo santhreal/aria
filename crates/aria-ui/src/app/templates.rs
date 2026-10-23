@@ -156,7 +156,7 @@ impl AppState {
             return;
         };
         self.request_pick(
-            Ask::OpenFile(FileSpec::new(format!("Media for {label}")).filter(
+            Ask::OpenFile(FileSpec::new(format!("Choose Media: {label}")).filter(
                 "Media",
                 &crate::app::media::import::media_import_extensions(),
             )),
@@ -181,7 +181,7 @@ impl AppState {
     pub fn pick_and_apply_template(&mut self) {
         self.request_pick(
             Ask::OpenFile(
-                FileSpec::new("Use template").filter("Aria template", &[TEMPLATE_EXTENSION]),
+                FileSpec::new("Use Template").filter("Aria template", &[TEMPLATE_EXTENSION]),
             ),
             |state, answer| {
                 let Some(path) = answer.one() else {

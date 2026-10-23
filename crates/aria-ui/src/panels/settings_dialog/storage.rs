@@ -6,7 +6,6 @@ use gpui::{
 };
 
 use crate::app::AppState;
-use crate::app::picker::{Ask, FileSpec};
 use crate::components;
 use crate::theme::Theme;
 
@@ -73,19 +72,7 @@ pub(super) fn storage_rows(
                 components::ghost_button("storage-relocate", "Move storage…", theme).on_mouse_down(
                     MouseButton::Left,
                     cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                        this.state.update(cx, |state, _| {
-                            state.request_pick(
-                                Ask::Folder(FileSpec::new("Choose a storage root")),
-                                |state, answer| {
-                                    let Some(picked) = answer.one() else {
-                                        return;
-                                    };
-                                    if let Err(err) = state.relocate_storage_root(&picked) {
-                                        state.report_error(err);
-                                    }
-                                },
-                            );
-                        });
+                        this.state.update(cx, |state, _| state.pick_storage_root());
                         cx.notify();
                     }),
                 ),

@@ -91,18 +91,20 @@ impl AppState {
 
 /// Relink a recent entry whose file has moved: ask for the project, forget the
 /// old path, and open the one that was chosen.
+///
+/// Home's relink and the recent row's Open both come here. The open goes
+/// through the unsaved-changes prompt like every other way of replacing the
+/// session: a dirty session stays loaded on the way back to Home.
 pub(crate) fn relink_recent(state: &mut AppState, old: &Path) {
     let old = old.to_path_buf();
     state.request_pick(
-        Ask::OpenFile(FileSpec::new("Open project").filter("Aria project", &["aria"])),
+        Ask::OpenFile(FileSpec::new("Relink Project").filter("Aria project", &["aria"])),
         move |state, answer| {
             let Some(path) = answer.one() else {
                 return;
             };
             state.forget_recent(&old);
-            if let Err(err) = state.open_project(path) {
-                state.report_error(&err);
-            }
+            state.request_open_project(path);
         },
     );
 }

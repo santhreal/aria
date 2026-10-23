@@ -172,22 +172,8 @@ pub(super) fn media_tile(
             MouseButton::Left,
             cx.listener(move |this, _: &MouseDownEvent, _, cx| {
                 cx.stop_propagation();
-                this.state.update(cx, |state, _| {
-                    state.request_pick(
-                        Ask::OpenFile(
-                            FileSpec::new("Relink media")
-                                .filter("Media", &media_import_extensions()),
-                        ),
-                        move |state, answer| {
-                            let Some(path) = answer.one() else {
-                                return;
-                            };
-                            if let Err(err) = state.relink_media(MediaId::from_raw(id), path) {
-                                state.report_error(&err);
-                            }
-                        },
-                    );
-                });
+                this.state
+                    .update(cx, |state, _| state.pick_and_relink(MediaId::from_raw(id)));
                 cx.notify();
             }),
         )

@@ -30,8 +30,8 @@ Split a clip at the playhead, add a crossfade transition, and open the Audio Gai
 | `pal-jobs` | Jobs | `none` | Always enabled | Opens the modal Jobs dialog (`aria.dialog.jobs`). |
 | `pal-history` | History | `Ctrl+Shift+H` | Always enabled | Opens and focuses the History dock panel (`aria.panel.history`). |
 | `pal-preview-fullscreen` | Fullscreen Preview | `none` | Always enabled | Toggles fullscreen mode on the Viewer preview. |
-| `pal-preview-title-safe` | Title Safe | `none` | Always enabled | Toggles the 80% title-safe margin overlay in the Viewer. |
-| `pal-preview-action-safe` | Action Safe | `none` | Always enabled | Toggles the 90% action-safe margin overlay in the Viewer. |
+| `pal-preview-title-safe` | Title Safe | `none` | Always enabled | Toggles the 90% title-safe margin overlay in the Viewer. |
+| `pal-preview-action-safe` | Action Safe | `none` | Always enabled | Toggles the 93% action-safe margin overlay in the Viewer. |
 | `pal-preview-grid` | Preview Grid | `none` | Always enabled | Toggles the rule-of-thirds grid overlay in the Viewer. |
 | `pal-preview-scopes` | Scope Strip | `none` | Always enabled | Toggles the scope strip below the Viewer. |
 | `pal-preview-fit` | Fit Preview | `?` | Always enabled | Resets Viewer zoom to fit the viewport and centers pan. |
@@ -46,10 +46,10 @@ Split a clip at the playhead, add a crossfade transition, and open the Audio Gai
 | `pal-fit` | Fit Timeline | `\` | Always enabled | Adjusts timeline horizontal zoom so the entire sequence fits in the viewport. |
 | `pal-fit-selection` | Fit Selection | `Shift+F` | Selection is empty | Adjusts timeline horizontal zoom to fit the selected clips. |
 | `pal-paste-insert` | Paste Insert | `Ctrl+Shift+V` | Clipboard is empty | Ripple-inserts clipboard clips at the playhead. |
-| `pal-paste-attributes` | Paste Attributes | `Ctrl+Alt+V` | Clipboard is empty or no clip is selected | Copies visual and audio attributes from the clipboard onto the selected clips. |
-| `pal-relink` | Relink All | `none` | Always enabled | Prompts for a directory and relinks offline media pool items whose filenames match. |
+| `pal-paste-attributes` | Paste Attributes | `Ctrl+Alt+V` | Clipboard is empty or no clip is selected | Copies the animated transform, filter preset, and video effect chain from the clipboard clip onto the selected clips. |
+| `pal-relink` | Relink All | `none` | Always enabled | Prompts for a directory, searches up to four folder levels, and relinks each offline media pool item that has a unique filename match with identical dimensions, duration, and audio presence. |
 | `pal-marker` | Add Marker | `M` | Always enabled | Adds a sequence marker at the current playhead tick. |
-| `pal-adjustment-layer` | Add Adjustment Layer | `none` | Always enabled | Places an adjustment layer clip at the playhead on the top video track. |
+| `pal-adjustment-layer` | Add Adjustment Layer | `none` | Always enabled | Places an adjustment layer clip on the topmost free adjustment track (creating one when needed) across the marked In/Out range, the selected clips' span, the sequence duration, or the first 5 seconds of an empty sequence. |
 | `pal-mark-in` | Mark In | `I` | Always enabled | Sets the sequence In point at the playhead. |
 | `pal-mark-out` | Mark Out | `O` | Always enabled | Sets the sequence Out point at the playhead. |
 | `pal-extract-audio` | Extract Audio | `none` | Selected clip has no embedded audio | Splits the audio stream from the selected video clip onto an audio track as a linked clip. |
@@ -60,7 +60,7 @@ Split a clip at the playhead, add a crossfade transition, and open the Audio Gai
 | `pal-flip-v` | Flip Vertical | `none` | No clip is selected | Toggles vertical mirror flip (`flip_v`) on the selected clips. |
 | `pal-crop-reset` | Reset Framing | `none` | No clip is selected | Resets all four crop edges (`left`, `right`, `top`, `bottom`) to `0` on the selected clips. |
 | `pal-motion-blur` | Toggle Motion Blur | `none` | No clip is selected | Toggles transform shutter motion blur on the selected clips. |
-| `pal-grade-reset` | Reset Grade | `none` | No clip is selected | Resets colour adjustments (`ColorAdjustments`) and LUT on the selected clips to neutral. |
+| `pal-grade-reset` | Reset Grade | `none` | No clip is selected | Resets colour adjustments (`ColorAdjustments`) on the selected clips to neutral. |
 | `pal-denoise` | Toggle Denoise | `none` | No clip is selected | Toggles audio noise reduction on the selected clips. |
 | `pal-pitch-lock` | Toggle Pitch Lock | `none` | No clip is selected | Toggles pitch preservation for retimed audio on the selected clips. |
 | `pal-mask-invert` | Invert Mask | `none` | Selected clip has no active mask | Toggles `invert` on the selected clip's active mask. |
@@ -115,7 +115,7 @@ Split a clip at the playhead, add a crossfade transition, and open the Audio Gai
 | `pal-key-crop` | Keyframe Crop at Playhead | `none` | Playhead does not intersect the selected clip | Inserts a `Crop` keyframe at the playhead. |
 | `pal-key-volume` | Keyframe Volume at Playhead | `none` | Playhead does not intersect an audio-capable selected clip | Inserts a `Volume` keyframe at the playhead. |
 | `pal-key-pan` | Keyframe Pan at Playhead | `none` | Playhead does not intersect an audio-capable selected clip | Inserts a `Pan` keyframe at the playhead. |
-| `pal-duck-amount` | Cycle Duck Amount | `Alt+D` | Always enabled | Cycles the sidechain ducking attenuation depth (`-6 dB`, `-12 dB`, `-18 dB`, `-24 dB`). |
+| `pal-duck-amount` | Cycle Duck Amount | `Alt+D` | Always enabled | Cycles the ducking target volume level (`10%`, `20%`, `30%`, `50%`, `70%`). |
 | `pal-duck-attack` | Cycle Duck Attack | `none` | Always enabled | Cycles the sidechain ducking fade-down duration. |
 | `pal-duck-release` | Cycle Duck Release | `none` | Always enabled | Cycles the sidechain ducking recovery duration. |
 | `pal-lane-shift-later` | Shift Lane One Second Later | `Alt+Right` | No clip is selected to identify a lane | Shifts every clip on the selected clip's track later by one second. |
@@ -134,7 +134,7 @@ Split a clip at the playhead, add a crossfade transition, and open the Audio Gai
 | `pal-new-sequence` | New Sequence | `Ctrl+N` | Always enabled | Creates a new sequence in the project and opens it on the timeline. |
 | `pal-nest-selection` | Nest Selection into a Sequence | `none` | No clip is selected | Moves the selected clips into a new nested sequence and places the nest clip in their span. |
 | `pal-nest-open` | Open the Selected Nested Sequence | `none` | Selected clip is not a nested sequence | Opens the selected compound clip's inner sequence in the timeline editor. |
-| `pal-nest-leave` | Leave the Open Nested Sequence | `none` | Already at the root sequence | Returns the timeline editor from an open nested sequence back to the parent sequence. |
+| `pal-nest-leave` | Leave the Open Nested Sequence | `none` | Already at the root sequence | Returns the timeline editor from an open nested sequence to the root sequence. |
 | `pal-nest-place` | Place the Selected Nest at the Playhead | `none` | No nested sequence is selected | Places a clip referencing the selected nested sequence at the playhead. |
 | `pal-ai-tools` | Assistant: What the Assistant Can Do | `none` | Always enabled | Opens the Assistant panel (`ActivePanel::Ai`) and displays the assistant tool catalog (`aria.panel.ai-tools`). |
 | `pal-ai-system-prompt` | Assistant: Show the System Prompt | `none` | Always enabled | Displays the active AI assistant system prompt in the status/transcript view. |
@@ -145,12 +145,12 @@ Split a clip at the playhead, add a crossfade transition, and open the Audio Gai
 | `pal-cloud-checksum` | Cloud: Checksum a Downloaded File | `none` | Always enabled | Prompts for a file and verifies its SHA-256 digest against the download cache. |
 | `pal-media-support` | Media Support Report | `none` | Always enabled | Populates and opens the `aria.panel.media-support` inspector card listing supported containers, codecs, and pixel formats. |
 | `pal-media-verify` | Verify Decode of Selected Source | `none` | No media source is selected | Starts a background job that decodes every frame of the selected source to verify stream integrity. |
-| `pal-media-loudness` | Loudness Overview of Selected Source | `none` | Selected source has no audio | Starts a background job that measures integrated LUFS and true peak across the selected source file. |
+| `pal-media-loudness` | Loudness Overview of Selected Source | `none` | Selected source has no audio | Starts a background job that samples peak levels across 200 buckets of the selected clip's source audio file and reports the loudest peak in dBFS, its position in the file, and how many buckets reach `-6 dBFS`. |
 | `pal-media-exposure` | Measure Exposure of the Frame on Screen | `none` | No frame is currently rendered | Reports luma min, max, mean, and clipping percentages for the current Viewer frame on the status line. |
-| `pal-media-normalise` | Normalise Selected Clip to Target | `none` | Selected clip has no audio | Adjusts clip gain so the clip's peak or loudness matches the active normalise target level. |
-| `pal-media-target` | Cycle Normalise Target Level | `none` | Always enabled | Cycles the audio normalisation target level (`-14 LUFS`, `-16 LUFS`, `-23 LUFS`, `-1 dBFS`). |
+| `pal-media-normalise` | Normalise Selected Clip to Target | `none` | Selected clip has no audio | Adjusts the selected clip's volume so the peak of its measured Analysis loudness contour matches the active dBFS target level. |
+| `pal-media-target` | Cycle Normalise Target Level | `none` | Always enabled | Cycles the audio normalisation target peak level (`-23 dBFS`, `-18 dBFS`, `-14 dBFS`, `-9 dBFS`, `-6 dBFS`). |
 | `pal-media-import-still` | Import Still or Animation… | `none` | Always enabled | Opens a file picker filtered to still images and animated image sequences and imports them into the pool. |
-| `pal-media-lottie` | Import Lottie Animation… | `none` | Always enabled | Opens a file picker for `.json` Lottie animations and imports them into the pool. |
+| `pal-media-lottie` | Import Lottie Animation… | `none` | Always enabled | Opens a file picker for `.json` and `.lottie` files, validates the first frame, and places a Lottie generator clip on the timeline at its intrinsic dimensions. |
 | `pal-mixer-open` | Mixer: Open the Mixer | `Shift+6` | Always enabled | Opens and focuses the Audio Track Mixer (`aria.panel.mixer`). |
 | `pal-mixer-add-bus` | Mixer: Add a Submix Bus | `none` | Always enabled | Appends a submix bus lane to the sequence and focuses the Audio Track Mixer. |
 | `pal-look-install` | Install Starter LUT Pack | `none` | Always enabled | Writes the shipped starter `.cube` LUT pack into `<data dir>/looks/` and refreshes the Looks picker. |

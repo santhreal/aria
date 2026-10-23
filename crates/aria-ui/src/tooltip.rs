@@ -111,7 +111,7 @@ pub const CONTROL_TIPS: &[ControlTip] = &[
     ControlTip {
         control: "media-import",
         name: "Import",
-        binding: None,
+        binding: Some("key-import"),
     },
     ControlTip {
         control: "pool-audio-only",

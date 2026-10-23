@@ -5,7 +5,6 @@ use gpui::{
     SharedString, StatefulInteractiveElement, Styled, div, px,
 };
 
-use crate::app::picker::{Ask, FileSpec};
 use crate::app::{AppState, DialogKind};
 use crate::chrome::dialog::{DialogBody, dialog_surface};
 use crate::components;
@@ -23,44 +22,15 @@ pub fn render(
     let dest_label = dest.display().to_string();
     let [canvas_w, canvas_h] = state.read(cx).canvas_size();
     let resolution = format!("{canvas_w} × {canvas_h}");
-    // The file picker needs only the suggested name: where the Export button
-    // writes is read again when it is pressed, from the one owner of that rule.
-    let ext = state.read(cx).export_extension();
-    let default_name = format!("export.{ext}");
-    let suggested_name = dest
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or(default_name.as_str())
-        .to_owned();
     let format_label = state.read(cx).export_format_label();
     let encoder_label = state.read(cx).export_encoder_label();
     let show_codec_bitrate = state.read(cx).export_shows_codec_and_bitrate();
     let show_audio = state.read(cx).export_shows_audio_toggle();
-    let filter_label = format_label.clone();
-    let filter_ext = ext;
     let choose = components::ghost_button("export-dest", "Choose…", &theme).on_mouse_down(
         MouseButton::Left,
-        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-            let filter_label = filter_label.clone();
-            let filter_ext = filter_ext.clone();
-            this.state.update(cx, |state, _| {
-                state.request_pick(
-                    Ask::SaveFile(
-                        FileSpec::new("Export video")
-                            .filter(filter_label, &[filter_ext.as_str()])
-                            .file_name(suggested_name.as_str()),
-                    ),
-                    |state, answer| {
-                        let Some(path) = answer.one() else {
-                            return;
-                        };
-                        match state.export_job(path) {
-                            Ok(_) => state.open_dialog(DialogKind::Jobs),
-                            Err(err) => state.report_error(err),
-                        }
-                    },
-                );
-            });
+        cx.listener(|this, _: &MouseDownEvent, _, cx| {
+            this.state
+                .update(cx, |state, _| state.pick_export_destination());
             cx.notify();
         }),
     );

@@ -293,7 +293,7 @@ impl AppState {
     /// Ask for a file and reveal it in the pool.
     pub fn pick_and_reveal_media(&mut self) {
         self.request_pick(
-            Ask::OpenFile(FileSpec::new("Reveal in pool")),
+            Ask::OpenFile(FileSpec::new("Reveal a File in the Pool")),
             |state, answer: Answer| {
                 let Some(path) = answer.one() else {
                     return;
@@ -331,7 +331,8 @@ impl AppState {
     pub fn pick_and_describe_template(&mut self) {
         self.request_pick(
             Ask::OpenFile(
-                FileSpec::new("Describe template").filter("Aria template", &[TEMPLATE_EXTENSION]),
+                FileSpec::new("Describe a Template Bundle")
+                    .filter("Aria template", &[TEMPLATE_EXTENSION]),
             ),
             |state, answer: Answer| {
                 let Some(path) = answer.one() else {

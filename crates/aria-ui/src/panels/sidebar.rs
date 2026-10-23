@@ -1,7 +1,5 @@
 //! Media bin.
 
-use crate::app::media::import::media_import_extensions;
-use crate::app::picker::{Ask, FileSpec};
 use crate::app::pool_preview;
 use crate::app::{AppState, spawn_preview};
 use crate::cloud::CloudFeed;

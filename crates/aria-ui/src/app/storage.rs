@@ -17,6 +17,7 @@ use std::path::{Path, PathBuf};
 use aria_cloud::cache::{DownloadCache, DownloadCacheClear, DownloadCacheSwitchError};
 
 use super::AppState;
+use super::picker::{Ask, FileSpec};
 
 /// The directory holding downloaded assets, under the storage root.
 pub const DOWNLOADS_DIR: &str = "downloads";
@@ -177,6 +178,22 @@ impl AppState {
         self.status_message = Some(format!("Storage root is now {}", root.display()));
         self.refresh_render_files();
         Ok(())
+    }
+
+    /// Ask for a folder, then move the storage root there: the Storage
+    /// section's Move Storage button.
+    pub fn pick_storage_root(&mut self) {
+        self.request_pick(
+            Ask::Folder(FileSpec::new("Move Storage")),
+            |state, answer| {
+                let Some(picked) = answer.one() else {
+                    return;
+                };
+                if let Err(err) = state.relocate_storage_root(&picked) {
+                    state.report_error(err);
+                }
+            },
+        );
     }
 }
 

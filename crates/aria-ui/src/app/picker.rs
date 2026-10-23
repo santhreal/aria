@@ -69,6 +69,18 @@ impl Ask {
             }
         }
     }
+
+    /// The title the dialog opens with.
+    #[cfg(test)]
+    fn title(&self) -> &str {
+        match self {
+            Ask::OpenFile(spec)
+            | Ask::OpenFiles(spec)
+            | Ask::SaveFile(spec)
+            | Ask::Folder(spec) => spec.title(),
+            Ask::Confirm { title, .. } => title,
+        }
+    }
 }
 
 /// The dialog's answer.
@@ -168,6 +180,8 @@ impl AppState {
         ask: Ask,
         then: impl FnOnce(&mut AppState, Answer) + Send + 'static,
     ) {
+        #[cfg(test)]
+        hold_title_case(&ask);
         self.picks.asked += 1;
         if let Some(answer) = self.picks.supplied.pop_front() {
             then(self, answer);
@@ -202,6 +216,28 @@ impl AppState {
     #[cfg(test)]
     pub(crate) fn picks_unused(&self) -> usize {
         self.picks.supplied.len()
+    }
+}
+
+/// Refuse a pick whose title is not in Title Case.
+///
+/// Every pick passes through [`AppState::request_pick`], so the title is checked
+/// in whichever test first reaches the pick, with no list of call sites for a
+/// new pick to be missing from. The menu row or palette entry that opens a
+/// dialog is in Title Case, and the title of the dialog it opens is held to the
+/// same rule.
+///
+/// A title states its subject after `: `, as `Choose Media: Logo` does. The
+/// subject is the project's own data, a slot label or a plugin name, so only
+/// the words before it are checked.
+///
+/// Not caught: a pick that no test reaches.
+#[cfg(test)]
+fn hold_title_case(ask: &Ask) {
+    let title = ask.title();
+    let authored = title.split_once(": ").map_or(title, |(head, _)| head);
+    if let Err(reason) = crate::commands::casing_tests::check_title_case(authored) {
+        panic!("the pick titled `{title}` is not in Title Case: {reason}");
     }
 }
 

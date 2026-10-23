@@ -12,6 +12,12 @@
 //! reaches the state through one seam, in the order the questions were asked,
 //! and that cancelling is an answer rather than a second path. A new variant of
 //! `Ask` is caught by the compiler, because `Ask::answer` matches exhaustively.
+//!
+//! The seam also holds every title to Title Case, as the menu row or palette
+//! entry that opens the dialog is: `Open project` and `Relink media` sat beside
+//! `Save As` and `Load LUT`. The check is at the seam, so a pick is checked by
+//! whichever test first reaches it, and the panel buttons no census presses are
+//! pressed here. Not caught: a pick that no test reaches.
 
 use std::path::PathBuf;
 
@@ -66,7 +72,7 @@ fn an_unanswered_pick_returns_instead_of_waiting_for_one() {
     // not that nothing had ever written: placing the fixture's clip posts a
     // status of its own.
     let before = state.status_message.clone();
-    state.request_pick(Ask::OpenFile(FileSpec::new("Open project")), report);
+    state.request_pick(Ask::OpenFile(FileSpec::new("Open Project")), report);
     assert_eq!(state.picks_asked(), 1, "the pick was not recorded");
     assert_eq!(
         state.status_message, before,
@@ -78,7 +84,7 @@ fn an_unanswered_pick_returns_instead_of_waiting_for_one() {
 fn a_supplied_answer_runs_the_continuation_at_once() {
     let (mut state, _) = with_clip();
     state.supply_pick(Answer::file(scratch("chosen.aria")));
-    state.request_pick(Ask::OpenFile(FileSpec::new("Open project")), report);
+    state.request_pick(Ask::OpenFile(FileSpec::new("Open Project")), report);
     assert_eq!(state.status_message.as_deref(), Some("chosen.aria"));
     assert_eq!(state.picks_unused(), 0, "the answer was not consumed");
 }
@@ -103,7 +109,7 @@ fn cancelling_is_an_answer_and_not_a_special_path() {
     let (mut state, _) = with_clip();
     state.supply_pick(Answer::cancelled());
     state.request_pick(
-        Ask::OpenFiles(FileSpec::new("Import media")),
+        Ask::OpenFiles(FileSpec::new("Import Media")),
         |state, answer| {
             state.status_message = Some(format!("{} chosen", answer.all().len()));
         },
@@ -221,4 +227,91 @@ fn cancelling_a_slot_applies_the_template_unfilled() {
         1,
         "the template's own media did not land"
     );
+}
+
+#[test]
+#[should_panic(expected = "the pick titled `Open project` is not in Title Case")]
+fn a_file_pick_titled_in_sentence_case_is_refused() {
+    let (mut state, _) = with_clip();
+    state.request_pick(Ask::OpenFile(FileSpec::new("Open project")), report);
+}
+
+#[test]
+#[should_panic(expected = "the pick titled `Delete project file` is not in Title Case")]
+fn a_question_titled_in_sentence_case_is_refused() {
+    let (mut state, _) = with_clip();
+    state.request_pick(
+        Ask::Confirm {
+            title: "Delete project file".into(),
+            question: "Delete it?".into(),
+        },
+        report,
+    );
+}
+
+/// What follows `: ` is the project's own data, a slot label or a plugin name,
+/// and stands as it was written; the words before it are held.
+#[test]
+fn only_the_words_before_a_subject_are_held_to_title_case() {
+    let (mut state, _) = with_clip();
+    state.request_pick(
+        Ask::OpenFile(FileSpec::new("Choose Media: texture.png")),
+        report,
+    );
+    assert_eq!(state.picks_asked(), 1, "a lowercase subject was refused");
+    let refused = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        state.request_pick(Ask::OpenFile(FileSpec::new("Choose media: Logo")), report);
+    }));
+    assert!(
+        refused.is_err(),
+        "the words before the subject were not checked"
+    );
+}
+
+/// The picks a panel button opens with no menu row or palette entry behind it,
+/// so no census presses them. Each asks one question, and a cancelled dialog
+/// leaves the history, the dialog and the status line as they were: a cancel
+/// that moved a cache or queued an export would be work nobody chose.
+#[test]
+fn every_panel_pick_asks_once_and_a_cancel_changes_nothing() {
+    let presses: [(&str, fn(&mut super::AppState)); 5] = [
+        ("the Export sheet's Choose", |state| {
+            state.pick_export_destination()
+        }),
+        ("a missing item's Relink", |state| {
+            let item = state.store.media.first().expect("the fixture's media");
+            let media = aria_models::MediaId::from_raw(item.id);
+            state.pick_and_relink(media);
+        }),
+        ("a cache's Move", |state| {
+            state.pick_cache_move(aria_storage::CacheId::RenderFiles.as_str());
+        }),
+        ("a cache's Redirect", |state| {
+            state.pick_cache_redirect(aria_storage::CacheId::RenderFiles.as_str());
+        }),
+        ("the Storage section's Move", |state| {
+            state.pick_storage_root()
+        }),
+    ];
+    for (press, run) in presses {
+        let (mut state, _) = with_clip();
+        let before = (
+            state.history_depth(),
+            state.dialog,
+            state.status_message.clone(),
+        );
+        state.supply_pick(Answer::cancelled());
+        run(&mut state);
+        assert_eq!(state.picks_asked(), 1, "{press} did not ask once");
+        assert_eq!(state.picks_unused(), 0, "{press} left its answer unread");
+        assert_eq!(
+            (
+                state.history_depth(),
+                state.dialog,
+                state.status_message.clone(),
+            ),
+            before,
+            "{press} acted on a cancelled dialog"
+        );
+    }
 }

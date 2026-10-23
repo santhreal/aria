@@ -13,9 +13,12 @@
 
 use aria_plugin::PluginContext;
 
+use crate::app::picker::Answer;
 use crate::app::unsaved::PendingIntent;
 use crate::app::{AppState, DialogKind};
 use crate::scratch_pool::scratch;
+use crate::surfaces::context_menu::{MenuItem, RECENT_ITEMS};
+use crate::surfaces::home_pick::{self, Pick};
 use crate::types::UiRoute;
 
 /// A project with one unsaved edit in it.
@@ -72,6 +75,47 @@ fn every_guarded_entry_point_asks() {
             "{intent:?} did not ask"
         );
         assert_eq!(state.pending_intent(), Some(&intent));
+    }
+}
+
+/// A recent project that moved is relinked through a file dialog, and the file
+/// the dialog answers with replaces the session. Over unsaved work that waits
+/// for the prompt, from Home's relink and from the recent row's Open alike: a
+/// dirty session stays loaded on the way back to Home.
+#[test]
+fn relinking_a_moved_recent_asks_before_it_replaces_unsaved_work() {
+    let gone = std::path::PathBuf::from("/nowhere/moved-away.aria");
+    let relinks: [(&str, fn(&mut AppState, &std::path::PathBuf)); 2] = [
+        ("Home's relink", |state, gone| {
+            home_pick::apply(state, Pick::RelinkRecent(gone.clone()))
+                .expect("a relink is never refused");
+        }),
+        ("the recent row's Open", |state, gone| {
+            let open = RECENT_ITEMS
+                .iter()
+                .filter_map(MenuItem::row)
+                .find(|row| row.id == "ctx-recent-open")
+                .expect("the recent menu offers Open");
+            (open.run)(state, gone).expect("Open is never refused");
+        }),
+    ];
+    for (entry, relink) in relinks {
+        let mut state = dirty();
+        let chosen = scratch("unsaved-relink").join("found.aria");
+        state.supply_pick(Answer::file(chosen.clone()));
+        relink(&mut state, &gone);
+        assert_eq!(state.picks_asked(), 1, "{entry} asked for no project");
+        assert_eq!(
+            state.dialog,
+            DialogKind::UnsavedChanges,
+            "{entry} replaced unsaved work without asking"
+        );
+        assert_eq!(
+            state.pending_intent(),
+            Some(&PendingIntent::OpenProject(chosen)),
+            "{entry} parked something other than the chosen project"
+        );
+        assert!(state.store.is_dirty, "{entry} dropped the unsaved edit");
     }
 }
 
