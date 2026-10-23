@@ -33,7 +33,7 @@ const BORDER_T: f32 = 1.0;
 
 /// Controls the row draws at rest with Program in front, so a scan that finds
 /// fewer fails.
-const FLOOR: [&str; 10] = [
+const FLOOR: [&str; 11] = [
     "playhead-tc",
     "preview-zoom-label",
     "preview-resolution",
@@ -44,6 +44,7 @@ const FLOOR: [&str; 10] = [
     "program-mark-out",
     "preview-handles-transform",
     "preview-scopes-toggle",
+    "viewer-display-settings",
 ];
 
 /// The toggles pressed in turn, each measured after its press.

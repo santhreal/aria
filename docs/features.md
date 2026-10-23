@@ -68,8 +68,8 @@ Anything not listed here is not in the build.
 - A mini ruler under the control row spanning the tab in front, with its In
   and Out range, the sequence markers, and a playhead to drag.
 - Fit, 100%, and a zoom ladder with pan while zoomed.
-- Title-safe, action-safe, and thirds overlays, with Safe, Guides, and Alpha
-  chips on the Viewer's tab row. Fullscreen preview.
+- Title-safe, action-safe, and thirds overlays, under the display wrench in the
+  Viewer's control row. Fullscreen preview.
 - On-canvas handles for transform, crop, and mask, cycled from one control.
 - Scopes: waveform monitor, vectorscope, and RGB histogram, measured from the
   frame on screen and remeasured with the playhead. Open from the Viewer's

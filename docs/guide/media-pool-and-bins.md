@@ -139,8 +139,8 @@ A row shows a glyph until its first frame is decoded, and an audio-only file has
 no picture.
 
 Double-click a pool item, or press `Space` with the pool focused, to open it in a
-Source tab of the Viewer. The tab row above the picture holds **Program** first
-and one **Source:** tab per open item; click a tab to show it, and close a Source
+Source tab of the Viewer. While a Source tab is open, the tab row above the
+picture holds **Program** first and one **Source:** tab per open item; click a tab to show it, and close a Source
 tab with its close button, a middle click, or Ctrl+W with the Viewer focused.
 Opening an item that already has a tab shows that tab. A tab keeps its frame and
 its marks while it stays open. `Shift+2` with the Viewer focused switches between
@@ -153,7 +153,7 @@ handles belong to the sequence and are not drawn over a source. An audio-only
 item has no picture and opens no tab. In a narrow Viewer a long name ends in an
 ellipsis on its tab and on the name in the corner.
 
-**Split Viewer**, under the wrench at the right of the tab row, shows the Source
+**Split Viewer**, under the wrench at the right end of the Viewer's control row, shows the Source
 tab shown last on the left and Program on the right. The keys reach whichever tab is focused.
 
 Double-click a media clip on the timeline to open its take in a Source tab linked

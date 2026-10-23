@@ -487,14 +487,27 @@ fn label_in<'a>(
 }
 
 /// Every tab's label stands on its tab's centre line, the tab in front and the
-/// others alike: dock tabs and Viewer tabs. The Inspector's tabs are walked
-/// at every strip width by `panels::inspector::strip_tests`, which also
-/// centres each label across.
+/// others alike: dock tabs and Viewer tabs. The Viewer draws its tabs only
+/// while a Source tab is open, so each case opens one with Program in front.
+/// The Inspector's tabs are walked at every strip width by
+/// `panels::inspector::strip_tests`, which also centres each label across.
 #[gpui::test]
 fn every_tab_label_stands_on_its_tab_centre_line(cx: &mut TestAppContext) {
     let mut failures = Vec::new();
     let mut checked = [0usize; 2];
     walk(cx, &[false], |case, state, visual| {
+        visual.update(|_, app| {
+            state.update(app, |state, cx| {
+                if state.sources.tabs().is_empty() {
+                    let still = state.store.media.last().expect("the still").id;
+                    assert!(state.open_source(still), "the Source tab opens");
+                    state.show_program();
+                    cx.notify();
+                }
+            })
+        });
+        visual.run_until_parked();
+        visual.update(|window, _| window.refresh());
         let runs: Vec<gpui::TextRunLayout> =
             visual.update(|window, _| window.rendered_text_runs().to_vec());
         let mut tabs: Vec<(usize, &'static str, String)> = visual.read(|app| {

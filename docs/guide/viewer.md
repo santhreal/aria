@@ -34,7 +34,7 @@ choice is saved. The vectorscope draws a skin tone line and a target box for
 each primary and secondary at 75 and 100 per cent.
 
 **View > Viewer Display Settings** holds the overlays, each independent of
-the others. The wrench at the right of the Viewer's tab row opens the same
+the others. The wrench at the right end of the Viewer's control row opens the same
 submenu under itself: **Split Viewer**, **Show Rulers**, **Show Guides**, **Snap
 to Guides**, **Clear Guides**, **Title Safe**, **Action Safe**, **Transparency
 Grid**, and **Grid**. A check mark shows each overlay that is on.

@@ -1,5 +1,5 @@
-//! Contracts for the Viewer's control row, the display button over the
-//! picture, and the timeline's zoom readout.
+//! Contracts for the Viewer's control row, its tab row, the display button,
+//! and the timeline's zoom readout.
 //!
 //! The class closed here: a Viewer control that acts on a tab other than the
 //! one in front of the Viewer. Every transport button is clicked with Program
@@ -9,9 +9,11 @@
 //! Viewer already having the keys goes red.
 //!
 //! Also asserted: the In and Out buttons mark the sequence and are drawn only
-//! while Program is in front, each switch under the display button flips the
-//! state its check mark is read from and flips it back, and a click on the
-//! timeline's zoom readout fits the sequence.
+//! while Program is in front, the tab row is drawn only while a Source tab is
+//! open and the display button stays in the control row either way, each
+//! switch under the display button flips the state its check mark is read from
+//! and flips it back, and a click on the timeline's zoom readout fits the
+//! sequence.
 //!
 //! The row's fit is a second class: a control drawn past the Viewer's edge,
 //! where the pointer does not reach it. At the smallest window the row wraps
@@ -224,6 +226,51 @@ fn the_in_and_out_buttons_mark_the_sequence_while_program_is_in_front(
             "{button} is drawn while a Source tab, with marks of its own, is in front"
         );
     }
+}
+
+/// With Program alone there is no tab to switch to, so no tab row is drawn
+/// under the Viewer's dock tab: the row appears with the first Source tab,
+/// holding Program and that tab, and goes with the last. The display button
+/// stands in the control row's display group in both states.
+#[gpui::test]
+fn the_tab_row_is_drawn_only_while_a_source_tab_is_open(cx: &mut gpui::TestAppContext) {
+    let (state, visual, media) = shell_with_take(cx, "viewer-row-tabs");
+    let display_in_row = |visual: &mut gpui::VisualTestContext| {
+        bounds_inside(
+            bounds_of(visual, "viewer-display-settings"),
+            bounds_of(visual, "viewer-row-display"),
+        )
+    };
+    assert!(
+        !drawn(visual, "viewer-tab-row"),
+        "Program alone draws a tab row under the Viewer's dock tab"
+    );
+    assert!(
+        display_in_row(visual),
+        "the display button is not in the control row with Program alone"
+    );
+    change(visual, &state, |state| {
+        assert!(state.open_source(media.raw()), "the Source tab opens");
+    });
+    for selector in [
+        "viewer-tab-row",
+        "viewer-tab-program",
+        "viewer-tab-source-0",
+    ] {
+        assert!(
+            drawn(visual, selector),
+            "{selector} is not drawn with a Source tab open"
+        );
+    }
+    assert!(
+        display_in_row(visual),
+        "the display button is not in the control row with a Source tab open"
+    );
+    change(visual, &state, |state| state.close_source_tab(0));
+    assert!(
+        !drawn(visual, "viewer-tab-row"),
+        "the tab row outlived the last Source tab"
+    );
 }
 
 #[gpui::test]

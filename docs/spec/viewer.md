@@ -1,8 +1,9 @@
 # Viewer
 
 The Viewer panel shows the Program (the active sequence at the playhead) and
-any number of Source tabs. Program is always the first tab and cannot be
-closed.
+any number of Source tabs. While a Source tab is open, a tab row over the
+picture holds Program first, which cannot be closed, and one tab per source.
+With Program alone the row is not drawn: the Viewer's dock tab names it.
 
 While paused, Program shows the frame at the playhead after every move of
 the playhead: a key, a menu row, a palette row, a plugin, or a scrub.
@@ -24,26 +25,27 @@ Overwrite at the right. In a narrow Viewer the buttons move below the range.
 ## Anatomy
 
 ```
-+---------------------------------------------------------------+
-| Program | Source: take.mov x                               [wr] |  tab row
-+---------------------------------------------------------------+
-|                                                               |
-|                  pasteboard (bg)                              |
-|          +-------------------------------+                    |
-|          |                               |                    |
-|          |        frame                  |                    |
-|          |                               |                    |
-|          +-------------------------------+                    |
-|                                                               |
-+---------------------------------------------------------------+
-| 00:00:12:04 - Fit + Full [px] |< < [> > >| [lp] In Out [h][s] |  control row
-+---------------------------------------------------------------+
-| mini time ruler with In/Out range and markers                  |  12 px
-+---------------------------------------------------------------+
++-------------------------------------------------------------------+
+| Program | Source: take.mov x                                      |  tab row
++-------------------------------------------------------------------+
+|                                                                   |
+|                  pasteboard (bg)                                  |
+|          +-------------------------------+                        |
+|          |                               |                        |
+|          |        frame                  |                        |
+|          |                               |                        |
+|          +-------------------------------+                        |
+|                                                                   |
++-------------------------------------------------------------------+
+| 00:00:12:04 - Fit + Full [px] |< < [> > >| [lp] In Out [h][s][wr] |  control row
++-------------------------------------------------------------------+
+| mini time ruler with In/Out range and markers                      |  12 px
++-------------------------------------------------------------------+
 ```
 
-`[wr]` is the display wrench, `[px]` the Proxies toggle, `[lp]` the Loop
-toggle, `[h]` the three handle toggles, and `[s]` the Scopes toggle.
+The tab row is drawn only while a Source tab is open. `[px]` is the Proxies
+toggle, `[lp]` the Loop toggle, `[h]` the three handle toggles, `[s]` the
+Scopes toggle, and `[wr]` the display wrench.
 
 The control row, left to right:
 
@@ -65,7 +67,7 @@ The control row, left to right:
   and inserts or overwrites with it, from its own bar under the picture.
 - Transform, Crop, Mask: icon toggles, one per set of on-canvas handles; the
   lit one is live.
-- Scopes, an icon toggle, and the output peak meter.
+- Scopes, an icon toggle, the output peak meter, and the display wrench.
 
 Every control in the row is 24 px high: the icon buttons are 24 px squares,
 and the worded controls (the magnification, In, Out) are 24 px with 4 px side
@@ -75,13 +77,13 @@ hover. Controls in a group stand 4 px apart.
 
 A Viewer too narrow for one line wraps the row between three groups, each kept
 whole: the timecode through Proxies, the transport through Mark Out, and the handle
-toggles through the meter. An error after the meter is shortened with an ellipsis and
-shown in full on hover.
+toggles through the display wrench. An error after the wrench is shortened with an
+ellipsis and shown in full on hover.
 
 The playhead timecode closes on a press anywhere else, without applying the
 typed value.
 
-The display button, a wrench at the right end of the tab row, opens View >
+The display button, a wrench at the right end of the control row, opens View >
 Viewer Display Settings under itself: Split Viewer, Show Rulers, Show Guides,
 Snap to Guides, Clear Guides, Title Safe, Action Safe, Transparency Grid, and
 Grid. A second press on the wrench, a press elsewhere, or Escape closes it. The dropped-frame indicator is in the status bar.

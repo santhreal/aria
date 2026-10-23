@@ -2345,6 +2345,7 @@ Notes for the latest release. For previous releases, see the
 - Settings names each AI source, protocol, reasoning, and autonomy choice instead of its saved key, lists a provider with no key as `Not set` or `<source> not set`, writes counts as `1 skill` or `2 skills` instead of `skill(s)`, widens the keyboard image's modifier, Space, and keypad caps to fit their labels, and separates the Appearance groups.
 - The line above the scopes states the frame they measure in the sequence's time display, such as `Frame 00:00:00:04`, instead of the count of pixels sampled.
 - The Info panel states what the last rendered frame cost, stage by stage, and the rate playback held, in place of the Effect Controls Last frame card and the Project Report's Last frame table, and Last Frame Cost (`pal-render-cost`) replaces Report Last Frame Cost (`pal-project-frame-cost`).
+- The Viewer draws its Program and Source tab row only while a Source tab is open, and its display wrench sits at the right end of the control row instead of the tab row.
 
 ### Fixed
 

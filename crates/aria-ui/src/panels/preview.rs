@@ -46,7 +46,7 @@ pub fn render(
         .flex()
         .flex_col()
         .bg(theme.bg)
-        .child(tabs::tab_row(state, &theme, cx))
+        .children(tabs::tab_row(state, &theme, cx))
         .child(
             div()
                 .flex_1()
@@ -173,7 +173,15 @@ pub fn render(
                         .justify_end()
                         .child(handles::mode_picker(state, &theme, cx))
                         .child(scopes::toggle(state, &theme, cx))
-                        .child(peak_meter(state, &theme, cx)),
+                        .child(peak_meter(state, &theme, cx))
+                        .child(crate::chrome::tool_strip::display_btn(
+                            "viewer-display-settings",
+                            crate::chrome::menu_view_rows::VIEWER_DISPLAY,
+                            Theme::ICON_HIT,
+                            &theme,
+                            state,
+                            cx,
+                        )),
                 )
                 // The last error takes what the row has left and ends in an
                 // ellipsis; its tooltip reads in full.

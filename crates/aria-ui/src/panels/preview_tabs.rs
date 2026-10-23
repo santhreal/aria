@@ -1,7 +1,7 @@
-//! The Viewer's tab row: Program first, one tab per open source with its close
-//! button, and at the right end the display button, a wrench holding View >
-//! Viewer Display Settings (split, rulers, guides, safe margins, grids) under
-//! itself.
+//! The Viewer's tab row: Program first, then one tab per open source with its
+//! close button. Drawn only while a Source tab is open: with Program alone
+//! there is nothing to switch to, and the row would stack a second tab row
+//! with a single tab under the Viewer's dock tab.
 
 use super::*;
 use crate::theme::Theme;
@@ -54,13 +54,17 @@ fn tab(
         })
 }
 
-/// The tab row over the Viewer's picture.
+/// The tab row over the Viewer's picture, or `None` while no Source tab is
+/// open.
 pub(super) fn tab_row(
     state: &Entity<AppState>,
     theme: &Theme,
     cx: &mut gpui::Context<crate::shell::Shell>,
-) -> impl IntoElement {
+) -> Option<impl IntoElement + use<>> {
     let read = state.read(cx);
+    if read.sources.tabs().is_empty() {
+        return None;
+    }
     let focus = read.sources.focus_index();
     // A tab linked to a timeline clip reads "Clip:", so it is not mistaken for
     // the pool's tab on the same take, whose marks trim nothing.
@@ -136,28 +140,19 @@ pub(super) fn tab_row(
             )
             .into_any_element()
     });
-    div()
-        .debug_selector(|| "viewer-tab-row".into())
-        .h(px(Theme::TAB_ROW_HEIGHT))
-        .flex_none()
-        .flex()
-        .items_center()
-        .px(px(Theme::SPACE_XS))
-        .gap(px(Theme::SPACE_XXS))
-        .border_b_1()
-        .border_color(theme.border)
-        .bg(theme.surface_header)
-        .child(program)
-        .children(sources)
-        .child(div().flex_1())
-        // A row control: the tab row's 23 px under its rule holds a 20 px box
-        // with an even step over and under it.
-        .child(crate::chrome::tool_strip::display_btn(
-            "viewer-display-settings",
-            crate::chrome::menu_view_rows::VIEWER_DISPLAY,
-            Theme::ICON_HIT_ROW,
-            theme,
-            state,
-            cx,
-        ))
+    Some(
+        div()
+            .debug_selector(|| "viewer-tab-row".into())
+            .h(px(Theme::TAB_ROW_HEIGHT))
+            .flex_none()
+            .flex()
+            .items_center()
+            .px(px(Theme::SPACE_XS))
+            .gap(px(Theme::SPACE_XXS))
+            .border_b_1()
+            .border_color(theme.border)
+            .bg(theme.surface_header)
+            .child(program)
+            .children(sources),
+    )
 }

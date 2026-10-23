@@ -61,7 +61,7 @@ Defined in `crates/aria-ui/src/chrome.rs` and `chrome/tool_strip.rs`.
 | `SQUARE` | `assets/icon/shell/square.svg` | Maximize or restore the window. |
 | `CLOSE` | `assets/icon/shell/x.svg` | Close the window, a dock tab (`shell/dock_tabs.rs`), and a Viewer Source tab (`panels/preview_tabs.rs`); clear the timeline property search (`panels/timeline/header.rs`) and the Effects & Presets search (`panels/effects_browser.rs`). |
 | `UPLOAD` | `assets/icon/shell/upload.svg` | Export, on the tool bar. |
-| `WRENCH` | `assets/icon/timeline/wrench.svg` | Display settings: the Viewer's tab row holds View > Viewer Display Settings under it, and the Timeline header holds View > Timeline Display Settings (`display_btn` in `chrome/tool_strip.rs`). |
+| `WRENCH` | `assets/icon/timeline/wrench.svg` | Display settings: the Viewer's control row holds View > Viewer Display Settings under it, and the Timeline header holds View > Timeline Display Settings (`display_btn` in `chrome/tool_strip.rs`). |
 | `SETTINGS` | `assets/icon/shell/settings.svg` | Drawn only by the control gallery (`crates/aria-ui-gallery`). |
 | `FIT` | `assets/icon/fullscreen.svg` | Drawn only by the control gallery (`crates/aria-ui-gallery`). |
 
