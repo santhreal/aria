@@ -16,7 +16,8 @@
 ## Meters
 
 The Audio Meters panel (default: right of the timeline) shows one bar per output
-channel: peak with a 1.5 s peak hold, and RMS behind it. The scale runs from
+channel: peak with a 1.5 s peak hold, and RMS behind it. The bars share the
+width beside the scale, so a wider panel draws wider bars. The scale runs from
 -60 to 0 dBFS. A clip above 0 dBFS lights the clip indicator until clicked.
 The meters run during playback, scrubbing, and from the Source tab.
 

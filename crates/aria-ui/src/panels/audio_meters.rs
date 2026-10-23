@@ -1,4 +1,6 @@
 //! The Audio Meters panel: one vertical bar per output channel on a dBFS scale.
+//! The bars share the width beside the scale, so a wider frame draws wider
+//! bars.
 //!
 //! Each bar draws the root mean square full width and the peak as a narrower
 //! bar in front of it, so both stay readable where they differ. A one pixel
@@ -41,7 +43,6 @@ const CHANNELS: [&str; 2] = ["L", "R"];
 
 /// Wide enough for the widest mark, `-60`, at [`MARK_TEXT`].
 const SCALE_WIDTH: f32 = 20.0;
-const BAR_MAX_WIDTH: f32 = 22.0;
 const MARK_TEXT: gpui::Pixels = Theme::TEXT_SMALL;
 
 /// Where a scale mark sits on the bar, from the bottom.
@@ -56,7 +57,6 @@ pub fn render(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyEle
     let names = CHANNELS.map(|name| {
         div()
             .flex_1()
-            .max_w(px(BAR_MAX_WIDTH))
             .text_center()
             .text_size(MARK_TEXT)
             .text_color(theme.text_muted)
@@ -64,6 +64,7 @@ pub fn render(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyEle
     });
     div()
         .id("audio-meters")
+        .debug_selector(|| "audio-meters".into())
         .flex()
         .flex_col()
         .size_full()
@@ -164,7 +165,6 @@ fn bar(theme: &Theme, reading: &MeterReading, side: usize) -> impl IntoElement {
         .debug_selector(move || format!("audio-meter-bar-{side}"))
         .relative()
         .flex_1()
-        .max_w(px(BAR_MAX_WIDTH))
         .h_full()
         .rounded(px(1.))
         .overflow_hidden()
