@@ -1,7 +1,7 @@
 //! Settings dialog UI and integration tests.
 
 use crate::app::AppState;
-use crate::app::settings_form::SettingsField;
+use crate::app::settings_form::{SettingsField, format_agent_capabilities};
 use aria_plugin::PluginContext;
 
 fn make_state() -> AppState {
@@ -60,4 +60,31 @@ fn plugin_settings_sections_render_from_services() {
     let sections = state.plugin_settings_sections();
     // Default context has no custom plugin settings, sections is empty
     assert!(sections.is_empty());
+}
+
+/// WHY: The AI `Can do` row and Settings count strings previously printed
+/// literal `"(s)"` (`"67 edit(s), 5 app tool(s) of which 2 look and 1 ask
+/// first, 0 plugin tool(s)"`). Every count slot must inflect both its noun and
+/// its verb for singular (`1`) and plural (`0`, `2+`) values without `"(s)"`.
+#[test]
+fn agent_capabilities_inflects_nouns_and_verbs_for_every_count() {
+    assert_eq!(
+        format_agent_capabilities(67, 5, 2, 1, 0),
+        "67 edits, 5 app tools of which 2 look and 1 asks first, 0 plugin tools"
+    );
+    assert_eq!(
+        format_agent_capabilities(1, 1, 1, 2, 1),
+        "1 edit, 1 app tool of which 1 looks and 2 ask first, 1 plugin tool"
+    );
+    assert_eq!(
+        format_agent_capabilities(0, 0, 0, 0, 2),
+        "0 edits, 0 app tools of which 0 look and 0 ask first, 2 plugin tools"
+    );
+
+    let state = make_state();
+    let live = state.agent_capabilities();
+    assert!(
+        !live.contains("(s)"),
+        "live Can do row contains `(s)`: {live}"
+    );
 }

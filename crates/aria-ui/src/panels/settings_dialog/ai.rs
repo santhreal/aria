@@ -93,7 +93,11 @@ pub(super) fn field_row(
     let shown = if value.is_empty() {
         look.placeholder.to_string()
     } else if look.kind == aria_plugin::SettingKind::Secret && !focused {
-        format!("stored, {} character(s)", value.chars().count())
+        let count = value.chars().count();
+        format!(
+            "stored, {count} character{}",
+            crate::app::project_reach::plural(count)
+        )
     } else {
         value
     };
@@ -163,7 +167,7 @@ pub(super) fn ai_rows(
             "ai-source",
             "Source",
             &AiSource::ALL,
-            AiSource::key,
+            AiSource::label,
             config.ai.source,
             cx,
             AppState::set_ai_source,
@@ -177,7 +181,7 @@ pub(super) fn ai_rows(
             "ai-protocol",
             "Protocol",
             &AiApiProtocol::ALL,
-            AiApiProtocol::key,
+            AiApiProtocol::label,
             config.ai.api_protocol,
             cx,
             AppState::set_ai_protocol,
@@ -187,7 +191,7 @@ pub(super) fn ai_rows(
             "ai-reasoning",
             "Reasoning",
             &ReasoningSummary::ALL,
-            ReasoningSummary::key,
+            ReasoningSummary::label,
             config.ai.reasoning_summary,
             cx,
             AppState::set_reasoning_summary,
@@ -197,7 +201,7 @@ pub(super) fn ai_rows(
             "ai-autonomy",
             "Autonomy",
             &Autonomy::ALL,
-            Autonomy::key,
+            Autonomy::label,
             config.ai.autonomy,
             cx,
             AppState::set_autonomy,

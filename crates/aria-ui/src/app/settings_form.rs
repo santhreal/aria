@@ -93,13 +93,16 @@ impl SettingsField {
     /// the schema.
     fn shipped(self) -> Option<(&'static str, &'static str)> {
         Some(match self {
-            Self::AiBaseUrl => ("AI base URL", "not set — e.g. http://localhost:11434/v1"),
-            Self::AiModel => ("AI model", "not set"),
-            Self::AiKey => ("AI key", "no key stored"),
-            Self::AiKeyEnv => ("AI key variable", "no variable named"),
-            Self::CloudBaseUrl => ("Cloud base URL", "the shipped default"),
-            Self::Filter => ("Filter", "type to narrow the sections"),
-            Self::KeymapName => ("Save keys as", "a name, then Enter"),
+            Self::AiBaseUrl => (
+                "AI base URL",
+                "Not set, for example http://localhost:11434/v1",
+            ),
+            Self::AiModel => ("AI model", "Not set"),
+            Self::AiKey => ("AI key", "No key stored"),
+            Self::AiKeyEnv => ("AI key variable", "No variable named"),
+            Self::CloudBaseUrl => ("Cloud base URL", "The shipped default"),
+            Self::Filter => ("Filter", "Type to narrow the sections"),
+            Self::KeymapName => ("Save keys as", "A name, then Enter"),
             Self::Plugin(_) => return None,
         })
     }
@@ -242,7 +245,7 @@ impl AppState {
                     (false, false) => "a number".to_owned(),
                 }
             }
-            (_, true) => "not set".to_owned(),
+            (_, true) => "Not set".to_owned(),
         };
         Some(SettingLook {
             label: spec.label.into(),
@@ -521,11 +524,7 @@ impl AppState {
             .filter(|spec| spec.tier == aria_ai::ToolTier::System)
             .count();
         let plugins = crate::app::assistant_host::plugin_tool_specs(&self.ctx).len();
-        format!(
-            "{edits} edit(s), {} app tool(s) of which {senses} look and {confirms} ask first, \
-             {plugins} plugin tool(s)",
-            host.len()
-        )
+        format_agent_capabilities(edits, host.len(), senses, confirms, plugins)
     }
 
     /// Which parts of a turn are switched on, from the settings that decide it.
@@ -562,6 +561,26 @@ impl AppState {
         };
         (saved, false)
     }
+}
+
+/// Format the AI `Can do` capability summary with singular/plural agreement.
+pub(crate) fn format_agent_capabilities(
+    edits: usize,
+    app: usize,
+    senses: usize,
+    confirms: usize,
+    plugins: usize,
+) -> String {
+    let plural = super::project_reach::plural;
+    format!(
+        "{edits} edit{}, {app} app tool{} of which {senses} look{} and {confirms} ask{} first, \
+         {plugins} plugin tool{}",
+        plural(edits),
+        plural(app),
+        if senses == 1 { "s" } else { "" },
+        if confirms == 1 { "s" } else { "" },
+        plural(plugins),
+    )
 }
 
 #[cfg(test)]

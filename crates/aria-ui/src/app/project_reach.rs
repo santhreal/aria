@@ -363,7 +363,7 @@ impl AppState {
 }
 
 /// `"s"` unless there is exactly one of them.
-fn plural(count: usize) -> &'static str {
+pub(crate) fn plural(count: usize) -> &'static str {
     if count == 1 { "" } else { "s" }
 }
 

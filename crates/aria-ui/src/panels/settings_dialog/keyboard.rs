@@ -21,7 +21,7 @@ use crate::keys::keyboard_image::{self, Cap, CapKind, CommandKind, Held, Mods};
 use crate::theme::Theme;
 
 /// One key unit on the image, in pixels. Fifteen of them fit the dialog card.
-const UNIT: f32 = 27.0;
+const UNIT: f32 = 28.0;
 
 /// The height of a cap.
 const CAP_HEIGHT: f32 = 26.0;
@@ -222,6 +222,7 @@ fn cap_element(
     let width = px(cap.width * UNIT - CAP_GAP);
     let base = div()
         .id(gpui::ElementId::from(("settings-kbd-cap", index)))
+        .debug_selector(move || format!("settings-kbd-cap-{index}"))
         .w(width)
         .h(px(CAP_HEIGHT))
         .flex_none()
@@ -235,6 +236,7 @@ fn cap_element(
             .flex()
             .items_center()
             .justify_center()
+            .px(px(Theme::SPACE_XXS))
             .text_size(Theme::TEXT_MICRO)
             .text_color(theme.text_faint)
             .child(cap.label)
@@ -251,6 +253,7 @@ fn cap_element(
                 .flex()
                 .items_center()
                 .justify_center()
+                .px(px(Theme::SPACE_XXS))
                 .text_size(Theme::TEXT_MICRO)
                 .text_color(if down {
                     theme.on_accent
@@ -293,6 +296,7 @@ fn cap_element(
                         .flex()
                         .items_center()
                         .justify_center()
+                        .px(px(Theme::SPACE_XXS))
                         .text_size(Theme::TEXT_MICRO)
                         .text_color(if holds.is_empty() {
                             theme.text_faint

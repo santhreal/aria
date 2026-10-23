@@ -37,7 +37,7 @@ use crate::chrome::dialog::{DialogBody, dialog_surface};
 use crate::components;
 use crate::theme::Theme;
 
-use widgets::{kv, section};
+use widgets::{group_divider, kv, section};
 
 pub fn render(
     state: &Entity<AppState>,
@@ -109,7 +109,7 @@ pub fn render(
     }
     let visible = sections;
     let matched = !visible.is_empty();
-    let done = components::ghost_button("settings-done", "Done", &theme).on_mouse_down(
+    let done = components::button("settings-done", "Done", &theme).on_mouse_down(
         MouseButton::Left,
         cx.listener(|this, _: &MouseDownEvent, _, cx| {
             this.state
@@ -147,10 +147,12 @@ fn appearance_rows(
         .into_iter()
         .map(|candidate| pickers::appearance_row(theme, candidate, mode, cx).into_any_element())
         .collect();
+    rows.push(group_divider(theme));
     let current = state.read(cx).theme_choice();
     for candidate in aria_settings::ThemeChoice::ALL {
         rows.push(pickers::theme_row(theme, candidate, current, cx).into_any_element());
     }
+    rows.push(group_divider(theme));
     let files = &state.read(cx).theme_files;
     let current_file = state.read(cx).ui_settings.theme_file.clone();
     let candidates: Vec<_> = std::iter::once(None)
@@ -166,6 +168,7 @@ fn appearance_rows(
     for (file, reason) in &failed {
         rows.push(pickers::theme_file_failure_row(theme, file, reason).into_any_element());
     }
+    rows.push(group_divider(theme));
     let motion = state.read(cx).ui_settings.motion;
     for candidate in crate::motion::MotionPreference::ALL {
         rows.push(pickers::motion_row(theme, candidate, motion, cx).into_any_element());

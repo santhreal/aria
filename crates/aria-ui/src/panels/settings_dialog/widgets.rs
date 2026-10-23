@@ -52,3 +52,12 @@ pub(super) fn kv(theme: &Theme, label: &str, value: impl Into<String>) -> impl I
                 .child(value.into()),
         )
 }
+
+/// A horizontal hairline separating distinct choice groups inside one section card.
+pub(super) fn group_divider(theme: &Theme) -> gpui::AnyElement {
+    div()
+        .h(px(1.0))
+        .my(px(Theme::SPACE_XXS))
+        .bg(theme.hairline)
+        .into_any_element()
+}

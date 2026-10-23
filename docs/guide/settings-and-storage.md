@@ -35,8 +35,8 @@ trim readout all read in it. It is saved with the sequence and is one undo step.
 ## Provider keys
 
 Settings has a Provider keys section listing every BYOK provider Aria can use
-(`pexels`, `pixabay`, `elevenlabs`, `fal`), with what each one powers and where its
-key comes from. A provider with no key is listed as unset rather than omitted.
+(Pexels, Pixabay, ElevenLabs, fal), with what each one powers and where its
+key comes from. A provider with no key is listed as `Not set` rather than omitted.
 
 Set a key in `~/.aria/config.toml`:
 
@@ -141,17 +141,17 @@ under the new limits; one that does not mount under them is listed as failed.
 
 Settings holds an AI section.
 
-- **Source** picks `local` (an OpenAI-compatible server such as Ollama or LM Studio),
-  `openrouter`, or `custom` for any other endpoint.
+- **Source** picks **Local** (an OpenAI-compatible server such as Ollama or LM Studio),
+  **OpenRouter**, or **Custom** for any other endpoint.
 - **AI base URL**, **AI model**, **AI key**, and **AI key variable** are typed
   fields. Click one to edit it, press Enter to save, and Escape to leave the saved
   value alone. A URL must start with `http://` or `https://`. A key variable specifies an
   environment variable holding the key, which is preferred over storing the key
   itself; a stored key is shown as its length, never its text.
-- **Protocol** picks Chat Completions or the Responses API, and **Reasoning** whether
-  a Responses model requests a reasoning summary. Local and OpenRouter always use
-  Chat Completions.
-- **Autonomy** is `ask` or `full`: whether destructive assistant tools need a
+- **Protocol** picks **Chat Completions** or **Responses**, and **Reasoning** picks
+  **Auto** or **Off** for whether a Responses model requests a reasoning summary.
+  Local and OpenRouter always use Chat Completions.
+- **Autonomy** picks **Ask** or **Full**: whether destructive assistant tools need a
   confirmation.
 - **Status** is the same check the assistant runs. It states what is missing (no base
   URL, an unsupported model, a key variable that is not set) rather than reporting a

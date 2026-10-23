@@ -38,7 +38,17 @@ pub(super) fn storage_rows(
         kv(theme, "Download cache", format!("{used} of {quota} MiB")).into_any_element(),
     ];
     if protected > 0 {
-        rows.push(kv(theme, "In use", format!("{protected} file(s) pinned")).into_any_element());
+        rows.push(
+            kv(
+                theme,
+                "In use",
+                format!(
+                    "{protected} file{} pinned",
+                    crate::app::project_reach::plural(protected),
+                ),
+            )
+            .into_any_element(),
+        );
     }
     rows.push(quota_row(theme, quota, cx).into_any_element());
     rows.push(

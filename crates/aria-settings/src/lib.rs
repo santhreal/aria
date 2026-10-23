@@ -198,6 +198,14 @@ impl Autonomy {
         }
     }
 
+    /// The name a picker shows.
+    pub fn label(self) -> &'static str {
+        match self {
+            Autonomy::Ask => "Ask",
+            Autonomy::Full => "Full",
+        }
+    }
+
     /// Parse a `config.toml` value; `None` for anything unrecognized (the
     /// caller keeps the default rather than failing the whole load).
     /// "confirm" is accepted as an alias for [`Autonomy::Ask`].
@@ -228,6 +236,14 @@ impl AiApiProtocol {
         match self {
             Self::ChatCompletions => "chat_completions",
             Self::Responses => "responses",
+        }
+    }
+
+    /// The name a picker shows.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::ChatCompletions => "Chat Completions",
+            Self::Responses => "Responses",
         }
     }
 
@@ -263,6 +279,14 @@ impl ReasoningSummary {
         }
     }
 
+    /// The name a picker shows.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Auto => "Auto",
+            Self::Off => "Off",
+        }
+    }
+
     pub fn from_key(value: &str) -> Option<Self> {
         match value {
             "auto" | "on" => Some(Self::Auto),
@@ -293,6 +317,15 @@ impl AiSource {
             Self::Local => "local",
             Self::OpenRouter => "openrouter",
             Self::Custom => "custom",
+        }
+    }
+
+    /// The name a picker shows.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Local => "Local",
+            Self::OpenRouter => "OpenRouter",
+            Self::Custom => "Custom",
         }
     }
 

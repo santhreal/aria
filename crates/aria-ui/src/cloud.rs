@@ -161,6 +161,17 @@ pub const BYOK_PROVIDERS: [(&str, &str); 4] = [
     ("fal", "Image and video generation"),
 ];
 
+/// The product name shown for a `[providers.<name>]` key.
+pub fn provider_label(name: &str) -> &'static str {
+    match name {
+        "pexels" => "Pexels",
+        "pixabay" => "Pixabay",
+        "elevenlabs" => "ElevenLabs",
+        "fal" => "fal",
+        _ => "Unknown",
+    }
+}
+
 /// The provider names `[providers.<name>]` uses for stock search.
 pub const STOCK_PROVIDERS: [&str; 2] = ["pexels", "pixabay"];
 

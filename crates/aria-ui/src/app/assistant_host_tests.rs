@@ -393,11 +393,11 @@ fn settings_counts_the_real_vocabularies() {
     let state = state();
     let line = state.agent_capabilities();
     assert!(
-        line.contains(&format!("{} edit(s)", aria_ai::wire::tool_specs().len())),
+        line.contains(&format!("{} edits", aria_ai::wire::tool_specs().len())),
         "{line}"
     );
     assert!(
-        line.contains(&format!("{} app tool(s)", host_tool_specs().len())),
+        line.contains(&format!("{} app tools", host_tool_specs().len())),
         "{line}"
     );
 }

@@ -192,7 +192,7 @@ fn a_mounted_plugins_tools_are_offered_with_their_tier_and_leave_with_it() {
         assert!(aria_ai::is_host_tool_name(name), "{name} would be dropped");
     }
     assert!(
-        state.agent_capabilities().ends_with(", 3 plugin tool(s)"),
+        state.agent_capabilities().ends_with(", 3 plugin tools"),
         "{}",
         state.agent_capabilities()
     );
@@ -211,7 +211,7 @@ fn a_mounted_plugins_tools_are_offered_with_their_tier_and_leave_with_it() {
 
     state.ctx.unmount(PLUGIN).expect("unmounts");
     assert_eq!(host.tools().len(), host_tool_specs().len());
-    assert!(state.agent_capabilities().ends_with(", 0 plugin tool(s)"));
+    assert!(state.agent_capabilities().ends_with(", 0 plugin tools"));
     let mut host = host;
     assert_eq!(
         host.authorize(

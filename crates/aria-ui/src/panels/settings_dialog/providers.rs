@@ -22,11 +22,13 @@ pub(super) fn provider_rows(
         .into_iter()
         .map(|status| {
             let value = if status.configured {
-                format!("{} — key from {}", status.purpose, status.source)
+                format!("{} · Key from {}", status.purpose, status.source)
+            } else if status.source == "not set" {
+                format!("{} · Not set", status.purpose)
             } else {
-                format!("{} — no key ({})", status.purpose, status.source)
+                format!("{} · {} not set", status.purpose, status.source)
             };
-            kv(theme, status.name, value).into_any_element()
+            kv(theme, crate::cloud::provider_label(status.name), value).into_any_element()
         })
         .collect();
     // Configured is not the same as reachable. A `api_key_env` naming an unset

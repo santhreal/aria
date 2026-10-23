@@ -31,8 +31,9 @@ fn describe(row: &UiCache) -> String {
     ];
     if let Some((bytes, files)) = row.usage {
         parts.push(format!(
-            "{} in {files} file(s)",
-            crate::app::storage::format_bytes(bytes)
+            "{} in {files} file{}",
+            crate::app::storage::format_bytes(bytes),
+            crate::app::project_reach::plural(files as usize),
         ));
     }
     match &row.path {
