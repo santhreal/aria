@@ -85,9 +85,9 @@ Each dimension is scaled by `(v * num / den).max(2)` and rounded down to an even
 | Variant | Label | Max interval (`frames`) | Default |
 | --- | --- | --- | --- |
 | `Codec` | Codec default | `none` | `yes` |
-| `Frames(15)` | every 15 | `15` | `no` |
-| `Frames(30)` | every 30 | `30` | `no` |
-| `Frames(60)` | every 60 | `60` | `no` |
+| `Frames(15)` | Every 15 frames | `15` | `no` |
+| `Frames(30)` | Every 30 frames | `30` | `no` |
+| `Frames(60)` | Every 60 frames | `60` | `no` |
 
 ### Target video bitrate (`ExportBitrate::ALL`)
 

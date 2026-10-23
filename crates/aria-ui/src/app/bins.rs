@@ -162,7 +162,7 @@ impl AppState {
         };
         let name = rename.draft.trim().to_string();
         if name.is_empty() {
-            self.status_message = Some("a bin needs a name".into());
+            self.status_message = Some("A bin needs a name".into());
             return Ok(());
         }
         self.apply_command(Command::Edit(EditCommand::RenameBin {

@@ -234,25 +234,25 @@ fn an_event_the_tree_cannot_produce_is_refused_before_the_plugin() {
     let cases = [
         (
             PanelEvent::Pressed { id: "off".into() },
-            "panel test.probe: control \"off\" is disabled",
+            "Panel test.probe: control \"off\" is disabled",
         ),
         (
             PanelEvent::Pressed { id: "gone".into() },
-            "panel test.probe: the panel has no control \"gone\"",
+            "Panel test.probe: the panel has no control \"gone\"",
         ),
         (
             PanelEvent::Chose {
                 id: "mode".into(),
                 index: 3,
             },
-            "panel test.probe: control \"mode\" does not produce this event or value",
+            "Panel test.probe: control \"mode\" does not produce this event or value",
         ),
         (
             PanelEvent::Toggled {
                 id: "press".into(),
                 on: true,
             },
-            "panel test.probe: control \"press\" does not produce this event or value",
+            "Panel test.probe: control \"press\" does not produce this event or value",
         ),
     ];
     for (event, expect) in cases {
@@ -266,7 +266,7 @@ fn an_event_the_tree_cannot_produce_is_refused_before_the_plugin() {
     state.panel_event("test.missing", PanelEvent::Pressed { id: "press".into() });
     assert_eq!(
         state.last_error.as_deref(),
-        Some("no panel is registered as test.missing")
+        Some("No panel is registered as test.missing")
     );
 }
 

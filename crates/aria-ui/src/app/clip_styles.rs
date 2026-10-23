@@ -179,8 +179,7 @@ impl AppState {
 impl AppState {
     /// Pick a `.cube` file and load it onto the selection.
     pub fn pick_and_load_lut(&mut self) {
-        if self.selected_clip().is_none() {
-            self.status_message = Some("Select a clip first".into());
+        if self.selected_clip_or_decline().is_none() {
             return;
         }
         self.request_pick(

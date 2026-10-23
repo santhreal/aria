@@ -214,7 +214,7 @@ impl AppState {
                         state.status_message = Some("Cancelled the analysis".into());
                     }
                     Some(Err(reason)) => state.report_error(reason),
-                    None => state.report_error("the analysis did not report"),
+                    None => state.report_error("The analysis did not report"),
                 }
                 cx.notify();
             });
@@ -342,12 +342,12 @@ impl AppState {
                     .sounding_selection()
                     .into_iter()
                     .next()
-                    .ok_or_else(|| "Select a clip with sound.".to_string())?;
+                    .ok_or_else(|| "Select a clip with sound".to_string())?;
                 let timeline = project
                     .timeline()
                     .clip(clip)
                     .map(|c| c.timeline)
-                    .ok_or_else(|| "Select a clip with sound.".to_string())?;
+                    .ok_or_else(|| "Select a clip with sound".to_string())?;
                 (aria_plugin::AudioSource::Clip(clip), timeline)
             }
             aria_plugin::AnalyzerScope::Sequence => {
@@ -357,7 +357,7 @@ impl AppState {
                     .value
                     .max(self.store.sequence.duration_ticks);
                 if duration <= 0 {
-                    return Err("The sequence has no clips.".into());
+                    return Err("The sequence has no clips".into());
                 }
                 (
                     aria_plugin::AudioSource::Open,
@@ -367,9 +367,9 @@ impl AppState {
             aria_plugin::AnalyzerScope::InOut => {
                 let (start, end) = self
                     .work_area_or_sequence_range()
-                    .ok_or_else(|| "The sequence has no clips.".to_string())?;
+                    .ok_or_else(|| "The sequence has no clips".to_string())?;
                 if end <= start {
-                    return Err("The sequence has no clips.".into());
+                    return Err("The sequence has no clips".into());
                 }
                 (
                     aria_plugin::AudioSource::Open,
@@ -437,7 +437,7 @@ impl AppState {
                         state.status_message = Some("Cancelled the analysis".into());
                     }
                     Some(Err(reason)) => state.report_error(reason),
-                    None => state.report_error("the analysis did not report"),
+                    None => state.report_error("The analysis did not report"),
                 }
                 cx.notify();
             });
@@ -638,7 +638,7 @@ impl AppState {
     pub fn ripple_delete_silence(&mut self) -> Result<(), EngineError> {
         let spans = self.moment_spans_in_selection(MomentKind::SILENCE);
         if spans.is_empty() {
-            self.status_message = Some("No silence inside the clip. Detect silence first".into());
+            self.status_message = Some("No silence inside the clip. Detect silence first.".into());
             return Ok(());
         }
         let rate = self.playhead.rate;

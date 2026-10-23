@@ -92,7 +92,7 @@ impl AppState {
     /// to Program when that tab already has the keys.
     pub fn toggle_source_monitor(&mut self) -> bool {
         let Some(media) = self.pool_selection.focus() else {
-            self.status_message = Some("select a pool item to preview it".into());
+            self.status_message = Some("Select a pool item to preview it".into());
             return false;
         };
         if self.sources.focused().is_some_and(|v| v.media == media) {
@@ -135,11 +135,11 @@ impl AppState {
             .find(|item| item.id == media && !item.missing)
             .map(|item| (item.name.clone(), item.duration_ticks, item.kind))
         else {
-            self.status_message = Some("that source cannot be previewed".into());
+            self.status_message = Some("That source cannot be previewed".into());
             return None;
         };
         if kind == crate::types::UiClipKind::Audio {
-            self.status_message = Some("an audio source has no picture to show".into());
+            self.status_message = Some("An audio source has no picture to show".into());
             return None;
         }
         Some((name, duration_ticks))

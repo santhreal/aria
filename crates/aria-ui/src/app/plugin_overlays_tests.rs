@@ -285,7 +285,7 @@ fn a_press_on_a_handle_the_scene_lacks_is_refused_and_holds_nothing() {
     assert!(!state.grab_overlay_handle(OVERLAY, &Arc::from("ghost"), [50.0, 25.0]));
     assert_eq!(
         state.last_error.as_deref(),
-        Some("viewer overlay test.guides has no handle ghost")
+        Some("Viewer overlay test.guides has no handle ghost")
     );
     assert_eq!(state.plugin_overlays.grab, None);
     settle(&mut state);

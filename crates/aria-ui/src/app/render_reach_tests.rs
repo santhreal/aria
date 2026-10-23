@@ -102,7 +102,7 @@ fn applying_a_look_bakes_it_and_grades_the_selection() {
 }
 
 /// A look applied off a selection would bake a table nothing carries, so the
-/// row refuses by name instead of grading nothing in silence.
+/// row declines by name instead of grading nothing in silence.
 #[test]
 fn a_look_needs_a_selection() {
     let (mut state, _) = with_clip();
@@ -112,13 +112,9 @@ fn a_look_needs_a_selection() {
     state.apply_starter_look(&first.id);
 
     assert_eq!(state.selected_lut(), None);
-    assert!(
-        state
-            .status_message
-            .as_deref()
-            .is_some_and(|msg| msg.contains("Select a clip")),
-        "unhelpful refusal: {:?}",
-        state.status_message
+    assert_eq!(
+        state.status_message.as_deref(),
+        Some(crate::app::decline::Decline::NoSelection.reason())
     );
 }
 

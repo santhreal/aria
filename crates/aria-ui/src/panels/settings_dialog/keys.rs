@@ -116,7 +116,7 @@ fn binding_row(
     } else {
         match row.chord {
             Some(chord) => (chord.label(), theme.text),
-            None => ("unbound".to_string(), theme.text_faint),
+            None => ("Unbound".to_string(), theme.text_faint),
         }
     };
     let mut actions = div()

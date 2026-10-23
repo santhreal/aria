@@ -77,8 +77,9 @@ fn a_dialog_with_no_primary_action_swallows_enter_and_changes_nothing() {
 }
 
 /// Enter on the export sheet reaches the render path, and the proof is the
-/// render's own refusal: an empty sequence is turned down by name before a job
-/// exists, so this asserts the wiring without spending an encoder.
+/// render's own refusal, in the shell's copy for it: an empty sequence is
+/// turned down by name before a job exists, so this asserts the wiring without
+/// spending an encoder.
 #[test]
 fn enter_on_the_export_sheet_runs_the_export() {
     let dir = crate::scratch_pool::scratch("dialog-primary");
@@ -89,13 +90,12 @@ fn enter_on_the_export_sheet_runs_the_export() {
 
     assert!(state.run_dialog_primary(), "the sheet has a primary action");
 
+    let refusal = crate::app::describe_engine_error(&aria_engine::EngineError::Render(
+        aria_render::RenderError::Empty(aria_render::EmptyExport::Sequence),
+    ));
     assert_eq!(
         state.last_error.as_deref(),
-        Some(
-            aria_render::RenderError::Empty(aria_render::EmptyExport::Sequence)
-                .to_string()
-                .as_str()
-        ),
+        Some(refusal.as_str()),
         "Enter must reach the same refusal the button reaches"
     );
     // A refused export leaves no job behind, and the sheet stays up: the

@@ -154,6 +154,6 @@ fn match_frame_says_so_when_there_is_nothing_under_the_playhead() {
     assert!(!state.match_frame());
     assert_eq!(
         state.status_message.as_deref(),
-        Some("no media clip under the playhead")
+        Some("No media clip under the playhead")
     );
 }

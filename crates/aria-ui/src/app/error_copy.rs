@@ -10,24 +10,9 @@ pub(crate) fn describe_engine_error(err: &EngineError) -> String {
         EngineError::Import(msg) => {
             format!("Couldn't import that file: {msg}. Try another format or check the path.")
         }
-        // The refusal is typed, so the copy answers for each reason and a new
-        // one stops compiling here instead of borrowing the wrong sentence.
-        EngineError::Render(aria_render::RenderError::Empty(reason)) => match reason {
-            aria_render::EmptyExport::Sequence => {
-                "Nothing to export. Your timeline is empty. Import media and place a clip first."
-                    .into()
-            }
-            aria_render::EmptyExport::Range => {
-                "Nothing to export. The marked range covers no frames. Move the in and out \
-                 points apart."
-                    .into()
-            }
-            aria_render::EmptyExport::Silence => {
-                "Nothing to export. Nothing in this sequence is audible. Unmute a lane or raise \
-                 its fader, then try again."
-                    .into()
-            }
-        },
+        EngineError::Render(aria_render::RenderError::Empty(reason)) => {
+            empty_export_copy(*reason).into()
+        }
         EngineError::Export(msg) => {
             format!("Couldn't write the export: {msg}. Check the destination and free disk space.")
         }
@@ -55,5 +40,34 @@ pub(crate) fn describe_engine_error(err: &EngineError) -> String {
         // The reason already names the obstacle and comes from the plugin that
         // knows it, so it is shown as written rather than wrapped in advice.
         EngineError::Refused(reason) => reason.clone(),
+    }
+}
+
+/// The copy for an export refused before it starts: an export with nothing to
+/// write reads as the engine's copy for the same reason, and any other refusal
+/// as the render path words it.
+pub(crate) fn describe_export_refusal(err: &aria_render::RenderError) -> String {
+    match err {
+        aria_render::RenderError::Empty(reason) => empty_export_copy(*reason).into(),
+        other => other.to_string(),
+    }
+}
+
+/// Why an export has nothing to write, and the control that fixes it. The
+/// refusal is typed, so the copy answers for each reason and a new one stops
+/// compiling here instead of borrowing the wrong sentence.
+fn empty_export_copy(reason: aria_render::EmptyExport) -> &'static str {
+    match reason {
+        aria_render::EmptyExport::Sequence => {
+            "Nothing to export. Your timeline is empty. Import media and place a clip first."
+        }
+        aria_render::EmptyExport::Range => {
+            "Nothing to export. The marked range covers no frames. Move the in and out points \
+             apart."
+        }
+        aria_render::EmptyExport::Silence => {
+            "Nothing to export. Nothing in this sequence is audible. Unmute a lane or raise its \
+             fader, then try again."
+        }
     }
 }

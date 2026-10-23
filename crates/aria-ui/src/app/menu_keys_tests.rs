@@ -215,7 +215,7 @@ fn enter_on_a_disabled_row_reports_why_and_keeps_the_drop_open() {
         assert_eq!(state.open_menu, Some(AppMenu::File));
         assert_eq!(
             state.status_message.as_deref(),
-            Some("The project has never been saved.")
+            Some("The project has never been saved")
         );
     });
 }

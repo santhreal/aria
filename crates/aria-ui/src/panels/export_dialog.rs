@@ -143,9 +143,9 @@ pub fn render(
                 "export-audio",
                 "Audio",
                 if options.audio {
-                    "included".to_string()
+                    "Included".to_string()
                 } else {
-                    "video only".to_string()
+                    "Video only".to_string()
                 },
                 cx,
                 |state| state.toggle_export_audio(),

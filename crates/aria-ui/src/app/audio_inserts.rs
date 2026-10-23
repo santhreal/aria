@@ -125,7 +125,7 @@ impl AppState {
     pub fn add_audio_effect_to_selection(&mut self, effect_id: &str) -> Result<(), EngineError> {
         let clips = self.sounding_selection();
         if clips.is_empty() {
-            self.status_message = Some("Select a clip with sound.".into());
+            self.status_message = Some("Select a clip with sound".into());
             return Ok(());
         }
         self.one_step(|this| {

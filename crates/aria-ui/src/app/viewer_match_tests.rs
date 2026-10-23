@@ -240,7 +240,7 @@ fn a_refused_trim_changes_neither_the_clip_nor_the_tab() {
     state.set_source_in();
     assert_eq!(
         state.status_message.as_deref(),
-        Some("the clip would start before the sequence does")
+        Some("The clip would start before the sequence does")
     );
     assert_eq!(picture(&state, media), before);
 }

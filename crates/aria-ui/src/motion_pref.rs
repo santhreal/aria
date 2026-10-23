@@ -45,10 +45,10 @@ impl MotionPreference {
     /// these rows.
     pub fn detail(self) -> &'static str {
         match self {
-            Self::Full => "every transition at its designed speed",
+            Self::Full => "Every transition at its designed speed",
             Self::Brisk => "0.6× duration, same curves",
             Self::Relaxed => "1.4× duration, same curves",
-            Self::Off => "state changes land immediately",
+            Self::Off => "State changes land immediately",
         }
     }
 

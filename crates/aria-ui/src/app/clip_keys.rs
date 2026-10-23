@@ -346,7 +346,9 @@ impl AppState {
             return Ok(());
         };
         let model = self.selected_model().ok_or(EngineError::Model(
-            aria_models::ModelError::InvalidParam("no clip selected".into()),
+            aria_models::ModelError::InvalidParam(
+                "the selected clip is no longer in the project".into(),
+            ),
         ))?;
         let spec = &self
             .key_param(param)
@@ -418,7 +420,9 @@ impl AppState {
             return Ok(());
         };
         let model = self.selected_model().ok_or(EngineError::Model(
-            aria_models::ModelError::InvalidParam("no clip selected".into()),
+            aria_models::ModelError::InvalidParam(
+                "the selected clip is no longer in the project".into(),
+            ),
         ))?;
         let spec = &self
             .key_param(param)

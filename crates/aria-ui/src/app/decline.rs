@@ -22,7 +22,7 @@ use super::AppState;
 /// A reason a command found nothing to do.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Decline {
-    /// The command acts on the selection and there is none.
+    /// The command acts on a selected clip and none is selected.
     NoSelection,
     /// The clip's right junction has no clip on the other side, so there is no
     /// cut for a blend to happen at.
@@ -70,7 +70,7 @@ impl Decline {
     /// than about the command that stopped.
     pub fn reason(self) -> &'static str {
         match self {
-            Decline::NoSelection => "Nothing is selected",
+            Decline::NoSelection => "No clip is selected",
             Decline::NoAbuttingCut => "No clip on the other side of that cut",
             Decline::UnknownTransition => "No such transition",
             Decline::NoTransitionAtCut => "No transition at that cut",

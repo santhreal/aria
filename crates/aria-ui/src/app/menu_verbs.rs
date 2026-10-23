@@ -41,11 +41,11 @@ impl AppState {
     /// File > Revert: reopen the saved file, dropping every edit made since.
     pub fn revert_project(&mut self) {
         let Some(path) = self.project_path.clone() else {
-            self.status_message = Some("The project has never been saved.".into());
+            self.status_message = Some("The project has never been saved".into());
             return;
         };
         if !self.store.is_dirty {
-            self.status_message = Some("There are no changes since the last save.".into());
+            self.status_message = Some("There are no changes since the last save".into());
             return;
         }
         match self.open_project(path) {
@@ -93,7 +93,7 @@ impl AppState {
                     TrimSide::Out => "Selected the Out point nearest the playhead".into(),
                 });
             }
-            None => self.status_message = Some("The sequence has no edit points.".into()),
+            None => self.status_message = Some("The sequence has no edit points".into()),
         }
     }
 
@@ -101,7 +101,7 @@ impl AppState {
     /// with the active trim tool and edit mode.
     pub fn extend_edit_to_playhead(&mut self) -> Result<(), EngineError> {
         let Some(SelectedEdge { clip, side }) = self.selected_edge else {
-            self.status_message = Some("Select an edit point first.".into());
+            self.status_message = Some("Select an edit point first".into());
             return Ok(());
         };
         let Some(ui) = self.ui_clip_ref(ClipId::from_raw(clip)) else {
@@ -113,7 +113,7 @@ impl AppState {
         };
         let delta = self.playhead.value - edge;
         if delta == 0 {
-            self.status_message = Some("The edit point is already at the playhead.".into());
+            self.status_message = Some("The edit point is already at the playhead".into());
             return Ok(());
         }
         self.trim_selected_edge(delta)
@@ -133,18 +133,17 @@ impl AppState {
             .monitor_source()
             .map(|view| (MediaId::from_raw(view.media), view.tick))
         else {
-            self.status_message = Some("Open a source in the Source monitor first.".into());
+            self.status_message = Some("Open a source in the Source monitor first".into());
             return Ok(());
         };
-        let Some(clip) = self.selected_clip() else {
-            self.status_message = Some("No clip is selected.".into());
+        let Some(clip) = self.selected_clip_or_decline() else {
             return Ok(());
         };
         let Some(ui) = self.ui_clip_ref(clip) else {
             return Ok(());
         };
         let Some(old_media) = ui.media_id.filter(|_| ui.generator.is_none()) else {
-            self.status_message = Some("A generated clip has no media to replace.".into());
+            self.status_message = Some("A generated clip has no media to replace".into());
             return Ok(());
         };
         let (start, end) = (ui.timeline_start_ticks, ui.timeline_end_ticks);
@@ -179,8 +178,7 @@ impl AppState {
         let from = source_tick - offset;
         if !still && (from < 0 || from + length > available) {
             self.status_message = Some(
-                "The source does not hold enough media around its playhead to fill the clip."
-                    .into(),
+                "The source does not hold enough media around its playhead to fill the clip".into(),
             );
             return Ok(());
         }
@@ -204,7 +202,7 @@ impl AppState {
             .filter(|(_, count)| *count > 0)
             .collect();
         if chains.is_empty() {
-            self.status_message = Some("The selected clips have no effects.".into());
+            self.status_message = Some("The selected clips have no effects".into());
             return Ok(());
         }
         let removed: usize = chains.iter().map(|(_, count)| count).sum();
@@ -223,7 +221,7 @@ impl AppState {
     /// Apply the effect applied last to the selection.
     pub fn apply_last_effect(&mut self) -> Result<(), EngineError> {
         let Some(effect) = self.last_effect.clone() else {
-            self.status_message = Some("No effect has been applied yet.".into());
+            self.status_message = Some("No effect has been applied yet".into());
             return Ok(());
         };
         self.add_effect_to_selected(effect)
@@ -260,7 +258,7 @@ impl AppState {
     pub fn delete_empty_tracks(&mut self) -> Result<(), EngineError> {
         let tracks = self.empty_track_ids();
         if tracks.is_empty() {
-            self.status_message = Some("Every track holds a clip.".into());
+            self.status_message = Some("Every track holds a clip".into());
             return Ok(());
         }
         let count = tracks.len();

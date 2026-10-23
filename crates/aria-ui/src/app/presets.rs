@@ -25,6 +25,7 @@ use aria_plugin::PluginPreset;
 use serde::{Deserialize, Serialize};
 
 use super::AppState;
+use super::decline::Decline;
 
 const PRESETS_DIR: &str = "presets";
 const LEGACY_PRESETS_FILE: &str = "effects.json";
@@ -479,7 +480,7 @@ impl AppState {
     /// selected clip as a named preset anchored at the playhead (when inside the
     /// clip, else at the clip start).
     pub fn save_selected_preset(&mut self, name: impl AsRef<str>) -> Result<(), String> {
-        let clip_id = self.selected_clip().ok_or("no clip selected")?;
+        let clip_id = self.selected_clip().ok_or(Decline::NoSelection.reason())?;
         let parts = {
             let engine = self.engine.lock();
             let clip = engine
@@ -518,7 +519,7 @@ impl AppState {
                     .to_string(),
             );
         }
-        let clip_id = self.selected_clip().ok_or("no clip selected")?;
+        let clip_id = self.selected_clip().ok_or(Decline::NoSelection.reason())?;
         let preset = {
             let engine = self.engine.lock();
             let clip = engine

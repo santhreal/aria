@@ -95,7 +95,7 @@ pub(super) fn cache_rows(
             kv(
                 theme,
                 "Usage",
-                "not measured — Measure walks every cache directory",
+                "Not measured — Measure walks every cache directory",
             )
             .into_any_element(),
         );

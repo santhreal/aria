@@ -29,6 +29,15 @@ use super::AppState;
 /// settings row, and the request.
 pub const GENERATE_PROVIDER: &str = "fal";
 
+/// The line the panel shows, and a submit is refused with, while no key for
+/// [`GENERATE_PROVIDER`] resolves.
+pub fn missing_key_line() -> String {
+    format!(
+        "Add a {} key in Settings to generate",
+        crate::cloud::provider_label(GENERATE_PROVIDER)
+    )
+}
+
 /// How long a generation may sit in the provider's queue before the job gives up.
 ///
 /// A bound rather than none: an unbounded poll loop against a queue that lost the
@@ -144,9 +153,7 @@ impl AppState {
             .resolve_key()
         {
             Some(key) => Ok((prompt, key)),
-            None => Err(format!(
-                "Add a {GENERATE_PROVIDER} key in Settings to generate"
-            )),
+            None => Err(missing_key_line()),
         }
     }
 
@@ -194,7 +201,7 @@ impl AppState {
                     state.status_message = Some("Cancelled the generation".into());
                 }
                 Some(Err(reason)) => state.report_error(reason),
-                None => state.report_error("the generation did not report"),
+                None => state.report_error("The generation did not report"),
             });
         })
         .detach();

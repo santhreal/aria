@@ -98,7 +98,7 @@ fn extend_edit_without_a_selected_edit_point_changes_nothing() {
     assert_eq!(state.engine.lock().history_entries().len(), steps);
     assert_eq!(
         state.status_message.as_deref(),
-        Some("Select an edit point first.")
+        Some("Select an edit point first")
     );
 }
 
@@ -240,7 +240,7 @@ fn replace_with_source_refuses_a_window_past_the_end_of_the_source() {
     assert_eq!((ui.source_start_ticks, ui.source_end_ticks), before);
     assert_eq!(
         state.status_message.as_deref(),
-        Some("The source does not hold enough media around its playhead to fill the clip.")
+        Some("The source does not hold enough media around its playhead to fill the clip")
     );
 }
 

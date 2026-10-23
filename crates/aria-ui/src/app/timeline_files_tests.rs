@@ -290,7 +290,7 @@ fn a_file_no_importer_reads_is_refused_and_changes_nothing() {
     assert_eq!(placed(&state), cut);
     assert_eq!(
         state.last_error,
-        Some(format!("no importer reads {}", file.display()))
+        Some(format!("No importer reads {}", file.display()))
     );
 }
 
@@ -338,7 +338,7 @@ fn with_no_importer_or_exporter_no_dialog_opens() {
         state
             .last_error
             .as_deref()
-            .is_some_and(|error| error.starts_with("No timeline exporter is mounted.")),
+            .is_some_and(|error| error.starts_with("No timeline exporter is mounted")),
         "{:?}",
         state.last_error
     );

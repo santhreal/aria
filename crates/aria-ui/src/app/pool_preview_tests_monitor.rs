@@ -144,7 +144,7 @@ fn the_monitor_refuses_what_it_cannot_show() {
     assert!(!state.toggle_source_monitor());
     assert_eq!(
         state.status_message.as_deref(),
-        Some("select a pool item to preview it")
+        Some("Select a pool item to preview it")
     );
 
     // A selection that is not in the pool at all.
@@ -152,7 +152,7 @@ fn the_monitor_refuses_what_it_cannot_show() {
     assert!(!state.toggle_source_monitor());
     assert_eq!(
         state.status_message.as_deref(),
-        Some("that source cannot be previewed")
+        Some("That source cannot be previewed")
     );
     assert!(state.sources.focused().is_none());
 }
@@ -462,7 +462,7 @@ fn an_empty_range_is_refused_rather_than_cut_in() {
         .expect("refused, not failed");
     assert_eq!(
         state.status_message.as_deref(),
-        Some("the source's marked range is empty")
+        Some("The source's marked range is empty")
     );
     assert!(
         state

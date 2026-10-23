@@ -107,7 +107,7 @@ replaced by the finished text rather than appended to it.
 | Ctrl+Alt+K | Keyboard shortcuts in Settings |
 | Ctrl+, | Settings |
 | Ctrl+Q | Quit |
-| With palette open | Printable keys filter. Backspace deletes. Enter runs the first hit. Esc closes. Every command, every menu row and every effect in the catalog is offered by name, so typing an effect's name and pressing Enter adds it to the selection. |
+| With palette open | Printable keys filter. Ctrl+V pastes into the filter. Backspace deletes. Up / Down light the next or previous hit and wrap. Enter runs the lit hit. Esc closes. Every command and every menu row is offered by name. An effect is offered as its Effect menu row, after its category (`Blur & Sharpen: Gaussian Blur`), so typing an effect's name and pressing Enter applies it to the selection. A generator is offered by its own name and places a clip at the playhead. |
 | With a menu open | Up / Down light the next or previous row and wrap. Left / Right open the neighbouring menu. Home / End light the first or last row. A letter or digit lights the next row starting with it. Enter or Space runs the lit row. Esc closes. The pointer moves the light over a lit menu. |
 | With a rename open | Printable keys type, up to 64 characters. Backspace deletes. Enter applies. Esc cancels. An empty or unchanged name makes no change. |
 | With a dialog open | Enter runs the dialog's primary action: Export queues the export, the unsaved-changes prompt saves and continues. Every other dialog has no primary action and swallows the key. Esc closes. |

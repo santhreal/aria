@@ -293,7 +293,7 @@ pub mod work_area;
 mod zoom;
 
 pub use edits::{MarkerEditField, MarkerEditForm};
-pub(crate) use error_copy::describe_engine_error;
+pub(crate) use error_copy::{describe_engine_error, describe_export_refusal};
 pub use render_bar::compute_render_segments;
 pub use render_files::{RenderQuality, RenderSegment};
 #[cfg(test)]

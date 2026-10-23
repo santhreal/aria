@@ -140,7 +140,7 @@ api_key_env = "PEXELS_API_KEY"
 
 The **Canvas** section of `aria.dialog.settings` (implemented in `crates/aria-ui/src/panels/settings_dialog.rs` and `crates/aria-ui/src/surfaces/settings_pick.rs`) edits the active project's sequence format through `EditCommand`:
 
-- **Aspect ratio (`CanvasAspect::ALL`)**: `auto` (derives from the largest video on the timeline), `16:9` (`1920x1080` at 1080p), `9:16` (`1080x1920`), `1:1` (`1080x1080`), `4:5` (`1080x1350`), or `21:9` (`2520x1080`).
+- **Aspect ratio (`CanvasAspect::ALL`)**: `auto` (`Match footage`, derives from the largest video on the timeline), `16:9` (`1920x1080` at 1080p), `9:16` (`1080x1920`), `1:1` (`1080x1080`), `4:5` (`1080x1350`), or `21:9` (`2520x1080`).
 - **Resolution (`CANVAS_BASELINES`)**: `Derived` (computed from the aspect ratio or largest video source) or an explicit short-edge baseline tier (`720` / 720p, `1080` / 1080p, `1440` / 1440p, `2160` / 4K, `4320` / 8K) or custom even pixel dimensions between `16` and `8192` (`CanvasSettings::MIN_DIM..=CanvasSettings::MAX_DIM`, applied via `EditCommand::SetCanvas`).
 - **Frame rate (`RATES`)**: `23.976` (`24000/1001`), `24` (`24/1`), `25` (`25/1`), `29.97` (`30000/1001`), `30` (`30/1`), `50` (`50/1`), `59.94` (`60000/1001`), or `60` (`60/1`) fps (`EditCommand::SetSequenceRate`).
 - **Audio channel layout (`AudioLayout::ALL`)**: `mono` (`Mono (1.0)`, `1` ch), `stereo` (`Stereo (2.0)`, `2` ch, default), or `5.1` (`5.1 Surround`, `6` ch) (`EditCommand::SetAudioLayout`).

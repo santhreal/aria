@@ -183,8 +183,9 @@ fn cancelling_a_finished_job_is_reported_not_swallowed() {
 }
 
 /// An export sheet refuses in place rather than spawning a job that dies on its
-/// first frame, and it refuses in the render path's own words: the rule has one
-/// owner, so the words are read from it rather than retyped here.
+/// first frame, and it refuses in the words the shell uses for every empty
+/// export: the copy has one owner, so the words are read from it rather than
+/// retyped here.
 #[test]
 fn export_refuses_an_empty_timeline_before_spawning() {
     let dir = crate::scratch_pool::scratch("jobs");
@@ -198,8 +199,10 @@ fn export_refuses_an_empty_timeline_before_spawning() {
         .expect_err("an empty timeline cannot export");
     assert_eq!(
         err,
-        aria_render::RenderError::Empty(aria_render::EmptyExport::Sequence).to_string(),
-        "the refusal must be the one the render would raise"
+        crate::app::describe_engine_error(&aria_engine::EngineError::Render(
+            aria_render::RenderError::Empty(aria_render::EmptyExport::Sequence)
+        )),
+        "the sheet must word the refusal as every other empty export is worded"
     );
     // The refusal must not leave a job row behind: a Failed export nobody asked for
     // reads as a broken renderer.

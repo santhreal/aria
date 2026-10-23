@@ -140,7 +140,10 @@ fn a_lut_pick_asks_nothing_when_no_clip_is_selected() {
     state.clear_selection();
     state.pick_and_load_lut();
     assert_eq!(state.picks_asked(), 0);
-    assert_eq!(state.status_message.as_deref(), Some("Select a clip first"));
+    assert_eq!(
+        state.status_message.as_deref(),
+        Some(crate::app::decline::Decline::NoSelection.reason())
+    );
 }
 
 #[test]

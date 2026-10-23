@@ -246,12 +246,15 @@ fn the_prompt_names_the_project_it_is_about_to_close() {
     let mut state = dirty();
     let name = state.store.project_name.clone();
     assert!(!name.is_empty(), "the fixture has no project name");
-    assert_eq!(state.unsaved_subject(), name);
+    assert_eq!(
+        state.unsaved_line(),
+        format!("Changes to “{name}” are not saved.")
+    );
 
     state.store_mut().project_name = "   ".into();
     assert_eq!(
-        state.unsaved_subject(),
-        "This project",
+        state.unsaved_line(),
+        "Changes to this project are not saved.",
         "an unnamed project still gets a sentence"
     );
 }

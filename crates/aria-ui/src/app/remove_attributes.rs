@@ -23,7 +23,7 @@ impl AppState {
     /// selected clips hold nothing a new clip does not.
     pub fn open_remove_attributes(&mut self) {
         if self.selection.is_empty() {
-            self.status_message = Some("Select a clip to remove attributes from.".into());
+            self.status_message = Some("Select a clip to remove attributes from".into());
             return;
         }
         let held: Vec<(ClipId, Vec<ClipAttribute>)> = {
@@ -47,7 +47,7 @@ impl AppState {
             .map(|attribute| (attribute, true))
             .collect();
         if rows.is_empty() {
-            self.status_message = Some("The selected clips hold no attributes to remove.".into());
+            self.status_message = Some("The selected clips hold no attributes to remove".into());
             return;
         }
         self.remove_attributes = RemoveAttributesForm { rows, held };
@@ -77,7 +77,7 @@ impl AppState {
             .filter_map(|&(attribute, ticked)| ticked.then_some(attribute))
             .collect();
         if chosen.is_empty() {
-            self.status_message = Some("Tick an attribute to remove.".into());
+            self.status_message = Some("Tick an attribute to remove".into());
             return;
         }
         let plan: Vec<(ClipId, Vec<ClipAttribute>)> = self

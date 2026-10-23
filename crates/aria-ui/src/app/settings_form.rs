@@ -501,7 +501,7 @@ impl AppState {
                     config.max_images
                 )
             }
-            None => "the AI plugin is not mounted".to_string(),
+            None => "The AI plugin is not mounted".to_string(),
         }
     }
 
@@ -531,7 +531,7 @@ impl AppState {
     /// Which parts of a turn are switched on, from the settings that decide it.
     pub fn agent_phases(&self) -> String {
         let ai = self.cloud_settings().ai;
-        let mut on: Vec<&str> = vec!["edits", "senses"];
+        let mut on: Vec<&str> = vec!["Edits", "senses"];
         if ai.reasoning_summary == aria_settings::ReasoningSummary::Auto {
             on.push("reasoning");
         }

@@ -87,14 +87,14 @@ fn a_clip_without_sound_is_left_alone() {
         .expect("no refusal");
     assert_eq!(
         state.status_message.as_deref(),
-        Some("Select a clip with sound.")
+        Some("Select a clip with sound")
     );
     assert!(chain(&state, clip).is_empty());
     assert_eq!(state.selection_audio_channels(), None);
     for row in channel_rows(&state) {
         assert_eq!(
             row.blocked_by(&state),
-            Some("Select a clip with sound."),
+            Some("Select a clip with sound"),
             "{}",
             row.id
         );

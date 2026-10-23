@@ -57,7 +57,7 @@ pub(crate) fn resolve(
             match (points.source_in, points.source_out) {
                 (Some(start), Some(end)) => {
                     if end <= start {
-                        return Err("the source's marked range is empty");
+                        return Err("The source's marked range is empty");
                     }
                     if !points.bounded {
                         // A still has no motion to retime; it takes the span.
@@ -78,7 +78,7 @@ pub(crate) fn resolve(
                     let start = end - to_source(span).max(1);
                     if start < 0 {
                         return Err(
-                            "the source has less than the marked sequence span before its Out",
+                            "The source has less than the marked sequence span before its Out",
                         );
                     }
                     Placement {
@@ -91,7 +91,7 @@ pub(crate) fn resolve(
                     let end = source_in + to_source(span).max(1);
                     if points.bounded && end > points.source_len {
                         return Err(
-                            "the source has less than the marked sequence span after its In",
+                            "The source has less than the marked sequence span after its In",
                         );
                     }
                     Placement {
@@ -105,11 +105,11 @@ pub(crate) fn resolve(
         // Sequence Out alone: the source is backtimed to end there.
         (None, Some(to)) if points.sequence_in.is_none() => {
             if source_out <= source_in {
-                return Err("the source's marked range is empty");
+                return Err("The source's marked range is empty");
             }
             let at = to - to_timeline(source_out - source_in).max(1);
             if at < 0 {
-                return Err("the source is longer than the sequence before its Out");
+                return Err("The source is longer than the sequence before its Out");
             }
             Placement {
                 source: (source_in, source_out),
@@ -120,7 +120,7 @@ pub(crate) fn resolve(
         // Sequence In, or no sequence point: the source lands at its own length.
         _ => {
             if source_out <= source_in {
-                return Err("the source's marked range is empty");
+                return Err("The source's marked range is empty");
             }
             Placement {
                 source: (source_in, source_out),

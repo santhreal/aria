@@ -293,7 +293,7 @@ fn a_card_whose_file_is_gone_is_picked_and_not_opened() {
     );
     assert_eq!(
         state.status_message.as_deref(),
-        Some("that source cannot be previewed")
+        Some("That source cannot be previewed")
     );
 }
 

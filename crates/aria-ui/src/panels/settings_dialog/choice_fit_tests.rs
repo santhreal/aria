@@ -38,7 +38,7 @@ const LEAD: usize = 3;
 fn choices(state: &AppState) -> Vec<String> {
     let mut out: Vec<String> = CanvasAspect::ALL
         .into_iter()
-        .map(|aspect| aspect.name().to_string())
+        .map(|aspect| aspect.label().to_string())
         .collect();
     out.push(super::DERIVED_SIZE.to_string());
     out.extend(

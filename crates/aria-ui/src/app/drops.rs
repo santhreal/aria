@@ -119,7 +119,7 @@ impl AppState {
             ));
         } else if let Some(path) = luts.into_iter().next() {
             if self.selected_clip().is_none() {
-                self.report_error(format!("Select a clip to apply {}.", path.display()));
+                self.report_error(format!("Select a clip to apply {}", path.display()));
             } else {
                 self.set_selected_lut(path.to_string_lossy().to_string())?;
             }

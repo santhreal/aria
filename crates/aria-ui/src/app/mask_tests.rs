@@ -96,7 +96,7 @@ fn the_remove_mask_menu_row_is_disabled_until_the_clip_has_a_mask() {
     let (state, _) = with_clip();
     assert_eq!(
         guard("seq-mask-clear", &state),
-        Some("The selected clip has no mask.")
+        Some("The selected clip has no mask")
     );
     let state = stacked(&[MaskKind::Star]);
     assert_eq!(guard("seq-mask-clear", &state), None);

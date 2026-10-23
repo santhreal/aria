@@ -8,6 +8,7 @@ use aria_models::{Clip, ClipId, ClipParam, ParamValue};
 use super::{ClipRevealMode, PropertyGroup, RevealAction, lane_model};
 use crate::app::AppState;
 use crate::app::clip_keys::{KeyParam, key_params_of};
+use crate::app::decline::Decline;
 use crate::app::mask_path_keys::path_masks;
 
 impl AppState {
@@ -37,7 +38,7 @@ impl AppState {
                 .collect()
         };
         if targets.is_empty() {
-            self.status_message = Some("Select a clip first".into());
+            self.decline(Decline::NoSelection);
             return;
         }
 

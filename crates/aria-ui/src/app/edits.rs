@@ -556,8 +556,7 @@ impl AppState {
     /// Refusal is a status message, not an error: the capability is the
     /// engine's to decide and the status line only reports it.
     pub fn extract_selected_audio(&mut self) -> Result<(), EngineError> {
-        let Some(clip) = self.selected_clip() else {
-            self.status_message = Some("Select a clip first".into());
+        let Some(clip) = self.selected_clip_or_decline() else {
             return Ok(());
         };
         if !self.selected_can_extract_audio() {
@@ -574,8 +573,7 @@ impl AppState {
 
     /// Hold the frame under the playhead for one second.
     pub fn freeze_selected_frame(&mut self) -> Result<(), EngineError> {
-        let Some(clip) = self.selected_clip() else {
-            self.status_message = Some("Select a clip first".into());
+        let Some(clip) = self.selected_clip_or_decline() else {
             return Ok(());
         };
         if !self.selected_can_freeze_frame() {

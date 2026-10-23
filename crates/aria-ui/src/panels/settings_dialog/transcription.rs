@@ -31,10 +31,10 @@ pub(super) fn model_rows(
         .flat_map(|row| {
             let mib = row.bytes / (1024 * 1024);
             let value = if row.detail.is_empty() {
-                format!("{} — {mib} MiB — {}", row.description, row.status)
+                format!("{} — {mib} MiB on disk — {}", row.description, row.status)
             } else {
                 format!(
-                    "{} — {mib} MiB — {}: {}",
+                    "{} — {mib} MiB on disk — {}: {}",
                     row.description, row.status, row.detail
                 )
             };

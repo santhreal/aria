@@ -299,7 +299,9 @@ pub(super) fn catalog_rows(
     let mut elements = vec![kv(theme, "Override directory", dir).into_any_element()];
     for row in rows {
         let text = describe_catalog(&row);
-        elements.push(kv(theme, &row.name, text).into_any_element());
+        // The file a user drops into the directory above to replace it.
+        let file = format!("{}.toml", row.name);
+        elements.push(kv(theme, &file, text).into_any_element());
     }
     elements
 }

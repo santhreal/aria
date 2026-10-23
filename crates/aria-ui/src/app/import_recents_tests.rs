@@ -81,7 +81,7 @@ fn an_import_is_listed_survives_a_restart_and_clears() {
         [(
             "file-import-recent-clear",
             "Clear Recent Imports",
-            Some("No file has been imported yet.")
+            Some("No file has been imported yet")
         )]
     );
 
@@ -146,7 +146,7 @@ fn a_deleted_file_is_listed_disabled_and_imports_nothing() {
     state.import_paths(vec![gone.clone()]);
     std::fs::remove_file(&gone).expect("delete");
     let rows = recent_rows(&state);
-    assert_eq!(rows[0].2, Some("The file is missing."));
+    assert_eq!(rows[0].2, Some("The file is missing"));
 
     let pooled = state.store.media.len();
     state.import_recent(Path::new(&gone));

@@ -1,4 +1,4 @@
-use super::describe_engine_error;
+use super::{describe_engine_error, describe_export_refusal};
 use aria_engine::EngineError;
 
 #[test]
@@ -56,6 +56,35 @@ fn empty_export_names_what_is_missing() {
     )));
     assert!(ranged.contains("range"), "{ranged}");
     assert!(ranged.contains("in and out"), "{ranged}");
+}
+
+/// An export refused before its job exists reads as the same export refused
+/// by the engine: the sheet and the engine are two doors onto one refusal, and
+/// two wordings for it read as two problems. Derived from
+/// [`aria_render::EmptyExport::ALL`], so a reason the sheet words on its own
+/// fails here. A refusal that is not about emptiness keeps the render path's
+/// words, which name the format or encoder that was turned down.
+///
+/// Not covered: whether a caller posts this copy rather than the error's own
+/// text; `jobs_tests::export_refuses_an_empty_timeline_before_spawning` reads
+/// that at the sheet.
+#[test]
+fn an_export_refused_early_reads_as_the_engine_words_it() {
+    for reason in aria_render::EmptyExport::ALL {
+        let refusal = aria_render::RenderError::Empty(reason);
+        let engine = describe_engine_error(&EngineError::Render(aria_render::RenderError::Empty(
+            reason,
+        )));
+        assert_eq!(describe_export_refusal(&refusal), engine, "{reason:?}");
+        assert_ne!(
+            describe_export_refusal(&refusal),
+            refusal.to_string(),
+            "{reason:?} posts the render path's words, not the shell's copy"
+        );
+    }
+
+    let unwritable = aria_render::RenderError::from(aria_render::ExportFormatError::NoEncoder);
+    assert_eq!(describe_export_refusal(&unwritable), unwritable.to_string());
 }
 
 #[test]

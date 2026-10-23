@@ -18,7 +18,7 @@ fn catalog_has_verified_base_en_constants() {
         "a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002"
     );
     assert!(spec.is_english_only());
-    assert!(spec.resource_description().contains("148 MB"));
+    assert!(spec.resource_description().contains("388 MB of RAM"));
     assert!(validate_spec(spec).is_ok());
 }
 

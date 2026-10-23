@@ -265,8 +265,8 @@ pub(super) fn theme_file_failure_row(theme: &Theme, file: &str, reason: &str) ->
         )
 }
 
-/// One selectable canvas aspect. The label is the model's own name, so a new
-/// preset appears here without a second list.
+/// One selectable canvas aspect. The label is the model's own, so a new preset
+/// appears here without a second list.
 pub(super) fn canvas_row(
     theme: &Theme,
     candidate: CanvasAspect,
@@ -276,10 +276,7 @@ pub(super) fn canvas_row(
     let selected = candidate == current;
     let fade = motion::MotionKey::new("canvas", candidate.name());
     row_shell(fade, theme, fade, selected)
-        .child(row_label(
-            theme,
-            SharedString::from(candidate.name().to_string()),
-        ))
+        .child(row_label(theme, SharedString::from(candidate.label())))
         .on_mouse_down(
             MouseButton::Left,
             cx.listener(move |this, _: &MouseDownEvent, _, cx| {

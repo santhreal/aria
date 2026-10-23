@@ -95,7 +95,7 @@ pub(super) fn field_row(
         look.placeholder.to_string()
     } else if look.kind == aria_plugin::SettingKind::Secret && !focused {
         let count = value.chars().count();
-        format!("stored, {}", counted(count, "character", "characters"))
+        format!("Stored, {}", counted(count, "character", "characters"))
     } else {
         value
     };

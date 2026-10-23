@@ -1,5 +1,5 @@
-//! Every dialog card fits the window it is drawn in, and every dialog title is
-//! in Title Case.
+//! Every dialog card fits the window it is drawn in, every dialog title is in
+//! Title Case, and every line a dialog draws starts in sentence case.
 //!
 //! The class closed here: a card as tall as its body. A body taller than the
 //! window put the title, the header controls and the action row outside the
@@ -16,9 +16,12 @@
 //! Not covered: dialogs registered by a plugin outside this crate, pixels, and
 //! which row the content region is scrolled to.
 
+use std::collections::HashSet;
+
 use gpui::{Bounds, Pixels, Size, TestAppContext, VisualTestContext, point, px, size};
 
 use crate::app::DialogKind;
+use crate::app::status::lowercase_start;
 use crate::commands::casing_tests::check_title_case;
 use crate::plugins::overlay_host::host_of;
 use crate::test_support::{bounds_inside, drawn_shell};
@@ -110,6 +113,86 @@ fn every_dialog_title_is_in_title_case(cx: &mut TestAppContext) {
     }
     assert!(titles.len() >= 7, "the walk read only {titles:?}");
     assert!(offenders.is_empty(), "{}", offenders.join("\n"));
+}
+
+/// Every line a dialog draws starts in sentence case, as the buttons and the
+/// prose beside it do.
+///
+/// The class closed here: a value or a description that starts in lower case
+/// among capitalised ones, as the Export sheet's `included`, the motion rows'
+/// `every transition at its designed speed` and the Keys section's `unbound`
+/// were. Every run drawn inside the card of each registered kind is read from
+/// the frame, so a row added later is checked on the run that adds it. A run
+/// the editor behind the card draws at the same place is the editor's, and is
+/// skipped. One binding is cleared before the walk, so the Keys section draws
+/// a row with no chord.
+///
+/// Not covered: a line a dialog draws only after a choice changes or a job
+/// reports, beyond the cleared binding, and a lower case word inside a line.
+#[gpui::test]
+fn every_line_a_dialog_draws_starts_in_sentence_case(cx: &mut TestAppContext) {
+    let (state, visual) = drawn_shell(cx, "dialog-casing");
+    visual.update(|_, app| app.set_reduce_motion(true));
+    visual.update(|_, app| {
+        state.update(app, |state, _| {
+            let Some(first) = state.binding_rows().first().map(|row| row.binding.id) else {
+                panic!("the registry holds no binding to clear");
+            };
+            state.clear_binding(first);
+        })
+    });
+    visual.update(|window, _| window.refresh());
+    visual.run_until_parked();
+    let behind: HashSet<(String, u32, u32)> =
+        visual.update(|window, _| window.rendered_text_runs().iter().map(placed).collect());
+    let mut read = Vec::new();
+    let mut offenders = Vec::new();
+    for kind in registered(&state, visual) {
+        if NO_CARD.iter().any(|(held, _)| *held == kind) {
+            continue;
+        }
+        open(&state, visual, kind);
+        visual.update(|window, _| window.refresh());
+        visual.run_until_parked();
+        let Some(card) = visual.debug_bounds("dialog-card") else {
+            offenders.push(format!("{kind:?} drew no dialog-card"));
+            continue;
+        };
+        // The content scrolls, and a run is recorded unclipped, so a line below
+        // the card's edge is still the card's.
+        let lines: Vec<String> = visual.update(|window, _| {
+            window
+                .rendered_text_runs()
+                .iter()
+                .filter(|run| {
+                    let center = run.bounds.center();
+                    center.x >= card.left() && center.x <= card.right() && center.y >= card.top()
+                })
+                .filter(|run| !behind.contains(&placed(run)))
+                .map(|run| run.text.to_string())
+                .collect()
+        });
+        if lines.is_empty() {
+            offenders.push(format!("{kind:?} drew no line in its card"));
+        }
+        for line in &lines {
+            if let Some(word) = lowercase_start(line) {
+                offenders.push(format!("{kind:?}: {line:?} starts with {word:?}"));
+            }
+        }
+        read.push((kind, lines.len()));
+    }
+    assert!(read.len() >= 7, "the walk read only {read:?}");
+    assert!(offenders.is_empty(), "{}", offenders.join("\n"));
+}
+
+/// A run's text and where it was drawn.
+fn placed(run: &gpui::TextRunLayout) -> (String, u32, u32) {
+    (
+        run.text.to_string(),
+        f32::from(run.bounds.left()).to_bits(),
+        f32::from(run.bounds.top()).to_bits(),
+    )
 }
 
 /// The dialog kinds the overlay registry holds.

@@ -483,7 +483,7 @@ impl AppState {
     fn move_to(&mut self, clip: ClipId, start: i64, rate: Rational) -> Result<(), EngineError> {
         let Some(track) = self.track_of(clip) else {
             return Err(EngineError::Refused(
-                "that clip is no longer on the timeline".into(),
+                "That clip is no longer on the timeline".into(),
             ));
         };
         self.apply_command(Command::Edit(self.move_command(

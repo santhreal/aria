@@ -162,16 +162,18 @@ impl AppState {
                     settings.provider(STOCK_PROVIDERS[1]).resolve_key(),
                 );
                 if provider.has_any_key() {
-                    "your own keys, direct to the provider".to_string()
+                    "Your own keys, direct to the provider".to_string()
                 } else {
                     format!(
                         "{} is configured but its key does not resolve, so a direct \
                          search would return nothing",
-                        STOCK_PROVIDERS.join(" or ")
+                        STOCK_PROVIDERS
+                            .map(crate::cloud::provider_label)
+                            .join(" or ")
                     )
                 }
             }
-            StockRoute::Backend => "anonymous, through the Aria backend".to_string(),
+            StockRoute::Backend => "Anonymous, through the Aria backend".to_string(),
         }
     }
 

@@ -35,22 +35,22 @@ pub(super) fn workspace_rows(
 /// What one workspace measures, in the order the panes appear on screen.
 fn measurements(row: &WorkspaceRow) -> String {
     let rail = if row.panes.sidebar_collapsed {
-        "rail hidden".to_string()
+        "Rail hidden".to_string()
     } else {
-        format!("rail {:.0}", row.panes.sidebar_width)
+        format!("Rail {:.0}", row.panes.sidebar_width)
     };
     let inspector = if row.panes.inspector_collapsed {
-        "inspector hidden".to_string()
+        "Inspector hidden".to_string()
     } else {
-        format!("inspector {:.0}", row.panes.inspector_width)
+        format!("Inspector {:.0}", row.panes.inspector_width)
     };
     let scopes = if row.panes.scopes_open {
-        " · scopes"
+        " · Scopes"
     } else {
         ""
     };
     format!(
-        "{rail} · {inspector} · timeline {:.0}{scopes}",
+        "{rail} · {inspector} · Timeline {:.0}{scopes}",
         row.panes.timeline_height
     )
 }
@@ -84,7 +84,7 @@ fn workspace_row(
                 .text_size(Theme::TEXT_UI)
                 .text_color(tone)
                 .child(if row.active {
-                    "in use".to_string()
+                    "In use".to_string()
                 } else {
                     numbers.clone()
                 }),

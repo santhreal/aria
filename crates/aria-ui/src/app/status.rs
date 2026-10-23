@@ -1,4 +1,4 @@
-//! Ageing the status line.
+//! The status line: how long it stays up, and how a line is written.
 //!
 //! A status is a receipt for something that just happened ("Copied", "Export
 //! started"), so it stops being true a few seconds later and must not sit on the
@@ -10,6 +10,11 @@
 //! stamp would be a message that never clears. Instead this module notices the
 //! text changed, starts the clock then, and clears it when the clock runs out —
 //! so a new writer needs no ceremony at all.
+//!
+//! A line on the strip starts with a capital and ends with a period only when
+//! it holds more than one sentence. An error from below the editor is written
+//! as Rust errors are, in lower case so it reads inside another sentence, and
+//! `as_sentence` starts it with a capital when it is posted on its own.
 
 use std::time::{Duration, Instant};
 
@@ -53,3 +58,32 @@ impl AppState {
         self.last_error = None;
     }
 }
+
+/// The first word of `line`, when it is written in lower case letters alone.
+///
+/// A word with a capital, a digit or a mark in it is a unit, a version, an id
+/// or a path (`dB`, `v0.1.0`, `com.example.fx`, `/data`), and is written as it
+/// is.
+pub(crate) fn lowercase_start(line: &str) -> Option<&str> {
+    let word = line
+        .split_whitespace()
+        .next()?
+        .trim_end_matches([',', ';', ':', '.']);
+    (!word.is_empty() && word.chars().all(char::is_lowercase)).then_some(word)
+}
+
+/// `line` started with a capital, when its first word is written in lower
+/// case letters alone.
+pub(crate) fn as_sentence(mut line: String) -> String {
+    let Some(first) = lowercase_start(&line).and_then(|word| word.chars().next()) else {
+        return line;
+    };
+    // The first word starts at the first character that is not whitespace.
+    let at = line.len() - line.trim_start().len();
+    line.replace_range(at..at + first.len_utf8(), &first.to_uppercase().to_string());
+    line
+}
+
+#[cfg(test)]
+#[path = "status_lines_tests.rs"]
+mod lines_tests;

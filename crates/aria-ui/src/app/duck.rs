@@ -243,7 +243,7 @@ impl AppState {
                         state.status_message = Some("Cancelled the duck".into());
                     }
                     Some(Err(reason)) => state.report_error(reason),
-                    None => state.report_error("the duck did not report"),
+                    None => state.report_error("The duck did not report"),
                 }
                 cx.notify();
             });

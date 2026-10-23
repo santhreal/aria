@@ -45,7 +45,7 @@ impl AppState {
                         state.status_message = Some("Cancelled the measurement".into());
                     }
                     Some(Err(reason)) => state.report_error(reason),
-                    None => state.report_error("the measurement did not report"),
+                    None => state.report_error("The measurement did not report"),
                 }
                 cx.notify();
             });

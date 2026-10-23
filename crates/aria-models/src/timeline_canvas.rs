@@ -116,8 +116,8 @@ impl CanvasAspect {
         }
     }
 
-    /// The serialized name (`"auto"`, `"16:9"`, …) — also the UI label and
-    /// the agent-facing identifier.
+    /// The serialized name (`"auto"`, `"16:9"`, …) and the agent-facing
+    /// identifier.
     pub fn name(self) -> &'static str {
         match self {
             CanvasAspect::Auto => "auto",
@@ -126,6 +126,14 @@ impl CanvasAspect {
             CanvasAspect::Square1x1 => "1:1",
             CanvasAspect::Portrait4x5 => "4:5",
             CanvasAspect::Cinema21x9 => "21:9",
+        }
+    }
+
+    /// The human-readable label for UI pickers.
+    pub fn label(self) -> &'static str {
+        match self {
+            CanvasAspect::Auto => "Match footage",
+            other => other.name(),
         }
     }
 

@@ -83,7 +83,7 @@ impl AppState {
     /// transport keys now reach the source. Returns whether a tab has the keys.
     pub fn open_clip_source(&mut self, clip: u64) -> bool {
         let Some(frame) = self.clip_frame(ClipId::from_raw(clip), self.playhead.value) else {
-            self.status_message = Some("that clip has no source to open".into());
+            self.status_message = Some("That clip has no source to open".into());
             return false;
         };
         let Some((name, duration_ticks)) = self.viewable_source(frame.media) else {
@@ -142,16 +142,16 @@ impl AppState {
         }
         let engine = self.engine.lock();
         let Some(clip) = engine.project().timeline().clip(clip) else {
-            return Err("that clip is no longer on the timeline");
+            return Err("That clip is no longer on the timeline");
         };
         let ClipSource::Media { source, .. } = &clip.content else {
-            return Err("that clip has no source window to trim");
+            return Err("That clip has no source window to trim");
         };
         if clip.freeze_frame {
-            return Err("a freeze frame shows one frame; trim it on the timeline");
+            return Err("A freeze frame shows one frame; trim it on the timeline");
         }
         if clip.has_speed_curve() {
-            return Err("a speed ramp maps its source unevenly; trim it on the timeline");
+            return Err("A speed ramp maps its source unevenly; trim it on the timeline");
         }
         let rate = clip.timeline.start.rate;
         let to_timeline = |ticks: i64| {
@@ -167,7 +167,7 @@ impl AppState {
         let from = clip.timeline.start.value + head;
         let to = clip.timeline.end_tick() + tail;
         if from < 0 {
-            return Err("the clip would start before the sequence does");
+            return Err("The clip would start before the sequence does");
         }
         if to <= from {
             return Err("In must come before Out");

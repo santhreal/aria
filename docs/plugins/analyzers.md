@@ -72,7 +72,7 @@ blank label.
 
 | Scope | Menu | Audio analysed |
 | --- | --- | --- |
-| `Clip` | Clip > Analyze | The selected clip's sound. The row is disabled with "Select a clip with sound." when no selected clip has sound. |
+| `Clip` | Clip > Analyze | The selected clip's sound. The row is disabled with `Select a clip with sound` when no selected clip has sound. |
 | `Sequence` | Sequence > Analyze | The whole sequence mix. |
 | `InOut` | Sequence > Analyze | The sequence mix from In to Out, or the whole sequence when no range is marked. |
 

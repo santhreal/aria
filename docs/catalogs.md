@@ -216,9 +216,10 @@ A catalog file is refused whole. An unparseable file, an empty one, a duplicate
 id, or an entry with no label leaves the shipped catalog in effect rather than
 starting the app with no transitions.
 
-**Settings > Catalogs** lists every catalog, how many entries are in effect,
-whether the source is your file or the shipped copy, and the reason a file on disk
-was refused. A refused file is the case that otherwise looks the same as having
-installed nothing.
+**Settings > Catalogs** lists every catalog by the file that overrides it, such as
+`transitions.toml`, with how many entries are in effect, whether the source is
+your file or the shipped copy, and the reason a file on disk was refused. A
+refused file is the case that otherwise looks the same as having installed
+nothing.
 
 Catalogs are read once, at startup. Restart after editing one.

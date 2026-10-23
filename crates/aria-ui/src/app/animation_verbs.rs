@@ -312,8 +312,7 @@ impl AppState {
     /// the selected clip, opened for editing. A property that already has one
     /// opens it instead of removing it.
     pub fn add_expression_to_selected_property(&mut self) -> Result<(), EngineError> {
-        let Some(clip) = self.selected_clip() else {
-            self.status_message = Some("Select a clip first".into());
+        let Some(clip) = self.selected_clip_or_decline() else {
             return Ok(());
         };
         let Some(param) = self

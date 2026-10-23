@@ -165,7 +165,7 @@ fn a_failing_command_is_reported_under_its_title() {
     state.run_plugin_command("grade.gone");
     assert_eq!(
         state.last_error.as_deref(),
-        Some("no command is registered as grade.gone")
+        Some("No command is registered as grade.gone")
     );
 }
 

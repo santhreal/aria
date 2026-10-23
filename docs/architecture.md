@@ -372,7 +372,7 @@ layer path and the canvas pass and requires the output pixels to change.
 
 | Change | Cost |
 | --- | --- |
-| Effect, transition, filter, animation, sticker, text effect | one catalog row, one shader; an effect row is also offered in the palette by name, because the offer is derived from the catalog |
+| Effect, transition, filter, animation, sticker, text effect | one catalog row, one shader; an effect is also listed in the Effect menu and offered in the palette under its category, because both are derived from the catalog |
 | Panel, palette command, menu item, key binding, setting, inspector tab | one registry call |
 | Dialog | one registry call, plus one row in `app/dialog_primary.rs` saying what Enter does or why nothing does; the match is exhaustive, so a dialog with no row does not compile |
 | Animatable clip property | one `clip_param_catalog()` row, which is also its inspector row |

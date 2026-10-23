@@ -177,7 +177,7 @@ impl AppState {
         let ai = self.cloud_settings().ai;
         let id = ai.model.trim();
         if id.is_empty() {
-            return "no model chosen".to_string();
+            return "No model chosen".to_string();
         }
         match ai.source {
             AiSource::Local => match local_model(id) {

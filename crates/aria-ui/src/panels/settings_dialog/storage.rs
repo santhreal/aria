@@ -82,9 +82,9 @@ pub(super) fn storage_rows(
             theme,
             "Maintenance",
             if busy {
-                "held — a download is in flight"
+                "Held — a download is in flight"
             } else {
-                "available"
+                "Available"
             },
         )
         .into_any_element(),

@@ -14,7 +14,7 @@ const BASE_EN_SPEC: ModelSpec = ModelSpec::new(
     147_964_211,
     "a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002",
     true,
-    "about 148 MB on disk and about 388 MB RAM during inference",
+    "About 388 MB of RAM during inference",
 );
 
 /// A built-in Whisper model known to Aria.

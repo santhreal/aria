@@ -406,7 +406,7 @@ impl AppState {
                 .or_else(|| under.pop())
         };
         let Some(frame) = chosen.and_then(|clip| self.clip_frame(clip, playhead)) else {
-            self.status_message = Some("no media clip under the playhead".into());
+            self.status_message = Some("No media clip under the playhead".into());
             return false;
         };
         self.select_pool_item(frame.media);

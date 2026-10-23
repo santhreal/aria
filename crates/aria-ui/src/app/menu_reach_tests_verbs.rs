@@ -42,7 +42,7 @@ fn revert_drops_the_edits_made_since_the_save() {
     let before = clip_count(&state);
     assert_eq!(
         row(AppMenu::File, &state, "file-revert").blocked_by(&state),
-        Some("There are no changes since the last save.")
+        Some("There are no changes since the last save")
     );
     let ui = state
         .selected_ui_clip()
@@ -77,7 +77,7 @@ fn revert_on_a_project_never_saved_is_disabled_and_inert() {
     let before = clip_count(&state);
     assert_eq!(
         row(AppMenu::File, &state, "file-revert").blocked_by(&state),
-        Some("The project has never been saved.")
+        Some("The project has never been saved")
     );
     let cx = gpui::TestAppContext::single();
     let entity = entity_of(state, &cx);
@@ -105,7 +105,7 @@ fn open_recent_lists_each_remembered_project_and_opens_the_one_chosen() {
     assert_eq!(row(AppMenu::File, &state, &open).blocked_by(&state), None);
     assert_eq!(
         row(AppMenu::File, &state, &missing).blocked_by(&state),
-        Some("The project file is missing.")
+        Some("The project file is missing")
     );
     assert_eq!(
         row(AppMenu::File, &state, &open).under,
@@ -195,7 +195,7 @@ fn insert_pool_selection_is_disabled_until_online_media_is_picked() {
         .first()
         .map(|item| item.id)
         .expect("the fixture imported one pool item");
-    let refused = Some("No media is selected in the pool.");
+    let refused = Some("No media is selected in the pool");
     let blocked =
         |state: &AppState| row(AppMenu::Sequence, state, "seq-ripple-insert").blocked_by(state);
     state.pool_selection.clear();

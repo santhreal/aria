@@ -14,7 +14,7 @@ use gpui::{
 };
 
 use crate::app::AppState;
-use crate::app::generate::{GENERATE_PROVIDER, GenerateKind};
+use crate::app::generate::{GenerateKind, missing_key_line};
 use crate::components;
 use crate::fluent::FluentBuilder;
 use crate::theme::Theme;
@@ -94,7 +94,7 @@ pub(crate) fn generate_panel(
                 .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_muted)
                 .child(SharedString::from(if !configured {
-                    format!("Add a {GENERATE_PROVIDER} key in Settings to generate")
+                    missing_key_line()
                 } else if form.focused {
                     "Enter submits, Esc leaves the box".to_string()
                 } else {

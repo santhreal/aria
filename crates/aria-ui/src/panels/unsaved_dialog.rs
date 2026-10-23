@@ -21,10 +21,10 @@ pub fn render(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     let theme = Theme::of(cx);
-    let (subject, going) = {
+    let (line, going) = {
         let state = state.read(cx);
         (
-            state.unsaved_subject(),
+            state.unsaved_line(),
             state.pending_intent().map(PendingIntent::outcome),
         )
     };
@@ -60,7 +60,7 @@ pub fn render(
             div()
                 .text_size(Theme::TEXT_UI)
                 .text_color(theme.text)
-                .child(format!("{subject} has changes you have not saved.")),
+                .child(line),
         )
         .child(
             div()

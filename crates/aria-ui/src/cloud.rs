@@ -168,7 +168,7 @@ pub fn provider_label(name: &str) -> &'static str {
         "pexels" => "Pexels",
         "pixabay" => "Pixabay",
         "elevenlabs" => "ElevenLabs",
-        "fal" => "fal",
+        "fal" => "fal.ai",
         _ => "Unknown",
     }
 }

@@ -50,7 +50,7 @@ impl ShapeStatus {
     pub fn summary(&self) -> String {
         let Some(recorded) = self.recorded else {
             return format!(
-                "unreadable; this build reads version {} and migrates {} and newer",
+                "Unreadable; this build reads version {} and migrates {} and newer",
                 self.current, self.oldest_migratable
             );
         };
@@ -61,14 +61,14 @@ impl ShapeStatus {
         };
         match self.decision {
             Some(VersionDecision::Current) => {
-                format!("version {recorded}, current — {where_from}")
+                format!("Version {recorded}, current — {where_from}")
             }
             Some(VersionDecision::Migrate { from }) => format!(
-                "version {from}, migrated to {} on load — {where_from}",
+                "Version {from}, migrated to {} on load — {where_from}",
                 self.current
             ),
             Some(VersionDecision::Refuse(_)) | None => format!(
-                "version {recorded} refused; this build reads {} and migrates {} and newer",
+                "Version {recorded} refused; this build reads {} and migrates {} and newer",
                 self.current, self.oldest_migratable
             ),
         }

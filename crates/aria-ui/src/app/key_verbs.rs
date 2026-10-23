@@ -12,6 +12,7 @@ use aria_engine::EngineError;
 use aria_models::{ClipId, RationalTime, TrackId};
 
 use super::AppState;
+use super::decline::Decline;
 use crate::types::{ActivePanel, SidebarTab, TrimSide, UiClip, UiTrack};
 
 /// How much one track-height step grows or shrinks every lane.
@@ -443,7 +444,7 @@ impl AppState {
     /// `]` / `[`: the selected clip's gain up or down by `decibels`.
     pub fn step_selected_gain(&mut self, decibels: f32) -> Result<(), EngineError> {
         if self.selection.is_empty() {
-            self.status_message = Some("Select a clip first".into());
+            self.decline(Decline::NoSelection);
             return Ok(());
         }
         self.nudge_selected_volume_db(decibels)
@@ -454,7 +455,7 @@ impl AppState {
     pub fn go_to_keyframe(&mut self, forward: bool) {
         let at = self.playhead.value;
         let Some(clip) = self.selected_ui_clip_ref() else {
-            self.status_message = Some("Select a clip first".into());
+            self.decline(Decline::NoSelection);
             return;
         };
         let start = clip.timeline_start_ticks;

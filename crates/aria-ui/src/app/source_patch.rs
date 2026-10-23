@@ -109,7 +109,7 @@ impl AppState {
         };
         let media = MediaId::from_raw(view.media);
         let Some((start, end)) = self.source_range() else {
-            self.status_message = Some("the source's marked range is empty".into());
+            self.status_message = Some("The source's marked range is empty".into());
             return Ok(());
         };
         let Some(rate) = self

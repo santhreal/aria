@@ -451,7 +451,7 @@ fn analyzer_menus_and_palette_reflect_registrations_and_unmount_and_apply_in_one
     // the sound guard's reason.
     assert_eq!(
         beat_row.blocked_by(&state),
-        Some("Select a clip with sound.")
+        Some("Select a clip with sound")
     );
 
     let seq_items = items_of(AppMenu::Sequence, &state);

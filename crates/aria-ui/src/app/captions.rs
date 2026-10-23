@@ -264,7 +264,7 @@ impl AppState {
                         state.status_message = Some("Cancelled the transcription".into());
                     }
                     Some(Err(reason)) => state.report_error(reason),
-                    None => state.report_error("the transcription did not report"),
+                    None => state.report_error("The transcription did not report"),
                 }
                 cx.notify();
             });
@@ -328,7 +328,7 @@ impl AppState {
     pub fn commit_captions(&mut self) -> Result<(), EngineError> {
         let units = self.caption_units();
         if units.is_empty() {
-            self.status_message = Some("Nothing to commit. Transcribe first".into());
+            self.status_message = Some("Nothing to commit. Transcribe first.".into());
             return Ok(());
         }
         let target = self.captions.commit;

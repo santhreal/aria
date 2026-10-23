@@ -583,8 +583,10 @@ impl AppState {
         self.context_menu = None;
     }
 
+    /// Post `err` on the error line, started with a capital when it is written
+    /// in lower case, as an error from below the editor is.
     pub fn report_error(&mut self, err: impl ReportableError) {
-        self.last_error = Some(err.into_error_message());
+        self.last_error = Some(super::status::as_sentence(err.into_error_message()));
     }
 
     pub fn persist_settings_later(&mut self, cx: &mut Context<Self>) {

@@ -122,7 +122,7 @@ pub fn render(
         body = body.child(section(&theme, title, rows));
     }
     let body = body.when(!matched, |el| {
-        el.child(kv(&theme, "No section", "nothing matches that filter"))
+        el.child(kv(&theme, "No section", "Nothing matches that filter"))
     });
     dialog_surface(
         "settings",

@@ -212,7 +212,7 @@ impl AppState {
     /// monitor, at its own playhead.
     pub fn compare_with_source(&mut self) {
         let Some(name) = self.monitor_source().map(|view| view.name.clone()) else {
-            self.status_message = Some("Open a source in the Source monitor first.".into());
+            self.status_message = Some("Open a source in the Source monitor first".into());
             return;
         };
         self.viewer_compare.begin(Reference::Source);

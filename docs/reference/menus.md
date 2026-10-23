@@ -346,7 +346,7 @@ Defined in `crates/aria-ui/src/app/decline.rs` (`Decline::ALL`). When a command 
 
 | Variant | Status line (`reason()`) |
 | --- | --- |
-| `NoSelection` | `Nothing is selected` |
+| `NoSelection` | `No clip is selected` |
 | `NoAbuttingCut` | `No clip on the other side of that cut` |
 | `UnknownTransition` | `No such transition` |
 | `NoTransitionAtCut` | `No transition at that cut` |

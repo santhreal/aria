@@ -136,7 +136,7 @@ impl AppState {
     pub fn set_audio_channels(&mut self, choice: AudioChannels) -> Result<(), EngineError> {
         let clips = self.sounding_selection();
         if clips.is_empty() {
-            self.status_message = Some("Select a clip with sound.".into());
+            self.status_message = Some("Select a clip with sound".into());
             return Ok(());
         }
         let plans: Vec<(ClipId, Vec<usize>, usize)> = {

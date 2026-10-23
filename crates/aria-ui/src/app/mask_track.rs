@@ -371,7 +371,7 @@ impl AppState {
                 match outcome {
                     Some(Ok((keys, report))) => state.adopt_track(&target, &keys, report),
                     Some(Err(reason)) => state.report_error(reason),
-                    None => state.report_error("the mask track ended without reporting"),
+                    None => state.report_error("The mask track ended without reporting"),
                 }
                 cx.notify();
             });

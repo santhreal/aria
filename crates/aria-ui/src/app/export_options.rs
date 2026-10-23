@@ -9,6 +9,7 @@
 //! One owner, because the sheet, the job that renders, and the status line that
 //! reports what was rendered must agree on the same choices.
 
+use aria_core::count::counted;
 use aria_core::{ExportFormat, Rational, VideoCodec};
 use aria_render::ExportSettings;
 
@@ -115,7 +116,7 @@ impl ExportGop {
     pub fn label(self) -> String {
         match self {
             Self::Codec => "Codec default".to_string(),
-            Self::Frames(frames) => format!("every {frames}"),
+            Self::Frames(frames) => format!("Every {}", counted(frames, "frame", "frames")),
         }
     }
 
@@ -305,11 +306,11 @@ impl AppState {
         let codecs = aria_encoder::available_codecs();
         match codecs.len() {
             0 => {
-                self.report_error("This build has no encoder, so it cannot export.");
+                self.report_error("This build has no encoder, so it cannot export");
             }
             1 => {
                 self.report_error(format!(
-                    "{} is the only codec {} can write here.",
+                    "{} is the only codec {} can write here",
                     codecs[0].label(),
                     aria_encoder::capability().backend
                 ));
@@ -322,7 +323,7 @@ impl AppState {
     pub fn cycle_export_bitrate(&mut self) {
         if !aria_encoder::capability().bitrate {
             self.report_error(format!(
-                "{} sets its own bitrate.",
+                "{} sets its own bitrate",
                 aria_encoder::capability().backend
             ));
             return;

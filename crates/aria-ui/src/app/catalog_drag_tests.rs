@@ -287,7 +287,7 @@ fn every_clip_payload_lands_on_the_dropped_clip_and_selects_it() {
                 } else {
                     assert_eq!(
                         state.status_message.as_deref(),
-                        Some("Select a clip with sound.")
+                        Some("Select a clip with sound")
                     );
                 }
             }

@@ -122,7 +122,7 @@ fn a_rename_commits_what_was_typed_and_refuses_an_empty_name() {
         Some("B roll"),
         "a folder with no name cannot be told from another one"
     );
-    assert_eq!(state.status_message.as_deref(), Some("a bin needs a name"));
+    assert_eq!(state.status_message.as_deref(), Some("A bin needs a name"));
 }
 
 #[test]

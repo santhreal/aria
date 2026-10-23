@@ -120,13 +120,15 @@ impl AppState {
         self.pending_intent.as_ref()
     }
 
-    /// What the prompt says it is about to close: the project's own name.
-    pub fn unsaved_subject(&self) -> String {
+    /// The prompt's first line: which project has unsaved changes. The name is
+    /// the project's own, quoted, so a name in lower case or one that reads as a
+    /// word is not taken for part of the sentence, and never starts it.
+    pub fn unsaved_line(&self) -> String {
         let name = self.store.project_name.trim();
         if name.is_empty() {
-            "This project".into()
+            "Changes to this project are not saved.".into()
         } else {
-            name.to_string()
+            format!("Changes to “{name}” are not saved.")
         }
     }
 

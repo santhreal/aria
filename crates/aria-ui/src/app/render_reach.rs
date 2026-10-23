@@ -133,8 +133,7 @@ impl AppState {
 
     /// Grade the selection through one shipped look.
     pub fn apply_starter_look(&mut self, id: &str) {
-        if self.selected_clip().is_none() {
-            self.status_message = Some("Select a clip first".into());
+        if self.selected_clip_or_decline().is_none() {
             return;
         }
         let path = match self.ensure_starter_look(id) {
@@ -165,7 +164,7 @@ impl AppState {
         for lut in aria_render::starter_lut_pack() {
             let Some(path) = self.starter_look_path(&lut.id) else {
                 self.report_error(
-                    "The LUT cache lives in memory, so the pack has nowhere to be written.",
+                    "The LUT cache lives in memory, so the pack has nowhere to be written",
                 );
                 return;
             };

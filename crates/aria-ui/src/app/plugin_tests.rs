@@ -313,7 +313,7 @@ fn the_assistant_limits_come_from_the_plugin_and_say_so_when_it_is_gone() {
     let Some(host) = state.ctx.try_get::<crate::plugins::AiHost>() else {
         // The AI plugin needs the engine, which needs a GPU. Where it did not
         // mount, the row must say so rather than print the crate defaults.
-        assert_eq!(state.agent_limits(), "the AI plugin is not mounted");
+        assert_eq!(state.agent_limits(), "The AI plugin is not mounted");
         return;
     };
     let config = host.agent_config().clone();
@@ -326,7 +326,7 @@ fn the_assistant_limits_come_from_the_plugin_and_say_so_when_it_is_gone() {
 
     drop(host);
     assert!(state.set_plugin_enabled("aria.ai", false), "disable the AI");
-    assert_eq!(state.agent_limits(), "the AI plugin is not mounted");
+    assert_eq!(state.agent_limits(), "The AI plugin is not mounted");
 }
 
 /// Catalogs are data a user can replace, so the app must be able to say which

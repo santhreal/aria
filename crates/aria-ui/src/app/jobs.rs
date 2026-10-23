@@ -16,8 +16,8 @@ use std::path::PathBuf;
 use aria_jobs::{JobId, JobSnapshot, JobState};
 use gpui::Context;
 
-use super::AppState;
 use super::export_request::ExportRequest;
+use super::{AppState, describe_export_refusal};
 use gpui::SharedString;
 
 /// The one-shot publication boundary every job that writes shares.
@@ -369,6 +369,8 @@ impl AppState {
         // A snapshot, not a copy: the project is copied once, by the next edit,
         // only if one lands while the export still reads it.
         let project = self.host.snapshot();
+        // One map for both arms, so an export with a plugin encoder and one
+        // without are refused in the same words.
         let settings = match request.plugin_encoder.as_deref() {
             Some(encoder_id) => {
                 let Some(spec) = self.ctx.encoder(encoder_id) else {
@@ -381,11 +383,10 @@ impl AppState {
                     request.format,
                     spec.audio,
                 )
-                .map_err(|err| err.to_string())?
             }
-            None => aria_render::ExportSettings::resolved(&project, request.format)
-                .map_err(|err| err.to_string())?,
-        };
+            None => aria_render::ExportSettings::resolved(&project, request.format),
+        }
+        .map_err(|err| describe_export_refusal(&err))?;
         let entry_id = self.export_queue.enqueue_with_encoder(
             request.destination,
             settings,
