@@ -349,39 +349,39 @@ impl AudioSystem {
 
     /// Start or stop the stream to match the latest handle command, or feed a
     /// pending scrub grain to the output stream while paused.
-    pub fn pump(&mut self) {
+    ///
+    /// Returns why a stream this call tried to start did not start, such as a
+    /// machine with no output device, so the caller can post it: the picture
+    /// plays on regardless, and without the line a missing sound reads as a
+    /// silent clip.
+    #[must_use]
+    pub fn pump(&mut self) -> Option<String> {
         let generation = self.handle.inner.generation.load(Ordering::Acquire);
         if generation != self.last_generation {
             self.last_generation = generation;
             self.tear_down();
-            if let Some(snapshot) = self.handle.take_if_playing()
-                && let Err(err) = self.start(snapshot, None)
-            {
-                tracing::warn!("preview audio not started: {err}");
-                self.handle.inner.tick.store(INACTIVE, Ordering::Relaxed);
-            }
-            return;
+            let snapshot = self.handle.take_if_playing()?;
+            let err = self.start(snapshot, None).err()?;
+            tracing::warn!("preview audio not started: {err}");
+            self.handle.inner.tick.store(INACTIVE, Ordering::Relaxed);
+            return Some(err);
         }
         if self.handle.inner.playing.load(Ordering::Acquire) {
-            return;
+            return None;
         }
         let scrub_gen = self.handle.inner.scrub_generation.load(Ordering::Acquire);
         if scrub_gen == self.last_scrub_generation {
-            return;
+            return None;
         }
         self.last_scrub_generation = scrub_gen;
-        let Some(grain) = self.handle.take_pending_scrub() else {
-            return;
-        };
+        let grain = self.handle.take_pending_scrub()?;
         if grain.mixer.is_none()
             && let Some(slot) = &self.scrub_slot
         {
             *slot.lock() = Some((grain.tick, grain.fps_num, grain.fps_den));
-            return;
+            return None;
         }
-        let Some(mixer) = grain.mixer else {
-            return;
-        };
+        let mixer = grain.mixer?;
         self.tear_down();
         let slot = Arc::new(Mutex::new(Some((grain.tick, grain.fps_num, grain.fps_den))));
         let snapshot = PlaybackSnapshot {
@@ -394,9 +394,10 @@ impl AudioSystem {
         };
         if let Err(err) = self.start(snapshot, Some(Arc::clone(&slot))) {
             tracing::warn!("scrub audio not started: {err}");
-        } else {
-            self.scrub_slot = Some(slot);
+            return Some(err);
         }
+        self.scrub_slot = Some(slot);
+        None
     }
 
     fn start(
@@ -578,7 +579,11 @@ impl AudioSystem {
 
 impl Drop for AudioSystem {
     fn drop(&mut self) {
-        self.tear_down();
+        // A system that never started a stream drives no clock, so dropping
+        // it leaves the clock another system on the handle may be driving.
+        if self.stream.is_some() || self.feeder.is_some() {
+            self.tear_down();
+        }
     }
 }
 
@@ -602,6 +607,19 @@ mod tests {
         assert_eq!(handle.current_tick(), None);
         assert_eq!(*handle.inner.timing.lock(), None);
         assert!(!handle.inner.playing.load(Ordering::Relaxed));
+    }
+
+    /// A system that never started a stream leaves the clock alone when it
+    /// is dropped, so a window that closes while another one plays does not
+    /// stop the clock the playing one drives.
+    #[test]
+    fn dropping_a_system_that_drives_nothing_leaves_the_clock() {
+        let handle = AudioHandle::new();
+        handle.inner.tick.store(24, Ordering::Relaxed);
+        *handle.inner.timing.lock() = Some(TIMING);
+        drop(AudioSystem::new(handle.clone()));
+        assert_eq!(handle.inner.tick.load(Ordering::Relaxed), 24);
+        assert_eq!(*handle.inner.timing.lock(), Some(TIMING));
     }
 
     /// The clock reports what is heard, not what was handed: a block handed
@@ -654,3 +672,7 @@ mod tests {
 #[cfg(test)]
 #[path = "audio_submix_tests.rs"]
 mod submix;
+
+#[cfg(test)]
+#[path = "audio_start_tests.rs"]
+mod start;

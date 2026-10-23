@@ -33,6 +33,11 @@ previous frame stays on screen, the drop is counted, and the next ready frame is
 shown at its own time. With no audio device, or with all audio muted, the
 master is the monotonic system clock.
 
+When the sound of a play or a scrub grain cannot start, for a missing output
+device, a device that rejects its configuration, or a mix that cannot be
+prepared, the picture plays on and the error line states the reason, such as
+`No audio output device. Plug in speakers or a headset.`
+
 A/V offset stays inside half a frame during playback. The audio output latency
 reported by the device is subtracted from the audio clock.
 

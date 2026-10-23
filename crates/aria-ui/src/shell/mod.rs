@@ -38,7 +38,11 @@ pub use panel_view::{Moved, notify_after_draw};
 pub struct Shell {
     pub state: Entity<AppState>,
     drag: Option<Drag>,
-    audio: crate::audio::AudioSystem,
+    /// The preview audio stream, which the main window's shell pumps. A
+    /// floating window's shell has none: a second system on the one handle
+    /// would never start a stream, and dropping it would clear the clock the
+    /// first one drives.
+    audio: Option<crate::audio::AudioSystem>,
     splash: Splash,
     /// Where a catalog drag last hovered, as (track id, tick).
     ///
@@ -95,9 +99,17 @@ pub struct Shell {
 }
 impl Shell {
     pub fn new(state: Entity<AppState>, cx: &mut Context<Self>) -> Self {
-        let audio = crate::audio::AudioSystem::new(state.read(cx).audio.clone());
-        cx.observe(&state, |this, _, cx| {
-            this.audio.pump();
+        let audio = Some(crate::audio::AudioSystem::new(state.read(cx).audio.clone()));
+        cx.observe(&state, |this, state, cx| {
+            // A stream that did not start is posted by the pump that tried
+            // it. The post notifies `state` again, and that pump starts
+            // nothing, so the observer settles.
+            if let Some(err) = this.audio.as_mut().and_then(|audio| audio.pump()) {
+                state.update(cx, |state, cx| {
+                    state.report_error(err);
+                    cx.notify();
+                });
+            }
             cx.notify();
         })
         .detach();
@@ -161,14 +173,13 @@ impl Shell {
         frame_id: crate::dock::FrameId,
         cx: &mut Context<Self>,
     ) -> Self {
-        let audio = crate::audio::AudioSystem::new(state.read(cx).audio.clone());
         cx.observe(&state, |_, _, cx| cx.notify()).detach();
         Self::redraw_on_narrow_changes(&state, cx);
         cx.observe_self(|this, cx| this.redraw_bodies(cx)).detach();
         Self {
             state,
             drag: None,
-            audio,
+            audio: None,
             splash: Splash::Done,
             catalog_drop: None,
             media_drop: None,
@@ -476,7 +487,7 @@ impl Render for Shell {
         // Ctrl+Q, File > Quit and the close control set this once the
         // unsaved prompt is answered, or immediately when nothing is unsaved.
         if self.state.read(cx).quit_requested() {
-            cx.quit();
+            crate::session_end::quit(window, &self.state, cx);
         }
         // Every hover blend, glide and entrance this draw builds samples the
         // frame opened here, so it comes before any child is built.

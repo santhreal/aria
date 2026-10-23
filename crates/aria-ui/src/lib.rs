@@ -45,6 +45,7 @@ pub mod preview_worker;
 pub mod projection;
 pub mod resolution;
 pub mod scopes;
+pub(crate) mod session_end;
 pub mod settings;
 pub mod shell;
 pub mod snap;
@@ -244,60 +245,7 @@ fn open_main_window(state: app::AppState, cx: &mut App) {
             // The window manager's close request leaves the session too, so it
             // goes through the unsaved prompt: a clean session closes at once,
             // a dirty one stays open until the prompt is answered.
-            let closing = state.clone();
-            window.on_window_should_close(cx, move |win, cx| {
-                let wb = win.window_bounds();
-                let inner = wb.get_bounds();
-                let maximized =
-                    matches!(wb, WindowBounds::Maximized(_) | WindowBounds::Fullscreen(_));
-                let disp_rects: Vec<[f32; 4]> = cx
-                    .displays()
-                    .into_iter()
-                    .map(|d| {
-                        let b = d.bounds();
-                        [
-                            f32::from(b.origin.x),
-                            f32::from(b.origin.y),
-                            f32::from(b.size.width),
-                            f32::from(b.size.height),
-                        ]
-                    })
-                    .collect();
-                let cx_x = f32::from(inner.origin.x) + f32::from(inner.size.width) * 0.5;
-                let cx_y = f32::from(inner.origin.y) + f32::from(inner.size.height) * 0.5;
-                let display_index = disp_rects
-                    .iter()
-                    .position(|&[dx, dy, dw, dh]| {
-                        cx_x >= dx && cx_x <= dx + dw && cx_y >= dy && cx_y <= dy + dh
-                    })
-                    .unwrap_or(0);
-                closing.update(cx, |state, cx| {
-                    state.ui_settings.record_window_placement(
-                        &disp_rects,
-                        settings::WindowPlacement {
-                            x: f32::from(inner.origin.x),
-                            y: f32::from(inner.origin.y),
-                            width: f32::from(inner.size.width),
-                            height: f32::from(inner.size.height),
-                            maximized,
-                            display_index,
-                        },
-                    );
-                    // The session is ending, so a status line would never be
-                    // read: the failure goes to the log with the path to fix.
-                    if let Err(err) = state.ui_settings.save(&state.data_dir) {
-                        tracing::warn!(
-                            dir = %state.data_dir.display(),
-                            "window placement not saved for the next launch: {err}"
-                        );
-                    }
-                    if !state.quit_requested() {
-                        state.request_quit();
-                        cx.notify();
-                    }
-                    state.quit_requested()
-                })
-            });
+            session_end::close_on_request(window, &state, cx);
             // After the state entity exists and before the first frame: the
             // platform bar is built from the mounted registry, and on Linux and
             // Windows this is a no-op because the CSD bar draws the same rows.
