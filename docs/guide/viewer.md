@@ -25,7 +25,9 @@ below, re-centres it.
 
 The Scopes toggle opens a strip beside the Viewer with the waveform, the vectorscope,
 and the histogram of the frame on screen; the Scopes panel lays the same
-readings across its frame. The chips over the waveform choose what it counts:
+readings across its frame. The line above the scopes states the frame they
+measure, in the sequence's time display, and reads `no opaque pixels` when
+that frame has nothing to count. The chips over the waveform choose what it counts:
 **Luma**, **RGB** for a red, green, and blue parade, or **YCbCr** for a luma,
 Cb, and Cr parade. **View > Scope Waveform** makes the same choice, and the
 choice is saved. The vectorscope draws a skin tone line and a target box for

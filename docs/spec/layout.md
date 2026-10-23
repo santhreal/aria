@@ -139,8 +139,10 @@ aimed. F10 or a lone Alt opens File with its first row lit. Up and Down move
 the light, a letter lights the next row starting with it, Right opens a lit
 submenu and Left closes it, Left and Right on
 a plain row move to the neighbouring menu, Enter runs the lit row, and Escape
-closes the drop. On macOS the bar is the native menu bar, with the same
-submenus, check marks and disabled rows. After the menu titles, centred, the
+closes the drop. Opening a dialog, the command palette, or the unsaved-changes
+prompt, or returning to Home, closes an open drop, flyout, or popover, so the
+keys typed next reach the dialog. On macOS the bar is the native menu bar, with
+the same submenus, check marks and disabled rows. After the menu titles, centred, the
 bar shows `Home / ` and the project name, with a dot before the name while the
 project has unsaved changes. Clicking Home returns to the Home screen.
 
@@ -162,6 +164,13 @@ stretch of its tab row. Under a window manager
 that draws its own frame, the bar draws no window buttons and the frame moves
 and resizes the window. On Windows the empty stretches are the window caption,
 with the system's drag, snap, and double-click behaviour.
+
+Home has no menu bar. When the application draws the window's top edge (Linux
+without server-side decorations, Windows, and macOS, whose traffic lights sit
+over that edge), Home's first row is an empty bar: its stretch moves the window
+as the menu bar's empty stretches do, and it ends in the window buttons the
+menu bar shows. The rail under it shows the application's name. Under a window
+manager's frame Home has no bar and starts at the window's top edge.
 
 ## Tool bar
 

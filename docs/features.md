@@ -244,10 +244,11 @@ Anything not listed here is not in the build.
 - Command palette over every registered command and menu row.
 - Settings for appearance, keys, storage, providers, and each plugin's own
   schema.
-- Five shipped workspaces (Editing, Animation, Color, Audio, Effects) plus
-  named workspaces of your own, on the Window menu and in Settings. A workspace
+- The Editing, Animation, Color, Audio, and Effects workspaces, plus named
+  workspaces of your own, on the Window menu and in Settings. A workspace
   restores its dock arrangement of panels, splits, tabs, and floating windows,
-  the timeline height, the scope strip, the focused panel, and the route.
+  the timeline height, the scope strip, the graph editor, the focused panel,
+  and the route.
 - Every panel, dialog, overlay, palette command, menu row, key binding,
   setting, and catalog entry comes from a registry. The shell names no panel
   module. See [plugins/README.md](plugins/README.md).

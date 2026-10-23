@@ -2341,6 +2341,8 @@ Notes for the latest release. For previous releases, see the
 - A saved `.aria` project indents with one tab per level instead of two spaces, and a project with the two-space indent of earlier builds loads as before, which brings `project-10k` save p50 on Server over four paired runs from between 211.4 ms and 250.2 ms to between 174.3 ms and 175.3 ms, its document from 15.6 MB to 10.2 MB, and open to interactive p50 from between 41.1 ms and 41.5 ms to between 37.1 ms and 38.1 ms.
 - Linux decoding in system memory accepts the P010 frames of `nvh265dec` and packs them to NV12 in one pass instead of converting them in `videoconvert`, and decoded plane buffers return to a pool of at most 64 buffers and 128 MiB, which brings `hevc-2160p60` playback frame p50 on the Server RTX 3080 Ti from 8.22 ms and 7.97 ms to 5.67 ms and 5.65 ms over two paired runs, its p95 from 13.3 ms and 13.3 ms to 5.9 ms and 5.9 ms at 0 dropped frames before and after, and `stack-4k` dropped frames from 17 and 20 to 5 and 5, while software-decoded `hevc-2160p60` on lavapipe drops a mean of 25.25 frames against 24.00 over eight paired runs.
 - Command palette entries, menu rows, and tool names use Title Case, such as `Split at Playhead` and `Ripple Trim`, instead of a mix of Title Case and sentence case.
+- Settings names each AI source, protocol, reasoning, and autonomy choice instead of its saved key, lists a provider with no key as `Not set` or `<source> not set`, writes counts as `1 skill` or `2 skills` instead of `skill(s)`, widens the keyboard image's modifier, Space, and keypad caps to fit their labels, and separates the Appearance groups.
+- The line above the scopes states the frame they measure in the sequence's time display, such as `Frame 00:00:00:04`, instead of the count of pixels sampled.
 
 ### Fixed
 
@@ -2755,6 +2757,12 @@ Notes for the latest release. For previous releases, see the
 - Text drawn as one bitmap and as per-character glyphs draws the same pixels at any sub-pixel position and scale, so a title no longer shifts its edges when a character animation, transition, or matte starts or ends, and the outer edges of a title or text card between pixels fade instead of repeating the edge pixels.
 - Text under a character animation draws each letter once and in its place over its background card and underline, instead of over a card holding a second copy of the text, without its underline, or, when underlined, with each letter drawn up and to the left of its place.
 - The reference manual and the guide state no count of the members of each catalog, which disagreed with the catalogs, such as 17 animations where 31 ship and 16 colour filter presets where 10 ship.
+- A workspace that does not open the timeline graph editor closes it when chosen, instead of keeping the editor the Animation workspace opened.
+- Opening a dialog, the command palette, or the unsaved-changes prompt, or returning to Home, closes an open menu, flyout, or popover instead of leaving it drawn beside the dialog.
+- Opening the scopes over a GPU-decoded frame measures the frame on screen instead of showing `No frame` until the playhead moves.
+- Audio Track Mixer faders stand level across strips and run the height of the panel, a fader drag moves the value by the pointer's travel over the drawn fader, and Audio Meters bars fill the panel's width instead of stopping at 22 px.
+- A press anywhere on a Home recent card opens or relinks its project instead of only a press on its Open action, and Home draws no title bar under a window manager's frame and no second `Aria` title in the bar it draws.
+- `docs/theme-tokens.md` lists `font_mono` for expressions and plugin logs, where it is drawn, instead of also for timecode, which is drawn in Inter with tabular figures.
 
 ## [alpha-0.7.0] — 2026-07-22
 

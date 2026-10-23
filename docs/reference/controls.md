@@ -430,11 +430,14 @@ The Settings dialog (`crates/aria-ui/src/panels/settings_dialog.rs` and `crates/
 
 ## Project Home
 
-The Project Home surface (`crates/aria-ui/src/panels/home/*.rs` and `crates/aria-ui/src/panels/cloud.rs`) renders the remote catalog loader for cloud templates and stock feeds alongside the Home route tiles (`home-new`, `home-open`, `home-sample`, `home-template`) and recent-project card actions (`recent-open`, `recent-reveal`, `recovery`).
+The Project Home surface (`crates/aria-ui/src/panels/home/*.rs` and `crates/aria-ui/src/panels/cloud.rs`) renders the remote catalog loader for cloud templates and stock feeds alongside the Home route tiles (`home-new`, `home-open`, `home-sample`, `home-template`), the recent-project card actions, and the recovery banner. A press on a recent card away from its actions runs the card's `recent-open` action.
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
 | `cloud-load` | Load catalog | Fetches the remote cloud template or stock media catalog for the active feed. | None |
+| `recent-open` (per row) | Open or Relink | Opens the recent project, or prompts for its new location when the file is missing. | None |
+| `recent-reveal` (per row) | Reveal | Shows the recent project's file in the system file manager. | None |
+| `recovery` (per row) | Restore or Discard | Opens the recovered copy of the last session, or deletes the copy. | None |
 
 ## Window & Dock Chrome
 
