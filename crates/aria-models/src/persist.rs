@@ -35,9 +35,10 @@ impl Project {
         persist_streaming(path, doc, &StdPersistenceFs)
     }
 
-    /// The saved document: pretty JSON with a trailing newline, stamped with
-    /// this build's schema version and kind, written by [`pretty::to_vec`]
-    /// (the bytes `serde_json::to_vec_pretty` writes).
+    /// The saved document: tab-indented pretty JSON with a trailing newline,
+    /// stamped with this build's schema version and kind, written by
+    /// [`pretty::to_vec`]. A reader parses any JSON whitespace, so a document
+    /// with the two-space indent of earlier builds loads the same.
     ///
     /// A project whose schema is already current is written as it is; only an
     /// older one is copied to be restamped, since the copy of a large timeline

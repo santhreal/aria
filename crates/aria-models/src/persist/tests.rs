@@ -193,14 +193,30 @@ fn roundtrip_save_load_preserves_timeline_and_metadata() {
     assert_no_transaction_artifacts(dir.path());
 }
 
+/// `serde_json`'s pretty printer with a tab indent, the save format.
+fn tabbed_json(value: &impl serde::Serialize) -> String {
+    let mut out = Vec::new();
+    let formatter = serde_json::ser::PrettyFormatter::with_indent(b"\t");
+    value
+        .serialize(&mut serde_json::Serializer::with_formatter(
+            &mut out, formatter,
+        ))
+        .unwrap();
+    String::from_utf8(out).unwrap()
+}
+
 #[test]
 fn save_preserves_pretty_json_with_trailing_newline() {
     let project = Project::new("format", R24);
     let mut expected_document = project.clone();
     expected_document.schema.version = PROJECT_SCHEMA_VERSION;
     expected_document.schema.kind = crate::schema::PROJECT_SCHEMA_KIND.into();
-    let mut expected = serde_json::to_string_pretty(&expected_document).unwrap();
+    let mut expected = tabbed_json(&expected_document);
     expected.push('\n');
+    assert!(
+        expected.starts_with("{\n\t\"schema\": {\n\t\t\""),
+        "{expected}"
+    );
 
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("format.aria");
@@ -208,6 +224,56 @@ fn save_preserves_pretty_json_with_trailing_newline() {
 
     assert_eq!(std::fs::read_to_string(path).unwrap(), expected);
     assert_no_transaction_artifacts(dir.path());
+}
+
+/// WHY: saves moved from a two-space indent to a tab indent, and every
+/// project an earlier build saved has the two-space form. Closes the class of
+/// a save-format change that leaves earlier saves unreadable, changes what
+/// they load to, or sends them through the slower `Value` parse. Not covered:
+/// documents from other JSON writers (minified, CRLF line breaks).
+#[test]
+fn a_two_space_save_from_an_earlier_build_loads_as_the_tab_save_does() {
+    let mut project = Project::new("indent", R24);
+    let media = project.add_media(crate::MediaSource::new(
+        "/var/tmp/clip.mp4",
+        1920,
+        1080,
+        R24,
+        240,
+        true,
+    ));
+    let track = project.add_track(TrackKind::Video, "V1");
+    project
+        .add_clip(
+            track,
+            media,
+            TimeRange::at_rate(0, 24, R24),
+            RationalTime::new(0, R24),
+        )
+        .unwrap();
+    project.schema.version = PROJECT_SCHEMA_VERSION;
+    project.schema.kind = crate::schema::PROJECT_SCHEMA_KIND.into();
+    let tabbed = project.save_to_string().unwrap();
+    let two_space = serde_json::to_string_pretty(&project).unwrap() + "\n";
+    assert!(
+        two_space.starts_with("{\n  \"schema\": {\n    \""),
+        "{two_space}"
+    );
+    assert_ne!(two_space, tabbed);
+
+    reset_value_fallback_count();
+    let from_two_space = Project::load_from_string(&two_space).unwrap();
+    let from_tabbed = Project::load_from_string(&tabbed).unwrap();
+    assert_eq!(
+        value_fallback_count(),
+        0,
+        "both indents take the typed parse"
+    );
+    assert_eq!(
+        from_two_space.save_to_string().unwrap(),
+        from_tabbed.save_to_string().unwrap(),
+        "a two-space save loads to the project the tab save loads to"
+    );
 }
 
 /// A project still carrying the schema it was loaded with is written with this

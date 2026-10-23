@@ -1,34 +1,34 @@
-//! Pretty JSON byte for byte as `serde_json::to_vec_pretty` writes it, with
-//! each line break written as one slice.
+//! Pretty JSON byte for byte as `serde_json`'s `PrettyFormatter` writes it
+//! with a tab indent, with each line break written as one slice.
 //!
 //! `serde_json`'s `PrettyFormatter` writes the comma, the newline, and then
-//! one two-byte `write_all` per indent level for every key and array element.
-//! A `project-10k` document nests clips seven to ten levels deep, so those
+//! one `write_all` per indent level for every key and array element. A
+//! `project-10k` document nests clips seven to ten levels deep, so those
 //! per-level writes and their `memmove` calls were most of a save's
 //! serialization on the Server machine (i7-11700K): 428 of 537 perf samples
 //! under `save_to_file` were in `Project::serialize`, with `memmove` the top
-//! leaf at 144.
+//! leaf at 144. One tab per level instead of two spaces shortens the document
+//! that `save_to_file` writes and syncs.
 
 use std::io;
 
 use serde_json::ser::Formatter;
 
 /// Indent levels one slice of [`LINE`] covers; deeper levels write more runs
-/// of its spaces.
+/// of its tabs.
 const LEVELS: usize = 32;
 
-/// A comma, a line break, and [`LEVELS`] two-space indent levels. A line
-/// break without the comma starts at byte 1; indent past [`LEVELS`] repeats
-/// the spaces from byte 2.
-const LINE: [u8; 2 + 2 * LEVELS] = {
-    let mut bytes = [b' '; 2 + 2 * LEVELS];
+/// A comma, a line break, and [`LEVELS`] tabs. A line break without the comma
+/// starts at byte 1; indent past [`LEVELS`] repeats the tabs from byte 2.
+const LINE: [u8; 2 + LEVELS] = {
+    let mut bytes = [b'\t'; 2 + LEVELS];
     bytes[0] = b',';
     bytes[1] = b'\n';
     bytes
 };
 
-/// `serde_json`'s `PrettyFormatter` with a two-space indent: the same state,
-/// the same bytes, fewer writes.
+/// `serde_json`'s `PrettyFormatter` with a tab indent: the same state, the
+/// same bytes, fewer writes.
 #[derive(Default)]
 pub(super) struct Pretty {
     level: usize,
@@ -38,14 +38,14 @@ pub(super) struct Pretty {
 impl Pretty {
     /// An optional comma, a line break, and the indent of the current level.
     fn line<W: ?Sized + io::Write>(&self, writer: &mut W, comma: bool) -> io::Result<()> {
-        let mut spaces = 2 * self.level;
-        let run = spaces.min(2 * LEVELS);
+        let mut tabs = self.level;
+        let run = tabs.min(LEVELS);
         writer.write_all(&LINE[usize::from(!comma)..2 + run])?;
-        spaces -= run;
-        while spaces > 0 {
-            let run = spaces.min(2 * LEVELS);
+        tabs -= run;
+        while tabs > 0 {
+            let run = tabs.min(LEVELS);
             writer.write_all(&LINE[2..2 + run])?;
-            spaces -= run;
+            tabs -= run;
         }
         Ok(())
     }
@@ -113,8 +113,8 @@ impl Formatter for Pretty {
     }
 }
 
-/// Write `value` as two-space pretty JSON, matching the bytes
-/// `serde_json::to_writer_pretty` writes for it.
+/// Write `value` as tab-indented pretty JSON, the bytes
+/// `serde_json::ser::PrettyFormatter::with_indent(b"\t")` writes for it.
 pub(super) fn to_writer<W: io::Write, T: ?Sized + serde::Serialize>(
     mut writer: W,
     value: &T,
@@ -125,8 +125,8 @@ pub(super) fn to_writer<W: io::Write, T: ?Sized + serde::Serialize>(
     ))
 }
 
-/// `value` as two-space pretty JSON, the bytes `serde_json::to_vec_pretty`
-/// writes for it.
+/// `value` as tab-indented pretty JSON, the bytes
+/// `serde_json::ser::PrettyFormatter::with_indent(b"\t")` writes for it.
 pub(super) fn to_vec<T: ?Sized + serde::Serialize>(value: &T) -> serde_json::Result<Vec<u8>> {
     let mut out = Vec::with_capacity(128);
     to_writer(&mut out, value)?;

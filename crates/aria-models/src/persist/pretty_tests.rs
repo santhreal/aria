@@ -1,7 +1,8 @@
-//! The save formatter writes the bytes `serde_json::to_vec_pretty` writes.
+//! The save formatter writes the bytes `serde_json`'s pretty printer writes
+//! with a tab indent.
 //!
 //! A saved project is read back by every earlier build and diffed by version
-//! control, so a formatter that drifts by one space, one comma, or one line
+//! control, so a formatter that drifts by one tab, one comma, or one line
 //! break changes every saved file. Each case compares whole documents with
 //! `serde_json`'s own pretty printer: empty and one-element containers (where
 //! the closing bracket's line break depends on `has_value`), objects inside
@@ -9,6 +10,7 @@
 //! past the 32 levels one indent slice covers. It does not cover a document
 //! `serde_json` itself cannot print, such as a non-string map key.
 
+use serde::Serialize;
 use serde_json::{Value, json};
 
 use super::to_vec;
@@ -17,8 +19,20 @@ use crate::clip::{Clip, Generator};
 use crate::time::{Rational, TimeRange};
 use crate::track::TrackKind;
 
+/// `value` as `serde_json` pretty prints it with a tab indent.
+fn serde_json_tabbed<T: ?Sized + Serialize>(value: &T) -> Vec<u8> {
+    let mut out = Vec::new();
+    let formatter = serde_json::ser::PrettyFormatter::with_indent(b"\t");
+    value
+        .serialize(&mut serde_json::Serializer::with_formatter(
+            &mut out, formatter,
+        ))
+        .unwrap();
+    out
+}
+
 fn same_as_serde_json(value: &Value) {
-    let expected = serde_json::to_vec_pretty(value).unwrap();
+    let expected = serde_json_tabbed(value);
     let written = to_vec(value).unwrap();
     assert_eq!(
         String::from_utf8(written).unwrap(),
@@ -86,8 +100,5 @@ fn a_project_prints_as_serde_json_prints_it() {
             )
             .unwrap();
     }
-    assert_eq!(
-        to_vec(&project).unwrap(),
-        serde_json::to_vec_pretty(&project).unwrap()
-    );
+    assert_eq!(to_vec(&project).unwrap(), serde_json_tabbed(&project));
 }
