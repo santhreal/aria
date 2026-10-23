@@ -56,7 +56,7 @@ monospace face, used for expressions and plugin logs. Sizes are
 | Token | Dark | Light | Use |
 | --- | --- | --- | --- |
 | `font_sans` | `"Inter"` | `"Inter"` | Primary UI sans-serif family |
-| `font_mono` | system monospace | system monospace | Monospace family for expressions, timecode, and plugin logs |
+| `font_mono` | system monospace | system monospace | Monospace family for expressions and plugin logs |
 | `font_sans_fallback` | system sans-serif | system sans-serif | Fallback sans-serif family |
 | `font_mono_fallback` | system monospace | system monospace | Fallback monospace family |
 

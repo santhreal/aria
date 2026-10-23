@@ -385,13 +385,15 @@ fn features_doc_claims_match_catalogs_and_capabilities() {
         );
     }
 
-    assert_eq!(WORKSPACES.len(), 5);
+    // Every shipped workspace, named in table order in one sentence, so a
+    // workspace added to the table is red here until the page lists it.
     let ws_labels: Vec<&str> = WORKSPACES.iter().map(|w| w.name).collect();
-    assert_eq!(
-        ws_labels,
-        vec!["Editing", "Animation", "Color", "Audio", "Effects"]
+    let (last, rest) = ws_labels.split_last().expect("a shipped workspace");
+    let listed = format!("The {}, and {last} workspaces", rest.join(", "));
+    assert!(
+        doc.contains(&listed),
+        "docs/features.md must list the shipped workspaces as `{listed}`"
     );
-    assert!(doc.contains("Five shipped workspaces (Editing, Animation, Color, Audio, Effects)"));
 
     for rel in [
         "getting-started.md",
