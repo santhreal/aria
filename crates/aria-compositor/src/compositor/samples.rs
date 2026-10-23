@@ -1,6 +1,7 @@
 //! A layer drawn into one pool slot, once or as the average of its
 //! motion-blur samples.
 
+use crate::color_pass;
 use crate::effect_render::{OffscreenPool, blit_weighted_additive};
 use crate::error::CompositorError;
 use crate::gpu::GpuContext;
@@ -37,9 +38,8 @@ impl Compositor {
             );
             return Ok(());
         }
-        crate::color_pass::clear(encoder, offscreen.view(into), wgpu::Color::TRANSPARENT);
         let weight = 1.0 / passes.len() as f32;
-        for placement in passes {
+        for (index, placement) in passes.iter().enumerate() {
             let sample = content_at(layer, *placement);
             let built = self.build_layer(gpu, encoder, config, &sample)?;
             self.draw_layer_into(
@@ -48,6 +48,11 @@ impl Compositor {
                 Some(wgpu::Color::TRANSPARENT),
                 &built,
             );
+            let load = if index == 0 {
+                color_pass::CLEAR
+            } else {
+                color_pass::KEEP
+            };
             blit_weighted_additive(
                 &gpu.device,
                 encoder,
@@ -55,6 +60,7 @@ impl Compositor {
                 offscreen.passes(),
                 offscreen.view(scratch),
                 offscreen.view(into),
+                load,
                 weight,
             );
         }

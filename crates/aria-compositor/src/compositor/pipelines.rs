@@ -336,6 +336,7 @@ impl Compositor {
             premul_scratch: std::cell::RefCell::new(Vec::new()),
             glyph_instances: std::cell::RefCell::new(Vec::new()),
             readback_count: 0,
+            render_passes: std::cell::Cell::new(0),
             #[cfg(target_vendor = "apple")]
             metal_import: crate::metal_import::MetalSurfaceImporter::new(gpu),
             #[cfg(target_os = "windows")]

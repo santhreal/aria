@@ -2,7 +2,7 @@
 //! of a nested sequence.
 //!
 //! A [`CompositorLayer::Nest`] draws its items onto a canvas-sized target of
-//! its own, cleared to transparent at the start of the frame, the same way the
+//! its own, cleared to transparent on first use in the frame, the same way the
 //! frame draws its items onto the canvas. A layer whose content is
 //! [`LayerContent::Nest`](crate::LayerContent::Nest) then samples that target
 //! through the RGBA pipelines, so the nested picture takes the layer's
@@ -15,14 +15,10 @@ use crate::grade::ColorGrade;
 use crate::layer::{CompositeLayer, CompositorConfig, CompositorLayer};
 
 use super::canvas_pass::CanvasPassDraw;
-use super::draw_layer::{BlendDest, LayerTarget};
+use super::draw_layer::TargetPass;
 use super::pairs::{MatteDraw, TransitionDraw};
 use super::scene::Scene;
 use super::{Compositor, LayerGpu};
-use crate::color_pass;
-
-/// The texture an item draws onto and its view.
-pub(super) type Dest<'a> = (&'a wgpu::Texture, &'a wgpu::TextureView);
 
 /// Every item of `scene`, each nest followed by the items it draws.
 pub(super) fn frame_items<'a>(scene: &Scene<'a>) -> impl Iterator<Item = CompositorLayer<'a>> {
@@ -36,36 +32,24 @@ pub(super) fn frame_items<'a>(scene: &Scene<'a>) -> impl Iterator<Item = Composi
 }
 
 impl Compositor {
-    /// Draw `item` onto `dest`. A nest draws nothing here: the frame draws
+    /// Draw `item` onto `target`. A nest draws nothing here: the frame draws
     /// each nest at its top level through [`Self::draw_nest`]. Inside a nest
-    /// (`in_nest`), a reference clears its target before it draws, so a
-    /// sequence drawn twice in one frame reads its own frame each time.
+    /// (`in_nest`), a reference marks its target to clear before it draws, so
+    /// a sequence drawn twice in one frame reads its own frame each time.
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn draw_item(
-        &self,
+    pub(super) fn draw_item<'a>(
+        &'a self,
         gpu: &GpuContext,
         encoder: &mut wgpu::CommandEncoder,
         config: &CompositorConfig,
         offscreen: &OffscreenPool,
         item: &CompositorLayer<'_>,
-        (texture, view): Dest<'_>,
+        target: &mut TargetPass<'a>,
         in_nest: bool,
-        pending_clear: &mut Option<wgpu::Color>,
     ) -> Result<(), CompositorError> {
-        // A pair drawn onto the destination composites with its layers' blend
-        // modes.
-        let blend = BlendDest {
-            view,
-            texture: Some(texture),
-        };
         match *item {
             CompositorLayer::Layer(layer) => {
-                let onto = LayerTarget {
-                    texture,
-                    view,
-                    clear: pending_clear.take(),
-                };
-                self.draw_layer_onto(gpu, encoder, config, offscreen, layer, &onto)
+                self.draw_layer_onto(gpu, encoder, config, offscreen, layer, target)
             }
             CompositorLayer::CanvasPass {
                 effects,
@@ -73,22 +57,19 @@ impl Compositor {
                 lut,
                 stencil,
             } => {
-                if let Some(color) = pending_clear.take() {
-                    color_pass::clear(encoder, view, color);
-                }
                 let pass = CanvasPassDraw {
                     effects,
                     grade,
                     lut,
                     stencil,
                 };
-                self.draw_canvas_pass(gpu, encoder, config, offscreen, view, &pass)
+                self.draw_canvas_pass(gpu, encoder, config, offscreen, target, &pass)
             }
             CompositorLayer::Reference { clip, item } => {
                 if in_nest {
-                    self.references.clear_one(encoder, clip);
+                    self.references.mark_clear(clip);
                 }
-                self.draw_reference(gpu, encoder, config, offscreen, clip, item)
+                self.draw_reference(gpu, encoder, config, offscreen, clip, item, target)
             }
             CompositorLayer::Transition {
                 outgoing,
@@ -96,9 +77,6 @@ impl Compositor {
                 transition_id,
                 progress,
             } => {
-                if let Some(color) = pending_clear.take() {
-                    color_pass::clear(encoder, view, color);
-                }
                 let draw = TransitionDraw {
                     outgoing,
                     incoming,
@@ -106,7 +84,7 @@ impl Compositor {
                     progress,
                     params: &[],
                 };
-                self.draw_transition(gpu, encoder, config, offscreen, &draw, &blend)
+                self.draw_transition(gpu, encoder, config, offscreen, &draw, target)
             }
             CompositorLayer::TransitionWithParams {
                 outgoing,
@@ -115,9 +93,6 @@ impl Compositor {
                 progress,
                 params,
             } => {
-                if let Some(color) = pending_clear.take() {
-                    color_pass::clear(encoder, view, color);
-                }
                 let draw = TransitionDraw {
                     outgoing,
                     incoming,
@@ -125,7 +100,7 @@ impl Compositor {
                     progress,
                     params,
                 };
-                self.draw_transition(gpu, encoder, config, offscreen, &draw, &blend)
+                self.draw_transition(gpu, encoder, config, offscreen, &draw, target)
             }
             CompositorLayer::Matte {
                 content,
@@ -134,9 +109,6 @@ impl Compositor {
                 invert,
                 softness,
             } => {
-                if let Some(color) = pending_clear.take() {
-                    color_pass::clear(encoder, view, color);
-                }
                 let draw = MatteDraw {
                     content,
                     stencil,
@@ -144,14 +116,14 @@ impl Compositor {
                     invert,
                     softness,
                 };
-                self.draw_matte(gpu, encoder, config, offscreen, &draw, &blend)
+                self.draw_matte(gpu, encoder, config, offscreen, &draw, target)
             }
             CompositorLayer::Nest { .. } => Ok(()),
         }
     }
 
-    /// Draw `items` onto the target of `nest`, which the frame cleared when
-    /// it began.
+    /// Draw `items` onto the target of `nest`, fusing the initial transparent
+    /// clear into the nest's first render pass.
     pub(super) fn draw_nest(
         &self,
         gpu: &GpuContext,
@@ -161,12 +133,15 @@ impl Compositor {
         nest: u64,
         items: &[CompositorLayer<'_>],
     ) -> Result<(), CompositorError> {
-        let Some(dest) = self.nests.target(nest) else {
+        let Some((texture, view)) = self.nests.target(nest) else {
             return Err(CompositorError::UndrawnNest(nest));
         };
+        let clear = self.nests.take_clear(nest);
+        let mut target = TargetPass::new(Some(texture), view, clear);
         for item in items {
-            self.draw_item(gpu, encoder, config, offscreen, item, dest, true, &mut None)?;
+            self.draw_item(gpu, encoder, config, offscreen, item, &mut target, true)?;
         }
+        target.flush(encoder, &self.pipelines);
         Ok(())
     }
 

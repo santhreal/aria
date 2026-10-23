@@ -5,14 +5,14 @@
 
 use crate::color_pass;
 use crate::effect_render::{
-    OffscreenPool, blit_premultiplied_to_canvas, effects_need_offscreen, run_effect_chain,
+    OffscreenPool, blit_premultiplied_to_target, effects_need_offscreen, run_effect_chain,
     run_lut_pass,
 };
 use crate::error::CompositorError;
 use crate::gpu::GpuContext;
 use crate::layer::{CompositeLayer, CompositorConfig, CompositorLayer};
 
-use super::draw_layer::BlendDest;
+use super::draw_layer::TargetPass;
 use super::pairs::{MatteDraw, TransitionDraw};
 use super::render::draw_built_layer;
 use super::{Compositor, LayerGpu};
@@ -119,6 +119,7 @@ impl Compositor {
 
     /// Draw `item` over the reference target of `clip`. A clip no effect of
     /// this frame reads has no target and draws nothing.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn draw_reference(
         &self,
         gpu: &GpuContext,
@@ -127,17 +128,24 @@ impl Compositor {
         offscreen: &OffscreenPool,
         clip: u64,
         item: &CompositorLayer<'_>,
+        caller_target: &mut TargetPass<'_>,
     ) -> Result<(), CompositorError> {
         let Some(view) = self.references.view(clip) else {
             return Ok(());
         };
-        let dest = BlendDest {
-            view,
-            texture: None,
-        };
+        let clear = self.references.take_clear(clip);
+        let mut target = TargetPass::new(None, view, clear);
         match *item {
             CompositorLayer::Layer(layer) => {
-                self.draw_layer_reference(gpu, encoder, config, offscreen, layer, view)
+                self.draw_layer_reference(
+                    gpu,
+                    encoder,
+                    config,
+                    offscreen,
+                    layer,
+                    &mut target,
+                    caller_target,
+                )?;
             }
             CompositorLayer::Matte {
                 content,
@@ -146,6 +154,7 @@ impl Compositor {
                 invert,
                 softness,
             } => {
+                caller_target.flush_if_reading_offscreen(encoder, &self.pipelines);
                 let draw = MatteDraw {
                     content,
                     stencil,
@@ -153,7 +162,7 @@ impl Compositor {
                     invert,
                     softness,
                 };
-                self.draw_matte(gpu, encoder, config, offscreen, &draw, &dest)
+                self.draw_matte(gpu, encoder, config, offscreen, &draw, &mut target)?;
             }
             CompositorLayer::Transition {
                 outgoing,
@@ -161,6 +170,7 @@ impl Compositor {
                 transition_id,
                 progress,
             } => {
+                caller_target.flush_if_reading_offscreen(encoder, &self.pipelines);
                 let draw = TransitionDraw {
                     outgoing,
                     incoming,
@@ -168,7 +178,7 @@ impl Compositor {
                     progress,
                     params: &[],
                 };
-                self.draw_transition(gpu, encoder, config, offscreen, &draw, &dest)
+                self.draw_transition(gpu, encoder, config, offscreen, &draw, &mut target)?;
             }
             CompositorLayer::TransitionWithParams {
                 outgoing,
@@ -177,6 +187,7 @@ impl Compositor {
                 progress,
                 params,
             } => {
+                caller_target.flush_if_reading_offscreen(encoder, &self.pipelines);
                 let draw = TransitionDraw {
                     outgoing,
                     incoming,
@@ -184,37 +195,43 @@ impl Compositor {
                     progress,
                     params,
                 };
-                self.draw_transition(gpu, encoder, config, offscreen, &draw, &dest)
+                self.draw_transition(gpu, encoder, config, offscreen, &draw, &mut target)?;
             }
             CompositorLayer::CanvasPass { .. }
             | CompositorLayer::Reference { .. }
-            | CompositorLayer::Nest { .. } => Ok(()),
+            | CompositorLayer::Nest { .. } => {}
         }
+        target.flush(encoder, &self.pipelines);
+        Ok(())
     }
 
-    /// Draw `layer` up to its blend over the reference target `view`.
-    fn draw_layer_reference(
-        &self,
+    /// Draw `layer` up to its blend over the reference target `target`.
+    #[allow(clippy::too_many_arguments)]
+    fn draw_layer_reference<'a>(
+        &'a self,
         gpu: &GpuContext,
         encoder: &mut wgpu::CommandEncoder,
         config: &CompositorConfig,
         offscreen: &OffscreenPool,
         layer: &CompositeLayer<'_>,
-        view: &wgpu::TextureView,
+        target: &mut TargetPass<'a>,
+        caller_target: &mut TargetPass<'_>,
     ) -> Result<(), CompositorError> {
         if draws_content_direct(layer) {
             let built = self.build_layer(gpu, encoder, config, layer)?;
-            self.draw_layer_into(encoder, view, None, &built);
+            target.push_layer(built);
             return Ok(());
         }
+        caller_target.flush_if_reading_offscreen(encoder, &self.pipelines);
         let result = self.layer_result(gpu, encoder, config, offscreen, layer)?;
-        blit_premultiplied_to_canvas(
+        let slot_mask = offscreen.index_of(result).map_or(0, |s| 1u8 << s);
+        blit_premultiplied_to_target(
             &gpu.device,
-            encoder,
             &self.pass_registry,
             offscreen.passes(),
             result,
-            view,
+            slot_mask,
+            target,
         );
         Ok(())
     }

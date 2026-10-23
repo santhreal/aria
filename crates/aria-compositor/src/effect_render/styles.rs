@@ -9,7 +9,9 @@
 use aria_shapes::{SDF_AA, SdfParams};
 use bytemuck::{Pod, Zeroable};
 
-use crate::color_pass;
+use crate::color_pass::{self, QuadPipeline};
+use crate::compositor::TargetPass;
+use crate::compositor::pipelines::SharedLayerPipelines;
 use crate::layer::{
     CompositeLayer, LayerBackground, LayerGlow, LayerOutline, LayerPlacement, LayerShadow, SdfLayer,
 };
@@ -137,6 +139,7 @@ pub(crate) fn background_plate_layer(
 }
 
 /// Tint `src` alpha into a premultiplied silhouette in `output`.
+#[allow(clippy::too_many_arguments)]
 fn run_silhouette(
     device: &wgpu::Device,
     encoder: &mut wgpu::CommandEncoder,
@@ -170,71 +173,72 @@ fn run_silhouette(
     color_pass::replace_quad(encoder, output, registry.silhouette_pipeline(), &bind_group);
 }
 
-/// Premultiplied-over blit of `source` onto the canvas with a UV offset.
-fn blit_offset_premultiplied_to_canvas(
+/// Premultiplied-over blit of `source` onto `target` with a UV offset.
+fn blit_offset_premultiplied_to_target<'a>(
     device: &wgpu::Device,
-    encoder: &mut wgpu::CommandEncoder,
-    registry: &PassRegistry,
+    registry: &'a PassRegistry,
     cache: &PassCache,
     source: &wgpu::TextureView,
-    canvas_view: &wgpu::TextureView,
+    slot_mask: u8,
+    target: &mut TargetPass<'a>,
     offset_uv: [f32; 2],
 ) {
-    let bind_group = cache.bind_group(
-        device,
-        &registry.offset_blit_layout,
-        "aria.style.offset.bg",
-        &[
-            Bound::Texture(source),
-            Bound::Sampler(&registry.sampler),
-            Bound::Uniform(bytemuck::bytes_of(&OffsetUniforms {
-                offset_uv,
-                _pad: [0.0; 2],
-            })),
-        ],
-    );
-    color_pass::draw_quad(
-        encoder,
-        canvas_view,
-        color_pass::KEEP,
-        registry.offset_blit_pipeline(),
-        &bind_group,
+    let bind_group = cache
+        .bind_group(
+            device,
+            &registry.offset_blit_layout,
+            "aria.style.offset.bg",
+            &[
+                Bound::Texture(source),
+                Bound::Sampler(&registry.sampler),
+                Bound::Uniform(bytemuck::bytes_of(&OffsetUniforms {
+                    offset_uv,
+                    _pad: [0.0; 2],
+                })),
+            ],
+        )
+        .clone();
+    target.push_quad(
+        QuadPipeline::Blended(registry.offset_blit_pipeline()),
+        bind_group,
+        slot_mask,
     );
 }
 
-/// Additive blit of premultiplied `source` onto the canvas (glow).
-fn blit_additive_to_canvas(
+/// Additive blit of premultiplied `source` onto `target` (glow).
+fn blit_additive_to_target<'a>(
     device: &wgpu::Device,
-    encoder: &mut wgpu::CommandEncoder,
-    registry: &PassRegistry,
+    registry: &'a PassRegistry,
     cache: &PassCache,
     source: &wgpu::TextureView,
-    canvas_view: &wgpu::TextureView,
+    slot_mask: u8,
+    target: &mut TargetPass<'a>,
 ) {
-    let bind_group = cache.bind_group(
-        device,
-        &registry.blit_layout,
-        "aria.style.additive.bg",
-        &[Bound::Texture(source), Bound::Sampler(&registry.sampler)],
-    );
-    color_pass::draw_quad(
-        encoder,
-        canvas_view,
-        color_pass::KEEP,
-        registry.additive_blit_pipeline(),
-        &bind_group,
+    let bind_group = cache
+        .bind_group(
+            device,
+            &registry.blit_layout,
+            "aria.style.additive.bg",
+            &[Bound::Texture(source), Bound::Sampler(&registry.sampler)],
+        )
+        .clone();
+    target.push_quad(
+        QuadPipeline::Blended(registry.additive_blit_pipeline()),
+        bind_group,
+        slot_mask,
     );
 }
 
-/// Harden the blurred silhouette into an outside stroke on the canvas.
-fn blit_outline_harden_to_canvas(
+/// Harden the blurred silhouette into an outside stroke on `target`.
+#[allow(clippy::too_many_arguments)]
+fn blit_outline_harden_to_target<'a>(
     device: &wgpu::Device,
-    encoder: &mut wgpu::CommandEncoder,
-    registry: &PassRegistry,
+    registry: &'a PassRegistry,
     cache: &PassCache,
     blurred: &wgpu::TextureView,
     content: &wgpu::TextureView,
-    canvas_view: &wgpu::TextureView,
+    slot_mask: u8,
+    target: &mut TargetPass<'a>,
     rgba: [u8; 4],
 ) {
     let uniforms = HardenUniforms {
@@ -245,23 +249,23 @@ fn blit_outline_harden_to_canvas(
             f32::from(rgba[3]) / 255.0,
         ],
     };
-    let bind_group = cache.bind_group(
-        device,
-        &registry.harden_layout,
-        "aria.style.harden.bg",
-        &[
-            Bound::Texture(blurred),
-            Bound::Texture(content),
-            Bound::Sampler(&registry.sampler),
-            Bound::Uniform(bytemuck::bytes_of(&uniforms)),
-        ],
-    );
-    color_pass::draw_quad(
-        encoder,
-        canvas_view,
-        color_pass::KEEP,
-        registry.harden_pipeline(),
-        &bind_group,
+    let bind_group = cache
+        .bind_group(
+            device,
+            &registry.harden_layout,
+            "aria.style.harden.bg",
+            &[
+                Bound::Texture(blurred),
+                Bound::Texture(content),
+                Bound::Sampler(&registry.sampler),
+                Bound::Uniform(bytemuck::bytes_of(&uniforms)),
+            ],
+        )
+        .clone();
+    target.push_quad(
+        QuadPipeline::Blended(registry.harden_pipeline()),
+        bind_group,
+        slot_mask,
     );
 }
 
@@ -271,14 +275,16 @@ fn blit_outline_harden_to_canvas(
 /// - A = (S+1)%slots, B = (S+2)%slots hold silhouette + blur ping-pong.
 /// - Both are free again before the caller composites content, so a
 ///   non-`Normal` blend may still snapshot the canvas into (S+1)%slots.
-pub(crate) fn composite_layer_styles(
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn composite_layer_styles<'a>(
     device: &wgpu::Device,
     encoder: &mut wgpu::CommandEncoder,
-    registry: &PassRegistry,
+    pipelines: &SharedLayerPipelines,
+    registry: &'a PassRegistry,
     pool: &OffscreenPool,
     content: &wgpu::TextureView,
     src_slot: usize,
-    canvas_view: &wgpu::TextureView,
+    target: &mut TargetPass<'a>,
     shadow: Option<LayerShadow>,
     glow: Option<LayerGlow>,
     width: u32,
@@ -286,10 +292,12 @@ pub(crate) fn composite_layer_styles(
 ) {
     let slot_a = (src_slot + 1) % pool.slots();
     let slot_b = (src_slot + 2) % pool.slots();
+    let ab_mask = (1u8 << slot_a) | (1u8 << slot_b);
     let w = width.max(1) as f32;
     let h = height.max(1) as f32;
 
     if let Some(shadow) = shadow {
+        target.flush_if_reading_slots(encoder, pipelines, ab_mask);
         run_silhouette(
             device,
             encoder,
@@ -311,18 +319,19 @@ pub(crate) fn composite_layer_styles(
             width,
             height,
         );
-        blit_offset_premultiplied_to_canvas(
+        blit_offset_premultiplied_to_target(
             device,
-            encoder,
             registry,
             pool.passes(),
             pool.view(slot_a),
-            canvas_view,
+            1u8 << slot_a,
+            target,
             [shadow.offset[0] / w, shadow.offset[1] / h],
         );
     }
 
     if let Some(glow) = glow {
+        target.flush_if_reading_slots(encoder, pipelines, ab_mask);
         run_silhouette(
             device,
             encoder,
@@ -344,13 +353,13 @@ pub(crate) fn composite_layer_styles(
             width,
             height,
         );
-        blit_additive_to_canvas(
+        blit_additive_to_target(
             device,
-            encoder,
             registry,
             pool.passes(),
             pool.view(slot_a),
-            canvas_view,
+            1u8 << slot_a,
+            target,
         );
     }
 }
@@ -360,14 +369,15 @@ pub(crate) fn composite_layer_styles(
 /// Skips when `width` or alpha is 0. Reuses A/B slots after content (and any
 /// blend snapshot) so content in `src_slot` is left intact.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn composite_layer_outline(
+pub(crate) fn composite_layer_outline<'a>(
     device: &wgpu::Device,
     encoder: &mut wgpu::CommandEncoder,
-    registry: &PassRegistry,
+    pipelines: &SharedLayerPipelines,
+    registry: &'a PassRegistry,
     pool: &OffscreenPool,
     content: &wgpu::TextureView,
     src_slot: usize,
-    canvas_view: &wgpu::TextureView,
+    target: &mut TargetPass<'a>,
     outline: LayerOutline,
     width: u32,
     height: u32,
@@ -377,6 +387,8 @@ pub(crate) fn composite_layer_outline(
     }
     let slot_a = (src_slot + 1) % pool.slots();
     let slot_b = (src_slot + 2) % pool.slots();
+    let ab_mask = (1u8 << slot_a) | (1u8 << slot_b);
+    target.flush_if_reading_slots(encoder, pipelines, ab_mask);
     run_silhouette(
         device,
         encoder,
@@ -398,14 +410,14 @@ pub(crate) fn composite_layer_outline(
         width,
         height,
     );
-    blit_outline_harden_to_canvas(
+    blit_outline_harden_to_target(
         device,
-        encoder,
         registry,
         pool.passes(),
         pool.view(slot_a),
         content,
-        canvas_view,
+        (1u8 << slot_a) | (1u8 << src_slot),
+        target,
         outline.rgba,
     );
 }

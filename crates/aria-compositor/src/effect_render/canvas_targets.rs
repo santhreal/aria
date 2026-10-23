@@ -5,19 +5,28 @@
 //! layer parameter. A [`CompositorLayer::Nest`](crate::CompositorLayer::Nest)
 //! draws the items of a nested sequence into the target of its id, which a
 //! layer whose content is [`LayerContent::Nest`](crate::LayerContent::Nest)
-//! samples. Every target is cleared at the start of a frame, so an id no item
-//! of the frame draws reads transparent.
+//! samples. Each target is marked for a transparent clear at the start of a
+//! frame and fused into its first draw pass (or cleared on demand if read
+//! before any item draws into it).
+
+use std::cell::Cell;
 
 use rustc_hash::FxHashMap;
 
 use super::RT_FORMAT;
+
+struct TargetSlot {
+    texture: wgpu::Texture,
+    view: wgpu::TextureView,
+    needs_clear: Cell<bool>,
+}
 
 /// One target per id this frame names, at the canvas size.
 pub(crate) struct CanvasTargets {
     label: &'static str,
     width: u32,
     height: u32,
-    targets: FxHashMap<u64, (wgpu::Texture, wgpu::TextureView)>,
+    targets: FxHashMap<u64, TargetSlot>,
     /// Ids this frame names, reused across frames.
     wanted: Vec<u64>,
 }
@@ -35,7 +44,8 @@ impl CanvasTargets {
     }
 
     /// Keep a target for every id in `ids` at `width`×`height`, dropping the
-    /// targets of ids this frame does not name.
+    /// targets of ids this frame does not name and marking every retained
+    /// target to clear before it is drawn or read.
     pub(crate) fn ensure(
         &mut self,
         device: &wgpu::Device,
@@ -54,7 +64,7 @@ impl CanvasTargets {
         self.targets.retain(|id, _| wanted.contains(id));
         let label = self.label;
         for &id in &self.wanted {
-            self.targets.entry(id).or_insert_with(|| {
+            let slot = self.targets.entry(id).or_insert_with(|| {
                 let texture = device.create_texture(&wgpu::TextureDescriptor {
                     label: Some(label),
                     size: wgpu::Extent3d {
@@ -74,33 +84,53 @@ impl CanvasTargets {
                     view_formats: &[],
                 });
                 let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-                (texture, view)
+                TargetSlot {
+                    texture,
+                    view,
+                    needs_clear: Cell::new(true),
+                }
             });
+            slot.needs_clear.set(true);
         }
     }
 
-    /// Clear every target to transparent.
-    pub(crate) fn clear(&self, encoder: &mut wgpu::CommandEncoder) {
-        for (_, view) in self.targets.values() {
-            crate::color_pass::clear(encoder, view, wgpu::Color::TRANSPARENT);
+    /// Mark the target of `id` to clear to transparent on its next draw or read.
+    pub(crate) fn mark_clear(&self, id: u64) {
+        if let Some(slot) = self.targets.get(&id) {
+            slot.needs_clear.set(true);
         }
     }
 
-    /// Clear the target of `id` to transparent, when this frame names it.
-    pub(crate) fn clear_one(&self, encoder: &mut wgpu::CommandEncoder, id: u64) {
-        if let Some((_, view)) = self.targets.get(&id) {
-            crate::color_pass::clear(encoder, view, wgpu::Color::TRANSPARENT);
+    /// Consume the pending transparent clear for `id` so the caller can fuse it
+    /// into its render pass.
+    pub(crate) fn take_clear(&self, id: u64) -> Option<wgpu::Color> {
+        self.targets.get(&id).and_then(|slot| {
+            slot.needs_clear
+                .replace(false)
+                .then_some(wgpu::Color::TRANSPARENT)
+        })
+    }
+
+    /// Ensure the target of `id` has been cleared if no draw has consumed its
+    /// pending clear yet.
+    pub(crate) fn ensure_cleared(&self, encoder: &mut wgpu::CommandEncoder, id: u64) {
+        if let Some(slot) = self.targets.get(&id)
+            && slot.needs_clear.replace(false)
+        {
+            crate::color_pass::clear(encoder, &slot.view, wgpu::Color::TRANSPARENT);
         }
     }
 
     /// The target view of `id`, or `None` when this frame does not name it.
     pub(crate) fn view(&self, id: u64) -> Option<&wgpu::TextureView> {
-        self.targets.get(&id).map(|(_, view)| view)
+        self.targets.get(&id).map(|slot| &slot.view)
     }
 
     /// The target texture and view of `id`, or `None` when this frame does
     /// not name it.
     pub(crate) fn target(&self, id: u64) -> Option<(&wgpu::Texture, &wgpu::TextureView)> {
-        self.targets.get(&id).map(|(texture, view)| (texture, view))
+        self.targets
+            .get(&id)
+            .map(|slot| (&slot.texture, &slot.view))
     }
 }

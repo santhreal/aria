@@ -3,7 +3,8 @@
 
 use bytemuck::{Pod, Zeroable};
 
-use crate::color_pass::{self, ReplacePipeline};
+use crate::color_pass::{self, QuadPipeline, ReplacePipeline};
+use crate::compositor::TargetPass;
 use crate::error::CompositorError;
 use crate::grade::ColorGrade;
 use crate::layer::{CoverageMix, MaskOp, MatteRead};
@@ -22,8 +23,11 @@ mod pool;
 mod registered;
 mod styles;
 
-pub(crate) use blend::run_blend_composite;
-pub(crate) use blit::{blit_premultiplied_to_canvas, blit_replace, blit_weighted_additive};
+pub(crate) use blend::run_blend_composite_to_target;
+pub(crate) use blit::{
+    blit_premultiplied_to_target, blit_replace, blit_replace_to_target, blit_weighted_additive,
+    blit_weighted_additive_to_target,
+};
 pub(crate) use canvas_targets::CanvasTargets;
 pub(crate) use lut::run_lut_pass;
 pub use pass_cache::PassStats;
@@ -310,6 +314,47 @@ pub(crate) fn run_matte_pass(
     );
 
     color_pass::replace_quad(encoder, output, registry.matte(), &bind_group);
+}
+
+/// Queue a matte cut of `content` by `stencil` onto `target`.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn run_matte_pass_to_target<'a>(
+    device: &wgpu::Device,
+    registry: &'a PassRegistry,
+    cache: &PassCache,
+    content: &wgpu::TextureView,
+    stencil: &wgpu::TextureView,
+    slot_mask: u8,
+    target: &mut TargetPass<'a>,
+    read: MatteRead,
+    mix: CoverageMix,
+    softness: f32,
+    width: u32,
+    height: u32,
+) {
+    let uniforms = TransitionUniforms {
+        texel_size: texel_size(width, height),
+        params: [read.mode(), mix.offset, softness.clamp(0.0, 1.0), mix.scale],
+    };
+    let bind_group = cache
+        .bind_group(
+            device,
+            &registry.transition_layout,
+            "aria.matte.bg",
+            &[
+                Bound::Texture(content),
+                Bound::Texture(stencil),
+                Bound::Sampler(&registry.sampler),
+                Bound::Uniform(bytemuck::bytes_of(&uniforms)),
+            ],
+        )
+        .clone();
+
+    target.push_quad(
+        QuadPipeline::Replace(registry.matte()),
+        bind_group,
+        slot_mask,
+    );
 }
 
 /// One mask of a stack, as [`run_mask_stack_pass`] combines it.

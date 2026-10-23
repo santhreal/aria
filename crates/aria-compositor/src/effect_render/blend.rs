@@ -2,7 +2,8 @@
 
 use bytemuck::{Pod, Zeroable};
 
-use crate::color_pass::{self, ReplacePipeline};
+use crate::color_pass::{QuadPipeline, ReplacePipeline};
+use crate::compositor::TargetPass;
 use crate::layer::BlendMode;
 
 use super::pipelines::PassRegistry;
@@ -15,35 +16,42 @@ struct BlendUniforms {
     _pad: [u32; 3],
 }
 
-/// Composite premultiplied `src` over a canvas `dst` snapshot into `output`
-/// using `mode`. Fixed-function blending is disabled — the shader writes the
-/// final premultiplied result.
-pub(crate) fn run_blend_composite(
+/// Composite premultiplied `src_layer` over a canvas `dst_snapshot` onto
+/// `target` using `mode`. Fixed-function blending is disabled; the shader
+/// writes the final premultiplied result.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn run_blend_composite_to_target<'a>(
     device: &wgpu::Device,
-    encoder: &mut wgpu::CommandEncoder,
-    registry: &PassRegistry,
+    registry: &'a PassRegistry,
     cache: &PassCache,
     dst_snapshot: &wgpu::TextureView,
     src_layer: &wgpu::TextureView,
-    output: &wgpu::TextureView,
+    slot_mask: u8,
+    target: &mut TargetPass<'a>,
     mode: BlendMode,
 ) {
-    let bind_group = cache.bind_group(
-        device,
-        &registry.blend_layout,
-        "aria.blend.bg",
-        &[
-            Bound::Texture(dst_snapshot),
-            Bound::Texture(src_layer),
-            Bound::Sampler(&registry.sampler),
-            Bound::Uniform(bytemuck::bytes_of(&BlendUniforms {
-                mode: mode.shader_id(),
-                _pad: [0; 3],
-            })),
-        ],
-    );
+    let bind_group = cache
+        .bind_group(
+            device,
+            &registry.blend_layout,
+            "aria.blend.bg",
+            &[
+                Bound::Texture(dst_snapshot),
+                Bound::Texture(src_layer),
+                Bound::Sampler(&registry.sampler),
+                Bound::Uniform(bytemuck::bytes_of(&BlendUniforms {
+                    mode: mode.shader_id(),
+                    _pad: [0; 3],
+                })),
+            ],
+        )
+        .clone();
 
-    color_pass::replace_quad(encoder, output, registry.blend_pipeline(mode), &bind_group);
+    target.push_quad(
+        QuadPipeline::Replace(registry.blend_pipeline(mode)),
+        bind_group,
+        slot_mask,
+    );
 }
 
 pub(super) const BLEND_MODE_COUNT: usize = BlendMode::ALL.len();

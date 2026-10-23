@@ -12,13 +12,15 @@
 //! the two copies replaces the canvas. A reference target draws a pair as
 //! Normal, as it draws a layer.
 
-use crate::effect_render::{OffscreenPool, blit_replace, run_matte_pass, run_transition_pass};
+use crate::effect_render::{
+    OffscreenPool, blit_replace_to_target, run_matte_pass, run_transition_pass,
+};
 use crate::error::CompositorError;
 use crate::gpu::GpuContext;
 use crate::layer::{CompositeLayer, CompositorConfig, CoverageMix, MatteRead};
 
 use super::Compositor;
-use super::draw_layer::{BlendDest, LayerTarget, copy_canvas};
+use super::draw_layer::{TargetPass, copy_canvas};
 
 /// A transition as [`Compositor::draw_transition`] draws it.
 pub(super) struct TransitionDraw<'a> {
@@ -58,32 +60,38 @@ impl Compositor {
             if let Some(under) = under {
                 copy_canvas(encoder, offscreen, under, texture);
             }
-            let target = LayerTarget {
-                texture,
+            let mut target = TargetPass::new(
+                Some(texture),
                 view,
-                clear: under.is_none().then_some(wgpu::Color::TRANSPARENT),
-            };
-            self.draw_layer_onto(gpu, encoder, config, offscreen, side, &target)?;
+                under.is_none().then_some(wgpu::Color::TRANSPARENT),
+            );
+            self.draw_layer_onto(gpu, encoder, config, offscreen, side, &mut target)?;
+            target.flush(encoder, &self.pipelines);
         }
         Ok(())
     }
 
-    /// Blend a transition's sides and composite the result over `dest` with
+    /// Blend a transition's sides and composite the result over `target` with
     /// the sides' blend modes.
-    pub(super) fn draw_transition(
-        &self,
+    pub(super) fn draw_transition<'a>(
+        &'a self,
         gpu: &GpuContext,
         encoder: &mut wgpu::CommandEncoder,
         config: &CompositorConfig,
         offscreen: &OffscreenPool,
         draw: &TransitionDraw<'_>,
-        dest: &BlendDest<'_>,
+        target: &mut TargetPass<'a>,
     ) -> Result<(), CompositorError> {
         let device = &gpu.device;
         let modes = [draw.outgoing.blend_mode, draw.incoming.blend_mode];
         // Sides with different modes cannot share one composite: each draws
         // over the destination instead.
-        let under = dest.texture.filter(|_| modes[0] != modes[1]);
+        let under = target.texture.filter(|_| modes[0] != modes[1]);
+        if under.is_some() {
+            target.flush(encoder, &self.pipelines);
+        } else {
+            target.flush_if_reading_offscreen(encoder, &self.pipelines);
+        }
         self.draw_sides(
             gpu,
             encoder,
@@ -107,32 +115,33 @@ impl Compositor {
             config.height,
         );
         if under.is_some() {
-            blit_replace(
+            blit_replace_to_target(
                 device,
-                encoder,
                 &self.pass_registry,
                 offscreen.passes(),
                 offscreen.view(0),
-                dest.view,
+                1u8 << 0,
+                target,
             );
         } else {
-            self.composite_slot(device, encoder, offscreen, 0, dest, modes[0]);
+            self.composite_slot(device, encoder, offscreen, 0, target, modes[0]);
         }
         Ok(())
     }
 
     /// Cut a matte's content by its stencil and composite the result over
-    /// `dest` with the content's blend mode.
-    pub(super) fn draw_matte(
-        &self,
+    /// `target` with the content's blend mode.
+    pub(super) fn draw_matte<'a>(
+        &'a self,
         gpu: &GpuContext,
         encoder: &mut wgpu::CommandEncoder,
         config: &CompositorConfig,
         offscreen: &OffscreenPool,
         draw: &MatteDraw<'_>,
-        dest: &BlendDest<'_>,
+        target: &mut TargetPass<'a>,
     ) -> Result<(), CompositorError> {
         let device = &gpu.device;
+        target.flush_if_reading_offscreen(encoder, &self.pipelines);
         self.draw_sides(
             gpu,
             encoder,
@@ -159,7 +168,14 @@ impl Compositor {
             config.width,
             config.height,
         );
-        self.composite_slot(device, encoder, offscreen, 0, dest, draw.content.blend_mode);
+        self.composite_slot(
+            device,
+            encoder,
+            offscreen,
+            0,
+            target,
+            draw.content.blend_mode,
+        );
         Ok(())
     }
 }

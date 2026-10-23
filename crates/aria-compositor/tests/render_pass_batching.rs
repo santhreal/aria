@@ -627,3 +627,346 @@ fn median(samples: &mut [std::time::Duration]) -> std::time::Duration {
     samples.sort_unstable();
     samples[samples.len() / 2]
 }
+
+/// WHY: Every `wgpu::CommandEncoder::begin_render_pass` and its
+/// `encode_render_pass` step in `CommandEncoder::finish` allocates ~11 heap
+/// blocks in `wgpu-core`/lavapipe. Consecutive direct layers across all
+/// pipeline families (`SolidCover`, `Solid`, `YuvCover`, `Yuv`, `YuvFx`,
+/// `Rgba`, `RgbaFx`, `Cutout`, `CutoutFx`, `Shapes`) and target blits
+/// (`blit_premultiplied_to_target`, `blit_replace_to_target`, style shadow/glow
+/// offset blits, transition/matte composites, nest/reference initial clears)
+/// must share one `wgpu::RenderPass` per target, flushing only when a pass
+/// snapshots the target texture or reuses an `OffscreenPool` slot bound by a
+/// queued draw.
+///
+/// Does not catch: allocations inside individual `wgpu` draw calls within a
+/// render pass, which `steady_frame_render_allocations_stay_at_wgpu_floor`
+/// bounds across a full frame.
+#[test]
+#[allow(clippy::expect_used)]
+fn target_pass_batching_merges_consecutive_draws_and_flushes_on_hazards() {
+    use aria_compositor::LayerBackground;
+
+    let gpu = gpu_or_skip!();
+    let mut comp = Compositor::new(&gpu);
+    let config = CompositorConfig::new(64, 64).with_background([12, 24, 36, 255]);
+    let full = LayerPlacement::full_canvas(&config);
+    let inset = |cx: f32, cy: f32, w: f32, h: f32| LayerPlacement {
+        center: [cx, cy],
+        size: [w, h],
+        rotation: 0.0,
+        opacity: 1.0,
+    };
+
+    // 1. Stills stack (`stills-4k` shape): 3 RGBA layers side by side fuse
+    //    with the canvas background clear into 1 render pass.
+    let still_a = rgba_uniform(64, 64, [200, 40, 40, 255]);
+    let still_b = rgba_uniform(64, 64, [40, 200, 40, 255]);
+    let still_c = rgba_uniform(64, 64, [40, 40, 200, 255]);
+    let stills = [
+        CompositeLayer::rgba(&still_a, inset(12.0, 32.0, 20.0, 64.0)),
+        CompositeLayer::rgba(&still_b, inset(32.0, 32.0, 20.0, 64.0)),
+        CompositeLayer::rgba(&still_c, inset(52.0, 32.0, 20.0, 64.0)),
+    ];
+    let stills_img = comp.render(&gpu, &config, &stills).expect("stills stack");
+    assert_eq!(
+        comp.render_pass_count(),
+        1,
+        "three side-by-side RGBA layers must share one render pass"
+    );
+    assert_px(&stills_img, 12, 32, [200, 40, 40, 255], 1);
+    assert_px(&stills_img, 32, 32, [40, 200, 40, 255], 1);
+    assert_px(&stills_img, 52, 32, [40, 40, 200, 255], 1);
+
+    // 2. All direct pipeline families across >8 layers (spilling from inline
+    //    storage into overflow): `YuvCover`, `Yuv`, `YuvFx`, `Rgba`, `RgbaFx`,
+    //    `Cutout`, `CutoutFx`, `Solid`, `Shapes` all share 1 render pass.
+    let yuv_base = nv12_uniform(64, 64, 80, 128, 128, ColorSpace::BT709);
+    let yuv_pip = i420_uniform(64, 64, 180, 100, 150, ColorSpace::BT709);
+    let circle_fx = LayerEffects {
+        mask: Some(LayerMask::new(mask_kind::CIRCLE)),
+        chroma_key: None,
+    };
+    let shape_layer = SdfLayer {
+        shape: (SdfParams::RoundedRect { radius: 2.0 }).with_half([6.0, 6.0]),
+        fill: [255, 220, 40, 255],
+        stroke: None,
+    };
+    let direct_ten = [
+        CompositeLayer::frame(&yuv_base, full),
+        CompositeLayer::frame(&yuv_pip, inset(16.0, 16.0, 20.0, 20.0)),
+        CompositeLayer::frame(&yuv_pip, inset(48.0, 16.0, 20.0, 20.0)).with_fx(circle_fx),
+        CompositeLayer::rgba(&still_a, inset(16.0, 48.0, 16.0, 16.0)),
+        CompositeLayer::rgba(&still_b, inset(32.0, 48.0, 16.0, 16.0)).with_fx(circle_fx),
+        CompositeLayer::cutout(&still_c, inset(48.0, 32.0, 12.0, 12.0)),
+        CompositeLayer::cutout(&still_a, inset(16.0, 32.0, 12.0, 12.0)).with_fx(circle_fx),
+        CompositeLayer::solid([120, 60, 200, 200], inset(32.0, 16.0, 14.0, 14.0)),
+        CompositeLayer::solid([60, 200, 120, 200], inset(32.0, 32.0, 14.0, 14.0)),
+        CompositeLayer::sdf(shape_layer, inset(54.0, 54.0, 16.0, 16.0)),
+    ];
+    let direct_img = comp
+        .render(&gpu, &config, &direct_ten)
+        .expect("ten direct layers across all pipeline families");
+    assert_eq!(
+        comp.render_pass_count(),
+        1,
+        "ten consecutive direct layers across all pipeline families must share one render pass"
+    );
+    assert_px(&direct_img, 54, 54, [255, 220, 40, 255], 2);
+
+    // 3. Overwrite reset: an opaque covering layer (`SolidCover` / `YuvCover`)
+    //    pushed after earlier draws, including an offscreen-effect blit that
+    //    set `offscreen_mask`, drops the earlier batch and resets
+    //    `offscreen_mask`, so a subsequent offscreen-effect layer does not
+    //    flush a dead canvas pass before reusing the pool slots.
+    let vig_fx = [PassInstance::new("vignette", vec![0.4])];
+    let covered = [
+        CompositeLayer::rgba(&still_a, inset(16.0, 16.0, 24.0, 24.0)).with_effects(&vig_fx),
+        CompositeLayer::solid([30, 90, 150, 255], full),
+        CompositeLayer::rgba(&still_b, inset(48.0, 48.0, 16.0, 16.0)).with_effects(&vig_fx),
+    ];
+    let covered_img = comp.render(&gpu, &config, &covered).expect("covered stack");
+    // 2 offscreen passes for covered[0] + 2 offscreen passes for covered[2] +
+    // 1 shared canvas pass for covered[1] (`SolidCover`) and covered[2]'s blit
+    // = 5 passes (vs 6 if `SolidCover` did not reset `offscreen_mask`).
+    assert_eq!(
+        comp.render_pass_count(),
+        5,
+        "covering layer must discard prior queued blit and reset offscreen_mask"
+    );
+    let clean_cover = comp
+        .render(&gpu, &config, &covered[1..])
+        .expect("clean cover");
+    assert_eq!(covered_img.pixels, clean_cover.pixels);
+
+    // 4. Direct layers + styled offscreen-effect layer + trailing direct layer:
+    //    L1 (`YuvCover`) + L2 (`Yuv` PIP) stay queued while L3's offscreen
+    //    effect chain (`gaussian_blur` + `vignette`) and shadow blur passes
+    //    execute, then L3's background plate, shadow blit, content blit, and
+    //    L4 (`Rgba` title) all fuse into 1 canvas render pass.
+    let l3_fx = [
+        PassInstance::new("gaussian_blur", vec![2.0]),
+        PassInstance::new("vignette", vec![0.4]),
+    ];
+    let l1 = CompositeLayer::frame(&yuv_base, full);
+    let l2 = CompositeLayer::frame(&yuv_pip, inset(16.0, 16.0, 24.0, 24.0));
+    let l3 = CompositeLayer::rgba(&still_a, inset(32.0, 48.0, 40.0, 16.0))
+        .with_effects(&l3_fx)
+        .with_styles(LayerStyles {
+            background: Some(LayerBackground {
+                rgba: [10, 10, 10, 200],
+                padding: 2.0,
+                radius: 0.0,
+            }),
+            shadow: Some(LayerShadow {
+                rgba: [0, 0, 0, 200],
+                offset: [2.0, 2.0],
+                blur: 2.0,
+            }),
+            glow: None,
+            outline: None,
+        });
+    let l4 = CompositeLayer::rgba(&still_c, inset(48.0, 16.0, 16.0, 16.0));
+    let mixed = [l1, l2, l3, l4];
+    let mixed_img = comp.render(&gpu, &config, &mixed).expect("mixed stack");
+    // 7 offscreen passes (1 draw_samples + 2 blur + 1 vignette + 3 shadow) +
+    // 1 shared canvas pass for L1, L2, L3 plate/shadow/content, and L4 = 8
+    // passes (vs 13 without TargetPass batching).
+    assert_eq!(
+        comp.render_pass_count(),
+        8,
+        "L1, L2, L3 styles/content, and L4 must share one canvas render pass"
+    );
+    assert_px(&mixed_img, 48, 16, [40, 40, 200, 255], 1);
+
+    // Adding `glow` and `outline` to L3 reuses `slot_a`/`slot_b` after prior
+    // style blits queued draws reading those slots, so `flush_if_reading_slots`
+    // flushes before `glow` (3 offscreen passes + 1 canvas pass) and before
+    // `outline` (4 offscreen passes + 1 canvas pass fusing outline blit + L4).
+    let l3_outlined = l3.with_styles(LayerStyles {
+        glow: Some(LayerGlow {
+            rgba: [255, 255, 0, 180],
+            radius: 2.0,
+            intensity: 1.0,
+        }),
+        outline: Some(LayerOutline {
+            rgba: [0, 255, 128, 255],
+            width: 2.0,
+        }),
+        ..l3.styles
+    });
+    let outlined_scene = [l1, l2, l3_outlined, l4];
+    let outlined_img = comp
+        .render(&gpu, &config, &outlined_scene)
+        .expect("outlined mixed stack");
+    assert_eq!(
+        comp.render_pass_count(),
+        16,
+        "glow and outline slot hazards must flush and fuse outline blit with L4"
+    );
+    assert_px(&outlined_img, 48, 16, [40, 40, 200, 255], 1);
+
+    // 5. Nest + Transition + Matte + non-Normal BlendMode + CanvasPass fusion.
+    let nest_a = CompositeLayer::rgba(&still_a, inset(16.0, 32.0, 24.0, 48.0));
+    let nest_b = CompositeLayer::rgba(&still_b, inset(48.0, 32.0, 24.0, 48.0));
+    let nest_items = [
+        CompositorLayer::layer(&nest_a),
+        CompositorLayer::layer(&nest_b),
+    ];
+    let use_nest = CompositeLayer::nest(7, full);
+    let over_nest = CompositeLayer::rgba(&still_c, inset(32.0, 32.0, 16.0, 16.0));
+    let nest_scene = [
+        CompositorLayer::Nest {
+            nest: 7,
+            items: &nest_items,
+        },
+        CompositorLayer::layer(&use_nest),
+        CompositorLayer::layer(&over_nest),
+    ];
+    comp.render_compositor_layers(&gpu, &config, &nest_scene)
+        .expect("nest scene");
+    assert_eq!(
+        comp.render_pass_count(),
+        2,
+        "nest clear+layers must share 1 nest pass and outer layers 1 canvas pass"
+    );
+
+    // Leading direct layer + Transition (or Matte) + trailing direct layer:
+    // 2 side passes (each fusing its transparent clear) + 1 transition/matte
+    // pass + 1 shared canvas pass = 4 passes.
+    let lead = CompositeLayer::solid([30, 30, 30, 255], full);
+    let trail = CompositeLayer::rgba(&still_c, inset(48.0, 48.0, 16.0, 16.0));
+    let trans_scene = [
+        CompositorLayer::layer(&lead),
+        CompositorLayer::Transition {
+            outgoing: &nest_a,
+            incoming: &nest_b,
+            transition_id: "crossfade",
+            progress: 0.5,
+        },
+        CompositorLayer::layer(&trail),
+    ];
+    comp.render_compositor_layers(&gpu, &config, &trans_scene)
+        .expect("transition scene");
+    assert_eq!(
+        comp.render_pass_count(),
+        4,
+        "transition surrounded by direct layers must share 1 canvas pass (4 total)"
+    );
+
+    let matte_scene = [
+        CompositorLayer::layer(&lead),
+        CompositorLayer::Matte {
+            content: &nest_a,
+            stencil: &nest_b,
+            read: MatteRead::Alpha,
+            invert: false,
+            softness: 0.1,
+        },
+        CompositorLayer::layer(&trail),
+    ];
+    comp.render_compositor_layers(&gpu, &config, &matte_scene)
+        .expect("matte scene");
+    assert_eq!(
+        comp.render_pass_count(),
+        4,
+        "matte surrounded by direct layers must share 1 canvas pass (4 total)"
+    );
+
+    // Non-Normal blend mode flushes before snapshotting the canvas, then fuses
+    // its Replace composite quad with trailing direct layers (1 pre-blend
+    // canvas pass + 1 offscreen layer pass + 1 post-blend canvas pass = 3).
+    let screen_layer = CompositeLayer::rgba(&still_a, inset(32.0, 32.0, 32.0, 32.0))
+        .with_blend_mode(BlendMode::Screen);
+    let blend_scene = [
+        CompositorLayer::layer(&lead),
+        CompositorLayer::layer(&screen_layer),
+        CompositorLayer::layer(&trail),
+    ];
+    comp.render_compositor_layers(&gpu, &config, &blend_scene)
+        .expect("blend scene");
+    assert_eq!(
+        comp.render_pass_count(),
+        3,
+        "blend composite Replace quad must fuse with trailing direct layers"
+    );
+
+    // 6. Motion-blurred layer (3 samples) fuses the accumulation clear into
+    //    sample 0 and fuses its final blit with leading and trailing direct
+    //    layers (6 sample passes + 1 canvas pass = 7).
+    let samples = [
+        inset(28.0, 32.0, 36.0, 32.0),
+        inset(32.0, 32.0, 32.0, 32.0),
+        inset(36.0, 32.0, 28.0, 32.0),
+    ];
+    let mb_layer =
+        CompositeLayer::rgba(&still_a, inset(32.0, 32.0, 32.0, 32.0)).with_blur_passes(&samples);
+    let mb_scene = [
+        CompositorLayer::layer(&lead),
+        CompositorLayer::layer(&mb_layer),
+        CompositorLayer::layer(&trail),
+    ];
+    comp.render_compositor_layers(&gpu, &config, &mb_scene)
+        .expect("motion blur scene");
+    assert_eq!(
+        comp.render_pass_count(),
+        7,
+        "lead direct layer + 3-sample motion-blurred layer + trailing direct layer must use 7 passes"
+    );
+
+    // 7. Unmasked CanvasPass flushes prior direct layers, snapshots the canvas,
+    //    runs its effect, and fuses its Replace blit with a trailing direct layer
+    //    in one overwrite pass (1 pre-pass canvas + 1 snapshot + 2 blur passes +
+    //    1 post-pass canvas = 5, vs 6 without TargetPass batching).
+    let cp_scene = [
+        CompositorLayer::layer(&lead),
+        CompositorLayer::CanvasPass {
+            effects: &l3_fx[..1],
+            grade: None,
+            lut: None,
+            stencil: None,
+        },
+        CompositorLayer::layer(&trail),
+    ];
+    comp.render_compositor_layers(&gpu, &config, &cp_scene)
+        .expect("canvas pass scene");
+    assert_eq!(
+        comp.render_pass_count(),
+        5,
+        "direct layer + unmasked 2-pass CanvasPass + trailing direct layer must use 5 passes"
+    );
+
+    // 8. Two consecutive offscreen-effect layers: the second layer's effect
+    //    chain rewrites the pool slots, so the first layer's queued blit is
+    //    flushed before it (2 offscreen passes + 1 canvas pass per layer = 6,
+    //    vs 5 if both blits waited for one canvas pass), and each layer draws
+    //    its own pixels, as it does rendered alone.
+    let left_fx =
+        CompositeLayer::rgba(&still_a, inset(16.0, 32.0, 24.0, 48.0)).with_effects(&vig_fx);
+    let right_fx =
+        CompositeLayer::rgba(&still_b, inset(48.0, 32.0, 24.0, 48.0)).with_effects(&vig_fx);
+    let left_alone = comp
+        .render(&gpu, &config, &[left_fx])
+        .expect("left effect layer");
+    let right_alone = comp
+        .render(&gpu, &config, &[right_fx])
+        .expect("right effect layer");
+    let both = comp
+        .render(&gpu, &config, &[left_fx, right_fx])
+        .expect("two effect layers");
+    assert_eq!(
+        comp.render_pass_count(),
+        6,
+        "a queued effect blit must flush before the next effect chain reuses the pool"
+    );
+    for y in 0..64 {
+        for x in 0..64 {
+            let alone = if x < 32 { &left_alone } else { &right_alone };
+            assert_eq!(
+                both.pixel(x, y),
+                alone.pixel(x, y),
+                "pixel ({x},{y}) of two effect layers differs from its layer drawn alone"
+            );
+        }
+    }
+}

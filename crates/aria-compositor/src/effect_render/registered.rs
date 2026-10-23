@@ -310,6 +310,15 @@ pub(super) fn run_registered_effect<'a>(
     let cache = pool.passes();
     let serial = pass.serial();
     runtime.prepare(device, &cache.queue(), serial, compiled, width, height);
+    if let Some(instance) = effect.instance.as_ref() {
+        for read in compiled.iter().flat_map(|step| step.inputs.iter()) {
+            if let CompiledInput::Layer(param) = read
+                && let Some(clip) = instance.layer_params.get(&**param)
+            {
+                references.ensure_cleared(encoder, *clip);
+            }
+        }
+    }
     let frame_budget = cache.frame_budget();
     let started = pass.tracks_cost(frame_budget).then(std::time::Instant::now);
     let written = (in_idx + 1) % pool.slots();

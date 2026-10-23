@@ -4,6 +4,17 @@
 //! descriptor: one color attachment, stored, no depth, no queries. Only the
 //! target and whether its contents are cleared, kept, or left unloaded differ.
 
+use std::cell::Cell;
+
+thread_local! {
+    static PASSES_BEGUN: Cell<u32> = const { Cell::new(0) };
+}
+
+/// Cumulative render passes begun on the current thread.
+pub(crate) fn passes_begun() -> u32 {
+    PASSES_BEGUN.with(Cell::get)
+}
+
 /// Clear the target to transparent before drawing.
 pub(crate) const CLEAR: wgpu::LoadOp<wgpu::Color> = wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT);
 
@@ -27,9 +38,29 @@ impl ReplacePipeline {
     }
 
     /// The pipeline itself, to draw over a loaded target.
-    #[cfg(test)]
     pub(crate) fn raw(&self) -> &wgpu::RenderPipeline {
         &self.0
+    }
+}
+
+/// Full-screen quad pipeline: either blending over its target or replacing
+/// every pixel without blending.
+#[derive(Clone, Copy)]
+pub(crate) enum QuadPipeline<'a> {
+    Blended(&'a wgpu::RenderPipeline),
+    Replace(&'a ReplacePipeline),
+}
+
+impl<'a> QuadPipeline<'a> {
+    pub(crate) fn raw(self) -> &'a wgpu::RenderPipeline {
+        match self {
+            Self::Blended(pipeline) => pipeline,
+            Self::Replace(pipeline) => pipeline.raw(),
+        }
+    }
+
+    pub(crate) fn overwrites_target(self) -> bool {
+        matches!(self, Self::Replace(_))
     }
 }
 
@@ -39,6 +70,7 @@ pub(crate) fn begin<'e>(
     view: &wgpu::TextureView,
     load: wgpu::LoadOp<wgpu::Color>,
 ) -> wgpu::RenderPass<'e> {
+    PASSES_BEGUN.with(|c| c.set(c.get().wrapping_add(1)));
     encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
         label: None,
         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -94,7 +126,8 @@ pub(crate) fn draw_quad(
     pipeline: &wgpu::RenderPipeline,
     bind_group: &wgpu::BindGroup,
 ) {
-    quad(begin(encoder, view, load), pipeline, bind_group);
+    let mut pass = begin(encoder, view, load);
+    draw_quad_in(&mut pass, pipeline, bind_group);
 }
 
 /// Draw the full-screen quad of `pipeline` with `bind_group` into `view`,
@@ -107,12 +140,14 @@ pub(crate) fn replace_quad(
 ) {
     // SAFETY: the pass's one draw is a `ReplacePipeline` quad, which writes
     // every pixel of `view` without blending.
-    let pass = unsafe { begin_overwrite(encoder, view) };
-    quad(pass, &pipeline.0, bind_group);
+    let mut pass = unsafe { begin_overwrite(encoder, view) };
+    draw_quad_in(&mut pass, &pipeline.0, bind_group);
 }
 
-fn quad(
-    mut pass: wgpu::RenderPass<'_>,
+/// Record a full-screen quad draw of `pipeline` with `bind_group` inside an
+/// open render `pass`.
+pub(crate) fn draw_quad_in(
+    pass: &mut wgpu::RenderPass<'_>,
     pipeline: &wgpu::RenderPipeline,
     bind_group: &wgpu::BindGroup,
 ) {

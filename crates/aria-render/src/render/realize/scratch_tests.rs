@@ -394,14 +394,15 @@ fn steady_frame_render_allocations_stay_at_wgpu_floor() {
         frame_allocs, [floor; STEADY_FRAMES],
         "render_frame_to_texture_with allocated these blocks per frame against {floor} for pre-resolved render_scene_to_texture"
     );
-    // For 1 CommandEncoder + 8 RenderPasses (canvas clear + 3 layer-into +
-    // 3 gaussian_blur + 1 text blit) + 1 Queue::submit with every descriptor
-    // label `None`, wgpu 29.0.4 on lavapipe allocates 173 blocks. An
-    // allocation on the path both renders share (realize InlineVec,
-    // text_memo, PassId) or a descriptor label String raises it. Other
-    // adapters allocate their own counts (wgpu's GL backend on an Intel iGPU:
-    // 222), so the floor holds for lavapipe only.
-    const LAVAPIPE_STEADY_FLOOR: u64 = 173;
+    // For 1 CommandEncoder + 12 RenderPasses (3 × (layer-into + 2 gaussian_blur
+    // + canvas blit), with the initial canvas clear fused into the first canvas
+    // blit and the final text layer fused into the last canvas blit) + 1
+    // Queue::submit with every descriptor label `None`, wgpu 29.0.4 on lavapipe
+    // allocates 158 blocks. An allocation on the path both renders share
+    // (realize InlineVec, text_memo, PassId) or a descriptor label String
+    // raises it. Other adapters allocate their own counts (wgpu's GL backend on
+    // an Intel iGPU: 222), so the floor holds for lavapipe only.
+    const LAVAPIPE_STEADY_FLOOR: u64 = 158;
     if adapter.backend == wgpu::Backend::Vulkan && adapter.name.contains("llvmpipe") {
         assert!(
             floor <= LAVAPIPE_STEADY_FLOOR,

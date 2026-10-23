@@ -442,6 +442,14 @@ rejects it with a diagnostic message. `LayerSource::kind()` returns one of the
   blend-mode pass draws its offscreen target the same way through a
   `ReplacePipeline`, which is built only from compositor shaders that write
   every pixel of the target. A plugin pass draws blended over a cleared target.
+- Consecutive draws onto one target, whether direct layers, offscreen effect
+  and style blits, or blend composites, are encoded in one render pass
+  (`TargetPass`, `crates/aria-compositor/src/compositor/draw_layer.rs`). The
+  pass ends before a command reads the target texture or overwrites an
+  offscreen slot a queued draw binds, and a draw that writes every pixel of
+  the target discards the draws queued before it. Reference, nested,
+  transition side, matte, and motion-blur targets clear in their first draw
+  pass instead of a pass of their own.
 
 ## Persistence
 

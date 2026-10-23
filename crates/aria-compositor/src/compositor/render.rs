@@ -1,3 +1,4 @@
+use crate::color_pass;
 use crate::effect_render::{OffscreenPool, draw_layer_to_offscreen};
 use crate::error::CompositorError;
 use crate::gpu::GpuContext;
@@ -5,6 +6,7 @@ use crate::layer::{BlendMode, CompositeLayer, CompositorConfig, CompositorLayer,
 use crate::lut::CubeLut;
 use crate::passes::PassInstance;
 
+use super::draw_layer::TargetPass;
 use super::items::frame_items;
 use super::scene::Scene;
 use super::{
@@ -342,27 +344,29 @@ impl Compositor {
         scene: Scene<'_>,
         canvas: (&wgpu::Texture, &wgpu::TextureView),
     ) -> Result<wgpu::CommandEncoder, CompositorError> {
+        let passes_before = color_pass::passes_begun();
         let offscreen = self.offscreen.as_ref().expect("offscreen pool");
         let mut encoder = gpu
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
 
         let bg = config.background;
-        let mut pending_clear = Some(wgpu::Color {
+        let clear = Some(wgpu::Color {
             r: f64::from(bg[0]) / 255.0,
             g: f64::from(bg[1]) / 255.0,
             b: f64::from(bg[2]) / 255.0,
             a: f64::from(bg[3]) / 255.0,
         });
-        self.references.clear(&mut encoder);
-        self.nests.clear(&mut encoder);
+        let mut target = TargetPass::new(Some(canvas.0), canvas.1, clear);
 
         // Every nest draws before the items that show it; the frame draws the
-        // rest of its items onto the canvas, fusing the background clear into
-        // the first direct layer pass when possible.
+        // rest of its items onto the canvas, batching consecutive canvas draws
+        // into one render pass and fusing the background clear into the first
+        // canvas pass.
         for item in scene.iter() {
             match item {
                 CompositorLayer::Nest { nest, items } => {
+                    target.flush_if_reading_offscreen(&mut encoder, &self.pipelines);
                     self.draw_nest(gpu, &mut encoder, config, offscreen, nest, items)?;
                 }
                 item => {
@@ -372,16 +376,15 @@ impl Compositor {
                         config,
                         offscreen,
                         &item,
-                        canvas,
+                        &mut target,
                         false,
-                        &mut pending_clear,
                     )?;
                 }
             }
         }
-        if let Some(color) = pending_clear.take() {
-            crate::color_pass::clear(&mut encoder, canvas.1, color);
-        }
+        target.flush(&mut encoder, &self.pipelines);
+        self.render_passes
+            .set(color_pass::passes_begun().wrapping_sub(passes_before));
 
         Ok(encoder)
     }

@@ -44,6 +44,7 @@ use crate::effect_render::{
 use crate::grade::ColorGrade;
 use crate::planes::PlaneSet;
 
+pub(crate) use draw_layer::TargetPass;
 pub use frame_target::{check_frame_target, create_frame_target};
 use glyphs::{CachedAtlas, GlyphInstanceGpu};
 use lru::FrameLru;
@@ -120,6 +121,11 @@ impl Compositor {
     /// What base-layer bindings of the last composite cost.
     pub fn layer_pass_stats(&self) -> PassStats {
         self.layer_passes.stats()
+    }
+
+    /// Render passes encoded on the command buffer during the last composite.
+    pub fn render_pass_count(&self) -> u32 {
+        self.render_passes.get()
     }
 
     /// Pipelines built for registered effect passes since this compositor was
@@ -385,6 +391,8 @@ pub struct Compositor {
     glyph_instances: RefCell<Vec<GlyphInstanceGpu>>,
     /// Cumulative number of GPU-to-CPU frame readbacks submitted.
     readback_count: u64,
+    /// Render passes the last composite encoded.
+    render_passes: std::cell::Cell<u32>,
     /// Maps Apple `CVPixelBuffer` GPU surfaces into `wgpu` textures with no CPU
     /// copy. `None` when the device isn't a Metal device (e.g. a software
     /// adapter) — GPU frames then fall back to [`CompositorError::UnsupportedFormat`]

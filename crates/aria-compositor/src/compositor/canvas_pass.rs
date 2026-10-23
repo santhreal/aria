@@ -2,8 +2,8 @@
 //! far. The result replaces the canvas, or replaces it inside a mask.
 
 use crate::effect_render::{
-    OffscreenPool, blit_replace, effects_need_offscreen, run_effect_chain, run_grade_pass,
-    run_lut_pass,
+    OffscreenPool, blit_replace, blit_replace_to_target, effects_need_offscreen, run_effect_chain,
+    run_grade_pass, run_lut_pass,
 };
 use crate::error::CompositorError;
 use crate::gpu::GpuContext;
@@ -12,6 +12,7 @@ use crate::layer::{CompositorConfig, LayerLut, LayerStencil};
 use crate::passes::PassInstance;
 
 use super::Compositor;
+use super::draw_layer::TargetPass;
 
 /// A canvas pass as [`Compositor::draw_canvas_pass`] draws it.
 #[derive(Clone, Copy)]
@@ -23,14 +24,14 @@ pub(super) struct CanvasPassDraw<'a> {
 }
 
 impl Compositor {
-    /// Run `pass` over `canvas` and replace the canvas with the result.
-    pub(super) fn draw_canvas_pass(
-        &self,
+    /// Run `pass` over `target` and replace `target` with the result.
+    pub(super) fn draw_canvas_pass<'a>(
+        &'a self,
         gpu: &GpuContext,
         encoder: &mut wgpu::CommandEncoder,
         config: &CompositorConfig,
         offscreen: &OffscreenPool,
-        canvas: &wgpu::TextureView,
+        target: &mut TargetPass<'a>,
         pass: &CanvasPassDraw<'_>,
     ) -> Result<(), CompositorError> {
         let CanvasPassDraw {
@@ -43,6 +44,7 @@ impl Compositor {
             return Ok(());
         }
         let device = &gpu.device;
+        target.flush(encoder, &self.pipelines);
 
         // Snapshot the current canvas, process it as a texture,
         // then replace the canvas. Alpha-over blits would double
@@ -52,7 +54,7 @@ impl Compositor {
             encoder,
             &self.pass_registry,
             offscreen.passes(),
-            canvas,
+            target.view,
             offscreen.view(0),
         );
         let mut result = if effects_need_offscreen(effects) {
@@ -107,17 +109,18 @@ impl Compositor {
                 lut.intensity,
             );
         }
+        let slot_mask = offscreen.index_of(result).map_or(0, |s| 1u8 << s);
         match stencil {
             Some(stencil) => {
-                self.replace_masked(gpu, encoder, config, offscreen, result, canvas, stencil)?;
+                self.replace_masked(gpu, encoder, config, offscreen, result, target, stencil)?;
             }
-            None => blit_replace(
+            None => blit_replace_to_target(
                 device,
-                encoder,
                 &self.pass_registry,
                 offscreen.passes(),
                 result,
-                canvas,
+                slot_mask,
+                target,
             ),
         }
         Ok(())

@@ -1,6 +1,7 @@
 use super::pipelines::{PREMULT_OVER, PassRegistry, build_blended_pipeline};
 use super::{Bound, PassCache};
-use crate::color_pass;
+use crate::color_pass::{self, QuadPipeline};
+use crate::compositor::TargetPass;
 
 /// A full-screen quad that samples `tex` at its UV: the source of the plain,
 /// additive, and replacing blits.
@@ -25,27 +26,27 @@ struct VsOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32> }
 }
 "#;
 
-/// Alpha-over a full-canvas offscreen texture onto `canvas_view`.
-pub(crate) fn blit_premultiplied_to_canvas(
+/// Alpha-over a full-canvas offscreen texture onto `target`.
+pub(crate) fn blit_premultiplied_to_target<'a>(
     device: &wgpu::Device,
-    encoder: &mut wgpu::CommandEncoder,
-    registry: &PassRegistry,
+    registry: &'a PassRegistry,
     cache: &PassCache,
     source: &wgpu::TextureView,
-    canvas_view: &wgpu::TextureView,
+    slot_mask: u8,
+    target: &mut TargetPass<'a>,
 ) {
-    let bind_group = cache.bind_group(
-        device,
-        &registry.blit_layout,
-        "aria.blit.bg",
-        &[Bound::Texture(source), Bound::Sampler(&registry.sampler)],
-    );
-    color_pass::draw_quad(
-        encoder,
-        canvas_view,
-        color_pass::KEEP,
-        registry.blit_pipeline(),
-        &bind_group,
+    let bind_group = cache
+        .bind_group(
+            device,
+            &registry.blit_layout,
+            "aria.blit.bg",
+            &[Bound::Texture(source), Bound::Sampler(&registry.sampler)],
+        )
+        .clone();
+    target.push_quad(
+        QuadPipeline::Blended(registry.blit_pipeline()),
+        bind_group,
+        slot_mask,
     );
 }
 
@@ -65,6 +66,30 @@ pub(crate) fn blit_replace(
         &[Bound::Texture(source), Bound::Sampler(&registry.sampler)],
     );
     color_pass::replace_quad(encoder, output, registry.replace_pipeline(), &bind_group);
+}
+
+/// Replace `target` with a full-canvas offscreen texture `source`.
+pub(crate) fn blit_replace_to_target<'a>(
+    device: &wgpu::Device,
+    registry: &'a PassRegistry,
+    cache: &PassCache,
+    source: &wgpu::TextureView,
+    slot_mask: u8,
+    target: &mut TargetPass<'a>,
+) {
+    let bind_group = cache
+        .bind_group(
+            device,
+            &registry.blit_layout,
+            "aria.blit_replace.bg",
+            &[Bound::Texture(source), Bound::Sampler(&registry.sampler)],
+        )
+        .clone();
+    target.push_quad(
+        QuadPipeline::Replace(registry.replace_pipeline()),
+        bind_group,
+        slot_mask,
+    );
 }
 
 pub(super) fn build_blit_pipeline(
@@ -89,7 +114,8 @@ pub(super) fn build_offset_blit_pipeline(
 }
 
 /// Weighted additive blit for motion-blur accumulation: `accum += src * w`
-/// with One/One for both color and alpha into a cleared target.
+/// with One/One for both color and alpha into `accum` loaded with `load`.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn blit_weighted_additive(
     device: &wgpu::Device,
     encoder: &mut wgpu::CommandEncoder,
@@ -97,6 +123,7 @@ pub(crate) fn blit_weighted_additive(
     cache: &PassCache,
     source: &wgpu::TextureView,
     accum: &wgpu::TextureView,
+    load: wgpu::LoadOp<wgpu::Color>,
     weight: f32,
 ) {
     let bind_group = cache.bind_group(
@@ -112,9 +139,38 @@ pub(crate) fn blit_weighted_additive(
     color_pass::draw_quad(
         encoder,
         accum,
-        color_pass::KEEP,
+        load,
         registry.accumulate_blit_pipeline(),
         &bind_group,
+    );
+}
+
+/// Queue a weighted additive blit (`target += source * weight`) onto `target`.
+pub(crate) fn blit_weighted_additive_to_target<'a>(
+    device: &wgpu::Device,
+    registry: &'a PassRegistry,
+    cache: &PassCache,
+    source: &wgpu::TextureView,
+    slot_mask: u8,
+    target: &mut TargetPass<'a>,
+    weight: f32,
+) {
+    let bind_group = cache
+        .bind_group(
+            device,
+            &registry.accumulate_blit_layout,
+            "aria.accumulate.bg",
+            &[
+                Bound::Texture(source),
+                Bound::Sampler(&registry.sampler),
+                Bound::Uniform(bytemuck::bytes_of(&[weight, 0.0f32, 0.0, 0.0])),
+            ],
+        )
+        .clone();
+    target.push_quad(
+        QuadPipeline::Blended(registry.accumulate_blit_pipeline()),
+        bind_group,
+        slot_mask,
     );
 }
 

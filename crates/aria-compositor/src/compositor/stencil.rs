@@ -12,8 +12,9 @@ use std::sync::{Arc, LazyLock};
 use aria_core::RgbaImage;
 
 use crate::effect_render::{
-    OffscreenPool, StackStep, blit_replace, blit_weighted_additive, run_mask_stack_pass,
-    run_matte_pass,
+    OffscreenPool, StackStep, blit_replace, blit_replace_to_target,
+    blit_weighted_additive_to_target, run_mask_stack_pass, run_matte_pass,
+    run_matte_pass_to_target,
 };
 use crate::error::CompositorError;
 use crate::gpu::GpuContext;
@@ -23,6 +24,7 @@ use crate::layer::{
 };
 
 use super::Compositor;
+use super::draw_layer::TargetPass;
 
 /// One opaque white texel. Stretched over a placed quad and cut by a shape in
 /// the fx pipeline, it draws that shape's coverage for any layer content,
@@ -196,20 +198,20 @@ impl Compositor {
         Ok(())
     }
 
-    /// Replace `canvas` with the pool view `result` where `stencil` covers it
-    /// and keep the canvas elsewhere.
+    /// Replace `target` with the pool view `result` where `stencil` covers it
+    /// and keep `target` elsewhere.
     ///
     /// The result cut by the coverage and the canvas cut by its complement are
     /// summed, so a soft edge mixes the two rather than darkening.
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn replace_masked(
-        &self,
+    pub(super) fn replace_masked<'a>(
+        &'a self,
         gpu: &GpuContext,
         encoder: &mut wgpu::CommandEncoder,
         config: &CompositorConfig,
         offscreen: &OffscreenPool,
         result: &wgpu::TextureView,
-        canvas: &wgpu::TextureView,
+        target: &mut TargetPass<'a>,
         stencil: &LayerStencil<'_>,
     ) -> Result<(), CompositorError> {
         let device = &gpu.device;
@@ -228,13 +230,13 @@ impl Compositor {
         };
         let Some(coverage) = self.draw_stencil(gpu, encoder, config, offscreen, stencil, slots)?
         else {
-            blit_replace(
+            blit_replace_to_target(
                 device,
-                encoder,
                 &self.pass_registry,
                 offscreen.passes(),
                 result,
-                canvas,
+                1u8 << held,
+                target,
             );
             return Ok(());
         };
@@ -243,47 +245,49 @@ impl Compositor {
         } else {
             slots[1]
         };
-        let matte = |encoder: &mut wgpu::CommandEncoder,
-                     content: &wgpu::TextureView,
-                     output: &wgpu::TextureView,
-                     mix: CoverageMix| {
-            run_matte_pass(
-                device,
-                encoder,
-                &self.pass_registry,
-                offscreen.passes(),
-                content,
-                offscreen.view(coverage.slot),
-                output,
-                MatteRead::Alpha,
-                mix,
-                coverage.softness,
-                config.width,
-                config.height,
-            );
-        };
-        matte(encoder, result, offscreen.view(cut), coverage.mix);
+        run_matte_pass(
+            device,
+            encoder,
+            &self.pass_registry,
+            offscreen.passes(),
+            result,
+            offscreen.view(coverage.slot),
+            offscreen.view(cut),
+            MatteRead::Alpha,
+            coverage.mix,
+            coverage.softness,
+            config.width,
+            config.height,
+        );
         blit_replace(
             device,
             encoder,
             &self.pass_registry,
             offscreen.passes(),
-            canvas,
+            target.view,
             offscreen.view(held),
         );
-        matte(
-            encoder,
-            offscreen.view(held),
-            canvas,
-            coverage.mix.complement(),
-        );
-        blit_weighted_additive(
+        run_matte_pass_to_target(
             device,
-            encoder,
+            &self.pass_registry,
+            offscreen.passes(),
+            offscreen.view(held),
+            offscreen.view(coverage.slot),
+            (1u8 << held) | (1u8 << coverage.slot),
+            target,
+            MatteRead::Alpha,
+            coverage.mix.complement(),
+            coverage.softness,
+            config.width,
+            config.height,
+        );
+        blit_weighted_additive_to_target(
+            device,
             &self.pass_registry,
             offscreen.passes(),
             offscreen.view(cut),
-            canvas,
+            1u8 << cut,
+            target,
             1.0,
         );
         Ok(())
