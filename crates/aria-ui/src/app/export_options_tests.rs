@@ -320,31 +320,8 @@ fn cycle_buttons_wraparound_invariants_and_custom_range_duration_math() {
 
 #[test]
 fn plugin_encoders_list_in_format_cycle_and_control_dialog_visibility_and_extension() {
-    use aria_core::{EncodeError, EncoderConfig, VideoEncoder, VideoFrame};
-    use aria_plugin::{Encoder, EncoderSpec};
-    use std::path::Path;
-
-    struct DummyEncoder;
-    impl VideoEncoder for DummyEncoder {
-        fn push(&mut self, _frame: &VideoFrame) -> Result<(), EncodeError> {
-            Ok(())
-        }
-        fn finish(&mut self) -> Result<(), EncodeError> {
-            Ok(())
-        }
-        fn choice(&self) -> aria_core::EncoderChoice {
-            aria_core::EncoderChoice::only("dummy", None)
-        }
-    }
-    impl Encoder for DummyEncoder {
-        fn open(
-            &self,
-            _path: &Path,
-            _config: &EncoderConfig,
-        ) -> Result<Box<dyn VideoEncoder>, EncodeError> {
-            Ok(Box::new(DummyEncoder))
-        }
-    }
+    use crate::test_support::NullEncoder;
+    use aria_plugin::EncoderSpec;
 
     let (mut state, _) = with_clip();
     let _prores = state
@@ -356,7 +333,7 @@ fn plugin_encoders_list_in_format_cycle_and_control_dialog_visibility_and_extens
                 extension: "mov".into(),
                 audio: true,
             },
-            DummyEncoder,
+            NullEncoder,
         )
         .expect("register prores");
     let _gif = state
@@ -368,7 +345,7 @@ fn plugin_encoders_list_in_format_cycle_and_control_dialog_visibility_and_extens
                 extension: "gif".into(),
                 audio: false,
             },
-            DummyEncoder,
+            NullEncoder,
         )
         .expect("register gif");
 

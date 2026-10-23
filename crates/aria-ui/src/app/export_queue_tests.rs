@@ -493,31 +493,8 @@ fn app_state_reaches_export_queue_and_cancels_entries() {
 
 #[test]
 fn a_queued_plugin_encoder_that_unmounts_before_running_fails_naming_the_format_without_fallback() {
-    use aria_core::{EncodeError, EncoderConfig, VideoEncoder, VideoFrame};
-    use aria_plugin::{Encoder, EncoderSpec};
-    use std::path::Path;
-
-    struct DummyEncoder;
-    impl VideoEncoder for DummyEncoder {
-        fn push(&mut self, _frame: &VideoFrame) -> Result<(), EncodeError> {
-            Ok(())
-        }
-        fn finish(&mut self) -> Result<(), EncodeError> {
-            Ok(())
-        }
-        fn choice(&self) -> aria_core::EncoderChoice {
-            aria_core::EncoderChoice::only("dummy", None)
-        }
-    }
-    impl Encoder for DummyEncoder {
-        fn open(
-            &self,
-            _path: &Path,
-            _config: &EncoderConfig,
-        ) -> Result<Box<dyn VideoEncoder>, EncodeError> {
-            Ok(Box::new(DummyEncoder))
-        }
-    }
+    use crate::test_support::NullEncoder;
+    use aria_plugin::EncoderSpec;
 
     let (mut state, _clip) = with_clip();
     let reg = state
@@ -529,7 +506,7 @@ fn a_queued_plugin_encoder_that_unmounts_before_running_fails_naming_the_format_
                 extension: "mov".into(),
                 audio: true,
             },
-            DummyEncoder,
+            NullEncoder,
         )
         .expect("register prores.422");
 

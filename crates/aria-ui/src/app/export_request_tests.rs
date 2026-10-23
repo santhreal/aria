@@ -268,31 +268,8 @@ fn the_default_request_names_the_project_it_would_render() {
 
 #[test]
 fn selecting_a_plugin_encoder_updates_destination_extension_and_request_id() {
-    use aria_core::{EncodeError, EncoderConfig, VideoEncoder, VideoFrame};
-    use aria_plugin::{Encoder, EncoderSpec};
-    use std::path::Path;
-
-    struct DummyEncoder;
-    impl VideoEncoder for DummyEncoder {
-        fn push(&mut self, _frame: &VideoFrame) -> Result<(), EncodeError> {
-            Ok(())
-        }
-        fn finish(&mut self) -> Result<(), EncodeError> {
-            Ok(())
-        }
-        fn choice(&self) -> aria_core::EncoderChoice {
-            aria_core::EncoderChoice::only("dummy", None)
-        }
-    }
-    impl Encoder for DummyEncoder {
-        fn open(
-            &self,
-            _path: &Path,
-            _config: &EncoderConfig,
-        ) -> Result<Box<dyn VideoEncoder>, EncodeError> {
-            Ok(Box::new(DummyEncoder))
-        }
-    }
+    use crate::test_support::NullEncoder;
+    use aria_plugin::EncoderSpec;
 
     let (mut state, _) = with_clip();
     let _reg = state
@@ -304,7 +281,7 @@ fn selecting_a_plugin_encoder_updates_destination_extension_and_request_id() {
                 extension: "webm".into(),
                 audio: false,
             },
-            DummyEncoder,
+            NullEncoder,
         )
         .expect("register webm.vp9");
     state.select_export_plugin_encoder(Some("webm.vp9".into()));

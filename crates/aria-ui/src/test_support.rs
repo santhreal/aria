@@ -177,6 +177,32 @@ pub(crate) fn mounted_gpu(ctx: &aria_plugin::PluginContext) -> Option<aria_compo
     Some(gpu.share())
 }
 
+/// A plugin encoder that takes every frame and writes nothing, for a test that
+/// needs a format registered rather than a file written.
+pub(crate) struct NullEncoder;
+
+impl aria_core::VideoEncoder for NullEncoder {
+    fn push(&mut self, _frame: &aria_core::VideoFrame) -> Result<(), aria_core::EncodeError> {
+        Ok(())
+    }
+    fn finish(&mut self) -> Result<(), aria_core::EncodeError> {
+        Ok(())
+    }
+    fn choice(&self) -> aria_core::EncoderChoice {
+        aria_core::EncoderChoice::only("null", None)
+    }
+}
+
+impl aria_plugin::Encoder for NullEncoder {
+    fn open(
+        &self,
+        _path: &Path,
+        _config: &aria_core::EncoderConfig,
+    ) -> Result<Box<dyn aria_core::VideoEncoder>, aria_core::EncodeError> {
+        Ok(Box::new(Self))
+    }
+}
+
 #[cfg(test)]
 mod error_writes;
 
