@@ -528,9 +528,21 @@ fn transition_alignment_projects_and_switches_from_menu_and_inspector() {
     );
 
     for (align, expected_id, expected_window) in [
-        (TransitionAlignment::Start, "ctx-transition-align-start", (48, 72)),
-        (TransitionAlignment::End, "ctx-transition-align-end", (24, 48)),
-        (TransitionAlignment::Center, "ctx-transition-align-center", (36, 60)),
+        (
+            TransitionAlignment::Start,
+            "ctx-transition-align-start",
+            (48, 72),
+        ),
+        (
+            TransitionAlignment::End,
+            "ctx-transition-align-end",
+            (24, 48),
+        ),
+        (
+            TransitionAlignment::Center,
+            "ctx-transition-align-center",
+            (36, 60),
+        ),
     ] {
         clip_pick::apply(&mut state, Pick::TransitionAlignment(align)).expect("pick alignment");
         assert_eq!(state.selected_transition_alignment(), Some(align));
