@@ -81,7 +81,7 @@ pub fn render(
     dialog_surface(
         "unsaved",
         DialogKind::UnsavedChanges,
-        "Unsaved changes",
+        "Unsaved Changes",
         state,
         cx,
         body,

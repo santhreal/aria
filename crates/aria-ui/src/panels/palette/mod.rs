@@ -81,7 +81,7 @@ pub fn render(
     dialog_surface(
         "palette",
         DialogKind::Palette,
-        "Command palette",
+        "Command Palette",
         state,
         cx,
         DialogBody::new(list)

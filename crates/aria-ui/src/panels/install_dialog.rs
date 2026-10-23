@@ -42,6 +42,16 @@ pub fn lines(prompt: &InstallPrompt) -> Vec<String> {
     lines
 }
 
+/// The prompt's title: Update Plugin for a package that replaces an
+/// installed version, otherwise Install Plugin.
+pub fn title(prompt: Option<&InstallPrompt>) -> &'static str {
+    if prompt.is_some_and(|prompt| prompt.replaces.is_some()) {
+        "Update Plugin"
+    } else {
+        "Install Plugin"
+    }
+}
+
 /// The warning a native package carries.
 pub const NATIVE_WARNING: &str = "Native code runs inside Aria. Its permissions are checked at \
      the plugin API, but it can reach your files, network and processes beyond them. Install it \
@@ -81,7 +91,7 @@ pub fn render(
     );
 
     let mut body = div().flex().flex_col().gap(px(Theme::SPACE_SM));
-    let title = match &prompt {
+    match &prompt {
         Some(prompt) => {
             for (index, line) in lines(prompt).into_iter().enumerate() {
                 body = body.child(
@@ -107,11 +117,6 @@ pub fn render(
                         .child(NATIVE_WARNING),
                 );
             }
-            if prompt.replaces.is_some() {
-                "Update plugin"
-            } else {
-                "Install plugin"
-            }
         }
         // The prompt closes itself once nothing is pending; a frame drawn in
         // between shows this rather than an empty sheet.
@@ -122,9 +127,8 @@ pub fn render(
                     .text_color(theme.text_faint)
                     .child("No plugin is waiting to be installed."),
             );
-            "Install plugin"
         }
-    };
+    }
     let mut actions = DialogBody::new(body).action(cancel);
     if prompt.is_some() {
         actions = actions.action(install);
@@ -132,7 +136,7 @@ pub fn render(
     dialog_surface(
         "install-plugin",
         DialogKind::InstallPlugin,
-        title,
+        title(prompt.as_ref()),
         state,
         cx,
         actions,

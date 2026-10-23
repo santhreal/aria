@@ -78,7 +78,10 @@ fn check_subword_capitalized(segment: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn check_title_case(label: &str) -> Result<(), String> {
+/// Whether `label` is in Title Case, with the reason when it is not. Shared
+/// with `chrome::dialog_tests` and `panels::install_dialog::tests`, which check
+/// dialog titles.
+pub(crate) fn check_title_case(label: &str) -> Result<(), String> {
     if label.is_empty() {
         return Err("label is empty".to_string());
     }

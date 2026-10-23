@@ -296,4 +296,4 @@ mod tests {
 
 #[cfg(test)]
 #[path = "casing_tests.rs"]
-mod casing_tests;
+pub(crate) mod casing_tests;

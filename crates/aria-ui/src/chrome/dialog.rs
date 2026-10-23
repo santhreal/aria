@@ -145,6 +145,7 @@ pub fn dialog_layer(
         .debug_selector(|| "dialog-header".into())
         .child(
             div()
+                .debug_selector(|| "dialog-title".into())
                 .text_size(Theme::TEXT_HEADING)
                 .font_weight(gpui::FontWeight::SEMIBOLD)
                 .child(title.into()),

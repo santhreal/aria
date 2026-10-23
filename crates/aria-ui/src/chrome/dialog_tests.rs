@@ -1,4 +1,5 @@
-//! Every dialog card fits the window it is drawn in.
+//! Every dialog card fits the window it is drawn in, and every dialog title is
+//! in Title Case.
 //!
 //! The class closed here: a card as tall as its body. A body taller than the
 //! window put the title, the header controls and the action row outside the
@@ -18,6 +19,7 @@
 use gpui::{Bounds, Pixels, Size, TestAppContext, VisualTestContext, point, px, size};
 
 use crate::app::DialogKind;
+use crate::commands::casing_tests::check_title_case;
 use crate::plugins::overlay_host::host_of;
 use crate::test_support::{bounds_inside, drawn_shell};
 
@@ -41,12 +43,7 @@ fn every_dialog_card_fits_a_short_window(cx: &mut TestAppContext) {
     );
     assert_eq!(window.size, SHORT, "the window did not take the short size");
 
-    let kinds = visual.read(|app| {
-        let Some(host) = host_of(&state.read(app).ctx) else {
-            panic!("the ui plugin mounts the overlay host");
-        };
-        host.dialog_kinds()
-    });
+    let kinds = registered(&state, visual);
     assert!(
         kinds.len() >= 7,
         "the shipped dialogs did not register: {kinds:?}"
@@ -60,18 +57,7 @@ fn every_dialog_card_fits_a_short_window(cx: &mut TestAppContext) {
 
     let mut offenders = Vec::new();
     for kind in kinds {
-        visual.update(|_, app| {
-            state.update(app, |state, cx| {
-                state.open_dialog(kind);
-                cx.notify();
-            });
-        });
-        visual.run_until_parked();
-        assert_eq!(
-            visual.read(|app| state.read(app).dialog),
-            kind,
-            "{kind:?} did not open"
-        );
+        open(&state, visual, kind);
         offenders.extend(misplaced(kind, window, visual));
     }
     assert!(
@@ -79,6 +65,83 @@ fn every_dialog_card_fits_a_short_window(cx: &mut TestAppContext) {
         "drawn in a {:?} window:\n  {}",
         window.size,
         offenders.join("\n  ")
+    );
+}
+
+/// Every dialog title is in Title Case, as the menu rows and palette entries
+/// that open the dialogs are.
+///
+/// The class closed here: a title in sentence case beside Title Case ones, as
+/// `Command palette`, `Unsaved changes` and `Install plugin` were. The title is
+/// read from the frame each registered kind draws, so a kind registered later
+/// is checked on the run that adds it. The Install Plugin dialog's other title,
+/// for an update, is checked by `panels::install_dialog::tests`.
+#[gpui::test]
+fn every_dialog_title_is_in_title_case(cx: &mut TestAppContext) {
+    let (state, visual) = drawn_shell(cx, "dialog-titles");
+    visual.update(|_, app| app.set_reduce_motion(true));
+    let mut titles = Vec::new();
+    let mut offenders = Vec::new();
+    for kind in registered(&state, visual) {
+        if NO_CARD.iter().any(|(held, _)| *held == kind) {
+            continue;
+        }
+        open(&state, visual, kind);
+        visual.update(|window, _| window.refresh());
+        visual.run_until_parked();
+        let Some(bounds) = visual.debug_bounds("dialog-title") else {
+            offenders.push(format!("{kind:?} drew no dialog-title"));
+            continue;
+        };
+        let title: String = visual.update(|window, _| {
+            let mut runs: Vec<_> = window
+                .rendered_text_runs()
+                .iter()
+                .filter(|run| bounds.contains(&run.bounds.center()))
+                .map(|run| (f32::from(run.bounds.left()), run.text.to_string()))
+                .collect();
+            runs.sort_by(|a, b| a.0.total_cmp(&b.0));
+            runs.into_iter().map(|(_, text)| text).collect()
+        });
+        if let Err(reason) = check_title_case(&title) {
+            offenders.push(format!("{kind:?}: {reason}"));
+        }
+        titles.push(title);
+    }
+    assert!(titles.len() >= 7, "the walk read only {titles:?}");
+    assert!(offenders.is_empty(), "{}", offenders.join("\n"));
+}
+
+/// The dialog kinds the overlay registry holds.
+fn registered(
+    state: &gpui::Entity<crate::app::AppState>,
+    visual: &mut VisualTestContext,
+) -> Vec<DialogKind> {
+    visual.read(|app| {
+        let Some(host) = host_of(&state.read(app).ctx) else {
+            panic!("the ui plugin mounts the overlay host");
+        };
+        host.dialog_kinds()
+    })
+}
+
+/// Open `kind` and draw it.
+fn open(
+    state: &gpui::Entity<crate::app::AppState>,
+    visual: &mut VisualTestContext,
+    kind: DialogKind,
+) {
+    visual.update(|_, app| {
+        state.update(app, |state, cx| {
+            state.open_dialog(kind);
+            cx.notify();
+        });
+    });
+    visual.run_until_parked();
+    assert_eq!(
+        visual.read(|app| state.read(app).dialog),
+        kind,
+        "{kind:?} did not open"
     );
 }
 
