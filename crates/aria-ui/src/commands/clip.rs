@@ -34,7 +34,7 @@ macro_rules! add_mask_row {
 pub(super) const CLIP_ROWS: &[CommandEntry] = &[
     CommandEntry {
         id: "pal-extract-audio",
-        label: "Extract audio",
+        label: "Extract Audio",
         run: |state| {
             if let Err(err) = state.extract_selected_audio() {
                 state.report_error(&err);
@@ -43,7 +43,7 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-freeze",
-        label: "Freeze frame",
+        label: "Freeze Frame",
         run: |state| {
             if let Err(err) = state.freeze_selected_frame() {
                 state.report_error(&err);
@@ -52,7 +52,7 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-link",
-        label: "Link clips",
+        label: "Link Clips",
         run: |state| {
             if let Err(err) = state.link_selected() {
                 state.report_error(&err);
@@ -61,7 +61,7 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-unlink",
-        label: "Unlink clips",
+        label: "Unlink Clips",
         run: |state| {
             if let Err(err) = state.unlink_selected() {
                 state.report_error(&err);
@@ -70,7 +70,7 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-flip-h",
-        label: "Flip horizontal",
+        label: "Flip Horizontal",
         run: |state| {
             if let Err(err) = state.toggle_selected_flip_h() {
                 state.report_error(&err);
@@ -79,7 +79,7 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-flip-v",
-        label: "Flip vertical",
+        label: "Flip Vertical",
         run: |state| {
             if let Err(err) = state.toggle_selected_flip_v() {
                 state.report_error(&err);
@@ -88,7 +88,7 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-crop-reset",
-        label: "Reset framing",
+        label: "Reset Framing",
         run: |state| {
             if let Err(err) = state.clear_selected_crop() {
                 state.report_error(&err);
@@ -97,7 +97,7 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-motion-blur",
-        label: "Toggle motion blur",
+        label: "Toggle Motion Blur",
         run: |state| {
             if let Err(err) = state.toggle_selected_motion_blur() {
                 state.report_error(&err);
@@ -106,7 +106,7 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-grade-reset",
-        label: "Reset grade",
+        label: "Reset Grade",
         run: |state| {
             if let Err(err) = state.clear_selected_adjustments() {
                 state.report_error(&err);
@@ -115,7 +115,7 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-denoise",
-        label: "Toggle denoise",
+        label: "Toggle Denoise",
         run: |state| {
             if let Err(err) = state.toggle_selected_denoise() {
                 state.report_error(&err);
@@ -124,7 +124,7 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-pitch-lock",
-        label: "Toggle pitch lock",
+        label: "Toggle Pitch Lock",
         run: |state| {
             if let Err(err) = state.toggle_selected_pitch_lock() {
                 state.report_error(&err);
@@ -133,7 +133,7 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-mask-invert",
-        label: "Invert mask",
+        label: "Invert Mask",
         run: |state| {
             if let Err(err) = state.toggle_active_mask_invert() {
                 state.report_error(&err);
@@ -142,23 +142,23 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-mask-clear",
-        label: "Remove mask",
+        label: "Remove Mask",
         run: |state| {
             if let Err(err) = state.clear_selected_mask() {
                 state.report_error(&err);
             }
         },
     },
-    add_mask_row!("pal-mask-add-linear", "Add linear mask", Linear),
-    add_mask_row!("pal-mask-add-mirror", "Add mirror mask", Mirror),
-    add_mask_row!("pal-mask-add-circle", "Add circle mask", Circle),
-    add_mask_row!("pal-mask-add-rectangle", "Add rectangle mask", Rectangle),
-    add_mask_row!("pal-mask-add-heart", "Add heart mask", Heart),
-    add_mask_row!("pal-mask-add-star", "Add star mask", Star),
-    add_mask_row!("pal-mask-add-path", "Add path mask", Path),
+    add_mask_row!("pal-mask-add-linear", "Add Linear Mask", Linear),
+    add_mask_row!("pal-mask-add-mirror", "Add Mirror Mask", Mirror),
+    add_mask_row!("pal-mask-add-circle", "Add Circle Mask", Circle),
+    add_mask_row!("pal-mask-add-rectangle", "Add Rectangle Mask", Rectangle),
+    add_mask_row!("pal-mask-add-heart", "Add Heart Mask", Heart),
+    add_mask_row!("pal-mask-add-star", "Add Star Mask", Star),
+    add_mask_row!("pal-mask-add-path", "Add Path Mask", Path),
     CommandEntry {
         id: "pal-chroma-green",
-        label: "Key green screen",
+        label: "Key Green Screen",
         run: |state| {
             if let Err(err) = state.set_selected_chroma_color([0, 177, 64]) {
                 state.report_error(&err);
@@ -167,7 +167,7 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-chroma-clear",
-        label: "Remove chroma key",
+        label: "Remove Chroma Key",
         run: |state| {
             if let Err(err) = state.clear_selected_chroma() {
                 state.report_error(&err);
@@ -176,7 +176,7 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-matte-luma",
-        label: "Track matte from luma above",
+        label: "Track Matte from Luma Above",
         run: |state| {
             if let Err(err) = state.set_selected_matte_source(aria_models::MatteSource::Luma) {
                 state.report_error(&err);
@@ -185,7 +185,7 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-matte-alpha",
-        label: "Track matte from alpha above",
+        label: "Track Matte from Alpha Above",
         run: |state| {
             if let Err(err) = state.set_selected_matte_source(aria_models::MatteSource::Alpha) {
                 state.report_error(&err);
@@ -194,7 +194,7 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-matte-clear",
-        label: "Remove track matte",
+        label: "Remove Track Matte",
         run: |state| {
             if let Err(err) = state.clear_selected_matte() {
                 state.report_error(&err);
@@ -203,7 +203,7 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-transition-crossfade",
-        label: "Add cross fade at cut",
+        label: "Add Cross Fade at Cut",
         run: |state| {
             if let Err(err) = state.set_selected_transition("crossfade") {
                 state.report_error(&err);
@@ -212,7 +212,7 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-transition-clear",
-        label: "Remove transition at cut",
+        label: "Remove Transition at Cut",
         run: |state| {
             if let Err(err) = state.clear_selected_transition() {
                 state.report_error(&err);
@@ -221,7 +221,7 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-slot-toggle",
-        label: "Mark as template slot",
+        label: "Mark as Template Slot",
         run: |state| {
             if let Err(err) = state.toggle_selected_replaceable() {
                 state.report_error(&err);
@@ -230,7 +230,7 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-text-editable",
-        label: "Text editable in template",
+        label: "Text Editable in Template",
         run: |state| {
             if let Err(err) = state.toggle_selected_text_editable() {
                 state.report_error(&err);
@@ -239,7 +239,7 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-key-opacity",
-        label: "Keyframe opacity at playhead",
+        label: "Keyframe Opacity at Playhead",
         run: |state| {
             if let Err(err) = state.add_keyframe_at_playhead(aria_models::ClipParam::Opacity) {
                 state.report_error(&err);
@@ -248,7 +248,7 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-key-position",
-        label: "Keyframe position at playhead",
+        label: "Keyframe Position at Playhead",
         run: |state| {
             if let Err(err) = state.add_keyframe_at_playhead(aria_models::ClipParam::Position) {
                 state.report_error(&err);
@@ -257,7 +257,7 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-key-scale",
-        label: "Keyframe scale at playhead",
+        label: "Keyframe Scale at Playhead",
         run: |state| {
             if let Err(err) = state.add_keyframe_at_playhead(aria_models::ClipParam::Scale) {
                 state.report_error(&err);
@@ -266,7 +266,7 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-key-remove",
-        label: "Remove opacity keyframe at playhead",
+        label: "Remove Opacity Keyframe at Playhead",
         run: |state| {
             if let Err(err) = state.remove_keyframe_at_playhead(aria_models::ClipParam::Opacity) {
                 state.report_error(&err);
@@ -275,14 +275,14 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-shift-selection",
-        label: "Shift selection by frames…",
+        label: "Shift Selection by Frames…",
         run: |state| {
             state.begin_rename(crate::types::RenameTarget::ShiftFrames);
         },
     },
     CommandEntry {
         id: "pal-track-up",
-        label: "Move track up",
+        label: "Move Track Up",
         run: |state| {
             if let Some(track) = state.selected_track()
                 && let Err(err) = state.move_track_up(track)
@@ -293,7 +293,7 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-track-down",
-        label: "Move track down",
+        label: "Move Track Down",
         run: |state| {
             if let Some(track) = state.selected_track()
                 && let Err(err) = state.move_track_down(track)
@@ -304,7 +304,7 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-track-solo",
-        label: "Solo track",
+        label: "Solo Track",
         run: |state| {
             if let Some(track) = state.selected_track()
                 && let Err(err) = state.toggle_track_solo(track)
@@ -315,7 +315,7 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-track-duck",
-        label: "Toggle track as duck source",
+        label: "Toggle Track as Duck Source",
         run: |state| {
             if let Some(track) = state.selected_track()
                 && let Err(err) = state.toggle_track_duck_source(track)
@@ -326,7 +326,7 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-track-open-gap",
-        label: "Open one-second gap at playhead",
+        label: "Open One-Second Gap at Playhead",
         run: |state| {
             if let Some(track) = state.selected_track() {
                 let delta = state.store.sequence.frame_rate.nominal_fps();
@@ -338,7 +338,7 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-track-close-gap",
-        label: "Close one-second gap at playhead",
+        label: "Close One-Second Gap at Playhead",
         run: |state| {
             if let Some(track) = state.selected_track() {
                 let delta = state.store.sequence.frame_rate.nominal_fps();
@@ -350,17 +350,17 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-save-template",
-        label: "Save as template",
+        label: "Save as Template",
         run: |state| state.pick_and_save_template(),
     },
     CommandEntry {
         id: "pal-use-template",
-        label: "Use template",
+        label: "Use Template",
         run: |state| state.pick_and_apply_template(),
     },
     CommandEntry {
         id: "pal-marker-remove",
-        label: "Delete marker at playhead",
+        label: "Delete Marker at Playhead",
         run: |state| {
             if let Err(err) = state.remove_marker_at_playhead() {
                 state.report_error(&err);
@@ -369,12 +369,12 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-marker-next",
-        label: "Next marker",
+        label: "Next Marker",
         run: |state| state.go_to_next_marker(),
     },
     CommandEntry {
         id: "pal-marker-prev",
-        label: "Previous marker",
+        label: "Previous Marker",
         run: |state| state.go_to_prev_marker(),
     },
     CommandEntry {
@@ -433,6 +433,6 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
 /// without a window.
 pub(super) const CLIP_JOB_ROWS: &[WindowedEntry] = &[WindowedEntry {
     id: "pal-track-mask",
-    label: "Track mask forward from the playhead",
+    label: "Track Mask Forward from the Playhead",
     run: |state, cx| state.run_mask_track(cx),
 }];

@@ -200,7 +200,7 @@ const SHIPPED: &[ToolSpec] = &[
     ToolSpec {
         tool: EditorTool::Ripple,
         id: "tool-ripple",
-        label: "Ripple trim",
+        label: "Ripple Trim",
         key: "b",
         icon: icons::RIPPLE,
         cursor: CursorStyle::ResizeLeftRight,
@@ -218,7 +218,7 @@ const SHIPPED: &[ToolSpec] = &[
     ToolSpec {
         tool: EditorTool::Roll,
         id: "tool-roll",
-        label: "Rolling edit",
+        label: "Rolling Edit",
         key: "n",
         icon: icons::ROLL,
         // A roll drags the divider between two abutting clips, which is what
@@ -238,7 +238,7 @@ const SHIPPED: &[ToolSpec] = &[
     ToolSpec {
         tool: EditorTool::Rate,
         id: "tool-rate",
-        label: "Rate stretch",
+        label: "Rate Stretch",
         key: "r",
         icon: icons::RATE,
         cursor: CursorStyle::ResizeLeftRight,

@@ -6,7 +6,7 @@ The editor toolbar offers thirteen tools (`crates/aria-ui/src/tool_catalog.rs`).
 
 Trim a cut between two adjacent clips without changing the sequence duration, then slip the incoming clip's source window:
 
-1. Press `N` to select **Rolling edit** (`tool-roll`).
+1. Press `N` to select **Rolling Edit** (`tool-roll`).
 2. Drag the cut between the outgoing and incoming clips left or right by 12 frames. The outgoing clip's out-point and the incoming clip's in-point move together as one undo step.
 3. Press `Y` to select **Slip** (`tool-slip`).
 4. Drag the body of the incoming clip left or right to shift its source in-point and out-point by the same delta while keeping its timeline start and duration fixed.
@@ -19,9 +19,9 @@ Trim a cut between two adjacent clips without changing the sequence duration, th
 | `tool-pointer` | Select | `v` | `Select` | `none` | `none` | `none` | Selects clips, starts a marquee selection on empty lane space, drags clip bodies to move (`Shift` for ripple move), and drags clip edges to trim (`Shift` for ripple trim). `Esc` returns to this tool. |
 | `tool-track-forward` | Track Select Forward | `a` | `TrackSelect` | `none` | `none` | `Forward` | Selects the clicked clip and every clip starting at or after it on unlocked tracks (`Shift+click` restricts to the clicked track). |
 | `tool-track-backward` | Track Select Backward | `Shift+a` | `TrackSelect` | `none` | `none` | `Backward` | Selects the clicked clip and every clip ending at or before it on unlocked tracks (`Shift+click` restricts to the clicked track). |
-| `tool-ripple` | Ripple trim | `b` | `Trim` | `none` | `Ripple` | `none` | Trims the dragged clip edge and shifts subsequent clips on the edited lane and sync-locked lanes so no gap is left. |
-| `tool-roll` | Rolling edit | `n` | `Trim` | `none` | `Roll` | `none` | Moves the shared cut between two abutting clips in one undo step without changing their combined span. |
-| `tool-rate` | Rate stretch | `r` | `Trim` | `none` | `Rate` | `none` | Changes how long a clip plays by dragging its edge while keeping the same source window (`speed` scales inversely with length). |
+| `tool-ripple` | Ripple Trim | `b` | `Trim` | `none` | `Ripple` | `none` | Trims the dragged clip edge and shifts subsequent clips on the edited lane and sync-locked lanes so no gap is left. |
+| `tool-roll` | Rolling Edit | `n` | `Trim` | `none` | `Roll` | `none` | Moves the shared cut between two abutting clips in one undo step without changing their combined span. |
+| `tool-rate` | Rate Stretch | `r` | `Trim` | `none` | `Rate` | `none` | Changes how long a clip plays by dragging its edge while keeping the same source window (`speed` scales inversely with length). |
 | `tool-slip` | Slip | `y` | `Trim` | `Slip` | `none` | `none` | Moves the take (`source_in` and `source_out`) inside a clip while keeping the clip's timeline edges fixed. |
 | `tool-slide` | Slide | `u` | `Trim` | `Slide` | `none` | `none` | Moves a clip along its lane and gives the difference to its adjacent outgoing and incoming neighbours. |
 | `tool-razor` | Razor | `c` | `Razor` | `none` | `none` | `none` | Splits the clicked clip at the pointer frame (`Shift+click` cuts every unlocked track at that frame). |

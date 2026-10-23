@@ -33,17 +33,17 @@ fn verify_models(state: &mut AppState) {
 pub(super) const TEXT_ROWS: &[CommandEntry] = &[
     CommandEntry {
         id: "pal-font-check",
-        label: "Text: check a font file",
+        label: "Text: Check a Font File",
         run: AppState::check_font_file,
     },
     CommandEntry {
         id: "pal-title-ink",
-        label: "Text: report the selected title's ink",
+        label: "Text: Report the Selected Title's Ink",
         run: AppState::report_title_ink,
     },
     CommandEntry {
         id: "pal-models-verify",
-        label: "Transcription: verify installed models",
+        label: "Transcription: Verify Installed Models",
         run: verify_models,
     },
 ];

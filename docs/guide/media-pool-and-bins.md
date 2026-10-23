@@ -209,7 +209,7 @@ open, so takes can be cut in one after another.
 
 Create a bin, preview a recording in the Source Monitor, mark an In-to-Out take, and insert it into the sequence:
 
-1. Press <kbd>Shift+1</kbd> (`key-pane-project`) or choose **Window > Project** to focus the Project panel, then click [`bin-new`](../reference/controls.md#project-panel) (or run **New bin** (`pal-bin-new`) in the Command Palette), type `Selects`, and press Enter. The Media pool opens the new `Pool / Selects` bin.
+1. Press <kbd>Shift+1</kbd> (`key-pane-project`) or choose **Window > Project** to focus the Project panel, then click [`bin-new`](../reference/controls.md#project-panel) (or run **New Bin** (`pal-bin-new`) in the Command Palette), type `Selects`, and press Enter. The Media pool opens the new `Pool / Selects` bin.
 2. Click [`pool-view-list`](../reference/controls.md#project-panel) to switch the pool to list view, or type a query in [`media-query`](../reference/controls.md#project-panel) (or press <kbd>Ctrl+F</kbd> (`key-find`) / choose **Edit > Find…**) to filter the pool rows. The list narrows to matching items and shows the count below the list.
 3. Double-click a video item in the pool to open its **Source:** tab in the Viewer ([`viewer-tab-source`](../reference/controls.md#viewer--source-monitor)), scrub to the start of the take, and press <kbd>I</kbd> (`key-mark-in`) or click [`source-mark-in`](../reference/controls.md#viewer--source-monitor). The Source Monitor mini ruler marks the source In point.
 4. Scrub to the end of the take and press <kbd>O</kbd> (`key-mark-out`) or click [`source-mark-out`](../reference/controls.md#viewer--source-monitor). The Source Monitor shades the marked source span and displays the frame count kept.

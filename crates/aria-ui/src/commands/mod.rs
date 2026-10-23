@@ -112,22 +112,22 @@ pub const BUILTIN_COMMANDS: &[CommandEntry] = &const_table::joined::<TOTAL, Comm
 const ANALYSIS_JOB_ROWS: &[WindowedEntry] = &[
     WindowedEntry {
         id: "pal-detect-shots",
-        label: "Detect shots",
+        label: "Detect Shots",
         run: |state, cx| state.run_detector(AnalysisKind::Shots, cx),
     },
     WindowedEntry {
         id: "pal-detect-silence",
-        label: "Detect silence",
+        label: "Detect Silence",
         run: |state, cx| state.run_detector(AnalysisKind::Silence, cx),
     },
     WindowedEntry {
         id: "pal-detect-beats",
-        label: "Detect beats",
+        label: "Detect Beats",
         run: |state, cx| state.run_detector(AnalysisKind::Beats, cx),
     },
     WindowedEntry {
         id: "pal-loudness",
-        label: "Measure loudness",
+        label: "Measure Loudness",
         run: |state, cx| {
             if let Err(err) = state.measure_loudness(cx) {
                 state.report_error(err);
@@ -136,7 +136,7 @@ const ANALYSIS_JOB_ROWS: &[WindowedEntry] = &[
     },
     WindowedEntry {
         id: "pal-transcribe",
-        label: "Transcribe selected clip",
+        label: "Transcribe Selected Clip",
         run: |state, cx| {
             if let Err(err) = state.transcribe_selected(cx) {
                 state.report_error(err);
@@ -145,7 +145,7 @@ const ANALYSIS_JOB_ROWS: &[WindowedEntry] = &[
     },
     WindowedEntry {
         id: "pal-duck",
-        label: "Duck under voice",
+        label: "Duck Under Voice",
         run: |state, cx| {
             if let Err(err) = state.duck_selected(cx) {
                 state.status_message = Some(err);
@@ -293,3 +293,7 @@ mod tests {
         assert!(missing.is_empty(), "{}", missing.join("\n"));
     }
 }
+
+#[cfg(test)]
+#[path = "casing_tests.rs"]
+mod casing_tests;

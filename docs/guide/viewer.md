@@ -93,7 +93,7 @@ at the sequence size.
 
 Right-click a pool item and choose **Decode through a proxy** to render a
 smaller intra-frame copy as a background job; the command palette's **Proxy
-every pool item** (`pal-proxy-create-all`) does the same for the whole pool. The Proxies toggle in the
+Every Pool Item** (`pal-proxy-create-all`) does the same for the whole pool. The Proxies toggle in the
 control row, and **View > Proxies**, switch the viewer between proxies and the
 original files. The toggle is lit while proxies are on. The
 choice is saved with the other UI settings. Export always reads the original
@@ -195,7 +195,7 @@ Frame and crop a clip with safe margins, rulers, and crop handles, then render t
 
 1. Choose **View > Viewer Display Settings > Title Safe** (or click [`viewer-display-settings`](../reference/controls.md#viewer--source-monitor) and toggle **Title Safe**) and press <kbd>Ctrl+Shift+R</kbd> (`key-rulers`) or choose **View > Viewer Display Settings > Show Rulers**. The Viewer draws the inner title-safe rectangle and pixel rulers along the top and left edges.
 2. Select a clip on `V1` and click [`preview-handles-crop`](../reference/controls.md#viewer--source-monitor) in the Viewer control row (or choose **View > Canvas Handles > Crop**). The Viewer draws four edge and four corner crop handles around the selected clip's frame.
-3. Drag the left and right crop handles inward, or click [`crop-clear`](../reference/controls.md#inspector) in Effect Controls (or choose **Clip > Transform > Reset Framing** / run **Reset framing** (`pal-crop-reset`)) to reset the crop edges. The Viewer updates the cropped frame in real time.
+3. Drag the left and right crop handles inward, or click [`crop-clear`](../reference/controls.md#inspector) in Effect Controls (or choose **Clip > Transform > Reset Framing** / run **Reset Framing** (`pal-crop-reset`)) to reset the crop edges. The Viewer updates the cropped frame in real time.
 4. Choose **Window > Align**, click [`align-to`](../reference/controls.md#alignment) to select frame alignment, and click **Centre** and **Middle**. The selected clip centers horizontally and vertically inside the sequence canvas.
 5. Mark an In and Out range on the sequence and press <kbd>Enter</kbd> (`key-render-in-to-out`) or choose **Sequence > Render In to Out** (or run **Render In to Out** (`pal-render-in-to-out`)). Aria renders QOI cache frames for the span and turns the timeline ruler render bar green across the work area.
 

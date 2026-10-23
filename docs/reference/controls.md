@@ -18,10 +18,10 @@ The editor tool strip (`crates/aria-ui/src/chrome/tool_strip.rs` and `crates/ari
 | `tool-hand` | Hand | Pans the Timeline or Viewer canvas by dragging. | `H` |
 | `tool-pen` | Pen | Adds keyframes on timeline curves or draws and edits Bézier mask points in the Viewer. | `P` |
 | `tool-pointer` | Select | Selects, moves, and trims clips on the timeline and handles in the Viewer. | `V` |
-| `tool-rate` | Rate stretch | Drags a clip edge to change playback speed while preserving the source in point. | `R` |
+| `tool-rate` | Rate Stretch | Drags a clip edge to change playback speed while preserving the source in point. | `R` |
 | `tool-razor` | Razor | Splits the targeted clip at the clicked frame on the timeline. | `C` |
-| `tool-ripple` | Ripple trim | Trims a clip edge and shifts downstream clips on the track to close or open the gap. | `B` |
-| `tool-roll` | Rolling edit | Moves the cut point between two adjacent clips without changing the combined duration. | `N` |
+| `tool-ripple` | Ripple Trim | Trims a clip edge and shifts downstream clips on the track to close or open the gap. | `B` |
+| `tool-roll` | Rolling Edit | Moves the cut point between two adjacent clips without changing the combined duration. | `N` |
 | `tool-slide` | Slide | Moves a clip along the track while trimming the neighbouring clips to keep their outer bounds fixed. | `U` |
 | `tool-slip` | Slip | Shifts the source media in and out points inside a clip without moving its timeline bounds. | `Y` |
 | `tool-track-backward` | Track Select Backward | Selects every clip on the targeted track or all unlocked tracks up to the clicked frame. | `Shift+A` |

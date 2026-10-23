@@ -12,19 +12,19 @@ edges the way a plain drag does. Each keeps something fixed:
 - **Slide (U)** keeps the clip's length and gives the difference to the clips
   either side of it. Drag the clip body. A neighbour keeps at least one frame, so
   the slide stops rather than deleting it. Sliding into empty space is a move.
-- **Rolling edit (N)** moves the cut between two abutting clips. Drag the edge
+- **Rolling Edit (N)** moves the cut between two abutting clips. Drag the edge
   that is the cut: one clip grows by what the other gives up, and the pair's
   outer edges stay put. An edge with no clip against it has no cut to roll.
-- **Rate stretch (R)** changes how long a clip plays without dropping any of its
+- **Rate Stretch (R)** changes how long a clip plays without dropping any of its
   source. Drag an edge: the speed follows from the new length. A clip already
   retimed is stretched from where it is, so two drags compose.
-- **Ripple trim (B)** trims an edge and moves the rest of the lane by the same
+- **Ripple Trim (B)** trims an edge and moves the rest of the lane by the same
   amount, so the trim leaves no gap. Drag either edge: every clip later on that
   lane follows. Trimming the head slides the clip back to where it started, so
   the lane keeps its own start.
 
 The five share one tool bar button, which shows the armed trim tool, or Ripple
-trim when none is armed. Hold the button for 300 ms, or click its corner
+Trim when none is armed. Hold the button for 300 ms, or click its corner
 triangle, to list the five; each key selects its tool directly.
 
 Slide, a rolling edit, and a ripple trim each issue two edits and cost one undo.

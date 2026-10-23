@@ -50,7 +50,7 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `edit-paste-insert` | `none` | Paste Insert | `Ctrl+Shift+V` | Nothing has been copied or cut (`guards::clipboard`) | Ripple-inserts clipboard clips at the playhead, shifting downstream clips right. |
 | `edit-paste-attributes` | `none` | Paste Attributes | `Ctrl+Alt+V` | Nothing has been copied or cut (`guards::clipboard`) | Copies transform, opacity, crop, speed, volume, pan, effects, grade, mask, and chroma key from the clipboard onto selected clips. |
 | `edit-remove-attributes` | `none` | Remove Attributes… | `none` | No clip is selected (`guards::selection`) | Opens `aria.dialog.remove-attributes` to reset chosen attribute categories on selected clips. |
-| `edit-paste-fit` | `none` | Paste To Fit | `none` | Nothing has been copied or cut (`guards::clipboard`) | Pastes the clipboard clip scaled in speed to fit the active In-to-Out span. |
+| `edit-paste-fit` | `none` | Paste to Fit | `none` | Nothing has been copied or cut (`guards::clipboard`) | Pastes the clipboard clip scaled in speed to fit the active In-to-Out span. |
 | `edit-clear` | `none` | Clear | `Backspace` | No clip is selected (`guards::selection`) | Deletes selected clips without closing the timeline gap. |
 | `edit-ripple` | `none` | Ripple Delete | `Shift+Backspace` | No clip is selected (`guards::selection`) | Deletes selected clips and shifts subsequent clips left to close the gap. |
 | `edit-dup` | `none` | Duplicate | `Ctrl+D` | No clip is selected (`guards::selection`) | Places a copy of each selected clip immediately after the original on the same track. |
@@ -139,15 +139,15 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `seq-ripple-out` | `none` | Ripple Trim Out | `none` | No clip is selected (`guards::selection`) | Trims the selected clip's out-point to the playhead and ripples the lane. |
 | `seq-transition-crossfade` | `none` | Add Cross Fade at Cut | `none` | No clip is selected (`guards::selection`) | Applies a `crossfade` transition to the selected clip's cut. |
 | `seq-transition-clear` | `none` | Remove Transition at Cut | `none` | No clip is selected (`guards::selection`) | Removes the transition from the selected clip's cut. |
-| `seq-lane-shift-later` | `none` | Shift lane one second later | `none` | Always enabled | Shifts every clip on the selected clip's track later by one second. |
-| `seq-lane-shift-earlier` | `none` | Shift lane one second earlier | `none` | Always enabled | Shifts every clip on the selected clip's track earlier by one second. |
-| `seq-canvas-background` | `none` | Reset canvas background | `none` | Always enabled | Restores the sequence canvas background colour to `[0, 0, 0, 255]`. |
-| `seq-duck-amount` | `Ducking` | Cycle duck amount | `none` | Always enabled | Cycles the sidechain ducking attenuation depth (`-6 dB`, `-12 dB`, `-18 dB`, `-24 dB`). |
-| `seq-duck-attack` | `Ducking` | Cycle duck attack | `none` | Always enabled | Cycles the sidechain ducking attack time. |
-| `seq-duck-release` | `Ducking` | Cycle duck release | `none` | Always enabled | Cycles the sidechain ducking release time. |
+| `seq-lane-shift-later` | `none` | Shift Lane One Second Later | `none` | Always enabled | Shifts every clip on the selected clip's track later by one second. |
+| `seq-lane-shift-earlier` | `none` | Shift Lane One Second Earlier | `none` | Always enabled | Shifts every clip on the selected clip's track earlier by one second. |
+| `seq-canvas-background` | `none` | Reset Canvas Background | `none` | Always enabled | Restores the sequence canvas background colour to `[0, 0, 0, 255]`. |
+| `seq-duck-amount` | `Ducking` | Cycle Duck Amount | `none` | Always enabled | Cycles the sidechain ducking attenuation depth (`-6 dB`, `-12 dB`, `-18 dB`, `-24 dB`). |
+| `seq-duck-attack` | `Ducking` | Cycle Duck Attack | `none` | Always enabled | Cycles the sidechain ducking attack time. |
+| `seq-duck-release` | `Ducking` | Cycle Duck Release | `none` | Always enabled | Cycles the sidechain ducking release time. |
 | `seq-nest-open` | `Nested Sequence` | Open Nested Sequence | `none` | Always enabled | Opens the selected nested sequence clip's timeline. |
 | `seq-nest-leave` | `Nested Sequence` | Leave Nested Sequence | `none` | Always enabled | Returns from an open nested sequence to the parent sequence. |
-| `seq-nest-place` | `Nested Sequence` | Place Nest At Playhead | `none` | Always enabled | Places a clip referencing the selected nested sequence at the playhead. |
+| `seq-nest-place` | `Nested Sequence` | Place Nest at Playhead | `none` | Always enabled | Places a clip referencing the selected nested sequence at the playhead. |
 | `seq-analyze:aria.silence` | `Analyze` | Detect Silence | `none` | The sequence has no clips (`guards::clips`) | Runs the registered silence analyzer (`aria.silence`) across the active sequence. |
 | `seq-analyze:aria.loudness` | `Analyze` | Measure Loudness | `none` | The sequence has no clips (`guards::clips`) | Runs the registered EBU R128 loudness analyzer (`aria.loudness`) across the sequence or In/Out range. |
 
@@ -169,7 +169,7 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `seq-marker-remove` | `none` | Clear Marker | `Ctrl+Alt+M` | The sequence has no markers (`guards::markers`) | Removes the sequence marker at the playhead. |
 | `marker-clear-all` | `none` | Clear All Markers | `Ctrl+Shift+Alt+M` | The sequence has no markers (`guards::markers`) | Removes every sequence marker from the active sequence. |
 | `seq-marker-rename` | `none` | Edit Marker… | `none` | The sequence has no markers (`guards::markers`) | Opens `aria.dialog.marker-edit` for the marker at the playhead. |
-| `seq-marker-snap` | `none` | Move nearest marker to playhead | `none` | The sequence has no markers (`guards::markers`) | Moves the nearest sequence marker within one second onto the playhead tick. |
+| `seq-marker-snap` | `none` | Move Nearest Marker to Playhead | `none` | The sequence has no markers (`guards::markers`) | Moves the nearest sequence marker within one second onto the playhead tick. |
 
 ## Effect menu
 
@@ -179,7 +179,7 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `fx-last` | `none` | Apply Last Effect | `none` | No effect has been applied yet or no clip is selected (`guards::last_effect`) | Applies the most recently applied video effect (`last_effect`) to the selected clips. |
 | `fx-paste` | `none` | Paste Effect | `none` | No effect has been copied or no clip is selected (`guards::copied_effect`) | Pastes the copied effect onto the selected clips. |
 | `fx-remove-all` | `none` | Remove All Effects | `none` | Selected clips have no effects (`guards::effects`) | Removes all video and audio effects from the selected clips. |
-| `seq-effect-reset` | `none` | Reset effect parameters | `Ctrl+Alt+R` | Selected clips have no effects (`guards::effects`) | Resets every parameter of every effect on the selected clip to its catalog default. |
+| `seq-effect-reset` | `none` | Reset Effect Parameters | `Ctrl+Alt+R` | Selected clips have no effects (`guards::effects`) | Resets every parameter of every effect on the selected clip to its catalog default. |
 | `seq-grade-reset` | `none` | Reset Grade | `none` | No clip is selected (`guards::selection`) | Clears colour adjustments (`ColorAdjustments`) and LUT on the selected clips. |
 | `seq-mask-clear` | `none` | Remove Mask | `none` | The selected clip has no mask (`guards::mask`) | Removes all masks from the selected clips. |
 | `seq-chroma-clear` | `none` | Remove Chroma Key | `none` | No clip is selected (`guards::selection`) | Removes the chroma keyer from the selected clips. |

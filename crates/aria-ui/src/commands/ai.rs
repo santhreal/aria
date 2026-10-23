@@ -21,7 +21,7 @@ use super::host::{CommandEntry, WindowedEntry};
 pub(super) const AI_ROWS: &[CommandEntry] = &[
     CommandEntry {
         id: "pal-ai-tools",
-        label: "Assistant: what the assistant can do",
+        label: "Assistant: What the Assistant Can Do",
         run: |state| {
             // The capability panel is docked beside the assistant and shows
             // itself when the assistant is open, so opening the assistant is
@@ -32,12 +32,12 @@ pub(super) const AI_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-ai-system-prompt",
-        label: "Assistant: show the system prompt",
+        label: "Assistant: Show the System Prompt",
         run: |state| state.show_ai_system_prompt(),
     },
     CommandEntry {
         id: "pal-ai-slash",
-        label: "Assistant: list the slash commands",
+        label: "Assistant: List the Slash Commands",
         run: |state| {
             let names = state.assistant_slash_commands();
             state.status_message = Some(if names.is_empty() {
@@ -49,17 +49,17 @@ pub(super) const AI_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-ai-models",
-        label: "AI: choose the model",
+        label: "AI: Choose the Model",
         run: |state| state.open_settings_at("AI"),
     },
     CommandEntry {
         id: "pal-ai-connection",
-        label: "AI: test the connection",
+        label: "AI: Test the Connection",
         run: |state| state.open_settings_at("AI"),
     },
     CommandEntry {
         id: "pal-ai-schema",
-        label: "Configuration: what this build reads",
+        label: "Configuration: What This Build Reads",
         run: |state| {
             let status = state.settings_schema_status();
             state.open_settings_at("Configuration");
@@ -68,7 +68,7 @@ pub(super) const AI_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-cloud-checksum",
-        label: "Cloud: checksum a downloaded file",
+        label: "Cloud: Checksum a Downloaded File",
         run: |state| state.checksum_picked_file(),
     },
 ];
@@ -81,12 +81,12 @@ pub(super) const AI_ROWS: &[CommandEntry] = &[
 pub(super) const AI_JOB_ROWS: &[WindowedEntry] = &[
     WindowedEntry {
         id: "pal-ai-list-models",
-        label: "AI: ask the endpoint which models it serves",
+        label: "AI: Ask the Endpoint Which Models It Serves",
         run: |state, cx| state.probe_ai_models(cx),
     },
     WindowedEntry {
         id: "pal-ai-test-connection",
-        label: "AI: test the provider connection now",
+        label: "AI: Test the Provider Connection Now",
         run: |state, cx| state.test_ai_connection(cx),
     },
 ];

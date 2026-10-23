@@ -171,99 +171,99 @@ pub(super) const REACH_ROWS: &[CommandEntry] = &[
     // --- keyframes: one row per directly-addressed animatable property -------
     CommandEntry {
         id: "pal-key-anchor-point",
-        label: "Keyframe anchor point at playhead",
+        label: "Keyframe Anchor Point at Playhead",
         run: |state| keyframe(state, ClipParam::AnchorPoint),
     },
     CommandEntry {
         id: "pal-key-rotation",
-        label: "Keyframe rotation at playhead",
+        label: "Keyframe Rotation at Playhead",
         run: |state| keyframe(state, ClipParam::Rotation),
     },
     CommandEntry {
         id: "pal-key-crop",
-        label: "Keyframe crop at playhead",
+        label: "Keyframe Crop at Playhead",
         run: |state| keyframe(state, ClipParam::Crop),
     },
     CommandEntry {
         id: "pal-key-volume",
-        label: "Keyframe volume at playhead",
+        label: "Keyframe Volume at Playhead",
         run: |state| keyframe(state, ClipParam::Volume),
     },
     CommandEntry {
         id: "pal-key-pan",
-        label: "Keyframe pan at playhead",
+        label: "Keyframe Pan at Playhead",
         run: |state| keyframe(state, ClipParam::Pan),
     },
     // --- ducking: the dip was reachable, its shape was not ------------------
     CommandEntry {
         id: "pal-duck-amount",
-        label: "Cycle duck amount",
+        label: "Cycle Duck Amount",
         run: |state| state.cycle_duck_amount(),
     },
     CommandEntry {
         id: "pal-duck-attack",
-        label: "Cycle duck attack",
+        label: "Cycle Duck Attack",
         run: |state| state.cycle_duck_attack(),
     },
     CommandEntry {
         id: "pal-duck-release",
-        label: "Cycle duck release",
+        label: "Cycle Duck Release",
         run: |state| state.cycle_duck_release(),
     },
     // --- lanes, markers, pool, canvas ---------------------------------------
     CommandEntry {
         id: "pal-lane-shift-later",
-        label: "Shift lane one second later",
+        label: "Shift Lane One Second Later",
         run: |state| shift_lane(state, true),
     },
     CommandEntry {
         id: "pal-lane-shift-earlier",
-        label: "Shift lane one second earlier",
+        label: "Shift Lane One Second Earlier",
         run: |state| shift_lane(state, false),
     },
     CommandEntry {
         id: "pal-ripple-insert",
-        label: "Insert pool selection at playhead",
+        label: "Insert Pool Selection at Playhead",
         run: ripple_insert,
     },
     CommandEntry {
         id: "pal-marker-snap",
-        label: "Move nearest marker to playhead",
+        label: "Move Nearest Marker to Playhead",
         run: snap_marker,
     },
     CommandEntry {
         id: "pal-effect-reset",
-        label: "Reset effect parameters",
+        label: "Reset Effect Parameters",
         run: reset_effects,
     },
     CommandEntry {
         id: "pal-canvas-background",
-        label: "Reset canvas background",
+        label: "Reset Canvas Background",
         run: reset_canvas_background,
     },
     CommandEntry {
         id: "pal-media-filter-clear",
-        label: "Clear pool filter",
+        label: "Clear Pool Filter",
         run: |state| state.clear_media_query(),
     },
     CommandEntry {
         id: "pal-font-next",
-        label: "Next font on title",
+        label: "Next Font on Title",
         run: |state| cycle_font(state, true),
     },
     CommandEntry {
         id: "pal-font-prev",
-        label: "Previous font on title",
+        label: "Previous Font on Title",
         run: |state| cycle_font(state, false),
     },
     CommandEntry {
         id: "pal-proxy-clear-all",
-        label: "Decode everything from originals",
+        label: "Decode Everything from Originals",
         run: |state| state.clear_all_media_proxies(),
     },
     CommandEntry {
         id: "pal-proxy-create-all",
-        label: "Proxy every pool item",
+        label: "Proxy Every Pool Item",
         run: |state| state.proxy_whole_pool(),
     },
     // --- render and replace -------------------------------------------------
@@ -288,27 +288,27 @@ pub(super) const REACH_ROWS: &[CommandEntry] = &[
     // --- nested sequences: three operator commands with no surface ----------
     CommandEntry {
         id: "pal-new-sequence",
-        label: "New sequence",
+        label: "New Sequence",
         run: new_sequence,
     },
     CommandEntry {
         id: "pal-nest-selection",
-        label: "Nest selection into a sequence",
+        label: "Nest Selection into a Sequence",
         run: nest_selection,
     },
     CommandEntry {
         id: "pal-nest-open",
-        label: "Open the selected nested sequence",
+        label: "Open the Selected Nested Sequence",
         run: open_selected_nest,
     },
     CommandEntry {
         id: "pal-nest-leave",
-        label: "Leave the open nested sequence",
+        label: "Leave the Open Nested Sequence",
         run: leave_sequence,
     },
     CommandEntry {
         id: "pal-nest-place",
-        label: "Place the selected nest at the playhead",
+        label: "Place the Selected Nest at the Playhead",
         run: place_selected_nest,
     },
 ];

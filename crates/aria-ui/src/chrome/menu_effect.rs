@@ -27,7 +27,7 @@ static EFFECT_ITEMS: &[MenuItem] = &[
         report(s, removed)
     })
     .when(guards::effects),
-    MenuItem::new("seq-effect-reset", "Reset effect parameters", |_, s, _| {
+    MenuItem::new("seq-effect-reset", "Reset Effect Parameters", |_, s, _| {
         crate::commands::reach::reset_effects(s)
     })
     .key("key-effect-reset")

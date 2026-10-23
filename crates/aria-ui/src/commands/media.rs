@@ -14,42 +14,42 @@ use super::host::CommandEntry;
 pub(super) const MEDIA_ROWS: &[CommandEntry] = &[
     CommandEntry {
         id: "pal-media-support",
-        label: "Media support report",
+        label: "Media Support Report",
         run: |state| state.media_support_report(),
     },
     CommandEntry {
         id: "pal-media-verify",
-        label: "Verify decode of selected source",
+        label: "Verify Decode of Selected Source",
         run: |state| state.verify_selected_decode(),
     },
     CommandEntry {
         id: "pal-media-loudness",
-        label: "Loudness overview of selected source",
+        label: "Loudness Overview of Selected Source",
         run: |state| state.file_loudness_overview(),
     },
     CommandEntry {
         id: "pal-media-exposure",
-        label: "Measure exposure of the frame on screen",
+        label: "Measure Exposure of the Frame on Screen",
         run: |state| state.measure_exposure(),
     },
     CommandEntry {
         id: "pal-media-normalise",
-        label: "Normalise selected clip to target",
+        label: "Normalise Selected Clip to Target",
         run: |state| state.normalise_selected_clip(),
     },
     CommandEntry {
         id: "pal-media-target",
-        label: "Cycle normalise target level",
+        label: "Cycle Normalise Target Level",
         run: |state| state.cycle_normalise_target(),
     },
     CommandEntry {
         id: "pal-media-import-still",
-        label: "Import still or animation…",
+        label: "Import Still or Animation…",
         run: |state| state.import_still_image(),
     },
     CommandEntry {
         id: "pal-media-lottie",
-        label: "Import Lottie animation…",
+        label: "Import Lottie Animation…",
         run: |state| state.import_lottie(),
     },
 ];

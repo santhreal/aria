@@ -187,28 +187,28 @@ static SEQUENCE_ITEMS: &[MenuItem] = &[
     // the palette offer each row once instead of twice.
     MenuItem::new(
         "seq-lane-shift-later",
-        "Shift lane one second later",
+        "Shift Lane One Second Later",
         |_, s, _| reach::shift_lane(s, true),
     ),
     MenuItem::new(
         "seq-lane-shift-earlier",
-        "Shift lane one second earlier",
+        "Shift Lane One Second Earlier",
         |_, s, _| reach::shift_lane(s, false),
     ),
     MenuItem::new(
         "seq-canvas-background",
-        "Reset canvas background",
+        "Reset Canvas Background",
         |_, s, _| reach::reset_canvas_background(s),
     ),
-    MenuItem::new("seq-duck-amount", "Cycle duck amount", |_, s, _| {
+    MenuItem::new("seq-duck-amount", "Cycle Duck Amount", |_, s, _| {
         s.cycle_duck_amount()
     })
     .under(DUCKING),
-    MenuItem::new("seq-duck-attack", "Cycle duck attack", |_, s, _| {
+    MenuItem::new("seq-duck-attack", "Cycle Duck Attack", |_, s, _| {
         s.cycle_duck_attack()
     })
     .under(DUCKING),
-    MenuItem::new("seq-duck-release", "Cycle duck release", |_, s, _| {
+    MenuItem::new("seq-duck-release", "Cycle Duck Release", |_, s, _| {
         s.cycle_duck_release()
     })
     .under(DUCKING),
@@ -220,7 +220,7 @@ static SEQUENCE_ITEMS: &[MenuItem] = &[
         reach::leave_sequence(s)
     })
     .under(NESTED),
-    MenuItem::new("seq-nest-place", "Place Nest At Playhead", |_, s, _| {
+    MenuItem::new("seq-nest-place", "Place Nest at Playhead", |_, s, _| {
         reach::place_selected_nest(s)
     })
     .under(NESTED),

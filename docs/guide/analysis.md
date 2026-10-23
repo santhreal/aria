@@ -59,7 +59,7 @@ A duck dips the music wherever someone is talking. It is measured, not authored:
 the result is ordinary volume keyframes you can drag, retime, or undo.
 
 1. Right-click the voice lane's header and pick **Duck Source**, or run **Toggle
-   track as duck source** (`pal-track-duck`) in the palette. Only an audio lane can be the source.
+   Track as Duck Source** (`pal-track-duck`) in the palette. Only an audio lane can be the source.
 2. Select the music clip or clips.
 3. Open the Effect Controls panel's **Audio** tab and use **Duck under voice**.
 
@@ -90,10 +90,10 @@ returns to is the top of whatever is on the clip now.
 
 Detect silence and beats, then duck music under a voiceover track:
 
-1. Select a dialogue clip on `A1`, run **Analysis** (`pal-analysis`) in the Command Palette to open the Project panel's **Analysis** tab, and press <kbd>Shift+Alt+Q</kbd> (`key-detect-silence`) or choose **Sequence > Analyze > Detect Silence** (or run **Detect silence** (`pal-detect-silence`)). The background job detects silent spans below `-50 dBFS` and lists them with timecodes; click [`analysis-prev`](../reference/controls.md#project-panel) and [`analysis-next`](../reference/controls.md#project-panel) to step the playhead through the detected moments, or click [`analysis-cut-silence`](../reference/controls.md#project-panel) to ripple-delete silent pauses.
+1. Select a dialogue clip on `A1`, run **Analysis** (`pal-analysis`) in the Command Palette to open the Project panel's **Analysis** tab, and press <kbd>Shift+Alt+Q</kbd> (`key-detect-silence`) or choose **Sequence > Analyze > Detect Silence** (or run **Detect Silence** (`pal-detect-silence`)). The background job detects silent spans below `-50 dBFS` and lists them with timecodes; click [`analysis-prev`](../reference/controls.md#project-panel) and [`analysis-next`](../reference/controls.md#project-panel) to step the playhead through the detected moments, or click [`analysis-cut-silence`](../reference/controls.md#project-panel) to ripple-delete silent pauses.
 2. Select a music clip on `A2` and press <kbd>Shift+Alt+B</kbd> (`key-detect-beats`) or choose **Clip > Analyze > Detect Beats** (or click [`analysis-loudness`](../reference/controls.md#project-panel) / choose **Sequence > Analyze > Measure Loudness** to inspect its loudness contour). Beat hairlines appear along the timeline ruler as snap targets.
-3. Right-click the `A1` voiceover track header and choose **Duck Source**, or select `A1` and run **Toggle track as duck source** (`pal-track-duck`) in the Command Palette. The `A1` track header marks `A1` as the duck source.
-4. Select the music clip on `A2`, adjust the dip depth with **Sequence > Ducking > Cycle duck amount** (or press <kbd>Alt+D</kbd> (`key-duck-amount`)), and click [`duck-run`](../reference/controls.md#inspector) in the Effect Controls **Audio** tab (or press <kbd>Shift+Alt+D</kbd> (`key-duck-apply`) / run **Duck under voice** (`pal-duck`)). Aria measures the voice spans on `A1` and writes volume keyframes on the `A2` music clip, dipping the music line on the timeline wherever speech is present.
+3. Right-click the `A1` voiceover track header and choose **Duck Source**, or select `A1` and run **Toggle Track as Duck Source** (`pal-track-duck`) in the Command Palette. The `A1` track header marks `A1` as the duck source.
+4. Select the music clip on `A2`, adjust the dip depth with **Sequence > Ducking > Cycle Duck Amount** (or press <kbd>Alt+D</kbd> (`key-duck-amount`)), and click [`duck-run`](../reference/controls.md#inspector) in the Effect Controls **Audio** tab (or press <kbd>Shift+Alt+D</kbd> (`key-duck-apply`) / run **Duck Under Voice** (`pal-duck`)). Aria measures the voice spans on `A1` and writes volume keyframes on the `A2` music clip, dipping the music line on the timeline wherever speech is present.
 
 ## Reference
 

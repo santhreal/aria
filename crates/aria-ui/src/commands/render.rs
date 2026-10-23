@@ -14,7 +14,7 @@ use super::host::CommandEntry;
 pub(super) const RENDER_ROWS: &[CommandEntry] = &[
     CommandEntry {
         id: "pal-look-install",
-        label: "Install starter LUT pack",
+        label: "Install Starter LUT Pack",
         run: |state| state.install_starter_looks(),
     },
     // Rendering a frame sequence is not a row here. It asks where the frames go,
@@ -23,7 +23,7 @@ pub(super) const RENDER_ROWS: &[CommandEntry] = &[
     // `pal-export`, which opens the sheet rather than starting a render.
     CommandEntry {
         id: "pal-render-cost",
-        label: "Last frame cost",
+        label: "Last Frame Cost",
         run: |state| state.report_render_cost(),
     },
     CommandEntry {
@@ -55,12 +55,12 @@ pub(super) const RENDER_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-media-reload",
-        label: "Reload media from disk",
+        label: "Reload Media from Disk",
         run: |state| state.reload_selected_media(),
     },
     CommandEntry {
         id: "pal-media-reload-all",
-        label: "Reload all media from disk",
+        label: "Reload All Media from Disk",
         run: |state| state.reload_all_media_from_disk(),
     },
 ];

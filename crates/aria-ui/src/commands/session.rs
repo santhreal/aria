@@ -17,7 +17,7 @@ pub(super) const SESSION_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-split",
-        label: "Split at playhead",
+        label: "Split at Playhead",
         run: |state| {
             if let Err(err) = state.split_at_playhead() {
                 state.report_error(&err);
@@ -26,7 +26,7 @@ pub(super) const SESSION_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-delete",
-        label: "Delete selected",
+        label: "Delete Selected",
         run: |state| {
             if let Err(err) = state.clear_selected() {
                 state.report_error(&err);
@@ -35,7 +35,7 @@ pub(super) const SESSION_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-ripple-delete",
-        label: "Ripple delete selected",
+        label: "Ripple Delete Selected",
         run: |state| {
             if let Err(err) = state.ripple_delete_selected() {
                 state.report_error(&err);
@@ -58,7 +58,7 @@ pub(super) const SESSION_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-save",
-        label: "Save project",
+        label: "Save Project",
         run: |state| {
             if let Err(err) = state.save_project() {
                 state.report_error(&err);
@@ -72,7 +72,7 @@ pub(super) const SESSION_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-new",
-        label: "New project",
+        label: "New Project",
         run: |state| state.request_new_project(),
     },
     CommandEntry {
@@ -82,7 +82,7 @@ pub(super) const SESSION_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-export-frame",
-        label: "Export frame",
+        label: "Export Frame",
         run: |state| state.pick_and_export_frame(),
     },
     CommandEntry {
@@ -102,32 +102,32 @@ pub(super) const SESSION_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-preview-fullscreen",
-        label: "Fullscreen preview",
+        label: "Fullscreen Preview",
         run: |state| state.toggle_preview_fullscreen(),
     },
     CommandEntry {
         id: "pal-preview-title-safe",
-        label: "Title safe",
+        label: "Title Safe",
         run: |state| state.toggle_title_safe(),
     },
     CommandEntry {
         id: "pal-preview-action-safe",
-        label: "Action safe",
+        label: "Action Safe",
         run: |state| state.toggle_action_safe(),
     },
     CommandEntry {
         id: "pal-preview-grid",
-        label: "Preview grid",
+        label: "Preview Grid",
         run: |state| state.toggle_preview_grid(),
     },
     CommandEntry {
         id: "pal-preview-scopes",
-        label: "Scope strip",
+        label: "Scope Strip",
         run: |state| state.toggle_scopes(),
     },
     CommandEntry {
         id: "pal-preview-fit",
-        label: "Fit preview",
+        label: "Fit Preview",
         run: |state| state.preview_zoom_fit(),
     },
     CommandEntry {
@@ -137,12 +137,12 @@ pub(super) const SESSION_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-handles",
-        label: "Cycle canvas handles",
+        label: "Cycle Canvas Handles",
         run: |state| state.cycle_overlay_mode(),
     },
     CommandEntry {
         id: "pal-bin-new",
-        label: "New bin",
+        label: "New Bin",
         run: |state| {
             if let Err(err) = state.create_bin() {
                 state.report_error(&err);
@@ -151,7 +151,7 @@ pub(super) const SESSION_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-bin-up",
-        label: "Leave bin",
+        label: "Leave Bin",
         run: |state| {
             let parent = state.bin_path().iter().rev().nth(1).map(|item| item.id);
             state.open_bin(parent);
@@ -169,22 +169,22 @@ pub(super) const SESSION_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-next-moment",
-        label: "Next detected moment",
+        label: "Next Detected Moment",
         run: |state| state.seek_next_moment(),
     },
     CommandEntry {
         id: "pal-previous-moment",
-        label: "Previous detected moment",
+        label: "Previous Detected Moment",
         run: |state| state.seek_previous_moment(),
     },
     CommandEntry {
         id: "pal-fit",
-        label: "Fit timeline",
+        label: "Fit Timeline",
         run: |state| state.zoom_fit_sequence(),
     },
     CommandEntry {
         id: "pal-fit-selection",
-        label: "Fit selection",
+        label: "Fit Selection",
         run: |state| state.zoom_fit_selection(),
     },
     CommandEntry {

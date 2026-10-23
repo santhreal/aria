@@ -86,7 +86,7 @@ Ctrl+C copies the selected clip, and there are four pastes:
   and whole effect chain onto the selected clip. Its position, length, media, and
   audio levels are unchanged. The target's existing effects are replaced, not
   added to, so pasting from a clip with no effects clears them.
-- **Paste To Fit**, on the Edit menu, drops the copy into the marked range and
+- **Paste to Fit**, on the Edit menu, drops the copy into the marked range and
   retimes it to fill the range. The copy lands at the In point, not at
   the playhead. Mark In and Out first: with no range marked the row reports it and
   changes nothing.
@@ -266,7 +266,7 @@ name either.
 
 Filtering ranks in four tiers: labels starting with what you typed, then labels
 with a word starting with it, then labels containing it, then labels whose
-letters appear in order, so `fs` finds **Fullscreen preview** (`pal-preview-fullscreen`).
+letters appear in order, so `fs` finds **Fullscreen Preview** (`pal-preview-fullscreen`).
 
 ## Control labels
 
@@ -281,11 +281,11 @@ reads correctly rather than repeating a stale letter.
 
 Cut a short clip from a longer recording with In/Out and ripple delete:
 
-1. Select the recording on `V1`, move the playhead to the frame where the unwanted section starts, and press <kbd>Ctrl+K</kbd> (`key-split`) or choose **Sequence > Add Edit** (or run **Split at playhead** (`pal-split`) in the Command Palette). The recording splits into two adjacent clips at the playhead.
+1. Select the recording on `V1`, move the playhead to the frame where the unwanted section starts, and press <kbd>Ctrl+K</kbd> (`key-split`) or choose **Sequence > Add Edit** (or run **Split at Playhead** (`pal-split`) in the Command Palette). The recording splits into two adjacent clips at the playhead.
 2. Move the playhead to the start of the keep range and press <kbd>I</kbd> (`key-mark-in`) or click [`program-mark-in`](../reference/controls.md#viewer--source-monitor) (or choose **Markers > Mark In**). The timeline ruler work area bar anchors its In point at the playhead.
 3. Move the playhead to the end of the keep range and press <kbd>O</kbd> (`key-mark-out`) or click [`program-mark-out`](../reference/controls.md#viewer--source-monitor) (or choose **Markers > Mark Out**). The work area bar highlights the span between In and Out on the timeline ruler.
 4. Press <kbd>Ctrl+K</kbd> (`key-split`) at the Out point to cut the tail off the keep clip, then select the unwanted tail clip on `V1`. The tail clip highlights with a white selection border.
-5. Press <kbd>Shift+Backspace</kbd> (`key-ripple-delete`) or choose **Edit > Ripple Delete** (or run **Ripple delete selected** (`pal-ripple-delete`)). Aria removes the unwanted clip and shifts all later clips on sync-locked lanes left to close the gap, leaving the short cut clip on `V1`.
+5. Press <kbd>Shift+Backspace</kbd> (`key-ripple-delete`) or choose **Edit > Ripple Delete** (or run **Ripple Delete Selected** (`pal-ripple-delete`)). Aria removes the unwanted clip and shifts all later clips on sync-locked lanes left to close the gap, leaving the short cut clip on `V1`.
 6. Press <kbd>\</kbd> (`key-fit`) or click [`fit-timeline`](../reference/controls.md#timeline) (or choose **View > Fit**) to fit the edited sequence across the timeline viewport. The timeline zooms to show the shortened sequence end to end.
 
 ## Reference

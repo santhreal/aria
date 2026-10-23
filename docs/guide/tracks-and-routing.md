@@ -43,7 +43,7 @@ The chevron collapses a lane to a 20-pixel strip: each clip is drawn as a flat
 bar in its own colour, so the cut pattern stays readable while the lane takes
 almost no room. The height is kept, so expanding restores the lane you sized.
 
-**Shift selection…**, in a clip's context menu, or **Shift selection by frames…** (`pal-shift-selection`) in the command palette, prompts for a
+**Shift selection…**, in a clip's context menu, or **Shift Selection by Frames…** (`pal-shift-selection`) in the command palette, prompts for a
 signed frame count. The offset moves the selection on every lane it spans, from
 the earliest selected clip on each, shifting everything later on those lanes with
 it. A leading `+` is accepted. An offset that would move a clip before the start
@@ -132,7 +132,7 @@ Both flags are set on every new lane, and both are stored with the sequence.
 ## Nested sequences
 
 A nest is a stretch of timeline that plays as one clip. **Clip > Nest…**,
-or **Nest selection into a sequence** (`pal-nest-selection`) in the palette, takes the
+or **Nest Selection into a Sequence** (`pal-nest-selection`) in the palette, takes the
 selected clips, moves them onto a sequence of their own, and leaves a single
 clip in their place on the lane the first of them came from.
 
@@ -142,7 +142,7 @@ and every edit lands there rather than on the sequence you came from. The
 status strip holds the nest's name while it is open; clicking that chip
 leaves it, as does **Sequence > Nested Sequence > Leave Nested Sequence**.
 
-**Sequence > Nested Sequence > Place Nest At Playhead** puts a second clip playing the same nest
+**Sequence > Nested Sequence > Place Nest at Playhead** puts a second clip playing the same nest
 at the playhead, on the lane a media drop would land on. Editing inside the
 nest changes both clips, because both play the one sequence.
 
@@ -167,8 +167,8 @@ timeline is already open are each refused with what is missing.
 Nest a sequence of clips into a single compound clip, edit inside the nest, and return to the parent sequence:
 
 1. Click [`add-track`](../reference/controls.md#timeline) at the bottom-left of the timeline (or choose **Sequence > Add Tracks > Video Track**) and arrange the clips to group across `V1` and `V2`. The timeline shows the layered clips in the composite.
-2. Drag a marquee across the clips to group (or press <kbd>Ctrl+A</kbd> (`key-select-all`) / choose **Edit > Select All**), then choose **Clip > Nest…** or run **Nest selection into a sequence** (`pal-nest-selection`) in the Command Palette. Aria moves the selected clips into a new sequence and replaces them on the parent timeline with a single Tan-coloured nested sequence clip.
-3. Select the nested sequence clip and choose **Sequence > Nested Sequence > Open Nested Sequence** (or run **Open the selected nested sequence** (`pal-nest-open`)). The timeline switches to the nested sequence's own tracks and ruler, and the status bar shows the nest breadcrumb [`status-nest-breadcrumb`](../reference/controls.md#window--dock-chrome).
+2. Drag a marquee across the clips to group (or press <kbd>Ctrl+A</kbd> (`key-select-all`) / choose **Edit > Select All**), then choose **Clip > Nest…** or run **Nest Selection into a Sequence** (`pal-nest-selection`) in the Command Palette. Aria moves the selected clips into a new sequence and replaces them on the parent timeline with a single Tan-coloured nested sequence clip.
+3. Select the nested sequence clip and choose **Sequence > Nested Sequence > Open Nested Sequence** (or run **Open the Selected Nested Sequence** (`pal-nest-open`)). The timeline switches to the nested sequence's own tracks and ruler, and the status bar shows the nest breadcrumb [`status-nest-breadcrumb`](../reference/controls.md#window--dock-chrome).
 4. Trim or reorder the clips inside the nested sequence, then click [`status-nest-breadcrumb`](../reference/controls.md#window--dock-chrome) in the status bar or choose **Sequence > Nested Sequence > Leave Nested Sequence** (or press <kbd>Ctrl+W</kbd> (`key-pane-close`) with the Timeline focused). The parent timeline returns to view and the Viewer composites the updated nested sequence as one clip.
 
 ## Reference

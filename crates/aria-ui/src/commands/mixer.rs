@@ -13,7 +13,7 @@ use super::host::CommandEntry;
 pub(super) const MIXER_ROWS: &[CommandEntry] = &[
     CommandEntry {
         id: "pal-mixer-open",
-        label: "Mixer: open the mixer",
+        label: "Mixer: Open the Mixer",
         run: |state| {
             state.focus_pane(ActivePanel::Mixer);
             state.status_message = Some("Faders, outputs and sends, one strip per lane".into());
@@ -21,7 +21,7 @@ pub(super) const MIXER_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-mixer-add-bus",
-        label: "Mixer: add a submix bus",
+        label: "Mixer: Add a Submix Bus",
         run: |state| {
             if let Err(err) = state.add_submix_lane() {
                 state.report_error(&err);

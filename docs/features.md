@@ -137,7 +137,7 @@ Anything not listed here is not in the build.
   apply to footage, stills, titles, shapes, stickers, animations, and
   adjustment layers, and cut what the clip draws before its effects, LUT, and
   layer styles. Chroma key. Colour filters with an intensity per clip.
-- Mask tracking: "Track mask forward from the playhead" in the palette follows
+- Mask tracking: "Track Mask Forward from the Playhead" in the palette follows
   the picture under the active mask across the rest of the clip and writes its
   centre keyframes. The pass runs as a job on a renderer of its own, so the window keeps
   drawing and stays scrubbable while it tracks, and the jobs board counts frames

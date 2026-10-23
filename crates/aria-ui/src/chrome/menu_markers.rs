@@ -67,7 +67,7 @@ static MARKER_ITEMS: &[MenuItem] = &[
     .when(guards::markers),
     MenuItem::new(
         "seq-marker-snap",
-        "Move nearest marker to playhead",
+        "Move Nearest Marker to Playhead",
         |_, s, _| crate::commands::reach::snap_marker(s),
     )
     .when(guards::markers),

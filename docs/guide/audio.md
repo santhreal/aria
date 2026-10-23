@@ -24,7 +24,7 @@ Each strip holds:
   undo step.
 
 **+ Submix bus** at the top right adds a bus, named `Bus 1`, `Bus 2`, and so on.
-**Mixer: add a submix bus** (`pal-mixer-add-bus`) in the palette does the same. Deleting a bus returns
+**Mixer: Add a Submix Bus** (`pal-mixer-add-bus`) in the palette does the same. Deleting a bus returns
 everything that fed it to the master; undo restores both the bus and the routing.
 
 A strip whose signal cannot arrive at the master, behind a muted bus or with
@@ -79,7 +79,7 @@ Route dialogue through a submix bus, insert an audio effect chain, and normalize
 
 1. Select the dialogue clips on `A1` and press <kbd>G</kbd> (`key-audio-gain`) or choose **Clip > Audio Gain…** (or run **Audio Gain…** (`pal-audio-gain`) in the Command Palette). The Audio Gain dialog opens and reports the measured peak in dBFS across the selection.
 2. Choose **Normalize Max Peak to**, set the target level, and click [`audio-gain-apply`](../reference/controls.md#modal-dialogs). The clip waveforms on `A1` scale to the normalized level in one undo step.
-3. Press <kbd>Shift+6</kbd> (`key-mixer`) or choose **Window > Audio Track Mixer** (or run **Mixer: open the mixer** (`pal-mixer-open`)), then click **+ Submix bus** or run **Mixer: add a submix bus** (`pal-mixer-add-bus`) in the Command Palette. A `Bus 1 · bus` strip appears in the mixer before the `Master` strip.
+3. Press <kbd>Shift+6</kbd> (`key-mixer`) or choose **Window > Audio Track Mixer** (or run **Mixer: Open the Mixer** (`pal-mixer-open`)), then click **+ Submix bus** or run **Mixer: Add a Submix Bus** (`pal-mixer-add-bus`) in the Command Palette. A `Bus 1 · bus` strip appears in the mixer before the `Master` strip.
 4. On the `A1` strip, click the `Bus 1` chip under **Out** to route `A1` into `Bus 1`, then add **Parametric EQ** and **Compressor** under **Inserts** on `Bus 1` and reorder them with [`insert-up`](../reference/controls.md#audio-mixer) or [`insert-down`](../reference/controls.md#audio-mixer) (or remove an insert with [`insert-remove`](../reference/controls.md#audio-mixer)). Press <kbd>Shift+9</kbd> (`key-pane-audio-meters`) or choose **Window > Audio Meters** to watch the summed peak levels in the Audio Meters panel and [`preview-meter`](../reference/controls.md#audio-meters) during playback.
 
 ## Reference

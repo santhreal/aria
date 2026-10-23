@@ -60,7 +60,7 @@ static EDIT_ITEMS: &[MenuItem] = &[
         |_, s, _| s.open_remove_attributes(),
     )
     .when(super::menu_guards::selection),
-    MenuItem::new("edit-paste-fit", "Paste To Fit", |_, s, _| {
+    MenuItem::new("edit-paste-fit", "Paste to Fit", |_, s, _| {
         let pasted = s.paste_to_fit();
         report(s, pasted)
     })

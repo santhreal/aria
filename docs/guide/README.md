@@ -8,7 +8,7 @@ Task-oriented manual for the Aria desktop editor. Each chapter covers one editor
 1. [Importing media](importing-media.md) - Dropped files, timeline interchange, missing media relink, stock, cloud catalogs, and generation
 2. [Media pool and bins](media-pool-and-bins.md) - Project panel tabs, pool views, search and sort, bins, and source previewing
 3. [The timeline and editing](timeline-and-editing.md) - Splitting, moving, three-point edits, copy and paste, timeline header, waveforms, filmstrips, label colours, and the command palette
-4. [Trimming](trimming.md) - Slip, Slide, Rolling edit, Rate stretch, and Ripple trim tools
+4. [Trimming](trimming.md) - Slip, Slide, Rolling Edit, Rate Stretch, and Ripple Trim tools
 5. [Tracks and routing](tracks-and-routing.md) - Track headers, solo and mute, clip bars, source patching, sync lock, and nested sequences
 6. [The viewer](viewer.md) - Transport, zoom, scopes, safe areas, rulers and guides, compare wipe, resolution, proxies, render files, info, framing, and alignment
 7. [Colour](colour.md) - Look presets, Lift/Gamma/Gain colour wheels, grading sliders, curves, HSL secondary, LUTs, and the Color panel
