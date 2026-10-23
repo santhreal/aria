@@ -549,4 +549,68 @@ fn nv12_from_video_frame_packs_i420_and_i420_10le_without_videoconvert_unpack() 
     assert_eq!(planes_10le[1].stride, 4);
     assert_eq!(planes_10le[1].rows, 1);
     assert_eq!(&planes_10le[1].data, &[90, 100, 180, 200]);
+
+    // 4x2 P010_10LE frame: MSB-aligned 10-bit values (val << 8) shift down by 8 into 8-bit NV12.
+    let info_p010 = gst_video::VideoInfo::builder(gst_video::VideoFormat::P01010le, 4, 2)
+        .build()
+        .expect("p010_10le info");
+    let mut buf_p010 = gst::Buffer::with_size(info_p010.size()).expect("p010_10le buffer");
+    {
+        let buf_mut = buf_p010.get_mut().expect("mutable p010_10le buffer");
+        let mut frame =
+            gst_video::VideoFrameRef::from_buffer_ref_writable(buf_mut, &info_p010).expect("map");
+        let y_stride = frame.plane_stride()[0] as usize;
+        for (i, px) in [16u16, 64, 128, 235].into_iter().enumerate() {
+            let bytes = (px << 8).to_le_bytes();
+            frame.plane_data_mut(0).unwrap()[i * 2..i * 2 + 2].copy_from_slice(&bytes);
+        }
+        for (i, px) in [32u16, 96, 160, 240].into_iter().enumerate() {
+            let bytes = (px << 8).to_le_bytes();
+            frame.plane_data_mut(0).unwrap()[y_stride + i * 2..y_stride + i * 2 + 2]
+                .copy_from_slice(&bytes);
+        }
+        for (i, uv_px) in [90u16, 100, 180, 200].into_iter().enumerate() {
+            let bytes = (uv_px << 8).to_le_bytes();
+            frame.plane_data_mut(1).unwrap()[i * 2..i * 2 + 2].copy_from_slice(&bytes);
+        }
+    }
+    let frame_p010 =
+        gst_video::VideoFrameRef::from_buffer_ref_readable(buf_p010.as_ref(), &info_p010)
+            .expect("read p010_10le");
+    let planes_p010 = nv12_from_video_frame(&frame_p010, 2).expect("p010_10le -> nv12");
+    assert_eq!(planes_p010[0].stride, 4);
+    assert_eq!(planes_p010[0].rows, 2);
+    assert_eq!(&planes_p010[0].data, &[16, 64, 128, 235, 32, 96, 160, 240]);
+    assert_eq!(planes_p010[1].stride, 4);
+    assert_eq!(planes_p010[1].rows, 1);
+    assert_eq!(&planes_p010[1].data, &[90, 100, 180, 200]);
+
+    let (pipeline, _bin, _sink) =
+        build_decode_pipeline("file:///dev/null", false).expect("build cpu decode pipeline");
+    let mut has_videoscale = false;
+    let mut filter_caps: Option<gst::Caps> = None;
+    let mut iter = pipeline.iterate_elements();
+    while let Ok(Some(el)) = iter.next() {
+        if let Some(f) = el.factory() {
+            if f.name().as_str() == "videoscale" {
+                has_videoscale = true;
+            } else if f.name().as_str() == "capsfilter" {
+                filter_caps = Some(el.property::<gst::Caps>("caps"));
+            }
+        }
+    }
+    assert!(
+        !has_videoscale,
+        "CPU decode pipeline must not insert an unconfigured videoscale element"
+    );
+    let filter_caps = filter_caps.expect("CPU decode pipeline has a capsfilter");
+    for fmt in ["NV12", "P010_10LE", "I420", "I420_10LE"] {
+        let probe = gst::Caps::builder("video/x-raw")
+            .field("format", fmt)
+            .build();
+        assert!(
+            filter_caps.can_intersect(&probe),
+            "CPU decode capsfilter ({filter_caps}) must accept {fmt} passthrough"
+        );
+    }
 }

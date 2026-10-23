@@ -88,8 +88,8 @@ fn yuv_to_rgb(ys: f32, cbs: f32, crs: f32, kr: f32, kb: f32, full: f32) -> vec3<
 
 @fragment
 fn fs(in: VertexOutput) -> @location(0) vec4<f32> {
-    let ys = textureSample(y_tex, samp, in.uv).r;
-    let u_sample = textureSample(u_tex, samp, in.uv);
+    let ys = textureSampleLevel(y_tex, samp, in.uv, 0.0).r;
+    let u_sample = textureSampleLevel(u_tex, samp, in.uv, 0.0);
     var cbs: f32;
     var crs: f32;
     if (p.coeffs.w > 0.5) {
@@ -99,7 +99,7 @@ fn fs(in: VertexOutput) -> @location(0) vec4<f32> {
     } else {
         // I420: separate U and V planes.
         cbs = u_sample.r;
-        crs = textureSample(v_tex, samp, in.uv).r;
+        crs = textureSampleLevel(v_tex, samp, in.uv, 0.0).r;
     }
     var graded = yuv_to_rgb(ys, cbs, crs, p.coeffs.x, p.coeffs.y, p.coeffs.z);
     if (p.grade[0].w > 0.5) {
@@ -122,8 +122,8 @@ fn fs(in: VertexOutput) -> @location(0) vec4<f32> {
 }
 
 fn sample_yuv_rgb(uv: vec2<f32>) -> vec3<f32> {
-    let ys = textureSample(y_tex, samp, uv).r;
-    let u_sample = textureSample(u_tex, samp, uv);
+    let ys = textureSampleLevel(y_tex, samp, uv, 0.0).r;
+    let u_sample = textureSampleLevel(u_tex, samp, uv, 0.0);
     var cbs: f32;
     var crs: f32;
     if (p.coeffs.w > 0.5) {
@@ -131,7 +131,7 @@ fn sample_yuv_rgb(uv: vec2<f32>) -> vec3<f32> {
         crs = u_sample.g;
     } else {
         cbs = u_sample.r;
-        crs = textureSample(v_tex, samp, uv).r;
+        crs = textureSampleLevel(v_tex, samp, uv, 0.0).r;
     }
     return yuv_to_rgb(ys, cbs, crs, p.coeffs.x, p.coeffs.y, p.coeffs.z);
 }

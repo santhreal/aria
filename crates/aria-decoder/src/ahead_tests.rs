@@ -1,8 +1,9 @@
 //! Decode-ahead contracts: an [`AheadDecoder`] returns the frames its wrapped
 //! decoder returns, decodes each frame once, holds at most [`AHEAD_FRAMES`]
 //! ahead, walks each GOP once when stepping backward, does its pool work on
-//! the decode threads, and ends instead of hanging when the wrapped decoder
-//! fails, panics, or is dropped mid-fill.
+//! the decode threads, returns the planes of the frames it discards to the
+//! plane pool, and ends instead of hanging when the wrapped decoder fails,
+//! panics, or is dropped mid-fill.
 //!
 //! Not covered: hardware decoders (the mock stands in for every backend) and
 //! the pool's thread count.
@@ -75,6 +76,9 @@ pub(crate) struct Mock {
     /// Sync samples that cannot start a decode (open GOPs): a seek to one
     /// lands on the next sync sample instead, past its target.
     open: Vec<i64>,
+    /// Plane length of the frames decoded, each filled with a byte its pts
+    /// selects ([`plane_fill`]); `None` decodes 6-byte frames.
+    planes: Option<usize>,
 }
 
 impl Mock {
@@ -99,12 +103,18 @@ impl Mock {
             counts: Arc::clone(&counts),
             fault: None,
             open: Vec::new(),
+            planes: None,
         };
         (mock, counts)
     }
 
     pub(crate) fn with_open_gops(mut self, open: &[i64]) -> Self {
         self.open = open.to_vec();
+        self
+    }
+
+    pub(crate) fn with_planes(mut self, len: usize) -> Self {
+        self.planes = Some(len);
         self
     }
 
@@ -130,6 +140,12 @@ pub(crate) fn cpu_frame(pts: i64, bytes: usize) -> VideoFrame {
         Rotation::None,
         FrameData::Cpu(CpuImage::new(vec![Plane::new(vec![0u8; bytes], 2, 2)])),
     )
+}
+
+/// The byte that fills each plane of the frame at `pts` from
+/// [`Mock::with_planes`]; never zero, the contents of a new plane buffer.
+pub(crate) fn plane_fill(pts: i64) -> u8 {
+    0x80 | (pts.rem_euclid(64) as u8)
 }
 
 pub(crate) fn gpu_frame(pts: i64) -> VideoFrame {
@@ -182,7 +198,16 @@ impl VideoDecoder for Mock {
         self.cursor += 1;
         self.last_pts = Some(pts);
         self.counts.decoded.fetch_add(1, Atomic::SeqCst);
-        Ok(Some(cpu_frame(pts.value, 6)))
+        Ok(Some(match self.planes {
+            Some(len) => {
+                let mut frame = cpu_frame(pts.value, 0);
+                if let FrameData::Cpu(image) = &mut frame.data {
+                    image.planes[0].data = vec![plane_fill(pts.value); len];
+                }
+                frame
+            }
+            None => cpu_frame(pts.value, 6),
+        }))
     }
 
     fn frame_at(&mut self, target: RationalTime) -> Result<Option<VideoFrame>, DecodeError> {
@@ -422,6 +447,66 @@ fn release_drops_held_frames_and_the_next_request_refills() {
     assert_eq!(pts(decoder.frame_at(rt(40))), Some(40));
     decoder.idle();
     assert_eq!(decoder.ahead(), AHEAD_FRAMES);
+}
+
+/// WHY: frames the decoder discarded (passed by a skip forward, made stale by
+/// a seek, held behind a backward request, or held at `release`) freed their
+/// CPU planes, so each next decode faulted new pages for every 4K frame.
+/// Closes the class of discarded CPU frames that bypass the plane pool. The
+/// plane length is odd so no other test's planes match it, and a new buffer
+/// is zeroed, so each fill byte shows which frame's plane came back. Not
+/// covered: frames evicted from a full backward store, and a held answer
+/// dropped by `release`.
+#[test]
+fn discarded_frames_return_their_planes_to_the_plane_pool() {
+    const LEN: usize = (64 << 10) * 5 + 17;
+    let pooled = |count: usize| -> Vec<u8> {
+        let mut fills: Vec<u8> = (0..count)
+            .map(|_| {
+                let buf = crate::take_plane_vec(LEN);
+                assert!(
+                    buf.windows(2).all(|pair| pair[0] == pair[1]),
+                    "a plane mixed two fills"
+                );
+                buf[0]
+            })
+            .collect();
+        fills.sort_unstable();
+        fills
+    };
+    let fills =
+        |frames: std::ops::RangeInclusive<i64>| -> Vec<u8> { frames.map(plane_fill).collect() };
+    let (mock, _) = Mock::new(100, 10);
+    let mut decoder = ahead(mock.with_planes(LEN));
+    assert_eq!(pts(decoder.frame_at(rt(0))), Some(0));
+    decoder.idle();
+    assert_eq!(pts(decoder.frame_at(rt(5))), Some(5));
+    assert_eq!(
+        pooled(4),
+        fills(1..=4),
+        "a skip forward freed the frames it passed"
+    );
+    decoder.idle();
+    assert_eq!(pts(decoder.frame_at(rt(2))), Some(2));
+    assert_eq!(
+        pooled(AHEAD_FRAMES),
+        fills(6..=5 + AHEAD_FRAMES as i64),
+        "a backward request freed the frames queued ahead"
+    );
+    assert_eq!(pts(decoder.frame_at(rt(40))), Some(40));
+    assert_eq!(
+        pooled(2),
+        fills(0..=1),
+        "a seek freed the frames held behind"
+    );
+    decoder.idle();
+    assert_eq!(decoder.ahead(), AHEAD_FRAMES);
+    decoder.release();
+    assert_eq!(
+        pooled(AHEAD_FRAMES),
+        fills(41..=40 + AHEAD_FRAMES as i64),
+        "release freed the frames it held"
+    );
 }
 
 #[test]

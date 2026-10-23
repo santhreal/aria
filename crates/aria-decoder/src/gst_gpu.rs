@@ -162,7 +162,7 @@ fn wait_preroll(
     }
 }
 
-/// `n-threads` for the CPU path's `videoconvert` and `videoscale`: `0` is one
+/// `n-threads` for the CPU path's `videoconvert`: `0` is one
 /// thread per logical CPU. The default of one thread halves 4K HEVC Main10
 /// throughput, because the 10-bit to NV12 conversion then takes as long as
 /// the decode (600 frames on an i7-11700K: 10.3 s with one thread, 4.7 s with
@@ -312,16 +312,17 @@ pub(crate) fn build_decode_pipeline(
     } else {
         let convert = make("videoconvert", None)?;
         convert.set_property("n-threads", CONVERT_THREADS);
-        let scale = make("videoscale", None)?;
-        scale.set_property("n-threads", CONVERT_THREADS);
         let caps = gst::Caps::builder("video/x-raw")
-            .field("format", gst::List::new(["NV12", "I420", "I420_10LE"]))
+            .field(
+                "format",
+                gst::List::new(["NV12", "P010_10LE", "I420", "I420_10LE"]),
+            )
             .build();
         filter.set_property("caps", &caps);
         pipeline
-            .add_many([&src, &convert, &scale, &filter, sink_el])
+            .add_many([&src, &convert, &filter, sink_el])
             .map_err(|e| DecodeError::Open(format!("couldn't build decode pipeline: {e}")))?;
-        for (up, down) in [(&convert, &scale), (&scale, &filter), (&filter, sink_el)] {
+        for (up, down) in [(&convert, &filter), (&filter, sink_el)] {
             up.link_pads_full(Some("src"), down, Some("sink"), gst::PadLinkCheck::empty())
                 .map_err(|e| DecodeError::Open(format!("couldn't link decode pipeline: {e}")))?;
         }
@@ -631,10 +632,11 @@ unsafe impl Sync for DmaKeepAlive {}
 
 /// CPU NV12 extraction used by the fallback path and by unit tests.
 ///
-/// Software decoders natively emit planar `I420` (8-bit) or `I420_10LE`
-/// (10-bit). Accepting those layouts on the pipeline capsfilter leaves
-/// `videoconvert` in passthrough mode and packs `NV12` directly here in one
-/// pass, avoiding GStreamer's 64-bit `AYUV64` intermediate unpack.
+/// Software decoders emit planar `I420` (8-bit) or `I420_10LE` (10-bit), and
+/// hardware decoders in system memory (`nvh265dec`) emit semi-planar
+/// `P010_10LE`. Accepting those layouts on the pipeline capsfilter leaves
+/// `videoconvert` in passthrough mode and packs `NV12` here in one pass,
+/// avoiding GStreamer's 64-bit `AYUV64` intermediate unpack.
 pub(crate) fn nv12_from_video_frame(
     frame: &gst_video::VideoFrameRef<&gst::BufferRef>,
     height: u32,
@@ -642,6 +644,7 @@ pub(crate) fn nv12_from_video_frame(
     match frame.format() {
         gst_video::VideoFormat::I420 => i420_to_nv12_planes(frame, height),
         gst_video::VideoFormat::I42010le => i420_10le_to_nv12_planes(frame, height),
+        gst_video::VideoFormat::P01010le => p010_10le_to_nv12_planes(frame, height),
         _ => {
             let y = frame.plane_data(0).map_err(|_| {
                 DecodeError::Decode(
@@ -655,9 +658,15 @@ pub(crate) fn nv12_from_video_frame(
             })?;
             let y_stride = frame.plane_stride()[0] as usize;
             let uv_stride = frame.plane_stride()[1] as usize;
+            let rows = height as usize;
+            let ch = rows.div_ceil(2);
+            // Rows past the frame height are padding; a plane shorter than
+            // its rows is copied whole, as the plane reports it.
+            let y = &y[..y.len().min(y_stride.saturating_mul(rows))];
+            let uv = &uv[..uv.len().min(uv_stride.saturating_mul(ch))];
             Ok(vec![
-                Plane::new(y.to_vec(), y_stride, height as usize),
-                Plane::new(uv.to_vec(), uv_stride, (height as usize).div_ceil(2)),
+                Plane::new(crate::copy_plane_bytes(y), y_stride, rows),
+                Plane::new(crate::copy_plane_bytes(uv), uv_stride, ch),
             ])
         }
     }
@@ -678,27 +687,17 @@ fn i420_to_nv12_planes(
     })?;
     let width = frame.width() as usize;
     let rows = height as usize;
-    let cw = width.div_ceil(2);
-    let ch = rows.div_ceil(2);
     let strides = frame.plane_stride();
-    let y_stride = strides[0] as usize;
-    let u_stride = strides[1] as usize;
-    let v_stride = strides[2] as usize;
-    let uv_stride = cw * 2;
-    let mut uv = vec![0u8; uv_stride * ch];
-    for row in 0..ch {
-        let u_row = &u[row * u_stride..row * u_stride + cw];
-        let v_row = &v[row * v_stride..row * v_stride + cw];
-        let dst_row = &mut uv[row * uv_stride..(row + 1) * uv_stride];
-        for ((dst, &u_val), &v_val) in dst_row.chunks_exact_mut(2).zip(u_row).zip(v_row) {
-            dst[0] = u_val;
-            dst[1] = v_val;
-        }
-    }
-    Ok(vec![
-        Plane::new(y.to_vec(), y_stride, rows),
-        Plane::new(uv, uv_stride, ch),
-    ])
+    crate::nv12_pack::pack_i420_to_nv12_planes(
+        y,
+        u,
+        v,
+        width,
+        rows,
+        strides[0] as usize,
+        strides[1] as usize,
+        strides[2] as usize,
+    )
 }
 
 fn i420_10le_to_nv12_planes(
@@ -716,39 +715,40 @@ fn i420_10le_to_nv12_planes(
     })?;
     let width = frame.width() as usize;
     let rows = height as usize;
-    let cw = width.div_ceil(2);
-    let ch = rows.div_ceil(2);
     let strides = frame.plane_stride();
-    let y_stride = strides[0] as usize;
-    let u_stride = strides[1] as usize;
-    let v_stride = strides[2] as usize;
-    let mut y_out = vec![0u8; width * rows];
-    for row in 0..rows {
-        let src_row = &y[row * y_stride..row * y_stride + width * 2];
-        let dst_row = &mut y_out[row * width..(row + 1) * width];
-        for (dst, src) in dst_row.iter_mut().zip(src_row.chunks_exact(2)) {
-            *dst = (u16::from_le_bytes([src[0], src[1]]) >> 2) as u8;
-        }
-    }
-    let uv_stride = cw * 2;
-    let mut uv_out = vec![0u8; uv_stride * ch];
-    for row in 0..ch {
-        let u_row = &u[row * u_stride..row * u_stride + cw * 2];
-        let v_row = &v[row * v_stride..row * v_stride + cw * 2];
-        let dst_row = &mut uv_out[row * uv_stride..(row + 1) * uv_stride];
-        for ((dst, u_src), v_src) in dst_row
-            .chunks_exact_mut(2)
-            .zip(u_row.chunks_exact(2))
-            .zip(v_row.chunks_exact(2))
-        {
-            dst[0] = (u16::from_le_bytes([u_src[0], u_src[1]]) >> 2) as u8;
-            dst[1] = (u16::from_le_bytes([v_src[0], v_src[1]]) >> 2) as u8;
-        }
-    }
-    Ok(vec![
-        Plane::new(y_out, width, rows),
-        Plane::new(uv_out, uv_stride, ch),
-    ])
+    crate::nv12_pack::pack_i420_10le_to_nv12_planes(
+        y,
+        u,
+        v,
+        width,
+        rows,
+        strides[0] as usize,
+        strides[1] as usize,
+        strides[2] as usize,
+    )
+}
+
+fn p010_10le_to_nv12_planes(
+    frame: &gst_video::VideoFrameRef<&gst::BufferRef>,
+    height: u32,
+) -> Result<Vec<Plane>, DecodeError> {
+    let y = frame.plane_data(0).map_err(|_| {
+        DecodeError::Decode("decoded frame is missing the Y plane. Try another file.".into())
+    })?;
+    let uv = frame.plane_data(1).map_err(|_| {
+        DecodeError::Decode("decoded frame is missing the UV plane. Try another file.".into())
+    })?;
+    let width = frame.width() as usize;
+    let rows = height as usize;
+    let strides = frame.plane_stride();
+    crate::nv12_pack::pack_p010_10le_to_nv12_planes(
+        y,
+        uv,
+        width,
+        rows,
+        strides[0] as usize,
+        strides[1] as usize,
+    )
 }
 
 pub(crate) fn nv12_from_bytes(
@@ -765,9 +765,13 @@ pub(crate) fn nv12_from_bytes(
         )));
     }
     Ok(vec![
-        Plane::new(bytes[..y_size].to_vec(), width as usize, height as usize),
         Plane::new(
-            bytes[y_size..y_size + uv_size].to_vec(),
+            crate::copy_plane_bytes(&bytes[..y_size]),
+            width as usize,
+            height as usize,
+        ),
+        Plane::new(
+            crate::copy_plane_bytes(&bytes[y_size..y_size + uv_size]),
             width as usize,
             (height as usize).div_ceil(2),
         ),

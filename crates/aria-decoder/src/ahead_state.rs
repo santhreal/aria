@@ -72,10 +72,11 @@ impl Behind {
         self.surfaces += surfaces;
         self.frames.push_back(frame);
         while self.bytes > BEHIND_BYTES || self.surfaces > BEHIND_SURFACES {
-            let Some(oldest) = self.frames.pop_front() else {
+            let Some(mut oldest) = self.frames.pop_front() else {
                 break;
             };
             self.forget(&oldest);
+            crate::recycle_frame_planes(&mut oldest);
         }
     }
 
@@ -89,10 +90,11 @@ impl Behind {
         while self.bytes + older.bytes > BEHIND_BYTES
             || self.surfaces + older.surfaces > BEHIND_SURFACES
         {
-            let Some(oldest) = older.frames.pop_front() else {
+            let Some(mut oldest) = older.frames.pop_front() else {
                 return;
             };
             older.forget(&oldest);
+            crate::recycle_frame_planes(&mut oldest);
         }
         older.bytes += self.bytes;
         older.surfaces += self.surfaces;
@@ -126,8 +128,9 @@ impl Behind {
     ) -> Option<VideoFrame> {
         let index = self.index_for(target, frame_rate)?;
         while self.frames.len() > index + 1 {
-            let passed = self.frames.pop_back()?;
+            let mut passed = self.frames.pop_back()?;
             self.forget(&passed);
+            crate::recycle_frame_planes(&mut passed);
         }
         let frame = self.frames.pop_back()?;
         self.forget(&frame);
@@ -135,7 +138,9 @@ impl Behind {
     }
 
     pub(super) fn clear(&mut self) {
-        self.frames.clear();
+        for mut frame in self.frames.drain(..) {
+            crate::recycle_frame_planes(&mut frame);
+        }
         self.bytes = 0;
         self.surfaces = 0;
     }
@@ -276,11 +281,12 @@ impl State {
         if !self.reaches(target, frame_rate) {
             return None;
         }
-        while let Some(frame) = self.ahead.pop_front() {
+        while let Some(mut frame) = self.ahead.pop_front() {
             self.reach = Reach::After(frame.pts);
             if frame_covers(frame.pts, target, frame_rate) {
                 return Some(frame);
             }
+            crate::recycle_frame_planes(&mut frame);
         }
         None
     }
@@ -347,13 +353,22 @@ impl State {
 
     /// Drop what a repositioning decode makes stale.
     pub(super) fn reposition(&mut self) {
-        self.ahead.clear();
+        for mut frame in self.ahead.drain(..) {
+            crate::recycle_frame_planes(&mut frame);
+        }
         self.behind.clear();
         self.behind_floor = None;
-        self.answer = None;
+        self.discard_answer();
         self.parked = false;
         self.ended = false;
         self.failure = None;
+    }
+
+    /// Drop the answer held for a caller, returning its planes to the pool.
+    pub(super) fn discard_answer(&mut self) {
+        if let Some(Ok(Some(mut frame))) = self.answer.take().map(|answer| answer.result) {
+            crate::recycle_frame_planes(&mut frame);
+        }
     }
 
     /// Record a decode's outcome and return its result.

@@ -21,8 +21,9 @@
 //! takes it back with no decode: a paused preview redrawn for a parameter
 //! change, a gesture, or a selection change shows its media frame again
 //! instead of seeking and walking the GOP to it. A request for any other time
-//! drops it. A GPU surface does not return: it belongs to the decoder's
-//! surface pool.
+//! drops it, returning its planes to the decoder plane pool
+//! ([`aria_decoder::recycle_frame_planes`]). A GPU surface does not return:
+//! it belongs to the decoder's surface pool.
 
 use std::path::PathBuf;
 
@@ -91,6 +92,12 @@ impl Shown {
     }
 }
 
+impl Drop for Shown {
+    fn drop(&mut self) {
+        aria_decoder::recycle_frame_planes(&mut self.frame);
+    }
+}
+
 fn clone_cpu_frame(frame: &VideoFrame) -> Option<VideoFrame> {
     let FrameData::Cpu(image) = &frame.data else {
         return None;
@@ -99,7 +106,7 @@ fn clone_cpu_frame(frame: &VideoFrame) -> Option<VideoFrame> {
         .planes
         .iter()
         .map(|plane| aria_core::Plane {
-            data: plane.data.clone(),
+            data: aria_decoder::copy_plane_bytes(&plane.data),
             stride: plane.stride,
             rows: plane.rows,
         })

@@ -143,6 +143,15 @@ pub use ahead::{
 
 mod pixel_map;
 
+/// `NV12` packs for the Linux CPU decode path. Also compiled under
+/// `cfg(test)` off Linux so the SIMD and scalar packs are tested on every
+/// host.
+#[cfg(any(target_os = "linux", test))]
+mod nv12_pack;
+
+mod plane_pool;
+pub use plane_pool::{copy_plane_bytes, recycle_frame_planes, take_plane_vec};
+
 mod probe;
 pub use probe::{MediaProbe, probe};
 

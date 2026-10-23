@@ -267,7 +267,7 @@ impl AheadDecoder {
     /// Drop every frame held ahead and behind, for a decoder no frame uses
     /// now. The next request decodes from the wrapped decoder's position.
     pub fn release(&self) {
-        let (ahead, behind, answer) = {
+        let (ahead, mut behind, answer) = {
             let mut state = self.shared.lock();
             state.stop = true;
             state.want = None;
@@ -279,7 +279,13 @@ impl AheadDecoder {
                 state.answer.take(),
             )
         };
-        drop((ahead, behind, answer));
+        for mut frame in ahead {
+            crate::recycle_frame_planes(&mut frame);
+        }
+        behind.clear();
+        if let Some(Ok(Some(mut frame))) = answer.map(|a| a.result) {
+            crate::recycle_frame_planes(&mut frame);
+        }
     }
 
     /// Frames decoded ahead of the last frame returned, held now.
@@ -404,7 +410,7 @@ impl VideoDecoder for AheadDecoder {
             |state| {
                 if let Some(frame) = state.ahead.pop_front() {
                     state.reach = Reach::After(frame.pts);
-                    state.answer = None;
+                    state.discard_answer();
                     state.behind.clear();
                     state.behind_floor = None;
                     state.parked = false;
@@ -423,7 +429,7 @@ impl VideoDecoder for AheadDecoder {
         match claimed {
             Err(result) => result,
             Ok((mut state, decoder)) => {
-                state.answer = None;
+                state.discard_answer();
                 state.behind.clear();
                 state.behind_floor = None;
                 state.parked = false;

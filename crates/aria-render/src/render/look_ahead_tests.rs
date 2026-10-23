@@ -710,3 +710,63 @@ fn stacked_layers_at_distinct_source_times_never_exceed_max_decoders() {
         );
     }
 }
+
+/// WHY: a [`Shown`] frame dropped after its composite freed its CPU planes,
+/// and a clone for a second layer copied into a new allocation, so every 4K
+/// frame shown faulted 12 MiB of new pages. Closes the class of shown-frame
+/// planes that bypass the decoder plane pool on drop or on clone. The plane
+/// lengths are odd so no other test's planes match them, and a new buffer is
+/// zeroed, so the fill byte shows reuse. Not covered: GPU frames, which hold
+/// no CPU planes.
+#[test]
+fn shown_frames_return_and_take_their_planes_through_the_plane_pool() {
+    const DROPPED: usize = (64 << 10) * 7 + 29;
+    const CLONED: usize = (64 << 10) * 9 + 31;
+    let cpu_frame = |data: Vec<u8>| {
+        VideoFrame::new(
+            RationalTime::new(0, FPS_30),
+            aria_core::PixelFormat::Nv12,
+            aria_core::ColorSpace::BT709,
+            (2, 2),
+            aria_core::Rect::from_size(2, 2),
+            aria_core::Rotation::None,
+            FrameData::Cpu(aria_core::CpuImage::new(vec![aria_core::Plane::new(
+                data, 2, 2,
+            )])),
+        )
+    };
+    let plane = |frame: &VideoFrame| match &frame.data {
+        FrameData::Cpu(image) => image.planes[0].data.as_ptr(),
+        FrameData::Gpu(_) => unreachable!("built as a CPU frame"),
+    };
+
+    drop(Shown {
+        key: DecoderKey {
+            media: MediaId::next(),
+            clip: None,
+        },
+        source_time: RationalTime::new(0, FPS_30),
+        policy: SeekPolicy::Exact,
+        frame: cpu_frame(vec![0xa7; DROPPED]),
+    });
+    let taken = aria_decoder::take_plane_vec(DROPPED);
+    assert!(
+        taken.iter().all(|&byte| byte == 0xa7),
+        "a dropped Shown freed its plane instead of returning it to the pool"
+    );
+
+    let mut seed = cpu_frame(vec![0x11; CLONED]);
+    let seed_plane = plane(&seed);
+    aria_decoder::recycle_frame_planes(&mut seed);
+    let source = cpu_frame(vec![0x22; CLONED]);
+    let clone = clone_cpu_frame(&source).expect("a CPU frame clones");
+    assert_eq!(
+        plane(&clone),
+        seed_plane,
+        "clone_cpu_frame allocated instead of taking the pooled buffer"
+    );
+    let FrameData::Cpu(image) = &clone.data else {
+        unreachable!("a CPU clone");
+    };
+    assert!(image.planes[0].data.iter().all(|&byte| byte == 0x22));
+}
