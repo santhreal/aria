@@ -25,7 +25,7 @@ use aria_models::{
 use aria_plugin::PluginContext;
 use aria_ui::app::AppState;
 use aria_ui::app::palette::Offered;
-use aria_ui::types::{CatalogDrag, CatalogDragKind};
+use aria_ui::types::{AppMenu, CatalogDrag, CatalogDragKind};
 
 const EFFECT_FS: &str = "@fragment
 fn fs(in: VsOut) -> @location(0) vec4<f32> {
@@ -43,9 +43,32 @@ fn state(name: &str) -> AppState {
     AppState::new(PluginContext::new(), dir).expect("state")
 }
 
-fn offered(state: &AppState, id: &str) -> bool {
+/// A state with the built-in plugins mounted and a project open.
+///
+/// The palette offers an effect as its Effect menu row, which comes from the
+/// menu registry the UI plugin mounts, and Home hides that menu's rows: a bare
+/// state offers no effect at all, before a registration or after it.
+fn mounted_state(name: &str) -> AppState {
+    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(name);
+    std::fs::create_dir_all(&dir).expect("scratch data dir");
+    let ctx = PluginContext::new();
+    // A headless machine can fail the GPU-bound mounts; the menu registry is
+    // not among them.
+    let _ = aria_ui::plugins::mount_all(&ctx, &dir);
+    let mut state = AppState::new(ctx, dir).expect("state");
+    state.new_project().expect("a project to edit");
+    state
+}
+
+/// Whether the palette offers the effect `spec` as its Effect menu row, under
+/// its category.
+fn offered(state: &AppState, spec: &EffectSpec) -> bool {
+    let label = format!("{}: {}", spec.category(), spec.label);
     state.palette_catalog().iter().any(|offer| {
-        offer.id.as_str() == id && matches!(&offer.action, Offered::Effect(at) if at.as_str() == id)
+        let Offered::Menu(AppMenu::Effect, row) = offer.action else {
+            return false;
+        };
+        offer.label == label.as_str() && row.ends_with(spec.id.as_str())
     })
 }
 
@@ -58,32 +81,33 @@ fn in_add_list(state: &AppState, id: &str) -> bool {
 
 #[test]
 fn a_registered_effect_joins_and_leaves_the_palette_and_the_add_list() {
-    let state = state("registered-effect");
+    let state = mounted_state("registered-effect");
     let id = "test.ui.palette_copy";
+    let spec = EffectSpec {
+        id: id.into(),
+        category: String::new(),
+        label: "Palette Copy".into(),
+        params: Vec::new(),
+        generator: false,
+        stateful: false,
+        ..Default::default()
+    };
     // Builds and caches the palette before the registration.
-    assert!(!offered(&state, id));
+    assert!(!offered(&state, &spec));
     let registration = aria_compositor::register_effect(EffectDefinition {
-        spec: EffectSpec {
-            id: id.into(),
-            category: String::new(),
-            label: "Palette Copy".into(),
-            params: Vec::new(),
-            generator: false,
-            stateful: false,
-            ..Default::default()
-        },
+        spec: spec.clone(),
         passes: vec![EFFECT_FS.into()],
     })
     .expect("the effect registers");
     assert!(
-        offered(&state, id),
+        offered(&state, &spec),
         "the palette kept the catalog from before the registration"
     );
     assert!(in_add_list(&state, id));
 
     drop(registration);
     assert!(
-        !offered(&state, id),
+        !offered(&state, &spec),
         "the palette kept an effect that was removed"
     );
     assert!(!in_add_list(&state, id));

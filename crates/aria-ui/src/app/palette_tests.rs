@@ -45,7 +45,7 @@ fn contributed_menu(
 /// The palette's offer comes from two registries, so a fixture without them
 /// offers nothing and would pass every assertion below by vacuity. A project is
 /// open because Home refuses most dialogs and hides most menu rows.
-fn state() -> crate::app::AppState {
+pub(crate) fn state() -> crate::app::AppState {
     let ctx = PluginContext::new();
     // A headless machine can fail the GPU-bound mounts; the menu and command
     // registries are not among them.
@@ -249,7 +249,6 @@ fn a_menu_row_reports_itself_back_for_the_context_to_run() {
             Offered::Menu(menu, id) => Some((at, Pending::Menu(menu, id))),
             Offered::Command(_)
             | Offered::Windowed(_)
-            | Offered::Effect(_)
             | Offered::Generator(_)
             | Offered::ClipType { .. }
             | Offered::Plugin(_) => None,

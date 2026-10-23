@@ -9,9 +9,12 @@
 //! 2. every command a plugin registered on the context, by its title,
 //! 3. every item the [`MenuHost`](crate::chrome::menu_host::MenuHost) would draw
 //!    in any menu, whose label the commands did not already offer,
-//! 4. every effect in the model's catalog, which is data read at run time and so
-//!    cannot be a compiled row at all. Without it the whole effect catalog was
-//!    pointer-only: the rack's Add gesture and the sidebar catalog are clicks.
+//! 4. every generator in the model's effect catalog and every plugin clip type,
+//!    which are data read at run time and so cannot be compiled rows at all.
+//!
+//! An effect is offered by the Effect menu row that applies it, under its
+//! category: the Effect menu lists the whole catalog, so a second row named by
+//! the effect alone would be the same action under two names.
 //!
 //! Nothing is compiled into a fifth list, so a new menu row is offered by name
 //! without a second edit, a plugin's menu item is offered too, and an effect
@@ -43,10 +46,6 @@ pub enum Offered {
     /// A menu row, named by the menu it lives in and its id. Needs the entity
     /// context, so the caller runs it.
     Menu(AppMenu, &'static str),
-    /// An effect in the catalog, by its id: the row adds it to the selection.
-    /// Its own kind rather than a `Command`, because the row carries the id and
-    /// a `fn` pointer cannot.
-    Effect(SharedString),
     /// A generator in the effect catalog, by its id: the row places it as a
     /// clip at the playhead.
     Generator(SharedString),
@@ -127,6 +126,9 @@ struct PaletteKey {
     plugin_revision: u64,
     /// The effect catalog's revision: a plugin can add or remove an effect.
     effects_revision: u64,
+    /// The audio effect catalog's revision: the Effect menu rows the palette
+    /// offers follow it, and a plugin can add or remove an audio effect.
+    audio_effects_revision: u64,
     /// The clip type catalog's revision: a plugin can add or remove a type.
     clip_types_revision: u64,
 }
@@ -180,6 +182,7 @@ impl AppState {
             menu_revision: menus.as_ref().map(|host| host.revision()),
             plugin_revision: self.ctx.command_revision(),
             effects_revision: effects.revision(),
+            audio_effects_revision: aria_models::audio_effect_catalog().revision(),
             clip_types_revision: clip_types.revision(),
         };
         {
@@ -256,7 +259,9 @@ impl AppState {
                 },
             });
         }
-        for spec in &effects {
+        // An effect that changes its input is offered by its Effect menu row,
+        // above. A generator places a clip and has no such row.
+        for spec in effects.iter().filter(|spec| spec.generator) {
             let (id, label) = (spec.id.as_str(), spec.label.as_str());
             if offers
                 .iter()
@@ -269,11 +274,7 @@ impl AppState {
                 id: id.clone(),
                 label: SharedString::from(label),
                 source: None,
-                action: if spec.generator {
-                    Offered::Generator(id)
-                } else {
-                    Offered::Effect(id)
-                },
+                action: Offered::Generator(id),
             });
         }
 
@@ -369,15 +370,6 @@ impl AppState {
             }
             Offered::Windowed(run) => Some(Pending::Windowed(run)),
             Offered::Menu(menu, id) => Some(Pending::Menu(menu, id)),
-            // The refusal lives in the command, not here: a row that finds no
-            // selection says so through the same reader every other command
-            // reads the selection with.
-            Offered::Effect(id) => {
-                if let Err(err) = self.add_effect_to_selected(id.as_str()) {
-                    self.report_error(&err);
-                }
-                None
-            }
             Offered::Generator(id) => {
                 if let Err(err) = self.add_effect_generator(id.as_str()) {
                     self.report_error(&err);

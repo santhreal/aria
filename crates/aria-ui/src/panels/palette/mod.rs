@@ -1,11 +1,11 @@
 //! Command palette (Ctrl+Shift+P).
 //!
 //! The panel draws what [`AppState::palette_hits`] offers: the command registry,
-//! every menu row the commands did not already name, and every effect in the
-//! model's catalog. The panel holds no table of its own: the rows live in
-//! [`crate::commands`] and the offer in [`crate::app::palette`], so the keymap,
-//! the menu bar and the effect catalog reach a row without going through this
-//! file.
+//! every menu row the commands did not already name, the Effect menu's rows
+//! among them, and every generator and clip type in the model's catalogs. The
+//! panel holds no table of its own: the rows live in [`crate::commands`] and the
+//! offer in [`crate::app::palette`], so the keymap, the menu bar and the effect
+//! catalog reach a row without going through this file.
 
 use gpui::{
     CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
