@@ -36,11 +36,10 @@ Open the **Scopes** and **Color** panels from the keyboard and maximize the focu
 | `aria.panel.duck` | Duck | `Inspector` | `none` | `none` | `none` | `none` |
 | `aria.panel.ai-tools` | Tools | `Inspector` | `none` | `none` | `none` | `none` |
 | `aria.panel.looks` | Looks | `Inspector` | `none` | `none` | `none` | `none` |
-| `aria.panel.render-cost` | Last frame | `Inspector` | `none` | `none` | `none` | `none` |
 | `aria.panel.media-support` | Media support | `Inspector` | `none` | `none` | `none` | `none` |
 | `aria.panel.timeline-report` | Timeline file | `Inspector` | `none` | `none` | `none` | `none` |
 
-The first seventeen rows carry a `DockSpec` and appear as dockable tabs in the workspace tree and on the **Window** menu. The remaining seven rows render on the Home route (`aria.panel.home`) or as conditional cards inside the Inspector column when their visibility predicate holds (`duck_precheck().is_ok()`, `ai_tools::visible`, `selected_clip().is_some()`, `last_render_stats().measured()`, `media_support::has_report`, and `timeline_report::has_report`).
+Rows with a default frame carry a `DockSpec` and appear as dockable tabs in the workspace tree and on the **Window** menu. Rows without one render on the Home route (`aria.panel.home`) or as conditional cards inside the Inspector column when their visibility predicate holds (`duck_precheck().is_ok()`, `ai_tools::visible`, `selected_clip().is_some()`, `media_support::has_report`, and `timeline_report::has_report`).
 
 ## Built-in dialogs and overlays
 

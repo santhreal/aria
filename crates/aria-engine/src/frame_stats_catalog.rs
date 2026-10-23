@@ -79,7 +79,7 @@ pub fn covered(stats: &FrameStats) -> f64 {
         decode_ms: _,
         raster_ms: _,
         composite_ms: _,
-        // Counts, not durations: read by the render-cost readout, summed nowhere.
+        // Counts, not durations: read by the Info panel, summed nowhere.
         effect_passes: _,
         effect_pass_bind_groups: _,
     } = stats;

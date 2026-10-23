@@ -450,8 +450,8 @@ impl AppState {
         // what draws the playhead, and a shown frame what draws the frame. A
         // slot comes due only on a move, so the drops it counts and the
         // playback resolution they step are redrawn with the move: the status
-        // strip, the Viewer and the render cost readout draw them, and the
-        // shell and those bodies redraw on every move.
+        // strip, the Viewer and the Info panel draw them, and the shell and
+        // those bodies redraw on every move.
         //
         // A loop wrap restarts the run's clock and republishes the audio
         // snapshot from the wrap. The shell starts the new stream on its next

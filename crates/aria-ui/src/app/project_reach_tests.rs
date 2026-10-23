@@ -2,24 +2,21 @@
 //!
 //! The class closed here is "a catalog grew a row and the editor never offered
 //! it". Every case enumerates a registry at run time —
-//! [`aria_models::clip_facts`], [`aria_models::project_facts`],
-//! [`aria_engine::frame_stages`], or the palette group itself — and compares
-//! sets, so a row added to any of them is exercised the moment it exists and a
-//! row that disappears takes its assertion with it. No case lists a fact, a
-//! stage, or a count.
+//! [`aria_models::clip_facts`], [`aria_models::project_facts`], or the palette
+//! group itself — and compares sets, so a row added to any of them is exercised
+//! the moment it exists and a row that disappears takes its assertion with it.
+//! No case lists a fact or a count.
 //!
 //! What this does not catch, stated plainly:
 //!
 //! - A row whose label describes a different question than its predicate
 //!   answers. The catalog's own identity test proves an arm points at its own
 //!   row, not that the row is honest about itself.
-//! - `report_frame_cost` and `selected_content_size` need a rendered frame and a
-//!   GPU raster respectively. Headless, both are the "nothing measured yet"
-//!   branch, which is what is asserted; the measured branch is the renderer's
-//!   own suite.
+//! - `selected_content_size` needs a GPU raster. Headless it is the "nothing
+//!   measured yet" branch, which is what is asserted; the measured branch is
+//!   the renderer's own suite.
 //! - The two picking rows are driven with a supplied answer, not a dialog.
 
-use aria_engine::frame_stages;
 use aria_models::{clip_facts, project_facts, track_kind_specs};
 
 use crate::app::AppState;
@@ -69,22 +66,6 @@ fn every_project_number_is_offered_with_a_value() {
     for row in state.project_fact_rows().iter() {
         assert!(!row.value.trim().is_empty(), "'{}' reads nothing", row.id);
     }
-}
-
-/// The stage rows and the whole-frame total come from the same measurement, so a
-/// stage that stops being read shows up as a total the rows cannot account for.
-#[test]
-fn every_render_stage_is_offered_and_sums_to_the_total() {
-    let state = inside();
-    let offered: Vec<&str> = state.frame_stage_rows().iter().map(|row| row.id).collect();
-    let declared: Vec<&str> = frame_stages().iter().map(|stage| stage.id).collect();
-    assert_eq!(offered, declared);
-    let summed: f64 = state
-        .frame_stage_rows()
-        .iter()
-        .map(|row| row.milliseconds)
-        .sum();
-    assert_eq!(summed, state.frame_total_ms());
 }
 
 /// A report is measured when it is asked for, so a state that has never been
@@ -400,16 +381,11 @@ fn describing_a_template_refuses_a_file_that_is_not_one() {
     );
 }
 
-/// Headless there is no measured frame and no GPU raster, so both readouts must
-/// take their empty branch rather than reporting a zero as a measurement.
+/// Headless there is no GPU raster, so the content readout must take its empty
+/// branch rather than reporting a zero as a measurement.
 #[test]
-fn unmeasured_readouts_say_so() {
+fn an_unmeasured_content_size_says_so() {
     let mut state = inside();
-    state.report_frame_cost();
-    assert_eq!(
-        state.status_message.as_deref(),
-        Some("No frame measured yet")
-    );
     state.report_content_size();
     assert_eq!(
         state.status_message.as_deref(),

@@ -1,11 +1,14 @@
 //! Contracts for the Info panel's readings.
 //!
-//! The class closed here: a colour shown for a pixel that is not the one under
-//! the pointer. That is a frame rendered below canvas size read at canvas
+//! Two classes closed here. A colour shown for a pixel that is not the one
+//! under the pointer: a frame rendered below canvas size read at canvas
 //! coordinates, a point off the picture read at all, a GPU-only frame never
 //! read, a reading that arrives after the pointer or the frame moved on shown
-//! anyway, or frames read for a panel nobody has open. Not covered: the drawn
-//! panel, which the shell tests open.
+//! anyway, or frames read for a panel nobody has open. And a frame cost that is
+//! paid and never stated: a stage of the engine's catalog with no row, a pass
+//! count stated for a frame that drew none, a status line that disagrees with
+//! the panel, or a playback verdict for a run that never ran. Not covered: the
+//! drawn panel, which the shell tests open.
 
 use std::sync::Arc;
 
@@ -512,4 +515,143 @@ fn the_info_and_align_panels_dock_from_the_window_menu(cx: &mut gpui::TestAppCon
             "{panel} is closed and still drawn"
         );
     }
+}
+
+// --- what the last frame cost, and the rate playback held ------------------
+
+/// A frame whose stages each cost a different amount, so a row that reads the
+/// wrong field cannot match by coincidence.
+fn measured(passes: u32, built: u32) -> aria_render::FrameStats {
+    aria_render::FrameStats {
+        decode_ms: 1.0,
+        raster_ms: 2.0,
+        composite_ms: 4.0,
+        effect_passes: passes,
+        effect_pass_bind_groups: built,
+    }
+}
+
+/// Every stage of the engine's catalog, in pipeline order, then the whole
+/// frame and the part a smaller preview buys back. Derived from the catalog,
+/// so a stage added to it is red here until the Info panel states it.
+#[test]
+fn the_last_frame_states_every_stage_then_the_whole_frame() {
+    let (mut state, _) = with_clip();
+    let stats = measured(0, 0);
+    state.frame_stats = stats;
+    let ms = |value: f64| format!("{value:.2} ms");
+    let mut expected: Vec<InfoRow> = frame_stages()
+        .iter()
+        .map(|stage| InfoRow::new(stage.label, ms((stage.read)(&stats))))
+        .collect();
+    expected.push(InfoRow::new("Frame", "7.00 ms"));
+    expected.push(InfoRow::new("Scales with size", "6.00 ms"));
+    assert_eq!(state.info_readout().frame, expected);
+}
+
+/// A zeroed split is no frame measured, not a frame that cost nothing: the
+/// panel has no rows to draw and the status line says so.
+#[test]
+fn an_unmeasured_frame_has_no_rows_and_says_so() {
+    let (mut state, _) = with_clip();
+    state.frame_stats = aria_render::FrameStats::default();
+    assert_eq!(state.info_readout().frame, Vec::new());
+    state.report_render_cost();
+    assert_eq!(
+        state.status_message.as_deref(),
+        Some("No frame has been rendered yet")
+    );
+}
+
+/// The pass counts are counts, not stages: absent while the frame drew no
+/// effect pass, the last two rows once it did.
+#[test]
+fn effect_passes_are_stated_only_once_a_pass_was_drawn() {
+    let (mut state, _) = with_clip();
+    state.frame_stats = measured(0, 0);
+    let rows = state.info_readout().frame;
+    assert!(
+        rows.iter()
+            .all(|row| !row.label.contains("pass") && !row.label.contains("Bind")),
+        "a frame with no effect pass stated one: {rows:?}"
+    );
+    state.frame_stats = measured(24, 2);
+    let rows = state.info_readout().frame;
+    assert_eq!(
+        rows[rows.len() - 2..],
+        [
+            InfoRow::new("Effect passes", "24"),
+            InfoRow::new("Bind groups built", "2"),
+        ]
+    );
+}
+
+/// Last Frame Cost prints the rows the Info panel draws, in its order, so the
+/// status line and the panel cannot disagree about a frame.
+#[test]
+fn last_frame_cost_prints_the_rows_the_info_panel_draws() {
+    let (mut state, _) = with_clip();
+    state.frame_stats = measured(24, 2);
+    state.report_render_cost();
+    assert_eq!(
+        state.status_message.as_deref(),
+        Some(
+            "Decode 1.00 ms · Raster 2.00 ms · Composite 4.00 ms · Frame 7.00 ms · \
+             Scales with size 6.00 ms · Effect passes 24 · Bind groups built 2"
+        )
+    );
+}
+
+/// A paused editor has no rate to miss; a run is stated once it delivers a
+/// frame. It holds the rate while its frames come in under budget and are
+/// shown on time, and misses it once frames that came due are dropped, even
+/// with every render inside budget.
+#[test]
+fn playback_is_stated_once_it_delivers_a_frame_with_its_verdict() {
+    let (mut state, _) = with_clip();
+    assert_eq!(state.info_readout().playback, None);
+    state.toggle_playback();
+    let budget = state.playback.budget();
+    for frame in 1..=19u32 {
+        state.playback.frame(budget / 2);
+        state.playback.present(budget * frame);
+    }
+    let stated = |state: &AppState| {
+        state
+            .info_readout()
+            .playback
+            .expect("a delivered frame is stated")
+    };
+    let late = InfoRow::new(
+        "Late",
+        format!(
+            "0 of 19 frames, worst {:.1} ms",
+            (budget / 2).as_secs_f64() * 1000.0
+        ),
+    );
+    let held = stated(&state);
+    assert!(held.holds_rate, "a run shown on time missed the rate");
+    assert_eq!(
+        held.rows,
+        [
+            InfoRow::new(
+                "Rate",
+                format!(
+                    "{:.1} of {:.0} fps",
+                    1.0 / budget.as_secs_f64(),
+                    state.playhead.rate.as_f64()
+                ),
+            ),
+            late.clone(),
+        ]
+    );
+    let mut dropped = aria_render::DroppedFrames::default();
+    dropped.record(aria_render::DropCause::DecodeLate, 2);
+    state.playback.drop_frames(dropped);
+    let missed = stated(&state);
+    assert!(
+        !missed.holds_rate,
+        "a run that dropped two frames in twenty-one held the rate"
+    );
+    assert_eq!(missed.rows[1], late, "a drop is not a late render");
 }

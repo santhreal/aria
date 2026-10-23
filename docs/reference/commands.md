@@ -109,7 +109,6 @@ Split a clip at the playhead, add a crossfade transition, and open the Audio Gai
 | `pal-project-reveal-media` | Reveal a File in the Pool | `none` | Always enabled | Prompts for a file path and selects its corresponding item in the media pool. |
 | `pal-project-describe-template` | Describe a Template Bundle | `none` | Always enabled | Prompts for a `.ariat` bundle and reports its replaceable media and text slots on the status line. |
 | `pal-project-history-pending` | Name the Next Undo and Redo | `none` | Always enabled | Reports the labels of the next undo and redo steps on the status line. |
-| `pal-project-frame-cost` | Report Last Frame Cost | `none` | No frame has been rendered yet | Reports the per-stage timing of the last rendered frame (`aria_engine::frame_stages`) on the status line. |
 | `pal-project-content-size` | Report Drawn Size of Selection | `none` | No clip is selected | Reports the post-transform pixel dimensions of the selected clip on the status line. |
 | `pal-key-anchor-point` | Keyframe Anchor Point at Playhead | `none` | Playhead does not intersect the selected clip | Inserts an `AnchorPoint` keyframe at the playhead. |
 | `pal-key-rotation` | Keyframe Rotation at Playhead | `none` | Playhead does not intersect the selected clip | Inserts a `Rotation` keyframe at the playhead. |
@@ -155,7 +154,7 @@ Split a clip at the playhead, add a crossfade transition, and open the Audio Gai
 | `pal-mixer-open` | Mixer: Open the Mixer | `Shift+6` | Always enabled | Opens and focuses the Audio Track Mixer (`aria.panel.mixer`). |
 | `pal-mixer-add-bus` | Mixer: Add a Submix Bus | `none` | Always enabled | Appends a submix bus lane to the sequence and focuses the Audio Track Mixer. |
 | `pal-look-install` | Install Starter LUT Pack | `none` | Always enabled | Writes the shipped starter `.cube` LUT pack into `<data dir>/looks/` and refreshes the Looks picker. |
-| `pal-render-cost` | Last Frame Cost | `none` | Always enabled | Opens the `aria.panel.render-cost` inspector report showing the last rendered frame's timing breakdown. |
+| `pal-render-cost` | Last Frame Cost | `none` | Always enabled | Reports the Info panel's Last frame rows (`aria_engine::frame_stages`, the whole frame, and the part that scales with size) on the status line, or that no frame has been rendered yet. |
 | `pal-render-in-to-out` | Render In to Out | `Enter` | Sequence has no clips | Renders preview cache files across the marked In/Out range (or whole sequence). |
 | `pal-render-selection` | Render Selection | `none` | No clip is selected | Renders preview cache files across the bounding span of the selected clips. |
 | `pal-delete-render-files` | Delete Render Files | `none` | Always enabled | Deletes cached preview render files for the project (`<data dir>/render-files`). |

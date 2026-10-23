@@ -621,13 +621,23 @@ pub fn section_label(theme: &Theme, title: &str) -> impl IntoElement {
 }
 
 pub fn kv_row(theme: &Theme, label: &str, value: impl Into<String>) -> impl IntoElement {
+    kv_row_tinted(theme, label, value, theme.text)
+}
+
+/// [`kv_row`] with its value in `tint`, for a value whose colour is its verdict.
+pub fn kv_row_tinted(
+    theme: &Theme,
+    label: &str,
+    value: impl Into<String>,
+    tint: gpui::Hsla,
+) -> impl IntoElement {
     div()
         .flex()
         .flex_row()
         .justify_between()
         .text_size(Theme::TEXT_UI)
         .child(div().text_color(theme.text_muted).child(label.to_string()))
-        .child(div().text_color(theme.text).child(value.into()))
+        .child(div().text_color(tint).child(value.into()))
 }
 
 pub fn kind_label(kind: UiClipKind) -> &'static str {

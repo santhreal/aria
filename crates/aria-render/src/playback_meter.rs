@@ -269,6 +269,24 @@ impl PlaybackReport {
         self.frames > 0 && self.render_fps >= self.target_fps && self.late_share() <= tolerance
     }
 
+    /// Whether the run showed the rate it was asked for: rendering kept up
+    /// ([`Self::keeps_up`]) and the frames that came due were shown, each
+    /// allowing a share of `tolerance` to miss.
+    ///
+    /// A run whose renders all land inside budget still misses the rate when
+    /// its decoder or the display drops frames, so the render half alone
+    /// cannot state a run's verdict.
+    pub fn holds_rate(&self, tolerance: f64) -> bool {
+        let dropped = self.dropped.total();
+        let due = self.presented.saturating_add(dropped);
+        let dropped_share = if due == 0 {
+            0.0
+        } else {
+            f64::from(dropped) / f64::from(due)
+        };
+        self.keeps_up(tolerance) && dropped_share <= tolerance
+    }
+
     /// One line for a HUD or a log: rate, target, drops, and render cost.
     pub fn label(&self) -> String {
         if self.is_empty() {
@@ -354,6 +372,42 @@ mod tests {
         assert_eq!(report.late_share(), 0.0);
         assert!(!report.keeps_up(1.0));
         assert_eq!(report.label(), "no frames measured");
+    }
+
+    /// Renders inside budget do not hold the rate when frames that came due
+    /// were dropped: the run holds it up to the tolerance and misses it past.
+    #[test]
+    fn a_run_that_drops_frames_misses_the_rate() {
+        let mut meter = PlaybackMeter::at_rate(Rational::FPS_24);
+        let half = meter.budget() / 2;
+        for frame in 1..=19u32 {
+            meter.frame(half);
+            meter.present(Duration::from_secs_f64(f64::from(frame) / 24.0));
+        }
+        let mut one = DroppedFrames::default();
+        one.record(DropCause::DecodeLate, 1);
+        meter.drop_frames(one);
+        let report = meter.report();
+        assert!(report.keeps_up(0.05), "{}", report.label());
+        assert!(
+            report.holds_rate(0.05),
+            "one drop in twenty: {}",
+            report.label()
+        );
+        meter.drop_frames(one);
+        let report = meter.report();
+        assert!(report.keeps_up(0.05), "{}", report.label());
+        assert!(
+            !report.holds_rate(0.05),
+            "two drops in twenty-one: {}",
+            report.label()
+        );
+        assert!(report.holds_rate(0.1), "{}", report.label());
+        assert!(
+            !PlaybackMeter::at_rate(Rational::FPS_24)
+                .report()
+                .holds_rate(1.0)
+        );
     }
 
     /// A stopped and restarted run is a new measurement, keeping the target.

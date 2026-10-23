@@ -1,6 +1,6 @@
 //! What the Info panel reads: the colour under the pointer in the Viewer, the
-//! selected clip's times, the drag in progress, and the faults the session
-//! holds.
+//! selected clip's times, the drag in progress, the faults the session holds,
+//! what the last rendered frame cost, and the rate playback held.
 //!
 //! The pointer reading follows the frame on screen. A frame with CPU pixels is
 //! read at once; a GPU-only frame is read one texel at a time on the preview
@@ -11,6 +11,7 @@
 use std::sync::Arc;
 
 use aria_core::RgbaImage;
+use aria_engine::frame_stages;
 
 use super::AppState;
 use super::canvas_overlay::OverlayDrag;
@@ -50,6 +51,16 @@ pub struct InfoFault {
     pub message: String,
 }
 
+/// The playback run as the Info panel states it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct InfoPlayback {
+    /// Whether the run holds the sequence's rate: renders inside budget and
+    /// the frames that came due shown.
+    pub holds_rate: bool,
+    /// The rate shown against the rate asked for, then the late frames.
+    pub rows: [InfoRow; 2],
+}
+
 /// Everything the Info panel draws, read without the session lock.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct InfoReadout {
@@ -63,6 +74,13 @@ pub struct InfoReadout {
     pub drag: Vec<InfoRow>,
     /// Driver, plugin and mount faults, oldest source first.
     pub faults: Vec<InfoFault>,
+    /// What the last rendered frame cost: one row per render stage in pipeline
+    /// order, the whole frame, the part a smaller preview buys back, and the
+    /// effect passes when it drew any. Empty until a frame is measured.
+    pub frame: Vec<InfoRow>,
+    /// The playback run against the sequence's rate. `None` until playback
+    /// delivers a frame.
+    pub playback: Option<InfoPlayback>,
 }
 
 /// The texel of a `frame`-sized picture that covers canvas pixel `at` of a
@@ -170,7 +188,82 @@ impl AppState {
             clip: self.clip_rows(),
             drag: self.drag_rows(),
             faults: self.info_faults(),
+            frame: self.frame_rows(),
+            playback: self.playback_info(),
         }
+    }
+
+    /// What the last rendered frame cost, row by row: the Info panel draws
+    /// these rows and Last Frame Cost prints them on the status line.
+    ///
+    /// Recorded where the frame landed, so this is a field read: a panel drawn
+    /// while a preview decode holds the session still draws. A zeroed split is
+    /// no frame measured, not a frame that cost nothing, so it has no rows.
+    pub(crate) fn frame_rows(&self) -> Vec<InfoRow> {
+        let stats = &self.frame_stats;
+        if stats.total_ms() <= 0.0 {
+            return Vec::new();
+        }
+        let ms = |value: f64| format!("{value:.2} ms");
+        let mut rows: Vec<InfoRow> = frame_stages()
+            .iter()
+            .map(|stage| InfoRow::new(stage.label, ms((stage.read)(stats))))
+            .collect();
+        rows.push(InfoRow::new("Frame", ms(stats.total_ms())));
+        rows.push(InfoRow::new("Scales with size", ms(stats.scaled_cost_ms())));
+        // Counts, not stages: a scene without effects has none to state, and
+        // "0 passes" would read as a measurement.
+        if stats.effect_passes > 0 {
+            rows.push(InfoRow::new(
+                "Effect passes",
+                stats.effect_passes.to_string(),
+            ));
+            rows.push(InfoRow::new(
+                "Bind groups built",
+                stats.effect_pass_bind_groups.to_string(),
+            ));
+        }
+        rows
+    }
+
+    /// The last frame's cost on the status line, as the Info panel states it.
+    pub fn report_render_cost(&mut self) {
+        let rows = self.frame_rows();
+        self.status_message = Some(if rows.is_empty() {
+            "No frame has been rendered yet".to_string()
+        } else {
+            rows.iter()
+                .map(|row| format!("{} {}", row.label, row.value))
+                .collect::<Vec<_>>()
+                .join(" · ")
+        });
+    }
+
+    /// The playback run, once playback has delivered a frame: a paused editor
+    /// has no rate to miss.
+    fn playback_info(&self) -> Option<InfoPlayback> {
+        let report = self.playback_report();
+        if report.is_empty() {
+            return None;
+        }
+        Some(InfoPlayback {
+            // One late or dropped frame in twenty is the machine, not the
+            // editor.
+            holds_rate: report.holds_rate(0.05),
+            rows: [
+                InfoRow::new(
+                    "Rate",
+                    format!("{:.1} of {:.0} fps", report.achieved_fps, report.target_fps),
+                ),
+                InfoRow::new(
+                    "Late",
+                    format!(
+                        "{} of {} frames, worst {:.1} ms",
+                        report.late, report.frames, report.worst_ms
+                    ),
+                ),
+            ],
+        })
     }
 
     fn clip_rows(&self) -> Vec<InfoRow> {

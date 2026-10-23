@@ -1,20 +1,18 @@
-//! The project report: what the sequence carries, and what the last frame cost.
+//! The project report: what the sequence carries.
 //!
-//! Three tables the model and the engine already answered and nothing drew:
+//! Two tables the model already answered and nothing drew:
 //!
 //! * the pool and sequence counts (`media_count`, `bin_count`, `marker_count`,
 //!   `clip_count`, transitions, soloed lane kinds),
 //! * one row per per-clip question, with how many clips answer it — a speed ramp
-//!   put on one clip three hundred clips ago was findable only by scrubbing,
-//! * the render stages of the last measured frame, which is the one fact that
-//!   says whether a slow scrub is decode-bound, raster-bound, or composite-bound.
+//!   put on one clip three hundred clips ago was findable only by scrubbing.
 //!
-//! Every row comes from a catalog: [`aria_models::project_facts`],
-//! [`aria_models::clip_facts`], and [`aria_engine::frame_stages`]. Nothing here
-//! names a fact or counts them, so a row added to any of those tables draws here
-//! with no edit. The counts are taken when the report is opened and again on any
-//! edit that lands while it is open; the stage timings are recorded with the
-//! frame they measure. Drawing this panel asks the session for nothing.
+//! Every row comes from a catalog: [`aria_models::project_facts`] and
+//! [`aria_models::clip_facts`]. Nothing here names a fact or counts them, so a
+//! row added to either table draws here with no edit. The counts are taken when
+//! the report is opened and again on any edit that lands while it is open.
+//! Drawing this panel asks the session for nothing. The Info panel states what
+//! the last frame cost.
 //!
 //! A clip-question row is a control, not a readout: clicking it selects and
 //! seeks to the next clip that answers it, wrapping at the end, so repeated
@@ -31,7 +29,7 @@ use gpui::{
 };
 
 use crate::app::AppState;
-use crate::app::project_report::{ClipFactRow, FrameStageRow, ProjectFactRow};
+use crate::app::project_report::{ClipFactRow, ProjectFactRow};
 use crate::fluent::FluentBuilder;
 use crate::motion;
 use crate::theme::Theme;
@@ -43,8 +41,6 @@ pub(crate) fn render(
     let theme = Theme::of(cx);
     let facts = state.read(cx).project_fact_rows();
     let clip_facts = state.read(cx).clip_fact_rows();
-    let stages = state.read(cx).frame_stage_rows();
-    let total = state.read(cx).frame_total_ms();
     let content = state.read(cx).selected_content_size();
     let markers = state.read(cx).marker_count();
 
@@ -65,15 +61,7 @@ pub(crate) fn render(
                 .iter()
                 .copied()
                 .map(|row| clip_fact_row(&theme, row, cx)),
-        )
-        .child(heading(&theme, "Last frame"))
-        .children(stages.into_iter().map(|row| stage_row(&theme, row)))
-        .child(readout(
-            &theme,
-            SharedString::new_static("Total"),
-            SharedString::from(format!("{total:.2} ms")),
-            total == 0.0,
-        ));
+        );
 
     // Only a generated clip has content to measure, so the row appears with the
     // selection rather than sitting empty beside a media clip.
@@ -134,34 +122,6 @@ fn fact_row(theme: &Theme, row: &ProjectFactRow) -> gpui::AnyElement {
         row.value.clone(),
         empty,
     )
-}
-
-fn stage_row(theme: &Theme, row: FrameStageRow) -> gpui::AnyElement {
-    // The stage that a smaller render would buy back is marked, because that is
-    // what the number is for: a decode-bound frame does not get faster at a
-    // lower preview resolution.
-    let label = if row.scales_with_output {
-        SharedString::from(format!("{} (scales)", row.label))
-    } else {
-        SharedString::new_static(row.label)
-    };
-    div()
-        .id(crate::motion::MotionKey::new("stage", row.id).element_id("stage"))
-        .flex()
-        .flex_col()
-        .child(readout(
-            theme,
-            label,
-            SharedString::from(format!("{:.2} ms", row.milliseconds)),
-            row.milliseconds == 0.0,
-        ))
-        .child(
-            div()
-                .text_size(Theme::TEXT_SMALL)
-                .text_color(theme.text_faint)
-                .child(row.note),
-        )
-        .into_any_element()
 }
 
 /// One per-clip question. Clicking walks to the next clip that answers it.

@@ -1401,6 +1401,7 @@ Notes for the latest release. For previous releases, see the
 - `aria_ai::commit_progress_spec` returns the `commit_progress` tool definition the assistant loop sends, which marks the edits so far as one undo step.
 - `aria_decoder::open_video_decoder_at` opens a video decoder with its pipeline prerolled at the sync sample at or before a start time.
 - `AppState::finish_autosave` waits for the recovery copy being written, and the `project-io` benchmark measures the UI-thread time of a `project-10k` autosave against a 4 ms target and the cost of an edit made while the copy is written.
+- `aria_render::PlaybackReport::holds_rate` reports whether a playback run held its rate, counting dropped frames as well as late renders.
 
 ### Changed
 
@@ -2343,6 +2344,7 @@ Notes for the latest release. For previous releases, see the
 - Command palette entries, menu rows, and tool names use Title Case, such as `Split at Playhead` and `Ripple Trim`, instead of a mix of Title Case and sentence case.
 - Settings names each AI source, protocol, reasoning, and autonomy choice instead of its saved key, lists a provider with no key as `Not set` or `<source> not set`, writes counts as `1 skill` or `2 skills` instead of `skill(s)`, widens the keyboard image's modifier, Space, and keypad caps to fit their labels, and separates the Appearance groups.
 - The line above the scopes states the frame they measure in the sequence's time display, such as `Frame 00:00:00:04`, instead of the count of pixels sampled.
+- The Info panel states what the last rendered frame cost, stage by stage, and the rate playback held, in place of the Effect Controls Last frame card and the Project Report's Last frame table, and Last Frame Cost (`pal-render-cost`) replaces Report Last Frame Cost (`pal-project-frame-cost`).
 
 ### Fixed
 

@@ -122,22 +122,6 @@ impl AppState {
         self.go_to_clip_with_fact(id);
     }
 
-    /// Put the last frame's stage costs on the status line, for a session
-    /// without the report open.
-    pub fn report_frame_cost(&mut self) {
-        let total = self.frame_total_ms();
-        if total == 0.0 {
-            self.status_message = Some("No frame measured yet".into());
-            return;
-        }
-        let parts: Vec<String> = self
-            .frame_stage_rows()
-            .iter()
-            .map(|row| format!("{} {:.2}ms", row.label, row.milliseconds))
-            .collect();
-        self.status_message = Some(format!("{} · total {total:.2}ms", parts.join(" · ")));
-    }
-
     /// Report the drawn size of the selected clip's content.
     pub fn report_content_size(&mut self) {
         self.measure_project_report();

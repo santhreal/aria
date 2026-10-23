@@ -1,6 +1,7 @@
 //! The Info dock panel: the colour and position under the pointer in the
-//! Viewer, the selected clip's times and source, the drag in progress, and the
-//! faults drivers and plugins reported.
+//! Viewer, the selected clip's times and source, the drag in progress, the
+//! faults drivers and plugins reported, what the last rendered frame cost, and
+//! the rate playback held.
 //!
 //! It draws [`AppState::info_readout`] and sends nothing.
 
@@ -10,8 +11,8 @@ use gpui::{
 };
 
 use crate::app::AppState;
-use crate::app::info::{InfoFault, InfoRow};
-use crate::panels::inspector::blocks::widgets::{kv_row, section_label, swatch};
+use crate::app::info::{InfoFault, InfoPlayback, InfoRow};
+use crate::panels::inspector::blocks::widgets::{kv_row, kv_row_tinted, section_label, swatch};
 use crate::theme::Theme;
 
 /// The surface name of the panel.
@@ -53,6 +54,16 @@ pub fn render(
                 .into_iter()
                 .map(|fault| fault_row(&theme, fault)),
         );
+    }
+    body.push(section_label(&theme, "Last frame").into_any_element());
+    if readout.frame.is_empty() {
+        body.push(hint(&theme, "No frame rendered yet."));
+    } else {
+        body.extend(rows(&theme, readout.frame));
+    }
+    if let Some(playback) = readout.playback {
+        body.push(section_label(&theme, "Playback").into_any_element());
+        body.extend(playback_rows(&theme, playback));
     }
     div()
         .id(SURFACE)
@@ -131,6 +142,21 @@ fn fault_row(theme: &Theme, fault: InfoFault) -> AnyElement {
         .child(div().text_color(theme.text_muted).child(fault.source))
         .child(div().text_color(theme.danger).child(fault.message))
         .into_any_element()
+}
+
+/// The playback rate in the colour of its verdict, green while the run holds
+/// the sequence's rate and amber once it does not, then the late frames.
+fn playback_rows(theme: &Theme, playback: InfoPlayback) -> [AnyElement; 2] {
+    let verdict = if playback.holds_rate {
+        theme.success
+    } else {
+        theme.warning
+    };
+    let [rate, late] = playback.rows;
+    [
+        kv_row_tinted(theme, rate.label, rate.value, verdict).into_any_element(),
+        kv_row(theme, late.label, late.value).into_any_element(),
+    ]
 }
 
 /// A faint line standing in for a section with nothing to show.

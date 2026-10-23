@@ -10,9 +10,9 @@
 //! down how many looks ship or what they are called: the pack is the filter
 //! catalog, so a preset added to `filters.toml` flows through here unedited.
 //!
-//! Not covered: the pixels. Rendering needs a GPU, so the cost readout is
-//! asserted in its unmeasured state and the sequence job is asserted at its
-//! refusals, which are the two answers that arrive before a renderer is built.
+//! Not covered: the pixels. Rendering needs a GPU, so the sequence job is
+//! asserted at its refusals, which arrive before a renderer is built. The last
+//! frame's cost is `info_tests`'.
 
 use std::collections::BTreeSet;
 
@@ -214,102 +214,6 @@ fn a_sequence_refuses_an_empty_timeline() {
     assert!(
         err.contains("timeline is empty"),
         "unhelpful refusal: {err}"
-    );
-}
-
-/// A zeroed split means nothing has been measured, not that a frame was free.
-#[test]
-fn an_unmeasured_frame_reads_as_unmeasured() {
-    let (mut state, _) = with_clip();
-    let stats = state.last_render_stats();
-    if stats.measured() {
-        // A session that already drew a preview reports a real split, and the
-        // stages have to add up to the frame.
-        let sum = stats.decode_ms + stats.raster_ms + stats.composite_ms;
-        assert!(
-            (sum - stats.total_ms).abs() < 1e-9,
-            "{stats:?} does not add up"
-        );
-        return;
-    }
-    state.report_render_cost();
-    assert_eq!(
-        state.status_message.as_deref(),
-        Some("No frame has been rendered yet")
-    );
-}
-
-/// The readout shows every number the split holds. A stage dropped from the
-/// row list is a cost that is paid and never shown.
-#[test]
-fn the_readout_names_every_number_in_the_split() {
-    let stats = UiRenderStats {
-        decode_ms: 1.0,
-        raster_ms: 2.0,
-        composite_ms: 4.0,
-        total_ms: 7.0,
-        scaled_cost_ms: 6.0,
-        effect_passes: 0,
-        effect_pass_bind_groups: 0,
-    };
-    let rows = stats.rows();
-    let labels: BTreeSet<&str> = rows.iter().map(|(name, _)| *name).collect();
-    assert_eq!(labels.len(), rows.len(), "two rows share a label");
-
-    // Every field's value appears, and the values were chosen distinct so a row
-    // reading the wrong field cannot pass by coincidence.
-    let shown: BTreeSet<u64> = rows.iter().map(|(_, ms)| ms.to_bits()).collect();
-    let held: BTreeSet<u64> = [
-        stats.decode_ms,
-        stats.raster_ms,
-        stats.composite_ms,
-        stats.total_ms,
-        stats.scaled_cost_ms,
-    ]
-    .iter()
-    .map(|ms| ms.to_bits())
-    .collect();
-    assert_eq!(shown, held);
-}
-
-/// The pass count is a count, not a stage: it is absent while the frame drew no
-/// effect pass, and both readouts print the same line once it did.
-#[test]
-fn the_effect_pass_line_appears_only_once_a_pass_was_drawn() {
-    let mut stats = UiRenderStats {
-        decode_ms: 1.0,
-        raster_ms: 2.0,
-        composite_ms: 4.0,
-        total_ms: 7.0,
-        scaled_cost_ms: 6.0,
-        effect_passes: 0,
-        effect_pass_bind_groups: 0,
-    };
-    assert_eq!(stats.passes(), None, "a frame with no effect pass reported");
-    assert_eq!(stats.passes_line(), None);
-
-    stats.effect_passes = 24;
-    stats.effect_pass_bind_groups = 2;
-    assert_eq!(stats.passes(), Some((24, 2)));
-    let line = stats.passes_line().expect("a drawn pass has a line");
-    assert!(
-        line.contains("24") && line.contains('2'),
-        "the line dropped a number: {line}"
-    );
-
-    let (mut state, _) = with_clip();
-    state.frame_stats = aria_render::FrameStats {
-        decode_ms: 1.0,
-        raster_ms: 2.0,
-        composite_ms: 4.0,
-        effect_passes: 24,
-        effect_pass_bind_groups: 2,
-    };
-    state.report_render_cost();
-    let status = state.status_message.clone().expect("a reported cost");
-    assert!(
-        status.contains(&line),
-        "the strip and the panel print different lines: {status} vs {line}"
     );
 }
 

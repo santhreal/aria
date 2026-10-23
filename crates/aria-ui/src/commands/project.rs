@@ -1,15 +1,13 @@
-//! Palette rows for the project as a whole: what it carries, where a source
-//! lives, and what the last frame cost.
+//! Palette rows for the project as a whole: what it carries and where a source
+//! lives.
 //!
 //! One of the groups [`super::BUILTIN_COMMANDS`] joins. A row here
 //! acts on the pool, the sequence inventory, or the session's measurements
 //! rather than on one clip's properties.
 //!
-//! Nothing here names a clip question or a render stage: the two rows that walk
-//! them read the catalogs at run time
-//! ([`aria_models::clip_facts`], [`aria_engine::frame_stages`]), so a question
-//! or a stage added to either table is reachable from the palette without a row
-//! being added here.
+//! Nothing here names a clip question: the row that walks them reads
+//! [`aria_models::clip_facts`] at run time, so a question added to that table
+//! is reachable from the palette without a row being added here.
 
 use super::host::CommandEntry;
 
@@ -53,11 +51,6 @@ pub(crate) const PROJECT_ROWS: &[CommandEntry] = &[
         id: "pal-project-history-pending",
         label: "Name the Next Undo and Redo",
         run: |state| state.report_pending_history(),
-    },
-    CommandEntry {
-        id: "pal-project-frame-cost",
-        label: "Report Last Frame Cost",
-        run: |state| state.report_frame_cost(),
     },
     CommandEntry {
         id: "pal-project-content-size",

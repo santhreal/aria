@@ -46,8 +46,8 @@ rate and each rendered frame's duration, and it reports the render rate, how
 many renders were over budget, and the worst one. During playback the editor
 also hands it each frame shown and each frame dropped with its cause, and the
 report adds the achieved rate (frames shown over the run's time) and the drops.
-The Render Cost panel reads the same report, so the number on screen and the
-number in the gate come from one counter.
+The Info panel's Playback section reads the same report, so the number on
+screen and the number in the gate come from one counter.
 
 `cargo test -p aria-render playback_rate_report` renders 120 frames of a solid
 generator at 640x360, 24 fps, through the preview entry point, excluding four
@@ -152,8 +152,9 @@ median of 15 rounds that alternate the two modes one frame at a time: a frame
 this size is readback-bound, and a block of frames per mode measures whatever
 else the machine was doing during that block. 24 allocations per frame become 0
 once the descriptors repeat. The counts are the test's contract; the clock is
-reported. The same numbers are shown in the Render cost panel and the
-status line, so a frame that is dear because of a stacked chain shows the cause.
+reported. The same numbers are shown in the Info panel's Last frame section and
+by Last Frame Cost on the status line, so a frame that is dear because of a
+stacked chain shows the cause.
 
 The table is bounded (128 entries) and keyed on the pool's own views, so it is
 built and dropped with the pool that owns them: resizing the canvas cannot

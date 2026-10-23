@@ -1,6 +1,6 @@
 //! Render-side capabilities the editor shipped without a way to ask for them.
 //!
-//! Three holes, all measured the same way: the verb existed in `aria-render`,
+//! Two holes, both measured the same way: the verb existed in `aria-render`,
 //! it was tested, and nothing in this crate named it.
 //!
 //! - **The starter LUT pack.** `aria_render::starter_lut_pack` bakes one `.cube`
@@ -19,11 +19,6 @@
 //!   button on the export sheet, driven by the sheet's own settings so a
 //!   half-resolution proof sequence and a half-resolution proof MP4 mean the
 //!   same thing.
-//!
-//! - **What the last frame cost.** `FrameStats` splits a render into decode,
-//!   raster, and composite, and distinguishes the part that shrinks with output
-//!   resolution from the part that does not. The engine exposed it and no
-//!   surface read it, so "playback is slow" had no answer in the app.
 //!
 //! Plus one repair: a pool item whose file changed on disk kept serving the
 //! decoders and still bitmaps opened from the old bytes. Reloading is a relink
@@ -54,57 +49,6 @@ pub struct UiLook {
     pub swatch: Vec<[u8; 3]>,
     /// Whether the selection is currently graded through this look's table.
     pub applied: bool,
-}
-
-/// What the last rendered frame cost, split by stage.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
-pub struct UiRenderStats {
-    pub decode_ms: f64,
-    pub raster_ms: f64,
-    pub composite_ms: f64,
-    pub total_ms: f64,
-    /// The part of the cost that shrinks when the preview renders smaller.
-    pub scaled_cost_ms: f64,
-    /// Effect passes the frame drew, across every layer.
-    pub effect_passes: u32,
-    /// Bind groups those passes needed built rather than reusing one already
-    /// describing that exact pass.
-    pub effect_pass_bind_groups: u32,
-}
-
-impl UiRenderStats {
-    /// The rows a readout draws, in the order it draws them.
-    ///
-    /// One owner: the panel and the status line report the same five numbers,
-    /// and neither holds its own list of them.
-    pub fn rows(&self) -> [(&'static str, f64); 5] {
-        [
-            ("Decode", self.decode_ms),
-            ("Raster", self.raster_ms),
-            ("Composite", self.composite_ms),
-            ("Frame", self.total_ms),
-            ("Scales with size", self.scaled_cost_ms),
-        ]
-    }
-
-    /// The effect-pass count, and how much of it had to be built. `None` when
-    /// the frame drew no effect pass: a scene without effects has nothing to
-    /// report, and "0 passes" would read as a measurement.
-    pub fn passes(&self) -> Option<(u32, u32)> {
-        (self.effect_passes > 0).then_some((self.effect_passes, self.effect_pass_bind_groups))
-    }
-
-    /// The effect-pass line both readouts print.
-    pub fn passes_line(&self) -> Option<String> {
-        self.passes()
-            .map(|(passes, built)| format!("{passes} effect pass(es), {built} bind group(s) built"))
-    }
-
-    /// Whether any frame has been rendered yet. A zeroed split is "nothing has
-    /// been measured", not "a frame cost nothing".
-    pub fn measured(&self) -> bool {
-        self.total_ms > 0.0
-    }
 }
 
 /// The `.cube` file name a baked look is cached under.
@@ -233,39 +177,6 @@ impl AppState {
         self.status_message = Some(match self.storage_layout().resolve(CacheId::Luts) {
             Some(dir) => format!("Baked {written} look(s) into {}", dir.display()),
             None => format!("Baked {written} look(s)"),
-        });
-    }
-
-    /// What the last rendered frame cost, split by stage.
-    ///
-    /// Recorded where the frame landed, so the readout is a field read: a panel
-    /// drawn while a preview decode holds the session still draws.
-    pub fn last_render_stats(&self) -> UiRenderStats {
-        let stats = self.frame_stats;
-        UiRenderStats {
-            decode_ms: stats.decode_ms,
-            raster_ms: stats.raster_ms,
-            composite_ms: stats.composite_ms,
-            total_ms: stats.total_ms(),
-            scaled_cost_ms: stats.scaled_cost_ms(),
-            effect_passes: stats.effect_passes,
-            effect_pass_bind_groups: stats.effect_pass_bind_groups,
-        }
-    }
-
-    /// The same split as one line, for the status strip.
-    pub fn report_render_cost(&mut self) {
-        let stats = self.last_render_stats();
-        self.status_message = Some(if stats.measured() {
-            let mut parts: Vec<String> = stats
-                .rows()
-                .iter()
-                .map(|(name, ms)| format!("{name} {ms:.1}ms"))
-                .collect();
-            parts.extend(stats.passes_line());
-            parts.join(" · ")
-        } else {
-            "No frame has been rendered yet".to_string()
         });
     }
 

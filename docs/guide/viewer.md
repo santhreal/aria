@@ -140,6 +140,16 @@ the clip, and the change; during a drag in the Viewer, the move, scale, crop,
 mask, or tangent being dragged. The Errors section lists driver faults with
 their clip and property, plugins that failed to mount, and plugin faults.
 
+The Last frame section states what the most recent frame cost to render: one
+row per render stage (Decode, Raster, Composite), the whole frame, and Scales
+with size, the part a lower preview resolution buys back. A frame that drew
+effect passes adds the pass count and the bind groups built for them. Once
+playback delivers a frame, the Playback section states the rate shown against
+the sequence's rate and how many frames rendered late. The rate is green while
+playback holds it and amber once more than one frame in twenty renders late or
+is dropped. **Last Frame Cost** (`pal-render-cost`) in the command palette
+prints the Last frame rows on the status line.
+
 
 ## Framing
 

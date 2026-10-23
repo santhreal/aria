@@ -22,7 +22,7 @@ use crate::panels::{
     context_menu, duck, effects_browser, export_dialog, history_panel, home, info_panel, inspector,
     install_dialog, jobs_dialog, keyframe_velocity_dialog, look_picker, marker_edit_dialog,
     markers, media_support, mixer, palette, preview, project_report, remove_attributes_dialog,
-    rename_bar, render_cost, settings_dialog, sidebar, speed_duration_dialog, text_panel, timeline,
+    rename_bar, settings_dialog, sidebar, speed_duration_dialog, text_panel, timeline,
     timeline_report, unsaved_dialog,
 };
 use crate::plugins::overlay_host::{OverlayEntry, OverlayHost, OverlayRender, OverlayWhen};
@@ -288,14 +288,6 @@ const BUILTIN_PANELS: &[(
         None,
     ),
     (
-        "aria.panel.render-cost",
-        "Last frame",
-        PanelLocation::Inspector,
-        draw_render_cost,
-        |state| state.last_render_stats().measured(),
-        None,
-    ),
-    (
         "aria.panel.media-support",
         "Media support",
         PanelLocation::Inspector,
@@ -542,10 +534,6 @@ fn draw_ai_tools(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> Any
 
 fn draw_look_picker(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {
     look_picker::render(state, cx).into_any_element()
-}
-
-fn draw_render_cost(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {
-    render_cost::render(state, cx).into_any_element()
 }
 
 fn draw_media_support(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {

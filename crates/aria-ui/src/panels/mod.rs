@@ -35,7 +35,6 @@ pub mod preview;
 pub mod project_report;
 pub mod remove_attributes_dialog;
 pub mod rename_bar;
-pub mod render_cost;
 pub mod settings_dialog;
 pub mod sidebar;
 pub mod speed_duration_dialog;

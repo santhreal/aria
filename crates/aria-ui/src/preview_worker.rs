@@ -487,7 +487,8 @@ impl PreviewWorker {
         let _ = self.pictures.send(Box::new(work));
     }
 
-    /// Frames cached, for tests and the render-cost readout.
+    /// Frames cached.
+    #[cfg(test)]
     pub fn cached(&self) -> usize {
         self.shared.cache.lock().len()
     }

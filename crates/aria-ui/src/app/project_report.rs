@@ -1,10 +1,10 @@
 //! What the project report says, held beside the store.
 //!
-//! Three tables, each built from a catalog the model or the engine owns:
-//! [`aria_models::project_facts`], [`aria_models::clip_facts`], and
-//! [`aria_engine::frame_stages`]. This module owns none of the rows — it owns
-//! *when* they are measured, which is the only thing a report needs a decision
-//! about. Drawing them is [`crate::panels::project_report`].
+//! Two tables, each built from a catalog the model owns:
+//! [`aria_models::project_facts`] and [`aria_models::clip_facts`]. This module
+//! owns none of the rows — it owns *when* they are measured, which is the only
+//! thing a report needs a decision about. Drawing them is
+//! [`crate::panels::project_report`].
 //!
 //! **The counts are measured when they are asked for.** Every project-wide
 //! number is a walk of the project and every per-clip question is a walk of the
@@ -14,13 +14,8 @@
 //! report is opened and again on any re-projection while it is open, both of
 //! which are edit paths that already hold the session. With the report closed
 //! the cost is zero.
-//!
-//! **The stage timings are not here.** A frame's cost changes while the report
-//! sits open, so freezing it at open would be a lie; it is recorded where the
-//! frame lands, under the lock that produced the frame (see
-//! `app::transport`), and read from `AppState::frame_stats`.
 
-use aria_engine::{Engine, FrameStageSpec, frame_stages};
+use aria_engine::Engine;
 use aria_models::{clip_facts, clips_with_fact, project_facts};
 
 use crate::app::AppState;
@@ -42,17 +37,6 @@ pub struct ClipFactRow {
     pub id: &'static str,
     pub label: &'static str,
     pub count: usize,
-}
-
-/// One render stage of the last measured frame.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct FrameStageRow {
-    pub id: &'static str,
-    pub label: &'static str,
-    pub note: &'static str,
-    /// Whether rendering smaller would buy this stage back.
-    pub scales_with_output: bool,
-    pub milliseconds: f64,
 }
 
 /// Everything the report counts, as of the last time it was asked.
@@ -155,28 +139,5 @@ impl AppState {
     /// The drawn size of the selected clip's content, as last measured.
     pub fn selected_content_size(&self) -> Option<(u32, u32)> {
         self.report.content
-    }
-
-    /// The render stages of the most recent frame the editor decoded.
-    ///
-    /// Live rather than measured-on-open: the timings are recorded where the
-    /// frame lands, so a report left open follows a scrub.
-    pub fn frame_stage_rows(&self) -> Vec<FrameStageRow> {
-        let stats = self.frame_stats;
-        frame_stages()
-            .iter()
-            .map(|stage: &FrameStageSpec| FrameStageRow {
-                id: stage.id,
-                label: stage.label,
-                note: stage.note,
-                scales_with_output: stage.scales_with_output,
-                milliseconds: (stage.read)(&stats),
-            })
-            .collect()
-    }
-
-    /// Whole-frame cost of the last measured frame, in milliseconds.
-    pub fn frame_total_ms(&self) -> f64 {
-        self.frame_stats.total_ms()
     }
 }

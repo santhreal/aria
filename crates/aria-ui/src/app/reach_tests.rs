@@ -198,7 +198,6 @@ const ROWS: &[(&str, Kind)] = &[
     ("pal-project-reveal-media", NoEdit),
     ("pal-project-describe-template", NoEdit),
     ("pal-project-history-pending", NoEdit),
-    ("pal-project-frame-cost", NoEdit),
     ("pal-project-content-size", NoEdit),
     // Assistant, provider, and configuration. Two of these open Settings with
     // its filter set rather than firing blind, so none of them edits.
