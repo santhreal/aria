@@ -98,42 +98,42 @@ pub(crate) fn render(
             // stretches to the tallest, then the feet, which fill the height
             // the frame has left. Every fader so starts and ends level with
             // its neighbours', however many rows a head holds.
-            div()
-                .debug_selector(|| "mixer-strips-down".into())
-                .id("mixer-strips-down")
-                .flex()
-                .flex_col()
-                .flex_1()
-                .min_h_0()
-                .overflow_y_scroll()
-                .child(
-                    div()
-                        .id("mixer-strips")
-                        .debug_selector(|| "mixer-strips".into())
-                        .flex()
-                        .flex_col()
-                        .flex_grow_1()
-                        .flex_shrink_0()
-                        .items_start()
-                        .p(px(Theme::SPACE_MD))
-                        .overflow_x_scroll()
-                        .child(
-                            div()
-                                .flex()
-                                .flex_row()
-                                .gap(px(Theme::SPACE_SM))
-                                .children(heads),
-                        )
-                        .child(
-                            div()
-                                .flex()
-                                .flex_row()
-                                .flex_grow_1()
-                                .gap(px(Theme::SPACE_SM))
-                                .children(feet),
-                        ),
-                )
-                .into_any_element()
+            crate::edge_fade::scroll_y(
+                div()
+                    .debug_selector(|| "mixer-strips-down".into())
+                    .id("mixer-strips-down")
+                    .flex()
+                    .flex_col()
+                    .flex_1()
+                    .min_h_0()
+                    .child(crate::edge_fade::scroll_x(
+                        div()
+                            .id("mixer-strips")
+                            .debug_selector(|| "mixer-strips".into())
+                            .flex()
+                            .flex_col()
+                            .flex_grow_1()
+                            .flex_shrink_0()
+                            .items_start()
+                            .p(px(Theme::SPACE_MD))
+                            .child(
+                                div()
+                                    .flex()
+                                    .flex_row()
+                                    .gap(px(Theme::SPACE_SM))
+                                    .children(heads),
+                            )
+                            .child(
+                                div()
+                                    .flex()
+                                    .flex_row()
+                                    .flex_grow_1()
+                                    .gap(px(Theme::SPACE_SM))
+                                    .children(feet),
+                            ),
+                    )),
+            )
+            .into_any_element()
         }
     };
 

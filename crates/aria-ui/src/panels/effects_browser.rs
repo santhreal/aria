@@ -194,7 +194,7 @@ pub(crate) fn effects_panel(
                     ),
             )
         })
-        .child(
+        .child(crate::edge_fade::scroll_y(
             div()
                 .id("effects-tree")
                 .flex()
@@ -204,7 +204,6 @@ pub(crate) fn effects_panel(
                 // The rows step out by their inset so a folder's chevron stands
                 // on the filter's edge.
                 .mx(px(-Theme::SPACE_XS))
-                .overflow_y_scroll()
                 .when(empty, |el| {
                     el.child(
                         div()
@@ -215,7 +214,7 @@ pub(crate) fn effects_panel(
                     )
                 })
                 .children(rows),
-        )
+        ))
         .into_any_element()
 }
 

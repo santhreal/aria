@@ -12,8 +12,7 @@
 //! Timeline fit their minimum frames and keep their own scrolling.
 
 use gpui::{
-    AnyElement, InteractiveElement as _, IntoElement as _, ParentElement as _,
-    StatefulInteractiveElement as _, Styled as _, div, px,
+    AnyElement, InteractiveElement as _, IntoElement as _, ParentElement as _, Styled as _, div, px,
 };
 
 use crate::dock::{
@@ -55,13 +54,7 @@ pub(super) fn page(panel: PanelId, children: Vec<AnyElement>) -> Vec<AnyElement>
         .min_h(px(floor))
         .children(children);
     vec![
-        div()
-            .id(panel)
-            .flex()
-            .flex_col()
-            .size_full()
-            .overflow_y_scroll()
-            .child(page)
+        crate::edge_fade::scroll_y(div().id(panel).flex().flex_col().size_full().child(page))
             .into_any_element(),
     ]
 }

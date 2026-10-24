@@ -7,7 +7,7 @@
 use crate::components::Wraps as _;
 use gpui::{
     AnyElement, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
-    StatefulInteractiveElement, Styled, div, px,
+    Styled, div, px,
 };
 
 use crate::app::AppState;
@@ -83,29 +83,30 @@ pub fn render(
         1 | 2 => "Distribute needs three selected clips.",
         _ => "Distribute keeps the two outermost clips and spaces the centres between them.",
     };
-    div()
-        .id(SURFACE)
-        .debug_selector(|| SURFACE.into())
-        .size_full()
-        .overflow_y_scroll()
-        .p(px(Theme::SPACE_SM))
-        .flex()
-        .flex_col()
-        .gap(px(Theme::SPACE_XS))
-        .child(section_label(&theme, "Align to"))
-        .child(row(targets))
-        .child(section_label(&theme, "Align"))
-        .child(row(edges))
-        .child(row(down))
-        .child(section_label(&theme, "Distribute"))
-        .child(row(spread))
-        .child(
-            div()
-                .text_size(Theme::TEXT_SMALL)
-                .text_color(theme.text_faint)
-                .child(hint),
-        )
-        .into_any_element()
+    crate::edge_fade::scroll_y(
+        div()
+            .id(SURFACE)
+            .debug_selector(|| SURFACE.into())
+            .size_full()
+            .p(px(Theme::SPACE_SM))
+            .flex()
+            .flex_col()
+            .gap(px(Theme::SPACE_XS))
+            .child(section_label(&theme, "Align to"))
+            .child(row(targets))
+            .child(section_label(&theme, "Align"))
+            .child(row(edges))
+            .child(row(down))
+            .child(section_label(&theme, "Distribute"))
+            .child(row(spread))
+            .child(
+                div()
+                    .text_size(Theme::TEXT_SMALL)
+                    .text_color(theme.text_faint)
+                    .child(hint),
+            ),
+    )
+    .into_any_element()
 }
 
 /// A wrapping row of controls.

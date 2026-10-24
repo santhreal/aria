@@ -13,7 +13,7 @@ pub mod tabs;
 use aria_plugin::PanelLocation;
 use gpui::{
     AnyElement, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
-    ParentElement, StatefulInteractiveElement as _, Styled, div, px,
+    ParentElement, Styled, div, px,
 };
 
 use crate::app::AppState;
@@ -61,16 +61,18 @@ pub fn render(
             Some(clip) => {
                 clip_body(&theme, clip, tab, rate.num, rate.den, subs, state, cx).into_any_element()
             }
-            None => scroller()
-                .child(sequence_body(
-                    &theme,
-                    duration_ticks,
-                    rate.num,
-                    rate.den,
-                    canvas,
-                ))
-                .children(subs)
-                .into_any_element(),
+            None => crate::edge_fade::scroll_y(
+                scroller()
+                    .child(sequence_body(
+                        &theme,
+                        duration_ticks,
+                        rate.num,
+                        rate.den,
+                        canvas,
+                    ))
+                    .children(subs),
+            )
+            .into_any_element(),
         })
         .on_mouse_down(
             MouseButton::Left,
@@ -136,14 +138,15 @@ fn sequence_body(
         ))
 }
 
-/// The region under the tab row that scrolls: the tab's body, then the
-/// stacked sub panels.
+/// The region under the tab row that scrolls, empty. Each caller fills it with
+/// the tab's body and then the stacked sub panels, and makes it a scroll frame
+/// with [`crate::edge_fade::scroll_y`].
 fn scroller() -> gpui::Stateful<gpui::Div> {
     div()
         .id("inspector-body")
+        .debug_selector(|| "inspector-body".into())
         .flex_1()
         .min_h_0()
-        .overflow_y_scroll()
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -184,25 +187,27 @@ fn clip_body(
         ))
         .child(
             // A tab taller than its frame scrolls under the tab row.
-            scroller()
-                .child(
-                    div().p(px(Theme::SPACE_MD)).child(match active_body {
-                        // The tab's id is the animation's id, so switching tabs is a
-                        // new element and the incoming body fades up instead of
-                        // replacing the outgoing one between two frames.
-                        Some(body) => motion::fade_quick(
-                            motion::MotionKey::new("insp-body", &active_id),
-                            div()
-                                .flex()
-                                .flex_col()
-                                .gap(px(Theme::SPACE_MD))
-                                .child(body(theme, &clip, fps_num, fps_den, state, cx)),
-                        )
-                        .into_any_element(),
-                        None => empty(theme).into_any_element(),
-                    }),
-                )
-                .children(subs),
+            crate::edge_fade::scroll_y(
+                scroller()
+                    .child(
+                        div().p(px(Theme::SPACE_MD)).child(match active_body {
+                            // The tab's id is the animation's id, so switching tabs is a
+                            // new element and the incoming body fades up instead of
+                            // replacing the outgoing one between two frames.
+                            Some(body) => motion::fade_quick(
+                                motion::MotionKey::new("insp-body", &active_id),
+                                div()
+                                    .flex()
+                                    .flex_col()
+                                    .gap(px(Theme::SPACE_MD))
+                                    .child(body(theme, &clip, fps_num, fps_den, state, cx)),
+                            )
+                            .into_any_element(),
+                            None => empty(theme).into_any_element(),
+                        }),
+                    )
+                    .children(subs),
+            ),
         )
 }
 

@@ -13,7 +13,7 @@
 
 use gpui::{
     AnyElement, App, Div, Entity, InteractiveElement, IntoElement, ParentElement, ScrollHandle,
-    StatefulInteractiveElement, Styled, div, px,
+    Styled, div, px,
 };
 
 use crate::app::{AppState, DialogKind};
@@ -153,12 +153,13 @@ pub fn dialog_layer(
         .children(header);
     // Automatic minimum height of a scroll container is zero, so this is the
     // region that gives up height when the card reaches its limit.
-    let content = content
-        .id("dialog-content")
-        .overflow_y_scroll()
-        .p(px(Theme::SPACE_LG))
-        .debug_selector(|| "dialog-content".into())
-        .when_some(scroll, |content, handle| content.track_scroll(&handle));
+    let content = crate::edge_fade::scroll_y(
+        content
+            .id("dialog-content")
+            .p(px(Theme::SPACE_LG))
+            .debug_selector(|| "dialog-content".into()),
+    )
+    .when_some(scroll, |content, handle| content.track_scroll(&handle));
     let footer = (!actions.is_empty()).then(|| {
         div()
             .flex_none()

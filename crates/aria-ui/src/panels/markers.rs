@@ -36,14 +36,15 @@ pub fn render(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
     let theme = Theme::of(cx);
-    div()
-        .id(SURFACE)
-        .debug_selector(|| SURFACE.into())
-        .size_full()
-        .overflow_y_scroll()
-        .p(px(Theme::SPACE_SM))
-        .child(markers_panel(&theme, state, cx))
-        .into_any_element()
+    crate::edge_fade::scroll_y(
+        div()
+            .id(SURFACE)
+            .debug_selector(|| SURFACE.into())
+            .size_full()
+            .p(px(Theme::SPACE_SM))
+            .child(markers_panel(&theme, state, cx)),
+    )
+    .into_any_element()
 }
 
 fn markers_panel(

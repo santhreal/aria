@@ -207,4 +207,8 @@ starting with `.`) or registers them from code with
 `BUBBLE_RADIUS = 16`, `PANEL_RADIUS = 10`, `CONTROL_RADIUS = 6`,
 `SPACE_XS = 4`, `SPACE_SM = 8`, `SPACE_MD = 12`, `SPACE_LG = 16`.
 
+A region that scrolls fades each edge its content continues past across
+`SCROLL_FADE = 24` px (`crates/aria-ui/src/edge_fade.rs`). An edge with nothing
+past it does not fade.
+
 Glass is 0.80 alpha on macOS and opaque elsewhere.

@@ -4,10 +4,7 @@
 //! offer is presented across all panes as a floating frosted banner.
 
 use crate::components::Wraps as _;
-use gpui::{
-    Entity, InteractiveElement, IntoElement, ParentElement, StatefulInteractiveElement, Styled,
-    div, px,
-};
+use gpui::{Entity, InteractiveElement, IntoElement, ParentElement, Styled, div, px};
 
 use crate::app::AppState;
 use crate::app::recents::RecentView;
@@ -32,16 +29,13 @@ pub(super) fn home_body(
 ) -> impl IntoElement {
     let offer = state.read(cx).pending_recovery();
     let scroll = state.read(cx).home_scroll.clone();
-    crate::edge_fade::edge_faded(
-        24.0,
+    crate::edge_fade::scroll_y(
         div()
             .id("home-body")
             .debug_selector(|| "home-body".into())
             .flex_1()
             .h_full()
             .min_w_0()
-            .overflow_y_scroll()
-            .track_scroll(&scroll)
             .px(px(Theme::SPACE_LG * 2.))
             .py(px(Theme::SPACE_LG * 2.))
             .flex()
@@ -58,7 +52,7 @@ pub(super) fn home_body(
                 HomeRail::Learn => learn_pane(theme, state.read(cx)).into_any_element(),
             }),
     )
-    .fade_overflow_y(&scroll)
+    .track_scroll(&scroll)
 }
 
 /// The offer to take back work a crash interrupted.

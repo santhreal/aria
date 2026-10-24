@@ -10,7 +10,7 @@ use crate::types::ContextTarget;
 use gpui::prelude::FluentBuilder;
 use gpui::{
     CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
-    ParentElement, StatefulInteractiveElement, Styled, div, px,
+    ParentElement, Styled, div, px,
 };
 use std::cell::RefCell;
 thread_local! {
@@ -89,41 +89,49 @@ pub fn render(
     let plugin_rows = std::sync::Arc::clone(&rows.context_plugin_rows);
     let (at_x, at_y) = rows.context_at;
     // A menu generated from data (a clip's properties, every blend) can be
-    // longer than the window below the pointer, so the card scrolls past that.
+    // longer than the window below the pointer, so its rows scroll past that.
     let room = (rows.last_window_h - at_y - Theme::SPACE_SM).max(Theme::ROW_HEIGHT * 4.0);
 
+    // The rows scroll inside the card, so the card's ground and edge stay
+    // whole under the fade over the rows' scrolled edges.
+    let rows_frame = crate::edge_fade::scroll_y(
+        div()
+            .id("context-menu-rows")
+            .p(px(Theme::SPACE_XS))
+            .flex()
+            .flex_col()
+            .children(items(
+                target,
+                MenuFacts {
+                    clip,
+                    track,
+                    pool,
+                    effect,
+                    badge,
+                    label: selected_label,
+                    label_groups: labels_in_use,
+                    pool_label,
+                    transition_id,
+                    transition_media,
+                },
+                &theme,
+                cx,
+            ))
+            .children(plugin_items(&plugin_rows, &theme, cx)),
+    );
     let card = div()
         .id("context-menu-card")
         .debug_selector(|| "context-menu-card".into())
         .min_w(px(180.))
         .max_h(px(room))
-        .overflow_y_scroll()
         .rounded(px(Theme::PANEL_RADIUS))
         .bg(theme.surface_overlay)
         .border_1()
         .border_color(theme.border)
-        .p(px(Theme::SPACE_XS))
         .flex()
         .flex_col()
         .on_mouse_down(MouseButton::Left, |_: &MouseDownEvent, _, _| {})
-        .children(items(
-            target,
-            MenuFacts {
-                clip,
-                track,
-                pool,
-                effect,
-                badge,
-                label: selected_label,
-                label_groups: labels_in_use,
-                pool_label,
-                transition_id,
-                transition_media,
-            },
-            &theme,
-            cx,
-        ))
-        .children(plugin_items(&plugin_rows, &theme, cx));
+        .child(rows_frame);
     // Entry and exit take different element ids. GPUI keys animation state by
     // id, so a shared one would hand the exit the finished entry's clock and the
     // exit would never draw a frame.

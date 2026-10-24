@@ -6,10 +6,7 @@
 //! writes whichever surface edits it. A selection that is not a title shows a
 //! line saying what the panel edits.
 
-use gpui::{
-    AnyElement, InteractiveElement, IntoElement, ParentElement, StatefulInteractiveElement, Styled,
-    div, px,
-};
+use gpui::{AnyElement, InteractiveElement, IntoElement, ParentElement, Styled, div, px};
 
 use crate::app::AppState;
 use crate::panels::inspector::tabs::text::{character_controls, paragraph_controls};
@@ -48,23 +45,24 @@ pub fn render_paragraph(
 /// shows when the selection is not a title.
 fn panel(theme: &Theme, surface: &'static str, controls: Vec<AnyElement>) -> AnyElement {
     let empty = controls.is_empty();
-    div()
-        .id(surface)
-        .debug_selector(move || surface.into())
-        .size_full()
-        .overflow_y_scroll()
-        .p(px(Theme::SPACE_SM))
-        .flex()
-        .flex_col()
-        .gap(px(Theme::SPACE_XS))
-        .children(controls)
-        .when(empty, |el| {
-            el.child(
-                div()
-                    .text_size(Theme::TEXT_UI)
-                    .text_color(theme.text_faint)
-                    .child("Select a title to edit its type."),
-            )
-        })
-        .into_any_element()
+    crate::edge_fade::scroll_y(
+        div()
+            .id(surface)
+            .debug_selector(move || surface.into())
+            .size_full()
+            .p(px(Theme::SPACE_SM))
+            .flex()
+            .flex_col()
+            .gap(px(Theme::SPACE_XS))
+            .children(controls)
+            .when(empty, |el| {
+                el.child(
+                    div()
+                        .text_size(Theme::TEXT_UI)
+                        .text_color(theme.text_faint)
+                        .child("Select a title to edit its type."),
+                )
+            }),
+    )
+    .into_any_element()
 }

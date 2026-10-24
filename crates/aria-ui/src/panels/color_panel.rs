@@ -11,7 +11,7 @@
 
 use gpui::{
     AnyElement, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
-    StatefulInteractiveElement, Styled, div, px,
+    Styled, div, px,
 };
 
 use crate::app::AppState;
@@ -155,14 +155,12 @@ pub fn render(
         .id(SURFACE)
         .debug_selector(|| SURFACE.into())
         .size_full()
-        .overflow_y_scroll()
         .p(px(Theme::SPACE_SM))
         .flex()
         .flex_col()
         .gap(px(Theme::SPACE_XS));
     if state.read(cx).selected_clip().is_none() {
-        return root
-            .child(hint(&theme, "Select a clip to grade."))
+        return crate::edge_fade::scroll_y(root.child(hint(&theme, "Select a clip to grade.")))
             .into_any_element();
     }
 
@@ -188,9 +186,10 @@ pub fn render(
         |id, element| slots[slot_of(id)].push(element),
     );
     if !present.contains(&true) {
-        return root
-            .child(hint(&theme, "This clip has no colour to grade."))
-            .into_any_element();
+        return crate::edge_fade::scroll_y(
+            root.child(hint(&theme, "This clip has no colour to grade.")),
+        )
+        .into_any_element();
     }
 
     // Reset heads the panel, where it is reached without scrolling past every
@@ -229,7 +228,7 @@ pub fn render(
         }
         body.extend(rows);
     }
-    root.children(body).into_any_element()
+    crate::edge_fade::scroll_y(root.children(body)).into_any_element()
 }
 
 /// A section's title, as a row a click opens or closes the section from.

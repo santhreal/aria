@@ -66,18 +66,19 @@ pub fn render(
         ));
     }
 
-    div()
-        .id(SURFACE)
-        .debug_selector(|| SURFACE.into())
-        .size_full()
-        .overflow_y_scroll()
-        .p(px(Theme::SPACE_SM))
-        .flex()
-        .flex_col()
-        .gap(px(Theme::SPACE_XS))
-        .children(pending)
-        .children(rows)
-        .into_any_element()
+    crate::edge_fade::scroll_y(
+        div()
+            .id(SURFACE)
+            .debug_selector(|| SURFACE.into())
+            .size_full()
+            .p(px(Theme::SPACE_SM))
+            .flex()
+            .flex_col()
+            .gap(px(Theme::SPACE_XS))
+            .children(pending)
+            .children(rows),
+    )
+    .into_any_element()
 }
 
 /// One step. `applied` dims an undone step; `current` marks where the project

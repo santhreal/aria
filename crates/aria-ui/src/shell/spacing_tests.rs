@@ -19,7 +19,9 @@
 //! - A centred control off its bar's centre line while both side groups fit
 //!   their halves: the workspace switcher, the breadcrumb and the transport.
 //! - A round control cut by the box that clips it: a handle on a fitted
-//!   picture's edge drawn as half a dot.
+//!   picture's edge drawn as half a dot. A control cut at an edge that a
+//!   scroll frame fades, because its content continues past it, is scrolled
+//!   out of view rather than cut.
 //!
 //! Exempt: what the canvases that draw the edit paint, the lanes and the graph
 //! editor's curves. A clip, a keyframe and a waveform stand where the edit puts
@@ -145,6 +147,8 @@ fn walk(
                 visual.run_until_parked();
                 // A frame that is not drawn in this workspace keeps no rect.
                 visual.read(|app| state.read(app).dock_frame_rects.lock().clear());
+                // The fades the check reads are this draw's alone.
+                crate::edge_fade::take_painted();
                 visual.update(|window, _| window.refresh());
                 let case = format!(
                     "{id} at {width}x{height}, graph editor {}",
@@ -715,14 +719,38 @@ fn centred_controls_stand_on_their_bar_centre_line(cx: &mut TestAppContext) {
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
 
+/// Whether each edge of `mask` that `at` runs past is an edge a scroll frame
+/// fades, which it does only while its content continues past that edge.
+fn scrolled_past(at: Edges, mask: Edges, fades: &[gpui::EdgeFade]) -> bool {
+    let faded = |side: usize| {
+        fades.iter().any(|fade| {
+            let b = fade.bands;
+            let band = [b.left, b.top, b.right, b.bottom][side];
+            band > px(0.0) && (edges(fade.bounds)[side] - mask[side]).abs() <= EPS
+        })
+    };
+    let past = [
+        at[0] < mask[0] - 0.26,
+        at[1] < mask[1] - 0.26,
+        at[2] > mask[2] + 0.26,
+        at[3] > mask[3] + 0.26,
+    ];
+    past.iter()
+        .enumerate()
+        .all(|(side, &runs_past)| !runs_past || faded(side))
+}
+
 /// No round control is cut by the box that clips it. A dot, a handle or a
-/// round button drawn as a part reads as a layout fault, not as a shape.
+/// round button drawn as a part reads as a layout fault, not as a shape. A
+/// control at the edge of a scroll frame whose content continues past it is
+/// scrolled, and the frame fades that edge.
 #[gpui::test]
 fn no_round_control_is_cut_by_its_clip(cx: &mut TestAppContext) {
     let mut failures = Vec::new();
     let mut rounds = 0usize;
     walk(cx, &[false], |case, _, visual| {
         let exempt = content(visual);
+        let fades = crate::edge_fade::take_painted();
         for quad in painted(visual) {
             let (w, h) = (quad.at[2] - quad.at[0], quad.at[3] - quad.at[1]);
             let round = w >= 4.0
@@ -741,7 +769,7 @@ fn no_round_control_is_cut_by_its_clip(cx: &mut TestAppContext) {
             rounds += 1;
             // Half a device pixel: an edge on the clip's own edge rounds
             // either way.
-            if !inside(quad.at, quad.mask, 0.26) {
+            if !inside(quad.at, quad.mask, 0.26) && !scrolled_past(quad.at, quad.mask, &fades) {
                 failures.push(format!(
                     "{case}: the round control at {:?} is cut by its clip {:?}",
                     quad.at, quad.mask

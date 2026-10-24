@@ -6,6 +6,7 @@
 
 use super::*;
 use crate::theme::Theme;
+use gpui::StatefulInteractiveElement;
 
 /// One menu row, with its check mark drawn while `checked` holds.
 ///

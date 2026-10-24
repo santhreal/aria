@@ -3,8 +3,8 @@
 use crate::components::Wraps as _;
 use aria_core::count::counted;
 use gpui::{
-    Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
-    StatefulInteractiveElement, Styled, div, px,
+    Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled,
+    div, px,
 };
 
 use crate::app::AppState;
@@ -113,23 +113,18 @@ pub fn render(
         .border_color(if selected { theme.accent } else { theme.border })
         .child(header(&theme, state, cx))
         .child(
-            crate::edge_fade::edge_faded(
-                24.0,
+            crate::edge_fade::scroll_y(
                 div()
                     .id("ai-transcript")
                     .flex_1()
                     .min_h_0()
-                    .overflow_y_scroll()
-                    .track_scroll(&scroll)
                     .p(px(Theme::SPACE_MD))
                     .flex()
                     .flex_col()
                     .gap(px(Theme::SPACE_SM))
                     .children(rows),
             )
-            // The fade follows the real scroll offset, so the top edge is only
-            // soft when there is something above it.
-            .fade_overflow_y(&scroll),
+            .track_scroll(&scroll),
         )
         .child(blocks::skills_block(&theme, state, cx))
         .child(composer(&theme, state, cx))

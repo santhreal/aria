@@ -47,13 +47,12 @@ pub(super) fn bin(
         .flex_col()
         .gap(px(Theme::SPACE_SM))
         .child(bars::header(theme, state, tab, cx))
-        .child(
+        .child(crate::edge_fade::scroll_y(
             div()
                 .id("pool-items")
                 .debug_selector(|| "pool-items".into())
                 .flex_1()
                 .min_h_0()
-                .overflow_y_scroll()
                 .flex()
                 .flex_col()
                 .gap(px(Theme::SPACE_SM))
@@ -68,7 +67,7 @@ pub(super) fn bin(
                 .when(!properties.is_empty(), |el| {
                     el.child(properties_block(theme, &properties))
                 }),
-        )
+        ))
         .child(bars::footer(theme, state, count, cx))
         .into_any_element()
 }

@@ -66,14 +66,15 @@ pub fn render_panel(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> AnyElement {
     let theme = Theme::of(cx);
-    div()
-        .id("jobs-panel")
-        .debug_selector(|| "jobs-panel".into())
-        .size_full()
-        .overflow_y_scroll()
-        .p(px(Theme::SPACE_SM))
-        .child(job_list(&theme, state, PANEL, cx))
-        .into_any_element()
+    crate::edge_fade::scroll_y(
+        div()
+            .id("jobs-panel")
+            .debug_selector(|| "jobs-panel".into())
+            .size_full()
+            .p(px(Theme::SPACE_SM))
+            .child(job_list(&theme, state, PANEL, cx)),
+    )
+    .into_any_element()
 }
 
 /// Every job, newest first, or a line saying there are none.

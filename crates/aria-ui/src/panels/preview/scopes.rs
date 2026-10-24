@@ -15,7 +15,7 @@
 use crate::components::Wraps as _;
 use gpui::{
     Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ObjectFit, ParentElement,
-    SharedString, StatefulInteractiveElement, Styled, StyledImage, div, img, px,
+    SharedString, Styled, StyledImage, div, img, px,
 };
 
 use crate::app::AppState;
@@ -25,6 +25,10 @@ use crate::motion::MotionKey;
 use crate::scopes::WaveformMode;
 use crate::theme::Theme;
 use gpui::prelude::FluentBuilder;
+
+#[cfg(test)]
+#[path = "scopes_scroll_tests.rs"]
+mod scroll_tests;
 
 /// Strip width. Holds a 192px scope plus the panel's own padding.
 const STRIP_W: f32 = 216.0;
@@ -65,16 +69,11 @@ pub(super) fn strip(
     let textures = shown(state, cx);
     let mut column = div()
         .id("preview-scopes")
-        .w(px(STRIP_W))
-        .h_full()
+        .size_full()
         .flex()
         .flex_col()
         .gap(px(Theme::SPACE_SM))
         .p(px(Theme::SPACE_SM))
-        .border_l_1()
-        .border_color(theme.border)
-        .bg(theme.surface)
-        .overflow_y_scroll()
         .child(
             div()
                 .text_size(Theme::TEXT_UI)
@@ -130,7 +129,16 @@ pub(super) fn strip(
             ));
         }
     }
-    column.into_any_element()
+    // The strip's ground and edge stay whole under the fade over its scrolled
+    // edges.
+    div()
+        .w(px(STRIP_W))
+        .h_full()
+        .border_l_1()
+        .border_color(theme.border)
+        .bg(theme.surface)
+        .child(crate::edge_fade::scroll_y(column))
+        .into_any_element()
 }
 
 /// The Scopes dock panel: the same readings laid across the panel in one row
@@ -217,23 +225,27 @@ pub(crate) fn panel(
             cx,
         ),
     };
+    // The panel's ground stays whole under the fade over its scrolled edges.
     div()
-        .id(PANEL_SURFACE)
-        .debug_selector(|| PANEL_SURFACE.into())
         .size_full()
-        .overflow_y_scroll()
-        .p(px(Theme::SPACE_SM))
-        .flex()
-        .flex_col()
-        .gap(px(Theme::SPACE_SM))
         .bg(theme.surface)
-        .child(
+        .child(crate::edge_fade::scroll_y(
             div()
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text_muted)
-                .child(summary),
-        )
-        .child(body)
+                .id(PANEL_SURFACE)
+                .debug_selector(|| PANEL_SURFACE.into())
+                .size_full()
+                .p(px(Theme::SPACE_SM))
+                .flex()
+                .flex_col()
+                .gap(px(Theme::SPACE_SM))
+                .child(
+                    div()
+                        .text_size(Theme::TEXT_UI)
+                        .text_color(theme.text_muted)
+                        .child(summary),
+                )
+                .child(body),
+        ))
         .into_any_element()
 }
 

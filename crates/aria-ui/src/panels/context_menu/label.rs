@@ -8,6 +8,7 @@
 use super::*;
 use crate::components::Wraps as _;
 use crate::surfaces::labels::{self, LabelTarget};
+use gpui::StatefulInteractiveElement;
 
 /// The sixteen label colours plus a clear, as rows of swatches.
 ///

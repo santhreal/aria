@@ -18,13 +18,9 @@
 //! as a reason another function returns, and the end of a template whose last
 //! part is a placeholder.
 
-use std::path::Path;
-
 use super::{as_sentence, lowercase_start};
 use crate::app::decline::Decline;
-use crate::test_support::collect_rs;
-use crate::test_support::control_sites::strip_comments;
-use crate::test_support::sources::{string_literals, without_test_items};
+use crate::test_support::sources::{production_sources, string_literals};
 
 /// The writes whose argument the status strip draws.
 const SINKS: [&str; 2] = ["status_message = Some(", "report_error("];
@@ -197,35 +193,6 @@ fn written_lines(files: &[(String, String)], calls: &[&str]) -> Vec<(String, Str
         }));
     }
     lines
-}
-
-/// Every production source in the crate, relative to `src`, with test items
-/// and comments blanked.
-fn production_sources() -> Vec<(String, String)> {
-    let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-    let mut files = Vec::new();
-    collect_rs(&src, &mut files);
-    assert!(
-        files.len() > 200,
-        "found {} files under {src:?}, which cannot be this crate",
-        files.len()
-    );
-    files
-        .iter()
-        .filter_map(|file| {
-            let rel = file
-                .strip_prefix(&src)
-                .unwrap_or(file)
-                .to_string_lossy()
-                .replace('\\', "/");
-            if rel.starts_with("test_support/") || rel.ends_with("_tests.rs") {
-                return None;
-            }
-            let raw = std::fs::read_to_string(file)
-                .unwrap_or_else(|err| panic!("failed to read {}: {err}", file.display()));
-            Some((rel, strip_comments(&without_test_items(&raw))))
-        })
-        .collect()
 }
 
 /// **Every status line the crate writes reads as its sentences do.**

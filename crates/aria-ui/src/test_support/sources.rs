@@ -1,6 +1,7 @@
 //! Source text with its test-only items blanked, for the censuses that read
 //! the code a release build compiles, and the string literals of a source, for
-//! the censuses that read the text it writes.
+//! the censuses that read the text it writes. [`production_sources`] reads
+//! every production source in the crate that way.
 //!
 //! A test-only item is an item, statement, field, or arm under `#[cfg(test)]`,
 //! `#[test]`, or `#[gpui::test]`. It can sit anywhere in a file: a
@@ -70,6 +71,39 @@ pub(crate) fn without_test_items(text: &str) -> String {
         out.push('\n');
     }
     out
+}
+
+/// Every production source in the crate: its path relative to `src` with `/`
+/// between its parts, and its text with test-only items and comments blanked.
+/// The test files and the test support tree are left out.
+pub(crate) fn production_sources() -> Vec<(String, String)> {
+    let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut files = Vec::new();
+    super::collect_rs(&src, &mut files);
+    assert!(
+        files.len() > 200,
+        "found {} files under {src:?}, which cannot be this crate",
+        files.len()
+    );
+    files
+        .iter()
+        .filter_map(|file| {
+            let rel = file
+                .strip_prefix(&src)
+                .unwrap_or(file)
+                .to_string_lossy()
+                .replace('\\', "/");
+            if rel.starts_with("test_support/") || rel.ends_with("_tests.rs") {
+                return None;
+            }
+            let raw = std::fs::read_to_string(file)
+                .unwrap_or_else(|err| panic!("failed to read {}: {err}", file.display()));
+            Some((
+                rel,
+                super::control_sites::strip_comments(&without_test_items(&raw)),
+            ))
+        })
+        .collect()
 }
 
 /// Each line of `text`, as `str::lines` splits it, with comments and the

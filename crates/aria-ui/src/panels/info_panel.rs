@@ -5,10 +5,7 @@
 //!
 //! It draws [`AppState::info_readout`] and sends nothing.
 
-use gpui::{
-    AnyElement, InteractiveElement, IntoElement, ParentElement, StatefulInteractiveElement, Styled,
-    div, px,
-};
+use gpui::{AnyElement, InteractiveElement, IntoElement, ParentElement, Styled, div, px};
 
 use crate::app::AppState;
 use crate::app::info::{InfoFault, InfoPlayback, InfoRow};
@@ -65,19 +62,20 @@ pub fn render(
         body.push(section_label(&theme, "Playback").into_any_element());
         body.extend(playback_rows(&theme, playback));
     }
-    div()
-        .id(SURFACE)
-        .debug_selector(|| SURFACE.into())
-        .size_full()
-        // Every row is a readout that changes with the pointer or the drag.
-        .font_features(crate::theme::tabular_figures())
-        .overflow_y_scroll()
-        .p(px(Theme::SPACE_SM))
-        .flex()
-        .flex_col()
-        .gap(px(Theme::SPACE_XS))
-        .children(body)
-        .into_any_element()
+    crate::edge_fade::scroll_y(
+        div()
+            .id(SURFACE)
+            .debug_selector(|| SURFACE.into())
+            .size_full()
+            // Every row is a readout that changes with the pointer or the drag.
+            .font_features(crate::theme::tabular_figures())
+            .p(px(Theme::SPACE_SM))
+            .flex()
+            .flex_col()
+            .gap(px(Theme::SPACE_XS))
+            .children(body),
+    )
+    .into_any_element()
 }
 
 /// One labelled value per row.

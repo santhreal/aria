@@ -7,6 +7,7 @@ use aria_core::count::counted;
 
 use super::*;
 use crate::theme::Theme;
+use gpui::StatefulInteractiveElement;
 
 /// A destructive host call the assistant is blocked on.
 ///

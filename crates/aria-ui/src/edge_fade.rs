@@ -1,19 +1,28 @@
-//! [`edge_faded`] — wraps a child so its whole subtree paints inside a
-//! [`gpui::EdgeFade`] scope.
+//! Fades over the edges of a view that content continues past.
 //!
-//! An edge fades only while content continues past it. The top and bottom
-//! edges read that from a tracked [`ScrollHandle`]; the left and right edges
-//! read it from a handle or from the caller, which states it for a view that
-//! scrolls by its own model. There is no unconditional fade: a band over an
+//! [`scroll_y`] and [`scroll_x`] make a scroll frame, which fades each edge on
+//! its axis while the frame's content continues past that edge, read from the
+//! frame's scroll handle. [`edge_faded`] fades the left and right edges of a
+//! view that scrolls by its own model, where the caller states which edges
+//! content continues past. There is no unconditional fade: a band over an
 //! edge with nothing past it cuts the first or last row of a list that fits.
 //!
 //! Ported from Comet (<https://github.com/zeronsh/comet>)
 //! MIT License — see LICENSES/comet-MIT.txt
 
 use gpui::{
-    AnyElement, App, Bounds, EdgeFade, Edges, Element, GlobalElementId, InspectorElementId,
-    IntoElement, LayoutId, Pixels, ScrollHandle, Window, px,
+    AnyElement, App, Axis, Bounds, Div, EdgeFade, Edges, Element, ElementId, GlobalElementId,
+    InspectorElementId, IntoElement, LayoutId, Pixels, ScrollHandle, Stateful,
+    StatefulInteractiveElement as _, Window, div, px,
 };
+
+#[cfg(test)]
+#[path = "edge_fade_tests.rs"]
+mod tests;
+
+/// Depth of the fade over an edge of a scroll frame that content continues
+/// past.
+pub const SCROLL_FADE: f32 = 24.0;
 
 /// `child`, faded `band` px deep at each edge a builder reports content past.
 pub fn edge_faded(band: f32, child: impl IntoElement) -> EdgeFaded {
@@ -21,8 +30,6 @@ pub fn edge_faded(band: f32, child: impl IntoElement) -> EdgeFaded {
         band,
         left: false,
         right: false,
-        scroll_y: None,
-        scroll_x: None,
         child: child.into_any_element(),
     }
 }
@@ -31,8 +38,6 @@ pub struct EdgeFaded {
     band: f32,
     left: bool,
     right: bool,
-    scroll_y: Option<ScrollHandle>,
-    scroll_x: Option<ScrollHandle>,
     child: AnyElement,
 }
 
@@ -48,18 +53,52 @@ impl EdgeFaded {
         self.right = continues;
         self
     }
+}
 
-    /// Fade the top and bottom edges while `handle`'s content continues past
-    /// them.
-    pub fn fade_overflow_y(mut self, handle: &ScrollHandle) -> Self {
-        self.scroll_y = Some(handle.clone());
-        self
+/// `frame`, scrolled on the vertical axis, with its top and bottom edges faded
+/// while its content continues past them.
+///
+/// Every scroll frame in the crate is made here or by [`scroll_x`], so a frame
+/// shows on its edges that it scrolls. The frame keeps its place from one draw
+/// to the next under its id. A caller that reads or moves the place passes its
+/// handle to [`ScrollFrame::track_scroll`], and not to the frame's own
+/// `track_scroll`, which the frame's handle replaces.
+pub fn scroll_y(frame: Stateful<Div>) -> ScrollFrame {
+    ScrollFrame::new(frame.overflow_y_scroll(), Axis::Vertical)
+}
+
+/// `frame`, scrolled on the horizontal axis, with its left and right edges
+/// faded while its content continues past them. See [`scroll_y`].
+pub fn scroll_x(frame: Stateful<Div>) -> ScrollFrame {
+    ScrollFrame::new(frame.overflow_x_scroll(), Axis::Horizontal)
+}
+
+/// A frame that scrolls on one axis and fades each edge on it that its content
+/// continues past. Made by [`scroll_y`] and [`scroll_x`].
+pub struct ScrollFrame {
+    id: Option<ElementId>,
+    /// The frame, until its layout is requested and it becomes the element
+    /// drawn.
+    frame: Option<Stateful<Div>>,
+    axis: Axis,
+    /// The caller's handle, and once laid out the handle the frame scrolls by.
+    handle: Option<ScrollHandle>,
+}
+
+impl ScrollFrame {
+    fn new(frame: Stateful<Div>, axis: Axis) -> Self {
+        Self {
+            id: Element::id(&frame),
+            frame: Some(frame),
+            axis,
+            handle: None,
+        }
     }
 
-    /// Fade the left and right edges while `handle`'s content continues past
-    /// them.
-    pub fn fade_overflow_x(mut self, handle: &ScrollHandle) -> Self {
-        self.scroll_x = Some(handle.clone());
+    /// Scroll by `handle`, which the caller reads or moves, instead of the
+    /// handle the frame keeps under its id.
+    pub fn track_scroll(mut self, handle: &ScrollHandle) -> Self {
+        self.handle = Some(handle.clone());
         self
     }
 }
@@ -151,24 +190,14 @@ impl Element for EdgeFaded {
         window: &mut Window,
         cx: &mut App,
     ) {
-        // The child's prepaint has run, so a handle holds this frame's offset
-        // and extent.
-        let (top, bottom) = self
-            .scroll_y
-            .as_ref()
-            .map_or((false, false), |scroll| continues(scroll, |at| at.y));
-        let (left, right) = self
-            .scroll_x
-            .as_ref()
-            .map_or((false, false), |scroll| continues(scroll, |at| at.x));
         let fade = fade(
             bounds,
             self.band,
             Edges {
-                top,
-                bottom,
-                left: left || self.left,
-                right: right || self.right,
+                top: false,
+                bottom: false,
+                left: self.left,
+                right: self.right,
             },
         );
         paint_in(window, Some(fade), |window| self.child.paint(window, cx));
@@ -176,6 +205,97 @@ impl Element for EdgeFaded {
 }
 
 impl IntoElement for EdgeFaded {
+    type Element = Self;
+
+    fn into_element(self) -> Self::Element {
+        self
+    }
+}
+
+impl Element for ScrollFrame {
+    type RequestLayoutState = AnyElement;
+    type PrepaintState = ();
+
+    fn id(&self) -> Option<ElementId> {
+        self.id.clone()
+    }
+
+    fn source_location(&self) -> Option<&'static core::panic::Location<'static>> {
+        None
+    }
+
+    fn request_layout(
+        &mut self,
+        id: Option<&GlobalElementId>,
+        _inspector_id: Option<&InspectorElementId>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> (LayoutId, AnyElement) {
+        let handle = match (self.handle.clone(), id) {
+            (Some(handle), _) => handle,
+            // Kept under the frame's id, as a frame keeps its own offset, so
+            // the place holds from one draw to the next.
+            (None, Some(id)) => window.with_element_state(id, |kept: Option<ScrollHandle>, _| {
+                let handle = kept.unwrap_or_default();
+                (handle.clone(), handle)
+            }),
+            (None, None) => ScrollHandle::default(),
+        };
+        // A layout is requested once a draw; a second request draws nothing.
+        let mut child = self.frame.take().map_or_else(
+            || div().into_any_element(),
+            |frame| frame.track_scroll(&handle).into_any_element(),
+        );
+        self.handle = Some(handle);
+        (child.request_layout(window, cx), child)
+    }
+
+    fn prepaint(
+        &mut self,
+        _id: Option<&GlobalElementId>,
+        _inspector_id: Option<&InspectorElementId>,
+        _bounds: Bounds<Pixels>,
+        child: &mut AnyElement,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        child.prepaint(window, cx);
+    }
+
+    fn paint(
+        &mut self,
+        _id: Option<&GlobalElementId>,
+        _inspector_id: Option<&InspectorElementId>,
+        bounds: Bounds<Pixels>,
+        child: &mut AnyElement,
+        _prepaint: &mut Self::PrepaintState,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        let along: fn(gpui::Point<Pixels>) -> Pixels = match self.axis {
+            Axis::Vertical => |at| at.y,
+            Axis::Horizontal => |at| at.x,
+        };
+        // The child's prepaint has run, so the handle holds this draw's offset
+        // and extent.
+        let (before, after) = self
+            .handle
+            .as_ref()
+            .map_or((false, false), |handle| continues(handle, along));
+        let vertical = self.axis == Axis::Vertical;
+        let at = Edges {
+            top: vertical && before,
+            bottom: vertical && after,
+            left: !vertical && before,
+            right: !vertical && after,
+        };
+        paint_in(window, Some(fade(bounds, SCROLL_FADE, at)), |window| {
+            child.paint(window, cx)
+        });
+    }
+}
+
+impl IntoElement for ScrollFrame {
     type Element = Self;
 
     fn into_element(self) -> Self::Element {
