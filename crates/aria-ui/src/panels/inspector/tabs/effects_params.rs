@@ -100,13 +100,15 @@ pub(crate) fn effect_param_rows(
                 cx.listener(move |this, _: &MouseDownEvent, _, cx| {
                     let group_name = group_name.clone();
                     this.state.update(cx, |state, _| {
-                        let _ = effects_rack::apply(
+                        if let Err(err) = effects_rack::apply(
                             state,
                             Gesture::ToggleGroup {
                                 index,
                                 group: group_name,
                             },
-                        );
+                        ) {
+                            state.report_error(&err);
+                        }
                     });
                     cx.notify();
                 }),

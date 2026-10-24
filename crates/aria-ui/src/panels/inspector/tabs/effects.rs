@@ -448,7 +448,11 @@ pub fn effects_tab(
                     MouseButton::Left,
                     cx.listener(move |this, _: &MouseDownEvent, _, cx| {
                         this.state.update(cx, |state, _| {
-                            let _ = effects_rack::apply(state, Gesture::TogglePresetEffect(fx_idx));
+                            if let Err(err) =
+                                effects_rack::apply(state, Gesture::TogglePresetEffect(fx_idx))
+                            {
+                                state.report_error(&err);
+                            }
                         });
                         cx.notify();
                     }),
@@ -472,8 +476,11 @@ pub fn effects_tab(
                         MouseButton::Left,
                         cx.listener(move |this, _: &MouseDownEvent, _, cx| {
                             this.state.update(cx, |state, _| {
-                                let _ =
-                                    effects_rack::apply(state, Gesture::TogglePresetAudioEffects);
+                                if let Err(err) =
+                                    effects_rack::apply(state, Gesture::TogglePresetAudioEffects)
+                                {
+                                    state.report_error(&err);
+                                }
                             });
                             cx.notify();
                         }),
@@ -497,10 +504,12 @@ pub fn effects_tab(
                     MouseButton::Left,
                     cx.listener(move |this, _: &MouseDownEvent, _, cx| {
                         this.state.update(cx, |state, _| {
-                            let _ = effects_rack::apply(
+                            if let Err(err) = effects_rack::apply(
                                 state,
                                 Gesture::TogglePresetProperty(id_for_click.clone()),
-                            );
+                            ) {
+                                state.report_error(&err);
+                            }
                         });
                         cx.notify();
                     }),

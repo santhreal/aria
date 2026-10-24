@@ -79,14 +79,16 @@ pub(super) fn media_grid(
                         let media = drag.media;
                         if let Some((x, y)) = this.take_freeform_drop() {
                             this.state.update(cx, |state, _| {
-                                let _ = crate::surfaces::pool_drop::apply(
+                                if let Err(err) = crate::surfaces::pool_drop::apply(
                                     state,
                                     crate::surfaces::pool_drop::Dropped::MediaAtSpot {
                                         media,
                                         x,
                                         y,
                                     },
-                                );
+                                ) {
+                                    state.report_error(&err);
+                                }
                             });
                             cx.notify();
                         }

@@ -17,6 +17,10 @@
 //! writing the arm. It also refuses to pass on an empty measurement: if the
 //! module ever stops dispatching, the floors below go red rather than quietly
 //! agreeing that zero catch-alls were found in zero arms.
+//!
+//! **A panel reports what a surface refused.** The second rule reads the other
+//! end of the round trip: a pressed row the model refuses comes back as an
+//! error, and a panel that drops it draws the press as one that landed.
 
 use std::path::Path;
 
@@ -155,6 +159,127 @@ fn no_surface_dispatch_falls_through_to_a_catch_all() {
          compiles and then does nothing when pressed. Write the arm instead: the point of a \
          closed set is that the compiler names every place a new variant has to be \
          handled.\n  {}",
+        offenders.join("\n  ")
+    );
+}
+
+/// What a panel writes before or after a surface's `apply` to drop its result.
+const DROPS_BEFORE: [&str; 2] = ["let _ =", "_ ="];
+/// See [`DROPS_BEFORE`].
+const DROPS_AFTER: [&str; 2] = [".ok()", ".unwrap_or_default()"];
+
+/// The smallest number of fallible `apply` calls the panels still make. There
+/// were 213 when the rule landed; the floor exists so a walk that finds none
+/// cannot report success.
+const CALL_FLOOR: usize = 150;
+
+/// The surfaces whose `apply` returns a `Result`, by module name.
+fn fallible_surfaces() -> Vec<String> {
+    sources()
+        .iter()
+        .filter(|source| {
+            source.text.match_indices("pub fn apply(").any(|(at, _)| {
+                let signature = &source.text[at..];
+                let body = signature.find('{').unwrap_or(signature.len());
+                signature[..body].contains("-> Result<")
+            })
+        })
+        .filter_map(|source| {
+            let stem = source.name.strip_prefix("crates/aria-ui/src/surfaces/")?;
+            Some(stem.trim_end_matches(".rs").to_owned())
+        })
+        .collect()
+}
+
+/// The byte just past the parenthesis that closes the one at `open`.
+fn past_close(code: &str, open: usize) -> usize {
+    let mut depth = 0usize;
+    for (at, byte) in code.bytes().enumerate().skip(open) {
+        match byte {
+            b'(' => depth += 1,
+            b')' => {
+                depth -= 1;
+                if depth == 0 {
+                    return at + 1;
+                }
+            }
+            _ => {}
+        }
+    }
+    code.len()
+}
+
+/// WHY: The freeform pool dropped what `pool_drop::apply` returned, where
+/// `pool_drop` documents a refusal as an error for the panel to report, and
+/// six Effect Controls and Timeline presses dropped what `effects_rack` and
+/// `keyframe_rows` returned. A refused press then read as one that landed:
+/// no error line, and nothing changed.
+///
+/// Every production source is read for a call to the `apply` of a surface
+/// whose `apply` returns a `Result`, and the call may not be written as
+/// `let _ = …`, `_ = …`, `….ok()` or `….unwrap_or_default()`. The surfaces are
+/// read out of `surfaces.rs`, so a new one is measured on the run that adds it.
+/// Not covered: a result bound to a name and then ignored, and a call made
+/// through an alias of the module.
+#[test]
+fn no_panel_drops_what_a_surface_refused() {
+    let surfaces = fallible_surfaces();
+    assert!(
+        surfaces.len() > 12,
+        "{} surfaces return a Result from apply, which cannot be this crate: the rule just \
+         went vacuous",
+        surfaces.len()
+    );
+    let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut files = Vec::new();
+    crate::test_support::collect_rs(&src, &mut files);
+    let mut calls = 0usize;
+    let mut offenders = Vec::new();
+    for file in &files {
+        let rel = file
+            .strip_prefix(&src)
+            .unwrap_or(file)
+            .to_string_lossy()
+            .replace('\\', "/");
+        if rel.starts_with("test_support/") || rel.ends_with("_tests.rs") {
+            continue;
+        }
+        let code = std::fs::read_to_string(file)
+            .unwrap_or_else(|err| panic!("failed to read {}: {err}", file.display()));
+        for surface in &surfaces {
+            let call = format!("{surface}::apply(");
+            for (at, _) in code.match_indices(&call) {
+                let named = at == 0 || {
+                    let previous = code.as_bytes()[at - 1];
+                    !(previous.is_ascii_alphanumeric() || previous == b'_')
+                };
+                if !named {
+                    continue;
+                }
+                calls += 1;
+                let before = code[..at]
+                    .trim_end_matches("crate::surfaces::")
+                    .trim_end_matches("surfaces::")
+                    .trim_end();
+                let after = code[past_close(&code, at + call.len() - 1)..].trim_start();
+                if DROPS_BEFORE.iter().any(|drop| before.ends_with(drop))
+                    || DROPS_AFTER.iter().any(|drop| after.starts_with(drop))
+                {
+                    let line = code[..at].matches('\n').count() + 1;
+                    offenders.push(format!("{rel}:{line}: {surface}::apply"));
+                }
+            }
+        }
+    }
+    assert!(
+        calls >= CALL_FLOOR,
+        "read {calls} fallible apply calls, under the floor of {CALL_FLOOR}: the panels \
+         stopped pressing surfaces, or this walk stopped reading them"
+    );
+    assert!(
+        offenders.is_empty(),
+        "a panel drops what a surface refused, so the refused press reads as one that \
+         landed. Write `if let Err(err) = …::apply(…) {{ state.report_error(&err); }}`:\n  {}",
         offenders.join("\n  ")
     );
 }

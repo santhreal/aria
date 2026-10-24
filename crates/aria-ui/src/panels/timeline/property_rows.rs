@@ -452,7 +452,9 @@ fn property_row_header(
                         cx.stop_propagation();
                         this.state.update(cx, |state, _| {
                             state.select_clip(clip);
-                            let _ = keyframe_rows::apply(state, Row::Previous(param));
+                            if let Err(err) = keyframe_rows::apply(state, Row::Previous(param)) {
+                                state.report_error(&err);
+                            }
                         });
                         crate::app::spawn_preview(this.state.clone(), cx);
                         cx.notify();
@@ -512,7 +514,9 @@ fn property_row_header(
                         cx.stop_propagation();
                         this.state.update(cx, |state, _| {
                             state.select_clip(clip);
-                            let _ = keyframe_rows::apply(state, Row::Next(param));
+                            if let Err(err) = keyframe_rows::apply(state, Row::Next(param)) {
+                                state.report_error(&err);
+                            }
                         });
                         crate::app::spawn_preview(this.state.clone(), cx);
                         cx.notify();
