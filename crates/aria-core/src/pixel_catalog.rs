@@ -28,7 +28,9 @@ pub struct PixelFormatSpec {
     pub format: PixelFormat,
     /// Stable wire name, for a log line or a report.
     pub id: &'static str,
-    /// Operator-facing label.
+    /// Operator-facing name of the layout, one word. The planes, depth and
+    /// sampling are columns of their own, and a report draws them beside the
+    /// name.
     pub label: &'static str,
     /// Separate planes the frame carries.
     pub planes: usize,
@@ -51,7 +53,7 @@ pub const SHIPPED: &[PixelFormatSpec] = &[
     PixelFormatSpec {
         format: PixelFormat::Nv12,
         id: "nv12",
-        label: "NV12 (8-bit biplanar 4:2:0)",
+        label: "NV12",
         planes: 2,
         bit_depth: 8,
         bytes_per_sample: 1,
@@ -61,7 +63,7 @@ pub const SHIPPED: &[PixelFormatSpec] = &[
     PixelFormatSpec {
         format: PixelFormat::P010,
         id: "p010",
-        label: "P010 (10-bit biplanar 4:2:0)",
+        label: "P010",
         planes: 2,
         bit_depth: 10,
         bytes_per_sample: 2,
@@ -71,7 +73,7 @@ pub const SHIPPED: &[PixelFormatSpec] = &[
     PixelFormatSpec {
         format: PixelFormat::Yuv420p,
         id: "yuv420p",
-        label: "I420 (8-bit planar 4:2:0)",
+        label: "I420",
         planes: 3,
         bit_depth: 8,
         bytes_per_sample: 1,
@@ -81,7 +83,7 @@ pub const SHIPPED: &[PixelFormatSpec] = &[
     PixelFormatSpec {
         format: PixelFormat::Rgba8,
         id: "rgba8",
-        label: "RGBA8 (packed)",
+        label: "RGBA8",
         planes: 1,
         bit_depth: 8,
         bytes_per_sample: 1,
@@ -91,7 +93,7 @@ pub const SHIPPED: &[PixelFormatSpec] = &[
     PixelFormatSpec {
         format: PixelFormat::Bgra8,
         id: "bgra8",
-        label: "BGRA8 (packed)",
+        label: "BGRA8",
         planes: 1,
         bit_depth: 8,
         bytes_per_sample: 1,
@@ -229,6 +231,24 @@ mod tests {
         labels.sort_unstable();
         labels.dedup();
         assert_eq!(labels.len(), count, "duplicate pixel-format label");
+    }
+
+    /// A label is the layout's name and nothing else. The Media Support report
+    /// draws a row's planes, depth and sampling beside its label in a card
+    /// 480 px wide, and a label that restated them, as `P010 (10-bit biplanar
+    /// 4:2:0)` did, pushed its value onto a line of its own. Not covered: the
+    /// drawn width of a row, which the test text system lays out at 0.6 em a
+    /// glyph instead of at the shipped font's widths.
+    #[test]
+    fn a_label_is_the_layout_name_alone() {
+        for spec in SHIPPED {
+            assert!(
+                !spec.label.is_empty() && spec.label.chars().all(|c| c.is_ascii_alphanumeric()),
+                "{}: the label {:?} holds more than the layout's name",
+                spec.id,
+                spec.label
+            );
+        }
     }
 
     /// Every row's measurements have to be usable as a buffer calculation: no
