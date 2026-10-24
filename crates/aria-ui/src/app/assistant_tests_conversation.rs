@@ -66,7 +66,7 @@ fn the_conversation_copies_with_its_speakers() {
     let mut state = state();
     state.push_agent_message(AgentEntryKind::You, "cut it");
     state.push_agent_message(AgentEntryKind::Assistant, "done");
-    assert_eq!(state.transcript_text(), "you: cut it\nassistant: done\n");
+    assert_eq!(state.transcript_text(), "You: cut it\nAssistant: done\n");
 }
 /// The scope line says what the next prompt is pointed at, in timecode.
 #[test]
@@ -82,7 +82,7 @@ fn the_scope_line_names_the_selection_and_the_playhead() {
 
     state.clear_selection();
     let scope = state.assistant_scope();
-    assert!(scope.starts_with("whole sequence · playhead "), "{scope}");
+    assert!(scope.starts_with("Whole sequence · playhead "), "{scope}");
     assert!(!scope.contains("marked"), "{scope}");
 
     state.mark_in = Some(0);

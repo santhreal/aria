@@ -27,7 +27,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use super::AppState;
-use crate::types::{AgentEntryKind, UiAgentEntry};
+use crate::types::AgentEntryKind;
 
 /// The format this build writes and reads.
 const VERSION: u32 = 1;
@@ -265,12 +265,11 @@ impl AppState {
                 Some(id) if !id.is_empty() => gpui::SharedString::from(id),
                 _ => compact_id(rows.len() + 1),
             };
-            rows.push(UiAgentEntry {
+            rows.push(super::assistant::transcript_row(
                 id,
                 kind,
-                content: entry.content.into(),
-                timestamp: 0.0,
-            });
+                entry.content.into(),
+            ));
         }
         self.assistant.history = stored
             .history

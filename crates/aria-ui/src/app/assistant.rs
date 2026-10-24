@@ -498,7 +498,7 @@ impl AppState {
     pub fn assistant_scope(&self) -> String {
         let mut parts = Vec::new();
         match self.selection.len() {
-            0 => parts.push("whole sequence".to_string()),
+            0 => parts.push("Whole sequence".to_string()),
             n => parts.push(format!("{} selected", counted(n, "clip", "clips"))),
         }
         let rate = self.store.sequence.frame_rate;
@@ -516,7 +516,38 @@ impl AppState {
         if model.is_empty() {
             return "No model chosen".into();
         }
-        format!("{} · {model}", ai.source.key())
+        format!("{} · {model}", ai.source.label())
+    }
+}
+
+/// One transcript row, as the panel draws it.
+///
+/// A line the editor writes, an action or an error, starts in sentence case.
+/// `aria-ai` writes its action lines in lower case, for the model, and a
+/// conversation an earlier version saved holds them that way. A prompt, an
+/// answer and a reasoning summary are someone's own words and keep their case.
+/// The match has no `_` arm, so a new kind does not compile until its case is
+/// decided here.
+pub(crate) fn transcript_row(
+    id: gpui::SharedString,
+    kind: AgentEntryKind,
+    content: gpui::SharedString,
+) -> UiAgentEntry {
+    let editor_line = match kind {
+        AgentEntryKind::Action | AgentEntryKind::Error => true,
+        AgentEntryKind::You | AgentEntryKind::Assistant | AgentEntryKind::Reasoning => false,
+    };
+    // Checked first, so a line already in sentence case is not copied.
+    let content = if editor_line && crate::app::status::lowercase_start(&content).is_some() {
+        crate::app::status::as_sentence(content.to_string()).into()
+    } else {
+        content
+    };
+    UiAgentEntry {
+        id,
+        kind,
+        content,
+        timestamp: 0.0,
     }
 }
 

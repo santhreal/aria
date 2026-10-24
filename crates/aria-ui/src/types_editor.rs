@@ -211,11 +211,11 @@ impl AgentEntryKind {
     /// The speaker's name, as the bubble prints it.
     pub fn label(self) -> &'static str {
         match self {
-            Self::You => "you",
-            Self::Assistant => "assistant",
-            Self::Reasoning => "thinking",
-            Self::Action => "edit",
-            Self::Error => "error",
+            Self::You => "You",
+            Self::Assistant => "Assistant",
+            Self::Reasoning => "Thinking",
+            Self::Action => "Edit",
+            Self::Error => "Error",
         }
     }
 

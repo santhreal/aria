@@ -159,11 +159,11 @@ Defined in `crates/aria-ui/src/types_editor.rs` (`AgentEntryKind::ALL`).
 
 | Variant | Bubble label (`label()`) | Saved key (`key()`) |
 | --- | --- | --- |
-| `You` | `you` | `you` |
-| `Assistant` | `assistant` | `assistant` |
-| `Reasoning` | `thinking` | `reasoning` |
-| `Action` | `edit` | `action` |
-| `Error` | `error` | `error` |
+| `You` | `You` | `you` |
+| `Assistant` | `Assistant` | `assistant` |
+| `Reasoning` | `Thinking` | `reasoning` |
+| `Action` | `Edit` | `action` |
+| `Error` | `Error` | `error` |
 
 ## Cloud library feeds (`CloudFeed::ALL`)
 

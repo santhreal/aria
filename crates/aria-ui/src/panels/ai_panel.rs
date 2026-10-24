@@ -207,9 +207,11 @@ fn plan_card(
                     .flex_col()
                     .min_w_0()
                     .child(
+                        // `aria-ai` writes the step for the model, in lower
+                        // case.
                         div()
                             .text_color(theme.text)
-                            .child(gpui::SharedString::from(step.description.clone())),
+                            .child(crate::app::status::as_sentence(step.description.clone())),
                     )
                     .child(
                         div()

@@ -19,12 +19,7 @@ impl AppState {
         // `make_mut` copies only when a frame is still holding the previous
         // handle, so an append during a stream is the usual push.
         let rows = std::sync::Arc::make_mut(&mut self.transcript);
-        rows.push(UiAgentEntry {
-            id,
-            kind,
-            content: content.into(),
-            timestamp: 0.0,
-        });
+        rows.push(transcript_row(id, kind, content.into()));
         rows.len() - 1
     }
 
@@ -314,7 +309,8 @@ impl AppState {
                          and the Jobs board shows its progress"
                     )),
                     None => Ok(format!(
-                        "{name} was already rendered, so it now decodes through that file"
+                        "Kept the render of {name} already on disk, so the clip decodes \
+                         through that file"
                     )),
                 }
             }

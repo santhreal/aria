@@ -425,7 +425,7 @@ fn a_question_is_shown_once_and_cleared_when_answered() {
     let asked = state
         .transcript
         .iter()
-        .filter(|entry| entry.content.contains("waiting for you"))
+        .filter(|entry| entry.content.contains("Waiting for you"))
         .count();
     assert_eq!(asked, 1);
     state.answer_agent_ask(false);

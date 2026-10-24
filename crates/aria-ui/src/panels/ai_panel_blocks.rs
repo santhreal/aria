@@ -35,10 +35,12 @@ pub(super) fn ask_card(
                 .child(gpui::SharedString::from(format!("{name} · needs you"))),
         )
         .child(
+            // The summary is also the tail of the transcript's waiting line, so
+            // it is written in lower case; the card draws it as a sentence.
             div()
                 .text_size(Theme::TEXT_UI)
                 .text_color(theme.text)
-                .child(gpui::SharedString::from(summary.to_string())),
+                .child(crate::app::status::as_sentence(summary.to_string())),
         )
         .child(
             div()

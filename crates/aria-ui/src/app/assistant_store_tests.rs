@@ -42,9 +42,9 @@ fn a_saved_conversation_comes_back_with_every_row() {
     let mut state = saved_state("conv-roundtrip");
     state.push_agent_message(AgentEntryKind::You, "shorten the intro");
     state.push_agent_message(AgentEntryKind::Reasoning, "checking the first clip");
-    state.push_agent_message(AgentEntryKind::Action, "trimmed clip 1");
+    state.push_agent_message(AgentEntryKind::Action, "Trimmed clip 1");
     state.push_agent_message(AgentEntryKind::Assistant, "done");
-    state.push_agent_message(AgentEntryKind::Error, "one edit was refused");
+    state.push_agent_message(AgentEntryKind::Error, "One edit was refused");
     state.save_conversation().expect("save");
 
     let back = reopened(&state);
@@ -69,9 +69,9 @@ fn a_saved_conversation_comes_back_with_every_row() {
         vec![
             "shorten the intro",
             "checking the first clip",
-            "trimmed clip 1",
+            "Trimmed clip 1",
             "done",
-            "one edit was refused",
+            "One edit was refused",
         ]
     );
     let ids: Vec<&str> = back
@@ -101,6 +101,62 @@ fn every_entry_kind_survives_the_round_trip() {
     let back = reopened(&state);
     let kinds: Vec<AgentEntryKind> = back.transcript.iter().map(|entry| entry.kind).collect();
     assert_eq!(kinds, AgentEntryKind::ALL.to_vec());
+}
+
+/// Every line the editor writes into the transcript, an action or an error,
+/// starts in sentence case: pushed in this session, and read back from a file
+/// an earlier version saved in lower case. A prompt, an answer and a reasoning
+/// summary keep the case they were written in.
+///
+/// The class closed here: a lower case row among capitalised ones, as
+/// `aria-ai`'s `added …` and `placed media …` lines and the panel's own
+/// `waiting for you: …` were. Both writers are walked for every kind in
+/// `AgentEntryKind::ALL`, and the match has no `_` arm, so a new kind does not
+/// compile until its case is decided. Not covered: a line drawn outside the
+/// transcript, which `panel_casing_tests` reads off the drawn panel.
+#[test]
+fn a_line_the_editor_writes_starts_in_sentence_case_from_either_writer() {
+    let line = |kind: AgentEntryKind| format!("the {} row", kind.key());
+    let mut pushed = saved_state("conv-casing-pushed");
+    for kind in AgentEntryKind::ALL {
+        pushed.push_agent_message(kind, line(kind));
+    }
+    let state = saved_state("conv-casing-loaded");
+    let path = state.conversation_path().expect("path");
+    std::fs::create_dir_all(path.parent().expect("a parent")).expect("mkdir");
+    let entries: Vec<serde_json::Value> = AgentEntryKind::ALL
+        .into_iter()
+        .map(|kind| serde_json::json!({ "kind": kind.key(), "content": line(kind) }))
+        .collect();
+    let saved = serde_json::json!({
+        "version": 1,
+        "project": state.project_path.as_ref().expect("a project path").to_string_lossy(),
+        "entries": entries,
+        "history": [],
+    });
+    std::fs::write(&path, saved.to_string()).expect("write the saved conversation");
+    let loaded = reopened(&state);
+
+    for (writer, back) in [("pushed", &pushed), ("loaded", &loaded)] {
+        let kinds: Vec<AgentEntryKind> = back.transcript.iter().map(|row| row.kind).collect();
+        assert_eq!(kinds, AgentEntryKind::ALL.to_vec(), "{writer}");
+        for row in back.transcript.iter() {
+            let expected = match row.kind {
+                AgentEntryKind::Action | AgentEntryKind::Error => {
+                    format!("The {} row", row.kind.key())
+                }
+                AgentEntryKind::You | AgentEntryKind::Assistant | AgentEntryKind::Reasoning => {
+                    line(row.kind)
+                }
+            };
+            assert_eq!(
+                row.content.as_str(),
+                expected,
+                "{writer}: the {:?} row",
+                row.kind
+            );
+        }
+    }
 }
 
 #[test]

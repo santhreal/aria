@@ -242,7 +242,7 @@ fn the_assistant_renders_the_clip_it_names_rather_than_the_selection() {
         .run_host_request(crate::app::assistant_host::HostRequest::RenderClip { clip })
         .expect("the named clip's render");
     assert!(
-        reported.contains("was already rendered"),
+        reported.contains("already on disk"),
         "the reported line does not say the file was adopted: {reported}"
     );
 

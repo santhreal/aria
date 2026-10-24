@@ -12,7 +12,9 @@
 //! clip selected, its source picked in the pool and a frame reading for the
 //! Info panel. The Inspector is drawn once per tab for each of a media clip, a
 //! title and a shape the tab applies to. The Media Support report is a dialog,
-//! and `chrome::dialog_tests` walks it.
+//! and `chrome::dialog_tests` walks it. The Assistant is drawn a second time
+//! holding a row of every kind, a plan and a question, each written by the
+//! path that writes it in the editor.
 //!
 //! A line the project supplies, such as a media name, a clip name, a lane name
 //! or a path, is written as the project wrote it and is skipped. Not covered: a
@@ -22,16 +24,22 @@
 use std::collections::{BTreeSet, HashSet};
 use std::path::PathBuf;
 
+use aria_ai::WireCommand;
+use aria_ai::agent::{PromptStatus, describe_action};
+use aria_ai::wire::{AddEffect, AddMarker};
+use aria_commands::EditOutcome;
 use aria_models::{ClipId, Generator, Shape};
 use gpui::{Bounds, TestAppContext, VisualTestContext, point, px, size};
 
 use crate::app::AppState;
+use crate::app::assistant::{Beat, Finished, PlanStep};
+use crate::app::assistant_host::{HostRequest, PendingAsk};
 use crate::app::status::lowercase_start;
 use crate::components::drawn;
-use crate::dock::{DockTree, FrameId, PANEL_INSPECTOR, PanelId, Zone};
+use crate::dock::{DockTree, FrameId, PANEL_ASSISTANT, PANEL_INSPECTOR, PanelId, Zone};
 use crate::panels::inspector::tab_host::host_of as tab_host;
-use crate::test_support::{drawn_shell, project_text};
-use crate::types::UiClipKind;
+use crate::test_support::{drawn_shell, drawn_shell_at, project_text};
+use crate::types::{AgentEntryKind, UiClipKind};
 
 /// The window the launch layout is built for.
 const WINDOW_W: f32 = 1920.0;
@@ -84,6 +92,107 @@ fn every_line_a_panel_draws_starts_in_sentence_case(cx: &mut TestAppContext) {
         "a tab applies to none of the dressed clip kinds; dress a clip it applies to"
     );
     assert!(offenders.is_empty(), "{}", offenders.join("\n"));
+}
+
+/// The Assistant holding a conversation: a row of every kind, a pending plan
+/// and a pending question, with a model chosen and nothing selected. Every line
+/// it draws starts in sentence case.
+///
+/// Each kind's label, each row, the plan's step and the question are found
+/// among the drawn lines first, so one drawn outside the frame fails the test
+/// instead of going unchecked. The window is tall for that reason.
+#[gpui::test]
+fn every_line_the_assistant_draws_starts_in_sentence_case(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    let at = Bounds::new(point(px(0.), px(0.)), size(px(WINDOW_W), px(2160.)));
+    let (state, mut visual) = drawn_shell_at(cx, "assistant-casing", at);
+    visual.update(|_, app| app.set_reduce_motion(true));
+    let lines = drawn_lines(&state, &mut visual, PANEL_ASSISTANT, converse);
+    let (rows, steps, asked) = visual.read(|app| {
+        let state = state.read(app);
+        let rows: Vec<String> = state
+            .transcript
+            .iter()
+            .map(|row| row.content.to_string())
+            .collect();
+        let steps: Vec<String> = state
+            .assistant
+            .plan
+            .iter()
+            .map(|step| step.description.clone())
+            .collect();
+        let asked = state
+            .assistant
+            .pending_ask
+            .as_ref()
+            .map(|ask| ask.summary.clone());
+        (rows, steps, asked)
+    });
+    let drawn = |text: &str| {
+        lines
+            .iter()
+            .any(|line| line.to_lowercase() == text.to_lowercase())
+    };
+    for kind in AgentEntryKind::ALL {
+        assert!(drawn(kind.label()), "no {kind:?} row was drawn: {lines:?}");
+    }
+    assert!(
+        !steps.is_empty() && asked.is_some(),
+        "the plan or the question is missing"
+    );
+    for text in rows.iter().chain(&steps).chain(&asked) {
+        assert!(drawn(text), "{text:?} was not drawn: {lines:?}");
+    }
+    let project = visual.read(|app| project_text(state.read(app)));
+    let mut offenders = Vec::new();
+    check(PANEL_ASSISTANT, &lines, &project, &mut offenders);
+    assert!(offenders.is_empty(), "{}", offenders.join("\n"));
+}
+
+/// A conversation with a row of every kind, then a dry run's plan and a
+/// question waiting on an answer. The prompt, the reasoning and the answer are
+/// typed here, as a person and a model write them; every other line comes from
+/// the code that writes it in the editor.
+fn converse(state: &mut AppState) {
+    state.pick_ai_model("llama3").expect("choose a model");
+    state.clear_selection();
+    state.push_agent_message(AgentEntryKind::You, "Add a vignette to the first clip");
+    state.fold_beat(Beat::Reasoning("The first clip is clip 1".into()));
+    let effect = WireCommand::AddEffect(AddEffect {
+        clip: 1,
+        effect: "vignette".into(),
+    });
+    let updated = EditOutcome::Updated(ClipId::from_raw(1));
+    state.fold_beat(Beat::Action(describe_action(&effect, Some(&updated))));
+    state.fold_beat(Beat::Text("Added it".into()));
+    // The reason `aria-ai` gives for a turn Stop ended, after one edit.
+    state.finish_agent_turn(Some(Finished {
+        text: String::new(),
+        status: PromptStatus::Aborted("cancelled".into()),
+        messages: Vec::new(),
+        edits: 1,
+        plan: Vec::new(),
+    }));
+    let marker = WireCommand::AddMarker(AddMarker {
+        at: 1.0,
+        name: None,
+        color: None,
+    });
+    state.assistant.plan = vec![PlanStep {
+        description: describe_action(&marker, None),
+        command: marker,
+        outcome: None,
+    }]
+    .into();
+    let (reply, _) = crossbeam_channel::bounded(1);
+    state.fold_beat(Beat::Ask(PendingAsk {
+        name: "system_clear_cache".into(),
+        summary: HostRequest::ClearCache {
+            key: "preview".into(),
+        }
+        .summary(),
+        reply,
+    }));
 }
 
 /// Place a media clip, a title and a shape, pick the media in the pool and
