@@ -36,6 +36,7 @@ pub fn transform_tab(
 ) -> impl IntoElement {
     let rows = param_rows(theme, "transform", state, cx);
     let reset = components::icon_button("inspector-reset", crate::icons::ROTATE_CCW, theme)
+        .debug_selector(|| "inspector-reset".into())
         .on_mouse_down(
             MouseButton::Left,
             cx.listener(|this, _: &MouseDownEvent, _, cx| {
@@ -51,9 +52,20 @@ pub fn transform_tab(
         .flex()
         .flex_col()
         .gap(px(Theme::SPACE_XS))
-        .child(section_label(theme, "Transform"))
+        // The block's reset ends its title's line, as an effect's ends its
+        // header in the Effects tab, over the edge the rows' time areas end on.
+        .child(
+            div()
+                .flex()
+                .flex_row()
+                .items_center()
+                .justify_between()
+                .pt(px(Theme::SPACE_SM))
+                .pr(px(Theme::SPACE_XS))
+                .child(section_label(theme, "Transform").pt_0())
+                .child(reset),
+        )
         .children(rows)
-        .child(div().pt(px(Theme::SPACE_SM)).child(reset))
         .children(parent_row(theme, state, cx))
         .child(crate::panels::inspector::blocks::framing::framing_block(
             theme, clip, state, cx,

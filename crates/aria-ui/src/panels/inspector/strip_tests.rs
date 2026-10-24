@@ -776,3 +776,48 @@ async fn every_inspector_tab_takes_a_share_by_its_label_under_its_underline(
         "the walk drew no tab whose whole label could be checked across"
     );
 }
+
+/// WHY: The Transform block drew its reset button alone on a line under its
+/// rows, at the panel's left edge, where nothing tied it to the block it
+/// resets, while each effect in the Effects tab ends its header with its own.
+///
+/// The reset stands on the line of the block's title, its right edge on the
+/// edge every row's time area ends on, and a press there puts a moved opacity
+/// back. Not covered: the Effects tab's headers.
+#[gpui::test]
+async fn the_transform_reset_ends_the_blocks_title_line(cx: &mut TestAppContext) {
+    let (state, visual) = drawn_on(cx, "transform-reset-title", "transform", |state| {
+        state
+            .set_param_value(ClipParam::Opacity, ParamValue::Scalar(0.5))
+            .expect("move the opacity");
+    });
+    let reset = panel_bounds(visual, "inspector-reset").expect("Effect Controls draws the reset");
+    let tabs = panel_bounds(visual, "insp-tab-underline").expect("the inspector draws its tabs");
+    let runs = visual.update(|window, _| window.rendered_text_runs().to_vec());
+    // The tab is also named Transform, so the title is the topmost one under
+    // the tab strip.
+    let title = runs
+        .iter()
+        .filter(|run| run.text.as_ref() == "Transform" && run.bounds.top() > tabs.bottom())
+        .min_by(|a, b| a.bounds.top().partial_cmp(&b.bounds.top()).unwrap())
+        .expect("the Transform block draws its title");
+    assert!(
+        (middle(reset) - middle(title.bounds)).abs() < 1.0,
+        "the reset is drawn at {reset:?}, off the line of the title at {:?}",
+        title.bounds
+    );
+    let strip = painted(visual, "strip", ClipParam::Position);
+    assert!(
+        (f32::from(reset.right()) - f32::from(strip.right())).abs() < 0.51,
+        "the reset ends at {:?}, off the edge the time areas end on at {:?}",
+        reset.right(),
+        strip.right()
+    );
+    click(visual, reset.center());
+    let opacity = visual.read(|app| state.read(app).param_value(ClipParam::Opacity));
+    assert_eq!(
+        opacity,
+        Some(ParamValue::Scalar(1.0)),
+        "a press on the reset puts the opacity back"
+    );
+}
