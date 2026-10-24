@@ -2372,6 +2372,7 @@ Notes for the latest release. For previous releases, see the
 - The Project Report opens on the dialog card, titled and closed by a Close button, instead of in a band across the bottom of the window that pushed the editor up.
 - Keyframe rows and the font list count with the noun that agrees with the count, such as `1 key` and `1 font installed`, and the template slot line separates its parts with `·` instead of dashes.
 - Readouts, status lines, and Settings rows join two facts with `·` and set a clause off with a comma, a semicolon, or a colon instead of a spaced dash, such as `Peak -0.3 dBFS, clipping` in the Inspector's Audio tab and `Queued: <job id>` for a generation job.
+- A tool's tooltip names the tool as the tool bar's table does, such as `Select` instead of `Pointer` and `Ripple Trim` instead of `Ripple trim`, and shows what the tool does on a line under its name instead of after a dash; the popover held under a tool names the ripple tool `Ripple Trim` instead of `Ripple Edit`.
 
 ### Fixed
 

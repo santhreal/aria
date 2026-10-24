@@ -25,12 +25,10 @@ pub enum ToolVariant {
 }
 
 impl ToolVariant {
+    /// The row's name: a tool's label from the tool table, or the Pen mode's.
     #[must_use]
     pub const fn label(self) -> &'static str {
         match self {
-            Self::Tool(EditorTool::Ripple) => "Ripple Edit",
-            Self::Tool(EditorTool::Roll) => "Rolling Edit",
-            Self::Tool(EditorTool::Rate) => "Rate Stretch",
             Self::Tool(tool) => tool.label(),
             Self::Pen(variant) => variant.label(),
         }

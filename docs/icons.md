@@ -79,7 +79,7 @@ Defined in `crates/aria-ui/src/tool_catalog.rs` and drawn on the tool bar.
 | `HAND` | `assets/icon/timeline/hand.svg` | Hand tool. |
 | `SLIP` | `assets/icon/timeline/move-horizontal.svg` | Slip tool. |
 | `SLIDE` | `assets/icon/timeline/columns-3.svg` | Slide tool. |
-| `ROLL` | `assets/icon/timeline/grip-vertical.svg` | Rolling edit tool. |
+| `ROLL` | `assets/icon/timeline/grip-vertical.svg` | Rolling Edit tool. |
 | `RATE` | `assets/icon/timeline/gauge.svg` | Rate stretch tool. |
 | `RIPPLE` | `assets/icon/timeline/fold-horizontal.svg` | Ripple trim tool. |
 | `PEN` | `assets/icon/inspector/spline.svg` | Pen tool. |

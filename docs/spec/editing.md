@@ -4,10 +4,10 @@
 
 | Tool | Key | On a clip body | On a clip edge | On empty track |
 | --- | --- | --- | --- | --- |
-| Selection | V | Select, drag to move | Trim (overwrite) | Marquee select |
+| Select | V | Select, drag to move | Trim (overwrite) | Marquee select |
 | Track Select Forward | A | Select this and every later clip on all tracks | - | Same from the pointer |
 | Track Select Backward | Shift+A | Select this and every earlier clip | - | Same |
-| Ripple Edit | B | - | Trim and shift later clips | - |
+| Ripple Trim | B | - | Trim and shift later clips | - |
 | Rolling Edit | N | - | Move the cut between two clips | - |
 | Rate Stretch | R | - | Change speed to fit the new length | - |
 | Razor | C | Split at the pointer; Shift splits all tracks | - | - |
@@ -19,8 +19,8 @@
 | Type | T | In the Viewer, create a text clip at the click | - | - |
 
 Holding a tool's key switches to it while the key is down and returns to the
-previous tool on release. With the Selection tool, Ctrl over an edge switches
-it to Ripple Edit, and Ctrl+Alt to Rolling Edit, while the modifiers are held.
+previous tool on release. With the Select tool, Ctrl over an edge switches it
+to Ripple Trim, and Ctrl+Alt to Rolling Edit, while the modifiers are held.
 
 The cursor names the edit a drag will make before the drag starts: trim
 bracket, ripple bracket, roll bracket, slip, slide, rate, or razor.

@@ -19,6 +19,7 @@ use gpui::{
 
 use crate::keys::bindings::SHIPPED_BINDINGS;
 use crate::theme::Theme;
+use crate::types::EditorTool;
 
 /// One named control.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -29,503 +30,164 @@ pub struct ControlTip {
     pub control: &'static str,
     /// What the control is called, in the words the docs use.
     pub name: &'static str,
+    /// What the control does beyond its name, on a line under it, if anything.
+    pub detail: Option<&'static str>,
     /// The binding whose chord this control repeats, if any.
     pub binding: Option<&'static str>,
+}
+
+impl ControlTip {
+    /// The control `control`, called `name`, with no key and no detail.
+    const fn named(control: &'static str, name: &'static str) -> Self {
+        Self {
+            control,
+            name,
+            detail: None,
+            binding: None,
+        }
+    }
+
+    /// The tool bar button of `tool`, called what the tool table calls the
+    /// tool, so the tip, the status line and the variants popover agree.
+    const fn tool(tool: EditorTool) -> Self {
+        let spec = tool.spec();
+        Self::named(spec.id, spec.label)
+    }
+
+    /// This tip, repeating the chord of the binding `id`.
+    const fn key(self, id: &'static str) -> Self {
+        Self {
+            binding: Some(id),
+            ..self
+        }
+    }
+
+    /// This tip, with `detail` on a line under its name.
+    const fn detail(self, detail: &'static str) -> Self {
+        Self {
+            detail: Some(detail),
+            ..self
+        }
+    }
 }
 
 /// Every icon-only control that names itself.
 pub const CONTROL_TIPS: &[ControlTip] = &[
     // Tool bar.
-    ControlTip {
-        control: "tool-pointer",
-        name: "Pointer",
-        binding: Some("key-tool-pointer"),
-    },
-    ControlTip {
-        control: "tool-track-forward",
-        name: "Track Select Forward — select from here on",
-        binding: Some("key-tool-track-forward"),
-    },
-    ControlTip {
-        control: "tool-track-backward",
-        name: "Track Select Backward — select up to here",
-        binding: Some("key-tool-track-backward"),
-    },
-    ControlTip {
-        control: "tool-razor",
-        name: "Razor",
-        binding: Some("key-tool-razor"),
-    },
-    ControlTip {
-        control: "tool-hand",
-        name: "Hand",
-        binding: Some("key-tool-hand"),
-    },
-    ControlTip {
-        control: "tool-zoom",
-        name: "Zoom",
-        binding: Some("key-tool-zoom"),
-    },
-    ControlTip {
-        control: "tool-slip",
-        name: "Slip — move the take inside the clip",
-        binding: Some("key-tool-slip"),
-    },
-    ControlTip {
-        control: "tool-slide",
-        name: "Slide — move the clip, trim its neighbours",
-        binding: Some("key-tool-slide"),
-    },
-    ControlTip {
-        control: "tool-roll",
-        name: "Rolling edit — move the cut",
-        binding: Some("key-tool-roll"),
-    },
-    ControlTip {
-        control: "tool-rate",
-        name: "Rate stretch — retime without trimming",
-        binding: Some("key-tool-rate"),
-    },
-    ControlTip {
-        control: "tool-ripple",
-        name: "Ripple trim — trim and close the gap",
-        binding: Some("key-tool-ripple"),
-    },
-    ControlTip {
-        control: "tool-pen",
-        name: "Pen — add keyframes or draw masks",
-        binding: Some("key-tool-pen"),
-    },
-    ControlTip {
-        control: "tool-type",
-        name: "Type — create or edit text in the Viewer",
-        binding: Some("key-tool-type"),
-    },
-    ControlTip {
-        control: "bin-new",
-        name: "New bin",
-        binding: None,
-    },
+    ControlTip::tool(EditorTool::Pointer).key("key-tool-pointer"),
+    ControlTip::tool(EditorTool::TrackSelectForward).key("key-tool-track-forward").detail("Select from here on"),
+    ControlTip::tool(EditorTool::TrackSelectBackward).key("key-tool-track-backward").detail("Select up to here"),
+    ControlTip::tool(EditorTool::Razor).key("key-tool-razor"),
+    ControlTip::tool(EditorTool::Hand).key("key-tool-hand"),
+    ControlTip::tool(EditorTool::Zoom).key("key-tool-zoom"),
+    ControlTip::tool(EditorTool::Slip).key("key-tool-slip").detail("Move the take inside the clip"),
+    ControlTip::tool(EditorTool::Slide).key("key-tool-slide").detail("Move the clip and trim its neighbours"),
+    ControlTip::tool(EditorTool::Roll).key("key-tool-roll").detail("Move the cut"),
+    ControlTip::tool(EditorTool::Rate).key("key-tool-rate").detail("Retime without trimming"),
+    ControlTip::tool(EditorTool::Ripple).key("key-tool-ripple").detail("Trim and close the gap"),
+    ControlTip::tool(EditorTool::Pen).key("key-tool-pen").detail("Add keyframes or draw masks"),
+    ControlTip::tool(EditorTool::Type).key("key-tool-type").detail("Create or edit text in the Viewer"),
+    ControlTip::named("bin-new", "New bin"),
     // The Project panel's pool bars: the filter's Import and Audio switch, the
     // views, and the multicam maker.
-    ControlTip {
-        control: "media-import",
-        name: "Import",
-        binding: Some("key-import"),
-    },
-    ControlTip {
-        control: "pool-audio-only",
-        name: "Audio only",
-        binding: None,
-    },
-    ControlTip {
-        control: "pool-view-tiles",
-        name: "Tiles",
-        binding: None,
-    },
-    ControlTip {
-        control: "pool-view-list",
-        name: "List",
-        binding: None,
-    },
-    ControlTip {
-        control: "pool-view-icons",
-        name: "Icons",
-        binding: None,
-    },
-    ControlTip {
-        control: "pool-view-freeform",
-        name: "Freeform",
-        binding: None,
-    },
-    ControlTip {
-        control: "create-multicam-group",
-        name: "New multicam",
-        binding: None,
-    },
-    ControlTip {
-        control: "pool-sort",
-        name: "Sort order",
-        binding: None,
-    },
-    ControlTip {
-        control: "bin-rename",
-        name: "Rename this bin",
-        binding: None,
-    },
-    ControlTip {
-        control: "bin-delete",
-        name: "Delete this bin; its contents move up",
-        binding: None,
-    },
-    ControlTip {
-        control: "edit-mode",
-        name: "Drop mode — Ripple pushes later clips right, Overwrite covers them",
-        binding: None,
-    },
-    ControlTip {
-        control: "fit-timeline",
-        name: "Fit the sequence to the window",
-        binding: Some("key-fit"),
-    },
+    ControlTip::named("media-import", "Import").key("key-import"),
+    ControlTip::named("pool-audio-only", "Audio only"),
+    ControlTip::named("pool-view-tiles", "Tiles"),
+    ControlTip::named("pool-view-list", "List"),
+    ControlTip::named("pool-view-icons", "Icons"),
+    ControlTip::named("pool-view-freeform", "Freeform"),
+    ControlTip::named("create-multicam-group", "New multicam"),
+    ControlTip::named("pool-sort", "Sort order"),
+    ControlTip::named("bin-rename", "Rename this bin"),
+    ControlTip::named("bin-delete", "Delete this bin").detail("Its contents move up"),
+    ControlTip::named("edit-mode", "Drop mode").detail("Ripple pushes later clips right; Overwrite covers them"),
+    ControlTip::named("fit-timeline", "Fit the sequence to the window").key("key-fit"),
     // The Viewer's control row: the playhead field and the transport.
-    ControlTip {
-        control: "playhead-tc",
-        name: "Playhead timecode",
-        binding: None,
-    },
-    ControlTip {
-        control: "go-start",
-        name: "Go to start",
-        binding: Some("key-start"),
-    },
-    ControlTip {
-        control: "prev-frame",
-        name: "Step back one frame",
-        binding: Some("key-step-back"),
-    },
-    ControlTip {
-        control: "play",
-        name: "Play",
-        binding: Some("key-play"),
-    },
-    ControlTip {
-        control: "pause",
-        name: "Pause",
-        binding: Some("key-play"),
-    },
-    ControlTip {
-        control: "preview-loop",
-        name: "Loop playback",
-        binding: Some("key-loop"),
-    },
-    ControlTip {
-        control: "preview-shuttle",
-        name: "Shuttle speed — silent above 4x, click for 1x",
-        binding: Some("key-shuttle-forward"),
-    },
-    ControlTip {
-        control: "next-frame",
-        name: "Step forward one frame",
-        binding: Some("key-step-forward"),
-    },
-    ControlTip {
-        control: "go-end",
-        name: "Go to end",
-        binding: Some("key-end"),
-    },
-    ControlTip {
-        control: "program-mark-in",
-        name: "Mark the sequence in point",
-        binding: Some("key-mark-in"),
-    },
-    ControlTip {
-        control: "program-mark-out",
-        name: "Mark the sequence out point",
-        binding: Some("key-mark-out"),
-    },
+    ControlTip::named("playhead-tc", "Playhead timecode"),
+    ControlTip::named("go-start", "Go to start").key("key-start"),
+    ControlTip::named("prev-frame", "Step back one frame").key("key-step-back"),
+    ControlTip::named("play", "Play").key("key-play"),
+    ControlTip::named("pause", "Pause").key("key-play"),
+    ControlTip::named("preview-loop", "Loop playback").key("key-loop"),
+    ControlTip::named("preview-shuttle", "Shuttle speed").key("key-shuttle-forward").detail("Silent above 4x; click for 1x"),
+    ControlTip::named("next-frame", "Step forward one frame").key("key-step-forward"),
+    ControlTip::named("go-end", "Go to end").key("key-end"),
+    ControlTip::named("program-mark-in", "Mark the sequence in point").key("key-mark-in"),
+    ControlTip::named("program-mark-out", "Mark the sequence out point").key("key-mark-out"),
     // Preview view.
-    ControlTip {
-        control: "preview-zoom-out",
-        name: "Zoom the preview out",
-        binding: None,
-    },
-    ControlTip {
-        control: "preview-zoom-in",
-        name: "Zoom the preview in",
-        binding: None,
-    },
-    ControlTip {
-        control: "preview-zoom-label",
-        name: "Fit the frame to the pane",
-        binding: None,
-    },
-    ControlTip {
-        control: "preview-handles-transform",
-        name: "Transform handles",
-        binding: None,
-    },
-    ControlTip {
-        control: "preview-handles-crop",
-        name: "Crop handles",
-        binding: None,
-    },
-    ControlTip {
-        control: "preview-handles-mask",
-        name: "Mask handles",
-        binding: None,
-    },
-    ControlTip {
-        control: "preview-scopes-toggle",
-        name: "Scope strip",
-        binding: None,
-    },
-    ControlTip {
-        control: "preview-resolution",
-        name: "Playback and paused resolution",
-        binding: None,
-    },
-    ControlTip {
-        control: "preview-proxies-toggle",
-        name: "Play proxies or the original media",
-        binding: None,
-    },
-    ControlTip {
-        control: "preview-meter",
-        name: "Output peaks — click to clear the clip",
-        binding: None,
-    },
-    ControlTip {
-        control: "viewer-tab-program",
-        name: "Show the sequence",
-        binding: Some("key-pane-viewer"),
-    },
-    ControlTip {
-        control: "viewer-tab-source",
-        name: "Show this source; middle-click to close it",
-        binding: Some("key-pane-viewer"),
-    },
-    ControlTip {
-        control: "viewer-tab-close",
-        name: "Close this Source tab",
-        binding: Some("key-pane-close"),
-    },
-    ControlTip {
-        control: "viewer-display-settings",
-        name: "Viewer display settings",
-        binding: None,
-    },
+    ControlTip::named("preview-zoom-out", "Zoom the preview out"),
+    ControlTip::named("preview-zoom-in", "Zoom the preview in"),
+    ControlTip::named("preview-zoom-label", "Fit the frame to the pane"),
+    ControlTip::named("preview-handles-transform", "Transform handles"),
+    ControlTip::named("preview-handles-crop", "Crop handles"),
+    ControlTip::named("preview-handles-mask", "Mask handles"),
+    ControlTip::named("preview-scopes-toggle", "Scope strip"),
+    ControlTip::named("preview-resolution", "Playback and paused resolution"),
+    ControlTip::named("preview-proxies-toggle", "Play proxies or the original media"),
+    ControlTip::named("preview-meter", "Output peaks").detail("Click to clear the clip"),
+    ControlTip::named("viewer-tab-program", "Show the sequence").key("key-pane-viewer"),
+    ControlTip::named("viewer-tab-source", "Show this source").key("key-pane-viewer").detail("Middle-click to close it"),
+    ControlTip::named("viewer-tab-close", "Close this Source tab").key("key-pane-close"),
+    ControlTip::named("viewer-display-settings", "Viewer display settings"),
     // Source monitor.
-    ControlTip {
-        control: "source-close",
-        name: "Back to the sequence",
-        binding: Some("key-play"),
-    },
-    ControlTip {
-        control: "source-mark-in",
-        name: "Mark the source in point",
-        binding: Some("key-mark-in"),
-    },
-    ControlTip {
-        control: "source-mark-out",
-        name: "Mark the source out point",
-        binding: Some("key-mark-out"),
-    },
-    ControlTip {
-        control: "source-mark-clear",
-        name: "Clear both source marks",
-        binding: None,
-    },
-    ControlTip {
-        control: "source-insert",
-        name: "Insert the marked range, rippling the lane",
-        binding: Some("key-source-insert"),
-    },
-    ControlTip {
-        control: "source-overwrite",
-        name: "Overwrite with the marked range",
-        binding: Some("key-source-overwrite"),
-    },
+    ControlTip::named("source-close", "Back to the sequence").key("key-play"),
+    ControlTip::named("source-mark-in", "Mark the source in point").key("key-mark-in"),
+    ControlTip::named("source-mark-out", "Mark the source out point").key("key-mark-out"),
+    ControlTip::named("source-mark-clear", "Clear both source marks"),
+    ControlTip::named("source-insert", "Insert the marked range, rippling the lane").key("key-source-insert"),
+    ControlTip::named("source-overwrite", "Overwrite with the marked range").key("key-source-overwrite"),
     // Timeline. The header repeats the tool bar's toggles beside the
     // timecode, each under its own id so the two light on their own.
-    ControlTip {
-        control: "add-track",
-        name: "Add a track",
-        binding: None,
-    },
-    ControlTip {
-        control: "timeline-tc",
-        name: "Sequence timecode",
-        binding: None,
-    },
-    ControlTip {
-        control: "timeline-snap",
-        name: "Snapping",
-        binding: Some("key-snap"),
-    },
-    ControlTip {
-        control: "timeline-linked",
-        name: "Linked selection",
-        binding: None,
-    },
-    ControlTip {
-        control: "timeline-marker",
-        name: "Add a marker at the playhead",
-        binding: Some("key-marker-add"),
-    },
-    ControlTip {
-        control: "timeline-display-settings",
-        name: "Timeline display settings",
-        binding: None,
-    },
-    ControlTip {
-        control: "timeline-graph",
-        name: "Graph editor",
-        binding: Some("key-graph-editor"),
-    },
-    ControlTip {
-        control: "property-search-clear",
-        name: "Clear the property search",
-        binding: None,
-    },
-    ControlTip {
-        control: "effects-query-clear",
-        name: "Clear the effects search",
-        binding: None,
-    },
-    ControlTip {
-        control: "graph-btn-easy-ease",
-        name: "Easy Ease the selected keyframes",
-        binding: Some("key-easy-ease"),
-    },
-    ControlTip {
-        control: "graph-btn-hold",
-        name: "Hold the selected keyframes",
-        binding: Some("key-toggle-hold"),
-    },
+    ControlTip::named("add-track", "Add a track"),
+    ControlTip::named("timeline-tc", "Sequence timecode"),
+    ControlTip::named("timeline-snap", "Snapping").key("key-snap"),
+    ControlTip::named("timeline-linked", "Linked selection"),
+    ControlTip::named("timeline-marker", "Add a marker at the playhead").key("key-marker-add"),
+    ControlTip::named("timeline-display-settings", "Timeline display settings"),
+    ControlTip::named("timeline-graph", "Graph editor").key("key-graph-editor"),
+    ControlTip::named("property-search-clear", "Clear the property search"),
+    ControlTip::named("effects-query-clear", "Clear the effects search"),
+    ControlTip::named("graph-btn-easy-ease", "Easy Ease the selected keyframes").key("key-easy-ease"),
+    ControlTip::named("graph-btn-hold", "Hold the selected keyframes").key("key-toggle-hold"),
     // Multicam. A frame nudge and an audio sync are glyphs on a dense row of
     // camera strips, so the words live here.
-    ControlTip {
-        control: "nudge-multicam-back",
-        name: "Nudge this angle one frame earlier",
-        binding: None,
-    },
-    ControlTip {
-        control: "nudge-multicam-forward",
-        name: "Nudge this angle one frame later",
-        binding: None,
-    },
-    ControlTip {
-        control: "sync-multicam-group",
-        name: "Sync these angles from their audio",
-        binding: None,
-    },
+    ControlTip::named("nudge-multicam-back", "Nudge this angle one frame earlier"),
+    ControlTip::named("nudge-multicam-forward", "Nudge this angle one frame later"),
+    ControlTip::named("sync-multicam-group", "Sync these angles from their audio"),
     // Inspector resets.
-    ControlTip {
-        control: "inspector-reset",
-        name: "Reset these values",
-        binding: None,
-    },
-    ControlTip {
-        control: "inspector-wheel-reset",
-        name: "Reset this colour wheel",
-        binding: None,
-    },
+    ControlTip::named("inspector-reset", "Reset these values"),
+    ControlTip::named("inspector-wheel-reset", "Reset this colour wheel"),
     // Driver source under a driven property.
-    ControlTip {
-        control: "inspector-driver-whip",
-        name: "Pick whip: click a property to read it in this driver",
-        binding: None,
-    },
+    ControlTip::named("inspector-driver-whip", "Driver pick whip").detail("Click a property to read it in this driver"),
     // Parent row in the Transform tab.
-    ControlTip {
-        control: "inspector-parent-whip",
-        name: "Pick whip: drag onto a timeline clip, or click here and then the clip, to parent this clip to it. Hold Shift to snap",
-        binding: None,
-    },
+    ControlTip::named("inspector-parent-whip", "Parent pick whip").detail("Drag onto a timeline clip, or click here and then the clip, to parent this clip to it. Hold Shift to snap."),
     // Effect rows.
-    ControlTip {
-        control: "inspector-fx-bypass",
-        name: "Switch this effect off, or back on",
-        binding: None,
-    },
-    ControlTip {
-        control: "inspector-fx-up",
-        name: "Move this effect earlier",
-        binding: None,
-    },
-    ControlTip {
-        control: "inspector-fx-down",
-        name: "Move this effect later",
-        binding: None,
-    },
-    ControlTip {
-        control: "inspector-fx-reset",
-        name: "Put this effect's parameters back at their defaults",
-        binding: None,
-    },
-    ControlTip {
-        control: "inspector-fx-menu",
-        name: "Rename, duplicate, copy, paste or save this effect as a preset",
-        binding: None,
-    },
-    ControlTip {
-        control: "inspector-fx-remove",
-        name: "Remove this effect",
-        binding: None,
-    },
+    ControlTip::named("inspector-fx-bypass", "Switch this effect off, or back on"),
+    ControlTip::named("inspector-fx-up", "Move this effect earlier"),
+    ControlTip::named("inspector-fx-down", "Move this effect later"),
+    ControlTip::named("inspector-fx-reset", "Put this effect's parameters back at their defaults"),
+    ControlTip::named("inspector-fx-menu", "Rename, duplicate, copy, paste or save this effect as a preset"),
+    ControlTip::named("inspector-fx-remove", "Remove this effect"),
     // Audio insert rows, in the inspector's Audio block and on a mixer strip.
-    ControlTip {
-        control: "insert-up",
-        name: "Move this audio effect earlier",
-        binding: None,
-    },
-    ControlTip {
-        control: "insert-down",
-        name: "Move this audio effect later",
-        binding: None,
-    },
-    ControlTip {
-        control: "insert-remove",
-        name: "Remove this audio effect",
-        binding: None,
-    },
+    ControlTip::named("insert-up", "Move this audio effect earlier"),
+    ControlTip::named("insert-down", "Move this audio effect later"),
+    ControlTip::named("insert-remove", "Remove this audio effect"),
     // The property rows in the timeline and in Effect Controls, and the Path
     // rows: a stopwatch, a keyframe navigator and a reset, each a glyph. A row
     // is drawn once per property, so the key is the control's kind, and each
     // control is named once for every row that draws it.
-    ControlTip {
-        control: "prop-watch",
-        name: "Stopwatch: animate this property, or stop animating it and keep the value at the playhead. Alt+click adds or removes a driver",
-        binding: None,
-    },
-    ControlTip {
-        control: "prop-reset",
-        name: "Reset this property to its default, as a keyframe when it is animated",
-        binding: None,
-    },
-    ControlTip {
-        control: "path-watch",
-        name: "Stopwatch — keyframe the mask path",
-        binding: None,
-    },
-    ControlTip {
-        control: "kf-prev",
-        name: "Go to the previous keyframe",
-        binding: None,
-    },
-    ControlTip {
-        control: "kf-at",
-        name: "Add or remove a keyframe at the playhead",
-        binding: None,
-    },
-    ControlTip {
-        control: "kf-next",
-        name: "Go to the next keyframe",
-        binding: None,
-    },
+    ControlTip::named("prop-watch", "Stopwatch").detail("Animate this property, or stop animating it and keep the value at the playhead. Alt+click adds or removes a driver."),
+    ControlTip::named("prop-reset", "Reset this property to its default, as a keyframe when it is animated"),
+    ControlTip::named("path-watch", "Path stopwatch").detail("Keyframe the mask path"),
+    ControlTip::named("kf-prev", "Go to the previous keyframe"),
+    ControlTip::named("kf-at", "Add or remove a keyframe at the playhead"),
+    ControlTip::named("kf-next", "Go to the next keyframe"),
     // The three window buttons. Each is a glyph with no word beside it.
-    ControlTip {
-        control: "caption-min",
-        name: "Minimise the window",
-        binding: None,
-    },
-    ControlTip {
-        control: "caption-max",
-        name: "Maximise the window",
-        binding: None,
-    },
-    ControlTip {
-        control: "caption-close",
-        name: "Close the window",
-        binding: None,
-    },
+    ControlTip::named("caption-min", "Minimise the window"),
+    ControlTip::named("caption-max", "Maximise the window"),
+    ControlTip::named("caption-close", "Close the window"),
     // A dock frame's tab row.
-    ControlTip {
-        control: "dock-tab-more",
-        name: "More panels",
-        binding: None,
-    },
+    ControlTip::named("dock-tab-more", "More panels"),
 ];
 
 /// The tip for one control id, or nothing when the control is not named.
@@ -558,10 +220,26 @@ pub fn shipped_label(id: &str) -> Option<String> {
         .map(|binding| binding.chord.label())
 }
 
-/// The hover card itself: the name, and the chord beside it.
+/// The widest a tip draws: a longer detail wraps under the name.
+const MAX_W: f32 = 280.0;
+
+/// The hover card itself: the name with the chord beside it, and the detail,
+/// if any, on a line under them.
 pub struct Tip {
     name: gpui::SharedString,
     chord: Option<String>,
+    detail: Option<gpui::SharedString>,
+}
+
+impl Tip {
+    /// The card for `tip`, its chord read as it is bound now.
+    fn of(tip: &ControlTip, cx: &App) -> Self {
+        Self {
+            name: gpui::SharedString::new_static(tip.name),
+            chord: chord_label(tip, cx),
+            detail: tip.detail.map(gpui::SharedString::new_static),
+        }
+    }
 }
 
 impl Render for Tip {
@@ -571,22 +249,35 @@ impl Render for Tip {
         div()
             .debug_selector(|| "tooltip".into())
             .flex()
-            .items_center()
-            .gap(px(Theme::SPACE_SM))
+            .flex_col()
+            .gap(px(Theme::SPACE_XXS))
+            .max_w(px(MAX_W))
             .px(px(Theme::SPACE_SM))
             .py(px(Theme::SPACE_XS))
             .rounded(px(Theme::CONTROL_RADIUS))
             .bg(theme.surface_card)
             .border_1()
             .border_color(theme.border)
-            .text_size(Theme::TEXT_TITLE)
-            .text_color(theme.text)
-            .child(self.name.clone())
-            .children(chord.map(|chord| {
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(px(Theme::SPACE_SM))
+                    .text_size(Theme::TEXT_TITLE)
+                    .text_color(theme.text)
+                    .child(self.name.clone())
+                    .children(chord.map(|chord| {
+                        div()
+                            .text_size(Theme::TEXT_UI)
+                            .text_color(theme.text_faint)
+                            .child(chord)
+                    })),
+            )
+            .children(self.detail.clone().map(|detail| {
                 div()
                     .text_size(Theme::TEXT_UI)
-                    .text_color(theme.text_faint)
-                    .child(chord)
+                    .text_color(theme.text_muted)
+                    .child(detail)
             }))
     }
 }
@@ -622,9 +313,8 @@ impl<E: StatefulInteractiveElement> WithTip for E {}
 pub fn builder(control: &str) -> Option<impl Fn(&mut Window, &mut App) -> AnyView + use<>> {
     let tip = tip_for(control)?;
     Some(move |_: &mut Window, cx: &mut App| {
-        let name = gpui::SharedString::new_static(tip.name);
-        let chord = chord_label(&tip, cx);
-        cx.new(|_| Tip { name, chord }).into()
+        let card = Tip::of(&tip, cx);
+        cx.new(|_| card).into()
     })
 }
 
@@ -635,9 +325,8 @@ pub fn deferred_builder(
 ) -> impl Fn(&mut Window, &mut App) -> AnyView + use<> {
     move |_: &mut Window, cx: &mut App| {
         let tip = tip_for(control).unwrap_or_else(|| panic!("{control} has no registered tooltip"));
-        let name = gpui::SharedString::new_static(tip.name);
-        let chord = chord_label(&tip, cx);
-        cx.new(|_| Tip { name, chord }).into()
+        let card = Tip::of(&tip, cx);
+        cx.new(|_| card).into()
     }
 }
 
@@ -648,7 +337,12 @@ pub fn text_builder<T: Into<gpui::SharedString>>(
     let name = text.into();
     move |_: &mut Window, cx: &mut App| {
         let name = name.clone();
-        cx.new(|_| Tip { name, chord: None }).into()
+        cx.new(|_| Tip {
+            name,
+            chord: None,
+            detail: None,
+        })
+        .into()
     }
 }
 
@@ -722,6 +416,51 @@ mod tests {
                     .is_some_and(|first| first.is_uppercase()),
                 "{:?} does not start with a capital",
                 tip.name
+            );
+        }
+    }
+
+    /// WHY: a tip that packs what its control does into its name behind a
+    /// separator, as `Slip — move the take inside the clip` and `Pick whip:
+    /// click a property to read it in this driver` did, reads as one long name
+    /// whose second half starts in lower case. For every row of the table, a
+    /// name holds no dash, colon or semicolon, and a detail starts with a
+    /// capital. Does not judge the words themselves.
+    #[test]
+    fn a_name_holds_no_description_and_a_detail_reads_as_a_sentence() {
+        for tip in CONTROL_TIPS {
+            assert!(
+                !tip.name.contains(['—', ':', ';']),
+                "{} packs a description into its name {:?}; set it as the detail",
+                tip.control,
+                tip.name
+            );
+            if let Some(detail) = tip.detail {
+                assert_eq!(
+                    crate::app::status::lowercase_start(detail),
+                    None,
+                    "{}: the detail {detail:?} starts in lower case",
+                    tip.control
+                );
+            }
+        }
+    }
+
+    /// WHY: a tool was called three things: `Pointer` on hover and `Select` on
+    /// the status line, `Ripple trim` on hover, `Ripple Edit` in the variants
+    /// popover and `Ripple Trim` in the tool table. Every tool, read from the
+    /// tool table when the test runs, is called what its row calls it in its
+    /// tip and in the popover.
+    #[test]
+    fn a_tool_is_called_what_its_row_calls_it() {
+        use crate::app::clip_text::tool_hold::ToolVariant;
+        for tool in EditorTool::all() {
+            let tip = tip_for(tool.control_id()).unwrap_or_else(|| panic!("{tool:?} has no tip"));
+            assert_eq!(tip.name, tool.label(), "the tip of {tool:?}");
+            assert_eq!(
+                ToolVariant::Tool(tool).label(),
+                tool.label(),
+                "the popover row of {tool:?}"
             );
         }
     }

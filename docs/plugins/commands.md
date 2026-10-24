@@ -100,7 +100,7 @@ fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
     if let Some(host) = host_of(ctx) {
         host.add(CommandEntry {
             id: "example-notes-clear",
-            label: "Clear notes",
+            label: "Clear Notes",
             run: |state| state.open_dialog(DialogKind::Jobs),
         });
     }
@@ -120,7 +120,7 @@ use aria_ui::commands::host::{host_of, WindowedEntry};
 
 host.add_windowed(WindowedEntry {
     id: "example-notes-index",
-    label: "Index notes",
+    label: "Index Notes",
     run: |state, cx| state.check_for_updates(cx),
 });
 ```

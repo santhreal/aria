@@ -1,11 +1,11 @@
 # Controls
 
-Every interactive button, chip, icon button, and text field in the Aria shell is identified by a `motion::ControlId` (`crates/aria-ui/src/motion_key.rs`). Static controls use a fixed `&'static str` identifier (`ControlId::Fixed`), while controls repeated across dynamic rows construct a hashed `MotionKey::new("<kind>", ...)` (`ControlId::Key`) so hover and press transitions stay isolated per row. Controls with hover tooltips or keyboard shortcut badges register a `ControlTip` entry in `crate::tooltip::CONTROL_TIPS` (`crates/aria-ui/src/tooltip.rs`), which links the control identifier to its human-readable label and optional `keys::Binding` ID; shared widget constructors are defined in `crates/aria-ui/src/components.rs` (`button`, `ghost_button`, `danger_button`, `chip`, `text_box`, `icon_button`) and `crates/aria-ui/src/pending.rs` (`stop_button`).
+Every interactive button, chip, icon button, and text field in the Aria shell is identified by a `motion::ControlId` (`crates/aria-ui/src/motion_key.rs`). Static controls use a fixed `&'static str` identifier (`ControlId::Fixed`), while controls repeated across dynamic rows construct a hashed `MotionKey::new("<kind>", ...)` (`ControlId::Key`) so hover and press transitions stay isolated per row. Controls with hover tooltips or keyboard shortcut badges register a `ControlTip` entry in `crate::tooltip::CONTROL_TIPS` (`crates/aria-ui/src/tooltip.rs`), which links the control identifier to its human-readable label, an optional detail line, and an optional `keys::Binding` ID; shared widget constructors are defined in `crates/aria-ui/src/components.rs` (`button`, `ghost_button`, `danger_button`, `chip`, `text_box`, `icon_button`) and `crates/aria-ui/src/pending.rs` (`stop_button`).
 
 ## Example
 
 1. Hover the Razor tool button (`tool-razor`) in the Tool Strip or the Play button (`play`) in the Viewer transport bar.
-2. After `tooltip::SHOW_DELAY` (220 ms), the shell queries `tooltip::lookup` in `CONTROL_TIPS` and displays the control's label alongside the active chord from `keys::default_bindings()` (`Razor  C` or `Play  Space`).
+2. After `tooltip::SHOW_DELAY` (400 ms), the shell reads the control's entry in `CONTROL_TIPS` through `tooltip::tip_for` and shows its name beside the chord its binding has now (`Razor  C` or `Play  Space`). A tip with a detail shows it on a dimmed line under the name: `Ripple Trim  B` over `Trim and close the gap`.
 3. Left-click the control to dispatch its action (`EditorTool::Razor` selection or `AppState::toggle_playback`), or press the bound chord (`C` or `Space`) directly to run the same action without moving the pointer.
 
 ## Tool Strip
@@ -129,7 +129,7 @@ The Inspector panel (`crates/aria-ui/src/panels/inspector/**/*.rs`) renders para
 | `inspector-fx-remove` | Remove effect | Removes the effect row from the selected clip's stack. | None |
 | `inspector-fx-reset` | Reset effect | Resets all parameters of the effect row to their default values. | None |
 | `inspector-fx-up` (per row) | ↑ | Moves the effect one slot earlier in the clip's evaluation order. | None |
-| `inspector-parent-whip` | Pick whip | Attaches the transform parenting pick whip tooltip and arms clip parenting on click or drag. | None |
+| `inspector-parent-whip` | Parent pick whip | Attaches the transform parenting pick whip tooltip and arms clip parenting on click or drag. | None |
 | `inspector-pitch` | On / Off | Toggles pitch preservation when the selected clip plays at a non-unit speed. | None |
 | `inspector-replace-media` | Media name | Opens a file picker to replace the source media of a template slot clip. | None |
 | `inspector-reset` | Reset transform | Resets position, scale, rotation, anchor, and opacity on the selected clip. | None |
@@ -335,7 +335,7 @@ The Keyframes panel and property row keyframe navigator (`crates/aria-ui/src/pan
 | `kf-prev` | ‹ | Moves the playhead to the previous keyframe on the property. | None |
 | `kf-toggle` | ◆ / ◇ | Toggles a keyframe at the current playhead frame in the Keyframes panel. | None |
 | `param-whip` (per row) | @ | Arms or disarms the driver pick whip for the property row being edited. | None |
-| `path-watch` | Stopwatch | Enables or disables keyframe animation for a mask path on the timeline. | None |
+| `path-watch` | Path stopwatch | Enables or disables keyframe animation for a mask path on the timeline. | None |
 | `prop-reset` | Reset property | Resets the property to its default value, writing a keyframe when the property is animated. | None |
 | `prop-watch` | Stopwatch | Enables or disables keyframe animation on the property; Alt-click attaches or removes a driver. | None |
 

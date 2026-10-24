@@ -63,9 +63,9 @@ open dialog, the active text field, the temporary tool, then the selection.
 
 | Key | Tool |
 | --- | --- |
-| V | Selection |
+| V | Select |
 | A / Shift+A | Track Select Forward / Backward |
-| B | Ripple Edit |
+| B | Ripple Trim |
 | N | Rolling Edit |
 | R | Rate Stretch |
 | C | Razor |

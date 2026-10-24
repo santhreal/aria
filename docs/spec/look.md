@@ -82,7 +82,9 @@ A button press dims the button to 92 % opacity and darkens its plate. A
 disabled control is drawn at 40 % opacity, keeps the arrow cursor, and states
 the reason in its tooltip. Every icon-only control has a tooltip naming the
 action and its chord, shown after 400 ms and hidden on press. After a press the
-tooltip stays hidden until the pointer leaves the control.
+tooltip stays hidden until the pointer leaves the control. A tooltip that
+states more than a name sets it on a dimmed line under the name, and wraps at
+280 px.
 
 A track header toggle that is on is drawn in the accent colour, with no plate;
 a Timeline header toggle lights as an armed tool in the tool bar does. A selected row in a list of choices holds the selected

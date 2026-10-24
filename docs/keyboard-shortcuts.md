@@ -116,10 +116,10 @@ replaced by the finished text rather than appended to it.
 
 | Shortcut | Tool |
 | --- | --- |
-| V | Selection |
+| V | Select |
 | A | Track Select Forward. Click to select from that point forward; Shift-click selects on one track. |
 | Shift+A | Track Select Backward. Click to select up to that point; Shift-click selects on one track. |
-| B | Ripple Edit. Drag an edge and the rest of the lane follows. |
+| B | Ripple Trim. Drag an edge and the rest of the lane follows. |
 | N | Rolling Edit. Drag a cut to move it, keeping both clips' total length. |
 | R | Rate Stretch. Drag a clip edge to retime it instead of trimming. |
 | C | Razor |

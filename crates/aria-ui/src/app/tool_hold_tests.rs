@@ -5,7 +5,7 @@
 //! # Why
 //!
 //! Closes the class where tool shortcuts only switched permanently on key-down,
-//! edge modifier overrides (`Ctrl` -> Ripple Edit, `Ctrl+Alt` -> Rolling Edit)
+//! edge modifier overrides (`Ctrl` -> Ripple Trim, `Ctrl+Alt` -> Rolling Edit)
 //! were not reflected in tool state, tool variants were unreachable, Pen clicks
 //! on timeline clips did not keyframe Opacity/Volume, and Type clicks on the
 //! Viewer did not create a positioned text clip. Does not catch GPUI window
