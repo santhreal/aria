@@ -190,31 +190,35 @@ fn plan_card(
     plan: &[crate::app::assistant::PlanStep],
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
-    let mut steps: Vec<gpui::AnyElement> = Vec::new();
-    for step in plan {
-        steps.push(
-            div()
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text)
-                .child(gpui::SharedString::from(format!("· {}", step.description)))
-                .into_any_element(),
-        );
-        // The tool the step arrives under, from the command itself. The
-        // description says what would happen; the tool name says which
-        // capability the model called, which is what to compare against the
-        // list beside the panel when a plan is not what the prompt asked
-        // for.
-        steps.push(
-            div()
-                .text_size(Theme::TEXT_SMALL)
-                .text_color(theme.text_faint)
-                .child(gpui::SharedString::from(format!(
-                    "   {}",
-                    step.command.tool_name()
-                )))
-                .into_any_element(),
-        );
-    }
+    // Each step is the line it would apply and, under it, the tool it arrives
+    // under, from the command itself: the tool name is what to compare against
+    // the list beside the panel when a plan is not what the prompt asked for.
+    // The bullet stands in a column of its own, so the tool name starts where
+    // the line does.
+    let steps = plan.iter().map(|step| {
+        div()
+            .flex()
+            .gap(px(Theme::SPACE_XS))
+            .text_size(Theme::TEXT_UI)
+            .child(div().flex_none().text_color(theme.text_faint).child("·"))
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .min_w_0()
+                    .child(
+                        div()
+                            .text_color(theme.text)
+                            .child(gpui::SharedString::from(step.description.clone())),
+                    )
+                    .child(
+                        div()
+                            .text_size(Theme::TEXT_SMALL)
+                            .text_color(theme.text_faint)
+                            .child(step.command.tool_name()),
+                    ),
+            )
+    });
     div()
         .p(px(Theme::SPACE_SM))
         .rounded(px(Theme::CONTROL_RADIUS))
@@ -228,7 +232,7 @@ fn plan_card(
                 .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_faint)
                 .child(gpui::SharedString::from(format!(
-                    "planned · {}, nothing applied",
+                    "Planned · {}, nothing applied",
                     counted(plan.len(), "edit", "edits")
                 ))),
         )
@@ -425,3 +429,7 @@ fn composer(
                 }),
         )
 }
+
+#[cfg(test)]
+#[path = "ai_panel_plan_tests.rs"]
+mod plan_tests;

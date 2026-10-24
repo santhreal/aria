@@ -25,11 +25,13 @@ pub(super) fn status_strip(
     let breadcrumb = breadcrumb.map(|name| {
         crate::components::chip(
             "status-nest-breadcrumb",
-            format!("Nest · {name}  ✕"),
+            format!("Nest · {name}"),
             true,
             crate::components::ChipSize::Compact,
             theme,
         )
+        .gap(px(Theme::SPACE_XS))
+        .child(crate::icons::icon(crate::icons::CLOSE).size(Theme::TEXT_SMALL))
         .on_mouse_down(
             MouseButton::Left,
             cx.listener(|this, _: &MouseDownEvent, _, cx| {

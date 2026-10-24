@@ -43,7 +43,7 @@ pub(super) const AI_ROWS: &[CommandEntry] = &[
             state.status_message = Some(if names.is_empty() {
                 "No slash commands: put a template in the agent directory's commands/".into()
             } else {
-                format!("/{}", names.join("  /"))
+                format!("/{}", names.join(", /"))
             });
         },
     },

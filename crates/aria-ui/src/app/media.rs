@@ -389,7 +389,7 @@ pub fn media_caption(item: &crate::types::UiMediaItem) -> String {
         write!(caption, "{}×{}", item.width, item.height).expect("writing to a String cannot fail");
     }
     let mut append = |part: &str| {
-        caption.push_str("  ·  ");
+        caption.push_str(" · ");
         caption.push_str(part);
     };
     append(&item.duration_label);

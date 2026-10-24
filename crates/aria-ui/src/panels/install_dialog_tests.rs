@@ -4,6 +4,7 @@
 //! Not covered: which packages reach the prompt and what an answer does to the
 //! plugin folder, which `app/plugin_install_tests.rs` covers.
 
+use super::PromptLine::{Permissions, Text};
 use super::*;
 use crate::commands::casing_tests::check_title_case;
 
@@ -35,10 +36,10 @@ fn the_prompt_lines_name_the_package_and_each_permission() {
     let mut prompt = looks();
     assert_eq!(
         lines(&prompt),
-        vec![
-            "Looks 2.0.0",
-            "WASM plugin from Example, id com.example.looks",
-            "It asks for no permissions.",
+        [
+            Text("Looks 2.0.0".into()),
+            Text("WASM plugin from Example, id com.example.looks".into()),
+            Text("It asks for no permissions.".into()),
         ]
     );
     prompt.permissions = vec!["Run work on the GPU".into(), "Connect to a.example".into()];
@@ -46,18 +47,17 @@ fn the_prompt_lines_name_the_package_and_each_permission() {
     assert_eq!(
         lines(&prompt)[2..],
         [
-            "It asks for:",
-            "  Run work on the GPU",
-            "  Connect to a.example",
-            "2 more waiting after this one.",
+            Text("It asks for:".into()),
+            Permissions(&prompt.permissions),
+            Text("2 more waiting after this one.".into()),
         ]
     );
     prompt.replaces = Some("1.0.0".into());
     assert_eq!(
         lines(&prompt)[2..4],
         [
-            "Replaces the installed version 1.0.0.",
-            "This version also asks for:"
+            Text("Replaces the installed version 1.0.0.".into()),
+            Text("This version also asks for:".into()),
         ]
     );
 }

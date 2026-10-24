@@ -49,10 +49,7 @@ fn a_row_names_both_codecs_when_the_demuxer_did() {
     media.video_codec = Some("H.264".into());
     media.audio_codec = Some("MPEG-4 AAC".into());
     let caption = media_caption(&media);
-    assert_eq!(
-        caption,
-        "1920×1080  ·  00:00:02:00  ·  H.264  ·  MPEG-4 AAC"
-    );
+    assert_eq!(caption, "1920×1080 · 00:00:02:00 · H.264 · MPEG-4 AAC");
 }
 
 #[test]
@@ -60,13 +57,10 @@ fn a_row_with_no_codec_still_says_whether_there_is_sound() {
     // The audio fact was the row's whole point before codecs existed; adding a
     // codec must not cost it on a file whose codec is unknown.
     let media = item(UiClipKind::Media);
-    assert_eq!(media_caption(&media), "1920×1080  ·  00:00:02:00  ·  audio");
+    assert_eq!(media_caption(&media), "1920×1080 · 00:00:02:00 · audio");
     let mut silent = item(UiClipKind::Media);
     silent.has_audio = false;
-    assert_eq!(
-        media_caption(&silent),
-        "1920×1080  ·  00:00:02:00  ·  silent"
-    );
+    assert_eq!(media_caption(&silent), "1920×1080 · 00:00:02:00 · silent");
 }
 
 #[test]
@@ -76,7 +70,7 @@ fn an_audio_only_row_names_its_own_codec_and_no_video_one() {
     media.video_codec = Some("nonsense".into());
     media.duration_label = "00:00:30:00".into();
     let caption = media_caption(&media);
-    assert_eq!(caption, "Audio  ·  00:00:30:00  ·  FLAC");
+    assert_eq!(caption, "Audio · 00:00:30:00 · FLAC");
     assert!(
         !caption.contains("nonsense"),
         "an audio-only row has no picture to describe"

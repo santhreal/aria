@@ -441,3 +441,46 @@ fn no_line_the_crate_writes_joins_two_parts_with_a_spaced_dash() {
         offenders.join("\n  ")
     );
 }
+
+/// **No line the crate writes spaces its parts with a run of spaces.**
+///
+/// The class closed here: a gap typed into a line instead of laid out. The
+/// pool caption and the Export sheet's Scale row joined their facts with
+/// `  ·  `, a plan step's tool name stood under its description by three
+/// leading spaces, the install prompt indented each permission by two, the
+/// nest breadcrumb set its close mark two spaces after the name, and the
+/// slash command list joined its names with `  /`. A gap between two parts
+/// is a margin, a padding or a gap of the elements that draw them, and a join
+/// is one space either side of its mark. Every one-line string literal in the
+/// crate's production sources is read, so a line added later is checked on
+/// the run that adds it.
+///
+/// Not covered: a literal that spans lines, such as a message that lists
+/// offenders one to a line, and a run of spaces a line takes from data.
+#[test]
+fn no_line_the_crate_writes_spaces_its_parts_with_a_run_of_spaces() {
+    let mut read = 0;
+    let mut offenders = Vec::new();
+    for (rel, code) in production_sources() {
+        for (line, raw) in string_literals(&code) {
+            let text = as_written(&raw);
+            if text.contains('\n') {
+                continue;
+            }
+            read += 1;
+            if text.contains("  ") && !text.trim().is_empty() {
+                offenders.push(format!("{rel}:{line}: {text:?}"));
+            }
+        }
+    }
+    assert!(
+        read > 5000,
+        "read {read} one-line literals, fewer than the crate writes: the rule just went vacuous"
+    );
+    assert!(
+        offenders.is_empty(),
+        "lines that space their parts with a run of spaces; lay the gap out with a \
+         margin, a padding or a gap, and join with one space either side:\n  {}",
+        offenders.join("\n  ")
+    );
+}

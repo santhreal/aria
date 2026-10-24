@@ -2381,6 +2381,11 @@ Notes for the latest release. For previous releases, see the
 - In a window smaller than 1024 x 640, the splitter between the Viewer and the Timeline resizes the Timeline, and a drag or double-click on it no longer widens Audio Meters in the hidden Editing layout or records an edit to the workspace.
 - Settings > Plugins counts a catalog of one entry as `1 entry` instead of `1 entries`.
 - The Project Report draws its Clips carrying rows at the same pitch as its Project rows instead of 4 px further apart.
+- Pool captions and the Export sheet's Scale row join their facts with one space either side of the ` · ` instead of two.
+- A pending Assistant plan draws each step's tool name under the start of the step's line instead of three spaces in, and its header starts with a capital.
+- The plugin install prompt draws the permissions a package asks for as an indented list instead of indenting each by two spaces.
+- The nest breadcrumb draws its close mark as an icon after the name instead of a typed `✕` two spaces after it.
+- Assistant: List the Slash Commands and the composer's slash command hint separate the commands with commas instead of runs of spaces.
 - Odd-width I420 frames upload chroma planes of the rounded-up width and height, so the last column takes its own chroma sample instead of chroma stretched from a plane one column short.
 - An odd-width NV12 frame whose chroma rows are shorter than the rounded-up chroma width fails as a malformed frame instead of panicking on a GPU validation error.
 - The Rust example in `docs/plugins/presets.md` registers its preset in the `aria_sdk` `mount` callback instead of an `activate` method that no `Plugin` trait has, the `docs/plugins/audio-effects.md` example builds its parameter with `EffectParamSpec::scalar` instead of a struct literal missing fields, and `docs/reference/transitions.md` drops a Step column and `transitions.toml` a `step` key that no parser reads.

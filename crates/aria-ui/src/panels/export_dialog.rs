@@ -86,7 +86,7 @@ pub fn render(
             &theme,
             "export-scale",
             "Scale",
-            format!("{}  ·  {out_w} × {out_h}", options.scale.label()),
+            format!("{} · {out_w} × {out_h}", options.scale.label()),
             cx,
             |state| state.cycle_export_scale(),
         )

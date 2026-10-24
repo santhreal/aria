@@ -16,28 +16,45 @@ use crate::chrome::dialog::{DialogBody, dialog_surface};
 use crate::components;
 use crate::theme::Theme;
 
+/// One line the prompt shows under the title.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PromptLine<'a> {
+    /// A sentence about the package.
+    Text(String),
+    /// The permissions the package asks for, one to a row, drawn indented
+    /// under the line that introduces them.
+    Permissions(&'a [String]),
+}
+
 /// The lines the prompt shows under the title, in order.
-pub fn lines(prompt: &InstallPrompt) -> Vec<String> {
+pub fn lines(prompt: &InstallPrompt) -> Vec<PromptLine<'_>> {
     let mut lines = vec![
-        format!("{} {}", prompt.name, prompt.version),
-        format!(
+        PromptLine::Text(format!("{} {}", prompt.name, prompt.version)),
+        PromptLine::Text(format!(
             "{} plugin from {}, id {}",
             prompt.tier, prompt.publisher, prompt.id
-        ),
+        )),
     ];
     if let Some(old) = &prompt.replaces {
-        lines.push(format!("Replaces the installed version {old}."));
+        lines.push(PromptLine::Text(format!(
+            "Replaces the installed version {old}."
+        )));
     }
-    lines.push(
+    lines.push(PromptLine::Text(
         match (prompt.permissions.is_empty(), prompt.replaces.is_some()) {
             (true, _) => "It asks for no permissions.".to_owned(),
             (false, false) => "It asks for:".to_owned(),
             (false, true) => "This version also asks for:".to_owned(),
         },
-    );
-    lines.extend(prompt.permissions.iter().map(|line| format!("  {line}")));
+    ));
+    if !prompt.permissions.is_empty() {
+        lines.push(PromptLine::Permissions(&prompt.permissions));
+    }
     if prompt.waiting > 0 {
-        lines.push(format!("{} more waiting after this one.", prompt.waiting));
+        lines.push(PromptLine::Text(format!(
+            "{} more waiting after this one.",
+            prompt.waiting
+        )));
     }
     lines
 }
@@ -94,8 +111,8 @@ pub fn render(
     match &prompt {
         Some(prompt) => {
             for (index, line) in lines(prompt).into_iter().enumerate() {
-                body = body.child(
-                    div()
+                body = body.child(match line {
+                    PromptLine::Text(text) => div()
                         .text_size(if index == 0 {
                             Theme::TEXT_TITLE
                         } else {
@@ -106,8 +123,20 @@ pub fn render(
                         } else {
                             theme.text_muted
                         })
-                        .child(line),
-                );
+                        .child(text),
+                    PromptLine::Permissions(permissions) => div()
+                        .flex()
+                        .flex_col()
+                        .gap(px(Theme::SPACE_XS))
+                        .pl(px(Theme::SPACE_MD))
+                        .text_size(Theme::TEXT_UI)
+                        .text_color(theme.text_muted)
+                        .children(
+                            permissions
+                                .iter()
+                                .map(|permission| div().child(permission.clone())),
+                        ),
+                });
             }
             if prompt.native {
                 body = body.child(
