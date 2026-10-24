@@ -2363,6 +2363,13 @@ Notes for the latest release. For previous releases, see the
 - An error a lower layer reports in lower case, such as a refused preset name, is shown starting with a capital.
 - A command run with no clip selected reports `No clip is selected`, the same words as its disabled menu row, instead of `Select a clip first` or `Nothing is selected`.
 - The Export sheet refuses an empty timeline with `Nothing to export. Your timeline is empty. Import media and place a clip first.`, the words an empty export reports everywhere else, instead of a wording of its own.
+- Label and value rows in the Inspector, the Info panel, the Project Report, the Media support card, the Keyframe Velocity dialog, and the Project panel's properties share one layout: the label in muted text and the value at the row's right edge in tabular figures, both at the 11 px interface size.
+- Values in the Project panel's properties, the Project Report, the Media support card, the Inspector's Info tab, the History panel, and the Audio Track Mixer start with a capital letter, such as `Linked`, `No`, `Still image`, `Available`, `None`, `Current`, and `Not in the mix`.
+- The Media support card and decoder errors name the decoder backend as its vendor spells it, such as `GStreamer` instead of `gstreamer`.
+- The Inspector's Look tab names the applied filter by its catalog label in a `Filter` row instead of by its id in an `Id` row.
+- The Project Report states the marker count once, in its Markers row, instead of again in a `Marker rows` row below the clip rows.
+- The Project Report opens on the dialog card, titled and closed by a Close button, instead of in a band across the bottom of the window that pushed the editor up.
+- Keyframe rows and the font list count with the noun that agrees with the count, such as `1 key` and `1 font installed`, and the template slot line separates its parts with `·` instead of dashes.
 
 ### Fixed
 
@@ -2370,7 +2377,7 @@ Notes for the latest release. For previous releases, see the
 - An odd-width NV12 frame whose chroma rows are shorter than the rounded-up chroma width fails as a malformed frame instead of panicking on a GPU validation error.
 - The Rust example in `docs/plugins/presets.md` registers its preset in the `aria_sdk` `mount` callback instead of an `activate` method that no `Plugin` trait has, the `docs/plugins/audio-effects.md` example builds its parameter with `EffectParamSpec::scalar` instead of a struct literal missing fields, and `docs/reference/transitions.md` drops a Step column and `transitions.toml` a `step` key that no parser reads.
 - The Audio Meters clip light spans the panel, so its `CLIP` label stays inside the light in the 64 px launch frame, and the bars take the width the narrower scale gives up.
-- The Project panel's properties state a still's frame rate as `still image` instead of the 1000.000 fps tick base it was probed in.
+- The Project panel's properties state a still's frame rate as `Still image` instead of the 1000.000 fps tick base it was probed in.
 - The Project panel's group chips take the compact padding when their labels at the regular padding do not fit the panel, measured in the drawn face, so the launch layout reads Graphics, Effects, Library, and Analyze in full instead of cutting them at a fixed 260 px threshold.
 - Home's recent-project cards draw their top and bottom edges whole instead of under a fade, and Home scrolls a pane longer than the window, fading an edge only while the pane continues past it.
 - `cargo test -p aria-ui --lib -- --test-threads=4` peaks at 4799 MiB and 148 threads instead of 15338 MiB and 412: each test's window and app are released when the test ends, and the projection lane tests render on the GPU the test window mounted instead of opening one per test.

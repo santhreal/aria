@@ -71,7 +71,7 @@ pub use audio_effects::{
 pub use audio_transition::{AudioTransition, EXPONENTIAL_FLOOR_DB, TransitionMedia};
 pub use audit::{
     ClipFact, ClipFactSpec, FactWalk, ProjectFact, ProjectFactSpec, clip_fact_by_id, clip_facts,
-    clips_with_fact, project_facts,
+    clips_with_fact, is_empty_fact_value, project_facts,
 };
 pub use bin::{Bin, PoolPosition};
 pub use capabilities::{ClipAction, ClipCapabilities};
