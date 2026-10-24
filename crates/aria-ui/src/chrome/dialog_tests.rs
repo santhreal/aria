@@ -16,16 +16,14 @@
 //! which row the content region is scrolled to.
 
 use std::collections::HashSet;
-use std::path::PathBuf;
 
-use aria_models::ClipId;
 use gpui::{Bounds, Pixels, Size, TestAppContext, VisualTestContext, point, px, size};
 
+use crate::app::DialogKind;
 use crate::app::status::lowercase_start;
-use crate::app::{AppState, DialogKind};
 use crate::commands::casing_tests::check_title_case;
 use crate::plugins::overlay_host::host_of;
-use crate::test_support::{bounds_inside, drawn_shell, project_text};
+use crate::test_support::{bounds_inside, drawn_shell, project_text, select_a_still};
 
 /// A window narrower and shorter than a dialog card.
 const SHORT: Size<Pixels> = size(px(480.), px(320.));
@@ -178,28 +176,6 @@ fn every_line_a_dialog_draws_starts_in_sentence_case(cx: &mut TestAppContext) {
     }
     assert!(read.len() >= 7, "the walk read only {read:?}");
     assert!(offenders.is_empty(), "{}", offenders.join("\n"));
-}
-
-/// Place the texture still at the start of the empty project and select its
-/// clip.
-fn select_a_still(state: &mut AppState) {
-    let still = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/texture.png");
-    let media = state.import_media(still).expect("import the still");
-    state
-        .drop_media_on_timeline(media, None, 0)
-        .expect("place the still");
-    let Some(clip) = state
-        .store
-        .sequence
-        .tracks
-        .iter()
-        .flat_map(|track| track.clips.iter())
-        .map(|clip| ClipId::from_raw(clip.id))
-        .next()
-    else {
-        panic!("the still placed no clip");
-    };
-    state.select_clip(clip);
 }
 
 /// A run's text and where it was drawn.

@@ -101,8 +101,10 @@ fn fact_row(theme: &Theme, row: &ProjectFactRow) -> gpui::Div {
 
 /// One per-clip question. Clicking walks to the next clip that answers it.
 ///
-/// The hover wash runs `SPACE_XS` past the column on both sides, so the label
-/// and the count stay on the same edges as the project rows above them.
+/// The hover wash runs `SPACE_XS` past the column on both sides and
+/// `SPACE_XXS` past the row above and below it, so the label and the count stay
+/// on the same edges as the project rows above them and every row of the card
+/// keeps the same pitch.
 fn clip_fact_row(
     theme: &Theme,
     row: ClipFactRow,
@@ -120,6 +122,7 @@ fn clip_fact_row(
         .id(motion::MotionKey::new("fact", row.id).element_id("fact"))
         .mx(px(-Theme::SPACE_XS))
         .px(px(Theme::SPACE_XS))
+        .my(px(-Theme::SPACE_XXS))
         .py(px(Theme::SPACE_XXS))
         .rounded(px(Theme::CONTROL_RADIUS))
         .bg(motion::hover_blend(
@@ -142,3 +145,7 @@ fn clip_fact_row(
         })
         .into_any_element()
 }
+
+#[cfg(test)]
+#[path = "project_report_tests.rs"]
+mod tests;

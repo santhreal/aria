@@ -175,6 +175,28 @@ pub(crate) fn project_text(state: &crate::app::AppState) -> std::collections::Ha
         .collect()
 }
 
+/// Place the texture still at the start of the empty project and select its
+/// clip, for a test that draws what a selection shows.
+pub(crate) fn select_a_still(state: &mut crate::app::AppState) {
+    let still = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/texture.png");
+    let media = state.import_media(still).expect("import the still");
+    state
+        .drop_media_on_timeline(media, None, 0)
+        .expect("place the still");
+    let Some(clip) = state
+        .store
+        .sequence
+        .tracks
+        .iter()
+        .flat_map(|track| track.clips.iter())
+        .map(|clip| aria_models::ClipId::from_raw(clip.id))
+        .next()
+    else {
+        panic!("the still placed no clip");
+    };
+    state.select_clip(clip);
+}
+
 /// The device the render plugin brings up, mounted on `ctx` with the plugins
 /// it depends on as a session mounts them, or `None` on a host with no GPU.
 ///
