@@ -496,10 +496,10 @@ pub struct AppState {
     pub analysis: analysis::AnalysisForm,
     /// How deep and how fast the next duck dips.
     pub duck: duck::DuckForm,
-    /// The Media support panel's report, normalise target, and exposure readout.
+    /// The Media Support dialog's report, normalise target, and exposure readout.
     pub media_reach: media_reach::MediaReachForm,
     /// What the last timeline import or export placed or wrote the nearest way
-    /// it could, until it is dismissed.
+    /// it could, while the Timeline File dialog shows it.
     pub timeline_report: Option<timeline_files::TimelineReport>,
     /// Measured cache usage, held between renders because measuring walks the disk.
     pub caches: caches::CacheForm,

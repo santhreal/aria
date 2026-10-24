@@ -1,7 +1,8 @@
 //! Timeline files through the editor: every registered exporter writes the
 //! open timeline and its importer reads it back as one undo step, by menu
 //! pick and by drop; the destination's extension selects the exporter; and
-//! what a run could not carry stays in the report until dismissed or replaced.
+//! what a run could not carry opens the Timeline File dialog, after an
+//! install prompt that is up, until it is closed or a clean run replaces it.
 //!
 //! The formats are enumerated from the registry the shipped plugin fills, so
 //! a format added to it is covered here with no edit. A subtitle format writes
@@ -16,7 +17,7 @@ use aria_models::{Generator, TimeRange, TrackId, TrackKind};
 use aria_plugin::{DropAction, PluginContext};
 use gpui::SharedString;
 
-use super::AppState;
+use super::{AppState, DialogKind};
 use crate::app::picker::Answer;
 use crate::plugins::mount_all;
 
@@ -344,23 +345,13 @@ fn with_no_importer_or_exporter_no_dialog_opens() {
     );
 }
 
+/// A run that could not carry an item as it was opens the Timeline File
+/// dialog on the report. Closing the dialog drops the report, and a clean run
+/// drops an earlier one and closes its dialog.
 #[test]
-fn what_a_run_could_not_carry_stays_reported_until_dismissed_or_replaced() {
+fn what_a_run_could_not_carry_opens_the_timeline_file_dialog_until_closed() {
     let mut state = editing();
-    let lane = state
-        .store
-        .sequence
-        .tracks
-        .iter()
-        .find(|lane| !lane.clips.is_empty())
-        .expect("the lane the fixture was placed on");
-    let (track, name) = (TrackId::from_raw(lane.id), lane.name.to_string());
-    state
-        .apply_command(Command::Edit(EditCommand::SetTrackEnabled {
-            track,
-            enabled: false,
-        }))
-        .expect("hide the lane");
+    let (track, name) = hide_the_placed_lane(&mut state);
     let extension = &extensions(&state)[0];
     let file = out_dir().join(format!("hidden.{extension}"));
 
@@ -375,16 +366,25 @@ fn what_a_run_could_not_carry_stays_reported_until_dismissed_or_replaced() {
     );
     assert_eq!(
         state.status_message.as_deref(),
-        Some(format!("Exported hidden.{extension}: 1 item in the Timeline file panel").as_str())
+        Some(
+            format!("Exported hidden.{extension}; 1 item placed or written the nearest way")
+                .as_str()
+        )
     );
-    assert!(shown(&state), "the Timeline file panel is hidden");
+    assert_eq!(
+        state.dialog,
+        DialogKind::TimelineReport,
+        "the report opened no dialog"
+    );
 
-    state.dismiss_timeline_report();
-    assert_eq!(state.timeline_report, None);
-    assert!(!shown(&state), "a dismissed report left the panel up");
+    state.open_dialog(DialogKind::None);
+    assert_eq!(
+        state.timeline_report, None,
+        "a closed dialog kept its report"
+    );
 
     assert!(state.export_timeline(&file));
-    assert!(state.timeline_report.is_some());
+    assert_eq!(state.dialog, DialogKind::TimelineReport);
     state
         .apply_command(Command::Edit(EditCommand::SetTrackEnabled {
             track,
@@ -396,15 +396,56 @@ fn what_a_run_could_not_carry_stays_reported_until_dismissed_or_replaced() {
         state.timeline_report, None,
         "a clean export left the earlier report up"
     );
-    assert!(!shown(&state));
+    assert_eq!(
+        state.dialog,
+        DialogKind::None,
+        "a clean export left the dialog up"
+    );
 }
 
-/// Whether the inspector draws the Timeline file panel, by the predicate the
-/// panel registered.
-fn shown(state: &AppState) -> bool {
-    let host = crate::plugins::panel_host::host_of(&state.ctx).expect("panel host");
-    host.cached_at(aria_plugin::PanelLocation::Inspector)
+/// A report a run leaves while the install prompt is up waits for the prompt
+/// to be answered, as a package dropped beside a timeline file leaves it, and
+/// then opens.
+#[test]
+fn a_report_left_behind_the_install_prompt_opens_once_it_is_answered() {
+    let mut state = editing();
+    hide_the_placed_lane(&mut state);
+    let file = out_dir().join(format!("behind-prompt.{}", extensions(&state)[0]));
+    state.dialog = DialogKind::InstallPlugin;
+
+    assert!(state.export_timeline(&file), "{:?}", state.last_error);
+    assert_eq!(
+        state.dialog,
+        DialogKind::InstallPlugin,
+        "the report replaced the install prompt"
+    );
+    assert!(state.timeline_report.is_some(), "the run left no report");
+
+    state.cancel_plugin_install();
+    assert_eq!(
+        state.dialog,
+        DialogKind::TimelineReport,
+        "the answered prompt did not return to the report"
+    );
+    assert!(state.timeline_report.is_some(), "the report was dropped");
+}
+
+/// Hide the lane the fixture was placed on, which an export writes as shown
+/// and reports. Returns the lane and its name.
+fn hide_the_placed_lane(state: &mut AppState) -> (TrackId, String) {
+    let lane = state
+        .store
+        .sequence
+        .tracks
         .iter()
-        .find(|entry| entry.id == "aria.panel.timeline-report")
-        .is_some_and(|entry| (entry.visible)(state))
+        .find(|lane| !lane.clips.is_empty())
+        .expect("the lane the fixture was placed on");
+    let (track, name) = (TrackId::from_raw(lane.id), lane.name.to_string());
+    state
+        .apply_command(Command::Edit(EditCommand::SetTrackEnabled {
+            track,
+            enabled: false,
+        }))
+        .expect("hide the lane");
+    (track, name)
 }

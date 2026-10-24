@@ -217,6 +217,17 @@ impl AppState {
         self.stage_next_plugin();
     }
 
+    /// Show `kind` when the install prompt closes, in place of the dialog the
+    /// prompt opened over. Returns `false`, and changes nothing, when no prompt
+    /// is up.
+    pub(crate) fn after_install_prompt(&mut self, kind: DialogKind) -> bool {
+        if self.dialog != DialogKind::InstallPlugin {
+            return false;
+        }
+        self.plugin_installs.return_to = kind;
+        true
+    }
+
     fn close_install_prompt(&mut self) {
         if self.dialog == DialogKind::InstallPlugin {
             self.dialog = std::mem::take(&mut self.plugin_installs.return_to);

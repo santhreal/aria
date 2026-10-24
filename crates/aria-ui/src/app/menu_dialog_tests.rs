@@ -88,6 +88,8 @@ fn every_dialog() -> Vec<DialogKind> {
         DialogKind::Palette,
         DialogKind::Jobs,
         DialogKind::ProjectReport,
+        DialogKind::MediaSupport,
+        DialogKind::TimelineReport,
         DialogKind::UnsavedChanges,
         DialogKind::InstallPlugin,
         DialogKind::SpeedDuration,
@@ -106,6 +108,8 @@ fn every_dialog() -> Vec<DialogKind> {
             | DialogKind::Palette
             | DialogKind::Jobs
             | DialogKind::ProjectReport
+            | DialogKind::MediaSupport
+            | DialogKind::TimelineReport
             | DialogKind::UnsavedChanges
             | DialogKind::InstallPlugin
             | DialogKind::SpeedDuration

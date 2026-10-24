@@ -157,6 +157,24 @@ pub(crate) fn bounds_inside(
         && inner.bottom() <= outer.bottom() + slack
 }
 
+/// The text the project supplies: media names and paths, folder names, lane
+/// names and clip names. A drawn line that starts with one is written as the
+/// project wrote it, so a casing walk skips it.
+pub(crate) fn project_text(state: &crate::app::AppState) -> std::collections::HashSet<String> {
+    let store = &state.store;
+    store
+        .media
+        .iter()
+        .flat_map(|item| [item.name.to_string(), item.path.to_string()])
+        .chain(store.bins.iter().map(|bin| bin.name.to_string()))
+        .chain(store.sequence.tracks.iter().flat_map(|track| {
+            std::iter::once(track.name.to_string())
+                .chain(track.clips.iter().map(|clip| clip.name.to_string()))
+        }))
+        .filter(|text| !text.is_empty())
+        .collect()
+}
+
 /// The device the render plugin brings up, mounted on `ctx` with the plugins
 /// it depends on as a session mounts them, or `None` on a host with no GPU.
 ///

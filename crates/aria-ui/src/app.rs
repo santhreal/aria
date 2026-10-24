@@ -344,6 +344,13 @@ pub enum DialogKind {
     /// answers an occasional question and reads at length, so it should not
     /// spend inspector width permanently.
     ProjectReport,
+    /// What this build decodes and what the selection is made of, a dialog as
+    /// the Project Report is. Opening it builds the report.
+    MediaSupport,
+    /// What the last timeline import or export could not carry as it was.
+    /// The run that met such an item opens it, after an install prompt that is
+    /// up, and closing it drops the report.
+    TimelineReport,
     /// The prompt standing between unsaved edits and an action that would
     /// replace the session.
     UnsavedChanges,

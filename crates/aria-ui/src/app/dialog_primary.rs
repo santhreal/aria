@@ -52,7 +52,9 @@ pub fn primary(kind: DialogKind) -> Primary {
             Primary::Nothing("the palette answers Enter itself: it runs the highlighted command")
         }
         DialogKind::Jobs => Primary::Nothing("the board reports work that is already running"),
-        DialogKind::ProjectReport => Primary::Nothing("the report is read, not answered"),
+        DialogKind::ProjectReport | DialogKind::MediaSupport | DialogKind::TimelineReport => {
+            Primary::Nothing("the report is read, not answered")
+        }
         DialogKind::About => Primary::Nothing("the card is read, not answered"),
         DialogKind::Plugin(_) => {
             Primary::Nothing("a plugin draws its own controls and the host cannot press them")

@@ -15,7 +15,7 @@ pub(super) const MEDIA_ROWS: &[CommandEntry] = &[
     CommandEntry {
         id: "pal-media-support",
         label: "Media Support Report",
-        run: |state| state.media_support_report(),
+        run: |state| state.open_dialog(crate::app::DialogKind::MediaSupport),
     },
     CommandEntry {
         id: "pal-media-verify",

@@ -97,6 +97,8 @@ fn panels_doc_matches_registry() {
             | DialogKind::Palette
             | DialogKind::Jobs
             | DialogKind::ProjectReport
+            | DialogKind::MediaSupport
+            | DialogKind::TimelineReport
             | DialogKind::UnsavedChanges
             | DialogKind::InstallPlugin
             | DialogKind::SpeedDuration

@@ -143,7 +143,7 @@ Split a clip at the playhead, add a crossfade transition, and open the Audio Gai
 | `pal-ai-connection` | AI: Test the Connection | `none` | Always enabled | Opens `aria.dialog.settings` filtered to the `AI` section. |
 | `pal-ai-schema` | Configuration: What This Build Reads | `none` | Always enabled | Opens `aria.dialog.settings` filtered to `Configuration` and reports schema version status. |
 | `pal-cloud-checksum` | Cloud: Checksum a Downloaded File | `none` | Always enabled | Prompts for a file and verifies its SHA-256 digest against the download cache. |
-| `pal-media-support` | Media Support Report | `none` | Always enabled | Populates and opens the `aria.panel.media-support` inspector card listing supported containers, codecs, and pixel formats. |
+| `pal-media-support` | Media Support Report | `none` | Always enabled | Opens the Media Support dialog (`aria.dialog.media-support`), which lists supported containers, codecs, and pixel formats and what the selected clip's source is made of. |
 | `pal-media-verify` | Verify Decode of Selected Source | `none` | No media source is selected | Starts a background job that decodes every frame of the selected source to verify stream integrity. |
 | `pal-media-loudness` | Loudness Overview of Selected Source | `none` | Selected source has no audio | Starts a background job that samples peak levels across 200 buckets of the selected clip's source audio file and reports the loudest peak in dBFS, its position in the file, and how many buckets reach `-6 dBFS`. |
 | `pal-media-exposure` | Measure Exposure of the Frame on Screen | `none` | No frame is currently rendered | Reports luma min, max, mean, and clipping percentages for the current Viewer frame on the status line. |

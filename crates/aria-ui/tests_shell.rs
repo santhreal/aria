@@ -215,7 +215,7 @@ fn every_dialog_draws_over_a_real_project(cx: &mut gpui::TestAppContext) {
 
 /// How many kinds there are. Paired with [`named`]: a new variant fails to
 /// compile there, and this count then fails until the list below carries it.
-const DIALOG_KINDS: usize = 15;
+const DIALOG_KINDS: usize = 17;
 
 /// Every variant, named. Exhaustive on purpose — this match is what makes the
 /// list a list of all of them rather than a list of the ones somebody thought
@@ -228,6 +228,8 @@ fn named(kind: DialogKind) -> &'static str {
         DialogKind::Palette => "Palette",
         DialogKind::Jobs => "Jobs",
         DialogKind::ProjectReport => "Project Report",
+        DialogKind::MediaSupport => "Media Support",
+        DialogKind::TimelineReport => "Timeline File",
         DialogKind::UnsavedChanges => "Unsaved Changes",
         DialogKind::InstallPlugin => "Install Plugin",
         DialogKind::SpeedDuration => "Speed/Duration",
@@ -250,6 +252,8 @@ const DIALOGS: &[DialogKind] = &[
     DialogKind::Palette,
     DialogKind::Jobs,
     DialogKind::ProjectReport,
+    DialogKind::MediaSupport,
+    DialogKind::TimelineReport,
     DialogKind::UnsavedChanges,
     DialogKind::InstallPlugin,
     DialogKind::SpeedDuration,

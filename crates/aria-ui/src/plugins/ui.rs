@@ -287,22 +287,6 @@ const BUILTIN_PANELS: &[(
         |state| state.selected_clip().is_some(),
         None,
     ),
-    (
-        "aria.panel.media-support",
-        "Media support",
-        PanelLocation::Inspector,
-        draw_media_support,
-        media_support::has_report,
-        None,
-    ),
-    (
-        "aria.panel.timeline-report",
-        "Timeline file",
-        PanelLocation::Inspector,
-        draw_timeline_report,
-        timeline_report::has_report,
-        None,
-    ),
 ];
 
 /// The shipped dialogs and overlays, one entry per thing the shell used to name
@@ -343,6 +327,16 @@ const BUILTIN_OVERLAYS: &[(&str, OverlayWhen, OverlayRender)] = &[
         "aria.dialog.project-report",
         OverlayWhen::Dialog(DialogKind::ProjectReport),
         draw_project_report,
+    ),
+    (
+        "aria.dialog.media-support",
+        OverlayWhen::Dialog(DialogKind::MediaSupport),
+        draw_media_support,
+    ),
+    (
+        "aria.dialog.timeline-report",
+        OverlayWhen::Dialog(DialogKind::TimelineReport),
+        draw_timeline_report,
     ),
     (
         "aria.dialog.speed-duration",
@@ -757,6 +751,8 @@ mod tests {
             DialogKind::SpeedDuration,
             DialogKind::AudioGain,
             DialogKind::ProjectReport,
+            DialogKind::MediaSupport,
+            DialogKind::TimelineReport,
             DialogKind::About,
             DialogKind::RemoveAttributes,
             DialogKind::KeyframeVelocity,
@@ -841,17 +837,6 @@ mod tests {
         assert!(
             !crate::panels::ai_tools::visible(&state),
             "ai tools must be hidden when ActivePanel is not Ai"
-        );
-
-        // Media support panel is visible only when a report has been generated
-        assert!(
-            !crate::panels::media_support::has_report(&state),
-            "media support must be hidden when no report is generated"
-        );
-        state.media_support_report();
-        assert!(
-            crate::panels::media_support::has_report(&state),
-            "media support must be visible after report is generated"
         );
     }
 }

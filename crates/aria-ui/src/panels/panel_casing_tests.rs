@@ -2,18 +2,17 @@
 //!
 //! The class closed here: a readout value, a tag or a note that starts in
 //! lower case among capitalised lines, as the pool's `linked` and `no`, the
-//! media support report's `available`, the history row's `current` and the
-//! mixer's `not in the mix` were. A line is held to [`lowercase_start`], the
+//! history row's `current` and the mixer's `not in the mix` were. A line is held to [`lowercase_start`], the
 //! check the status line and the dialogs are held to.
 //!
 //! The panels are read from the registry and the inspector's tabs from its tab
 //! host when the test runs, so a panel or a tab added later is checked on the
 //! run that adds it, and a tab no dressed clip kind draws fails the walk. Each
 //! panel is docked into the launch layout's right frame and drawn with a media
-//! clip selected, its source picked in the pool, a frame reading for the Info
-//! panel and the media support report built for the Inspector. The Inspector
-//! is drawn once per tab for each of a media clip, a title and a shape the tab
-//! applies to.
+//! clip selected, its source picked in the pool and a frame reading for the
+//! Info panel. The Inspector is drawn once per tab for each of a media clip, a
+//! title and a shape the tab applies to. The Media Support report is a dialog,
+//! and `chrome::dialog_tests` walks it.
 //!
 //! A line the project supplies, such as a media name, a clip name, a lane name
 //! or a path, is written as the project wrote it and is skipped. Not covered: a
@@ -31,7 +30,7 @@ use crate::app::status::lowercase_start;
 use crate::components::drawn;
 use crate::dock::{DockTree, FrameId, PANEL_INSPECTOR, PanelId, Zone};
 use crate::panels::inspector::tab_host::host_of as tab_host;
-use crate::test_support::drawn_shell;
+use crate::test_support::{drawn_shell, project_text};
 use crate::types::UiClipKind;
 
 /// The window the launch layout is built for.
@@ -87,9 +86,9 @@ fn every_line_a_panel_draws_starts_in_sentence_case(cx: &mut TestAppContext) {
     assert!(offenders.is_empty(), "{}", offenders.join("\n"));
 }
 
-/// Place a media clip, a title and a shape, pick the media in the pool, read
-/// a frame for the Info panel and build the media support report for the
-/// media clip. Returns every clip with its kind, the media clip first.
+/// Place a media clip, a title and a shape, pick the media in the pool and
+/// read a frame for the Info panel. Returns every clip with its kind, the media
+/// clip first.
 fn dress(state: &mut AppState) -> Vec<(ClipId, UiClipKind)> {
     let still = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/texture.png");
     let media = state.import_media(still).expect("import the still");
@@ -119,7 +118,6 @@ fn dress(state: &mut AppState) -> Vec<(ClipId, UiClipKind)> {
         );
     }
     state.select_clip(clips[0].0);
-    state.media_support_report();
     state.frame_stats = aria_render::FrameStats {
         decode_ms: 12.5,
         raster_ms: 3.25,
@@ -128,23 +126,6 @@ fn dress(state: &mut AppState) -> Vec<(ClipId, UiClipKind)> {
         effect_pass_bind_groups: 2,
     };
     clips
-}
-
-/// The text the project supplies: media names and paths, folder names, lane
-/// names and clip names.
-fn project_text(state: &AppState) -> HashSet<String> {
-    let store = &state.store;
-    store
-        .media
-        .iter()
-        .flat_map(|item| [item.name.to_string(), item.path.to_string()])
-        .chain(store.bins.iter().map(|bin| bin.name.to_string()))
-        .chain(store.sequence.tracks.iter().flat_map(|track| {
-            std::iter::once(track.name.to_string())
-                .chain(track.clips.iter().map(|clip| clip.name.to_string()))
-        }))
-        .filter(|text| !text.is_empty())
-        .collect()
 }
 
 /// Dock `panel` alone into the launch layout's right frame, apply `then`, draw

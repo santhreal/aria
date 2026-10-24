@@ -130,7 +130,7 @@ pub struct Exposure {
     pub timestamp_seconds: f64,
 }
 
-/// The Media support panel's state.
+/// The Media Support dialog's state.
 pub struct MediaReachForm {
     /// The last report built, or `None` before one was asked for.
     pub report: Option<MediaReport>,

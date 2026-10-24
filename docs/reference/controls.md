@@ -83,7 +83,6 @@ The Timeline pane (`crates/aria-ui/src/panels/timeline/*.rs` and `crates/aria-ui
 | `timeline-graph` | Graph editor | Toggles the keyframe value and speed curve editor inside the timeline pane. | `Shift+F3` |
 | `timeline-linked` | Linked selection | Toggles whether selecting or trimming a clip also acts on its linked audio or video partner. | None |
 | `timeline-marker` | Add marker | Adds a marker at the playhead or opens the marker editor when a marker is already at that frame. | `M` |
-| `timeline-report-dismiss` | Dismiss | Dismisses the timeline diagnostic banner. | None |
 | `timeline-snap` | Snapping | Toggles magnetic snapping of clips, cuts, and the playhead to timeline landmarks. | `S` |
 | `timeline-tc` | Sequence timecode | Edits or seeks the sequence playhead position from the timeline header. | None |
 
@@ -170,7 +169,7 @@ The Inspector panel (`crates/aria-ui/src/panels/inspector/**/*.rs`) renders para
 
 ## Project Panel
 
-The Project panel (`crates/aria-ui/src/panels/sidebar_*.rs`, `crates/aria-ui/src/surfaces/bin_strip.rs`, `crates/aria-ui/src/panels/generate.rs`, and `crates/aria-ui/src/panels/analysis.rs`) renders bin management buttons, media pool search and layout toggles, multicam sync and angle controls, subclip and generator actions, stock media kind chips, media support actions (`crates/aria-ui/src/panels/media_support.rs`), and media analysis controls.
+The Project panel (`crates/aria-ui/src/panels/sidebar_*.rs`, `crates/aria-ui/src/surfaces/bin_strip.rs`, `crates/aria-ui/src/panels/generate.rs`, and `crates/aria-ui/src/panels/analysis.rs`) renders bin management buttons, media pool search and layout toggles, multicam sync and angle controls, subclip and generator actions, stock media kind chips, and media analysis controls.
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
@@ -192,13 +191,8 @@ The Project panel (`crates/aria-ui/src/panels/sidebar_*.rs`, `crates/aria-ui/src
 | `create-subclip` | Make Subclip | Creates a new subclip item in the media pool from the current Source Monitor in/out range. | None |
 | `generate-kind` (per row) | Generator kind | Selects the AI generation output kind (Image, Video, or Voice) in the Project panel Generate tab. | None |
 | `generate-submit` | Generate | Submits the prompt in the Generate tab to the fal AI generation provider as a background job and imports the generated media file into the pool. | None |
-| `media-exposure` | Measure exposure | Measures the exposure of the frame on screen and keeps the readout. | None |
 | `media-import` | Import | Opens the File > Import file picker: preset files go to the preset library, a timeline file is read into the timeline, and other files are imported into the media pool and placed on the timeline from the playhead. | `Ctrl+I` |
-| `media-loudness` | Loudness overview | Reports where the loudest moment of the selected source's audio stream is. | None |
-| `media-normalise` | Normalise selection | Sets the selected clip's gain so its measured peak lands on the target, from the loudness contour the Analysis panel measured. | None |
 | `media-query` | Search | Filters media pool items in the active bin by filename or metadata. | None |
-| `media-refresh` | Re-read | Rebuilds the media support report. | None |
-| `media-verify` | Verify decode | Decodes the selected clip's still or animation from its path and from its bytes and compares the two. | None |
 | `nudge-multicam-back` (per row) | Nudge angle back | Shifts the multicam angle offset one frame earlier relative to the group sync map. | None |
 | `nudge-multicam-forward` (per row) | Nudge angle forward | Shifts the multicam angle offset one frame later relative to the group sync map. | None |
 | `place-multicam-group` (per row) | Place | Places the multicam group onto the active sequence at the playhead. | None |
@@ -459,7 +453,7 @@ The application window frame, dock tab bars, and status strip (`crates/aria-ui/s
 
 ## Modal Dialogs
 
-Modal dialogs (`crates/aria-ui/src/panels/*_dialog.rs`, `crates/aria-ui/src/panels/project_report.rs` and `crates/aria-ui/src/pending.rs`) render confirmation, cancellation, and parameter controls for About, Audio Gain, Install Plugin, Jobs, Keyframe Velocity, Marker Edit, Project Report, Remove Attributes, Speed / Duration, and Unsaved Changes.
+Modal dialogs (`crates/aria-ui/src/panels/*_dialog.rs`, `crates/aria-ui/src/panels/project_report.rs`, `crates/aria-ui/src/panels/media_support.rs`, `crates/aria-ui/src/panels/timeline_report.rs` and `crates/aria-ui/src/pending.rs`) render confirmation, cancellation, and parameter controls for About, Audio Gain, Install Plugin, Jobs, Keyframe Velocity, Marker Edit, Media Support, Project Report, Remove Attributes, Speed / Duration, Timeline File, and Unsaved Changes.
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
@@ -481,6 +475,12 @@ Modal dialogs (`crates/aria-ui/src/panels/*_dialog.rs`, `crates/aria-ui/src/pane
 | `marker-edit-cancel` | Cancel | Closes the Marker Edit dialog without saving changes. | None |
 | `marker-edit-kind` (per row) | Comment / Chapter / Segmentation | Sets the kind of the marker in the Marker Edit dialog. | None |
 | `marker-edit-save` | Save | Saves the edited marker name, notes, duration, colour, and kind. | None |
+| `media-exposure` | Measure exposure | Measures the exposure of the frame on screen and keeps the readout. | None |
+| `media-loudness` | Loudness overview | Reports where the loudest moment of the selected source's audio stream is. | None |
+| `media-normalise` | Normalise selection | Sets the selected clip's gain so its measured peak lands on the target, from the loudness contour the Analysis panel measured. | None |
+| `media-refresh` | Re-read | Rebuilds the Media Support report. | None |
+| `media-support-close` | Close | Closes the Media Support dialog. | None |
+| `media-verify` | Verify decode | Decodes the selected clip's still or animation from its path and from its bytes and compares the two. | None |
 | `project-report-close` | Close | Closes the Project Report dialog. | None |
 | `remove-attr` (per row) | Motion / Opacity / Crop / Time Remapping / Volume / Pan / Effects / Audio Effects / Grade / Mask / Chroma Key | Ticks or unticks the attribute group the Remove Attributes dialog strips. | None |
 | `remove-attr-apply` | Remove | Strips the checked attribute groups and effects from the selected timeline clips. | None |
@@ -492,6 +492,7 @@ Modal dialogs (`crates/aria-ui/src/panels/*_dialog.rs`, `crates/aria-ui/src/pane
 | `speed-duration-preset` (per row) | 25% … 400% | Sets the speed in the Speed / Duration dialog to the preset percentage. | None |
 | `speed-duration-reverse` | Reverse Speed: On / Off | Toggles reverse playback in the Speed / Duration dialog. | None |
 | `speed-duration-speed-step` (per row) | -25% / -5% / -1% / +1% / +5% / +25% | Steps the speed in the Speed / Duration dialog by the percentage. | None |
+| `timeline-report-close` | Close | Closes the Timeline File dialog and drops its report. | None |
 | `unsaved-cancel` | Stay | Cancels the pending close, quit, or project switch and returns to the open project. | None |
 | `unsaved-discard` | Discard | Discards unsaved project modifications and proceeds with the pending action. | None |
 | `unsaved-save` | Save | Saves the current project and proceeds with the pending close, quit, or project switch. | None |

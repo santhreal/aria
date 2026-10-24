@@ -639,6 +639,11 @@ impl AppState {
             self.marker_edit.focused = None;
             self.marker_edit.error = None;
         }
+        // The timeline file report describes one run, so closing its dialog
+        // drops it. An install prompt opened over it returns to it.
+        if self.dialog == DialogKind::TimelineReport && kind == DialogKind::None {
+            self.timeline_report = None;
+        }
         self.dialog = kind;
         // The report's counts are walks of the whole project, so they are taken
         // on request and refreshed on any edit that lands
@@ -646,6 +651,11 @@ impl AppState {
         // session.
         if kind == DialogKind::ProjectReport {
             self.measure_project_report();
+        }
+        // Likewise the media report: the decoder listing and the selection's
+        // source are read when the dialog opens.
+        if kind == DialogKind::MediaSupport {
+            self.media_support_report();
         }
         // A theme file written or a theme registered while the app runs is
         // listed the next time Settings opens, and so is a key set copied into

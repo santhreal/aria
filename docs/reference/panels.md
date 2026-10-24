@@ -36,10 +36,8 @@ Open the **Scopes** and **Color** panels from the keyboard and maximize the focu
 | `aria.panel.duck` | Duck | `Inspector` | `none` | `none` | `none` | `none` |
 | `aria.panel.ai-tools` | Tools | `Inspector` | `none` | `none` | `none` | `none` |
 | `aria.panel.looks` | Looks | `Inspector` | `none` | `none` | `none` | `none` |
-| `aria.panel.media-support` | Media support | `Inspector` | `none` | `none` | `none` | `none` |
-| `aria.panel.timeline-report` | Timeline file | `Inspector` | `none` | `none` | `none` | `none` |
 
-Rows with a default frame carry a `DockSpec` and appear as dockable tabs in the workspace tree and on the **Window** menu. Rows without one render on the Home route (`aria.panel.home`) or as conditional cards inside the Inspector column when their visibility predicate holds (`duck_precheck().is_ok()`, `ai_tools::visible`, `selected_clip().is_some()`, `media_support::has_report`, and `timeline_report::has_report`).
+Rows with a default frame carry a `DockSpec` and appear as dockable tabs in the workspace tree and on the **Window** menu. Rows without one render on the Home route (`aria.panel.home`) or as conditional cards inside the Inspector column when their visibility predicate holds (`duck_precheck().is_ok()`, `ai_tools::visible`, and `selected_clip().is_some()`).
 
 ## Built-in dialogs and overlays
 
@@ -52,6 +50,8 @@ Rows with a default frame carry a `DockSpec` and appear as dockable tabs in the 
 | `aria.dialog.unsaved` | `Dialog(UnsavedChanges)` | Confirmation prompt (**Save**, **Discard**, **Stay**) shown before New, Open, Close, or Quit replaces a dirty project. |
 | `aria.dialog.install-plugin` | `Dialog(InstallPlugin)` | Permission and tier confirmation prompt shown before unpacking an `.ariaplugin` archive. |
 | `aria.dialog.project-report` | `Dialog(ProjectReport)` | Project-wide counts (sources, folders, lanes, clips, markers, content end, transitions, soloed lane kinds) and one row per clip question with the number of clips that answer it; clicking a row selects the next such clip (**Window > Project Report**). |
+| `aria.dialog.media-support` | `Dialog(MediaSupport)` | Supported containers, codecs, and pixel formats, what the selected clip's source is made of, and the Re-read, Verify decode, Loudness overview, Measure exposure, and Normalise selection actions (**Media Support Report** in the command palette). |
+| `aria.dialog.timeline-report` | `Dialog(TimelineReport)` | Each item a timeline import or export placed or wrote the nearest way it could; opens when such a run finishes, and closing it drops the report. |
 | `aria.dialog.speed-duration` | `Dialog(SpeedDuration)` | Clip retiming dialog (`Ctrl+R` or **Clip > Speed/Duration…**) for constant speed (`5%` to `10000%`), duration, reverse, and pitch lock. |
 | `aria.dialog.audio-gain` | `Dialog(AudioGain)` | Clip gain dialog (`G` or **Clip > Audio Gain…**) for Set Gain, Adjust Gain, Normalize Max Peak, and Normalize All Peaks. |
 | `aria.dialog.about` | `Dialog(About)` | Version and build information dialog (**Help > About**). |

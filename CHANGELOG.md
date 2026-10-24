@@ -177,7 +177,8 @@ Notes for the latest release. For previous releases, see the
 - A WASM component built for another WIT world is refused at load with the mismatch instead of failing on its first call.
 - Settings > Plugins sets the fuel per call and the memory of WASM plugins, saved in `[plugin_limits]`, and a change remounts the mounted WASM plugins under the new limits.
 - `aria plugin new`, `dev`, `check`, and `pack` create a WASM or native plugin crate, run it in the editor with a rebuild and reload on each change, validate a package's manifest, shaders, permissions, and binaries, and write the `.ariaplugin`.
-- File > Import Timeline and Export Timeline read and write CMX 3600 EDL, Final Cut Pro XML, and OpenTimelineIO; a timeline file picked in Import or dropped on the window lands on the timeline as one undo step, and what a format cannot hold is listed in the inspector's Timeline file panel.
+- File > Import Timeline and Export Timeline read and write CMX 3600 EDL, Final Cut Pro XML, and OpenTimelineIO; a timeline file picked in Import or dropped on the window lands on the timeline as one undo step, and what a format cannot hold is listed in a Timeline File dialog that opens when the run finishes.
+- Media Support Report (`pal-media-support`) opens the Media Support dialog, which lists the containers, codecs, and pixel formats the decoder reads and what the selected clip's source is made of, with Re-read, Verify decode, Loudness overview, Measure exposure, and Normalise selection buttons.
 - File > Import Timeline and Export Timeline read and write SubRip and WebVTT subtitles: cues become text clips on new text tracks, overlapping cues take further tracks, and the shown text tracks export as cues.
 - A `.cube` dropped with no clip selected, or picked in File > Import Timeline, adds a LUT filter bar across the sequence on a new filter track, instead of doing nothing.
 - The engine, project host, and jobs services registered by a session started without the engine plugin stay registered for the session instead of being dropped at once.
@@ -2363,9 +2364,9 @@ Notes for the latest release. For previous releases, see the
 - An error a lower layer reports in lower case, such as a refused preset name, is shown starting with a capital.
 - A command run with no clip selected reports `No clip is selected`, the same words as its disabled menu row, instead of `Select a clip first` or `Nothing is selected`.
 - The Export sheet refuses an empty timeline with `Nothing to export. Your timeline is empty. Import media and place a clip first.`, the words an empty export reports everywhere else, instead of a wording of its own.
-- Label and value rows in the Inspector, the Info panel, the Project Report, the Media support card, the Keyframe Velocity dialog, and the Project panel's properties share one layout: the label in muted text and the value at the row's right edge in tabular figures, both at the 11 px interface size.
-- Values in the Project panel's properties, the Project Report, the Media support card, the Inspector's Info tab, the History panel, and the Audio Track Mixer start with a capital letter, such as `Linked`, `No`, `Still image`, `Available`, `None`, `Current`, and `Not in the mix`.
-- The Media support card and decoder errors name the decoder backend as its vendor spells it, such as `GStreamer` instead of `gstreamer`.
+- Label and value rows in the Inspector, the Info panel, the Project Report, the Media Support dialog, the Keyframe Velocity dialog, and the Project panel's properties share one layout: the label in muted text and the value at the row's right edge in tabular figures, both at the 11 px interface size.
+- Values in the Project panel's properties, the Project Report, the Media Support dialog, the Inspector's Info tab, the History panel, and the Audio Track Mixer start with a capital letter, such as `Linked`, `No`, `Still image`, `Available`, `None`, `Current`, and `Not in the mix`.
+- The Media Support dialog and decoder errors name the decoder backend as its vendor spells it, such as `GStreamer` instead of `gstreamer`.
 - The Inspector's Look tab names the applied filter by its catalog label in a `Filter` row instead of by its id in an `Id` row.
 - The Project Report states the marker count once, in its Markers row, instead of again in a `Marker rows` row below the clip rows.
 - The Project Report opens on the dialog card, titled and closed by a Close button, instead of in a band across the bottom of the window that pushed the editor up.

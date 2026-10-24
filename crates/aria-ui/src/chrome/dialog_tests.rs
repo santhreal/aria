@@ -16,14 +16,16 @@
 //! which row the content region is scrolled to.
 
 use std::collections::HashSet;
+use std::path::PathBuf;
 
+use aria_models::ClipId;
 use gpui::{Bounds, Pixels, Size, TestAppContext, VisualTestContext, point, px, size};
 
-use crate::app::DialogKind;
 use crate::app::status::lowercase_start;
+use crate::app::{AppState, DialogKind};
 use crate::commands::casing_tests::check_title_case;
 use crate::plugins::overlay_host::host_of;
-use crate::test_support::{bounds_inside, drawn_shell};
+use crate::test_support::{bounds_inside, drawn_shell, project_text};
 
 /// A window narrower and shorter than a dialog card.
 const SHORT: Size<Pixels> = size(px(480.), px(320.));
@@ -104,17 +106,23 @@ fn every_dialog_title_is_in_title_case(cx: &mut TestAppContext) {
 ///
 /// The class closed here: a value or a description that starts in lower case
 /// among capitalised ones, as the Export sheet's `included`, the motion rows'
-/// `every transition at its designed speed`, the Keys section's `unbound` and
-/// the Project Report's `none` were. Every run drawn inside the card of each
-/// registered kind is read from the frame, so a row added later is checked on
-/// the run that adds it. A run the editor behind the card draws at the same
-/// place is the editor's, and is skipped. One binding is cleared before the
-/// walk, so the Keys section draws a row with no chord.
+/// `every transition at its designed speed`, the Keys section's `unbound`,
+/// the Project Report's `none` and the Media Support report's `available`
+/// were. Every run drawn inside the card of each registered kind is read from
+/// the frame, so a row added later is checked on the run that adds it. A run
+/// the editor behind the card draws at the same place is the editor's, and is
+/// skipped. One binding is cleared before the walk, so the Keys section draws
+/// a row with no chord, and a still is placed and selected, so a dialog that
+/// reads the selection draws its rows for it. A line the project supplies,
+/// such as the still's name, is written as the project wrote it and is
+/// skipped.
 ///
 /// Not covered: a line a dialog draws only after a choice changes or a job
-/// reports, beyond the cleared binding, and a lower case word inside a line.
+/// reports, beyond the cleared binding, a line a dialog draws only for a clip
+/// that is not a still, and a lower case word inside a line.
 #[gpui::test]
 fn every_line_a_dialog_draws_starts_in_sentence_case(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
     let (state, visual) = drawn_shell(cx, "dialog-casing");
     visual.update(|_, app| app.set_reduce_motion(true));
     visual.update(|_, app| {
@@ -123,10 +131,12 @@ fn every_line_a_dialog_draws_starts_in_sentence_case(cx: &mut TestAppContext) {
                 panic!("the registry holds no binding to clear");
             };
             state.clear_binding(first);
+            select_a_still(state);
         })
     });
     visual.update(|window, _| window.refresh());
     visual.run_until_parked();
+    let project = visual.read(|app| project_text(state.read(app)));
     let behind: HashSet<(String, u32, u32)> =
         visual.update(|window, _| window.rendered_text_runs().iter().map(placed).collect());
     let mut read = Vec::new();
@@ -157,6 +167,9 @@ fn every_line_a_dialog_draws_starts_in_sentence_case(cx: &mut TestAppContext) {
             offenders.push(format!("{kind:?} drew no line"));
         }
         for line in &lines {
+            if project.iter().any(|text| line.starts_with(text.as_str())) {
+                continue;
+            }
             if let Some(word) = lowercase_start(line) {
                 offenders.push(format!("{kind:?}: {line:?} starts with {word:?}"));
             }
@@ -165,6 +178,28 @@ fn every_line_a_dialog_draws_starts_in_sentence_case(cx: &mut TestAppContext) {
     }
     assert!(read.len() >= 7, "the walk read only {read:?}");
     assert!(offenders.is_empty(), "{}", offenders.join("\n"));
+}
+
+/// Place the texture still at the start of the empty project and select its
+/// clip.
+fn select_a_still(state: &mut AppState) {
+    let still = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/texture.png");
+    let media = state.import_media(still).expect("import the still");
+    state
+        .drop_media_on_timeline(media, None, 0)
+        .expect("place the still");
+    let Some(clip) = state
+        .store
+        .sequence
+        .tracks
+        .iter()
+        .flat_map(|track| track.clips.iter())
+        .map(|clip| ClipId::from_raw(clip.id))
+        .next()
+    else {
+        panic!("the still placed no clip");
+    };
+    state.select_clip(clip);
 }
 
 /// A run's text and where it was drawn.

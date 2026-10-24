@@ -9,10 +9,11 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use aria_core::count::counted;
 use aria_plugin::{ExporterSpec, InterchangeReport};
 
-use super::AppState;
 use super::picker::{Ask, FileSpec};
+use super::{AppState, DialogKind};
 
 /// The reason an import or export cannot start when no plugin registered one.
 const NO_INTERCHANGE: &str = "Enable the Timeline interchange plugin in Settings > Plugins, or install a plugin that reads or writes this format.";
@@ -164,24 +165,32 @@ impl AppState {
         }
     }
 
-    /// Close the report of the last import or export.
-    pub fn dismiss_timeline_report(&mut self) {
-        self.timeline_report = None;
-    }
-
-    /// Show `title` on the status line, and keep the report while it holds
-    /// anything. A clean run replaces an earlier report rather than leaving it
-    /// up beside a timeline it no longer describes.
+    /// Show `title` on the status line, and open the Timeline File dialog on
+    /// the report when the run met anything it could not carry as it was. A
+    /// clean run drops an earlier report, and closes its dialog, rather than
+    /// leaving it beside a timeline it no longer describes.
     fn finish_timeline(&mut self, title: String, report: InterchangeReport) {
-        self.status_message = Some(match report.skipped.len() {
-            0 => title.clone(),
-            1 => format!("{title}: 1 item in the Timeline file panel"),
-            count => format!("{title}: {count} items in the Timeline file panel"),
-        });
-        self.timeline_report = (!report.skipped.is_empty()).then(|| TimelineReport {
+        if report.skipped.is_empty() {
+            self.status_message = Some(title);
+            self.timeline_report = None;
+            if self.dialog == DialogKind::TimelineReport {
+                self.open_dialog(DialogKind::None);
+            }
+            return;
+        }
+        self.status_message = Some(format!(
+            "{title}; {} placed or written the nearest way",
+            counted(report.skipped.len(), "item", "items")
+        ));
+        self.timeline_report = Some(TimelineReport {
             title: title.into(),
             lines: report.skipped.into_iter().map(Into::into).collect(),
         });
+        // An install prompt a drop opened beside the timeline file is answered
+        // first, and the report opens when it closes.
+        if !self.after_install_prompt(DialogKind::TimelineReport) {
+            self.open_dialog(DialogKind::TimelineReport);
+        }
     }
 }
 

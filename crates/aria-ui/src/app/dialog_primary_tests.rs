@@ -59,6 +59,8 @@ fn a_dialog_with_no_primary_action_swallows_enter_and_changes_nothing() {
         DialogKind::Settings,
         DialogKind::Jobs,
         DialogKind::ProjectReport,
+        DialogKind::MediaSupport,
+        DialogKind::TimelineReport,
         DialogKind::About,
         DialogKind::Plugin("nobody"),
     ] {

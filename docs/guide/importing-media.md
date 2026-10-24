@@ -143,7 +143,7 @@ Import a video file, merge a subtitle timeline file, and relink a moved source f
 1. Choose **File > Import…** or press <kbd>Ctrl+I</kbd> (`key-import`) (or click [`media-import`](../reference/controls.md#project-panel) in the Project panel) and select a `.mp4` recording. The Media pool adds the clip tile and displays its frame size, duration, and codecs.
 2. Choose **File > Import Timeline…** and select a `.srt` subtitle file. Aria creates a text track named after the file and places one title clip per subtitle cue at its timecode on the timeline.
 3. If a source file moves on disk and its pool row reads missing, click [`relink-all`](../reference/controls.md#project-panel) (or choose **File > Relink All…** or run **Relink All** (`pal-relink`) from the Command Palette) and choose the parent folder. The missing badge clears on every matched pool row and the timeline clips draw their frames in the Viewer.
-4. Click [`timeline-report-dismiss`](../reference/controls.md#timeline) in the Effect Controls **Timeline file** card once you have read any interchange import notes. The report card closes and Effect Controls returns to the selected clip's tabs.
+4. If the import placed any item the nearest way it could, the **Timeline File** dialog lists each one. Click [`timeline-report-close`](../reference/controls.md#modal-dialogs) once you have read them. The dialog closes and its report is dropped.
 
 ## Reference
 

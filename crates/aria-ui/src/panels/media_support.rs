@@ -1,11 +1,11 @@
-//! Media support: what this build decodes, and what the selection is made of.
+//! The Media Support dialog: what this build decodes, and what the selection
+//! is made of.
 //!
-//! The panel for [`crate::app::media_reach`]. It shows itself once a report has
-//! been built, so the inspector column is not carrying a decoder listing during
-//! ordinary editing: the palette row builds the report, the panel appears with
-//! it, and the actions that need a whole-file decode are buttons here rather
-//! than palette rows, because a job started from a panel is started next to the
-//! answer it produces.
+//! The dialog for [`crate::app::media_reach`]. Opening it builds the report,
+//! so the decoder listing is read when it is asked for and never drawn beside
+//! ordinary editing. The verbs that need a whole-file decode are buttons on the
+//! card rather than palette rows, because a job started from the report is
+//! started next to the answer it produces.
 //!
 //! Nothing in this file names a container, a pixel layout, an output mode or a
 //! section heading. The rows come from the report and the headings come from the
@@ -18,13 +18,14 @@ use gpui::{
     ParentElement, SharedString, StatefulInteractiveElement, Styled, div, px,
 };
 
-use crate::app::AppState;
 use crate::app::media_reach::{Exposure, MediaReachForm};
-use crate::components::{ghost_button, readout, readout_tinted, section_label};
+use crate::app::{AppState, DialogKind};
+use crate::chrome::dialog::{DialogBody, dialog_surface};
+use crate::components::{self, ghost_button, readout, readout_tinted, section_label};
 use crate::motion;
 use crate::theme::Theme;
 
-/// One row as the panel draws it, flattened out of the report so the state
+/// One row as the dialog draws it, flattened out of the report so the state
 /// borrow ends before the elements are built.
 struct Row {
     section: &'static str,
@@ -40,9 +41,9 @@ struct Action {
     run: fn(&mut AppState),
 }
 
-/// The actions the panel offers, in order of use.
+/// The actions the dialog offers, in order of use.
 ///
-/// A table rather than four hand-built buttons: each row is one verb, and the
+/// A table rather than five hand-built buttons: each row is one verb, and the
 /// only thing a new capability needs here is a row.
 const ACTIONS: &[Action] = &[
     Action {
@@ -78,26 +79,24 @@ pub(crate) fn action_ids() -> impl Iterator<Item = &'static str> {
     ACTIONS.iter().map(|action| action.id)
 }
 
-/// Whether the panel has anything to draw.
-pub(crate) fn has_report(state: &AppState) -> bool {
-    state.media_reach.report.is_some()
-}
-
 pub(crate) fn render(
     state: &Entity<AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
     let theme = Theme::of(cx);
-    let (heading, rows, sections, target, target_at, exposure) = {
+    let (summary, rows, sections, target, target_at, exposure) = {
         let app = state.read(cx);
         let report = app.media_reach.report.as_ref();
         let warnings = report.map_or(0, |report| report.warnings());
         let count = report.map_or(0, |report| report.lines.len());
         (
             if warnings == 0 {
-                format!("Media support: {}", counted(count, "fact", "facts"))
+                format!("{}, nothing to flag", counted(count, "fact", "facts"))
             } else {
-                format!("Media support: {warnings} of {count} to look at")
+                format!(
+                    "{warnings} of {} to look at",
+                    counted(count, "fact", "facts")
+                )
             },
             report
                 .map(|report| {
@@ -120,39 +119,43 @@ pub(crate) fn render(
         )
     };
 
-    let mut blocks: Vec<gpui::AnyElement> = Vec::new();
+    let mut content = div()
+        .flex()
+        .flex_col()
+        .gap(px(Theme::SPACE_XS))
+        .child(
+            div()
+                .text_size(Theme::TEXT_UI)
+                .text_color(theme.text_muted)
+                .child(SharedString::from(summary)),
+        )
+        .child(target_chip(&theme, target, target_at, cx));
     for section in sections {
-        blocks.push(section_label(&theme, section).into_any_element());
+        content = content.child(section_label(&theme, section));
         for row in rows.iter().filter(|row| row.section == section) {
-            blocks.push(fact(&theme, row));
+            content = content.child(fact(&theme, row));
         }
     }
     if let Some(exposure) = exposure {
-        blocks.push(exposure_block(&theme, exposure));
+        content = content.child(exposure_block(&theme, exposure));
     }
-
-    motion::fade_in(
-        "media-support-panel",
-        div()
-            .flex()
-            .flex_col()
-            .gap(px(Theme::SPACE_XS))
-            .p(px(Theme::SPACE_SM))
-            .rounded(px(Theme::CONTROL_RADIUS))
-            .bg(theme.surface_raised)
-            .border_1()
-            .border_color(theme.border)
-            .child(
-                div()
-                    .text_size(Theme::TEXT_TITLE)
-                    .text_color(theme.text_muted)
-                    .child(SharedString::from(heading)),
-            )
-            .child(target_chip(&theme, target, target_at, cx))
-            .children(blocks)
-            .child(action_bar(&theme, cx)),
+    let content = content.child(action_bar(&theme, cx));
+    let close = components::button("media-support-close", "Close", &theme).on_mouse_down(
+        MouseButton::Left,
+        cx.listener(|this, _: &MouseDownEvent, _, cx| {
+            this.state
+                .update(cx, |state, _| state.open_dialog(DialogKind::None));
+            cx.notify();
+        }),
+    );
+    dialog_surface(
+        "media-support",
+        DialogKind::MediaSupport,
+        "Media Support",
+        state,
+        cx,
+        DialogBody::new(content).action(close),
     )
-    .into_any_element()
 }
 
 /// One label/value row. A row that states a problem carries the warning colour
