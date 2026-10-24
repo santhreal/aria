@@ -382,11 +382,11 @@ The Settings dialog (`crates/aria-ui/src/panels/settings_dialog.rs` and `crates/
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
 | `agent-dir-reveal` | Reveal agent files | Creates the AI agent configuration directory on demand and opens it in the system file manager. | None |
-| `ai-autonomy` (per row) | ask / full | Sets whether each destructive AI agent tool call needs a confirmation in the agent panel (`ask`) or every tool runs without one (`full`). | None |
+| `ai-autonomy` (per row) | Ask / Full | Sets whether each destructive AI agent tool call needs a confirmation in the agent panel (Ask) or every tool runs without one (Full). | None |
 | `ai-list-models` | List models | Queries the configured AI provider endpoint for available model identifiers. | None |
-| `ai-protocol` (per row) | chat_completions / responses | Selects the API the AI provider is called through: Chat Completions or Responses. | None |
-| `ai-reasoning` (per row) | auto / off | Requests the most detailed reasoning summary the AI provider supports, or none. | None |
-| `ai-source` (per row) | local / openrouter / custom | Selects the AI provider: a local OpenAI-compatible server, the OpenRouter gateway, or a custom endpoint. | None |
+| `ai-protocol` (per row) | Chat Completions / Responses | Selects the API the AI provider is called through: Chat Completions or Responses. | None |
+| `ai-reasoning` (per row) | Auto / Off | Requests the most detailed reasoning summary the AI provider supports, or none. | None |
+| `ai-source` (per row) | Local / OpenRouter / Custom | Selects the AI provider: a local OpenAI-compatible server, the OpenRouter gateway, or a custom endpoint. | None |
 | `ai-test-connection` | Test connection | Verifies network and credential connectivity with the configured AI provider. | None |
 | `analysis-cache-clear` | Clear analysis | Deletes cached shot, silence, and loudness analysis records from disk. | None |
 | `cache-clear` (per row) | Clear | Deletes all cached files inside the selected storage cache category. | None |
