@@ -16,9 +16,9 @@ use gpui::{
 };
 
 use crate::app::AppState;
-use crate::fluent::FluentBuilder;
 use crate::motion;
 use crate::theme::Theme;
+use gpui::prelude::FluentBuilder;
 
 /// The surface name of the panel.
 const SURFACE: &str = "history-panel";

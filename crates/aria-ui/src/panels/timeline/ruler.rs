@@ -4,8 +4,8 @@
 
 use std::cell::Cell;
 
-use crate::fluent::FluentBuilder;
 use gpui::motion::presets;
+use gpui::prelude::FluentBuilder;
 use gpui::{
     Bounds, CursorStyle, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
     MouseMoveEvent, MouseUpEvent, ParentElement, SharedString, StatefulInteractiveElement, Styled,

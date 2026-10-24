@@ -31,12 +31,12 @@ use crate::app::AppState;
 use crate::app::clock::ClockSite;
 use crate::chrome::tool_strip::{display_btn, tool_btn};
 use crate::components;
-use crate::fluent::FluentBuilder;
 use crate::icons;
 use crate::motion;
 use crate::theme::Theme;
 use crate::tooltip::WithTip as _;
 use crate::types::ActivePanel;
+use gpui::prelude::FluentBuilder;
 
 /// Height of each header row.
 pub(super) const HEADER_ROW_H: f32 = Theme::ICON_HIT;

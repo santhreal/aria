@@ -26,9 +26,9 @@ use crate::app::jobs::UiJob;
 use crate::app::{AppState, DialogKind};
 use crate::chrome::dialog::{DialogBody, dialog_surface};
 use crate::components;
-use crate::fluent::FluentBuilder;
 use crate::motion;
 use crate::theme::Theme;
+use gpui::prelude::FluentBuilder;
 
 /// The surface name of the dialog's rows.
 const DIALOG: &str = "board";

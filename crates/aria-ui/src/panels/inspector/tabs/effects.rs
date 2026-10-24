@@ -15,7 +15,7 @@ use crate::surfaces::effects_rack::{self, Gesture};
 use crate::theme::Theme;
 use crate::types::{CatalogDrag, ContextTarget, RenameTarget, UiClip};
 
-use crate::fluent::FluentBuilder;
+use gpui::prelude::FluentBuilder;
 
 use crate::components::section_label;
 

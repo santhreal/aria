@@ -16,11 +16,11 @@ use crate::app::canvas_overlay::{
     CropHandle, MaskHandle, Rect, TransformHandle, crop_handle_anchor, mask_box, mask_handle_anchor,
 };
 use crate::chrome::tool_strip::lit_icon;
-use crate::fluent::FluentBuilder;
 use crate::icons;
 use crate::surfaces::overlay_gesture::{self, Gesture, Step};
 use crate::theme::Theme;
 use crate::types::OverlayMode;
+use gpui::prelude::FluentBuilder;
 
 /// Handle hit size in pixels. Big enough to grab, small enough not to hide the
 /// frame under it. The Program pane keeps half of it clear around the picture.

@@ -9,9 +9,9 @@ use gpui::{
 };
 
 use crate::app::AppState;
-use crate::fluent::FluentBuilder;
 use crate::resolution::{PausedResolution, PlaybackResolution};
 use crate::theme::Theme;
+use gpui::prelude::FluentBuilder;
 
 /// Height of the chip, which the list opens above: the control height every
 /// control in the Viewer's row shares.

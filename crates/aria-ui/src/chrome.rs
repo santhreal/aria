@@ -11,11 +11,11 @@ use gpui::{
 };
 
 use crate::app::AppState;
-use crate::fluent::FluentBuilder;
 use crate::motion;
 use crate::shell::Shell;
 use crate::theme::Theme;
 use crate::types::AppMenu;
+use gpui::prelude::FluentBuilder;
 
 #[path = "chrome/dialog.rs"]
 pub mod dialog;

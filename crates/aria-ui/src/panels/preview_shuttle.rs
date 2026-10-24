@@ -16,10 +16,10 @@ use gpui::{
 };
 
 use crate::app::AppState;
-use crate::fluent::FluentBuilder;
 use crate::motion;
 use crate::shell::Shell;
 use crate::theme::Theme;
+use gpui::prelude::FluentBuilder;
 
 /// How a shuttle rate reads on the badge: `8x`, `-8x`, `4.1x`.
 pub(super) fn rate_label(shuttle: crate::transport::ShuttleSpeed) -> String {

@@ -9,9 +9,9 @@ use gpui::{
 
 use crate::app::AppState;
 use crate::components;
-use crate::fluent::FluentBuilder;
 use crate::surfaces::sidebar_pick::{self, Pick};
 use crate::theme::Theme;
+use gpui::prelude::FluentBuilder;
 
 /// Press one row of the registry, reporting a refusal in the status line rather
 /// than swallowing it. The button used to discard the result, so

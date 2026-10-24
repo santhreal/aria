@@ -4,7 +4,6 @@ use crate::app::pool_preview;
 use crate::app::{AppState, spawn_preview};
 use crate::cloud::CloudFeed;
 use crate::components;
-use crate::fluent::FluentBuilder;
 use crate::motion;
 use crate::theme::Theme;
 use crate::types::{
@@ -13,6 +12,7 @@ use crate::types::{
 };
 use aria_cloud::dto::StockKind;
 use aria_models::{Generator, MediaId, Shape};
+use gpui::prelude::FluentBuilder;
 use gpui::{
     AppContext, CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
     MouseMoveEvent, ObjectFit, ParentElement, SharedString, StatefulInteractiveElement, Styled,

@@ -23,12 +23,12 @@ use gpui::{
 
 use crate::app::clip_speed::{RAMP_POINTS, ramp_tick_to_frac, ramp_value_to_frac, speed_presets};
 use crate::components;
-use crate::fluent::FluentBuilder;
 use crate::surfaces::clip_pick::{self, Pick};
 use crate::surfaces::ramp_gesture::{self, Gesture};
 use crate::theme::Theme;
 use crate::timecode::format_ticks;
 use crate::types::UiClip;
+use gpui::prelude::FluentBuilder;
 
 use crate::panels::inspector::blocks::widgets::{Readout, audio_row};
 

@@ -12,8 +12,8 @@ use gpui::{
 
 use crate::app::AppState;
 use crate::app::clip_text::text_caret::DrawnTextCaret;
-use crate::fluent::FluentBuilder;
 use crate::theme::Theme;
+use gpui::prelude::FluentBuilder;
 
 /// The caret's stroke, in pixels.
 const CARET: f32 = 1.5;

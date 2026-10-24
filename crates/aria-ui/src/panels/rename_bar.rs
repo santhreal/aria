@@ -12,11 +12,11 @@ use gpui::{
 };
 
 use crate::app::AppState;
-use crate::fluent::FluentBuilder;
 use crate::motion::{self, CARET_BLINK};
 use crate::plugins::overlay_host::{self as overlays, OverlayWhen};
 use crate::theme::Theme;
 use crate::types::RenameTarget;
+use gpui::prelude::FluentBuilder;
 
 /// A rename as the bar draws it: the target, the draft, and the draft's
 /// `(anchor, caret)` in characters.

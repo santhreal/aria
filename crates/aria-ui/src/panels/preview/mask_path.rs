@@ -17,10 +17,10 @@ use gpui::{
 use crate::app::AppState;
 use crate::app::canvas_overlay::motion_path::TangentSide;
 use crate::app::mask_path::{DrawnMaskPath, DrawnVertex};
-use crate::fluent::FluentBuilder;
 use crate::motion::MotionKey;
 use crate::surfaces::overlay_gesture::{Gesture, Step};
 use crate::theme::Theme;
+use gpui::prelude::FluentBuilder;
 
 use super::handles::step;
 

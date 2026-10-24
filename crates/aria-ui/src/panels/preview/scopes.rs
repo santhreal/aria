@@ -21,10 +21,10 @@ use gpui::{
 use crate::app::AppState;
 use crate::app::scope_view::{PluginScopeTexture, ScopeTextures};
 use crate::components::ChipSize;
-use crate::fluent::FluentBuilder;
 use crate::motion::MotionKey;
 use crate::scopes::WaveformMode;
 use crate::theme::Theme;
+use gpui::prelude::FluentBuilder;
 
 /// Strip width. Holds a 192px scope plus the panel's own padding.
 const STRIP_W: f32 = 216.0;

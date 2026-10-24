@@ -17,9 +17,9 @@ use gpui::{
 use crate::app::AppState;
 use crate::app::analysis::{AnalysisKind, CONFIDENCE_CHOICES};
 use crate::components;
-use crate::fluent::FluentBuilder;
 use crate::surfaces::analysis_pick::{self, Pick};
 use crate::theme::Theme;
+use gpui::prelude::FluentBuilder;
 
 /// Press one row of the registry, reporting a refusal in the status line rather
 /// than swallowing it.

@@ -13,10 +13,10 @@ use gpui::{
 use aria_models::MatteSource;
 
 use crate::components;
-use crate::fluent::FluentBuilder;
 use crate::surfaces::inspector_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::UiClip;
+use gpui::prelude::FluentBuilder;
 
 use super::widgets::param_rows;
 

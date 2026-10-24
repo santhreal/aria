@@ -13,10 +13,10 @@ use aria_models::AnimationSlot;
 
 use crate::app::clip_anim::{ANIM_KNOBS, SLOTS, anim_knob, anim_knob_available};
 use crate::components;
-use crate::fluent::FluentBuilder;
 use crate::surfaces::clip_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::UiClip;
+use gpui::prelude::FluentBuilder;
 
 use super::widgets::{Readout, audio_row};
 

@@ -5,10 +5,10 @@ use gpui::{
 };
 
 use crate::components::{self, readout, section_label};
-use crate::fluent::FluentBuilder;
 use crate::surfaces::inspector_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::UiClip;
+use gpui::prelude::FluentBuilder;
 
 use crate::panels::inspector::blocks::widgets::param_rows;
 

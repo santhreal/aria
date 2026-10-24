@@ -1,13 +1,13 @@
 //! Floating context menu over clip, track, and preview targets.
 
 use crate::app::AppState;
-use crate::fluent::FluentBuilder;
 use crate::motion;
 use crate::plugins::overlay_host::{self as overlays, OverlayWhen};
 use crate::surfaces::context_menu::{BadgeMenu, ClipMenu, EffectMenu, PoolMenu, TrackMenu};
 use crate::surfaces::labels::LabelTarget;
 use crate::theme::Theme;
 use crate::types::ContextTarget;
+use gpui::prelude::FluentBuilder;
 use gpui::{
     CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
     ParentElement, StatefulInteractiveElement, Styled, div, px,

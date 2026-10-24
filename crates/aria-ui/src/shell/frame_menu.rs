@@ -17,9 +17,9 @@ use gpui::{
 };
 
 use crate::dock::{FloatRect, FrameId, PanelId, Zone};
-use crate::fluent::FluentBuilder;
 use crate::motion::{self, ControlId, MotionKey};
 use crate::theme::Theme;
+use gpui::prelude::FluentBuilder;
 
 use super::Shell;
 

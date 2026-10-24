@@ -15,8 +15,8 @@ use gpui::{
 use crate::app::palette::{Offered, PaletteOffer};
 use crate::app::{AppState, DialogKind};
 use crate::chrome::dialog::{DialogBody, dialog_surface};
-use crate::fluent::FluentBuilder;
 use crate::theme::Theme;
+use gpui::prelude::FluentBuilder;
 
 #[cfg(test)]
 #[path = "scroll_tests.rs"]

@@ -3,8 +3,8 @@
 
 use std::rc::Rc;
 
-use crate::fluent::FluentBuilder;
 use aria_models::ClipId;
+use gpui::prelude::FluentBuilder;
 use gpui::{
     Bounds, CursorStyle, Entity, Hsla, InteractiveElement, IntoElement, MouseButton,
     MouseDownEvent, ParentElement, StatefulInteractiveElement, Styled, Window, div, fill, point,

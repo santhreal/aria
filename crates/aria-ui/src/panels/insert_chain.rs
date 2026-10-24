@@ -18,12 +18,12 @@ use aria_models::{AudioInsertTarget, TrackId};
 
 use crate::app::AppState;
 use crate::components::{self, ChipSize};
-use crate::fluent::FluentBuilder;
 use crate::motion::MotionKey;
 use crate::panels::inspector::blocks::widgets::{Readout, audio_row};
 use crate::surfaces::insert_rack::{self, Gesture};
 use crate::theme::Theme;
 use crate::types::{UiInsert, UiInsertParam, UiKeyChoice};
+use gpui::prelude::FluentBuilder;
 
 /// One chain to draw.
 pub struct Chain<'a> {

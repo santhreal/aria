@@ -17,11 +17,11 @@ use aria_models::{TextAlignH, TextAlignV, TextCase};
 
 use crate::app::clip_text::TextSwitch;
 use crate::components::{self, ChipSize};
-use crate::fluent::FluentBuilder;
 use crate::motion::MotionKey;
 use crate::surfaces::clip_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::{RenameTarget, UiClip};
+use gpui::prelude::FluentBuilder;
 
 use crate::panels::inspector::blocks::widgets::{color_rows, param_rows};
 

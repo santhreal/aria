@@ -19,11 +19,11 @@ use gpui::{
 use aria_models::TrackKind;
 
 use crate::app::AppState;
-use crate::fluent::FluentBuilder;
 use crate::motion;
 use crate::theme::Theme;
 use crate::tooltip::WithTip as _;
 use crate::types::UiEditorStore;
+use gpui::prelude::FluentBuilder;
 
 use super::ticks_to_px;
 

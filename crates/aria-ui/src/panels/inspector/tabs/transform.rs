@@ -18,11 +18,11 @@ use aria_models::ClipId;
 
 use crate::app::clip_parent::keep_for;
 use crate::components::{self, ChipSize};
-use crate::fluent::FluentBuilder;
 use crate::motion::MotionKey;
 use crate::surfaces::clip_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::UiClip;
+use gpui::prelude::FluentBuilder;
 
 use crate::panels::inspector::blocks::widgets::param_rows;
 

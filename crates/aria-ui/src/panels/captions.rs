@@ -17,8 +17,8 @@ use gpui::{
 use crate::app::AppState;
 use crate::app::captions::{CaptionCommit, THREAD_CHOICES};
 use crate::components;
-use crate::fluent::FluentBuilder;
 use crate::theme::Theme;
+use gpui::prelude::FluentBuilder;
 
 /// How much of the panel the job list may take before the transcript below it
 /// starts scrolling out of reach.

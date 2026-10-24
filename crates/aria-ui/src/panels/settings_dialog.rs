@@ -28,7 +28,7 @@ use gpui::{
     div, px,
 };
 
-use crate::fluent::FluentBuilder;
+use gpui::prelude::FluentBuilder;
 
 use crate::app::settings_form::SettingsField;
 use crate::app::{AppState, DialogKind};

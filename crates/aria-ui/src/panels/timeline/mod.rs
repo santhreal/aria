@@ -29,7 +29,7 @@ mod offscreen_tests;
 
 use std::cell::Cell;
 
-use crate::fluent::FluentBuilder;
+use gpui::prelude::FluentBuilder;
 use gpui::{
     CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
     MouseMoveEvent, MouseUpEvent, ParentElement, ScrollDelta, ScrollWheelEvent, Styled, div, px,

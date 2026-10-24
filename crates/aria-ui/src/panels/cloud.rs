@@ -13,8 +13,8 @@ use gpui::{
 use crate::app::AppState;
 use crate::cloud::{CloudCard, CloudFeed, FeedState};
 use crate::components;
-use crate::fluent::FluentBuilder;
 use crate::theme::Theme;
+use gpui::prelude::FluentBuilder;
 
 /// A catalog feed: a Load button, then one row per card.
 ///

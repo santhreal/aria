@@ -16,11 +16,11 @@ use gpui::{
 
 use crate::app::AppState;
 use crate::app::canvas_overlay::motion_path::{DrawnPath, PathKey, PathParam, TangentSide};
-use crate::fluent::FluentBuilder;
 use crate::motion::MotionKey;
 use crate::surfaces::overlay_gesture::{Gesture, Step};
 use crate::theme::Theme;
 use crate::types::OverlayMode;
+use gpui::prelude::FluentBuilder;
 
 use super::handles::step;
 

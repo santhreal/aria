@@ -11,10 +11,10 @@ use gpui::{
 
 use crate::app::AppState;
 use crate::app::recents::RecentView;
-use crate::fluent::FluentBuilder;
 use crate::surfaces::home_pick::Pick;
 use crate::theme::Theme;
 use crate::types::HomeRail;
+use gpui::prelude::FluentBuilder;
 
 use super::cards::{card_action, hero_tile, learn_line, press, recents_grid, section_title};
 

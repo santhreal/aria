@@ -17,12 +17,12 @@ use gpui::{
 use super::MENU_H;
 use super::menu_items::MenuItem;
 use crate::app::AppState;
-use crate::fluent::FluentBuilder;
 use crate::motion;
 use crate::popover::Popup;
 use crate::shell::Shell;
 use crate::theme::Theme;
 use crate::types::AppMenu;
+use gpui::prelude::FluentBuilder;
 
 /// What the bar draws for one menu this frame.
 #[derive(Debug, Clone, Copy, PartialEq)]

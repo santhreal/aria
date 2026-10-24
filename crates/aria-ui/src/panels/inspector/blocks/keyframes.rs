@@ -13,10 +13,10 @@ use gpui::{
 
 use crate::app::clip_keys::{PIECEWISE_PRESETS, easing_presets};
 use crate::components;
-use crate::fluent::FluentBuilder;
 use crate::surfaces::keyframe_rows::{self, Row};
 use crate::theme::Theme;
 use crate::types::UiClip;
+use gpui::prelude::FluentBuilder;
 
 use crate::components::section_label;
 

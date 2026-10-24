@@ -18,7 +18,6 @@ use crate::app::AppState;
 use crate::app::clip_params::{ColorRow, ParamRow};
 use crate::app::key_strip::KeyStrip;
 use crate::components;
-use crate::fluent::FluentBuilder;
 use crate::motion::MotionKey;
 use crate::panels::inspector::blocks::widgets::{
     MIXED, Readout, Stopwatch, Watching, color_stopwatch, stepper_row, swatch_row,
@@ -26,6 +25,7 @@ use crate::panels::inspector::blocks::widgets::{
 use crate::surfaces::effects_rack::{self, Gesture, SlotEdit};
 use crate::theme::Theme;
 use crate::types::{UiEffectInstance, UiSlots as _};
+use gpui::prelude::FluentBuilder;
 
 /// Build all visible parameter rows (and collapsible group sections) for one effect instance.
 #[allow(clippy::too_many_arguments)]

@@ -16,12 +16,12 @@ use gpui::{
 use crate::app::effects_browser::{self, Entry, EntryKind, Failed, FolderKey, Group, Node};
 use crate::app::{AppState, spawn_preview};
 use crate::components;
-use crate::fluent::FluentBuilder;
 use crate::icons;
 use crate::motion;
 use crate::panels::sidebar::DragGhost;
 use crate::theme::Theme;
 use crate::types::CatalogDrag;
+use gpui::prelude::FluentBuilder;
 
 /// Indent per tree level, in pixels.
 const INDENT: f32 = 12.;

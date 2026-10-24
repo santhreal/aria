@@ -36,12 +36,12 @@ use crate::app::AppState;
 use crate::app::mixer::{
     FaderTarget, MixerStrip, gain_label, gain_to_frac, pan_label, pan_to_frac,
 };
-use crate::fluent::FluentBuilder;
 use crate::motion;
 use crate::panels::insert_chain::{self, Chain};
 use crate::surfaces::mixer_strip::{self, Gesture};
 use crate::theme::Theme;
 use aria_models::{AudioInsertTarget, AutomationMode, TrackId};
+use gpui::prelude::FluentBuilder;
 
 /// The shortest a fader runs. A fader runs the height its frame leaves under
 /// the tallest strip head; a frame shorter than that scrolls.

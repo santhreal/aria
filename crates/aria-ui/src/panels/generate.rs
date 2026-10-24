@@ -16,8 +16,8 @@ use gpui::{
 use crate::app::AppState;
 use crate::app::generate::{GenerateKind, missing_key_line};
 use crate::components;
-use crate::fluent::FluentBuilder;
 use crate::theme::Theme;
+use gpui::prelude::FluentBuilder;
 
 /// How many generations the panel shows before the rest stay on the Jobs
 /// board, which is where the full history lives.

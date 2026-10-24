@@ -7,11 +7,11 @@ use gpui::{
 
 use crate::app::AppState;
 use crate::components;
-use crate::fluent::FluentBuilder;
 use crate::panels::insert_chain::{self, Chain};
 use crate::surfaces::clip_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::UiClip;
+use gpui::prelude::FluentBuilder;
 
 use crate::panels::inspector::blocks::widgets::{Readout, audio_row, param_rows};
 

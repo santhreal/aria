@@ -18,11 +18,11 @@ use gpui::{
 use aria_models::{MaskMode, mask_param_group};
 
 use crate::components::{self, ChipSize};
-use crate::fluent::FluentBuilder;
 use crate::motion::MotionKey;
 use crate::surfaces::inspector_pick::{self, KEY_COLORS, Pick};
 use crate::theme::Theme;
 use crate::types::{UiClip, UiMask};
+use gpui::prelude::FluentBuilder;
 
 use super::widgets::param_rows;
 

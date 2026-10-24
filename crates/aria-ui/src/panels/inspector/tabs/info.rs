@@ -7,10 +7,10 @@ use gpui::{
 };
 
 use crate::components::{self, readout, section_label};
-use crate::fluent::FluentBuilder;
 use crate::theme::Theme;
 use crate::timecode::format_ticks;
 use crate::types::UiClip;
+use gpui::prelude::FluentBuilder;
 
 use crate::panels::inspector::blocks::widgets::kind_label;
 

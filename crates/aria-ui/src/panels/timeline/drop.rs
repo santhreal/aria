@@ -16,7 +16,7 @@
 //! clip drag: a drop lands on a cut, a marker, or the playhead when it is close
 //! enough to one.
 
-use crate::fluent::FluentBuilder;
+use gpui::prelude::FluentBuilder;
 use gpui::{Div, InteractiveElement, IntoElement, ParentElement, Styled, div, px};
 
 use crate::drag_hint::{self as drop_hint, DropHint};

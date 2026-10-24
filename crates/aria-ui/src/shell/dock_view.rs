@@ -13,13 +13,13 @@ use aria_plugin::PanelLocation;
 use crate::dock::{
     Axis, DOCK_GUTTER, FloatRect, Frame, FrameId, Node, PANEL_TIMELINE, PANEL_VIEWER, PanelId, Zone,
 };
-use crate::fluent::FluentBuilder;
 use crate::motion::{self, MotionKey};
 use crate::plugins::panel_host::host_of;
 use crate::settings::{MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, TIMELINE_MIN_HEIGHT};
 use crate::theme::Theme;
 use crate::tooltip::WithTip as _;
 use crate::types::ActivePanel;
+use gpui::prelude::FluentBuilder;
 
 use super::Shell;
 use super::drag::{Drag, DragKind};

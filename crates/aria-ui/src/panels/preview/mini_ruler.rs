@@ -12,10 +12,10 @@ use gpui::{
 };
 
 use crate::app::AppState;
-use crate::fluent::FluentBuilder;
 use crate::theme::Theme;
 use crate::types::UiMarker;
 use aria_models::MarkerColor;
+use gpui::prelude::FluentBuilder;
 
 #[cfg(test)]
 #[path = "mini_ruler_tests.rs"]

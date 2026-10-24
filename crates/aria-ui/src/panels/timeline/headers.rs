@@ -16,7 +16,7 @@
 //! what puts the lane header inside the forward reach census instead of beside
 //! it.
 
-use crate::fluent::FluentBuilder;
+use gpui::prelude::FluentBuilder;
 use gpui::{
     AnyElement, CursorStyle, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
     ParentElement, StatefulInteractiveElement, Styled, div, px,

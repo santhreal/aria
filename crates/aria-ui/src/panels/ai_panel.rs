@@ -8,10 +8,10 @@ use gpui::{
 };
 
 use crate::app::AppState;
-use crate::fluent::FluentBuilder;
 use crate::motion::glide;
 use crate::theme::Theme;
 use crate::types::{ActivePanel, AgentEntryKind, UiAgentEntry};
+use gpui::prelude::FluentBuilder;
 
 /// The permission card and the skill list, beside this file to keep it readable.
 #[path = "ai_panel_blocks.rs"]

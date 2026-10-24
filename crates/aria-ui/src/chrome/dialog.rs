@@ -17,9 +17,9 @@ use gpui::{
 };
 
 use crate::app::{AppState, DialogKind};
-use crate::fluent::FluentBuilder;
 use crate::plugins::overlay_host::{OverlayWhen, exit_t};
 use crate::theme::Theme;
+use gpui::prelude::FluentBuilder;
 
 #[cfg(test)]
 #[path = "dialog_tests.rs"]

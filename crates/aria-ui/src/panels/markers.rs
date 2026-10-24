@@ -20,12 +20,12 @@ use gpui::{
 
 use crate::app::AppState;
 use crate::components;
-use crate::fluent::FluentBuilder;
 use crate::motion;
 use crate::surfaces::markers_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::timecode;
 use crate::types::{RenameTarget, UiMarker};
+use gpui::prelude::FluentBuilder;
 
 /// The surface name of the panel.
 const SURFACE: &str = "markers-panel";

@@ -12,9 +12,9 @@ use gpui::{
 };
 
 use crate::app::AppState;
-use crate::fluent::FluentBuilder;
 use crate::panels::inspector::tabs::text::{character_controls, paragraph_controls};
 use crate::theme::Theme;
+use gpui::prelude::FluentBuilder;
 
 /// The surface name of the Character panel's controls.
 const CHARACTER: &str = "character-panel";

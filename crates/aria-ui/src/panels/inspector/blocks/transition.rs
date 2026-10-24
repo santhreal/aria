@@ -13,10 +13,10 @@ use gpui::{
 
 use crate::app::clip_transitions::TRANSITION_STEP_TICKS;
 use crate::components;
-use crate::fluent::FluentBuilder;
 use crate::surfaces::clip_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::UiClip;
+use gpui::prelude::FluentBuilder;
 
 use super::widgets::{Readout, audio_row};
 

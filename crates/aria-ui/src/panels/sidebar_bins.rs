@@ -19,12 +19,12 @@ use gpui::{
 
 use crate::app::AppState;
 use crate::components;
-use crate::fluent::FluentBuilder;
 use crate::motion;
 use crate::surfaces::bin_strip::{BIN_ACTIONS, BinStrip};
 use crate::surfaces::pool_drop::{self, Dropped};
 use crate::theme::Theme;
 use crate::types::{BinDrag, MediaDrag};
+use gpui::prelude::FluentBuilder;
 
 /// The breadcrumb's least width before the folder's buttons wrap below it.
 const CRUMBS_MIN: f32 = 96.0;

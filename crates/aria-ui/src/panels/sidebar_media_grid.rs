@@ -184,7 +184,7 @@ pub(super) fn media_tile(
         .flex()
         // The compact view reads left to right, so the name and the facts share
         // one line instead of stacking into two.
-        .either(
+        .when_else(
             view.inline(),
             |el| el.flex_row().items_center().justify_between(),
             |el| el.flex_col(),

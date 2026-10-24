@@ -14,10 +14,10 @@ use aria_models::MediaId;
 
 use crate::app::clip_template::slot_media_label;
 use crate::components;
-use crate::fluent::FluentBuilder;
 use crate::surfaces::clip_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::{UiClip, UiClipKind};
+use gpui::prelude::FluentBuilder;
 
 use super::widgets::{Readout, audio_row};
 

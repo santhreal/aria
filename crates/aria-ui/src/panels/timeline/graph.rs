@@ -22,12 +22,12 @@ use crate::app::AppState;
 use crate::app::property_rows::graph::graph_axis_ys;
 use crate::app::property_rows::{GRAPH_EDITOR_H, GraphMode, KeyframeContextMenu};
 use crate::components::{self, ChipSize};
-use crate::fluent::FluentBuilder;
 use crate::panels::keyframe_icon::{KeyInk, paint_keyframe_icon};
 use crate::shell::Shell;
 use crate::theme::Theme;
 use crate::tooltip::WithTip as _;
 use crate::transport::ticks_to_px_f;
+use gpui::prelude::FluentBuilder;
 
 use super::header::HEADER_ROW_H;
 use super::property_rows::{paint_rect, paint_segment};

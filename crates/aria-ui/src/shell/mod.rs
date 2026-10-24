@@ -3,7 +3,6 @@
 
 use crate::app::{AppState, DialogKind, spawn_preview, start_playback};
 use crate::chrome::window_frame::{self, Frame, WindowTitle};
-use crate::fluent::FluentBuilder;
 use crate::keys::{After, KeyRoute};
 use crate::motion;
 use crate::motion::glide;
@@ -13,6 +12,7 @@ use crate::settings::TIMELINE_MIN_HEIGHT;
 use crate::theme::Theme;
 use crate::types::{EditorTool, UiRoute};
 use aria_plugin::PanelLocation;
+use gpui::prelude::FluentBuilder;
 use gpui::{
     AppContext as _, Context, Entity, ExternalPaths, InteractiveElement, IntoElement, KeyDownEvent,
     KeyUpEvent, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, ParentElement, Render,

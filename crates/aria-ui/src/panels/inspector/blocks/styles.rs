@@ -12,10 +12,10 @@ use gpui::{
 use crate::app::clip_styles::{STYLES, style_enabled};
 use crate::cloud::CloudFeed;
 use crate::components;
-use crate::fluent::FluentBuilder;
 use crate::surfaces::inspector_pick::{self, Pick, STYLE_COLORS};
 use crate::theme::Theme;
 use crate::types::UiClip;
+use gpui::prelude::FluentBuilder;
 
 use super::widgets::param_rows;
 

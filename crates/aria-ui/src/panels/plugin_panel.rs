@@ -18,10 +18,10 @@ use gpui::{
 use crate::app::AppState;
 use crate::app::plugin_panels::{PanelImages, PanelInput, PanelSlide, PluginPanels, image_of};
 use crate::components::{self, ChipSize};
-use crate::fluent::FluentBuilder;
 use crate::motion::{self, MotionKey};
 use crate::shell::Shell;
 use crate::theme::Theme;
+use gpui::prelude::FluentBuilder;
 
 /// What every node of one panel is drawn against.
 struct Draw<'a> {

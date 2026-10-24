@@ -25,7 +25,6 @@ pub mod dock;
 pub mod drag_hint;
 pub mod edge_fade;
 pub mod filmstrips;
-pub mod fluent;
 pub mod frame;
 pub mod frost;
 pub mod handoff;

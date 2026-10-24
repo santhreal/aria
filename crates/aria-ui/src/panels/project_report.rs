@@ -34,9 +34,9 @@ use crate::app::project_report::{ClipFactRow, ProjectFactRow};
 use crate::app::{AppState, DialogKind};
 use crate::chrome::dialog::{DialogBody, dialog_surface};
 use crate::components::{self, readout, readout_tinted, section_label};
-use crate::fluent::FluentBuilder;
 use crate::motion;
 use crate::theme::Theme;
+use gpui::prelude::FluentBuilder;
 
 pub(crate) fn render(
     state: &Entity<AppState>,

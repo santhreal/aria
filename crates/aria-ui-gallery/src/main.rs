@@ -27,11 +27,11 @@ mod gallery_motion;
 
 use aria_ui::appearance::{self, AppearanceMode};
 use aria_ui::components;
-use aria_ui::fluent::FluentBuilder;
 use aria_ui::icons;
 use aria_ui::motion;
 use aria_ui::settings;
 use aria_ui::theme::Theme;
+use gpui::prelude::FluentBuilder;
 use gpui::{
     AnyElement, App, AppContext, Context, InteractiveElement, IntoElement, MouseButton,
     MouseDownEvent, ParentElement, Render, ScrollHandle, StatefulInteractiveElement, Styled,

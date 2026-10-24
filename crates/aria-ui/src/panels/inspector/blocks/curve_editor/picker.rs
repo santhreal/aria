@@ -16,9 +16,9 @@ use crate::app::clip_keys::easing_presets;
 use crate::app::curve_geometry::CurvePolyline;
 use crate::app::curve_stroke::curve_columns;
 use crate::components;
-use crate::fluent::FluentBuilder;
 use crate::theme::Theme;
 use crate::types::UiClip;
+use gpui::prelude::FluentBuilder;
 
 /// Height of the curve editor canvas in the inspector.
 pub const CURVE_EDITOR_HEIGHT: f32 = 140.0;

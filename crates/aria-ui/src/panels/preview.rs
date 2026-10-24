@@ -11,12 +11,12 @@ mod text_caret;
 use crate::app::pool_preview::{self, SourceView};
 use crate::app::{AppState, spawn_preview, start_playback};
 use crate::components::Wraps as _;
-use crate::fluent::FluentBuilder;
 use crate::motion;
 use crate::theme::Theme;
 use crate::timecode;
 use crate::tooltip::WithTip as _;
 use crate::types::{ActivePanel, ContextTarget};
+use gpui::prelude::FluentBuilder;
 use gpui::{
     Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ObjectFit, ParentElement,
     StatefulInteractiveElement, Styled, StyledImage, canvas, div, img, px, relative,

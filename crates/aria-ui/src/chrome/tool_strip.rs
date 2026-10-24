@@ -13,13 +13,13 @@ use gpui::{
 };
 
 use crate::app::{AppState, DialogKind};
-use crate::fluent::FluentBuilder;
 use crate::motion;
 use crate::shell::Shell;
 use crate::theme::Theme;
 use crate::tool_catalog::ToolGroup;
 use crate::tooltip::WithTip as _;
 use crate::types::{AppMenu, EditMode};
+use gpui::prelude::FluentBuilder;
 
 pub(super) const TOOL_H: f32 = 36.0;
 

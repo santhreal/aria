@@ -17,8 +17,8 @@ use gpui::{
     size,
 };
 
-use crate::fluent::FluentBuilder;
 use crate::theme::Theme;
+use gpui::prelude::FluentBuilder;
 
 /// The width of a resize band along a side, in logical pixels.
 pub(crate) const BAND: f32 = 5.0;

@@ -21,10 +21,10 @@ use gpui::{
 
 use crate::app::AppState;
 use crate::app::meter::{METER_FLOOR_DBFS, MeterReading, meter_fraction};
-use crate::fluent::FluentBuilder;
 use crate::motion;
 use crate::shell::Shell;
 use crate::theme::Theme;
+use gpui::prelude::FluentBuilder;
 
 /// Scale marks, in dBFS, with the text drawn beside each.
 const MARKS: [(f32, &str); 8] = [
