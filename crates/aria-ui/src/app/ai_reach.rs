@@ -30,6 +30,8 @@
 #[path = "ai_reach_tools.rs"]
 mod tools;
 
+use aria_core::count::counted;
+
 use aria_ai::catalog::{
     LocalModel, OPENROUTER_MODELS, local_model, local_models_availability,
     resolve_local_installed_id,
@@ -115,7 +117,7 @@ impl AppState {
                 .map(|model| AiModelRow {
                     id: model.id.to_string().into(),
                     label: format!("{} · {}", model.display, model.vendor).into(),
-                    detail: format!("{} — {}", model.role, routing_of(model.id)).into(),
+                    detail: format!("{} · {}", model.role, routing_of(model.id)).into(),
                     selected: configured == model.id,
                     // A curated slug is always offerable; whether the key works
                     // is what Test connection answers.
@@ -131,7 +133,7 @@ impl AppState {
                     // A custom endpoint has no catalog, so the endpoint's own id
                     // is the only honest label.
                     label: id.clone().into(),
-                    detail: "reported by the endpoint".to_string().into(),
+                    detail: "Reported by the endpoint".to_string().into(),
                     selected: &configured == id,
                     available: true,
                 })
@@ -185,17 +187,17 @@ impl AppState {
                     let installed = resolve_local_installed_id(entry.id, &self.ai_probe.installed);
                     match installed {
                         Some(actual) if actual == id => {
-                            format!("{} — {}", entry.display, entry.role)
+                            format!("{} · {}", entry.display, entry.role)
                         }
                         Some(actual) => format!(
-                            "{} — {}; the server serves it as {actual}",
+                            "{} · {}; the server serves it as {actual}",
                             entry.display, entry.role
                         ),
                         None if self.ai_probe.installed.is_empty() => {
-                            format!("{} — {}; not asked yet", entry.display, entry.role)
+                            format!("{} · {}; not asked yet", entry.display, entry.role)
                         }
                         None => format!(
-                            "{} — {}; the server did not report it as installed",
+                            "{} · {}; the server did not report it as installed",
                             entry.display, entry.role
                         ),
                     }
@@ -204,7 +206,7 @@ impl AppState {
             },
             AiSource::OpenRouter => match aria_ai::catalog::openrouter_model(id) {
                 Some(model) => format!(
-                    "{} · {} — {}; {}",
+                    "{} · {} · {}; {}",
                     model.display,
                     model.vendor,
                     model.role,
@@ -260,8 +262,7 @@ impl AppState {
                     Some(Ok(ids)) => {
                         state.ai_probe.result = Some(match ids.len() {
                             0 => "The endpoint answered with no models.".to_string(),
-                            1 => "The endpoint serves 1 model.".to_string(),
-                            n => format!("The endpoint serves {n} models."),
+                            n => format!("The endpoint serves {}.", counted(n, "model", "models")),
                         });
                         state.ai_probe.installed = ids;
                     }
@@ -333,10 +334,10 @@ fn local_row(
         // The server's id differs from the catalog's: worth saying, because that
         // is the id a request carries and the one a server log shows.
         (Some(actual), true) if actual != entry.id => {
-            format!("{} — installed as {actual}", entry.role)
+            format!("{} · installed as {actual}", entry.role)
         }
-        (_, true) => format!("{} — installed", entry.role),
-        (_, false) => format!("{} — not installed on this server", entry.role),
+        (_, true) => format!("{} · installed", entry.role),
+        (_, false) => format!("{} · not installed on this server", entry.role),
     };
     AiModelRow {
         id: entry.id.to_string().into(),

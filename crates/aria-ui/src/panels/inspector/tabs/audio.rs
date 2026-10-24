@@ -376,7 +376,7 @@ fn loudness_rows(
                 theme.text_muted
             })
             .child(SharedString::from(if clipping {
-                format!("Peak {peak:.1} dBFS — clipping")
+                format!("Peak {peak:.1} dBFS, clipping")
             } else {
                 format!("Peak {peak:.1} dBFS")
             }))

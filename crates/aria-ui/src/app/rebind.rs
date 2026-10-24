@@ -10,6 +10,8 @@
 //! override that names neither is dropped with a reason instead of quietly
 //! rebinding nothing.
 
+use aria_core::count::counted;
+
 use super::AppState;
 use crate::keys::keymap_sets::KeySet;
 use crate::keys::{self, BindingRow, Chord, KeyOverrideError};
@@ -144,8 +146,7 @@ impl AppState {
         self.mirror_overrides();
         self.status_message = Some(match restored {
             0 => "Every key is already the shipped one".to_string(),
-            1 => "1 key restored".to_string(),
-            many => format!("{many} keys restored"),
+            n => format!("{} restored", counted(n, "key", "keys")),
         });
     }
 

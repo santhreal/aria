@@ -228,7 +228,7 @@ impl AppState {
             .unwrap_or_else(|| "silence".to_string());
         self.status_message = Some(if capped {
             format!(
-                "Normalised to {level} — the {wanted:+.1} dB this needed is over the \
+                "Normalised to {level}; the {wanted:+.1} dB this needed is over the \
                  {MAX_NORMALISATION_BOOST_DB:+.0} dB boost cap"
             )
         } else {

@@ -141,7 +141,7 @@ impl AppState {
                 let label = if renderable(&spec.id) {
                     spec.label.clone()
                 } else {
-                    format!("{} — passthrough", spec.label)
+                    format!("{} (passthrough)", spec.label)
                 };
                 (spec, label)
             })

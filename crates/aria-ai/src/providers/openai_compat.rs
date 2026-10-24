@@ -93,11 +93,7 @@ impl OpenAiCompatProvider {
     /// it). Returns a short human summary on success; spends no tokens.
     pub fn test_connection(&self) -> Result<String, ProviderError> {
         let ids = self.list_models()?;
-        Ok(match ids.len() {
-            0 => "Connected.".to_string(),
-            1 => "Connected · 1 model available.".to_string(),
-            n => format!("Connected · {n} models available."),
-        })
+        Ok(super::connected_summary(ids.len()))
     }
 
     /// `GET {base_url}/models` → installed model ids (OpenAI `data[].id`).

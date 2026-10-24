@@ -267,7 +267,7 @@ impl AppState {
                 let left = missing.len() - repaired;
                 state.status_message = Some(match (left, only) {
                     (0, _) => format!("Relinked {repaired}"),
-                    (1, Some(one)) => format!("Relinked {repaired} — {one}"),
+                    (1, Some(one)) => format!("Relinked {repaired}; {one}"),
                     _ => format!("Relinked {repaired}, {left} still missing"),
                 });
             },

@@ -2371,10 +2371,12 @@ Notes for the latest release. For previous releases, see the
 - The Project Report states the marker count once, in its Markers row, instead of again in a `Marker rows` row below the clip rows.
 - The Project Report opens on the dialog card, titled and closed by a Close button, instead of in a band across the bottom of the window that pushed the editor up.
 - Keyframe rows and the font list count with the noun that agrees with the count, such as `1 key` and `1 font installed`, and the template slot line separates its parts with `·` instead of dashes.
+- Readouts, status lines, and Settings rows join two facts with `·` and set a clause off with a comma, a semicolon, or a colon instead of a spaced dash, such as `Peak -0.3 dBFS, clipping` in the Inspector's Audio tab and `Queued: <job id>` for a generation job.
 
 ### Fixed
 
 - The last error is drawn on the status bar alone instead of also at the end of the Viewer's control row, so posting or clearing one no longer moves the row's controls under the pointer.
+- Settings > Plugins counts a catalog of one entry as `1 entry` instead of `1 entries`.
 - Odd-width I420 frames upload chroma planes of the rounded-up width and height, so the last column takes its own chroma sample instead of chroma stretched from a plane one column short.
 - An odd-width NV12 frame whose chroma rows are shorter than the rounded-up chroma width fails as a malformed frame instead of panicking on a GPU validation error.
 - The Rust example in `docs/plugins/presets.md` registers its preset in the `aria_sdk` `mount` callback instead of an `activate` method that no `Plugin` trait has, the `docs/plugins/audio-effects.md` example builds its parameter with `EffectParamSpec::scalar` instead of a struct literal missing fields, and `docs/reference/transitions.md` drops a Step column and `transitions.toml` a `step` key that no parser reads.

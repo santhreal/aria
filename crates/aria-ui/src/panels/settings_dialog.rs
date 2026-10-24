@@ -284,7 +284,7 @@ const DERIVED_SIZE: &str = "Derived from the aspect or the footage";
 
 /// A delivery baseline's canvas size row: the baseline and its pixels.
 fn size_label(baseline: u32, size: [u32; 2]) -> String {
-    format!("{baseline}p — {}×{}", size[0], size[1])
+    format!("{baseline}p · {}×{}", size[0], size[1])
 }
 
 /// The aspect presets, then the render size: what it is now, "Derived", and one

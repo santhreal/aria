@@ -186,7 +186,7 @@ fn no_render_clones_a_store_list() {
     let fields = copied_list_fields();
     assert!(
         fields.len() >= LIST_FLOOR,
-        "only {} copied-list fields found, expected at least {LIST_FLOOR} — the parse this rule \
+        "only {} copied-list fields found, expected at least {LIST_FLOOR}; the parse this rule \
          reads the store with has stopped working",
         fields.len()
     );
@@ -206,7 +206,7 @@ fn no_render_clones_a_store_list() {
     }
     assert!(
         copies.is_empty(),
-        "{} renders copy a whole store list, once per frame each — hold the list behind a \
+        "{} renders copy a whole store list, once per frame each; hold the list behind a \
          handle and clone that:\n  {}",
         copies.len(),
         copies.join("\n  ")
@@ -355,7 +355,7 @@ fn no_draw_walks_the_pool_folders() {
     assert!(
         walkers.is_empty(),
         "sites in the draw layer that walk the folder list: {}, which copies every folder \
-         it keeps on every frame — read `bin_path()` or `child_bins()` instead:\n  {}",
+         it keeps on every frame; read `bin_path()` or `child_bins()` instead:\n  {}",
         walkers.len(),
         walkers.join("\n  ")
     );
@@ -396,7 +396,7 @@ fn no_draw_copies_a_list_it_reached_through_the_state() {
     }
     assert!(
         copies.is_empty(),
-        "sites in the draw layer that copy a whole projected list on every frame: {} — hold \
+        "sites in the draw layer that copy a whole projected list on every frame: {}; hold \
          the list as an `Arc<[_]>` and hand back a handle instead:\n  {}",
         copies.len(),
         copies.join("\n  ")

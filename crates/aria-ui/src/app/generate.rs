@@ -176,7 +176,7 @@ impl AppState {
         };
         let dest = self.generation_path(kind, &request.idempotency_key)?;
 
-        let label = format!("Generating {} — {prompt}", kind.label().to_lowercase());
+        let label = format!("Generating {}: {prompt}", kind.label().to_lowercase());
         let (wake, wakes) = crate::handoff::wakes::<Result<(), String>>();
         let target = dest.clone();
         self.spawn_job(label, move |context| {
@@ -278,7 +278,7 @@ fn run_generation(
             ));
         }
         std::thread::sleep(POLL_INTERVAL);
-        context.set_progress(0.0, format!("queued — {}", job.id));
+        context.set_progress(0.0, format!("Queued: {}", job.id));
         job = provider.poll(&job.id).map_err(|err| err.to_string())?;
     }
 

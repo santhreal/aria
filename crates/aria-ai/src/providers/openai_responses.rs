@@ -103,11 +103,7 @@ impl OpenAiResponsesProvider {
                 let parsed: serde_json::Value = serde_json::from_str(&body)
                     .map_err(|e| ProviderError::Protocol(format!("bad /models response: {e}")))?;
                 let count = parsed["data"].as_array().map_or(0, Vec::len);
-                Ok(match count {
-                    0 => "Connected.".to_string(),
-                    1 => "Connected · 1 model available.".to_string(),
-                    n => format!("Connected · {n} models available."),
-                })
+                Ok(super::connected_summary(count))
             }
             Err(ureq::Error::Status(status, response)) => {
                 let message = response

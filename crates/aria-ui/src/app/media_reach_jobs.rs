@@ -44,7 +44,7 @@ impl AppState {
         let pixels = u64::from(info.width) * u64::from(info.height);
         if pixels > MAX_VERIFY_PIXELS {
             self.status_message = Some(format!(
-                "{name} is {}×{} — over the {MAX_VERIFY_PIXELS} pixel verify cap",
+                "{name} is {}×{}, over the {MAX_VERIFY_PIXELS} pixel verify cap",
                 info.width, info.height
             ));
             return;

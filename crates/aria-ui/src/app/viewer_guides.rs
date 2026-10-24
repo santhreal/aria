@@ -9,6 +9,8 @@
 //! Guides are a view aid, not an edit: they live beside the zoom and the safe
 //! margins and stay out of the undo history.
 
+use aria_core::count::counted;
+
 use super::AppState;
 use super::canvas_overlay::Rect;
 
@@ -221,8 +223,7 @@ impl AppState {
         self.viewer_guides.dragging = None;
         self.status_message = Some(match count {
             0 => "No guides to clear".into(),
-            1 => "Cleared 1 guide".into(),
-            n => format!("Cleared {n} guides"),
+            n => format!("Cleared {}", counted(n, "guide", "guides")),
         });
     }
 

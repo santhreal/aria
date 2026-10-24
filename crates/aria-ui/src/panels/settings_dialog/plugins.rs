@@ -13,6 +13,7 @@ use gpui::{
     div, px,
 };
 
+use aria_core::count::counted;
 use aria_plugin::LogLevel;
 
 use crate::app::AppState;
@@ -77,7 +78,7 @@ fn describe(row: &UiPluginRow) -> String {
     if let Some(ms) = row.block_ms {
         parts.push(format!("{} per audio block", format_cost_ms(ms)));
     }
-    parts.join(" — ")
+    parts.join(" · ")
 }
 
 /// Format a non-negative runtime cost in milliseconds without collapsing
@@ -276,9 +277,9 @@ fn describe_catalog(row: &UiCatalogRow) -> String {
     } else {
         "shipped"
     };
-    let mut text = format!("{} entries — {source}", row.entries);
+    let mut text = format!("{} · {source}", counted(row.entries, "entry", "entries"));
     if let Some(problem) = &row.problem {
-        text.push_str(&format!(" — refused {problem}"));
+        text.push_str(&format!("; refused {problem}"));
     }
     text
 }
@@ -356,7 +357,7 @@ mod tests {
         row.block_max_ms = Some(0.09);
         let active = describe(&row);
         assert!(
-            active.contains("1.4 ms to mount — 2.1 ms per frame — 0.04 ms per audio block"),
+            active.contains("1.4 ms to mount · 2.1 ms per frame · 0.04 ms per audio block"),
             "active={active}"
         );
 
@@ -379,8 +380,8 @@ mod tests {
         row.waiting_for = vec!["file:cube".into(), "command:fx.reset".into()];
         assert_eq!(
             describe(&row),
-            "v1.2.0 — native — waits for file:cube, command:fx.reset — adds effect \
-             com.example.glow — no permissions"
+            "v1.2.0 · native · waits for file:cube, command:fx.reset · adds effect \
+             com.example.glow · no permissions"
         );
         row.error = Some("did not load".into());
         assert!(describe(&row).contains("failed: did not load"));

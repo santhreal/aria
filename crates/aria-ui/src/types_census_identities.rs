@@ -90,7 +90,7 @@ fn no_element_identity_is_built_from_a_formatted_string() {
     }
     assert!(
         built.is_empty(),
-        "element identities formatted on every frame they draw: {} — hash the \
+        "element identities formatted on every frame they draw: {}; hash the \
          parts with `MotionKey::new` and pass the key, or name the control with a \
          literal:\n  {}",
         built.len(),
@@ -201,7 +201,7 @@ fn no_draw_binds_an_identity_to_a_formatted_string() {
     }
     assert!(
         bound.is_empty(),
-        "identities in the draw layer built from text and then passed on: {} — \
+        "identities in the draw layer built from text and then passed on: {}; \
          build a `MotionKey` from the parts instead:\n  {}",
         bound.len(),
         bound.join("\n  ")
@@ -258,7 +258,7 @@ fn no_draw_helper_names_its_control_with_text() {
     assert!(
         helpers.is_empty(),
         "draw helpers that assign an element id from an identity they took as text, so a \
-         caller can format one: {} — take a `motion::ControlId`:\n  {}",
+         caller can format one: {}; take a `motion::ControlId`:\n  {}",
         helpers.len(),
         helpers.join("\n  ")
     );
@@ -288,7 +288,7 @@ fn no_draw_returns_an_identity_built_from_text() {
     assert!(
         builders.is_empty(),
         "functions named for an identity that build one with `format!`, so every caller \
-         allocates per frame: {} — return a `MotionKey` or a `motion::ControlId`:\n  {}",
+         allocates per frame: {}; return a `MotionKey` or a `motion::ControlId`:\n  {}",
         builders.len(),
         builders.join("\n  ")
     );

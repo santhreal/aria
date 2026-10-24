@@ -15,6 +15,18 @@ use crate::provider::{ChatProvider, ChatRequest, ChatTurn, ProviderError, Provid
 /// this way, because a long answer is a long answer.
 pub const PROBE_TIMEOUT: Duration = Duration::from_secs(20);
 
+/// The line a liveness probe that listed `models` reports, the same on either
+/// wire: `Connected.` for none, and the count with its noun otherwise.
+pub(crate) fn connected_summary(models: usize) -> String {
+    match models {
+        0 => "Connected.".to_owned(),
+        n => format!(
+            "Connected · {} available.",
+            aria_core::count::counted(n, "model", "models")
+        ),
+    }
+}
+
 pub mod openai_compat;
 pub mod openai_responses;
 pub mod scripted;

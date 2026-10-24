@@ -140,7 +140,7 @@ fn cloud_presets(
             let label = SharedString::from(if preset.category.is_empty() {
                 preset.name.clone()
             } else {
-                format!("{} — {}", preset.name, preset.category)
+                format!("{} · {}", preset.name, preset.category)
             });
             let hover = theme.wash(0.06);
             let text = theme.text;

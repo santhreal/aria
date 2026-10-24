@@ -459,7 +459,7 @@ impl AppState {
     fn adopted_message(&self, verb: &str, card: &CloudCard) -> String {
         match card.attribution.is_empty() {
             true => format!("{verb} {}", card.name),
-            false => format!("{verb} {} — {}", card.name, card.attribution),
+            false => format!("{verb} {} · {}", card.name, card.attribution),
         }
     }
 }

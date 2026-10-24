@@ -31,7 +31,7 @@ impl AppState {
             return None;
         }
         Some(format!(
-            "/{} — a slash command expands before it is sent",
+            "A slash command expands before it is sent: /{}",
             names.join("  /")
         ))
     }

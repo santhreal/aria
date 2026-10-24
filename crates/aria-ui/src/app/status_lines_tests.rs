@@ -24,7 +24,7 @@ use super::{as_sentence, lowercase_start};
 use crate::app::decline::Decline;
 use crate::test_support::collect_rs;
 use crate::test_support::control_sites::strip_comments;
-use crate::test_support::sources::without_test_items;
+use crate::test_support::sources::{string_literals, without_test_items};
 
 /// The writes whose argument the status strip draws.
 const SINKS: [&str; 2] = ["status_message = Some(", "report_error("];
@@ -336,14 +336,14 @@ fn a_line_that_starts_with_a_lower_case_word_is_found() {
         ("stored, 3 characters", Some("stored")),
         ("  in use", Some("in")),
         (
-            "not measured — Measure walks every cache directory",
+            "not measured; Measure walks every cache directory",
             Some("not"),
         ),
         ("Stored, 3 characters", None),
         ("Video only", None),
         ("dB", None),
         ("dBFS", None),
-        ("v0.1.0 — built-in — active", None),
+        ("v0.1.0 · built-in · active", None),
         ("com.example.fx", None),
         ("/var/data", None),
         ("1920 × 1080", None),
@@ -402,5 +402,42 @@ fn every_reported_form_reaches_the_error_line_as_a_sentence() {
     assert_eq!(
         state.last_error.as_deref(),
         Some("Preset name cannot be empty")
+    );
+}
+
+/// **No line the crate writes joins two parts with a spaced dash.**
+///
+/// The class closed here: a readout, a status line or a row detail that set
+/// two facts apart with ` — `, as `Peak -0.3 dBFS — clipping`, `{name} —
+/// {category}` and the cache sizes joined by ` — ` did, beside the ` · ` the
+/// other readouts join facts with. Facts join with ` · `, and a clause about a
+/// fact follows a comma, a semicolon or a colon. Every string literal in the
+/// crate's production sources is read, so a line added later is checked on
+/// the run that adds it. A lone `—`, the mark for a value that is not there,
+/// is not a join.
+///
+/// Not covered: a dash a line takes from data, such as a clip name, and a
+/// join built from a separator held in a variable.
+#[test]
+fn no_line_the_crate_writes_joins_two_parts_with_a_spaced_dash() {
+    let mut read = 0;
+    let mut offenders = Vec::new();
+    for (rel, code) in production_sources() {
+        for (line, text) in string_literals(&code) {
+            read += 1;
+            if text.contains(" — ") || text.ends_with(" —") || text.starts_with("— ") {
+                offenders.push(format!("{rel}:{line}: {text:?}"));
+            }
+        }
+    }
+    assert!(
+        read > 5000,
+        "read {read} literals, fewer than the crate writes: the rule just went vacuous"
+    );
+    assert!(
+        offenders.is_empty(),
+        "lines that join two parts with a spaced dash; join facts with ` · ` and \
+         set a clause off with a comma, a semicolon or a colon:\n  {}",
+        offenders.join("\n  ")
     );
 }

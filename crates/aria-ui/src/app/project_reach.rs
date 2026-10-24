@@ -93,7 +93,7 @@ impl AppState {
         self.select_clip(clip);
         self.set_playhead(start);
         self.status_message = Some(format!(
-            "{} — {} of {}",
+            "{}: {} of {}",
             spec.label,
             matches
                 .iter()

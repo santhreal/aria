@@ -499,8 +499,7 @@ impl AppState {
         let mut parts = Vec::new();
         match self.selection.len() {
             0 => parts.push("whole sequence".to_string()),
-            1 => parts.push("1 clip selected".to_string()),
-            n => parts.push(format!("{n} clips selected")),
+            n => parts.push(format!("{} selected", counted(n, "clip", "clips"))),
         }
         let rate = self.store.sequence.frame_rate;
         let clock = |tick: i64| crate::timecode::format_ticks(tick, rate.num, rate.den);

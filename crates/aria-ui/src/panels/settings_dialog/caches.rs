@@ -45,9 +45,9 @@ fn describe(row: &UiCache) -> String {
     // default path. Saying so here is the difference between "the move did not
     // work" and a disk that quietly keeps filling under the storage root.
     if let Some(reason) = &row.override_error {
-        parts.push(format!("override refused — {reason}"));
+        parts.push(format!("override refused: {reason}"));
     }
-    parts.join(" — ")
+    parts.join(" · ")
 }
 
 pub(super) fn cache_rows(
@@ -95,7 +95,7 @@ pub(super) fn cache_rows(
             kv(
                 theme,
                 "Usage",
-                "Not measured — Measure walks every cache directory",
+                "Not measured; Measure walks every cache directory",
             )
             .into_any_element(),
         );

@@ -116,7 +116,7 @@ impl Refusal {
         match self {
             Refusal::NoCandidate => "not in that folder".into(),
             Refusal::Ambiguous(count) => {
-                format!("{count} files there match — relink this one by hand")
+                format!("{count} files there match; relink this one by hand")
             }
             Refusal::Differs { fact, seen: 1 } => {
                 format!("the file there has a different {}", fact.label())

@@ -248,7 +248,7 @@ fn no_draw_copies_a_string_to_hand_it_to_a_draw() {
     assert!(
         copies.is_empty(),
         "{} draw sites copy a string on the way into a `SharedString`, once per frame \
-         each — hold the shared string in the store instead:\n  {}",
+         each; hold the shared string in the store instead:\n  {}",
         copies.len(),
         copies.join("\n  ")
     );
@@ -283,7 +283,7 @@ fn only_the_sharing_module_reads_a_model_catalog() {
     assert!(
         direct.is_empty(),
         "{} draw sites read a model catalog directly, which rebuilds its text once per \
-         frame — add an accessor to `catalog_text` and draw from that:\n  {}",
+         frame; add an accessor to `catalog_text` and draw from that:\n  {}",
         direct.len(),
         direct.join("\n  ")
     );

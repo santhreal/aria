@@ -254,7 +254,7 @@ fn card_from_stock(item: &StockItem) -> Option<CloudCard> {
     let name = if item.author.is_empty() {
         item.id.clone()
     } else {
-        format!("{} — {}", item.author, item.id)
+        format!("{} · {}", item.author, item.id)
     };
     Some(CloudCard {
         id: item.id.clone().into(),

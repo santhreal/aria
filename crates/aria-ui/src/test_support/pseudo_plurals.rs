@@ -8,13 +8,16 @@
 //! single definition of the agreement. This walks every `.rs` file under
 //! `crates/`, `apps/` and `examples/` on each run and fails on a string literal
 //! that writes a pseudo-plural, in test code as well as production code so no
-//! assertion pins the old wording, and on a comparison with one that picks
-//! between a word and its plural.
+//! assertion pins the old wording, on a comparison with one that picks
+//! between a word and its plural, and on a `match` arm for one whose literal
+//! states `1` before a word that a later arm writes in the plural after a
+//! placeholder, as `1 => "1 key restored"` beside `n => format!("{n} keys
+//! restored")`.
 //!
 //! Not caught: a noun that is always plural, such as `"{n} bytes"`; a
-//! comparison written `1 == n`, as a `match`, or against a number other than
-//! one; and an irregular plural picked inline, such as `"child"` and
-//! `"children"`.
+//! comparison written `1 == n` or against a number other than one; an arm for
+//! one that spells the number, such as `"one key"`; and an irregular plural
+//! picked inline, such as `"child"` and `"children"`.
 
 use std::path::Path;
 
@@ -97,6 +100,44 @@ fn agreement_ternaries(text: &str) -> Vec<(usize, String)> {
     found
 }
 
+/// Each `match` arm for one in `text` that writes the singular beside a later
+/// arm writing the plural: the line the arm for one starts on, counted from 1,
+/// and the word. The arm for one is `1 =>` followed by a string literal holding
+/// `1 <word>`; the plural is `{<name>} <word>s` (or `es`, or `y` to `ies`) in
+/// any literal of the next six lines.
+fn agreement_arms(text: &str) -> Vec<(usize, String)> {
+    let lines: Vec<&str> = text.lines().collect();
+    let mut found = Vec::new();
+    for (at, line) in lines.iter().enumerate() {
+        let Some(arm) = line.trim_start().strip_prefix("1 =>") else {
+            continue;
+        };
+        let Some((_, literal)) = arm.split_once('"') else {
+            continue;
+        };
+        let Some(word) = literal.split("1 ").nth(1).and_then(|rest| {
+            rest.split(|c: char| !c.is_ascii_alphabetic())
+                .next()
+                .filter(|word| !word.is_empty())
+        }) else {
+            continue;
+        };
+        let plural_follows = lines[at + 1..lines.len().min(at + 7)].iter().any(|later| {
+            later.split("} ").skip(1).any(|rest| {
+                let many = rest
+                    .split(|c: char| !c.is_ascii_alphabetic())
+                    .next()
+                    .unwrap_or_default();
+                is_plural_of(many, word)
+            })
+        });
+        if plural_follows {
+            found.push((at + 1, word.to_owned()));
+        }
+    }
+    found
+}
+
 #[test]
 fn every_count_agrees_with_its_noun() {
     let workspace = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -135,6 +176,9 @@ fn every_count_agrees_with_its_noun() {
         }
         for (line, ternary) in agreement_ternaries(&text) {
             found.push(format!("{rel}:{line}: `{ternary}`"));
+        }
+        for (line, arm) in agreement_arms(&text) {
+            found.push(format!("{rel}:{line}: `{arm}`"));
         }
         if found.is_empty() {
             continue;
@@ -212,6 +256,48 @@ fn the_ternary_matcher_finds_a_word_picked_against_its_plural() {
         let found: Vec<(usize, &str)> = found
             .iter()
             .map(|(line, form)| (*line, form.as_str()))
+            .collect();
+        assert_eq!(found, expected, "{text:?}");
+    }
+}
+
+/// The arm matcher at its boundaries: an `s`, an `es` and a `y` plural, a
+/// literal with words before the count, and lookalikes whose later arm spells
+/// another word, writes no placeholder, or sits past the six lines read, and
+/// one on the last of them.
+#[test]
+fn the_arm_matcher_finds_a_count_of_one_beside_its_plural() {
+    let spread = |gap: usize| {
+        format!(
+            "1 => \"1 key\".into(),{}\nn => format!(\"{{n}} keys\"),",
+            "\n".repeat(gap)
+        )
+    };
+    let (edge, far) = (spread(5), spread(6));
+    let cases: [(&str, &[(usize, &str)]); 8] = [
+        (
+            "match n {\n    1 => \"1 key restored\".into(),\n    n => format!(\"{n} keys restored\"),\n}",
+            &[(2, "key")],
+        ),
+        (
+            "1 => \"Stored 1 match\".into(),\nmany => format!(\"Stored {many} matches\"),",
+            &[(1, "match")],
+        ),
+        (
+            "0 => \"none\".into(),\n1 => \"1 entity\".into(),\nn => format!(\"{n} entities\"),",
+            &[(2, "entity")],
+        ),
+        ("1 => \"1 key\".into(),\nn => format!(\"{n} chords\"),", &[]),
+        ("1 => \"1 key\".into(),\n2 => \"2 keys\".into(),", &[]),
+        ("1 => \"one key\".into(),\nn => format!(\"{n} keys\"),", &[]),
+        (&edge, &[(1, "key")]),
+        (&far, &[]),
+    ];
+    for (text, expected) in cases {
+        let found = agreement_arms(text);
+        let found: Vec<(usize, &str)> = found
+            .iter()
+            .map(|(line, word)| (*line, word.as_str()))
             .collect();
         assert_eq!(found, expected, "{text:?}");
     }

@@ -288,8 +288,7 @@ impl AppState {
         let found = self.ui_clip_ref(clip).map_or(0, |c| c.beat_ticks.len());
         self.status_message = Some(match found {
             0 => "No beats found in this clip".to_string(),
-            1 => "Stored 1 beat on the clip".to_string(),
-            count => format!("Stored {count} beats on the clip"),
+            n => format!("Stored {} on the clip", counted(n, "beat", "beats")),
         });
     }
 
