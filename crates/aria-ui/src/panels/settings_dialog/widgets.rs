@@ -8,6 +8,10 @@ use crate::theme::Theme;
 /// controls after the labels line up down the dialog.
 const LABEL_WIDTH: f32 = 140.0;
 
+/// How far a section's rows stand in from its card's outer edge: the card's
+/// padding and its 1 px border.
+pub(super) const ROW_INSET: f32 = Theme::SPACE_SM + 1.0;
+
 /// The label a Settings row starts with, in the label column.
 pub(super) fn row_label(theme: &Theme, label: impl Into<SharedString>) -> Div {
     div()

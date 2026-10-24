@@ -393,7 +393,51 @@ fn every_keyboard_cap_label_fits_inside_its_cap_across_dialog_widths(cx: &mut Te
 /// second line of chips, which needs more saved sets than fit one line.
 #[gpui::test]
 fn the_keymap_row_starts_on_the_column_of_the_box_below_it(cx: &mut TestAppContext) {
-    let (state, visual) = drawn_shell(cx, "settings-keymap-column");
+    let (card, runs, shown) = drawn_under_keys(cx, "settings-keymap-column");
+    let first = run(&runs, card, "No saved sets");
+    let set_name = run(&runs, card, &shown);
+    // A text box's text stands inside its 1 px border and its padding, and a
+    // chip's inside its padding.
+    let column = set_name.bounds.left() - px(1.0 + Theme::SPACE_SM);
+    assert!(
+        (first.bounds.left() - (column + px(Theme::SPACE_SM))).abs() < px(EPS),
+        "the Keymap row's text starts at {:?}, a chip's on the column of the set \
+         name box below it at {:?}",
+        first.bounds.left(),
+        column + px(Theme::SPACE_SM)
+    );
+}
+
+/// WHY: The filter row stood on the dialog's edge while the section cards
+/// below it inset their rows by their padding and border, so the filter box
+/// started 9 px left of every text box under it, on a dialog whose label
+/// column exists to line those boxes up.
+///
+/// Reads the Keys section under the filter `Keys`: the filter's text starts
+/// where the Set name box's text starts, so the two boxes share a column. Not
+/// covered: the right edges of the boxes, which no text run reaches.
+#[gpui::test]
+fn the_filter_box_starts_on_the_column_of_the_boxes_below_it(cx: &mut TestAppContext) {
+    let (card, runs, shown) = drawn_under_keys(cx, "settings-filter-column");
+    // The header stands above the sections, so the topmost `Keys` is the
+    // filter's own text and not the section title.
+    let filter = run(&runs, card, "Keys");
+    let set_name = run(&runs, card, &shown);
+    assert!(
+        (filter.bounds.left() - set_name.bounds.left()).abs() < px(EPS),
+        "the filter's text starts at {:?} and the Set name box's at {:?}",
+        filter.bounds.left(),
+        set_name.bounds.left()
+    );
+}
+
+/// The Settings dialog drawn under the filter `Keys`: its card, its text runs,
+/// and the text the Set name box shows, its value or else its placeholder.
+fn drawn_under_keys(
+    cx: &mut TestAppContext,
+    name: &str,
+) -> (gpui::Bounds<gpui::Pixels>, Vec<TextRunLayout>, String) {
+    let (state, visual) = drawn_shell(cx, name);
     visual.update(|_, app| {
         state.update(app, |state, cx| {
             state.open_dialog(DialogKind::Settings);
@@ -409,7 +453,6 @@ fn the_keymap_row_starts_on_the_column_of_the_box_below_it(cx: &mut TestAppConte
         .debug_bounds("dialog-card")
         .expect("the Settings dialog draws a card");
     let runs = visual.update(|window, _| window.rendered_text_runs().to_vec());
-    let first = run(&runs, card, "No saved sets");
     let shown = visual.read(|app| {
         let state = state.read(app);
         let look = state
@@ -422,15 +465,5 @@ fn the_keymap_row_starts_on_the_column_of_the_box_below_it(cx: &mut TestAppConte
             value
         }
     });
-    let set_name = run(&runs, card, &shown);
-    // A text box's text stands inside its 1 px border and its padding, and a
-    // chip's inside its padding.
-    let column = set_name.bounds.left() - px(1.0 + Theme::SPACE_SM);
-    assert!(
-        (first.bounds.left() - (column + px(Theme::SPACE_SM))).abs() < px(EPS),
-        "the Keymap row's text starts at {:?}, a chip's on the column of the set \
-         name box below it at {:?}",
-        first.bounds.left(),
-        column + px(Theme::SPACE_SM)
-    );
+    (card, runs, shown)
 }

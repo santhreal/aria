@@ -45,7 +45,14 @@ pub fn render(
 ) -> impl IntoElement {
     let theme = Theme::of(cx);
     let mode = appearance::mode(cx);
-    let filter = ai::field_row(&theme, state, SettingsField::Filter, cx);
+    // The filter is a labelled row like the ones in the section cards below
+    // it, so it stands at their inset and its box starts on their column.
+    let filter = div().px(px(widgets::ROW_INSET)).child(ai::field_row(
+        &theme,
+        state,
+        SettingsField::Filter,
+        cx,
+    ));
     // Test the section title before evaluating its row expression. A search for
     // one section therefore constructs only that section's element tree.
     let mut sections: Vec<(&'static str, Vec<gpui::AnyElement>)> = Vec::new();
