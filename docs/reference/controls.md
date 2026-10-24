@@ -116,7 +116,7 @@ The Inspector panel (`crates/aria-ui/src/panels/inspector/**/*.rs`) renders para
 | `fx-param-bool` (per row) | On / Off | Toggles a boolean parameter on an applied clip effect. | None |
 | `fx-text-clear` (per row) | Clear | Clears the text string of an effect text parameter. | None |
 | `inspector-fx-bypass` (per row) | fx | Toggles bypass for an individual effect row on the selected clip. | None |
-| `inspector-fx-down` (per row) | ↓ | Moves the effect one slot later in the clip's evaluation order. | None |
+| `inspector-fx-down` (per row) | Move later | Moves the effect one slot later in the clip's evaluation order. | None |
 | `inspector-fx-menu` | Effect actions | Opens the per-effect menu to rename, duplicate, copy, paste, or save the effect as a preset. | None |
 | `inspector-fx-plugin-preset` (per row) | Plugin preset | Applies a plugin-contributed effect preset to the selected clip. | None |
 | `inspector-fx-preset` (per row) | Preset name | Applies a saved effect chain preset to the selected clip. | None |
@@ -128,7 +128,7 @@ The Inspector panel (`crates/aria-ui/src/panels/inspector/**/*.rs`) renders para
 | `inspector-fx-preset-save` | Save as preset / Save | Opens the preset naming form or commits the new effect preset to disk. | None |
 | `inspector-fx-remove` | Remove effect | Removes the effect row from the selected clip's stack. | None |
 | `inspector-fx-reset` | Reset effect | Resets all parameters of the effect row to their default values. | None |
-| `inspector-fx-up` (per row) | ↑ | Moves the effect one slot earlier in the clip's evaluation order. | None |
+| `inspector-fx-up` (per row) | Move earlier | Moves the effect one slot earlier in the clip's evaluation order. | None |
 | `inspector-parent-whip` | Parent pick whip | Attaches the transform parenting pick whip tooltip and arms clip parenting on click or drag. | None |
 | `inspector-pitch` | On / Off | Toggles pitch preservation when the selected clip plays at a non-unit speed. | None |
 | `inspector-replace-media` | Media name | Opens a file picker to replace the source media of a template slot clip. | None |
@@ -231,11 +231,11 @@ The Audio Mixer and shared audio insert chain (`crates/aria-ui/src/panels/insert
 | `insert-add` (per row) | + Audio effect | Opens or closes the audio effect picker for the track, clip, or master insert chain. | None |
 | `insert-add-effect` (per row) | Effect name | Appends the audio effect to the end of the insert chain. | None |
 | `insert-bypass` (per row) | On / Bypassed | Bypasses the audio insert effect, or puts it back in the signal path. | None |
-| `insert-down` | ↓ | Moves the audio insert effect one slot later in the track, clip, or master insert chain. | None |
+| `insert-down` | Move later | Moves the audio insert effect one slot later in the track, clip, or master insert chain. | None |
 | `insert-key` (per row) | Lane name | Sets the lane whose audio keys the insert effect, such as a sidechain compressor. | None |
 | `insert-key-none` (per row) | No key | Clears the key lane of the insert effect. | None |
 | `insert-remove` | Remove audio effect | Removes the audio insert effect from the track, clip, or master insert chain. | None |
-| `insert-up` | ↑ | Moves the audio insert effect one slot earlier in the track, clip, or master insert chain. | None |
+| `insert-up` | Move earlier | Moves the audio insert effect one slot earlier in the track, clip, or master insert chain. | None |
 
 ## Captions
 

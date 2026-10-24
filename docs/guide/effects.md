@@ -71,9 +71,9 @@ proxy or a reduced preview draws the same picture.
 ## Effects
 
 The Effects tab of Effect Controls lists the effect chain in render order. Each effect
-has a header: **fx**, the effect's name, ↑ and ↓ to move it one step (hidden
-at the ends of the chain), a reset button, a menu button, and a bin to remove
-it.
+has a header: **fx**, the effect's name, the up and down chevrons that move it
+one place (the first effect has no up chevron and the last no down chevron), a
+reset button, a menu button, and a bin to remove it.
 
 - **fx** switches the effect off and back on, one undo step per press. A
   switched-off effect keeps its parameters and its place in the chain, renders

@@ -493,6 +493,13 @@ pub fn icon_button(id: impl IconId, path: &'static str, theme: &Theme) -> Statef
         .child(crate::icons::icon(path))
 }
 
+/// The room of an [`icon_button`] with nothing in it, for a row of icon
+/// controls where one does not apply: the controls after it stand in the
+/// columns the rows above and below draw them in.
+pub fn icon_space() -> Div {
+    div().flex_none().size(px(Theme::ICON_HIT))
+}
+
 pub fn danger_button(
     id: impl Into<motion::ControlId>,
     label: impl Into<SharedString>,

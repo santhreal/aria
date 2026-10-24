@@ -133,8 +133,11 @@ icon_assets![
     (CHEVRON_LEFT, "chevron-left.svg", "icon/chevron-left.svg"),
     (CHEVRON_RIGHT, "chevron-right.svg", "icon/chevron-right.svg"),
     // One glyph for every disclosure in the app: a row that opens turns this
-    // one, rather than swapping to a second asset mid-transition.
+    // one, rather than swapping to a second asset mid-transition. It also moves
+    // an entry of a chain one place later, beside `CHEVRON_UP`.
     (CHEVRON_DOWN, "ui/chevron-down.svg", "icon/chevron-down.svg"),
+    // Moves an effect or an audio insert one place earlier in its chain.
+    (CHEVRON_UP, "ui/chevron-up.svg", "icon/chevron-up.svg"),
     // A favourite: lit when the entry is starred, faint when it is not.
     (STAR, "ui/star.svg", "icon/star.svg"),
     // The Project panel's pool: Import, the views, and the folder and

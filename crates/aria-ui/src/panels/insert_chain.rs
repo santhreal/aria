@@ -2,13 +2,12 @@
 //! mixer strip.
 //!
 //! Both places draw the same projected rows and press the same gestures through
-//! [`insert_rack`]. Each insert is a header (its name, a bypass chip, the arrows
-//! that reorder it, and a remove button) with its parameters as steppers under
+//! [`insert_rack`]. Each insert is a header (its name, a bypass chip, the
+//! chevrons that move it, and a remove button) with its parameters as steppers under
 //! it: under every insert in the inspector, and under the open one on a strip.
 //! An insert whose effect reads a key lists the lanes that may key it.
 
 use crate::components::Wraps as _;
-use crate::tooltip::WithTip as _;
 use gpui::{
     Div, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
     Stateful, Styled, div, px,
@@ -23,7 +22,6 @@ use crate::panels::inspector::blocks::widgets::{Readout, audio_row};
 use crate::surfaces::insert_rack::{self, Gesture};
 use crate::theme::Theme;
 use crate::types::{UiInsert, UiInsertParam, UiKeyChoice};
-use gpui::prelude::FluentBuilder;
 
 /// One chain to draw.
 pub struct Chain<'a> {
@@ -142,8 +140,8 @@ fn chain_key(target: AudioInsertTarget) -> MotionKey {
     }
 }
 
-/// The insert's name, bypass chip, arrows and remove button. On a strip the
-/// name opens and closes the parameters.
+/// The insert's name, bypass chip, move-earlier and move-later controls, and
+/// remove button. On a strip the name opens and closes the parameters.
 fn header(
     theme: &Theme,
     at: Place,
@@ -182,26 +180,38 @@ fn header(
         move || Gesture::Bypass { target, index },
         cx,
     );
-    let up = (index > 0).then(|| {
+    // An insert that cannot move one way keeps the room of that control, so
+    // the controls after it stand in the columns the other rows draw them in.
+    let up = if index > 0 {
         pressed(
-            components::ghost_button(("insert-up", key.with("up")), "↑", theme)
-                .when_some(crate::tooltip::builder("insert-up"), |el, tip| {
-                    el.with_tip(tip)
-                }),
+            components::icon_button(
+                ("insert-up", key.with("up")),
+                crate::icons::CHEVRON_UP,
+                theme,
+            )
+            .debug_selector(move || format!("insert-up-{index}")),
             move || Gesture::MoveUp { target, index },
             cx,
         )
-    });
-    let down = (!last).then(|| {
+        .into_any_element()
+    } else {
+        components::icon_space().into_any_element()
+    };
+    let down = if last {
+        components::icon_space().into_any_element()
+    } else {
         pressed(
-            components::ghost_button(("insert-down", key.with("down")), "↓", theme)
-                .when_some(crate::tooltip::builder("insert-down"), |el, tip| {
-                    el.with_tip(tip)
-                }),
+            components::icon_button(
+                ("insert-down", key.with("down")),
+                crate::icons::CHEVRON_DOWN,
+                theme,
+            )
+            .debug_selector(move || format!("insert-down-{index}")),
             move || Gesture::MoveDown { target, index },
             cx,
         )
-    });
+        .into_any_element()
+    };
     let remove = pressed(
         components::icon_button(("insert-remove", key), crate::icons::TRASH, theme),
         move || Gesture::Remove { target, index },
@@ -226,8 +236,8 @@ fn header(
                 .items_center()
                 .gap(px(Theme::SPACE_XXS))
                 .child(bypass)
-                .children(up)
-                .children(down)
+                .child(up)
+                .child(down)
                 .child(remove),
         )
         .into_any_element()

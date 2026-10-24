@@ -81,6 +81,7 @@ pub fn controls(theme: &Theme, cx: &mut Context<Gallery>) -> AnyElement {
             .child(opener_rows(theme, cx.reduce_motion()))
             .child(menu_lead_rows(theme))
             .child(icon_rows(theme, cx))
+            .child(icon_space_rows(theme))
             .into_any_element(),
     )
     .into_any_element()
@@ -350,6 +351,43 @@ fn icon_rows(theme: &Theme, cx: &App) -> AnyElement {
                 })
                 .collect(),
         ),
+    )
+}
+
+/// Two rows of icon controls, the second with no lock: the room the lock would
+/// take holds the volume control in the column of the row above.
+fn icon_space_rows(theme: &Theme) -> AnyElement {
+    let row = |lane: usize, lock: bool| {
+        let middle = if lock {
+            components::icon_button(("gallery-space-lock", lane), icons::LOCK, theme)
+                .into_any_element()
+        } else {
+            components::icon_space().into_any_element()
+        };
+        div()
+            .flex()
+            .gap(px(Theme::SPACE_XXS))
+            .child(components::icon_button(
+                ("gallery-space-eye", lane),
+                icons::EYE,
+                theme,
+            ))
+            .child(middle)
+            .child(components::icon_button(
+                ("gallery-space-volume", lane),
+                icons::VOLUME,
+                theme,
+            ))
+    };
+    group(
+        theme,
+        "icon_space() — the room of an icon_button with nothing in it",
+        div()
+            .flex()
+            .flex_col()
+            .gap(px(Theme::SPACE_XXS))
+            .child(row(0, true))
+            .child(row(1, false)),
     )
 }
 

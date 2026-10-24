@@ -3,6 +3,8 @@
 pub mod blocks;
 mod clip_type;
 #[cfg(test)]
+mod reorder_tests;
+#[cfg(test)]
 mod strip_tests;
 pub mod tab_host;
 mod tab_strip;

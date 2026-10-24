@@ -118,6 +118,10 @@ const FORWARDERS: &[Forwarder] = &[
         name: "card_action",
         arg: 0,
     },
+    Forwarder {
+        name: "reorder_button",
+        arg: 0,
+    },
 ];
 
 /// A widget call whose id is a field of a static table.

@@ -181,63 +181,22 @@ pub fn effects_tab(
                                 .flex()
                                 .flex_row()
                                 .gap(px(Theme::SPACE_XS))
-                                .when(index > 0, |el| {
-                                    el.child(
-                                        components::ghost_button(
-                                            crate::motion::MotionKey::new("inspector-fx-up", index),
-                                            "↑",
-                                            theme,
-                                        )
-                                        .when_some(
-                                            crate::tooltip::builder("inspector-fx-up"),
-                                            |el, tip| el.with_tip(tip),
-                                        )
-                                        .on_mouse_down(
-                                            MouseButton::Left,
-                                            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                                                this.state.update(cx, |state, _| {
-                                                    if let Err(err) = effects_rack::apply(
-                                                        state,
-                                                        Gesture::MoveUp(index),
-                                                    ) {
-                                                        state.report_error(&err);
-                                                    }
-                                                });
-                                                cx.notify();
-                                            }),
-                                        ),
-                                    )
-                                })
-                                .when(!last, |el| {
-                                    el.child(
-                                        components::ghost_button(
-                                            crate::motion::MotionKey::new(
-                                                "inspector-fx-down",
-                                                index,
-                                            ),
-                                            "↓",
-                                            theme,
-                                        )
-                                        .when_some(
-                                            crate::tooltip::builder("inspector-fx-down"),
-                                            |el, tip| el.with_tip(tip),
-                                        )
-                                        .on_mouse_down(
-                                            MouseButton::Left,
-                                            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                                                this.state.update(cx, |state, _| {
-                                                    if let Err(err) = effects_rack::apply(
-                                                        state,
-                                                        Gesture::MoveDown(index),
-                                                    ) {
-                                                        state.report_error(&err);
-                                                    }
-                                                });
-                                                cx.notify();
-                                            }),
-                                        ),
-                                    )
-                                })
+                                .child(reorder_button(
+                                    "inspector-fx-up",
+                                    index,
+                                    crate::icons::CHEVRON_UP,
+                                    (index > 0).then_some(move || Gesture::MoveUp(index)),
+                                    theme,
+                                    cx,
+                                ))
+                                .child(reorder_button(
+                                    "inspector-fx-down",
+                                    index,
+                                    crate::icons::CHEVRON_DOWN,
+                                    (!last).then_some(move || Gesture::MoveDown(index)),
+                                    theme,
+                                    cx,
+                                ))
                                 .child(
                                     components::icon_button(
                                         ("inspector-fx-reset", index),
@@ -650,6 +609,37 @@ fn move_on_chain(
     });
     crate::app::spawn_preview(this.state.clone(), cx);
     cx.notify();
+}
+
+/// The control on the header of the effect at `index` that applies the gesture
+/// `gesture` builds, a move one place earlier or later, or the room of one where
+/// the effect cannot move that way: the controls after it stand in the columns
+/// the other headers draw them in.
+fn reorder_button(
+    id: &'static str,
+    index: usize,
+    icon: &'static str,
+    gesture: Option<impl Fn() -> Gesture + 'static>,
+    theme: &Theme,
+    cx: &gpui::Context<crate::shell::Shell>,
+) -> gpui::AnyElement {
+    let Some(gesture) = gesture else {
+        return components::icon_space().into_any_element();
+    };
+    components::icon_button((id, index), icon, theme)
+        .debug_selector(move || format!("{id}-{index}"))
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                this.state.update(cx, |state, _| {
+                    if let Err(err) = effects_rack::apply(state, gesture()) {
+                        state.report_error(&err);
+                    }
+                });
+                cx.notify();
+            }),
+        )
+        .into_any_element()
 }
 
 /// Open the effect header's menu at the pointer, on the effect at `index` in

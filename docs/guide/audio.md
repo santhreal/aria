@@ -57,8 +57,8 @@ each; a clip holds any number.
 - **+ Audio effect** opens the list of effects; clicking one appends it and
   closes the list.
 - Each effect row holds its name, a chip that reads **On** or **Bypassed**
-  (click it to switch), ↑ and ↓ to move it one step, hidden at the ends of the
-  chain, and a bin to remove it.
+  (click it to switch), the up and down chevrons that move it one place, absent
+  at the ends of the chain, and a bin to remove it.
 - Parameters step within their range: left click raises a value, right click
   lowers it. In the Audio tab every effect shows its parameters; on a mixer
   strip, click an effect's name to show or hide them. A keyframed parameter

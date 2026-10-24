@@ -138,7 +138,7 @@ Defined in `crates/aria-ui/src/surfaces/lane_header.rs`,
 | `MAGNET` | `assets/icon/timeline/magnet.svg` | Snapping, in the Timeline header. |
 | `FLAG` | `assets/icon/timeline/flag.svg` | Add a marker at the playhead, or open Marker Edit for the marker already on the playhead's frame. |
 | `GRAPH` | `assets/icon/timeline/chart-spline.svg` | Open or close the Graph Editor. |
-| `CHEVRON_DOWN` | `assets/icon/ui/chevron-down.svg` | Every disclosure: a lane, a property group, an effect's parameter group (`components::disclosure_button`), an Effects & Presets folder, and a bin row. `components::chevron` turns it a quarter turn for a shut row. It also ends a chip that opens a list, such as the Viewer's resolution menu (`components::list_chip`). |
+| `CHEVRON_DOWN` | `assets/icon/ui/chevron-down.svg` | Every disclosure: a lane, a property group, an effect's parameter group (`components::disclosure_button`), an Effects & Presets folder, and a bin row. `components::chevron` turns it a quarter turn for a shut row. It also ends a chip that opens a list, such as the Viewer's resolution menu (`components::list_chip`), and moves an effect or an audio insert one place later. |
 
 ### Media pool
 
@@ -164,6 +164,7 @@ Defined in `crates/aria-ui/src/panels/inspector/tabs/effects.rs`.
 | `ROTATE_CCW` | `assets/icon/inspector/rotate-ccw.svg` | Reset an effect, the transform (`tabs/transform.rs`), a colour wheel (`blocks/wheels.rs`), and a property row (`blocks/widgets_keys.rs`, `panels/timeline/property_rows.rs`). |
 | `ELLIPSIS` | `assets/icon/inspector/ellipsis.svg` | An effect's menu. |
 | `TRASH` | `assets/icon/inspector/trash-2.svg` | Remove an effect, and remove an audio insert (`panels/insert_chain.rs`). |
+| `CHEVRON_UP` | `assets/icon/ui/chevron-up.svg` | Move an effect one place earlier, and move an audio insert one place earlier (`panels/insert_chain.rs`). |
 | `STAR` | `assets/icon/ui/star.svg` | Favourite an entry in Effects & Presets (`panels/effects_browser.rs`). |
 
 ## Text labels

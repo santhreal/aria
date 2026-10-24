@@ -13,7 +13,7 @@ Audio effects run as `AudioProcessor` instances on stereo `f32` audio blocks in 
    - **Filter & EQ > De-esser** (`frequency = 6000.0`, `threshold = -30.0`, `range = 12.0`)
    - **Amplitude & Compression > Compressor** (`threshold = -18.0`, `ratio = 4.0`, `attack = 10.0`, `release = 100.0`, `knee = 6.0`, `makeup = 3.0`)
    - **Amplitude & Compression > Limiter** (`ceiling = -1.0`, `release = 50.0`, `input = 0.0`)
-3. Open **Window > Effect Controls > Audio** (or **Window > Audio Track Mixer** for track/bus inserts) to adjust parameters, reorder processors with `↑` / `↓`, or keyframe parameters with `◆`.
+3. Open **Window > Effect Controls > Audio** (or **Window > Audio Track Mixer** for track/bus inserts) to adjust parameters, reorder processors with the up and down chevrons, or keyframe parameters with `◆`.
 
 ### Override `audio_effects.toml` to change the default Loudness Normalizer target
 
@@ -35,8 +35,8 @@ params = [
 - **Effects & Presets (`Window > Effects & Presets > Audio Effects`)**: expand **Amplitude & Compression**, **Channels**, **Delay & Echo**, **Filter & EQ**, **Noise Reduction**, **Reverb**, or **Time & Pitch**, and double-click an entry or drag it onto an audio or video-with-audio clip.
 - **Project panel (`Window > Project > Effects > Audio`)**: click an entry to append it to the selected clip or drag it onto a timeline clip.
 - **Effect Controls (`Window > Effect Controls > Audio` tab)**:
-  - Toggle `●` / `○` to enable or bypass an audio effect instance.
-  - Reorder instances with `↑` / `↓` or remove with `×`.
+  - Click the **On** or **Bypassed** chip to bypass an audio effect instance or bring it back.
+  - Reorder instances with the up and down chevrons, or remove one with the bin.
   - Drag parameter sliders or click `◆` to keyframe any parameter over clip time.
 - **Audio Track Mixer (`Window > Audio Track Mixer`)**: inserts audio effects on track and bus strips, including sidechain source routing for effects with `sidechain = true` (`compressor`).
 
