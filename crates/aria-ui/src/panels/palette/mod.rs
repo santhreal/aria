@@ -51,30 +51,10 @@ pub fn render(
                 .into_any_element(),
         );
     }
-    let query_label = if query.is_empty() {
-        "Type to filter…".to_string()
-    } else {
-        format!("{query}|")
-    };
-    let query_color = if query.is_empty() {
-        theme.text_muted
-    } else {
-        theme.text
-    };
-    let query_row = div()
-        .id("palette-query")
-        .flex()
-        .items_center()
-        .px(px(Theme::SPACE_SM))
-        .min_h(px(Theme::INPUT_HEIGHT))
-        .rounded(px(Theme::CONTROL_RADIUS))
-        .bg(theme.input_bg)
-        .border_1()
-        .border_color(theme.accent)
-        .text_size(Theme::TEXT_UI)
-        .text_color(query_color)
-        .cursor(CursorStyle::IBeam)
-        .child(query_label);
+    // The palette takes every key while it is open, so its box always holds
+    // focus.
+    let query_row =
+        crate::components::text_box("palette-query", query, "Type to filter…", true, &theme);
     // One row height and no gap, as a menu's rows: the palette is the menus
     // filtered, and reads at their pitch.
     let list = div().flex().flex_col().children(rows);

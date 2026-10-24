@@ -3,8 +3,8 @@
 use crate::tooltip::WithTip as _;
 use gpui::motion::presets;
 use gpui::{
-    CursorStyle, Div, InteractiveElement, IntoElement, ParentElement, SharedString, Stateful,
-    StatefulInteractiveElement, Styled, div, px,
+    CursorStyle, Div, InteractiveElement, IntoElement, ParentElement, Pixels, SharedString,
+    Stateful, StatefulInteractiveElement, Styled, div, px,
 };
 
 use crate::motion;
@@ -16,6 +16,13 @@ pub use drawn::{Picture, Wraps, picture};
 
 /// A disclosure chevron, sized to sit beside 12px row text.
 const CHEVRON_PX: f32 = 12.;
+
+/// How wide a caret's bar is drawn.
+const CARET_WIDTH: f32 = 1.5;
+
+/// How far a caret reaches past the size of its text: the room above the
+/// capitals and below the baseline.
+const CARET_OVERHANG: f32 = 4.0;
 
 /// A quarter turn: shut points the way the writing goes, open points down.
 const QUARTER: f32 = std::f32::consts::FRAC_PI_2;
@@ -257,13 +264,15 @@ pub fn menu_lead(checked: bool, icon: Option<&'static str>, theme: &Theme) -> Di
         })
 }
 
-/// A key-routed text box: the value, a caret while it holds focus, and the
-/// placeholder while it is empty.
+/// A key-routed text box: the value, or the placeholder while it is empty, and
+/// the caret at the insertion point while it holds focus.
 ///
-/// Every text field in the app is drawn by this, so the accent border that means
-/// "your keys go here" cannot be spelled differently in two panels. The caller
-/// attaches the click that takes focus, because only it knows which field this
-/// is.
+/// Every text box in the app is drawn by this, so the accent border that means
+/// "your keys go here" and the caret cannot be spelled differently in two
+/// panels. The caller attaches the click that takes focus, since the field a
+/// click focuses is the caller's. An empty box keeps its placeholder while it
+/// holds focus, with the caret before it, so a clicked box still states what
+/// it takes.
 pub fn text_box(
     id: impl Into<motion::ControlId>,
     value: impl Into<SharedString>,
@@ -273,17 +282,58 @@ pub fn text_box(
 ) -> Stateful<Div> {
     let value = value.into();
     let empty = value.is_empty();
+    let caret = || {
+        focused
+            .then(|| caret_mark(Theme::TEXT_UI, 1.0, theme).debug_selector(|| "text-caret".into()))
+    };
     field_frame(id, focused, theme)
         .text_color(if empty { theme.text_muted } else { theme.text })
-        // A field narrower than its text ends it in an ellipsis inside the
-        // border rather than drawing past it.
-        .child(div().min_w_0().truncate().child(if empty && !focused {
-            placeholder.into()
-        } else if focused {
-            SharedString::from(format!("{value}|"))
+        .children(if empty { caret() } else { None })
+        .child(if empty {
+            typed_line(placeholder, false)
         } else {
-            value
-        }))
+            typed_line(value, focused)
+        })
+        .children(if empty { None } else { caret() })
+}
+
+/// The text of a box that takes typed text, on one line that ends in an
+/// ellipsis inside the box when it is wider than the box.
+///
+/// `typing` is true while the next typed character joins the end of `text`.
+/// The ellipsis then leads instead, so that end stays in view beside the
+/// caret, as a field scrolled to its caret shows it.
+pub fn typed_line(text: impl Into<SharedString>, typing: bool) -> Div {
+    let line = div().min_w_0().overflow_hidden().whitespace_nowrap();
+    let line = if typing {
+        line.text_ellipsis_start()
+    } else {
+        line.text_ellipsis()
+    };
+    line.child(text.into())
+}
+
+/// The caret of a box that takes typed text: a bar in the caret colour at
+/// `opacity`, as tall as a line of `size` text, standing on a mark of no
+/// width so the glyphs on either side of it stay where the font sets them.
+///
+/// The text boxes, the rename bar, a value readout opened for typing and a
+/// driver's expression draw this one mark. The rename bar passes the opacity of its
+/// blink; the others hold it solid.
+pub fn caret_mark(size: Pixels, opacity: f32, theme: &Theme) -> Div {
+    div()
+        .relative()
+        .flex_none()
+        .h(size + px(CARET_OVERHANG))
+        .child(
+            div()
+                .absolute()
+                .top_0()
+                .left(px(-CARET_WIDTH / 2.0))
+                .w(px(CARET_WIDTH))
+                .h_full()
+                .bg(theme.caret.opacity(opacity)),
+        )
 }
 
 /// The frame of a [`text_box`]: its border, fill, padding and hover fade,
@@ -525,3 +575,7 @@ pub fn slider_row(
 #[cfg(test)]
 #[path = "components_readout_tests.rs"]
 mod readout_tests;
+
+#[cfg(test)]
+#[path = "components_field_tests.rs"]
+mod field_tests;

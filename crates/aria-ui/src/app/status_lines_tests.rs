@@ -524,3 +524,44 @@ fn every_size_the_crate_writes_reads_width_by_height() {
         offenders.join("\n  ")
     );
 }
+
+/// **No line the crate writes types a caret.**
+///
+/// The class closed here: a caret typed into a box's text instead of drawn
+/// beside it. `text_box` and five panels that drew a box of their own wrote
+/// `{value}|`, the Settings fields wrote an empty box's placeholder with a
+/// `|` after it, and a value readout opened for typing and a driver's
+/// expression wrote a `▏` after the draft. A box is a
+/// [`crate::components::text_box`], and a caret is a
+/// [`crate::components::caret_mark`] beside the text. Every string literal in
+/// the crate's production sources is read, so a caret typed later fails the
+/// run that types it.
+///
+/// Not covered: a caret glyph held in a `char` or a variable, and a box that
+/// draws a caret element of its own.
+#[test]
+fn no_line_the_crate_writes_types_a_caret() {
+    let mut read = 0;
+    let mut offenders = Vec::new();
+    for (rel, code) in production_sources() {
+        for (line, raw) in string_literals(&code) {
+            read += 1;
+            let text = as_written(&raw);
+            let typed =
+                text.ends_with('|') || raw.contains("\\u{258f}") || text.contains(['▏', '│', '┃']);
+            if typed {
+                offenders.push(format!("{rel}:{line}: {text:?}"));
+            }
+        }
+    }
+    assert!(
+        read > 5000,
+        "read {read} literals, fewer than the crate writes: the rule just went vacuous"
+    );
+    assert!(
+        offenders.is_empty(),
+        "carets typed into a line; draw the box with `components::text_box`, or its \
+         caret with `components::caret_mark`:\n  {}",
+        offenders.join("\n  ")
+    );
+}

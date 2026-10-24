@@ -117,9 +117,6 @@ pub fn render(
 }
 
 /// The draft, its selection tinted, with the caret at the caret's end of it.
-///
-/// The caret is an overlay on a zero-width mark, so the glyphs after it stay
-/// where the font places them.
 fn draft_line(draft: &str, anchor: usize, caret: usize, theme: &Theme, blink: f32) -> Div {
     let byte = |index: usize| {
         draft
@@ -133,20 +130,8 @@ fn draft_line(draft: &str, anchor: usize, caret: usize, theme: &Theme, blink: f3
             draft[byte(range.start)..byte(range.end)].to_owned(),
         ))
     };
-    let mark = div()
-        .debug_selector(|| "rename-caret".into())
-        .relative()
-        .flex_none()
-        .h(px(15.0))
-        .child(
-            div()
-                .absolute()
-                .top_0()
-                .left(px(-0.75))
-                .w(px(1.5))
-                .h_full()
-                .bg(theme.caret.opacity(blink)),
-        );
+    let mark = crate::components::caret_mark(Theme::TEXT_UI, blink, theme)
+        .debug_selector(|| "rename-caret".into());
     let selected = (low < high).then(|| {
         run(low..high)
             .debug_selector(|| "rename-selection".into())

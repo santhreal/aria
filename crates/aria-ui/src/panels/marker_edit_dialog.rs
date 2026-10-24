@@ -196,24 +196,6 @@ fn field_row(
     theme: &Theme,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
-    let id = match field {
-        MarkerEditField::Name => "marker-edit-name",
-        MarkerEditField::Comment => "marker-edit-comment",
-        MarkerEditField::Duration => "marker-edit-duration",
-    };
-    let border = if focused { theme.accent } else { theme.border };
-    let text = if value.is_empty() && !focused {
-        placeholder.to_string()
-    } else if focused {
-        format!("{value}|")
-    } else {
-        value.to_string()
-    };
-    let color = if value.is_empty() && !focused {
-        theme.text_muted
-    } else {
-        theme.text
-    };
     div()
         .flex()
         .flex_col()
@@ -225,31 +207,21 @@ fn field_row(
                 .child(label),
         )
         .child(
-            div()
-                .id(id)
-                .h(px(28.))
-                .px(px(Theme::SPACE_SM))
-                .rounded(px(Theme::CONTROL_RADIUS))
-                .border_1()
-                .border_color(border)
-                .bg(theme.input_bg)
-                .cursor_pointer()
-                .flex()
-                .items_center()
-                .on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                        this.state
-                            .update(cx, |state, _| state.focus_marker_edit_field(Some(field)));
-                        cx.notify();
-                    }),
-                )
-                .child(
-                    div()
-                        .text_size(Theme::TEXT_TITLE)
-                        .text_color(color)
-                        .child(text),
-                ),
+            components::text_box(
+                ("marker-edit-field", label),
+                value.to_owned(),
+                placeholder,
+                focused,
+                theme,
+            )
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                    this.state
+                        .update(cx, |state, _| state.focus_marker_edit_field(Some(field)));
+                    cx.notify();
+                }),
+            ),
         )
         .into_any_element()
 }

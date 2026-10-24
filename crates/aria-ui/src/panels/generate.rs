@@ -9,8 +9,8 @@
 //! request the provider will reject is how a missing key turns into a mystery failure.
 
 use gpui::{
-    CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
-    ParentElement, SharedString, Styled, div, px,
+    Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
+    SharedString, Styled, div, px,
 };
 
 use crate::app::AppState;
@@ -40,47 +40,26 @@ pub(crate) fn generate_panel(
     let configured = state.read(cx).generation_configured();
     let rows = crate::pending::job_rows(theme, state, JOB_LIMIT, mine, cx);
 
-    let border = if form.focused {
-        theme.accent
-    } else {
-        theme.border
-    };
-
     div()
         .flex()
         .flex_col()
         .gap(px(Theme::SPACE_SM))
         .child(
-            div()
-                .id("generate-prompt")
-                .px(px(Theme::SPACE_SM))
-                .py(px(Theme::SPACE_XS))
-                .rounded(px(Theme::CONTROL_RADIUS))
-                .bg(theme.surface_raised)
-                .border_1()
-                .border_color(border)
-                .cursor(CursorStyle::IBeam)
-                .text_size(Theme::TEXT_TITLE)
-                .text_color(if form.prompt.is_empty() {
-                    theme.text_muted
-                } else {
-                    theme.text
-                })
-                .child(SharedString::from(if form.prompt.is_empty() {
-                    "Click, then describe what to generate".to_string()
-                } else if form.focused {
-                    format!("{}|", form.prompt)
-                } else {
-                    form.prompt.clone()
-                }))
-                .on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                        this.state
-                            .update(cx, |state, _| state.focus_generate_prompt(true));
-                        cx.notify();
-                    }),
-                ),
+            components::text_box(
+                "generate-prompt",
+                &form.prompt,
+                "Describe what to generate",
+                form.focused,
+                theme,
+            )
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                    this.state
+                        .update(cx, |state, _| state.focus_generate_prompt(true));
+                    cx.notify();
+                }),
+            ),
         )
         .child(
             div().flex().gap(px(Theme::SPACE_XS)).children(

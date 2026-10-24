@@ -190,6 +190,7 @@ The Project panel (`crates/aria-ui/src/panels/sidebar_*.rs`, `crates/aria-ui/src
 | `create-multicam-group` | New multicam | Creates a new multicam group from the selected media pool items. | None |
 | `create-subclip` | Make Subclip | Creates a new subclip item in the media pool from the current Source Monitor in/out range. | None |
 | `generate-kind` (per row) | Generator kind | Selects the AI generation output kind (Image, Video, or Voice) in the Project panel Generate tab. | None |
+| `generate-prompt` | Describe what to generate | Edits the prompt the Generate tab submits; Enter submits it. | None |
 | `generate-submit` | Generate | Submits the prompt in the Generate tab to the fal AI generation provider as a background job and imports the generated media file into the pool. | None |
 | `media-import` | Import | Opens the File > Import file picker: preset files go to the preset library, a timeline file is read into the timeline, and other files are imported into the media pool and placed on the timeline from the playhead. | `Ctrl+I` |
 | `media-query` | Search | Filters media pool items in the active bin by filename or metadata. | None |
@@ -206,6 +207,7 @@ The Project panel (`crates/aria-ui/src/panels/sidebar_*.rs`, `crates/aria-ui/src
 | `sidebar-group` (per row) | Group tab | Switches the top-level Project panel category (Media, Graphics, Effects, Library, Analyze). | None |
 | `sidebar-tab` (per row) | Tab label | Switches the Project panel to the tab (Media, Titles, Shapes, Stickers, Generators, Animations, Masks, Transitions, Effects, Stock, SFX, Generate, Captions, Analysis, Audio) within the open group. | None |
 | `stock-kind` (per row) | Video / Photo / Audio | Selects the media kind a stock search returns. | None |
+| `stock-query` | Search stock media | Edits the stock media search query; Enter runs the search. | None |
 | `stock-search` | Search | Executes a stock media search query against the configured stock catalog. | None |
 | `switch-multicam-angle` (per row) | Angle label | Switches the active camera angle for the multicam group. | None |
 | `sync-multicam-group` (per row) | Sync angles | Aligns all angles in the multicam group by matching their audio waveforms. | None |
@@ -242,6 +244,7 @@ The Captions panel (`crates/aria-ui/src/panels/captions.rs`) renders speech-to-t
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
 | `caption-commit` | Commit | Writes the transcript into the project as the text clips or markers `caption-target` selects, one undo entry per caption. | None |
+| `caption-language` | Language | Edits the language code transcription runs in, such as `en`; an empty box detects the language. Enter starts transcription. | None |
 | `caption-run` | Transcribe | Starts speech-to-text transcription on the selected media-backed timeline clip. | None |
 | `caption-target` (per row) | Text clips / Markers | Selects whether Commit places one timed text clip per caption or one timeline marker per caption. | None |
 | `caption-threads` (per row) | 1 thread / 2 threads / 4 threads / 8 threads | Sets how many CPU threads the transcription model decodes with. | None |
@@ -402,6 +405,7 @@ The Settings dialog (`crates/aria-ui/src/panels/settings_dialog.rs` and `crates/
 | `quota-inc` | +512 MiB | Increases the download cache quota by 512 MiB. | None |
 | `settings-audio-scrubbing` | Audio scrubbing: On / Off | Toggles a 40 ms audio grain at each pointer position while the playhead, the ruler, or a timeline scrub is dragged. | None |
 | `settings-done` | Done | Closes the Settings dialog. | None |
+| `settings-field` (per row) | Field label | Edits the row's text setting: the AI provider's base URL, model, key, or key variable, the cloud base URL, the section filter, the keymap set name, or a plugin's text setting. Enter saves it and Esc leaves the saved value. | None |
 | `settings-key-clear` (per row) | Clear | Unbinds the keyboard shortcut from the command row. | None |
 | `settings-key-keep` | Keep | Keeps the existing binding when a newly pressed chord conflicts with another command. | None |
 | `settings-key-move` | Move | Reassigns a conflicting keyboard chord to the newly selected command. | None |
@@ -453,7 +457,7 @@ The application window frame, dock tab bars, and status strip (`crates/aria-ui/s
 
 ## Modal Dialogs
 
-Modal dialogs (`crates/aria-ui/src/panels/*_dialog.rs`, `crates/aria-ui/src/panels/project_report.rs`, `crates/aria-ui/src/panels/media_support.rs`, `crates/aria-ui/src/panels/timeline_report.rs` and `crates/aria-ui/src/pending.rs`) render confirmation, cancellation, and parameter controls for About, Audio Gain, Install Plugin, Jobs, Keyframe Velocity, Marker Edit, Media Support, Project Report, Remove Attributes, Speed / Duration, Timeline File, and Unsaved Changes.
+Modal dialogs (`crates/aria-ui/src/panels/*_dialog.rs`, `crates/aria-ui/src/panels/project_report.rs`, `crates/aria-ui/src/panels/media_support.rs`, `crates/aria-ui/src/panels/timeline_report.rs`, `crates/aria-ui/src/panels/palette/mod.rs` and `crates/aria-ui/src/pending.rs`) render confirmation, cancellation, and parameter controls for About, Audio Gain, Command Palette, Install Plugin, Jobs, Keyframe Velocity, Marker Edit, Media Support, Project Report, Remove Attributes, Speed / Duration, Timeline File, and Unsaved Changes.
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
@@ -473,6 +477,7 @@ Modal dialogs (`crates/aria-ui/src/panels/*_dialog.rs`, `crates/aria-ui/src/pane
 | `keyframe-velocity-cancel` | Cancel | Closes the Keyframe Velocity dialog without changing keyframe tangents. | None |
 | `keyframe-velocity-continuous` | Continuous: On / Off | Toggles continuous Bézier tangent coupling between incoming and outgoing keyframe handles. | None |
 | `marker-edit-cancel` | Cancel | Closes the Marker Edit dialog without saving changes. | None |
+| `marker-edit-field` (per row) | Name / Comment / Duration (timecode) | Edits the marker's name, comment, or duration in the Marker Edit dialog; Enter saves the marker. | None |
 | `marker-edit-kind` (per row) | Comment / Chapter / Segmentation | Sets the kind of the marker in the Marker Edit dialog. | None |
 | `marker-edit-save` | Save | Saves the edited marker name, notes, duration, colour, and kind. | None |
 | `media-exposure` | Measure exposure | Measures the exposure of the frame on screen and keeps the readout. | None |
@@ -481,6 +486,7 @@ Modal dialogs (`crates/aria-ui/src/panels/*_dialog.rs`, `crates/aria-ui/src/pane
 | `media-refresh` | Re-read | Rebuilds the Media Support report. | None |
 | `media-support-close` | Close | Closes the Media Support dialog. | None |
 | `media-verify` | Verify decode | Decodes the selected clip's still or animation from its path and from its bytes and compares the two. | None |
+| `palette-query` | Type to filter… | Filters the Command Palette's commands by name as it is typed into; Up and Down move the highlight and Enter runs the highlighted command. | None |
 | `project-report-close` | Close | Closes the Project Report dialog. | None |
 | `remove-attr` (per row) | Motion / Opacity / Crop / Time Remapping / Volume / Pan / Effects / Audio Effects / Grade / Mask / Chroma Key | Ticks or unticks the attribute group the Remove Attributes dialog strips. | None |
 | `remove-attr-apply` | Remove | Strips the checked attribute groups and effects from the selected timeline clips. | None |

@@ -77,7 +77,7 @@ pub fn readout(
             .text_color(theme.text)
             .cursor(CursorStyle::IBeam)
             .child(body)
-            .child("\u{258f}")
+            .child(crate::components::caret_mark(look.size, 1.0, theme))
             .children(painted)
             // A press on the open field is not a new gesture on the row.
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())

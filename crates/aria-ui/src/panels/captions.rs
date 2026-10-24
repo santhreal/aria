@@ -10,12 +10,12 @@
 
 use aria_core::count::counted;
 use gpui::{
-    CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
-    ParentElement, SharedString, Styled, div, px,
+    Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
+    SharedString, Styled, div, px,
 };
 
 use crate::app::AppState;
-use crate::app::captions::{CaptionCommit, CaptionsForm, THREAD_CHOICES};
+use crate::app::captions::{CaptionCommit, THREAD_CHOICES};
 use crate::components;
 use crate::fluent::FluentBuilder;
 use crate::theme::Theme;
@@ -36,20 +36,6 @@ fn mine(job: &crate::app::jobs::UiJob) -> bool {
     )
 }
 
-/// The language box's text, with the caret when it has focus.
-///
-/// A code is one or two characters, so this is the panel's one small format per
-/// frame rather than a copy of anything the store holds.
-fn language_label(form: &CaptionsForm) -> SharedString {
-    if form.language.is_empty() {
-        SharedString::new_static("Language: detect (click to set, e.g. en)")
-    } else if form.language_focused {
-        format!("Language: {}|", form.language).into()
-    } else {
-        format!("Language: {}", form.language).into()
-    }
-}
-
 pub(crate) fn captions_panel(
     theme: &Theme,
     state: &Entity<AppState>,
@@ -60,7 +46,7 @@ pub(crate) fn captions_panel(
     let (language, focused, word_level, threads, commit, units, installed) = {
         let state = state.read(cx);
         (
-            language_label(&state.captions),
+            state.captions.language.clone(),
             state.captions.language_focused,
             state.captions.word_level,
             state.captions.threads,
@@ -71,36 +57,38 @@ pub(crate) fn captions_panel(
     };
     let rows = crate::pending::job_rows(theme, state, JOB_LIMIT, mine, cx);
 
-    let border = if focused { theme.accent } else { theme.border };
-
     div()
         .flex()
         .flex_col()
         .gap(px(Theme::SPACE_SM))
         .child(
             div()
-                .id("caption-language")
-                .px(px(Theme::SPACE_SM))
-                .py(px(Theme::SPACE_XS))
-                .rounded(px(Theme::CONTROL_RADIUS))
-                .bg(theme.surface_raised)
-                .border_1()
-                .border_color(border)
-                .cursor(CursorStyle::IBeam)
-                .text_size(Theme::TEXT_TITLE)
-                .text_color(if language.is_empty() {
-                    theme.text_muted
-                } else {
-                    theme.text
-                })
-                .child(language)
-                .on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                        this.state
-                            .update(cx, |state, _| state.focus_caption_language(true));
-                        cx.notify();
-                    }),
+                .flex()
+                .items_center()
+                .gap(px(Theme::SPACE_SM))
+                .child(
+                    div()
+                        .text_size(Theme::TEXT_UI)
+                        .text_color(theme.text_muted)
+                        .child("Language"),
+                )
+                .child(
+                    components::text_box(
+                        "caption-language",
+                        language,
+                        "Detect, or type a code such as en",
+                        focused,
+                        theme,
+                    )
+                    .flex_1()
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                            this.state
+                                .update(cx, |state, _| state.focus_caption_language(true));
+                            cx.notify();
+                        }),
+                    ),
                 ),
         )
         .child(

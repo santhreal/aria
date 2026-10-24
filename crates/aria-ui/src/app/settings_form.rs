@@ -75,7 +75,8 @@ impl SettingsField {
         Self::Filter,
     ];
 
-    /// The stable element id, also the palette-facing name.
+    /// The stable name the field's text box is keyed by, also the
+    /// palette-facing name.
     pub fn id(self) -> &'static str {
         match self {
             Self::AiBaseUrl => "ai-base-url",

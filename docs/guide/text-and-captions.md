@@ -56,9 +56,9 @@ rejects. A slow link needs a larger `Read`; a large model on a slow link needs a
 larger `Total`.
 
 With a model installed, select a clip whose media has an audio track and open
-the Project panel's **Captions** tab. Set a language code such as `en` in the box, or
-leave it empty to detect one. The thread chips choose how many CPU threads the
-decoder uses. Press Enter or click **Transcribe**.
+the Project panel's **Captions** tab. Set a language code such as `en` in the
+**Language** box, or leave it empty to detect one. The thread chips set how
+many CPU threads the decoder uses. Press Enter or click **Transcribe**.
 
 The run is a job: it decodes the clip's source range as 16 kHz mono, transcribes
 it, and lists the segments with their timecodes. Cancel stops it and leaves the

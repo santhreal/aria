@@ -431,11 +431,6 @@ fn driver_source(
     } else {
         theme.text_muted
     };
-    let text: SharedString = if line.editing {
-        format!("{}\u{258f}", line.source).into()
-    } else {
-        line.source.clone()
-    };
     let source = div()
         .id(key.with("driver").element_id("insp-driver"))
         .debug_selector(move || format!("insp-driver-{param:?}"))
@@ -454,7 +449,16 @@ fn driver_source(
         .when_some(line.fault.clone(), |el, fault| {
             el.with_tip(crate::tooltip::text_builder(fault))
         })
-        .child(text)
+        .when_else(
+            line.editing,
+            |el| {
+                el.flex()
+                    .items_center()
+                    .child(crate::components::typed_line(line.source.clone(), true))
+                    .child(crate::components::caret_mark(Theme::TEXT_TITLE, 1.0, theme))
+            },
+            |el| el.child(line.source.clone()),
+        )
         .on_mouse_down(
             MouseButton::Left,
             cx.listener(move |this, _: &MouseDownEvent, _, cx| {

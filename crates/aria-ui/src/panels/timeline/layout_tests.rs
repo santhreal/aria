@@ -249,8 +249,7 @@ fn the_header_column_is_one_grid_at_every_outline_width(cx: &mut gpui::TestAppCo
 #[gpui::test]
 fn a_playhead_field_closes_on_a_press_elsewhere(cx: &mut gpui::TestAppContext) {
     let (state, visual) = shell_with_still(cx, "timeline-tc-rest");
-    let caret =
-        |visual: &mut VisualTestContext| runs(visual).iter().any(|run| run.text.ends_with('|'));
+    let caret = |visual: &mut VisualTestContext| visual.debug_bounds("text-caret").is_some();
     for (field, site, elsewhere) in [
         ("timeline-tc", ClockSite::Timeline, "timeline-video-canvas"),
         ("playhead-tc", ClockSite::Viewer, "timeline-header-controls"),

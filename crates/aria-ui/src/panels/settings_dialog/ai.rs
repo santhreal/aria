@@ -13,8 +13,8 @@
 use aria_core::count::counted;
 use aria_settings::{AiApiProtocol, AiSource, Autonomy, ReasoningSummary};
 use gpui::{
-    Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
-    SharedString, Styled, div, px,
+    Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled,
+    div, px,
 };
 
 use crate::app::AppState;
@@ -91,18 +91,13 @@ pub(super) fn field_row(
         return div().into_any_element();
     };
     let (value, focused) = state.read(cx).setting_draft(field);
-    let shown = if value.is_empty() {
-        look.placeholder.to_string()
-    } else if look.kind == aria_plugin::SettingKind::Secret && !focused {
+    let value = if look.kind == aria_plugin::SettingKind::Secret && !focused && !value.is_empty() {
         let count = value.chars().count();
         format!("Stored, {}", counted(count, "character", "characters"))
     } else {
         value
     };
-    let text = if focused { format!("{shown}|") } else { shown };
-    let border = if focused { theme.accent } else { theme.border };
     div()
-        .id(SharedString::from(field.id()))
         .flex()
         .flex_row()
         .items_center()
@@ -115,16 +110,14 @@ pub(super) fn field_row(
                 .child(look.label),
         )
         .child(
-            div()
-                .flex_1()
-                .px(px(Theme::SPACE_SM))
-                .py(px(2.0))
-                .border_1()
-                .border_color(border)
-                .rounded(px(Theme::CONTROL_RADIUS))
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text)
-                .child(text),
+            components::text_box(
+                ("settings-field", field.id()),
+                value,
+                look.placeholder,
+                focused,
+                theme,
+            )
+            .flex_1(),
         )
         .on_mouse_down(
             MouseButton::Left,

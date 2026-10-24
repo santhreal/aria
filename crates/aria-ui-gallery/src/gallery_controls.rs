@@ -67,6 +67,7 @@ pub fn controls(theme: &Theme, cx: &mut Context<Gallery>) -> AnyElement {
                     .child(components::slider_row(theme, "Volume", 1.0, "100%")),
             ))
             .child(readout_rows(theme))
+            .child(typed_rows(theme))
             .child(group(
                 theme,
                 "tab_bar(theme, &[(label, active)])",
@@ -210,6 +211,43 @@ fn readout_rows(theme: &Theme) -> AnyElement {
                 "None",
                 theme.text_faint,
             )),
+    )
+}
+
+/// The two parts of a box that takes typed text, in a box too narrow for its
+/// name: the line at rest ends in an ellipsis, the line being typed leads with
+/// one so its end stays beside the caret, and the caret at half strength is the
+/// rename bar's blink caught midway.
+fn typed_rows(theme: &Theme) -> AnyElement {
+    const NAME: &str = "Interview B-roll, second take";
+    let narrow = |typing: bool| {
+        div()
+            .w(px(120.))
+            .flex()
+            .items_center()
+            .text_size(Theme::TEXT_UI)
+            .text_color(theme.text)
+            .child(components::typed_line(NAME, typing))
+            .children(typing.then(|| components::caret_mark(Theme::TEXT_UI, 1.0, theme)))
+    };
+    group(
+        theme,
+        "typed_line(text, typing) / caret_mark(size, opacity, theme) — at rest / typing / blink",
+        shelf(vec![
+            specimen(theme, "typed_line at rest", narrow(false)),
+            specimen(theme, "typed_line typing", narrow(true)),
+            specimen(
+                theme,
+                "caret_mark at 0.5",
+                div()
+                    .flex()
+                    .items_center()
+                    .text_size(Theme::TEXT_UI)
+                    .text_color(theme.text)
+                    .child("b-roll")
+                    .child(components::caret_mark(Theme::TEXT_UI, 0.5, theme)),
+            ),
+        ]),
     )
 }
 

@@ -243,7 +243,6 @@ pub(super) fn cloud_grid(
             crate::cloud::StockRoute::Direct => "Your provider keys",
             crate::cloud::StockRoute::Backend => "Anonymous search",
         };
-        let box_border = if focused { theme.accent } else { theme.border };
         div()
             .flex()
             .flex_col()
@@ -255,28 +254,7 @@ pub(super) fn cloud_grid(
                     .child(caption),
             )
             .child(
-                div()
-                    .id("stock-query")
-                    .px(px(Theme::SPACE_SM))
-                    .py(px(Theme::SPACE_XS))
-                    .rounded(px(Theme::CONTROL_RADIUS))
-                    .bg(theme.surface_raised)
-                    .border_1()
-                    .border_color(box_border)
-                    .cursor(CursorStyle::IBeam)
-                    .text_size(Theme::TEXT_TITLE)
-                    .text_color(if query.is_empty() {
-                        theme.text_muted
-                    } else {
-                        theme.text
-                    })
-                    .child(SharedString::from(if query.is_empty() {
-                        "Click, then type a query".to_string()
-                    } else if focused {
-                        format!("{query}|")
-                    } else {
-                        query
-                    }))
+                components::text_box("stock-query", query, "Search stock media", focused, theme)
                     .on_mouse_down(
                         MouseButton::Left,
                         cx.listener(|this, _: &MouseDownEvent, _, cx| {

@@ -41,7 +41,7 @@ Helpers: `ink(alpha)` for fills, `hairline(alpha)` for borders,
 | `text_faint` | `#6b6b6b` | `#7d7d7d` | Disabled, hints |
 | `text_dim` | `#989898` | `neutral(0.50)` | Context rather than content: file paths |
 | `value` | `#5aa8ff` | `#1a73d9` | Editable numbers |
-| `caret` | accent family | accent family | The blinking caret in a text field |
+| `caret` | accent family | accent family | The caret in a text box, solid, and in the rename bar, blinking |
 | `on_solid` | `#0e0e0e` | `neutral(0.985)` | Glyph and label colour on `solid` |
 | `on_accent` | `#141414` or `#f4f4f4` | `#141414` or `#f4f4f4` | Glyph and label colour on `accent` and `accent_strong` |
 
