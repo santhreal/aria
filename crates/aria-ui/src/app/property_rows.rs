@@ -425,7 +425,7 @@ impl AppState {
         Ok(())
     }
 
-    /// Toggle a clip's outline property rows open or closed (`▸` / `▾`).
+    /// Toggle a clip's outline property rows open or closed.
     pub fn toggle_clip_outline(&mut self, clip_id: u64) {
         let open = Arc::make_mut(&mut self.expanded_clips);
         if let Some(idx) = open.iter().position(|id| *id == clip_id) {

@@ -102,7 +102,8 @@ pub(super) fn outline_row_header(
             let clip_val = *clip;
             let group_val = *group;
             let text = label.clone();
-            let arrow = if *expanded { "▾" } else { "▸" };
+            let turn = crate::motion::MotionKey::new("prop-group-chev", clip_val).with(&text);
+            let reduced = cx.reduce_motion();
             div()
                 .id(gpui::ElementId::named_usize("prop-group-hdr", slot))
                 .absolute()
@@ -133,9 +134,13 @@ pub(super) fn outline_row_header(
                 .child(
                     div()
                         .debug_selector(|| "prop-group-arrow".into())
-                        .text_size(Theme::TEXT_SMALL)
-                        .text_color(theme.text_muted)
-                        .child(arrow),
+                        .flex_none()
+                        .child(crate::components::chevron(
+                            turn,
+                            *expanded,
+                            theme.text_muted,
+                            reduced,
+                        )),
                 )
                 .child(
                     div()

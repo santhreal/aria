@@ -565,3 +565,55 @@ fn no_line_the_crate_writes_types_a_caret() {
         offenders.join("\n  ")
     );
 }
+
+/// The triangles a line could type to show that something opens or shuts.
+const DISCLOSURE_MARKS: [char; 15] = [
+    '▲', '△', '▴', '▶', '▸', '▹', '►', '▼', '▽', '▾', '▿', '◀', '◂', '◃', '◄',
+];
+
+/// **No line the crate writes types a disclosure mark.**
+///
+/// The class closed here: a triangle typed into a label to show that the
+/// label opens or shuts something. An effect's parameter group and a property
+/// group in the timeline outline wrote `▸` or `▾` before their names, and the
+/// Viewer's resolution menu and the media pool's sort menu wrote ` ▾` after
+/// theirs, each in the text's face and size and none turning. A row that
+/// opens and shuts draws a [`crate::components::chevron`], a header that does
+/// is a [`crate::components::disclosure_button`], and a chip that opens a list
+/// is a [`crate::components::list_chip`]. Every string literal in the crate's
+/// production sources is read, as a typed glyph and as a `\u{..}` escape, so a
+/// mark typed later fails the run that types it.
+///
+/// Not covered: a mark held in a `char` or built from its code point at run
+/// time, and an arrow that is not a triangle, such as the keyboard map's `↑`.
+#[test]
+fn no_line_the_crate_writes_types_a_disclosure_mark() {
+    let escapes: Vec<String> = DISCLOSURE_MARKS
+        .iter()
+        .map(|mark| format!("\\u{{{:x}}}", u32::from(*mark)))
+        .collect();
+    let mut read = 0;
+    let mut offenders = Vec::new();
+    for (rel, code) in production_sources() {
+        for (line, raw) in string_literals(&code) {
+            read += 1;
+            let text = as_written(&raw);
+            let escaped = raw.to_ascii_lowercase();
+            if text.contains(DISCLOSURE_MARKS)
+                || escapes.iter().any(|e| escaped.contains(e.as_str()))
+            {
+                offenders.push(format!("{rel}:{line}: {text:?}"));
+            }
+        }
+    }
+    assert!(
+        read > 5000,
+        "read {read} literals, fewer than the crate writes: the rule just went vacuous"
+    );
+    assert!(
+        offenders.is_empty(),
+        "disclosure marks typed into a line; draw `components::chevron`, or build the \
+         control with `components::disclosure_button` or `components::list_chip`:\n  {}",
+        offenders.join("\n  ")
+    );
+}

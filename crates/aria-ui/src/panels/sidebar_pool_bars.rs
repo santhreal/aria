@@ -216,28 +216,22 @@ fn sort_menu(
             }))
         })
         .child(
-            components::chip(
-                "pool-sort",
-                format!("{} ▾", sort.label()),
-                open,
-                components::ChipSize::Compact,
-                theme,
-            )
-            .h(px(SORT_H))
-            .debug_selector(|| "pool-sort".into())
-            .when_some(crate::tooltip::builder("pool-sort"), |el, tip| {
-                el.with_tip(tip)
-            })
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                    cx.stop_propagation();
-                    this.state.update(cx, |state, _| {
-                        state.media_sort_list_open = !state.media_sort_list_open;
-                    });
-                    cx.notify();
-                }),
-            ),
+            components::list_chip("pool-sort", sort.label(), open, theme)
+                .h(px(SORT_H))
+                .debug_selector(|| "pool-sort".into())
+                .when_some(crate::tooltip::builder("pool-sort"), |el, tip| {
+                    el.with_tip(tip)
+                })
+                .on_mouse_down(
+                    MouseButton::Left,
+                    cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                        cx.stop_propagation();
+                        this.state.update(cx, |state, _| {
+                            state.media_sort_list_open = !state.media_sort_list_open;
+                        });
+                        cx.notify();
+                    }),
+                ),
         )
         .when_some(list, |el, list| el.child(list))
 }

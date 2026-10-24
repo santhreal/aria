@@ -240,24 +240,25 @@ fn section_header(
     open: bool,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> AnyElement {
-    let mark = if open { "\u{25be}" } else { "\u{25b8}" };
-    components::ghost_button(MotionKey::new("color-section", index), mark, theme)
-        .debug_selector(move || format!("color-section-{index}"))
-        .mt(px(Theme::SPACE_XS))
-        .flex()
-        .items_center()
-        .gap(px(Theme::SPACE_XS))
-        .font_weight(gpui::FontWeight::MEDIUM)
-        .child(title)
-        .on_mouse_down(
-            MouseButton::Left,
-            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                this.state
-                    .update(cx, |state, _| state.toggle_color_section(index));
-                cx.notify();
-            }),
-        )
-        .into_any_element()
+    components::disclosure_button(
+        MotionKey::new("color-section", index),
+        title,
+        open,
+        theme,
+        cx.reduce_motion(),
+    )
+    .debug_selector(move || format!("color-section-{index}"))
+    .mt(px(Theme::SPACE_XS))
+    .font_weight(gpui::FontWeight::MEDIUM)
+    .on_mouse_down(
+        MouseButton::Left,
+        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+            this.state
+                .update(cx, |state, _| state.toggle_color_section(index));
+            cx.notify();
+        }),
+    )
+    .into_any_element()
 }
 
 /// A line in place of the rows.

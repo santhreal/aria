@@ -27,7 +27,7 @@ pub(super) fn picker(
     let open = read.resolution_list_open;
     let playback = read.ui_settings.playback_resolution;
     let paused = read.ui_settings.paused_resolution;
-    let caption = format!("{} ▾", read.playback_resolution_text());
+    let caption = read.playback_resolution_text();
     let list = open.then(|| list(playback, paused, theme, cx));
     // The outside press is the wrapper's, not the list's: the chip is outside
     // the list, and a press on it toggles the list rather than closing and
@@ -42,28 +42,22 @@ pub(super) fn picker(
             }))
         })
         .child(
-            crate::components::chip(
-                "preview-resolution",
-                caption,
-                open,
-                crate::components::ChipSize::Compact,
-                theme,
-            )
-            .h(px(CHIP_H))
-            .debug_selector(|| "preview-resolution".into())
-            .when_some(crate::tooltip::builder("preview-resolution"), |el, tip| {
-                el.with_tip(tip)
-            })
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                    cx.stop_propagation();
-                    this.state.update(cx, |state, _| {
-                        state.resolution_list_open = !state.resolution_list_open;
-                    });
-                    cx.notify();
-                }),
-            ),
+            crate::components::list_chip("preview-resolution", caption, open, theme)
+                .h(px(CHIP_H))
+                .debug_selector(|| "preview-resolution".into())
+                .when_some(crate::tooltip::builder("preview-resolution"), |el, tip| {
+                    el.with_tip(tip)
+                })
+                .on_mouse_down(
+                    MouseButton::Left,
+                    cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                        cx.stop_propagation();
+                        this.state.update(cx, |state, _| {
+                            state.resolution_list_open = !state.resolution_list_open;
+                        });
+                        cx.notify();
+                    }),
+                ),
         )
         .when_some(list, |el, list| el.child(list))
 }

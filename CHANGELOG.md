@@ -2394,6 +2394,7 @@ Notes for the latest release. For previous releases, see the
 - The Captions tab's language box, the Generate prompt, the stock search, the Command Palette's query, the Marker Edit fields, and the Settings text fields are drawn as the same text box as the rest of the editor, at one height, size, and border.
 - Effect Controls draws the Transform reset button at the end of the Transform title's line, above the end of the rows' time areas, instead of alone under the rows.
 - The Settings filter box starts on the column the text boxes in the sections below it start on, instead of 9 px left of it.
+- Effect parameter groups, the Color panel's sections, and the timeline outline's property groups draw the turning chevron that lanes and bins draw instead of a typed `▸` or `▾`, and the Viewer's resolution menu and the media pool's sort menu end with a drawn chevron instead of a typed `▾`.
 - Settings > Keys starts the Keymap row's set chips on the column the Set name box below it starts on, and wraps a second line of chips under the first chip instead of under the label.
 - Odd-width I420 frames upload chroma planes of the rounded-up width and height, so the last column takes its own chroma sample instead of chroma stretched from a plane one column short.
 - An odd-width NV12 frame whose chroma rows are shorter than the rounded-up chroma width fails as a malformed frame instead of panicking on a GPU validation error.

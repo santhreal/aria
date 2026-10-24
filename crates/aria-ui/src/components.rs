@@ -81,7 +81,35 @@ pub fn ghost_button(
     label: impl Into<SharedString>,
     theme: &Theme,
 ) -> Stateful<Div> {
+    ghost_frame(id.into(), theme).child(label.into())
+}
+
+/// A [`ghost_button`] that opens and shuts the rows under it: the disclosure
+/// [`chevron`], turned for `open`, then the label.
+pub fn disclosure_button(
+    id: impl Into<motion::ControlId>,
+    label: impl Into<SharedString>,
+    open: bool,
+    theme: &Theme,
+    reduced: bool,
+) -> Stateful<Div> {
     let id = id.into();
+    let ink = motion::mix(
+        theme.text_muted,
+        theme.text,
+        motion::hover_t(id.motion("ghost")),
+    );
+    ghost_frame(id, theme)
+        .flex()
+        .items_center()
+        .gap(px(Theme::SPACE_XS))
+        .child(chevron(id.motion("chevron"), open, ink, reduced))
+        .child(label.into())
+}
+
+/// The frame of a [`ghost_button`]: its padding, its wash and text colour,
+/// which fade in under the pointer, and its press dim, with nothing in it.
+fn ghost_frame(id: motion::ControlId, theme: &Theme) -> Stateful<Div> {
     let key = id.motion("ghost");
     let lit = motion::hover_t(key);
     let pressed = theme.element_active;
@@ -96,7 +124,6 @@ pub fn ghost_button(
         .text_size(Theme::TEXT_UI)
         .cursor(CursorStyle::PointingHand)
         .on_hover(motion::hover_listener(key))
-        .child(label.into())
 }
 
 /// How much room a chip row is given.
@@ -188,6 +215,24 @@ pub fn chip(
         .on_hover(motion::hover_listener(key))
         .child(div().min_w_0().truncate().child(label))
 }
+
+/// A [`chip`] that opens a list of choices: the chosen one's name, then the
+/// disclosure glyph pointing down. The list's rows are the caller's.
+pub fn list_chip(
+    id: impl Into<motion::ControlId>,
+    label: impl Into<SharedString>,
+    open: bool,
+    theme: &Theme,
+) -> Stateful<Div> {
+    chip(id, label, open, ChipSize::Compact, theme)
+        .gap(px(Theme::SPACE_XXS))
+        .child(
+            crate::icons::icon(crate::icons::CHEVRON_DOWN)
+                .flex_none()
+                .size(px(CHEVRON_PX)),
+        )
+}
+
 /// A compact tab strip for static surface catalogs and galleries.
 ///
 /// The label and its position form the identity, so duplicate labels in one

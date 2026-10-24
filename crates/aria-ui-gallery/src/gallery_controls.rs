@@ -78,6 +78,7 @@ pub fn controls(theme: &Theme, cx: &mut Context<Gallery>) -> AnyElement {
             ))
             .child(chip_rows(theme, cx))
             .child(disclosure_rows(theme, cx.reduce_motion()))
+            .child(opener_rows(theme, cx.reduce_motion()))
             .child(menu_lead_rows(theme))
             .child(icon_rows(theme, cx))
             .into_any_element(),
@@ -176,6 +177,40 @@ fn disclosure_rows(theme: &Theme, reduced: bool) -> AnyElement {
                     .text_color(theme.text_faint)
                     .child(format!("band_fill row {index}"))
             })),
+    )
+}
+
+/// The two controls that open rows under them, shut and open: the disclosure
+/// button over a group of rows, and the list chip over a list of choices.
+fn opener_rows(theme: &Theme, reduced: bool) -> AnyElement {
+    let disclosure = |id: &'static str, open: bool| {
+        components::disclosure_button(id, "Basic Correction", open, theme, reduced)
+    };
+    group(
+        theme,
+        "disclosure_button(id, label, open, theme, reduced) / list_chip(id, label, open, theme)",
+        shelf(vec![
+            specimen(
+                theme,
+                "disclosure_button shut",
+                disclosure("ctl-disclosure-shut", false),
+            ),
+            specimen(
+                theme,
+                "disclosure_button open",
+                disclosure("ctl-disclosure-open", true),
+            ),
+            specimen(
+                theme,
+                "list_chip shut",
+                components::list_chip("ctl-list-shut", "Name", false, theme),
+            ),
+            specimen(
+                theme,
+                "list_chip open",
+                components::list_chip("ctl-list-open", "Name", true, theme),
+            ),
+        ]),
     )
 }
 

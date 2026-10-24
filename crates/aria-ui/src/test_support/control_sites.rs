@@ -2,10 +2,11 @@
 //! states.
 //!
 //! `keys::controls_doc_tests` reads this to check `docs/reference/controls.md`
-//! against the source. The shared controls are `components::button`,
-//! `ghost_button`, `danger_button`, `chip`, `text_box`, `field_frame` and the
-//! icon button. A call states its control id in one of four forms, read from
-//! the call's own text:
+//! against the source. The shared controls are the public functions of
+//! `components.rs` that take a control id first: `components::button`,
+//! `ghost_button`, `disclosure_button`, `danger_button`, `chip`, `list_chip`,
+//! `text_box`, `field_frame` and the icon button. A call states its control
+//! id in one of four forms, read from the call's own text:
 //!
 //! - a string literal, for a control drawn once;
 //! - a tuple whose first element is a literal, `("speed-preset", id)`, for a
@@ -30,11 +31,13 @@ use super::sources::without_test_items;
 /// The shared widgets. Spelled with `concat!` so that no needle appears whole
 /// in this file: the tooltip census reads every non-test file for icon button
 /// calls without stripping comments or strings.
-const WIDGETS: [&str; 7] = [
+const WIDGETS: [&str; 9] = [
     concat!("components::", "button("),
     concat!("ghost_", "button("),
+    concat!("disclosure_", "button("),
     concat!("components::", "danger_button("),
     concat!("components::", "chip("),
+    concat!("list_", "chip("),
     concat!("components::", "text_box("),
     concat!("components::", "field_frame("),
     concat!("icon_", "button("),
@@ -577,6 +580,40 @@ mod tests {
         for (arg, want) in cases {
             assert_eq!(stated_ids(arg), want, "arg {arg:?}");
         }
+    }
+
+    /// WHY: a shared control that is not a census needle draws an id the
+    /// census never reads, so the documented row for it reads as a phantom
+    /// and a new id at its calls goes undocumented. Every public function of
+    /// `components.rs` that takes a control id or an icon id first is a
+    /// shared control, and each needle names one of them. A shared control
+    /// defined outside `components.rs` is not read here.
+    #[test]
+    fn every_shared_control_is_a_census_needle() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/components.rs");
+        let text = std::fs::read_to_string(&path)
+            .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+        let mut controls: Vec<&str> = text
+            .match_indices("pub fn ")
+            .filter_map(|(at, head)| {
+                let rest = &text[at + head.len()..];
+                let open = rest.find('(')?;
+                let first = rest[open + 1..].trim_start();
+                let takes_id = first.starts_with("id: impl Into<motion::ControlId>")
+                    || first.starts_with("id: impl IconId");
+                takes_id.then(|| rest[..open].split('<').next().unwrap_or_default())
+            })
+            .collect();
+        let mut needles: Vec<&str> = WIDGETS
+            .iter()
+            .map(|w| w.trim_start_matches("components::").trim_end_matches('('))
+            .collect();
+        controls.sort_unstable();
+        needles.sort_unstable();
+        assert_eq!(
+            controls, needles,
+            "the shared controls in components.rs and the census needles in WIDGETS differ"
+        );
     }
 
     #[test]

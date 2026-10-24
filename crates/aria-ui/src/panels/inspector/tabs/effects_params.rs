@@ -87,12 +87,13 @@ pub(crate) fn effect_param_rows(
             .read(cx)
             .is_effect_group_collapsed(index, &group.id, group.collapsed);
         let group_name = group.id.clone();
-        let header_label = format!("{} {}", if collapsed { "▸" } else { "▾" }, group.label);
         out.push(
-            components::ghost_button(
+            components::disclosure_button(
                 MotionKey::new("fx-group", index).with(group.id.as_str()),
-                header_label,
+                group.label.clone(),
+                !collapsed,
                 theme,
+                cx.reduce_motion(),
             )
             .on_mouse_down(
                 MouseButton::Left,
