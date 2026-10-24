@@ -43,25 +43,59 @@ pub struct ProjectFactSpec {
     pub id: &'static str,
     /// Operator-facing label.
     pub label: &'static str,
-    /// Read it, already formatted for a readout.
-    pub read: fn(&Project) -> String,
+    /// Read it off a project.
+    pub read: fn(&Project) -> FactValue,
 }
 
-/// The value a yes-or-no row reads when the answer is yes.
-pub(crate) const YES: &str = "Yes";
-/// The value a yes-or-no row reads when the answer is no.
-pub(crate) const NO: &str = "No";
-/// The value a list row reads when the list is empty.
-pub(crate) const NONE: &str = "None";
+/// What one project row reads, before a surface writes it as text.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FactValue {
+    /// A count.
+    Count(usize),
+    /// A yes-or-no answer.
+    Flag(bool),
+    /// Names, in the order a readout lists them; empty when nothing answers.
+    Names(Vec<&'static str>),
+    /// A position on the sequence, in ticks.
+    Tick(i64),
+}
 
-/// Whether `value`, as a project fact row read it, is the empty answer: zero,
-/// no, or none.
-///
-/// A surface draws an empty answer dim rather than hiding it. Defined here,
-/// beside the rows that write these values, so no surface compares against a
-/// spelling of its own.
-pub fn is_empty_fact_value(value: &str) -> bool {
-    matches!(value, "0" | NO | NONE)
+/// The text a yes-or-no row reads when the answer is yes.
+const YES: &str = "Yes";
+/// The text a yes-or-no row reads when the answer is no.
+const NO: &str = "No";
+/// The text a list row reads when the list is empty.
+const NONE: &str = "None";
+
+impl FactValue {
+    /// Whether this is the empty answer: zero, no, none, or the sequence's
+    /// first tick.
+    ///
+    /// A surface draws an empty answer dim rather than hiding it.
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Self::Count(count) => *count == 0,
+            Self::Flag(flag) => !flag,
+            Self::Names(names) => names.is_empty(),
+            Self::Tick(tick) => *tick == 0,
+        }
+    }
+
+    /// The value as a readout draws it.
+    ///
+    /// `position` writes a [`FactValue::Tick`]: a sequence reads a position as
+    /// timecode, frames, or feet and frames, as its time display selects, and
+    /// that formatter belongs to the surface that draws the ruler.
+    pub fn text(&self, position: impl FnOnce(i64) -> String) -> String {
+        match self {
+            Self::Count(count) => count.to_string(),
+            Self::Flag(true) => YES.to_string(),
+            Self::Flag(false) => NO.to_string(),
+            Self::Names(names) if names.is_empty() => NONE.to_string(),
+            Self::Names(names) => names.join(", "),
+            Self::Tick(tick) => position(*tick),
+        }
+    }
 }
 
 /// The lane kinds with a soloed lane, by label, in lane-catalog order.
@@ -81,70 +115,58 @@ const SHIPPED: &[ProjectFactSpec] = &[
         fact: ProjectFact::Sources,
         id: "sources",
         label: "Sources in pool",
-        read: |project| project.media_count().to_string(),
+        read: |project| FactValue::Count(project.media_count()),
     },
     ProjectFactSpec {
         fact: ProjectFact::Folders,
         id: "folders",
         label: "Pool folders",
-        read: |project| project.bin_count().to_string(),
+        read: |project| FactValue::Count(project.bin_count()),
     },
     ProjectFactSpec {
         fact: ProjectFact::Lanes,
         id: "lanes",
         label: "Lanes",
-        read: |project| project.timeline().tracks_ordered().count().to_string(),
+        read: |project| FactValue::Count(project.timeline().tracks_ordered().count()),
     },
     ProjectFactSpec {
         fact: ProjectFact::Clips,
         id: "clips",
         label: "Clips",
-        read: |project| project.timeline().clip_count().to_string(),
+        read: |project| FactValue::Count(project.timeline().clip_count()),
     },
     ProjectFactSpec {
         fact: ProjectFact::Markers,
         id: "markers",
         label: "Markers",
-        read: |project| project.timeline().marker_count().to_string(),
+        read: |project| FactValue::Count(project.timeline().marker_count()),
     },
     ProjectFactSpec {
         fact: ProjectFact::ContentEnd,
         id: "content_end",
-        label: "Content ends at tick",
+        label: "Content ends at",
         read: |project| {
-            project
-                .timeline()
-                .tracks_ordered()
-                .map(Track::content_end)
-                .max()
-                .unwrap_or(0)
-                .to_string()
+            FactValue::Tick(
+                project
+                    .timeline()
+                    .tracks_ordered()
+                    .map(Track::content_end)
+                    .max()
+                    .unwrap_or(0),
+            )
         },
     },
     ProjectFactSpec {
         fact: ProjectFact::Transitions,
         id: "transitions",
         label: "Carries transitions",
-        read: |project| {
-            if project.has_transitions() {
-                YES.to_string()
-            } else {
-                NO.to_string()
-            }
-        },
+        read: |project| FactValue::Flag(project.has_transitions()),
     },
     ProjectFactSpec {
         fact: ProjectFact::SoloedKinds,
         id: "soloed_kinds",
         label: "Soloed lane kinds",
-        read: |project| {
-            let soloed = soloed_kinds(project);
-            if soloed.is_empty() {
-                NONE.to_string()
-            } else {
-                soloed.join(", ")
-            }
-        },
+        read: |project| FactValue::Names(soloed_kinds(project)),
     },
 ];
 
@@ -186,7 +208,7 @@ impl ProjectFact {
     }
 
     /// Read this number off `project`.
-    pub fn read(self, project: &Project) -> String {
+    pub fn read(self, project: &Project) -> FactValue {
         (self.spec().read)(project)
     }
 }

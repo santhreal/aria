@@ -17,7 +17,7 @@
 //!   the renderer's own suite.
 //! - The two picking rows are driven with a supplied answer, not a dialog.
 
-use aria_models::{clip_facts, project_facts, track_kind_specs};
+use aria_models::{ProjectFact, TimeDisplay, clip_facts, project_facts, track_kind_specs};
 
 use crate::app::AppState;
 use crate::app::picker::Answer;
@@ -65,6 +65,41 @@ fn every_project_number_is_offered_with_a_value() {
     assert_eq!(offered, declared);
     for row in state.project_fact_rows().iter() {
         assert!(!row.value.trim().is_empty(), "'{}' reads nothing", row.id);
+    }
+}
+
+/// The content end reads as the sequence reads any other position, in each
+/// time display it offers, rather than as a count of ticks. The expected text
+/// comes from the formatter the ruler and the clock draw with, at the end of
+/// the fixture's last clip, so the row and the ruler cannot disagree.
+#[test]
+fn the_content_end_reads_as_the_sequence_reads_a_position() {
+    let mut state = inside();
+    let end = state
+        .store
+        .sequence
+        .tracks
+        .iter()
+        .flat_map(|track| track.clips.iter())
+        .map(|clip| clip.timeline_end_ticks)
+        .max()
+        .expect("the fixture places a clip");
+    for display in TimeDisplay::ALL {
+        state
+            .set_time_display(display)
+            .unwrap_or_else(|err| panic!("{display:?}: {err:?}"));
+        state.measure_project_report();
+        let rows = state.project_fact_rows();
+        let Some(row) = rows
+            .iter()
+            .find(|row| row.id == ProjectFact::ContentEnd.id())
+        else {
+            panic!("the report has no content end row");
+        };
+        let sequence = &state.store.sequence;
+        assert_eq!(sequence.time_display, display, "the display did not change");
+        let expected = crate::timecode::format_time(end, sequence.frame_rate, display);
+        assert_eq!(row.value.as_ref(), expected.as_str(), "{display:?}");
     }
 }
 

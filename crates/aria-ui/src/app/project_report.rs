@@ -16,7 +16,7 @@
 //! the cost is zero.
 
 use aria_engine::Engine;
-use aria_models::{clip_facts, clips_with_fact, is_empty_fact_value, project_facts};
+use aria_models::{clip_facts, clips_with_fact, project_facts};
 
 use crate::app::AppState;
 
@@ -67,6 +67,8 @@ impl ProjectReport {
     pub fn of(engine: &mut Engine, selected: Option<aria_models::ClipId>, playhead: i64) -> Self {
         let facts = {
             let project = engine.project();
+            let timeline = project.timeline();
+            let (rate, display) = (timeline.frame_rate, timeline.time_display());
             project_facts()
                 .iter()
                 .map(|spec| {
@@ -74,8 +76,10 @@ impl ProjectReport {
                     ProjectFactRow {
                         id: spec.id,
                         label: spec.label,
-                        empty: is_empty_fact_value(&value),
-                        value: value.into(),
+                        empty: value.is_empty(),
+                        value: value
+                            .text(|tick| crate::timecode::format_time(tick, rate, display))
+                            .into(),
                     }
                 })
                 .collect()

@@ -168,7 +168,7 @@ fn every_project_fact_reads_on_a_dressed_and_an_empty_project() {
     let dressed = dressed();
     for spec in project_facts() {
         for (which, project) in [("empty", &empty), ("dressed", &dressed)] {
-            let value = spec.fact.read(project);
+            let value = spec.fact.read(project).text(|tick| tick.to_string());
             assert!(
                 !value.trim().is_empty(),
                 "'{}' reads nothing on the {which} project",
@@ -182,7 +182,7 @@ fn every_project_fact_reads_on_a_dressed_and_an_empty_project() {
 /// a capital. Every answer a row can give is reached here: zero, no and none
 /// on an empty project, counts on a dressed one, and yes plus a soloed lane
 /// list once a junction carries a transition and a lane is soloed. The empty
-/// answers, and only those, read as [`is_empty_fact_value`], which is what
+/// answers, and only those, read as [`FactValue::is_empty`], which is what
 /// draws a row dim.
 ///
 /// Does not catch a value that is correctly cased but worded wrong.
@@ -211,7 +211,7 @@ fn every_project_fact_reads_in_sentence_case() {
         ("joined", &joined),
     ] {
         for spec in project_facts() {
-            let value = spec.fact.read(project);
+            let value = spec.fact.read(project).text(|tick| tick.to_string());
             let first = value.chars().next().expect("a value");
             assert!(
                 first.is_ascii_digit() || first.is_uppercase(),
@@ -220,14 +220,18 @@ fn every_project_fact_reads_in_sentence_case() {
             );
         }
     }
-    for fact in [ProjectFact::Transitions, ProjectFact::SoloedKinds] {
+    for fact in [
+        ProjectFact::ContentEnd,
+        ProjectFact::Transitions,
+        ProjectFact::SoloedKinds,
+    ] {
         assert!(
-            is_empty_fact_value(&fact.read(&empty)),
+            fact.read(&empty).is_empty(),
             "'{}' on an empty project is not the empty answer",
             fact.id()
         );
         assert!(
-            !is_empty_fact_value(&fact.read(&joined)),
+            !fact.read(&joined).is_empty(),
             "'{}' on a joined project reads as empty",
             fact.id()
         );
@@ -355,11 +359,9 @@ fn every_row_answers_as_the_clip_alone_reads() {
 fn soloing_a_lane_shows_up_in_the_readout() {
     let mut project = dressed();
     let before = ProjectFact::SoloedKinds.read(&project);
-    assert_eq!(before, "None");
-    assert!(
-        crate::is_empty_fact_value(&before),
-        "an empty list reads as the empty answer"
-    );
+    assert_eq!(before, FactValue::Names(Vec::new()));
+    assert_eq!(before.text(|tick| tick.to_string()), "None");
+    assert!(before.is_empty(), "an empty list reads as the empty answer");
     let lane = project
         .timeline()
         .tracks_ordered()
@@ -373,5 +375,8 @@ fn soloing_a_lane_shows_up_in_the_readout() {
         .solo = true;
     let kind = project.timeline().track(lane).expect("the lane").kind;
     let after = ProjectFact::SoloedKinds.read(&project);
-    assert_eq!(after, crate::track_catalog::track_kind_spec(kind).label);
+    assert_eq!(
+        after,
+        FactValue::Names(vec![crate::track_catalog::track_kind_spec(kind).label])
+    );
 }

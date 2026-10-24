@@ -2388,6 +2388,7 @@ Notes for the latest release. For previous releases, see the
 - The nest breadcrumb draws its close mark as an icon after the name instead of a typed `✕` two spaces after it.
 - Assistant: List the Slash Commands and the composer's slash command hint separate the commands with commas instead of runs of spaces.
 - The Assistant starts its speaker labels, edit and error rows, plan steps, pending question, scope line and model line with a capital, including the rows a conversation saved by an earlier version holds in lower case.
+- The Project Report states where the content ends in the sequence's time display, such as `00:01:00:00`, instead of as a count of ticks.
 - Odd-width I420 frames upload chroma planes of the rounded-up width and height, so the last column takes its own chroma sample instead of chroma stretched from a plane one column short.
 - An odd-width NV12 frame whose chroma rows are shorter than the rounded-up chroma width fails as a malformed frame instead of panicking on a GPU validation error.
 - The Rust example in `docs/plugins/presets.md` registers its preset in the `aria_sdk` `mount` callback instead of an `activate` method that no `Plugin` trait has, the `docs/plugins/audio-effects.md` example builds its parameter with `EffectParamSpec::scalar` instead of a struct literal missing fields, and `docs/reference/transitions.md` drops a Step column and `transitions.toml` a `step` key that no parser reads.
