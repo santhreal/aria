@@ -108,7 +108,7 @@ api_key_env = "PEXELS_API_KEY"
 | `sidebarCollapsed` | `boolean` | `false` | `true`, `false` | Sidebar collapse button | Collapses or expands the left sidebar column. |
 | `inspectorWidth` | `number` | `520.0` | `360.0` to `760.0` px | Inspector splitter | Width of the right Inspector column (`INSPECTOR_MIN..=INSPECTOR_MAX`). |
 | `inspectorCollapsed` | `boolean` | `false` | `true`, `false` | Inspector collapse button | Collapses or expands the right Inspector column. |
-| `timelineHeight` | `number` | `280.0` | `>= 120.0` px | Timeline splitter | Height of the lower timeline pane (`TIMELINE_MIN_HEIGHT`). |
+| `timelineHeight` | `number` | `280.0` | `>= 120.0` px | Small-window splitter | Height of the Timeline under the Viewer in a window smaller than 1024 x 640 (`TIMELINE_MIN_HEIGHT`). |
 | `outlineWidth` | `number` | `300.0` | `240.0` to `480.0` px | Timeline outline splitter | Width of the Timeline track-header and property outline column (`OUTLINE_MIN..=OUTLINE_MAX`). |
 | `appearance` | `string` | `"system"` | `"system"`, `"light"`, `"dark"` | **Settings > Appearance** | Selects the dark or light surface palette (`AppearanceMode`). |
 | `homeRail` | `string` | `"recents"` | `"new"`, `"open"`, `"recents"`, `"samples"`, `"learn"` | Home left rail | Last selected view on the Home route (`HomeRail`). |

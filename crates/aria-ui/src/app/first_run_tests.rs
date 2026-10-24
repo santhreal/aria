@@ -405,30 +405,6 @@ fn every_app_menu_has_named_items() {
 }
 
 #[test]
-fn reset_split_restores_every_pane() {
-    let dir = scratch();
-    let mut state = AppState::new(PluginContext::new(), dir).unwrap();
-    state.ui_settings.sidebar_width = 300.0;
-    state.ui_settings.inspector_width = 400.0;
-    state.ui_settings.timeline_height = 200.0;
-    for pane in ["sidebar", "inspector", "timeline"] {
-        state.reset_split(pane);
-    }
-    assert_eq!(
-        state.ui_settings.sidebar_width,
-        crate::settings::SIDEBAR_DEFAULT
-    );
-    assert_eq!(
-        state.ui_settings.inspector_width,
-        crate::settings::INSPECTOR_DEFAULT
-    );
-    assert_eq!(
-        state.ui_settings.timeline_height,
-        crate::settings::TIMELINE_DEFAULT_HEIGHT
-    );
-}
-
-#[test]
 fn shuttle_jkl_steps_and_stops() {
     let dir = scratch();
     let mut state = AppState::new(PluginContext::new(), dir).unwrap();

@@ -14,12 +14,11 @@ use crate::theme::Theme;
 use crate::types::{EditorTool, UiRoute};
 use aria_plugin::PanelLocation;
 use gpui::{
-    AppContext as _, Context, CursorStyle, Entity, ExternalPaths, InteractiveElement, IntoElement,
-    KeyDownEvent, KeyUpEvent, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
-    ParentElement, Render, Styled, Window, div, px,
+    AppContext as _, Context, Entity, ExternalPaths, InteractiveElement, IntoElement, KeyDownEvent,
+    KeyUpEvent, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, ParentElement, Render,
+    Styled, Window, div, px,
 };
 use std::time::{Duration, Instant};
-const SPLIT: f32 = 4.0;
 mod text_input;
 // The boot cover, moved out whole: the shell holds the field, that file owns
 // every decision about it.
@@ -305,12 +304,12 @@ impl Shell {
                     }
                 });
             }
-            DragKind::DockSplit { .. } | DragKind::Timeline => {
+            DragKind::DockSplit { .. } => {
                 self.state.update(cx, |state, cx| {
                     state.record_dock_edit(cx);
                 });
             }
-            DragKind::Outline => {
+            DragKind::Outline | DragKind::Timeline { .. } => {
                 self.state
                     .update(cx, |state, cx| state.persist_settings_later(cx));
             }

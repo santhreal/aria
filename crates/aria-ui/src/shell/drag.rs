@@ -10,7 +10,13 @@ use super::*;
 
 #[derive(Clone, Copy)]
 pub(super) enum DragKind {
-    Timeline,
+    /// Resizing the Timeline under the Viewer in a window below the minimum
+    /// size. `start` is the Timeline's drawn height when the pointer went
+    /// down, and `max` the tallest it can be drawn while the Viewer keeps its
+    /// minimum height.
+    Timeline {
+        max: f32,
+    },
     Pan,
     /// Resizing one timeline lane by its lower border. The height is previewed
     /// on the state and committed as a single edit on mouse-up, so a drag over

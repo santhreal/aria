@@ -221,16 +221,11 @@ impl Shell {
         }
         let drag = *drag;
         match drag.kind {
-            DragKind::Timeline => {
+            DragKind::Timeline { max } => {
                 let delta = f32::from(event.position.y) - drag.origin;
-                let height = (drag.start - delta).max(TIMELINE_MIN_HEIGHT);
+                let height = (drag.start - delta).clamp(TIMELINE_MIN_HEIGHT, max);
                 self.state.update(cx, |state, _| {
                     state.ui_settings.timeline_height = height;
-                    let win_h = state.last_window_h.max(540.0);
-                    let bottom_w = (height / win_h).clamp(0.15, 0.75);
-                    state
-                        .dock_tree
-                        .set_weights(&[1], &[1.0 - bottom_w, bottom_w]);
                 });
             }
             DragKind::Pan => {
@@ -628,13 +623,8 @@ impl Shell {
                 self.tab_hover = None;
                 super::dock_view::set_active_tab_hover(None);
                 self.state.update(cx, |state, _| match drag.kind {
-                    DragKind::Timeline => {
+                    DragKind::Timeline { .. } => {
                         state.ui_settings.timeline_height = drag.start;
-                        let win_h = state.last_window_h.max(540.0);
-                        let bottom_w = (drag.start / win_h).clamp(0.15, 0.75);
-                        state
-                            .dock_tree
-                            .set_weights(&[1], &[1.0 - bottom_w, bottom_w]);
                     }
                     DragKind::Pan => {
                         state.scroll_timeline_to(drag.start, false);

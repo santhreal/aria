@@ -2378,6 +2378,7 @@ Notes for the latest release. For previous releases, see the
 
 - The last error is drawn on the status bar alone instead of also at the end of the Viewer's control row, so posting or clearing one no longer moves the row's controls under the pointer.
 - A workspace with no changes is laid out for the window's current size, as choosing it again lays it out, so a first launch opens Editing with its 320 px and 300 px side frames and 64 px Audio Meters instead of ones scaled up from the 1440 px window drawn before the maximize, and Effects opens at its own shares instead of Editing's pixel widths.
+- In a window smaller than 1024 x 640, the splitter between the Viewer and the Timeline resizes the Timeline, and a drag or double-click on it no longer widens Audio Meters in the hidden Editing layout or records an edit to the workspace.
 - Settings > Plugins counts a catalog of one entry as `1 entry` instead of `1 entries`.
 - The Project Report draws its Clips carrying rows at the same pitch as its Project rows instead of 4 px further apart.
 - Odd-width I420 frames upload chroma planes of the rounded-up width and height, so the last column takes its own chroma sample instead of chroma stretched from a plane one column short.

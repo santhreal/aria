@@ -16,14 +16,13 @@ use crate::dock::{
 use crate::fluent::FluentBuilder;
 use crate::motion::{self, MotionKey};
 use crate::plugins::panel_host::host_of;
-use crate::settings::{MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH};
+use crate::settings::{MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, TIMELINE_MIN_HEIGHT};
 use crate::theme::Theme;
 use crate::tooltip::WithTip as _;
 use crate::types::ActivePanel;
 
 use super::Shell;
 use super::drag::{Drag, DragKind};
-use super::strip::split_row;
 
 #[path = "dock_floating.rs"]
 mod dock_floating;
@@ -136,6 +135,60 @@ pub fn splitter_motion_key(path: &[usize], index: usize) -> MotionKey {
         key = key.with(step);
     }
     key.with(index)
+}
+
+/// The gap between two docked frames as a splitter draws it: a gutter-wide
+/// strip with the resize cursor for `axis`, whose centre line takes the accent
+/// while the pointer is over it. The dock's splitters and the small-window
+/// view's splitter are both drawn by this function.
+fn splitter_strip(axis: Axis, key: MotionKey, theme: &Theme) -> gpui::Stateful<gpui::Div> {
+    // At rest the gutter is the only mark between two frames: a line in it
+    // would draw a third rule beside the two frame borders.
+    let line_color = motion::hover_blend(key, theme.wash(0.0), theme.accent);
+    let (strip, line, cursor) = match axis {
+        Axis::Row => (
+            div().w(px(DOCK_GUTTER)).h_full(),
+            div().w(px(SPLITTER_LINE_PX)).h_full(),
+            CursorStyle::ResizeLeftRight,
+        ),
+        Axis::Column => (
+            div().h(px(DOCK_GUTTER)).w_full(),
+            div().h(px(SPLITTER_LINE_PX)).w_full(),
+            CursorStyle::ResizeUpDown,
+        ),
+    };
+    strip
+        .id(key.element_id("bar"))
+        .flex()
+        .items_center()
+        .justify_center()
+        .flex_none()
+        .cursor(cursor)
+        .on_hover(motion::hover_listener(key))
+        .child(line.bg(line_color))
+}
+
+/// The Viewer and the Timeline frames the small-window view draws.
+fn small_window_frames() -> (Frame, Frame) {
+    (
+        Frame::new(FrameId::CENTER, vec![PANEL_VIEWER]),
+        Frame::new(FrameId::BOTTOM, vec![PANEL_TIMELINE]),
+    )
+}
+
+/// The Timeline's drawn height in the small-window view, and the tallest it
+/// can be drawn while the Viewer above it keeps its minimum height. A drag of
+/// the splitter starts from what is drawn, so a height saved taller than the
+/// window allows moves the splitter from where it is.
+fn small_window_timeline_span(state: &crate::app::AppState) -> (f32, f32) {
+    let (upper, _) = small_window_frames();
+    let viewer_min_h = state.node_min_size(&Node::Frame(upper)).1;
+    let rects = state.dock_frame_rects.lock();
+    let drawn = |id: FrameId| rects.get(&id).map(|rect| rect[3]);
+    let timeline = drawn(FrameId::BOTTOM).unwrap_or(state.ui_settings.timeline_height);
+    let viewer = drawn(FrameId::CENTER).unwrap_or(viewer_min_h);
+    let max = (timeline + viewer - viewer_min_h).max(TIMELINE_MIN_HEIGHT);
+    (timeline, max)
 }
 
 /// Fractional `(left, top, width, height)` in `[0.0, 1.0]` of the region a
@@ -291,7 +344,7 @@ impl Shell {
             && window_h > 0.0
             && (window_w < MIN_WINDOW_WIDTH || window_h < MIN_WINDOW_HEIGHT)
         {
-            return self.render_small_window_fallback(theme, reduced, cx);
+            return self.render_small_window_fallback(theme, cx);
         }
 
         let root_el = self.render_dock_node(&[], theme, reduced, cx);
@@ -312,18 +365,25 @@ impl Shell {
             .into_any_element()
     }
 
-    /// Below [`MIN_WINDOW_WIDTH`] or [`MIN_WINDOW_HEIGHT`]
-    /// (`docs/spec/layout.md:24-31`), show the Viewer (55 % height) and the
-    /// Timeline (45 % height) only; the other frames return when the window
-    /// grows back to the minimum.
+    /// Below [`MIN_WINDOW_WIDTH`] or [`MIN_WINDOW_HEIGHT`], show the Viewer over
+    /// the Timeline only; the other frames return when the window grows back
+    /// to the minimum (`docs/spec/layout.md`). The Timeline is drawn at
+    /// [`crate::settings::UiSettings::timeline_height`], shorter when the
+    /// Viewer would otherwise fall under its minimum height, and the Viewer
+    /// takes the rest.
     fn render_small_window_fallback(
         &mut self,
         theme: &Theme,
-        _reduced: bool,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let upper = Frame::new(FrameId::CENTER, vec![PANEL_VIEWER]);
-        let lower = Frame::new(FrameId::BOTTOM, vec![PANEL_TIMELINE]);
+        let (upper, lower) = small_window_frames();
+        let (viewer_min_h, timeline_h) = {
+            let read = self.state.read(cx);
+            (
+                read.node_min_size(&Node::Frame(upper.clone())).1,
+                read.ui_settings.timeline_height,
+            )
+        };
         div()
             .flex()
             .flex_col()
@@ -335,24 +395,52 @@ impl Shell {
                 div()
                     .flex()
                     .flex_col()
-                    .h(relative(0.55))
+                    .flex_1()
                     .w_full()
                     .min_w_0()
-                    .min_h_0()
+                    .min_h(px(viewer_min_h))
                     .overflow_hidden()
                     .child(self.render_frame(&upper, false, false, theme, cx)),
             )
-            .child(split_row(cx, DragKind::Timeline))
+            .child(self.render_small_window_splitter(theme, cx))
             .child(
                 div()
                     .flex()
                     .flex_col()
-                    .h(relative(0.45))
+                    .h(px(timeline_h))
                     .w_full()
                     .min_w_0()
                     .min_h_0()
                     .overflow_hidden()
                     .child(self.render_frame(&lower, false, false, theme, cx)),
+            )
+            .into_any_element()
+    }
+
+    /// The splitter between the Viewer and the Timeline of the small-window
+    /// view, drawn as the dock's splitters are. A drag resizes the Timeline
+    /// and a double-click restores its default height; neither changes the
+    /// workspace's dock tree, which the view does not draw.
+    fn render_small_window_splitter(&self, theme: &Theme, cx: &mut Context<Self>) -> AnyElement {
+        splitter_strip(Axis::Column, MotionKey::new("split-timeline", "row"), theme)
+            .debug_selector(|| "split-timeline".into())
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(|this, event: &MouseDownEvent, _, cx| {
+                    if event.click_count >= 2 {
+                        this.state
+                            .update(cx, |state, _| state.reset_timeline_height());
+                        this.persist(cx);
+                        cx.notify();
+                        return;
+                    }
+                    let (start, max) = small_window_timeline_span(this.state.read(cx));
+                    this.drag = Some(Drag::new(
+                        DragKind::Timeline { max },
+                        f32::from(event.position.y),
+                        start,
+                    ));
+                }),
             )
             .into_any_element()
     }
@@ -524,31 +612,7 @@ impl Shell {
         let mut path_arr = [0usize; 4];
         let depth = path.len().min(4);
         path_arr[..depth].copy_from_slice(&path[..depth]);
-        let cursor = match axis {
-            Axis::Row => CursorStyle::ResizeLeftRight,
-            Axis::Column => CursorStyle::ResizeUpDown,
-        };
-        let motion_slot = splitter_motion_key(path, index);
-        // At rest the gutter is the only mark between two frames: a line in it
-        // would draw a third rule beside the two frame borders.
-        let line_color = motion::hover_blend(motion_slot, theme.wash(0.0), theme.accent);
-        let line = match axis {
-            Axis::Row => div().w(px(SPLITTER_LINE_PX)).h_full().bg(line_color),
-            Axis::Column => div().h(px(SPLITTER_LINE_PX)).w_full().bg(line_color),
-        };
-        let strip = match axis {
-            Axis::Row => div().w(px(DOCK_GUTTER)).h_full(),
-            Axis::Column => div().h(px(DOCK_GUTTER)).w_full(),
-        };
-        strip
-            .id(motion_slot.element_id("bar"))
-            .flex()
-            .items_center()
-            .justify_center()
-            .flex_none()
-            .cursor(cursor)
-            .on_hover(motion::hover_listener(motion_slot))
-            .child(line)
+        splitter_strip(axis, splitter_motion_key(path, index), theme)
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |this, event: &MouseDownEvent, window, cx| {
@@ -754,6 +818,9 @@ mod panel_fit_tests;
 #[cfg(test)]
 #[path = "frame_height_tests.rs"]
 mod frame_height_tests;
+#[cfg(test)]
+#[path = "small_window_tests.rs"]
+mod small_window_tests;
 #[cfg(test)]
 #[path = "spacing_tests.rs"]
 mod spacing_tests;

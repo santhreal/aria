@@ -300,7 +300,7 @@ impl AppState {
         }
         match id {
             PANEL_VIEWER => (320.0, 180.0),
-            PANEL_TIMELINE => (400.0, 120.0),
+            PANEL_TIMELINE => (400.0, crate::settings::TIMELINE_MIN_HEIGHT),
             PANEL_AUDIO_METERS => (64.0, 80.0),
             _ => crate::plugins::panel_host::DockSpec::DEFAULT_MIN_SIZE,
         }

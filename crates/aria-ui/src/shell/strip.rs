@@ -1,4 +1,4 @@
-//! The status bar, the timeline splitter, and the session tickers.
+//! The status bar and the session tickers.
 //!
 //! Split out of `shell.rs` to stay under the file ceiling. Each item is
 //! `pub(super)` so the parent and its other children can reach it by name.
@@ -6,7 +6,6 @@
 use super::*;
 use crate::theme::Theme;
 use crate::tooltip::WithTip as _;
-use gpui::StatefulInteractiveElement as _;
 
 pub(super) fn status_strip(
     theme: &Theme,
@@ -250,35 +249,6 @@ fn dropped_indicator(
             cx.notify();
         }),
     )
-}
-
-pub(super) fn split_row(cx: &mut Context<Shell>, kind: DragKind) -> impl IntoElement {
-    let theme = Theme::of(cx);
-    let key = motion::MotionKey::new("split-timeline", "row");
-    div()
-        .id("split-timeline")
-        .debug_selector(|| "split-timeline".into())
-        .h(px(SPLIT))
-        .w_full()
-        .cursor(CursorStyle::ResizeUpDown)
-        // A fade redraws the window chrome alone; a gpui hover style would
-        // notify the Shell, which rebuilds every panel body.
-        .bg(motion::hover_blend(key, theme.bg, theme.border_strong))
-        .on_hover(motion::hover_listener(key))
-        .on_mouse_down(
-            MouseButton::Left,
-            cx.listener(move |this, event: &MouseDownEvent, _, cx| {
-                if event.click_count >= 2 {
-                    this.state
-                        .update(cx, |state, _| state.reset_split("timeline"));
-                    this.persist(cx);
-                    cx.notify();
-                    return;
-                }
-                let start = this.state.read(cx).ui_settings.timeline_height;
-                this.drag = Some(Drag::new(kind, f32::from(event.position.y), start));
-            }),
-        )
 }
 
 /// Age the status line, write recovery copies and reload plugins whose files

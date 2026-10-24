@@ -533,22 +533,9 @@ impl AppState {
         self.rebuild_store();
     }
 
-    pub fn reset_split(&mut self, which: &str) {
-        match which {
-            "sidebar" => {
-                self.ui_settings.sidebar_width = crate::settings::SIDEBAR_DEFAULT;
-                self.dock_tree.set_weights(&[], &[0.25, 0.40, 0.35]);
-            }
-            "inspector" => {
-                self.ui_settings.inspector_width = crate::settings::INSPECTOR_DEFAULT;
-                self.dock_tree.set_weights(&[], &[0.25, 0.40, 0.35]);
-            }
-            "timeline" => {
-                self.ui_settings.timeline_height = crate::settings::TIMELINE_DEFAULT_HEIGHT;
-                self.dock_tree.set_weights(&[1], &[0.55, 0.45]);
-            }
-            _ => {}
-        }
+    /// Restore the Timeline's default height in the small-window view.
+    pub fn reset_timeline_height(&mut self) {
+        self.ui_settings.timeline_height = crate::settings::TIMELINE_DEFAULT_HEIGHT;
     }
 
     /// Leave the project. Guarded: closing is exactly the mis-click the unsaved

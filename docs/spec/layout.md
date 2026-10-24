@@ -25,7 +25,11 @@ The window opens maximized on the display it last closed on. The first launch
 opens maximized on the primary display. Size, position, and maximized state
 are restored per display arrangement. A window smaller than 1024 x 640 shows
 the Viewer and the Timeline only; the other frames return when the window
-grows past that size.
+grows past that size. In that view the Timeline opens 280 px tall and the
+Viewer takes the rest of the height. Drag the splitter between them to resize
+the Timeline, down to 120 px or up to where the Viewer is 180 px tall;
+double-click it to restore 280 px. The height is saved as `timelineHeight`,
+and the workspace's frames are not changed.
 
 The upper area takes 55 % of the height between the tool bar and the status
 bar. The Timeline takes the rest.
