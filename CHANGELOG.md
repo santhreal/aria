@@ -2382,6 +2382,7 @@ Notes for the latest release. For previous releases, see the
 - Settings > Plugins counts a catalog of one entry as `1 entry` instead of `1 entries`.
 - The Project Report draws its Clips carrying rows at the same pitch as its Project rows instead of 4 px further apart.
 - Pool captions and the Export sheet's Scale row join their facts with one space either side of the ` · ` instead of two.
+- Every size the editor writes reads `1920×1080`, where the Export sheet, the Project Report's drawn size and the export, frame and proxy status lines wrote `1920 × 1080`.
 - A pending Assistant plan draws each step's tool name under the start of the step's line instead of three spaces in, and its header starts with a capital.
 - The plugin install prompt draws the permissions a package asks for as an indented list instead of indenting each by two spaces.
 - The nest breadcrumb draws its close mark as an icon after the name instead of a typed `✕` two spaces after it.

@@ -127,7 +127,7 @@ impl AppState {
     pub fn report_content_size(&mut self) {
         self.measure_project_report();
         self.status_message = Some(match self.selected_content_size() {
-            Some((width, height)) => format!("Content draws {width} × {height} px"),
+            Some((width, height)) => format!("Content draws {width}×{height} px"),
             None => "The selection draws no measurable content".to_string(),
         });
     }

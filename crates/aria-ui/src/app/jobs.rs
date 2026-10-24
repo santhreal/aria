@@ -396,7 +396,7 @@ impl AppState {
         self.refresh_jobs();
         let (w, h) = request.size;
         self.status_message = Some(format!(
-            "Export enqueued · {w} × {h} · {} · {}",
+            "Export enqueued · {w}×{h} · {} · {}",
             if settings.audio {
                 "with audio"
             } else {

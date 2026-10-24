@@ -68,7 +68,7 @@ pub(crate) fn render(
                 .child(readout(
                     &theme,
                     "Drawn size",
-                    format!("{width} × {height} px"),
+                    format!("{width}×{height} px"),
                 ))
         });
     let close = components::button("project-report-close", "Close", &theme).on_mouse_down(

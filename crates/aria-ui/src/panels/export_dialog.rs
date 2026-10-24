@@ -22,7 +22,7 @@ pub fn render(
     let dest = state.read(cx).export_destination();
     let dest_label = dest.display().to_string();
     let [canvas_w, canvas_h] = state.read(cx).canvas_size();
-    let resolution = format!("{canvas_w} × {canvas_h}");
+    let resolution = format!("{canvas_w}×{canvas_h}");
     let format_label = state.read(cx).export_format_label();
     let encoder_label = state.read(cx).export_encoder_label();
     let show_codec_bitrate = state.read(cx).export_shows_codec_and_bitrate();
@@ -86,7 +86,7 @@ pub fn render(
             &theme,
             "export-scale",
             "Scale",
-            format!("{} · {out_w} × {out_h}", options.scale.label()),
+            format!("{} · {out_w}×{out_h}", options.scale.label()),
             cx,
             |state| state.cycle_export_scale(),
         )

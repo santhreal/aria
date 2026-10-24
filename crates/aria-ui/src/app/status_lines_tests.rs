@@ -346,7 +346,7 @@ fn a_line_that_starts_with_a_lower_case_word_is_found() {
         ("v0.1.0 · built-in · active", None),
         ("com.example.fx", None),
         ("/var/data", None),
-        ("1920 × 1080", None),
+        ("1920×1080", None),
         ("—", None),
         ("fx", None),
         ("ƒ Driver", None),
@@ -481,6 +481,46 @@ fn no_line_the_crate_writes_spaces_its_parts_with_a_run_of_spaces() {
         offenders.is_empty(),
         "lines that space their parts with a run of spaces; lay the gap out with a \
          margin, a padding or a gap, and join with one space either side:\n  {}",
+        offenders.join("\n  ")
+    );
+}
+
+/// **Every size the crate writes reads `W×H`.**
+///
+/// The class closed here: one quantity written two ways. The pool caption,
+/// the Inspector and Settings wrote `1920×1080`, and the Export sheet, the
+/// Project Report and the export, frame and proxy status lines wrote
+/// `1920 × 1080`. A size is written with no space either side of its `×`. A
+/// multiplier such as `0.6×` is not a size and is not read as one.
+///
+/// Not covered: a `×` written as an escape, and a size a line takes from
+/// data.
+#[test]
+fn every_size_the_crate_writes_reads_width_by_height() {
+    let mut read = 0;
+    let mut offenders = Vec::new();
+    for (rel, code) in production_sources() {
+        for (line, raw) in string_literals(&code) {
+            read += 1;
+            let text = as_written(&raw);
+            let chars: Vec<char> = text.chars().collect();
+            let spaced = chars.windows(3).any(|w| {
+                let operand = |c: char| c.is_ascii_digit() || c == '}' || c == '{';
+                (operand(w[0]) && w[1] == ' ' && w[2] == '×')
+                    || (w[0] == '×' && w[1] == ' ' && operand(w[2]))
+            });
+            if spaced {
+                offenders.push(format!("{rel}:{line}: {text:?}"));
+            }
+        }
+    }
+    assert!(
+        read > 5000,
+        "read {read} literals, fewer than the crate writes: the rule just went vacuous"
+    );
+    assert!(
+        offenders.is_empty(),
+        "sizes written with a space beside the `×`; write `{{w}}×{{h}}`:\n  {}",
         offenders.join("\n  ")
     );
 }

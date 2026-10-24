@@ -311,7 +311,7 @@ impl AppState {
         });
         let (w, h) = settings.size;
         self.status_message = Some(format!(
-            "Rendering frames · {w} × {h} · {}",
+            "Rendering frames · {w}×{h} · {}",
             self.export_range_label()
         ));
         Ok(id.raw())
@@ -333,7 +333,7 @@ impl AppState {
             let mut renderer = super::render_device::renderer_on(gpu, "the frame export")?;
             let (w, h) = aria_render::export_frame_png(&mut renderer, &project, at, &path)
                 .map_err(|err| format!("exporting the frame to {}: {err}", path.display()))?;
-            JobCompletion::new(format!("{w} × {h} PNG"))
+            JobCompletion::new(format!("{w}×{h} PNG"))
                 .with_output("path", path.display().to_string())
                 .map_err(String::from)
         });

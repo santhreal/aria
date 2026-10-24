@@ -145,7 +145,7 @@ impl AppState {
             .with_output("path", published)
             .map_err(String::from)
         });
-        self.status_message = Some(format!("Proxying {name} · {width} × {height}"));
+        self.status_message = Some(format!("Proxying {name} · {width}×{height}"));
         Ok(id.raw())
     }
 
