@@ -27,7 +27,6 @@ pub fn render(
 ) -> impl IntoElement {
     let theme = Theme::of(cx);
     let playing = state.read(cx).viewer_playing();
-    let error = state.read(cx).last_error.clone();
     let zoom_label = state.read(cx).preview_zoom_label();
     let focused = state.read(cx).sources.focused().cloned();
     let split = state.read(cx).sources.split_source().cloned();
@@ -182,22 +181,7 @@ pub fn render(
                             state,
                             cx,
                         )),
-                )
-                // The last error takes what the row has left and ends in an
-                // ellipsis; its tooltip reads in full.
-                .when_some(error, |el, err| {
-                    el.child(
-                        div()
-                            .id("viewer-row-error")
-                            .max_w_full()
-                            .min_w_0()
-                            .truncate()
-                            .text_size(Theme::TEXT_UI)
-                            .text_color(theme.danger)
-                            .with_tip(crate::tooltip::text_builder(err.clone()))
-                            .child(err),
-                    )
-                }),
+                ),
         )
         .child(mini_ruler::strip(state, &theme, cx))
         .on_mouse_down(

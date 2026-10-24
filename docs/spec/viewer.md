@@ -77,8 +77,8 @@ hover. Controls in a group stand 4 px apart.
 
 A Viewer too narrow for one line wraps the row between three groups, each kept
 whole: the timecode through Proxies, the transport through Mark Out, and the handle
-toggles through the display wrench. An error after the wrench is shortened with an
-ellipsis and shown in full on hover.
+toggles through the display wrench. The row draws no error: the status bar
+shows it, so posting or clearing one moves no control in the row.
 
 The playhead timecode closes on a press anywhere else, without applying the
 typed value.

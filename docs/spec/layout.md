@@ -198,8 +198,9 @@ its group's button shows it.
 ## Status bar
 
 Left: the message line (the last action, an error in `danger`, a refusal
-reason). Centre: background jobs with progress. Clicking a job opens the Jobs
-panel. Right, during playback: the achieved frame rate against the sequence's,
-the playback resolution, and the GPU device name. Once a frame drops, the
-dropped-frame count shows in `warning` until it is clicked. At rest with no
-dropped frame, the right side is empty.
+reason). The error is drawn here and in no panel, so posting or clearing one
+moves no control. Centre: background jobs with progress. Clicking a job opens
+the Jobs panel. Right, during playback: the achieved frame rate against the
+sequence's, the playback resolution, and the GPU device name. Once a frame
+drops, the dropped-frame count shows in `warning` until it is clicked. At rest
+with no dropped frame, the right side is empty.

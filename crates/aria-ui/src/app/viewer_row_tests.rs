@@ -23,10 +23,20 @@
 //! placement clamp and the two-frame fallback all use, and the fallback is
 //! asserted on both sides of it.
 //!
+//! An error is a third class: a line drawn among the controls moves them
+//! when it is posted and again when a frame clears it, so a press aimed before
+//! the post lands beside its control. The Viewer's row drew the last error
+//! after the display wrench, and a press on the wrench aimed before a scrub
+//! found no sound device opened nothing. Posting a short and a long error, at a
+//! wide and at the smallest window, moves no control the census in
+//! `test_support::control_sites` reads and none of the row's groups.
+//!
 //! Not covered: the play button, whose click starts the vsync loop a test
 //! window does not run, the lit look of a toggle, which
-//! `chrome::tool_strip::lit_icon` draws, and widths under real glyph metrics,
-//! which the test text system does not have.
+//! `chrome::tool_strip::lit_icon` draws, widths under real glyph metrics,
+//! which the test text system does not have, and the shared buttons, chips
+//! and boxes of `components`, which draw no debug selector, so their bounds
+//! are absent on both sides of the comparison.
 
 use std::path::PathBuf;
 
@@ -55,13 +65,17 @@ fn window(width: f32, height: f32) -> gpui::Bounds<gpui::Pixels> {
     )
 }
 
-/// The bounds drawn under `selector`, or a failure naming it.
+/// The bounds drawn under `selector`, or a failure naming it at the line that
+/// asked.
+#[track_caller]
 pub(super) fn bounds_of(
     visual: &mut gpui::VisualTestContext,
     selector: &str,
 ) -> gpui::Bounds<gpui::Pixels> {
-    crate::test_support::panel_bounds(visual, intern(selector))
-        .unwrap_or_else(|| panic!("the shell draws no {selector}"))
+    match crate::test_support::panel_bounds(visual, intern(selector)) {
+        Some(bounds) => bounds,
+        None => panic!("the shell draws no {selector}"),
+    }
 }
 
 /// The transport buttons in the Viewer's control row, play aside.
@@ -451,5 +465,63 @@ fn the_smallest_window_is_the_edge_of_the_two_frame_layout(cx: &mut gpui::TestAp
             every_frame,
             "{width}x{height}: the Inspector's tab drawn is not {every_frame}"
         );
+    }
+}
+
+/// Where the shell draws each of `ids`, read from a fresh frame: a cached view
+/// replays the bounds its last build painted.
+fn drawn_bounds(
+    visual: &mut gpui::VisualTestContext,
+    ids: &[&'static str],
+) -> Vec<Option<gpui::Bounds<gpui::Pixels>>> {
+    visual.update(|window, _| window.refresh());
+    visual.run_until_parked();
+    ids.iter().map(|&id| visual.debug_bounds(id)).collect()
+}
+
+#[gpui::test]
+fn posting_an_error_moves_no_control(cx: &mut gpui::TestAppContext) {
+    let ids: Vec<&'static str> = crate::test_support::control_sites::control_ids()
+        .iter()
+        .map(|id| intern(id))
+        .chain(GROUPS)
+        .collect();
+    let errors = [
+        "No audio output device. Plug in speakers or a headset.".to_owned(),
+        format!(
+            "Could not read {}take.mov: the file ends before its header",
+            "/media/footage/".repeat(24)
+        ),
+    ];
+    for (width, height) in [(1920., 1080.), (MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)] {
+        let tag = format!("error-moves-nothing-{width}x{height}");
+        let (state, mut visual) = drawn_shell_at(cx, &tag, window(width, height));
+        let visual = &mut visual;
+        let before = drawn_bounds(visual, &ids);
+        for (id, drawn) in ids.iter().zip(&before) {
+            let measured = GROUPS.contains(id)
+                || ["viewer-display-settings", "timeline-display-settings"].contains(id);
+            assert!(
+                !measured || drawn.is_some(),
+                "{width}x{height} drew no {id}, so the comparison would not reach it"
+            );
+        }
+        for err in &errors {
+            change(visual, &state, |state| state.report_error(err.clone()));
+            let after = drawn_bounds(visual, &ids);
+            let moved: Vec<String> = ids
+                .iter()
+                .zip(before.iter().zip(&after))
+                .filter(|(_, (was, now))| was != now)
+                .map(|(id, (was, now))| format!("{id}: {was:?} -> {now:?}"))
+                .collect();
+            assert!(
+                moved.is_empty(),
+                "{width}x{height}: posting {err:?} moved {} controls:\n  {}",
+                moved.len(),
+                moved.join("\n  ")
+            );
+            change(visual, &state, AppState::clear_error);
+        }
     }
 }

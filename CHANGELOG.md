@@ -2374,6 +2374,7 @@ Notes for the latest release. For previous releases, see the
 
 ### Fixed
 
+- The last error is drawn on the status bar alone instead of also at the end of the Viewer's control row, so posting or clearing one no longer moves the row's controls under the pointer.
 - Odd-width I420 frames upload chroma planes of the rounded-up width and height, so the last column takes its own chroma sample instead of chroma stretched from a plane one column short.
 - An odd-width NV12 frame whose chroma rows are shorter than the rounded-up chroma width fails as a malformed frame instead of panicking on a GPU validation error.
 - The Rust example in `docs/plugins/presets.md` registers its preset in the `aria_sdk` `mount` callback instead of an `activate` method that no `Plugin` trait has, the `docs/plugins/audio-effects.md` example builds its parameter with `EffectParamSpec::scalar` instead of a struct literal missing fields, and `docs/reference/transitions.md` drops a Step column and `transitions.toml` a `step` key that no parser reads.
