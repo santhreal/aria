@@ -60,22 +60,21 @@ pub(super) fn keymap_rows(
             state.active_keymap().map(SharedString::new),
         )
     };
+    // The chips wrap inside a column of their own, so a second line of them
+    // starts under the first chip rather than under the label.
     let mut chips = div()
+        .flex_1()
+        .min_w_0()
         .flex()
         .flex_row()
         .wraps()
         .items_center()
-        .gap(px(Theme::SPACE_XS))
-        .child(
-            div()
-                .w(px(140.0))
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text_muted)
-                .child("Keymap"),
-        );
+        .gap(px(Theme::SPACE_XS));
     if sets.is_empty() {
+        // At a chip's inset, so it reads in line with the chips' text.
         chips = chips.child(
             div()
+                .px(px(Theme::SPACE_SM))
                 .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_faint)
                 .child("No saved sets"),
@@ -134,8 +133,17 @@ pub(super) fn keymap_rows(
             ),
         );
     }
+    let row = div()
+        .flex()
+        .flex_row()
+        .items_start()
+        .gap(px(Theme::SPACE_SM))
+        // Level with the first line of chips, whose text stands `SPACE_XS`
+        // inside each chip's top edge.
+        .child(super::widgets::row_label(theme, "Keymap").py(px(Theme::SPACE_XS)))
+        .child(chips);
     vec![
-        chips.into_any_element(),
+        row.into_any_element(),
         super::ai::field_row(theme, state, SettingsField::KeymapName, cx),
     ]
 }

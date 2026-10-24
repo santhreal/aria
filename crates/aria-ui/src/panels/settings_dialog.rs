@@ -37,7 +37,7 @@ use crate::chrome::dialog::{DialogBody, dialog_surface};
 use crate::components;
 use crate::theme::Theme;
 
-use widgets::{group_divider, kv, section};
+use widgets::{group_divider, kv, row_label, section};
 
 pub fn render(
     state: &Entity<AppState>,
@@ -224,13 +224,7 @@ fn on_off_row(
         .flex_row()
         .items_center()
         .gap(px(Theme::SPACE_SM))
-        .child(
-            div()
-                .w(px(140.0))
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text_muted)
-                .child(label),
-        );
+        .child(row_label(theme, label));
     for (shown, on) in [("On", true), ("Off", false)] {
         let key = id.motion(shown);
         let chip = if value == on {

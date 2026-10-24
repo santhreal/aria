@@ -74,13 +74,7 @@ fn options_row(
         .flex_row()
         .items_center()
         .gap(px(Theme::SPACE_SM))
-        .child(
-            div()
-                .w(px(140.0))
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text_muted)
-                .child(SharedString::from(label.to_owned())),
-        );
+        .child(super::widgets::row_label(theme, label));
     for (shown, stored) in options {
         let id = crate::motion::MotionKey::new(setting, stored);
         let shown = SharedString::from((*shown).to_owned());

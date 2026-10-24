@@ -22,7 +22,7 @@ use crate::app::settings_form::SettingsField;
 use crate::components;
 use crate::theme::Theme;
 
-use super::widgets::kv;
+use super::widgets::{kv, row_label};
 
 // Beside this file rather than in a directory: the module tree is still
 // `settings_dialog::ai::models`.
@@ -36,7 +36,7 @@ fn choice_row<T: Copy + PartialEq + 'static>(
     prefix: &'static str,
     label: &'static str,
     choices: &[T],
-    key: fn(T) -> &'static str,
+    name_of: fn(T) -> &'static str,
     current: T,
     cx: &mut gpui::Context<crate::shell::Shell>,
     apply: fn(&mut AppState, T) -> Result<(), String>,
@@ -46,16 +46,10 @@ fn choice_row<T: Copy + PartialEq + 'static>(
         .flex_row()
         .items_center()
         .gap(px(Theme::SPACE_SM))
-        .child(
-            div()
-                .w(px(140.0))
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text_muted)
-                .child(label.to_string()),
-        );
+        .child(row_label(theme, label));
     for choice in choices {
         let choice = *choice;
-        let name = key(choice);
+        let name = name_of(choice);
         let id = crate::motion::MotionKey::new(prefix, name);
         let selected = choice == current;
         let chip = if selected {
@@ -102,13 +96,7 @@ pub(super) fn field_row(
         .flex_row()
         .items_center()
         .gap(px(Theme::SPACE_SM))
-        .child(
-            div()
-                .w(px(140.0))
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text_muted)
-                .child(look.label),
-        )
+        .child(row_label(theme, look.label))
         .child(
             components::text_box(
                 ("settings-field", field.id()),

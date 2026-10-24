@@ -381,3 +381,56 @@ fn every_keyboard_cap_label_fits_inside_its_cap_across_dialog_widths(cx: &mut Te
         }
     }
 }
+
+/// WHY: The Keymap row drew its own label column and spaced its first item
+/// `SPACE_XS` from it, where every other labelled row spaces its control
+/// `SPACE_SM`, so the set chips started 4 px left of the Set name box under
+/// them, and a second line of chips wrapped back under the label.
+///
+/// Reads the Keys section under the filter `Keys`: the row's first item, with
+/// no saved sets the line saying so, stands at a chip's inset on the column
+/// the set name box below it starts on. Not covered: the row's
+/// second line of chips, which needs more saved sets than fit one line.
+#[gpui::test]
+fn the_keymap_row_starts_on_the_column_of_the_box_below_it(cx: &mut TestAppContext) {
+    let (state, visual) = drawn_shell(cx, "settings-keymap-column");
+    visual.update(|_, app| {
+        state.update(app, |state, cx| {
+            state.open_dialog(DialogKind::Settings);
+            state.focus_setting(Some(SettingsField::Filter));
+            for ch in "Keys".chars() {
+                state.setting_push(ch);
+            }
+            cx.notify();
+        });
+    });
+    visual.run_until_parked();
+    let card = visual
+        .debug_bounds("dialog-card")
+        .expect("the Settings dialog draws a card");
+    let runs = visual.update(|window, _| window.rendered_text_runs().to_vec());
+    let first = run(&runs, card, "No saved sets");
+    let shown = visual.read(|app| {
+        let state = state.read(app);
+        let look = state
+            .setting_look(SettingsField::KeymapName)
+            .expect("the set name field has a look");
+        let (value, _) = state.setting_draft(SettingsField::KeymapName);
+        if value.is_empty() {
+            look.placeholder.to_string()
+        } else {
+            value
+        }
+    });
+    let set_name = run(&runs, card, &shown);
+    // A text box's text stands inside its 1 px border and its padding, and a
+    // chip's inside its padding.
+    let column = set_name.bounds.left() - px(1.0 + Theme::SPACE_SM);
+    assert!(
+        (first.bounds.left() - (column + px(Theme::SPACE_SM))).abs() < px(EPS),
+        "the Keymap row's text starts at {:?}, a chip's on the column of the set \
+         name box below it at {:?}",
+        first.bounds.left(),
+        column + px(Theme::SPACE_SM)
+    );
+}

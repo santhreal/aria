@@ -1,8 +1,21 @@
 //! The two shapes every settings section is built from.
 
-use gpui::{IntoElement, ParentElement, Styled, div, px};
+use gpui::{Div, IntoElement, ParentElement, SharedString, Styled, div, px};
 
 use crate::theme::Theme;
+
+/// How wide the label column every Settings row starts with is, so the
+/// controls after the labels line up down the dialog.
+const LABEL_WIDTH: f32 = 140.0;
+
+/// The label a Settings row starts with, in the label column.
+pub(super) fn row_label(theme: &Theme, label: impl Into<SharedString>) -> Div {
+    div()
+        .w(px(LABEL_WIDTH))
+        .text_size(Theme::TEXT_UI)
+        .text_color(theme.text_muted)
+        .child(label.into())
+}
 
 /// One titled group of rows.
 ///
