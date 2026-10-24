@@ -571,12 +571,13 @@ impl AppState {
         self.refresh_expanded_models();
     }
 
+    /// Open the menu on `target` at the pointer, `x` and `y` in window
+    /// coordinates. The drawn menu places itself against the pointer from its
+    /// measured size.
     pub fn open_context(&mut self, target: ContextTarget, x: f32, y: f32) {
         self.context_plugin_rows = self.plugin_menu_rows(&target);
         self.context_menu = Some(target);
-        let max_x = (self.last_window_w - 180.0).max(8.0);
-        let max_y = (self.last_window_h - 240.0).max(8.0);
-        self.context_at = (x.clamp(8.0, max_x), y.clamp(8.0, max_y));
+        self.context_at = (x, y);
     }
 
     pub fn close_context(&mut self) {

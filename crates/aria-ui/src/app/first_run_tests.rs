@@ -463,13 +463,3 @@ fn context_menu_stores_click_position() {
         Some(crate::types::ContextTarget::Preview)
     );
 }
-
-#[test]
-fn context_menu_clamps_to_window() {
-    let dir = scratch();
-    let mut state = AppState::new(PluginContext::new(), dir).unwrap();
-    state.last_window_w = 400.0;
-    state.last_window_h = 300.0;
-    state.open_context(crate::types::ContextTarget::Preview, 390.0, 290.0);
-    assert_eq!(state.context_at, (220.0, 60.0));
-}

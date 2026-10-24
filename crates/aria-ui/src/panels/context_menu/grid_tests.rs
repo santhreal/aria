@@ -169,7 +169,7 @@ fn every_context_row_draws_its_check_mark_in_the_lead_column(cx: &mut TestAppCon
 
 /// Dress `state` with a blended cut, the left clip selected and carrying an
 /// effect, and return every target the timeline then offers a menu on.
-fn dress(state: &mut AppState) -> Vec<ContextTarget> {
+pub(super) fn dress(state: &mut AppState) -> Vec<ContextTarget> {
     let left = place_media(state, asset("texture.png"));
     blend_right_junction(state, left);
     state.select_clip(left);

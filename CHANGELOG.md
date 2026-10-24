@@ -2825,6 +2825,7 @@ Notes for the latest release. For previous releases, see the
 - On X11, a window reopens at the position it closed at instead of moving down and right by the size of its frame on every launch.
 - Playback or audio scrubbing whose sound cannot start, such as on a machine with no output device, states the reason on the error line, such as `No audio output device. Plug in speakers or a headset.`, instead of playing the picture in silence with no word.
 - Closing a floating panel window while the sequence plays leaves the picture following the sound between audio blocks, instead of advancing once per audio block for the rest of that play.
+- A context menu opens above or left of the pointer where it does not fit below or right of it, so a menu opened near the window's foot shows every row.
 
 ## [alpha-0.7.0] — 2026-07-22
 

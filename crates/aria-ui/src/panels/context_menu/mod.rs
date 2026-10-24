@@ -10,7 +10,7 @@ use crate::types::ContextTarget;
 use gpui::prelude::FluentBuilder;
 use gpui::{
     CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
-    ParentElement, Styled, div, px,
+    ParentElement, Styled, anchored, div, point, px,
 };
 use std::cell::RefCell;
 thread_local! {
@@ -89,8 +89,8 @@ pub fn render(
     let plugin_rows = std::sync::Arc::clone(&rows.context_plugin_rows);
     let (at_x, at_y) = rows.context_at;
     // A menu generated from data (a clip's properties, every blend) can be
-    // longer than the window below the pointer, so its rows scroll past that.
-    let room = (rows.last_window_h - at_y - Theme::SPACE_SM).max(Theme::ROW_HEIGHT * 4.0);
+    // taller than the window, so its rows scroll past that.
+    let room = (rows.last_window_h - 2.0 * Theme::SPACE_SM).max(Theme::ROW_HEIGHT * 4.0);
 
     // The rows scroll inside the card, so the card's ground and edge stay
     // whole under the fade over the rows' scrolled edges.
@@ -158,11 +158,12 @@ pub fn render(
         .child(
             // The frost is what says the menu floats over the timeline rather
             // than belonging to it. It wraps the animation, not the other way
-            // round: `Frosted` is not `Styled`, so it cannot be faded.
-            div()
-                .absolute()
-                .top(px(at_y))
-                .left(px(at_x))
+            // round: `Frosted` is not `Styled`, so it cannot be faded. On each
+            // axis the card opens after the pointer where it fits there, before
+            // it where it fits only there, and against the window's edge where
+            // it fits on neither side, read from the card's measured size.
+            anchored()
+                .position(point(px(at_x), px(at_y)))
                 .child(crate::frost::frost(card)),
         )
         .into_any_element()
@@ -206,3 +207,5 @@ use drawn::{drawn_target, items, plugin_items};
 
 #[cfg(test)]
 mod grid_tests;
+#[cfg(test)]
+mod place_tests;
