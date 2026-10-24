@@ -220,34 +220,42 @@ impl AppState {
         cx.notify();
     }
 
-    /// Last observed main window width in logical pixels, used to derive
-    /// pixel-spec default weights (`320 px` left, `300 px` right, `64 px`
-    /// Audio Meters) and clamp frame minimums on resize.
+    /// Record the main window's size in logical pixels and lay the dock out
+    /// for it.
+    ///
+    /// A shipped workspace with no recorded edit takes the weights it ships
+    /// with at the new size, as choosing it again would give it, so its frames
+    /// do not depend on the sizes the window passed through, such as the
+    /// unmaximized size a first launch draws at before the window manager
+    /// maximizes it. Then a frame below its minimum size takes room from its
+    /// siblings.
     pub fn observe_main_window_size(&mut self, window_w: f32, window_h: f32) -> bool {
         let (prev_w, prev_h) = self.last_window_size();
         self.dock_frame_rects
             .lock()
             .insert(crate::dock::FrameId(0), [0.0, 0.0, window_w, window_h]);
-        let mut changed = false;
-        if prev_w <= 0.0
-            && window_w >= 320.0
-            && (self.active_workspace_id.is_empty()
-                || (!self
-                    .ui_settings
-                    .workspace_trees
-                    .contains_key(&self.active_workspace_id)
-                    && (self.active_workspace_id == "win-workspace-editing"
-                        || self.active_workspace_id == "win-workspace-effects")))
-        {
-            self.dock_tree.apply_spec_px_for_width(window_w);
-            changed = true;
+        if (window_w - prev_w).abs() <= 0.5 && (window_h - prev_h).abs() <= 0.5 {
+            return false;
         }
-        if ((window_w - prev_w).abs() > 0.5 || (window_h - prev_h).abs() > 0.5)
-            && self.rebalance_splits_for_window(window_w, window_h)
-        {
-            changed = true;
+        let shipped = self.unedited_shipped_tree(window_w);
+        if let Some(shipped) = &shipped {
+            self.dock_tree.adopt_weights(shipped);
         }
-        changed
+        self.rebalance_splits_for_window(window_w, window_h) || shipped.is_some()
+    }
+
+    /// The active workspace as it ships for a window `window_w` px wide, while
+    /// it is a shipped workspace with no recorded edit.
+    fn unedited_shipped_tree(&self, window_w: f32) -> Option<DockTree> {
+        let id = if self.active_workspace_id.is_empty() {
+            layouts::WORKSPACES[0].id
+        } else {
+            self.active_workspace_id.as_str()
+        };
+        if window_w < 320.0 || self.ui_settings.workspace_trees.contains_key(id) {
+            return None;
+        }
+        layouts::workspace_tree_for_width(id, window_w, &[])
     }
 
     /// Last painted window bounds `[x, y, w, h]` of a docked frame.

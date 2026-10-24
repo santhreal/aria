@@ -121,6 +121,14 @@ impl DockTree {
         self.set_weights(split_path, &equal)
     }
 
+    /// Give every split the weights of the split in `shipped` that
+    /// [`Self::restore_split_from`] matches it with: one on the same [`Axis`]
+    /// whose children start with the same [`FrameId`]s. A split `shipped` has
+    /// no match for keeps its weights.
+    pub fn adopt_weights(&mut self, shipped: &DockTree) {
+        adopt_weights_in(&mut self.root, &shipped.root);
+    }
+
     /// Toggle whether `frame` is maximized to fill the editor area.
     pub fn toggle_maximize(&mut self, frame: FrameId) -> bool {
         if self.maximized == Some(frame) {
@@ -132,5 +140,20 @@ impl DockTree {
             return true;
         }
         false
+    }
+}
+
+fn adopt_weights_in(node: &mut Node, shipped: &Node) {
+    let Node::Split { axis, children } = node else {
+        return;
+    };
+    let signature: Vec<Option<FrameId>> = children.iter().map(|(_, c)| first_frame_id(c)).collect();
+    if let Some(weights) = find_split_weights_by_signature(shipped, *axis, &signature) {
+        for ((weight, _), next) in children.iter_mut().zip(weights) {
+            *weight = next;
+        }
+    }
+    for (_, child) in children.iter_mut() {
+        adopt_weights_in(child, shipped);
     }
 }

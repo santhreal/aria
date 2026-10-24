@@ -120,43 +120,4 @@ impl DockTree {
         let sum = timeline_px + meters_px;
         (timeline_px / sum, meters_px / sum)
     }
-
-    /// Scale the standard Editing/Animation pixel-width frames (`LEFT` = 320 px,
-    /// `RIGHT` = 300 px, `METERS` = 64 px) to match `window_w`.
-    pub fn apply_spec_px_for_width(&mut self, window_w: f32) {
-        if window_w <= 0.0 {
-            return;
-        }
-        let (left_w, center_w, right_w) = Self::upper_row_weights_for_width(window_w, true);
-        let (timeline_w, meters_w) = Self::lower_row_weights_for_width(window_w);
-        if let Node::Split {
-            axis: Axis::Column,
-            children,
-        } = &mut self.root
-        {
-            for (_, row_node) in children.iter_mut() {
-                if let Node::Split {
-                    axis: Axis::Row,
-                    children: row_children,
-                } = row_node
-                {
-                    if row_children.len() == 3
-                        && matches!(&row_children[0].1, Node::Frame(f) if f.id == FrameId::LEFT)
-                        && matches!(&row_children[1].1, Node::Frame(f) if f.id == FrameId::CENTER)
-                        && matches!(&row_children[2].1, Node::Frame(f) if f.id == FrameId::RIGHT)
-                    {
-                        row_children[0].0 = left_w;
-                        row_children[1].0 = center_w;
-                        row_children[2].0 = right_w;
-                    } else if row_children.len() == 2
-                        && matches!(&row_children[0].1, Node::Frame(f) if f.id == FrameId::BOTTOM)
-                        && matches!(&row_children[1].1, Node::Frame(f) if f.id == FrameId::METERS)
-                    {
-                        row_children[0].0 = timeline_w;
-                        row_children[1].0 = meters_w;
-                    }
-                }
-            }
-        }
-    }
 }

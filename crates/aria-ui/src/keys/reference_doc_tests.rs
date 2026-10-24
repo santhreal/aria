@@ -22,8 +22,8 @@ use crate::app::clip_ops::AudioGainMode;
 use crate::app::decline::Decline;
 use crate::chrome::menu_items::items_for;
 use crate::commands::{BUILTIN_COMMANDS, BUILTIN_JOB_COMMANDS};
-use crate::dock::DOCK_VERSION;
-use crate::layouts::WORKSPACES;
+use crate::dock::{Axis, DOCK_VERSION, FrameId, Node};
+use crate::layouts::{WORKSPACES, workspace_tree_for_width};
 use crate::surfaces::context_menu::{
     BADGE_ITEMS, BadgeMenu, CLIP_ITEMS, ClipMenu, EFFECT_ITEMS, EffectMenu, MenuItem, POOL_ITEMS,
     PREVIEW_ITEMS, PoolMenu, RECENT_ITEMS, TRACK_ITEMS, TRANSITION_ITEMS, TrackMenu,
@@ -174,6 +174,124 @@ fn workspaces_doc_matches_registry() {
         WORKSPACES_DOC.contains(&format!("DOCK_VERSION = {DOCK_VERSION}")),
         "docs/reference/workspaces.md must state DOCK_VERSION = {DOCK_VERSION}"
     );
+}
+
+/// The two window widths a shipped tree is built at to tell a frame's width
+/// in pixels, its share of the row, and the rest of the row apart.
+const TREE_WIDTHS: (f32, f32) = (1920.0, 1440.0);
+
+/// Closes the class where a shipped workspace's rows, frames, tabs, visible
+/// tab, focused frame, or split shares change in `layouts.rs` or
+/// `dock/editing.rs` without updating the Default dock trees table of
+/// `docs/reference/workspaces.md`. Each tree is built at the two
+/// [`TREE_WIDTHS`]: a width that keeps its pixels is a pixel width, one that
+/// keeps its share is a share, and any other is the rest of the row.
+/// Does not catch the prose above the table.
+#[test]
+fn default_dock_trees_doc_matches_the_shipped_trees() {
+    let (wide, narrow) = TREE_WIDTHS;
+    let mut expected: Vec<Vec<String>> = Vec::new();
+    for ws in &WORKSPACES {
+        let build = |width: f32| {
+            workspace_tree_for_width(ws.id, width, &[])
+                .unwrap_or_else(|| panic!("{} builds no dock tree", ws.id))
+        };
+        let (tree, other) = (build(wide), build(narrow));
+        let (
+            Node::Split {
+                axis: Axis::Column,
+                children: rows,
+            },
+            Node::Split {
+                children: other_rows,
+                ..
+            },
+        ) = (&tree.root, &other.root)
+        else {
+            panic!("{} is not a column of rows", ws.id);
+        };
+        assert_eq!(rows.len(), 2, "{} has no upper and lower row", ws.id);
+        for (((height, row), (_, other_row)), name) in
+            rows.iter().zip(other_rows).zip(["Upper", "Lower"])
+        {
+            let frames: Vec<(String, &crate::dock::Frame)> = match (row, other_row) {
+                (Node::Frame(frame), _) => vec![("100%".to_string(), frame)],
+                (
+                    Node::Split {
+                        axis: Axis::Row,
+                        children,
+                    },
+                    Node::Split {
+                        children: other_children,
+                        ..
+                    },
+                ) => children
+                    .iter()
+                    .zip(other_children)
+                    .map(|((share, node), (other_share, _))| {
+                        let Node::Frame(frame) = node else {
+                            panic!("{} row {name} nests a split", ws.id);
+                        };
+                        (width_cell(*share, *other_share), frame)
+                    })
+                    .collect(),
+                _ => panic!(
+                    "{} row {name} is neither a frame nor a row of frames",
+                    ws.id
+                ),
+            };
+            for (width, frame) in frames {
+                expected.push(vec![
+                    ws.id.to_string(),
+                    name.to_string(),
+                    format!("{:.0}%", height * 100.0),
+                    frame_name(frame.id).to_string(),
+                    width,
+                    frame.tabs.join(", "),
+                    frame.active_panel().to_string(),
+                    String::from(if tree.focused == frame.id {
+                        "yes"
+                    } else {
+                        "no"
+                    }),
+                ]);
+            }
+        }
+    }
+    let documented: Vec<Vec<String>> =
+        table_rows(section_slice(WORKSPACES_DOC, "Default dock trees"))
+            .iter()
+            .map(|cells| cells.iter().map(|cell| cell.replace('`', "")).collect())
+            .collect();
+    assert_eq!(
+        documented, expected,
+        "docs/reference/workspaces.md Default dock trees drifted from the shipped trees"
+    );
+}
+
+/// The Width cell of a frame whose share of its row is `share` at the wide
+/// [`TREE_WIDTHS`] and `other` at the narrow one.
+fn width_cell(share: f32, other: f32) -> String {
+    let (wide, narrow) = TREE_WIDTHS;
+    if (share * wide - other * narrow).abs() < 0.5 {
+        format!("{:.0} px", share * wide)
+    } else if (share - other).abs() < 1e-4 {
+        format!("{:.0}%", share * 100.0)
+    } else {
+        "Rest".to_string()
+    }
+}
+
+/// The name the Default dock trees table gives a shipped frame.
+fn frame_name(id: FrameId) -> &'static str {
+    match id {
+        FrameId::LEFT => "Left",
+        FrameId::CENTER => "Center",
+        FrameId::RIGHT => "Right",
+        FrameId::BOTTOM => "Bottom",
+        FrameId::METERS => "Meters",
+        other => panic!("frame {other} has no name in the Default dock trees table"),
+    }
 }
 
 /// Closes the class where a state command (`BUILTIN_COMMANDS`) or background

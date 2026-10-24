@@ -70,5 +70,7 @@ fn window_ids(entity: &gpui::Entity<AppState>, cx: &gpui::TestAppContext) -> Vec
 mod dock;
 #[path = "layouts_tests_plugins.rs"]
 mod plugins;
+#[path = "layouts_tests_resize.rs"]
+mod resize;
 #[path = "layouts_tests_workspaces.rs"]
 mod workspaces;

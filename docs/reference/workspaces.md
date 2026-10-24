@@ -6,8 +6,8 @@ A workspace is a named arrangement of dock frames, split ratios, panel tabs, and
 
 Switch to the **Audio** workspace, adjust a splitter, save the arrangement, and reset to the saved layout:
 
-1. Press `Shift+Alt+4` or choose **Window > Workspaces > Audio** (`win-workspace-audio`). The dock switches to `Audio`, focuses the Audio Track Mixer, and filters Effects & Presets to `Audio Effects`.
-2. Choose **Window > Workspaces > Save Workspace** (`win-workspace-save`). Aria writes `<data dir>/workspaces/audio.json` and stores the arrangement in the `Custom` slot (`win-workspace-custom` in `ui-settings.json`).
+1. Press `Shift+Alt+4` or choose **Window > Workspaces > Audio** (`win-workspace-audio`). The dock switches to `Audio`, focuses the Timeline, and filters Effects & Presets to `Audio Effects`.
+2. Choose **Window > Workspaces > Save Workspace** (`win-workspace-save`), type `audio`, and press Enter. Aria stores the arrangement in the `Custom` slot (`win-workspace-custom` in `ui-settings.json`) and writes `<data dir>/workspaces/audio.json`.
 3. Choose **Window > Workspaces > Reset to Saved Layout** (`win-workspace-reset`) to restore the active workspace to its saved or shipped frame tree and split ratios.
 
 ## Shipped workspaces
@@ -22,26 +22,38 @@ Switch to the **Audio** workspace, adjust a splitter, save the arrangement, and 
 
 ## Default dock trees
 
-Each shipped workspace builds a two-row vertical `DockTree` (`DOCK_VERSION = 2`):
+Each shipped workspace builds a `DockTree` (`DOCK_VERSION = 2`) of an upper and a
+lower row, each a share of the dock area's height. A frame's width is a share of
+its row, a width in pixels kept at every window width wide enough for it, or
+`Rest`, the part of the row the other frames leave. Focused marks the frame that
+has keyboard focus when the workspace is chosen.
 
-- **Editing (`win-workspace-editing`)**:
-  - Upper row (`65%` height): `Left` frame (`320 px` at `1440 px` window width) with `aria.panel.media` and `aria.panel.inspector`; `Center` frame with `aria.panel.viewer`; `Right` frame (`300 px`) with `aria.panel.effects`.
-  - Lower row (`35%` height): `Bottom` frame (focused) with `aria.panel.timeline`; `Meters` frame (`64 px`) with `aria.panel.audio_meters`.
-- **Animation (`win-workspace-animation`)**:
-  - Upper row (`50%` height): `Left` frame with `aria.panel.inspector` (active) and `aria.panel.media`; `Center` frame with `aria.panel.viewer`, `aria.panel.mixer`, and `aria.panel.assistant`; `Right` frame with `aria.panel.info`, `aria.panel.effects` (active), and `aria.panel.align`.
-  - Lower row (`50%` height): `Bottom` frame with `aria.panel.timeline` (timeline graph editor open) and `Meters` frame (`64 px`) with `aria.panel.audio_meters`.
-- **Color (`win-workspace-colour`)**:
-  - Upper row (`65%` height): `Center` frame (`38%` width, focused) with `aria.panel.viewer`, `aria.panel.mixer`, and `aria.panel.assistant`; `Left` frame (`32%` width) with `aria.panel.scopes` (active) and `aria.panel.media`; `Right` frame (`30%` width) with `aria.panel.color` (active), `aria.panel.inspector`, and `aria.panel.effects`.
-  - Lower row (`35%` height): `Bottom` frame with `aria.panel.timeline` and `Meters` frame (`64 px`) with `aria.panel.audio_meters`.
-- **Audio (`win-workspace-audio`)**:
-  - Upper row (`65%` height): `Left` frame (`22%` width) with `aria.panel.viewer` and `aria.panel.media`; `Center` frame (`50%` width, focused) with `aria.panel.mixer` (active) and `aria.panel.assistant`; `Right` frame (`28%` width) with `aria.panel.audio_meters`, `aria.panel.effects` (active, filtered to `Audio Effects`), and `aria.panel.inspector`.
-  - Lower row (`35%` height): `Bottom` frame with `aria.panel.timeline`.
-- **Effects (`win-workspace-effects`)**:
-  - Upper row (`60%` height): `Left` frame (`32%` width) with `aria.panel.effects` (active) and `aria.panel.media`; `Center` frame (`36%` width) with `aria.panel.viewer`, `aria.panel.mixer`, and `aria.panel.assistant`; `Right` frame (`32%` width, focused) with `aria.panel.inspector` (active) and `aria.panel.info`.
-  - Lower row (`40%` height): `Bottom` frame with `aria.panel.timeline` and `Meters` frame (`64 px`) with `aria.panel.audio_meters`.
+| Workspace | Row | Height | Frame | Width | Tabs | Visible tab | Focused |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `win-workspace-editing` | Upper | 55% | Left | 320 px | `aria.panel.media`, `aria.panel.inspector` | `aria.panel.media` | no |
+| `win-workspace-editing` | Upper | 55% | Center | Rest | `aria.panel.viewer` | `aria.panel.viewer` | no |
+| `win-workspace-editing` | Upper | 55% | Right | 300 px | `aria.panel.effects` | `aria.panel.effects` | no |
+| `win-workspace-editing` | Lower | 45% | Bottom | Rest | `aria.panel.timeline` | `aria.panel.timeline` | yes |
+| `win-workspace-editing` | Lower | 45% | Meters | 64 px | `aria.panel.audio_meters` | `aria.panel.audio_meters` | no |
+| `win-workspace-animation` | Upper | 50% | Left | 320 px | `aria.panel.inspector`, `aria.panel.media` | `aria.panel.inspector` | no |
+| `win-workspace-animation` | Upper | 50% | Center | Rest | `aria.panel.viewer`, `aria.panel.mixer`, `aria.panel.assistant` | `aria.panel.viewer` | no |
+| `win-workspace-animation` | Upper | 50% | Right | 300 px | `aria.panel.info`, `aria.panel.effects`, `aria.panel.align` | `aria.panel.effects` | no |
+| `win-workspace-animation` | Lower | 50% | Bottom | 100% | `aria.panel.timeline` | `aria.panel.timeline` | yes |
+| `win-workspace-colour` | Upper | 65% | Center | 38% | `aria.panel.viewer`, `aria.panel.mixer`, `aria.panel.assistant` | `aria.panel.viewer` | yes |
+| `win-workspace-colour` | Upper | 65% | Left | 32% | `aria.panel.scopes`, `aria.panel.media` | `aria.panel.scopes` | no |
+| `win-workspace-colour` | Upper | 65% | Right | 30% | `aria.panel.color`, `aria.panel.inspector`, `aria.panel.effects` | `aria.panel.color` | no |
+| `win-workspace-colour` | Lower | 35% | Bottom | 100% | `aria.panel.timeline` | `aria.panel.timeline` | no |
+| `win-workspace-audio` | Upper | 66% | Left | 22% | `aria.panel.viewer`, `aria.panel.media` | `aria.panel.viewer` | no |
+| `win-workspace-audio` | Upper | 66% | Center | 50% | `aria.panel.mixer`, `aria.panel.assistant` | `aria.panel.mixer` | no |
+| `win-workspace-audio` | Upper | 66% | Right | 28% | `aria.panel.audio_meters`, `aria.panel.effects`, `aria.panel.inspector` | `aria.panel.audio_meters` | no |
+| `win-workspace-audio` | Lower | 34% | Bottom | 100% | `aria.panel.timeline` | `aria.panel.timeline` | yes |
+| `win-workspace-effects` | Upper | 60% | Left | 32% | `aria.panel.effects`, `aria.panel.media` | `aria.panel.effects` | no |
+| `win-workspace-effects` | Upper | 60% | Center | 36% | `aria.panel.viewer`, `aria.panel.mixer`, `aria.panel.assistant` | `aria.panel.viewer` | no |
+| `win-workspace-effects` | Upper | 60% | Right | 32% | `aria.panel.inspector`, `aria.panel.info` | `aria.panel.inspector` | yes |
+| `win-workspace-effects` | Lower | 40% | Bottom | 100% | `aria.panel.timeline` | `aria.panel.timeline` | no |
 
 ## Custom and plugin workspaces
 
-- **Per-workspace persistence**: splitter drags, tab reorders, docks, and undocks are saved per workspace ID in `workspaceTrees` inside `ui-settings.json`.
+- **Per-workspace persistence**: splitter drags, tab reorders, docks, and undocks are saved per workspace ID in `workspaceTrees` inside `ui-settings.json`. A resized window lays out a shipped workspace with no saved edits as the Default dock trees table states for the new width; a workspace with saved edits keeps the shares of its frames.
 - **Custom workspace (`win-workspace-custom`)**: created by **Window > Workspaces > Save Workspace** (`win-workspace-save`) or the **Save current** button in **Settings > Workspaces**. Named workspace files are written to `<data dir>/workspaces/<name>.json`. **Reset to Saved Layout** (`win-workspace-reset`) restores the active workspace to its saved or shipped arrangement.
 - **Plugin workspaces (`win-workspace-plugin:<id>`)**: plugins register workspaces on `PluginContext::register_workspace`. A plugin workspace opens with the timeline graph editor closed. Shortcut slots `Shift+Alt+1` through `Shift+Alt+9` address the first nine rows in `AppState::workspace_rows()`: the shipped workspaces in the order of the table above, then `Custom` when present, then plugin workspaces in registration order.

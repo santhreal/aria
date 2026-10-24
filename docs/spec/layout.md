@@ -30,6 +30,12 @@ grows past that size.
 The upper area takes 55 % of the height between the tool bar and the status
 bar. The Timeline takes the rest.
 
+A resized window lays out a workspace with no changes for its new size, as
+choosing the workspace again does: Editing keeps its side frames at 320 px and
+300 px and Audio Meters at 64 px, and the Viewer and the Timeline take the
+difference. A workspace with a dragged splitter or a moved panel keeps the
+shares of its frames instead.
+
 The Editing workspace opens with six panels: Project, Effect Controls, Viewer,
 Effects & Presets, Timeline, and Audio Meters. Every other panel opens from
 the Window menu as a tab in its default frame: Markers and Scopes on the left,
