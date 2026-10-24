@@ -16,7 +16,7 @@
 //! the cost is zero.
 
 use aria_engine::Engine;
-use aria_models::{clip_facts, clips_with_fact, project_facts};
+use aria_models::{clip_facts, clips_with_fact, is_empty_fact_value, project_facts};
 
 use crate::app::AppState;
 
@@ -29,6 +29,8 @@ pub struct ProjectFactRow {
     pub id: &'static str,
     pub label: &'static str,
     pub value: gpui::SharedString,
+    /// The value is the empty answer (zero, no, none), drawn dim.
+    pub empty: bool,
 }
 
 /// One per-clip question, with how many clips answer it.
@@ -67,10 +69,14 @@ impl ProjectReport {
             let project = engine.project();
             project_facts()
                 .iter()
-                .map(|spec| ProjectFactRow {
-                    id: spec.id,
-                    label: spec.label,
-                    value: (spec.read)(project).into(),
+                .map(|spec| {
+                    let value = (spec.read)(project);
+                    ProjectFactRow {
+                        id: spec.id,
+                        label: spec.label,
+                        empty: is_empty_fact_value(&value),
+                        value: value.into(),
+                    }
                 })
                 .collect()
         };

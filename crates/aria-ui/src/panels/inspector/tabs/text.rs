@@ -23,7 +23,9 @@ use crate::surfaces::clip_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::{RenameTarget, UiClip};
 
-use crate::panels::inspector::blocks::widgets::{color_rows, param_rows, section_label};
+use crate::panels::inspector::blocks::widgets::{color_rows, param_rows};
+
+use crate::components::section_label;
 
 /// The surface name of the inspector's Text tab. The dock panels pass their own,
 /// so a control drawn in both places keeps its hover state apart.
@@ -394,7 +396,10 @@ fn font_picker(
                 div()
                     .text_size(Theme::TEXT_UI)
                     .text_color(theme.text_faint)
-                    .child(SharedString::from(format!("{installed} fonts installed"))),
+                    .child(SharedString::from(
+                        aria_core::count::counted(installed, "font installed", "fonts installed")
+                            .to_string(),
+                    )),
             ),
     )
 }

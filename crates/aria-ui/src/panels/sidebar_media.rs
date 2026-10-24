@@ -87,17 +87,8 @@ pub(super) fn properties_block(
         .pt(px(Theme::SPACE_SM))
         .border_t_1()
         .border_color(theme.border)
-        .children(rows.iter().map(|(label, value)| {
-            div()
-                .flex()
-                .justify_between()
-                .gap(px(Theme::SPACE_SM))
-                .text_size(Theme::TEXT_UI)
-                .child(
-                    div()
-                        .text_color(theme.text_faint)
-                        .child(SharedString::from(*label)),
-                )
-                .child(div().text_color(theme.text_muted).child(value.clone()))
-        }))
+        .children(
+            rows.iter()
+                .map(|(label, value)| crate::components::readout(theme, *label, value.clone())),
+        )
 }

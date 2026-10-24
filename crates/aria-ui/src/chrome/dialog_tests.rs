@@ -9,9 +9,8 @@
 //! than a card in both directions, the card lies inside the window, and the
 //! header, the scrolling content and the action row lie inside the card.
 //!
-//! The kinds are read from the registry at run time. A kind that draws no card
-//! through [`super::dialog_surface`] fails here unless [`NO_CARD`] has a row for
-//! it, and a [`NO_CARD`] row fails once its kind draws a card.
+//! The kinds are read from the registry at run time, and every one of them
+//! draws a card through [`super::dialog_surface`].
 //!
 //! Not covered: dialogs registered by a plugin outside this crate, pixels, and
 //! which row the content region is scrolled to.
@@ -29,12 +28,6 @@ use crate::test_support::{bounds_inside, drawn_shell};
 /// A window narrower and shorter than a dialog card.
 const SHORT: Size<Pixels> = size(px(480.), px(320.));
 
-/// Registered dialogs that draw no card, and what they draw instead.
-const NO_CARD: &[(DialogKind, &str)] = &[(
-    DialogKind::ProjectReport,
-    "the report is drawn in the shell's own column, with no scrim and no card",
-)];
-
 #[gpui::test]
 fn every_dialog_card_fits_a_short_window(cx: &mut TestAppContext) {
     let (state, visual) = drawn_shell(cx, "dialog-fit");
@@ -51,12 +44,6 @@ fn every_dialog_card_fits_a_short_window(cx: &mut TestAppContext) {
         kinds.len() >= 7,
         "the shipped dialogs did not register: {kinds:?}"
     );
-    for (kind, _) in NO_CARD {
-        assert!(
-            kinds.contains(kind),
-            "{kind:?} has a NO_CARD row and no registration; delete the row"
-        );
-    }
 
     let mut offenders = Vec::new();
     for kind in kinds {
@@ -86,9 +73,6 @@ fn every_dialog_title_is_in_title_case(cx: &mut TestAppContext) {
     let mut titles = Vec::new();
     let mut offenders = Vec::new();
     for kind in registered(&state, visual) {
-        if NO_CARD.iter().any(|(held, _)| *held == kind) {
-            continue;
-        }
         open(&state, visual, kind);
         visual.update(|window, _| window.refresh());
         visual.run_until_parked();
@@ -120,12 +104,12 @@ fn every_dialog_title_is_in_title_case(cx: &mut TestAppContext) {
 ///
 /// The class closed here: a value or a description that starts in lower case
 /// among capitalised ones, as the Export sheet's `included`, the motion rows'
-/// `every transition at its designed speed` and the Keys section's `unbound`
-/// were. Every run drawn inside the card of each registered kind is read from
-/// the frame, so a row added later is checked on the run that adds it. A run
-/// the editor behind the card draws at the same place is the editor's, and is
-/// skipped. One binding is cleared before the walk, so the Keys section draws
-/// a row with no chord.
+/// `every transition at its designed speed`, the Keys section's `unbound` and
+/// the Project Report's `none` were. Every run drawn inside the card of each
+/// registered kind is read from the frame, so a row added later is checked on
+/// the run that adds it. A run the editor behind the card draws at the same
+/// place is the editor's, and is skipped. One binding is cleared before the
+/// walk, so the Keys section draws a row with no chord.
 ///
 /// Not covered: a line a dialog draws only after a choice changes or a job
 /// reports, beyond the cleared binding, and a lower case word inside a line.
@@ -148,9 +132,6 @@ fn every_line_a_dialog_draws_starts_in_sentence_case(cx: &mut TestAppContext) {
     let mut read = Vec::new();
     let mut offenders = Vec::new();
     for kind in registered(&state, visual) {
-        if NO_CARD.iter().any(|(held, _)| *held == kind) {
-            continue;
-        }
         open(&state, visual, kind);
         visual.update(|window, _| window.refresh());
         visual.run_until_parked();
@@ -173,7 +154,7 @@ fn every_line_a_dialog_draws_starts_in_sentence_case(cx: &mut TestAppContext) {
                 .collect()
         });
         if lines.is_empty() {
-            offenders.push(format!("{kind:?} drew no line in its card"));
+            offenders.push(format!("{kind:?} drew no line"));
         }
         for line in &lines {
             if let Some(word) = lowercase_start(line) {
@@ -235,16 +216,7 @@ fn misplaced(
     window: Bounds<Pixels>,
     visual: &mut VisualTestContext,
 ) -> Vec<String> {
-    let card = visual.debug_bounds("dialog-card");
-    if let Some((_, instead)) = NO_CARD.iter().find(|(held, _)| *held == kind) {
-        return match card {
-            Some(_) => vec![format!(
-                "{kind:?} draws a dialog card; delete its NO_CARD row ({instead})"
-            )],
-            None => Vec::new(),
-        };
-    }
-    let Some(card) = card else {
+    let Some(card) = visual.debug_bounds("dialog-card") else {
         return vec![format!(
             "{kind:?} drew no dialog card; draw it through dialog_surface"
         )];

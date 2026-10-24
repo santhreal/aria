@@ -348,6 +348,9 @@ fn a_line_that_starts_with_a_lower_case_word_is_found() {
         ("/var/data", None),
         ("1920 × 1080", None),
         ("—", None),
+        ("fx", None),
+        ("ƒ Driver", None),
+        ("fxaa on", Some("fxaa")),
         ("", None),
     ] {
         assert_eq!(lowercase_start(line), found, "{line:?}");

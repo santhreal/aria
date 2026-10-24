@@ -195,7 +195,8 @@ use aria_core::{AudioReader, DecodeError, Rational, RationalTime, VideoDecoder};
 /// nothing has to open a file to learn that.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DecoderCapability {
-    /// Backend this build dispatches to, for logs and error text.
+    /// Backend this build dispatches to, spelled as its vendor spells it, for
+    /// logs, error text and a capability readout. `none` when there is none.
     pub backend: &'static str,
     /// Whether [`OutputMode::Gpu`] hands back GPU surfaces. A backend may still
     /// fall back to CPU planes per frame when the host lacks the hardware path.
@@ -231,7 +232,7 @@ pub fn decoder_capability() -> DecoderCapability {
     #[cfg(target_vendor = "apple")]
     {
         DecoderCapability {
-            backend: "avfoundation",
+            backend: "AVFoundation",
             gpu_surfaces: true,
             cpu_planes: true,
         }
@@ -239,7 +240,7 @@ pub fn decoder_capability() -> DecoderCapability {
     #[cfg(target_os = "windows")]
     {
         DecoderCapability {
-            backend: "media foundation",
+            backend: "Media Foundation",
             gpu_surfaces: true,
             cpu_planes: true,
         }
@@ -249,7 +250,7 @@ pub fn decoder_capability() -> DecoderCapability {
         // MediaCodec runs in ByteBuffer mode here: no `AImageReader` surface, so
         // no `AHardwareBuffer` to hand the renderer.
         DecoderCapability {
-            backend: "mediacodec",
+            backend: "MediaCodec",
             gpu_surfaces: false,
             cpu_planes: true,
         }
@@ -257,7 +258,7 @@ pub fn decoder_capability() -> DecoderCapability {
     #[cfg(target_os = "linux")]
     {
         DecoderCapability {
-            backend: "gstreamer",
+            backend: "GStreamer",
             gpu_surfaces: true,
             cpu_planes: true,
         }
@@ -530,7 +531,7 @@ mod capability_tests {
     #[test]
     fn a_cpu_only_backend_downgrades_gpu_instead_of_failing() {
         let capability = DecoderCapability {
-            backend: "mediacodec",
+            backend: "MediaCodec",
             gpu_surfaces: false,
             cpu_planes: true,
         };
@@ -542,12 +543,12 @@ mod capability_tests {
     #[test]
     fn a_refusal_names_the_backend_and_what_it_has() {
         let capability = DecoderCapability {
-            backend: "mediacodec",
+            backend: "MediaCodec",
             gpu_surfaces: false,
             cpu_planes: true,
         };
         let message = unsupported_mode(capability, OutputMode::Gpu);
-        assert!(message.contains("mediacodec"), "{message}");
+        assert!(message.contains("MediaCodec"), "{message}");
         assert!(message.contains("CPU planes only"), "{message}");
         assert!(message.contains("GPU surfaces"), "{message}");
         assert!(message.contains("decoder_capability"), "{message}");

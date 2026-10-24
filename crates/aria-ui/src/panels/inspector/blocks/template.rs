@@ -19,7 +19,9 @@ use crate::surfaces::clip_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::{UiClip, UiClipKind};
 
-use super::widgets::{Readout, audio_row, section_label};
+use super::widgets::{Readout, audio_row};
+
+use crate::components::section_label;
 
 pub fn template_block(
     theme: &Theme,
@@ -136,10 +138,10 @@ pub fn template_block(
                     .text_size(Theme::TEXT_UI)
                     .text_color(theme.text_faint)
                     .child(format!(
-                        "Slot {} — {} — {}",
+                        "Slot {} · {} · {}",
                         slot.order,
                         slot_media_label(slot.accepts),
-                        slot.label.clone().unwrap_or_else(|| "no hint".into())
+                        slot.label.clone().unwrap_or_else(|| "No hint".into())
                     )),
             )
             .child(audio_row(

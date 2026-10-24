@@ -294,10 +294,10 @@ impl AppState {
             .extension()
             .and_then(|ext| ext.to_str())
             .map(str::to_uppercase)
-            .unwrap_or_else(|| "unknown".into());
+            .unwrap_or_else(|| "Unknown".into());
         let mut rows = vec![("Name", item.name.clone()), ("Container", container.into())];
         if item.kind == crate::types::UiClipKind::Audio {
-            rows.push(("Frame size", "audio only".into()));
+            rows.push(("Frame size", "Audio only".into()));
         } else {
             rows.push((
                 "Frame size",
@@ -310,7 +310,7 @@ impl AppState {
             rows.push((
                 "Frame rate",
                 if item.still {
-                    "still image".into()
+                    "Still image".into()
                 } else {
                     format!(
                         "{:.3} fps",
@@ -330,21 +330,21 @@ impl AppState {
         rows.push((
             "Audio",
             match (item.has_audio, item.audio_codec.as_deref()) {
-                (false, _) => "no".into(),
+                (false, _) => "No".into(),
                 (true, Some(codec)) => codec.into(),
-                (true, None) => "yes, codec unknown".into(),
+                (true, None) => "Yes, codec unknown".into(),
             },
         ));
         rows.push((
             "Imported",
             match item.imported_at {
                 Some(at) => crate::datefmt::format_unix_utc(at).into(),
-                None => "not recorded".into(),
+                None => "Not recorded".into(),
             },
         ));
         rows.push((
             "Status",
-            if item.missing { "missing" } else { "linked" }.into(),
+            if item.missing { "Missing" } else { "Linked" }.into(),
         ));
         rows.push(("Path", item.path.clone()));
         rows
@@ -362,7 +362,7 @@ pub(crate) mod import;
 pub fn codec_label(codec: Option<&str>) -> String {
     match codec {
         Some(name) if !name.trim().is_empty() => name.trim().to_string(),
-        _ => "unknown".to_string(),
+        _ => "Unknown".to_string(),
     }
 }
 

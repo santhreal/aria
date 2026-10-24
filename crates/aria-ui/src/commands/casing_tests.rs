@@ -12,6 +12,7 @@
 //! prose status messages that are not command, menu, or tool captions.
 
 use crate::app::AppState;
+use crate::app::status::LOWER_CASE_MARKS;
 use crate::chrome::menu_items::{DropEntry, drop_entries, row_caption};
 use crate::commands::{BUILTIN_COMMANDS, BUILTIN_JOB_COMMANDS};
 use crate::tool_catalog::tool_specs;
@@ -23,7 +24,7 @@ const MINOR_WORDS: &[&str] = &[
 ];
 
 const EXACT_CASE_TOKENS: &[&str] = &[
-    "EDL", "OTIO", "FCPXML", "AI", "LUT", "RGB", "YCbCr", "EQ", "PNG", "dB", "fx", "De-esser",
+    "EDL", "OTIO", "FCPXML", "AI", "LUT", "RGB", "YCbCr", "EQ", "PNG", "dB", "De-esser",
 ];
 
 fn is_user_data_row(id: &str) -> bool {
@@ -54,7 +55,7 @@ fn is_noun_in(words: &[&str], index: usize) -> bool {
 }
 
 fn check_subword_capitalized(segment: &str) -> Result<(), String> {
-    if EXACT_CASE_TOKENS.contains(&segment) {
+    if EXACT_CASE_TOKENS.contains(&segment) || LOWER_CASE_MARKS.contains(&segment) {
         return Ok(());
     }
     for part in segment.split('-') {

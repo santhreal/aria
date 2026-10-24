@@ -14,7 +14,9 @@ use crate::surfaces::inspector_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::UiClip;
 
-use super::widgets::{Readout, audio_row, section_label};
+use super::widgets::{Readout, audio_row};
+
+use crate::components::section_label;
 
 pub fn framing_block(
     theme: &Theme,

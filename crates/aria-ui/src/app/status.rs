@@ -59,17 +59,22 @@ impl AppState {
     }
 }
 
+/// Symbols written in lower case: the effects badge and the expression driver
+/// mark. Each is drawn as it is, as Premiere draws its `fx` badge.
+pub(crate) const LOWER_CASE_MARKS: [&str; 2] = ["fx", "ƒ"];
+
 /// The first word of `line`, when it is written in lower case letters alone.
 ///
 /// A word with a capital, a digit or a mark in it is a unit, a version, an id
 /// or a path (`dB`, `v0.1.0`, `com.example.fx`, `/data`), and is written as it
-/// is.
+/// is, as is a symbol of [`LOWER_CASE_MARKS`].
 pub(crate) fn lowercase_start(line: &str) -> Option<&str> {
     let word = line
         .split_whitespace()
         .next()?
         .trim_end_matches([',', ';', ':', '.']);
-    (!word.is_empty() && word.chars().all(char::is_lowercase)).then_some(word)
+    let lower = !word.is_empty() && word.chars().all(char::is_lowercase);
+    (lower && !LOWER_CASE_MARKS.contains(&word)).then_some(word)
 }
 
 /// `line` started with a capital, when its first word is written in lower

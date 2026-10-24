@@ -18,7 +18,9 @@ use crate::surfaces::clip_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::UiClip;
 
-use super::widgets::{Readout, audio_row, section_label};
+use super::widgets::{Readout, audio_row};
+
+use crate::components::section_label;
 
 fn slot_label(slot: AnimationSlot) -> &'static str {
     match slot {

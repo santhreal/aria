@@ -12,7 +12,8 @@ use gpui::{
 
 use crate::app::AppState;
 use crate::app::info::{InfoFault, InfoPlayback, InfoRow};
-use crate::panels::inspector::blocks::widgets::{kv_row, kv_row_tinted, section_label, swatch};
+use crate::components::{readout, readout_tinted, section_label};
+use crate::panels::inspector::blocks::widgets::swatch;
 use crate::theme::Theme;
 
 /// The surface name of the panel.
@@ -24,44 +25,43 @@ pub fn render(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> AnyElement {
     let theme = Theme::of(cx);
-    let readout = state.read(cx).info_readout();
+    let info = state.read(cx).info_readout();
     let mut body: Vec<AnyElement> = vec![section_label(&theme, "Pointer").into_any_element()];
-    match readout.pointer {
+    match info.pointer {
         Some([x, y]) => {
-            body.push(kv_row(&theme, "X", x.to_string()).into_any_element());
-            body.push(kv_row(&theme, "Y", y.to_string()).into_any_element());
-            body.push(color_row(&theme, readout.color));
+            body.push(readout(&theme, "X", x.to_string()).into_any_element());
+            body.push(readout(&theme, "Y", y.to_string()).into_any_element());
+            body.push(color_row(&theme, info.color));
         }
         None => body.push(hint(&theme, "Move the pointer over the Viewer.")),
     }
     body.push(section_label(&theme, "Clip").into_any_element());
-    if readout.clip.is_empty() {
+    if info.clip.is_empty() {
         body.push(hint(&theme, "Select a clip."));
     } else {
-        body.extend(rows(&theme, readout.clip));
+        body.extend(rows(&theme, info.clip));
     }
-    if !readout.drag.is_empty() {
+    if !info.drag.is_empty() {
         body.push(section_label(&theme, "Drag").into_any_element());
-        body.extend(rows(&theme, readout.drag));
+        body.extend(rows(&theme, info.drag));
     }
     body.push(section_label(&theme, "Errors").into_any_element());
-    if readout.faults.is_empty() {
+    if info.faults.is_empty() {
         body.push(hint(&theme, "No errors."));
     } else {
         body.extend(
-            readout
-                .faults
+            info.faults
                 .into_iter()
                 .map(|fault| fault_row(&theme, fault)),
         );
     }
     body.push(section_label(&theme, "Last frame").into_any_element());
-    if readout.frame.is_empty() {
+    if info.frame.is_empty() {
         body.push(hint(&theme, "No frame rendered yet."));
     } else {
-        body.extend(rows(&theme, readout.frame));
+        body.extend(rows(&theme, info.frame));
     }
-    if let Some(playback) = readout.playback {
+    if let Some(playback) = info.playback {
         body.push(section_label(&theme, "Playback").into_any_element());
         body.extend(playback_rows(&theme, playback));
     }
@@ -83,14 +83,14 @@ pub fn render(
 /// One labelled value per row.
 fn rows(theme: &Theme, rows: Vec<InfoRow>) -> impl Iterator<Item = AnyElement> + '_ {
     rows.into_iter()
-        .map(move |row| kv_row(theme, row.label, row.value).into_any_element())
+        .map(move |row| readout(theme, row.label, row.value).into_any_element())
 }
 
 /// The colour under the pointer: a swatch, its channels and its hex, or a dash
 /// until the frame on screen has been read there.
 fn color_row(theme: &Theme, color: Option<[u8; 4]>) -> AnyElement {
     let Some([r, g, b, a]) = color else {
-        return kv_row(theme, "Colour", "–").into_any_element();
+        return readout(theme, "Colour", "–").into_any_element();
     };
     div()
         .flex()
@@ -124,8 +124,8 @@ fn color_row(theme: &Theme, color: Option<[u8; 4]>) -> AnyElement {
                         ),
                 ),
         )
-        .child(kv_row(theme, "RGB", format!("{r} {g} {b}")))
-        .child(kv_row(
+        .child(readout(theme, "RGB", format!("{r} {g} {b}")))
+        .child(readout(
             theme,
             "Alpha",
             format!("{:.0} %", f32::from(a) * 100.0 / 255.0),
@@ -154,8 +154,8 @@ fn playback_rows(theme: &Theme, playback: InfoPlayback) -> [AnyElement; 2] {
     };
     let [rate, late] = playback.rows;
     [
-        kv_row_tinted(theme, rate.label, rate.value, verdict).into_any_element(),
-        kv_row(theme, late.label, late.value).into_any_element(),
+        readout_tinted(theme, rate.label, rate.value, verdict).into_any_element(),
+        readout(theme, late.label, late.value).into_any_element(),
     ]
 }
 

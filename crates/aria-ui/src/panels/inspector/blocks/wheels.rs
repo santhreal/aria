@@ -25,7 +25,7 @@ use crate::motion::MotionKey;
 use crate::panels::value_readout::{self, Look};
 use crate::theme::Theme;
 
-use super::widgets::section_label;
+use crate::components::section_label;
 
 /// Radius of a drawn wheel in pixels.
 pub const WHEEL_RADIUS: f32 = 36.0;

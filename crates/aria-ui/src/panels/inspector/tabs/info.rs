@@ -6,13 +6,13 @@ use gpui::{
     InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled, div, px,
 };
 
-use crate::components;
+use crate::components::{self, readout, section_label};
 use crate::fluent::FluentBuilder;
 use crate::theme::Theme;
 use crate::timecode::format_ticks;
 use crate::types::UiClip;
 
-use crate::panels::inspector::blocks::widgets::{kind_label, kv_row, section_label};
+use crate::panels::inspector::blocks::widgets::kind_label;
 
 pub fn info_tab(
     theme: &Theme,
@@ -25,7 +25,7 @@ pub fn info_tab(
     let media = clip
         .media_id
         .map(|id| id.to_string())
-        .unwrap_or_else(|| "none".into());
+        .unwrap_or_else(|| "None".into());
     let media_missing = clip.media_id.is_some_and(|id| {
         state
             .read(cx)
@@ -50,19 +50,19 @@ pub fn info_tab(
         .flex_col()
         .gap(px(Theme::SPACE_XS))
         .child(section_label(theme, "Info"))
-        .child(kv_row(theme, "Name", clip.name.clone()))
-        .child(kv_row(theme, "Kind", kind_label(clip.kind)))
-        .child(kv_row(
+        .child(readout(theme, "Name", clip.name.clone()))
+        .child(readout(theme, "Kind", kind_label(clip.kind)))
+        .child(readout(
             theme,
             "In",
             format_ticks(clip.timeline_start_ticks, fps_num, fps_den),
         ))
-        .child(kv_row(
+        .child(readout(
             theme,
             "Out",
             format_ticks(clip.timeline_end_ticks, fps_num, fps_den),
         ))
-        .child(kv_row(theme, "Media", media))
+        .child(readout(theme, "Media", media))
         .when_some(relink, |el, btn| el.child(btn))
         .child(crate::panels::inspector::blocks::template::template_block(
             theme, clip, state, cx,

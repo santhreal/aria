@@ -13,7 +13,9 @@ use crate::surfaces::clip_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::UiClip;
 
-use crate::panels::inspector::blocks::widgets::{Readout, audio_row, param_rows, section_label};
+use crate::panels::inspector::blocks::widgets::{Readout, audio_row, param_rows};
+
+use crate::components::section_label;
 
 pub fn audio_tab(
     theme: &Theme,

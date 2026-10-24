@@ -322,7 +322,7 @@ fn channel(
             div()
                 .text_size(Theme::TEXT_SMALL)
                 .text_color(theme.danger)
-                .child("not in the mix"),
+                .child("Not in the mix"),
         )
     })
     .child(automation_row(

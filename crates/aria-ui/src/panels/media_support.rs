@@ -20,7 +20,7 @@ use gpui::{
 
 use crate::app::AppState;
 use crate::app::media_reach::{Exposure, MediaReachForm};
-use crate::components::ghost_button;
+use crate::components::{ghost_button, readout, readout_tinted, section_label};
 use crate::motion;
 use crate::theme::Theme;
 
@@ -95,9 +95,9 @@ pub(crate) fn render(
         let count = report.map_or(0, |report| report.lines.len());
         (
             if warnings == 0 {
-                format!("Media support — {}", counted(count, "fact", "facts"))
+                format!("Media support: {}", counted(count, "fact", "facts"))
             } else {
-                format!("Media support — {warnings} of {count} to look at")
+                format!("Media support: {warnings} of {count} to look at")
             },
             report
                 .map(|report| {
@@ -122,13 +122,7 @@ pub(crate) fn render(
 
     let mut blocks: Vec<gpui::AnyElement> = Vec::new();
     for section in sections {
-        blocks.push(
-            div()
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text_faint)
-                .child(SharedString::from(section))
-                .into_any_element(),
-        );
+        blocks.push(section_label(&theme, section).into_any_element());
         for row in rows.iter().filter(|row| row.section == section) {
             blocks.push(fact(&theme, row));
         }
@@ -162,26 +156,10 @@ pub(crate) fn render(
 }
 
 /// One label/value row. A row that states a problem carries the warning colour
-/// on its value, which is the part that says what is wrong.
+/// on its value, which is the part that states what is wrong.
 fn fact(theme: &Theme, row: &Row) -> gpui::AnyElement {
-    div()
-        .flex()
-        .items_start()
-        .justify_between()
-        .gap(px(Theme::SPACE_SM))
-        .text_size(Theme::TEXT_TITLE)
-        .child(
-            div()
-                .flex_none()
-                .text_color(theme.text_muted)
-                .child(row.label.clone()),
-        )
-        .child(
-            div()
-                .text_color(if row.warn { theme.warning } else { theme.text })
-                .child(row.value.clone()),
-        )
-        .into_any_element()
+    let tint = if row.warn { theme.warning } else { theme.text };
+    readout_tinted(theme, row.label.clone(), row.value.clone(), tint).into_any_element()
 }
 
 /// The normalise target, cycled by clicking. Dots come from the form's own
@@ -251,14 +229,14 @@ fn exposure_block(theme: &Theme, exposure: Exposure) -> gpui::AnyElement {
     let (cb, cr) = exposure.cast;
     let facts = [
         (
-            "Mean luma".to_string(),
+            "Mean luma",
             format!(
                 "{:.0} against {neutral:.0} neutral ({offset:+.0})",
                 exposure.mean_luma
             ),
         ),
         (
-            "Darkest".to_string(),
+            "Darkest",
             format!(
                 "{:.0} at {:.0}% across",
                 exposure.darkest.1,
@@ -266,7 +244,7 @@ fn exposure_block(theme: &Theme, exposure: Exposure) -> gpui::AnyElement {
             ),
         ),
         (
-            "Brightest".to_string(),
+            "Brightest",
             format!(
                 "{:.0} at {:.0}% across",
                 exposure.brightest.1,
@@ -274,35 +252,28 @@ fn exposure_block(theme: &Theme, exposure: Exposure) -> gpui::AnyElement {
             ),
         ),
         (
-            "Cast".to_string(),
+            "Cast",
             format!("Cb {cb:+.3}, Cr {cr:+.3} on the Cb/Cr plane"),
         ),
         (
-            "Read from".to_string(),
+            "Read from",
             format!(
                 "{} px at {:.2}s",
                 exposure.sampled, exposure.timestamp_seconds
             ),
         ),
     ];
-    let mut block = div().flex().flex_col().gap(px(Theme::SPACE_XS)).child(
-        div()
-            .text_size(Theme::TEXT_UI)
-            .text_color(theme.text_faint)
-            .child("Exposure"),
-    );
-    for (label, value) in facts {
-        block = block.child(fact(
-            theme,
-            &Row {
-                section: "Exposure",
-                label: SharedString::from(label),
-                value: SharedString::from(value),
-                warn: false,
-            },
-        ));
-    }
-    block.into_any_element()
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(Theme::SPACE_XS))
+        .child(section_label(theme, "Exposure"))
+        .children(
+            facts
+                .into_iter()
+                .map(|(label, value)| readout(theme, label, value)),
+        )
+        .into_any_element()
 }
 
 /// The buttons, built from [`ACTIONS`].

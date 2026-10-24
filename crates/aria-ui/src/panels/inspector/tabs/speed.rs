@@ -30,7 +30,9 @@ use crate::theme::Theme;
 use crate::timecode::format_ticks;
 use crate::types::UiClip;
 
-use crate::panels::inspector::blocks::widgets::{Readout, audio_row, section_label};
+use crate::panels::inspector::blocks::widgets::{Readout, audio_row};
+
+use crate::components::section_label;
 
 /// Height of the curve graph. Tall enough for a log axis to read, short enough to
 /// leave the rest of the tab on screen.

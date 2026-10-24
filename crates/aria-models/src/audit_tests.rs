@@ -178,6 +178,62 @@ fn every_project_fact_reads_on_a_dressed_and_an_empty_project() {
     }
 }
 
+/// A readout value starts the way every other drawn line does: with a digit or
+/// a capital. Every answer a row can give is reached here: zero, no and none
+/// on an empty project, counts on a dressed one, and yes plus a soloed lane
+/// list once a junction carries a transition and a lane is soloed. The empty
+/// answers, and only those, read as [`is_empty_fact_value`], which is what
+/// draws a row dim.
+///
+/// Does not catch a value that is correctly cased but worded wrong.
+#[test]
+fn every_project_fact_reads_in_sentence_case() {
+    let empty = Project::new("empty", R24);
+    let dressed = dressed();
+    let mut joined = dressed.clone();
+    let (lane, left) = joined
+        .timeline()
+        .tracks_ordered()
+        .find(|track| track.kind == TrackKind::Sticker)
+        .map(|track| (track.id, track.clips_ordered().next().expect("a clip").id))
+        .expect("the sticker lane");
+    joined
+        .add_transition(left, "crossfade")
+        .expect("a crossfade");
+    joined
+        .timeline_mut()
+        .track_mut(lane)
+        .expect("the lane")
+        .solo = true;
+    for (which, project) in [
+        ("empty", &empty),
+        ("dressed", &dressed),
+        ("joined", &joined),
+    ] {
+        for spec in project_facts() {
+            let value = spec.fact.read(project);
+            let first = value.chars().next().expect("a value");
+            assert!(
+                first.is_ascii_digit() || first.is_uppercase(),
+                "'{}' reads {value:?} on the {which} project",
+                spec.id
+            );
+        }
+    }
+    for fact in [ProjectFact::Transitions, ProjectFact::SoloedKinds] {
+        assert!(
+            is_empty_fact_value(&fact.read(&empty)),
+            "'{}' on an empty project is not the empty answer",
+            fact.id()
+        );
+        assert!(
+            !is_empty_fact_value(&fact.read(&joined)),
+            "'{}' on a joined project reads as empty",
+            fact.id()
+        );
+    }
+}
+
 /// The abutting pair is the one state the table is dressed for, so the cut row
 /// must find both of them: a fact table whose rows all answer `false` would
 /// pass every case above.
@@ -299,7 +355,11 @@ fn every_row_answers_as_the_clip_alone_reads() {
 fn soloing_a_lane_shows_up_in_the_readout() {
     let mut project = dressed();
     let before = ProjectFact::SoloedKinds.read(&project);
-    assert_eq!(before, "none");
+    assert_eq!(before, "None");
+    assert!(
+        crate::is_empty_fact_value(&before),
+        "an empty list reads as the empty answer"
+    );
     let lane = project
         .timeline()
         .tracks_ordered()

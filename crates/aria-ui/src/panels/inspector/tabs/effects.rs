@@ -17,7 +17,7 @@ use crate::types::{CatalogDrag, ContextTarget, RenameTarget, UiClip};
 
 use crate::fluent::FluentBuilder;
 
-use crate::panels::inspector::blocks::widgets::section_label;
+use crate::components::section_label;
 
 pub fn effects_tab(
     theme: &Theme,

@@ -24,7 +24,9 @@ use crate::surfaces::inspector_pick::{self, KEY_COLORS, Pick};
 use crate::theme::Theme;
 use crate::types::{UiClip, UiMask};
 
-use super::widgets::{param_rows, section_label};
+use super::widgets::param_rows;
+
+use crate::components::section_label;
 
 pub fn mask_block(
     theme: &Theme,

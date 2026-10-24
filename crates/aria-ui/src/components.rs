@@ -427,6 +427,59 @@ pub fn danger_button(
         .child(label.into())
 }
 
+/// A label and its value in one row: the label in `text_muted`, the value in
+/// `text` with tabular figures.
+///
+/// The value stands at the right edge beside its label while both fit, moves
+/// to the next line at the right edge once they do not, and wraps at the row's
+/// width when it is wider than the row, as a label wider than the row does.
+pub fn readout(
+    theme: &Theme,
+    label: impl Into<SharedString>,
+    value: impl Into<SharedString>,
+) -> Div {
+    readout_tinted(theme, label, value, theme.text)
+}
+
+/// [`readout`] with its value in `tint`, for a value whose colour is its
+/// verdict: `warning` for a fact to look at, `text_faint` for an empty answer.
+pub fn readout_tinted(
+    theme: &Theme,
+    label: impl Into<SharedString>,
+    value: impl Into<SharedString>,
+    tint: gpui::Hsla,
+) -> Div {
+    div()
+        .flex()
+        .flex_row()
+        .flex_wrap()
+        .gap_x(px(Theme::SPACE_SM))
+        .text_size(Theme::TEXT_UI)
+        .child(
+            div()
+                .max_w_full()
+                .text_color(theme.text_muted)
+                .child(label.into()),
+        )
+        .child(
+            div()
+                .ml_auto()
+                .max_w_full()
+                .text_color(tint)
+                .font_features(crate::theme::tabular_figures())
+                .child(value.into()),
+        )
+}
+
+/// The heading over a group of rows, such as a group of [`readout`] rows.
+pub fn section_label(theme: &Theme, title: impl Into<SharedString>) -> Div {
+    div()
+        .pt(px(Theme::SPACE_SM))
+        .text_size(Theme::TEXT_UI)
+        .text_color(theme.text_faint)
+        .child(title.into())
+}
+
 pub fn slider_row(
     theme: &Theme,
     label: impl Into<SharedString>,
@@ -468,3 +521,7 @@ pub fn slider_row(
                 .child(display.into()),
         )
 }
+
+#[cfg(test)]
+#[path = "components_readout_tests.rs"]
+mod readout_tests;

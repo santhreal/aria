@@ -51,7 +51,7 @@ Rows with a default frame carry a `DockSpec` and appear as dockable tabs in the 
 | `aria.dialog.jobs` | `Dialog(Jobs)` | Modal jobs board (`Jobs` in the command palette) showing active and completed background jobs. |
 | `aria.dialog.unsaved` | `Dialog(UnsavedChanges)` | Confirmation prompt (**Save**, **Discard**, **Stay**) shown before New, Open, Close, or Quit replaces a dirty project. |
 | `aria.dialog.install-plugin` | `Dialog(InstallPlugin)` | Permission and tier confirmation prompt shown before unpacking an `.ariaplugin` archive. |
-| `aria.dialog.project-report` | `Dialog(ProjectReport)` | Read-only inventory of project media sources, clips, tracks, and effects (**Window > Project Report**). |
+| `aria.dialog.project-report` | `Dialog(ProjectReport)` | Project-wide counts (sources, folders, lanes, clips, markers, content end, transitions, soloed lane kinds) and one row per clip question with the number of clips that answer it; clicking a row selects the next such clip (**Window > Project Report**). |
 | `aria.dialog.speed-duration` | `Dialog(SpeedDuration)` | Clip retiming dialog (`Ctrl+R` or **Clip > Speed/Duration…**) for constant speed (`5%` to `10000%`), duration, reverse, and pitch lock. |
 | `aria.dialog.audio-gain` | `Dialog(AudioGain)` | Clip gain dialog (`G` or **Clip > Audio Gain…**) for Set Gain, Adjust Gain, Normalize Max Peak, and Normalize All Peaks. |
 | `aria.dialog.about` | `Dialog(About)` | Version and build information dialog (**Help > About**). |

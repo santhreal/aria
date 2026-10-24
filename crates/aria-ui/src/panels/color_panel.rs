@@ -16,9 +16,10 @@ use gpui::{
 
 use crate::app::AppState;
 use crate::components;
+use crate::components::section_label;
 use crate::motion::MotionKey;
 use crate::panels::inspector::blocks::wheels::wheels_block;
-use crate::panels::inspector::blocks::widgets::{param_rows_into, section_label};
+use crate::panels::inspector::blocks::widgets::param_rows_into;
 use crate::surfaces::inspector_pick::{self, Pick};
 use crate::theme::Theme;
 

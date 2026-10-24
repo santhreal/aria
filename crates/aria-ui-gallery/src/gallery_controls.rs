@@ -66,6 +66,7 @@ pub fn controls(theme: &Theme, cx: &mut Context<Gallery>) -> AnyElement {
                     .child(components::slider_row(theme, "Scale", 0.65, "65%"))
                     .child(components::slider_row(theme, "Volume", 1.0, "100%")),
             ))
+            .child(readout_rows(theme))
             .child(group(
                 theme,
                 "tab_bar(theme, &[(label, active)])",
@@ -174,6 +175,41 @@ fn disclosure_rows(theme: &Theme, reduced: bool) -> AnyElement {
                     .text_color(theme.text_faint)
                     .child(format!("band_fill row {index}"))
             })),
+    )
+}
+
+/// A group of readouts under its section label, at the width of a docked
+/// panel: a plain value, a value long enough to move under its label, and the
+/// two tints a verdict takes, `warning` for a fact to look at and `text_faint`
+/// for an empty answer.
+fn readout_rows(theme: &Theme) -> AnyElement {
+    group(
+        theme,
+        "section_label(theme, title), readout(theme, label, value), readout_tinted(theme, label, value, tint)",
+        div()
+            .w(px(240.))
+            .flex()
+            .flex_col()
+            .gap(px(Theme::SPACE_XS))
+            .child(components::section_label(theme, "Source"))
+            .child(components::readout(theme, "Duration", "00:00:04:12"))
+            .child(components::readout(
+                theme,
+                "Path",
+                "/media/projects/harbour/day-two/a-camera/clip-0042.mov",
+            ))
+            .child(components::readout_tinted(
+                theme,
+                "Dropped frames",
+                "3",
+                theme.warning,
+            ))
+            .child(components::readout_tinted(
+                theme,
+                "Proxy",
+                "None",
+                theme.text_faint,
+            )),
     )
 }
 

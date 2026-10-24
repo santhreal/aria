@@ -193,8 +193,8 @@ fn properties_describe_the_selected_item_and_nothing_otherwise() {
             .expect(name)
     };
     assert_eq!(value("Container"), "PNG");
-    assert_eq!(value("Status"), "linked");
-    assert_eq!(value("Audio"), "no");
+    assert_eq!(value("Status"), "Linked");
+    assert_eq!(value("Audio"), "No");
     assert!(value("Frame size").contains('×'));
     assert!(
         value("Imported").starts_with("20"),

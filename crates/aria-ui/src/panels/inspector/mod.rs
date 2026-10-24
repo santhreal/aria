@@ -106,7 +106,7 @@ fn sequence_body(
     fps_den: i32,
     canvas: [u32; 2],
 ) -> impl IntoElement {
-    use crate::panels::inspector::blocks::widgets::{kv_row, section_label};
+    use crate::components::{readout, section_label};
     use crate::timecode::format_ticks;
 
     div()
@@ -121,13 +121,13 @@ fn sequence_body(
                 .child(SEQUENCE_PROMPT),
         )
         .child(section_label(theme, "Sequence"))
-        .child(kv_row(theme, "Rate", rate_label(fps_num, fps_den)))
-        .child(kv_row(
+        .child(readout(theme, "Rate", rate_label(fps_num, fps_den)))
+        .child(readout(
             theme,
             "Frame",
             format!("{}×{}", canvas[0], canvas[1]),
         ))
-        .child(kv_row(
+        .child(readout(
             theme,
             "Duration",
             format_ticks(duration_ticks, fps_num, fps_den),

@@ -64,7 +64,7 @@ impl AppState {
             lines.push(ReportLine {
                 section: SECTION,
                 label: "Selection".into(),
-                value: "no clip selected, or the clip is generated".into(),
+                value: "No clip is selected, or the clip is generated".into(),
                 warn: false,
             });
             return;
@@ -98,17 +98,17 @@ impl AppState {
             Some(format) => {
                 let spec = format.spec();
                 let probed = probe_image(&path)
-                    .map(|info| format!("{}×{}", info.width, info.height))
-                    .unwrap_or_else(|err| format!("probe refused: {err}"));
+                    .map(|info| format!("probes {}×{}", info.width, info.height))
+                    .unwrap_or_else(|err| format!("the probe failed: {err}"));
                 lines.push(ReportLine {
                     section: SECTION,
                     label: "Container".into(),
                     value: format!(
-                        "{} ({}), probes {probed}{}",
+                        "{} ({}), {probed}{}",
                         spec.label,
                         spec.id,
                         if spec.animates {
-                            ", animates — composites as its first frame"
+                            ", animates; composites as its first frame"
                         } else {
                             ""
                         }
@@ -120,7 +120,7 @@ impl AppState {
             None => lines.push(ReportLine {
                 section: SECTION,
                 label: "Container".into(),
-                value: "not a still-image container; read by the platform decoder".into(),
+                value: "Not a still-image container; read by the platform decoder".into(),
                 warn: false,
             }),
         }
@@ -139,7 +139,7 @@ impl AppState {
             Err(err) => lines.push(ReportLine {
                 section: SECTION,
                 label: "Content key".into(),
-                value: err.into(),
+                value: crate::app::status::as_sentence(err).into(),
                 warn: true,
             }),
         }
@@ -158,7 +158,7 @@ impl AppState {
                 return ReportLine {
                     section,
                     label: "Moments index".into(),
-                    value: format!("{err}").into(),
+                    value: crate::app::status::as_sentence(err.to_string()).into(),
                     warn: true,
                 };
             }
@@ -171,7 +171,7 @@ impl AppState {
                 return ReportLine {
                     section,
                     label: "Moments index".into(),
-                    value: format!("{err}").into(),
+                    value: crate::app::status::as_sentence(err.to_string()).into(),
                     warn: true,
                 };
             }
@@ -193,7 +193,7 @@ impl AppState {
             Err(err) => ReportLine {
                 section,
                 label: "Moments index".into(),
-                value: format!("{err}").into(),
+                value: crate::app::status::as_sentence(err.to_string()).into(),
                 warn: true,
             },
         }
@@ -221,7 +221,7 @@ impl AppState {
                     lines.push(ReportLine {
                         section: SECTION,
                         label: format!("Clip {}", clip.id.raw()).into(),
-                        value: "points at a pool entry the project no longer holds".into(),
+                        value: "Points at a pool entry the project no longer holds".into(),
                         warn: true,
                     });
                     flagged += 1;
@@ -236,7 +236,7 @@ impl AppState {
                         section: SECTION,
                         label: item.path().display().to_string().into(),
                         value: format!(
-                            "the clip's range is authored at {}/{} and the file reports {}/{}; \
+                            "The clip's range is authored at {}/{} and the file reports {}/{}; \
                              compared by resampling",
                             source.start.rate.num,
                             source.start.rate.den,
@@ -283,7 +283,7 @@ fn overhang(source: TimeRange, full: TimeRange) -> Option<String> {
     let overlap = source.intersection(full).ok()?;
     let Some(overlap) = overlap else {
         return Some(format!(
-            "the clip plays ticks {}..{} and the file holds {}..{} — no overlap at all",
+            "The clip plays ticks {}..{} and the file holds {}..{}, with no overlap",
             source.start.value,
             source.end_tick(),
             full.start.value,
@@ -298,14 +298,14 @@ fn overhang(source: TimeRange, full: TimeRange) -> Option<String> {
     let past = time_sub(&source_end, &full_end).ok()?;
     if past.value > 0 {
         return Some(format!(
-            "reaches {:.2}s past the end of the file ({})",
+            "Reaches {:.2}s past the end of the file ({})",
             seconds(past.value, past.rate),
             counted(past.value, "tick", "ticks")
         ));
     }
     let before = time_sub(&full.start, &source.start).ok()?;
     Some(format!(
-        "starts {:.2}s before the file does ({})",
+        "Starts {:.2}s before the file does ({})",
         seconds(before.value, before.rate),
         counted(before.value, "tick", "ticks")
     ))
@@ -327,15 +327,19 @@ fn build_capability(lines: &mut Vec<ReportLine>) {
         lines.push(ReportLine {
             section: SECTION,
             label: mode.label().to_string().into(),
-            value: match (supported, fallback) {
-                (true, _) => "available".into(),
-                (false, Some(other)) => {
-                    format!("unavailable; falls back to {}", other.label()).into()
-                }
-                (false, None) => "unavailable, and there is no fallback".into(),
-            },
+            value: mode_reach(supported, fallback).into(),
             warn: !supported,
         });
+    }
+}
+
+/// The value of an output mode row: whether this build hands frames back in
+/// the mode, and the mode it falls back to when it does not.
+fn mode_reach(supported: bool, fallback: Option<OutputMode>) -> String {
+    match (supported, fallback) {
+        (true, _) => "Available".into(),
+        (false, Some(other)) => format!("Unavailable; falls back to {}", other.label()),
+        (false, None) => "Unavailable, and there is no fallback".into(),
     }
 }
 
@@ -413,3 +417,7 @@ fn build_pixel_layouts(lines: &mut Vec<ReportLine>) {
         });
     }
 }
+
+#[cfg(test)]
+#[path = "media_reach_report_tests.rs"]
+mod tests;

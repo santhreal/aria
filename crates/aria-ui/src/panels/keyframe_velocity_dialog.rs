@@ -11,7 +11,7 @@ use gpui::{
 use crate::app::animation_verbs::{KeyframeVelocityForm, VelocitySide};
 use crate::app::{AppState, DialogKind};
 use crate::chrome::dialog::{DialogBody, dialog_surface};
-use crate::components::{self, ChipSize};
+use crate::components::{self, ChipSize, readout};
 use crate::motion::MotionKey;
 use crate::theme::Theme;
 
@@ -43,24 +43,6 @@ fn side_id(side: VelocitySide) -> &'static str {
         VelocitySide::Incoming => "in",
         VelocitySide::Outgoing => "out",
     }
-}
-
-fn readout(theme: &Theme, label: &'static str, value: String) -> impl IntoElement {
-    div()
-        .flex()
-        .justify_between()
-        .child(
-            div()
-                .text_size(Theme::TEXT_TITLE)
-                .text_color(theme.text_muted)
-                .child(label),
-        )
-        .child(
-            div()
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text)
-                .child(value),
-        )
 }
 
 fn side_block(

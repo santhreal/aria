@@ -13,7 +13,9 @@ use gpui::{IntoElement, ParentElement, Styled, div, px};
 use crate::theme::Theme;
 use crate::types::UiClip;
 
-use crate::panels::inspector::blocks::widgets::{color_rows, param_rows, section_label};
+use crate::panels::inspector::blocks::widgets::{color_rows, param_rows};
+
+use crate::components::section_label;
 
 pub fn shape_tab(
     theme: &Theme,

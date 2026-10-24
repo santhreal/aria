@@ -24,7 +24,9 @@ use crate::surfaces::clip_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::UiClip;
 
-use crate::panels::inspector::blocks::widgets::{param_rows, section_label};
+use crate::panels::inspector::blocks::widgets::param_rows;
+
+use crate::components::section_label;
 
 pub fn transform_tab(
     theme: &Theme,

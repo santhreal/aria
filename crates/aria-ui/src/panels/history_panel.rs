@@ -131,7 +131,7 @@ fn row(
                 div()
                     .text_size(Theme::TEXT_UI)
                     .text_color(theme.accent)
-                    .child("current"),
+                    .child("Current"),
             )
         })
         .when(!current, |el| {

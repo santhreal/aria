@@ -43,3 +43,7 @@ pub mod timeline;
 pub mod timeline_report;
 pub mod unsaved_dialog;
 pub mod value_readout;
+
+#[cfg(test)]
+#[path = "panel_casing_tests.rs"]
+mod panel_casing_tests;

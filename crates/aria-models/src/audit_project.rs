@@ -47,6 +47,23 @@ pub struct ProjectFactSpec {
     pub read: fn(&Project) -> String,
 }
 
+/// The value a yes-or-no row reads when the answer is yes.
+pub(crate) const YES: &str = "Yes";
+/// The value a yes-or-no row reads when the answer is no.
+pub(crate) const NO: &str = "No";
+/// The value a list row reads when the list is empty.
+pub(crate) const NONE: &str = "None";
+
+/// Whether `value`, as a project fact row read it, is the empty answer: zero,
+/// no, or none.
+///
+/// A surface draws an empty answer dim rather than hiding it. Defined here,
+/// beside the rows that write these values, so no surface compares against a
+/// spelling of its own.
+pub fn is_empty_fact_value(value: &str) -> bool {
+    matches!(value, "0" | NO | NONE)
+}
+
 /// The lane kinds with a soloed lane, by label, in lane-catalog order.
 ///
 /// Derived from the lane catalog so a new kind is covered without an edit here.
@@ -110,9 +127,9 @@ const SHIPPED: &[ProjectFactSpec] = &[
         label: "Carries transitions",
         read: |project| {
             if project.has_transitions() {
-                "yes".to_string()
+                YES.to_string()
             } else {
-                "no".to_string()
+                NO.to_string()
             }
         },
     },
@@ -123,7 +140,7 @@ const SHIPPED: &[ProjectFactSpec] = &[
         read: |project| {
             let soloed = soloed_kinds(project);
             if soloed.is_empty() {
-                "none".to_string()
+                NONE.to_string()
             } else {
                 soloed.join(", ")
             }

@@ -459,7 +459,7 @@ The application window frame, dock tab bars, and status strip (`crates/aria-ui/s
 
 ## Modal Dialogs
 
-Modal dialogs (`crates/aria-ui/src/panels/*_dialog.rs` and `crates/aria-ui/src/pending.rs`) render confirmation, cancellation, and parameter controls for About, Audio Gain, Install Plugin, Jobs, Keyframe Velocity, Marker Edit, Remove Attributes, Speed / Duration, and Unsaved Changes.
+Modal dialogs (`crates/aria-ui/src/panels/*_dialog.rs`, `crates/aria-ui/src/panels/project_report.rs` and `crates/aria-ui/src/pending.rs`) render confirmation, cancellation, and parameter controls for About, Audio Gain, Install Plugin, Jobs, Keyframe Velocity, Marker Edit, Project Report, Remove Attributes, Speed / Duration, and Unsaved Changes.
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
@@ -481,6 +481,7 @@ Modal dialogs (`crates/aria-ui/src/panels/*_dialog.rs` and `crates/aria-ui/src/p
 | `marker-edit-cancel` | Cancel | Closes the Marker Edit dialog without saving changes. | None |
 | `marker-edit-kind` (per row) | Comment / Chapter / Segmentation | Sets the kind of the marker in the Marker Edit dialog. | None |
 | `marker-edit-save` | Save | Saves the edited marker name, notes, duration, colour, and kind. | None |
+| `project-report-close` | Close | Closes the Project Report dialog. | None |
 | `remove-attr` (per row) | Motion / Opacity / Crop / Time Remapping / Volume / Pan / Effects / Audio Effects / Grade / Mask / Chroma Key | Ticks or unticks the attribute group the Remove Attributes dialog strips. | None |
 | `remove-attr-apply` | Remove | Strips the checked attribute groups and effects from the selected timeline clips. | None |
 | `remove-attr-cancel` | Cancel | Closes the Remove Attributes dialog without modifying selected clips. | None |

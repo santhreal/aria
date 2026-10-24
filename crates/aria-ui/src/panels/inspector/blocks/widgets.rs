@@ -612,50 +612,6 @@ pub fn color_name(rgba: [u8; 4]) -> SharedString {
         })
 }
 
-pub fn section_label(theme: &Theme, title: &str) -> impl IntoElement {
-    div()
-        .pt(px(8.))
-        .text_size(Theme::TEXT_UI)
-        .text_color(theme.text_faint)
-        .child(title.to_string())
-}
-
-pub fn kv_row(theme: &Theme, label: &str, value: impl Into<String>) -> impl IntoElement {
-    kv_row_tinted(theme, label, value, theme.text)
-}
-
-/// [`kv_row`] with its value in `tint`, for a value whose colour is its verdict.
-///
-/// The value stands at the right edge beside its label while both fit, moves
-/// to the next line at the right edge once they do not, and wraps at the row's
-/// width when it is wider than the row, as a label wider than the row does.
-pub fn kv_row_tinted(
-    theme: &Theme,
-    label: &str,
-    value: impl Into<String>,
-    tint: gpui::Hsla,
-) -> impl IntoElement {
-    div()
-        .flex()
-        .flex_row()
-        .flex_wrap()
-        .gap_x(px(Theme::SPACE_SM))
-        .text_size(Theme::TEXT_UI)
-        .child(
-            div()
-                .max_w_full()
-                .text_color(theme.text_muted)
-                .child(label.to_string()),
-        )
-        .child(
-            div()
-                .ml_auto()
-                .max_w_full()
-                .text_color(tint)
-                .child(value.into()),
-        )
-}
-
 pub fn kind_label(kind: UiClipKind) -> &'static str {
     match kind {
         UiClipKind::Media => "Media",
@@ -665,7 +621,3 @@ pub fn kind_label(kind: UiClipKind) -> &'static str {
         UiClipKind::Generator => "Generator",
     }
 }
-
-#[cfg(test)]
-#[path = "widgets_kv_tests.rs"]
-mod kv_tests;

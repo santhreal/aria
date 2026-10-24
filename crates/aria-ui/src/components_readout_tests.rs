@@ -5,7 +5,7 @@
 //! panel at its minimum width drew the reading of `Scales with size` past its
 //! frame.
 //!
-//! Each case draws one [`kv_row`] in a column as wide as the Info panel's
+//! Each case draws one [`readout`] in a column as wide as the Info panel's
 //! content at its minimum width, and reads the drawn text back: a pair that
 //! fits shares one line with the value at the right edge, a long label puts the
 //! value on the next line at the right edge, a label wider than the row wraps
@@ -22,7 +22,7 @@ use gpui::{
     Window, div, px,
 };
 
-use super::kv_row;
+use super::readout;
 use crate::theme::Theme;
 
 const EPS: f32 = 0.51;
@@ -94,8 +94,8 @@ impl Render for Rows {
             .gap(px(Theme::SPACE_XS))
             .children(CASES.iter().enumerate().map(|(index, case)| {
                 div()
-                    .debug_selector(move || format!("kv-row-{index}"))
-                    .child(kv_row(&theme, case.label, case.value))
+                    .debug_selector(move || format!("readout-{index}"))
+                    .child(readout(&theme, case.label, case.value))
             }))
     }
 }
@@ -124,7 +124,7 @@ fn a_value_stays_inside_its_row_beside_or_below_its_label(cx: &mut TestAppContex
     for (index, case) in CASES.iter().enumerate() {
         let Case { label, value, .. } = *case;
         let row = visual
-            .debug_bounds(crate::interned::intern(&format!("kv-row-{index}")))
+            .debug_bounds(crate::interned::intern(&format!("readout-{index}")))
             .unwrap_or_else(|| panic!("the `{label}` row was not drawn"));
         let (label_at, value_at) = (drawn(label), drawn(value));
         for (text, at, wraps) in [

@@ -12,9 +12,9 @@ use gpui::{
 
 use crate::app::AppState;
 use crate::app::align::{AlignAxis, AlignEdge, AlignTo, DISTRIBUTE_MIN};
+use crate::components::section_label;
 use crate::components::{self, ChipSize};
 use crate::motion::MotionKey;
-use crate::panels::inspector::blocks::widgets::section_label;
 use crate::surfaces::align_pick::{self, Pick};
 use crate::theme::Theme;
 

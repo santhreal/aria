@@ -26,7 +26,7 @@ use crate::track::Track;
 #[path = "audit_project.rs"]
 mod project_facts;
 
-pub use project_facts::{ProjectFact, ProjectFactSpec, project_facts};
+pub use project_facts::{ProjectFact, ProjectFactSpec, is_empty_fact_value, project_facts};
 
 /// One thing an audit can look for on a single clip.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

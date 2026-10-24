@@ -18,7 +18,7 @@ use crate::surfaces::keyframe_rows::{self, Row};
 use crate::theme::Theme;
 use crate::types::UiClip;
 
-use super::widgets::section_label;
+use crate::components::section_label;
 
 pub fn keyframes_block(
     theme: &Theme,
@@ -124,7 +124,10 @@ pub fn keyframes_block(
                             div()
                                 .text_size(Theme::TEXT_UI)
                                 .text_color(theme.text_faint)
-                                .child(format!("{label} — {count} keys")),
+                                .child(format!(
+                                    "{label} · {}",
+                                    aria_core::count::counted(count, "key", "keys")
+                                )),
                         )
                         .child(
                             div()

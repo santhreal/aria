@@ -36,10 +36,10 @@ fn item(kind: UiClipKind) -> UiMediaItem {
 
 #[test]
 fn an_unreported_codec_is_stated_not_guessed() {
-    assert_eq!(codec_label(None), "unknown");
+    assert_eq!(codec_label(None), "Unknown");
     // An empty or blank string is a backend reporting nothing, not a codec.
-    assert_eq!(codec_label(Some("")), "unknown");
-    assert_eq!(codec_label(Some("   ")), "unknown");
+    assert_eq!(codec_label(Some("")), "Unknown");
+    assert_eq!(codec_label(Some("   ")), "Unknown");
     assert_eq!(codec_label(Some(" H.264 ")), "H.264");
 }
 
@@ -115,9 +115,9 @@ fn the_properties_block_names_the_codecs_it_has() {
     // A still carries no codec track, so the row states unknown rather than
     // naming PNG, which is the container. Nor does it have a frame rate: the
     // rate it was probed with is the tick base, which read as 1000.000 fps.
-    assert_eq!(value("Video codec"), "unknown");
-    assert_eq!(value("Frame rate"), "still image");
-    assert_eq!(value("Audio"), "no");
+    assert_eq!(value("Video codec"), "Unknown");
+    assert_eq!(value("Frame rate"), "Still image");
+    assert_eq!(value("Audio"), "No");
 
     // A named codec reaches the block as the demuxer wrote it, and a moving
     // picture states its own rate.

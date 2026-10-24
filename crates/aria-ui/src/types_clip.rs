@@ -878,7 +878,7 @@ pub struct UiMediaItem {
     /// Unix seconds this entry was imported, when the project recorded one.
     pub imported_at: Option<u64>,
     /// Codec names the probe read, when the platform's demuxer named them. A
-    /// row states "unknown" rather than inferring one from the extension.
+    /// row reads `Unknown` rather than inferring one from the extension.
     pub video_codec: Option<SharedString>,
     pub audio_codec: Option<SharedString>,
     /// The pool folder this entry sits in, or `None` at the pool root.
