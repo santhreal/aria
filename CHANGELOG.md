@@ -32,7 +32,7 @@ Notes for the latest release. For previous releases, see the
 - A path mask animates by whole-path keyframes: its Mask N Path row in the timeline keys, unkeys, steps between, drags, eases, holds, and deletes them, a vertex or tangent drag in the Viewer keys the path at the playhead, and a vertex insert or delete changes every keyframe.
 - A drag of the Viewer mask handles starts where the mask is at the playhead, and on a keyframed centre, size, or rotation it adds a keyframe there instead of replacing the curve.
 - The stopwatch and keyframe navigator of each timeline property row and Path row name themselves on hover.
-- Escape closes an open keyframe menu in the timeline, and a press anywhere on the timeline canvas dismisses it.
+- Right-clicking a keyframe on a timeline property row, in the Graph Editor, or on a mask's Path row opens a context menu that checks Hold and Rove Across Time while they apply and closes on Escape or a press outside it.
 - A clip holds a stack of up to 32 masks, each with a mode (None, Add, Subtract, Intersect, Lighten, Darken, Difference), an opacity, an expansion in pixels, and an invert toggle, combined top to bottom in playback and export.
 - The Look tab lists every mask with its mode chips and Invert, Move up, Move down, and Remove buttons, and clicking a mask's header makes it the active mask that the Viewer handles, the Pen, and mask tracking edit.
 - The palette adds a mask of any shape by name, and a Pen press off the active path starts a new path mask.

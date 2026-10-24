@@ -188,8 +188,9 @@ at the playhead in place of a value, and the navigator, and no driver, reset,
 or graph. The stopwatch and the navigator work as on a property row. A Path
 keyframe drags in time within the clip, snapping to the playhead and the path's
 other keyframes unless Alt is held; a click on one moves the playhead to it.
-Its right-click menu sets the easing of the segment leaving it (Linear, Ease In
-and Out, Ease In, Ease Out, Hold or Continuous) or deletes it. Deleting the last
+Its right-click menu sets the easing of the segment leaving it (Linear, Easy
+Ease, Easy Ease In, Easy Ease Out, or Hold, which a second press returns to
+Linear) or deletes it. Deleting the last
 Path keyframe keeps its path. Each press is one `SetClipMask` edit. Alt+M opens
 the Path rows with the mask rows, the first Alt+U opens the Path rows of
 keyframed paths, and the second opens every Path row.

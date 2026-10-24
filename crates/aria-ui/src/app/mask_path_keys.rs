@@ -13,7 +13,7 @@ use aria_models::{Clip, ClipId, Easing, Mask, MaskKind};
 
 use super::AppState;
 use super::property_rows::{
-    KeyframeIconShape, MaskPathKeyDrag, MaskPathKeyMenu, TimelineKeyMark, TimelineMaskPathRow,
+    KeyframeIconShape, MaskPathKeyDrag, TimelineKeyMark, TimelineMaskPathRow,
 };
 
 #[cfg(test)]
@@ -183,18 +183,19 @@ impl AppState {
         })
     }
 
-    /// Open the right-click menu of a path keyframe.
-    pub fn open_mask_path_key_menu(&mut self, menu: MaskPathKeyMenu) {
-        self.focus_mask_path(menu.clip, menu.mask);
-        self.with_prop_rows_mut(|s| s.mask_path_menu = Some(menu));
-    }
-
-    pub fn close_mask_path_key_menu(&mut self) {
-        self.with_prop_rows_mut(|s| s.mask_path_menu = None);
-    }
-
-    pub fn mask_path_key_menu(&self) -> Option<MaskPathKeyMenu> {
-        self.with_prop_rows(|s| s.mask_path_menu)
+    /// The mark the Path row of the mask at `mask` on `clip` draws for its
+    /// keyframe at timeline `tick`, or `None` when the row draws none there.
+    pub(crate) fn mask_path_key_mark(
+        &self,
+        clip: ClipId,
+        mask: u32,
+        tick: i64,
+    ) -> Option<TimelineKeyMark> {
+        let (model, _) = self.clip_and_lane_kind(clip)?;
+        self.mask_path_row(&model, mask)?
+            .keys
+            .into_iter()
+            .find(|mark| mark.tick == tick)
     }
 
     /// Press on the path keyframe at timeline `tick`: a drag of it starts.

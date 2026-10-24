@@ -47,7 +47,7 @@ const LANE_SLACK: f32 = 2.0;
 /// The states in which the timeline body draws the playhead's head and lines
 /// itself, each with the reason: what the body draws then reads the playhead,
 /// or covers its line.
-pub(crate) const INLINE_WHEN: [(&str, fn(&AppState) -> bool); 7] = [
+pub(crate) const INLINE_WHEN: [(&str, fn(&AppState) -> bool); 5] = [
     // A property row draws its value and keyframe state at the playhead.
     ("property rows", |app| !app.expanded_clips.is_empty()),
     // The Graph Editor draws its own playhead line.
@@ -56,10 +56,6 @@ pub(crate) const INLINE_WHEN: [(&str, fn(&AppState) -> bool); 7] = [
     ("trim", |app| app.trim_feedback.is_some()),
     // The snap guide is drawn over the ruler head.
     ("snap guide", |app| app.snap_guide.is_some()),
-    // The keyframe menu is drawn over the lanes.
-    ("keyframe menu", |app| app.keyframe_context_menu().is_some()),
-    // The mask path keyframe menu is drawn over the lanes.
-    ("mask path menu", |app| app.mask_path_key_menu().is_some()),
     // The empty-timeline prompt is drawn over the lanes.
     ("empty timeline", |app| {
         app.store

@@ -3,7 +3,9 @@
 use crate::app::AppState;
 use crate::motion;
 use crate::plugins::overlay_host::{self as overlays, OverlayWhen};
-use crate::surfaces::context_menu::{BadgeMenu, ClipMenu, EffectMenu, PoolMenu, TrackMenu};
+use crate::surfaces::context_menu::{
+    BadgeMenu, ClipMenu, EffectMenu, KeyframeMenu, MaskPathKeyMenu, PoolMenu, TrackMenu,
+};
 use crate::surfaces::labels::LabelTarget;
 use crate::theme::Theme;
 use crate::types::ContextTarget;
@@ -61,6 +63,16 @@ pub fn render(
         ContextTarget::ClipBadge { clip, .. } => BadgeMenu::of(rows, clip),
         _ => None,
     };
+    let keyframe = match target {
+        ContextTarget::Keyframe { clip, param, tick } => KeyframeMenu::of(rows, clip, param, tick),
+        _ => None,
+    };
+    let path_key = match target {
+        ContextTarget::MaskPathKey { clip, mask, tick } => {
+            MaskPathKeyMenu::of(rows, clip, mask, tick)
+        }
+        _ => None,
+    };
     let selected_label = rows.selected_label();
     // Only a clip menu draws the groups, so an unrelated menu never walks the
     // sequence to count labels it will not show.
@@ -108,6 +120,8 @@ pub fn render(
                     pool,
                     effect,
                     badge,
+                    keyframe,
+                    path_key,
                     label: selected_label,
                     label_groups: labels_in_use,
                     pool_label,
@@ -185,6 +199,10 @@ struct MenuFacts {
     effect: Option<EffectMenu>,
     /// The clip whose fx badge the menu was opened on.
     badge: Option<BadgeMenu>,
+    /// The keyframe the menu was opened on.
+    keyframe: Option<KeyframeMenu>,
+    /// The Path keyframe the menu was opened on.
+    path_key: Option<MaskPathKeyMenu>,
     /// The label on the selection, for the swatch row.
     label: Option<aria_models::LabelColor>,
     /// Every label colour in use with its clip count, so the menu can offer any

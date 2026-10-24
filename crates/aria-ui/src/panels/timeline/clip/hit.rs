@@ -60,9 +60,6 @@ pub(crate) enum HitTarget {
         clip: ClipId,
         param: ClipParam,
         tick: i64,
-        interior: bool,
-        hold: bool,
-        roving: bool,
     },
     PropertyRow {
         clip: ClipId,
@@ -74,7 +71,6 @@ pub(crate) enum HitTarget {
         clip: ClipId,
         mask: u32,
         tick: i64,
-        hold: bool,
     },
     /// A mask's Path row away from its keyframes.
     MaskPathRow {
@@ -114,9 +110,6 @@ pub(crate) fn hit_test(
                         clip: prop_row.clip,
                         param: prop_row.param,
                         tick: mark.tick,
-                        interior: mark.interior,
-                        hold: mark.hold,
-                        roving: mark.roving,
                     });
                 }
             }
@@ -135,7 +128,6 @@ pub(crate) fn hit_test(
                         clip,
                         mask,
                         tick: mark.tick,
-                        hold: mark.hold,
                     });
                 }
             }

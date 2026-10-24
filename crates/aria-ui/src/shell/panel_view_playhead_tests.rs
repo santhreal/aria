@@ -29,7 +29,6 @@ use gpui::{Bounds, EdgeFade, Edges, Pixels, TestAppContext, VisualTestContext, p
 use crate::app::AppState;
 use crate::app::clock::ClockSite;
 use crate::app::playback_present_tests::{settle, vsync};
-use crate::app::property_rows::{KeyframeContextMenu, MaskPathKeyMenu};
 use crate::dock::{PANEL_TIMELINE, PanelId};
 use crate::edge_fade;
 use crate::interned::intern;
@@ -369,24 +368,6 @@ fn enter(name: &str, state: &mut AppState) {
                 crate::snap::SnapKind::Marker,
             ))
         }
-        "keyframe menu" => state.open_keyframe_context_menu(KeyframeContextMenu {
-            clip,
-            param: aria_models::ClipParam::Opacity,
-            tick: 0,
-            interior: false,
-            hold: false,
-            roving: false,
-            x: 600.0,
-            y: 700.0,
-        }),
-        "mask path menu" => state.open_mask_path_key_menu(MaskPathKeyMenu {
-            clip,
-            mask: 0,
-            tick: 0,
-            hold: false,
-            x: 600.0,
-            y: 700.0,
-        }),
         "empty timeline" => {
             state.select_all_unlocked();
             state

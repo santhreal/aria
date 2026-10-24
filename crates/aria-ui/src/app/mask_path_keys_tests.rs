@@ -22,10 +22,12 @@ use super::path_masks;
 use crate::app::AppState;
 use crate::app::mask_path::tests::{MASK_PATH, masked_path};
 use crate::app::property_rows::{
-    MaskPathKeyMenu, PropertyGroup, RevealAction, TimelineMaskPathRow, TimelineOutlineRow,
+    PropertyGroup, RevealAction, TimelineMaskPathRow, TimelineOutlineRow,
 };
 use crate::app::sent_census::Watch;
 use crate::app::transform_handle_tests::selected;
+use crate::surfaces::context_menu::{MASK_PATH_KEY_ITEMS, MaskPathKeyMenu, MenuItem};
+use crate::types::ContextTarget;
 
 /// The tick of the second path keyframe [`keyed`] sets.
 const LATE: i64 = 18;
@@ -322,6 +324,23 @@ fn a_press_on_a_path_keyframe_that_never_moves_brings_the_playhead_to_it() {
     assert_eq!(ticks(&row(&state, clip, 0)), [0, LATE]);
 }
 
+/// Press the row `id` of the menu opened on the Path keyframe at `tick` of
+/// `clip`'s first mask, with the facts that menu reads now.
+fn press_path_key_row(
+    state: &mut AppState,
+    clip: ClipId,
+    tick: i64,
+    id: &str,
+) -> Result<(), aria_engine::EngineError> {
+    let facts = MaskPathKeyMenu::of(state, clip.raw(), 0, tick).expect("the row draws the key");
+    let row = MASK_PATH_KEY_ITEMS
+        .iter()
+        .filter_map(MenuItem::row)
+        .find(|row| row.id == id)
+        .unwrap_or_else(|| panic!("no Path keyframe row {id}"));
+    (row.run)(state, &facts)
+}
+
 #[test]
 fn the_keyframe_menu_eases_holds_and_deletes_the_keyframe_it_opened_on() {
     let (mut state, clip) = keyed();
@@ -329,36 +348,34 @@ fn the_keyframe_menu_eases_holds_and_deletes_the_keyframe_it_opened_on() {
         .add_selected_mask(MaskKind::Rectangle)
         .expect("a rectangle, now the active mask");
     assert_eq!(state.active_mask(), Some(1));
-    state.open_mask_path_key_menu(MaskPathKeyMenu {
-        clip,
+    let target = ContextTarget::MaskPathKey {
+        clip: clip.raw(),
         mask: 0,
         tick: 0,
-        hold: false,
-        x: 40.0,
-        y: 60.0,
-    });
+    };
+    state.open_context(target.clone(), 40.0, 60.0);
     assert_eq!(
         state.active_mask(),
         Some(0),
         "the Viewer handles a mask other than the menu's"
     );
-    assert_eq!(state.mask_path_key_menu().map(|menu| menu.tick), Some(0));
+    assert_eq!(state.context_menu, Some(target));
 
     let watch = Watch::on(&state);
-    for easing in [
-        Easing::EaseOut,
-        Easing::EaseIn,
-        Easing::EaseInOut,
-        Easing::Hold,
-        Easing::Linear,
+    for (id, easing) in [
+        ("ctx-path-key-ease-out", Easing::EaseOut),
+        ("ctx-path-key-ease-in", Easing::EaseIn),
+        ("ctx-path-key-ease", Easing::EaseInOut),
+        ("ctx-path-key-hold", Easing::Hold),
+        ("ctx-path-key-hold", Easing::Linear),
+        ("ctx-path-key-hold", Easing::Hold),
+        ("ctx-path-key-linear", Easing::Linear),
     ] {
-        state
-            .ease_mask_path_key(clip, 0, 0, easing)
-            .expect("an easing");
-        assert_eq!(watch.take(), ["Set mask"], "{easing:?}");
+        press_path_key_row(&mut state, clip, 0, id).expect("an easing");
+        assert_eq!(watch.take(), ["Set mask"], "{id}");
         let drawn = row(&state, clip, 0);
-        assert_eq!(drawn.keys[0].easing, easing);
-        assert_eq!(drawn.keys[0].hold, easing == Easing::Hold, "{easing:?}");
+        assert_eq!(drawn.keys[0].easing, easing, "{id}");
+        assert_eq!(drawn.keys[0].hold, easing == Easing::Hold, "{id}");
         if easing == Easing::Hold {
             assert_eq!(
                 *model_mask(&state, clip, 0).path_at(9.0),
@@ -367,17 +384,20 @@ fn the_keyframe_menu_eases_holds_and_deletes_the_keyframe_it_opened_on() {
             );
         }
     }
-    state
-        .ease_mask_path_key(clip, 0, 0, Easing::Linear)
-        .expect("the same easing");
+    press_path_key_row(&mut state, clip, 0, "ctx-path-key-linear").expect("the same easing");
     assert!(
         watch.take().is_empty(),
         "an easing that changed nothing was sent"
     );
 
-    state.remove_mask_path_key(clip, 0, 0).expect("delete");
+    press_path_key_row(&mut state, clip, 0, "ctx-path-key-delete").expect("delete");
     assert_eq!(watch.take(), ["Set mask"]);
     assert_eq!(ticks(&row(&state, clip, 0)), [LATE]);
+    assert_eq!(
+        MaskPathKeyMenu::of(&state, clip.raw(), 0, 0),
+        None,
+        "the menu reads a keyframe that was deleted"
+    );
     state
         .remove_mask_path_key(clip, 0, LATE)
         .expect("delete the last");
@@ -386,8 +406,6 @@ fn the_keyframe_menu_eases_holds_and_deletes_the_keyframe_it_opened_on() {
         Param::Constant(shifted(0.1)),
         "the last keyframe's path is the path"
     );
-    state.close_mask_path_key_menu();
-    assert_eq!(state.mask_path_key_menu(), None);
 }
 
 #[test]

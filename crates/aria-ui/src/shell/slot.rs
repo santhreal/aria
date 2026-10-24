@@ -716,11 +716,6 @@ impl Shell {
                     state.open_dialog(DialogKind::None);
                 } else if state.context_menu.is_some() {
                     state.close_context();
-                } else if state.keyframe_context_menu().is_some()
-                    || state.mask_path_key_menu().is_some()
-                {
-                    state.close_keyframe_context_menu();
-                    state.close_mask_path_key_menu();
                 } else if state.open_menu.is_some() {
                     state.close_menu();
                 } else if state.leave_preview_fullscreen() {

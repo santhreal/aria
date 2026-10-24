@@ -5,6 +5,7 @@
 //! `pub use`, so every existing `crate::types::Name` path still resolves.
 
 use super::*;
+use aria_models::ClipParam;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ContextTarget {
@@ -37,6 +38,20 @@ pub enum ContextTarget {
     Effect {
         clip: u64,
         index: usize,
+    },
+    /// The keyframe at timeline `tick` on `param` of `clip`, on its property
+    /// row or in the graph.
+    Keyframe {
+        clip: u64,
+        param: ClipParam,
+        tick: i64,
+    },
+    /// The keyframe at timeline `tick` on the Path row of the mask at `mask`
+    /// on `clip`.
+    MaskPathKey {
+        clip: u64,
+        mask: u32,
+        tick: i64,
     },
 }
 

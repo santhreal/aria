@@ -6,7 +6,7 @@ use aria_core::count::counted;
 use aria_engine::EngineError;
 use aria_models::{ClipId, ClipParam, Easing, ParamKind, ParamValue, RationalTime, TemporalEase};
 
-use super::{CopiedKeyframe, KeyframeContextMenu, KeyframeTimeDrag, SelectedKeyframe};
+use super::{CopiedKeyframe, KeyframeTimeDrag, SelectedKeyframe};
 use crate::app::AppState;
 use crate::app::clip_keys::key_params_of;
 
@@ -113,24 +113,6 @@ impl AppState {
                 s.selected_keyframes.insert(hit);
             }
         });
-    }
-
-    /// Open or close the right-click context menu on a timeline keyframe.
-    pub fn open_keyframe_context_menu(&mut self, menu: KeyframeContextMenu) {
-        self.select_timeline_keyframe(menu.clip, menu.param, menu.tick, false);
-        self.with_prop_rows_mut(|s| {
-            s.keyframe_menu = Some(menu);
-        });
-    }
-
-    pub fn close_keyframe_context_menu(&mut self) {
-        self.with_prop_rows_mut(|s| {
-            s.keyframe_menu = None;
-        });
-    }
-
-    pub fn keyframe_context_menu(&self) -> Option<KeyframeContextMenu> {
-        self.with_prop_rows(|s| s.keyframe_menu)
     }
 
     /// Start dragging selected keyframe(s) horizontally in time on a property row.
@@ -331,6 +313,11 @@ impl AppState {
             ));
         }
         count
+    }
+
+    /// Whether keyframes are copied, so a paste has something to add.
+    pub fn has_copied_keyframes(&self) -> bool {
+        self.with_prop_rows(|s| !s.copied_keyframes.is_empty())
     }
 
     /// Paste copied keyframes onto the selected clip starting at the playhead,

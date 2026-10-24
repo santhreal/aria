@@ -103,9 +103,13 @@ keyframes on that property.
 - Drag a selected keyframe to move every selected keyframe in time. The drag
   snaps to the playhead and to the clip's other keyframes; hold Alt to move
   freely. The move is one undo step.
-- Right-click a keyframe for Linear, Easy Ease, Easy Ease In, Easy Ease Out,
-  Toggle Hold, Rove Across Time (on a keyframe between two others), Copy,
-  Paste at Playhead, and Delete.
+- Right-click a keyframe, on its row or in the graph editor, for Linear, Easy
+  Ease, Easy Ease In, Easy Ease Out, Hold, Rove Across Time (on a keyframe
+  between two others), Copy Keyframes, Paste Keyframes at Playhead, and Delete
+  Keyframes. Hold and Rove Across Time show a check mark while they apply.
+  Linear and Rove Across Time act on the keyframe under the pointer; the other
+  rows act on the selected keyframes, and a right-click on a keyframe outside
+  the selection selects it first.
 
 The reveal chords open rows without the arrow: Alt+P, Alt+S, Alt+R, Alt+T, and
 Alt+A show only Position, Scale, Rotation, Opacity, or Anchor Point; Alt+E,

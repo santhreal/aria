@@ -56,8 +56,9 @@ layer's look to the masked area. The Look tab holds:
   different vertex counts the earlier path holds. Drag a Path keyframe to move
   it in time; it snaps to the playhead and the path's other keyframes, and Alt
   moves it freely. Click one to bring the playhead to it. Right-click one for
-  Linear, Ease In and Out, Ease In, Ease Out, Hold or Continuous, and Delete
-  Keyframe. Each press is one undo step.
+  Linear, Easy Ease, Easy Ease In, Easy Ease Out, Hold, and Delete Keyframe;
+  Hold shows a check mark while the keyframe holds, and pressed again returns
+  the segment to Linear. Each press is one undo step.
 - Mask tracking from the command palette: **Track Mask Forward from the
   Playhead** (`pal-track-mask`). It follows the picture under the active mask through the rest of
   the clip and keyframes that mask's centre for every frame it followed. The

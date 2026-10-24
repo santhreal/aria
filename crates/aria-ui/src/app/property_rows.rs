@@ -269,31 +269,6 @@ pub enum TimelineOutlineRow {
     MaskPath(TimelineMaskPathRow),
 }
 
-/// Context menu opened by right-clicking a keyframe in a property row or graph.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct KeyframeContextMenu {
-    pub clip: ClipId,
-    pub param: ClipParam,
-    pub tick: i64,
-    pub interior: bool,
-    pub hold: bool,
-    pub roving: bool,
-    pub x: f32,
-    pub y: f32,
-}
-
-/// Context menu opened by right-clicking a keyframe on a mask's Path row.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct MaskPathKeyMenu {
-    pub clip: ClipId,
-    pub mask: u32,
-    /// The keyframe's timeline tick.
-    pub tick: i64,
-    pub hold: bool,
-    pub x: f32,
-    pub y: f32,
-}
-
 /// In-flight time drag of one keyframe on a mask's Path row. Ticks are on the
 /// timeline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -352,8 +327,6 @@ pub(crate) struct PropertyRowsState {
     pub(crate) graph_params: Vec<(ClipId, ClipParam)>,
     pub(crate) time_drag: Option<KeyframeTimeDrag>,
     pub(crate) graph_drag: Option<GraphDragTarget>,
-    pub(crate) keyframe_menu: Option<KeyframeContextMenu>,
-    pub(crate) mask_path_menu: Option<MaskPathKeyMenu>,
     pub(crate) mask_path_drag: Option<MaskPathKeyDrag>,
     pub(crate) collapsed_effect_groups: BTreeSet<(usize, String)>,
     pub(crate) open_effect_groups: BTreeSet<(usize, String)>,
@@ -667,6 +640,24 @@ impl AppState {
             }
         }
         out
+    }
+
+    /// The mark the property row of `param` on `clip` draws for its keyframe
+    /// at timeline `tick`, read as the row reads it, or `None` when the row
+    /// draws no keyframe there.
+    pub(crate) fn keyframe_mark(
+        &self,
+        clip: ClipId,
+        param: ClipParam,
+        tick: i64,
+    ) -> Option<TimelineKeyMark> {
+        let (model, audio_lane) = self.clip_and_lane_kind(clip)?;
+        let rows = key_params_of(&model, audio_lane);
+        let row = rows.iter().find(|row| row.param() == param)?;
+        self.build_property_row(&model, row)
+            .keys
+            .into_iter()
+            .find(|mark| mark.tick == tick)
     }
 
     fn build_property_row(&self, clip: &Clip, row: &KeyParam) -> TimelinePropertyRow {

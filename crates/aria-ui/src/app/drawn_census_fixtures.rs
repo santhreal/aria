@@ -14,7 +14,10 @@ use aria_models::{
 };
 
 use crate::app::AppState;
+use crate::app::mask_path::tests::masked_path;
 use crate::app::premiere_tests::{with_clip, with_media};
+use crate::surfaces::context_menu::{KeyframeMenu, MaskPathKeyMenu};
+use crate::types::ContextTarget;
 
 /// A file from the repository's fixture set.
 pub(crate) fn asset(name: &str) -> PathBuf {
@@ -172,7 +175,7 @@ pub(super) fn key_point(
 /// The selected clip's Position keyed three times, twelve frames apart: a
 /// corner, a smooth keyframe, and a corner. A motion path is drawn with
 /// keyframes to drag, tangents to bend, and segments to add a keyframe on.
-pub(super) fn keyed_path(state: &mut AppState) {
+pub(crate) fn keyed_path(state: &mut AppState) {
     let smooth = SpatialTangents {
         in_t: [-0.08, 0.0],
         out_t: [0.08, 0.0],
@@ -184,6 +187,71 @@ pub(super) fn keyed_path(state: &mut AppState) {
     ] {
         key_point(state, ClipParam::Position, tick, value, tangents);
     }
+}
+
+/// The timeline tick `frames` into the selected clip.
+pub(crate) fn into_selected(state: &AppState, frames: i64) -> i64 {
+    let start = state
+        .selected_model()
+        .expect("a selected clip in the project")
+        .timeline
+        .start;
+    start.value + frames
+}
+
+/// Give the selected clip a path mask keyed at the clip's first frame and
+/// twelve frames in, both linear.
+pub(crate) fn keyed_mask_path(state: &mut AppState) {
+    let clip = state.selected_clip().expect("a selected clip to mask");
+    masked_path(state);
+    let first = into_selected(state, 0);
+    state.set_playhead(first);
+    state
+        .animate_mask_path(clip, 0)
+        .expect("the Path stopwatch keys the first frame");
+    let later = into_selected(state, 12);
+    state.set_playhead(later);
+    state
+        .key_mask_path(clip, 0, false)
+        .expect("a Path keyframe twelve frames in");
+}
+
+/// A still with Position keyed by [`keyed_path`] and a menu opened on its
+/// middle keyframe, then `then` run with the clip and the keyframe's tick.
+/// Returns the state and the facts the menu reads from it.
+pub(super) fn keyframe_menu(then: fn(&mut AppState, ClipId, i64)) -> (AppState, KeyframeMenu) {
+    let (mut state, clip) = with_clip();
+    keyed_path(&mut state);
+    let tick = into_selected(&state, 12);
+    let (param, raw) = (ClipParam::Position, clip.raw());
+    let target = ContextTarget::Keyframe {
+        clip: raw,
+        param,
+        tick,
+    };
+    state.open_context(target, 0.0, 0.0);
+    then(&mut state, clip, tick);
+    let facts = KeyframeMenu::of(&state, raw, param, tick).expect("the Position row draws it");
+    (state, facts)
+}
+
+/// A still with a path keyed by [`keyed_mask_path`] and a menu opened on its
+/// first Path keyframe, then `then` run with the clip and the keyframe's tick.
+/// Returns the state and the facts the menu reads from it.
+pub(super) fn path_key_menu(then: fn(&mut AppState, ClipId, i64)) -> (AppState, MaskPathKeyMenu) {
+    let (mut state, clip) = with_clip();
+    keyed_mask_path(&mut state);
+    let tick = into_selected(&state, 0);
+    let raw = clip.raw();
+    let target = ContextTarget::MaskPathKey {
+        clip: raw,
+        mask: 0,
+        tick,
+    };
+    state.open_context(target, 0.0, 0.0);
+    then(&mut state, clip, tick);
+    let facts = MaskPathKeyMenu::of(&state, raw, 0, tick).expect("the Path row draws it");
+    (state, facts)
 }
 
 /// A pool item no clip holds, so the row that drops one from the project is

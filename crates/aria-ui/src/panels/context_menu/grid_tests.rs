@@ -16,14 +16,18 @@
 //! which `chrome::grid_tests` places in the menu bar's lead column; and a cut
 //! between sounds, whose crossfade rows are built by the blend rows' builder.
 
+use aria_models::ClipParam;
 use gpui::{Bounds, Pixels, TestAppContext, px};
 
 use crate::app::AppState;
-use crate::app::fixtures::{asset, blend_right_junction};
+use crate::app::fixtures::{
+    asset, blend_right_junction, into_selected, keyed_mask_path, keyed_path,
+};
 use crate::app::premiere_tests::place_media;
 use crate::surfaces::context_menu::{
-    BADGE_ITEMS, BadgeMenu, CLIP_ITEMS, ClipMenu, EFFECT_ITEMS, EffectMenu, MenuItem, POOL_ITEMS,
-    PREVIEW_ITEMS, PoolMenu, RECENT_ITEMS, TRACK_ITEMS, TRANSITION_ITEMS, TrackMenu,
+    BADGE_ITEMS, BadgeMenu, CLIP_ITEMS, ClipMenu, EFFECT_ITEMS, EffectMenu, KEYFRAME_ITEMS,
+    KeyframeMenu, MASK_PATH_KEY_ITEMS, MaskPathKeyMenu, MenuItem, POOL_ITEMS, PREVIEW_ITEMS,
+    PoolMenu, RECENT_ITEMS, TRACK_ITEMS, TRANSITION_ITEMS, TrackMenu,
 };
 use crate::test_support::drawn_shell;
 use crate::theme::Theme;
@@ -168,7 +172,8 @@ fn every_context_row_draws_its_check_mark_in_the_lead_column(cx: &mut TestAppCon
 }
 
 /// Dress `state` with a blended cut, the left clip selected and carrying an
-/// effect, and return every target the timeline then offers a menu on.
+/// effect, three Position keyframes and a keyed path mask, and return every
+/// target the timeline then offers a menu on.
 pub(super) fn dress(state: &mut AppState) -> Vec<ContextTarget> {
     let left = place_media(state, asset("texture.png"));
     blend_right_junction(state, left);
@@ -176,6 +181,9 @@ pub(super) fn dress(state: &mut AppState) -> Vec<ContextTarget> {
     state
         .add_effect_to_selected("vignette")
         .expect("the clip takes an effect");
+    keyed_path(state);
+    keyed_mask_path(state);
+    let (first, middle) = (into_selected(state, 0), into_selected(state, 12));
     let track = state
         .store
         .sequence
@@ -201,6 +209,16 @@ pub(super) fn dress(state: &mut AppState) -> Vec<ContextTarget> {
         ContextTarget::Preview,
         ContextTarget::Recent {
             path: asset("ctx-grid.aria"),
+        },
+        ContextTarget::Keyframe {
+            clip,
+            param: ClipParam::Position,
+            tick: middle,
+        },
+        ContextTarget::MaskPathKey {
+            clip,
+            mask: 0,
+            tick: first,
         },
     ]
 }
@@ -254,6 +272,16 @@ fn rows_of(state: &AppState, target: &ContextTarget) -> Vec<(String, bool)> {
         ContextTarget::PoolItem { media } => table(POOL_ITEMS, &PoolMenu::of(state, *media), &[]),
         ContextTarget::Preview => table(PREVIEW_ITEMS, &(), &[]),
         ContextTarget::Recent { path } => table(RECENT_ITEMS, path, &[]),
+        ContextTarget::Keyframe { clip, param, tick } => table(
+            KEYFRAME_ITEMS,
+            &KeyframeMenu::of(state, *clip, *param, *tick).expect("the property row draws it"),
+            &[],
+        ),
+        ContextTarget::MaskPathKey { clip, mask, tick } => table(
+            MASK_PATH_KEY_ITEMS,
+            &MaskPathKeyMenu::of(state, *clip, *mask, *tick).expect("the Path row draws it"),
+            &[],
+        ),
     }
 }
 

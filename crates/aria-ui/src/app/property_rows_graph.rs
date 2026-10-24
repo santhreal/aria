@@ -57,9 +57,6 @@ pub struct GraphKeyNode {
     pub y: f32,
     pub shape: KeyframeIconShape,
     pub selected: bool,
-    pub roving: bool,
-    pub hold: bool,
-    pub interior: bool,
 }
 
 /// One incoming or outgoing temporal influence + speed handle on a keyframe.
@@ -363,7 +360,6 @@ impl AppState {
                     param,
                     tick: abs_tick,
                 });
-                let interior = idx > 0 && idx + 1 < total;
                 keys.push(GraphKeyNode {
                     clip: clip_id,
                     param,
@@ -374,9 +370,6 @@ impl AppState {
                     y: ky,
                     shape: KeyframeIconShape::classify(idx, total, *easing),
                     selected,
-                    roving: interior && easing.is_roving(),
-                    hold: easing.is_hold(),
-                    interior,
                 });
 
                 let (mut in_ease, mut out_ease) = spec

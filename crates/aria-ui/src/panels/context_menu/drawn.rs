@@ -8,8 +8,9 @@ use super::label::{label_groups, label_row};
 use super::row::{item, item_with_icon};
 use super::*;
 use crate::surfaces::context_menu::{
-    BADGE_ITEMS, BadgeMenu, CLIP_ITEMS, ClipMenu, EFFECT_ITEMS, MenuItem, POOL_ITEMS,
-    PREVIEW_ITEMS, RECENT_ITEMS, TRACK_ITEMS, TRANSITION_ITEMS, apply_blend, draw_property,
+    BADGE_ITEMS, BadgeMenu, CLIP_ITEMS, ClipMenu, EFFECT_ITEMS, KEYFRAME_ITEMS,
+    MASK_PATH_KEY_ITEMS, MenuItem, POOL_ITEMS, PREVIEW_ITEMS, RECENT_ITEMS, TRACK_ITEMS,
+    TRANSITION_ITEMS, apply_blend, draw_property,
 };
 
 /// The target to draw: the open one, or the one still fading out.
@@ -259,6 +260,18 @@ pub(super) fn items(
                 theme,
                 cx,
             )
+        }
+        ContextTarget::Keyframe { .. } => {
+            let Some(key) = facts.keyframe else {
+                return Vec::new();
+            };
+            drawn(KEYFRAME_ITEMS, key, Blocks::default(), theme, cx)
+        }
+        ContextTarget::MaskPathKey { .. } => {
+            let Some(key) = facts.path_key else {
+                return Vec::new();
+            };
+            drawn(MASK_PATH_KEY_ITEMS, key, Blocks::default(), theme, cx)
         }
     }
 }

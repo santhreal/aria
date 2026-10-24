@@ -18,12 +18,15 @@ use std::collections::BTreeSet;
 use std::mem::discriminant;
 use std::path::PathBuf;
 
+use aria_models::{ClipParam, Easing};
+
 use crate::app::AppState;
 use crate::app::premiere_tests::with_clip;
 use crate::surfaces::context_menu::{
-    BADGE_ITEMS, BadgeMenu, CLIP_ITEMS, ClipMenu, EFFECT_ITEMS, EffectMenu, MenuItem, MenuRow,
-    POOL_ITEMS, PREVIEW_ITEMS, PoolMenu, RECENT_ITEMS, TRACK_ITEMS, TRANSITION_ITEMS, TrackMenu,
-    apply_blend, draw_property,
+    BADGE_ITEMS, BadgeMenu, CLIP_ITEMS, ClipMenu, EFFECT_ITEMS, EffectMenu, KEYFRAME_ITEMS,
+    KeyframeMenu, MASK_PATH_KEY_ITEMS, MaskPathKeyMenu, MenuItem, MenuRow, POOL_ITEMS,
+    PREVIEW_ITEMS, PoolMenu, RECENT_ITEMS, TRACK_ITEMS, TRANSITION_ITEMS, TrackMenu, apply_blend,
+    draw_property,
 };
 use crate::types::ActivePanel;
 
@@ -88,6 +91,18 @@ impl Reread for BadgeMenu {
     }
 }
 
+impl Reread for KeyframeMenu {
+    fn reread(&self, state: &AppState) -> Option<Self> {
+        Self::of(state, self.clip.raw(), self.param, self.tick)
+    }
+}
+
+impl Reread for MaskPathKeyMenu {
+    fn reread(&self, state: &AppState) -> Option<Self> {
+        Self::of(state, self.clip.raw(), self.mask, self.tick)
+    }
+}
+
 /// The preview menu reads no facts.
 impl Reread for () {
     fn reread(&self, _: &AppState) -> Option<Self> {
@@ -134,6 +149,8 @@ fn pressed() -> Pressed {
     press(RECENT_ITEMS, RECENT_STAGES, &mut out);
     press(EFFECT_ITEMS, EFFECT_STAGES, &mut out);
     press(BADGE_ITEMS, BADGE_STAGES, &mut out);
+    press(KEYFRAME_ITEMS, KEYFRAME_STAGES, &mut out);
+    press(MASK_PATH_KEY_ITEMS, PATH_KEY_STAGES, &mut out);
     out.sent.extend(blends());
     out.sent.extend(properties());
     out
@@ -480,6 +497,55 @@ const BADGE_STAGES: &[Stage<BadgeMenu>] = &[Stage {
     },
 }];
 
+/// A keyframe's menu opens on the middle of three Position keyframes: linear,
+/// roving with keyframes copied, and held.
+const KEYFRAME_STAGES: &[Stage<KeyframeMenu>] = &[
+    Stage {
+        what: "a linear keyframe between two others",
+        dress: || fixtures::keyframe_menu(|_, _, _| {}),
+    },
+    Stage {
+        what: "a roving keyframe, keyframes copied",
+        dress: || {
+            fixtures::keyframe_menu(|state, clip, tick| {
+                state
+                    .toggle_roving_keyframe(clip, ClipParam::Position, tick)
+                    .expect("the middle keyframe roves");
+                state.copy_selected_keyframes();
+                state.status_message = None;
+            })
+        },
+    },
+    Stage {
+        what: "a held keyframe",
+        dress: || {
+            fixtures::keyframe_menu(|state, _, _| {
+                state
+                    .toggle_hold_selected_or_playhead()
+                    .expect("the keyframe holds");
+            })
+        },
+    },
+];
+
+/// A Path keyframe's menu opens on the first of two keyframes, linear and held.
+const PATH_KEY_STAGES: &[Stage<MaskPathKeyMenu>] = &[
+    Stage {
+        what: "a linear Path keyframe",
+        dress: || fixtures::path_key_menu(|_, _, _| {}),
+    },
+    Stage {
+        what: "a held Path keyframe",
+        dress: || {
+            fixtures::path_key_menu(|state, clip, tick| {
+                state
+                    .ease_mask_path_key(clip, 0, tick, Easing::Hold)
+                    .expect("the Path keyframe holds");
+            })
+        },
+    },
+];
+
 /// The lane the fixture projects first.
 fn first_lane(state: &AppState) -> u64 {
     state
@@ -825,10 +891,10 @@ fn a_blend_the_catalog_does_not_offer_is_refused_without_an_edit() {
 #[test]
 fn the_menu_is_built_from_the_tables() {
     // Every test here drives rows. They say nothing about the menu unless the
-    // menu is built from the same rows, so the one structural fact worth pinning
-    // is that each table reaches the panel that draws it and the census that
-    // presses it. The tables are read from their declarations, so a new table
-    // turns this red until both reach it.
+    // menu is built from the same rows, so the structural fact pinned here is
+    // that each table reaches the panel that draws it, the census that presses
+    // it, and the reference that lists it. The tables are read from their
+    // declarations, so a new table turns this red until all three reach it.
     //
     // Not covered: a drawn row that ignores its table entry and calls the session
     // itself. No census can see that, because a census drives the entry.
@@ -838,6 +904,7 @@ fn the_menu_is_built_from_the_tables() {
     };
     let drawn = read(src.join("panels/context_menu/drawn.rs"));
     let census = read(src.join("app/drawn_census_menu.rs"));
+    let reference = read(src.join("keys/reference_doc_tests.rs"));
     let mut sources = vec![read(src.join("surfaces/context_menu.rs"))];
     for entry in
         std::fs::read_dir(src.join("surfaces/context_menu")).expect("the tables are listed")
@@ -851,7 +918,7 @@ fn the_menu_is_built_from_the_tables() {
         .map(|(name, _)| name)
         .collect();
     assert!(
-        tables.len() >= 8,
+        tables.len() >= 10,
         "the table declarations were not found: {tables:?}"
     );
     for table in tables {
@@ -870,6 +937,10 @@ fn the_menu_is_built_from_the_tables() {
                 && census.contains(&format!("ids.extend(ids_of({table}, true));")),
             "the census row lists leave out {table}"
         );
+        assert!(
+            reference.contains(&format!("\"{table}\"")),
+            "docs/reference/menus.md never lists {table}"
+        );
     }
 }
 
@@ -884,6 +955,8 @@ fn all_ids() -> Vec<&'static str> {
     ids.extend(ids_of(RECENT_ITEMS, false));
     ids.extend(ids_of(EFFECT_ITEMS, false));
     ids.extend(ids_of(BADGE_ITEMS, false));
+    ids.extend(ids_of(KEYFRAME_ITEMS, false));
+    ids.extend(ids_of(MASK_PATH_KEY_ITEMS, false));
     ids
 }
 
@@ -898,6 +971,8 @@ fn outside_rows() -> Vec<&'static str> {
     ids.extend(ids_of(RECENT_ITEMS, true));
     ids.extend(ids_of(EFFECT_ITEMS, true));
     ids.extend(ids_of(BADGE_ITEMS, true));
+    ids.extend(ids_of(KEYFRAME_ITEMS, true));
+    ids.extend(ids_of(MASK_PATH_KEY_ITEMS, true));
     ids
 }
 

@@ -13,7 +13,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
-use aria_models::MatteSource;
+use aria_models::{ClipId, ClipParam, MatteSource};
 use aria_plugin::PluginContext;
 
 use crate::app::AppState;
@@ -25,8 +25,9 @@ use crate::commands::{BUILTIN_COMMANDS, BUILTIN_JOB_COMMANDS};
 use crate::dock::{Axis, DOCK_VERSION, FrameId, Node};
 use crate::layouts::{WORKSPACES, workspace_tree_for_width};
 use crate::surfaces::context_menu::{
-    BADGE_ITEMS, BadgeMenu, CLIP_ITEMS, ClipMenu, EFFECT_ITEMS, EffectMenu, MenuItem, POOL_ITEMS,
-    PREVIEW_ITEMS, PoolMenu, RECENT_ITEMS, TRACK_ITEMS, TRANSITION_ITEMS, TrackMenu,
+    BADGE_ITEMS, BadgeMenu, CLIP_ITEMS, ClipMenu, EFFECT_ITEMS, EffectMenu, KEYFRAME_ITEMS,
+    KeyframeMenu, MASK_PATH_KEY_ITEMS, MaskPathKeyMenu, MenuItem, POOL_ITEMS, PREVIEW_ITEMS,
+    PoolMenu, RECENT_ITEMS, TRACK_ITEMS, TRANSITION_ITEMS, TrackMenu,
 };
 use crate::test_support::doc_tables::{
     parse_table_rows, read_doc, section_slice, strip_ticks, table_rows,
@@ -609,6 +610,21 @@ fn menus_doc_matches_registry() {
         chosen: false,
         properties: std::sync::Arc::from([]),
     };
+    let keyframe_facts = KeyframeMenu {
+        clip: ClipId::from_raw(0),
+        param: ClipParam::Opacity,
+        tick: 0,
+        interior: true,
+        hold: false,
+        roving: false,
+        copied: false,
+    };
+    let path_key_facts = MaskPathKeyMenu {
+        clip: ClipId::from_raw(0),
+        mask: 0,
+        tick: 0,
+        hold: false,
+    };
     let mut expected_ctx_items = Vec::new();
     collect_ctx_items("PREVIEW_ITEMS", PREVIEW_ITEMS, &(), &mut expected_ctx_items);
     collect_ctx_items(
@@ -653,9 +669,21 @@ fn menus_doc_matches_registry() {
         &badge_facts,
         &mut expected_ctx_items,
     );
+    collect_ctx_items(
+        "KEYFRAME_ITEMS",
+        KEYFRAME_ITEMS,
+        &keyframe_facts,
+        &mut expected_ctx_items,
+    );
+    collect_ctx_items(
+        "MASK_PATH_KEY_ITEMS",
+        MASK_PATH_KEY_ITEMS,
+        &path_key_facts,
+        &mut expected_ctx_items,
+    );
     let documented_ctx_items: Vec<(String, String, String, String, String)> = table_rows(section_slice(
         MENUS_DOC,
-        "Context menu item tables (`PREVIEW_ITEMS`, `CLIP_ITEMS`, `TRANSITION_ITEMS`, `TRACK_ITEMS`, `POOL_ITEMS`, `RECENT_ITEMS`, `EFFECT_ITEMS`, `BADGE_ITEMS`)",
+        "Context menu item tables (`PREVIEW_ITEMS`, `CLIP_ITEMS`, `TRANSITION_ITEMS`, `TRACK_ITEMS`, `POOL_ITEMS`, `RECENT_ITEMS`, `EFFECT_ITEMS`, `BADGE_ITEMS`, `KEYFRAME_ITEMS`, `MASK_PATH_KEY_ITEMS`)",
     ))
     .iter()
     .map(|cells| {

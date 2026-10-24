@@ -358,9 +358,9 @@ Defined in `crates/aria-ui/src/app/decline.rs` (`Decline::ALL`). When a command 
 | `AnglesDoNotMatch` | `The angles' sound does not match` |
 | `AnglesRepeat` | `The angles' sound repeats, so it cannot say where it is` |
 
-## Context menu item tables (`PREVIEW_ITEMS`, `CLIP_ITEMS`, `TRANSITION_ITEMS`, `TRACK_ITEMS`, `POOL_ITEMS`, `RECENT_ITEMS`, `EFFECT_ITEMS`, `BADGE_ITEMS`)
+## Context menu item tables (`PREVIEW_ITEMS`, `CLIP_ITEMS`, `TRANSITION_ITEMS`, `TRACK_ITEMS`, `POOL_ITEMS`, `RECENT_ITEMS`, `EFFECT_ITEMS`, `BADGE_ITEMS`, `KEYFRAME_ITEMS`, `MASK_PATH_KEY_ITEMS`)
 
-Defined in `crates/aria-ui/src/surfaces/context_menu.rs` and `crates/aria-ui/src/surfaces/context_menu/*.rs`. Each context menu target draws its rows in slice order; `Labels`, `Blends`, and `Properties` expand inline from the label swatch list, transition catalog, and clip line-parameter list. A row whose `checked` is set draws a check mark in its lead column while that state holds; `Default check` is `on` or `off` for such a row against the default facts (an enabled clip, a Medium lane, no transition alignment), and `none` for a row that draws no check mark. The applied blend and the drawn property are checked the same way.
+Defined in `crates/aria-ui/src/surfaces/context_menu.rs` and `crates/aria-ui/src/surfaces/context_menu/*.rs`. Each context menu target draws its rows in slice order; `Labels`, `Blends`, and `Properties` expand inline from the label swatch list, transition catalog, and clip line-parameter list. A row whose `checked` is set draws a check mark in its lead column while that state holds; `Default check` is `on` or `off` for such a row against the default facts (an enabled clip, a Medium lane, no transition alignment, a keyframe that neither holds nor roves), and `none` for a row that draws no check mark. The applied blend and the drawn property are checked the same way.
 
 | Target slice | Entry kind | Row ID | Default label | Default check |
 | --- | --- | --- | --- | --- |
@@ -424,3 +424,18 @@ Defined in `crates/aria-ui/src/surfaces/context_menu.rs` and `crates/aria-ui/src
 | `EFFECT_ITEMS` | `Row` | `ctx-fx-remove` | `Remove Effect` | `none` |
 | `BADGE_ITEMS` | `Row` | `ctx-badge-controls` | `Show in Effect Controls` | `none` |
 | `BADGE_ITEMS` | `Properties` | `none` | `none` | `none` |
+| `KEYFRAME_ITEMS` | `Row` | `ctx-key-linear` | `Linear` | `none` |
+| `KEYFRAME_ITEMS` | `Row` | `ctx-key-easy-ease` | `Easy Ease` | `none` |
+| `KEYFRAME_ITEMS` | `Row` | `ctx-key-easy-ease-in` | `Easy Ease In` | `none` |
+| `KEYFRAME_ITEMS` | `Row` | `ctx-key-easy-ease-out` | `Easy Ease Out` | `none` |
+| `KEYFRAME_ITEMS` | `Row` | `ctx-key-hold` | `Hold` | `off` |
+| `KEYFRAME_ITEMS` | `Row` | `ctx-key-rove` | `Rove Across Time` | `off` |
+| `KEYFRAME_ITEMS` | `Row` | `ctx-key-copy` | `Copy Keyframes` | `none` |
+| `KEYFRAME_ITEMS` | `Row` | `ctx-key-paste` | `Paste Keyframes at Playhead` | `none` |
+| `KEYFRAME_ITEMS` | `Row` | `ctx-key-delete` | `Delete Keyframes` | `none` |
+| `MASK_PATH_KEY_ITEMS` | `Row` | `ctx-path-key-linear` | `Linear` | `none` |
+| `MASK_PATH_KEY_ITEMS` | `Row` | `ctx-path-key-ease` | `Easy Ease` | `none` |
+| `MASK_PATH_KEY_ITEMS` | `Row` | `ctx-path-key-ease-in` | `Easy Ease In` | `none` |
+| `MASK_PATH_KEY_ITEMS` | `Row` | `ctx-path-key-ease-out` | `Easy Ease Out` | `none` |
+| `MASK_PATH_KEY_ITEMS` | `Row` | `ctx-path-key-hold` | `Hold` | `off` |
+| `MASK_PATH_KEY_ITEMS` | `Row` | `ctx-path-key-delete` | `Delete Keyframe` | `none` |

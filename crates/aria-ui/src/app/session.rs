@@ -152,16 +152,13 @@ impl AppState {
         self.menu_owner = None;
     }
 
-    /// Close every popover: the menu bar's drop and flyout, the context menu,
-    /// the keyframe and mask-path key menus, and the tool variants. A dialog
-    /// and a change of screen call this, because a popover left open under a
-    /// dialog keeps the keys the dialog owns: the menu bar answers letters
-    /// ahead of a focused box.
+    /// Close every popover: the menu bar's drop and flyout, the context menu
+    /// and the tool variants. A dialog and a change of screen call this,
+    /// because a popover left open under a dialog keeps the keys the dialog
+    /// owns: the menu bar answers letters ahead of a focused box.
     pub(crate) fn close_popovers(&mut self) {
         self.close_menu();
         self.close_context();
-        self.close_keyframe_context_menu();
-        self.close_mask_path_key_menu();
         self.close_tool_variants();
     }
 

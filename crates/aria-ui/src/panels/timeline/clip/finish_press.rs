@@ -19,11 +19,6 @@ pub(super) fn on_left_down(
         return;
     };
     let origin_x = f32::from(event.position.x);
-    // A press anywhere on the canvas dismisses an open keyframe menu.
-    this.state.update(cx, |state, _| {
-        state.close_keyframe_context_menu();
-        state.close_mask_path_key_menu();
-    });
 
     // An armed Parent pick whip takes the press on a clip, whatever the tool.
     if let HitTarget::ClipBody { clip_id, .. } = hit
@@ -304,9 +299,7 @@ pub(super) fn on_left_down(
             }
             cx.notify();
         }
-        HitTarget::Keyframe {
-            clip, param, tick, ..
-        } => {
+        HitTarget::Keyframe { clip, param, tick } => {
             cx.stop_propagation();
             if event.click_count >= 2 {
                 this.state.update(cx, |state, _| {
@@ -341,9 +334,7 @@ pub(super) fn on_left_down(
             }));
             cx.notify();
         }
-        HitTarget::MaskPathKey {
-            clip, mask, tick, ..
-        } => {
+        HitTarget::MaskPathKey { clip, mask, tick } => {
             cx.stop_propagation();
             this.state.update(cx, |state, _| {
                 state.begin_mask_path_key_drag(clip, mask, tick);

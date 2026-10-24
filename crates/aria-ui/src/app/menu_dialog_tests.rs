@@ -13,10 +13,8 @@
 //! Not covered: a popover added later that [`AppState::close_popovers`] does
 //! not close, and a popover out in another window.
 
-use aria_models::{ClipId, ClipParam};
 use gpui::{TestAppContext, VisualTestContext};
 
-use crate::app::property_rows::{KeyframeContextMenu, MaskPathKeyMenu};
 use crate::app::{AppState, DialogKind};
 use crate::chrome::menu_items::{DropEntry, drop_entries};
 use crate::test_support::drawn_shell;
@@ -135,39 +133,16 @@ fn editor_state() -> AppState {
 
 #[test]
 fn every_dialog_closes_every_popover() {
-    let clip = ClipId::from_raw(1);
     for kind in every_dialog() {
         let mut state = editor_state();
         state.toggle_menu(AppMenu::Window);
         state.open_menu_flyout(0);
         state.open_context(ContextTarget::Preview, 10.0, 10.0);
-        state.with_prop_rows_mut(|rows| {
-            rows.keyframe_menu = Some(KeyframeContextMenu {
-                clip,
-                param: ClipParam::Opacity,
-                tick: 0,
-                interior: false,
-                hold: false,
-                roving: false,
-                x: 10.0,
-                y: 10.0,
-            });
-            rows.mask_path_menu = Some(MaskPathKeyMenu {
-                clip,
-                mask: 0,
-                tick: 0,
-                hold: false,
-                x: 10.0,
-                y: 10.0,
-            });
-        });
         state.open_tool_variants(EditorTool::Pen);
         assert!(
             state.open_menu.is_some()
                 && state.menu_flyout.is_some()
                 && state.context_menu.is_some()
-                && state.keyframe_context_menu().is_some()
-                && state.mask_path_key_menu().is_some()
                 && state.tool_variants_open().is_some(),
             "{kind:?}: a popover did not open before the dialog"
         );
@@ -178,11 +153,9 @@ fn every_dialog_closes_every_popover() {
                 state.open_menu,
                 state.menu_flyout,
                 state.context_menu.clone(),
-                state.keyframe_context_menu(),
-                state.mask_path_key_menu(),
                 state.tool_variants_open(),
             ),
-            (None, None, None, None, None, None),
+            (None, None, None, None),
             "{kind:?} opened over a popover that stayed open"
         );
     }

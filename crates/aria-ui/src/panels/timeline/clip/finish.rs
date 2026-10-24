@@ -13,7 +13,6 @@ use super::VisibleLane;
 use super::bar::BarRows;
 use super::hit::{HitTarget, cursor_for, hit_test};
 use crate::app::clip_line::LinePress;
-use crate::app::property_rows::{KeyframeContextMenu, MaskPathKeyMenu};
 use crate::panels::timeline::px_to_ticks;
 use crate::shell::Shell;
 use crate::surfaces::timeline_gesture::{self as gesture, Drag, Gesture, Span};
@@ -206,8 +205,6 @@ fn open_badge_menu(
     cx.stop_propagation();
     let (x, y) = (f32::from(event.position.x), f32::from(event.position.y));
     this.state.update(cx, |state, _| {
-        state.close_keyframe_context_menu();
-        state.close_mask_path_key_menu();
         state.open_context(ContextTarget::ClipBadge { clip, track }, x, y);
     });
     cx.notify();
@@ -282,51 +279,28 @@ fn on_right_down(
             });
             cx.notify();
         }
-        HitTarget::Keyframe {
-            clip,
-            param,
-            tick,
-            interior,
-            hold,
-            roving,
-        } => {
+        HitTarget::Keyframe { clip, param, tick } => {
             cx.stop_propagation();
             this.state.update(cx, |state, _| {
-                state.close_mask_path_key_menu();
                 state.select_clip(clip);
-                if !state.is_timeline_keyframe_selected(clip, param, tick) {
-                    state.select_timeline_keyframe(clip, param, tick, false);
-                }
-                state.open_keyframe_context_menu(KeyframeContextMenu {
-                    clip,
+                let target = ContextTarget::Keyframe {
+                    clip: clip.raw(),
                     param,
                     tick,
-                    interior,
-                    hold,
-                    roving,
-                    x,
-                    y,
-                });
+                };
+                state.open_context(target, x, y);
             });
             cx.notify();
         }
-        HitTarget::MaskPathKey {
-            clip,
-            mask,
-            tick,
-            hold,
-        } => {
+        HitTarget::MaskPathKey { clip, mask, tick } => {
             cx.stop_propagation();
             this.state.update(cx, |state, _| {
-                state.close_keyframe_context_menu();
-                state.open_mask_path_key_menu(MaskPathKeyMenu {
-                    clip,
+                let target = ContextTarget::MaskPathKey {
+                    clip: clip.raw(),
                     mask,
                     tick,
-                    hold,
-                    x,
-                    y,
-                });
+                };
+                state.open_context(target, x, y);
             });
             cx.notify();
         }

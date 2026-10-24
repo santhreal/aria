@@ -574,7 +574,20 @@ impl AppState {
     /// Open the menu on `target` at the pointer, `x` and `y` in window
     /// coordinates. The drawn menu places itself against the pointer from its
     /// measured size.
+    ///
+    /// A menu on a keyframe selects it unless it is already in the selection,
+    /// so the rows that act on the selected keyframes act on it. A menu on a
+    /// Path keyframe makes its mask the active one, as a press on it does.
     pub fn open_context(&mut self, target: ContextTarget, x: f32, y: f32) {
+        match target {
+            ContextTarget::Keyframe { clip, param, tick } => {
+                self.select_timeline_keyframe(ClipId::from_raw(clip), param, tick, false);
+            }
+            ContextTarget::MaskPathKey { clip, mask, .. } => {
+                self.focus_mask_path(ClipId::from_raw(clip), mask);
+            }
+            _ => {}
+        }
         self.context_plugin_rows = self.plugin_menu_rows(&target);
         self.context_menu = Some(target);
         self.context_at = (x, y);

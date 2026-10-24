@@ -10,7 +10,7 @@ use crate::panels::timeline::overview::coalesce_overview_spans;
 use crate::panels::timeline::{BASE_PPS, ticks_to_px};
 use crate::surfaces::timeline_gesture::{Drag, Gesture, Span};
 use crate::tool_catalog::{BodyDrag, EdgeDrag, TrackSelectDir};
-use crate::types::{EditorTool, SelectedGap, TrimSide, UiClipType};
+use crate::types::{ContextTarget, EditorTool, SelectedGap, TrimSide, UiClipType};
 use aria_models::{ClipId, Rational, RationalTime, TimeRange, TrackId, TrackKind};
 use aria_plugin::PluginContext;
 
@@ -760,9 +760,6 @@ fn property_rows_and_keyframes_hit_test_and_draw_in_virtualized_timeline(
                 clip: clip_id,
                 param: aria_models::ClipParam::Opacity,
                 tick: 24,
-                interior: false,
-                hold: false,
-                roving: false,
             })
         );
         let hit_row = hit_test(
@@ -785,16 +782,16 @@ fn property_rows_and_keyframes_hit_test_and_draw_in_virtualized_timeline(
 }
 
 /// A mask's Path row on the drawn timeline: its keyframes and its band
-/// hit-test as the path's, a press on a menu row eases the keyframe the menu
-/// opened on, Escape closes the menu, and its stopwatch and a property row's
-/// name themselves on hover.
+/// hit-test as the path's, a press on the drawn Hold row of the shell's menu
+/// holds the keyframe the menu opened on, Escape closes the menu, and its
+/// stopwatch and a property row's name themselves on hover.
 ///
 /// The row sits among the catalog rows but is none of them, so a hit test or a
 /// menu that only knows catalog rows passes it by and the press lands on the
 /// lane under it.
 #[gpui::test]
 fn a_mask_path_row_hit_tests_its_keys_and_its_menu_eases_and_closes(cx: &mut gpui::TestAppContext) {
-    use crate::app::property_rows::{MaskPathKeyMenu, PROPERTY_ROW_H, TimelineOutlineRow};
+    use crate::app::property_rows::{PROPERTY_ROW_H, TimelineOutlineRow};
 
     let executor = cx.executor();
     let (state, visual) = crate::test_support::drawn_shell(cx, "mask-path-row");
@@ -872,7 +869,6 @@ fn a_mask_path_row_hit_tests_its_keys_and_its_menu_eases_and_closes(cx: &mut gpu
                 clip: clip_id,
                 mask: 0,
                 tick: 24,
-                hold: false,
             })
         );
         assert_eq!(
@@ -887,31 +883,35 @@ fn a_mask_path_row_hit_tests_its_keys_and_its_menu_eases_and_closes(cx: &mut gpu
     let open = |visual: &mut gpui::VisualTestContext| {
         visual.update(|window, app| {
             state.update(app, |state, _| {
-                state.open_mask_path_key_menu(MaskPathKeyMenu {
-                    clip: clip_id,
+                let target = ContextTarget::MaskPathKey {
+                    clip: clip_id.raw(),
                     mask: 0,
                     tick: 24,
-                    hold: false,
-                    x: 40.0,
-                    y: 100.0,
-                });
+                };
+                state.open_context(target, 40.0, 100.0);
             });
             window.refresh();
         });
         visual.run_until_parked();
-        assert!(
-            visual.debug_bounds("mask-path-key-menu").is_some(),
-            "the timeline did not draw the Path keyframe menu"
-        );
+        visual
+            .debug_bounds("context-menu-card")
+            .expect("the shell draws the Path keyframe menu")
     };
     let menu = |visual: &mut gpui::VisualTestContext| {
-        visual.read(|app| state.read(app).mask_path_key_menu())
+        visual.read(|app| state.read(app).context_menu.clone())
     };
 
-    // Row 4 is Hold.
-    open(visual);
+    // The card opens at rest, so its rows stand where they are pressed.
+    visual.update(|_, app| app.set_reduce_motion(true));
+    let card = open(visual);
     let hold = visual
-        .debug_bounds("kf-menu-row-4")
+        .update(|window, _| {
+            window
+                .rendered_text_runs()
+                .iter()
+                .find(|run| run.text.as_ref() == "Hold" && card.contains(&run.bounds.center()))
+                .map(|run| run.bounds)
+        })
         .expect("the menu draws its Hold row");
     visual.simulate_click(hold.center(), gpui::Modifiers::none());
     visual.run_until_parked();

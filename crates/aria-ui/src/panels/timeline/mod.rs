@@ -143,14 +143,7 @@ pub fn render(
     let cursor = tool.cursor();
     let total_rows = store.sequence.tracks.len();
     let visual_rows = state.read(cx).visual_lane_count();
-    let (graph_open, kf_menu, path_menu) = {
-        let app = state.read(cx);
-        (
-            app.timeline_graph_open(),
-            app.keyframe_context_menu(),
-            app.mask_path_key_menu(),
-        )
-    };
+    let graph_open = state.read(cx).timeline_graph_open();
     // The layer paints the playhead over the body unless the body draws
     // something that reads it or covers its line; then the body draws it.
     let layered = timeline_playhead::layered(state.read(cx));
@@ -353,14 +346,6 @@ pub fn render(
             cx,
         ))
         .child(outline_edge(outline, cx))
-        .when_some(kf_menu, |el, menu| {
-            el.child(property_rows::render_keyframe_context_menu(
-                &theme, menu, cx,
-            ))
-        })
-        .when_some(path_menu, |el, menu| {
-            el.child(property_rows::render_mask_path_key_menu(&theme, menu, cx))
-        })
         .on_mouse_down(
             MouseButton::Left,
             cx.listener(|this, event: &MouseDownEvent, _, cx| {

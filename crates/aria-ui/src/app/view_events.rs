@@ -134,6 +134,9 @@ impl AppState {
             ContextTarget::Effect { .. } => Some(MenuLocation::EffectHeader),
             ContextTarget::ClipBadge { .. } => Some(MenuLocation::ClipBadge),
             ContextTarget::Recent { .. } => None,
+            // `MenuLocation` and `MenuTarget` name no keyframe, so a
+            // keyframe's menu takes no plugin rows.
+            ContextTarget::Keyframe { .. } | ContextTarget::MaskPathKey { .. } => None,
         };
         let mut rows: Vec<ContextPluginRow> = location
             .map(|location| crate::chrome::plugin_menus::rows_in(&self.ctx, location))
@@ -173,6 +176,9 @@ impl AppState {
                 clip: ClipId::from_raw(*clip),
                 track: TrackId::from_raw(*track),
             },
+            ContextTarget::Keyframe { .. } | ContextTarget::MaskPathKey { .. } => {
+                return rows.into();
+            }
         };
         let mut request = ContextMenuRequested::new(target, self.host.snapshot());
         if catch_unwind(AssertUnwindSafe(|| bus.emit_waterfall(&mut request))).is_err() {

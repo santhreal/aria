@@ -113,9 +113,9 @@ registers handlers for them when the plugin activates.
 A command's `menu` and `key` are one `[[menus]]` entry and one `[[keys]]`
 entry. Both tables name a command declared in `[[commands]]`.
 
-- `menu` is a menu bar menu (`File`, `Edit`, `Sequence`, `View`, `Window`,
-  `Help`) or a context menu (`Clip`, `Track`, `Media`, `Viewer`,
-  `Transition`), optionally
+- `menu` is a menu bar menu (`File`, `Edit`, `Sequence`, `Markers`, `Effect`,
+  `Animation`, `View`, `Window`, `Help`) or a context menu (`Clip`, `Track`,
+  `Media`, `Viewer`, `Transition`, `Effect Header`, `Clip Badge`), optionally
   followed by a group: `Sequence/Color Tools` lists the row as
   `Color Tools: Reset LUT Stack`. A row is drawn below the menu's own rows
   while its command is registered.
@@ -224,7 +224,7 @@ dialog states that a native plugin can access the system beyond them.
 | Point | Contributes |
 | --- | --- |
 | Commands | Named actions with title, icon, enablement condition, and handler; listed in the command palette |
-| Menus | Items in the menu bar, panel menus, and context menus (clip, track, media, keyframe, marker), each bound to a command |
+| Menus | Items in the menu bar and in the clip, track, media, viewer, transition, effect header, and clip badge context menus, each bound to a command ([menus.md](../plugins/menus.md)) |
 | Keys | Default chords for commands, per context ([keyboard.md](keyboard.md#customizing)) |
 | Settings | A typed settings schema; Aria draws the settings page and stores the values |
 | Panels | Dockable panels: a declarative UI tree, a GPU canvas, or both |

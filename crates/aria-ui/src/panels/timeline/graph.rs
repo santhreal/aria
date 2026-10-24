@@ -20,13 +20,14 @@ use gpui::{
 
 use crate::app::AppState;
 use crate::app::property_rows::graph::graph_axis_ys;
-use crate::app::property_rows::{GRAPH_EDITOR_H, GraphMode, KeyframeContextMenu};
+use crate::app::property_rows::{GRAPH_EDITOR_H, GraphMode};
 use crate::components::{self, ChipSize};
 use crate::panels::keyframe_icon::{KeyInk, paint_keyframe_icon};
 use crate::shell::Shell;
 use crate::theme::Theme;
 use crate::tooltip::WithTip as _;
 use crate::transport::ticks_to_px_f;
+use crate::types::ContextTarget;
 use gpui::prelude::FluentBuilder;
 
 use super::header::HEADER_ROW_H;
@@ -264,16 +265,12 @@ pub(super) fn render_graph_editor(
                             let dx = lx - k.x;
                             let dy = ly - k.y;
                             if dx * dx + dy * dy <= 64.0 {
-                                state.open_keyframe_context_menu(KeyframeContextMenu {
-                                    clip: k.clip,
+                                let target = ContextTarget::Keyframe {
+                                    clip: k.clip.raw(),
                                     param: k.param,
                                     tick: k.tick,
-                                    interior: k.interior,
-                                    hold: k.hold,
-                                    roving: k.roving,
-                                    x: wx,
-                                    y: wy,
-                                });
+                                };
+                                state.open_context(target, wx, wy);
                                 return;
                             }
                         }
