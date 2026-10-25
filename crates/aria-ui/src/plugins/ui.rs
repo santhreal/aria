@@ -19,7 +19,7 @@ use crate::keys::KeyHost;
 use crate::keys::bindings::SHIPPED_BINDINGS;
 use crate::panels::{
     about_dialog, ai_panel, ai_tools, align_panel, audio_gain_dialog, audio_meters, color_panel,
-    context_menu, duck, effects_browser, export_dialog, history_panel, home, info_panel, inspector,
+    context_menu, effects_browser, export_dialog, history_panel, home, info_panel, inspector,
     install_dialog, jobs_dialog, keyframe_velocity_dialog, marker_edit_dialog, markers,
     media_support, mixer, palette, preview, project_report, remove_attributes_dialog, rename_bar,
     settings_dialog, sidebar, speed_duration_dialog, text_panel, timeline, timeline_report,
@@ -39,7 +39,7 @@ pub struct UiPlugin;
 /// A table rather than a call each: the test below enumerates it, so a panel added
 /// here is covered without a second list. The docked panes are always on; the rest
 /// carry a predicate, because the assistant replaces the preview, Home replaces the
-/// editor, and the duck tuner is only worth a column when a duck could run.
+/// editor, and the assistant's tools show in the Inspector only while it is open.
 /// `PanelLocation::Overlay` has no built-in entry — an overlay contribution is
 /// drawn over the viewer. The second field is the panel's title, the one name its
 /// tab, its Window row and its frame menu's Add row draw.
@@ -264,14 +264,6 @@ const BUILTIN_PANELS: &[(
         None,
     ),
     (
-        "aria.panel.duck",
-        "Duck",
-        PanelLocation::Inspector,
-        draw_duck,
-        |state| state.duck_precheck().is_ok(),
-        None,
-    ),
-    (
         "aria.panel.ai-tools",
         "Tools",
         PanelLocation::Inspector,
@@ -488,10 +480,6 @@ fn draw_timeline(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> Any
 
 fn draw_inspector(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {
     inspector::render(state, cx).into_any_element()
-}
-
-fn draw_duck(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {
-    duck::render(state, cx).into_any_element()
 }
 
 fn draw_preview(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {
@@ -829,32 +817,44 @@ mod tests {
     }
 
     /// A card stacked in the Inspector column stands under whichever tab the
-    /// selected clip shows, so a card drawn for any selected clip repeats under
+    /// selected clip shows, so a card drawn for a selection repeats under
     /// Transform, Speed, and Info alike. Every stacked card is drawn on a
-    /// condition beyond the selection: a selected clip with no duck source and
-    /// no open assistant stacks none.
+    /// condition beyond the selection: a selected clip stacks none, and so does
+    /// a selected music clip a duck could run from, whose dip, attack, and
+    /// release the Audio tab sets.
     #[test]
-    fn a_selected_clip_alone_stacks_no_card_under_the_inspector() {
+    fn a_selection_stacks_no_card_under_the_inspector() {
         let ctx = PluginContext::new();
         ctx.mount(&UiPlugin).expect("mount UI plugin");
         let host = crate::plugins::panel_host::host_of(&ctx).expect("panel host");
-        let (mut state, _) = crate::app::premiere_tests::with_clip();
-        state.active_panel = ActivePanel::Inspector;
+        let selections = [
+            ("a selected clip", crate::app::premiere_tests::with_clip().0),
+            (
+                "a music clip a duck could run from",
+                crate::app::duck_tests::ready_duck(),
+            ),
+        ];
         assert!(
-            state.selected_clip().is_some(),
-            "the fixture selects its clip"
+            selections[1].1.duck_precheck().is_ok(),
+            "the duck fixture is one a duck could run from"
         );
-
-        let stacked: Vec<&str> = host
-            .cached_at(PanelLocation::Inspector)
-            .iter()
-            .filter(|entry| entry.dock.is_none() && (entry.visible)(&state))
-            .map(|entry| entry.id)
-            .collect();
-        assert_eq!(
-            host.sub_entries_at(PanelLocation::Inspector, &state).len(),
-            0,
-            "a selected clip alone stacks {stacked:?} under the Inspector tabs"
-        );
+        for (what, mut state) in selections {
+            state.active_panel = ActivePanel::Inspector;
+            assert!(
+                state.selected_clip().is_some(),
+                "{what}: the fixture selects its clip"
+            );
+            let stacked: Vec<&str> = host
+                .cached_at(PanelLocation::Inspector)
+                .iter()
+                .filter(|entry| entry.dock.is_none() && (entry.visible)(&state))
+                .map(|entry| entry.id)
+                .collect();
+            assert_eq!(
+                host.sub_entries_at(PanelLocation::Inspector, &state).len(),
+                0,
+                "{what} stacks {stacked:?} under the Inspector tabs"
+            );
+        }
     }
 }

@@ -11,7 +11,6 @@ pub mod captions;
 pub mod cloud;
 pub mod color_panel;
 pub mod context_menu;
-pub mod duck;
 pub mod effects_browser;
 pub mod export_dialog;
 pub mod generate;

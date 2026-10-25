@@ -1412,6 +1412,7 @@ Notes for the latest release. For previous releases, see the
 - Reverse and Pitch lock read **On** or **Off** in the value column.
 - The Look tab lists its filters as chips under a **Filter** row instead of a Catalog section.
 - The Looks list stacked under every Inspector tab is removed, and the Look tab's **Filter** row applies the same looks.
+- The Duck card stacked under every Inspector tab while a duck could run is removed, and the Audio tab's **Duck under voice** rows set the same dip, attack, and release.
 - Volume reads `+0.0 dB`, and the value column is 76 px wide, so a timecode fits in it, and narrows only once a row's name has no width left.
 - A transition's size slot reads **w** and **h**, as an effect's does.
 - Curve and gradient slots show **N pts** and **N stops** in the value column instead of in the name.

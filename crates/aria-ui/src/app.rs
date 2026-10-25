@@ -723,7 +723,7 @@ mod bin_tests;
 mod clipboard_tests;
 #[cfg(test)]
 #[path = "app/duck_tests.rs"]
-mod duck_tests;
+pub(crate) mod duck_tests;
 #[cfg(test)]
 #[path = "app/effect_preset_tests.rs"]
 mod effect_preset_tests;

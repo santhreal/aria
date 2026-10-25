@@ -8,6 +8,7 @@
 
 use aria_models::{ClipId, Rational, TrackKind};
 
+use super::AppState;
 use super::duck::{DuckForm, duck_curve, voice_spans};
 use super::premiere_tests::with_clip;
 use crate::types::UiTrackKind;
@@ -178,14 +179,15 @@ fn a_duck_refuses_before_it_costs_a_decode() {
     );
 }
 
-#[test]
-fn a_duck_resolves_voice_media_by_id() {
+/// A state a duck can run from: the fixture's clip on a music lane, selected,
+/// and the same media on a lane flagged as the voice.
+pub(crate) fn ready_duck() -> AppState {
     let (mut state, _) = with_clip();
-    let (media_id, media_path) = {
+    let media_id = {
         let media = state.store_mut().media.first_mut().expect("fixture media");
         media.has_audio = true;
         media.missing = false;
-        (media.id, media.path.clone())
+        media.id
     };
 
     let template = state
@@ -215,6 +217,19 @@ fn a_duck_resolves_voice_media_by_id() {
 
     state.store_mut().sequence.tracks = vec![music, voice];
     state.selection = vec![ClipId::from_raw(201)];
+    state
+}
+
+#[test]
+fn a_duck_resolves_voice_media_by_id() {
+    let state = ready_duck();
+    let media_path = state
+        .store
+        .media
+        .first()
+        .expect("fixture media")
+        .path
+        .clone();
     let request = state.duck_precheck().expect("ready duck");
     assert_eq!(request.music, vec![ClipId::from_raw(201)]);
     assert_eq!(request.voice.len(), 1);
@@ -222,8 +237,8 @@ fn a_duck_resolves_voice_media_by_id() {
     assert_eq!(request.voice[0].path.to_string_lossy(), media_path.as_ref());
 }
 
-/// The panel's three choices cycle and wrap, so a click always changes the
-/// value it names.
+/// The Audio tab's three duck settings cycle and wrap, so a click always
+/// changes the value it names.
 #[test]
 fn the_duck_choices_cycle() {
     let (mut state, _) = with_clip();
