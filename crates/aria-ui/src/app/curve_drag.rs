@@ -6,7 +6,7 @@
 //! survives between events belongs to [`AppState`], the same way a speed-ramp
 //! drag does, so a drag is:
 //!
-//! 1. `begin_curve_drag` on the press — hit-test handles first, then keyframes,
+//! 1. `begin_curve_drag` on the press — grab the nearest keyframe or handle,
 //! 2. `update_curve_drag` on every move — draft only, nothing reaches the engine,
 //! 3. `commit_curve_drag` on the release — one history group, so a keyframe that
 //!    moved in time (a remove plus a write) is one undo.
@@ -21,10 +21,18 @@ use aria_engine::EngineError;
 use aria_models::{ClipParam, Easing};
 
 use super::AppState;
-use super::curve_geometry::{BezierHandleKind, CurveBounds, CurvePolyline, build_curve_polyline};
+use super::curve_geometry::{
+    BezierHandleKind, CurveBounds, CurvePolyline, build_curve_polyline, drawn_control_points,
+};
 
 /// Hit radius in graph pixels for grabbing keyframe points and handles.
 pub const HIT_RADIUS: f32 = 8.0;
+
+/// Margin in graph pixels between the graph's frame and the plotted range, so
+/// a keyframe on the clip's first or last tick, or on a bound of the
+/// property's range, draws and takes a press inside the frame instead of on
+/// its border.
+pub const CURVE_PLOT_INSET: f32 = HIT_RADIUS;
 
 /// Samples the drawn polyline carries across the clip's extent. Enough that a
 /// bezier segment reads as a curve at the panel's width, and cheap enough to
@@ -131,7 +139,8 @@ impl AppState {
     /// declared range where it has one, and otherwise the span its keyframes
     /// actually cover, padded so a flat curve is not a line on the floor — a
     /// fixed 0..1 box would put every position, rotation, or gain keyframe off
-    /// the top of the graph.
+    /// the top of the graph. The plotted range sits [`CURVE_PLOT_INSET`] inside
+    /// the graph's frame on every side.
     pub fn curve_bounds(&self, param: ClipParam, component: Option<u8>) -> Option<CurveBounds> {
         let [_, _, width, height] = self.curve_frame?;
         let clip = self.selected_model()?;
@@ -172,9 +181,10 @@ impl AppState {
         if let Some(max) = spec.range.max {
             max_value = max_value.min(max);
         }
-        Some(CurveBounds::new(
-            start, end, min_value, max_value, width, height,
-        ))
+        Some(
+            CurveBounds::new(start, end, min_value, max_value, width, height)
+                .with_inset(CURVE_PLOT_INSET),
+        )
     }
 
     /// The polyline the graph draws, in graph pixels. `None` before the panel
@@ -198,13 +208,13 @@ impl AppState {
         Some((x - left, y - top))
     }
 
-    /// Grab a bezier handle or a keyframe under the pointer. False when the
-    /// press landed on neither, so the panel can fall through to its own
-    /// meaning for a press on empty graph.
+    /// Grab the keyframe or bezier handle nearest the pointer, within
+    /// [`HIT_RADIUS`]. False when the press landed on neither, so the panel can
+    /// fall through to its own meaning for a press on empty graph.
     ///
-    /// Handles win over keyframes: a handle tip sits within a few pixels of the
-    /// keyframe it belongs to at small curvature, and the handle is the smaller
-    /// target.
+    /// A keyframe takes a tie: a handle of no length, such as the first one of
+    /// an easing whose control point is `(0, 0)`, sits on its keyframe, and a
+    /// press there moves the keyframe.
     pub fn begin_curve_drag(
         &mut self,
         param: ClipParam,
@@ -218,47 +228,51 @@ impl AppState {
         let Some(poly) = self.curve_polyline(param, component) else {
             return false;
         };
-        for handle in &poly.handles {
-            if !within_hit(px, py, handle.handle_x, handle.handle_y) {
-                continue;
-            }
-            let Some(key) = poly.key_points.get(handle.segment_index) else {
-                continue;
-            };
-            self.curve_drag = Some(CurveDragDraft {
-                param,
-                component,
-                target: CurveDragTarget::BezierHandle {
-                    segment_tick: key.tick,
-                    kind: handle.kind,
-                    // A held keyframe has no tangents to shape; grabbing its
-                    // handle starts from the linear ones.
-                    points: key
-                        .easing
-                        .control_points()
-                        .or_else(|| Easing::Linear.control_points())
-                        .unwrap_or_default(),
-                },
-            });
-            return true;
-        }
+        let mut nearest: Option<(f32, CurveDragTarget)> = None;
         for key in &poly.key_points {
-            if !within_hit(px, py, key.pixel_x, key.pixel_y) {
+            let distance = distance_sq(px, py, key.pixel_x, key.pixel_y);
+            if !nearer(distance, nearest.map(|(best, _)| best)) {
                 continue;
             }
-            self.curve_drag = Some(CurveDragDraft {
-                param,
-                component,
-                target: CurveDragTarget::Keyframe {
+            nearest = Some((
+                distance,
+                CurveDragTarget::Keyframe {
                     origin_tick: key.tick,
                     origin_val: key.value,
                     current_tick: key.tick,
                     current_val: key.value,
                 },
-            });
-            return true;
+            ));
         }
-        false
+        for handle in &poly.handles {
+            let distance = distance_sq(px, py, handle.handle_x, handle.handle_y);
+            if !nearer(distance, nearest.map(|(best, _)| best)) {
+                continue;
+            }
+            let Some(key) = poly.key_points.get(handle.segment_index) else {
+                continue;
+            };
+            let Some(points) = drawn_control_points(key.easing) else {
+                continue;
+            };
+            nearest = Some((
+                distance,
+                CurveDragTarget::BezierHandle {
+                    segment_tick: key.tick,
+                    kind: handle.kind,
+                    points,
+                },
+            ));
+        }
+        let Some((_, target)) = nearest else {
+            return false;
+        };
+        self.curve_drag = Some(CurveDragDraft {
+            param,
+            component,
+            target,
+        });
+        true
     }
 
     /// Move the in-flight draft to a new pointer position. Reports whether
@@ -311,13 +325,14 @@ impl AppState {
                 if dx.abs() < 1e-3 {
                     return false;
                 }
-                // The control box is the segment's own bounding box: u along
-                // time, v up the value axis, which is why v inverts the pixel
-                // delta. A degenerate (flat) segment has no value axis to read,
-                // so the handle stays mid-box rather than dividing by nothing.
+                // The control box is the segment's own: u is the fraction of
+                // its duration and v the fraction of its value change, read
+                // through the same signed pixel deltas the handle is drawn
+                // with. A flat segment has no value change to read, so the
+                // handle stays mid-box rather than dividing by nothing.
                 let u = ((px - k0.pixel_x) / dx).clamp(0.0, 1.0);
                 let v = if dy.abs() > 1e-3 {
-                    1.0 - (py - k0.pixel_y) / dy
+                    (py - k0.pixel_y) / dy
                 } else {
                     0.5
                 };
@@ -395,9 +410,16 @@ impl AppState {
     }
 }
 
-/// Whether the pointer is within [`HIT_RADIUS`] of a target, in graph pixels.
-fn within_hit(px: f32, py: f32, target_x: f32, target_y: f32) -> bool {
+/// Squared distance in graph pixels from the pointer to a mark.
+fn distance_sq(px: f32, py: f32, target_x: f32, target_y: f32) -> f32 {
     let dx = px - target_x;
     let dy = py - target_y;
-    dx * dx + dy * dy <= HIT_RADIUS * HIT_RADIUS
+    dx * dx + dy * dy
+}
+
+/// Whether a mark `distance` (squared graph pixels) from the pointer takes the
+/// press from the nearest mark so far: within [`HIT_RADIUS`] and strictly
+/// nearer, so the mark scanned first keeps a tie.
+fn nearer(distance: f32, best: Option<f32>) -> bool {
+    distance <= HIT_RADIUS * HIT_RADIUS && best.is_none_or(|best| distance < best)
 }

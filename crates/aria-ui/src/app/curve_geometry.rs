@@ -19,6 +19,9 @@ pub struct CurveBounds {
     pub max_value: f32,
     pub width: f32,
     pub height: f32,
+    /// Margin between the canvas edge and the plotted range, on every side:
+    /// the first tick and the top of the value range map this many pixels in.
+    pub inset: f32,
 }
 
 impl CurveBounds {
@@ -50,7 +53,27 @@ impl CurveBounds {
             max_value: max_val,
             width: width.max(1.0),
             height: height.max(1.0),
+            inset: 0.0,
         }
+    }
+
+    /// The same mapping with the plotted range `inset` pixels inside every
+    /// edge, so a keyframe on the first tick or on a bound of the range draws
+    /// inside the canvas. Clamped to leave a plot at least a pixel across.
+    pub fn with_inset(self, inset: f32) -> Self {
+        let most = ((self.width.min(self.height) - 1.0) * 0.5).max(0.0);
+        Self {
+            inset: inset.clamp(0.0, most),
+            ..self
+        }
+    }
+
+    /// Width and height of the plotted range inside the inset.
+    fn plot(&self) -> (f32, f32) {
+        (
+            self.width - 2.0 * self.inset,
+            self.height - 2.0 * self.inset,
+        )
     }
 
     /// Map timeline tick and property value to canvas pixel coordinates (x, y).
@@ -74,15 +97,17 @@ impl CurveBounds {
             0.5
         };
 
-        let px_x = t_frac * self.width;
-        let px_y = (1.0 - v_frac) * self.height;
+        let (plot_w, plot_h) = self.plot();
+        let px_x = self.inset + t_frac * plot_w;
+        let px_y = self.inset + (1.0 - v_frac) * plot_h;
         (px_x, px_y)
     }
 
     /// Convert canvas pixel coordinates back to (tick, value).
     pub fn from_pixel(&self, x: f32, y: f32) -> (i64, f32) {
-        let t_frac = (x / self.width).clamp(0.0, 1.0);
-        let v_frac = (1.0 - (y / self.height)).clamp(0.0, 1.0);
+        let (plot_w, plot_h) = self.plot();
+        let t_frac = ((x - self.inset) / plot_w).clamp(0.0, 1.0);
+        let v_frac = (1.0 - (y - self.inset) / plot_h).clamp(0.0, 1.0);
 
         let tick_span = (self.max_tick - self.min_tick) as f64;
         let tick = (self.min_tick as f64 + t_frac as f64 * tick_span).round() as i64;
@@ -123,9 +148,6 @@ pub struct CurveHandle {
     /// Handle tip position
     pub handle_x: f32,
     pub handle_y: f32,
-    /// Normalized control point coordinates in 0..=1 box
-    pub u: f32,
-    pub v: f32,
 }
 
 /// Sampled polyline segments ready for rendering or geometric assertions.
@@ -161,6 +183,28 @@ pub fn sample_param_scalar(
         (ParamValue::Vec2(v), Some(idx)) => v.get(idx as usize).copied(),
         (ParamValue::Vec3(v), Some(idx)) => v.get(idx as usize).copied(),
         _ => None,
+    }
+}
+
+/// The control polygon of the identity segment, `(0, 0)/(1, 1)`.
+const IDENTITY_POLYGON: [f32; 4] = [0.0, 0.0, 1.0, 1.0];
+
+/// The identity segment in the form the named easings use, x(s) = s: the
+/// same straight line as [`IDENTITY_POLYGON`], with each control point a third
+/// of the way along it.
+const LINEAR_THIRDS: [f32; 4] = [1.0 / 3.0, 1.0 / 3.0, 2.0 / 3.0, 2.0 / 3.0];
+
+/// The control polygon a segment's handles are drawn at, and a handle drag
+/// starts from: the easing's own, except the identity polygon `(0, 0)/(1, 1)`,
+/// whose handles sit on the segment's keyframes and which is drawn in its
+/// x(s) = s form `(1/3, 1/3)/(2/3, 2/3)`. `None` for a hold, which has no
+/// handles.
+pub fn drawn_control_points(easing: Easing) -> Option<[f32; 4]> {
+    let points = easing.control_points()?;
+    if points == IDENTITY_POLYGON {
+        Some(LINEAR_THIRDS)
+    } else {
+        Some(points)
     }
 }
 
@@ -205,43 +249,34 @@ pub fn build_curve_polyline(
         samples.push((px_x, px_y, abs_tick, val));
     }
 
-    // Build bezier handles for adjacent keyframes
+    // A handle is its control point placed in the box the segment spans: x
+    // the fraction of the segment's duration, y the fraction of its value
+    // change. The pixel deltas carry the change's direction, so a handle lies
+    // on the curve's tangent at its keyframe.
     let mut handles = Vec::new();
-    for i in 0..key_points.len().saturating_sub(1) {
-        let k0 = &key_points[i];
-        let k1 = &key_points[i + 1];
-        if let Some([x1, y1, x2, y2]) = k0.easing.control_points() {
-            let dx = k1.pixel_x - k0.pixel_x;
-            let dy = k1.pixel_y - k0.pixel_y;
-
-            // Handle 1 (leaving k0)
-            let h1_x = k0.pixel_x + x1 * dx;
-            let h1_y = k0.pixel_y + (1.0 - y1) * dy; // dy is in canvas pixel direction
-            handles.push(CurveHandle {
-                segment_index: i,
-                kind: BezierHandleKind::Control1,
-                anchor_x: k0.pixel_x,
-                anchor_y: k0.pixel_y,
-                handle_x: h1_x,
-                handle_y: h1_y,
-                u: x1,
-                v: y1,
-            });
-
-            // Handle 2 (entering k1)
-            let h2_x = k0.pixel_x + x2 * dx;
-            let h2_y = k0.pixel_y + (1.0 - y2) * dy;
-            handles.push(CurveHandle {
-                segment_index: i,
-                kind: BezierHandleKind::Control2,
-                anchor_x: k1.pixel_x,
-                anchor_y: k1.pixel_y,
-                handle_x: h2_x,
-                handle_y: h2_y,
-                u: x2,
-                v: y2,
-            });
-        }
+    for (i, pair) in key_points.windows(2).enumerate() {
+        let (k0, k1) = (&pair[0], &pair[1]);
+        let Some([x1, y1, x2, y2]) = drawn_control_points(k0.easing) else {
+            continue;
+        };
+        let dx = k1.pixel_x - k0.pixel_x;
+        let dy = k1.pixel_y - k0.pixel_y;
+        handles.push(CurveHandle {
+            segment_index: i,
+            kind: BezierHandleKind::Control1,
+            anchor_x: k0.pixel_x,
+            anchor_y: k0.pixel_y,
+            handle_x: k0.pixel_x + x1 * dx,
+            handle_y: k0.pixel_y + y1 * dy,
+        });
+        handles.push(CurveHandle {
+            segment_index: i,
+            kind: BezierHandleKind::Control2,
+            anchor_x: k1.pixel_x,
+            anchor_y: k1.pixel_y,
+            handle_x: k0.pixel_x + x2 * dx,
+            handle_y: k0.pixel_y + y2 * dy,
+        });
     }
 
     Some(CurvePolyline {

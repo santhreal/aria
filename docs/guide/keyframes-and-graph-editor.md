@@ -36,7 +36,11 @@ point property such as Position adds X and Y chips, which select the axis
 drawn.
 
 - Drag a keyframe point to move it in time and value.
-- Drag a handle to bend the curve of the segment it shapes.
+- Drag a handle to bend the curve of the segment it shapes. A handle lies on
+  the curve's tangent at its keyframe. A linear segment draws its handles a
+  third of the way along it.
+- A press grabs the nearest keyframe or handle. A keyframe wins over a handle
+  at the same distance.
 - Esc drops a drag unwritten. Each drag is one undo step.
 
 ### Property controls

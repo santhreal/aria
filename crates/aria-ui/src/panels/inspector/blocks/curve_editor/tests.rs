@@ -12,11 +12,18 @@
 //! - A graph that can only draw one property, while the model animates 58.
 //! - Empty or non-animated properties crashing during curve editor rendering.
 //! - A graph drawing a constant property while another holds keyframes.
+//! - A keyframe plotted on the graph's border, where its rounded corner cuts the
+//!   mark.
+//! - A handle mirrored across its segment, off the curve's tangent, and a
+//!   handle drag bending the curve away from the pointer.
+//! - A handle taking the press meant for the keyframe under it.
 
-use aria_models::{ClipParam, Easing, clip_params_for};
+use aria_models::{ClipParam, EASING_PRESETS, Easing, ParamKind, TemporalEase, clip_params_for};
 
+use super::picker::KEYFRAME_DOT_SIZE;
 use crate::app::AppState;
-use crate::app::curve_geometry::{build_curve_polyline, sample_param_scalar};
+use crate::app::curve_drag::{CurveDragTarget, HIT_RADIUS};
+use crate::app::curve_geometry::{BezierHandleKind, build_curve_polyline, sample_param_scalar};
 use crate::app::premiere_tests::with_clip;
 
 /// Where the panel drew the graph. Origin is deliberately not `[0, 0]`: a
@@ -47,6 +54,47 @@ fn window_pixel(state: &AppState, param: ClipParam, tick: i64, value: f32) -> (f
     let bounds = state.curve_bounds(param, None).expect("bounds");
     let (x, y) = bounds.to_pixel(tick, value);
     (x + FRAME[0], y + FRAME[1])
+}
+
+/// What a press at graph pixel `(x, y)` on `param` grabs, released at no cost.
+fn grabbed(state: &mut AppState, param: ClipParam, x: f32, y: f32) -> Option<CurveDragTarget> {
+    state.begin_curve_drag(param, None, x + FRAME[0], y + FRAME[1]);
+    let target = state.curve_dragging().map(|draft| draft.target);
+    state.cancel_curve_drag();
+    target
+}
+
+/// Every easing a segment can leave a keyframe with: the named ones, each
+/// shipped preset, and temporal ones with and without a hold.
+fn easings() -> Vec<Easing> {
+    let mut easings = vec![
+        Easing::Linear,
+        Easing::EaseIn,
+        Easing::EaseOut,
+        Easing::EaseInOut,
+        Easing::Hold,
+        Easing::EaseOut.with_temporal_ease(None, Some(TemporalEase::EASY_EASE), false),
+        Easing::Linear.with_temporal_ease(None, Some(TemporalEase::new(0.0, 0.75)), false),
+        Easing::Hold.with_temporal_ease(None, Some(TemporalEase::EASY_EASE), true),
+    ];
+    easings.extend(EASING_PRESETS.iter().map(|preset| Easing::Bezier {
+        points: preset.points,
+    }));
+    easings
+}
+
+/// Whether the graph draws handles on a segment leaving `easing`. Exhaustive
+/// on purpose: a new easing variant stops this compiling until it is placed.
+fn draws_handles(easing: Easing) -> bool {
+    match easing {
+        Easing::Linear
+        | Easing::EaseIn
+        | Easing::EaseOut
+        | Easing::EaseInOut
+        | Easing::Bezier { .. }
+        | Easing::Temporal { hold: false, .. } => true,
+        Easing::Hold | Easing::Temporal { hold: true, .. } => false,
+    }
 }
 
 #[test]
@@ -382,10 +430,19 @@ fn picking_an_easing_writes_that_easing_and_leaves_neighbours_alone() {
     assert_eq!(keyframes[1].1.preset_id(), Some(last));
 }
 
+/// A handle drag writes the control point under the pointer, measured in the
+/// segment's own box, and leaves the segment's other handle where it was drawn.
+///
+/// Closes the class "a handle drag bending the curve away from the pointer":
+/// the value fraction was read as one minus the pointer's, so a handle pulled
+/// toward the next keyframe's value wrote a curve that lagged behind it. Starts
+/// on a linear segment, whose handles are drawn a third of the way along it
+/// rather than on its keyframes.
 #[test]
-fn a_bezier_handle_drag_writes_the_segments_easing() {
-    let (mut state, start, _) = graphed();
-    let (k1, k2) = (start, start + 20);
+fn a_handle_drag_writes_the_point_under_the_pointer() {
+    let (mut state, start, end) = graphed();
+    let eighth = (end - start) / 8;
+    let (k1, k2) = (start, start + 4 * eighth);
     key(&mut state, ClipParam::Opacity, k1, 0.0);
     key(&mut state, ClipParam::Opacity, k2, 1.0);
 
@@ -394,44 +451,242 @@ fn a_bezier_handle_drag_writes_the_segments_easing() {
         .expect("polyline");
     let handle = poly
         .handles
-        .first()
+        .iter()
+        .find(|handle| handle.kind == BezierHandleKind::Control1)
         .copied()
         .expect("a linear segment has handles");
+    let (third_x, third_y) = poly
+        .bounds
+        .to_pixel_f64(k1 as f64 + (k2 - k1) as f64 / 3.0, 1.0 / 3.0);
+    assert!(
+        (handle.handle_x - third_x).abs() < 1e-3 && (handle.handle_y - third_y).abs() < 1e-3,
+        "a linear segment's first handle is drawn at ({}, {}), not a third of the way along \
+         it at ({third_x}, {third_y})",
+        handle.handle_x,
+        handle.handle_y,
+    );
     assert!(state.begin_curve_drag(
         ClipParam::Opacity,
         None,
         handle.handle_x + FRAME[0],
         handle.handle_y + FRAME[1],
     ));
+    assert!(
+        matches!(
+            state.curve_dragging().map(|draft| draft.target),
+            Some(CurveDragTarget::BezierHandle {
+                kind: BezierHandleKind::Control1,
+                ..
+            })
+        ),
+        "the press grabs the handle under it"
+    );
 
-    let (to_x, to_y) = window_pixel(&state, ClipParam::Opacity, start + 5, 0.8);
+    let (to_x, to_y) = window_pixel(&state, ClipParam::Opacity, k1 + eighth, 0.8);
     assert!(state.update_curve_drag(to_x, to_y), "the handle follows");
     state.commit_curve_drag().expect("commit the handle");
 
+    let expected = [0.25, 0.8, 2.0 / 3.0, 2.0 / 3.0];
     match state.keyframe_easing_at(ClipParam::Opacity, k1) {
-        Some(Easing::Bezier { points }) => {
-            assert!(
-                points.iter().all(|c| c.is_finite()),
-                "handle drag wrote {points:?}"
-            );
-            assert!(
-                points[0] >= 0.0 && points[0] <= 1.0,
-                "the time coordinate left its box: {points:?}"
-            );
-        }
+        Some(Easing::Bezier { points }) => assert!(
+            points
+                .iter()
+                .zip(expected)
+                .all(|(got, want)| (got - want).abs() < 1e-3),
+            "the drag wrote {points:?}, not the pointer's point beside the untouched handle \
+             {expected:?}"
+        ),
         other => panic!("expected a bezier easing, got {other:?}"),
     }
+}
 
-    // Every sample between the two keyframes stays finite and in the property's
-    // own range: a handle drag shapes the segment, it does not break it.
-    let after = state
-        .curve_polyline(ClipParam::Opacity, None)
-        .expect("polyline after");
-    for &(_, _, tick, val) in &after.samples {
-        if tick >= k1 as f64 && tick <= k2 as f64 {
+/// Every keyframe draws inside the graph's frame, clear of its border by half a
+/// keyframe mark, and a press on it grabs that keyframe.
+///
+/// Closes the class "a mark plotted on the frame's border": the plotted range
+/// spanned the whole canvas, so an opacity of 1 drew on the top border and the
+/// frame's rounded corner cut its mark. Every scalar property the selection
+/// offers is keyed at the low end of its range on the clip's first tick and at
+/// the high end on its last, which reaches all four edges; a property with an
+/// open side is keyed ten units inside the bound it declares. Does not cover a
+/// two-dimensional property's axes, or the handles, which a curve may bend
+/// outside the range.
+#[test]
+fn every_keyframe_draws_and_takes_a_press_inside_the_frame() {
+    let (mut state, start, end) = graphed();
+    let half = KEYFRAME_DOT_SIZE * 0.5;
+    let rows = state.key_params();
+    let scalars: Vec<_> = rows
+        .iter()
+        .filter(|row| row.spec.kind == ParamKind::Scalar)
+        .collect();
+    assert!(
+        scalars.iter().any(|row| row.param() == ClipParam::Opacity),
+        "the fixture clip offers its opacity"
+    );
+    for row in scalars {
+        let param = row.param();
+        let (low, high) = match (row.spec.range.min, row.spec.range.max) {
+            (Some(low), Some(high)) => (low, high),
+            (Some(low), None) => (low, low + 10.0),
+            (None, Some(high)) => (high - 10.0, high),
+            (None, None) => (-10.0, 10.0),
+        };
+        key(&mut state, param, start, low);
+        key(&mut state, param, end - 1, high);
+        let poly = state
+            .curve_polyline(param, None)
+            .unwrap_or_else(|| panic!("{}: a keyed property draws", row.id));
+        for point in &poly.key_points {
             assert!(
-                val.is_finite() && (0.0..=1.0).contains(&val),
-                "{val} at {tick}"
+                (half..=FRAME[2] - half).contains(&point.pixel_x)
+                    && (half..=FRAME[3] - half).contains(&point.pixel_y),
+                "{}: the keyframe at tick {} holding {} draws at ({}, {}), on the border of \
+                 the {} by {} graph",
+                row.id,
+                point.tick,
+                point.value,
+                point.pixel_x,
+                point.pixel_y,
+                FRAME[2],
+                FRAME[3],
+            );
+            let target = grabbed(&mut state, param, point.pixel_x, point.pixel_y);
+            assert!(
+                matches!(
+                    target,
+                    Some(CurveDragTarget::Keyframe { origin_tick, .. }) if origin_tick == point.tick
+                ),
+                "{}: a press on the keyframe at tick {} grabs {target:?}",
+                row.id,
+                point.tick,
+            );
+        }
+    }
+}
+
+/// Every handle the graph draws lies on the curve's tangent at the keyframe it
+/// belongs to, for every easing that draws handles, on a rising and on a
+/// falling segment, and a hold draws none.
+///
+/// Closes the class "a handle mirrored across its segment": a handle's height
+/// was one minus its control point's, so an Ease In, which leaves its keyframe
+/// flat, drew its first handle level with the next keyframe. The tangent is
+/// read from the stored easing's own curve ([`Easing::apply`]) a thousandth of
+/// the segment from each end, independent of the graph's mapping. Does not
+/// cover a handle of no horizontal length, whose slope is not a number.
+#[test]
+fn every_handle_lies_on_the_curves_tangent_at_its_keyframe() {
+    const STEP: f32 = 1e-3;
+    let (mut state, start, end) = graphed();
+    let span = end - start;
+    let (k0, k1) = (start + span / 4, start + span * 3 / 4);
+    for (from, to) in [(0.2_f32, 0.9_f32), (0.9, 0.2)] {
+        for easing in easings() {
+            state
+                .set_keyframe_value_at(ClipParam::Opacity, None, k0, from, easing)
+                .expect("the leaving keyframe");
+            state
+                .set_keyframe_value_at(ClipParam::Opacity, None, k1, to, Easing::Linear)
+                .expect("the arriving keyframe");
+            // The model rewrites a temporal segment's control points from its
+            // eases, so the curve drawn is the stored easing's.
+            let stored = state
+                .keyframe_easing_at(ClipParam::Opacity, k0)
+                .expect("the stored easing");
+            let poly = state
+                .curve_polyline(ClipParam::Opacity, None)
+                .expect("polyline");
+            let [a, b] = [poly.key_points[0], poly.key_points[1]];
+            let drawn: Vec<_> = poly
+                .handles
+                .iter()
+                .filter(|handle| handle.segment_index == 0)
+                .collect();
+            if !draws_handles(stored) {
+                assert!(drawn.is_empty(), "{stored:?} draws handles {drawn:?}");
+                continue;
+            }
+            assert_eq!(drawn.len(), 2, "{stored:?} draws both handles");
+            let slope = (b.pixel_y - a.pixel_y) / (b.pixel_x - a.pixel_x);
+            for handle in drawn {
+                let (anchor, eased) = match handle.kind {
+                    BezierHandleKind::Control1 => (a, stored.apply(STEP) / STEP),
+                    BezierHandleKind::Control2 => (b, (1.0 - stored.apply(1.0 - STEP)) / STEP),
+                };
+                let run = handle.handle_x - anchor.pixel_x;
+                let rise = handle.handle_y - anchor.pixel_y;
+                if run.abs() < 1.0 {
+                    continue;
+                }
+                let (actual, expected) = (rise / run, eased * slope);
+                assert!(
+                    (actual - expected).abs() <= 0.03 * expected.abs().max(1.0),
+                    "{stored:?} from {from} to {to}: the {:?} handle leaves its keyframe at \
+                     slope {actual}, the curve at {expected}",
+                    handle.kind,
+                );
+            }
+        }
+    }
+}
+
+/// A press grabs the mark nearest it, and a keyframe over a handle at the same
+/// distance.
+///
+/// Closes the class "a keyframe under its own handle": handles were hit-tested
+/// before keyframes, so a handle drawn within the hit radius of its keyframe
+/// took every press meant for the keyframe, and a handle of no length left its
+/// keyframe immovable. Covers a short handle from both of its ends and a
+/// handle of no length.
+#[test]
+fn a_press_grabs_the_nearest_mark_and_a_keyframe_over_its_handle() {
+    let (mut state, start, end) = graphed();
+    let span = end - start;
+    let (k0, k1) = (start + span / 4, start + span * 3 / 4);
+    for points in [[0.02, 0.02, 0.98, 0.98], [0.0, 0.0, 0.2, 1.0]] {
+        state
+            .set_keyframe_value_at(ClipParam::Opacity, None, k0, 0.0, Easing::Bezier { points })
+            .expect("the leaving keyframe");
+        state
+            .set_keyframe_value_at(ClipParam::Opacity, None, k1, 1.0, Easing::Linear)
+            .expect("the arriving keyframe");
+        let poly = state
+            .curve_polyline(ClipParam::Opacity, None)
+            .expect("polyline");
+        let key = poly.key_points[0];
+        let handle = poly
+            .handles
+            .iter()
+            .find(|handle| handle.kind == BezierHandleKind::Control1)
+            .copied()
+            .expect("the first handle");
+        let length = (handle.handle_x - key.pixel_x).hypot(handle.handle_y - key.pixel_y);
+        assert!(
+            length < HIT_RADIUS,
+            "{points:?}: the handle is {length} px from its keyframe, outside the hit radius"
+        );
+        let target = grabbed(&mut state, ClipParam::Opacity, key.pixel_x, key.pixel_y);
+        assert!(
+            matches!(target, Some(CurveDragTarget::Keyframe { origin_tick, .. }) if origin_tick == k0),
+            "{points:?}: a press on the keyframe grabs {target:?}"
+        );
+        if length > 0.0 {
+            let target = grabbed(
+                &mut state,
+                ClipParam::Opacity,
+                handle.handle_x,
+                handle.handle_y,
+            );
+            assert!(
+                matches!(
+                    target,
+                    Some(CurveDragTarget::BezierHandle {
+                        kind: BezierHandleKind::Control1,
+                        ..
+                    })
+                ),
+                "{points:?}: a press on the handle grabs {target:?}"
             );
         }
     }
