@@ -11,7 +11,6 @@
 use gpui::{IntoElement, ParentElement, Styled, div, px};
 
 use crate::theme::Theme;
-use crate::types::UiClip;
 
 use crate::panels::inspector::blocks::widgets::{color_rows, param_rows};
 
@@ -19,7 +18,6 @@ use crate::components::section_label;
 
 pub fn shape_tab(
     theme: &Theme,
-    clip: &UiClip,
     state: &gpui::Entity<crate::app::AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
@@ -43,5 +41,5 @@ pub fn shape_tab(
                     "Which outline a shape draws is set when it is placed"
                 }),
         )
-        .child(crate::panels::inspector::blocks::keyframes::keyframes_block(theme, clip, state, cx))
+        .child(crate::panels::inspector::blocks::keyframes::keyframes_block(theme, state, cx))
 }

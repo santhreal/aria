@@ -94,15 +94,31 @@ pub fn ghost_button(
 #[cfg(test)]
 thread_local! {
     /// The ghost buttons built since [`record_ghosts`] while a
-    /// [`NotingGhosts`] stands: each one's debug selector and label.
-    static GHOSTS: std::cell::RefCell<Option<Vec<(String, SharedString)>>> =
+    /// [`NotingGhosts`] stands.
+    static GHOSTS: std::cell::RefCell<Option<GhostRecord>> =
         const { std::cell::RefCell::new(None) };
     /// Whether a [`NotingGhosts`] stands.
     static NOTING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// The ids of the ghost buttons built since the standing [`NotingGhosts`]
+    /// began.
+    static BUILT: std::cell::RefCell<std::collections::HashSet<motion::ControlId>> =
+        std::cell::RefCell::new(std::collections::HashSet::new());
+}
+
+/// What [`record_ghosts`] has recorded.
+#[cfg(test)]
+#[derive(Default)]
+struct GhostRecord {
+    /// Each ghost button's debug selector and label.
+    built: Vec<(String, SharedString)>,
+    /// The debug selector of each ghost button built with an id that an
+    /// earlier button under the same [`NotingGhosts`] already had.
+    shared: Vec<String>,
 }
 
 /// The ghost buttons built until this drops are the ones [`drawn_ghosts`]
-/// returns, and no other surface's.
+/// returns, and no other surface's. Two of them built with one id share one
+/// hover, so each lights whenever the pointer is on either.
 #[cfg(test)]
 pub(crate) struct NotingGhosts(());
 
@@ -110,6 +126,7 @@ pub(crate) struct NotingGhosts(());
 impl NotingGhosts {
     pub(crate) fn start() -> Self {
         NOTING.set(true);
+        BUILT.with_borrow_mut(std::collections::HashSet::clear);
         Self(())
     }
 }
@@ -125,17 +142,24 @@ impl Drop for NotingGhosts {
 /// stands.
 #[cfg(test)]
 pub(crate) fn record_ghosts() {
-    GHOSTS.set(Some(Vec::new()));
+    GHOSTS.set(Some(GhostRecord::default()));
 }
 
 /// Stop recording and return every ghost button built since
-/// [`record_ghosts`], once each: its debug selector and its label.
+/// [`record_ghosts`], once each, as its debug selector and its label, then
+/// the debug selector of each one built with an id another button under the
+/// same [`NotingGhosts`] already had.
 #[cfg(test)]
-pub(crate) fn drawn_ghosts() -> Vec<(String, SharedString)> {
-    let mut ghosts = GHOSTS.with_borrow_mut(|ghosts| ghosts.take().unwrap_or_default());
-    ghosts.sort();
-    ghosts.dedup();
-    ghosts
+pub(crate) fn drawn_ghosts() -> (Vec<(String, SharedString)>, Vec<String>) {
+    let GhostRecord {
+        mut built,
+        mut shared,
+    } = GHOSTS.with_borrow_mut(|record| record.take().unwrap_or_default());
+    built.sort();
+    built.dedup();
+    shared.sort();
+    shared.dedup();
+    (built, shared)
 }
 
 /// The debug selector of the ghost button `id` printing `label` while a
@@ -148,9 +172,12 @@ fn noted(id: motion::ControlId, label: &SharedString) -> Option<String> {
         return None;
     }
     let selector = format!("ghost-{id:?}-{label}");
-    GHOSTS.with_borrow_mut(|ghosts| {
-        if let Some(ghosts) = ghosts.as_mut() {
-            ghosts.push((selector.clone(), label.clone()));
+    GHOSTS.with_borrow_mut(|record| {
+        if let Some(record) = record.as_mut() {
+            if !BUILT.with_borrow_mut(|built| built.insert(id)) {
+                record.shared.push(selector.clone());
+            }
+            record.built.push((selector.clone(), label.clone()));
         }
     });
     Some(selector)

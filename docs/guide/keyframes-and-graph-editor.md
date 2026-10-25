@@ -2,13 +2,18 @@
 
 ## Keyframes
 
-The Transform tab has a Keyframes block with one row per animatable
-property: position, scale, rotation, opacity, and on a media clip volume and
-pan. Each row shows how many keyframes the property holds.
+The Transform and Shape tabs end in a Keyframes block with one row per
+animated property of the selected clip: each property that holds a keyframe
+or a driver. With none, the block reads None. Each row shows how many
+keyframes the property holds, and its buttons stand on the line under it. A
+constant property is keyed with the stopwatch or ◇ on its own row, or on its
+timeline property row.
 
 - ◇ writes a keyframe at the playhead, pinning the value the property already
   has there. ◆ means one is already there; clicking it removes that keyframe.
 - ‹ and › move the playhead to the previous and next keyframe.
+- **ƒ Driver** adds a driver to the property and **ƒ Remove** removes it; see
+  [Drivers](../plugins/drivers.md).
 - **Flatten** drops every keyframe and holds the value at the playhead.
 - With a keyframe under the playhead, the easing chips shape the segment leaving
   it: Snappy, Overshoot, and Anticipate are single curves; Bounce out, Elastic

@@ -218,13 +218,13 @@ fn text_body(
 
 fn shape_body(
     theme: &Theme,
-    clip: &UiClip,
+    _clip: &UiClip,
     _fps_num: i32,
     _fps_den: i32,
     state: &Entity<AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> AnyElement {
-    super::tabs::shape::shape_tab(theme, clip, state, cx).into_any_element()
+    super::tabs::shape::shape_tab(theme, state, cx).into_any_element()
 }
 
 fn info_body(

@@ -323,7 +323,7 @@ The Alignment panel (`crates/aria-ui/src/panels/align_panel.rs`) renders the ali
 
 ## Keyframes
 
-The Keyframes panel and property row keyframe navigator (`crates/aria-ui/src/panels/inspector/blocks/keyframes.rs`, `widgets.rs`, and `crates/aria-ui/src/panels/timeline/property_rows.rs`) render keyframe stepping, keyframe toggle diamonds, easing presets, animation stopwatches, procedural driver controls and pick whips, and property resets.
+The Inspector's Keyframes block and property row keyframe navigator (`crates/aria-ui/src/panels/inspector/blocks/keyframes.rs`, `widgets.rs`, and `crates/aria-ui/src/panels/timeline/property_rows.rs`) render keyframe stepping, keyframe toggle diamonds, easing presets, animation stopwatches, procedural driver controls and pick whips, and property resets.
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
@@ -331,11 +331,11 @@ The Keyframes panel and property row keyframe navigator (`crates/aria-ui/src/pan
 | `keyframe-easing` (per row) | Snappy / Overshoot / Anticipate | Applies the bezier easing preset to the segment leaving the keyframe at the playhead. | None |
 | `keyframe-piecewise` (per row) | Bounce out / Elastic out / Back out | Applies the piecewise easing preset to the segment leaving the keyframe at the playhead. | None |
 | `kf-at` | ◆ / ◇ | Adds a keyframe at the playhead or removes the existing keyframe on the property row. | None |
-| `kf-driver` | ƒ Driver / ƒ Remove | Attaches or removes a procedural parameter driver on the selected property. | None |
-| `kf-flatten` | Flatten | Removes all keyframes on the property and holds the value sampled at the playhead as a constant. | None |
-| `kf-next` | › | Moves the playhead to the next keyframe on the property. | None |
-| `kf-prev` | ‹ | Moves the playhead to the previous keyframe on the property. | None |
-| `kf-toggle` | ◆ / ◇ | Toggles a keyframe at the current playhead frame in the Keyframes panel. | None |
+| `kf-driver` (per row) | ƒ Driver / ƒ Remove | Attaches or removes a procedural parameter driver on the property of the Keyframes block row. | None |
+| `kf-flatten` (per row) | Flatten | Removes all keyframes on the property and holds the value sampled at the playhead as a constant. | None |
+| `kf-next` (per row) | › | Moves the playhead to the next keyframe on the property. | None |
+| `kf-prev` (per row) | ‹ | Moves the playhead to the previous keyframe on the property. | None |
+| `kf-toggle` (per row) | ◆ / ◇ | Toggles a keyframe at the playhead on the property of the Keyframes block row. | None |
 | `param-whip` (per row) | @ | Arms or disarms the driver pick whip for the property row being edited. | None |
 | `path-watch` | Path stopwatch | Enables or disables keyframe animation for a mask path on the timeline. | None |
 | `prop-reset` | Reset property | Resets the property to its default value, writing a keyframe when the property is animated. | None |

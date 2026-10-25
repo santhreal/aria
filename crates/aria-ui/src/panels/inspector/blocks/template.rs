@@ -6,7 +6,7 @@
 //! reads. Text editability is offered only on a text clip, which is the only clip
 //! the model accepts it on.
 
-use gpui::{InteractiveElement, IntoElement, ParentElement, Styled, div, px};
+use gpui::{IntoElement, ParentElement, Styled, div, px};
 
 use aria_models::MediaId;
 
@@ -51,14 +51,14 @@ pub fn template_block(
         .map(|(id, name)| {
             ghosts_under_labels(
                 Columns::Free,
-                [
-                    pick_button("inspector-replace-media", name, theme, cx, move |state| {
-                        clip_pick::apply(state, Pick::ReplaceMedia(MediaId::from_raw(id)))
-                    })
-                    .id(crate::motion::MotionKey::new("insp-replace", id)
-                        .element_id("insp-replace"))
-                    .into_any_element(),
-                ],
+                [pick_button(
+                    crate::motion::MotionKey::new("inspector-replace-media", id),
+                    name,
+                    theme,
+                    cx,
+                    move |state| clip_pick::apply(state, Pick::ReplaceMedia(MediaId::from_raw(id))),
+                )
+                .into_any_element()],
             )
             .into_any_element()
         })

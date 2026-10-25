@@ -48,6 +48,13 @@
 //! does, every line's value ends where its value ends, the graph spans the
 //! two, and every button stands its label on that label column.
 //!
+//! Also closes the class "two Inspector buttons that share a hover". The
+//! Keyframes block built each row's navigator, diamond, Driver and Flatten,
+//! and the Replace media list each entry, under one id per kind of button, so
+//! the pointer on one lit that button on every row. Every ghost button built
+//! into one Inspector body is recorded with its id, and an id built twice
+//! fails the tab that drew it.
+//!
 //! Not covered: a row drawn without the row widgets, the tabs in [`NOT_HELD`],
 //! a picker drawn outside a choice row, a line whose label another line in the
 //! same columns shares, of which the last drawn is read, a control not built
@@ -76,7 +83,7 @@ use crate::surfaces::keyframe_rows::{self, Row};
 use crate::theme::Theme;
 
 /// How far apart two edges may be and still stand in one column.
-const EPS: f32 = 0.51;
+pub(super) const EPS: f32 = 0.51;
 
 /// The id of the effect and of the transition with a slot of every kind.
 const EVERY_KIND: &str = "test.ui.every_kind";
@@ -224,9 +231,15 @@ fn shows_and_marks(tab: &str, choices: &[DrawnChoice], row: &str, shown: &str) {
 }
 
 /// Every ghost button built since the record began, once each: its debug
-/// selector and its label.
-fn recorded_ghosts() -> Vec<(&'static str, SharedString)> {
-    drawn_ghosts()
+/// selector and its label. No two built into one Inspector body share an id,
+/// and so a hover.
+fn recorded_ghosts(tab: &str) -> Vec<(&'static str, SharedString)> {
+    let (built, shared) = drawn_ghosts();
+    assert!(
+        shared.is_empty(),
+        "{tab}: ghost buttons built with an id another button of the same Inspector body has, so the pointer on one lights both: {shared:?}"
+    );
+    built
         .into_iter()
         .map(|(selector, label)| (&*selector.leak(), label))
         .collect()
@@ -337,7 +350,7 @@ fn holds(tab: &str, held: &[SharedString], wanted: &[&str]) {
 /// columns at every step, and every step draws one or more of them. The walk
 /// ends once the reference's label gives up width, which it must reach. Every
 /// choice row drawn marks the choice it shows, and every button drawn before
-/// the walk is as wide as its label.
+/// the walk is as wide as its label and has an id of its own.
 /// Returns the debug selectors of the lines' labels, the choice rows, and the
 /// labels of the buttons held.
 fn every_line_stands_in_the_columns(
@@ -350,7 +363,7 @@ fn every_line_stands_in_the_columns(
     let (state, visual) = drawn_with(cx, &format!("columns-{tab}"), media, tab, then);
     let (lines, choices) = (drawn_lines(), drawn_choices());
     every_choice_marks_what_it_shows(tab, &choices);
-    let ghosts = recorded_ghosts();
+    let ghosts = recorded_ghosts(tab);
     let held = every_button_hugs_its_label(visual, tab, &ghosts);
     let free: Vec<&str> = lines
         .iter()
@@ -441,8 +454,9 @@ fn every_line_stands_in_the_columns(
 /// line's value ends. Every one of `boxes` spans the two, every button stands
 /// its label on those columns, and every step draws one or more of them.
 /// Every choice row drawn marks the choice it shows, and every button drawn
-/// before the walk is as wide as its label. Returns the debug selectors of
-/// the lines' labels, the choice rows, and the labels of the buttons held.
+/// before the walk is as wide as its label and has an id of its own. Returns
+/// the debug selectors of the lines' labels, the choice rows, and the labels
+/// of the buttons held.
 fn every_line_stands_in_the_free_columns(
     cx: &mut TestAppContext,
     (media, tab): (&str, &str),
@@ -453,7 +467,7 @@ fn every_line_stands_in_the_free_columns(
     let (state, visual) = drawn_with(cx, &format!("columns-{tab}"), media, tab, then);
     let (lines, choices) = (drawn_lines(), drawn_choices());
     every_choice_marks_what_it_shows(tab, &choices);
-    let ghosts = recorded_ghosts();
+    let ghosts = recorded_ghosts(tab);
     let held = every_button_hugs_its_label(visual, tab, &ghosts);
     let keyed: Vec<&str> = lines
         .iter()
@@ -556,26 +570,29 @@ fn every_tab_is_held_to_the_columns_or_named_as_not() {
 
 #[gpui::test]
 async fn every_transform_line_stands_in_the_columns(cx: &mut TestAppContext) {
-    // A key at the playhead, so the keyframes block draws its easing presets.
+    // Two properties keyed at the playhead, so the keyframes block draws two
+    // rows, each with its navigator and easing presets.
     let (_, _, held) = every_line_stands_in_the_columns(
         cx,
         ("texture.png", "transform"),
         ClipParam::Opacity,
         |state| {
-            keyframe_rows::apply(
-                state,
-                Row::Key {
-                    param: ClipParam::Opacity,
-                    keyed: false,
-                },
-            )
-            .expect("key the opacity at the playhead");
+            for param in [ClipParam::Opacity, ClipParam::Rotation] {
+                keyframe_rows::apply(
+                    state,
+                    Row::Key {
+                        param,
+                        keyed: false,
+                    },
+                )
+                .expect("key the property at the playhead");
+            }
         },
     );
     holds(
         "transform",
         &held,
-        &["Reset framing", PIECEWISE_PRESETS[0].1],
+        &["Reset framing", "Flatten", PIECEWISE_PRESETS[0].1],
     );
 }
 
@@ -759,15 +776,15 @@ async fn every_speed_line_stands_in_the_free_columns(cx: &mut TestAppContext) {
 }
 
 /// Drawn over a picture marked as a template slot with a hint, whose file is
-/// gone, beside a second picture to replace it with, so every fact and button
-/// of the tab draws.
+/// gone, beside two videos to replace it with, so every fact and button of
+/// the tab draws and the Replace media list draws more than one entry.
 #[gpui::test]
 async fn every_info_line_stands_in_the_free_columns(cx: &mut TestAppContext) {
     let staged = crate::scratch_pool::scratch("columns-info-media").join("gone.png");
     std::fs::copy(crate::app::fixtures::asset("texture.png"), &staged)
         .expect("stage a picture that can be lost");
     let media = staged.to_str().expect("a UTF-8 scratch path").to_owned();
-    let other = "fixture-640x360-24fps-3s";
+    let others = ["fixture-640x360-24fps-3s", "fixture-640x360-30fps-3s"];
     let (lines, choices, held) = every_line_stands_in_the_free_columns(
         cx,
         (media.as_str(), "info"),
@@ -775,9 +792,11 @@ async fn every_info_line_stands_in_the_free_columns(cx: &mut TestAppContext) {
         |state| {
             std::fs::remove_file(&staged).expect("lose the picture");
             crate::projection::invalidate_media_statuses();
-            state
-                .import_media(crate::app::fixtures::asset(&format!("{other}.mp4")))
-                .expect("a picture to replace with, and the edit that rebuilds the pool");
+            for other in others {
+                state
+                    .import_media(crate::app::fixtures::asset(&format!("{other}.mp4")))
+                    .expect("a video to replace with, and the edit that rebuilds the pool");
+            }
             clip_pick::apply(state, ClipPick::ToggleReplaceable).expect("mark the slot");
             state
                 .set_selected_slot_label("Logo here")
@@ -800,10 +819,12 @@ async fn every_info_line_stands_in_the_free_columns(cx: &mut TestAppContext) {
     // A new slot on a picture accepts the first restriction offered.
     let (_, accepts) = SLOT_MEDIA[0];
     shows_and_marks("info", &choices, "insp-label-free-Accepts", accepts);
-    assert!(
-        held.iter().any(|label| label.starts_with(other)),
-        "info: no button replaces the media with {other} among {held:?}"
-    );
+    for other in others {
+        assert!(
+            held.iter().any(|label| label.starts_with(other)),
+            "info: no button replaces the media with {other} among {held:?}"
+        );
+    }
     let marked = picked(accepts, true);
     holds(
         "info",
