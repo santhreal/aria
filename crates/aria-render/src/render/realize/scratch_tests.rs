@@ -301,14 +301,19 @@ fn steady_resolve_and_look_ahead_allocate_zero_heap_blocks() {
 /// look-ahead scene pooling, and `wgpu` command-encoder / render-pass label
 /// `String` allocations. Each frame is counted on its own and compared with a
 /// pre-resolved `render_scene_to_texture` frame, so one allocation on one frame
-/// fails. Every counted frame starts on an idle device: `Queue::submit` retires
-/// the finished submissions it finds, and while earlier frames are still in
-/// flight `wgpu` grows its submission and encoder pools by a count that depends
-/// on GPU timing. The device is the test's own: the process-wide headless
-/// device also takes the other tests' submissions, and the poll that ends
-/// `Queue::submit` retires whichever of them have finished on the submitting
-/// thread, inside this test's count. The absolute floor is checked on
-/// lavapipe, the adapter CI renders on.
+/// fails. Every counted frame runs from an idle device to an idle device: while
+/// earlier frames are still in flight `wgpu` grows its submission and encoder
+/// pools by a count that depends on GPU timing, and the poll that ends
+/// `Queue::submit` retires the frame's own submission only when the GPU has
+/// already finished it, so a count that stopped at `submit` held the
+/// retirement on some frames and not on others. The wait inside the count
+/// retires it on every frame. The device and its instance are the test's own:
+/// `wgpu` numbers every resource in id tables held per instance, and grows a
+/// table when a new id lands past its end or a freed id fills its free list.
+/// On the process-wide instance the other tests create and free resources in
+/// the same tables, so a frame of this test grew one on some runs and not on
+/// others. The absolute floor is checked on lavapipe, the adapter CI renders
+/// on.
 /// Does not catch allocations inside hardware-only video decoder backends
 /// (NVDEC/VideoToolbox), or allocations made only while earlier frames are
 /// still in flight.
@@ -325,14 +330,7 @@ fn steady_frame_render_allocations_stay_at_wgpu_floor() {
     let gpu = if shared.adapter.get_info().backend == wgpu::Backend::Gl {
         shared
     } else {
-        let (device, queue) =
-            pollster::block_on(shared.adapter.request_device(&wgpu::DeviceDescriptor {
-                label: Some("steady-frame-allocations"),
-                required_limits: shared.adapter.limits(),
-                ..Default::default()
-            }))
-            .expect("a device of the test's own");
-        aria_compositor::GpuContext::from_parts(shared.instance, shared.adapter, device, queue)
+        own_context(&shared.adapter.get_info())
     };
     let mut renderer = Renderer::with_gpu(gpu);
     let adapter = renderer.gpu().adapter.get_info();
@@ -362,13 +360,15 @@ fn steady_frame_render_allocations_stay_at_wgpu_floor() {
     for (allocs, tick) in frame_allocs.iter_mut().zip(60_i64..) {
         idle();
         let (res, count) = count_thread_allocs(|| {
-            renderer.render_frame_to_texture_with(
+            let res = renderer.render_frame_to_texture_with(
                 &project,
                 RationalTime::new(tick, Rational::FPS_60),
                 ResolveOverrides::default(),
                 SeekPolicy::Exact,
                 |_, _| target.clone(),
-            )
+            );
+            idle();
+            res
         });
         res.expect("steady frame render");
         *allocs = count;
@@ -380,7 +380,9 @@ fn steady_frame_render_allocations_stay_at_wgpu_floor() {
     for allocs in &mut scene_allocs {
         idle();
         let (res, count) = count_thread_allocs(|| {
-            renderer.render_scene_to_texture(&project, &warm_scene, &target)
+            let res = renderer.render_scene_to_texture(&project, &warm_scene, &target);
+            idle();
+            res
         });
         res.expect("steady scene render");
         *allocs = count;
@@ -420,6 +422,31 @@ fn steady_frame_render_allocations_stay_at_wgpu_floor() {
         "steady frame render test exceeded 10s bound: {:?}",
         started.elapsed()
     );
+}
+
+/// A context on the adapter `info` describes, in a `wgpu` instance of its own.
+///
+/// Building an instance loads the driver stack, which is not safe from two
+/// threads at once (see `aria_compositor`'s `new_instance`). The process-wide
+/// device is up when this runs and every later request on a non-GL adapter
+/// shares it, so no other thread of the test process builds one meanwhile.
+fn own_context(info: &wgpu::AdapterInfo) -> aria_compositor::GpuContext {
+    let backends = wgpu::Backends::from(info.backend);
+    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+        backends,
+        ..wgpu::InstanceDescriptor::new_without_display_handle()
+    });
+    let adapter = pollster::block_on(instance.enumerate_adapters(backends))
+        .into_iter()
+        .find(|adapter| adapter.get_info() == *info)
+        .unwrap_or_else(|| panic!("no {} adapter in an instance of the test's own", info.name));
+    let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
+        label: Some("steady-frame-allocations"),
+        required_limits: adapter.limits(),
+        ..Default::default()
+    }))
+    .expect("a device of the test's own");
+    aria_compositor::GpuContext::from_parts(instance, adapter, device, queue)
 }
 
 /// WHY: A full-canvas unmodified 1080p BT.709 CPU NV12 media frame was
