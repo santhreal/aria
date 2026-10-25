@@ -84,15 +84,6 @@ pub fn render(
         )
 }
 
-fn empty(theme: &Theme) -> impl IntoElement {
-    div()
-        .flex_1()
-        .p(px(Theme::SPACE_MD))
-        .text_size(Theme::TEXT_UI)
-        .text_color(theme.text_faint)
-        .child(SEQUENCE_PROMPT)
-}
-
 const SEQUENCE_PROMPT: &str = "Select a clip, or click a gap to edit the sequence.";
 
 fn rate_label(num: i32, den: i32) -> String {
@@ -203,7 +194,12 @@ fn clip_body(
                                     .child(body(theme, &clip, fps_num, fps_den, state, cx)),
                             )
                             .into_any_element(),
-                            None => empty(theme).into_any_element(),
+                            None => crate::components::empty_state(
+                                "inspector",
+                                "This clip has no properties to edit.",
+                                theme,
+                            )
+                            .into_any_element(),
                         }),
                     )
                     .children(subs),
@@ -213,11 +209,10 @@ fn clip_body(
 
 #[cfg(test)]
 mod tests {
-    use super::{SEQUENCE_PROMPT, rate_label};
+    use super::rate_label;
 
     #[test]
-    fn an_empty_inspector_explains_the_gap_click() {
-        assert!(SEQUENCE_PROMPT.contains("click a gap"));
+    fn a_rate_is_written_whole_or_as_its_fraction() {
         assert_eq!(rate_label(24, 1), "24 fps");
         assert_eq!(rate_label(30000, 1001), "30000/1001 fps");
     }

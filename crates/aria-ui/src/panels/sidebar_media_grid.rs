@@ -19,11 +19,17 @@ pub(super) fn media_grid(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     if rows.is_empty() {
-        return div()
-            .text_size(Theme::TEXT_UI)
-            .text_color(theme.text_faint)
-            .child("Import files or drag from your file manager.")
-            .into_any_element();
+        // A query that hides every item is not an empty pool: offering to
+        // import over a pool that holds files sends the reader to the wrong
+        // control. `total` alone is not the test, because it also counts the
+        // items of folders below the open one, which an unfiltered grid omits.
+        let searched = !state.read(cx).media_query.trim().is_empty();
+        let empty = if searched && rows.total() > 0 {
+            ("media-search", "Nothing matches the search.")
+        } else {
+            ("media", "Import files or drag from your file manager.")
+        };
+        return crate::components::empty_state(empty.0, empty.1, theme).into_any_element();
     }
     let missing_any = rows.iter().any(|item| item.missing);
     let items: gpui::AnyElement = match view {

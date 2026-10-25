@@ -21,8 +21,9 @@
 //! a playhead move replays the timeline body while that layer holds.
 
 use gpui::{
-    AnyElement, AnyView, App, AppContext as _, Context, Entity, IntoElement, ParentElement as _,
-    Render, StyleRefinement, Styled as _, WeakEntity, Window, WindowControls, div, px,
+    AnyElement, AnyView, App, AppContext as _, Context, Entity, InteractiveElement as _,
+    IntoElement, ParentElement as _, Render, StyleRefinement, Styled as _, WeakEntity, Window,
+    WindowControls, div, px,
 };
 
 use crate::chrome::window_frame::Frame as WindowFrame;
@@ -201,6 +202,7 @@ impl Render for PanelBody {
         // its own drawing rather than for every primitive painted before it.
         crate::frost::layered(
             div()
+                .debug_selector(move || format!("panel-body-{panel}"))
                 .flex()
                 .flex_col()
                 .size_full()

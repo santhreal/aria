@@ -1406,6 +1406,7 @@ Notes for the latest release. For previous releases, see the
 
 ### Changed
 
+- A dock panel with nothing to show draws its line faint and centered in the space its content fills, as the Timeline does, and the Markers panel reads **No markers.** above **Add at playhead**.
 - The default accent, playhead, selection, and caret are blue instead of indigo, and Settings > Appearance > Accent offers the Blue, Ember, Teal, and Graphite families; a saved `default` or `dark-blue` accent reads as Blue.
 - UI text is set in the embedded Inter, replacing Geist and Geist Mono; timecodes, the ruler, scrubbable values, and playback counters use tabular figures, and names keep proportional figures.
 - Video clips without a label default to Teal instead of Violet, and adjustment clips to Yellow instead of Lavender.
@@ -2376,6 +2377,8 @@ Notes for the latest release. For previous releases, see the
 
 ### Fixed
 
+- A Project panel search that hides every item reads **Nothing matches the search.** instead of offering to import files.
+- A test process that started the decode device warm-up no longer aborts at random in GObject type registration after printing `ok`: a process ending through `exit` stops the warm-up at its next step and waits for the plugin load in progress.
 - The last error is drawn on the status bar alone instead of also at the end of the Viewer's control row, so posting or clearing one no longer moves the row's controls under the pointer.
 - A workspace with no changes is laid out for the window's current size, as choosing it again lays it out, so a first launch opens Editing with its 320 px and 300 px side frames and 64 px Audio Meters instead of ones scaled up from the 1440 px window drawn before the maximize, and Effects opens at its own shares instead of Editing's pixel widths.
 - In a window smaller than 1024 x 640, the splitter between the Viewer and the Timeline resizes the Timeline, and a drag or double-click on it no longer widens Audio Meters in the hidden Editing layout or records an edit to the workspace.

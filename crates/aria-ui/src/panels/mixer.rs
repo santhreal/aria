@@ -74,12 +74,12 @@ pub(crate) fn render(
                 .child(refusal)
                 .into_any_element()
         }
-        Ok(strips) if strips.is_empty() => div()
-            .p(px(Theme::SPACE_MD))
-            .text_size(Theme::TEXT_UI)
-            .text_color(theme.text_muted)
-            .child("No audio lanes yet. Add one, or add a submix bus, to mix.")
-            .into_any_element(),
+        Ok(strips) if strips.is_empty() => crate::components::empty_state(
+            "mixer",
+            "No audio lanes yet. Add one, or add a submix bus, to mix.",
+            &theme,
+        )
+        .into_any_element(),
         Ok(strips) => {
             let mut drawn: Vec<Strip> = strips
                 .iter()

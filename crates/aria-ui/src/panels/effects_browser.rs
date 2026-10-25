@@ -205,13 +205,11 @@ pub(crate) fn effects_panel(
                 // on the filter's edge.
                 .mx(px(-Theme::SPACE_XS))
                 .when(empty, |el| {
-                    el.child(
-                        div()
-                            .px(px(Theme::SPACE_XS))
-                            .text_size(Theme::TEXT_UI)
-                            .text_color(theme.text_faint)
-                            .child("Nothing matches the search."),
-                    )
+                    el.child(components::empty_state(
+                        "effects-search",
+                        "Nothing matches the search.",
+                        theme,
+                    ))
                 })
                 .children(rows),
         ))

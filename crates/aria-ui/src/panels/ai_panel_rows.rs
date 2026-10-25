@@ -8,10 +8,7 @@ use super::*;
 /// What the panel says before anything has been asked. Names the project,
 /// because the assistant answers about this one and not in general.
 pub(super) fn empty(theme: &Theme, project: &str) -> impl IntoElement {
-    div()
-        .text_size(Theme::TEXT_UI)
-        .text_color(theme.text_faint)
-        .child(format!("Ask Aria about {project}"))
+    crate::components::empty_state("assistant", format!("Ask Aria about {project}"), theme)
 }
 
 /// One line of the conversation, coloured by who said it and copyable on its own.

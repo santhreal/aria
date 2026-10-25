@@ -83,10 +83,7 @@ pub fn render(
                         let generators = crate::catalog_text::generators();
                         let types = crate::catalog_text::clip_types();
                         if generators.is_empty() && types.is_empty() {
-                            div()
-                                .text_size(Theme::TEXT_UI)
-                                .text_color(theme.text_faint)
-                                .child("No generators.")
+                            components::empty_state("generators", "No generators.", &theme)
                                 .into_any_element()
                         } else {
                             let typed = (!types.is_empty())

@@ -72,6 +72,8 @@ pub fn render_panel(
             .debug_selector(|| "jobs-panel".into())
             .size_full()
             .p(px(Theme::SPACE_SM))
+            .flex()
+            .flex_col()
             .child(job_list(&theme, state, PANEL, cx)),
     )
     .into_any_element()
@@ -86,23 +88,14 @@ fn job_list(
 ) -> gpui::Div {
     // The handle: the board is a projection, rebuilt when a job reports.
     let rows = state.read(cx).job_view.clone();
-    let list: Vec<_> = rows
-        .iter()
-        .map(|job| job_row(theme, job, surface, cx))
-        .collect();
+    if rows.is_empty() {
+        return components::empty_state(surface, "No background jobs.", theme);
+    }
     div()
         .flex()
         .flex_col()
         .gap(px(Theme::SPACE_SM))
-        .when(list.is_empty(), |el| {
-            el.child(
-                div()
-                    .text_size(Theme::TEXT_UI)
-                    .text_color(theme.text_faint)
-                    .child("No background jobs."),
-            )
-        })
-        .children(list)
+        .children(rows.iter().map(|job| job_row(theme, job, surface, cx)))
 }
 
 fn job_row(

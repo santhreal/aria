@@ -94,22 +94,22 @@ pub(super) fn frame_view(
             ))
             .into_any_element()
     } else {
+        let empty = if state.read(cx).last_frame.is_some() {
+            (
+                "viewer-unshown",
+                "Couldn't convert this frame for display. Try scrubbing again.",
+            )
+        } else {
+            (
+                "viewer",
+                "Import media, then click a tile to place it on the timeline.",
+            )
+        };
         div()
             .flex()
-            .items_center()
-            .justify_center()
             .size_full()
             .child(gpu_probe)
-            .child(
-                div()
-                    .text_size(Theme::TEXT_UI)
-                    .text_color(theme.text_faint)
-                    .child(if state.read(cx).last_frame.is_some() {
-                        "Couldn't convert this frame for display. Try scrubbing again."
-                    } else {
-                        "Import media, then click a tile to place it on the timeline."
-                    }),
-            )
+            .child(crate::components::empty_state(empty.0, empty.1, theme))
             .into_any_element()
     }
 }

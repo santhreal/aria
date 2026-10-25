@@ -9,6 +9,7 @@
 use gpui::{AnyElement, InteractiveElement, IntoElement, ParentElement, Styled, div, px};
 
 use crate::app::AppState;
+use crate::components;
 use crate::panels::inspector::tabs::text::{character_controls, paragraph_controls};
 use crate::theme::Theme;
 use gpui::prelude::FluentBuilder;
@@ -56,12 +57,11 @@ fn panel(theme: &Theme, surface: &'static str, controls: Vec<AnyElement>) -> Any
             .gap(px(Theme::SPACE_XS))
             .children(controls)
             .when(empty, |el| {
-                el.child(
-                    div()
-                        .text_size(Theme::TEXT_UI)
-                        .text_color(theme.text_faint)
-                        .child("Select a title to edit its type."),
-                )
+                el.child(components::empty_state(
+                    surface,
+                    "Select a title to edit its type.",
+                    theme,
+                ))
             }),
     )
     .into_any_element()

@@ -582,6 +582,35 @@ pub fn section_label(theme: &Theme, title: impl Into<SharedString>) -> Div {
         .child(title.into())
 }
 
+/// The line a panel draws in place of content it does not have, centred on
+/// both axes in the space that content fills. An action the line offers is
+/// added below it with `.child`.
+///
+/// The caller's frame lays it out as a flex item: it grows into the height a
+/// column frame has left, and into the width a row frame has left. Drawn as
+/// `empty-state-{id}`, with its line as `empty-state-{id}-line`.
+pub fn empty_state(id: &'static str, text: impl Into<SharedString>, theme: &Theme) -> Div {
+    div()
+        .debug_selector(move || format!("empty-state-{id}"))
+        .flex_1()
+        .w_full()
+        .flex()
+        .flex_col()
+        .items_center()
+        .justify_center()
+        .gap(px(Theme::SPACE_SM))
+        .p(px(Theme::SPACE_MD))
+        .child(
+            div()
+                .debug_selector(move || format!("empty-state-{id}-line"))
+                .max_w_full()
+                .text_center()
+                .text_size(Theme::TEXT_UI)
+                .text_color(theme.text_faint)
+                .child(text.into()),
+        )
+}
+
 pub fn slider_row(
     theme: &Theme,
     label: impl Into<SharedString>,

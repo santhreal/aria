@@ -160,8 +160,8 @@ pub fn render(
         .flex_col()
         .gap(px(Theme::SPACE_XS));
     if state.read(cx).selected_clip().is_none() {
-        return crate::edge_fade::scroll_y(root.child(hint(&theme, "Select a clip to grade.")))
-            .into_any_element();
+        let empty = components::empty_state("color", "Select a clip to grade.", &theme);
+        return crate::edge_fade::scroll_y(root.child(empty)).into_any_element();
     }
 
     let open: [bool; SECTIONS.len()] = {
@@ -186,10 +186,9 @@ pub fn render(
         |id, element| slots[slot_of(id)].push(element),
     );
     if !present.contains(&true) {
-        return crate::edge_fade::scroll_y(
-            root.child(hint(&theme, "This clip has no colour to grade.")),
-        )
-        .into_any_element();
+        let empty =
+            components::empty_state("color-ungraded", "This clip has no color to grade.", &theme);
+        return crate::edge_fade::scroll_y(root.child(empty)).into_any_element();
     }
 
     // Reset heads the panel, where it is reached without scrolling past every
@@ -258,15 +257,6 @@ fn section_header(
         }),
     )
     .into_any_element()
-}
-
-/// A line in place of the rows.
-fn hint(theme: &Theme, text: &'static str) -> AnyElement {
-    div()
-        .text_size(Theme::TEXT_UI)
-        .text_color(theme.text_faint)
-        .child(text)
-        .into_any_element()
 }
 
 #[cfg(test)]

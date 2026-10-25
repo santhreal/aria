@@ -42,6 +42,8 @@ pub fn render(
             .debug_selector(|| SURFACE.into())
             .size_full()
             .p(px(Theme::SPACE_SM))
+            .flex()
+            .flex_col()
             .child(markers_panel(&theme, state, cx)),
     )
     .into_any_element()
@@ -62,16 +64,7 @@ fn markers_panel(
     let held = state.read(cx).marker_count();
 
     if is_empty {
-        return div()
-            .flex()
-            .flex_col()
-            .gap(px(Theme::SPACE_SM))
-            .child(
-                div()
-                    .text_size(Theme::TEXT_UI)
-                    .text_color(theme.text_faint)
-                    .child("No markers. Add one at the playhead."),
-            )
+        return components::empty_state("markers", "No markers.", theme)
             // Not reachable from an ordinary sequence: no rows with markers on
             // the project means the projection lost them, and saying nothing
             // would present that as an empty ruler.
@@ -186,6 +179,7 @@ fn count_line(theme: &Theme, shown: usize, held: usize) -> gpui::AnyElement {
 
 fn add_button(theme: &Theme, cx: &mut gpui::Context<crate::shell::Shell>) -> gpui::AnyElement {
     components::ghost_button("marker-add", "Add at playhead", theme)
+        .debug_selector(|| "marker-add".into())
         .on_mouse_down(
             MouseButton::Left,
             cx.listener(|this, _: &MouseDownEvent, _, cx| {

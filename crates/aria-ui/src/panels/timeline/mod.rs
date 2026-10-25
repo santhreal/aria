@@ -313,11 +313,11 @@ pub fn render(
                             .left(px(outline))
                             .right_0()
                             .flex()
-                            .items_center()
-                            .justify_center()
-                            .text_size(Theme::TEXT_UI)
-                            .text_color(theme.text_faint)
-                            .child("Drag media here to start."),
+                            .child(crate::components::empty_state(
+                                "timeline",
+                                "Drag media here to start.",
+                                &theme,
+                            )),
                     )
                 }),
         )

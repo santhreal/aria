@@ -67,6 +67,7 @@ pub fn controls(theme: &Theme, cx: &mut Context<Gallery>) -> AnyElement {
                     .child(components::slider_row(theme, "Volume", 1.0, "100%")),
             ))
             .child(readout_rows(theme))
+            .child(empty_state_rows(theme))
             .child(typed_rows(theme))
             .child(group(
                 theme,
@@ -246,6 +247,45 @@ fn readout_rows(theme: &Theme) -> AnyElement {
                 "Proxy",
                 "None",
                 theme.text_faint,
+            )),
+    )
+}
+
+/// The line a panel draws in place of its content, in frames the size of a
+/// docked panel: alone, wrapped in a narrow frame, and with the action it
+/// offers below it.
+fn empty_state_rows(theme: &Theme) -> AnyElement {
+    let frame = |width: f32| {
+        div()
+            .w(px(width))
+            .h(px(140.))
+            .flex()
+            .flex_col()
+            .border_1()
+            .border_color(theme.border)
+            .rounded(px(Theme::CONTROL_RADIUS))
+    };
+    group(
+        theme,
+        "empty_state(id, text, theme), and with an action as its child",
+        div()
+            .flex()
+            .flex_row()
+            .gap(px(Theme::SPACE_MD))
+            .child(frame(240.).child(components::empty_state(
+                "gallery-jobs",
+                "No background jobs.",
+                theme,
+            )))
+            .child(frame(160.).child(components::empty_state(
+                "gallery-search",
+                "Import files or drag from your file manager.",
+                theme,
+            )))
+            .child(frame(240.).child(
+                components::empty_state("gallery-markers", "No markers.", theme).child(
+                    components::ghost_button("ctl-empty-add", "Add at playhead", theme),
+                ),
             )),
     )
 }

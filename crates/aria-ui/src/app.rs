@@ -642,6 +642,10 @@ mod jobs_tests;
 mod dock_panels_tests;
 
 #[cfg(test)]
+#[path = "app/empty_state_tests.rs"]
+mod empty_state_tests;
+
+#[cfg(test)]
 #[path = "app/plugin_events_tests.rs"]
 mod plugin_events_tests;
 

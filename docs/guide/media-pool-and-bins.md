@@ -52,7 +52,9 @@ includes none of them. The order button reads the current order; click it for
 **Name**, **Duration**, **Resolution**, or **Date added**. Duration and
 resolution sort largest first, and date added sorts newest first. An item from a
 project saved before import times were recorded has none and sorts last. Neither
-the filter nor the order is saved with the project.
+the filter nor the order is saved with the project. A search that hides every
+item shows **Nothing matches the search.** in place of the pool, and an empty
+pool shows **Import files or drag from your file manager.**
 
 The view buttons set the pool layout; in a narrow Project frame one button cycles the four. **Tiles** puts each
 item on its own row with its picture above its facts. **List** drops the picture
