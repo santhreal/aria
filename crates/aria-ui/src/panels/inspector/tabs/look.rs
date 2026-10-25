@@ -1,18 +1,15 @@
 //! Look tab: the filter catalog and its amount.
 
-use gpui::{
-    InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, SharedString,
-    Styled, div, px,
-};
+use gpui::{IntoElement, ParentElement, SharedString, Styled, div, px};
 
-use crate::components::{self, section_label};
+use crate::components::section_label;
 use crate::motion::MotionKey;
 use crate::surfaces::inspector_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::UiClip;
 use gpui::prelude::FluentBuilder;
 
-use crate::panels::inspector::blocks::widgets::{Chip, Columns, chip_row, param_rows};
+use crate::panels::inspector::blocks::widgets::{Chip, Columns, chip_row, param_rows, pick_button};
 
 pub fn look_tab(
     theme: &Theme,
@@ -27,37 +24,25 @@ pub fn look_tab(
             let id = choice.id.to_string();
             let on = applied.as_ref() == Some(&choice.id);
             Chip::choice(choice.label.clone(), on, |label| {
-                components::ghost_button(MotionKey::new("look-choice", &choice.id), label, theme)
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                            let id = id.clone();
-                            this.state.update(cx, |state, _| {
-                                if let Err(err) = inspector_pick::apply(state, Pick::Filter(id)) {
-                                    state.report_error(&err);
-                                }
-                            });
-                            cx.notify();
-                        }),
-                    )
-                    .into_any_element()
+                pick_button(
+                    MotionKey::new("look-choice", &choice.id),
+                    label,
+                    theme,
+                    cx,
+                    move |state| inspector_pick::apply(state, Pick::Filter(id.clone())),
+                )
+                .into_any_element()
             })
         })
         .collect();
     if applied.is_some() {
-        chips.push(Chip::other(
-            components::ghost_button("look-clear", "Clear", theme).on_mouse_down(
-                MouseButton::Left,
-                cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                    this.state.update(cx, |state, _| {
-                        if let Err(err) = inspector_pick::apply(state, Pick::ClearFilter) {
-                            state.report_error(&err);
-                        }
-                    });
-                    cx.notify();
-                }),
-            ),
-        ));
+        chips.push(Chip::other(pick_button(
+            "look-clear",
+            "Clear",
+            theme,
+            cx,
+            |state| inspector_pick::apply(state, Pick::ClearFilter),
+        )));
     }
     // The catalog label, as the chip reads; the id stands in for a filter the
     // catalog no longer lists.

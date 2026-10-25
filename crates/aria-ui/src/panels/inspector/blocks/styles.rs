@@ -6,19 +6,19 @@
 //! no property, and a swatch or a knob writes that one property, keyed at the
 //! playhead when it is animated, rather than rebuilding the block.
 
-use gpui::{
-    InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled, div, px,
-};
+use gpui::{IntoElement, ParentElement, SharedString, Styled, div, px};
 
 use crate::app::clip_styles::{STYLES, style_enabled};
 use crate::cloud::CloudFeed;
-use crate::components;
+use crate::motion::MotionKey;
 use crate::surfaces::inspector_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::UiClip;
 use gpui::prelude::FluentBuilder;
 
-use super::widgets::{color_rows, param_rows};
+use super::widgets::{
+    Chip, Columns, chip_row, color_rows, param_rows, pick_button, switch_line, under_labels,
+};
 
 use crate::components::section_label;
 
@@ -29,6 +29,7 @@ pub fn styles_block(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     let styles = clip.styles;
+    let any_on = STYLES.iter().any(|(id, _)| style_enabled(&styles, id));
 
     let blocks: Vec<_> = STYLES
         .iter()
@@ -42,30 +43,45 @@ pub fn styles_block(
                 .flex()
                 .flex_col()
                 .gap(px(Theme::SPACE_XS))
-                .child(
-                    components::ghost_button(
-                        ("style-toggle", style),
-                        format!("{label}{}", if on { " on" } else { "" }),
-                        theme,
-                    )
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                            this.state.update(cx, |state, _| {
-                                if let Err(err) = inspector_pick::apply(state, Pick::Style(style)) {
-                                    state.report_error(&err);
-                                }
-                            });
-                            cx.notify();
-                        }),
-                    ),
-                )
+                .child(switch_line(
+                    theme,
+                    (style, *label),
+                    ("style-toggle", style),
+                    on,
+                    cx,
+                    move |state| inspector_pick::apply(state, Pick::Style(style)),
+                ))
                 .when(on, |this| this.children(colors).children(knobs))
                 .into_any_element()
         })
         .collect();
+    let clear = any_on.then(|| {
+        pick_button("styles-clear", "Clear styles", theme, cx, |state| {
+            inspector_pick::apply(state, Pick::ClearStyles)
+        })
+        .into_any_element()
+    });
 
     let lut = clip.lut.clone();
+    let mut files = vec![Chip::other(pick_button(
+        "lut-load",
+        "Load .cube…",
+        theme,
+        cx,
+        |state| {
+            state.pick_and_load_lut();
+            Ok(())
+        },
+    ))];
+    if lut.is_some() {
+        files.push(Chip::other(pick_button(
+            "lut-clear",
+            "Remove LUT",
+            theme,
+            cx,
+            |state| inspector_pick::apply(state, Pick::ClearLut),
+        )));
+    }
 
     div()
         .flex()
@@ -73,52 +89,23 @@ pub fn styles_block(
         .gap(px(Theme::SPACE_XS))
         .child(section_label(theme, "Layer styles"))
         .children(blocks)
-        .child(
-            components::ghost_button("styles-clear", "Clear styles", theme).on_mouse_down(
-                MouseButton::Left,
-                cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                    this.state.update(cx, |state, _| {
-                        if let Err(err) = inspector_pick::apply(state, Pick::ClearStyles) {
-                            state.report_error(&err);
-                        }
-                    });
-                    cx.notify();
-                }),
-            ),
-        )
+        .when_some(clear, |this, clear| {
+            this.child(under_labels(Columns::Keyed, [clear]))
+        })
         .child(section_label(theme, "LUT"))
-        .child(
-            div()
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text_faint)
-                .child(match &lut {
-                    Some(lut) => lut.name().to_string(),
-                    None => "None".to_string(),
+        .child(chip_row(
+            theme,
+            MotionKey::new("insp.row", "lut-file"),
+            "File",
+            Columns::Keyed,
+            lut.as_ref()
+                .map_or(SharedString::new_static("None"), |lut| {
+                    SharedString::from(lut.name().to_string())
                 }),
-        )
-        .child(
-            components::ghost_button("lut-load", "Load .cube…", theme).on_mouse_down(
-                MouseButton::Left,
-                cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                    this.state.update(cx, |state, _| state.pick_and_load_lut());
-                    cx.notify();
-                }),
-            ),
-        )
+            files,
+        ))
         .when(lut.is_some(), |this| {
-            this.children(param_rows(theme, "lut", state, cx)).child(
-                components::ghost_button("lut-clear", "Remove LUT", theme).on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                        this.state.update(cx, |state, _| {
-                            if let Err(err) = inspector_pick::apply(state, Pick::ClearLut) {
-                                state.report_error(&err);
-                            }
-                        });
-                        cx.notify();
-                    }),
-                ),
-            )
+            this.children(param_rows(theme, "lut", state, cx))
         })
         .child(section_label(theme, "Cloud LUTs"))
         .child(crate::panels::cloud::cloud_catalog_block(

@@ -22,21 +22,37 @@
 //! so a picker of any kind marks the choice it shows, one at most, and none
 //! while it shows a mixed value.
 //!
-//! Not covered: a row drawn without the row widgets, the tabs in [`NOT_HELD`],
-//! a picker drawn outside a choice row, and a line whose label another line in
-//! the keyed columns shares, of which the last drawn is read.
+//! Also closes the class "an Inspector button stretched across its block".
+//! Reset grade, Remove key, Clear styles, the blend modes, the key colors and
+//! the matte sources each drew a line as wide as the block, starting left of
+//! every label. Every ghost button built while the Inspector's body is built
+//! is recorded, so a button added to a held tab, or to the Speed tab, is held
+//! to the width of its label and padding without being listed here.
+//!
+//! Not covered: a row drawn without the row widgets, the tabs in [`NOT_HELD`]
+//! other than Speed's buttons, a picker drawn outside a choice row, a line
+//! whose label another line in the keyed columns shares, of which the last
+//! drawn is read, a control not built with `components::ghost_button`, a
+//! button only drawn after a press, such as a list a button opens, and the
+//! Effects tab's Add list, which draws one effect a line.
 
 use aria_models::{
     AudioInsertTarget, AudioRole, ClipParam, EffectChoiceOption, EffectCurvePoint,
-    EffectGradientStop, EffectParamKind, EffectParamSpec, EffectSpec, LookParam, TransitionSpec,
+    EffectGradientStop, EffectParamKind, EffectParamSpec, EffectSpec, LookParam, MaskKind,
+    MatteSource, TransitionSpec,
 };
-use gpui::{Bounds, Pixels, TestAppContext, VisualTestContext};
+use gpui::{Bounds, FontWeight, Pixels, SharedString, TestAppContext, VisualTestContext};
 
 use super::blocks::widgets::{
     DrawnChoice, LABEL_RESERVE, MIXED, drawn_choices, drawn_lines, picked, record_lines,
 };
 use super::strip_tests::{drawn_with, middle, narrow_the_inspector};
 use crate::app::AppState;
+use crate::app::clip_speed::speed_presets;
+use crate::components::drawn_ghosts;
+use crate::surfaces::clip_pick::{self, Pick as ClipPick};
+use crate::surfaces::inspector_pick::{self, KEY_COLORS, Pick};
+use crate::theme::Theme;
 
 /// How far apart two edges may be and still stand in one column.
 const EPS: f32 = 0.51;
@@ -191,6 +207,76 @@ fn shows_and_marks(tab: &str, choices: &[DrawnChoice], row: &str, shown: &str) {
     );
 }
 
+/// No exemption from [`every_button_hugs_its_label`].
+fn none_exempt(_: &AppState) -> Vec<SharedString> {
+    Vec::new()
+}
+
+/// The Effects tab's Add list, which draws one effect a line, exempt from
+/// [`every_button_hugs_its_label`].
+fn the_add_list(state: &AppState) -> Vec<SharedString> {
+    state
+        .effect_browse_list()
+        .into_iter()
+        .map(|(_, label)| label.into())
+        .collect()
+}
+
+/// Every ghost button the last frame drew into the Inspector is as wide as
+/// its label and its padding, and no wider, unless its label is one of
+/// `exempt`. A text element is as wide as its advance rounded up to a whole
+/// pixel, and layout rounds each edge to a device pixel. Returns the labels
+/// held.
+fn every_button_hugs_its_label(
+    visual: &mut VisualTestContext,
+    tab: &str,
+    exempt: &[SharedString],
+) -> Vec<SharedString> {
+    let ghosts = drawn_ghosts();
+    let (pixel, labels): (f32, Vec<f32>) = visual.update(|window, app| {
+        let font = Theme::of(app).ui_font(FontWeight::NORMAL);
+        let labels = ghosts
+            .iter()
+            .map(|(_, label)| {
+                f32::from(
+                    app.text_system()
+                        .advance_for_text(label, &font, Theme::TEXT_UI),
+                )
+            })
+            .collect();
+        (1.0 / window.scale_factor(), labels)
+    });
+    let mut held = Vec::new();
+    for ((selector, label), text) in ghosts.into_iter().zip(labels) {
+        if exempt.contains(&label) {
+            continue;
+        }
+        // A button built for an earlier frame, or built and not drawn, has
+        // no bounds in the last one.
+        let Some(bounds) = visual.debug_bounds(selector.clone().leak()) else {
+            continue;
+        };
+        let hug = text.ceil() + 2.0 * Theme::SPACE_SM + pixel;
+        assert!(
+            f32::from(bounds.size.width) <= hug,
+            "{tab}: the button {label:?} ({selector}) is {:?} wide, past the {hug} its label and padding take",
+            bounds.size.width
+        );
+        held.push(label);
+    }
+    held
+}
+
+/// Every label of `wanted` is among the buttons `held`.
+fn holds(tab: &str, held: &[SharedString], wanted: &[&str]) {
+    for label in wanted {
+        assert!(
+            held.iter().any(|held| &**held == *label),
+            "{tab}: no button {label:?} was held to its label among {held:?}"
+        );
+    }
+}
+
 /// Draw the shell with the fixture `media` selected and the Inspector on
 /// `tab`, after `then` edits the state, then narrow the Inspector a step at a
 /// time. Every line drawn into the Inspector stands in the keyed rows'
@@ -198,18 +284,23 @@ fn shows_and_marks(tab: &str, choices: &[DrawnChoice], row: &str, shown: &str) {
 /// `reference`, a keyed row with a time area, starts and is as wide, and its
 /// value stands in that row's value column, on the label's line. The walk
 /// ends once the reference's label gives up width, which it must reach. Every
-/// choice row drawn marks the choice it shows. Returns the debug selectors of
-/// the lines' labels, and the choice rows.
+/// choice row drawn marks the choice it shows, and every button drawn before
+/// the walk is as wide as its label, but those whose labels `exempt` lists.
+/// Returns the debug selectors of the lines' labels, the choice rows, and the
+/// labels of the buttons held.
 fn every_line_stands_in_the_columns(
     cx: &mut TestAppContext,
     (media, tab): (&str, &str),
     reference: ClipParam,
+    exempt: fn(&AppState) -> Vec<SharedString>,
     then: impl FnOnce(&mut AppState),
-) -> (Vec<String>, Vec<DrawnChoice>) {
+) -> (Vec<String>, Vec<DrawnChoice>, Vec<SharedString>) {
     record_lines();
     let (state, visual) = drawn_with(cx, &format!("columns-{tab}"), media, tab, then);
     let (lines, choices) = (drawn_lines(), drawn_choices());
     every_choice_marks_what_it_shows(tab, &choices);
+    let exempt = visual.read(|app| exempt(state.read(app)));
+    let held = every_button_hugs_its_label(visual, tab, &exempt);
     let free: Vec<&str> = lines
         .iter()
         .filter(|(_, keyed)| !keyed)
@@ -272,7 +363,11 @@ fn every_line_stands_in_the_columns(
         yielded,
         "{tab}: the walk ended before {reference:?}'s label gave up width"
     );
-    (lines.into_iter().map(|(label, _)| label).collect(), choices)
+    (
+        lines.into_iter().map(|(label, _)| label).collect(),
+        choices,
+        held,
+    )
 }
 
 #[test]
@@ -302,16 +397,24 @@ fn every_tab_is_held_to_the_columns_or_named_as_not() {
 
 #[gpui::test]
 async fn every_transform_line_stands_in_the_columns(cx: &mut TestAppContext) {
-    every_line_stands_in_the_columns(cx, ("texture.png", "transform"), ClipParam::Opacity, |_| {});
+    let (_, _, held) = every_line_stands_in_the_columns(
+        cx,
+        ("texture.png", "transform"),
+        ClipParam::Opacity,
+        none_exempt,
+        |_| {},
+    );
+    holds("transform", &held, &["Reset framing"]);
 }
 
 #[gpui::test]
 async fn every_audio_line_stands_in_the_columns(cx: &mut TestAppContext) {
     let role = AudioRole::ALL[0];
-    let (lines, choices) = every_line_stands_in_the_columns(
+    let (lines, choices, held) = every_line_stands_in_the_columns(
         cx,
         ("fixture-sine-48k-2s.wav", "audio"),
         ClipParam::Volume,
+        none_exempt,
         |state| {
             let clip = state.selected_clip().expect("the sound is selected");
             state
@@ -327,6 +430,7 @@ async fn every_audio_line_stands_in_the_columns(cx: &mut TestAppContext) {
         "the insert's parameter drew no line: {lines:?}"
     );
     shows_and_marks("audio", &choices, "insp-label-Role", role.label());
+    holds("audio", &held, &["Off", AudioRole::ALL[1].label()]);
 }
 
 #[gpui::test]
@@ -341,14 +445,16 @@ async fn every_look_line_stands_in_the_columns(cx: &mut TestAppContext) {
             .first()
             .expect("the catalog lists a filter");
         // Every layer style on, so each style's color and number rows are
-        // drawn and held to the columns too.
+        // drawn and held to the columns too, and a mask, a key and a matte, so
+        // their rows and their Remove buttons are.
         let mut colors = Vec::new();
-        let (lines, choices) = every_line_stands_in_the_columns(
+        let (lines, choices, held) = every_line_stands_in_the_columns(
             cx,
             ("texture.png", "look"),
             ClipParam::Look {
                 param: LookParam::FilterIntensity,
             },
+            none_exempt,
             |state| {
                 let first = state.selected_clip().expect("the texture is selected");
                 state
@@ -364,6 +470,13 @@ async fn every_look_line_stands_in_the_columns(cx: &mut TestAppContext) {
                     let rows = state.param_colors(style);
                     assert!(!rows.is_empty(), "the {style} style has no color");
                     colors.extend(rows.into_iter().map(|row| (*style, row.param)));
+                }
+                for pick in [
+                    Pick::Mask(MaskKind::ALL[0]),
+                    Pick::Chroma(KEY_COLORS[0].2),
+                    Pick::Matte(MatteSource::ALL[0]),
+                ] {
+                    inspector_pick::apply(state, pick).expect("dress the look");
                 }
                 state.sync_from_engine();
             },
@@ -385,6 +498,18 @@ async fn every_look_line_stands_in_the_columns(cx: &mut TestAppContext) {
         }
         shows_and_marks("look", &choices, "insp-label-Filter", &filter.label);
         shows_and_marks("look", &choices, "insp-label-choice transition", "Best");
+        holds(
+            "look",
+            &held,
+            &[
+                "Reset grade",
+                "Clear styles",
+                "Load .cube…",
+                "Remove transition",
+                "Remove key",
+                "Remove matte",
+            ],
+        );
     });
 }
 
@@ -408,10 +533,11 @@ async fn every_effects_line_stands_in_the_columns(cx: &mut TestAppContext) {
             .into_iter()
             .position(|kind| kind == EffectParamKind::Scalar)
             .expect("a scalar kind");
-        let (lines, choices) = every_line_stands_in_the_columns(
+        let (lines, choices, held) = every_line_stands_in_the_columns(
             cx,
             ("texture.png", "effects"),
             slot(scalar),
+            the_add_list,
             |state| {
                 state
                     .add_effect_to_selected(EVERY_KIND)
@@ -433,5 +559,28 @@ async fn every_effects_line_stands_in_the_columns(cx: &mut TestAppContext) {
         // A layer slot left at None shows None and marks the None chip.
         shows_and_marks("effects", &choices, "insp-label-layer effect", "None");
         shows_and_marks("effects", &choices, "insp-label-choice effect", "Best");
+        holds("effects", &held, &["Save as preset"]);
     });
+}
+
+/// The Speed tab's rows stand in free columns, so only its buttons are held:
+/// each ramp preset and Clear ramp, drawn over a clip with a ramp.
+#[gpui::test]
+async fn every_speed_button_hugs_its_label(cx: &mut TestAppContext) {
+    let preset = speed_presets()
+        .first()
+        .expect("the model ships a speed preset");
+    record_lines();
+    let (_, visual) = drawn_with(cx, "columns-speed", "texture.png", "speed", |state| {
+        clip_pick::apply(state, ClipPick::SpeedPreset(preset.id.to_string()))
+            .expect("ramp the clip");
+    });
+    let held = every_button_hugs_its_label(visual, "speed", &[]);
+    let mut wanted: Vec<SharedString> = speed_presets()
+        .iter()
+        .map(|spec| picked(spec.label.clone(), spec.id == preset.id))
+        .collect();
+    wanted.push("Clear ramp".into());
+    let wanted: Vec<&str> = wanted.iter().map(|label| &**label).collect();
+    holds("speed", &held, &wanted);
 }

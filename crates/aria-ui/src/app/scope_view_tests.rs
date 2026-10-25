@@ -405,6 +405,11 @@ fn a_replaced_reading_releases_its_plugin_textures() {
 /// CPU copy, which left the scopes of a texture frame on "No frame" until the
 /// next frame arrived. Not covered: counting the texture on the device, which
 /// `preview_worker_tests` asserts.
+///
+/// The reading is the only mail that can change anything: the render bar is
+/// settled before the strip opens, so a pass the fixture's edits started
+/// cannot land in the same take as the reading and report it as a window
+/// redraw.
 #[gpui::test]
 async fn opening_scopes_measures_the_frame_on_screen_on_the_worker(cx: &mut gpui::TestAppContext) {
     let executor = cx.executor();
@@ -432,18 +437,18 @@ async fn opening_scopes_measures_the_frame_on_screen_on_the_worker(cx: &mut gpui
             let tick = if on_cpu { 9 } else { 2 };
             state.last_frame = on_cpu.then(|| frame(64, 32, [200, 200, 200, 255]));
             state.shown_tick = Some(tick);
+            state.render_bar_segments();
             open(&mut state);
             assert!(state.scopes_wanted(), "{case}: no scope was shown");
             assert!(
                 state.scope_textures.is_none(),
                 "{case}: the scopes were measured on the calling thread"
             );
-            next_wake(&wakes, &executor, &case).await;
-            assert_eq!(
-                state.take_preview_mail(),
-                Mail::Reading,
-                "{case}: the reading did not arrive"
-            );
+            let mail = mail_until(&mut state, &wakes, &executor, &case, |state| {
+                state.scope_textures.is_some()
+            })
+            .await;
+            assert_eq!(mail, Mail::Reading, "{case}: the reading came as {mail:?}");
             let measured = state
                 .scope_textures
                 .as_ref()
@@ -542,6 +547,40 @@ async fn next_wake(
     }
 }
 
+/// Take the worker's mail on each wake, as the window does, until `landed`
+/// holds, and return the mail that landed it. Fails after 30 s of wall time.
+///
+/// A wake says mail is waiting, not which: a render-bar pass the fixture's
+/// edits started posts its own wake, and a reading counted in a mode just
+/// left wakes the window as well. A test that asserts the kind of mail
+/// settles the render bar first with [`AppState::render_bar_segments`], so
+/// that a finished pass is not reported in the same take as the reading.
+async fn mail_until(
+    state: &mut AppState,
+    wakes: &crate::handoff::Wakes<()>,
+    executor: &gpui::BackgroundExecutor,
+    what: &str,
+    landed: impl Fn(&AppState) -> bool,
+) -> Mail {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    loop {
+        next_wake(wakes, executor, what).await;
+        let mail = state.take_preview_mail();
+        if landed(state) {
+            return mail;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "{what}: the reading did not arrive; the strip shows {:?}, the error line {:?}",
+            state
+                .scope_textures
+                .as_ref()
+                .map(|textures| (textures.trace, textures.tick)),
+            state.last_error,
+        );
+    }
+}
+
 /// Choosing a waveform mode measures the frame on screen again on the worker,
 /// counted in that mode, though the reading on screen is for the same frame.
 #[gpui::test]
@@ -552,37 +591,39 @@ async fn a_new_waveform_mode_remeasures_the_frame_on_screen(cx: &mut gpui::TestA
     let wakes = state.preview_worker.wakes();
     state.last_frame = Some(frame(64, 32, [200, 40, 30, 255]));
     state.shown_tick = Some(9);
+    state.render_bar_segments();
     state.toggle_scopes();
-    next_wake(&wakes, &executor, "opening the strip").await;
-    assert_eq!(
-        state.take_preview_mail(),
-        Mail::Reading,
-        "the luma reading did not arrive"
-    );
+    let shows = |trace: WaveformTrace| {
+        move |state: &AppState| {
+            state
+                .scope_textures
+                .as_ref()
+                .is_some_and(|textures| (textures.trace, textures.tick) == (trace, 9))
+        }
+    };
+    let mail = mail_until(
+        &mut state,
+        &wakes,
+        &executor,
+        "opening the strip",
+        shows(WaveformTrace::Luma),
+    )
+    .await;
+    assert_eq!(mail, Mail::Reading, "the luma reading came as {mail:?}");
     for mode in [
         WaveformMode::YcbcrParade,
         WaveformMode::RgbParade,
         WaveformMode::Luma,
     ] {
         assert!(state.choose_waveform_mode(mode));
-        // A wake says mail is waiting, not that it is this reading: one the
-        // worker counted in the mode just left wakes the window as well.
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
-        loop {
-            next_wake(&wakes, &executor, mode.label()).await;
-            state.take_preview_mail();
-            let shown = state
-                .scope_textures
-                .as_ref()
-                .map(|textures| (textures.trace, textures.tick));
-            if shown == Some((mode.trace(), 9)) {
-                break;
-            }
-            assert!(
-                std::time::Instant::now() < deadline,
-                "the {mode:?} reading did not arrive; the strip shows {shown:?}"
-            );
-        }
+        mail_until(
+            &mut state,
+            &wakes,
+            &executor,
+            mode.label(),
+            shows(mode.trace()),
+        )
+        .await;
     }
 }
 

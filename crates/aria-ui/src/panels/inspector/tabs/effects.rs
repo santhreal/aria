@@ -10,6 +10,7 @@ use gpui::{
 };
 
 use crate::components;
+use crate::panels::inspector::blocks::widgets::pick_button;
 use crate::panels::sidebar::DragGhost;
 use crate::surfaces::effects_rack::{self, Gesture};
 use crate::theme::Theme;
@@ -265,22 +266,12 @@ pub fn effects_tab(
         .effect_browse_list()
         .into_iter()
         .map(|(spec, label)| {
-            components::ghost_button(
+            pick_button(
                 crate::motion::MotionKey::new("fx-add", spec.id.as_str()),
                 label,
                 theme,
-            )
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                    this.state.update(cx, |state, _| {
-                        if let Err(err) = effects_rack::apply(state, Gesture::Add(spec.id.clone()))
-                        {
-                            state.report_error(&err);
-                        }
-                    });
-                    cx.notify();
-                }),
+                cx,
+                move |state| effects_rack::apply(state, Gesture::Add(spec.id.clone())),
             )
             .into_any_element()
         })
@@ -298,47 +289,22 @@ pub fn effects_tab(
                 .flex_row()
                 .items_center()
                 .gap(px(Theme::SPACE_XS))
-                .child(
-                    components::ghost_button(
-                        crate::motion::MotionKey::new("inspector-fx-preset", index),
-                        preset.name.to_string(),
-                        theme,
-                    )
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                            this.state.update(cx, |state, _| {
-                                if let Err(err) =
-                                    effects_rack::apply(state, Gesture::Preset(apply_name.clone()))
-                                {
-                                    state.report_error(&err);
-                                }
-                            });
-                            cx.notify();
-                        }),
-                    ),
-                )
-                .child(
-                    components::ghost_button(
-                        crate::motion::MotionKey::new("inspector-fx-preset-delete", index),
-                        "Delete",
-                        theme,
-                    )
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                            this.state.update(cx, |state, _| {
-                                if let Err(err) = effects_rack::apply(
-                                    state,
-                                    Gesture::DeletePreset(drop_name.clone()),
-                                ) {
-                                    state.report_error(&err);
-                                }
-                            });
-                            cx.notify();
-                        }),
-                    ),
-                )
+                .child(pick_button(
+                    crate::motion::MotionKey::new("inspector-fx-preset", index),
+                    preset.name.to_string(),
+                    theme,
+                    cx,
+                    move |state| effects_rack::apply(state, Gesture::Preset(apply_name.clone())),
+                ))
+                .child(pick_button(
+                    crate::motion::MotionKey::new("inspector-fx-preset-delete", index),
+                    "Delete",
+                    theme,
+                    cx,
+                    move |state| {
+                        effects_rack::apply(state, Gesture::DeletePreset(drop_name.clone()))
+                    },
+                ))
                 .into_any_element()
         })
         .collect();
@@ -357,25 +323,16 @@ pub fn effects_tab(
                 .justify_between()
                 .gap(px(Theme::SPACE_XS))
                 .child(
-                    components::ghost_button(
+                    pick_button(
                         crate::motion::MotionKey::new("inspector-fx-plugin-preset", index),
                         entry.preset.name.clone(),
                         theme,
+                        cx,
+                        move |state| {
+                            effects_rack::apply(state, Gesture::Preset(apply_name.clone()))
+                        },
                     )
-                    .with_tip(crate::tooltip::text_builder(plugin_label.clone()))
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                            this.state.update(cx, |state, _| {
-                                if let Err(err) =
-                                    effects_rack::apply(state, Gesture::Preset(apply_name.clone()))
-                                {
-                                    state.report_error(&err);
-                                }
-                            });
-                            cx.notify();
-                        }),
-                    ),
+                    .with_tip(crate::tooltip::text_builder(plugin_label.clone())),
                 )
                 .child(
                     div()
@@ -414,48 +371,31 @@ pub fn effects_tab(
     // button commits. A refused name or empty selection leaves the draft open.
     let open_draft = state.read(cx).preset_draft().cloned();
     let naming = open_draft.is_some();
-    let save = components::ghost_button(
+    let save = pick_button(
         "inspector-fx-preset-save",
         if naming { "Save" } else { "Save as preset" },
         theme,
-    )
-    .on_mouse_down(
-        MouseButton::Left,
-        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-            this.state.update(cx, |state, _| {
-                if naming {
-                    if let Err(err) = effects_rack::apply(state, Gesture::SavePreset) {
-                        state.report_error(&err);
-                    }
-                } else {
-                    state.open_preset_draft();
-                }
-            });
-            cx.notify();
-        }),
+        cx,
+        move |state| {
+            if naming {
+                effects_rack::apply(state, Gesture::SavePreset)
+            } else {
+                state.open_preset_draft();
+                Ok(())
+            }
+        },
     );
     let draft_block = open_draft.map(|draft| {
         let mut part_rows: Vec<gpui::AnyElement> = Vec::new();
         for (fx_idx, label, on) in draft.effects {
             let text = format!("{} {label}", if on { "✓" } else { "○" });
             part_rows.push(
-                components::ghost_button(
+                pick_button(
                     crate::motion::MotionKey::new("inspector-fx-preset-part-fx", fx_idx),
                     text,
                     theme,
-                )
-                .on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                        this.state.update(cx, |state, _| {
-                            if let Err(err) =
-                                effects_rack::apply(state, Gesture::TogglePresetEffect(fx_idx))
-                            {
-                                state.report_error(&err);
-                            }
-                        });
-                        cx.notify();
-                    }),
+                    cx,
+                    move |state| effects_rack::apply(state, Gesture::TogglePresetEffect(fx_idx)),
                 )
                 .into_any_element(),
             );
@@ -471,48 +411,34 @@ pub fn effects_tab(
                 draft.audio_effects.len()
             );
             part_rows.push(
-                components::ghost_button("inspector-fx-preset-part-audio", text, theme)
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                            this.state.update(cx, |state, _| {
-                                if let Err(err) =
-                                    effects_rack::apply(state, Gesture::TogglePresetAudioEffects)
-                                {
-                                    state.report_error(&err);
-                                }
-                            });
-                            cx.notify();
-                        }),
-                    )
-                    .into_any_element(),
+                pick_button(
+                    "inspector-fx-preset-part-audio",
+                    text,
+                    theme,
+                    cx,
+                    move |state| effects_rack::apply(state, Gesture::TogglePresetAudioEffects),
+                )
+                .into_any_element(),
             );
         }
         for (prop_id, label, on) in draft.properties {
             let text = format!("{} {label}", if on { "✓" } else { "○" });
             let id_for_click = prop_id.clone();
             part_rows.push(
-                components::ghost_button(
+                pick_button(
                     crate::motion::MotionKey::new(
                         "inspector-fx-preset-part-prop",
                         prop_id.as_str(),
                     ),
                     text,
                     theme,
-                )
-                .on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                        this.state.update(cx, |state, _| {
-                            if let Err(err) = effects_rack::apply(
-                                state,
-                                Gesture::TogglePresetProperty(id_for_click.clone()),
-                            ) {
-                                state.report_error(&err);
-                            }
-                        });
-                        cx.notify();
-                    }),
+                    cx,
+                    move |state| {
+                        effects_rack::apply(
+                            state,
+                            Gesture::TogglePresetProperty(id_for_click.clone()),
+                        )
+                    },
                 )
                 .into_any_element(),
             );
@@ -528,7 +454,14 @@ pub fn effects_tab(
                 true,
                 theme,
             ))
-            .children(part_rows)
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .items_start()
+                    .gap(px(Theme::SPACE_XS))
+                    .children(part_rows),
+            )
     });
 
     div()
@@ -557,7 +490,7 @@ pub fn effects_tab(
                 .children(plugin_presets)
                 .children(broken_presets)
                 .when_some(draft_block, |el, field| el.child(field))
-                .child(save),
+                .child(div().flex().child(save)),
         )
         .child(section_label(theme, "Add"))
         .child(

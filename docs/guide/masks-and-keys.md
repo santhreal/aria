@@ -69,16 +69,18 @@ layer's look to the masked area. The Look tab holds:
   removed, or reordered while it runs do not move the keyframes off the tracked
   mask; if the tracked mask is removed, dragged, or reshaped meanwhile, nothing
   is written and Aria reports it.
-- A chroma key. Pick Green, Blue, or Cyan to key on that color at half
-  strength, then adjust Strength and Shadow. Re-keying keeps Strength and
-  Shadow, keyframes included. Remove key clears it.
-- Four layer styles: shadow, glow, outline, background. Click one to add it
-  at its default, then adjust its knobs and its color row. A color row keys
-  like a number row: with its stopwatch on, a swatch sets a keyframe at the
-  playhead. Clear styles removes all four.
-- A `.cube` LUT. **Load .cube…** picks a file; Intensity blends it over the
-  ungraded image; Remove LUT clears it. Loading another LUT keeps the
-  intensity you dialed in, keyframes included.
+- A chroma key. The **Key color** row shows the key color, or Off, and the
+  Green, Blue, and Cyan chips under it key on that color at half strength, the
+  one in force marked `•`. Adjust Strength and Shadow after. Re-keying keeps
+  Strength and Shadow, keyframes included. **Remove key** clears it.
+- Four layer styles: shadow, glow, outline, background. Each style's line has
+  an On/Off switch; switching one on adds it at its default and shows its knobs
+  and its color row. A color row keys like a number row: with its stopwatch on,
+  a swatch sets a keyframe at the playhead. **Clear styles** removes all four.
+- A `.cube` LUT. The **File** row shows the loaded file, or None. **Load
+  .cube…** under it picks a file; Intensity blends it over the ungraded image;
+  **Remove LUT** clears it. Loading another LUT keeps the intensity you dialed
+  in, keyframes included.
 - In, Out, and Loop animations. Each slot's row shows the applied preset, or
   None, and the chips under it list the presets for that slot, the applied one
   marked `•`. Speed, Intensity, and Stagger appear only when the

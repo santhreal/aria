@@ -1,6 +1,6 @@
 //! Text tab: a title's content, its type properties, and its text-effect preset.
 //!
-//! The numeric and colour properties come from the catalog rather than from a
+//! The numeric and color properties come from the catalog rather than from a
 //! list here, so the size, the spacing, the fill, the stroke and the shadow are
 //! all animatable through the same keyframe-aware path every other block writes
 //! through. The Character and Paragraph controls are drawn here once and shared
@@ -23,7 +23,7 @@ use crate::theme::Theme;
 use crate::types::{RenameTarget, UiClip};
 use gpui::prelude::FluentBuilder;
 
-use crate::panels::inspector::blocks::widgets::{color_rows, param_rows, picked};
+use crate::panels::inspector::blocks::widgets::{color_rows, param_rows, pick_button, picked};
 
 use crate::components::section_label;
 
@@ -52,24 +52,20 @@ pub fn text_tab(
         .map(|choice| {
             let id = choice.id.as_str();
             let on = active.as_deref() == Some(id);
-            components::ghost_button(("text-effect", id), picked(choice.label.clone(), on), theme)
-                .on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                        this.state.update(cx, |state, _| {
-                            let result = if on {
-                                clip_pick::apply(state, Pick::ClearTextEffect)
-                            } else {
-                                clip_pick::apply(state, Pick::TextEffect(id.to_string()))
-                            };
-                            if let Err(err) = result {
-                                state.report_error(&err);
-                            }
-                        });
-                        cx.notify();
-                    }),
-                )
-                .into_any_element()
+            pick_button(
+                ("text-effect", id),
+                picked(choice.label.clone(), on),
+                theme,
+                cx,
+                move |state| {
+                    if on {
+                        clip_pick::apply(state, Pick::ClearTextEffect)
+                    } else {
+                        clip_pick::apply(state, Pick::TextEffect(id.to_string()))
+                    }
+                },
+            )
+            .into_any_element()
         })
         .collect();
 
@@ -94,16 +90,16 @@ pub fn text_tab(
                     .child("No text"),
             )
         })
-        .child(
-            components::ghost_button("text-edit", "Edit text…", theme).on_mouse_down(
-                MouseButton::Left,
-                cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                    this.state
-                        .update(cx, |state, _| state.begin_rename(RenameTarget::ClipText));
-                    cx.notify();
-                }),
-            ),
-        )
+        .child(pick_button(
+            "text-edit",
+            "Edit text…",
+            theme,
+            cx,
+            |state| {
+                state.begin_rename(RenameTarget::ClipText);
+                Ok(())
+            },
+        ))
         .children(character_controls(theme, INSPECTOR, state, cx))
         .children(paragraph_controls(theme, INSPECTOR, state, cx))
         .child(section_label(theme, "Effect"))
@@ -452,21 +448,12 @@ fn step_button(
     } else {
         "Previous font"
     };
-    components::ghost_button(
+    pick_button(
         MotionKey::new("font-step", label).with(surface),
         label,
         theme,
-    )
-    .on_mouse_down(
-        MouseButton::Left,
-        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-            this.state.update(cx, |state, _| {
-                if let Err(err) = clip_pick::apply(state, Pick::CycleFont { forward }) {
-                    state.report_error(&err);
-                }
-            });
-            cx.notify();
-        }),
+        cx,
+        move |state| clip_pick::apply(state, Pick::CycleFont { forward }),
     )
     .into_any_element()
 }

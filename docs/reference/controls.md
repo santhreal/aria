@@ -101,10 +101,11 @@ The Inspector panel (`crates/aria-ui/src/panels/inspector/**/*.rs`) renders para
 | `chroma-key-color` (per row) | Green / Blue / Cyan | Keys the selected clip on the green, blue, or cyan screen color. | None |
 | `clip-type-detach` | Detach | Detaches the linked audio stream from the selected video clip onto its own track item. | None |
 | `crop-clear` | Reset framing | Resets the crop rectangle and horizontal and vertical flip flags on the selected clip to their defaults. | None |
+| `denoise-toggle` | On / Off | Runs the selected clip's audio through RNNoise noise reduction, or stops it; drawn in the Inspector Audio tab. | None |
 | `duck-run` | Duck under voice | Computes and applies volume keyframes that lower music or effects gain during dialogue segments. | None |
 | `duck-setting` (per row) | Dip to / Attack / Release value | Steps the duck depth, attack time, or release time to its next value. | None |
-| `flip-h` | Flip H | Toggles horizontal mirroring of the selected clip. | None |
-| `flip-v` | Flip V | Toggles vertical mirroring of the selected clip. | None |
+| `flip-h` | On / Off | Toggles horizontal mirroring of the selected clip; drawn on the Mirror section's Horizontal line. | None |
+| `flip-v` | On / Off | Toggles vertical mirroring of the selected clip; drawn on the Mirror section's Vertical line. | None |
 | `fx-add` (per row) | Effect name | Appends the chosen effect from the inline picker to the selected clip's effect stack. | None |
 | `fx-choice` (per row) | Option label | Selects a discrete enum option for an effect parameter. | None |
 | `fx-curve` (per row) | Curve preset | Applies a named curve preset (Linear, S-Curve, Invert) to an effect curve parameter. | None |
@@ -149,7 +150,7 @@ The Inspector panel (`crates/aria-ui/src/panels/inspector/**/*.rs`) renders para
 | `mask-shape` (per row) | Linear / Mirror / Circle / Rectangle / Heart / Star / Path | Adds a mask of the shape to the bottom of the selected clip's mask stack. | None |
 | `mask-up` (per row) | Move up | Moves the mask one place higher in the selected clip's mask stack. | None |
 | `matte-clear` | Remove matte | Clears the track matte assignment from the selected clip. | None |
-| `matte-invert` | Invert | Inverts the alpha or luma channel read from the assigned matte clip. | None |
+| `matte-invert` | On / Off | Inverts the alpha or luma channel read from the assigned matte clip; drawn on the Track matte section's Invert line. | None |
 | `matte-source` (per row) | Alpha / Luma | Sets whether the track matte reads the alpha or the luma of the layer above the selected clip. | None |
 | `parent-choice` (per row) | Clip name | Assigns the clicked timeline clip as the transform parent of the selected clip. | None |
 | `parent-none` | None | Detaches the selected clip from its current transform parent. | None |
@@ -157,7 +158,7 @@ The Inspector panel (`crates/aria-ui/src/panels/inspector/**/*.rs`) renders para
 | `relink-media` | Relink | Opens the Relink Media file picker, filtered to media files, and relinks the missing media pool item to the chosen file. Drawn in the Info tab and on a missing pool item. | None |
 | `speed-clear` | Clear ramp | Removes variable speed ramp segments and returns the clip to constant speed. | None |
 | `speed-preset` (per row) | Ramp up / Ramp down / Montage / Hero / Bullet / Jump cut / Flash in / Flash out | Applies the speed ramp preset to the selected clip. | None |
-| `style-toggle` (per row) | Shadow / Glow / Outline / Background | Adds or removes the layer style on the selected clip; an applied style is labeled `on`. | None |
+| `style-toggle` (per row) | On / Off | Adds or removes the layer style on the selected clip; drawn on the style's line (Shadow, Glow, Outline, Background). | None |
 | `styles-clear` | Clear styles | Removes drop shadow, stroke, glow, and background layer styles from the selected clip. | None |
 | `template-accepts` (per row) | Any visual / Video only / Image only / Audio only | Sets the media a template slot on the selected clip accepts when the template is filled. | None |
 | `tr-bool` (per row) | On / Off | Toggles a boolean parameter on the selected timeline transition. | None |
@@ -282,12 +283,11 @@ The Color panel and grading blocks (`crates/aria-ui/src/panels/color_panel.rs`, 
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
-| `ce-preset` (per row) | Preset name | Applies a cubic-bezier easing preset (Snappy, Overshoot, Anticipate) to the segment leaving the keyframe at the playhead on the active property in the Inspector curve editor. | None |
+| `ce-preset` (per row) | Preset name | Applies a cubic-bezier easing preset (Snappy, Overshoot, Anticipate) to the segment leaving the keyframe at the playhead on the active property in the Inspector curve editor, on every selected clip that has the property, as one undo step. | None |
 | `color-grade-clear` | Reset grade | Resets all color correction sections on the selected clip from the Color panel header. | None |
 | `color-section` (per row) | Section title | Expands or collapses a grading section (Basic Correction, Creative, RGB Curves, Hue Curves, Color Wheels, HSL Secondary, Vignette) in the Color panel. | None |
 | `curve-axis` (per row) | Curve axis | Selects the X or Y component axis for a two-dimensional animatable property in the Inspector curve editor. | None |
 | `curve-param` (per row) | Curve channel | Selects which animatable clip property is graphed in the Inspector curve editor. | None |
-| `denoise-toggle` | On / Off | Toggles temporal/spatial video denoise on the selected clip. | None |
 | `grade-blend` (per row) | Normal / Darken / Multiply / Color Burn / Lighten / Screen / Color Dodge / Add / Overlay / Soft Light / Hard Light / Difference / Exclusion | Sets the blend mode the selected clip composites with. | None |
 | `grade-clear` | Reset grade | Resets all color grade adjustments on the selected clip from the Inspector Look tab. | None |
 | `inspector-wheel-reset` | Reset wheel | Resets the Lift, Gamma, or Gain color wheel back to neutral. | None |

@@ -12,9 +12,10 @@ use gpui::{
     SharedString, StatefulInteractiveElement, Styled, div, px,
 };
 
+use super::controls::stacked;
 use super::keys::affordances;
 use super::{
-    Columns, Keys, MIXED, Readout, Travel, Watching, color_name, color_stopwatch, line, stacked,
+    Columns, Keys, MIXED, Readout, Travel, Watching, color_name, color_stopwatch, line,
     stepper_row, swatch, value_cell,
 };
 

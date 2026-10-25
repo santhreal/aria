@@ -21,7 +21,7 @@ use crate::components;
 use crate::motion::MotionKey;
 use crate::panels::inspector::blocks::widgets::{
     Chip, Columns, Keys, MIXED, Readout, Stopwatch, Watching, chip_row, color_stopwatch,
-    control_line, stepper_row, swatch_row,
+    control_line, pick_button, stepper_row, swatch_row,
 };
 use crate::surfaces::effects_rack::{self, Gesture, SlotEdit};
 use crate::theme::Theme;
@@ -249,22 +249,11 @@ fn slot_chip(
     edit: SlotEdit,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> AnyElement {
-    components::ghost_button(key, text, theme)
-        .on_mouse_down(
-            MouseButton::Left,
-            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                let edit = edit.clone();
-                this.state.update(cx, |state, _| {
-                    if let Err(err) =
-                        effects_rack::apply(state, Gesture::EditSlot { index, slot, edit })
-                    {
-                        state.report_error(&err);
-                    }
-                });
-                cx.notify();
-            }),
-        )
-        .into_any_element()
+    pick_button(key, text, theme, cx, move |state| {
+        let edit = edit.clone();
+        effects_rack::apply(state, Gesture::EditSlot { index, slot, edit })
+    })
+    .into_any_element()
 }
 
 pub(super) fn scalar_readout(value: f32, pspec: &EffectParamSpec) -> Readout {

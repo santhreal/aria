@@ -7,20 +7,16 @@
 //! `transition_media` says the junction takes that kind, which is the same rule
 //! the engine enforces.
 
-use gpui::{
-    InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, SharedString,
-    Styled, div, px,
-};
+use gpui::{IntoElement, ParentElement, SharedString, Styled, div, px};
 
 use crate::app::clip_transitions::TRANSITION_STEP_TICKS;
-use crate::components;
 use crate::motion::MotionKey;
 use crate::surfaces::clip_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::UiClip;
 use gpui::prelude::FluentBuilder;
 
-use super::widgets::{Chip, Columns, Readout, chip_row, unkeyed_row};
+use super::widgets::{Chip, Columns, Readout, chip_row, pick_button, unkeyed_row};
 
 use crate::components::section_label;
 
@@ -39,33 +35,32 @@ pub fn transition_block(
             &picture
         }
     };
-    let chips: Vec<_> = choices
+    let mut chips: Vec<_> = choices
         .iter()
         .map(|choice| {
             let id = choice.id.to_string();
             let on = applied.as_ref().is_some_and(|t| t.id == choice.id);
             Chip::choice(choice.label.clone(), on, |label| {
-                components::ghost_button(
+                pick_button(
                     MotionKey::new("transition-choice", &choice.id),
                     label,
                     theme,
-                )
-                .on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                        let id = id.clone();
-                        this.state.update(cx, |state, _| {
-                            if let Err(err) = clip_pick::apply(state, Pick::Transition(id)) {
-                                state.report_error(&err);
-                            }
-                        });
-                        cx.notify();
-                    }),
+                    cx,
+                    move |state| clip_pick::apply(state, Pick::Transition(id.clone())),
                 )
                 .into_any_element()
             })
         })
         .collect();
+    if applied.is_some() {
+        chips.push(Chip::other(pick_button(
+            "transition-clear",
+            "Remove transition",
+            theme,
+            cx,
+            |state| clip_pick::apply(state, Pick::ClearTransition),
+        )));
+    }
 
     let duration_ticks = applied.as_ref().map(|t| t.duration_ticks).unwrap_or(0);
     let alignment = applied.as_ref().map(|t| t.alignment).unwrap_or_default();
@@ -74,23 +69,12 @@ pub fn transition_block(
         .map(|choice| {
             let on = applied.is_some() && alignment == choice;
             Chip::choice(choice.label(), on, |label| {
-                components::ghost_button(
+                pick_button(
                     MotionKey::new("transition-align", choice.id()),
                     label,
                     theme,
-                )
-                .on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                        this.state.update(cx, |state, _| {
-                            if let Err(err) =
-                                clip_pick::apply(state, Pick::TransitionAlignment(choice))
-                            {
-                                state.report_error(&err);
-                            }
-                        });
-                        cx.notify();
-                    }),
+                    cx,
+                    move |state| clip_pick::apply(state, Pick::TransitionAlignment(choice)),
                 )
                 .into_any_element()
             })
@@ -147,19 +131,5 @@ pub fn transition_block(
                 align_chips,
             ))
             .children(transition_params)
-            .child(
-                components::ghost_button("transition-clear", "Remove transition", theme)
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                            this.state.update(cx, |state, _| {
-                                if let Err(err) = clip_pick::apply(state, Pick::ClearTransition) {
-                                    state.report_error(&err);
-                                }
-                            });
-                            cx.notify();
-                        }),
-                    ),
-            )
         })
 }

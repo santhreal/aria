@@ -6,20 +6,17 @@
 //! reads. Text editability is offered only on a text clip, which is the only clip
 //! the model accepts it on.
 
-use gpui::{
-    InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled, div, px,
-};
+use gpui::{InteractiveElement, IntoElement, ParentElement, Styled, div, px};
 
 use aria_models::MediaId;
 
 use crate::app::clip_template::slot_media_label;
-use crate::components;
 use crate::surfaces::clip_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::{UiClip, UiClipKind};
 use gpui::prelude::FluentBuilder;
 
-use super::widgets::{Columns, Readout, picked, unkeyed_row};
+use super::widgets::{Columns, Readout, pick_button, picked, unkeyed_row};
 
 use crate::components::section_label;
 
@@ -49,22 +46,11 @@ pub fn template_block(
     let replace_rows: Vec<_> = pool
         .into_iter()
         .map(|(id, name)| {
-            components::ghost_button("inspector-replace-media", name, theme)
-                .id(crate::motion::MotionKey::new("insp-replace", id).element_id("insp-replace"))
-                .on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                        this.state.update(cx, |state, _| {
-                            if let Err(err) =
-                                clip_pick::apply(state, Pick::ReplaceMedia(MediaId::from_raw(id)))
-                            {
-                                state.report_error(&err);
-                            }
-                        });
-                        cx.notify();
-                    }),
-                )
-                .into_any_element()
+            pick_button("inspector-replace-media", name, theme, cx, move |state| {
+                clip_pick::apply(state, Pick::ReplaceMedia(MediaId::from_raw(id)))
+            })
+            .id(crate::motion::MotionKey::new("insp-replace", id).element_id("insp-replace"))
+            .into_any_element()
         })
         .collect();
 
@@ -72,19 +58,14 @@ pub fn template_block(
         .into_iter()
         .map(|(kind, label)| {
             let selected = slot.as_ref().is_some_and(|s| s.accepts == kind);
-            components::ghost_button(("template-accepts", label), picked(label, selected), theme)
-                .on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                        this.state.update(cx, |state, _| {
-                            if let Err(err) = clip_pick::apply(state, Pick::SlotAccepts(kind)) {
-                                state.report_error(&err);
-                            }
-                        });
-                        cx.notify();
-                    }),
-                )
-                .into_any_element()
+            pick_button(
+                ("template-accepts", label),
+                picked(label, selected),
+                theme,
+                cx,
+                move |state| clip_pick::apply(state, Pick::SlotAccepts(kind)),
+            )
+            .into_any_element()
         })
         .collect();
 
@@ -102,28 +83,17 @@ pub fn template_block(
             )
             .children(replace_rows)
         })
-        .child(
-            components::ghost_button(
-                "inspector-slot-toggle",
-                if slot.is_some() {
-                    "Clear template slot"
-                } else {
-                    "Mark as template slot"
-                },
-                theme,
-            )
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                    this.state.update(cx, |state, _| {
-                        if let Err(err) = clip_pick::apply(state, Pick::ToggleReplaceable) {
-                            state.report_error(&err);
-                        }
-                    });
-                    cx.notify();
-                }),
-            ),
-        )
+        .child(pick_button(
+            "inspector-slot-toggle",
+            if slot.is_some() {
+                "Clear template slot"
+            } else {
+                "Mark as template slot"
+            },
+            theme,
+            cx,
+            |state| clip_pick::apply(state, Pick::ToggleReplaceable),
+        ))
         .when_some(slot, |el, slot| {
             el.child(
                 div()
@@ -147,57 +117,37 @@ pub fn template_block(
                 cx,
             ))
             .children(accepts_chips)
-            .child(
-                components::ghost_button("inspector-slot-hint", "Edit hint…", theme).on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                        this.state.update(cx, |state, _| {
-                            state.begin_rename(crate::types::RenameTarget::SlotLabel);
-                        });
-                        cx.notify();
-                    }),
-                ),
-            )
+            .child(pick_button(
+                "inspector-slot-hint",
+                "Edit hint…",
+                theme,
+                cx,
+                |state| {
+                    state.begin_rename(crate::types::RenameTarget::SlotLabel);
+                    Ok(())
+                },
+            ))
             .when(slot.label.is_some(), |el| {
-                el.child(
-                    components::ghost_button("inspector-slot-hint-clear", "Clear hint", theme)
-                        .on_mouse_down(
-                            MouseButton::Left,
-                            cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                                this.state.update(cx, |state, _| {
-                                    if let Err(err) = clip_pick::apply(state, Pick::ClearSlotLabel)
-                                    {
-                                        state.report_error(&err);
-                                    }
-                                });
-                                cx.notify();
-                            }),
-                        ),
-                )
+                el.child(pick_button(
+                    "inspector-slot-hint-clear",
+                    "Clear hint",
+                    theme,
+                    cx,
+                    |state| clip_pick::apply(state, Pick::ClearSlotLabel),
+                ))
             })
         })
         .when(clip.kind == UiClipKind::Text, |el| {
-            el.child(
-                components::ghost_button(
-                    "inspector-text-editable",
-                    if clip.text_editable {
-                        "Text editable in template: on"
-                    } else {
-                        "Text editable in template: off"
-                    },
-                    theme,
-                )
-                .on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                        this.state.update(cx, |state, _| {
-                            if let Err(err) = clip_pick::apply(state, Pick::ToggleTextEditable) {
-                                state.report_error(&err);
-                            }
-                        });
-                        cx.notify();
-                    }),
-                ),
-            )
+            el.child(pick_button(
+                "inspector-text-editable",
+                if clip.text_editable {
+                    "Text editable in template: on"
+                } else {
+                    "Text editable in template: off"
+                },
+                theme,
+                cx,
+                |state| clip_pick::apply(state, Pick::ToggleTextEditable),
+            ))
         })
 }

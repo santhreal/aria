@@ -7,18 +7,15 @@
 //! which curve leaves it without asking the model again per row.
 
 use crate::components::Wraps as _;
-use gpui::{
-    InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled, div, px,
-};
+use gpui::{InteractiveElement, IntoElement, ParentElement, Styled, div, px};
 
 use crate::app::clip_keys::{PIECEWISE_PRESETS, easing_presets};
-use crate::components;
 use crate::surfaces::keyframe_rows::{self, Row};
 use crate::theme::Theme;
 use crate::types::UiClip;
 use gpui::prelude::FluentBuilder;
 
-use super::widgets::picked;
+use super::widgets::{pick_button, picked};
 
 use crate::components::section_label;
 
@@ -51,29 +48,22 @@ pub fn keyframes_block(
                 .map(|preset| {
                     let preset_id = preset.id.as_str();
                     let selected = preset_here == Some(preset_id);
-                    components::ghost_button(
+                    pick_button(
                         ("keyframe-easing", preset_id),
                         picked(preset.label.as_str(), selected),
                         theme,
+                        cx,
+                        move |state| {
+                            keyframe_rows::apply(
+                                state,
+                                Row::Easing {
+                                    param,
+                                    preset: preset_id,
+                                },
+                            )
+                        },
                     )
                     .id(crate::motion::MotionKey::new(preset_id, &id).element_id("kf-preset"))
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                            this.state.update(cx, |state, _| {
-                                if let Err(err) = keyframe_rows::apply(
-                                    state,
-                                    Row::Easing {
-                                        param,
-                                        preset: preset_id,
-                                    },
-                                ) {
-                                    state.report_error(&err);
-                                }
-                            });
-                            cx.notify();
-                        }),
-                    )
                     .into_any_element()
                 })
                 .collect();
@@ -82,26 +72,15 @@ pub fn keyframes_block(
                 .iter()
                 .map(|(preset, label)| {
                     let preset = *preset;
-                    components::ghost_button(
+                    pick_button(
                         (
                             "keyframe-piecewise",
                             crate::motion::MotionKey::new(label, &id),
                         ),
                         *label,
                         theme,
-                    )
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                            this.state.update(cx, |state, _| {
-                                if let Err(err) =
-                                    keyframe_rows::apply(state, Row::Piecewise { param, preset })
-                                {
-                                    state.report_error(&err);
-                                }
-                            });
-                            cx.notify();
-                        }),
+                        cx,
+                        move |state| keyframe_rows::apply(state, Row::Piecewise { param, preset }),
                     )
                     .into_any_element()
                 })
@@ -134,115 +113,62 @@ pub fn keyframes_block(
                                 .gap(px(Theme::SPACE_XS))
                                 .when(count > 0, |el| {
                                     el.child(
-                                        components::ghost_button("kf-prev", "‹", theme)
-                                            .id(crate::motion::MotionKey::new("kf-prev", &id)
-                                                .element_id("kf-prev"))
-                                            .on_mouse_down(
-                                                MouseButton::Left,
-                                                cx.listener(
-                                                    move |this, _: &MouseDownEvent, _, cx| {
-                                                        this.state.update(cx, |state, _| {
-                                                            if let Err(err) = keyframe_rows::apply(
-                                                                state,
-                                                                Row::Previous(param),
-                                                            ) {
-                                                                state.report_error(&err);
-                                                            }
-                                                        });
-                                                        cx.notify();
-                                                    },
-                                                ),
-                                            ),
+                                        pick_button("kf-prev", "‹", theme, cx, move |state| {
+                                            keyframe_rows::apply(state, Row::Previous(param))
+                                        })
+                                        .id(crate::motion::MotionKey::new("kf-prev", &id)
+                                            .element_id("kf-prev")),
                                     )
                                     .child(
-                                        components::ghost_button("kf-next", "›", theme)
-                                            .id(crate::motion::MotionKey::new("kf-next", &id)
-                                                .element_id("kf-next"))
-                                            .on_mouse_down(
-                                                MouseButton::Left,
-                                                cx.listener(
-                                                    move |this, _: &MouseDownEvent, _, cx| {
-                                                        this.state.update(cx, |state, _| {
-                                                            if let Err(err) = keyframe_rows::apply(
-                                                                state,
-                                                                Row::Next(param),
-                                                            ) {
-                                                                state.report_error(&err);
-                                                            }
-                                                        });
-                                                        cx.notify();
-                                                    },
-                                                ),
-                                            ),
+                                        pick_button("kf-next", "›", theme, cx, move |state| {
+                                            keyframe_rows::apply(state, Row::Next(param))
+                                        })
+                                        .id(crate::motion::MotionKey::new("kf-next", &id)
+                                            .element_id("kf-next")),
                                     )
                                 })
                                 .child(
-                                    components::ghost_button(
+                                    pick_button(
                                         "kf-toggle",
                                         if here { "◆" } else { "◇" },
                                         theme,
+                                        cx,
+                                        move |state| {
+                                            keyframe_rows::apply(
+                                                state,
+                                                Row::Key { param, keyed: here },
+                                            )
+                                        },
                                     )
                                     .id(crate::motion::MotionKey::new("kf-toggle", &id)
-                                        .element_id("kf-toggle"))
-                                    .on_mouse_down(
-                                        MouseButton::Left,
-                                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                                            this.state.update(cx, |state, _| {
-                                                let result = keyframe_rows::apply(
-                                                    state,
-                                                    Row::Key { param, keyed: here },
-                                                );
-                                                if let Err(err) = result {
-                                                    state.report_error(&err);
-                                                }
-                                            });
-                                            cx.notify();
-                                        }),
-                                    ),
+                                        .element_id("kf-toggle")),
                                 )
                                 .child(
-                                    components::ghost_button(
+                                    pick_button(
                                         "kf-driver",
                                         if driven { "ƒ Remove" } else { "ƒ Driver" },
                                         theme,
+                                        cx,
+                                        move |state| {
+                                            keyframe_rows::apply(state, Row::Driver(param))
+                                        },
                                     )
                                     .id(crate::motion::MotionKey::new("kf-driver", &id)
-                                        .element_id("kf-driver"))
-                                    .on_mouse_down(
-                                        MouseButton::Left,
-                                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                                            this.state.update(cx, |state, _| {
-                                                if let Err(err) =
-                                                    keyframe_rows::apply(state, Row::Driver(param))
-                                                {
-                                                    state.report_error(&err);
-                                                }
-                                            });
-                                            cx.notify();
-                                        }),
-                                    ),
+                                        .element_id("kf-driver")),
                                 )
                                 .when(count > 0, |el| {
                                     el.child(
-                                        components::ghost_button("kf-flatten", "Flatten", theme)
-                                            .id(crate::motion::MotionKey::new("kf-flatten", &id)
-                                                .element_id("kf-flatten"))
-                                            .on_mouse_down(
-                                                MouseButton::Left,
-                                                cx.listener(
-                                                    move |this, _: &MouseDownEvent, _, cx| {
-                                                        this.state.update(cx, |state, _| {
-                                                            if let Err(err) = keyframe_rows::apply(
-                                                                state,
-                                                                Row::Flatten(param),
-                                                            ) {
-                                                                state.report_error(&err);
-                                                            }
-                                                        });
-                                                        cx.notify();
-                                                    },
-                                                ),
-                                            ),
+                                        pick_button(
+                                            "kf-flatten",
+                                            "Flatten",
+                                            theme,
+                                            cx,
+                                            move |state| {
+                                                keyframe_rows::apply(state, Row::Flatten(param))
+                                            },
+                                        )
+                                        .id(crate::motion::MotionKey::new("kf-flatten", &id)
+                                            .element_id("kf-flatten")),
                                     )
                                 }),
                         ),

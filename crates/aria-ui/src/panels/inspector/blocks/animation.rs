@@ -5,21 +5,17 @@
 //! a preset the command layer refuses. Knob rows are hidden when the applied
 //! preset does not expose that knob.
 
-use gpui::{
-    InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, SharedString,
-    Styled, div, px,
-};
+use gpui::{IntoElement, ParentElement, SharedString, Styled, div, px};
 
 use aria_models::AnimationSlot;
 
 use crate::app::clip_anim::{ANIM_KNOBS, SLOTS, anim_knob, anim_knob_available};
-use crate::components;
 use crate::motion::MotionKey;
 use crate::surfaces::clip_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::UiClip;
 
-use super::widgets::{Chip, Columns, Readout, chip_row, unkeyed_row};
+use super::widgets::{Chip, Columns, Readout, chip_row, pick_button, unkeyed_row};
 
 use crate::components::section_label;
 
@@ -78,41 +74,21 @@ pub fn animation_block(
                         current = label.clone();
                     }
                     Chip::choice(label, on, |label| {
-                        components::ghost_button(("anim-preset", id), label, theme)
-                            .on_mouse_down(
-                                MouseButton::Left,
-                                cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                                    this.state.update(cx, |state, _| {
-                                        if let Err(err) =
-                                            clip_pick::apply(state, Pick::Animation(id))
-                                        {
-                                            state.report_error(&err);
-                                        }
-                                    });
-                                    cx.notify();
-                                }),
-                            )
-                            .into_any_element()
+                        pick_button(("anim-preset", id), label, theme, cx, move |state| {
+                            clip_pick::apply(state, Pick::Animation(id))
+                        })
+                        .into_any_element()
                     })
                 })
                 .collect();
             if applied.is_some() {
-                chips.push(Chip::other(
-                    components::ghost_button(("anim-clear", clear_id(slot)), "Clear", theme)
-                        .on_mouse_down(
-                            MouseButton::Left,
-                            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                                this.state.update(cx, |state, _| {
-                                    if let Err(err) =
-                                        clip_pick::apply(state, Pick::ClearAnimation(slot))
-                                    {
-                                        state.report_error(&err);
-                                    }
-                                });
-                                cx.notify();
-                            }),
-                        ),
-                ));
+                chips.push(Chip::other(pick_button(
+                    ("anim-clear", clear_id(slot)),
+                    "Clear",
+                    theme,
+                    cx,
+                    move |state| clip_pick::apply(state, Pick::ClearAnimation(slot)),
+                )));
             }
 
             // Each slot's knobs are keys of their own: In's speed and Out's

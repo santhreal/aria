@@ -6,19 +6,17 @@
 //! so the block states whether anything is up there rather than offering a lane
 //! chooser that cannot bind.
 
-use gpui::{
-    InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled, div, px,
-};
+use gpui::{IntoElement, ParentElement, Styled, div, px};
 
 use aria_models::MatteSource;
 
-use crate::components;
+use crate::motion::MotionKey;
 use crate::surfaces::inspector_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::UiClip;
 use gpui::prelude::FluentBuilder;
 
-use super::widgets::{param_rows, picked};
+use super::widgets::{Chip, Columns, chip_row, label_note, param_rows, pick_button, switch_line};
 
 use crate::components::section_label;
 
@@ -31,87 +29,62 @@ pub fn matte_block(
     let matte = clip.matte;
     let stencil_ready = state.read(cx).matte_stencil_ready();
 
-    let sources: Vec<_> = MatteSource::ALL
+    let mut sources: Vec<_> = MatteSource::ALL
         .iter()
         .map(|source| {
             let source = *source;
-            let selected = matte.map(|m| m.source) == Some(source);
-            components::ghost_button(
-                ("matte-source", source.id()),
-                picked(source.label(), selected),
-                theme,
-            )
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                    this.state.update(cx, |state, _| {
-                        if let Err(err) = inspector_pick::apply(state, Pick::Matte(source)) {
-                            state.report_error(&err);
-                        }
-                    });
-                    cx.notify();
-                }),
-            )
-            .into_any_element()
+            let on = matte.map(|m| m.source) == Some(source);
+            Chip::choice(source.label(), on, |label| {
+                pick_button(
+                    ("matte-source", source.id()),
+                    label,
+                    theme,
+                    cx,
+                    move |state| inspector_pick::apply(state, Pick::Matte(source)),
+                )
+                .into_any_element()
+            })
         })
         .collect();
+    if matte.is_some() {
+        sources.push(Chip::other(pick_button(
+            "matte-clear",
+            "Remove matte",
+            theme,
+            cx,
+            |state| inspector_pick::apply(state, Pick::ClearMatte),
+        )));
+    }
 
     div()
         .flex()
         .flex_col()
         .gap(px(Theme::SPACE_XS))
         .child(section_label(theme, "Track matte"))
-        .child(
-            div()
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text_faint)
-                .child(match matte {
-                    Some(matte) => format!(
-                        "{}{}",
-                        matte.source.label(),
-                        if matte.invert { " (inverted)" } else { "" }
-                    ),
-                    None => "Off".to_string(),
-                }),
-        )
-        .children(sources)
+        .child(chip_row(
+            theme,
+            MotionKey::new("insp.row", "matte-source"),
+            "Channel",
+            Columns::Keyed,
+            matte.map_or("Off", |matte| matte.source.label()),
+            sources,
+        ))
         .when(matte.is_some() && !stencil_ready, |this| {
-            this.child(
-                div()
-                    .text_size(Theme::TEXT_UI)
-                    .text_color(theme.warning)
-                    .child("Nothing above this clip to cut with"),
-            )
+            this.child(label_note(
+                Columns::Keyed,
+                theme.warning,
+                "Nothing above this clip to cut with",
+            ))
         })
-        .when_some(matte, |this, _| {
+        .when_some(matte, |this, matte| {
             this.children(param_rows(theme, "matte", state, cx))
-                .child(
-                    components::ghost_button("matte-invert", "Invert", theme).on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                            this.state.update(cx, |state, _| {
-                                if let Err(err) =
-                                    inspector_pick::apply(state, Pick::ToggleMatteInvert)
-                                {
-                                    state.report_error(&err);
-                                }
-                            });
-                            cx.notify();
-                        }),
-                    ),
-                )
-                .child(
-                    components::ghost_button("matte-clear", "Remove matte", theme).on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                            this.state.update(cx, |state, _| {
-                                if let Err(err) = inspector_pick::apply(state, Pick::ClearMatte) {
-                                    state.report_error(&err);
-                                }
-                            });
-                            cx.notify();
-                        }),
-                    ),
-                )
+                .child(switch_line(
+                    theme,
+                    ("matte-inv", "Invert"),
+                    "matte-invert",
+                    matte.invert,
+                    cx,
+                    |state| inspector_pick::apply(state, Pick::ToggleMatteInvert),
+                ))
         })
 }

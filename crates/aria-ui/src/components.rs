@@ -81,7 +81,75 @@ pub fn ghost_button(
     label: impl Into<SharedString>,
     theme: &Theme,
 ) -> Stateful<Div> {
-    ghost_frame(id.into(), theme).child(label.into())
+    let (id, label) = (id.into(), label.into());
+    let button = ghost_frame(id, theme);
+    #[cfg(test)]
+    let button = match noted(id, &label) {
+        Some(selector) => button.debug_selector(move || selector),
+        None => button,
+    };
+    button.child(label)
+}
+
+#[cfg(test)]
+thread_local! {
+    /// The ghost buttons built since [`record_ghosts`] while a
+    /// [`NotingGhosts`] stands: each one's debug selector and label.
+    static GHOSTS: std::cell::RefCell<Option<Vec<(String, SharedString)>>> =
+        const { std::cell::RefCell::new(None) };
+    /// Whether a [`NotingGhosts`] stands.
+    static NOTING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// The ghost buttons built until this drops are the ones [`drawn_ghosts`]
+/// returns, and no other surface's.
+#[cfg(test)]
+pub(crate) struct NotingGhosts(());
+
+#[cfg(test)]
+impl NotingGhosts {
+    pub(crate) fn start() -> Self {
+        NOTING.set(true);
+        Self(())
+    }
+}
+
+#[cfg(test)]
+impl Drop for NotingGhosts {
+    fn drop(&mut self) {
+        NOTING.set(false);
+    }
+}
+
+/// Start a fresh record of the ghost buttons built while a [`NotingGhosts`]
+/// stands.
+#[cfg(test)]
+pub(crate) fn record_ghosts() {
+    GHOSTS.set(Some(Vec::new()));
+}
+
+/// Stop recording and return every ghost button built since
+/// [`record_ghosts`], once each: its debug selector and its label.
+#[cfg(test)]
+pub(crate) fn drawn_ghosts() -> Vec<(String, SharedString)> {
+    let mut ghosts = GHOSTS.with_borrow_mut(|ghosts| ghosts.take().unwrap_or_default());
+    ghosts.sort();
+    ghosts.dedup();
+    ghosts
+}
+
+/// The debug selector of the ghost button `id` printing `label`, when ghost
+/// buttons are being recorded, after recording it.
+#[cfg(test)]
+fn noted(id: motion::ControlId, label: &SharedString) -> Option<String> {
+    if !NOTING.get() {
+        return None;
+    }
+    GHOSTS.with_borrow_mut(|ghosts| {
+        let selector = format!("ghost-{id:?}-{label}");
+        ghosts.as_mut()?.push((selector.clone(), label.clone()));
+        Some(selector)
+    })
 }
 
 /// A [`ghost_button`] that opens and shuts the rows under it: the disclosure
@@ -107,7 +175,7 @@ pub fn disclosure_button(
         .child(label.into())
 }
 
-/// The frame of a [`ghost_button`]: its padding, its wash and text colour,
+/// The frame of a [`ghost_button`]: its padding, its wash and text color,
 /// which fade in under the pointer, and its press dim, with nothing in it.
 fn ghost_frame(id: motion::ControlId, theme: &Theme) -> Stateful<Div> {
     let key = id.motion("ghost");
@@ -159,7 +227,7 @@ impl ChipSize {
         }
     }
 
-    /// The colour an inactive chip rests at. A secondary row recedes further,
+    /// The color an inactive chip rests at. A secondary row recedes further,
     /// so the primary row stays the one the eye lands on.
     fn rest(self, theme: &Theme) -> gpui::Hsla {
         match self {
@@ -174,7 +242,7 @@ impl ChipSize {
 /// A row of these replaces a dropdown wherever the set is short enough to show
 /// whole, so the choices are visible without opening them. The active
 /// chip carries a faint wash and full-strength text; the others sit at their
-/// size's colour on nothing, and light towards the active look on hover so the
+/// size's color on nothing, and light towards the active look on hover so the
 /// row answers the pointer before the click.
 ///
 /// Drawing only. The caller attaches the click, because only it knows which
@@ -358,7 +426,7 @@ pub fn typed_line(text: impl Into<SharedString>, typing: bool) -> Div {
     line.child(text.into())
 }
 
-/// The caret of a box that takes typed text: a bar in the caret colour at
+/// The caret of a box that takes typed text: a bar in the caret color at
 /// `opacity`, as tall as a line of `size` text, standing on a mark of no
 /// width so the glyphs on either side of it stay where the font sets them.
 ///
@@ -543,7 +611,7 @@ pub fn readout(
     readout_tinted(theme, label, value, theme.text)
 }
 
-/// [`readout`] with its value in `tint`, for a value whose colour is its
+/// [`readout`] with its value in `tint`, for a value whose color is its
 /// verdict: `warning` for a fact to look at, `text_faint` for an empty answer.
 pub fn readout_tinted(
     theme: &Theme,
@@ -582,7 +650,7 @@ pub fn section_label(theme: &Theme, title: impl Into<SharedString>) -> Div {
         .child(title.into())
 }
 
-/// The line a panel draws in place of content it does not have, centred on
+/// The line a panel draws in place of content it does not have, centered on
 /// both axes in the space that content fills. An action the line offers is
 /// added below it with `.child`.
 ///

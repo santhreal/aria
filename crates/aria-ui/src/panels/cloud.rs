@@ -38,7 +38,9 @@ pub(crate) fn cloud_catalog_block(
         .flex()
         .flex_col()
         .gap(px(Theme::SPACE_XS))
-        .child(
+        // In a row of its own, so the button is as wide as its label rather
+        // than the column.
+        .child(div().flex().child(
             components::ghost_button("cloud-load", "Load catalog", theme).on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |this, _: &MouseDownEvent, _, cx| {
@@ -47,7 +49,7 @@ pub(crate) fn cloud_catalog_block(
                     cx.notify();
                 }),
             ),
-        )
+        ))
         .when_some(load.placeholder(), |el, line| {
             // A feed that is fetching gets a loader; a feed that is idle or
             // out of reach keeps the line it already had, faded up so the

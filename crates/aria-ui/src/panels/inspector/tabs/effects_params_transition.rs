@@ -1,15 +1,12 @@
 //! Inspector parameter rows for the selected clip's transition.
 
 use aria_models::{EffectParamKind, EffectParamSpec, TransitionSpec};
-use gpui::{
-    AnyElement, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, SharedString,
-};
+use gpui::{AnyElement, IntoElement, SharedString};
 
 use super::{scalar_readout, vec2_axes};
-use crate::components;
 use crate::motion::MotionKey;
 use crate::panels::inspector::blocks::widgets::{
-    Chip, Columns, Keys, Readout, chip_row, control_line, swatch_row, unkeyed_row,
+    Chip, Columns, Keys, Readout, chip_row, control_line, pick_button, swatch_row, unkeyed_row,
 };
 use crate::surfaces::clip_pick::{self, Pick, TransitionSlotEdit};
 use crate::theme::Theme;
@@ -42,21 +39,11 @@ fn transition_chip(
     edit: TransitionSlotEdit,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> AnyElement {
-    components::ghost_button(key, text, theme)
-        .on_mouse_down(
-            MouseButton::Left,
-            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                let edit = edit.clone();
-                this.state.update(cx, |state, _| {
-                    if let Err(err) = clip_pick::apply(state, Pick::TransitionParam { slot, edit })
-                    {
-                        state.report_error(&err);
-                    }
-                });
-                cx.notify();
-            }),
-        )
-        .into_any_element()
+    pick_button(key, text, theme, cx, move |state| {
+        let edit = edit.clone();
+        clip_pick::apply(state, Pick::TransitionParam { slot, edit })
+    })
+    .into_any_element()
 }
 
 fn push_transition_slot_rows(

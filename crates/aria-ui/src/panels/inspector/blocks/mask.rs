@@ -12,7 +12,8 @@
 
 use crate::components::Wraps as _;
 use gpui::{
-    InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled, div, px,
+    InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, SharedString,
+    Styled, div, px,
 };
 
 use aria_models::{MaskMode, mask_param_group};
@@ -24,7 +25,7 @@ use crate::theme::Theme;
 use crate::types::{UiClip, UiMask};
 use gpui::prelude::FluentBuilder;
 
-use super::widgets::{param_rows, picked};
+use super::widgets::{Chip, Columns, chip_row, param_rows, pick_button, picked};
 
 use crate::components::section_label;
 
@@ -42,21 +43,12 @@ pub fn mask_block(
             // draws what the catalog offers rather than deciding what a shape is.
             let kind = aria_models::MaskKind::from_id(choice.id.as_str())?;
             Some(
-                components::ghost_button(
+                pick_button(
                     ("mask-shape", choice.id.as_str()),
                     choice.label.clone(),
                     theme,
-                )
-                .on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                        this.state.update(cx, |state, _| {
-                            if let Err(err) = inspector_pick::apply(state, Pick::Mask(kind)) {
-                                state.report_error(&err);
-                            }
-                        });
-                        cx.notify();
-                    }),
+                    cx,
+                    move |state| inspector_pick::apply(state, Pick::Mask(kind)),
                 )
                 .into_any_element(),
             )
@@ -75,28 +67,38 @@ pub fn mask_block(
         }
     }
 
-    let chroma = clip.chroma;
+    let chroma = clip.chroma.map(|chroma| chroma.rgb);
     let chroma_rows = param_rows(theme, "chroma", state, cx);
-
-    let keys: Vec<_> = KEY_COLORS
+    let key_color = chroma.map_or(SharedString::new_static("Off"), |rgb| {
+        KEY_COLORS
+            .iter()
+            .find(|(_, _, preset)| *preset == rgb)
+            .map_or_else(
+                || SharedString::from(format!("#{:02x}{:02x}{:02x}", rgb[0], rgb[1], rgb[2])),
+                |(_, label, _)| SharedString::new_static(label),
+            )
+    });
+    let mut keys: Vec<_> = KEY_COLORS
         .iter()
         .map(|(id, label, rgb)| {
             let rgb = *rgb;
-            components::ghost_button(("chroma-key-color", *id), *label, theme)
-                .on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                        this.state.update(cx, |state, _| {
-                            if let Err(err) = inspector_pick::apply(state, Pick::Chroma(rgb)) {
-                                state.report_error(&err);
-                            }
-                        });
-                        cx.notify();
-                    }),
-                )
+            Chip::choice(*label, chroma == Some(rgb), |label| {
+                pick_button(("chroma-key-color", *id), label, theme, cx, move |state| {
+                    inspector_pick::apply(state, Pick::Chroma(rgb))
+                })
                 .into_any_element()
+            })
         })
         .collect();
+    if chroma.is_some() {
+        keys.push(Chip::other(pick_button(
+            "chroma-clear",
+            "Remove key",
+            theme,
+            cx,
+            |state| inspector_pick::apply(state, Pick::ClearChroma),
+        )));
+    }
 
     div()
         .flex()
@@ -126,34 +128,15 @@ pub fn mask_block(
                 .children(shapes),
         )
         .child(section_label(theme, "Chroma key"))
-        .child(
-            div()
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text_faint)
-                .child(match chroma {
-                    Some(chroma) => format!(
-                        "{:02X}{:02X}{:02X}",
-                        chroma.rgb[0], chroma.rgb[1], chroma.rgb[2]
-                    ),
-                    None => "Off".to_string(),
-                }),
-        )
-        .children(keys)
-        .when(chroma.is_some(), |this| {
-            this.children(chroma_rows).child(
-                components::ghost_button("chroma-clear", "Remove key", theme).on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                        this.state.update(cx, |state, _| {
-                            if let Err(err) = inspector_pick::apply(state, Pick::ClearChroma) {
-                                state.report_error(&err);
-                            }
-                        });
-                        cx.notify();
-                    }),
-                ),
-            )
-        })
+        .child(chip_row(
+            theme,
+            MotionKey::new("insp.row", "chroma-key"),
+            "Key color",
+            Columns::Keyed,
+            key_color,
+            keys,
+        ))
+        .when(chroma.is_some(), |this| this.children(chroma_rows))
 }
 
 /// One mask's header: its name, its mode chips, and its invert, reorder and
@@ -205,44 +188,56 @@ fn mask_header(
             .into_any_element()
         })
         .collect();
-    let mut actions = vec![pick_button(
-        ("mask-invert", key.with("invert")),
-        "Invert",
-        Pick::ToggleMaskInvert(index),
-        theme,
-        cx,
-    )];
-    if index > 0 {
-        actions.push(pick_button(
-            ("mask-up", key.with("up")),
-            "Move up",
-            Pick::MoveMask {
-                from: index,
-                to: index - 1,
-            },
+    let mut actions = vec![
+        pick_button(
+            ("mask-invert", key.with("invert")),
+            "Invert",
             theme,
             cx,
-        ));
+            move |state| inspector_pick::apply(state, Pick::ToggleMaskInvert(index)),
+        )
+        .into_any_element(),
+    ];
+    if index > 0 {
+        actions.push(
+            pick_button(
+                ("mask-up", key.with("up")),
+                "Move up",
+                theme,
+                cx,
+                move |state| {
+                    let to = index - 1;
+                    inspector_pick::apply(state, Pick::MoveMask { from: index, to })
+                },
+            )
+            .into_any_element(),
+        );
     }
     if index < last {
-        actions.push(pick_button(
-            ("mask-down", key.with("down")),
-            "Move down",
-            Pick::MoveMask {
-                from: index,
-                to: index + 1,
-            },
+        actions.push(
+            pick_button(
+                ("mask-down", key.with("down")),
+                "Move down",
+                theme,
+                cx,
+                move |state| {
+                    let to = index + 1;
+                    inspector_pick::apply(state, Pick::MoveMask { from: index, to })
+                },
+            )
+            .into_any_element(),
+        );
+    }
+    actions.push(
+        pick_button(
+            ("mask-remove", key.with("remove")),
+            "Remove",
             theme,
             cx,
-        ));
-    }
-    actions.push(pick_button(
-        ("mask-remove", key.with("remove")),
-        "Remove",
-        Pick::RemoveMask(index),
-        theme,
-        cx,
-    ));
+            move |state| inspector_pick::apply(state, Pick::RemoveMask(index)),
+        )
+        .into_any_element(),
+    );
 
     div()
         .flex()
@@ -278,27 +273,4 @@ fn mask_header(
                 .gap(px(Theme::SPACE_XS))
                 .children(actions),
         )
-}
-
-/// A ghost button that files `pick`.
-fn pick_button(
-    id: impl Into<crate::motion::ControlId>,
-    label: &'static str,
-    pick: Pick,
-    theme: &Theme,
-    cx: &mut gpui::Context<crate::shell::Shell>,
-) -> gpui::AnyElement {
-    components::ghost_button(id, label, theme)
-        .on_mouse_down(
-            MouseButton::Left,
-            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                this.state.update(cx, |state, _| {
-                    if let Err(err) = inspector_pick::apply(state, pick.clone()) {
-                        state.report_error(&err);
-                    }
-                });
-                cx.notify();
-            }),
-        )
-        .into_any_element()
 }

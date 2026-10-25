@@ -16,6 +16,8 @@ use crate::app::clip_keys::easing_presets;
 use crate::app::curve_geometry::CurvePolyline;
 use crate::app::curve_stroke::curve_columns;
 use crate::components;
+use crate::panels::inspector::blocks::widgets::pick_button;
+use crate::surfaces::keyframe_rows::{self, Row};
 use crate::theme::Theme;
 use crate::types::UiClip;
 use gpui::prelude::FluentBuilder;
@@ -116,21 +118,20 @@ pub fn curve_editor_block(
         .iter()
         .map(|preset| {
             let preset_id = preset.id.as_str();
-            components::ghost_button(
+            pick_button(
                 crate::motion::MotionKey::new("ce-preset", &preset.id),
                 gpui::SharedString::new_static(preset.label.as_str()),
                 theme,
-            )
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                    this.state.update(cx, |st, _| {
-                        if let Err(err) = st.set_keyframe_easing_preset(active_param, preset_id) {
-                            st.report_error(&err);
-                        }
-                    });
-                    cx.notify();
-                }),
+                cx,
+                move |state| {
+                    keyframe_rows::apply(
+                        state,
+                        Row::Easing {
+                            param: active_param,
+                            preset: preset_id,
+                        },
+                    )
+                },
             )
             .into_any_element()
         })

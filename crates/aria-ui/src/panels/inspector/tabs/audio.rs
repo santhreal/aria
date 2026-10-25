@@ -10,13 +10,15 @@ use crate::components;
 use crate::motion::MotionKey;
 use crate::panels::insert_chain::{self, Chain};
 use crate::surfaces::clip_pick::{self, Pick};
+use crate::surfaces::inspector_pick;
 use crate::theme::Theme;
 use crate::types::UiClip;
 use aria_models::AudioRole;
 use gpui::prelude::FluentBuilder;
 
 use crate::panels::inspector::blocks::widgets::{
-    Chip, Columns, Readout, chip_row, control_line, param_rows, unkeyed_row,
+    Chip, Columns, Readout, chip_row, control_line, label_note, param_rows, pick_button,
+    switch_line, under_labels, unkeyed_row,
 };
 
 use crate::components::section_label;
@@ -73,16 +75,24 @@ pub fn audio_tab(
         ("aud-rev", "Reverse"),
         "inspector-reverse",
         clip.reversed,
-        || Pick::ToggleReverse,
         cx,
+        |state| clip_pick::apply(state, Pick::ToggleReverse),
     ));
     rows.push(switch_line(
         theme,
         ("aud-pitch", "Pitch lock"),
         "inspector-pitch",
         clip.preserve_pitch,
-        || Pick::TogglePitchLock,
         cx,
+        |state| clip_pick::apply(state, Pick::TogglePitchLock),
+    ));
+    rows.push(switch_line(
+        theme,
+        ("aud-denoise", "Denoise"),
+        "denoise-toggle",
+        clip.denoise,
+        cx,
+        |state| inspector_pick::apply(state, inspector_pick::Pick::ToggleDenoise),
     ));
     rows.push(role_row(theme, clip.audio_role, cx));
     // The clip's insert chain is drawn only where the model accepts one: a clip
@@ -128,36 +138,6 @@ pub fn audio_tab(
         .children(duck_rows(theme, state, cx))
 }
 
-/// A switch of the selected clip: the `row`'s key and label, its button
-/// `control` reading whether it is `on`, and the pick a press applies.
-fn switch_line(
-    theme: &Theme,
-    (row, label): (&'static str, &'static str),
-    control: &'static str,
-    on: bool,
-    pick: fn() -> Pick,
-    cx: &mut gpui::Context<crate::shell::Shell>,
-) -> gpui::AnyElement {
-    control_line(
-        theme,
-        MotionKey::new("insp.row", row),
-        label,
-        Columns::Keyed,
-        components::ghost_button(control, if on { "On" } else { "Off" }, theme).on_mouse_down(
-            MouseButton::Left,
-            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                this.state.update(cx, |state, _| {
-                    if let Err(err) = clip_pick::apply(state, pick()) {
-                        state.report_error(&err);
-                    }
-                });
-                cx.notify();
-            }),
-        ),
-    )
-    .into_any_element()
-}
-
 /// The clip's audio role, with a chip for each role and, on a tagged clip, one
 /// that clears the tag.
 fn role_row(
@@ -201,19 +181,10 @@ fn role_chip(
     role: Option<AudioRole>,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
-    components::ghost_button(id, label, theme)
-        .on_mouse_down(
-            MouseButton::Left,
-            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                this.state.update(cx, |state, _| {
-                    if let Err(err) = clip_pick::apply(state, Pick::Role(role)) {
-                        state.report_error(&err);
-                    }
-                });
-                cx.notify();
-            }),
-        )
-        .into_any_element()
+    pick_button(id, label, theme, cx, move |state| {
+        clip_pick::apply(state, Pick::Role(role))
+    })
+    .into_any_element()
 }
 
 /// The duck settings a row steps, by the row's id and label: the depth of the
@@ -250,52 +221,39 @@ fn duck_rows(
                 MotionKey::new("insp.row", id),
                 label,
                 Columns::Keyed,
-                components::ghost_button(("duck-setting", id), &value, theme).on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                        this.state.update(cx, |state, _| cycle(state));
-                        cx.notify();
-                    }),
-                ),
+                pick_button(("duck-setting", id), value, theme, cx, move |state| {
+                    cycle(state);
+                    Ok(())
+                }),
             )
             .into_any_element(),
         );
     }
     rows.push(
-        div()
-            .px(px(Theme::SPACE_XS))
-            .text_size(Theme::TEXT_UI)
-            .text_color(theme.text_faint)
-            .child(match &lane {
+        label_note(
+            Columns::Keyed,
+            theme.text_faint,
+            match &lane {
                 Some(name) => format!("Listening to {name}"),
                 None => "No lane is the duck source yet".to_string(),
-            })
-            .into_any_element(),
+            },
+        )
+        .into_any_element(),
     );
-    rows.push(
-        components::ghost_button("duck-run", "Duck under voice", theme)
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                    this.state.update(cx, |state, cx| {
-                        if let Err(err) = state.duck_selected(cx) {
-                            state.status_message = Some(err);
-                        }
-                    });
-                    cx.notify();
-                }),
-            )
-            .into_any_element(),
+    let run = components::ghost_button("duck-run", "Duck under voice", theme).on_mouse_down(
+        MouseButton::Left,
+        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+            this.state.update(cx, |state, cx| {
+                if let Err(err) = state.duck_selected(cx) {
+                    state.status_message = Some(err);
+                }
+            });
+            cx.notify();
+        }),
     );
+    rows.push(under_labels(Columns::Keyed, [run.into_any_element()]).into_any_element());
     if let Some(reason) = refusal {
-        rows.push(
-            div()
-                .px(px(Theme::SPACE_XS))
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.warning)
-                .child(reason)
-                .into_any_element(),
-        );
+        rows.push(label_note(Columns::Keyed, theme.warning, reason).into_any_element());
     }
     rows
 }
@@ -315,11 +273,12 @@ fn loudness_rows(
     let contour = state.read(cx).analysis.loudness.clone();
     if contour.is_empty() {
         return vec![
-            div()
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text_faint)
-                .child("Measure it in the Analysis tab")
-                .into_any_element(),
+            label_note(
+                Columns::Keyed,
+                theme.text_faint,
+                "Measure it in the Analysis tab",
+            )
+            .into_any_element(),
         ];
     }
     let clipping = state.read(cx).loudness_clips();
@@ -351,26 +310,31 @@ fn loudness_rows(
         })
         .collect();
     vec![
-        div()
-            .flex()
-            .flex_row()
-            .items_end()
-            .h(px(44.))
-            .gap(px(1.))
-            .children(bars)
-            .into_any_element(),
-        div()
-            .text_size(Theme::TEXT_UI)
-            .text_color(if clipping {
+        under_labels(
+            Columns::Keyed,
+            [div()
+                .flex()
+                .flex_row()
+                .items_end()
+                .h(px(44.))
+                .gap(px(1.))
+                .children(bars)
+                .into_any_element()],
+        )
+        .into_any_element(),
+        label_note(
+            Columns::Keyed,
+            if clipping {
                 theme.danger
             } else {
                 theme.text_muted
-            })
-            .child(SharedString::from(if clipping {
+            },
+            if clipping {
                 format!("Peak {peak:.1} dBFS, clipping")
             } else {
                 format!("Peak {peak:.1} dBFS")
-            }))
-            .into_any_element(),
+            },
+        )
+        .into_any_element(),
     ]
 }

@@ -1,11 +1,9 @@
 //! The clip type row above the inspector's tabs: the type a plugin listed for
 //! the clip, why it cannot draw when it cannot, and Detach.
 
-use gpui::{
-    InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled, div, px,
-};
+use gpui::{IntoElement, ParentElement, Styled, div, px};
 
-use crate::components;
+use crate::panels::inspector::blocks::widgets::pick_button;
 use crate::surfaces::inspector_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::UiClipType;
@@ -47,20 +45,13 @@ pub(super) fn clip_type_row(
                         .text_color(theme.text)
                         .child(clip_type.label.clone()),
                 )
-                .child(
-                    components::ghost_button("clip-type-detach", "Detach", theme).on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                            this.state.update(cx, |state, _| {
-                                if let Err(err) = inspector_pick::apply(state, Pick::DetachClipType)
-                                {
-                                    state.report_error(&err);
-                                }
-                            });
-                            cx.notify();
-                        }),
-                    ),
-                ),
+                .child(pick_button(
+                    "clip-type-detach",
+                    "Detach",
+                    theme,
+                    cx,
+                    |state| inspector_pick::apply(state, Pick::DetachClipType),
+                )),
         )
         .children(clip_type.missing.clone().map(|reason| {
             div()

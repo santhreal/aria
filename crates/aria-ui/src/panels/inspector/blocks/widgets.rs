@@ -34,10 +34,15 @@ use gpui::{
 
 #[path = "widgets_catalog.rs"]
 mod catalog;
+#[path = "widgets_controls.rs"]
+mod controls;
 #[path = "widgets_keys.rs"]
 mod keys;
 
 pub use catalog::{color_rows, param_rows, param_rows_into, swatch_row, unkeyed_row};
+pub use controls::{
+    Chip, chip_row, control_line, label_note, pick_button, picked, switch_line, under_labels,
+};
 use keys::{Affordances, WATCH_SLOT, affordances, blanks};
 
 /// Thickness of a row's value track.
@@ -163,7 +168,7 @@ pub struct Stopwatch {
     /// stopwatch turns on and off.
     pub animated: bool,
     /// Whether one of them sits under the playhead, which is what the
-    /// navigator's centre diamond adds or removes.
+    /// navigator's center diamond adds or removes.
     pub at_playhead: bool,
     /// Whether a keyframe sits before the playhead, and whether one sits after
     /// it: where the navigator's arrows go.
@@ -235,7 +240,7 @@ impl Watching {
     }
 }
 
-/// The stopwatch a colour row draws. A colour has no driver.
+/// The stopwatch a color row draws. A color has no driver.
 pub fn color_stopwatch(row: &ColorRow, strip: Option<KeyStrip>) -> Stopwatch {
     Stopwatch {
         param: row.param,
@@ -355,15 +360,19 @@ pub(crate) struct DrawnChoice {
 
 /// The Inspector's body being built, until this drops: the lines
 /// [`record_lines`] records are the ones built meanwhile, and no other
-/// panel's.
+/// panel's, and so are the ghost buttons it notes.
 #[cfg(test)]
-pub(crate) struct BuildingInspector(());
+pub(crate) struct BuildingInspector {
+    _ghosts: crate::components::NotingGhosts,
+}
 
 #[cfg(test)]
 impl BuildingInspector {
     pub(crate) fn start() -> Self {
         IN_INSPECTOR.set(true);
-        Self(())
+        Self {
+            _ghosts: crate::components::NotingGhosts::start(),
+        }
     }
 }
 
@@ -374,12 +383,13 @@ impl Drop for BuildingInspector {
     }
 }
 
-/// Start a fresh record of the lines and choice rows drawn into the
-/// Inspector.
+/// Start a fresh record of the lines, the choice rows and the ghost buttons
+/// drawn into the Inspector.
 #[cfg(test)]
 pub(crate) fn record_lines() {
     LINES.set(Some(Vec::new()));
     CHOICES.set(Some(Vec::new()));
+    crate::components::record_ghosts();
 }
 
 /// Stop recording and return every line drawn into the Inspector since
@@ -486,7 +496,7 @@ pub fn stepper_row(
             readout.text,
             Look {
                 size: Theme::TEXT_UI,
-                // Leading while the value is still travelling is what makes a
+                // Leading while the value is still traveling is what makes a
                 // change visible without restarting an animation: a value that
                 // keeps changing stays lit until it stops, rather than
                 // strobing once per frame. A failed driver is red instead.
@@ -592,166 +602,6 @@ fn line(
         .children(strip)
 }
 
-/// A row of one `head` line with the controls `under` it, `gap` apart, on a
-/// wrapping line of their own: a palette under a color's line, chips under a
-/// choice's. In the keyed rows' columns, `keyed`, the controls start where the
-/// label does.
-fn stacked(
-    head: gpui::Div,
-    keyed: bool,
-    gap: f32,
-    under: impl IntoIterator<Item = gpui::AnyElement>,
-) -> gpui::Div {
-    div()
-        .flex()
-        .flex_col()
-        .gap(px(Theme::SPACE_XXS))
-        .px(px(Theme::SPACE_XS))
-        .py(px(Theme::SPACE_XS))
-        .child(head)
-        .child(
-            div()
-                .flex()
-                .flex_row()
-                .wraps()
-                .when(keyed, |under| under.pl(px(WATCH_SLOT + Theme::SPACE_XS)))
-                .gap(px(gap))
-                .children(under),
-        )
-}
-
-/// A row whose control is not a number: a switch or a button, standing where a
-/// number row's value stands. The caller sets the line's id and tooltip.
-pub fn control_line(
-    theme: &Theme,
-    key: motion::MotionKey,
-    label: impl Into<SharedString>,
-    columns: Columns,
-    control: impl IntoElement,
-) -> gpui::Div {
-    let label = label.into();
-    let column = columns.column(&label);
-    let value = value_cell(column.as_ref()).child(control);
-    line(
-        key,
-        label,
-        column.as_ref(),
-        blanks(columns),
-        theme.text_muted,
-        value,
-    )
-    .px(px(Theme::SPACE_XS))
-    .py(px(Theme::SPACE_XS))
-}
-
-/// A choice's label as its chip prints it: marked `• ` when it is `on`, the
-/// choice in force.
-pub fn picked(label: impl Into<SharedString>, on: bool) -> SharedString {
-    let label = label.into();
-    if on {
-        SharedString::from(format!("• {label}"))
-    } else {
-        label
-    }
-}
-
-/// One control under a [`chip_row`]'s line: a choice, marked when it is in
-/// force, or anything else, such as Clear, a preset or a message.
-pub struct Chip {
-    element: gpui::AnyElement,
-    /// The choice's label and whether it is in force.
-    #[cfg(test)]
-    pick: Option<(SharedString, bool)>,
-}
-
-impl Chip {
-    /// The choice `label`, in force when `on`. `draw` builds the chip around
-    /// the label as [`picked`] prints it.
-    pub fn choice(
-        label: impl Into<SharedString>,
-        on: bool,
-        draw: impl FnOnce(SharedString) -> gpui::AnyElement,
-    ) -> Self {
-        let label = label.into();
-        Self {
-            #[cfg(test)]
-            pick: Some((label.clone(), on)),
-            element: draw(picked(label, on)),
-        }
-    }
-
-    /// A control that picks no choice.
-    pub fn other(element: impl IntoElement) -> Self {
-        Self {
-            element: element.into_any_element(),
-            #[cfg(test)]
-            pick: None,
-        }
-    }
-}
-
-/// A row whose value is one of a set: the label and the `current` choice on
-/// one line, the choice where a number row's value stands, and the `chips` that
-/// pick another on the line under it, as a color row's palette is. The choice
-/// is cut to the value column's width, with the whole of it in a tooltip. The
-/// caller sets the row's id and tooltip.
-pub fn chip_row(
-    theme: &Theme,
-    key: motion::MotionKey,
-    label: impl Into<SharedString>,
-    columns: Columns,
-    current: impl Into<SharedString>,
-    chips: impl IntoIterator<Item = Chip>,
-) -> gpui::Div {
-    let label = label.into();
-    let current = current.into();
-    let column = columns.column(&label);
-    #[cfg(test)]
-    let (row, shown, mut marks) = (
-        label_selector(column.as_ref(), &label),
-        current.clone(),
-        Vec::new(),
-    );
-    let value = value_cell(column.as_ref()).child(
-        div()
-            .id(key.element_id("insp-current"))
-            .max_w(px(VALUE_MIN))
-            .truncate()
-            .text_size(Theme::TEXT_UI)
-            .text_color(theme.text_faint)
-            .with_tip(crate::tooltip::text_builder(current.clone()))
-            .child(current),
-    );
-    let keyed = column.is_some();
-    let head = line(
-        key,
-        label,
-        column.as_ref(),
-        blanks(columns),
-        theme.text_muted,
-        value,
-    );
-    let under = chips.into_iter().map(|chip| {
-        #[cfg(test)]
-        marks.extend(chip.pick);
-        chip.element
-    });
-    let drawn = stacked(head, keyed, Theme::SPACE_XS, under);
-    #[cfg(test)]
-    if IN_INSPECTOR.get() {
-        CHOICES.with_borrow_mut(|choices| {
-            if let Some(choices) = choices {
-                choices.push(DrawnChoice {
-                    row,
-                    current: shown,
-                    chips: marks,
-                });
-            }
-        });
-    }
-    drawn
-}
-
 /// The driver's source under a driven row: a click opens it for editing, and
 /// while it is open the pick whip beside it waits for a property row.
 fn driver_source(
@@ -761,7 +611,7 @@ fn driver_source(
     line: DriverLine,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
-    let colour = if line.fault.is_some() {
+    let ink = if line.fault.is_some() {
         theme.danger
     } else {
         theme.text_muted
@@ -776,7 +626,7 @@ fn driver_source(
         .rounded(px(Theme::CONTROL_RADIUS))
         .font_family(theme.font_mono.clone())
         .text_size(Theme::TEXT_TITLE)
-        .text_color(colour)
+        .text_color(ink)
         .cursor(CursorStyle::IBeam)
         .when(line.editing, |el| {
             el.bg(theme.input_bg).border_1().border_color(theme.accent)
@@ -867,7 +717,7 @@ fn track(theme: &Theme, fill: f32, hovered: f32) -> impl IntoElement {
                 .absolute()
                 .top(px(0.))
                 .left(relative(fill))
-                // Centred on the fill's edge rather than starting at it, so
+                // Centered on the fill's edge rather than starting at it, so
                 // the thumb still reads as "here" at both ends of the range.
                 .ml(px(-THUMB / 2.0))
                 .size(px(THUMB))
@@ -925,7 +775,7 @@ fn value_cell(column: Option<&Column>) -> gpui::Div {
     }
 }
 
-/// A colour's bytes as a paint colour.
+/// A color's bytes as a paint color.
 pub fn swatch(rgba: [u8; 4]) -> gpui::Hsla {
     gpui::Hsla::from(gpui::Rgba {
         r: rgba[0] as f32 / 255.0,
@@ -935,9 +785,9 @@ pub fn swatch(rgba: [u8; 4]) -> gpui::Hsla {
     })
 }
 
-/// The palette name of a colour, or its hex when it is not one of the presets,
+/// The palette name of a color, or its hex when it is not one of the presets,
 /// so a value written by the agent or an older project still reads as
-/// something. An opaque colour prints six digits, `#ff0000`, and fits the value
+/// something. An opaque color prints six digits, `#ff0000`, and fits the value
 /// column; a translucent one adds its alpha, `#ff000080`.
 pub fn color_name(rgba: [u8; 4]) -> SharedString {
     crate::app::clip_effects::PARAM_COLORS

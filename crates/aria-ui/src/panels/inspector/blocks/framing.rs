@@ -5,17 +5,14 @@
 //! cannot drift from the rect the model validates. They read the rect in force
 //! under the playhead, which is where an edit lands.
 
-use gpui::{
-    InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled, div, px,
-};
+use gpui::{IntoElement, ParentElement, Styled, div, px};
 
 use crate::app::clip_frame::{CROP_EDGES, crop_inset};
-use crate::components;
 use crate::surfaces::inspector_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::UiClip;
 
-use super::widgets::{Columns, Readout, control_line, unkeyed_row};
+use super::widgets::{Columns, Readout, pick_button, switch_line, under_labels, unkeyed_row};
 
 use crate::components::section_label;
 
@@ -52,6 +49,9 @@ pub fn framing_block(
         .collect();
 
     let blur = clip.motion_blur;
+    let reset = pick_button("crop-clear", "Reset framing", theme, cx, |state| {
+        inspector_pick::apply(state, Pick::ClearCrop)
+    });
 
     div()
         .flex()
@@ -59,84 +59,32 @@ pub fn framing_block(
         .gap(px(Theme::SPACE_XS))
         .child(section_label(theme, "Crop"))
         .children(crops)
-        .child(
-            div()
-                .flex()
-                .flex_row()
-                .gap(px(Theme::SPACE_XS))
-                .child(
-                    components::ghost_button(
-                        "flip-h",
-                        if clip.flip_h { "Flip H on" } else { "Flip H" },
-                        theme,
-                    )
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                            this.state.update(cx, |state, _| {
-                                if let Err(err) = inspector_pick::apply(state, Pick::FlipHorizontal)
-                                {
-                                    state.report_error(&err);
-                                }
-                            });
-                            cx.notify();
-                        }),
-                    ),
-                )
-                .child(
-                    components::ghost_button(
-                        "flip-v",
-                        if clip.flip_v { "Flip V on" } else { "Flip V" },
-                        theme,
-                    )
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                            this.state.update(cx, |state, _| {
-                                if let Err(err) = inspector_pick::apply(state, Pick::FlipVertical) {
-                                    state.report_error(&err);
-                                }
-                            });
-                            cx.notify();
-                        }),
-                    ),
-                )
-                .child(
-                    components::ghost_button("crop-clear", "Reset framing", theme).on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                            this.state.update(cx, |state, _| {
-                                if let Err(err) = inspector_pick::apply(state, Pick::ClearCrop) {
-                                    state.report_error(&err);
-                                }
-                            });
-                            cx.notify();
-                        }),
-                    ),
-                ),
-        )
-        .child(section_label(theme, "Motion blur"))
-        .child(control_line(
+        .child(section_label(theme, "Mirror"))
+        .child(switch_line(
             theme,
-            crate::motion::MotionKey::new("insp.row", "blur-on"),
-            "Enabled",
-            Columns::Keyed,
-            components::ghost_button(
-                "blur-toggle",
-                if blur.enabled { "On" } else { "Off" },
-                theme,
-            )
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                    this.state.update(cx, |state, _| {
-                        if let Err(err) = inspector_pick::apply(state, Pick::ToggleMotionBlur) {
-                            state.report_error(&err);
-                        }
-                    });
-                    cx.notify();
-                }),
-            ),
+            ("crop-flip-h", "Horizontal"),
+            "flip-h",
+            clip.flip_h,
+            cx,
+            |state| inspector_pick::apply(state, Pick::FlipHorizontal),
+        ))
+        .child(switch_line(
+            theme,
+            ("crop-flip-v", "Vertical"),
+            "flip-v",
+            clip.flip_v,
+            cx,
+            |state| inspector_pick::apply(state, Pick::FlipVertical),
+        ))
+        .child(under_labels(Columns::Keyed, [reset.into_any_element()]))
+        .child(section_label(theme, "Motion blur"))
+        .child(switch_line(
+            theme,
+            ("blur-on", "Enabled"),
+            "blur-toggle",
+            blur.enabled,
+            cx,
+            |state| inspector_pick::apply(state, Pick::ToggleMotionBlur),
         ))
         .child(unkeyed_row(
             theme,

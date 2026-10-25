@@ -14,15 +14,15 @@
 //! A drag is one edit: pointer moves update a draft on `AppState`, the release
 //! commits, Esc abandons. What each pointer event means is a row of
 //! [`ramp_gesture`] rather than a rule inside a
-//! listener, so the graph's behaviour can be enumerated and pressed.
+//! listener, so the graph's behavior can be enumerated and pressed.
 
 use gpui::{
     InteractiveElement, IntoElement, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
-    ParentElement, Styled, canvas, div, px, relative,
+    ParentElement, SharedString, Styled, canvas, div, px, relative,
 };
 
 use crate::app::clip_speed::{RAMP_POINTS, ramp_tick_to_frac, ramp_value_to_frac, speed_presets};
-use crate::components;
+use crate::motion::MotionKey;
 use crate::surfaces::clip_pick::{self, Pick};
 use crate::surfaces::ramp_gesture::{self, Gesture};
 use crate::theme::Theme;
@@ -30,7 +30,9 @@ use crate::timecode::format_ticks;
 use crate::types::UiClip;
 use gpui::prelude::FluentBuilder;
 
-use crate::panels::inspector::blocks::widgets::{Columns, Readout, picked, unkeyed_row};
+use crate::panels::inspector::blocks::widgets::{
+    Chip, Columns, Readout, chip_row, label_note, pick_button, unkeyed_row,
+};
 
 use crate::components::section_label;
 
@@ -68,31 +70,36 @@ pub fn speed_block(
         clip.speed_num as f32 / clip.speed_den as f32
     };
 
-    let chips: Vec<_> = speed_presets()
+    let current = speed_presets()
+        .iter()
+        .find(|spec| active == Some(spec.id.as_str()))
+        .map_or_else(
+            || SharedString::new_static(if has_ramp { "Custom" } else { "None" }),
+            |spec| SharedString::new_static(spec.label.as_str()),
+        );
+    let mut chips: Vec<_> = speed_presets()
         .iter()
         .map(|spec| {
             let id = spec.id.as_str();
-            components::ghost_button(
-                ("speed-preset", id),
-                picked(spec.label.clone(), active == Some(id)),
-                theme,
-            )
-            .id(crate::motion::MotionKey::new("speed", id).element_id("speed"))
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                    this.state.update(cx, |state, _| {
-                        if let Err(err) = clip_pick::apply(state, Pick::SpeedPreset(id.to_string()))
-                        {
-                            state.report_error(&err);
-                        }
-                    });
-                    cx.notify();
-                }),
-            )
-            .into_any_element()
+            let label = SharedString::new_static(spec.label.as_str());
+            Chip::choice(label, active == Some(id), |label| {
+                pick_button(("speed-preset", id), label, theme, cx, move |state| {
+                    clip_pick::apply(state, Pick::SpeedPreset(id.to_string()))
+                })
+                .id(MotionKey::new("speed", id).element_id("speed"))
+                .into_any_element()
+            })
         })
         .collect();
+    if has_ramp {
+        chips.push(Chip::other(pick_button(
+            "speed-clear",
+            "Clear ramp",
+            theme,
+            cx,
+            |state| clip_pick::apply(state, Pick::ClearSpeedCurve),
+        )));
+    }
 
     let rows: Vec<_> = points
         .into_iter()
@@ -105,7 +112,7 @@ pub fn speed_block(
             unkeyed_row(
                 theme,
                 &state,
-                crate::motion::MotionKey::new("insp.row", id),
+                MotionKey::new("insp.row", id),
                 label,
                 Readout::printed(format!("{value:.2}x"), value, 2, 0.05),
                 Columns::Free,
@@ -121,42 +128,32 @@ pub fn speed_block(
         .flex_col()
         .gap(px(Theme::SPACE_XS))
         .child(section_label(theme, "Speed"))
-        .child(
-            div()
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text_faint)
-                .child(if has_ramp {
-                    format!("Ramp on a {flat:.2}x base")
-                } else {
-                    format!("Flat {flat:.2}x")
-                }),
-        )
-        .children(chips)
+        .child(label_note(
+            Columns::Free,
+            theme.text_faint,
+            if has_ramp {
+                format!("Ramp on a {flat:.2}x base")
+            } else {
+                format!("Flat {flat:.2}x")
+            },
+        ))
+        .child(chip_row(
+            theme,
+            MotionKey::new("insp.row", "speed-ramp"),
+            "Ramp",
+            Columns::Free,
+            current,
+            chips,
+        ))
         .child(graph(theme, &curve, dragging, &state, cx))
         .when_some(length, |el, ticks| {
-            el.child(
-                div()
-                    .text_size(Theme::TEXT_UI)
-                    .text_color(theme.text_faint)
-                    .child(format!("Length {}", format_ticks(ticks, fps_num, fps_den))),
-            )
+            el.child(label_note(
+                Columns::Free,
+                theme.text_faint,
+                format!("Length {}", format_ticks(ticks, fps_num, fps_den)),
+            ))
         })
         .children(rows)
-        .when(has_ramp, |el| {
-            el.child(
-                components::ghost_button("speed-clear", "Clear ramp", theme).on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                        this.state.update(cx, |state, _| {
-                            if let Err(err) = clip_pick::apply(state, Pick::ClearSpeedCurve) {
-                                state.report_error(&err);
-                            }
-                        });
-                        cx.notify();
-                    }),
-                ),
-            )
-        })
 }
 
 /// Records the graph rectangle every paint, so a pointer position can be turned

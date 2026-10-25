@@ -23,12 +23,13 @@ grade:
   numbers, the HSL secondary, and the vignette. Drag a row's value to change
   it, or click it to type one. **Reset grade** returns every adjustment to
   neutral.
-- A blend mode for the layer. Normal composites source-over. In a matte the
-  pair composites with the content clip's mode, and each side of a transition
-  composites with its own clip's mode.
-- Stabilize, offering the three smoothing levels and Off. The section is
-  absent on a clip with no motion to smooth, such as a still.
-- Denoise, which runs RNNoise over the clip's audio on export.
+- A blend mode for the layer. The **Mode** row shows it, and the chips under
+  it pick another, the one in force marked `•`. Normal composites
+  source-over. In a matte the pair composites with the content clip's mode,
+  and each side of a transition composites with its own clip's mode.
+- Stabilize. The **Level** row shows the smoothing level, or Off, and the
+  chips under it offer the three levels and Off. The section is absent on a
+  clip with no motion to smooth, such as a still.
 
 **Window > Color** opens the Color panel, which lays the same grade out in
 sections: Basic Correction, Creative, RGB Curves, Hue Curves, Color Wheels, HSL
@@ -40,6 +41,10 @@ The Audio tab toggles pitch lock. Locked (the default), a retimed clip keeps its
 original pitch: the sound is stretched in time and the pitch stays put. Unlocked,
 pitch follows rate, so a fast clip sounds high and a slow one low. Both preview
 and export mix the same way.
+
+The Audio tab's **Denoise** row runs RNNoise over the clip's audio in preview
+and export. It suppresses steady background noise such as hiss, hum, and room
+tone, and keeps speech.
 
 
 ## Example

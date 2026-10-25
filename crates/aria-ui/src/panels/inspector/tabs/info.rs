@@ -2,17 +2,15 @@
 
 use aria_models::MediaId;
 
-use gpui::{
-    InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled, div, px,
-};
+use gpui::{IntoElement, ParentElement, Styled, div, px};
 
-use crate::components::{self, readout, section_label};
+use crate::components::{readout, section_label};
 use crate::theme::Theme;
 use crate::timecode::format_ticks;
 use crate::types::UiClip;
 use gpui::prelude::FluentBuilder;
 
-use crate::panels::inspector::blocks::widgets::kind_label;
+use crate::panels::inspector::blocks::widgets::{kind_label, pick_button};
 
 pub fn info_tab(
     theme: &Theme,
@@ -36,14 +34,10 @@ pub fn info_tab(
     });
     let media_id = clip.media_id.filter(|_| media_missing);
     let relink = media_id.map(|id| {
-        components::ghost_button("relink-media", "Relink", theme).on_mouse_down(
-            MouseButton::Left,
-            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                this.state
-                    .update(cx, |state, _| state.pick_and_relink(MediaId::from_raw(id)));
-                cx.notify();
-            }),
-        )
+        pick_button("relink-media", "Relink", theme, cx, move |state| {
+            state.pick_and_relink(MediaId::from_raw(id));
+            Ok(())
+        })
     });
     div()
         .flex()

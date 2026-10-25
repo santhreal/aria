@@ -1414,6 +1414,9 @@ Notes for the latest release. For previous releases, see the
 - Volume reads `+0.0 dB`, and the value column is 76 px wide, so a timecode fits in it, and narrows only once a row's name has no width left.
 - A transition's size slot reads **w** and **h**, as an effect's does.
 - Curve and gradient slots show **N pts** and **N stops** in the value column instead of in the name.
+- The blend mode, stabilization level, chroma key color, track matte channel, LUT file, and speed ramp are choice rows, and the mirror flips, track matte invert, and each layer style are **On**/**Off** switches in the keyed rows' columns.
+- Denoise is an **On**/**Off** switch on the Audio tab instead of a section of the Look tab.
+- The easing chips in the Inspector curve editor reach every selected clip that has the property, as one undo step.
 - Labels, tooltips, status lines, and the documentation are spelled in US English (Color, center, Favorites, Minimize, normalize), and the color grading chapter of the guide is `docs/guide/color.md`.
 - A dock panel with nothing to show draws its line faint and centered in the space its content fills, as the Timeline does, and the Markers panel reads **No markers.** above **Add at playhead**.
 - The default accent, playhead, selection, and caret are blue instead of indigo, and Settings > Appearance > Accent offers the Blue, Ember, Teal, and Graphite families; a saved `default` or `dark-blue` accent reads as Blue.
@@ -2389,6 +2392,7 @@ Notes for the latest release. For previous releases, see the
 - Picking a key color, a matte source, a matte invert, a filter, or a layer style, reloading a LUT, mirroring the picture, and editing a crop edge or dragging a crop handle keep the keyframes on the clip's key strength and shadow, matte softness, filter and LUT amounts, style properties, and crop, where each used to flatten them to one value.
 - On an animated crop, the crop insets in Effect Controls and the crop handles in the Viewer read the rect under the playhead instead of the clip's first frame, and an edit sets a keyframe at the playhead.
 - A layer style's color is set from a color row with a stopwatch, keyframe navigator, and the shared swatches, which add Half black, instead of from three Black, White, and Half black buttons that flattened an animated color.
+- Inspector buttons such as **Reset grade**, **Reset framing**, **Remove key**, **Remove matte**, **Clear styles**, **Load .cube…**, **Save as preset**, **Load catalog**, and **+ Audio effect** are as wide as their label instead of spanning the block, and a block's reset button and the Track matte and Speed notes start at the label column.
 - An effect's layer slot set to None marks its **None** chip.
 - A Project panel search that hides every item reads **Nothing matches the search.** instead of offering to import files.
 - A test process that started the decode device warm-up no longer aborts at random in GObject type registration after printing `ok`: a process ending through `exit` stops the warm-up at its next step and waits for the plugin load in progress.

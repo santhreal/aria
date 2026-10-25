@@ -106,13 +106,21 @@ pub fn render(
     if full {
         rows.push(note(theme, "Every insert slot is in use."));
     } else {
+        // In a row of its own, so the button is as wide as its label rather
+        // than the column.
         rows.push(
-            pressed(
-                components::ghost_button(("insert-add", base.with("add")), "+ Audio effect", theme),
-                move || Gesture::TogglePicker(target),
-                cx,
-            )
-            .into_any_element(),
+            div()
+                .flex()
+                .child(pressed(
+                    components::ghost_button(
+                        ("insert-add", base.with("add")),
+                        "+ Audio effect",
+                        theme,
+                    ),
+                    move || Gesture::TogglePicker(target),
+                    cx,
+                ))
+                .into_any_element(),
         );
         if picker == Some(target) {
             rows.push(add_list(theme, target, base, cx));
