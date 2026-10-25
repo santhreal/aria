@@ -66,8 +66,20 @@ this panel adds it to the selected clip at the drop position in the stack.
 A property row stays on one line. In a narrow panel the time area narrows
 first. Below 32 px it is left blank and a press there does nothing, and once it
 has no width left the property's name is shortened with an ellipsis and shown
-in full on hover. The tabs above the properties share the panel's width equally
-and shorten a long name the same way.
+in full on hover. Once the name has no width left, the value column narrows,
+down to the width of the value it shows. The tabs above the properties share
+the panel's width in proportion to the width of their names and shorten a long
+name the same way.
+
+A row that cannot be keyed, such as a fade, a switch, a crop inset, or a
+transition or insert parameter, stands in the same columns as a property row:
+a blank where the stopwatch stands, its name in the name column, its value or
+switch in the value column, and a blank where the navigator, the reset button
+and the time area stand. A row with a set of choices, such as a filter, an
+audio role or an effect's choice slot, shows the current choice in the value
+column, cut to the column's width with the whole of it on hover, and the
+choices on the line under it, as a color row shows its palette. The value
+column is 76 px wide.
 
 Each effect header shows a bypass toggle (fx), the effect name, a reset button,
 and a menu with Rename, Duplicate, Save Preset, Copy, and Remove. Effects

@@ -8,17 +8,19 @@
 //! the engine enforces.
 
 use gpui::{
-    InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled, div, px,
+    InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, SharedString,
+    Styled, div, px,
 };
 
 use crate::app::clip_transitions::TRANSITION_STEP_TICKS;
 use crate::components;
+use crate::motion::MotionKey;
 use crate::surfaces::clip_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::UiClip;
 use gpui::prelude::FluentBuilder;
 
-use super::widgets::{Readout, audio_row};
+use super::widgets::{Chip, Columns, Readout, chip_row, unkeyed_row};
 
 use crate::components::section_label;
 
@@ -41,29 +43,27 @@ pub fn transition_block(
         .iter()
         .map(|choice| {
             let id = choice.id.to_string();
-            let selected = applied.as_ref().is_some_and(|t| t.id == choice.id);
-            components::ghost_button(
-                crate::motion::MotionKey::new("transition-choice", &choice.id),
-                if selected {
-                    gpui::SharedString::from(format!("• {}", choice.label))
-                } else {
-                    choice.label.clone()
-                },
-                theme,
-            )
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                    let id = id.clone();
-                    this.state.update(cx, |state, _| {
-                        if let Err(err) = clip_pick::apply(state, Pick::Transition(id)) {
-                            state.report_error(&err);
-                        }
-                    });
-                    cx.notify();
-                }),
-            )
-            .into_any_element()
+            let on = applied.as_ref().is_some_and(|t| t.id == choice.id);
+            Chip::choice(choice.label.clone(), on, |label| {
+                components::ghost_button(
+                    MotionKey::new("transition-choice", &choice.id),
+                    label,
+                    theme,
+                )
+                .on_mouse_down(
+                    MouseButton::Left,
+                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                        let id = id.clone();
+                        this.state.update(cx, |state, _| {
+                            if let Err(err) = clip_pick::apply(state, Pick::Transition(id)) {
+                                state.report_error(&err);
+                            }
+                        });
+                        cx.notify();
+                    }),
+                )
+                .into_any_element()
+            })
         })
         .collect();
 
@@ -72,29 +72,28 @@ pub fn transition_block(
     let align_chips: Vec<_> = aria_models::TransitionAlignment::ALL
         .into_iter()
         .map(|choice| {
-            let selected = applied.is_some() && alignment == choice;
-            components::ghost_button(
-                crate::motion::MotionKey::new("transition-align", choice.id()),
-                if selected {
-                    gpui::SharedString::from(format!("• {}", choice.label()))
-                } else {
-                    gpui::SharedString::new_static(choice.label())
-                },
-                theme,
-            )
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                    this.state.update(cx, |state, _| {
-                        if let Err(err) = clip_pick::apply(state, Pick::TransitionAlignment(choice))
-                        {
-                            state.report_error(&err);
-                        }
-                    });
-                    cx.notify();
-                }),
-            )
-            .into_any_element()
+            let on = applied.is_some() && alignment == choice;
+            Chip::choice(choice.label(), on, |label| {
+                components::ghost_button(
+                    MotionKey::new("transition-align", choice.id()),
+                    label,
+                    theme,
+                )
+                .on_mouse_down(
+                    MouseButton::Left,
+                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                        this.state.update(cx, |state, _| {
+                            if let Err(err) =
+                                clip_pick::apply(state, Pick::TransitionAlignment(choice))
+                            {
+                                state.report_error(&err);
+                            }
+                        });
+                        cx.notify();
+                    }),
+                )
+                .into_any_element()
+            })
         })
         .collect();
     let transition_params: Vec<gpui::AnyElement> = applied
@@ -118,27 +117,35 @@ pub fn transition_block(
         .flex_col()
         .gap(px(Theme::SPACE_XS))
         .child(section_label(theme, "Transition"))
-        .child(
-            div()
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text_faint)
-                .child(format!(
-                    "At cut: {}",
-                    applied.as_ref().map(|t| t.label.as_str()).unwrap_or("None")
-                )),
-        )
-        .children(chips)
+        .child(chip_row(
+            theme,
+            MotionKey::new("insp.row", "transition-at"),
+            "At cut",
+            Columns::Keyed,
+            applied
+                .as_ref()
+                .map_or_else(|| SharedString::new_static("None"), |t| t.label.clone()),
+            chips,
+        ))
         .when(applied.is_some(), |this| {
-            this.child(audio_row(
+            this.child(unkeyed_row(
                 theme,
                 state,
-                crate::motion::MotionKey::new("insp.row", "transition-duration"),
+                MotionKey::new("insp.row", "transition-duration"),
                 "Duration (ticks)",
                 Readout::number(duration_ticks as f32, 0, TRANSITION_STEP_TICKS as f32),
+                Columns::Keyed,
                 move |state, by| clip_pick::apply(state, Pick::TransitionLength(by.round() as i64)),
                 cx,
             ))
-            .children(align_chips)
+            .child(chip_row(
+                theme,
+                MotionKey::new("insp.row", "transition-align"),
+                "Alignment",
+                Columns::Keyed,
+                alignment.label(),
+                align_chips,
+            ))
             .children(transition_params)
             .child(
                 components::ghost_button("transition-clear", "Remove transition", theme)

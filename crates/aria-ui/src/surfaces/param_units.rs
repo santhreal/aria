@@ -69,13 +69,14 @@ fn level_db(volume: f32) -> f32 {
     aria_analysis::db_from_linear(volume).unwrap_or(crate::app::clip_audio::SILENT_DB)
 }
 
-/// What a gain reads as beside the fader.
+/// What a gain reads as beside the fader: decibels, which fit the value
+/// column a number row's value stands in.
 ///
 /// Silence has no decibel value, which is what the bottom of the fader means: a
 /// readout printing `-inf` would be a number the field could not take back.
 fn level_label(volume: f32) -> String {
     match aria_analysis::db_from_linear(volume) {
-        Some(db) => format!("{db:+.1} dB · {:.0}%", volume * 100.0),
+        Some(db) => format!("{db:+.1} dB"),
         None => "Silent".to_string(),
     }
 }

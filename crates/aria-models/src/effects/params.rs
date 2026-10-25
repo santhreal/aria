@@ -49,6 +49,25 @@ pub enum EffectParamKind {
 }
 
 impl EffectParamKind {
+    /// Every kind, in declaration order.
+    pub const ALL: [Self; 15] = [
+        Self::Scalar,
+        Self::Int,
+        Self::Bool,
+        Self::Choice,
+        Self::Color,
+        Self::Vec2,
+        Self::Point3,
+        Self::Size,
+        Self::Angle,
+        Self::Curve,
+        Self::Gradient,
+        Self::Text,
+        Self::Font,
+        Self::File,
+        Self::Layer,
+    ];
+
     /// Stable snake_case identifier used in manifests, WIT, and C ABI JSON.
     pub const fn as_str(self) -> &'static str {
         match self {

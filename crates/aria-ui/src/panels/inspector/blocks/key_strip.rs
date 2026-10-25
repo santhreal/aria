@@ -14,6 +14,7 @@ use gpui::{
     MouseDownEvent, ParentElement, Pixels, Styled, Window, canvas, div, fill, point, px, size,
 };
 
+use super::widgets::LABEL_YIELD;
 use crate::app::key_strip::KeyStrip;
 use crate::app::spawn_preview;
 use crate::motion::MotionKey;
@@ -29,11 +30,11 @@ pub const STRIP_W: f32 = 112.0;
 /// strip has no width left.
 pub const STRIP_MIN: f32 = 32.0;
 
-/// A strip's flex shrink factor, against the row label's 1. Shrink is shared
-/// in proportion to factor times width, so while a strip narrows to nothing
-/// its label loses under a tenth of a pixel, and the label ends in an ellipsis
-/// only once the strip has no width left.
-const STRIP_YIELD: f32 = 1000.0;
+/// A strip's flex shrink factor, a thousand times the row label's
+/// `LABEL_YIELD`. Shrink is shared in proportion to factor times width, so
+/// while a strip narrows to nothing its label loses under a tenth of a pixel,
+/// and the label ends in an ellipsis only once the strip has no width left.
+const STRIP_YIELD: f32 = 1000.0 * LABEL_YIELD;
 
 /// Height of a strip: a keyframe icon and two pixels above and below it.
 const STRIP_H: f32 = 12.0;
@@ -77,15 +78,9 @@ pub fn key_strip(
     .absolute()
     .size_full();
 
-    div()
+    blank_strip()
         .id(key.element_id("insp-strip"))
         .debug_selector(move || format!("insp-strip-{param:?}"))
-        .relative()
-        .flex_grow_0()
-        .flex_shrink(STRIP_YIELD)
-        .w(px(STRIP_W))
-        .min_w_0()
-        .h(px(STRIP_H))
         .child(painted)
         .on_mouse_down(
             MouseButton::Left,
@@ -109,6 +104,20 @@ pub fn key_strip(
                 }
             }),
         )
+}
+
+/// A strip's box with nothing in it: `STRIP_W` wide where its row has the
+/// room, narrowing at `STRIP_YIELD` before the label beside it. A row that
+/// cannot be keyed among rows that can draws it bare, so its label and value
+/// narrow with theirs.
+pub fn blank_strip() -> gpui::Div {
+    div()
+        .relative()
+        .flex_grow_0()
+        .flex_shrink(STRIP_YIELD)
+        .w(px(STRIP_W))
+        .min_w_0()
+        .h(px(STRIP_H))
 }
 
 /// Whether a strip `width` pixels wide is drawn and takes a press.

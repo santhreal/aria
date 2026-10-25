@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn kinds_lists_every_kind_and_the_fixture_holds_each() {
     let params = every_kind();
-    for (at, kind) in KINDS.into_iter().enumerate() {
+    for (at, kind) in K::ALL.into_iter().enumerate() {
         assert_eq!(position(kind), at, "{kind:?}");
         assert!(
             params.iter().any(|p| p.kind == kind),
@@ -14,7 +14,7 @@ fn kinds_lists_every_kind_and_the_fixture_holds_each() {
 
 #[test]
 fn kind_names_round_trip_and_aliases_resolve() {
-    for kind in KINDS {
+    for kind in K::ALL {
         let name = kind.as_str();
         assert_eq!(EffectParamKind::from_name(name), Some(kind));
         let json = format!("\"{name}\"");
@@ -109,7 +109,7 @@ fn check_params_refuses_unnamed_repeated_inverted_and_empty_parameters() {
         check_params("fx", &twice),
         Err("fx repeats parameter a".to_owned())
     );
-    for kind in KINDS {
+    for kind in K::ALL {
         let inverted = EffectParamSpec {
             name: "p".into(),
             kind,

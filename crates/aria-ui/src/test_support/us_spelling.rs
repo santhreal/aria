@@ -97,7 +97,7 @@ const ISE_SUFFIXES: [&str; 9] = [
 ];
 
 /// Whole British words, and their US spelling.
-const WORDS: [(&str, &str); 23] = [
+const WORDS: [(&str, &str); 25] = [
     ("analyse", "analyze"),
     ("analysed", "analyzed"),
     ("analyser", "analyzer"),
@@ -106,6 +106,8 @@ const WORDS: [(&str, &str); 23] = [
     ("cataloguing", "cataloging"),
     ("centred", "centered"),
     ("centring", "centering"),
+    ("dialled", "dialed"),
+    ("dialling", "dialing"),
     ("grey", "gray"),
     ("greyed", "grayed"),
     ("greying", "graying"),

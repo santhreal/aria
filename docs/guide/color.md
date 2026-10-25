@@ -2,7 +2,9 @@
 
 ## Look and grade
 
-The Look tab holds the filter catalog and, below it, the grade:
+The Look tab's **Filter** row shows the applied filter, or None, and lists the
+filter catalog under it with the applied one marked `•`. Below it is the
+grade:
 
 - The color wheels: Lift, Gamma and Gain. Press anywhere on a wheel to put
   its puck under the pointer, then drag. The drag follows the pointer off the

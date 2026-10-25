@@ -18,7 +18,7 @@ use aria_models::{AudioInsertTarget, TrackId};
 use crate::app::AppState;
 use crate::components::{self, ChipSize};
 use crate::motion::MotionKey;
-use crate::panels::inspector::blocks::widgets::{Readout, audio_row};
+use crate::panels::inspector::blocks::widgets::{Columns, Readout, unkeyed_row};
 use crate::surfaces::insert_rack::{self, Gesture};
 use crate::theme::Theme;
 use crate::types::{UiInsert, UiInsertParam, UiKeyChoice};
@@ -31,6 +31,9 @@ pub struct Chain<'a> {
     pub keys: &'a [UiKeyChoice],
     /// Whether every insert's parameters are drawn, or only the open one's.
     pub expanded: bool,
+    /// The columns the parameter rows stand in: the keyed rows' on an Effect
+    /// Controls tab, free on a mixer strip.
+    pub columns: Columns,
 }
 
 /// The chain's rows, then its Add button and, when open, its Add list.
@@ -45,6 +48,7 @@ pub fn render(
         (read.insert_picker, read.open_insert)
     };
     let target = chain.target;
+    let columns = chain.columns;
     let base = chain_key(target);
     let mut rows: Vec<gpui::AnyElement> = Vec::with_capacity(chain.inserts.len() + 2);
     for (index, insert) in chain.inserts.iter().enumerate() {
@@ -68,12 +72,13 @@ pub fn render(
         }
         for (slot, param) in insert.params.iter().enumerate() {
             rows.push(
-                audio_row(
+                unkeyed_row(
                     theme,
                     state,
                     at.key.with("param").with(slot),
                     param.label.clone(),
                     Readout::printed(reading(param), param.value, digits(param), unit(param)),
+                    columns,
                     move |state, by| {
                         insert_rack::apply(
                             state,

@@ -7,13 +7,17 @@ use gpui::{
 
 use crate::app::AppState;
 use crate::components;
+use crate::motion::MotionKey;
 use crate::panels::insert_chain::{self, Chain};
 use crate::surfaces::clip_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::UiClip;
+use aria_models::AudioRole;
 use gpui::prelude::FluentBuilder;
 
-use crate::panels::inspector::blocks::widgets::{Readout, audio_row, param_rows};
+use crate::panels::inspector::blocks::widgets::{
+    Chip, Columns, Readout, chip_row, control_line, param_rows, unkeyed_row,
+};
 
 use crate::components::section_label;
 
@@ -27,17 +31,18 @@ pub fn audio_tab(
 ) -> impl IntoElement {
     let fade_in = clip.fade_in_ticks;
     let fade_out = clip.fade_out_ticks;
-    let reverse_label = if clip.reversed { "On" } else { "Off" };
     // Volume and pan are catalog properties, so the block names its group and
-    // takes what the clip owns in it; the fades are not, so they are drawn here.
+    // takes what the clip has in it; the fades, the switches and the role are
+    // not, so they are drawn here, in the columns the keyed rows stand in.
     let mut rows = param_rows(theme, "audio", state, cx);
     rows.push(
-        audio_row(
+        unkeyed_row(
             theme,
             state,
-            crate::motion::MotionKey::new("insp.row", "aud-fi"),
+            MotionKey::new("insp.row", "aud-fi"),
             "Fade in",
             Readout::frames(fade_in, fps_num, fps_den),
+            Columns::Keyed,
             move |state, delta| {
                 clip_pick::apply(state, Pick::FadeIn((fade_in as f32 + delta).round() as i64))
             },
@@ -46,12 +51,13 @@ pub fn audio_tab(
         .into_any_element(),
     );
     rows.push(
-        audio_row(
+        unkeyed_row(
             theme,
             state,
-            crate::motion::MotionKey::new("insp.row", "aud-fo"),
+            MotionKey::new("insp.row", "aud-fo"),
             "Fade out",
             Readout::frames(fade_out, fps_num, fps_den),
+            Columns::Keyed,
             move |state, delta| {
                 clip_pick::apply(
                     state,
@@ -62,18 +68,23 @@ pub fn audio_tab(
         )
         .into_any_element(),
     );
-    let reverse = components::ghost_button("inspector-reverse", reverse_label, theme)
-        .on_mouse_down(
-            MouseButton::Left,
-            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                this.state.update(cx, |state, _| {
-                    if let Err(err) = clip_pick::apply(state, Pick::ToggleReverse) {
-                        state.report_error(&err);
-                    }
-                });
-                cx.notify();
-            }),
-        );
+    rows.push(switch_line(
+        theme,
+        ("aud-rev", "Reverse"),
+        "inspector-reverse",
+        clip.reversed,
+        || Pick::ToggleReverse,
+        cx,
+    ));
+    rows.push(switch_line(
+        theme,
+        ("aud-pitch", "Pitch lock"),
+        "inspector-pitch",
+        clip.preserve_pitch,
+        || Pick::TogglePitchLock,
+        cx,
+    ));
+    rows.push(role_row(theme, clip.audio_role, cx));
     // The clip's insert chain is drawn only where the model accepts one: a clip
     // with sound.
     let inserts = clip.can_hold_inserts.then(|| {
@@ -86,6 +97,7 @@ pub fn audio_tab(
                 inserts: &clip.audio_inserts,
                 keys: &[],
                 expanded: true,
+                columns: Columns::Keyed,
             },
             state,
             cx,
@@ -97,55 +109,6 @@ pub fn audio_tab(
         .gap(px(Theme::SPACE_XS))
         .child(section_label(theme, "Audio"))
         .children(rows)
-        .child(
-            div()
-                .flex()
-                .flex_row()
-                .justify_between()
-                .items_center()
-                .px(px(Theme::SPACE_XS))
-                .py(px(Theme::SPACE_XS))
-                .child(
-                    div()
-                        .text_size(Theme::TEXT_UI)
-                        .text_color(theme.text_muted)
-                        .child("Reverse"),
-                )
-                .child(reverse),
-        )
-        .child(
-            div()
-                .flex()
-                .flex_row()
-                .justify_between()
-                .items_center()
-                .px(px(Theme::SPACE_XS))
-                .py(px(Theme::SPACE_XS))
-                .child(
-                    div()
-                        .text_size(Theme::TEXT_UI)
-                        .text_color(theme.text_muted)
-                        .child("Pitch lock"),
-                )
-                .child(
-                    components::ghost_button(
-                        "inspector-pitch",
-                        if clip.preserve_pitch { "On" } else { "Off" },
-                        theme,
-                    )
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                            this.state.update(cx, |state, _| {
-                                if let Err(err) = clip_pick::apply(state, Pick::TogglePitchLock) {
-                                    state.report_error(&err);
-                                }
-                            });
-                            cx.notify();
-                        }),
-                    ),
-                ),
-        )
         .when_some(inserts, |el, chain| {
             el.child(section_label(theme, "Audio effects")).child(chain)
         })
@@ -159,61 +122,113 @@ pub fn audio_tab(
                 )
             },
         )
-        .child(section_label(theme, "Role"))
-        .child(
-            div()
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text_faint)
-                .child(match clip.audio_role {
-                    Some(role) => role.label(),
-                    None => "Untagged",
-                }),
-        )
-        .children(aria_models::AudioRole::ALL.into_iter().map(|role| {
-            components::ghost_button(("aud-role", role.id()), role.label(), theme).on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                    this.state.update(cx, |state, _| {
-                        if let Err(err) = clip_pick::apply(state, Pick::Role(Some(role))) {
-                            state.report_error(&err);
-                        }
-                    });
-                    cx.notify();
-                }),
-            )
-        }))
-        .child(
-            components::ghost_button("aud-role-clear", "Untag", theme).on_mouse_down(
-                MouseButton::Left,
-                cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                    this.state.update(cx, |state, _| {
-                        if let Err(err) = clip_pick::apply(state, Pick::Role(None)) {
-                            state.report_error(&err);
-                        }
-                    });
-                    cx.notify();
-                }),
-            ),
-        )
         .child(section_label(theme, "Loudness"))
         .children(loudness_rows(theme, state, cx))
         .child(section_label(theme, "Duck under voice"))
         .children(duck_rows(theme, state, cx))
-        .child(
-            div()
-                .pt(px(Theme::SPACE_SM))
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text_faint)
-                .child("Left click raises, right click lowers."),
-        )
 }
 
-/// The dip's shape, the lane it listens to, and the button that measures it.
+/// A switch of the selected clip: the `row`'s key and label, its button
+/// `control` reading whether it is `on`, and the pick a press applies.
+fn switch_line(
+    theme: &Theme,
+    (row, label): (&'static str, &'static str),
+    control: &'static str,
+    on: bool,
+    pick: fn() -> Pick,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> gpui::AnyElement {
+    control_line(
+        theme,
+        MotionKey::new("insp.row", row),
+        label,
+        Columns::Keyed,
+        components::ghost_button(control, if on { "On" } else { "Off" }, theme).on_mouse_down(
+            MouseButton::Left,
+            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                this.state.update(cx, |state, _| {
+                    if let Err(err) = clip_pick::apply(state, pick()) {
+                        state.report_error(&err);
+                    }
+                });
+                cx.notify();
+            }),
+        ),
+    )
+    .into_any_element()
+}
+
+/// The clip's audio role, with a chip for each role and, on a tagged clip, one
+/// that clears the tag.
+fn role_row(
+    theme: &Theme,
+    tagged: Option<AudioRole>,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> gpui::AnyElement {
+    let mut chips: Vec<Chip> = AudioRole::ALL
+        .into_iter()
+        .map(|role| {
+            Chip::choice(role.label(), tagged == Some(role), |label| {
+                role_chip(theme, ("aud-role", role.id()), label, Some(role), cx)
+            })
+        })
+        .collect();
+    if tagged.is_some() {
+        chips.push(Chip::other(role_chip(
+            theme,
+            "aud-role-clear",
+            "Untag".into(),
+            None,
+            cx,
+        )));
+    }
+    chip_row(
+        theme,
+        MotionKey::new("insp.row", "aud-role"),
+        "Role",
+        Columns::Keyed,
+        tagged.map_or("Untagged", AudioRole::label),
+        chips,
+    )
+    .into_any_element()
+}
+
+/// A chip that tags the selected clip with `role`, or clears its tag.
+fn role_chip(
+    theme: &Theme,
+    id: impl Into<crate::motion::ControlId>,
+    label: SharedString,
+    role: Option<AudioRole>,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> gpui::AnyElement {
+    components::ghost_button(id, label, theme)
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                this.state.update(cx, |state, _| {
+                    if let Err(err) = clip_pick::apply(state, Pick::Role(role)) {
+                        state.report_error(&err);
+                    }
+                });
+                cx.notify();
+            }),
+        )
+        .into_any_element()
+}
+
+/// The duck settings a row steps, by the row's id and label: the depth of the
+/// dip, then its attack and its release.
+pub(crate) const DUCK_SETTINGS: [(&str, &str); 3] = [
+    ("duck-amount", "Dip to"),
+    ("duck-attack", "Attack"),
+    ("duck-release", "Release"),
+];
+
+/// The dip's shape, the lane it follows, and the button that measures it.
 ///
-/// The button carries its own refusal: a duck needs a selection, a flagged voice
-/// lane, and audio on it, and a greyed button with no sentence is a feature the
-/// operator cannot find their way into. The precheck that would refuse the run is
-/// the same one that writes this line.
+/// A duck needs a selection, a flagged voice lane, and audio on it. While one
+/// is missing, the line under the button states which, from the precheck that
+/// rejects the run.
 fn duck_rows(
     theme: &Theme,
     state: &Entity<AppState>,
@@ -223,51 +238,27 @@ fn duck_rows(
     let refusal = state.read(cx).duck_precheck().err();
     let lane = state.read(cx).duck_source_name();
     let mut rows: Vec<gpui::AnyElement> = Vec::new();
-    let choices: [(&'static str, &'static str, String, fn(&mut AppState)); 3] = [
-        (
-            "duck-amount",
-            "Dip to",
-            form.amount_label(),
-            AppState::cycle_duck_amount,
-        ),
-        (
-            "duck-attack",
-            "Attack",
-            form.attack_label(),
-            AppState::cycle_duck_attack,
-        ),
-        (
-            "duck-release",
-            "Release",
-            form.release_label(),
-            AppState::cycle_duck_release,
-        ),
+    let steps: [(String, fn(&mut AppState)); 3] = [
+        (form.amount_label(), AppState::cycle_duck_amount),
+        (form.attack_label(), AppState::cycle_duck_attack),
+        (form.release_label(), AppState::cycle_duck_release),
     ];
-    for (id, label, value, cycle) in choices {
+    for ((id, label), (value, cycle)) in DUCK_SETTINGS.into_iter().zip(steps) {
         rows.push(
-            div()
-                .flex()
-                .flex_row()
-                .justify_between()
-                .items_center()
-                .px(px(Theme::SPACE_XS))
-                .py(px(Theme::SPACE_XS))
-                .child(
-                    div()
-                        .text_size(Theme::TEXT_UI)
-                        .text_color(theme.text_muted)
-                        .child(SharedString::from(label)),
-                )
-                .child(
-                    components::ghost_button(("duck-setting", id), &value, theme).on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                            this.state.update(cx, |state, _| cycle(state));
-                            cx.notify();
-                        }),
-                    ),
-                )
-                .into_any_element(),
+            control_line(
+                theme,
+                MotionKey::new("insp.row", id),
+                label,
+                Columns::Keyed,
+                components::ghost_button(("duck-setting", id), &value, theme).on_mouse_down(
+                    MouseButton::Left,
+                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                        this.state.update(cx, |state, _| cycle(state));
+                        cx.notify();
+                    }),
+                ),
+            )
+            .into_any_element(),
         );
     }
     rows.push(

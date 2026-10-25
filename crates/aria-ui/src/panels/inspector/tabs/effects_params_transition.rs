@@ -2,14 +2,15 @@
 
 use aria_models::{EffectParamKind, EffectParamSpec, TransitionSpec};
 use gpui::{
-    AnyElement, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
-    Styled, div, px,
+    AnyElement, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, SharedString,
 };
 
-use super::{param_line, scalar_readout};
+use super::{scalar_readout, vec2_axes};
 use crate::components;
 use crate::motion::MotionKey;
-use crate::panels::inspector::blocks::widgets::{Readout, audio_row, color_name, swatch};
+use crate::panels::inspector::blocks::widgets::{
+    Chip, Columns, Keys, Readout, chip_row, control_line, swatch_row, unkeyed_row,
+};
 use crate::surfaces::clip_pick::{self, Pick, TransitionSlotEdit};
 use crate::theme::Theme;
 use crate::types::{UiSlots as _, UiTransition};
@@ -32,6 +33,32 @@ pub(crate) fn transition_param_rows(
     out
 }
 
+/// A chip that writes `edit` to transition slot `slot`.
+fn transition_chip(
+    theme: &Theme,
+    key: MotionKey,
+    text: impl Into<SharedString>,
+    slot: usize,
+    edit: TransitionSlotEdit,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> AnyElement {
+    components::ghost_button(key, text, theme)
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                let edit = edit.clone();
+                this.state.update(cx, |state, _| {
+                    if let Err(err) = clip_pick::apply(state, Pick::TransitionParam { slot, edit })
+                    {
+                        state.report_error(&err);
+                    }
+                });
+                cx.notify();
+            }),
+        )
+        .into_any_element()
+}
+
 fn push_transition_slot_rows(
     out: &mut Vec<AnyElement>,
     theme: &Theme,
@@ -44,14 +71,14 @@ fn push_transition_slot_rows(
     match pspec.kind {
         EffectParamKind::Scalar | EffectParamKind::Angle => {
             let value = transition.scalar(slot).unwrap_or(pspec.default);
-            let readout = scalar_readout(value, pspec);
             out.push(
-                audio_row(
+                unkeyed_row(
                     theme,
                     state,
                     MotionKey::new("tr-param", slot).with(pspec.name.as_str()),
                     pspec.label.as_str(),
-                    readout,
+                    scalar_readout(value, pspec),
+                    Columns::Keyed,
                     move |state, by| {
                         clip_pick::apply(
                             state,
@@ -69,12 +96,13 @@ fn push_transition_slot_rows(
         EffectParamKind::Int => {
             let value = transition.int(slot).unwrap_or(pspec.default_int as i32);
             out.push(
-                audio_row(
+                unkeyed_row(
                     theme,
                     state,
                     MotionKey::new("tr-param-int", slot).with(pspec.name.as_str()),
                     pspec.label.as_str(),
                     Readout::number(value as f32, 0, 1.0),
+                    Columns::Keyed,
                     move |state, by| {
                         clip_pick::apply(
                             state,
@@ -91,171 +119,95 @@ fn push_transition_slot_rows(
         }
         EffectParamKind::Bool => {
             let value = transition.boolean(slot).unwrap_or(pspec.default_bool);
-            let btn_label = if value { "✓ On" } else { "○ Off" };
             out.push(
-                param_line(theme, pspec.label.clone())
-                    .child(
-                        components::ghost_button(MotionKey::new("tr-bool", slot), btn_label, theme)
-                            .on_mouse_down(
-                                MouseButton::Left,
-                                cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                                    this.state.update(cx, |state, _| {
-                                        if let Err(err) = clip_pick::apply(
-                                            state,
-                                            Pick::TransitionParam {
-                                                slot,
-                                                edit: TransitionSlotEdit::ToggleBool,
-                                            },
-                                        ) {
-                                            state.report_error(&err);
-                                        }
-                                    });
-                                    cx.notify();
-                                }),
-                            ),
-                    )
-                    .into_any_element(),
+                control_line(
+                    theme,
+                    MotionKey::new("tr-param", slot).with(pspec.name.as_str()),
+                    pspec.label.as_str(),
+                    Columns::Keyed,
+                    transition_chip(
+                        theme,
+                        MotionKey::new("tr-bool", slot),
+                        if value { "On" } else { "Off" },
+                        slot,
+                        TransitionSlotEdit::ToggleBool,
+                        cx,
+                    ),
+                )
+                .into_any_element(),
             );
         }
         EffectParamKind::Choice => {
             let current = transition
                 .choice(slot)
                 .unwrap_or_else(|| pspec.default_choice_id().unwrap_or_default());
-            let chips: Vec<AnyElement> = pspec
+            let chips: Vec<Chip> = pspec
                 .choices
                 .iter()
                 .map(|opt| {
-                    let opt_val = opt.id.clone();
-                    let text = if opt.id == current {
-                        format!("• {}", opt.label)
-                    } else {
-                        opt.label.clone()
-                    };
-                    components::ghost_button(
-                        MotionKey::new("tr-choice", slot).with(opt.id.as_str()),
-                        text,
-                        theme,
-                    )
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                            let choice = opt_val.clone();
-                            this.state.update(cx, |state, _| {
-                                if let Err(err) = clip_pick::apply(
-                                    state,
-                                    Pick::TransitionParam {
-                                        slot,
-                                        edit: TransitionSlotEdit::Choice(choice),
-                                    },
-                                ) {
-                                    state.report_error(&err);
-                                }
-                            });
-                            cx.notify();
-                        }),
-                    )
-                    .into_any_element()
+                    Chip::choice(opt.label.clone(), opt.id == current, |text| {
+                        transition_chip(
+                            theme,
+                            MotionKey::new("tr-choice", slot).with(opt.id.as_str()),
+                            text,
+                            slot,
+                            TransitionSlotEdit::Choice(opt.id.clone()),
+                            cx,
+                        )
+                    })
                 })
                 .collect();
+            let shown = pspec
+                .choices
+                .iter()
+                .find(|opt| opt.id == current)
+                .map_or(current, |opt| opt.label.as_str());
             out.push(
-                param_line(theme, pspec.label.clone())
-                    .child(
-                        div()
-                            .flex()
-                            .flex_row()
-                            .gap(px(Theme::SPACE_XS))
-                            .children(chips),
-                    )
-                    .into_any_element(),
+                chip_row(
+                    theme,
+                    MotionKey::new("tr-param", slot).with(pspec.name.as_str()),
+                    pspec.label.as_str(),
+                    Columns::Keyed,
+                    shown,
+                    chips,
+                )
+                .into_any_element(),
             );
         }
         EffectParamKind::Color => {
             let value = transition
                 .color(slot)
                 .unwrap_or_else(|| pspec.default_color_u8());
-            let swatches: Vec<_> = crate::app::clip_effects::PARAM_COLORS
-                .iter()
-                .map(|(name, _, rgba)| {
-                    let rgba = *rgba;
-                    let picked = rgba == value;
-                    div()
-                        .id(MotionKey::new("tr-slot-col", slot)
-                            .with(name)
-                            .element_id("tr-slot-col"))
-                        .w(px(16.))
-                        .h(px(16.))
-                        .rounded(px(Theme::CONTROL_RADIUS))
-                        .bg(swatch(rgba))
-                        .border_1()
-                        .border_color(if picked { theme.accent } else { theme.border })
-                        .on_mouse_down(
-                            MouseButton::Left,
-                            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                                this.state.update(cx, |state, _| {
-                                    if let Err(err) = clip_pick::apply(
-                                        state,
-                                        Pick::TransitionParam {
-                                            slot,
-                                            edit: TransitionSlotEdit::Color(rgba),
-                                        },
-                                    ) {
-                                        state.report_error(&err);
-                                    }
-                                });
-                                cx.notify();
-                            }),
-                        )
-                        .into_any_element()
-                })
-                .collect();
-            out.push(
-                div()
-                    .flex()
-                    .flex_row()
-                    .items_center()
-                    .justify_between()
-                    .px(px(Theme::SPACE_XS))
-                    .py(px(Theme::SPACE_XS))
-                    .child(
-                        div()
-                            .flex()
-                            .flex_row()
-                            .gap(px(Theme::SPACE_XS))
-                            .items_center()
-                            .child(
-                                div()
-                                    .text_size(Theme::TEXT_UI)
-                                    .text_color(theme.text_muted)
-                                    .child(pspec.label.clone()),
-                            )
-                            .child(
-                                div()
-                                    .text_size(Theme::TEXT_UI)
-                                    .text_color(theme.text_faint)
-                                    .child(color_name(value)),
-                            ),
+            out.push(swatch_row(
+                theme,
+                MotionKey::new("tr-slot-col", slot),
+                pspec.label.clone().into(),
+                Some(value),
+                Keys::Unkeyed(Columns::Keyed),
+                move |state, rgba| {
+                    clip_pick::apply(
+                        state,
+                        Pick::TransitionParam {
+                            slot,
+                            edit: TransitionSlotEdit::Color(rgba),
+                        },
                     )
-                    .child(
-                        div()
-                            .flex()
-                            .flex_row()
-                            .gap(px(Theme::SPACE_XS))
-                            .children(swatches),
-                    )
-                    .into_any_element(),
-            );
+                },
+                cx,
+            ));
         }
         EffectParamKind::Vec2 | EffectParamKind::Size => {
             let value = transition.vec2(slot).unwrap_or(pspec.default_vec2);
             let unit = ((pspec.max - pspec.min) / 100.0).max(0.001);
-            for (axis, name) in [(0usize, "x"), (1usize, "y")] {
+            for (axis, name) in vec2_axes(pspec.kind) {
                 out.push(
-                    audio_row(
+                    unkeyed_row(
                         theme,
                         state,
                         MotionKey::new("tr-vec2", slot).with(name),
                         &format!("{} {name}", pspec.label),
                         Readout::number(value[axis], 3, unit),
+                        Columns::Keyed,
                         move |state, by| {
                             clip_pick::apply(
                                 state,
@@ -276,12 +228,13 @@ fn push_transition_slot_rows(
             let unit = ((pspec.max - pspec.min) / 100.0).max(0.001);
             for (axis, name) in [(0usize, "x"), (1usize, "y"), (2usize, "z")] {
                 out.push(
-                    audio_row(
+                    unkeyed_row(
                         theme,
                         state,
                         MotionKey::new("tr-pt3", slot).with(name),
                         &format!("{} {name}", pspec.label),
                         Readout::number(value[axis], 3, unit),
+                        Columns::Keyed,
                         move |state, by| {
                             clip_pick::apply(
                                 state,

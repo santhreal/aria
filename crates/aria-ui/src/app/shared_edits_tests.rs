@@ -455,25 +455,6 @@ fn an_effect_dropped_on_the_panel_lands_on_every_clip_of_the_lane_kind() {
     assert_eq!(chain(&state, twin), ["gaussian_blur"]);
 }
 
-/// Every effect parameter kind, in declaration order.
-const KINDS: [EffectParamKind; 15] = [
-    EffectParamKind::Scalar,
-    EffectParamKind::Int,
-    EffectParamKind::Bool,
-    EffectParamKind::Choice,
-    EffectParamKind::Color,
-    EffectParamKind::Vec2,
-    EffectParamKind::Point3,
-    EffectParamKind::Size,
-    EffectParamKind::Angle,
-    EffectParamKind::Curve,
-    EffectParamKind::Gradient,
-    EffectParamKind::Text,
-    EffectParamKind::Font,
-    EffectParamKind::File,
-    EffectParamKind::Layer,
-];
-
 /// A slot of `kind` and the edit that sets it apart from its default, `layer`
 /// being a clip a layer slot can name; `None` for a kind a curve carries,
 /// whose row compares the values it samples. No wildcard arm: a new kind does
@@ -545,14 +526,14 @@ fn an_effect_reads_as_mixed_on_the_slots_the_clips_set_apart() {
     // Registers and drops an effect every other library test can list.
     crate::test_support::catalogs::own_process(|| {
         // The slots no curve carries are the ones the model cannot keyframe.
-        for kind in KINDS {
+        for kind in EffectParamKind::ALL {
             assert_eq!(
                 slot_of(kind, ClipId::from_raw(0)).is_some(),
                 !kind.is_keyframeable(),
                 "{kind:?}"
             );
         }
-        let statics: Vec<EffectParamKind> = KINDS
+        let statics: Vec<EffectParamKind> = EffectParamKind::ALL
             .into_iter()
             .filter(|kind| slot_of(*kind, ClipId::from_raw(0)).is_some())
             .collect();

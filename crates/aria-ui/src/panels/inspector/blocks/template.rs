@@ -19,7 +19,7 @@ use crate::theme::Theme;
 use crate::types::{UiClip, UiClipKind};
 use gpui::prelude::FluentBuilder;
 
-use super::widgets::{Readout, audio_row};
+use super::widgets::{Columns, Readout, picked, unkeyed_row};
 
 use crate::components::section_label;
 
@@ -72,27 +72,19 @@ pub fn template_block(
         .into_iter()
         .map(|(kind, label)| {
             let selected = slot.as_ref().is_some_and(|s| s.accepts == kind);
-            components::ghost_button(
-                ("template-accepts", label),
-                if selected {
-                    format!("• {label}")
-                } else {
-                    label.to_string()
-                },
-                theme,
-            )
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                    this.state.update(cx, |state, _| {
-                        if let Err(err) = clip_pick::apply(state, Pick::SlotAccepts(kind)) {
-                            state.report_error(&err);
-                        }
-                    });
-                    cx.notify();
-                }),
-            )
-            .into_any_element()
+            components::ghost_button(("template-accepts", label), picked(label, selected), theme)
+                .on_mouse_down(
+                    MouseButton::Left,
+                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                        this.state.update(cx, |state, _| {
+                            if let Err(err) = clip_pick::apply(state, Pick::SlotAccepts(kind)) {
+                                state.report_error(&err);
+                            }
+                        });
+                        cx.notify();
+                    }),
+                )
+                .into_any_element()
         })
         .collect();
 
@@ -144,12 +136,13 @@ pub fn template_block(
                         slot.label.clone().unwrap_or_else(|| "No hint".into())
                     )),
             )
-            .child(audio_row(
+            .child(unkeyed_row(
                 theme,
                 &state,
                 crate::motion::MotionKey::new("insp.row", "inspector-slot-order"),
                 "Fill order",
                 Readout::number(slot.order as f32, 0, 1.0),
+                Columns::Free,
                 |state, by| clip_pick::apply(state, Pick::SlotOrder(by.round() as i32)),
                 cx,
             ))

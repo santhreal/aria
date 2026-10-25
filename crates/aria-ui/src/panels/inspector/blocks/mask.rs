@@ -24,7 +24,7 @@ use crate::theme::Theme;
 use crate::types::{UiClip, UiMask};
 use gpui::prelude::FluentBuilder;
 
-use super::widgets::param_rows;
+use super::widgets::{param_rows, picked};
 
 use crate::components::section_label;
 
@@ -171,11 +171,13 @@ fn mask_header(
         .iter()
         .find(|choice| choice.id == mask.kind.id())
         .map_or("Mask", |choice| choice.label.as_str());
-    let name = format!(
-        "{}Mask {} {shape}{}",
-        if active { "• " } else { "" },
-        index + 1,
-        if mask.invert { " (inverted)" } else { "" }
+    let name = picked(
+        format!(
+            "Mask {} {shape}{}",
+            index + 1,
+            if mask.invert { " (inverted)" } else { "" }
+        ),
+        active,
     );
     let modes: Vec<_> = MaskMode::ALL
         .iter()

@@ -77,14 +77,15 @@ layer's look to the masked area. The Look tab holds:
   removes all four.
 - A `.cube` LUT. **Load .cube…** picks a file; Intensity blends it over the
   ungraded image; Remove LUT clears it. Loading another LUT keeps the
-  intensity you dialled in.
-- In, Out, and Loop animations. Chips list the presets for that slot; the
-  applied one is marked. Speed, Intensity, and Stagger appear only when the
+  intensity you dialed in.
+- In, Out, and Loop animations. Each slot's row shows the applied preset, or
+  None, and the chips under it list the presets for that slot, the applied one
+  marked `•`. Speed, Intensity, and Stagger appear only when the
   preset exposes them. A loop animation replaces the In and Out pair and vice
   versa. Text-only presets appear on text clips.
 
-The Audio tab tags a clip as Music, Sound FX, Voiceover, or Extracted.
-**Untag** clears it.
+The Audio tab's **Role** row tags a clip as Music, Sound FX, Voiceover, or
+Extracted and marks the clip's role, or reads Untagged. **Untag** clears it.
 
 
 ## Example

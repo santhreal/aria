@@ -42,27 +42,8 @@ pub(crate) const FACE: usize = 13;
 pub(crate) const LUT: usize = 14;
 pub(crate) const MATTE: usize = 15;
 
-/// Every kind, in declaration order.
-pub(crate) const KINDS: [EffectParamKind; 15] = [
-    K::Scalar,
-    K::Int,
-    K::Bool,
-    K::Choice,
-    K::Color,
-    K::Vec2,
-    K::Point3,
-    K::Size,
-    K::Angle,
-    K::Curve,
-    K::Gradient,
-    K::Text,
-    K::Font,
-    K::File,
-    K::Layer,
-];
-
-/// Where `kind` sits in [`KINDS`]. No wildcard arm: a new kind does not
-/// compile until it is listed.
+/// Where `kind` sits in [`EffectParamKind::ALL`]. No wildcard arm: a new kind
+/// does not compile until it is listed.
 const fn position(kind: EffectParamKind) -> usize {
     match kind {
         K::Scalar => 0,

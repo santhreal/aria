@@ -14,7 +14,7 @@ use crate::surfaces::inspector_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::UiClip;
 
-use super::widgets::{Readout, audio_row};
+use super::widgets::{Columns, Readout, control_line, unkeyed_row};
 
 use crate::components::section_label;
 
@@ -30,12 +30,13 @@ pub fn framing_block(
             let edge = *id;
             let current = crop_inset(&clip.crop, edge);
             let percent = current * 100.0;
-            audio_row(
+            unkeyed_row(
                 theme,
                 state,
                 crate::motion::MotionKey::new("insp.row", edge),
                 *label,
                 Readout::printed(format!("{percent:.0}%"), percent, 0, 1.0),
+                Columns::Keyed,
                 move |state, by| state.nudge_selected_crop_inset(edge, by / 100.0),
                 cx,
             )
@@ -108,7 +109,11 @@ pub fn framing_block(
                 ),
         )
         .child(section_label(theme, "Motion blur"))
-        .child(
+        .child(control_line(
+            theme,
+            crate::motion::MotionKey::new("insp.row", "blur-on"),
+            "Enabled",
+            Columns::Keyed,
             components::ghost_button(
                 "blur-toggle",
                 if blur.enabled { "On" } else { "Off" },
@@ -125,8 +130,8 @@ pub fn framing_block(
                     cx.notify();
                 }),
             ),
-        )
-        .child(audio_row(
+        ))
+        .child(unkeyed_row(
             theme,
             state,
             crate::motion::MotionKey::new("insp.row", "blur-shutter"),
@@ -137,15 +142,17 @@ pub fn framing_block(
                 0,
                 1.0,
             ),
+            Columns::Keyed,
             |state, by| state.nudge_selected_shutter(by),
             cx,
         ))
-        .child(audio_row(
+        .child(unkeyed_row(
             theme,
             state,
             crate::motion::MotionKey::new("insp.row", "blur-samples"),
             "Samples",
             Readout::number(blur.samples as f32, 0, 1.0),
+            Columns::Keyed,
             |state, by| state.nudge_selected_blur_samples(by.round() as i32),
             cx,
         ))

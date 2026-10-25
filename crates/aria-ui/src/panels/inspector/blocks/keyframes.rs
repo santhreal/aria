@@ -18,6 +18,8 @@ use crate::theme::Theme;
 use crate::types::UiClip;
 use gpui::prelude::FluentBuilder;
 
+use super::widgets::picked;
+
 use crate::components::section_label;
 
 pub fn keyframes_block(
@@ -51,11 +53,7 @@ pub fn keyframes_block(
                     let selected = preset_here == Some(preset_id);
                     components::ghost_button(
                         ("keyframe-easing", preset_id),
-                        if selected {
-                            gpui::SharedString::from(format!("• {}", preset.label))
-                        } else {
-                            gpui::SharedString::new_static(preset.label.as_str())
-                        },
+                        picked(preset.label.as_str(), selected),
                         theme,
                     )
                     .id(crate::motion::MotionKey::new(preset_id, &id).element_id("kf-preset"))

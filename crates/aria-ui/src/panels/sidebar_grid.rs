@@ -6,6 +6,7 @@
 
 use super::*;
 use crate::motion::RiseOnHover as _;
+use crate::panels::inspector::blocks::widgets::picked;
 
 /// The sidebar's chip rows: the groups, then the open group's tabs when it
 /// lists more than one and they are not the pool's. The pool's tabs are one
@@ -377,11 +378,7 @@ pub(super) fn catalog_row(
             div()
                 .text_size(Theme::TEXT_UI)
                 .text_color(text)
-                .child(if applied {
-                    gpui::SharedString::from(format!("• {}", choice.label))
-                } else {
-                    choice.label.clone()
-                }),
+                .child(picked(choice.label.clone(), applied)),
         )
         .child(
             div()

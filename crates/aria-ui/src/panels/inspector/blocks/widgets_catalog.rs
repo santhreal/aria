@@ -1,37 +1,49 @@
 //! Inspector rows generated from the property catalog: the stepper rows and
-//! colour swatch rows of one group, and rows whose caller owns the write.
+//! color swatch rows of one group, and rows whose caller has the write.
 
 use crate::app::AppState;
-use crate::components::Wraps as _;
 use crate::motion;
 use crate::surfaces::clip_pick;
 use crate::surfaces::param_units;
 use crate::theme::Theme;
 use aria_engine::EngineError;
-use gpui::prelude::FluentBuilder;
 use gpui::{
     CursorStyle, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
     SharedString, StatefulInteractiveElement, Styled, div, px,
 };
 
-use super::keys::{key_controls, stopwatch_dot};
+use super::keys::affordances;
 use super::{
-    MIXED, Readout, Stopwatch, Travel, Watching, color_name, color_stopwatch, row_label,
+    Columns, Keys, MIXED, Readout, Travel, Watching, color_name, color_stopwatch, line, stacked,
     stepper_row, swatch, value_cell,
 };
 
-/// A row whose caller owns the write and knows nothing about the property's
-/// range: effect knobs, ramp points, crop insets, animation knobs.
-pub fn audio_row(
+/// A number row that cannot be keyed, whose caller has the write and no
+/// range: crop insets, fades, motion blur, transition and insert parameters,
+/// ramp points, animation knobs. `columns` stands it in the keyed rows' columns
+/// on an Effect Controls tab.
+#[allow(clippy::too_many_arguments)]
+pub fn unkeyed_row(
     theme: &Theme,
     state: &gpui::Entity<AppState>,
     key: motion::MotionKey,
     label: impl Into<SharedString>,
     readout: Readout,
+    columns: Columns,
     write: impl Fn(&mut AppState, f32) -> Result<(), EngineError> + 'static,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
-    stepper_row(theme, state, key, label, readout, None, None, write, cx)
+    stepper_row(
+        theme,
+        state,
+        key,
+        label,
+        readout,
+        None,
+        Keys::Unkeyed(columns),
+        write,
+        cx,
+    )
 }
 
 /// Every stepper row of one property group, generated from the catalog.
@@ -143,7 +155,7 @@ fn catalog_rows(
                 )
                 .dashed(row.mixed),
                 None,
-                Some(stopwatch),
+                Keys::Watch(stopwatch),
                 units.write,
                 cx,
             )
@@ -167,7 +179,7 @@ fn catalog_rows(
             row.label.clone(),
             Readout::number(row.value, row.decimals(), row.unit()).dashed(row.mixed),
             Some(travel),
-            Some(stopwatch),
+            Keys::Watch(stopwatch),
             move |state, delta| state.nudge_shared_param(param, component, delta),
             cx,
         )
@@ -209,7 +221,7 @@ pub fn color_rows(
             key,
             row.label,
             (!row.mixed).then_some(row.value),
-            Some(watch),
+            Keys::Watch(watch),
             move |state, rgba| clip_pick::apply(state, clip_pick::Pick::ParamColor { param, rgba }),
             cx,
         ));
@@ -217,20 +229,20 @@ pub fn color_rows(
     elements
 }
 
-/// One colour row: the stopwatch, the label, the colour's name, the keyframe
+/// One color row: the stopwatch, the label, the color's name, the keyframe
 /// navigator, the reset button and the time area on one line, laid out as a
 /// number row's, and the palette on the line under it. `pick` writes the
 /// swatch pressed. `value` is `None` where the selected clips read different
-/// colours: the row names none and marks no swatch. The stopwatch is the dot a
-/// stepper row draws, so a colour is keyed the same way a number is; a colour
-/// with no `watch` cannot be animated and draws its label, its name and its
-/// palette.
+/// colors: the row names none and marks no swatch. The stopwatch is the dot a
+/// stepper row draws, so a color is keyed the same way a number is; a color
+/// that cannot be animated stands in the columns `keys` sets, with its name
+/// where a number row's value stands.
 pub fn swatch_row(
     theme: &Theme,
     key: motion::MotionKey,
     label: SharedString,
     value: Option<[u8; 4]>,
-    watch: Option<Stopwatch>,
+    keys: Keys,
     pick: impl Fn(&mut AppState, [u8; 4]) -> Result<(), EngineError> + 'static,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
@@ -268,52 +280,21 @@ pub fn swatch_row(
                 .into_any_element()
         })
         .collect();
-    let column = watch
-        .as_ref()
-        .filter(|watch| watch.strip.is_some())
-        .map(|watch| watch.param);
-    let timed = column.is_some();
-    let mut controls = None;
-    let mut strip = None;
-    let mut dot = None;
-    if let Some(mut watch) = watch {
-        let (navigator, time_area) = key_controls(theme, key, &mut watch, cx);
-        controls = Some(navigator);
-        strip = time_area;
-        dot = Some(stopwatch_dot(theme, key, watch, cx));
-    }
-    // The line above the palette is a number row's line with the colour's name
+    // The line above the palette is a number row's line with the color's name
     // for its value, so its time area starts and ends where theirs do.
-    let head = div()
-        .flex()
-        .flex_row()
-        .when(!timed, |head| head.wraps())
-        .items_center()
-        .gap(px(Theme::SPACE_XS))
-        .children(dot)
-        .child(row_label(key, label, column, theme.text_muted))
-        .child(
-            value_cell(column)
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text_faint)
-                .child(value.map_or(SharedString::new_static(MIXED), color_name)),
-        )
-        .children(controls)
-        .children(strip);
-    div()
-        .flex()
-        .flex_col()
-        .gap(px(Theme::SPACE_XXS))
-        .px(px(Theme::SPACE_XS))
-        .py(px(Theme::SPACE_XS))
-        .child(head)
-        .child(
-            div()
-                .flex()
-                .flex_row()
-                .wraps()
-                .gap(px(Theme::SPACE_XXS))
-                .children(swatches),
-        )
-        .into_any_element()
+    let column = keys.column(&label);
+    let keyed = column.is_some();
+    let name = value_cell(column.as_ref())
+        .text_size(Theme::TEXT_UI)
+        .text_color(theme.text_faint)
+        .child(value.map_or(SharedString::new_static(MIXED), color_name));
+    let head = line(
+        key,
+        label,
+        column.as_ref(),
+        affordances(theme, key, keys, cx),
+        theme.text_muted,
+        name,
+    );
+    stacked(head, keyed, Theme::SPACE_XXS, swatches).into_any_element()
 }

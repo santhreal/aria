@@ -6,23 +6,25 @@
 //! preset does not expose that knob.
 
 use gpui::{
-    InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled, div, px,
+    InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, SharedString,
+    Styled, div, px,
 };
 
 use aria_models::AnimationSlot;
 
 use crate::app::clip_anim::{ANIM_KNOBS, SLOTS, anim_knob, anim_knob_available};
 use crate::components;
+use crate::motion::MotionKey;
 use crate::surfaces::clip_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::UiClip;
-use gpui::prelude::FluentBuilder;
 
-use super::widgets::{Readout, audio_row};
+use super::widgets::{Chip, Columns, Readout, chip_row, unkeyed_row};
 
 use crate::components::section_label;
 
-fn slot_label(slot: AnimationSlot) -> &'static str {
+/// The label of `slot`'s row.
+pub(crate) fn slot_label(slot: AnimationSlot) -> &'static str {
     match slot {
         AnimationSlot::In => "In",
         AnimationSlot::Out => "Out",
@@ -55,35 +57,66 @@ pub fn animation_block(
                 AnimationSlot::Combo => clip.animation_combo.clone(),
             };
             let choices = state.read(cx).animation_choices(slot);
-            let chips: Vec<_> = choices
+            // The applied animation's name as its chip prints it.
+            let mut current = applied.as_ref().map_or_else(
+                || SharedString::new_static("None"),
+                |anim| SharedString::new_static(anim.label),
+            );
+            let mut chips: Vec<_> = choices
                 .into_iter()
                 .map(|choice| {
                     let id = choice.id;
-                    let selected = applied.as_ref().is_some_and(|anim| anim.id == id);
+                    let on = applied.as_ref().is_some_and(|anim| anim.id == id);
                     // An id with no sampler is still offered — the project may
                     // already reference it — but it is named for what it is.
-                    let label = match (selected, choice.rendered) {
-                        (true, true) => format!("• {}", choice.label),
-                        (false, true) => choice.label.to_string(),
-                        (true, false) => format!("• {} (no renderer)", choice.label),
-                        (false, false) => format!("{} (no renderer)", choice.label),
+                    let label = if choice.rendered {
+                        SharedString::new_static(choice.label)
+                    } else {
+                        SharedString::from(format!("{} (no renderer)", choice.label))
                     };
-                    components::ghost_button(("anim-preset", id), label, theme)
+                    if on {
+                        current = label.clone();
+                    }
+                    Chip::choice(label, on, |label| {
+                        components::ghost_button(("anim-preset", id), label, theme)
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                                    this.state.update(cx, |state, _| {
+                                        if let Err(err) =
+                                            clip_pick::apply(state, Pick::Animation(id))
+                                        {
+                                            state.report_error(&err);
+                                        }
+                                    });
+                                    cx.notify();
+                                }),
+                            )
+                            .into_any_element()
+                    })
+                })
+                .collect();
+            if applied.is_some() {
+                chips.push(Chip::other(
+                    components::ghost_button(("anim-clear", clear_id(slot)), "Clear", theme)
                         .on_mouse_down(
                             MouseButton::Left,
                             cx.listener(move |this, _: &MouseDownEvent, _, cx| {
                                 this.state.update(cx, |state, _| {
-                                    if let Err(err) = clip_pick::apply(state, Pick::Animation(id)) {
+                                    if let Err(err) =
+                                        clip_pick::apply(state, Pick::ClearAnimation(slot))
+                                    {
                                         state.report_error(&err);
                                     }
                                 });
                                 cx.notify();
                             }),
-                        )
-                        .into_any_element()
-                })
-                .collect();
+                        ),
+                ));
+            }
 
+            // Each slot's knobs are keys of their own: In's speed and Out's
+            // speed are two rows, and a drag on one is no drag on the other.
             let knobs: Vec<_> = applied
                 .as_ref()
                 .map(|anim| {
@@ -93,12 +126,13 @@ pub fn animation_block(
                         .map(|(id, label, ..)| {
                             let knob = *id;
                             let value = anim_knob(anim, knob);
-                            audio_row(
+                            unkeyed_row(
                                 theme,
                                 &state,
-                                crate::motion::MotionKey::new("insp.row", knob),
+                                MotionKey::new("insp.row", knob).with(clear_id(slot)),
                                 *label,
                                 Readout::number(value, 2, 0.01),
+                                Columns::Keyed,
                                 move |state, by| {
                                     clip_pick::apply(state, Pick::AnimationKnob { slot, knob, by })
                                 },
@@ -114,35 +148,15 @@ pub fn animation_block(
                 .flex()
                 .flex_col()
                 .gap(px(Theme::SPACE_XS))
-                .child(
-                    div()
-                        .text_size(Theme::TEXT_UI)
-                        .text_color(theme.text_faint)
-                        .child(format!(
-                            "{}: {}",
-                            slot_label(slot),
-                            applied.as_ref().map(|anim| anim.label).unwrap_or("None")
-                        )),
-                )
-                .children(chips)
-                .when(applied.is_some(), |this| {
-                    this.children(knobs).child(
-                        components::ghost_button(("anim-clear", clear_id(slot)), "Clear", theme)
-                            .on_mouse_down(
-                                MouseButton::Left,
-                                cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                                    this.state.update(cx, |state, _| {
-                                        if let Err(err) =
-                                            clip_pick::apply(state, Pick::ClearAnimation(slot))
-                                        {
-                                            state.report_error(&err);
-                                        }
-                                    });
-                                    cx.notify();
-                                }),
-                            ),
-                    )
-                })
+                .child(chip_row(
+                    theme,
+                    MotionKey::new("insp.row", clear_id(slot)),
+                    slot_label(slot),
+                    Columns::Keyed,
+                    current,
+                    chips,
+                ))
+                .children(knobs)
                 .into_any_element()
         })
         .collect();

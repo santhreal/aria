@@ -209,6 +209,11 @@ fn const_all_registries_have_recorded_documentation_decisions() {
             "docs/plugins/basics.md",
             "basics_doc_matches_plugin_basics_registries_bidirectionally",
         ),
+        (
+            "EffectParamKind",
+            "docs/plugins/effects.md",
+            "effects_doc_param_table_matches_effect_param_kinds_bidirectionally",
+        ),
         // Reference: Scopes, Color, Transitions
         (
             "WaveformTrace",

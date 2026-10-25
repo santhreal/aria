@@ -8,6 +8,7 @@ Notes for the latest release. For previous releases, see the
 
 ### Added
 
+- `EffectParamKind::ALL` lists every effect slot kind in declaration order, and a test fails when the parameter table in `docs/plugins/effects.md` omits a kind or states its storage floats wrong.
 - Editor panels are arranged in a dock tree of splits and tabbed frames with 24 px tab rows, draggable splitters, tab reordering, five drop zones for docking a dragged tab, floating panel windows, and frame maximize.
 - Each workspace remembers its dock arrangement, Window > Workspaces > Reset to Saved Layout restores it, named workspaces are stored as JSON files under `<data dir>/workspaces/` with import and export, an Effects workspace is added, and plugin workspaces can include a dock tree.
 - `` ` `` maximizes or restores the focused frame, Ctrl+Tab and Ctrl+Shift+Tab focus the next and previous frame, and Ctrl+W closes the focused panel tab, or the sequence tab when the Timeline has focus.
@@ -1406,6 +1407,13 @@ Notes for the latest release. For previous releases, see the
 
 ### Changed
 
+- On the Effect Controls tabs, rows that cannot be keyed, such as the fades, Reverse, Pitch lock, the crop insets, the audio role, the duck settings and an effect's switch, choice, text, font, curve, gradient and layer slots, print their name and value in the keyed rows' columns.
+- A choice row shows the current choice in the value column and the choices on the line under it, with the one in force marked `•`, and the audio role chips mark the clip's role.
+- Reverse and Pitch lock read **On** or **Off** in the value column.
+- The Look tab lists its filters as chips under a **Filter** row instead of a Catalog section.
+- Volume reads `+0.0 dB`, and the value column is 76 px wide, so a timecode fits in it, and narrows only once a row's name has no width left.
+- A transition's size slot reads **w** and **h**, as an effect's does.
+- Curve and gradient slots show **N pts** and **N stops** in the value column instead of in the name.
 - Labels, tooltips, status lines, and the documentation are spelled in US English (Color, center, Favorites, Minimize, normalize), and the color grading chapter of the guide is `docs/guide/color.md`.
 - A dock panel with nothing to show draws its line faint and centered in the space its content fills, as the Timeline does, and the Markers panel reads **No markers.** above **Add at playhead**.
 - The default accent, playhead, selection, and caret are blue instead of indigo, and Settings > Appearance > Accent offers the Blue, Ember, Teal, and Graphite families; a saved `default` or `dark-blue` accent reads as Blue.
@@ -2378,6 +2386,7 @@ Notes for the latest release. For previous releases, see the
 
 ### Fixed
 
+- An effect's layer slot set to None marks its **None** chip.
 - A Project panel search that hides every item reads **Nothing matches the search.** instead of offering to import files.
 - A test process that started the decode device warm-up no longer aborts at random in GObject type registration after printing `ok`: a process ending through `exit` stops the warm-up at its next step and waits for the plugin load in progress.
 - The last error is drawn on the status bar alone instead of also at the end of the Viewer's control row, so posting or clearing one no longer moves the row's controls under the pointer.

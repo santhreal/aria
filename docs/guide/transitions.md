@@ -7,11 +7,12 @@ clip on the left of the cut; the Look tab, or the Audio tab on an audio lane,
 then shows the Transition block. It is absent when the clip has no clip
 abutting it on the right, and on lanes that cannot hold a transition.
 
-- On a picture lane the catalog lists cross fade, dip to black, dip to white,
-  the four wipes, and slide. On an audio lane it lists the audio crossfades.
-  The applied blend is marked. Picking another replaces it.
+- The **At cut** row shows the applied blend, or None. On a picture lane the
+  chips under it list cross fade, dip to black, dip to white, the four wipes,
+  and slide; on an audio lane they list the audio crossfades. The applied
+  blend is marked `•`. Picking another replaces it.
 - Duration sets the window length in ticks.
-- **Center at Cut**, **Start at Cut**, and **End at Cut** position the window across the cut, after the cut, or before the cut.
+- The **Alignment** row offers **Center at Cut**, **Start at Cut**, and **End at Cut**, which position the window across the cut, after the cut, or before the cut.
 - **Remove transition** clears it. The junction's context menu offers the same
   as **Remove Transition**.
 

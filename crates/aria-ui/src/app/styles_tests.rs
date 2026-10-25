@@ -219,13 +219,13 @@ fn a_lut_loads_keeps_its_intensity_across_a_reload_and_clears() {
     );
 
     state.nudge_param(intensity, None, -0.5).expect("half");
-    let dialled = state.selected_lut().expect("lut").intensity;
+    let dialed = state.selected_lut().expect("lut").intensity;
     state.set_selected_lut("/luts/cool.cube").expect("reload");
     let lut = state.selected_lut().expect("lut");
     assert_eq!(lut.path, "/luts/cool.cube");
     assert!(
-        (lut.intensity - dialled).abs() < 1e-3,
-        "loading another LUT must keep the dialled intensity"
+        (lut.intensity - dialed).abs() < 1e-3,
+        "loading another LUT must keep the dialed intensity"
     );
 
     state.clear_selected_lut().expect("clear");

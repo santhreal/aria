@@ -122,6 +122,22 @@ const FORWARDERS: &[Forwarder] = &[
         name: "reorder_button",
         arg: 0,
     },
+    Forwarder {
+        name: "switch_line",
+        arg: 2,
+    },
+    Forwarder {
+        name: "role_chip",
+        arg: 1,
+    },
+    Forwarder {
+        name: "slot_chip",
+        arg: 1,
+    },
+    Forwarder {
+        name: "transition_chip",
+        arg: 1,
+    },
 ];
 
 /// A widget call whose id is a field of a static table.

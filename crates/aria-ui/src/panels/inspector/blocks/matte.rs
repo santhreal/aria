@@ -18,7 +18,7 @@ use crate::theme::Theme;
 use crate::types::UiClip;
 use gpui::prelude::FluentBuilder;
 
-use super::widgets::param_rows;
+use super::widgets::{param_rows, picked};
 
 use crate::components::section_label;
 
@@ -38,11 +38,7 @@ pub fn matte_block(
             let selected = matte.map(|m| m.source) == Some(source);
             components::ghost_button(
                 ("matte-source", source.id()),
-                if selected {
-                    format!("• {}", source.label())
-                } else {
-                    source.label().to_string()
-                },
+                picked(source.label(), selected),
                 theme,
             )
             .on_mouse_down(

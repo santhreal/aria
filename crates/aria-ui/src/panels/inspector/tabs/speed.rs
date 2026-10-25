@@ -30,7 +30,7 @@ use crate::timecode::format_ticks;
 use crate::types::UiClip;
 use gpui::prelude::FluentBuilder;
 
-use crate::panels::inspector::blocks::widgets::{Readout, audio_row};
+use crate::panels::inspector::blocks::widgets::{Columns, Readout, picked, unkeyed_row};
 
 use crate::components::section_label;
 
@@ -72,14 +72,9 @@ pub fn speed_block(
         .iter()
         .map(|spec| {
             let id = spec.id.as_str();
-            let selected = active == Some(id);
             components::ghost_button(
                 ("speed-preset", id),
-                if selected {
-                    format!("• {}", spec.label)
-                } else {
-                    spec.label.to_string()
-                },
+                picked(spec.label.clone(), active == Some(id)),
                 theme,
             )
             .id(crate::motion::MotionKey::new("speed", id).element_id("speed"))
@@ -107,12 +102,13 @@ pub fn speed_block(
                 .find(|(point_id, ..)| *point_id == id)
                 .map(|(.., tick)| *tick)
                 .unwrap_or(0);
-            audio_row(
+            unkeyed_row(
                 theme,
                 &state,
                 crate::motion::MotionKey::new("insp.row", id),
                 label,
                 Readout::printed(format!("{value:.2}x"), value, 2, 0.05),
+                Columns::Free,
                 move |state, by| state.nudge_selected_ramp_point(tick, by),
                 cx,
             )

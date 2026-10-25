@@ -37,8 +37,8 @@ mod catalog;
 #[path = "widgets_keys.rs"]
 mod keys;
 
-pub use catalog::{audio_row, color_rows, param_rows, param_rows_into, swatch_row};
-use keys::{key_controls, stopwatch_dot};
+pub use catalog::{color_rows, param_rows, param_rows_into, swatch_row, unkeyed_row};
+use keys::{Affordances, WATCH_SLOT, affordances, blanks};
 
 /// Thickness of a row's value track.
 const TRACK_H: f32 = 3.0;
@@ -57,11 +57,27 @@ const DOT: f32 = 8.0;
 /// no width left.
 pub const LABEL_RESERVE: f32 = 80.0;
 
-/// The narrowest the value column is drawn on a row with a time area, in
-/// pixels. A value narrower than it stands at its right edge, so the controls
-/// after it start at one x down the panel whatever each row prints, and the
-/// strips narrow together in a narrow frame.
-const VALUE_MIN: f32 = 56.0;
+/// A keyed row label's flex shrink factor. Shrink is shared in proportion to
+/// factor times width, so of two neighbors whose factors are a thousand apart
+/// the larger gives up its width first: the strip's factor is a thousand times
+/// this, and the value column's a thousandth of it.
+pub(super) const LABEL_YIELD: f32 = 1000.0;
+
+/// The width of the value column on a row in the keyed rows' columns, in
+/// pixels. A timecode at `TEXT_UI` is the widest value a built-in row prints:
+/// 66.6 px in Inter's tabular figures, and 72.6 px in the test text system,
+/// which sets every glyph 0.6 em wide. A value narrower than the column stands
+/// at its right edge, so the controls after it start at one x down the panel
+/// whatever each row prints, and the strips narrow together in a narrow frame.
+pub const VALUE_MIN: f32 = 76.0;
+
+/// The value column's flex shrink factor, a thousandth of `LABEL_YIELD`, so
+/// while a label narrows to nothing its value column loses under a tenth of a
+/// pixel. In a frame too narrow for every control, the column narrows once
+/// the strip and the label have no width left, and never below the value it
+/// prints. It is no less than 1: flex layout shrinks items whose factors sum
+/// to less than 1 by that fraction of the overflow only.
+const VALUE_YIELD: f32 = LABEL_YIELD / 1000.0;
 
 /// What a row's value is doing, beyond the number it prints.
 #[derive(Clone, Copy)]
@@ -246,13 +262,155 @@ pub struct DriverLine {
     pub picking: bool,
 }
 
+/// The columns a row that cannot be keyed is drawn in.
+#[derive(Clone, Copy)]
+pub enum Columns {
+    /// The keyed rows' columns, on an Effect Controls tab: a blank where their
+    /// stopwatch stands, the label and the value in theirs, and a blank where
+    /// their keyframe navigator, reset button and time area stand.
+    Keyed,
+    /// The label at the row's left edge and the value at its right, on a
+    /// surface that draws no time area.
+    Free,
+}
+
+impl Columns {
+    /// The column identity of a row labelled `label` drawn in these columns,
+    /// or `None` for a free row.
+    fn column(self, label: &SharedString) -> Option<Column> {
+        match self {
+            Self::Keyed => Some(Column::Named(label.clone())),
+            Self::Free => None,
+        }
+    }
+}
+
+/// A row's keyframe affordances, or the columns of a row that has none.
+pub enum Keys {
+    Watch(Stopwatch),
+    Unkeyed(Columns),
+}
+
+impl Keys {
+    /// The column identity of a row drawn in the keyed rows' columns, or
+    /// `None` for a row that is not. A keyed row stands in them beside its
+    /// time area.
+    fn column(&self, label: &SharedString) -> Option<Column> {
+        match self {
+            Self::Watch(watch) => watch.strip.as_ref().map(|_| Column::Param(watch.param)),
+            Self::Unkeyed(columns) => columns.column(label),
+        }
+    }
+}
+
+/// A row in the keyed rows' columns: the property a keyed row edits, or the
+/// label of a row that cannot be keyed.
+enum Column {
+    Param(ClipParam),
+    Named(SharedString),
+}
+
+impl Column {
+    /// The debug selector of the row's `cell`: `insp-label-Opacity`,
+    /// `insp-value-Fade in`.
+    fn selector(&self, cell: &str) -> String {
+        match self {
+            Self::Param(param) => format!("insp-{cell}-{param:?}"),
+            Self::Named(label) => format!("insp-{cell}-{label}"),
+        }
+    }
+}
+
+/// The debug selector of a line's label: its column's, or
+/// `insp-label-free-{label}` on a line in no column.
+fn label_selector(column: Option<&Column>, label: &SharedString) -> String {
+    column.map_or_else(
+        || format!("insp-label-free-{label}"),
+        |column| column.selector("label"),
+    )
+}
+
+#[cfg(test)]
+thread_local! {
+    /// The lines drawn into the Inspector since [`record_lines`].
+    static LINES: std::cell::RefCell<Option<Vec<(String, bool)>>> =
+        const { std::cell::RefCell::new(None) };
+    /// The choice rows drawn into the Inspector since [`record_lines`].
+    static CHOICES: std::cell::RefCell<Option<Vec<DrawnChoice>>> =
+        const { std::cell::RefCell::new(None) };
+    /// Whether the Inspector's body is being built.
+    static IN_INSPECTOR: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// A [`chip_row`] drawn into the Inspector: its label's debug selector, the
+/// choice its value column shows, and each choice under it with whether it is
+/// marked in force.
+#[cfg(test)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct DrawnChoice {
+    pub row: String,
+    pub current: SharedString,
+    pub chips: Vec<(SharedString, bool)>,
+}
+
+/// The Inspector's body being built, until this drops: the lines
+/// [`record_lines`] records are the ones built meanwhile, and no other
+/// panel's.
+#[cfg(test)]
+pub(crate) struct BuildingInspector(());
+
+#[cfg(test)]
+impl BuildingInspector {
+    pub(crate) fn start() -> Self {
+        IN_INSPECTOR.set(true);
+        Self(())
+    }
+}
+
+#[cfg(test)]
+impl Drop for BuildingInspector {
+    fn drop(&mut self) {
+        IN_INSPECTOR.set(false);
+    }
+}
+
+/// Start a fresh record of the lines and choice rows drawn into the
+/// Inspector.
+#[cfg(test)]
+pub(crate) fn record_lines() {
+    LINES.set(Some(Vec::new()));
+    CHOICES.set(Some(Vec::new()));
+}
+
+/// Stop recording and return every line drawn into the Inspector since
+/// [`record_lines`], once each: its label's debug selector and whether it
+/// stands in the keyed rows' columns.
+#[cfg(test)]
+pub(crate) fn drawn_lines() -> Vec<(String, bool)> {
+    let mut lines = LINES.with_borrow_mut(|lines| lines.take().unwrap_or_default());
+    lines.sort();
+    lines.dedup();
+    lines
+}
+
+/// Stop recording and return every choice row drawn into the Inspector since
+/// [`record_lines`], once each.
+#[cfg(test)]
+pub(crate) fn drawn_choices() -> Vec<DrawnChoice> {
+    let mut choices = CHOICES.with_borrow_mut(|choices| choices.take().unwrap_or_default());
+    choices.sort();
+    choices.dedup();
+    choices
+}
+
 /// One numeric row.
 ///
 /// The value is a scrubbable readout: a drag moves it, a click opens it as
 /// text. `write` moves the value by a delta in the units `readout` prints, from
-/// the state the gesture started on. The row reports its own state: it fades
-/// under the pointer, its fill travels to a new value instead of appearing at
-/// it, and its readout leads while the value is still moving.
+/// the state the gesture started on. `keys` draws the row's stopwatch and time
+/// area, or the columns of a row that has none. The row reports its own state:
+/// it fades under the pointer, its fill travels to a new value instead of
+/// appearing at it, and its readout leads while the value is still moving.
 #[allow(clippy::too_many_arguments)]
 pub fn stepper_row(
     theme: &Theme,
@@ -261,22 +419,21 @@ pub fn stepper_row(
     label: impl Into<SharedString>,
     readout: Readout,
     travel: Option<Travel>,
-    stopwatch: Option<Stopwatch>,
+    keys: Keys,
     write: impl Fn(&mut AppState, f32) -> Result<(), EngineError> + 'static,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     let label = label.into();
     let hovered = motion::hover_t(key);
-    let fault = stopwatch
-        .as_ref()
+    let watch = match &keys {
+        Keys::Watch(watch) => Some(watch),
+        Keys::Unkeyed(_) => None,
+    };
+    let fault = watch
         .and_then(|watch| watch.driver.as_ref())
         .and_then(|line| line.fault.clone());
-    let driver_line = stopwatch
-        .as_ref()
-        .and_then(|watch| watch.driver.clone())
-        .zip(stopwatch.as_ref().map(|watch| watch.param));
-    let pick = stopwatch
-        .as_ref()
+    let driver_line = watch.and_then(|watch| watch.driver.clone().map(|line| (line, watch.param)));
+    let pick = watch
         .filter(|watch| watch.pick_target)
         .map(|watch| watch.param);
 
@@ -305,70 +462,50 @@ pub fn stepper_row(
     // from its text, so the strips share one column whatever each label reads.
     // In a tight frame the strip narrows first, is left blank below its
     // minimum, and the label ends in an ellipsis, with the full name in a
-    // tooltip, only once the strip has no width left. A row with no time area
+    // tooltip, only once the strip has no width left. A row that cannot be
+    // keyed among rows that can stands in their columns, with blanks where
+    // their stopwatch, navigator and time area stand. A row with no time area
     // too narrow for both, a mixer strip's, moves the readout under the label
     // rather than breaking the label mid-word.
-    let column = stopwatch
-        .as_ref()
-        .filter(|watch| watch.strip.is_some())
-        .map(|watch| watch.param);
-    let timed = column.is_some();
-    let mut head = div()
-        .flex()
-        .flex_row()
-        .when(!timed, |head| head.wraps())
-        .items_center()
-        .gap(px(Theme::SPACE_XS));
-    let mut controls = None;
-    let mut strip = None;
-    if let Some(mut watch) = stopwatch {
-        let (navigator, time_area) = key_controls(theme, key, &mut watch, cx);
-        controls = Some(navigator);
-        strip = time_area;
-        head = head.child(stopwatch_dot(theme, key, watch, cx));
-    }
-    let head = head
-        .child(row_label(
-            key,
-            label,
-            column,
-            motion::mix(theme.text_muted, theme.text, hovered),
-        ))
-        .child(
-            value_cell(column)
-                .id(key.element_id("insp-value"))
-                .when_some(fault.clone(), |el, fault| {
-                    el.with_tip(crate::tooltip::text_builder(fault))
-                })
-                .child(value_readout::readout(
-                    theme,
-                    state,
-                    ScrubTarget {
-                        key,
-                        value: readout.value,
-                        unit: readout.unit,
-                        kind: readout.kind,
-                        write: std::rc::Rc::new(write),
-                    },
-                    readout.text,
-                    Look {
-                        size: Theme::TEXT_UI,
-                        // Leading while the value is still travelling is what
-                        // makes a change visible without restarting an
-                        // animation: a value that keeps changing stays lit
-                        // until it stops, rather than strobing once per frame.
-                        // A failed driver is red instead.
-                        ink: if fault.is_some() {
-                            theme.danger
-                        } else {
-                            motion::mix(theme.value, theme.accent, lead)
-                        },
-                    },
-                    cx,
-                )),
-        )
-        .children(controls)
-        .children(strip);
+    let column = keys.column(&label);
+    let value = value_cell(column.as_ref())
+        .id(key.element_id("insp-value"))
+        .when_some(fault.clone(), |el, fault| {
+            el.with_tip(crate::tooltip::text_builder(fault))
+        })
+        .child(value_readout::readout(
+            theme,
+            state,
+            ScrubTarget {
+                key,
+                value: readout.value,
+                unit: readout.unit,
+                kind: readout.kind,
+                write: std::rc::Rc::new(write),
+            },
+            readout.text,
+            Look {
+                size: Theme::TEXT_UI,
+                // Leading while the value is still travelling is what makes a
+                // change visible without restarting an animation: a value that
+                // keeps changing stays lit until it stops, rather than
+                // strobing once per frame. A failed driver is red instead.
+                ink: if fault.is_some() {
+                    theme.danger
+                } else {
+                    motion::mix(theme.value, theme.accent, lead)
+                },
+            },
+            cx,
+        ));
+    let head = line(
+        key,
+        label,
+        column.as_ref(),
+        affordances(theme, key, keys, cx),
+        motion::mix(theme.text_muted, theme.text, hovered),
+        value,
+    );
 
     let mut row = div()
         .id(key.element_id("insp-row"))
@@ -415,6 +552,204 @@ pub fn stepper_row(
             cx.notify();
         }),
     )
+}
+
+/// One line of a row: the stopwatch, the label, `value` in the cell
+/// [`value_cell`] drew for `column`, then the keyframe navigator, the reset
+/// button and the time area, or the blanks drawn in their place. A line in the
+/// keyed rows' columns stays on one row; a free line moves its value under the
+/// label rather than breaking the label mid-word.
+fn line(
+    key: motion::MotionKey,
+    label: SharedString,
+    column: Option<&Column>,
+    Affordances {
+        dot,
+        controls,
+        strip,
+    }: Affordances,
+    ink: gpui::Hsla,
+    value: impl IntoElement,
+) -> gpui::Div {
+    #[cfg(test)]
+    if IN_INSPECTOR.get() {
+        LINES.with_borrow_mut(|lines| {
+            if let Some(lines) = lines {
+                lines.push((label_selector(column, &label), column.is_some()));
+            }
+        });
+    }
+    div()
+        .flex()
+        .flex_row()
+        .when(column.is_none(), |line| line.wraps())
+        .items_center()
+        .gap(px(Theme::SPACE_XS))
+        .children(dot)
+        .child(row_label(key, label, column, ink))
+        .child(value)
+        .children(controls)
+        .children(strip)
+}
+
+/// A row of one `head` line with the controls `under` it, `gap` apart, on a
+/// wrapping line of their own: a palette under a color's line, chips under a
+/// choice's. In the keyed rows' columns, `keyed`, the controls start where the
+/// label does.
+fn stacked(
+    head: gpui::Div,
+    keyed: bool,
+    gap: f32,
+    under: impl IntoIterator<Item = gpui::AnyElement>,
+) -> gpui::Div {
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(Theme::SPACE_XXS))
+        .px(px(Theme::SPACE_XS))
+        .py(px(Theme::SPACE_XS))
+        .child(head)
+        .child(
+            div()
+                .flex()
+                .flex_row()
+                .wraps()
+                .when(keyed, |under| under.pl(px(WATCH_SLOT + Theme::SPACE_XS)))
+                .gap(px(gap))
+                .children(under),
+        )
+}
+
+/// A row whose control is not a number: a switch or a button, standing where a
+/// number row's value stands. The caller sets the line's id and tooltip.
+pub fn control_line(
+    theme: &Theme,
+    key: motion::MotionKey,
+    label: impl Into<SharedString>,
+    columns: Columns,
+    control: impl IntoElement,
+) -> gpui::Div {
+    let label = label.into();
+    let column = columns.column(&label);
+    let value = value_cell(column.as_ref()).child(control);
+    line(
+        key,
+        label,
+        column.as_ref(),
+        blanks(columns),
+        theme.text_muted,
+        value,
+    )
+    .px(px(Theme::SPACE_XS))
+    .py(px(Theme::SPACE_XS))
+}
+
+/// A choice's label as its chip prints it: marked `• ` when it is `on`, the
+/// choice in force.
+pub fn picked(label: impl Into<SharedString>, on: bool) -> SharedString {
+    let label = label.into();
+    if on {
+        SharedString::from(format!("• {label}"))
+    } else {
+        label
+    }
+}
+
+/// One control under a [`chip_row`]'s line: a choice, marked when it is in
+/// force, or anything else, such as Clear, a preset or a message.
+pub struct Chip {
+    element: gpui::AnyElement,
+    /// The choice's label and whether it is in force.
+    #[cfg(test)]
+    pick: Option<(SharedString, bool)>,
+}
+
+impl Chip {
+    /// The choice `label`, in force when `on`. `draw` builds the chip around
+    /// the label as [`picked`] prints it.
+    pub fn choice(
+        label: impl Into<SharedString>,
+        on: bool,
+        draw: impl FnOnce(SharedString) -> gpui::AnyElement,
+    ) -> Self {
+        let label = label.into();
+        Self {
+            #[cfg(test)]
+            pick: Some((label.clone(), on)),
+            element: draw(picked(label, on)),
+        }
+    }
+
+    /// A control that picks no choice.
+    pub fn other(element: impl IntoElement) -> Self {
+        Self {
+            element: element.into_any_element(),
+            #[cfg(test)]
+            pick: None,
+        }
+    }
+}
+
+/// A row whose value is one of a set: the label and the `current` choice on
+/// one line, the choice where a number row's value stands, and the `chips` that
+/// pick another on the line under it, as a color row's palette is. The choice
+/// is cut to the value column's width, with the whole of it in a tooltip. The
+/// caller sets the row's id and tooltip.
+pub fn chip_row(
+    theme: &Theme,
+    key: motion::MotionKey,
+    label: impl Into<SharedString>,
+    columns: Columns,
+    current: impl Into<SharedString>,
+    chips: impl IntoIterator<Item = Chip>,
+) -> gpui::Div {
+    let label = label.into();
+    let current = current.into();
+    let column = columns.column(&label);
+    #[cfg(test)]
+    let (row, shown, mut marks) = (
+        label_selector(column.as_ref(), &label),
+        current.clone(),
+        Vec::new(),
+    );
+    let value = value_cell(column.as_ref()).child(
+        div()
+            .id(key.element_id("insp-current"))
+            .max_w(px(VALUE_MIN))
+            .truncate()
+            .text_size(Theme::TEXT_UI)
+            .text_color(theme.text_faint)
+            .with_tip(crate::tooltip::text_builder(current.clone()))
+            .child(current),
+    );
+    let keyed = column.is_some();
+    let head = line(
+        key,
+        label,
+        column.as_ref(),
+        blanks(columns),
+        theme.text_muted,
+        value,
+    );
+    let under = chips.into_iter().map(|chip| {
+        #[cfg(test)]
+        marks.extend(chip.pick);
+        chip.element
+    });
+    let drawn = stacked(head, keyed, Theme::SPACE_XS, under);
+    #[cfg(test)]
+    if IN_INSPECTOR.get() {
+        CHOICES.with_borrow_mut(|choices| {
+            if let Some(choices) = choices {
+                choices.push(DrawnChoice {
+                    row,
+                    current: shown,
+                    chips: marks,
+                });
+            }
+        });
+    }
+    drawn
 }
 
 /// The driver's source under a driven row: a click opens it for editing, and
@@ -541,9 +876,9 @@ fn track(theme: &Theme, fill: f32, hovered: f32) -> impl IntoElement {
         )
 }
 
-/// A row's label. On a row with a time area, `column` is the row's property:
-/// the label's basis is `LABEL_RESERVE` and it takes any room the row has past
-/// that, and it shrinks at the strip's yield, so the strip has no width left
+/// A row's label. On a row in the keyed rows' columns, `column` is set: the
+/// label's basis is `LABEL_RESERVE` and it takes any room the row has past
+/// that, and it shrinks at `LABEL_YIELD`, so the strip has no width left
 /// before the label ends in an ellipsis, with the full name in a tooltip.
 /// Elsewhere its basis is its unwrapped width, so the line breaks before the
 /// label is squeezed, and at zero minimum a label wider than the row wraps at
@@ -551,17 +886,17 @@ fn track(theme: &Theme, fill: f32, hovered: f32) -> impl IntoElement {
 fn row_label(
     key: motion::MotionKey,
     label: SharedString,
-    column: Option<ClipParam>,
+    column: Option<&Column>,
     ink: gpui::Hsla,
 ) -> impl IntoElement {
     div()
         .id(key.element_id("insp-label"))
+        .debug_selector(|| label_selector(column, &label))
         .map(|el| match column {
-            Some(param) => el
-                .debug_selector(move || format!("insp-label-{param:?}"))
+            Some(_) => el
                 .flex_basis(px(LABEL_RESERVE))
                 .flex_grow(1.0)
-                .flex_shrink(1.0)
+                .flex_shrink(LABEL_YIELD)
                 .min_w_0()
                 .truncate()
                 .with_tip(crate::tooltip::text_builder(label.clone())),
@@ -572,18 +907,21 @@ fn row_label(
         .child(label)
 }
 
-/// The cell a row's value is drawn in, right of the label. On a row with a time
-/// area, `column` is the row's property and the cell is the value column: at
-/// least `VALUE_MIN` wide, with the value at its right edge.
-fn value_cell(column: Option<ClipParam>) -> gpui::Div {
-    let cell = div().flex_none().ml_auto();
+/// The cell a row's value is drawn in, right of the label. On a row in the
+/// keyed rows' columns, `column` is set and the cell is the value column:
+/// `VALUE_MIN` wide, narrowing at `VALUE_YIELD`, with the value at its right
+/// edge.
+fn value_cell(column: Option<&Column>) -> gpui::Div {
+    let cell = div().ml_auto();
     match column {
-        Some(param) => cell
-            .debug_selector(move || format!("insp-value-{param:?}"))
+        Some(column) => cell
+            .debug_selector(|| column.selector("value"))
             .flex()
             .justify_end()
-            .min_w(px(VALUE_MIN)),
-        None => cell,
+            .flex_grow_0()
+            .flex_shrink(VALUE_YIELD)
+            .flex_basis(px(VALUE_MIN)),
+        None => cell.flex_none(),
     }
 }
 

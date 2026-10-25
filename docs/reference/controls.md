@@ -133,7 +133,7 @@ The Inspector panel (`crates/aria-ui/src/panels/inspector/**/*.rs`) renders para
 | `inspector-pitch` | On / Off | Toggles pitch preservation when the selected clip plays at a non-unit speed. | None |
 | `inspector-replace-media` | Media name | Opens a file picker to replace the source media of a template slot clip. | None |
 | `inspector-reset` | Reset transform | Resets position, scale, rotation, anchor, and opacity on the selected clip. | None |
-| `inspector-reverse` | Reverse | Toggles reverse playback on the selected clip. | None |
+| `inspector-reverse` | On / Off | Toggles reverse playback on the selected clip. | None |
 | `inspector-slot-hint` | Edit hint… | Opens the prompt to edit the placeholder instruction text for a template slot. | None |
 | `inspector-slot-hint-clear` | Clear hint | Clears the placeholder instruction text from a template slot. | None |
 | `inspector-slot-toggle` | Mark as template slot / Clear template slot | Marks the selected clip as a replaceable template slot or removes its slot designation. | None |

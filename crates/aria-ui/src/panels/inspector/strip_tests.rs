@@ -19,7 +19,7 @@ use gpui::{
 use crate::app::AppState;
 use crate::dock::{Axis, FrameId, Node, PANEL_INSPECTOR};
 use crate::panels::inspector::blocks::key_strip::{STRIP_MIN, STRIP_W};
-use crate::panels::inspector::blocks::widgets::LABEL_RESERVE;
+use crate::panels::inspector::blocks::widgets::{LABEL_RESERVE, VALUE_MIN};
 use crate::surfaces::effects_rack::{self, Gesture};
 use crate::test_support::{drawn_shell, panel_bounds};
 use crate::theme::Theme;
@@ -42,8 +42,11 @@ const TRANSFORM: [ClipParam; 5] = [
     ClipParam::Opacity,
 ];
 
-fn fixture() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/texture.png")
+/// The test fixture `name`.
+fn fixture(name: &str) -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures")
+        .join(name)
 }
 
 /// Where the inspector painted `control` on the row of `param`.
@@ -57,9 +60,12 @@ fn on_radius(visual: &mut VisualTestContext, control: &str) -> Bounds<Pixels> {
     painted(visual, control, RADIUS)
 }
 
-/// Import the texture, place it, select it, and open the inspector on `tab`.
-fn select_the_texture(state: &mut AppState, tab: &str) {
-    let media = state.import_media(fixture()).expect("import the fixture");
+/// Import the fixture `media`, place it, select it, and open the inspector on
+/// `tab`.
+fn select_the_fixture(state: &mut AppState, media: &str, tab: &str) {
+    let media = state
+        .import_media(fixture(media))
+        .expect("import the fixture");
     state
         .drop_media_on_timeline(media, None, 0)
         .expect("place the clip");
@@ -85,11 +91,22 @@ fn drawn_on<'a>(
     tab: &str,
     then: impl FnOnce(&mut AppState),
 ) -> (gpui::Entity<AppState>, &'a mut VisualTestContext) {
+    drawn_with(cx, tag, "texture.png", tab, then)
+}
+
+/// [`drawn_on`] with the fixture `media` selected.
+pub(super) fn drawn_with<'a>(
+    cx: &'a mut TestAppContext,
+    tag: &str,
+    media: &str,
+    tab: &str,
+    then: impl FnOnce(&mut AppState),
+) -> (gpui::Entity<AppState>, &'a mut VisualTestContext) {
     cx.executor().allow_parking();
     let (state, visual) = drawn_shell(cx, tag);
     visual.update(|_, app| {
         state.update(app, |state, cx| {
-            select_the_texture(state, tab);
+            select_the_fixture(state, media, tab);
             then(state);
             cx.notify();
         });
@@ -99,7 +116,7 @@ fn drawn_on<'a>(
 }
 
 /// The vertical middle of `bounds`, in pixels.
-fn middle(bounds: Bounds<Pixels>) -> f32 {
+pub(super) fn middle(bounds: Bounds<Pixels>) -> f32 {
     f32::from(bounds.center().y)
 }
 
@@ -455,7 +472,7 @@ fn inspector_column(state: &AppState) -> (Vec<usize>, usize) {
 /// narrower than its controls, drawing each step. `step` reads the drawn
 /// shell with the right edge of the Inspector's frame, and ends the walk by
 /// returning true.
-fn narrow_the_inspector(
+pub(super) fn narrow_the_inspector(
     state: &gpui::Entity<AppState>,
     visual: &mut VisualTestContext,
     mut step: impl FnMut(&mut VisualTestContext, f32) -> bool,
@@ -527,7 +544,8 @@ fn inked(visual: &mut VisualTestContext, strip: Bounds<Pixels>) -> bool {
 }
 
 /// The width a frame too narrow for every control takes from the strip first:
-/// while a strip has any width, every label holds `LABEL_RESERVE`, and a strip
+/// while a strip has any width, every label holds `LABEL_RESERVE`, while a
+/// label has any width, its value column holds `VALUE_MIN`, and a strip
 /// narrower than `STRIP_MIN` paints nothing and leaves a press to its row. At
 /// every width the strips stay in one column on their stopwatches' lines,
 /// inside the frame.
@@ -553,6 +571,7 @@ async fn a_narrow_frame_takes_its_width_from_the_strips_before_the_labels(cx: &m
                 painted(visual, "strip", param),
             );
             let label = f32::from(painted(visual, "label", param).size.width);
+            let value = f32::from(painted(visual, "value", param).size.width);
             let wide = f32::from(strip.size.width);
             let at = format!("frame edge {frame}: {param:?} label {label}, strip {strip:?}");
             assert!(
@@ -575,6 +594,12 @@ async fn a_narrow_frame_takes_its_width_from_the_strips_before_the_labels(cx: &m
                 assert!(
                     label >= LABEL_RESERVE - 0.2,
                     "{at}: the label shrank while the strip had width to give"
+                );
+            }
+            if label > 0.5 {
+                assert!(
+                    value >= VALUE_MIN - 0.1,
+                    "{at}: the value column narrowed to {value} while the label had width to give"
                 );
             }
             let drawn = inked(visual, strip);

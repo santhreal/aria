@@ -3,6 +3,8 @@
 pub mod blocks;
 mod clip_type;
 #[cfg(test)]
+mod columns_tests;
+#[cfg(test)]
 mod reorder_tests;
 #[cfg(test)]
 mod strip_tests;
@@ -27,6 +29,9 @@ pub fn render(
     state: &Entity<AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
+    // The lines a test records are the ones built from here to the end.
+    #[cfg(test)]
+    let _building = blocks::widgets::BuildingInspector::start();
     let theme = Theme::of(cx);
     let (selected, tab, rate, duration_ticks, canvas) = {
         let app = state.read(cx);

@@ -23,7 +23,7 @@ use crate::theme::Theme;
 use crate::types::{RenameTarget, UiClip};
 use gpui::prelude::FluentBuilder;
 
-use crate::panels::inspector::blocks::widgets::{color_rows, param_rows};
+use crate::panels::inspector::blocks::widgets::{color_rows, param_rows, picked};
 
 use crate::components::section_label;
 
@@ -45,19 +45,14 @@ pub fn text_tab(
     let active = clip.text_effect.clone();
 
     // The chips come from the model catalog, so a new preset needs no edit here.
-    // The active one is marked with the same `• ` prefix the transition and style
-    // pickers use, rather than a colour only.
+    // The active one is marked as every Inspector picker marks its choice, by
+    // `picked`, rather than by a color only.
     let presets: Vec<_> = crate::catalog_text::text_effects()
         .iter()
         .map(|choice| {
             let id = choice.id.as_str();
             let on = active.as_deref() == Some(id);
-            let label = if on {
-                gpui::SharedString::from(format!("• {}", choice.label))
-            } else {
-                choice.label.clone()
-            };
-            components::ghost_button(("text-effect", id), label, theme)
+            components::ghost_button(("text-effect", id), picked(choice.label.clone(), on), theme)
                 .on_mouse_down(
                     MouseButton::Left,
                     cx.listener(move |this, _: &MouseDownEvent, _, cx| {
@@ -202,7 +197,7 @@ pub fn character_controls(
         return Vec::new();
     };
     let switches = |set: &[TextSwitch], cx: &mut gpui::Context<crate::shell::Shell>| {
-        chip_row(
+        chip_wrap(
             set.iter()
                 .map(|&switch| {
                     pick_chip(
@@ -219,7 +214,7 @@ pub fn character_controls(
     };
     let face_row = switches(&TextSwitch::FACE, cx);
     let treatments = switches(&TextSwitch::TREATMENTS, cx);
-    let cases = chip_row(
+    let cases = chip_wrap(
         TextCase::ALL
             .iter()
             .map(|&case| {
@@ -262,7 +257,7 @@ pub fn paragraph_controls(
     let Some(face) = state.read(cx).selected_text_face() else {
         return Vec::new();
     };
-    let across = chip_row(
+    let across = chip_wrap(
         TextAlignH::ALL
             .iter()
             .map(|&align| {
@@ -277,7 +272,7 @@ pub fn paragraph_controls(
             })
             .collect(),
     );
-    let down = chip_row(
+    let down = chip_wrap(
         TextAlignV::ALL
             .iter()
             .map(|&align| {
@@ -292,7 +287,7 @@ pub fn paragraph_controls(
             })
             .collect(),
     );
-    let wrap = chip_row(vec![pick_chip(
+    let wrap = chip_wrap(vec![pick_chip(
         theme,
         MotionKey::new("text-switch", TextSwitch::Wrap.label()).with(surface),
         TextSwitch::Wrap.label(),
@@ -310,7 +305,7 @@ pub fn paragraph_controls(
 }
 
 /// A wrapping row of chips.
-fn chip_row(chips: Vec<AnyElement>) -> AnyElement {
+fn chip_wrap(chips: Vec<AnyElement>) -> AnyElement {
     div()
         .flex()
         .flex_row()
@@ -442,11 +437,7 @@ fn font_row(
                 cx.notify();
             }),
         )
-        .child(SharedString::from(if on {
-            format!("• {label}")
-        } else {
-            label.to_string()
-        }))
+        .child(picked(label.to_string(), on))
         .into_any_element()
 }
 

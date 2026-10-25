@@ -38,6 +38,7 @@ use crate::app::mixer::{
 };
 use crate::motion;
 use crate::panels::insert_chain::{self, Chain};
+use crate::panels::inspector::blocks::widgets::Columns;
 use crate::surfaces::mixer_strip::{self, Gesture};
 use crate::theme::Theme;
 use aria_models::{AudioInsertTarget, AutomationMode, TrackId};
@@ -340,6 +341,7 @@ fn channel(
             inserts: &strip.inserts,
             keys: &strip.keys,
             expanded: false,
+            columns: Columns::Free,
         },
         state,
         cx,
@@ -405,6 +407,7 @@ fn master(
                 inserts: &chain.inserts,
                 keys: &chain.keys,
                 expanded: false,
+                columns: Columns::Free,
             },
             state,
             cx,

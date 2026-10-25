@@ -2,7 +2,9 @@
 //! `docs/plugins/audio-effects.md`, and `docs/theme-tokens.md`.
 
 use aria_compositor::{EffectDefinition, TransitionDefinition};
-use aria_models::{EffectParamSpec, EffectSpec, GraphPass, PassStage, TransitionSpec};
+use aria_models::{
+    EffectParamKind, EffectParamSpec, EffectSpec, GraphPass, PassStage, TransitionSpec,
+};
 use aria_plugin::PluginContext;
 
 use super::*;
@@ -349,6 +351,59 @@ fn effects_doc_states_lut_sample_counts_of_both_tiers() {
         assert!(
             doc.contains(&row),
             "docs/plugins/effects.md has no parameter row `{row}`"
+        );
+    }
+}
+
+/// `docs/plugins/effects.md` states every `EffectParamKind` in its parameter
+/// table once, and no other, with the storage floats `shader_floats` gives it.
+#[test]
+fn effects_doc_param_table_matches_effect_param_kinds_bidirectionally() {
+    let doc = read_workspace_file("docs/plugins/effects.md");
+    let tables = parse_markdown_tables(extract_heading_section(&doc, "## Shader source"));
+    let table = tables
+        .iter()
+        .find(|table| {
+            table
+                .headers
+                .first()
+                .is_some_and(|header| header.contains("EffectParamKind"))
+        })
+        .expect("docs/plugins/effects.md ## Shader source has an `EffectParamKind` table");
+    let mut stated = Vec::new();
+    for row in &table.rows {
+        let floats: usize = row[2].parse().unwrap_or_else(|_| {
+            panic!(
+                "docs/plugins/effects.md: storage floats `{}` of `{}` is not a count",
+                row[2], row[0]
+            )
+        });
+        stated.extend(
+            extract_backticked_tokens(&row[0])
+                .into_iter()
+                .map(|name| (name, floats)),
+        );
+    }
+    let shipped: Vec<(String, usize)> = EffectParamKind::ALL
+        .iter()
+        .map(|kind| (format!("{kind:?}"), kind.shader_floats()))
+        .collect();
+    let names = |pairs: &[(String, usize)]| -> Vec<String> {
+        pairs.iter().map(|(name, _)| name.clone()).collect()
+    };
+    assert_key_parity(
+        "docs/plugins/effects.md EffectParamKind",
+        &names(&shipped),
+        &names(&stated),
+    );
+    for (name, floats) in &shipped {
+        let doc_floats = stated
+            .iter()
+            .find_map(|(doc_name, count)| (doc_name == name).then_some(*count))
+            .expect("every kind is stated");
+        assert_eq!(
+            doc_floats, *floats,
+            "docs/plugins/effects.md: `{name}` takes {floats} storage floats, the table states {doc_floats}"
         );
     }
 }

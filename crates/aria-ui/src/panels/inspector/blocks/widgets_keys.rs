@@ -2,7 +2,7 @@
 //! label, and the keyframe navigator, reset button and time area right of the
 //! value.
 
-use super::super::key_strip::key_strip;
+use super::super::key_strip::{blank_strip, key_strip};
 use crate::motion::{self, glide};
 use crate::surfaces::keyframe_rows::{self, Row};
 use crate::theme::Theme;
@@ -15,7 +15,60 @@ use gpui::{
     StatefulInteractiveElement, Styled, div, px,
 };
 
-use super::{DOT, Stopwatch};
+use super::{Columns, DOT, Keys, Stopwatch};
+
+/// Width of the stopwatch's cell: the ring and two pixels either side of it.
+pub(super) const WATCH_SLOT: f32 = DOT + 4.0;
+
+/// Width of the keyframe navigator and the reset button: three glyphs, the
+/// button, and the gaps between them.
+const CONTROLS_W: f32 = 3.0 * Theme::SPACE_MD + Theme::ICON_HIT_ROW + 3.0 * Theme::SPACE_XXS;
+
+/// What a row draws of its keyframe affordances: the stopwatch before the
+/// label, and the navigator and the time area after the value.
+pub(super) struct Affordances {
+    pub(super) dot: Option<gpui::AnyElement>,
+    pub(super) controls: Option<gpui::AnyElement>,
+    pub(super) strip: Option<gpui::AnyElement>,
+}
+
+/// The affordances `keys` draws on the row of `key`.
+pub(super) fn affordances(
+    theme: &Theme,
+    key: motion::MotionKey,
+    keys: Keys,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> Affordances {
+    match keys {
+        Keys::Watch(mut watch) => {
+            let (controls, strip) = key_controls(theme, key, &mut watch, cx);
+            Affordances {
+                dot: Some(stopwatch_dot(theme, key, watch, cx).into_any_element()),
+                controls: Some(controls),
+                strip,
+            }
+        }
+        Keys::Unkeyed(columns) => blanks(columns),
+    }
+}
+
+/// What a row that cannot be keyed draws in place of the affordances: in the
+/// keyed rows' columns, blanks as wide as theirs, so its label and value stand
+/// and narrow with theirs; on a free row, nothing.
+pub(super) fn blanks(columns: Columns) -> Affordances {
+    match columns {
+        Columns::Keyed => Affordances {
+            dot: Some(div().flex_none().w(px(WATCH_SLOT)).into_any_element()),
+            controls: Some(div().flex_none().w(px(CONTROLS_W)).into_any_element()),
+            strip: Some(blank_strip().into_any_element()),
+        },
+        Columns::Free => Affordances {
+            dot: None,
+            controls: None,
+            strip: None,
+        },
+    }
+}
 
 /// The stopwatch.
 ///
@@ -26,7 +79,7 @@ use super::{DOT, Stopwatch};
 /// point: constant, animated, and animated with a keyframe under the playhead.
 /// The dot grows into each state rather than switching, so a misclick is
 /// visible as it happens.
-pub(super) fn stopwatch_dot(
+fn stopwatch_dot(
     theme: &Theme,
     key: motion::MotionKey,
     watch: Stopwatch,
@@ -57,7 +110,7 @@ pub(super) fn stopwatch_dot(
     div()
         .id(key.with("watch").element_id("insp-key"))
         .debug_selector(move || format!("insp-key-{param:?}"))
-        .size(px(DOT + 4.0))
+        .size(px(WATCH_SLOT))
         .flex_none()
         .flex()
         .items_center()
@@ -112,7 +165,7 @@ pub(super) fn stopwatch_dot(
 /// which never narrow, then the property's time area when the surface draws
 /// one. The time area is returned apart so the row places it beside the label,
 /// where the two share the row's shrink.
-pub(super) fn key_controls(
+fn key_controls(
     theme: &Theme,
     key: motion::MotionKey,
     watch: &mut Stopwatch,
@@ -142,6 +195,7 @@ pub(super) fn key_controls(
         .flex()
         .flex_row()
         .flex_none()
+        .w(px(CONTROLS_W))
         .items_center()
         .gap(px(Theme::SPACE_XXS))
         .child(key_glyph(
