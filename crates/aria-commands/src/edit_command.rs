@@ -259,7 +259,8 @@ pub enum EditCommand {
     /// previous framing.
     ///
     /// `at: Some(playhead)` writes a crop keyframe when the property is
-    /// already animated (M2 compose); `None` flattens to a constant.
+    /// already animated and `crop` is not the rect in force there, so a mirror
+    /// toggle keeps an animated crop as it is; `None` flattens to a constant.
     SetClipCrop {
         clip: ClipId,
         crop: CropRect,

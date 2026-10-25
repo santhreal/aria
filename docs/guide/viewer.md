@@ -157,8 +157,12 @@ The Transform tab holds the framing block below the transform rows:
 
 - Crop insets for the left, top, right, and bottom edges. Each stops at the
   frame rather than rejecting the edit, and the kept region never collapses.
-- Flip H and Flip V mirror the content after the crop. **Reset framing**
-  restores the whole frame and clears both mirrors.
+  On an animated crop the insets read the rect under the playhead, and an
+  edit there, or a crop handle drag in the Viewer, sets a keyframe at the
+  playhead and keeps the others.
+- Flip H and Flip V mirror the content after the crop and keep an animated
+  crop's keyframes. **Reset framing** restores the whole frame, clears both
+  mirrors, and removes the crop's keyframes.
 - Motion blur, with a shutter angle in degrees and a sub-frame sample count.
 
 The Viewer's control row holds three icon toggles, Transform, Crop, and Mask,

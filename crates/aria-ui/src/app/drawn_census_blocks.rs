@@ -239,12 +239,17 @@ fn staged() -> Vec<Staged> {
         };
         push(Pick::TextAlignV(align), dress);
     }
-    // Colour swatches, one press per colour row, read the way the panel reads
-    // them off a title wearing every treatment and off a stroked shape. Each
-    // row is pressed with a swatch other than the colour in force, which is
-    // inert.
-    for (group, dress) in COLOR_GROUPS {
-        for row in dress().param_colors(group) {
+    // Color swatches, one press per color row, read the way the panel reads
+    // them off a title wearing every treatment, off a stroked shape, and off a
+    // clip wearing every layer style. Each row is pressed with a swatch other
+    // than the color in force, which is inert.
+    let styles = crate::app::clip_styles::STYLES
+        .iter()
+        .map(|(style, _)| (*style, super::picks::a_styled_clip as fn() -> AppState));
+    for (group, dress) in COLOR_GROUPS.into_iter().chain(styles) {
+        let rows = dress().param_colors(group);
+        assert!(!rows.is_empty(), "the {group} block offers no color row");
+        for row in rows {
             let rgba = PARAM_COLORS
                 .iter()
                 .map(|(_, _, rgba)| *rgba)
@@ -658,8 +663,9 @@ fn a_title() -> AppState {
     state
 }
 
-/// The groups whose colour rows the swatches are pressed on, with the clip that
-/// has every colour of the group.
+/// The groups whose color rows the swatches are pressed on, with the clip that
+/// has every color of the group. The layer styles join them from
+/// `clip_styles::STYLES` at run time, so a style added there is pressed too.
 const COLOR_GROUPS: [(&str, fn() -> AppState); 2] = [
     ("text", a_dressed_title),
     ("shape", super::inspector::a_shape),

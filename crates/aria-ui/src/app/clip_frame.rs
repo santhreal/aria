@@ -3,9 +3,12 @@
 //!
 //! `SetClipCrop` carries the whole rect plus both mirror flags, so an edit to
 //! one edge must resend the rest or it silently un-crops the other three and
-//! drops the mirroring. Every setter clamps to the model's valid-rect set
-//! (`w`/`h` at least [`MIN_CROP_FRACTION`], edges inside the frame) instead of
-//! letting the engine reject the drag.
+//! drops the mirroring. Every setter starts from the rect in force under the
+//! playhead and writes there: a keyframe on an animated crop, the rect itself
+//! on a constant one, so an edge or a mirror never flattens the crop's keys.
+//! Every setter clamps to the model's valid-rect set (`w`/`h` at least
+//! [`MIN_CROP_FRACTION`], edges inside the frame) instead of letting the engine
+//! reject the drag.
 
 use aria_commands::{Command, EditCommand};
 use aria_engine::EngineError;
@@ -93,63 +96,86 @@ impl AppState {
             .is_some_and(|clip| !matches!(clip.kind, crate::types::UiClipKind::Audio))
     }
 
-    fn send_crop(&mut self, crop: CropRect, flip_h: bool, flip_v: bool) -> Result<(), EngineError> {
+    /// The crop rect in force under the playhead and both mirror flags, read
+    /// off the model. The projected row holds the clip's first frame, which an
+    /// animated crop leaves behind.
+    pub fn selected_framing_here(&self) -> Option<(CropRect, bool, bool)> {
+        let model = self.selected_model()?;
+        let crop = model.crop.sample(model.param_tick(self.playhead.value));
+        Some((crop, model.flip_h, model.flip_v))
+    }
+
+    /// Write `crop` and both mirror flags under the playhead. The model keys
+    /// nothing when `crop` is the rect already in force there, so a mirror
+    /// toggle leaves the rect at every frame as it was.
+    fn send_framing(
+        &mut self,
+        crop: CropRect,
+        flip_h: bool,
+        flip_v: bool,
+    ) -> Result<(), EngineError> {
         let Some(clip) = self.selected_clip() else {
             return Ok(());
         };
         self.apply_command(Command::Edit(EditCommand::SetClipCrop {
             clip,
-            crop: clamp_crop(crop),
+            crop,
             flip_h,
             flip_v,
-            at: None,
+            at: Some(self.playhead),
         }))?;
         Ok(())
     }
 
     /// Set one crop inset, keeping the other three and both mirror flags.
     pub fn set_selected_crop_inset(&mut self, id: &str, value: f32) -> Result<(), EngineError> {
-        let Some(ui) = self.selected_ui_clip() else {
+        let Some((mut crop, flip_h, flip_v)) = self.selected_framing_here() else {
             return Ok(());
         };
         let Some((_, _, _, set)) = CROP_EDGES.iter().find(|(edge, ..)| *edge == id) else {
             return Ok(());
         };
-        let mut crop = ui.crop;
         set(&mut crop, value.clamp(0.0, 1.0 - MIN_CROP_FRACTION));
-        self.send_crop(crop, ui.flip_h, ui.flip_v)
+        self.send_framing(clamp_crop(crop), flip_h, flip_v)
     }
 
     /// Move one crop inset by `step` from its current value.
     pub fn nudge_selected_crop_inset(&mut self, id: &str, step: f32) -> Result<(), EngineError> {
-        let Some(ui) = self.selected_ui_clip() else {
+        let Some((crop, ..)) = self.selected_framing_here() else {
             return Ok(());
         };
-        self.set_selected_crop_inset(id, crop_inset(&ui.crop, id) + step)
+        self.set_selected_crop_inset(id, crop_inset(&crop, id) + step)
     }
 
     /// Mirror the content left-right, keeping the crop.
     pub fn toggle_selected_flip_h(&mut self) -> Result<(), EngineError> {
-        let Some(ui) = self.selected_ui_clip() else {
+        let Some((crop, flip_h, flip_v)) = self.selected_framing_here() else {
             return Ok(());
         };
-        self.send_crop(ui.crop, !ui.flip_h, ui.flip_v)
+        self.send_framing(crop, !flip_h, flip_v)
     }
 
     /// Mirror the content top-bottom, keeping the crop.
     pub fn toggle_selected_flip_v(&mut self) -> Result<(), EngineError> {
-        let Some(ui) = self.selected_ui_clip() else {
+        let Some((crop, flip_h, flip_v)) = self.selected_framing_here() else {
             return Ok(());
         };
-        self.send_crop(ui.crop, ui.flip_h, !ui.flip_v)
+        self.send_framing(crop, flip_h, !flip_v)
     }
 
-    /// Restore the full frame and clear both mirrors.
+    /// Restore the full frame and clear both mirrors. A clear, so the crop's
+    /// keys go with it.
     pub fn clear_selected_crop(&mut self) -> Result<(), EngineError> {
-        if self.selected_clip().is_none() {
+        let Some(clip) = self.selected_clip() else {
             return Ok(());
-        }
-        self.send_crop(CropRect::FULL, false, false)?;
+        };
+        self.apply_command(Command::Edit(EditCommand::SetClipCrop {
+            clip,
+            crop: CropRect::FULL,
+            flip_h: false,
+            flip_v: false,
+            at: None,
+        }))?;
         self.status_message = Some("Reset framing".into());
         Ok(())
     }
@@ -158,13 +184,14 @@ impl AppState {
     /// drag builds a rect and commits it here, so a gesture is one edit rather than
     /// one per pointer move.
     pub fn set_selected_crop(&mut self, crop: CropRect) -> Result<(), EngineError> {
-        let Some(ui) = self.selected_ui_clip() else {
+        let Some((here, flip_h, flip_v)) = self.selected_framing_here() else {
             return Ok(());
         };
-        if clamp_crop(crop) == ui.crop {
+        let crop = clamp_crop(crop);
+        if crop == here {
             return Ok(());
         }
-        self.send_crop(crop, ui.flip_h, ui.flip_v)
+        self.send_framing(crop, flip_h, flip_v)
     }
 
     fn send_motion_blur(&mut self, motion_blur: MotionBlur) -> Result<(), EngineError> {

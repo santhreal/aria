@@ -145,7 +145,10 @@ fn paste_attributes_copies_the_look_and_leaves_timing_alone() {
             .expect("source opacity keyframe");
     }
     state.set_selected_filter("warm").expect("filter");
-    state.set_selected_filter_amount(0.75).expect("amount");
+    let amount = ClipParam::Look {
+        param: aria_models::LookParam::FilterIntensity,
+    };
+    state.set_param_scalar(amount, None, 0.75).expect("amount");
     let effect = state
         .effect_browse_list()
         .first()

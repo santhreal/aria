@@ -131,15 +131,16 @@ fn every_style_row_moves_alone_and_clamps() {
 fn style_edits_need_their_block_and_an_unknown_id_is_inert() {
     let (mut state, _) = with_clip();
 
-    // No block yet: no rows exist to edit, and a colour edit is a no-op.
+    // No block yet: no rows and no colors exist to edit.
     assert!(
         style_rows(&state).is_empty(),
         "a clip with no style blocks offered style rows"
     );
     for (id, _) in STYLES {
-        state
-            .set_selected_style_color(id, [1, 2, 3, 4])
-            .expect("inert color");
+        assert!(
+            state.param_colors(id).is_empty(),
+            "a clip with no {id} block offered its color"
+        );
         assert!(!style_enabled(
             &state.selected_ui_clip().expect("clip").styles,
             id
@@ -149,11 +150,9 @@ fn style_edits_need_their_block_and_an_unknown_id_is_inert() {
     state.toggle_selected_style("shadow").expect("shadow on");
     let before = state.selected_ui_clip().expect("clip").styles;
     state.toggle_selected_style("no-such-style").expect("inert");
-    state
-        .set_selected_style_color("no-such-style", [1, 2, 3, 4])
-        .expect("inert");
     assert!(
-        state.param_rows("no-such-style").is_empty(),
+        state.param_rows("no-such-style").is_empty()
+            && state.param_colors("no-such-style").is_empty(),
         "an unknown group produced rows"
     );
     assert_eq!(state.selected_ui_clip().expect("clip").styles, before);
@@ -171,8 +170,13 @@ fn a_style_colour_edit_keeps_that_block_and_its_rows() {
     state
         .set_param_scalar(width.param, width.component, 6.0)
         .expect("width");
+    let color = state
+        .param_colors("outline")
+        .into_iter()
+        .find(|row| row.id == "style-outline-color")
+        .expect("the outline block offers a color row");
     state
-        .set_selected_style_color("outline", [10, 20, 30, 200])
+        .set_param_color(color.param, [10, 20, 30, 200])
         .expect("color");
 
     let styles = state.selected_ui_clip().expect("clip").styles;

@@ -94,6 +94,117 @@ fn mirroring_survives_a_crop_edit_and_the_reverse() {
     assert!(!ui.flip_h && !ui.flip_v, "reset clears both mirrors");
 }
 
+/// An animated crop holds a rect per frame, so a framing edit reads and lands
+/// under the playhead. Every edge in `CROP_EDGES`, both mirrors, the canvas
+/// drag, and its commit keep each key already on the crop; a moved edge keys
+/// the playhead and a mirror or a still release keys nothing. Each of them
+/// used to rebuild the rect from the projection, which holds the clip's first
+/// frame, and send it as a constant, so one nudge erased the animation. The
+/// clear is the one framing edit that drops the keys. What this does not see:
+/// the easing of a key a second edit overwrites, which the model resets to
+/// linear.
+#[test]
+fn every_framing_edit_on_an_animated_crop_keeps_its_keys() {
+    use aria_commands::{Command, EditCommand};
+    use aria_models::{ClipParam, Easing, ParamValue, RationalTime};
+
+    use crate::app::AppState;
+    use crate::app::canvas_overlay::CropHandle;
+    use crate::app::clip_frame::{CROP_EDGES, crop_inset};
+
+    let (mut state, _) = with_clip();
+    let clip = state.selected_clip().expect("a selected clip");
+    let model = state.selected_model().expect("the selected model");
+    let start = model.timeline.start.value;
+    let mid = start + (model.timeline.end_tick() - start) / 2;
+    let rate = state.store.sequence.frame_rate;
+    for (tick, inset) in [(start, 0.0_f32), (mid, 0.2)] {
+        let side = 1.0 - 2.0 * inset;
+        state
+            .apply_command(Command::Edit(EditCommand::SetParamKeyframe {
+                clip,
+                param: ClipParam::Crop,
+                at: RationalTime::new(tick, rate),
+                value: ParamValue::Rect([inset, inset, side, side]),
+                easing: Easing::Linear,
+                tangents: None,
+            }))
+            .expect("a crop key");
+    }
+    let ticks = |state: &AppState| -> Vec<i64> {
+        state
+            .keyframes_of(ClipParam::Crop)
+            .iter()
+            .map(|mark| mark.tick)
+            .collect()
+    };
+    assert_eq!(ticks(&state), [start, mid], "the fixture keyed the crop");
+    let here = start + (mid - start) / 2;
+    assert!(start < here && here < mid, "the clip is too short to key");
+    state.set_playhead(here);
+    let (between, ..) = state.selected_framing_here().expect("a framing");
+    assert!(
+        between.x > 0.0 && between.x < 0.2,
+        "the playhead reads {between:?}, not a rect between the keys"
+    );
+
+    let curve = state.selected_model().expect("model").crop.clone();
+    state.toggle_selected_flip_h().expect("flip h");
+    state.toggle_selected_flip_v().expect("flip v");
+    let model = state.selected_model().expect("model");
+    assert!(model.flip_h && model.flip_v, "a mirror did not land");
+    assert_eq!(model.crop, curve, "a mirror rewrote the crop");
+
+    for (id, ..) in CROP_EDGES {
+        state.nudge_selected_crop_inset(id, 0.05).expect("an edge");
+        assert_eq!(
+            ticks(&state),
+            [start, here, mid],
+            "{id} did not key the playhead and keep the keys around it"
+        );
+        let (moved, ..) = state.selected_framing_here().expect("a framing");
+        assert!(
+            (crop_inset(&moved, id) - crop_inset(&between, id) - 0.05).abs() < 1e-4,
+            "{id} moved from somewhere other than the rect under the playhead"
+        );
+        assert!(state.undo(), "{id} left nothing to undo");
+        assert_eq!(ticks(&state), [start, mid], "undoing {id} left a key");
+    }
+
+    // The canvas draws the rect under the playhead, and a drag starts from it:
+    // a release that moved nothing writes nothing.
+    assert_eq!(
+        state.overlay_crop(),
+        Some(between),
+        "the canvas draws a crop other than the one under the playhead"
+    );
+    state.begin_crop_drag(CropHandle::Left);
+    assert_eq!(
+        state.overlay_crop(),
+        Some(between),
+        "the drag starts from a crop other than the one under the playhead"
+    );
+    state.end_overlay_drag().expect("a still release");
+    assert_eq!(
+        ticks(&state),
+        [start, mid],
+        "a still release keyed the crop"
+    );
+
+    let mut dragged = between;
+    dragged.x += 0.05;
+    dragged.w -= 0.05;
+    state.set_selected_crop(dragged).expect("a canvas commit");
+    assert_eq!(
+        ticks(&state),
+        [start, here, mid],
+        "the canvas commit did not key the playhead and keep the keys around it"
+    );
+
+    state.clear_selected_crop().expect("a clear");
+    assert!(ticks(&state).is_empty(), "the clear kept the crop's keys");
+}
+
 #[test]
 fn motion_blur_toggles_and_its_knobs_clamp_to_the_model_range() {
     let (mut state, _) = with_clip();

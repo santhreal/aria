@@ -81,7 +81,7 @@ impl AppState {
     pub fn overlay_crop(&self) -> Option<CropRect> {
         match self.overlay_drag {
             Some(OverlayDrag::Crop { draft, .. }) => Some(draft),
-            _ => self.selected_ui_clip().map(|clip| clip.crop),
+            _ => self.selected_framing_here().map(|(crop, ..)| crop),
         }
     }
 
@@ -98,17 +98,16 @@ impl AppState {
     }
 
     pub fn begin_crop_drag(&mut self, handle: CropHandle) {
-        let Some(ui) = self.selected_ui_clip() else {
+        // The rect at the playhead, as for a mask: the projected row holds the
+        // clip's first frame, and an animated crop drawn elsewhere would jump
+        // there on the first move.
+        let Some((draft, flip_h, flip_v)) = self.selected_framing_here() else {
             return;
         };
         let Some(clip) = self.selected_clip() else {
             return;
         };
-        self.overlay_drag = Some(OverlayDrag::Crop {
-            handle,
-            draft: ui.crop,
-        });
-        let (flip_h, flip_v) = (ui.flip_h, ui.flip_v);
+        self.overlay_drag = Some(OverlayDrag::Crop { handle, draft });
         self.engine
             .lock()
             .set_crop_override(Some((clip, CropRect::FULL, flip_h, flip_v)));

@@ -5,7 +5,9 @@
 //! `SetClipMask` carries that whole mask, so every setter here starts from
 //! the model mask and changes one field: a keyframed property keeps its keys
 //! through an edit to another. `SetClipChroma` and `SetClipMatte` carry the
-//! whole value and are `Option`, so clearing is the same command with `None`.
+//! whole value and are `Option`, so clearing is the same command with `None`,
+//! and their setters start from the model block too: a new key color or matte
+//! source keeps the keys on the strength, the shadow and the softness.
 //!
 //! The numeric knobs are *not* here. A scalar edit goes through
 //! `clip_params.rs`, which addresses the one property. What is left is the
@@ -23,15 +25,7 @@ use aria_models::{
 };
 
 use super::AppState;
-use crate::types::{UiChroma, UiMask, UiMatte};
-
-fn chroma_from_ui(ui: &UiChroma) -> ChromaKey {
-    ChromaKey {
-        rgb: ui.rgb,
-        strength: Param::Constant(ui.strength),
-        shadow: Param::Constant(ui.shadow),
-    }
-}
+use crate::types::UiMask;
 
 /// Write `value` into `param` at clip-relative `tick`: a keyframe there,
 /// keeping the easing of one already there, when the property is keyframed,
@@ -42,14 +36,6 @@ fn land<T: SegmentSample>(param: &mut Param<T>, tick: i64, value: T) {
         param.set_keyframe(tick, value, easing);
     } else {
         *param = Param::Constant(value);
-    }
-}
-
-fn matte_from_ui(ui: &UiMatte) -> TrackMatte {
-    TrackMatte {
-        source: ui.source,
-        invert: ui.invert,
-        softness: Param::Constant(ui.softness),
     }
 }
 
@@ -309,15 +295,14 @@ impl AppState {
     /// Key on a colour, seeding a usable tolerance so the first click does
     /// something visible.
     pub fn set_selected_chroma_color(&mut self, rgb: [u8; 3]) -> Result<(), EngineError> {
-        let Some(ui) = self.selected_ui_clip() else {
+        let Some(model) = self.selected_model() else {
             return Ok(());
         };
-        let chroma = match &ui.chroma {
-            Some(existing) => {
-                let mut chroma = chroma_from_ui(existing);
-                chroma.rgb = rgb;
-                chroma
-            }
+        let chroma = match &model.chroma_key {
+            Some(existing) => ChromaKey {
+                rgb,
+                ..existing.clone()
+            },
             None => ChromaKey::new(rgb),
         };
         self.send_chroma(Some(chroma))
@@ -367,13 +352,13 @@ impl AppState {
     /// Seeds a soft edge of zero: a hard cut is what a matte means before the
     /// operator asks for a falloff.
     pub fn set_selected_matte_source(&mut self, source: MatteSource) -> Result<(), EngineError> {
-        let Some(ui) = self.selected_ui_clip() else {
+        let Some(model) = self.selected_model() else {
             return Ok(());
         };
-        let matte = match ui.matte.as_ref() {
+        let matte = match &model.matte {
             Some(existing) => TrackMatte {
                 source,
-                ..matte_from_ui(existing)
+                ..existing.clone()
             },
             None => TrackMatte {
                 source,
@@ -405,13 +390,9 @@ impl AppState {
 
     /// Flip which side of the stencil keeps the content.
     pub fn toggle_selected_matte_invert(&mut self) -> Result<(), EngineError> {
-        let Some(ui) = self.selected_ui_clip() else {
+        let Some(mut matte) = self.selected_model().and_then(|model| model.matte.clone()) else {
             return Ok(());
         };
-        let Some(existing) = ui.matte.as_ref() else {
-            return Ok(());
-        };
-        let mut matte = matte_from_ui(existing);
         matte.invert = !matte.invert;
         self.send_matte(Some(matte))
     }

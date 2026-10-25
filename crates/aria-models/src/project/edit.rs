@@ -729,8 +729,10 @@ impl Project {
     /// frame to crop. Rejected on a degenerate or out-of-frame crop rect.
     ///
     /// `at` composes with animation CapCut-style (same as [`Self::set_transform`]):
-    /// `Some(playhead)` writes a keyframe when crop is already animated;
-    /// `None` (or a never-animated crop) flattens to a constant.
+    /// `Some(playhead)` writes a keyframe when crop is already animated, and
+    /// leaves the curve as it is when `crop` is the rect in force there, so a
+    /// mirror toggle on an animated crop adds no keyframe; `None` (or a
+    /// never-animated crop) flattens to a constant.
     pub fn set_clip_crop(
         &mut self,
         clip_id: ClipId,
@@ -739,7 +741,6 @@ impl Project {
         flip_v: bool,
         at: Option<RationalTime>,
     ) -> Result<(), ModelError> {
-        crop.validate()?;
         let track_id = self
             .timeline()
             .track_of(clip_id)
@@ -755,12 +756,20 @@ impl Project {
             check_same_rate(at.rate, self.timeline().frame_rate)?;
         }
         let clip = self.timeline_mut().require_clip_mut(clip_id)?;
+        // The rect in force at an animated frame is written nowhere, so it is
+        // not held to the valid set: an eased curve may overshoot between keys.
         match at {
             Some(at) if clip.crop.is_animated() => {
                 let tick = clip.param_tick(at.value);
-                clip.crop.set_keyframe(tick, crop, Easing::Linear);
+                if clip.crop.sample(tick) != crop {
+                    crop.validate()?;
+                    clip.crop.set_keyframe(tick, crop, Easing::Linear);
+                }
             }
-            _ => clip.crop.set_constant(crop),
+            _ => {
+                crop.validate()?;
+                clip.crop.set_constant(crop);
+            }
         }
         clip.flip_h = flip_h;
         clip.flip_v = flip_v;

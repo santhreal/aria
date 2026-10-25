@@ -34,13 +34,6 @@ pub const KEY_COLORS: &[(&str, &str, [u8; 3])] = &[
     ("chroma-cyan", "Cyan", [0, 174, 239]),
 ];
 
-/// Style colours worth one click. A full picker is a separate concern.
-pub const STYLE_COLORS: &[(&str, &str, [u8; 4])] = &[
-    ("black", "Black", [0, 0, 0, 255]),
-    ("white", "White", [255, 255, 255, 255]),
-    ("half", "Half black", [0, 0, 0, 128]),
-];
-
 /// One pick in a picture block.
 #[derive(Clone)]
 pub enum Pick {
@@ -72,11 +65,6 @@ pub enum Pick {
     ClearMatte,
     /// One layer-style block, on or off.
     Style(&'static str),
-    /// A swatch inside one layer-style block.
-    StyleColor {
-        style: &'static str,
-        rgba: [u8; 4],
-    },
     ClearStyles,
     ClearLut,
     /// How this clip composites onto what is under it.
@@ -110,7 +98,6 @@ impl Pick {
             Self::ToggleMatteInvert => "the matte inverted",
             Self::ClearMatte => "the matte cleared",
             Self::Style(_) => "a layer style turned on or off",
-            Self::StyleColor { .. } => "a layer style's color",
             Self::ClearStyles => "every layer style cleared",
             Self::ClearLut => "the LUT removed",
             Self::Blend(_) => "a blend mode",
@@ -155,9 +142,7 @@ impl Pick {
                 state.peers_reading(|clip| clip.matte.map(|matte| matte.invert))
             }
             Self::ClearMatte => state.peers_reading(|clip| clip.matte.is_some()),
-            Self::Style(style) | Self::StyleColor { style, .. } => {
-                state.peers_reading(|clip| style_enabled(&clip.styles, style))
-            }
+            Self::Style(style) => state.peers_reading(|clip| style_enabled(&clip.styles, style)),
             Self::ClearStyles => state.peers_reading(|clip| clip.styles != UiStyles::default()),
             Self::ClearLut => state.peers_reading(|clip| clip.lut.is_some()),
             Self::ToggleDenoise => state.peers_reading(|clip| clip.denoise),
@@ -201,7 +186,6 @@ fn one(state: &mut AppState, pick: &Pick) -> Result<(), EngineError> {
         Pick::ToggleMatteInvert => state.toggle_selected_matte_invert(),
         Pick::ClearMatte => state.clear_selected_matte(),
         Pick::Style(id) => state.toggle_selected_style(id),
-        Pick::StyleColor { style, rgba } => state.set_selected_style_color(style, *rgba),
         Pick::ClearStyles => state.clear_selected_styles(),
         Pick::ClearLut => state.clear_selected_lut(),
         Pick::Blend(mode) => state.set_selected_blend_mode(*mode),

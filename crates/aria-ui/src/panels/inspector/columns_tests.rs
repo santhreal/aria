@@ -13,6 +13,8 @@
 //! [`slot_spec`] has no wildcard arm, so a kind added to the model does not
 //! build here until it is given a slot. A tab added to the Inspector fails
 //! [`every_tab_is_held_to_the_columns_or_named_as_not`] until it is placed.
+//! The Look tab is drawn with every layer style in `clip_styles::STYLES` on,
+//! and each style's catalog colors must draw a line.
 //!
 //! Also closes the class "a choice row whose mark disagrees with its value".
 //! An effect's layer slot left at None showed None and marked no chip. Every
@@ -338,6 +340,9 @@ async fn every_look_line_stands_in_the_columns(cx: &mut TestAppContext) {
         let filter = crate::catalog_text::filters()
             .first()
             .expect("the catalog lists a filter");
+        // Every layer style on, so each style's color and number rows are
+        // drawn and held to the columns too.
+        let mut colors = Vec::new();
         let (lines, choices) = every_line_stands_in_the_columns(
             cx,
             ("texture.png", "look"),
@@ -354,6 +359,12 @@ async fn every_look_line_stands_in_the_columns(cx: &mut TestAppContext) {
                 state
                     .set_clip_transition(first, EVERY_KIND)
                     .expect("apply the transition");
+                for (style, _) in crate::app::clip_styles::STYLES {
+                    state.toggle_selected_style(style).expect("a layer style");
+                    let rows = state.param_colors(style);
+                    assert!(!rows.is_empty(), "the {style} style has no color");
+                    colors.extend(rows.into_iter().map(|row| (*style, row.param)));
+                }
                 state.sync_from_engine();
             },
         );
@@ -363,6 +374,13 @@ async fn every_look_line_stands_in_the_columns(cx: &mut TestAppContext) {
                 lines.iter().any(|line| line.starts_with(&label)),
                 a_transition_draws(kind),
                 "the transition's {kind:?} slot: {lines:?}"
+            );
+        }
+        for (style, param) in &colors {
+            let label = format!("insp-label-{param:?}");
+            assert!(
+                lines.contains(&label),
+                "the {style} style's color drew no line {label}: {lines:?}"
             );
         }
         shows_and_marks("look", &choices, "insp-label-Filter", &filter.label);

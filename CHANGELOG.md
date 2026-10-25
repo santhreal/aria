@@ -2386,6 +2386,9 @@ Notes for the latest release. For previous releases, see the
 
 ### Fixed
 
+- Picking a key color, a matte source, a matte invert, a filter, or a layer style, reloading a LUT, mirroring the picture, and editing a crop edge or dragging a crop handle keep the keyframes on the clip's key strength and shadow, matte softness, filter and LUT amounts, style properties, and crop, where each used to flatten them to one value.
+- On an animated crop, the crop insets in Effect Controls and the crop handles in the Viewer read the rect under the playhead instead of the clip's first frame, and an edit sets a keyframe at the playhead.
+- A layer style's color is set from a color row with a stopwatch, keyframe navigator, and the shared swatches, which add Half black, instead of from three Black, White, and Half black buttons that flattened an animated color.
 - An effect's layer slot set to None marks its **None** chip.
 - A Project panel search that hides every item reads **Nothing matches the search.** instead of offering to import files.
 - A test process that started the decode device warm-up no longer aborts at random in GObject type registration after printing `ok`: a process ending through `exit` stops the warm-up at its next step and waits for the plugin load in progress.

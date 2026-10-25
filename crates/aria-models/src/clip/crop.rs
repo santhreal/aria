@@ -25,7 +25,9 @@ pub struct CropRect {
 /// Component-wise lerp. Intermediate values are not re-clamped: keyframe
 /// values are validated at set time, and the valid-rect set
 /// (`w`/`h` ≥ [`MIN_CROP_FRACTION`], `x`/`y` ≥ 0, `x+w`/`y+h` ≤ 1) is
-/// convex, so a lerp of two valid rects stays valid.
+/// convex, so a lerp of two valid rects at `t` in `0..=1` stays valid. A
+/// bezier easing whose `y` leaves `0..=1` carries the rect past the frame
+/// between keys.
 impl Lerp for CropRect {
     fn lerp(a: Self, b: Self, t: f32) -> Self {
         Self {

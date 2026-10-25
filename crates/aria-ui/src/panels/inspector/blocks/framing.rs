@@ -2,7 +2,8 @@
 //! blur.
 //!
 //! Crop rows are generated from `app::clip_frame::CROP_EDGES`, so the panel
-//! cannot drift from the rect the model validates.
+//! cannot drift from the rect the model validates. They read the rect in force
+//! under the playhead, which is where an edit lands.
 
 use gpui::{
     InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled, div, px,
@@ -24,11 +25,17 @@ pub fn framing_block(
     state: &gpui::Entity<crate::app::AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
+    // Every frame of an animated crop has its own rect; the rows show the one
+    // under the playhead, not the clip's first frame the projection holds.
+    let here = state
+        .read(cx)
+        .selected_framing_here()
+        .map_or(clip.crop, |(crop, ..)| crop);
     let crops: Vec<_> = CROP_EDGES
         .iter()
         .map(|(id, label, ..)| {
             let edge = *id;
-            let current = crop_inset(&clip.crop, edge);
+            let current = crop_inset(&here, edge);
             let percent = current * 100.0;
             unkeyed_row(
                 theme,

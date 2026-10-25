@@ -18,11 +18,12 @@ use aria_models::{
 use super::AppState;
 use crate::types::UiSlots as _;
 
-/// Colours worth one click on an effect parameter. A full picker is a separate
-/// concern; these are the hues a key, a tint, or a border is actually set to.
-pub const PARAM_COLORS: [(&str, &str, [u8; 4]); 8] = [
+/// Colors worth one click on a color property. A full picker is a separate
+/// concern; these are the hues a key, a tint, a border, or a shadow is set to.
+pub const PARAM_COLORS: [(&str, &str, [u8; 4]); 9] = [
     ("black", "Black", [0, 0, 0, 255]),
     ("white", "White", [255, 255, 255, 255]),
+    ("half-black", "Half black", [0, 0, 0, 128]),
     ("red", "Red", [220, 60, 60, 255]),
     ("green", "Green", [60, 200, 90, 255]),
     ("blue", "Blue", [60, 120, 230, 255]),

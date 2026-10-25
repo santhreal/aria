@@ -365,6 +365,99 @@ fn crop_param_keyframe_validates_each_value() {
     ));
 }
 
+/// A rect written at a frame of an animated crop keys that frame, and the rect
+/// already in force there keys nothing, so a mirror toggle keeps the curve as
+/// it is.
+#[test]
+fn set_clip_crop_at_a_frame_of_an_animated_crop_keys_only_a_change() {
+    let (mut project, media_id, track) = project_with_media(500);
+    let clip = project
+        .add_clip(track, media_id, tr(0, 100), rt(0))
+        .unwrap();
+    for (at, inset) in [(0, 0.1), (50, 0.2)] {
+        project
+            .set_param_keyframe(
+                clip,
+                ClipParam::Crop,
+                rt(at),
+                ParamValue::Rect([inset, inset, 0.5, 0.5]),
+                Easing::Linear,
+                None,
+            )
+            .unwrap();
+    }
+    let curve = project.clip(clip).unwrap().crop.clone();
+    let held = curve.sample(project.clip(clip).unwrap().param_tick(25));
+    project
+        .set_clip_crop(clip, held, true, false, Some(rt(25)))
+        .unwrap();
+    let c = project.clip(clip).unwrap();
+    assert_eq!(c.crop, curve, "the rect in force keyed a frame");
+    assert!(c.flip_h && !c.flip_v, "the mirror did not land");
+
+    let moved = CropRect {
+        x: 0.3,
+        y: 0.3,
+        w: 0.5,
+        h: 0.5,
+    };
+    project
+        .set_clip_crop(clip, moved, true, false, Some(rt(25)))
+        .unwrap();
+    let c = project.clip(clip).unwrap();
+    assert_ne!(c.crop, curve, "a new rect keyed no frame");
+    assert_eq!(c.crop.sample(c.param_tick(25)), moved);
+
+    // A rect out of the frame is refused there too, and touches nothing.
+    let keyed = c.clone();
+    let outside = CropRect {
+        x: 0.8,
+        y: 0.0,
+        w: 0.5,
+        h: 1.0,
+    };
+    assert!(matches!(
+        project.set_clip_crop(clip, outside, false, true, Some(rt(25))),
+        Err(ModelError::InvalidParam(_))
+    ));
+    assert_eq!(project.clip(clip).unwrap(), &keyed);
+}
+
+/// The rect in force at a frame where an overshooting bezier carries the crop
+/// past the frame is written nowhere, so a mirror toggle there lands and keeps
+/// the curve: only a rect that becomes a keyframe is held to the valid set.
+#[test]
+fn set_clip_crop_mirrors_where_an_eased_crop_overshoots_the_frame() {
+    let (mut project, media_id, track) = project_with_media(500);
+    let clip = project
+        .add_clip(track, media_id, tr(0, 100), rt(0))
+        .unwrap();
+    let overshoot = Easing::Bezier {
+        points: [0.2, 1.8, 0.8, 1.8],
+    };
+    for (at, inset) in [(0, 0.0), (50, 0.5)] {
+        project
+            .set_param_keyframe(
+                clip,
+                ClipParam::Crop,
+                rt(at),
+                ParamValue::Rect([inset, inset, 0.5, 0.5]),
+                overshoot,
+                None,
+            )
+            .unwrap();
+    }
+    let curve = project.clip(clip).unwrap().crop.clone();
+    let over = curve.sample(project.clip(clip).unwrap().param_tick(25));
+    assert!(over.validate().is_err(), "the curve stays inside the frame");
+    project
+        .set_clip_crop(clip, over, true, false, Some(rt(25)))
+        .unwrap();
+    let c = project.clip(clip).unwrap();
+    assert_eq!(c.crop, curve, "the rect in force keyed a frame");
+    assert!(c.flip_h && !c.flip_v, "the mirror did not land");
+}
+
 #[test]
 fn trim_scales_source_consumption_by_speed() {
     let (mut project, media_id, track) = project_with_media(500);

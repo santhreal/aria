@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use aria_commands::{Command, EditCommand, ProjectCommand};
 use aria_engine::{ApplyOutcome, EngineError};
-use aria_models::{ClipId, Filter, MediaId, Param};
+use aria_models::{ClipId, Filter, MediaId};
 use aria_plugin::DropAction;
 
 use super::picker::{Ask, FileSpec};
@@ -471,23 +471,6 @@ impl AppState {
         }
     }
 
-    pub fn set_selected_filter_amount(&mut self, amount: f32) -> Result<(), EngineError> {
-        let Some(ui) = self.selected_ui_clip() else {
-            return Ok(());
-        };
-        let Some(filter) = ui.filter else {
-            return Ok(());
-        };
-        self.apply_command(Command::Edit(EditCommand::SetClipFilter {
-            clip: ClipId::from_raw(ui.id),
-            filter: Some(Filter {
-                id: filter.id.to_string(),
-                intensity: Param::Constant(amount.clamp(0.0, 1.0)),
-            }),
-        }))?;
-        Ok(())
-    }
-
     pub fn clear_selected_filter(&mut self) -> Result<(), EngineError> {
         let Some(clip) = self.selected_clip() else {
             return Ok(());
@@ -499,13 +482,22 @@ impl AppState {
         Ok(())
     }
 
+    /// Apply the catalog filter `id`. A switch from another filter keeps its
+    /// amount, keyframes included, as a new key color keeps a key's strength.
     pub fn set_selected_filter(&mut self, id: impl Into<String>) -> Result<(), EngineError> {
         let Some(clip) = self.selected_clip() else {
             return Ok(());
         };
+        let mut filter = Filter::new(id);
+        if let Some(existing) = self
+            .selected_model()
+            .and_then(|model| model.filter.as_ref())
+        {
+            filter.intensity = existing.intensity.clone();
+        }
         self.apply_command(Command::Edit(EditCommand::SetClipFilter {
             clip,
-            filter: Some(Filter::new(id)),
+            filter: Some(filter),
         }))?;
         Ok(())
     }

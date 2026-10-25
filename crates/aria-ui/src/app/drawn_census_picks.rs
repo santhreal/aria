@@ -24,14 +24,17 @@
 //! What this file cannot see: whether the chip is reachable through a tab, which
 //! `tab_host`'s own tests hold, and what the pick looks like on screen.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
-use aria_models::{BlendMode, MaskKind, MaskMode, MatteSource, StabilizeLevel, mask_catalog};
+use aria_engine::EngineError;
+use aria_models::{
+    BlendMode, ClipParam, MaskKind, MaskMode, MatteSource, StabilizeLevel, mask_catalog,
+};
 
 use crate::app::AppState;
 use crate::app::fixtures::{the_pair, twin_selected};
 use crate::app::sent_census::Watch;
-use crate::surfaces::inspector_pick::{self, KEY_COLORS, Pick, STYLE_COLORS};
+use crate::surfaces::inspector_pick::{self, KEY_COLORS, Pick};
 
 /// One pick, with a project dressed so that pick has something to act on.
 ///
@@ -81,11 +84,7 @@ fn staged() -> Vec<Staged> {
     push(Pick::ClearMatte, a_matted_clip);
 
     for (style, _) in crate::app::clip_styles::STYLES {
-        let style = *style;
-        push(Pick::Style(style), a_clip);
-        for (_, _, rgba) in STYLE_COLORS {
-            push(Pick::StyleColor { style, rgba: *rgba }, a_styled_clip);
-        }
+        push(Pick::Style(*style), a_clip);
     }
     push(Pick::ClearStyles, a_styled_clip);
     push(Pick::ClearLut, a_graded_clip);
@@ -253,6 +252,118 @@ fn the_picture_blocks_call_no_setter_of_their_own() {
     super::no_setter_escapes(REGISTRY, "inspector");
 }
 
+/// The catalog groups whose keys go with the block a pick removes. No wildcard
+/// arm: a pick added to the registry states what it clears before it compiles.
+fn clears(pick: &Pick) -> &'static [&'static str] {
+    match pick {
+        Pick::ClearFilter => &["filter"],
+        Pick::ClearChroma => &["chroma"],
+        Pick::ClearMatte => &["matte"],
+        Pick::ClearStyles => &["shadow", "glow", "outline", "background"],
+        Pick::ClearLut => &["lut"],
+        Pick::ClearGrade => &["grade"],
+        Pick::ClearCrop => &["framing"],
+        Pick::Filter(_)
+        | Pick::Mask(_)
+        | Pick::MaskMode { .. }
+        | Pick::ToggleMaskInvert(_)
+        | Pick::MoveMask { .. }
+        | Pick::RemoveMask(_)
+        | Pick::Chroma(_)
+        | Pick::Matte(_)
+        | Pick::ToggleMatteInvert
+        | Pick::Style(_)
+        | Pick::Blend(_)
+        | Pick::Stabilize(_)
+        | Pick::ToggleDenoise
+        | Pick::FlipHorizontal
+        | Pick::FlipVertical
+        | Pick::ToggleMotionBlur
+        | Pick::DetachClipType => &[],
+    }
+}
+
+/// Every keyed property of the selected clip: its catalog group and the ticks
+/// of its keys, by id.
+fn keys_by_id(state: &AppState) -> BTreeMap<String, (String, Vec<i64>)> {
+    state
+        .key_params()
+        .iter()
+        .map(|row| {
+            let ticks = row.marks.iter().map(|mark| mark.tick).collect();
+            (row.id.to_string(), (row.spec.group.to_string(), ticks))
+        })
+        .collect()
+}
+
+/// Run `write`, require every key outside the groups in `cleared` to be where
+/// it was on each property still offered, then undo back to where it started.
+fn assert_keeps_keys(
+    state: &mut AppState,
+    what: &str,
+    cleared: &[&str],
+    write: impl FnOnce(&mut AppState) -> Result<(), EngineError>,
+) {
+    let before = keys_by_id(state);
+    let depth = state.history_depth();
+    write(state).unwrap_or_else(|err| panic!("{what} was refused: {err}"));
+    let after = keys_by_id(state);
+    for (id, (group, ticks)) in &before {
+        if cleared.contains(&group.as_str()) {
+            continue;
+        }
+        if let Some((_, now)) = after.get(id) {
+            assert_eq!(now, ticks, "{what} moved the keys on {id}");
+        }
+    }
+    while state.history_depth() > depth {
+        assert!(state.undo(), "{what} left a step undo could not take");
+    }
+    assert_eq!(keys_by_id(state), before, "undoing {what} lost keys");
+}
+
+/// A structural pick sends a whole block: a filter, a key, a matte, the four
+/// layer styles, the framing. Each setter used to rebuild that block from the
+/// projection, which holds one value per property, so a pick flattened every
+/// keyframe inside the block it wrote: a new key color erased an animated
+/// strength, a style toggle every animated style knob, a mirror an animated
+/// crop. Here every property the clip offers is keyed twice, and every staged
+/// pick, then a LUT reload, must leave each key where it was outside the groups
+/// `clears` names for it. The picks are the staged ones, so a pick added to
+/// the registry is pressed here with no edit to this test. What this does not
+/// see: a writer reached outside the registry other than the LUT load, such as
+/// the crop edges, which `frame_tests` holds.
+#[test]
+fn no_pick_moves_a_key_it_does_not_clear() {
+    let mut state = a_clip_keyed_in_every_block();
+    let keyed = keys_by_id(&state);
+    for (id, (_, ticks)) in &keyed {
+        assert_eq!(ticks.len(), 2, "the fixture did not key {id} twice");
+    }
+    let groups: BTreeSet<&str> = keyed.values().map(|(group, _)| group.as_str()).collect();
+    for stage in staged() {
+        for group in clears(&stage.pick) {
+            assert!(
+                groups.contains(group),
+                "{} clears {group}, which the fixture never keyed",
+                stage.pick.what()
+            );
+        }
+    }
+
+    for stage in staged() {
+        let what = stage.pick.what();
+        let cleared = clears(&stage.pick);
+        let pick = stage.pick;
+        assert_keeps_keys(&mut state, what, cleared, |state| {
+            inspector_pick::apply(state, pick)
+        });
+    }
+    assert_keeps_keys(&mut state, "a LUT reload", &[], |state| {
+        state.set_selected_lut("/luts/cool.cube")
+    });
+}
+
 #[test]
 fn every_catalog_the_blocks_loop_over_has_members() {
     assert!(
@@ -265,7 +376,6 @@ fn every_catalog_the_blocks_loop_over_has_members() {
     );
     for (label, count) in [
         ("key colors", KEY_COLORS.len()),
-        ("style colors", STYLE_COLORS.len()),
         ("layer styles", crate::app::clip_styles::STYLES.len()),
         ("matte sources", MatteSource::ALL.len()),
         ("blend modes", BlendMode::ALL.len()),
@@ -324,9 +434,9 @@ fn a_matted_clip() -> AppState {
     state
 }
 
-/// Every layer style on, so a swatch and the clear both have something to act
-/// on whichever style they belong to.
-fn a_styled_clip() -> AppState {
+/// Every layer style on, so the clear has something to act on whichever style
+/// it belongs to, and every style's color row is drawn for the swatch census.
+pub(super) fn a_styled_clip() -> AppState {
     let mut state = a_clip();
     for (id, _) in crate::app::clip_styles::STYLES {
         state
@@ -351,6 +461,53 @@ fn a_stabilized_clip() -> AppState {
     state
         .set_selected_stabilize(Some(level))
         .expect("the level lands");
+    state
+}
+
+/// A clip holding every block a pick reaches, every property it offers keyed
+/// at its first frame and its middle, and the playhead between the two. Video
+/// media, so the stabilizer picks act on it too.
+fn a_clip_keyed_in_every_block() -> AppState {
+    let mut state = a_moving_clip();
+    state.set_selected_filter("warm").expect("the filter lands");
+    for kind in [MaskKind::Circle, MaskKind::Rectangle] {
+        state.add_selected_mask(kind).expect("the mask lands");
+    }
+    state
+        .set_selected_chroma_color([0, 177, 64])
+        .expect("the key lands");
+    state
+        .set_selected_matte_source(MatteSource::Luma)
+        .expect("the matte lands");
+    for (id, _) in crate::app::clip_styles::STYLES {
+        state
+            .toggle_selected_style(id)
+            .unwrap_or_else(|err| panic!("turning on {id}: {err}"));
+    }
+    state
+        .set_selected_lut("/luts/warm.cube")
+        .expect("the LUT lands");
+
+    let clip = state.selected_clip().expect("a selected clip");
+    let model = state.selected_model().expect("the selected model");
+    let start = model.timeline.start.value;
+    let mid = start + (model.timeline.end_tick() - start) / 2;
+    let params: Vec<ClipParam> = state.key_params().iter().map(|row| row.param()).collect();
+    // One undo step: a history at its limit drops its oldest step as each pick
+    // lands, so the undo back to the starting depth would take nothing.
+    state
+        .one_step(|state| {
+            for param in params {
+                for tick in [start, mid] {
+                    state
+                        .add_param_keyframe_at(clip, param, tick)
+                        .unwrap_or_else(|err| panic!("keying {param:?} at {tick}: {err}"));
+                }
+            }
+            Ok::<(), EngineError>(())
+        })
+        .expect("the keys land");
+    state.set_playhead(start + (mid - start) / 2);
     state
 }
 
