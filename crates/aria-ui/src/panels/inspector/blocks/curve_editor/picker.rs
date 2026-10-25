@@ -6,13 +6,14 @@
 //! window pointer can be read against it.
 
 use gpui::{
-    AnyElement, Bounds, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
-    MouseMoveEvent, MouseUpEvent, ParentElement, Pixels, Styled, canvas, div, point, px, size,
+    AnyElement, Bounds, ContentMask, Hsla, InteractiveElement, IntoElement, MouseButton,
+    MouseDownEvent, MouseMoveEvent, MouseUpEvent, ParentElement, Pixels, Styled, canvas, div,
+    point, px, size,
 };
 
 use crate::app::AppState;
 use crate::app::curve_geometry::CurvePolyline;
-use crate::app::curve_stroke::curve_columns;
+use crate::app::curve_stroke::{LEVER_STROKE, curve_columns, segment_columns};
 use crate::components::{self, section_label};
 use crate::motion::MotionKey;
 use crate::panels::inspector::blocks::widgets::{Columns, chips_under_labels, under_labels};
@@ -220,76 +221,88 @@ fn measure(state: &gpui::Entity<AppState>) -> impl IntoElement {
     .size_full()
 }
 
-/// Paint the curve graph background, grid, sampled polyline, keyframe dots, and bezier handles.
-fn render_canvas(theme: &Theme, polyline: Option<CurvePolyline>) -> impl IntoElement {
-    let theme_accent = theme.accent;
-    let theme_border = theme.border;
-    let theme_text = theme.text;
+/// The colors the graph paints its marks in.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(super) struct GraphInk {
+    /// The reference line at the graph's middle value.
+    pub(super) rule: Hsla,
+    /// The sampled curve.
+    pub(super) curve: Hsla,
+    /// A handle's lever and its tip, in the color the timeline graph draws a
+    /// handle in.
+    pub(super) handle: Hsla,
+    /// A keyframe.
+    pub(super) key: Hsla,
+}
 
+impl GraphInk {
+    fn of(theme: &Theme) -> Self {
+        Self {
+            rule: theme.border,
+            curve: theme.accent,
+            handle: theme.warning,
+            key: theme.text,
+        }
+    }
+}
+
+/// One filled rectangle the graph paints, `[x, y, w, h]` in graph pixels, and
+/// its color.
+pub(super) type GraphMark = ([f32; 4], Hsla);
+
+/// What the graph paints, back to front: the reference line at its middle
+/// value, the curve, each handle's lever from its keyframe to its tip and the
+/// tip, then each keyframe over them. `width` and `height` are the graph's; a
+/// lever or a tip past its edge is cut by the painter's content mask.
+pub(super) fn graph_marks(
+    polyline: Option<&CurvePolyline>,
+    width: f32,
+    height: f32,
+    ink: GraphInk,
+) -> impl Iterator<Item = GraphMark> + '_ {
+    let rule = std::iter::once(([0.0, height * 0.5, width, 1.0], ink.rule));
+    let drawn = polyline.into_iter().flat_map(move |poly| {
+        let curve = curve_columns(&poly.samples, height)
+            .map(move |column| ([column.x, column.y, column.w, column.h], ink.curve));
+        let handles = poly.handles.iter().flat_map(move |handle| {
+            let tip = (handle.handle_x, handle.handle_y);
+            segment_columns((handle.anchor_x, handle.anchor_y), tip, LEVER_STROKE)
+                .map(move |column| ([column.x, column.y, column.w, column.h], ink.handle))
+                .chain(std::iter::once((dot(tip, HANDLE_DOT_SIZE), ink.handle)))
+        });
+        let keys = poly
+            .key_points
+            .iter()
+            .map(move |key| (dot((key.pixel_x, key.pixel_y), KEYFRAME_DOT_SIZE), ink.key));
+        curve.chain(handles).chain(keys)
+    });
+    rule.chain(drawn)
+}
+
+/// A square `side` pixels wide centered on `at`.
+fn dot(at: (f32, f32), side: f32) -> [f32; 4] {
+    [at.0 - side * 0.5, at.1 - side * 0.5, side, side]
+}
+
+/// Paint [`graph_marks`] at the canvas's origin, cut at its edges.
+fn render_canvas(theme: &Theme, polyline: Option<CurvePolyline>) -> impl IntoElement {
+    let ink = GraphInk::of(theme);
     canvas(
         |_, _, _| (),
         move |bounds: Bounds<Pixels>, _, window, _| {
-            let width = f32::from(bounds.size.width);
-            let height = f32::from(bounds.size.height);
-            let ox = f32::from(bounds.origin.x);
-            let oy = f32::from(bounds.origin.y);
-
-            // Draw horizontal reference line (midpoint / 0.5 value)
-            let mid_y = oy + height * 0.5;
-            window.paint_quad(gpui::fill(
-                Bounds {
-                    origin: point(px(ox), px(mid_y)),
-                    size: size(px(width), px(1.0)),
-                },
-                theme_border,
-            ));
-
-            let Some(poly) = &polyline else {
-                return;
-            };
-
-            // The curve is drawn as pixel-wide columns spanning the y it
-            // crosses, so a slope reads as a line rather than a staircase.
-            for column in curve_columns(&poly.samples, height) {
-                window.paint_quad(gpui::fill(
-                    Bounds {
-                        origin: point(px(ox + column.x), px(oy + column.y)),
-                        size: size(px(column.w), px(column.h)),
-                    },
-                    theme_accent,
-                ));
-            }
-
-            // Draw bezier tangent handle lines and tips
-            for h in &poly.handles {
-                // Line from keyframe anchor to handle tip
-                let handle_px_x = ox + h.handle_x;
-                let handle_px_y = oy + h.handle_y;
-
-                window.paint_quad(gpui::fill(
-                    Bounds {
-                        origin: point(
-                            px(handle_px_x - HANDLE_DOT_SIZE * 0.5),
-                            px(handle_px_y - HANDLE_DOT_SIZE * 0.5),
-                        ),
-                        size: size(px(HANDLE_DOT_SIZE), px(HANDLE_DOT_SIZE)),
-                    },
-                    theme_accent,
-                ));
-            }
-
-            // Draw keyframe diamonds / dots
-            for kp in &poly.key_points {
-                let dot_x = ox + kp.pixel_x - KEYFRAME_DOT_SIZE * 0.5;
-                let dot_y = oy + kp.pixel_y - KEYFRAME_DOT_SIZE * 0.5;
-                window.paint_quad(gpui::fill(
-                    Bounds {
-                        origin: point(px(dot_x), px(dot_y)),
-                        size: size(px(KEYFRAME_DOT_SIZE), px(KEYFRAME_DOT_SIZE)),
-                    },
-                    theme_text,
-                ));
-            }
+            let (ox, oy) = (f32::from(bounds.origin.x), f32::from(bounds.origin.y));
+            let (width, height) = (f32::from(bounds.size.width), f32::from(bounds.size.height));
+            window.with_content_mask(Some(ContentMask::from(bounds)), |window| {
+                for ([x, y, w, h], color) in graph_marks(polyline.as_ref(), width, height, ink) {
+                    window.paint_quad(gpui::fill(
+                        Bounds {
+                            origin: point(px(ox + x), px(oy + y)),
+                            size: size(px(w), px(h)),
+                        },
+                        color,
+                    ));
+                }
+            });
         },
     )
     .size_full()

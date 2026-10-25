@@ -17,10 +17,11 @@
 //! - A handle mirrored across its segment, off the curve's tangent, and a
 //!   handle drag bending the curve away from the pointer.
 //! - A handle taking the press meant for the keyframe under it.
+//! - A handle's tip painted with no lever to the keyframe it bends.
 
 use aria_models::{ClipParam, EASING_PRESETS, Easing, ParamKind, TemporalEase, clip_params_for};
 
-use super::picker::KEYFRAME_DOT_SIZE;
+use super::picker::{GraphInk, GraphMark, HANDLE_DOT_SIZE, KEYFRAME_DOT_SIZE, graph_marks};
 use crate::app::AppState;
 use crate::app::curve_drag::{CurveDragTarget, HIT_RADIUS};
 use crate::app::curve_geometry::{BezierHandleKind, build_curve_polyline, sample_param_scalar};
@@ -625,6 +626,112 @@ fn every_handle_lies_on_the_curves_tangent_at_its_keyframe() {
                     "{stored:?} from {from} to {to}: the {:?} handle leaves its keyframe at \
                      slope {actual}, the curve at {expected}",
                     handle.kind,
+                );
+            }
+        }
+    }
+}
+
+/// The distance from `point` to the line from `a` to `b`.
+fn off_lever(point: (f32, f32), a: (f32, f32), b: (f32, f32)) -> f32 {
+    let (dx, dy) = (b.0 - a.0, b.1 - a.1);
+    let length = dx * dx + dy * dy;
+    let along = if length > 0.0 {
+        (((point.0 - a.0) * dx + (point.1 - a.1) * dy) / length).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    (point.0 - a.0 - dx * along).hypot(point.1 - a.1 - dy * along)
+}
+
+/// Every handle the graph places is painted as a lever from its keyframe to
+/// its tip, and the tip, in the handle's color, for every easing on a rising
+/// and a falling segment; nothing else is painted in that color, so a hold
+/// paints no handle.
+///
+/// Closes the class "a tip with no lever": the graph painted each tip alone,
+/// so nothing showed which keyframe a tip bends or which way it leaves it. The
+/// marks are the list the canvas paints, read without a window. Does not cover
+/// where the canvas lands in the window, which the press tests cover through
+/// the frame the graph records, or the cut at the graph's edge.
+#[test]
+fn every_handle_is_painted_as_a_lever_from_its_keyframe_to_its_tip() {
+    let ink = GraphInk {
+        rule: gpui::hsla(0.0, 0.0, 0.5, 1.0),
+        curve: gpui::hsla(0.6, 1.0, 0.5, 1.0),
+        handle: gpui::hsla(0.1, 1.0, 0.5, 1.0),
+        key: gpui::hsla(0.0, 0.0, 1.0, 1.0),
+    };
+    let [_, _, width, height] = FRAME;
+    let (mut state, start, end) = graphed();
+    let span = end - start;
+    let (k0, k1) = (start + span / 4, start + span * 3 / 4);
+    for (from, to) in [(0.2_f32, 0.9_f32), (0.9, 0.2)] {
+        for easing in easings() {
+            state
+                .set_keyframe_value_at(ClipParam::Opacity, None, k0, from, easing)
+                .expect("the leaving keyframe");
+            state
+                .set_keyframe_value_at(ClipParam::Opacity, None, k1, to, Easing::Linear)
+                .expect("the arriving keyframe");
+            let poly = state
+                .curve_polyline(ClipParam::Opacity, None)
+                .expect("polyline");
+            let handles: Vec<GraphMark> = graph_marks(Some(&poly), width, height, ink)
+                .filter(|(_, color)| *color == ink.handle)
+                .collect();
+            let painted = |(x, y): (f32, f32)| {
+                handles.iter().any(|([left, top, w, h], _)| {
+                    (*left..=left + w).contains(&x) && (*top..=top + h).contains(&y)
+                })
+            };
+            let at = format!("{easing:?} from {from} to {to}");
+            assert_eq!(
+                handles.is_empty(),
+                poly.handles.is_empty(),
+                "{at}: paints {} handle marks for {} handles",
+                handles.len(),
+                poly.handles.len()
+            );
+            for handle in &poly.handles {
+                let (anchor, tip) = (
+                    (handle.anchor_x, handle.anchor_y),
+                    (handle.handle_x, handle.handle_y),
+                );
+                for step in 0..=20 {
+                    let along = step as f32 / 20.0;
+                    let point = (
+                        anchor.0 + (tip.0 - anchor.0) * along,
+                        anchor.1 + (tip.1 - anchor.1) * along,
+                    );
+                    assert!(
+                        painted(point),
+                        "{at}: the {:?} lever from {anchor:?} to {tip:?} is not painted at \
+                         {point:?}",
+                        handle.kind,
+                    );
+                }
+                assert!(
+                    handles.iter().any(|([left, top, w, h], _)| {
+                        [*w, *h] == [HANDLE_DOT_SIZE; 2]
+                            && (left + w * 0.5 - tip.0).abs() < 1e-3
+                            && (top + h * 0.5 - tip.1).abs() < 1e-3
+                    }),
+                    "{at}: the {:?} tip at {tip:?} is not painted",
+                    handle.kind,
+                );
+            }
+            for ([left, top, w, h], _) in &handles {
+                let center = (left + w * 0.5, top + h * 0.5);
+                assert!(
+                    poly.handles.iter().any(|handle| {
+                        off_lever(
+                            center,
+                            (handle.anchor_x, handle.anchor_y),
+                            (handle.handle_x, handle.handle_y),
+                        ) <= HANDLE_DOT_SIZE
+                    }),
+                    "{at}: a handle mark at {center:?} is on no lever"
                 );
             }
         }

@@ -2403,6 +2403,7 @@ Notes for the latest release. For previous releases, see the
 - The Inspector's Graph block draws a keyframe on the clip's first or last frame, or at a bound of the property's range, inside the graph's frame instead of on its border.
 - The Inspector's Graph block draws each bezier handle on the curve's tangent at its keyframe instead of mirrored across the segment, a linear segment's handles a third of the way along it, and dragging a handle bends the curve toward the pointer.
 - A press on the Inspector's Graph block grabs the nearest keyframe or handle, and the keyframe when a handle sits on it, instead of a handle within reach of the keyframe.
+- The Inspector's Graph block draws each handle as a lever from its keyframe to its tip in the timeline graph's handle color instead of a tip alone in the curve's color, and cuts a lever or a tip at the graph's edge instead of drawing it over the Inspector.
 - With no property row chosen, the timeline graph editor draws the Graph block's property while its row is open and otherwise the first open row, and highlights the row it draws instead of a row of the same property on every expanded clip.
 - An effect's layer slot set to None marks its **None** chip.
 - A Project panel search that hides every item reads **Nothing matches the search.** instead of offering to import files.
