@@ -1,7 +1,7 @@
 //! The rows of an inspector block whose value is not a number: a switch, a
-//! choice among a set, a control standing where a number row's value stands,
-//! and the controls and notes that wrap on a line of their own, starting where
-//! the labels start.
+//! choice among a set, a fact of the clip, a control standing where a number
+//! row's value stands, and the controls and notes that wrap on a line of their
+//! own, starting where the labels start.
 //!
 //! A control drawn straight into a block's column is stretched across the
 //! block and starts at its edge, left of every label. Each control here stands
@@ -25,7 +25,7 @@ use crate::theme::Theme;
 use crate::tooltip::WithTip as _;
 
 #[cfg(test)]
-use super::{CHOICES, DrawnChoice, IN_INSPECTOR, label_selector};
+use super::{CHOICES, DrawnChoice, IN_INSPECTOR, cell_selector};
 use super::{Columns, VALUE_MIN, WATCH_SLOT, blanks, line, value_cell};
 
 /// What stands on the label column at the start of a line of controls.
@@ -154,7 +154,7 @@ pub fn control_line(
     let label = label.into();
     let column = columns.column(&label);
     let (across, down) = components::GHOST_INSET;
-    let value = value_cell(column.as_ref())
+    let value = value_cell(column.as_ref(), &label)
         .child(div().flex().mr(px(-across)).my(px(-down)).child(control));
     line(
         key,
@@ -166,6 +166,36 @@ pub fn control_line(
     )
     .px(px(Theme::SPACE_XS))
     .py(px(Theme::SPACE_XS))
+}
+
+/// A row that prints a fact of the clip: the label, and `value` where a number
+/// row's value stands, in tabular figures. In the free columns, a value too
+/// wide for its label's line moves under the label and wraps at the row's
+/// width.
+pub fn fact_row(
+    theme: &Theme,
+    label: impl Into<SharedString>,
+    value: impl Into<SharedString>,
+    columns: Columns,
+) -> gpui::Div {
+    let label = label.into();
+    let column = columns.column(&label);
+    let value = value_cell(column.as_ref(), &label).max_w_full().child(
+        div()
+            .text_size(Theme::TEXT_UI)
+            .text_color(theme.text)
+            .font_features(crate::theme::tabular_figures())
+            .child(value.into()),
+    );
+    line(
+        motion::MotionKey::new("insp.fact", &label),
+        label,
+        column.as_ref(),
+        blanks(columns),
+        theme.text_muted,
+        value,
+    )
+    .px(px(Theme::SPACE_XS))
 }
 
 /// A ghost button that files one edit: a press runs `file` on the state, and
@@ -275,11 +305,11 @@ pub fn chip_row(
     let column = columns.column(&label);
     #[cfg(test)]
     let (row, shown, mut marks) = (
-        label_selector(column.as_ref(), &label),
+        cell_selector(column.as_ref(), &label, "label"),
         current.clone(),
         Vec::new(),
     );
-    let value = value_cell(column.as_ref()).child(
+    let value = value_cell(column.as_ref(), &label).child(
         div()
             .id(key.element_id("insp-current"))
             .max_w(px(VALUE_MIN))

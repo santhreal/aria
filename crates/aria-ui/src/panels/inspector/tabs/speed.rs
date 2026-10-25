@@ -31,7 +31,7 @@ use crate::types::UiClip;
 use gpui::prelude::FluentBuilder;
 
 use crate::panels::inspector::blocks::widgets::{
-    Chip, Columns, Readout, chip_row, label_note, pick_button, unkeyed_row,
+    Chip, Columns, Readout, chip_row, label_note, pick_button, under_labels, unkeyed_row,
 };
 
 use crate::components::section_label;
@@ -145,7 +145,10 @@ pub fn speed_block(
             current,
             chips,
         ))
-        .child(graph(theme, &curve, dragging, &state, cx))
+        .child(under_labels(
+            Columns::Free,
+            [graph(theme, &curve, dragging, &state, cx).into_any_element()],
+        ))
         .when_some(length, |el, ticks| {
             el.child(label_note(
                 Columns::Free,
@@ -227,6 +230,7 @@ fn graph(
 
     div()
         .id("speed-graph")
+        .debug_selector(|| "speed-graph".into())
         .relative()
         .h(px(GRAPH_HEIGHT))
         .w_full()

@@ -285,7 +285,7 @@ pub fn swatch_row(
     // for its value, so its time area starts and ends where theirs do.
     let column = keys.column(&label);
     let keyed = column.is_some();
-    let name = value_cell(column.as_ref())
+    let name = value_cell(column.as_ref(), &label)
         .text_size(Theme::TEXT_UI)
         .text_color(theme.text_faint)
         .child(value.map_or(SharedString::new_static(MIXED), color_name));

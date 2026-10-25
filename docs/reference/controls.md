@@ -132,13 +132,13 @@ The Inspector panel (`crates/aria-ui/src/panels/inspector/**/*.rs`) renders para
 | `inspector-fx-up` (per row) | Move earlier | Moves the effect one slot earlier in the clip's evaluation order. | None |
 | `inspector-parent-whip` | Parent pick whip | Attaches the transform parenting pick whip tooltip and arms clip parenting on click or drag. | None |
 | `inspector-pitch` | On / Off | Toggles pitch preservation when the selected clip plays at a non-unit speed. | None |
-| `inspector-replace-media` | Media name | Opens a file picker to replace the source media of a template slot clip. | None |
+| `inspector-replace-media` | Media name | Repoints the selected clip at the pooled media and keeps its placement, transform, and effects; drawn under Replace media in the Info tab. | None |
 | `inspector-reset` | Reset transform | Resets position, scale, rotation, anchor, and opacity on the selected clip. | None |
 | `inspector-reverse` | On / Off | Toggles reverse playback on the selected clip. | None |
 | `inspector-slot-hint` | Edit hint… | Opens the prompt to edit the placeholder instruction text for a template slot. | None |
 | `inspector-slot-hint-clear` | Clear hint | Clears the placeholder instruction text from a template slot. | None |
 | `inspector-slot-toggle` | Mark as template slot / Clear template slot | Marks the selected clip as a replaceable template slot or removes its slot designation. | None |
-| `inspector-text-editable` | Text editable in template | Toggles whether a title clip's text remains editable when packaged as a template. | None |
+| `inspector-text-editable` | On / Off | Toggles whether a title clip's text remains editable when packaged as a template; drawn on the Info tab's Text editable in template line. | None |
 | `look-choice` (per row) | Look name | Applies a bundled creative look grade to the selected clip. | None |
 | `look-clear` | Clear | Clears the applied creative look from the selected clip. | None |
 | `lut-clear` | Remove LUT | Removes the loaded 3D `.cube` LUT from the selected clip. | None |

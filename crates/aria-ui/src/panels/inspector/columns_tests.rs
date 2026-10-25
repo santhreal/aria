@@ -26,8 +26,8 @@
 //! Reset grade, Remove key, Clear styles, the blend modes, the key colors and
 //! the matte sources each drew a line as wide as the block, starting left of
 //! every label. Every ghost button built while the Inspector's body is built
-//! is recorded, so a button added to a held tab, or to the Speed tab, is held
-//! to the width of its label and padding without being listed here.
+//! is recorded, so a button added to a held tab is held to the width of its
+//! label and padding without being listed here.
 //!
 //! Also closes the class "an Inspector button off the columns". A switch's On
 //! or Off ended a ghost inset short of the numbers above it and stood its row
@@ -40,12 +40,19 @@
 //! it, where no line's first button stands, and every line's value is no
 //! taller than a number's.
 //!
-//! Not covered: a row drawn without the row widgets, the tabs in [`NOT_HELD`]
-//! other than Speed's buttons, a picker drawn outside a choice row, a line
-//! whose label another line in the keyed columns shares, of which the last
-//! drawn is read, a control not built with `components::ghost_button`, such as
-//! a chip, and a button only drawn after a press, such as a list a button
-//! opens.
+//! Also closes the class "a tab in free columns of its own". The Info tab's
+//! facts stood at the block's edges, and its template buttons a ghost inset
+//! right of the label column, while the free rows' labels and values stood a
+//! row's padding inside them; the Speed tab's graph spanned the block. On the
+//! tabs in [`FREE`], every line's label starts where the reference line's
+//! does, every line's value ends where its value ends, the graph spans the
+//! two, and every button stands its label on that label column.
+//!
+//! Not covered: a row drawn without the row widgets, the tabs in [`NOT_HELD`],
+//! a picker drawn outside a choice row, a line whose label another line in the
+//! same columns shares, of which the last drawn is read, a control not built
+//! with `components::ghost_button`, such as a chip, a note's text, and a button
+//! only drawn after a press, such as a list a button opens.
 
 use aria_models::{
     AudioInsertTarget, AudioRole, ClipParam, EffectChoiceOption, EffectCurvePoint,
@@ -61,6 +68,7 @@ use super::strip_tests::{drawn_with, middle, narrow_the_inspector};
 use crate::app::AppState;
 use crate::app::clip_keys::PIECEWISE_PRESETS;
 use crate::app::clip_speed::speed_presets;
+use crate::app::clip_template::SLOT_MEDIA;
 use crate::components::{GHOST_INSET, drawn_ghosts};
 use crate::surfaces::clip_pick::{self, Pick as ClipPick};
 use crate::surfaces::inspector_pick::{self, KEY_COLORS, Pick};
@@ -73,19 +81,14 @@ const EPS: f32 = 0.51;
 /// The id of the effect and of the transition with a slot of every kind.
 const EVERY_KIND: &str = "test.ui.every_kind";
 
-/// The tabs held to the columns here.
+/// The tabs held to the keyed rows' columns here.
 const HELD: [&str; 4] = ["transform", "look", "effects", "audio"];
 
-/// The tabs not held to the columns, and why.
-const NOT_HELD: [(&str, &str); 4] = [
-    (
-        "speed",
-        "its rows draw no time area and stand in free columns",
-    ),
-    (
-        "info",
-        "its rows draw no time area and stand in free columns",
-    ),
+/// The tabs whose rows draw no time area, held to free columns here.
+const FREE: [&str; 2] = ["speed", "info"];
+
+/// The tabs not held to any columns, and why.
+const NOT_HELD: [(&str, &str); 2] = [
     ("text", "not drawn here: it needs a title clip"),
     ("shape", "not drawn here: it needs a shape clip"),
 ];
@@ -430,6 +433,101 @@ fn every_line_stands_in_the_columns(
     )
 }
 
+/// Draw the shell with the fixture `media` selected and the Inspector on
+/// `tab`, whose rows draw no time area, after `then` edits the state, then
+/// narrow the Inspector a step at a time. Every line drawn into the Inspector
+/// stands in free columns, and at every step its label starts where the label
+/// of the line labelled `reference` starts and its value ends where that
+/// line's value ends. Every one of `boxes` spans the two, every button stands
+/// its label on those columns, and every step draws one or more of them.
+/// Every choice row drawn marks the choice it shows, and every button drawn
+/// before the walk is as wide as its label. Returns the debug selectors of
+/// the lines' labels, the choice rows, and the labels of the buttons held.
+fn every_line_stands_in_the_free_columns(
+    cx: &mut TestAppContext,
+    (media, tab): (&str, &str),
+    (reference, boxes): (&str, &[&'static str]),
+    then: impl FnOnce(&mut AppState),
+) -> (Vec<String>, Vec<DrawnChoice>, Vec<SharedString>) {
+    record_lines();
+    let (state, visual) = drawn_with(cx, &format!("columns-{tab}"), media, tab, then);
+    let (lines, choices) = (drawn_lines(), drawn_choices());
+    every_choice_marks_what_it_shows(tab, &choices);
+    let ghosts = recorded_ghosts();
+    let held = every_button_hugs_its_label(visual, tab, &ghosts);
+    let keyed: Vec<&str> = lines
+        .iter()
+        .filter(|(_, keyed)| *keyed)
+        .map(|(label, _)| label.as_str())
+        .collect();
+    assert!(
+        keyed.is_empty(),
+        "{tab}: lines drawn in the keyed rows' columns: {keyed:?}"
+    );
+    let leak = |text: String| -> &'static str { text.leak() };
+    let cells: Vec<(&'static str, &'static str)> = lines
+        .iter()
+        .map(|(label, _)| {
+            (
+                leak(label.clone()),
+                leak(label.replacen("insp-label-", "insp-value-", 1)),
+            )
+        })
+        .collect();
+    let (label_of, value_of) = (
+        leak(format!("insp-label-free-{reference}")),
+        leak(format!("insp-value-free-{reference}")),
+    );
+    assert!(
+        cells.contains(&(label_of, value_of)),
+        "{tab}: no line of {reference} among {lines:?}"
+    );
+    let mut step = 0;
+    narrow_the_inspector(&state, visual, |visual, _| {
+        step += 1;
+        let at = format!("{tab}, step {step}");
+        let (label, value) = (drawn(visual, label_of, &at), drawn(visual, value_of, &at));
+        let mut rows = Vec::with_capacity(cells.len());
+        for &(row_label, row_value) in &cells {
+            let (row, cell) = (drawn(visual, row_label, &at), drawn(visual, row_value, &at));
+            let context = format!(
+                "{at}: {row_label} at {row:?}, its value at {cell:?}, beside {reference}'s label at {label:?} and value at {value:?}"
+            );
+            assert!(
+                near(row.left(), label.left()),
+                "{context}: the label is off the label column"
+            );
+            assert!(
+                near(cell.right(), value.right()),
+                "{context}: the value does not end where the values end"
+            );
+            rows.push(row);
+        }
+        for &selector in boxes {
+            let spans = drawn(visual, selector, &at);
+            assert!(
+                near(spans.left(), label.left()) && near(spans.right(), value.right()),
+                "{at}: {selector} spans {spans:?}, not the labels' start at {:?} to the values' end at {:?}",
+                label.left(),
+                value.right()
+            );
+        }
+        let found = every_ghost_stands_on_the_columns(visual, &at, &ghosts, &rows, (label, value));
+        assert!(
+            found > 0,
+            "{at}: the Inspector draws none of the {} buttons recorded before the walk",
+            ghosts.len()
+        );
+        false
+    });
+    assert!(step > 0, "{tab}: the walk drew no step");
+    (
+        lines.into_iter().map(|(label, _)| label).collect(),
+        choices,
+        held,
+    )
+}
+
 #[test]
 fn a_choice_in_force_is_marked_and_no_other() {
     assert_eq!(&*picked("Best", true), "• Best");
@@ -445,6 +543,7 @@ fn every_tab_is_held_to_the_columns_or_named_as_not() {
         .collect();
     let mut placed: Vec<&str> = HELD
         .into_iter()
+        .chain(FREE)
         .chain(NOT_HELD.into_iter().map(|(tab, _)| tab))
         .collect();
     placed.sort_unstable();
@@ -633,19 +732,23 @@ async fn every_effects_line_stands_in_the_columns(cx: &mut TestAppContext) {
     });
 }
 
-/// The Speed tab's rows stand in free columns, so only its buttons are held:
-/// each ramp preset and Clear ramp, drawn over a clip with a ramp.
+/// Drawn over a clip with a ramp, so its points, its length and Clear ramp
+/// draw.
 #[gpui::test]
-async fn every_speed_button_hugs_its_label(cx: &mut TestAppContext) {
+async fn every_speed_line_stands_in_the_free_columns(cx: &mut TestAppContext) {
     let preset = speed_presets()
         .first()
         .expect("the model ships a speed preset");
-    record_lines();
-    let (_, visual) = drawn_with(cx, "columns-speed", "texture.png", "speed", |state| {
-        clip_pick::apply(state, ClipPick::SpeedPreset(preset.id.to_string()))
-            .expect("ramp the clip");
-    });
-    let held = every_button_hugs_its_label(visual, "speed", &recorded_ghosts());
+    let (_, choices, held) = every_line_stands_in_the_free_columns(
+        cx,
+        ("texture.png", "speed"),
+        ("Ramp", &["speed-graph"]),
+        |state| {
+            clip_pick::apply(state, ClipPick::SpeedPreset(preset.id.to_string()))
+                .expect("ramp the clip");
+        },
+    );
+    shows_and_marks("speed", &choices, "insp-label-free-Ramp", &preset.label);
     let mut wanted: Vec<SharedString> = speed_presets()
         .iter()
         .map(|spec| picked(spec.label.clone(), spec.id == preset.id))
@@ -653,4 +756,64 @@ async fn every_speed_button_hugs_its_label(cx: &mut TestAppContext) {
     wanted.push("Clear ramp".into());
     let wanted: Vec<&str> = wanted.iter().map(|label| &**label).collect();
     holds("speed", &held, &wanted);
+}
+
+/// Drawn over a picture marked as a template slot with a hint, whose file is
+/// gone, beside a second picture to replace it with, so every fact and button
+/// of the tab draws.
+#[gpui::test]
+async fn every_info_line_stands_in_the_free_columns(cx: &mut TestAppContext) {
+    let staged = crate::scratch_pool::scratch("columns-info-media").join("gone.png");
+    std::fs::copy(crate::app::fixtures::asset("texture.png"), &staged)
+        .expect("stage a picture that can be lost");
+    let media = staged.to_str().expect("a UTF-8 scratch path").to_owned();
+    let other = "fixture-640x360-24fps-3s";
+    let (lines, choices, held) = every_line_stands_in_the_free_columns(
+        cx,
+        (media.as_str(), "info"),
+        ("Name", &[]),
+        |state| {
+            std::fs::remove_file(&staged).expect("lose the picture");
+            crate::projection::invalidate_media_statuses();
+            state
+                .import_media(crate::app::fixtures::asset(&format!("{other}.mp4")))
+                .expect("a picture to replace with, and the edit that rebuilds the pool");
+            clip_pick::apply(state, ClipPick::ToggleReplaceable).expect("mark the slot");
+            state
+                .set_selected_slot_label("Logo here")
+                .expect("hint the slot");
+            state.sync_from_engine();
+            assert!(
+                state.store.media.iter().any(|item| item.missing),
+                "the pool still draws the lost picture as online, so Relink is not drawn"
+            );
+        },
+    );
+    for fact in ["Name", "Kind", "In", "Out", "Media", "Fill order", "Hint"] {
+        assert!(
+            lines
+                .iter()
+                .any(|line| *line == format!("insp-label-free-{fact}")),
+            "info: {fact} drew no line: {lines:?}"
+        );
+    }
+    // A new slot on a picture accepts the first restriction offered.
+    let (_, accepts) = SLOT_MEDIA[0];
+    shows_and_marks("info", &choices, "insp-label-free-Accepts", accepts);
+    assert!(
+        held.iter().any(|label| label.starts_with(other)),
+        "info: no button replaces the media with {other} among {held:?}"
+    );
+    let marked = picked(accepts, true);
+    holds(
+        "info",
+        &held,
+        &[
+            "Relink",
+            "Clear template slot",
+            &*marked,
+            "Edit hint…",
+            "Clear hint",
+        ],
+    );
 }

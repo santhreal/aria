@@ -8,11 +8,11 @@ The Info tab holds the template block.
   repoints the clip at it and keeps the placement, transform, and effects. The
   source window keeps its length where the new media is long enough.
 - **Mark as template slot** makes the clip fillable when the project is used as
-  a template. Fill order steps, the media restriction is a chip row, and
-  **Edit hint…** types the placeholder text. The timeline paints a slot badge on
-  a marked clip.
-- On a text clip, **Text editable in template** lets the text be retyped while
-  the style and animation stay.
+  a template. **Fill order** steps, **Accepts** picks the media the slot takes,
+  **Hint** shows the placeholder text, and **Edit hint…** types it. The timeline
+  paints a slot badge on a marked clip.
+- On a text clip, **Text editable in template** set to **On** lets the text be
+  retyped while the style and animation stay.
 
 
 ## Template bundles

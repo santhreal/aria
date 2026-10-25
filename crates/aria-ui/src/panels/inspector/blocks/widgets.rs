@@ -41,8 +41,8 @@ mod keys;
 
 pub use catalog::{color_rows, param_rows, param_rows_into, swatch_row, unkeyed_row};
 pub use controls::{
-    Chip, chip_row, chips_under_labels, control_line, ghosts_under_labels, label_note, pick_button,
-    picked, switch_line, under_labels,
+    Chip, chip_row, chips_under_labels, control_line, fact_row, ghosts_under_labels, label_note,
+    pick_button, picked, switch_line, under_labels,
 };
 use keys::{Affordances, WATCH_SLOT, affordances, blanks};
 
@@ -327,12 +327,12 @@ impl Column {
     }
 }
 
-/// The debug selector of a line's label: its column's, or
-/// `insp-label-free-{label}` on a line in no column.
-fn label_selector(column: Option<&Column>, label: &SharedString) -> String {
+/// The debug selector of a line's `cell`, `label` or `value`: its column's,
+/// or `insp-{cell}-free-{label}` on a line in no column.
+fn cell_selector(column: Option<&Column>, label: &SharedString, cell: &str) -> String {
     column.map_or_else(
-        || format!("insp-label-free-{label}"),
-        |column| column.selector("label"),
+        || format!("insp-{cell}-free-{label}"),
+        |column| column.selector(cell),
     )
 }
 
@@ -479,7 +479,7 @@ pub fn stepper_row(
     // too narrow for both, a mixer strip's, moves the readout under the label
     // rather than breaking the label mid-word.
     let column = keys.column(&label);
-    let value = value_cell(column.as_ref())
+    let value = value_cell(column.as_ref(), &label)
         .id(key.element_id("insp-value"))
         .when_some(fault.clone(), |el, fault| {
             el.with_tip(crate::tooltip::text_builder(fault))
@@ -586,7 +586,7 @@ fn line(
     if IN_INSPECTOR.get() {
         LINES.with_borrow_mut(|lines| {
             if let Some(lines) = lines {
-                lines.push((label_selector(column, &label), column.is_some()));
+                lines.push((cell_selector(column, &label, "label"), column.is_some()));
             }
         });
     }
@@ -742,7 +742,7 @@ fn row_label(
 ) -> impl IntoElement {
     div()
         .id(key.element_id("insp-label"))
-        .debug_selector(|| label_selector(column, &label))
+        .debug_selector(|| cell_selector(column, &label, "label"))
         .map(|el| match column {
             Some(_) => el
                 .flex_basis(px(LABEL_RESERVE))
@@ -758,15 +758,16 @@ fn row_label(
         .child(label)
 }
 
-/// The cell a row's value is drawn in, right of the label. On a row in the
+/// The cell a row's value is drawn in, right of the `label`. On a row in the
 /// keyed rows' columns, `column` is set and the cell is the value column:
 /// `VALUE_MIN` wide, narrowing at `VALUE_YIELD`, with the value at its right
 /// edge.
-fn value_cell(column: Option<&Column>) -> gpui::Div {
-    let cell = div().ml_auto();
+fn value_cell(column: Option<&Column>, label: &SharedString) -> gpui::Div {
+    let cell = div()
+        .ml_auto()
+        .debug_selector(|| cell_selector(column, label, "value"));
     match column {
-        Some(column) => cell
-            .debug_selector(|| column.selector("value"))
+        Some(_) => cell
             .flex()
             .justify_end()
             .flex_grow_0()

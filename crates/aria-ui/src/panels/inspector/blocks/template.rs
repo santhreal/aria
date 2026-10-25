@@ -11,14 +11,16 @@ use gpui::{InteractiveElement, IntoElement, ParentElement, Styled, div, px};
 use aria_models::MediaId;
 
 use crate::app::clip_template::slot_media_label;
+use crate::components::section_label;
 use crate::surfaces::clip_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::{UiClip, UiClipKind};
 use gpui::prelude::FluentBuilder;
 
-use super::widgets::{Columns, Readout, pick_button, picked, unkeyed_row};
-
-use crate::components::section_label;
+use super::widgets::{
+    Chip, Columns, Readout, chip_row, control_line, fact_row, ghosts_under_labels, label_note,
+    pick_button, unkeyed_row,
+};
 
 pub fn template_block(
     theme: &Theme,
@@ -43,13 +45,21 @@ pub fn template_block(
         .map(|item| (item.id, item.name.clone()))
         .collect();
 
+    // One line per item, as a list reads, each label on the label column.
     let replace_rows: Vec<_> = pool
         .into_iter()
         .map(|(id, name)| {
-            pick_button("inspector-replace-media", name, theme, cx, move |state| {
-                clip_pick::apply(state, Pick::ReplaceMedia(MediaId::from_raw(id)))
-            })
-            .id(crate::motion::MotionKey::new("insp-replace", id).element_id("insp-replace"))
+            ghosts_under_labels(
+                Columns::Free,
+                [
+                    pick_button("inspector-replace-media", name, theme, cx, move |state| {
+                        clip_pick::apply(state, Pick::ReplaceMedia(MediaId::from_raw(id)))
+                    })
+                    .id(crate::motion::MotionKey::new("insp-replace", id)
+                        .element_id("insp-replace"))
+                    .into_any_element(),
+                ],
+            )
             .into_any_element()
         })
         .collect();
@@ -58,14 +68,16 @@ pub fn template_block(
         .into_iter()
         .map(|(kind, label)| {
             let selected = slot.as_ref().is_some_and(|s| s.accepts == kind);
-            pick_button(
-                ("template-accepts", label),
-                picked(label, selected),
-                theme,
-                cx,
-                move |state| clip_pick::apply(state, Pick::SlotAccepts(kind)),
-            )
-            .into_any_element()
+            Chip::choice(label, selected, |shown| {
+                pick_button(
+                    ("template-accepts", label),
+                    shown,
+                    theme,
+                    cx,
+                    move |state| clip_pick::apply(state, Pick::SlotAccepts(kind)),
+                )
+                .into_any_element()
+            })
         })
         .collect();
 
@@ -75,38 +87,36 @@ pub fn template_block(
         .gap(px(Theme::SPACE_XS))
         .child(section_label(theme, "Template"))
         .when(clip.media_id.is_some() && !replace_rows.is_empty(), |el| {
-            el.child(
-                div()
-                    .text_size(Theme::TEXT_UI)
-                    .text_color(theme.text_faint)
-                    .child("Replace media"),
-            )
-            .children(replace_rows)
+            el.child(label_note(Columns::Free, theme.text_faint, "Replace media"))
+                .children(replace_rows)
         })
-        .child(pick_button(
-            "inspector-slot-toggle",
-            if slot.is_some() {
-                "Clear template slot"
-            } else {
-                "Mark as template slot"
-            },
-            theme,
-            cx,
-            |state| clip_pick::apply(state, Pick::ToggleReplaceable),
+        .child(ghosts_under_labels(
+            Columns::Free,
+            [pick_button(
+                "inspector-slot-toggle",
+                if slot.is_some() {
+                    "Clear template slot"
+                } else {
+                    "Mark as template slot"
+                },
+                theme,
+                cx,
+                |state| clip_pick::apply(state, Pick::ToggleReplaceable),
+            )
+            .into_any_element()],
         ))
         .when_some(slot, |el, slot| {
-            el.child(
-                div()
-                    .text_size(Theme::TEXT_UI)
-                    .text_color(theme.text_faint)
-                    .child(format!(
-                        "Slot {} · {} · {}",
-                        slot.order,
-                        slot_media_label(slot.accepts),
-                        slot.label.clone().unwrap_or_else(|| "No hint".into())
-                    )),
-            )
-            .child(unkeyed_row(
+            let clear = slot.label.is_some().then(|| {
+                pick_button(
+                    "inspector-slot-hint-clear",
+                    "Clear hint",
+                    theme,
+                    cx,
+                    |state| clip_pick::apply(state, Pick::ClearSlotLabel),
+                )
+                .into_any_element()
+            });
+            el.child(unkeyed_row(
                 theme,
                 &state,
                 crate::motion::MotionKey::new("insp.row", "inspector-slot-order"),
@@ -116,38 +126,45 @@ pub fn template_block(
                 |state, by| clip_pick::apply(state, Pick::SlotOrder(by.round() as i32)),
                 cx,
             ))
-            .children(accepts_chips)
-            .child(pick_button(
-                "inspector-slot-hint",
-                "Edit hint…",
+            .child(chip_row(
                 theme,
-                cx,
-                |state| {
-                    state.begin_rename(crate::types::RenameTarget::SlotLabel);
-                    Ok(())
-                },
+                crate::motion::MotionKey::new("insp.row", "template-accepts"),
+                "Accepts",
+                Columns::Free,
+                slot_media_label(slot.accepts),
+                accepts_chips,
             ))
-            .when(slot.label.is_some(), |el| {
-                el.child(pick_button(
-                    "inspector-slot-hint-clear",
-                    "Clear hint",
-                    theme,
-                    cx,
-                    |state| clip_pick::apply(state, Pick::ClearSlotLabel),
-                ))
-            })
+            .child(fact_row(
+                theme,
+                "Hint",
+                slot.label.unwrap_or_else(|| "None".into()),
+                Columns::Free,
+            ))
+            .child(ghosts_under_labels(
+                Columns::Free,
+                std::iter::once(
+                    pick_button("inspector-slot-hint", "Edit hint…", theme, cx, |state| {
+                        state.begin_rename(crate::types::RenameTarget::SlotLabel);
+                        Ok(())
+                    })
+                    .into_any_element(),
+                )
+                .chain(clear),
+            ))
         })
         .when(clip.kind == UiClipKind::Text, |el| {
-            el.child(pick_button(
-                "inspector-text-editable",
-                if clip.text_editable {
-                    "Text editable in template: on"
-                } else {
-                    "Text editable in template: off"
-                },
+            el.child(control_line(
                 theme,
-                cx,
-                |state| clip_pick::apply(state, Pick::ToggleTextEditable),
+                crate::motion::MotionKey::new("insp.row", "inspector-text-editable"),
+                "Text editable in template",
+                Columns::Free,
+                pick_button(
+                    "inspector-text-editable",
+                    if clip.text_editable { "On" } else { "Off" },
+                    theme,
+                    cx,
+                    |state| clip_pick::apply(state, Pick::ToggleTextEditable),
+                ),
             ))
         })
 }
