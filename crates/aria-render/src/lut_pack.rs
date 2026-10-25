@@ -8,7 +8,7 @@
 //! table's content hash so a recipe change is a conscious catalog re-bake,
 //! not silent drift between shipped LUTs and in-app filters.
 
-use aria_compositor::{ColorGrade, CubeLut};
+use aria_compositor::CubeLut;
 use aria_models::filter_catalog;
 
 use crate::grade::preset_recipe;
@@ -22,29 +22,10 @@ pub const STARTER_LUT_SIZE: u32 = 33;
 /// id can never be mistaken for each other.
 const STARTER_PREFIX: &str = "aria-";
 
-/// The reference colours a look swatch is graded from: three neutrals across the
-/// range, then skin, sky, and foliage. Chosen so one strip shows what a recipe
-/// does to exposure, contrast, temperature, and saturation at once — a grey ramp
-/// alone hides every chroma move a look makes.
-pub const SWATCH_REFERENCE: [[u8; 3]; 6] = [
-    [26, 26, 28],
-    [128, 128, 130],
-    [230, 230, 232],
-    [217, 166, 133],
-    [82, 140, 217],
-    [89, 158, 82],
-];
-
-/// Rows the swatch strip is graded as. Three rather than one because
-/// [`ColorGrade::apply_image`] skips its unsharp pass on a single-row image, and
-/// sharpness is part of what a look does.
-const SWATCH_ROWS: u32 = 3;
-
 /// One starter-pack row, without its baked table.
 ///
 /// Listing the pack costs a catalog walk; baking it costs a `33³` grade per
-/// look. A picker needs the first and one of the second, so the two are separate
-/// calls rather than one that always pays for both.
+/// look, so a caller that needs the ids and labels lists without baking.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StarterLutEntry {
     /// Catalog id (`aria-<filter id>`), stable once shipped.
@@ -83,32 +64,10 @@ pub fn starter_lut_entries() -> Vec<StarterLutEntry> {
         .collect()
 }
 
-/// The row with this pack id, or `None` for an id the catalog does not name.
-pub fn starter_lut_entry(id: &str) -> Option<StarterLutEntry> {
-    starter_lut_entries().into_iter().find(|row| row.id == id)
-}
-
-/// Bake one starter LUT by pack id. A picker bakes the one table a chosen look
-/// needs instead of baking the whole pack.
-pub fn bake_starter_lut(id: &str) -> Option<StarterLut> {
-    starter_lut_entry(id).map(bake)
-}
-
 /// Bake the full starter pack: one LUT per filter-catalog recipe at full
 /// intensity (in-app intensity blending happens in the LUT pass itself).
 pub fn starter_lut_pack() -> Vec<StarterLut> {
     starter_lut_entries().into_iter().map(bake).collect()
-}
-
-/// What one look does to [`SWATCH_REFERENCE`], as one colour per reference
-/// entry — the picker's preview, without a GPU pass or a texture upload.
-///
-/// This is the CPU mirror of the grade shader ([`ColorGrade::apply_image`]), so
-/// the chip shows the same exposure, chroma, sharpen, and vignette the clip will
-/// get, rather than a hand-picked swatch colour that drifts from the recipe.
-pub fn starter_lut_swatch(id: &str) -> Option<Vec<[u8; 3]>> {
-    let grade = preset_recipe(&starter_lut_entry(id)?.filter_id)?;
-    Some(graded_reference(&grade))
 }
 
 fn bake(entry: StarterLutEntry) -> StarterLut {
@@ -118,25 +77,6 @@ fn bake(entry: StarterLutEntry) -> StarterLut {
         label: entry.label,
         cube: CubeLut::from_fn(STARTER_LUT_SIZE, |rgb| grade.apply(rgb)),
     }
-}
-
-/// Grade the reference strip and read back its middle row.
-fn graded_reference(grade: &ColorGrade) -> Vec<[u8; 3]> {
-    let width = SWATCH_REFERENCE.len() as u32;
-    let stride = (width * 4) as usize;
-    let mut rgba = Vec::with_capacity(stride * SWATCH_ROWS as usize);
-    for _ in 0..SWATCH_ROWS {
-        for colour in SWATCH_REFERENCE {
-            rgba.extend_from_slice(&[colour[0], colour[1], colour[2], 255]);
-        }
-    }
-    grade.apply_image(width, SWATCH_ROWS, &mut rgba);
-    rgba[stride..stride * 2]
-        .as_chunks::<4>()
-        .0
-        .iter()
-        .map(|px| [px[0], px[1], px[2]])
-        .collect()
 }
 
 #[cfg(test)]
@@ -166,55 +106,19 @@ mod tests {
     }
 
     /// The cheap listing and the expensive bake have to describe the same pack,
-    /// or a picker built on the listing offers a look that cannot be baked (or
-    /// hides one that ships). Both sides are enumerated; neither is written down.
+    /// or a reader of the listing names a look the pack does not write (or
+    /// misses one it writes). Both sides are enumerated; neither is written down.
     #[test]
     fn the_listing_and_the_baked_pack_name_the_same_looks() {
-        let listed: std::collections::BTreeSet<String> = starter_lut_entries()
+        let listed: Vec<(String, String)> = starter_lut_entries()
             .into_iter()
-            .map(|row| row.id)
+            .map(|row| (row.id, row.label))
             .collect();
-        let baked: std::collections::BTreeSet<String> =
-            starter_lut_pack().into_iter().map(|lut| lut.id).collect();
+        let baked: Vec<(String, String)> = starter_lut_pack()
+            .into_iter()
+            .map(|lut| (lut.id, lut.label))
+            .collect();
         assert_eq!(listed, baked);
-        for row in starter_lut_entries() {
-            let one = bake_starter_lut(&row.id).expect("a listed look bakes");
-            assert_eq!(one.id, row.id);
-            assert_eq!(one.label, row.label);
-            assert_eq!(one.cube.size(), STARTER_LUT_SIZE);
-        }
-        assert!(bake_starter_lut("aria-not-a-look").is_none());
-    }
-
-    /// A swatch is what the picker shows instead of the look's name alone, so it
-    /// has to answer for every shipped look, and wherever the recipe does
-    /// something the strip has to show it. A recipe that is neutral is allowed to
-    /// grade the reference to itself, so that case is skipped rather than pinned.
-    #[test]
-    fn every_look_has_a_swatch_that_shows_its_recipe() {
-        for row in starter_lut_entries() {
-            let swatch = starter_lut_swatch(&row.id).expect("a listed look swatches");
-            let neutral = preset_recipe(&row.filter_id)
-                .expect("a listed look has a recipe")
-                .is_identity();
-            assert_eq!(
-                swatch.len(),
-                SWATCH_REFERENCE.len(),
-                "{} swatched {} colors",
-                row.id,
-                swatch.len()
-            );
-            if neutral {
-                continue;
-            }
-            assert_ne!(
-                swatch.as_slice(),
-                SWATCH_REFERENCE.as_slice(),
-                "{} graded the reference to itself",
-                row.id
-            );
-        }
-        assert!(starter_lut_swatch("aria-not-a-look").is_none());
     }
 
     #[test]

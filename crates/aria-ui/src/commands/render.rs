@@ -1,11 +1,12 @@
-//! Palette rows for the render side: the shipped looks, a frame sequence, what
-//! the last frame cost, and re-reading a file that changed under the editor.
+//! Palette rows for the render side: the shipped LUT pack, what the last frame
+//! cost, rendering a range and deleting its files, and re-reading a file that
+//! changed under the editor.
 //!
 //! One of the tables [`super::BUILTIN_COMMANDS`] joins. Every row here
 //! closes a measured hole in `aria-render`: the capability existed, was tested,
 //! and nothing in this crate named it. The bodies are one call each, because the
-//! decision each one makes lives on `AppState` where the look picker and the
-//! export sheet reach the same verb.
+//! decision each one makes lives on `AppState` where the export sheet reaches
+//! the same verb.
 
 use super::host::CommandEntry;
 

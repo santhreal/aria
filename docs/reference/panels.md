@@ -35,9 +35,8 @@ Open the **Scopes** and **Color** panels from the keyboard and maximize the focu
 | `aria.panel.home` | Home | `Home` | `none` | `none` | `none` | `none` |
 | `aria.panel.duck` | Duck | `Inspector` | `none` | `none` | `none` | `none` |
 | `aria.panel.ai-tools` | Tools | `Inspector` | `none` | `none` | `none` | `none` |
-| `aria.panel.looks` | Looks | `Inspector` | `none` | `none` | `none` | `none` |
 
-Rows with a default frame carry a `DockSpec` and appear as dockable tabs in the workspace tree and on the **Window** menu. Rows without one render on the Home route (`aria.panel.home`) or as conditional cards inside the Inspector column when their visibility predicate holds (`duck_precheck().is_ok()`, `ai_tools::visible`, and `selected_clip().is_some()`).
+Rows with a default frame carry a `DockSpec` and appear as dockable tabs in the workspace tree and on the **Window** menu. Rows without one render on the Home route (`aria.panel.home`) or as conditional cards inside the Inspector column when their visibility predicate holds (`duck_precheck().is_ok()` and `ai_tools::visible`).
 
 ## Built-in dialogs and overlays
 

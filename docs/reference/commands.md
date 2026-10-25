@@ -153,7 +153,7 @@ Split a clip at the playhead, add a crossfade transition, and open the Audio Gai
 | `pal-media-lottie` | Import Lottie Animation… | `none` | Always enabled | Opens a file picker for `.json` and `.lottie` files, validates the first frame, and places a Lottie generator clip on the timeline at its intrinsic dimensions. |
 | `pal-mixer-open` | Mixer: Open the Mixer | `Shift+6` | Always enabled | Opens and focuses the Audio Track Mixer (`aria.panel.mixer`). |
 | `pal-mixer-add-bus` | Mixer: Add a Submix Bus | `none` | Always enabled | Appends a submix bus lane to the sequence and focuses the Audio Track Mixer. |
-| `pal-look-install` | Install Starter LUT Pack | `none` | Always enabled | Writes the shipped starter `.cube` LUT pack into `<data dir>/looks/` and refreshes the Looks picker. |
+| `pal-look-install` | Install Starter LUT Pack | `none` | Always enabled | Writes the shipped starter `.cube` LUT pack into the LUT cache (`<data dir>/luts`). |
 | `pal-render-cost` | Last Frame Cost | `none` | Always enabled | Reports the Info panel's Last frame rows (`aria_engine::frame_stages`, the whole frame, and the part that scales with size) on the status line, or that no frame has been rendered yet. |
 | `pal-render-in-to-out` | Render In to Out | `Enter` | Sequence has no clips | Renders preview cache files across the marked In/Out range (or whole sequence). |
 | `pal-render-selection` | Render Selection | `none` | No clip is selected | Renders preview cache files across the bounding span of the selected clips. |

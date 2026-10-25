@@ -24,7 +24,6 @@ pub mod install_dialog;
 pub mod jobs_dialog;
 pub mod keyframe_icon;
 pub mod keyframe_velocity_dialog;
-pub mod look_picker;
 pub mod marker_edit_dialog;
 pub mod markers;
 pub mod media_support;

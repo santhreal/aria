@@ -1,10 +1,9 @@
 //! What the render-lane surfaces have to keep true.
 //!
 //! The class closed here is the one this module exists for: a capability that
-//! ships in `aria-render`, is tested there, and reaches no operator. A picker
-//! whose list drifts from the pack, a look that stops applying, and a sequence
-//! render that quietly asks for an audio track are the same defect in three
-//! costumes.
+//! ships in `aria-render`, is tested there, and reaches no operator. A pack
+//! install that writes part of the pack and a sequence render that quietly asks
+//! for an audio track are the same defect in two costumes.
 //!
 //! Both sides of every list are enumerated at run time. Nothing below writes
 //! down how many looks ship or what they are called: the pack is the filter
@@ -24,98 +23,6 @@ use super::*;
 
 fn scratch() -> PathBuf {
     crate::scratch_pool::scratch("render_reach")
-}
-
-/// The picker's list is the pack's list. A look the pack bakes and the picker
-/// never offers is unreachable; a look the picker offers and the pack cannot
-/// bake is a row that errors on click.
-#[test]
-fn the_picker_offers_exactly_the_looks_the_pack_bakes() {
-    let (state, _) = with_clip();
-    let offered: BTreeSet<String> = state
-        .starter_looks()
-        .into_iter()
-        .map(|look| look.id)
-        .collect();
-    let baked: BTreeSet<String> = aria_render::starter_lut_pack()
-        .into_iter()
-        .map(|lut| lut.id)
-        .collect();
-    assert_eq!(offered, baked);
-    assert!(!offered.is_empty(), "the build ships no looks at all");
-}
-
-/// Every offered row carries the swatch that shows what it does, as wide as the
-/// reference it grades. A row that can only name itself is a row nobody clicks.
-#[test]
-fn every_offered_look_carries_a_full_swatch() {
-    let (state, _) = with_clip();
-    for look in state.starter_looks() {
-        assert_eq!(
-            look.swatch.len(),
-            aria_render::SWATCH_REFERENCE.len(),
-            "{} swatched {} colors",
-            look.id,
-            look.swatch.len()
-        );
-        assert!(!look.label.is_empty(), "{} has no label", look.id);
-    }
-}
-
-/// Applying a look bakes it to disk, points the clip at that file, and reads
-/// back as applied — the three halves of "this row did something".
-#[test]
-fn applying_a_look_bakes_it_and_grades_the_selection() {
-    let (mut state, _) = with_clip();
-    let first = state
-        .starter_looks()
-        .into_iter()
-        .next()
-        .expect("the build ships at least one look");
-    assert!(!first.applied, "nothing is graded before the first click");
-
-    state.apply_starter_look(&first.id);
-    assert_eq!(state.last_error, None, "the click failed");
-
-    let applied = state
-        .selected_lut()
-        .expect("the clip carries a LUT after the click");
-    let file = format!("{}.cube", first.id);
-    assert!(
-        applied.path.ends_with(&file),
-        "the clip points at {} instead of {file}",
-        applied.path
-    );
-    assert!(
-        Path::new(&*applied.path).exists(),
-        "{} was never written",
-        applied.path
-    );
-
-    let marked: Vec<String> = state
-        .starter_looks()
-        .into_iter()
-        .filter(|look| look.applied)
-        .map(|look| look.id)
-        .collect();
-    assert_eq!(marked, vec![first.id]);
-}
-
-/// A look applied off a selection would bake a table nothing carries, so the
-/// row declines by name instead of grading nothing in silence.
-#[test]
-fn a_look_needs_a_selection() {
-    let (mut state, _) = with_clip();
-    let first = state.starter_looks().into_iter().next().expect("a look");
-    state.selection.clear();
-
-    state.apply_starter_look(&first.id);
-
-    assert_eq!(state.selected_lut(), None);
-    assert_eq!(
-        state.status_message.as_deref(),
-        Some(crate::app::decline::Decline::NoSelection.reason())
-    );
 }
 
 /// Installing the pack writes one file per shipped look into the registered LUT

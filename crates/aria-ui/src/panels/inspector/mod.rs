@@ -48,8 +48,8 @@ pub fn render(
         )
     };
 
-    // The stacked sub panels (look picker, reports) scroll with the body, so a
-    // short frame reaches them.
+    // The stacked sub panels (the duck tuner, the assistant's tools) scroll with
+    // the body, so a short frame reaches them.
     let subs: Vec<AnyElement> = {
         let read = state.read(cx);
         crate::plugins::panel_host::host_of(&read.ctx)

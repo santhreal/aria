@@ -73,7 +73,7 @@ Chroma `(R, G, B)` inputs are 2x2 box-averaged (`(p00 + p01 + p10 + p11) >> 2`) 
 
 ## Starter LUT pack (`StarterLutEntry` and `StarterLut`)
 
-`crates/aria-render/src/lut_pack.rs` generates a 3D `.cube` LUT (`STARTER_LUT_SIZE = 33`, `33^3 = 35937` lattice points over the unit domain) for every preset in `filter_catalog()` via `ColorGrade::apply`. `starter_lut_swatch(id)` grades the 6-patch `SWATCH_REFERENCE` strip (`[26, 26, 28]`, `[128, 128, 130]`, `[230, 230, 232]`, `[217, 166, 133]`, `[82, 140, 217]`, `[89, 158, 82]`) across a 3-row buffer so the unsharp pass participates in the preview swatch.
+`crates/aria-render/src/lut_pack.rs` generates a 3D `.cube` LUT (`STARTER_LUT_SIZE = 33`, `33^3 = 35937` lattice points over the unit domain) for every preset in `filter_catalog()` via `ColorGrade::apply`. **Install Starter LUT Pack** (`pal-look-install`) writes the pack into the LUT cache (`<data dir>/luts`). The same presets apply as filters from the Look tab's **Filter** row.
 
 | Pack ID | Label | Filter ID | Cube Grid Size |
 | --- | --- | --- | --- |

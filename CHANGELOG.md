@@ -1411,6 +1411,7 @@ Notes for the latest release. For previous releases, see the
 - A choice row shows the current choice in the value column and the choices on the line under it, with the one in force marked `•`, and the audio role chips mark the clip's role.
 - Reverse and Pitch lock read **On** or **Off** in the value column.
 - The Look tab lists its filters as chips under a **Filter** row instead of a Catalog section.
+- The Looks list stacked under every Inspector tab is removed, and the Look tab's **Filter** row applies the same looks.
 - Volume reads `+0.0 dB`, and the value column is 76 px wide, so a timecode fits in it, and narrows only once a row's name has no width left.
 - A transition's size slot reads **w** and **h**, as an effect's does.
 - Curve and gradient slots show **N pts** and **N stops** in the value column instead of in the name.

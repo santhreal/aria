@@ -64,8 +64,7 @@ pub use export_audio::{
 };
 pub use export_sound::{export_audio_config, export_audio_to_file_observed};
 pub use lut_pack::{
-    STARTER_LUT_SIZE, SWATCH_REFERENCE, StarterLut, StarterLutEntry, bake_starter_lut,
-    starter_lut_entries, starter_lut_entry, starter_lut_pack, starter_lut_swatch,
+    STARTER_LUT_SIZE, StarterLut, StarterLutEntry, starter_lut_entries, starter_lut_pack,
 };
 pub use motion_blur::attach_motion_blur_passes;
 pub use parent::{frame_of, parent_frame, reparented, world_pose};

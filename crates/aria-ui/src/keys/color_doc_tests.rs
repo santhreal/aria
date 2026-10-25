@@ -12,7 +12,7 @@
 //! Not caught: prose descriptions in the Summary column.
 
 use aria_core::{ColorPrimaries, ColorRange, ColorSpace, MatrixCoefficients, TransferFunction};
-use aria_render::{STARTER_LUT_SIZE, SWATCH_REFERENCE, starter_lut_entries};
+use aria_render::{STARTER_LUT_SIZE, starter_lut_entries};
 
 use crate::app::grade_controls::WheelControl;
 use crate::test_support::doc_tables::{heading_body, strip_ticks, table_rows};
@@ -277,13 +277,6 @@ fn color_doc_matches_registries() {
         doc_luts, expected_luts,
         "docs/reference/color.md Starter LUT pack table drifted from starter_lut_entries()"
     );
-    for patch in SWATCH_REFERENCE {
-        let token = format!("`[{}, {}, {}]`", patch[0], patch[1], patch[2]);
-        assert!(
-            lut_sec.contains(&token),
-            "color.md Starter LUT section missing SWATCH_REFERENCE patch {token}"
-        );
-    }
 
     // WheelControl::ALL.
     let wheel_sec = heading_body(COLOR_DOC, "### Grading wheels (`WheelControl`)");

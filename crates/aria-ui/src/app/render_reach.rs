@@ -5,12 +5,10 @@
 //!
 //! - **The starter LUT pack.** `aria_render::starter_lut_pack` bakes one `.cube`
 //!   per filter-catalog recipe, and the only thing that ever called it was the
-//!   authoring binary that uploads the pack to a CDN. In the editor a LUT could
-//!   be loaded from disk or downloaded from the cloud feed, so the ten looks the
-//!   build already contains were the one source no control could reach.
-//!   Baking one is cheap; baking ten is not, so the picker lists
-//!   `starter_lut_entries` and bakes the chosen row on demand, writing it into
-//!   the registered LUT cache so a second use is a file read.
+//!   authoring binary that uploads the pack to a CDN. The recipes themselves
+//!   are the Look tab's Filter row; the baked tables are what the LUT field
+//!   loads and what another grading tool reads, so Install Starter LUT Pack
+//!   writes them into the registered LUT cache.
 //!
 //! - **Rendering a frame sequence.** `PngSequenceEncoder` is the codec-free
 //!   sink: it turns the same export pass into numbered PNGs on any platform,
@@ -38,19 +36,6 @@ use aria_storage::CacheId;
 
 use super::picker::{Ask, FileSpec};
 use super::{AppState, DialogKind};
-
-/// One shipped look, as the picker draws it.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UiLook {
-    /// Pack id (`aria-<filter id>`), the identity a row is applied by.
-    pub id: String,
-    pub label: String,
-    /// What the recipe does to `aria_render::SWATCH_REFERENCE`: one colour per
-    /// reference entry, so the row shows the look rather than only naming it.
-    pub swatch: Vec<[u8; 3]>,
-    /// Whether the selection is currently graded through this look's table.
-    pub applied: bool,
-}
 
 /// The `.cube` file name a baked look is cached under.
 fn look_file_name(id: &str) -> String {
@@ -95,70 +80,10 @@ impl AppState {
         )
     }
 
-    /// Every look the build ships, in catalog order.
-    ///
-    /// The list is `aria_render::starter_lut_entries`, which is the filter
-    /// catalog: a preset added to `filters.toml` appears here with no edit, and
-    /// this surface holds no copy of the list. Listing costs a catalog walk and
-    /// a six-pixel grade per row; baking a table is deferred to the click.
-    pub fn starter_looks(&self) -> Vec<UiLook> {
-        let applied = self.selected_lut().map(|lut| lut.path);
-        aria_render::starter_lut_entries()
-            .into_iter()
-            .map(|row| {
-                let file = look_file_name(&row.id);
-                UiLook {
-                    applied: applied.as_ref().is_some_and(|path| path.ends_with(&file)),
-                    swatch: aria_render::starter_lut_swatch(&row.id).unwrap_or_default(),
-                    id: row.id,
-                    label: row.label,
-                }
-            })
-            .collect()
-    }
-
-    /// Bake `id` if it is not cached yet, and report where it is.
-    fn ensure_starter_look(&self, id: &str) -> Result<PathBuf, String> {
-        let path = self.starter_look_path(id).ok_or_else(|| {
-            "The LUT cache lives in memory, so a baked look has nowhere to be written.".to_string()
-        })?;
-        if path.exists() {
-            return Ok(path);
-        }
-        let lut = aria_render::bake_starter_lut(id)
-            .ok_or_else(|| format!("{id} is not a look this build ships."))?;
-        write_look(&path, &lut)?;
-        Ok(path)
-    }
-
-    /// Grade the selection through one shipped look.
-    pub fn apply_starter_look(&mut self, id: &str) {
-        if self.selected_clip_or_decline().is_none() {
-            return;
-        }
-        let path = match self.ensure_starter_look(id) {
-            Ok(path) => path,
-            Err(err) => {
-                self.report_error(err);
-                return;
-            }
-        };
-        let label = aria_render::starter_lut_entry(id)
-            .map(|row| row.label)
-            .unwrap_or_else(|| id.to_string());
-        if let Err(err) = self.set_selected_lut(path.to_string_lossy().to_string()) {
-            self.report_error(&err);
-            return;
-        }
-        self.status_message = Some(format!("Applied {label}"));
-    }
-
     /// Bake every shipped look into the LUT cache at once.
     ///
-    /// Worth its own action because the pack is also usable from outside the
-    /// picker — a `.cube` on disk is what a colourist hands to another tool —
-    /// and because baking ten tables on the click that applies one would make
-    /// the picker feel broken.
+    /// A `.cube` on disk is what the LUT field loads and what a colourist hands
+    /// to another tool.
     pub fn install_starter_looks(&mut self) {
         let mut written = 0usize;
         for lut in aria_render::starter_lut_pack() {

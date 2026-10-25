@@ -20,10 +20,10 @@ use crate::keys::bindings::SHIPPED_BINDINGS;
 use crate::panels::{
     about_dialog, ai_panel, ai_tools, align_panel, audio_gain_dialog, audio_meters, color_panel,
     context_menu, duck, effects_browser, export_dialog, history_panel, home, info_panel, inspector,
-    install_dialog, jobs_dialog, keyframe_velocity_dialog, look_picker, marker_edit_dialog,
-    markers, media_support, mixer, palette, preview, project_report, remove_attributes_dialog,
-    rename_bar, settings_dialog, sidebar, speed_duration_dialog, text_panel, timeline,
-    timeline_report, unsaved_dialog,
+    install_dialog, jobs_dialog, keyframe_velocity_dialog, marker_edit_dialog, markers,
+    media_support, mixer, palette, preview, project_report, remove_attributes_dialog, rename_bar,
+    settings_dialog, sidebar, speed_duration_dialog, text_panel, timeline, timeline_report,
+    unsaved_dialog,
 };
 use crate::plugins::overlay_host::{OverlayEntry, OverlayHost, OverlayRender, OverlayWhen};
 use crate::plugins::panel_host::{
@@ -279,14 +279,6 @@ const BUILTIN_PANELS: &[(
         ai_tools::visible,
         None,
     ),
-    (
-        "aria.panel.looks",
-        "Looks",
-        PanelLocation::Inspector,
-        draw_look_picker,
-        |state| state.selected_clip().is_some(),
-        None,
-    ),
 ];
 
 /// The shipped dialogs and overlays, one entry per thing the shell used to name
@@ -524,10 +516,6 @@ fn draw_effects_browser(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>)
 
 fn draw_ai_tools(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {
     ai_tools::render(state, cx).into_any_element()
-}
-
-fn draw_look_picker(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {
-    look_picker::render(state, cx).into_any_element()
 }
 
 fn draw_media_support(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {
@@ -837,6 +825,36 @@ mod tests {
         assert!(
             !crate::panels::ai_tools::visible(&state),
             "ai tools must be hidden when ActivePanel is not Ai"
+        );
+    }
+
+    /// A card stacked in the Inspector column stands under whichever tab the
+    /// selected clip shows, so a card drawn for any selected clip repeats under
+    /// Transform, Speed, and Info alike. Every stacked card is drawn on a
+    /// condition beyond the selection: a selected clip with no duck source and
+    /// no open assistant stacks none.
+    #[test]
+    fn a_selected_clip_alone_stacks_no_card_under_the_inspector() {
+        let ctx = PluginContext::new();
+        ctx.mount(&UiPlugin).expect("mount UI plugin");
+        let host = crate::plugins::panel_host::host_of(&ctx).expect("panel host");
+        let (mut state, _) = crate::app::premiere_tests::with_clip();
+        state.active_panel = ActivePanel::Inspector;
+        assert!(
+            state.selected_clip().is_some(),
+            "the fixture selects its clip"
+        );
+
+        let stacked: Vec<&str> = host
+            .cached_at(PanelLocation::Inspector)
+            .iter()
+            .filter(|entry| entry.dock.is_none() && (entry.visible)(&state))
+            .map(|entry| entry.id)
+            .collect();
+        assert_eq!(
+            host.sub_entries_at(PanelLocation::Inspector, &state).len(),
+            0,
+            "a selected clip alone stacks {stacked:?} under the Inspector tabs"
         );
     }
 }
