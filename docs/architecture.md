@@ -168,7 +168,10 @@ a decoder posted (`gst.cuda.context` for NVDEC, a VA display for VA-API), so the
 device opens once per process. The preview worker starts
 `aria_decoder::warm_up` when it starts: where `cudaupload` exists, a one-buffer
 pipeline opens the CUDA device on its own thread and keeps its context. A
-decoder opened during the warm-up waits for it.
+decoder opened during the warm-up waits for it. A process that ends through
+`exit` stops the warm-up at its next step and waits up to 15 s for the step in
+progress, so no plugin loads while the C library runs library destructors; the
+editor, `aria` and `aria-bench` end through `_exit` and do not wait.
 
 The warm-up loads each device element's plugin before it opens the device. A
 plugin that fails to load (a CUDA plugin registered while a working driver was

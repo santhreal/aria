@@ -9,9 +9,7 @@
 //! with its code, and with its unterminated stdout line delivered. It does not
 //! exercise `libnvcuvid` itself; the Desktop `playback` bench does.
 
-use std::io::Read;
-use std::process::{Command, Stdio};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 /// The exit code the child ends with.
 const CODE: u8 = 37;
@@ -44,54 +42,23 @@ fn exit_child() {
 
 #[test]
 fn exit_process_runs_no_exit_handler() {
-    let exe = std::env::current_exe().expect("the test binary has a path");
-    let started = Instant::now();
-    let mut child = Command::new(exe)
-        .args([
-            "--exact",
-            "exit::tests::exit_child",
-            "--include-ignored",
-            "--nocapture",
-            "--test-threads=1",
-        ])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("the test binary starts again as the child");
-    let status = loop {
-        if let Some(status) = child.try_wait().expect("the child can be polled") {
-            break Some(status);
-        }
-        if started.elapsed() > BOUND {
-            let _ = child.kill();
-            let _ = child.wait();
-            break None;
-        }
-        std::thread::sleep(Duration::from_millis(20));
-    };
-    let mut stdout = String::new();
-    let mut stderr = String::new();
-    if let Some(mut pipe) = child.stdout.take() {
-        pipe.read_to_string(&mut stdout)
-            .expect("child stdout reads");
-    }
-    if let Some(mut pipe) = child.stderr.take() {
-        pipe.read_to_string(&mut stderr)
-            .expect("child stderr reads");
-    }
-    let status = status.unwrap_or_else(|| {
+    let ran = crate::test_child::run("exit::tests::exit_child", BOUND);
+    let status = ran.status.unwrap_or_else(|| {
         panic!(
-            "the child ran an exit handler and did not end within {BOUND:?}\nstdout:\n{stdout}\nstderr:\n{stderr}"
+            "the child ran an exit handler and did not end within {BOUND:?}\n{}",
+            ran.transcript()
         )
     });
     assert_eq!(
         status.code(),
         Some(i32::from(CODE)),
-        "the child ended with another status\nstdout:\n{stdout}\nstderr:\n{stderr}"
+        "the child ended with another status\n{}",
+        ran.transcript()
     );
     assert!(
-        stdout.contains(UNFLUSHED),
-        "the unterminated stdout line was lost at exit\nstdout:\n{stdout}\nstderr:\n{stderr}"
+        ran.stdout.contains(UNFLUSHED),
+        "the unterminated stdout line was lost at exit\n{}",
+        ran.transcript()
     );
-    assert!(started.elapsed() < BOUND);
+    assert!(ran.took < BOUND);
 }

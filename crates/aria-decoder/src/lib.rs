@@ -105,6 +105,8 @@ pub use gst_audio::GstAudioReader;
 
 mod exit;
 pub use exit::exit_process;
+#[cfg(all(test, target_os = "linux"))]
+mod test_child;
 
 /// Shared `frame_at` roll-forward policy used by every backend. Built on every
 /// platform because [`AheadDecoder`] reads its frame matching; its roll-forward

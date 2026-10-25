@@ -14,8 +14,14 @@
 //! first `nvh264dec` open takes about 1.7 s cold and 50 to 65 ms after the
 //! warm-up. A decoder open waits for a warm-up still running rather than
 //! opening a second device beside it.
+//!
+//! A process that ends through `exit` stops the warm-up at its next step and
+//! waits for the step in progress, so no plugin loads while the C library
+//! runs the destructors of the process's libraries.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Condvar, Mutex, PoisonError};
+use std::time::Duration;
 
 use gstreamer as gst;
 use gstreamer::prelude::*;
@@ -95,8 +101,16 @@ const DEVICES: &[(&str, &str)] = &[(
     "videotestsrc num-buffers=1 ! cudaupload ! fakesink",
 )];
 
+/// How long one device warm-up may take before it is abandoned, in seconds.
+const DEVICE_WAIT_SECS: u64 = 10;
+
 /// How long one device warm-up may take before it is abandoned.
-const DEVICE_WAIT: gst::ClockTime = gst::ClockTime::from_seconds(10);
+const DEVICE_WAIT: gst::ClockTime = gst::ClockTime::from_seconds(DEVICE_WAIT_SECS);
+
+/// How long a process ending through `exit` waits for a started [`Once`] job
+/// to finish the step it is in: longer than the slowest warm-up step, one
+/// device held for [`DEVICE_WAIT`].
+const EXIT_WAIT: Duration = Duration::from_secs(DEVICE_WAIT_SECS + 5);
 
 /// Where a [`Once`] job is.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -107,10 +121,21 @@ pub(crate) enum Stage {
 }
 
 /// A job that runs at most once per process, on a thread of its own, and can
-/// be waited for.
+/// be waited for or stopped.
+///
+/// A started job is stopped when the process ends through `exit`, the path a
+/// return from `main` and every test binary take: an exit handler calls
+/// [`Once::stop`] with [`EXIT_WAIT`] before the C library runs the
+/// destructors of the process's libraries. The job checks
+/// [`Once::stopping`] between its steps. A warm-up thread that loaded a
+/// GStreamer plugin during those destructors aborted the process in GObject's
+/// type registration (`cannot register existing fundamental type 'gchar'`)
+/// after its work was done. [`crate::exit_process`] ends the process through
+/// `_exit`, which runs no exit handler and does not wait.
 pub(crate) struct Once {
     stage: Mutex<Stage>,
     finished: Condvar,
+    stopping: AtomicBool,
 }
 
 impl Once {
@@ -118,19 +143,21 @@ impl Once {
         Self {
             stage: Mutex::new(Stage::Idle),
             finished: Condvar::new(),
+            stopping: AtomicBool::new(false),
         }
     }
 
-    /// Run `job` on a thread named `name` unless a job was started before.
-    /// Returns whether this call started it.
+    /// Run `job` on a thread named `name` unless a job was started or stopped
+    /// before. Returns whether this call started it.
     pub(crate) fn start(&'static self, name: &str, job: impl FnOnce() + Send + 'static) -> bool {
         {
             let mut stage = self.stage.lock().unwrap_or_else(PoisonError::into_inner);
-            if *stage != Stage::Idle {
+            if *stage != Stage::Idle || self.stopping() {
                 return false;
             }
             *stage = Stage::Running;
         }
+        stop_at_exit(self);
         let spawned = std::thread::Builder::new()
             .name(name.to_owned())
             .spawn(move || {
@@ -159,6 +186,25 @@ impl Once {
             .unwrap_or_else(PoisonError::into_inner);
     }
 
+    /// Whether [`Once::stop`] was called. The job returns at its next step
+    /// once this holds.
+    pub(crate) fn stopping(&self) -> bool {
+        self.stopping.load(Ordering::Acquire)
+    }
+
+    /// Make the job return at its next step and block until it finishes or
+    /// `bound` passes; a job not started yet never starts. Returns whether no
+    /// job runs.
+    pub(crate) fn stop(&self, bound: Duration) -> bool {
+        self.stopping.store(true, Ordering::Release);
+        let stage = self.stage.lock().unwrap_or_else(PoisonError::into_inner);
+        let (stage, _) = self
+            .finished
+            .wait_timeout_while(stage, bound, |stage| *stage == Stage::Running)
+            .unwrap_or_else(PoisonError::into_inner);
+        *stage != Stage::Running
+    }
+
     #[cfg(test)]
     pub(crate) fn stage(&self) -> Stage {
         *self.stage.lock().unwrap_or_else(PoisonError::into_inner)
@@ -171,6 +217,36 @@ struct Finish(&'static Once);
 impl Drop for Finish {
     fn drop(&mut self) {
         self.0.finish();
+    }
+}
+
+/// Every [`Once`] started in this process, in start order.
+static STARTED: Mutex<Vec<&'static Once>> = Mutex::new(Vec::new());
+
+/// Stop `job` when the process ends through `exit`.
+fn stop_at_exit(job: &'static Once) {
+    static REGISTERED: std::sync::Once = std::sync::Once::new();
+    STARTED
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .push(job);
+    REGISTERED.call_once(|| {
+        #[allow(unsafe_code)]
+        // SAFETY: registers a handler with the C exit path; `stop_started`
+        // takes no arguments, does not unwind, and reads only statics.
+        let registered = unsafe { libc::atexit(stop_started) };
+        if registered != 0 {
+            tracing::warn!("the exit handler did not register; a process exit does not wait for the device warm-up");
+        }
+    });
+}
+
+/// Stop every started [`Once`], waiting up to [`EXIT_WAIT`] for each. Runs in
+/// `exit`, before the C library runs library destructors.
+extern "C" fn stop_started() {
+    let started = std::mem::take(&mut *STARTED.lock().unwrap_or_else(PoisonError::into_inner));
+    for job in started {
+        job.stop(EXIT_WAIT);
     }
 }
 
@@ -246,6 +322,9 @@ fn warm_devices() {
     }
     let records = crate::gst_unloadable::user_records();
     for (element, launch) in DEVICES {
+        if WARM_UP.stopping() {
+            return;
+        }
         let Some(factory) = gst::ElementFactory::find(element) else {
             continue;
         };
@@ -277,8 +356,14 @@ fn warm_devices() {
             tracing::warn!(element, %cause, "the decode device warm-up failed; the first decoder opens its own device");
         }
     }
+    if WARM_UP.stopping() {
+        return;
+    }
     let _ = crate::gst_dmabuf_watch::registry_has_dmabuf_video_decoder();
     for name in CORE_DECODE_FACTORIES {
+        if WARM_UP.stopping() {
+            return;
+        }
         let _ = gst::ElementFactory::make(name).build();
     }
 }
@@ -521,3 +606,7 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "gst_context_exit_tests.rs"]
+mod exit_tests;

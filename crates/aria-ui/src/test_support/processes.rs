@@ -28,8 +28,9 @@ const SPAWN_OWNERS: &[(&str, &str)] = &[
         "benchmark harness: probes the host and drives the built editor binary, never runs under the editor",
     ),
     (
-        "crates/aria-decoder/src/exit_tests.rs",
-        "re-runs its own test binary as the child whose exit it times; starts no other program",
+        "crates/aria-decoder/src/test_child.rs",
+        "re-runs its own test binary as the child whose exit a test times; starts no other \
+         program",
     ),
     (
         "crates/aria-ui/src/test_support/catalogs.rs",
