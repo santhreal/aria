@@ -11,6 +11,7 @@
 //! - Easing selection corrupting neighbouring keyframe easings or values.
 //! - A graph that can only draw one property, while the model animates 58.
 //! - Empty or non-animated properties crashing during curve editor rendering.
+//! - A graph drawing a constant property while another holds keyframes.
 
 use aria_models::{ClipParam, Easing, clip_params_for};
 
@@ -235,7 +236,7 @@ fn a_graph_with_no_measured_frame_hit_tests_nothing() {
 
 #[test]
 fn the_graphed_property_is_chosen_and_falls_back_when_it_leaves() {
-    let (mut state, _, _) = graphed();
+    let (mut state, start, _) = graphed();
     let rows = state.key_params();
     assert!(rows.len() > 1, "a clip offers more than one property");
     let first = rows[0].param();
@@ -260,6 +261,15 @@ fn the_graphed_property_is_chosen_and_falls_back_when_it_leaves() {
         "the fixture clip unexpectedly animates a shape"
     );
     state.set_curve_param(absent);
+    assert_eq!(state.curve_param(), Some(first));
+
+    // With no reachable choice, a keyframed property is graphed before a
+    // constant one, and a reachable choice still wins over it.
+    let keyed = ClipParam::Opacity;
+    assert_ne!(keyed, first, "the fixture's first property is the opacity");
+    key(&mut state, keyed, start, 0.5);
+    assert_eq!(state.curve_param(), Some(keyed));
+    state.set_curve_param(first);
     assert_eq!(state.curve_param(), Some(first));
 }
 

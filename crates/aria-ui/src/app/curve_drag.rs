@@ -65,17 +65,21 @@ pub struct CurveDragDraft {
 
 impl AppState {
     /// The property the graph draws: the chosen one while it is still reachable
-    /// on the selection, and otherwise the first the selection offers.
+    /// on the selection, then the first that holds a keyframe, then the first
+    /// the selection offers.
     ///
-    /// Falling back rather than holding a stale choice is what keeps the block
-    /// drawn after the selection changes to a clip that has no `Opacity` — the
-    /// row list is derived per clip, so a remembered property is not always
-    /// there.
+    /// The row list is derived per clip, so a remembered property is not always
+    /// reachable after the selection changes. A keyframed property comes before
+    /// a constant one, whose curve is a flat line with no point to drag.
     pub fn curve_param(&self) -> Option<ClipParam> {
         let rows = self.key_params();
         match self.curve_param {
             Some(chosen) if rows.iter().any(|row| row.param() == chosen) => Some(chosen),
-            _ => rows.first().map(|row| row.param()),
+            _ => rows
+                .iter()
+                .find(|row| !row.marks.is_empty())
+                .or_else(|| rows.first())
+                .map(|row| row.param()),
         }
     }
 

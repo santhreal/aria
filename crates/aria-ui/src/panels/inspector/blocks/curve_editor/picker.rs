@@ -1,4 +1,4 @@
-//! Curve editor block: the property picker, the graph, and the easing row.
+//! Graph block: the property picker, the axis picker, and the graph.
 //!
 //! Nothing here holds drag state. A press, a move and a release go straight to
 //! [`crate::app::curve_drag`], which owns the draft between events and commits
@@ -6,21 +6,17 @@
 //! window pointer can be read against it.
 
 use gpui::{
-    Bounds, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, MouseMoveEvent,
-    MouseUpEvent, ParentElement, Pixels, Styled, canvas, div, point, px, size,
+    AnyElement, Bounds, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
+    MouseMoveEvent, MouseUpEvent, ParentElement, Pixels, Styled, canvas, div, point, px, size,
 };
 
 use crate::app::AppState;
-use crate::app::clip_keys::easing_presets;
 use crate::app::curve_geometry::CurvePolyline;
 use crate::app::curve_stroke::curve_columns;
-use crate::components;
-use crate::panels::inspector::blocks::widgets::{
-    Columns, chips_under_labels, ghosts_under_labels, pick_button, under_labels,
-};
-use crate::surfaces::keyframe_rows::{self, Row};
+use crate::components::{self, section_label};
+use crate::motion::MotionKey;
+use crate::panels::inspector::blocks::widgets::{Columns, chips_under_labels, under_labels};
 use crate::theme::Theme;
-use crate::types::UiClip;
 use gpui::prelude::FluentBuilder;
 
 /// Height of the curve editor canvas in the inspector.
@@ -35,14 +31,14 @@ pub const HANDLE_DOT_SIZE: f32 = 6.0;
 /// The axis labels a two-dimensional property is graphed on, in axis order.
 pub const AXIS_LABELS: [&str; 2] = ["X", "Y"];
 
-/// Renders the curve editor block for animatable properties of the selected clip.
+/// The Graph block: the curve of one keyframed property of the selected clip.
+/// `None` while no property of the selection holds a keyframe, since a
+/// constant property draws a flat line with no point to drag.
 pub fn curve_editor_block(
     theme: &Theme,
-    clip: &UiClip,
     state: &gpui::Entity<AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
-) -> impl IntoElement {
-    let _ = clip;
+) -> Option<AnyElement> {
     let (params, active_param, component, polyline, dragging) = {
         let read = state.read(cx);
         let active = read.curve_param();
@@ -57,24 +53,26 @@ pub fn curve_editor_block(
         )
     };
 
-    let Some(active_param) = active_param else {
-        return div().id("curve-editor-empty").into_any_element();
-    };
+    if params.iter().all(|row| row.marks.is_empty()) {
+        return None;
+    }
+    let active_param = active_param?;
 
-    // Every animatable property of the selection is offered, from the same rows
-    // the keyframe strip draws, so a property the model can animate is a
-    // property the graph can draw.
+    // The keyframed properties, and the graphed one when a property row chose
+    // a constant property, so the lit chip always states what the graph draws.
     let param_chips: Vec<_> = params
         .iter()
+        .filter(|row| !row.marks.is_empty() || row.param() == active_param)
         .map(|row| {
             let param = row.param();
             components::chip(
-                crate::motion::MotionKey::new("curve-param", &row.id),
+                MotionKey::new("curve-param", &row.id),
                 row.label.clone(),
                 param == active_param,
                 components::ChipSize::Compact,
                 theme,
             )
+            .debug_selector(|| format!("curve-param-{}", row.id))
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |this, _: &MouseDownEvent, _, cx| {
@@ -97,7 +95,7 @@ pub fn curve_editor_block(
             .map(|(index, label)| {
                 let axis = index as u8;
                 components::chip(
-                    crate::motion::MotionKey::new("curve-axis", label),
+                    MotionKey::new("curve-axis", label),
                     *label,
                     axis == active_axis,
                     components::ChipSize::Compact,
@@ -115,31 +113,9 @@ pub fn curve_editor_block(
             .collect(),
     };
 
-    let easing_chips: Vec<_> = easing_presets()
-        .iter()
-        .map(|preset| {
-            let preset_id = preset.id.as_str();
-            pick_button(
-                crate::motion::MotionKey::new("ce-preset", &preset.id),
-                gpui::SharedString::new_static(preset.label.as_str()),
-                theme,
-                cx,
-                move |state| {
-                    keyframe_rows::apply(
-                        state,
-                        Row::Easing {
-                            param: active_param,
-                            preset: preset_id,
-                        },
-                    )
-                },
-            )
-            .into_any_element()
-        })
-        .collect();
-
     let graph_element = div()
         .id("curve-editor-graph")
+        .debug_selector(|| "curve-editor-graph".into())
         .relative()
         .w_full()
         .h(px(CURVE_EDITOR_HEIGHT))
@@ -195,29 +171,31 @@ pub fn curve_editor_block(
             }),
         );
 
-    div()
-        .id("curve-editor-container")
-        .flex()
-        .flex_col()
-        .gap(px(Theme::SPACE_XS))
-        .child(chips_under_labels(
-            Columns::Keyed,
-            components::ChipSize::Compact,
-            param_chips,
-        ))
-        .when(!axis_chips.is_empty(), |el| {
-            el.child(chips_under_labels(
+    Some(
+        div()
+            .id("curve-editor-container")
+            .flex()
+            .flex_col()
+            .gap(px(Theme::SPACE_XS))
+            .child(section_label(theme, "Graph"))
+            .child(chips_under_labels(
                 Columns::Keyed,
                 components::ChipSize::Compact,
-                axis_chips,
+                param_chips,
             ))
-        })
-        .child(under_labels(
-            Columns::Keyed,
-            [graph_element.into_any_element()],
-        ))
-        .child(ghosts_under_labels(Columns::Keyed, easing_chips))
-        .into_any_element()
+            .when(!axis_chips.is_empty(), |el| {
+                el.child(chips_under_labels(
+                    Columns::Keyed,
+                    components::ChipSize::Compact,
+                    axis_chips,
+                ))
+            })
+            .child(under_labels(
+                Columns::Keyed,
+                [graph_element.into_any_element()],
+            ))
+            .into_any_element(),
+    )
 }
 
 /// Report the graph's window rectangle to the state, so a pointer can be read

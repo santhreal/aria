@@ -279,15 +279,12 @@ The Markers panel (`crates/aria-ui/src/panels/markers.rs`) renders playhead mark
 
 ## Color
 
-The Color panel and grading blocks (`crates/aria-ui/src/panels/color_panel.rs`, `crates/aria-ui/src/panels/inspector/blocks/grade.rs`, `wheels.rs`, and `curve_editor/picker.rs`) render section headers, color wheel resets, curve channel and axis chips, blend mode and stabilization level buttons, and grade reset buttons.
+The Color panel and grading blocks (`crates/aria-ui/src/panels/color_panel.rs`, `crates/aria-ui/src/panels/inspector/blocks/grade.rs`, and `wheels.rs`) render section headers, color wheel resets, blend mode and stabilization level buttons, and grade reset buttons.
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
-| `ce-preset` (per row) | Preset name | Applies a cubic-bezier easing preset (Snappy, Overshoot, Anticipate) to the segment leaving the keyframe at the playhead on the active property in the Inspector curve editor, on every selected clip that has the property, as one undo step. | None |
 | `color-grade-clear` | Reset grade | Resets all color correction sections on the selected clip from the Color panel header. | None |
 | `color-section` (per row) | Section title | Expands or collapses a grading section (Basic Correction, Creative, RGB Curves, Hue Curves, Color Wheels, HSL Secondary, Vignette) in the Color panel. | None |
-| `curve-axis` (per row) | Curve axis | Selects the X or Y component axis for a two-dimensional animatable property in the Inspector curve editor. | None |
-| `curve-param` (per row) | Curve channel | Selects which animatable clip property is graphed in the Inspector curve editor. | None |
 | `grade-blend` (per row) | Normal / Darken / Multiply / Color Burn / Lighten / Screen / Color Dodge / Add / Overlay / Soft Light / Hard Light / Difference / Exclusion | Sets the blend mode the selected clip composites with. | None |
 | `grade-clear` | Reset grade | Resets all color grade adjustments on the selected clip from the Inspector Look tab. | None |
 | `inspector-wheel-reset` | Reset wheel | Resets the Lift, Gamma, or Gain color wheel back to neutral. | None |
@@ -323,10 +320,12 @@ The Alignment panel (`crates/aria-ui/src/panels/align_panel.rs`) renders the ali
 
 ## Keyframes
 
-The Inspector's Keyframes block and property row keyframe navigator (`crates/aria-ui/src/panels/inspector/blocks/keyframes.rs`, `widgets.rs`, and `crates/aria-ui/src/panels/timeline/property_rows.rs`) render keyframe stepping, keyframe toggle diamonds, easing presets, animation stopwatches, procedural driver controls and pick whips, and property resets.
+The Inspector's Keyframes and Graph blocks and property row keyframe navigator (`crates/aria-ui/src/panels/inspector/blocks/keyframes.rs`, `curve_editor/picker.rs`, `widgets.rs`, and `crates/aria-ui/src/panels/timeline/property_rows.rs`) render keyframe stepping, keyframe toggle diamonds, easing presets, the graphed property and axis, animation stopwatches, procedural driver controls and pick whips, and property resets.
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
+| `curve-axis` (per row) | X / Y | Selects the axis of a two-dimensional property the Graph block draws. | None |
+| `curve-param` (per row) | Property name | Selects the keyframed property the Graph block draws. | None |
 | `inspector-driver-whip` | Driver pick whip | Arms the expression driver pick whip to bind a parameter to another property. | None |
 | `keyframe-easing` (per row) | Snappy / Overshoot / Anticipate | Applies the bezier easing preset to the segment leaving the keyframe at the playhead. | None |
 | `keyframe-piecewise` (per row) | Bounce out / Elastic out / Back out | Applies the piecewise easing preset to the segment leaving the keyframe at the playhead. | None |

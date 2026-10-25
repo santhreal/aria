@@ -71,10 +71,8 @@ pub fn transform_tab(
             theme, clip, state, cx,
         ))
         .child(crate::panels::inspector::blocks::keyframes::keyframes_block(theme, state, cx))
-        .child(
-            crate::panels::inspector::blocks::curve_editor::curve_editor_block(
-                theme, clip, state, cx,
-            ),
+        .children(
+            crate::panels::inspector::blocks::curve_editor::curve_editor_block(theme, state, cx),
         )
 }
 

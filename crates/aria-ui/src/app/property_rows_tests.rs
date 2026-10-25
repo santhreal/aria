@@ -7,6 +7,7 @@ use aria_models::{
 };
 
 use super::{GraphMode, KeyframeIconShape, PropertyGroup, RevealAction, TimelineOutlineRow};
+use crate::app::AppState;
 use crate::app::premiere_tests::with_clip;
 
 #[test]
@@ -109,6 +110,66 @@ fn outline_twirl_opens_groups_and_projects_property_rows() {
         r,
         TimelineOutlineRow::Property(p) if p.param == ClipParam::Position
     )));
+}
+
+/// The properties whose timeline rows on track `track` are lit as graphed.
+fn lit(state: &AppState, track: u64) -> Vec<ClipParam> {
+    state
+        .track_outline_rows(track)
+        .iter()
+        .filter_map(|row| match row {
+            TimelineOutlineRow::Property(p) if p.selected_for_graph => Some(p.param),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The properties the timeline graph editor draws.
+fn drawn(state: &AppState) -> Vec<ClipParam> {
+    state
+        .build_timeline_graph_model(24.0, 120.0, 0.0, 160.0)
+        .curves
+        .iter()
+        .map(|curve| curve.param)
+        .collect()
+}
+
+/// With no row chosen for it, the timeline graph draws the Inspector graph's
+/// property while that row is open, the first open row while it is not, and
+/// lights the row it draws and no other. Closes "the graph draws one property
+/// while another row is lit" and "a default graph of a constant property
+/// while another holds keyframes".
+#[test]
+fn the_graph_draws_and_lights_one_row_until_a_row_is_chosen() {
+    let (mut state, clip) = with_clip();
+    let track = state.store.sequence.tracks[0].id;
+    let tick = state.playhead.value;
+    state
+        .add_keyframe_at_playhead(ClipParam::Opacity)
+        .expect("keyframe opacity");
+    state.toggle_clip_outline(clip.raw());
+    assert_eq!(drawn(&state), [ClipParam::Opacity], "the keyframed opacity");
+    assert_eq!(lit(&state, track), [ClipParam::Opacity]);
+
+    // A property chosen in the Inspector's graph is drawn while its row is open.
+    state.set_curve_param(ClipParam::Position);
+    assert_eq!(drawn(&state), [ClipParam::Position], "the chosen position");
+    assert_eq!(lit(&state, track), [ClipParam::Position]);
+
+    // With the graphed property's row closed, the first open row is drawn.
+    state.set_curve_param(ClipParam::Opacity);
+    state.reveal_properties(RevealAction::Position, false);
+    assert_eq!(
+        drawn(&state),
+        [ClipParam::Position],
+        "the open position row"
+    );
+    assert_eq!(lit(&state, track), [ClipParam::Position]);
+
+    // A chosen row replaces the default, which is no longer lit.
+    state.select_timeline_keyframe(clip, ClipParam::Opacity, tick, false);
+    assert_eq!(drawn(&state), [ClipParam::Opacity], "the chosen opacity");
+    assert_eq!(lit(&state, track), Vec::<ClipParam>::new());
 }
 
 #[test]

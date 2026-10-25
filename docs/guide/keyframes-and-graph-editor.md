@@ -25,6 +25,20 @@ tab clears the animation.
 
 An expanded clip draws its keyframe ticks as marks in the strip.
 
+### Graph block
+
+While a property of the selected clip holds a keyframe, the Transform tab draws
+a Graph block under the Keyframes block. It plots one property against time:
+the one chosen on its chips or by clicking a timeline property row's name, and
+otherwise the first property that holds a keyframe. The chips list the
+properties that hold keyframes, and the chosen property when it holds none. A
+point property such as Position adds X and Y chips, which select the axis
+drawn.
+
+- Drag a keyframe point to move it in time and value.
+- Drag a handle to bend the curve of the segment it shapes.
+- Esc drops a drag unwritten. Each drag is one undo step.
+
 ### Property controls
 
 A property that can be animated has these controls, in Effect Controls and on a
@@ -127,7 +141,11 @@ the rows already open instead of replacing them. Alt+` closes every row.
 ### Graph editor
 
 Shift+F3 opens the graph editor under the timeline. It draws the curves of the
-properties chosen by clicking a row's name (Shift+click adds a property).
+properties chosen by clicking a row's name or a keyframe (Shift+click adds a
+property). With none chosen, it draws the property chosen in the Graph block,
+else the clip's first keyframed property, while that row is open or no row is,
+and otherwise the clip's first open row. The rows of the drawn properties are
+highlighted.
 
 - **Value** plots the property's value; **Speed** plots its rate of change.
 - Each keyframe has incoming and outgoing influence handles labeled with their

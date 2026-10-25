@@ -24,7 +24,7 @@ use crate::surfaces::keyframe_rows::{self, Row};
 /// The Transform tab drawn over the texture with its opacity keyed at the
 /// playhead and its rotation driven in the Expressions language: one property
 /// animated by keys, one by a driver, and every other property constant.
-fn animated<'a>(
+pub(super) fn animated<'a>(
     cx: &'a mut TestAppContext,
     tag: &str,
 ) -> (

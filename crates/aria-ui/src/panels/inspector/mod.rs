@@ -5,6 +5,8 @@ mod clip_type;
 #[cfg(test)]
 mod columns_tests;
 #[cfg(test)]
+mod graph_tests;
+#[cfg(test)]
 mod keyframes_tests;
 #[cfg(test)]
 mod reorder_tests;

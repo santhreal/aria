@@ -172,18 +172,31 @@ impl AppState {
         });
         if next
             && self.with_prop_rows(|s| s.graph_params.is_empty())
-            && let Some(clip) = self.selected_clip()
+            && let Some(target) = self.graph_default()
         {
-            let vis = self.visible_params_for_clip(clip);
-            let param = vis
-                .first()
-                .copied()
-                .or_else(|| self.curve_param())
-                .unwrap_or(ClipParam::Position);
-            self.with_prop_rows_mut(|s| {
-                s.graph_params.push((clip, param));
-            });
+            self.with_prop_rows_mut(|s| s.graph_params.push(target));
         }
+    }
+
+    /// The property the timeline graph draws, and its rows highlight, while no
+    /// property row is chosen for it: the selected clip's graphed property
+    /// ([`AppState::curve_param`]) when its row is open or no row of the clip
+    /// is, and otherwise the clip's first open row.
+    pub(crate) fn graph_default(&self) -> Option<(ClipId, ClipParam)> {
+        let clip = self.selected_clip()?;
+        let graphed = self.curve_param();
+        // The selection's projected rows, as the Inspector reads them, rather
+        // than a second projection of the same clip.
+        let open = if self.expanded_clips.contains(&clip.raw()) {
+            self.open_params(clip, &self.key_params())
+        } else {
+            Vec::new()
+        };
+        let param = match graphed {
+            Some(param) if open.is_empty() || open.contains(&param) => param,
+            _ => open.first().copied().or(graphed)?,
+        };
+        Some((clip, param))
     }
 
     /// Current timeline graph mode (`Value` or `Speed`).
@@ -217,15 +230,9 @@ impl AppState {
             )
         });
         if targets.is_empty()
-            && let Some(clip) = self.selected_clip()
+            && let Some(target) = self.graph_default()
         {
-            let vis = self.visible_params_for_clip(clip);
-            let param = vis
-                .first()
-                .copied()
-                .or_else(|| self.curve_param())
-                .unwrap_or(ClipParam::Position);
-            targets.push((clip, param));
+            targets.push(target);
         }
 
         let pad_y = GRAPH_PAD_Y;

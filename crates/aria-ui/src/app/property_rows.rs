@@ -477,16 +477,20 @@ impl AppState {
 
     /// The parameters currently visible in property rows for `clip_id`.
     pub fn visible_params_for_clip(&self, clip_id: ClipId) -> Vec<ClipParam> {
-        let raw = clip_id.raw();
-        if !self.expanded_clips.contains(&raw) {
+        if !self.expanded_clips.contains(&clip_id.raw()) {
             return Vec::new();
         }
         let Some((clip, audio_lane)) = self.clip_and_lane_kind(clip_id) else {
             return Vec::new();
         };
-        let rows = key_params_of(&clip, audio_lane);
+        self.open_params(clip_id, &key_params_of(&clip, audio_lane))
+    }
+
+    /// Which of `rows`, the properties of the expanded clip `clip_id`, its
+    /// property rows show.
+    pub(crate) fn open_params(&self, clip_id: ClipId, rows: &[KeyParam]) -> Vec<ClipParam> {
         let needle = self.property_needle();
-        match self.reveal_mode(raw, !needle.is_empty()) {
+        match self.reveal_mode(clip_id.raw(), !needle.is_empty()) {
             ClipRevealMode::Outline { open_groups } => rows
                 .iter()
                 .filter(|r| {
@@ -554,8 +558,14 @@ impl AppState {
         if expanded_on_track.is_empty() {
             return Vec::new();
         }
-
         let needle = self.property_needle();
+        // The row the graph draws while no row is chosen for it is lit as a
+        // chosen one is.
+        let graph_default = self
+            .selected_clip()
+            .filter(|clip| expanded_on_track.contains(&clip.raw()))
+            .filter(|_| self.with_prop_rows(|s| s.graph_params.is_empty()))
+            .and_then(|_| self.graph_default());
         let mut out = Vec::new();
         for raw_clip in expanded_on_track {
             let clip_id = ClipId::from_raw(raw_clip);
@@ -600,7 +610,7 @@ impl AppState {
                                 }
                                 if contains_folded(&row.label, &needle) {
                                     out.push(TimelineOutlineRow::Property(
-                                        self.build_property_row(&clip, row),
+                                        self.build_property_row(&clip, row, graph_default),
                                     ));
                                 }
                             }
@@ -625,9 +635,11 @@ impl AppState {
                             }
                         }
                         if let Some(row) = rows.iter().find(|r| r.param() == param) {
-                            out.push(TimelineOutlineRow::Property(
-                                self.build_property_row(&clip, row),
-                            ));
+                            out.push(TimelineOutlineRow::Property(self.build_property_row(
+                                &clip,
+                                row,
+                                graph_default,
+                            )));
                         }
                     }
                     for path in paths {
@@ -654,13 +666,21 @@ impl AppState {
         let (model, audio_lane) = self.clip_and_lane_kind(clip)?;
         let rows = key_params_of(&model, audio_lane);
         let row = rows.iter().find(|row| row.param() == param)?;
-        self.build_property_row(&model, row)
+        self.build_property_row(&model, row, None)
             .keys
             .into_iter()
             .find(|mark| mark.tick == tick)
     }
 
-    fn build_property_row(&self, clip: &Clip, row: &KeyParam) -> TimelinePropertyRow {
+    /// The timeline property row of `row` on `clip`. `graph_default` is the
+    /// property the graph draws while no row is chosen for it
+    /// ([`AppState::graph_default`]); its row is lit as a chosen one is.
+    fn build_property_row(
+        &self,
+        clip: &Clip,
+        row: &KeyParam,
+        graph_default: Option<(ClipId, ClipParam)>,
+    ) -> TimelinePropertyRow {
         let clip_id = clip.id;
         let param = row.param();
         let at_playhead = self.playhead.value;
@@ -675,7 +695,7 @@ impl AppState {
         let total = raw_keys.len();
         let (selected_set, graph_selected, drag_delta) = self.with_prop_rows(|s| {
             let graph_sel = s.graph_params.contains(&(clip_id, param))
-                || (s.graph_params.is_empty() && self.curve_param() == Some(param));
+                || graph_default == Some((clip_id, param));
             let delta = s.time_drag.as_ref().map(|d| {
                 (
                     d.delta_ticks,
