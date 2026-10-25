@@ -6,7 +6,6 @@
 //! strip reads how many the property has, which one sits under the playhead and
 //! which curve leaves it without asking the model again per row.
 
-use crate::components::Wraps as _;
 use gpui::{InteractiveElement, IntoElement, ParentElement, Styled, div, px};
 
 use crate::app::clip_keys::{PIECEWISE_PRESETS, easing_presets};
@@ -15,7 +14,7 @@ use crate::theme::Theme;
 use crate::types::UiClip;
 use gpui::prelude::FluentBuilder;
 
-use super::widgets::{pick_button, picked};
+use super::widgets::{Columns, ghosts_under_labels, pick_button, picked, under_labels};
 
 use crate::components::section_label;
 
@@ -91,8 +90,10 @@ pub fn keyframes_block(
                 .flex()
                 .flex_col()
                 .gap(px(Theme::SPACE_XS))
-                .child(
-                    div()
+                .child(under_labels(
+                    Columns::Keyed,
+                    [div()
+                        .w_full()
                         .flex()
                         .flex_row()
                         .items_center()
@@ -171,18 +172,14 @@ pub fn keyframes_block(
                                             .element_id("kf-flatten")),
                                     )
                                 }),
-                        ),
-                )
+                        )
+                        .into_any_element()],
+                ))
                 .when(here, |el| {
-                    el.child(
-                        div()
-                            .flex()
-                            .flex_row()
-                            .wraps()
-                            .gap(px(Theme::SPACE_XS))
-                            .children(easing_chips)
-                            .children(piecewise_chips),
-                    )
+                    el.child(ghosts_under_labels(
+                        Columns::Keyed,
+                        easing_chips.into_iter().chain(piecewise_chips),
+                    ))
                 })
                 .into_any_element()
         })

@@ -41,7 +41,8 @@ mod keys;
 
 pub use catalog::{color_rows, param_rows, param_rows_into, swatch_row, unkeyed_row};
 pub use controls::{
-    Chip, chip_row, control_line, label_note, pick_button, picked, switch_line, under_labels,
+    Chip, chip_row, chips_under_labels, control_line, ghosts_under_labels, label_note, pick_button,
+    picked, switch_line, under_labels,
 };
 use keys::{Affordances, WATCH_SLOT, affordances, blanks};
 

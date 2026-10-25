@@ -18,7 +18,7 @@ use crate::theme::Theme;
 use crate::types::UiClip;
 use gpui::prelude::FluentBuilder;
 
-use super::widgets::{Chip, Columns, chip_row, param_rows, pick_button, under_labels};
+use super::widgets::{Chip, Columns, chip_row, ghosts_under_labels, param_rows, pick_button};
 
 use crate::components::section_label;
 
@@ -52,7 +52,10 @@ pub fn grade_block(
         .child(wheels::wheels_block(theme, "inspector", state, cx))
         .child(section_label(theme, "Grade"))
         .children(rows)
-        .child(under_labels(Columns::Keyed, [reset.into_any_element()]))
+        .child(ghosts_under_labels(
+            Columns::Keyed,
+            [reset.into_any_element()],
+        ))
         .child(section_label(theme, "Blend"))
         .child(chip_row(
             theme,

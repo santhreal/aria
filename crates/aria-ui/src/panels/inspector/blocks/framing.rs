@@ -12,7 +12,9 @@ use crate::surfaces::inspector_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::UiClip;
 
-use super::widgets::{Columns, Readout, pick_button, switch_line, under_labels, unkeyed_row};
+use super::widgets::{
+    Columns, Readout, ghosts_under_labels, pick_button, switch_line, unkeyed_row,
+};
 
 use crate::components::section_label;
 
@@ -76,7 +78,10 @@ pub fn framing_block(
             cx,
             |state| inspector_pick::apply(state, Pick::FlipVertical),
         ))
-        .child(under_labels(Columns::Keyed, [reset.into_any_element()]))
+        .child(ghosts_under_labels(
+            Columns::Keyed,
+            [reset.into_any_element()],
+        ))
         .child(section_label(theme, "Motion blur"))
         .child(switch_line(
             theme,

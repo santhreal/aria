@@ -24,7 +24,7 @@ use crate::theme::Theme;
 use crate::types::UiClip;
 use gpui::prelude::FluentBuilder;
 
-use crate::panels::inspector::blocks::widgets::{Columns, param_rows, under_labels};
+use crate::panels::inspector::blocks::widgets::{Columns, chips_under_labels, param_rows};
 
 use crate::components::section_label;
 
@@ -190,8 +190,9 @@ fn parent_row(
             .gap(px(Theme::SPACE_XS))
             .pt(px(Theme::SPACE_SM))
             .child(section_label(theme, "Parent"))
-            .child(under_labels(
+            .child(chips_under_labels(
                 Columns::Keyed,
+                ChipSize::Compact,
                 [div()
                     .w_full()
                     .flex()

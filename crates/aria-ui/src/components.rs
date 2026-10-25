@@ -138,18 +138,22 @@ pub(crate) fn drawn_ghosts() -> Vec<(String, SharedString)> {
     ghosts
 }
 
-/// The debug selector of the ghost button `id` printing `label`, when ghost
-/// buttons are being recorded, after recording it.
+/// The debug selector of the ghost button `id` printing `label` while a
+/// [`NotingGhosts`] stands, after recording it while a record stands. A
+/// button keeps its selector after [`drawn_ghosts`] stops the record, so a
+/// later frame still draws it where a test can find it.
 #[cfg(test)]
 fn noted(id: motion::ControlId, label: &SharedString) -> Option<String> {
     if !NOTING.get() {
         return None;
     }
+    let selector = format!("ghost-{id:?}-{label}");
     GHOSTS.with_borrow_mut(|ghosts| {
-        let selector = format!("ghost-{id:?}-{label}");
-        ghosts.as_mut()?.push((selector.clone(), label.clone()));
-        Some(selector)
-    })
+        if let Some(ghosts) = ghosts.as_mut() {
+            ghosts.push((selector.clone(), label.clone()));
+        }
+    });
+    Some(selector)
 }
 
 /// A [`ghost_button`] that opens and shuts the rows under it: the disclosure
@@ -175,6 +179,11 @@ pub fn disclosure_button(
         .child(label.into())
 }
 
+/// How far a [`ghost_button`]'s label stands inside its frame: across, then
+/// down. A ghost draws no frame at rest, so a layout that lines its label up
+/// with the text beside or above it hangs the frame out by this much.
+pub const GHOST_INSET: (f32, f32) = (Theme::SPACE_SM, Theme::SPACE_XS);
+
 /// The frame of a [`ghost_button`]: its padding, its wash and text color,
 /// which fade in under the pointer, and its press dim, with nothing in it.
 fn ghost_frame(id: motion::ControlId, theme: &Theme) -> Stateful<Div> {
@@ -184,8 +193,8 @@ fn ghost_frame(id: motion::ControlId, theme: &Theme) -> Stateful<Div> {
     div()
         .id(id.element("ghost"))
         .active(move |style| style.bg(pressed).opacity(0.92))
-        .px(px(Theme::SPACE_SM))
-        .py(px(Theme::SPACE_XS))
+        .px(px(GHOST_INSET.0))
+        .py(px(GHOST_INSET.1))
         .rounded(px(Theme::CONTROL_RADIUS))
         .bg(motion::mix(theme.wash(0.0), theme.element_hover, lit))
         .text_color(motion::mix(theme.text_muted, theme.text, lit))
@@ -213,7 +222,8 @@ impl ChipSize {
     /// instead of naming the two it knows about.
     pub const ALL: [Self; 2] = [Self::Regular, Self::Compact];
 
-    fn pad(self) -> (f32, f32) {
+    /// The side and the top padding around a chip's label.
+    pub fn pad(self) -> (f32, f32) {
         match self {
             Self::Regular => (Theme::SPACE_SM, Theme::SPACE_XS),
             Self::Compact => (Theme::SPACE_XS, 2.),

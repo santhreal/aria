@@ -5,7 +5,6 @@
 //! it as one edit; the panel's job is to report where it drew the graph so a
 //! window pointer can be read against it.
 
-use crate::components::Wraps as _;
 use gpui::{
     Bounds, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, MouseMoveEvent,
     MouseUpEvent, ParentElement, Pixels, Styled, canvas, div, point, px, size,
@@ -16,7 +15,9 @@ use crate::app::clip_keys::easing_presets;
 use crate::app::curve_geometry::CurvePolyline;
 use crate::app::curve_stroke::curve_columns;
 use crate::components;
-use crate::panels::inspector::blocks::widgets::pick_button;
+use crate::panels::inspector::blocks::widgets::{
+    Columns, chips_under_labels, ghosts_under_labels, pick_button, under_labels,
+};
 use crate::surfaces::keyframe_rows::{self, Row};
 use crate::theme::Theme;
 use crate::types::UiClip;
@@ -199,32 +200,23 @@ pub fn curve_editor_block(
         .flex()
         .flex_col()
         .gap(px(Theme::SPACE_XS))
-        .child(
-            div()
-                .flex()
-                .flex_row()
-                .wraps()
-                .gap(px(Theme::SPACE_XS))
-                .children(param_chips),
-        )
+        .child(chips_under_labels(
+            Columns::Keyed,
+            components::ChipSize::Compact,
+            param_chips,
+        ))
         .when(!axis_chips.is_empty(), |el| {
-            el.child(
-                div()
-                    .flex()
-                    .flex_row()
-                    .gap(px(Theme::SPACE_XS))
-                    .children(axis_chips),
-            )
+            el.child(chips_under_labels(
+                Columns::Keyed,
+                components::ChipSize::Compact,
+                axis_chips,
+            ))
         })
-        .child(graph_element)
-        .child(
-            div()
-                .flex()
-                .flex_row()
-                .wraps()
-                .gap(px(Theme::SPACE_XS))
-                .children(easing_chips),
-        )
+        .child(under_labels(
+            Columns::Keyed,
+            [graph_element.into_any_element()],
+        ))
+        .child(ghosts_under_labels(Columns::Keyed, easing_chips))
         .into_any_element()
 }
 

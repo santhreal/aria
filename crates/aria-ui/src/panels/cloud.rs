@@ -16,7 +16,9 @@ use crate::components;
 use crate::theme::Theme;
 use gpui::prelude::FluentBuilder;
 
-/// A catalog feed: a Load button, then one row per card.
+/// A catalog feed: a Load button, then one row per card. Every line's text
+/// starts one ghost inset in, where the Load button's label and each card's
+/// name start, so a caller hangs the block to stand its text on a column.
 ///
 /// The feed is never fetched from inside this function. A render that started network
 /// traffic would refetch on every repaint, so loading is an explicit click.
@@ -54,17 +56,24 @@ pub(crate) fn cloud_catalog_block(
             // A feed that is fetching gets a loader; a feed that is idle or
             // out of reach keeps the line it already had, faded up so the
             // answer arrives rather than replacing the wait in one frame.
-            el.child(if matches!(load, FeedState::Loading) {
-                crate::pending::working(theme, &format!("cloud.feed.{}", feed.label()), line, cx)
-            } else {
-                crate::pending::settled(
-                    crate::motion::MotionKey::new(feed.label(), &line),
-                    div()
-                        .text_size(Theme::TEXT_UI)
-                        .text_color(theme.text_faint)
-                        .child(SharedString::from(line)),
-                )
-            })
+            el.child(div().px(px(components::GHOST_INSET.0)).child(
+                if matches!(load, FeedState::Loading) {
+                    crate::pending::working(
+                        theme,
+                        &format!("cloud.feed.{}", feed.label()),
+                        line,
+                        cx,
+                    )
+                } else {
+                    crate::pending::settled(
+                        crate::motion::MotionKey::new(feed.label(), &line),
+                        div()
+                            .text_size(Theme::TEXT_UI)
+                            .text_color(theme.text_faint)
+                            .child(SharedString::from(line)),
+                    )
+                },
+            ))
         })
         .children(rows)
 }
@@ -96,8 +105,8 @@ pub(crate) fn cloud_card_row(
         .flex()
         .flex_col()
         .gap(px(Theme::SPACE_XS))
-        .px(px(Theme::SPACE_SM))
-        .py(px(Theme::SPACE_XS))
+        .px(px(components::GHOST_INSET.0))
+        .py(px(components::GHOST_INSET.1))
         .rounded(px(Theme::CONTROL_RADIUS))
         .cursor(CursorStyle::PointingHand)
         .active(|style| style.opacity(0.92))

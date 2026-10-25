@@ -17,7 +17,7 @@ use crate::types::UiClip;
 use gpui::prelude::FluentBuilder;
 
 use super::widgets::{
-    Chip, Columns, chip_row, color_rows, param_rows, pick_button, switch_line, under_labels,
+    Chip, Columns, chip_row, color_rows, ghosts_under_labels, param_rows, pick_button, switch_line,
 };
 
 use crate::components::section_label;
@@ -90,7 +90,7 @@ pub fn styles_block(
         .child(section_label(theme, "Layer styles"))
         .children(blocks)
         .when_some(clear, |this, clear| {
-            this.child(under_labels(Columns::Keyed, [clear]))
+            this.child(ghosts_under_labels(Columns::Keyed, [clear]))
         })
         .child(section_label(theme, "LUT"))
         .child(chip_row(
@@ -108,10 +108,18 @@ pub fn styles_block(
             this.children(param_rows(theme, "lut", state, cx))
         })
         .child(section_label(theme, "Cloud LUTs"))
-        .child(crate::panels::cloud::cloud_catalog_block(
-            theme,
-            CloudFeed::Luts,
-            state,
-            cx,
+        // The block's lines start one ghost inset in, where its Load button's
+        // label does, so it hangs to stand them on the label column.
+        .child(ghosts_under_labels(
+            Columns::Keyed,
+            [div()
+                .w_full()
+                .child(crate::panels::cloud::cloud_catalog_block(
+                    theme,
+                    CloudFeed::Luts,
+                    state,
+                    cx,
+                ))
+                .into_any_element()],
         ))
 }

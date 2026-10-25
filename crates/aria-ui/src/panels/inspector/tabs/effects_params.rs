@@ -11,7 +11,7 @@ use aria_models::{
 };
 use gpui::{
     AnyElement, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
-    SharedString, Styled, div,
+    SharedString, Styled, div, px,
 };
 
 use crate::app::AppState;
@@ -745,11 +745,13 @@ fn push_effect_slot_rows(
                     )
                 }));
             }
-            // A layer the render refuses says why under the chips.
+            // A layer the render rejects prints the reason under the chips,
+            // its text where theirs starts.
             if let Some(message) = state.read(cx).effect_layer_refusal(index, slot) {
                 chips.push(Chip::other(
                     div()
                         .w_full()
+                        .px(px(components::GHOST_INSET.0))
                         .text_size(Theme::TEXT_UI)
                         .text_color(theme.danger)
                         .child(message),

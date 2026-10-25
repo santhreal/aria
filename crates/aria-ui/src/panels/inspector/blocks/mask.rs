@@ -10,7 +10,6 @@
 //! command: it cannot drift from the model, and a slider here cannot flatten
 //! the block's keyframes.
 
-use crate::components::Wraps as _;
 use gpui::{
     InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, SharedString,
     Styled, div, px,
@@ -25,7 +24,10 @@ use crate::theme::Theme;
 use crate::types::{UiClip, UiMask};
 use gpui::prelude::FluentBuilder;
 
-use super::widgets::{Chip, Columns, chip_row, param_rows, pick_button, picked};
+use super::widgets::{
+    Chip, Columns, chip_row, chips_under_labels, ghosts_under_labels, label_note, param_rows,
+    pick_button, picked, under_labels,
+};
 
 use crate::components::section_label;
 
@@ -106,27 +108,11 @@ pub fn mask_block(
         .gap(px(Theme::SPACE_XS))
         .child(section_label(theme, "Masks"))
         .when(clip.masks.is_empty(), |this| {
-            this.child(
-                div()
-                    .text_size(Theme::TEXT_UI)
-                    .text_color(theme.text_faint)
-                    .child("None"),
-            )
+            this.child(label_note(Columns::Keyed, theme.text_faint, "None"))
         })
         .children(stack)
-        .child(
-            div()
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text_faint)
-                .child("Add a mask"),
-        )
-        .child(
-            div()
-                .flex()
-                .wraps()
-                .gap(px(Theme::SPACE_XS))
-                .children(shapes),
-        )
+        .child(label_note(Columns::Keyed, theme.text_faint, "Add a mask"))
+        .child(ghosts_under_labels(Columns::Keyed, shapes))
         .child(section_label(theme, "Chroma key"))
         .child(chip_row(
             theme,
@@ -243,8 +229,9 @@ fn mask_header(
         .flex()
         .flex_col()
         .gap(px(Theme::SPACE_XS))
-        .child(
-            div()
+        .child(under_labels(
+            Columns::Keyed,
+            [div()
                 .id(key.element_id("mask-name"))
                 .text_size(Theme::TEXT_UI)
                 .text_color(if active { theme.text } else { theme.text_muted })
@@ -257,20 +244,9 @@ fn mask_header(
                             .update(cx, |state, _| state.set_active_mask(index));
                         cx.notify();
                     }),
-                ),
-        )
-        .child(
-            div()
-                .flex()
-                .wraps()
-                .gap(px(Theme::SPACE_XS))
-                .children(modes),
-        )
-        .child(
-            div()
-                .flex()
-                .wraps()
-                .gap(px(Theme::SPACE_XS))
-                .children(actions),
-        )
+                )
+                .into_any_element()],
+        ))
+        .child(chips_under_labels(Columns::Keyed, ChipSize::Compact, modes))
+        .child(ghosts_under_labels(Columns::Keyed, actions))
 }

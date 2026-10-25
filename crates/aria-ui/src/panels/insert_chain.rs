@@ -18,7 +18,9 @@ use aria_models::{AudioInsertTarget, TrackId};
 use crate::app::AppState;
 use crate::components::{self, ChipSize};
 use crate::motion::MotionKey;
-use crate::panels::inspector::blocks::widgets::{Columns, Readout, unkeyed_row};
+use crate::panels::inspector::blocks::widgets::{
+    Columns, Readout, chips_under_labels, ghosts_under_labels, unkeyed_row,
+};
 use crate::surfaces::insert_rack::{self, Gesture};
 use crate::theme::Theme;
 use crate::types::{UiInsert, UiInsertParam, UiKeyChoice};
@@ -106,12 +108,10 @@ pub fn render(
     if full {
         rows.push(note(theme, "Every insert slot is in use."));
     } else {
-        // In a row of its own, so the button is as wide as its label rather
-        // than the column.
         rows.push(
-            div()
-                .flex()
-                .child(pressed(
+            ghosts_under_labels(
+                columns,
+                [pressed(
                     components::ghost_button(
                         ("insert-add", base.with("add")),
                         "+ Audio effect",
@@ -119,11 +119,13 @@ pub fn render(
                     ),
                     move || Gesture::TogglePicker(target),
                     cx,
-                ))
-                .into_any_element(),
+                )
+                .into_any_element()],
+            )
+            .into_any_element(),
         );
         if picker == Some(target) {
-            rows.push(add_list(theme, target, base, cx));
+            rows.push(add_list(theme, target, base, columns, cx));
         }
     }
     div()
@@ -330,11 +332,12 @@ fn keys(
 }
 
 /// Every audio effect in the catalog, shipped and registered, as a chip that
-/// appends it to the chain.
+/// appends it to the chain, starting where the labels of `columns` start.
 fn add_list(
     theme: &Theme,
     target: AudioInsertTarget,
     base: MotionKey,
+    columns: Columns,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
     let catalog = crate::catalog_text::audio_effects();
@@ -359,14 +362,7 @@ fn add_list(
             .into_any_element()
         })
         .collect();
-    div()
-        .flex()
-        .flex_row()
-        .wraps()
-        .gap(px(Theme::SPACE_XXS))
-        .px(px(Theme::SPACE_XS))
-        .children(chips)
-        .into_any_element()
+    chips_under_labels(columns, ChipSize::Compact, chips).into_any_element()
 }
 
 fn note(theme: &Theme, text: &'static str) -> gpui::AnyElement {

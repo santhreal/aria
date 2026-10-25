@@ -29,12 +29,23 @@
 //! is recorded, so a button added to a held tab, or to the Speed tab, is held
 //! to the width of its label and padding without being listed here.
 //!
+//! Also closes the class "an Inspector button off the columns". A switch's On
+//! or Off ended a ghost inset short of the numbers above it and stood its row
+//! a ghost inset taller than a number row's; the chips under a choice started
+//! their labels a ghost inset right of the labels above them; and the mask
+//! shapes, the Effects tab's lists, the curve easing presets and an insert
+//! chain's Add button started left of the label column. Every recorded ghost
+//! button on a row's line ends its label where the values end, every other
+//! starts its label on the label column or at least two ghost insets right of
+//! it, where no line's first button stands, and every line's value is no
+//! taller than a number's.
+//!
 //! Not covered: a row drawn without the row widgets, the tabs in [`NOT_HELD`]
 //! other than Speed's buttons, a picker drawn outside a choice row, a line
 //! whose label another line in the keyed columns shares, of which the last
-//! drawn is read, a control not built with `components::ghost_button`, a
-//! button only drawn after a press, such as a list a button opens, and the
-//! Effects tab's Add list, which draws one effect a line.
+//! drawn is read, a control not built with `components::ghost_button`, such as
+//! a chip, and a button only drawn after a press, such as a list a button
+//! opens.
 
 use aria_models::{
     AudioInsertTarget, AudioRole, ClipParam, EffectChoiceOption, EffectCurvePoint,
@@ -48,10 +59,12 @@ use super::blocks::widgets::{
 };
 use super::strip_tests::{drawn_with, middle, narrow_the_inspector};
 use crate::app::AppState;
+use crate::app::clip_keys::PIECEWISE_PRESETS;
 use crate::app::clip_speed::speed_presets;
-use crate::components::drawn_ghosts;
+use crate::components::{GHOST_INSET, drawn_ghosts};
 use crate::surfaces::clip_pick::{self, Pick as ClipPick};
 use crate::surfaces::inspector_pick::{self, KEY_COLORS, Pick};
+use crate::surfaces::keyframe_rows::{self, Row};
 use crate::theme::Theme;
 
 /// How far apart two edges may be and still stand in one column.
@@ -207,32 +220,24 @@ fn shows_and_marks(tab: &str, choices: &[DrawnChoice], row: &str, shown: &str) {
     );
 }
 
-/// No exemption from [`every_button_hugs_its_label`].
-fn none_exempt(_: &AppState) -> Vec<SharedString> {
-    Vec::new()
-}
-
-/// The Effects tab's Add list, which draws one effect a line, exempt from
-/// [`every_button_hugs_its_label`].
-fn the_add_list(state: &AppState) -> Vec<SharedString> {
-    state
-        .effect_browse_list()
+/// Every ghost button built since the record began, once each: its debug
+/// selector and its label.
+fn recorded_ghosts() -> Vec<(&'static str, SharedString)> {
+    drawn_ghosts()
         .into_iter()
-        .map(|(_, label)| label.into())
+        .map(|(selector, label)| (&*selector.leak(), label))
         .collect()
 }
 
-/// Every ghost button the last frame drew into the Inspector is as wide as
-/// its label and its padding, and no wider, unless its label is one of
-/// `exempt`. A text element is as wide as its advance rounded up to a whole
-/// pixel, and layout rounds each edge to a device pixel. Returns the labels
-/// held.
+/// Every ghost button of `ghosts` the last frame drew into the Inspector is
+/// as wide as its label and its padding, and no wider. A text element is as
+/// wide as its advance rounded up to a whole pixel, and layout rounds each
+/// edge to a device pixel. Returns the labels held.
 fn every_button_hugs_its_label(
     visual: &mut VisualTestContext,
     tab: &str,
-    exempt: &[SharedString],
+    ghosts: &[(&'static str, SharedString)],
 ) -> Vec<SharedString> {
-    let ghosts = drawn_ghosts();
     let (pixel, labels): (f32, Vec<f32>) = visual.update(|window, app| {
         let font = Theme::of(app).ui_font(FontWeight::NORMAL);
         let labels = ghosts
@@ -247,24 +252,66 @@ fn every_button_hugs_its_label(
         (1.0 / window.scale_factor(), labels)
     });
     let mut held = Vec::new();
-    for ((selector, label), text) in ghosts.into_iter().zip(labels) {
-        if exempt.contains(&label) {
-            continue;
-        }
+    for ((selector, label), text) in ghosts.iter().zip(labels) {
         // A button built for an earlier frame, or built and not drawn, has
         // no bounds in the last one.
-        let Some(bounds) = visual.debug_bounds(selector.clone().leak()) else {
+        let Some(bounds) = visual.debug_bounds(*selector) else {
             continue;
         };
-        let hug = text.ceil() + 2.0 * Theme::SPACE_SM + pixel;
+        let hug = text.ceil() + 2.0 * GHOST_INSET.0 + pixel;
         assert!(
             f32::from(bounds.size.width) <= hug,
             "{tab}: the button {label:?} ({selector}) is {:?} wide, past the {hug} its label and padding take",
             bounds.size.width
         );
-        held.push(label);
+        held.push(label.clone());
     }
     held
+}
+
+/// Every ghost button of `ghosts` the last frame drew stands its label on the
+/// columns of the reference row's `label` and `value` cells, where `lines`
+/// are the labels of every row. A ghost's label stands [`GHOST_INSET`] inside
+/// its frame. One on a row's line ends its label where the values end. Every
+/// other starts its label on the label column, or two insets or more right of
+/// it, past the first button of a line, and never left of it. Returns how
+/// many were drawn.
+fn every_ghost_stands_on_the_columns(
+    visual: &mut VisualTestContext,
+    at: &str,
+    ghosts: &[(&'static str, SharedString)],
+    lines: &[Bounds<Pixels>],
+    (label, value): (Bounds<Pixels>, Bounds<Pixels>),
+) -> usize {
+    let (across, _) = GHOST_INSET;
+    let column = f32::from(label.left());
+    let mut drawn = 0;
+    for (selector, text) in ghosts {
+        let Some(bounds) = visual.debug_bounds(*selector) else {
+            continue;
+        };
+        drawn += 1;
+        let (start, end) = (
+            f32::from(bounds.left()) + across,
+            f32::from(bounds.right()) - across,
+        );
+        if lines
+            .iter()
+            .any(|line| (middle(*line) - middle(bounds)).abs() < 1.0)
+        {
+            assert!(
+                (end - f32::from(value.right())).abs() < EPS,
+                "{at}: the button {text:?} ({selector}) on a row's line ends its label at {end}, not where the values end, at {:?}",
+                value.right()
+            );
+        } else {
+            assert!(
+                (start - column).abs() < EPS || start >= column + 2.0 * across,
+                "{at}: the button {text:?} ({selector}) starts its label at {start}, off the label column at {column}"
+            );
+        }
+    }
+    drawn
 }
 
 /// Every label of `wanted` is among the buttons `held`.
@@ -282,25 +329,26 @@ fn holds(tab: &str, held: &[SharedString], wanted: &[&str]) {
 /// time. Every line drawn into the Inspector stands in the keyed rows'
 /// columns, and at every step its label starts where the label of
 /// `reference`, a keyed row with a time area, starts and is as wide, and its
-/// value stands in that row's value column, on the label's line. The walk
+/// value stands in that row's value column, on the label's line, no taller
+/// than the reference's number. Every button stands its label on those
+/// columns at every step, and every step draws one or more of them. The walk
 /// ends once the reference's label gives up width, which it must reach. Every
 /// choice row drawn marks the choice it shows, and every button drawn before
-/// the walk is as wide as its label, but those whose labels `exempt` lists.
+/// the walk is as wide as its label.
 /// Returns the debug selectors of the lines' labels, the choice rows, and the
 /// labels of the buttons held.
 fn every_line_stands_in_the_columns(
     cx: &mut TestAppContext,
     (media, tab): (&str, &str),
     reference: ClipParam,
-    exempt: fn(&AppState) -> Vec<SharedString>,
     then: impl FnOnce(&mut AppState),
 ) -> (Vec<String>, Vec<DrawnChoice>, Vec<SharedString>) {
     record_lines();
     let (state, visual) = drawn_with(cx, &format!("columns-{tab}"), media, tab, then);
     let (lines, choices) = (drawn_lines(), drawn_choices());
     every_choice_marks_what_it_shows(tab, &choices);
-    let exempt = visual.read(|app| exempt(state.read(app)));
-    let held = every_button_hugs_its_label(visual, tab, &exempt);
+    let ghosts = recorded_ghosts();
+    let held = every_button_hugs_its_label(visual, tab, &ghosts);
     let free: Vec<&str> = lines
         .iter()
         .filter(|(_, keyed)| !keyed)
@@ -338,6 +386,7 @@ fn every_line_stands_in_the_columns(
             "{at}: {reference:?} draws no time area, so its columns are no keyed row's"
         );
         let (label, value) = (drawn(visual, label_of, &at), drawn(visual, value_of, &at));
+        let mut rows = Vec::with_capacity(cells.len());
         for &(row_label, row_value) in &cells {
             let (row, cell) = (drawn(visual, row_label, &at), drawn(visual, row_value, &at));
             let context = format!(
@@ -355,7 +404,18 @@ fn every_line_stands_in_the_columns(
                 (middle(row) - middle(cell)).abs() < 1.0,
                 "{context}: the value is off its label's line"
             );
+            assert!(
+                f32::from(cell.size.height) < f32::from(value.size.height) + EPS,
+                "{context}: the value is taller than a number, so its row is taller than a number row"
+            );
+            rows.push(row);
         }
+        let found = every_ghost_stands_on_the_columns(visual, &at, &ghosts, &rows, (label, value));
+        assert!(
+            found > 0,
+            "{at}: the Inspector draws none of the {} buttons recorded before the walk",
+            ghosts.len()
+        );
         yielded = f32::from(label.size.width) < LABEL_RESERVE - 1.0;
         yielded
     });
@@ -397,14 +457,27 @@ fn every_tab_is_held_to_the_columns_or_named_as_not() {
 
 #[gpui::test]
 async fn every_transform_line_stands_in_the_columns(cx: &mut TestAppContext) {
+    // A key at the playhead, so the keyframes block draws its easing presets.
     let (_, _, held) = every_line_stands_in_the_columns(
         cx,
         ("texture.png", "transform"),
         ClipParam::Opacity,
-        none_exempt,
-        |_| {},
+        |state| {
+            keyframe_rows::apply(
+                state,
+                Row::Key {
+                    param: ClipParam::Opacity,
+                    keyed: false,
+                },
+            )
+            .expect("key the opacity at the playhead");
+        },
     );
-    holds("transform", &held, &["Reset framing"]);
+    holds(
+        "transform",
+        &held,
+        &["Reset framing", PIECEWISE_PRESETS[0].1],
+    );
 }
 
 #[gpui::test]
@@ -414,7 +487,6 @@ async fn every_audio_line_stands_in_the_columns(cx: &mut TestAppContext) {
         cx,
         ("fixture-sine-48k-2s.wav", "audio"),
         ClipParam::Volume,
-        none_exempt,
         |state| {
             let clip = state.selected_clip().expect("the sound is selected");
             state
@@ -454,7 +526,6 @@ async fn every_look_line_stands_in_the_columns(cx: &mut TestAppContext) {
             ClipParam::Look {
                 param: LookParam::FilterIntensity,
             },
-            none_exempt,
             |state| {
                 let first = state.selected_clip().expect("the texture is selected");
                 state
@@ -537,7 +608,6 @@ async fn every_effects_line_stands_in_the_columns(cx: &mut TestAppContext) {
             cx,
             ("texture.png", "effects"),
             slot(scalar),
-            the_add_list,
             |state| {
                 state
                     .add_effect_to_selected(EVERY_KIND)
@@ -575,7 +645,7 @@ async fn every_speed_button_hugs_its_label(cx: &mut TestAppContext) {
         clip_pick::apply(state, ClipPick::SpeedPreset(preset.id.to_string()))
             .expect("ramp the clip");
     });
-    let held = every_button_hugs_its_label(visual, "speed", &[]);
+    let held = every_button_hugs_its_label(visual, "speed", &recorded_ghosts());
     let mut wanted: Vec<SharedString> = speed_presets()
         .iter()
         .map(|spec| picked(spec.label.clone(), spec.id == preset.id))

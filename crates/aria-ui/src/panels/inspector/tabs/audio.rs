@@ -17,8 +17,8 @@ use aria_models::AudioRole;
 use gpui::prelude::FluentBuilder;
 
 use crate::panels::inspector::blocks::widgets::{
-    Chip, Columns, Readout, chip_row, control_line, label_note, param_rows, pick_button,
-    switch_line, under_labels, unkeyed_row,
+    Chip, Columns, Readout, chip_row, control_line, ghosts_under_labels, label_note, param_rows,
+    pick_button, switch_line, under_labels, unkeyed_row,
 };
 
 use crate::components::section_label;
@@ -251,7 +251,7 @@ fn duck_rows(
             cx.notify();
         }),
     );
-    rows.push(under_labels(Columns::Keyed, [run.into_any_element()]).into_any_element());
+    rows.push(ghosts_under_labels(Columns::Keyed, [run.into_any_element()]).into_any_element());
     if let Some(reason) = refusal {
         rows.push(label_note(Columns::Keyed, theme.warning, reason).into_any_element());
     }
