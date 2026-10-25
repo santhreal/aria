@@ -93,7 +93,7 @@ fn assert_line(visual: &mut VisualTestContext, what: &str) -> Vec<&'static str> 
         );
         assert!(
             (drawn.center().y - line_centre).abs() < px(EPS),
-            "{what}: {control} {drawn:?} is off the line's centre {line_centre:?}"
+            "{what}: {control} {drawn:?} is off the line's center {line_centre:?}"
         );
     }
     controls.into_iter().map(|(control, _)| control).collect()

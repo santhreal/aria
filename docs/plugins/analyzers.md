@@ -1,7 +1,7 @@
 # Audio analyzers
 
 An analyzer inspects mixed sound over a time range and returns findings: beat
-positions, markers, labelled ranges, and a loudness measurement. The editor
+positions, markers, labeled ranges, and a loudness measurement. The editor
 runs it as a background job and applies the findings as one undo step named
 after the analyzer.
 
@@ -70,7 +70,7 @@ blank label.
 
 ## Scope and menus
 
-| Scope | Menu | Audio analysed |
+| Scope | Menu | Audio analyzed |
 | --- | --- | --- |
 | `Clip` | Clip > Analyze | The selected clip's sound. The row is disabled with `Select a clip with sound` when no selected clip has sound. |
 | `Sequence` | Sequence > Analyze | The whole sequence mix. |

@@ -119,7 +119,7 @@ fn identical_blur_samples_average_to_the_unblurred_layer() {
     assert_eq!(
         sharp.pixel(26, 8),
         [255, 255, 255, 255],
-        "static bar centre"
+        "static bar center"
     );
     for y in 0..16 {
         for x in 0..64 {

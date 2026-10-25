@@ -128,7 +128,7 @@ frame (`Left`, `Right`, or `Bottom`) and an entry in the **Window** menu.
 | `Image { width, height, rgba }` | Straight-alpha RGBA8 pixels, narrowed to fit | |
 
 A `Tone` is `Normal`, `Muted`, `Success`, `Warning`, or `Danger`, drawn in the
-theme's text, muted text, success, warning, and danger colours. `Normal` is the
+theme's text, muted text, success, warning, and danger colors. `Normal` is the
 default.
 
 `UiNode::column(children)`, `row(children)`, `heading(text)`, `text(text)`,

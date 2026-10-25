@@ -123,7 +123,7 @@ fn assert_centred(
     let centre = |(left, _, right, _): (f32, f32, f32, f32)| (left + right) / 2.0;
     assert!(
         (centre(line) - centre(element)).abs() <= SLACK,
-        "{panel}: the line's centre {} is off its element's {}",
+        "{panel}: the line's center {} is off its element's {}",
         centre(line),
         centre(element)
     );

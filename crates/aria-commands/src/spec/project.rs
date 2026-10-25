@@ -11,9 +11,9 @@ macro_rules! project_edit_rows {
                 AddMarker { label: "Add marker", reach: operator("the palette's Add Marker row, the marker chord, and the markers panel"), junctions: keeps, lock: guarded,
                     undo: restores("the ruler by removing the marker"), },
                 RemoveMarker { label: "Remove marker", reach: operator("the markers panel's delete button"), junctions: keeps, lock: guarded,
-                    undo: restores("the marker with its own id, position, name, colour and note"), },
-                SetMarker { label: "Edit marker", reach: operator("the markers panel: the colour cycle and the rename field"), junctions: keeps, lock: guarded,
-                    undo: restores("the marker's previous position, name, colour and note"), },
+                    undo: restores("the marker with its own id, position, name, color and note"), },
+                SetMarker { label: "Edit marker", reach: operator("the markers panel: the color cycle and the rename field"), junctions: keeps, lock: guarded,
+                    undo: restores("the marker's previous position, name, color and note"), },
                 SetProjectName { label: "Rename project", reach: operator("the rename bar, opened from the title in the window bar"), junctions: keeps, lock: guarded,
                     undo: restores("the project's previous name"), },
                 SetCanvas { label: "Set canvas", reach: operator("the settings dialog's canvas pickers: the aspect rows and the delivery sizes, plus the palette's reset-background row"), junctions: keeps, lock: guarded,
@@ -94,8 +94,8 @@ macro_rules! project_command_rows {
             },
             SetMediaLabel {
                 label: "Set media label",
-                reach: operator("the pool context menu's label colours"),
-                undo: restores("the pool entry's previous label colour"),
+                reach: operator("the pool context menu's label colors"),
+                undo: restores("the pool entry's previous label color"),
             },
             Export {
                 label: "Export",

@@ -14,7 +14,7 @@ appears twice, the document listed here for that concern is the one to edit.
 | [keyboard-shortcuts.md](keyboard-shortcuts.md) | Every registered chord |
 | [command-line.md](command-line.md) | The headless CLI |
 | [catalogs.md](catalogs.md) | Effect, transition, filter, and animation data files |
-| [reference/README.md](reference/README.md) | Built-in effects, generators, transitions, audio effects, filters, animations, stickers, masks, blend modes, colour spaces, project settings, clip properties, keyframes and graph curves, export and subtitle presets, scopes, tools, workspaces, panels, menus, commands, settings, and named controls |
+| [reference/README.md](reference/README.md) | Built-in effects, generators, transitions, audio effects, filters, animations, stickers, masks, blend modes, color spaces, project settings, clip properties, keyframes and graph curves, export and subtitle presets, scopes, tools, workspaces, panels, menus, commands, settings, and named controls |
 
 ## Extending Aria
 
@@ -22,7 +22,7 @@ appears twice, the document listed here for that concern is the one to edit.
 | --- | --- |
 | [architecture.md](architecture.md) | Crates, the UI boundary, decode and GPU paths |
 | [plugins/README.md](plugins/README.md) | Registries a plugin contributes to |
-| [theme-tokens.md](theme-tokens.md) | Colour and spacing tokens |
+| [theme-tokens.md](theme-tokens.md) | Color and spacing tokens |
 | [animation-catalog.md](animation-catalog.md) | Motion specs and their call sites |
 | [icons.md](icons.md) | Icon names and text placeholders |
 
@@ -41,7 +41,7 @@ compares the current build with it.
 
 ## Design notes and roadmaps
 
-These describe intent, not shipped behaviour. A claim here is not a feature.
+These describe intent, not shipped behavior. A claim here is not a feature.
 
 | Document | Concern |
 | --- | --- |

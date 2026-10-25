@@ -94,10 +94,10 @@ fn every_refusal_rule_rejects_and_lists_nothing() {
             },
         ),
         (
-            "a colour parameter",
+            "a color parameter",
             AudioEffectSpec {
                 params: vec![colour],
-                ..compressor("test.colour", false)
+                ..compressor("test.color", false)
             },
         ),
         (

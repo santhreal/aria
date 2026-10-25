@@ -50,7 +50,7 @@ api_key_env = "PEXELS_API_KEY"
 
 | Key | Type | Default | Allowed values or range | Dialog section | Effect |
 | --- | --- | --- | --- | --- | --- |
-| `appearance.theme` | `string` | `"blue"` | `"blue"`, `"ember"`, `"teal"`, `"graphite"` (aliases `"default"`, `"dark-blue"`, `"dark_blue"`) | `Appearance` | Selects the accent colour family (`ThemeChoice`). |
+| `appearance.theme` | `string` | `"blue"` | `"blue"`, `"ember"`, `"teal"`, `"graphite"` (aliases `"default"`, `"dark-blue"`, `"dark_blue"`) | `Appearance` | Selects the accent color family (`ThemeChoice`). |
 | `ai.source` | `string` | `"local"` | `"local"`, `"openrouter"`, `"custom"` (aliases `"or"`, `"advanced"`, `"endpoint"`) | `AI` | Selects the AI provider preset (`AiSource::Local`, `AiSource::OpenRouter`, or `AiSource::Custom`). |
 | `ai.base_url` | `string` | `""` | `""` or an `http://` / `https://` URL with host | `AI` | OpenAI-compatible endpoint URL used by `local` and `custom`. |
 | `ai.model` | `string` | `""` | Model identifier string | `AI` | Model identifier sent in chat completion or responses requests. |
@@ -132,7 +132,7 @@ api_key_env = "PEXELS_API_KEY"
 | `timelineDisplay.waveform` | `string` | `"logarithmic"` | `"logarithmic"`, `"linear"`, `"hidden"` | **View > Timeline Display** | Maps audio sample peaks to clip bar heights (`WaveformScale`, floor `-48.0 dB` in logarithmic mode). |
 | `timelineDisplay.follow` | `string` | `"page"` | `"page"`, `"smooth"` | **View > Timeline Display** | Controls how the timeline viewport follows the playhead during playback (`Follow`). |
 | `waveform` | `string` | `"luma"` | `"luma"`, `"rgbParade"`, `"ycbcrParade"` | **View > Scopes** / Scopes panel chips | Selects the Scopes waveform monitor mode (`WaveformMode`). |
-| `favouriteEffects` | `array` | `[]` | Array of `"kind:id"` strings (such as `"video:gaussian_blur"`) | Effects & Presets star button | Starred effect keys in the order they were favourited. |
+| `favouriteEffects` | `array` | `[]` | Array of `"kind:id"` strings (such as `"video:gaussian_blur"`) | Effects & Presets star button | Starred effect keys in the order they were favorited. |
 | `windowPlacements` | `object` | `{}` | Map of display arrangement signature (`"x,y,wxH;..."`) to `WindowPlacement` | Window move/resize | Saved main window position, size (`>= 1024x640`), maximized state, and display index per monitor layout. |
 | `lastDisplayArrangement` | `string` | `null` | Display arrangement signature string or `null` | Multi-monitor restore | Most recent monitor arrangement signature used for fallback display selection on launch. |
 

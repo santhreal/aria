@@ -193,7 +193,7 @@ fn scopes_doc_matches_registries() {
             (
                 unquote(r[0]).to_string(),
                 unquote(r[1]).to_string(),
-                unquote(r[2]).parse::<u8>().expect("grey code"),
+                unquote(r[2]).parse::<u8>().expect("gray code"),
             )
         })
         .collect();
@@ -289,7 +289,7 @@ fn scopes_doc_matches_registries() {
 
     let target_rows = table_rows(section(
         SCOPES_DOC,
-        "### Vectorscope colour targets (`TARGET_COLOURS`)",
+        "### Vectorscope color targets (`TARGET_COLOURS`)",
     ));
     let doc_targets: Vec<(usize, String, String, String)> = target_rows
         .iter()

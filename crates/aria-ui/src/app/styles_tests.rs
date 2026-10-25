@@ -139,7 +139,7 @@ fn style_edits_need_their_block_and_an_unknown_id_is_inert() {
     for (id, _) in STYLES {
         state
             .set_selected_style_color(id, [1, 2, 3, 4])
-            .expect("inert colour");
+            .expect("inert color");
         assert!(!style_enabled(
             &state.selected_ui_clip().expect("clip").styles,
             id
@@ -173,13 +173,13 @@ fn a_style_colour_edit_keeps_that_block_and_its_rows() {
         .expect("width");
     state
         .set_selected_style_color("outline", [10, 20, 30, 200])
-        .expect("colour");
+        .expect("color");
 
     let styles = state.selected_ui_clip().expect("clip").styles;
     assert_eq!(styles.outline, Some([10, 20, 30, 200]));
     assert!(
         (styles.outline_width - 6.0).abs() < 1e-3,
-        "a colour edit must keep the width"
+        "a color edit must keep the width"
     );
 }
 

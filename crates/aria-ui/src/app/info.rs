@@ -340,7 +340,7 @@ impl AppState {
                 rotation,
                 ..
             } => vec![
-                InfoRow::new("Mask centre", percent(center)),
+                InfoRow::new("Mask center", percent(center)),
                 InfoRow::new("Mask size", percent(size)),
                 InfoRow::new("Mask rotation", format!("{rotation:.1}°")),
             ],

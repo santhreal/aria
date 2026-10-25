@@ -438,7 +438,7 @@ impl MaskParam {
     pub const fn label(self) -> &'static str {
         match self {
             MaskParam::Feather => "Feather",
-            MaskParam::Center => "Centre",
+            MaskParam::Center => "Center",
             MaskParam::Size => "Size",
             MaskParam::Rotation => "Rotation",
             MaskParam::Roundness => "Roundness",

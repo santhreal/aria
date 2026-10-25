@@ -112,9 +112,11 @@ pub struct UiSettings {
     /// What the scopes' waveform monitor shows: luma, or an RGB or YCbCr
     /// parade.
     pub waveform: crate::scopes::WaveformMode,
-    /// The Effects panel's favourites, as `kind:id` keys such as
-    /// `video:gaussian_blur`, in the order they were starred.
-    pub favourite_effects: Vec<String>,
+    /// The Effects panel's favorites, as `kind:id` keys such as
+    /// `video:gaussian_blur`, in the order they were starred. Saved under
+    /// the key `favouriteEffects`, which existing settings files hold.
+    #[serde(rename = "favouriteEffects")]
+    pub favorite_effects: Vec<String>,
     /// Saved main window placement per display arrangement signature
     /// (`docs/spec/layout.md:24-26`).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
@@ -201,7 +203,7 @@ impl Default for UiSettings {
             audio_scrubbing: true,
             timeline_display: crate::timeline_display::TimelineDisplay::default(),
             waveform: crate::scopes::WaveformMode::default(),
-            favourite_effects: Vec::new(),
+            favorite_effects: Vec::new(),
             window_placements: BTreeMap::new(),
             last_display_arrangement: None,
         }

@@ -189,7 +189,7 @@ Pointer gestures on keyframes are in [animation.md](animation.md#keyframes).
 
 ## Customizing
 
-Edit > Keyboard Shortcuts shows a keyboard image with each key coloured by the
+Edit > Keyboard Shortcuts shows a keyboard image with each key colored by the
 kind of command it holds, the command list with search, and the conflict list.
 Dropping a command on a key binds it; pressing a key in a command's row binds
 it; a chord already bound in the same context shows the holder and asks before

@@ -544,7 +544,7 @@ fn a_sync_locked_lane_is_cut_with_the_insert_and_a_pinned_lane_is_not() {
     let mut ctx = test_ctx(&mut project, &mut project_path, &mut history);
 
     let (_, inverse) = ripple_insert::execute(&mut ctx, track, media, src(0, 24), rt(24))
-        .expect("insert inside a clip on a lane with a synced neighbour");
+        .expect("insert inside a clip on a lane with a synced neighbor");
 
     assert_eq!(
         ctx.project.clip(riding).unwrap().timeline.duration.value,

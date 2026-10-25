@@ -663,7 +663,7 @@ fn const_all_registries_have_recorded_documentation_decisions() {
         ),
         (
             "LabelTarget",
-            "internal context-menu colour-label dispatch target in aria-ui::app",
+            "internal context-menu color-label dispatch target in aria-ui::app",
         ),
         (
             "TextSwitch",

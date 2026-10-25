@@ -199,7 +199,7 @@ fn setting_a_grid_normalises_it_and_undoes_to_the_previous_one() {
     assert_eq!(
         engine.project().clip(clip).unwrap().beats,
         vec![15, 33, 70],
-        "the grid was not normalised to the source window"
+        "the grid was not normalized to the source window"
     );
 
     assert!(engine.undo());

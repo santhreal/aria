@@ -519,7 +519,7 @@ fn preview_transparency_clears_the_background_only_in_the_viewer_entries() {
         assert_eq!(
             pixel(&frame, w / 4, h / 4),
             [200, 40, 10, 255],
-            "{entry}: a covered pixel lost its colour"
+            "{entry}: a covered pixel lost its color"
         );
     }
     let thumbnail = engine.get_frame(rt(0)).expect("thumbnail frame");

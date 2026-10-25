@@ -141,7 +141,7 @@ fn a_preset_names_a_mask_row_by_its_canonical_id_and_holds_it_to_its_range() {
     preset("mask-3-opacity", 0.5).validate().unwrap();
     for id in [
         "mask-03-opacity",
-        "mask-3-colour",
+        "mask-3-color",
         "mask-opacity",
         "effect-0-radius",
     ] {

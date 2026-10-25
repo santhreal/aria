@@ -74,7 +74,7 @@ fn every_catalogued_model_is_listed_and_starts_uninstalled() {
     assert_eq!(rows.len(), WhisperModel::catalog().len());
     assert!(!rows.is_empty(), "the catalog offers no model at all");
     for row in &rows {
-        assert!(row.bytes > 0, "{} has no catalogued size", row.id);
+        assert!(row.bytes > 0, "{} has no cataloged size", row.id);
         assert!(!row.description.is_empty(), "{} has no description", row.id);
         assert_eq!(row.status, "Not installed", "{} claims a state", row.id);
         assert!(!row.reinstall, "{} offered a re-download", row.id);

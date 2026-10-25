@@ -115,7 +115,7 @@ fn stored_moments_reach_the_panel_and_the_filters_narrow_them() {
     );
     assert!(
         state.analysis.moments.iter().all(|moment| !moment.stale),
-        "current results were labelled stale"
+        "current results were labeled stale"
     );
 
     state.set_analysis_kind_filter(Some(AnalysisKind::Shots));
@@ -188,11 +188,11 @@ fn an_older_analyzer_version_reads_as_stale_and_can_be_cleared() {
     // The rule itself, in both directions. Every detector is at version 1 today, so a
     // stored batch cannot be older yet; this is what will label the rows on the day one
     // is bumped, and what must keep a newer build's rows unlabelled.
-    assert!(is_stale(1, 2), "an older batch was not labelled stale");
-    assert!(!is_stale(2, 2), "the current version was labelled stale");
+    assert!(is_stale(1, 2), "an older batch was not labeled stale");
+    assert!(!is_stale(2, 2), "the current version was labeled stale");
     assert!(
         !is_stale(u32::MAX, 1),
-        "a newer build's batch was labelled stale"
+        "a newer build's batch was labeled stale"
     );
     let projected = super::analysis::project_moment(&record, 0, R24);
     assert_eq!(projected.analyzer_version, kind.analyzer_version().get());

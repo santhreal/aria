@@ -45,7 +45,7 @@ Results are keyed on the media file, identified by its path, length, and
 modification time rather than a digest of its bytes: hashing a multi-gigabyte file
 would cost more than re-analyzing it. A byte-identical copy under a second path is
 therefore analyzed twice. Each detector also stores its own identity and version.
-When a later build raises a detector's version, its old rows are labelled
+When a later build raises a detector's version, its old rows are labeled
 `stale (analyzer vN)` and offer a re-run; they are never silently trusted or
 dropped. A transcription stores its segments in the same index, so a committed
 transcript is queryable by kind and confidence alongside the detectors.

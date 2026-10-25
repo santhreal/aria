@@ -202,7 +202,7 @@ fn a_ramp_that_cannot_be_cleared_changes_nothing() {
     );
     assert!(
         refused.is_err(),
-        "the cleared ramp would overlap the neighbour"
+        "the cleared ramp would overlap the neighbor"
     );
     assert_eq!(project.clip(clip).unwrap(), &before);
 }

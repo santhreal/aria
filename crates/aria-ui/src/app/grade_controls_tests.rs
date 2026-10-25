@@ -104,7 +104,7 @@ fn the_pointer_maps_into_the_unit_disc_and_holds_at_the_rim() {
     assert_eq!(
         pointer_to_wheel_offset(center, 0.0, [130.0, 100.0]),
         [0.0, 0.0],
-        "a wheel that has not painted reads the centre"
+        "a wheel that has not painted reads the center"
     );
 }
 
@@ -149,7 +149,7 @@ fn a_press_reads_the_pointer_against_the_wheels_own_frame() {
         let neutral = [control.neutral_master(); 3];
         let depth = state.history_depth();
         state.press_wheel(control, FRAME, at(0.0, 0.0));
-        assert_channels(&state, control, neutral, "a press at the centre");
+        assert_channels(&state, control, neutral, "a press at the center");
         assert!(state.release_wheel());
         assert_eq!(
             state.history_depth(),
@@ -248,7 +248,7 @@ fn a_drag_keeps_the_level_the_press_found() {
                 "{control:?} at {pointer:?}: the level moved to {level}, from {mean}"
             );
         }
-        assert_channels(&state, control, [mean; 3], "the centre around the level");
+        assert_channels(&state, control, [mean; 3], "the center around the level");
         assert!(state.release_wheel());
     }
 }

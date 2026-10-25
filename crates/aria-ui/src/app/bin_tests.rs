@@ -255,7 +255,7 @@ fn a_marker_note_is_written_cleared_and_survives_every_other_marker_edit() {
         .rename_marker(marker, "Chorus".into())
         .expect("rename");
     assert_eq!(state.store.sequence.markers[0].comment, "regrade this shot");
-    state.cycle_marker_color(marker).expect("colour");
+    state.cycle_marker_color(marker).expect("color");
     assert_eq!(state.store.sequence.markers[0].comment, "regrade this shot");
     state.move_marker(marker, 0).expect("move");
     assert_eq!(state.store.sequence.markers[0].comment, "regrade this shot");

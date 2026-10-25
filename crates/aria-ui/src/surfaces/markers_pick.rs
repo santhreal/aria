@@ -36,7 +36,7 @@ impl Pick {
     pub fn what(&self) -> &'static str {
         match self {
             Self::AddAtPlayhead => "add a marker at the playhead",
-            Self::CycleColour(_) => "cycle a marker's colour",
+            Self::CycleColour(_) => "cycle a marker's color",
             Self::Remove(_) => "remove a marker",
         }
     }

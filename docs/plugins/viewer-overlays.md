@@ -71,10 +71,10 @@ Source tab.
 | `Handle { id, at, color, look }` | A draggable `Dot`, `Square`, or `Cross`, 12 pixels across |
 
 Lines, rectangles, ellipses, and paths paint in scene order; text and handles
-draw above them. A colour is a theme colour (`Accent`, the default, `Text`,
+draw above them. A color is a theme color (`Accent`, the default, `Text`,
 `Muted`, `Success`, `Warning`, `Danger`) or `Rgba([r, g, b, a])`, straight-alpha
 sRGB. In JSON a shape is tagged by `kind` (`"line"`, `"rect"`, `"ellipse"`,
-`"path"`, `"text"`, `"handle"`), and an omitted field takes its default: colour
+`"path"`, `"text"`, `"handle"`), and an omitted field takes its default: color
 `"accent"`, width 1, no fill, text size 12, look `"dot"`.
 
 A press on a handle sends `Drag { handle, phase: Start, at }`. Each pointer

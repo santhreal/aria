@@ -100,7 +100,7 @@ fn the_pointer_reads_the_texel_of_the_frame_on_screen_that_covers_it() {
         assert_eq!(
             readout.color,
             Some(encoded(at[0] / 4, at[1] / 4)),
-            "colour at canvas pixel {at:?}"
+            "color at canvas pixel {at:?}"
         );
         assert!(
             !state.point_viewer(Some(window_at(rect, at))),

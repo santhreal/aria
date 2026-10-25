@@ -95,7 +95,7 @@ fn silence_is_refused_rather_than_amplified() {
     // names the same field so a surface has one message to show.
     for measured in [NORMALISATION_FLOOR_DBFS, -120.0, -1000.0] {
         let error =
-            normalisation_gain(measured, -6.0).expect_err("silence has nothing to normalise");
+            normalisation_gain(measured, -6.0).expect_err("silence has nothing to normalize");
         assert_eq!(error.field(), "measured_dbfs", "at {measured} dBFS");
     }
 }

@@ -54,7 +54,7 @@ fn every_offered_look_carries_a_full_swatch() {
         assert_eq!(
             look.swatch.len(),
             aria_render::SWATCH_REFERENCE.len(),
-            "{} swatched {} colours",
+            "{} swatched {} colors",
             look.id,
             look.swatch.len()
         );

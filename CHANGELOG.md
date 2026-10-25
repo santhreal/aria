@@ -30,7 +30,7 @@ Notes for the latest release. For previous releases, see the
 - The Pen tool draws a path mask in the Viewer: a click adds a corner vertex, a click-drag pulls a smooth one, clicking the first vertex or pressing Enter closes the path, and Escape drops it.
 - On a path mask the Pen inserts a vertex on a segment, Ctrl+click deletes a vertex, Alt+click turns one between corner and smooth, and any tool drags a vertex or a tangent handle, each gesture as one undo step.
 - A path mask animates by whole-path keyframes: its Mask N Path row in the timeline keys, unkeys, steps between, drags, eases, holds, and deletes them, a vertex or tangent drag in the Viewer keys the path at the playhead, and a vertex insert or delete changes every keyframe.
-- A drag of the Viewer mask handles starts where the mask is at the playhead, and on a keyframed centre, size, or rotation it adds a keyframe there instead of replacing the curve.
+- A drag of the Viewer mask handles starts where the mask is at the playhead, and on a keyframed center, size, or rotation it adds a keyframe there instead of replacing the curve.
 - The stopwatch and keyframe navigator of each timeline property row and Path row name themselves on hover.
 - Right-clicking a keyframe on a timeline property row, in the Graph Editor, or on a mask's Path row opens a context menu that checks Hold and Rove Across Time while they apply and closes on Escape or a press outside it.
 - A clip holds a stack of up to 32 masks, each with a mode (None, Add, Subtract, Intersect, Lighten, Darken, Difference), an opacity, an expansion in pixels, and an invert toggle, combined top to bottom in playback and export.
@@ -43,23 +43,23 @@ Notes for the latest release. For previous releases, see the
 - Animation presets capture a mask's keyframed properties and write them onto the mask at the same index of each target clip.
 - The Type tool (`T`) creates a title at the click in the Viewer and selects it.
 - With the Type tool a click on a title in the Viewer places the caret at the nearest character boundary, a drag or Shift+click selects, the keys edit the text with one undo step per typing burst, and a new title's placeholder is selected so typing replaces it.
-- With characters of a title selected in the Viewer, Bold, Italic, Underline, the font, size, tracking, and fill colour in the Character panel and the Text tab apply to those characters and show their values.
+- With characters of a title selected in the Viewer, Bold, Italic, Underline, the font, size, tracking, and fill color in the Character panel and the Text tab apply to those characters and show their values.
 - Holding a tool's key switches to that tool until the key is released, a tap switches permanently, and with the Selection tool Ctrl over a clip edge switches to Ripple Edit and Ctrl+Alt to Rolling Edit while held.
 - A tool button with variants draws a corner triangle, and pressing it for 300 ms or clicking the triangle opens its variants: the trim tools, and the Pen's Add Vertex, Delete Vertex, and Convert Vertex.
 - Settings > Keys saves the keys in force as a named keymap in `<data dir>/keymaps/<name>.toml`, loads a keymap in place of every rebinding, and imports and exports keymap files, refusing a file with another version or an unbindable chord with the reason.
-- Settings > Keys draws a keyboard image with each key coloured by the kinds of command it holds under the Ctrl, Shift, and Alt caps clicked on it, and a binding row dropped on a key binds it there.
+- Settings > Keys draws a keyboard image with each key colored by the kinds of command it holds under the Ctrl, Shift, and Alt caps clicked on it, and a binding row dropped on a key binds it there.
 - Rebinding to a chord another binding holds asks on the row, and Move or Enter gives the chord to the row and leaves the holder with no key.
 - The Settings filter lists the key bindings whose name or chord contains it.
 - Plugins granted `project` read query clips by id, by half-open time range, at a tick, or by selection, ruler markers in a range, and the sequence In and Out points, on the Rust, C ABI, and WebAssembly tiers.
 - Dropped files and `http`, `https`, and `file` URLs go through one `ResolveDropped` hook run in handler priority order, a handler can return `DropAction::Handled`, and a URL no plugin handles is reported in the status line.
 - Window > Jobs docks the Jobs board as a panel, and a running job that reports its progress states the time left at its rate so far.
-- Window > Character and Window > Paragraph dock the selected title's font, Bold, Italic, Underline, Kerning, case, stroke, shadow and card switches, size, tracking, leading, colours, horizontal alignment with Justify, vertical alignment, and wrapping, the same controls the inspector's Text tab draws.
+- Window > Character and Window > Paragraph dock the selected title's font, Bold, Italic, Underline, Kerning, case, stroke, shadow and card switches, size, tracking, leading, colors, horizontal alignment with Justify, vertical alignment, and wrapping, the same controls the inspector's Text tab draws.
 - The Window menu holds one row per registered dock panel, plugin panels and Audio Meters included, checked while the panel is open.
-- Window > Info (`Shift+8`) docks a panel showing the canvas pixel and colour under the pointer in the Viewer, read only while the Info tab is in front, the selected clip's In, Out, Duration, and source times, the trim or Viewer drag in progress, and driver, mount, and plugin faults.
-- Window > Align docks Align and Distribute, which align the selected clips' edges or centres to the selection, the frame, or the first selected clip and space three or more clips' centres evenly, measured on the bounds the compositor draws at the playhead and written as one undo step.
+- Window > Info (`Shift+8`) docks a panel showing the canvas pixel and color under the pointer in the Viewer, read only while the Info tab is in front, the selected clip's In, Out, Duration, and source times, the trim or Viewer drag in progress, and driver, mount, and plugin faults.
+- Window > Align docks Align and Distribute, which align the selected clips' edges or centers to the selection, the frame, or the first selected clip and space three or more clips' centers evenly, measured on the bounds the compositor draws at the playhead and written as one undo step.
 - Titles justify their wrapped lines and turn pair kerning off per style, and the Python API takes `align="justify"` and a `kerning` argument.
-- Title and shape colours are set from swatch rows in the inspector, keyed at the playhead when the colour is animated.
-- The status bar shows the message line at the left, the first running job with its progress and a count of the others at the centre, opening the Jobs panel on a click, and, during playback, the achieved playback rate, playback resolution, and GPU device name at the right.
+- Title and shape colors are set from swatch rows in the inspector, keyed at the playhead when the color is animated.
+- The status bar shows the message line at the left, the first running job with its progress and a count of the others at the center, opening the Jobs panel on a click, and, during playback, the achieved playback rate, playback resolution, and GPU device name at the right.
 - View > Canvas Handles chooses the Transform, Crop, or Mask handles by name, and Sequence > Source > Insert Pool Selection is disabled with its reason while no online pool item is selected.
 - View > Compare shows the Program frame against the frame held at the playhead, a still image, or the Source monitor's frame, as a vertical wipe, a horizontal wipe, or side by side, with a draggable divider.
 - Window > Audio Meters (`Shift+9`) docks a panel with one bar per output channel on a −60 to 0 dBFS scale, drawing RMS and peak, a 1.5 s peak-hold line, and a clip light that stays lit until clicked.
@@ -73,15 +73,15 @@ Notes for the latest release. For previous releases, see the
 - `aria-sdk` adds `Host::register_effect`, `register_cpu_effect`, `register_transition`, `register_generator`, `register_cpu_generator`, `register_clip_type`, `register_driver_language`, `register_preset`, `register_theme`, and `register_workspace`; `@1.0.0` WebAssembly components and shorter v1 C-ABI tables still load.
 - A cut between two clips on an audio lane takes a Constant Power, Constant Gain, or Exponential Fade crossfade from Ctrl+Shift+T, the Audio tab, the cut's context menu, the Effects panel's Audio Transitions group, or the `add_transition` tool; each side plays into its unused source media across the window in playback and export.
 - Sequence > Render Selection renders the frames the selected clips cover into the render-file cache as a background job.
-- View > Transparency Grid draws a grey grid where no layer covers the canvas in the Viewer, in place of the sequence background colour, and is saved with the settings.
-- Window > Effects & Presets (`Shift+5`) opens the sidebar's Effects tab: a searchable tree of every video effect, audio effect, transition, generator, clip type, and animation preset with favourites, each plugin's name in the tooltip, plugins that failed to load with their reason, double-click to apply to the selection, and drag onto a clip, cut, or lane.
+- View > Transparency Grid draws a gray grid where no layer covers the canvas in the Viewer, in place of the sequence background color, and is saved with the settings.
+- Window > Effects & Presets (`Shift+5`) opens the sidebar's Effects tab: a searchable tree of every video effect, audio effect, transition, generator, clip type, and animation preset with favorites, each plugin's name in the tooltip, plugins that failed to load with their reason, double-click to apply to the selection, and drag onto a clip, cut, or lane.
 - Dragging a video effect onto the inspector's Effects tab inserts it above the effect it is dropped on, or at the end of the chain, as one undo step; other clip payloads apply to the selected clip and clip-placing entries are refused with a reason.
 - Effects & Presets can list one group alone under a caption with **Show All**, which the Audio workspace uses for audio effects.
 - The menu bar has File, Edit, Clip, Sequence, Markers, Effect, Animation, View, Window, and Help menus with submenus (Open Recent, Export, Label, Replace with Clip, Add Tracks, Keyframe Interpolation, Keyframe Assistant, Resolution, Safe Margins, Workspaces), check marks on toggles, each row's chord, and a disabled row's reason as its tooltip and on the status line when chosen anyway.
 - A menu row lit from the keyboard draws a 1 px accent focus ring, the ring follows the arrows into a submenu's flyout, and a drop opened with the pointer draws none.
-- Markers support clip attachment when a selected clip is under the playhead, range durations, Comment/Chapter/Segmentation kinds, the Edit Marker dialog (`M` on an existing marker or Markers > Edit Marker…), range bars on the timeline ruler and clip cards, and colour filtering in the Markers panel.
+- Markers support clip attachment when a selected clip is under the playhead, range durations, Comment/Chapter/Segmentation kinds, the Edit Marker dialog (`M` on an existing marker or Markers > Edit Marker…), range bars on the timeline ruler and clip cards, and color filtering in the Markers panel.
 - File > Open Recent lists each remembered project, File > Revert drops the edits made since the last save, and File > Export has one row per timeline exporter that writes only that format.
-- Edit > Label sets the label colour of the selected clips, Sequence > Trim Edit selects the nearest edit point, Extend Edit moves the selected edge to the playhead, and Delete Empty Tracks removes every lane with no clips, each as one undo step.
+- Edit > Label sets the label color of the selected clips, Sequence > Trim Edit selects the nearest edit point, Extend Edit moves the selected edge to the playhead, and Delete Empty Tracks removes every lane with no clips, each as one undo step.
 - Clip > Replace with Clip > From Source Monitor swaps the selected clip's media for the focused Source tab, aligning the Source playhead frame with the sequence playhead, and refuses a source too short to fill the clip.
 - Effect > Apply re-applies the last added effect to the selection, Remove All Effects clears every effect of the selected clips as one undo step, and Animation > Keyframe Interpolation sets the selected or playhead keyframes to Linear, Bezier, or Hold.
 - Help > About shows the build version, plugin ABI, mounted plugin count, data folder, and license.
@@ -114,7 +114,7 @@ Notes for the latest release. For previous releases, see the
 - Add SMPTE timecode readout and adaptive zoom-aware ticks to the timeline ruler, playhead-anchored zoom keys (= and -), and draggable left/right zoom handles on the sequence overview bar.
 - Add a live on-canvas trim feedback HUD showing tool name, signed frame delta, and resulting timecode or speed percentage during ripple, roll, slip, slide, rate-stretch, and clip move drags.
 - Add Track Select Forward (A) and Track Select Backward (Shift+A) tools on one or all unlocked lanes, clickable clip-edge selection for frame-step trimming, and clickable gap selection with Delete / Backspace ripple-close.
-- Tint timeline clips from their plugin clip-type colour when no clip label colour is set, draw the 12px clip-type icon before the clip name, and show a warning badge when the clip type's plugin or generator is missing.
+- Tint timeline clips from their plugin clip-type color when no clip label color is set, draw the 12px clip-type icon before the clip name, and show a warning badge when the clip type's plugin or generator is missing.
 - Keys for Lift (`;`), Extract (`'`), Add Edit to All Tracks (Ctrl+Shift+K), head and tail trims to the playhead that keep the gap (Alt+[ / Alt+]), Ripple Delete (Shift+Delete), Clear In and Out (Ctrl+Shift+X), Mark Clip (X), Select at Playhead (D), previous and next cut (Up / Down, Shift for every track), clip gain (`[` / `]`, Shift for 6 dB), Link (Ctrl+L), Snapping (S), Default Transition (Ctrl+T), previous and next keyframe (Shift+Alt+Left / Right), track heights (Ctrl+= / Ctrl+-), Cut (Ctrl+X), Import (Ctrl+I), Save a Copy (Ctrl+Alt+S), Find (Ctrl+F), Keyboard Shortcuts (Ctrl+Alt+K), Quit (Ctrl+Q), Clear All Markers (Ctrl+Shift+Alt+M), panel focus (Shift+1 to Shift+4, Ctrl+Tab, Ctrl+Shift+Tab, Ctrl+W), workspaces (Shift+Alt+1 to Shift+Alt+9), and Viewer nudges of the selected clip (arrows 1 px, Shift+arrows 10 px, Shift+/ to fit).
 - File > New Sequence, the palette, and Ctrl+N create and open an empty sequence with the open sequence's frame rate, canvas, and audio layout and one video and one audio track, as one undo step.
 - File > Export Frame, the palette, and Ctrl+Shift+E write the frame under the playhead to a PNG at the canvas size as a job, replacing an existing file only once the PNG is complete.
@@ -125,7 +125,7 @@ Notes for the latest release. For previous releases, see the
 - Plugins offer the assistant tools with `PluginContext::register_ai_tool`, `register-ai-tool` in WASM, and `register_ai_tool` in the C ABI: each is called as `plugin_<name>`, returns text and PNG images, runs at the tier its plugin registers when the call is made, and asks before a System call under Autonomy Ask.
 - Plugins add scopes to the scope strip with `PluginContext::register_scope`, `register-scope` in WebAssembly, and `register_scope` in the C ABI; each measures the Viewer frame on the preview thread and draws an image and one readout line below the built-in scopes.
 - Plugins add workspaces to the Window menu and Settings with `PluginContext::register_workspace` or `[[workspaces]]` in `plugin.toml`, setting pane sizes, collapsed panes, the scope strip, and the focused pane.
-- Plugins add clip types with `PluginContext::register_clip_type` or `[[clip_types]]` in `plugin.toml`: each is placed from the Generators tab or the palette as a generator clip with the type's name, timeline colour, and icon, shows in the inspector with Detach, and draws Viewer handles that move the generator's vec2 parameters as one undo step per drag.
+- Plugins add clip types with `PluginContext::register_clip_type` or `[[clip_types]]` in `plugin.toml`: each is placed from the Generators tab or the palette as a generator clip with the type's name, timeline color, and icon, shows in the inspector with Detach, and draws Viewer handles that move the generator's vec2 parameters as one undo step per drag.
 - `Shift+J` and `Shift+L` step shuttle speed down and up by 10% across `[-8x, 8x]` with fractional frame cadence in the Viewer.
 - Holding `K` and tapping `J` or `L` steps one frame backward or forward, and holding `K` with `J` or `L` held plays at 1/4 speed until release.
 - `Shift+Space` plays the active work area from its start, and `Ctrl+Shift+L`, the Viewer loop button, and `View > Loop Playback` toggle loop playback over the work area.
@@ -172,13 +172,13 @@ Notes for the latest release. For previous releases, see the
 - WebAssembly component plugins and native C ABI plugins built with `aria-sdk` register viewer overlays, build `OverlayScene` shape lists, handle pointer drag events on handles, and schedule scene rebuilds (`register-viewer-overlay`, `refresh-viewer-overlay`, `overlay-scene`, `overlay-event`, `aria_sdk::Host::register_viewer_overlay`, `aria_sdk::Host::refresh_viewer_overlay`).
 - Transform, crop, and mask handles on a zoomed or panned Viewer sit on the picture instead of where the fitted frame would be, and dragging a handle no longer pans the view.
 - A WASM or data package reloads when its files change on disk, and the package named by `ARIA_PLUGIN_DEV` loads from its source folder and reloads at any tier.
-- Settings > Plugins shows each plugin's newest 256 log lines under a Log toggle, coloured by level with Copy, from `PluginContext::log`, the WASM `log` import, and the native `log` call, and logs each failure, fault, and caught panic with its backtrace.
+- Settings > Plugins shows each plugin's newest 256 log lines under a Log toggle, colored by level with Copy, from `PluginContext::log`, the WASM `log` import, and the native `log` call, and logs each failure, fault, and caught panic with its backtrace.
 - A package with `[activation] on` events loads on the first command, file, effect, transition, generator, panel, or setting it names, while its declared contributions and `[[panels]]` cards are listed under its name and Settings > Plugins shows what it waits for.
 - A WASM component built for another WIT world is refused at load with the mismatch instead of failing on its first call.
 - Settings > Plugins sets the fuel per call and the memory of WASM plugins, saved in `[plugin_limits]`, and a change remounts the mounted WASM plugins under the new limits.
 - `aria plugin new`, `dev`, `check`, and `pack` create a WASM or native plugin crate, run it in the editor with a rebuild and reload on each change, validate a package's manifest, shaders, permissions, and binaries, and write the `.ariaplugin`.
 - File > Import Timeline and Export Timeline read and write CMX 3600 EDL, Final Cut Pro XML, and OpenTimelineIO; a timeline file picked in Import or dropped on the window lands on the timeline as one undo step, and what a format cannot hold is listed in a Timeline File dialog that opens when the run finishes.
-- Media Support Report (`pal-media-support`) opens the Media Support dialog, which lists the containers, codecs, and pixel formats the decoder reads and what the selected clip's source is made of, with Re-read, Verify decode, Loudness overview, Measure exposure, and Normalise selection buttons.
+- Media Support Report (`pal-media-support`) opens the Media Support dialog, which lists the containers, codecs, and pixel formats the decoder reads and what the selected clip's source is made of, with Re-read, Verify decode, Loudness overview, Measure exposure, and Normalize selection buttons.
 - File > Import Timeline and Export Timeline read and write SubRip and WebVTT subtitles: cues become text clips on new text tracks, overlapping cues take further tracks, and the shown text tracks export as cues.
 - A `.cube` dropped with no clip selected, or picked in File > Import Timeline, adds a LUT filter bar across the sequence on a new filter track, instead of doing nothing.
 - The engine, project host, and jobs services registered by a session started without the engine plugin stay registered for the session instead of being dropped at once.
@@ -188,7 +188,7 @@ Notes for the latest release. For previous releases, see the
 - Opening a video file on a busy machine retries once before reporting a decode failure, so a slow preroll no longer reads as a broken file.
 - The plugin guide adds `docs/plugins/packages.md` and `docs/plugins/native.md` in place of `docs/plugins/external.md`, the worked example builds an `.ariaplugin` package, and `examples/data-plugin` is a data package checked by the package tests.
 - Playback follows the audio device clock minus its output latency, shows the newest ready frame on each display refresh, and counts each frame it could not show as decode late, render late, or present late.
-- The status bar shows a dropped-frame count in the warning colour once a frame drops, which a click resets; Settings > Playback > Log dropped frames logs each drop with its cause.
+- The status bar shows a dropped-frame count in the warning color once a frame drops, which a click resets; Settings > Playback > Log dropped frames logs each drop with its cause.
 - Preview frames render on one worker thread that renders four frames ahead of playback and drops them on an edit, instead of one thread per frame, and scopes measure on that worker instead of the UI thread.
 - Shuttle at 2x, 4x, and 8x steps through the sequence at those speeds while presenting at the sequence rate.
 - The Viewer's resolution picker renders playback and paused frames at Full, 1/2, 1/4, or 1/8, and Auto lowers the playback resolution until frames render inside the frame period.
@@ -253,7 +253,7 @@ Notes for the latest release. For previous releases, see the
   clip it was not shown. `describe_project` takes a `from_seconds` and
   `to_seconds` stretch, which is how it reads the rest: a question about an hour
   in is answered by asking for that stretch rather than by guessing. The system
-  prompt says all of this, so the behaviour is instructed rather than inferred.
+  prompt says all of this, so the behavior is instructed rather than inferred.
 
 - **A config value the editor cannot use now says so instead of vanishing.**
   Loading was tolerant and silent: `root = "cache"` under `[storage]` is a
@@ -374,12 +374,12 @@ Notes for the latest release. For previous releases, see the
   followed, and a track that loses its feature says which frame lost it.
 - **Every strip has a meter, and it is that lane's level.** The mixer drew a
   fader and nothing to mix against: one peak pair was published, for the
-  programme output, so a strip had no level of its own and a bus had none at all
+  program output, so a strip had no level of its own and a bus had none at all
   even though the fold already held every lane's samples and threw them away.
   Each lane now reads its own peak, taken post-fader inside the fold, published
   once per mixed block into a table sized when playback starts, so metering
   costs no allocation per block and the device callback never touches it. The
-  bars fall on the repaint clock like the programme meter, a lane the mix is not
+  bars fall on the repaint clock like the program meter, a lane the mix is not
   carrying reads silence rather than the master's level, and a lane that reaches
   full scale turns red.
 - **The assistant can route the mix.** The mixer shipped as an operator surface
@@ -484,14 +484,14 @@ Notes for the latest release. For previous releases, see the
   naming the sequence that is open — click it to leave. An edit inside a nest
   lands in the nest, which is what the projection and the breadcrumb now both
   read.
-- **The colour wheels are reachable by name.** Lift, gamma and gain shipped in
+- **The color wheels are reachable by name.** Lift, gamma and gain shipped in
   the model and on the wheel widget, but the twelve of them had no wire member,
   so an assistant could set exposure or saturation and not touch a wheel, and a
   described clip never mentioned one. `adjust_lift_r` through `adjust_gain_master`
   are tool parameters now (tool schema 45), and the grade description reads each
   slider against its own neutral, so gamma and gain at 1.0 read as untouched
   instead of as set.
-- **One table describes every grade slider.** Which sliders a colour grade has,
+- **One table describes every grade slider.** Which sliders a color grade has,
   what each one's neutral is and what range it accepts were three hand-written
   sweeps that had already drifted: `ColorAdjustments::SLIDERS` carries name,
   neutral, range and accessors, and neutrality checking, validation, the
@@ -602,7 +602,7 @@ Notes for the latest release. For previous releases, see the
   `ProjectCommand::Export` now carries an `ExportFormat` — every field optional,
   so an older `{"path": …}` payload still means the project's own output — and
   one resolver turns that request into what will be written, refusing a codec,
-  bitrate, size or rate this machine will not honour by name before a file
+  bitrate, size or rate this machine will not honor by name before a file
   exists. The app, the command line and the mobile FFI all go through it.
 - **The Linux build installs like an application.** The tarball shipped a bare
   binary: no launcher, no icon, and no file type, so Aria appeared in no menu
@@ -624,7 +624,7 @@ Notes for the latest release. For previous releases, see the
   export sheet uses as its pre-flight.
 - **A pool tile is decoded once, ever.** The library's thumbnails lived in
   memory, so every launch re-decoded a frame of every file in the project and a
-  large pool spent its first seconds drawing grey. The resting tile picture now
+  large pool spent its first seconds drawing gray. The resting tile picture now
   lands on disk under the library-thumbnails cache — one versioned file per
   source per tile size, keyed by the file's path, length and modification time,
   written through a temporary sibling so no reader sees a partial picture, and
@@ -635,7 +635,7 @@ Notes for the latest release. For previous releases, see the
   every effect's parameter names, order and widths beside the catalog the
   inspector browses and the engine validates against, and a cross-crate test in
   `aria-engine` existed to notice when the two drifted. The render slots are now
-  derived from `aria_models::effect_catalog` — scalar one float, vec2 two, colour
+  derived from `aria_models::effect_catalog` — scalar one float, vec2 two, color
   four, in catalog order — so there is nothing left to drift, and the registry row
   carries only what the GPU owns: which shaders run and which parameter makes the
   pass inert. Because the catalog is a file a user can replace, each effect is
@@ -753,11 +753,11 @@ Notes for the latest release. For previous releases, see the
 - **Every chip in the app is the same control.** The media tabs, the stock kinds,
   the analysis kind and confidence filters, the caption thread and commit rows,
   the generator kinds and the pool's own sort and view rows were six copies of
-  one fifty-line chip, three of which swapped colour on hover instead of easing
+  one fifty-line chip, three of which swapped color on hover instead of easing
   into it. They are all drawn by `components::chip` now, in one of two sizes: a
   panel's primary filter row, or a secondary row beside a title or a count. A
   caller keeps only its own click.
-- **The editor arranges itself.** Four shipped workspaces (Editing, Colour,
+- **The editor arranges itself.** Four shipped workspaces (Editing, Color,
   Audio, Effects) sit on the Window menu, in the palette, and in Settings >
   Workspaces, and each one restores the rail and inspector widths, whether either
   is collapsed, the timeline height, the scope strip, the pane the keyboard is
@@ -767,7 +767,7 @@ Notes for the latest release. For previous releases, see the
   simply leaves none in force instead of leaving a stale name behind, and a saved
   arrangement from a build with different pane limits is pulled inside them
   instead of being refused. The scope strip is opened through the same toggle the
-  View menu uses, so switching to Colour measures the frame on screen rather than
+  View menu uses, so switching to Color measures the frame on screen rather than
   showing an empty scope. The menu row family is generated from the workspace
   table: a fifth arrangement is one row of data and no new code.
 - **Every key can be rebound.** Settings > Keys lists every binding the registry
@@ -839,7 +839,7 @@ Notes for the latest release. For previous releases, see the
   id, label, value kind, scope, range, and the route to the value it reads. The
   route is also the availability rule, so a property whose block is missing is
   neither offered nor readable, and the strip lists exactly what the selected
-  clip can animate: colour grade, mask geometry, chroma tolerance, matte
+  clip can animate: color grade, mask geometry, chroma tolerance, matte
   softness, layer shadow, glow, outline and background, text stroke, shadow and
   card, and shape fill, stroke and geometry, alongside the six it had.
   `param_enum!` declares each property enum together with its census, so a new
@@ -896,7 +896,7 @@ Notes for the latest release. For previous releases, see the
   and the inspector reports which of the two the operator just got. Set one from
   the inspector, **Sequence → Track Matte from Luma Above**, or the palette.
 - **Adjustment layers.** A lane bar that grades and filters everything below it:
-  its effect stack, its colour grade, and its LUT all resolve as one canvas-wide
+  its effect stack, its color grade, and its LUT all resolve as one canvas-wide
   pass, so one bar carries a look across every clip under it instead of the same
   settings being copied clip by clip. Add one from **Sequence → Add Adjustment
   Layer** or the palette; it covers the marked range, else the selection, else
@@ -918,7 +918,7 @@ Notes for the latest release. For previous releases, see the
 - **A features chapter, and an index for the documents.** `docs/features.md`
   states what the editor does and what it does not, surface by surface, and
   `docs/README.md` says which document owns which claim and which ones describe
-  intent rather than shipped behaviour.
+  intent rather than shipped behavior.
 - **The assistant sends prompts.** Type in the panel's prompt box and press Enter
   or **Send**: the turn runs as a job, its answer streams into the transcript as
   it arrives, and each edit lands in the project as the model makes it — visible
@@ -1048,7 +1048,7 @@ Notes for the latest release. For previous releases, see the
   version 43).
 - **Export codec and bitrate.** The Export sheet gains a **Codec** row (H.264 or
   H.265) and a **Bitrate** row (the encoder's own rate control, or 4, 8, 16, or
-  40 Mb/s). Each row offers only what the machine can honour: Linux codecs are
+  40 Mb/s). Each row offers only what the machine can honor: Linux codecs are
   probed from the installed GStreamer encoders at run time, and the other
   backends write H.264 at their own rate and refuse both rows by name. A codec a
   backend cannot write, or a target bitrate it would ignore, is refused before
@@ -1075,7 +1075,7 @@ Notes for the latest release. For previous releases, see the
   project, and a project with no bins writes none.
 - **Slip, slide, rolling edit, rate stretch, and ripple trim.** Five trim tools
   join the tool strip, on Y, U, N, R, and P. Slip moves the take inside a clip;
-  slide moves a clip and gives the difference to its neighbours; a rolling edit
+  slide moves a clip and gives the difference to its neighbors; a rolling edit
   moves the cut between two abutting clips; rate stretch changes how long a clip
   plays without dropping any source, composing with a speed the clip already has;
   a ripple trim moves the rest of the lane by what the edge gave up, so a trim
@@ -1165,7 +1165,7 @@ Notes for the latest release. For previous releases, see the
   seconds; an error stays up until an edit, an undo, or a redo succeeds, which is
   the only thing that makes a failure stale.
 - **Lane collapse.** The chevron in a track header folds the lane to a 20-pixel
-  strip of flat coloured bars, so the cut pattern stays readable while the lane
+  strip of flat colored bars, so the cut pattern stays readable while the lane
   takes almost no room; the height is kept and expanding restores it. Collapse is
   stored with the sequence.
 - **Per-lane display options.** Drag a lane's lower border to resize it (28–200
@@ -1183,14 +1183,14 @@ Notes for the latest release. For previous releases, see the
   so the strip shows the picture with transform, grade, and effects applied.
   Cells sit on one grid shared by every clip, render one at a time in the
   background, and invalidate only the ticks whose picture changed.
-- **Label colours** on clips and media-pool rows. Right-click either, or use
-  Edit > Label, for the 16 label colours (Violet, Iris, Caribbean, Lavender,
+- **Label colors** on clips and media-pool rows. Right-click either, or use
+  Edit > Label, for the 16 label colors (Violet, Iris, Caribbean, Lavender,
   Cerulean, Forest, Rose, Mango, Purple, Blue, Teal, Magenta, Tan, Green,
-  Brown, Yellow) plus a clear. A timeline clip is filled with its label colour;
+  Brown, Yellow) plus a clear. A timeline clip is filled with its label color;
   an unlabelled clip takes Violet for picture, Forest for sound, Mango for a
   generator, Tan for a nested sequence, and Lavender on an adjustment lane. A
-  labelled pool row carries a dot in it, the clip menu's label chips select
-  every clip of that label in timeline order, the pool filter matches a colour
+  labeled pool row carries a dot in it, the clip menu's label chips select
+  every clip of that label in timeline order, the pool filter matches a color
   name, and a project saved with the pink, red, or orange label opens with
   Magenta, Rose, or Mango.
 - A **History** panel (**Window > History**, Ctrl+Shift+H): every step of the
@@ -1246,10 +1246,10 @@ Notes for the latest release. For previous releases, see the
   fallback, and a sticker lands without a rebuild. An entry whose art is missing
   is dropped rather than offered as a tile that cannot draw, and the reason shows
   in **Settings > Catalogs**.
-- A Markers tab. Every ruler marker is a row with its time, label, colour, and
+- A Markers tab. Every ruler marker is a row with its time, label, color, and
   note: clicking one seeks to it, the swatch cycles the palette, and Note edits
-  a comment the marker keeps. A marker's colour now shows on the ruler flag
-  instead of every flag being drawn in the accent colour.
+  a comment the marker keeps. A marker's color now shows on the ruler flag
+  instead of every flag being drawn in the accent color.
 - A marker carries a note. It is written and cleared from the marker list, kept
   by every other marker edit, restored by undo, and absent from a save while
   empty so an older project loads unchanged. The assistant can set it too.
@@ -1274,12 +1274,12 @@ Notes for the latest release. For previous releases, see the
   A test walks every clip kind and fails when one has no tab to draw or when a
   selected tab resolves to one that does not apply.
 - **The inspector's sliders are the property catalog.** Every numeric row in the
-  Mask, Chroma Key, Colour, LUT, and layer-style blocks is generated from
+  Mask, Chroma Key, Color, LUT, and layer-style blocks is generated from
   `clip_param_catalog()` by asking for a group, so a property the model declares
   arrives with a control, a label, a step, and a range without an inspector edit.
   Each row also derives its step and its number formatting from the declared
   range rather than from a hand-kept table, and a property with no control —
-  a colour or a crop rectangle, which the swatches and the canvas handles own —
+  a color or a crop rectangle, which the swatches and the canvas handles own —
   is declared exempt instead of silently unreachable.
 - Sixteen properties now declare the bounds they always had. Mask rotation,
   layer blur, glow and outline width, background padding and radius, text size,
@@ -1297,7 +1297,7 @@ Notes for the latest release. For previous releases, see the
   every dialog kind in turn — the plugin dialog included, opened with an id no
   plugin registered. Naming the kinds is an exhaustive match, so a new dialog
   cannot ship without being drawn at least once.
-- **Every colour the theme declares is painted by a control.** Twelve tokens were
+- **Every color the theme declares is painted by a control.** Twelve tokens were
   declared and unused, which is a design decision nobody can see: the two hover
   tiers are now named rather than computed at the call site, buttons have a
   pressed plate, a queued job's row carries its outcome, the status strip turns
@@ -1376,14 +1376,14 @@ Notes for the latest release. For previous releases, see the
 - A work area bar under the timeline ruler spans In to Out: dragging the bar moves both points, dragging an end moves one, Escape during the drag puts them back, and a double-click sets the work area to the whole sequence.
 - Added Mini (20 px), Small (32 px), Medium (48 px), and Large (72 px) track height presets to the track context menu and Shift+scroll on timeline track headers, lowering the minimum track height to 20 px.
 - Added Center at Cut, Start at Cut, and End at Cut transition alignment in the Transition inspector block and transition context menu, shifting the timeline transition band, video blend window, and audio crossfade window relative to the cut.
-- Timeline clip bars draw a 14 px name strip with the clip's speed when it is not 100 % (`120%`, `-100%`) and an fx badge that is grey with no changes, purple for changed clip properties, yellow for applied effects, and yellow with a purple underline for both.
+- Timeline clip bars draw a 14 px name strip with the clip's speed when it is not 100 % (`120%`, `-100%`) and an fx badge that is gray with no changes, purple for changed clip properties, yellow for applied effects, and yellow with a purple underline for both.
 - Clicking a clip bar's fx badge opens a menu of the clip's properties, and the chosen property is the line the bar draws, with keyframe dots on Medium and taller lanes; dragging the line sets the value as one undo step and Ctrl+click on it adds a keyframe.
-- A clip bar whose media file is missing fills red with Media Offline and the file name, a generated clip's bar draws its name and colour swatch, and linked clips that drift apart show the frame offset on both bars.
+- A clip bar whose media file is missing fills red with Media Offline and the file name, a generated clip's bar draws its name and color swatch, and linked clips that drift apart show the frame offset on both bars.
 - Plugins can add rows to the fx badge menu through the `Clip Badge` menu location, and `ContextMenuRequested` reports it as `MenuTarget::ClipBadge`.
 - `docs/plugins/wit-reference.md` documents every type, field, case and function of the WASM `plugin` world from the `///` comments in `plugin.wit`, which `wit-bindgen` copies into guest bindings.
 - `docs/plugins/events.md` lists every event kind an external plugin subscribes to, with its payload fields and the replies the host reads.
 - `docs/plugins/native-abi-reference.md` documents every define, type, field and table slot of the native C ABI, and `aria_plugin.h`, generated from the same doc comments, gains them along with `AriaTableHeader`, the table size defines and `ARIA_PLUGIN_ENTRY_SYMBOL`.
-- `docs/reference/` documents every built-in video effect, generator, clip type, transition, audio effect, colour filter, grading control, clip animation, text effect, easing curve, speed-ramp preset, sticker, and mask parameter, and tests fail when a registry member has no entry.
+- `docs/reference/` documents every built-in video effect, generator, clip type, transition, audio effect, color filter, grading control, clip animation, text effect, easing curve, speed-ramp preset, sticker, and mask parameter, and tests fail when a registry member has no entry.
 - `docs/reference/` documents every tool, workspace, dock panel, overlay dialog, Project sidebar tab, Home rail view, command palette action, menu item, and configuration setting, and tests fail when one has no entry or when a relative link or anchor under `docs/` does not resolve.
 - Every public `aria-sdk` item is documented, and the crate denies `missing_docs`.
 - `docs/plugins/packages.md`, `presets.md`, `workspaces.md`, and `effects.md` and `docs/theme-tokens.md` document every `plugin.toml` table and key, preset field, workspace key, effect WGSL header field, and theme token with its type and default, and tests fail when a parser accepts a key the documents omit or a documented example does not parse.
@@ -1393,7 +1393,7 @@ Notes for the latest release. For previous releases, see the
 - `docs/reference/controls.md` lists the 337 named controls of the editor across 22 surfaces, each per-row control included, with each control's id, label, action, and shortcut, and a test fails when a shared-widget call states an id the page omits, a row names a control the source does not draw, or a shortcut disagrees.
 - `docs/guide/` splits the usage guide into 21 chapters that each end in a worked example, and a test fails when a guide cites a menu row, control, key chord, or palette command the editor does not ship.
 - `docs/command-line.md` and `docs/plugins/` document every CLI verb, flag, plugin host call, type field, enum variant, and constant, and tests fail when a registry member and its page disagree.
-- `docs/reference/` documents every blend mode, mask mode, colour space, YUV matrix, starter LUT, project and sequence setting, animatable clip property, keyframe and graph editor control, export and subtitle preset, and video scope setting, and tests fail when a registry member has no entry.
+- `docs/reference/` documents every blend mode, mask mode, color space, YUV matrix, starter LUT, project and sequence setting, animatable clip property, keyframe and graph editor control, export and subtitle preset, and video scope setting, and tests fail when a registry member has no entry.
 - Tests fail when a crate, count, package, encoder element, or registry identifier cited in `docs/architecture.md`, `features.md`, `install.md`, or `mcp-design.md` disagrees with the source, or when the `plugin.toml` in `docs/plugins/worked-example.md` does not parse and register.
 - `docs/plugins/native.md` lists each `aria_sdk` export with the chapter that documents it, each chapter states the export's fields, variants, and methods, and a test fails when an SDK host call, callback, project type, export, or member has no entry.
 - `docs/plugins/panels.md`, `audio-effects.md`, `settings.md`, and `effects.md` state the SDK panel locations and tones, every `AudioBlock` call and `ParamSignal` form, every setting kind with its `plugin.toml` `type` spelling, and the curve and gradient lookup table sizes, and tests fail when one disagrees with the source.
@@ -1406,18 +1406,19 @@ Notes for the latest release. For previous releases, see the
 
 ### Changed
 
+- Labels, tooltips, status lines, and the documentation are spelled in US English (Color, center, Favorites, Minimize, normalize), and the color grading chapter of the guide is `docs/guide/color.md`.
 - A dock panel with nothing to show draws its line faint and centered in the space its content fills, as the Timeline does, and the Markers panel reads **No markers.** above **Add at playhead**.
 - The default accent, playhead, selection, and caret are blue instead of indigo, and Settings > Appearance > Accent offers the Blue, Ember, Teal, and Graphite families; a saved `default` or `dark-blue` accent reads as Blue.
 - UI text is set in the embedded Inter, replacing Geist and Geist Mono; timecodes, the ruler, scrubbable values, and playback counters use tabular figures, and names keep proportional figures.
 - Video clips without a label default to Teal instead of Violet, and adjustment clips to Yellow instead of Lavender.
 - The tool bar draws seven grouped buttons (Selection, Track Select, the trim tools, Razor, Pen, Hand and Zoom, Type) instead of thirteen; a group's button shows its armed tool, a 300 ms hold or the corner triangle lists the group, and every tool key is unchanged.
-- Hovering a dock tab, a tab's close control, a frame header control, a frame menu row, the timeline splitter, or a palette row fades its colour and redraws the window chrome alone instead of rebuilding every panel body.
+- Hovering a dock tab, a tab's close control, a frame header control, a frame menu row, the timeline splitter, or a palette row fades its color and redraws the window chrome alone instead of rebuilding every panel body.
 - The Selection, Track Select, and Hand tools draw the Lucide pointer, double chevron, and hand glyphs, and tool buttons are 28 px with a 16 px glyph.
 - Stacked clips of one media file at the same source time share one decoder and one decoded frame, and software video decoders bound their thread pools across open pipelines, so 30 stacked layers of one file open 1 decoder instead of 30 and peak at 499 MiB instead of 1557 MiB on the first frame.
 - The tool bar's Ripple/Overwrite chip has a tooltip stating what each drop mode does.
 - The Editing workspace opens with six panels; Audio Track Mixer, Assistant, Info, and Character open from the Window menu into their usual frames.
-- The status bar's right side is empty at rest: the achieved frame rate, playback resolution, and GPU show during playback, and the dropped-frame count shows in the warning colour only after a frame drops.
-- The Timeline header draws the timecode alone, centred on its two 24 px rows, with no frame count under it; the field's border shows only under the pointer, and the property search sits above the five toggles at their width.
+- The status bar's right side is empty at rest: the achieved frame rate, playback resolution, and GPU show during playback, and the dropped-frame count shows in the warning color only after a frame drops.
+- The Timeline header draws the timecode alone, centered on its two 24 px rows, with no frame count under it; the field's border shows only under the pointer, and the property search sits above the five toggles at their width.
 - A track header shows only the toggles its track calls for (the source patch, mute and solo on audio tracks, any toggle that is on) until the pointer is over it.
 - Video tracks that take less height than their side stand on the A/V divider, so the spare height is above the top video track instead of between V1 and the divider, and a media drag over it lands on the top track.
 - The property outline under a lane starts on the lane header's text edge, and its property rows start one spacing step in from their group.
@@ -1450,7 +1451,7 @@ Notes for the latest release. For previous releases, see the
 - Projects save at schema version 3, which stores a clip's masks as a list; a version 2 project opens with its mask as the first mask of the stack and its mask drivers moved onto that mask.
 - A plugin effect reads `aria.time` as 0 unless its spec sets `time_dependent`.
 - UI text is 11 px instead of 13 px, menu and context-menu rows are 22 px, Viewer tab rows are 24 px, and text fields are 20 px high, following the density table in `docs/spec/look.md`.
-- The dark theme takes the surface values in `docs/spec/look.md`, and track headers, property-row names, the inspector tab strip, and the Viewer tabs are drawn on the new `surface_header` token with `hairline` separators; inspector numbers are drawn in the `value` colour, and the `track_shape` token is deleted.
+- The dark theme takes the surface values in `docs/spec/look.md`, and track headers, property-row names, the inspector tab strip, and the Viewer tabs are drawn on the new `surface_header` token with `hairline` separators; inspector numbers are drawn in the `value` color, and the `track_shape` token is deleted.
 - A left click on an inspector number opens it for typing instead of stepping it up, and a right click no longer steps it down; dragging the number moves it.
 - The sidebar's top row lists five groups, Media, Graphics, Effects, Library, and Analyze, and a second row lists the open group's tabs in place of the fifteen-chip tab row.
 - The Project panel keeps its group tabs, search header, and pool footer on one row each down to a 160 px frame, and below 248 px one button cycles the four pool views.
@@ -1474,9 +1475,9 @@ Notes for the latest release. For previous releases, see the
 - The Audio workspace gives the Audio Track Mixer's row 66% of the height and the Timeline 34%, so a new project's mixer strips show without scrolling in a 1440 x 900 window.
 - A mask cuts what a clip draws before its effects, LUT, and layer styles, so a shadow or glow follows the masked edge.
 - Docked frames stand 6 px apart and 6 px in from the bars and the window edges, and the splitter between two frames draws a line only under the pointer.
-- The active tab's underline in frame tab bars, the Viewer tab row, and the Effect Controls strip is drawn over the tab's foot, so every tab label in a row stands on the row's centre line.
+- The active tab's underline in frame tab bars, the Viewer tab row, and the Effect Controls strip is drawn over the tab's foot, so every tab label in a row stands on the row's center line.
 - Panel bodies inside a frame and the Timeline's A/V divider no longer draw a rule beside the frame's or the lane's own rule.
-- The workspace switcher, the breadcrumb, and the Viewer transport stand on their bar's centre line whenever the controls on both sides fit their half.
+- The workspace switcher, the breadcrumb, and the Viewer transport stand on their bar's center line whenever the controls on both sides fit their half.
 - The Timeline header's track toggles are 20 px buttons 4 px apart.
 - The Project panel footer spans the panel's full width.
 - The Project panel grid and the Effect Controls tab strip are inset 12 px from the frame edge.
@@ -1630,7 +1631,7 @@ Notes for the latest release. For previous releases, see the
   through the one call that projects the board, and a draw that reaches for the
   registry is refused.
 
-- **A colour adjustment is one row, all the way to the shader.** The renderer's
+- **A color adjustment is one row, all the way to the shader.** The renderer's
   end of the grade was a second hand-list of the same 23 sliders: the struct,
   its neutral, its identity test, the six uniform lanes, the filter fold and its
   clamps each named every field, and the WGSL read the lanes by position, so a
@@ -1687,12 +1688,12 @@ Notes for the latest release. For previous releases, see the
   so a group the model refused looked exactly like one it built; it reports the
   refusal, says when the pool is empty rather than building nothing quietly, and
   the rule for which pool items become angles is part of the row instead of the
-  panel. The markers panel's add, colour and delete controls are pressed against a
+  panel. The markers panel's add, color and delete controls are pressed against a
   marker the panel would have drawn, and a press on a marker that is already gone
   is asserted to reach nothing.
 - **The analysis panel's controls are a declared surface, and a clear reports what
   it could not do.** Two commands claimed the panel and nothing could press them,
-  so a clear wired to the neighbouring detector would have deleted the wrong
+  so a clear wired to the neighboring detector would have deleted the wrong
   results with nothing red. Each clear is now pressed against a project that
   carries results from every detector and is asserted to drop its own and keep the
   rest, clearing the beats is asserted to take the snap grid with it, and both
@@ -1714,7 +1715,7 @@ Notes for the latest release. For previous releases, see the
   offer. The panels convert pixels to ticks and hand the gesture over, so a drag
   is asserted independently of the zoom it was performed at, and a census drags
   every handle each set draws. A press that never moved stays a click rather than
-  an undo entry, a roll with no neighbour on the far side of the edge edits
+  an undo entry, a roll with no neighbor on the far side of the edge edits
   nothing instead of quietly trimming one side, and the magnet's decision lives
   with the gestures rather than in whichever listener called it. Reveal is the
   one row a test does not press, declared at the row with its reason, because it
@@ -1746,7 +1747,7 @@ Notes for the latest release. For previous releases, see the
   flips, motion blur, noise reduction, the audio role and fades, reverse and
   pitch lock, the animation chips and knobs, the speed ramps, the template slot's
   media, kind, order and hint, the text effects, presets and fonts, the
-  transitions, the effects rack's add, remove, reorder, preset, colour and
+  transitions, the effects rack's add, remove, reorder, preset, color and
   parameter fields, and every button on a keyframe row. Each sealed its call
   inside a closure, so about thirty of the model's commands were reachable only
   that way and nothing could enumerate them. There are now six registries in
@@ -1827,7 +1828,7 @@ Notes for the latest release. For previous releases, see the
   counted, so an allowlist entry cannot rot into an exemption for a file that no
   longer registers anything.
 - **Every animation is sampled, and proven to finish.** The catalog held
-  durations and call sites; nothing held behaviour. Each of the specs is now
+  durations and call sites; nothing held behavior. Each of the specs is now
   sampled at both boundaries, mid-flight, and across sixty-four points: it starts
   at rest, moves once, stays inside the bound its own curve earns, never goes
   backwards unless that curve is the one that overshoots, holds through its own
@@ -2007,7 +2008,7 @@ Notes for the latest release. For previous releases, see the
 - Clip volume reads and steps in decibels. The inspector showed a raw
   percentage and nudged it by a flat 0.05 of the multiplier, which is inaudible
   at the top of the range and a cliff at the bottom; the row now reads
-  `-6.0 dB · 50%` and steps by 1 dB, sharing the conversion with normalisation
+  `-6.0 dB · 50%` and steps by 1 dB, sharing the conversion with normalization
   and export headroom rather than spelling it out again. The bottom of the
   travel is silence: a step under −60 dB mutes, and a step up from silence lands
   on −60 dB instead of seventy steps under unity.
@@ -2033,7 +2034,7 @@ Notes for the latest release. For previous releases, see the
   screen. Identity is unchanged: the same row keeps the same id across frames.
 - The animation browser says when a preset has no renderer. Whether an id
   animates anything is answered by the sampler that would run it, so a catalog
-  file that adds a preset nothing implements is labelled `(no renderer)` instead
+  file that adds a preset nothing implements is labeled `(no renderer)` instead
   of looking like a working entry that quietly does nothing.
 - Opening a project whose media cannot be resolved runs the same session open as
   any other, rather than a second copy of it that had drifted: one owner adopts a
@@ -2085,7 +2086,7 @@ Notes for the latest release. For previous releases, see the
   so a shot, silence, beat, or loudness pass cannot pick up different settings than
   the ones the plugin provides.
 - Built-in plugins are grouped by what they provide — host, media, GPU, engine, and
-  services — instead of one module. No behaviour change.
+  services — instead of one module. No behavior change.
 - Settings carries a **Plugins** section: every built-in plugin in mount order, its
   version, the services it registered, and — for one that did not mount — the reason.
   Anything but storage, settings, and the engine can be disabled and re-enabled.
@@ -2101,7 +2102,7 @@ Notes for the latest release. For previous releases, see the
 - A track header can be dragged onto another header to move that lane to the row
   the pointer is released over. The target row is marked while the drag is live,
   Escape abandons it, and a drop is one edit.
-- Colour and point effect parameters are editable. A colour parameter shows a
+- Color and point effect parameters are editable. A color parameter shows a
   palette with the current value named; a point parameter shows x and y steppers.
   Neither has a plain value in the project format, so a click writes a keyframe at
   the playhead, or at the clip's first frame when the playhead is elsewhere.
@@ -2147,7 +2148,7 @@ Notes for the latest release. For previous releases, see the
   shots and Ripple-delete silence turn a detection into an edit, both undoable.
   Measure loudness draws the clip's contour with its peak and a clipping flag in
   the Audio tab, and detected beats draw on the ruler and act as snap magnets.
-  Results from an older analyzer version are labelled stale and offer a re-run.
+  Results from an older analyzer version are labeled stale and offer a re-run.
   A committed transcription writes into the same index. Settings > Storage
   reports the analysis cache and clears it.
 - Captions: the sidebar's Captions tab transcribes the selected clip's audio
@@ -2212,7 +2213,7 @@ Notes for the latest release. For previous releases, see the
   quota in 512 MiB steps, clears the cache naming what it removed and what
   was kept in use, and moves the storage root, carrying the cache with it.
 - Text tab edits a title's content in place and carries the text effect
-  presets. Retyping a title no longer discards its font, size, colour,
+  presets. Retyping a title no longer discards its font, size, color,
   alignment, stroke, shadow, background, or effect preset.
 - Desktop launch crate is process bring-up only. Playback clock, file-drop
   placement, and the GPUI shell live in `aria-ui`.
@@ -2240,7 +2241,7 @@ Notes for the latest release. For previous releases, see the
 - Inspector Look tab browses the filter catalog, sets filter amount, and
   clears the filter.
 - Home opens on a Start section: New Project, Open, and Sample Project.
-- Markers carry a name and a colour, are deletable at the playhead (Alt+M),
+- Markers carry a name and a color, are deletable at the playhead (Alt+M),
   navigable (Shift+M, Shift+Alt+M), renameable, movable, and recolourable.
 - Extract Audio, Freeze Frame, Link Clips, and Unlink Clips reach the clip
   context menu, the Sequence menu, and the palette.
@@ -2249,7 +2250,7 @@ Notes for the latest release. For previous releases, see the
 - Inline rename for markers, tracks, and the project. Typing is key-routed
   like the palette, Enter applies, Esc cancels, and an empty or unchanged
   draft makes no undo entry.
-- Inspector Look tab carries the grade: eleven colour adjustments with
+- Inspector Look tab carries the grade: eleven color adjustments with
   reset, every blend mode, three stabilization levels plus Off, and a
   denoise toggle. The Audio tab toggles pitch lock.
 - Transform tab carries framing: crop insets on all four edges that clamp at
@@ -2261,7 +2262,7 @@ Notes for the latest release. For previous releases, see the
 - The palette and the Sequence menu reach the new look, framing, mask, and
   chroma commands.
 - Look tab carries layer styles and LUTs: shadow, glow, outline, and
-  background with their knobs and colours, plus a `.cube` LUT with an
+  background with their knobs and colors, plus a `.cube` LUT with an
   intensity blend. Editing one style block keeps the other three.
 - Look tab carries clip animations: In, Out, and Loop slots with the catalog
   presets for each, and the Speed, Intensity, and Stagger knobs the applied
@@ -2328,11 +2329,11 @@ Notes for the latest release. For previous releases, see the
 - A current-schema project file is deserialized straight into the project instead of through an untyped JSON tree, which brings the resident memory `project-10k` adds to an open editor on Server from 99.1 MiB and 99.2 MiB to 54.4 MiB and 54.4 MiB over two paired runs, and `project-10k` deserialization p50 from 75.4 ms and 75.5 ms to 34.3 ms and 34.3 ms.
 - The timeline's playhead, its line across each lane group, and the timecode at rest are painted in a layer over the timeline body, so a playback vsync or a playhead drag replays the body's last drawing, which brings `project-10k` playback vsync p50 on Server from 14.8 ms and 22.6 ms to 6.6 ms and 6.4 ms over two paired runs, and playhead drag frame p50 from 2.5 ms to 1.2 ms.
 - Software HEVC and ProRes decoders split each frame across threads, a seek in an MP4 whose edit list shifts its timestamps starts decoding at the keyframe for its target instead of one group of pictures earlier, a file opens without a DMABuf attempt when no installed decoder offers DMABuf output, and the first frame after opening a file is the one the open decoded instead of a second seek to it, which brings cold seek p50 over the `h264-1080p60`, `hevc-2160p60` and `prores-2160p30` fixtures on Server from 113.1 ms and 104.3 ms to 30.1 ms and 30.7 ms over two paired runs, p95 from 563.2 ms and 570.9 ms to 101.6 ms and 107.2 ms, and the first paused frame after opening a project from 117.7 ms and 116.4 ms to 85.8 ms and 91.1 ms.
-- Software-decoded `I420` and `I420_10LE` frames are packed into NV12 without GStreamer `videoconvert`, the colour grade shader skips its neutral stages and runs its secondary stages only when one is set, and effect passes into a cleared offscreen target write without blending, which brings `hevc-2160p60` playback frame p50 on Server from 22.45 ms and 22.75 ms to 17.20 ms and 18.01 ms over two paired runs, `stack-4k` from 99.93 ms and 99.86 ms to 92.88 ms and 93.56 ms, warm scrub renderer p50 from 4.04 ms to 3.11 ms, and `long-gop-scrub` exact seek p50 from 31.63 ms to 24.79 ms.
+- Software-decoded `I420` and `I420_10LE` frames are packed into NV12 without GStreamer `videoconvert`, the color grade shader skips its neutral stages and runs its secondary stages only when one is set, and effect passes into a cleared offscreen target write without blending, which brings `hevc-2160p60` playback frame p50 on Server from 22.45 ms and 22.75 ms to 17.20 ms and 18.01 ms over two paired runs, `stack-4k` from 99.93 ms and 99.86 ms to 92.88 ms and 93.56 ms, warm scrub renderer p50 from 4.04 ms to 3.11 ms, and `long-gop-scrub` exact seek p50 from 31.63 ms to 24.79 ms.
 - An export frame that is one decoded CPU NV12 clip drawn unchanged over the whole canvas goes to an encoder that accepts CPU NV12 as decoded, without a GPU composite, readback or RGBA to NV12 conversion, and the GStreamer encoder reuses a buffer pool, runs `x264enc` and `x265enc` at the `veryfast` preset with trellis off, converts RGBA to NV12 with AVX2 in each row band, and skips a hardware encoder whose plugin is demoted, which brings `h264-1080p60` export with `x264enc` on Server from 1.75x, 1.74x and 1.79x real time to 3.12x, 3.67x and 3.76x over three paired runs, and export frame p50 from 8.21 ms, 8.18 ms and 8.19 ms to 3.62 ms, 3.57 ms and 3.59 ms.
 - `aria_sdk::f16` and the compositor's binary16 conversions use the `half` crate, which `aria-sdk` now depends on, and a binary16 NaN decodes to a quiet NaN of the same sign.
 - Decoded CPU frames are written into a retained staging belt and copied into their plane textures in the frame's command encoder, and a frame drawn more than once in one render, such as each motion-blur sample of one clip, uploads once, which brings `hevc-2160p60` with 4-sample motion blur composite CPU p50 on Server from 8.17 ms and 8.31 ms to 2.32 ms and 2.47 ms over two paired runs, its frame p50 from 94.59 ms and 94.52 ms to 90.35 ms and 89.70 ms, and `stack-4k` playback frame p50 from 77.70 ms and 77.22 ms to 76.24 ms and 75.91 ms, and raises `h264-1080p60` playback frame p50 from 3.94 ms and 3.93 ms to 4.20 ms and 4.22 ms.
-- A video frame without layer effects, or an opaque solid fill, that covers the whole canvas at full opacity, and every built-in effect, transition, matte, mask stack, colour grade, LUT and blend-mode pass, draws with blending off into a target that is neither cleared nor loaded first, which brings `h264-1080p60` playback frame p50 on Server from 4.26 ms and 4.15 ms to 3.32 ms and 3.34 ms over two paired runs, `hevc-2160p60` from 18.08 ms and 17.04 ms to 13.85 ms and 14.68 ms with dropped frames from 39 and 34 to 24 and 25, `stack-4k` from 76.57 ms and 76.17 ms to 73.30 ms and 72.71 ms, reverse `long-gop-scrub` from 2.97 ms and 2.98 ms to 2.46 ms and 2.47 ms, and `stack-4k` paused effect drag p50 from 56.85 ms and 55.85 ms to 53.53 ms and 53.87 ms.
+- A video frame without layer effects, or an opaque solid fill, that covers the whole canvas at full opacity, and every built-in effect, transition, matte, mask stack, color grade, LUT and blend-mode pass, draws with blending off into a target that is neither cleared nor loaded first, which brings `h264-1080p60` playback frame p50 on Server from 4.26 ms and 4.15 ms to 3.32 ms and 3.34 ms over two paired runs, `hevc-2160p60` from 18.08 ms and 17.04 ms to 13.85 ms and 14.68 ms with dropped frames from 39 and 34 to 24 and 25, `stack-4k` from 76.57 ms and 76.17 ms to 73.30 ms and 72.71 ms, reverse `long-gop-scrub` from 2.97 ms and 2.98 ms to 2.46 ms and 2.47 ms, and `stack-4k` paused effect drag p50 from 56.85 ms and 55.85 ms to 53.53 ms and 53.87 ms.
 - A lane's revision hashes its content through a serializer that feeds each value's tag and raw bits to the hasher instead of formatting the lane as JSON, and an animated parameter is read in place from the project text instead of through a buffered copy, which brings `project-10k` open to interactive p50 on Server from 61.5 ms and 61.5 ms to 46.6 ms and 47.4 ms over two paired runs, deserialization p50 from 30.8 ms and 31.1 ms to 22.5 ms and 22.6 ms, and edit-to-visible-frame p50 from 5.17 ms and 5.21 ms to 5.05 ms and 5.08 ms.
 - An object read as an animated parameter in a project, preset, or command is a keyframed curve only when `kf` is its first key, and any other object is the constant value.
 - Rebuilding the timeline reads every keyframe of a clip in one pass without building its property rows, reads each media item's name and offline state once, writes each duration timecode as fixed-width digits, and reads the link groups with a member on an audio lane once instead of scanning the audio lanes for each linked clip, and the export audio mix, the interchange writer and the project report's clip counts read those link groups once, with the report finding each clip at a cut by its lane's start order, which brings `project-10k` open to interactive p50 on Server from 48.6 ms and 47.5 ms to 40.7 ms and 40.4 ms over two paired runs, edit-to-visible-frame p50 from 5.03 ms and 5.06 ms to 4.88 ms and 4.89 ms, timeline rebuild p50 from 18.1 ms, 18.2 ms and 18.1 ms to 12.5 ms, 12.4 ms and 12.4 ms over three paired runs, and with 5,000 linked picture and sound pairs the rebuild from 47.9 ms, 47.7 ms and 47.2 ms to 14.3 ms, 14.3 ms and 14.3 ms, the export audio mix plan from 27.8 ms, 27.9 ms and 27.7 ms to 0.8 ms, 0.8 ms and 0.8 ms, and the project report's clip counts from 93.2 ms, 92.9 ms and 92.7 ms to 1.6 ms, 1.5 ms and 1.5 ms.
@@ -2393,7 +2394,7 @@ Notes for the latest release. For previous releases, see the
 - The Assistant starts its speaker labels, edit and error rows, plan steps, pending question, scope line and model line with a capital, including the rows a conversation saved by an earlier version holds in lower case.
 - The Project Report states where the content ends in the sequence's time display, such as `00:01:00:00`, instead of as a count of ticks.
 - Media Support names each pixel layout alone, such as `P010`, so its planes, depth, and sampling stand on the same line as the name instead of wrapping below it.
-- Every text box draws its caret as a bar in the caret colour where the next character goes instead of a typed `|` or `▏`, keeps its placeholder while it holds focus, and gives up the start of a value wider than the box to the ellipsis while it is typed into, so the end being typed stays in view.
+- Every text box draws its caret as a bar in the caret color where the next character goes instead of a typed `|` or `▏`, keeps its placeholder while it holds focus, and gives up the start of a value wider than the box to the ellipsis while it is typed into, so the end being typed stays in view.
 - The Captions tab's language box, the Generate prompt, the stock search, the Command Palette's query, the Marker Edit fields, and the Settings text fields are drawn as the same text box as the rest of the editor, at one height, size, and border.
 - Effect Controls draws the Transform reset button at the end of the Transform title's line, above the end of the rows' time areas, instead of alone under the rows.
 - The Settings filter box starts on the column the text boxes in the sections below it start on, instead of 9 px left of it.
@@ -2438,15 +2439,15 @@ Notes for the latest release. For previous releases, see the
 - On a 23.976, 29.97 or 59.94 fps sequence the timeline places clips, the playhead, markers and the ruler at their real times instead of a thousand times too close together, and the timeline timecode counts 24, 30 or 60 frames a second instead of reading `00:00:00:36`.
 - Open Gap and Close Gap at Playhead move clips by one timecode second at 23.976, 29.97 and 59.94 fps instead of by 24000, 30000 or 60000 frames.
 - The playhead stays under the pointer while dragging in the timeline ruler, the Viewer's scrub strip or a property row's strip, instead of easing behind it.
-- Timeline ruler labels draw in the faint text colour instead of white.
+- Timeline ruler labels draw in the faint text color instead of white.
 - Effect Controls reads effect parameters at the playhead instead of at the clip's first frame, and editing an animated effect parameter writes a keyframe there.
 - An edit made while paused, such as an effect added from the Effect Controls Add list, shows in the Viewer at once instead of when the playhead next moves.
 - A playhead moved while paused, by Home, End, the arrow keys, a menu row or a plugin, shows its frame in the Viewer instead of leaving the frame from before the move under the new timecode.
 - The editor no longer logs `Failed to parse color value: 'currentColor'` at startup and when playback first starts; the play, pause and fullscreen icons no longer set a root `color` attribute that usvg cannot read.
 - A rename opens with the whole name selected, so typing replaces the name instead of appending to it, and the name field takes the arrows, Home, End, Shift selection, Ctrl word moves, Delete and Ctrl+Z.
 - A control's tooltip no longer opens over the menu its press opened; after a press the tooltip stays hidden until the pointer leaves the control.
-- A property row in Effect Controls keeps its keyframe navigator and time area on its own line, shortening a long name with an ellipsis and showing it in full on hover; values stand in one column, a colour row draws its swatches on the line under its name, and every row's time area starts and ends at the same place so keyframes line up in time.
-- A colour that is not a preset reads as six hex digits, `#ff0000`, when it is opaque, adding the alpha digits only when it is translucent.
+- A property row in Effect Controls keeps its keyframe navigator and time area on its own line, shortening a long name with an ellipsis and showing it in full on hover; values stand in one column, a color row draws its swatches on the line under its name, and every row's time area starts and ends at the same place so keyframes line up in time.
+- A color that is not a preset reads as six hex digits, `#ff0000`, when it is opaque, adding the alpha digits only when it is translucent.
 - The Timeline Display Settings button in the timeline header opens its choices under itself instead of opening the View menu at the menu bar, and a second press closes them.
 - Pressing a submenu entry in a menu opens its flyout instead of closing the menu, and pressing a disabled row leaves the menu open with the reason on the status line.
 - The timeline's divider between video and audio lanes no longer draws a `V / A` label cut off by its borders.
@@ -2460,8 +2461,8 @@ Notes for the latest release. For previous releases, see the
 - On Linux the editor window takes the keyboard focus when it opens, so a shortcut typed before the first click reaches it.
 - On Linux under client-side decorations the window resizes from every edge and corner that is not maximized or tiled, and the menu bar's empty stretches move it, maximize it on a double click, and open the window menu on a right click.
 - The window title states the project name, with a leading `*` while it has unsaved changes, and a floating panel window states its panel's name.
-- Releasing the mouse button outside the window ends the drag in progress, so a colour wheel, splitter, lane height, or panel tab no longer stays held.
-- A drag carried past the window's edge keeps following the pointer, so a splitter, the timeline header border, a lane height, or a colour wheel reaches its limit instead of stopping where the pointer left the window.
+- Releasing the mouse button outside the window ends the drag in progress, so a color wheel, splitter, lane height, or panel tab no longer stays held.
+- A drag carried past the window's edge keeps following the pointer, so a splitter, the timeline header border, a lane height, or a color wheel reaches its limit instead of stopping where the pointer left the window.
 - A panel tab dragged out of the window floats where it was released on the screen instead of at the same offset from the screen's corner.
 - A frame with more tabs than its width narrows them and ends their names with an ellipsis, so its last tabs, their close crosses, and the panel menu button stay inside the frame.
 - In a narrow Effect Controls panel a property row's time area narrows, and is left blank below 32 px, before the property's name is shortened, so Anchor point X reads in full beside a narrowed time area instead of ending in an ellipsis beside a full one.
@@ -2469,14 +2470,14 @@ Notes for the latest release. For previous releases, see the
 - A Viewer too narrow for its control row wraps the row between the picture controls, the transport, and the display controls, so every control stays inside the Viewer at the smallest window, and a long error at the row's end is shortened with an ellipsis and shown in full on hover.
 - Menu titles, panel tab names, button labels, and other text no longer disappear while a list beside them fades at its scrolled edge, as the Assistant transcript does in a short window.
 - The Project, Viewer, Effect Controls, and Audio Track Mixer panels carry those names on their tabs, their Window menu rows, and the panel menu's Add rows, where they read Media, Preview or Program Monitor, Inspector, and Mixer.
-- The Colour workspace is named Color, as the Color panel is.
+- The workspace labeled `Colour` is labeled Color, as the Color panel is.
 - The export sheet's Destination row ends at the sheet's edge and shortens a long path from its start, so the file name stays in view.
 - The timeline header column is 300 px wide and its right border resizes it between 240 px and 480 px, so the track name is no longer clipped by the toggles.
 - The grab band of the timeline header border lies inside the column, so a press on a clip's first pixel no longer resizes the column.
 - Space over the Effects panel, a sidebar tab that does not list the pool, or a pool with nothing selected plays the sequence instead of doing nothing.
 - Ctrl+W closes the focused frame's tab, so it closes Effects or Info instead of the first panel of the same key route.
 - A timeline clip with no name of its own shows its media's file name instead of `Media` and an id.
-- The vectorscope places every grey on its centre cell; greys such as code 198 landed one cell left of centre on an even grid.
+- The vectorscope places every gray on its center cell; grays such as code 198 landed one cell left of center on an even grid.
 - A clip inside a transition or a track matte draws with its effects, LUT, motion blur, layer styles, and blend mode, which were dropped for the length of the transition and the whole of the matte.
 - A nested sequence clip draws every visible lane of its sequence, with the sequence's transitions, mattes, adjustment layers, and nests, instead of only the topmost clip under the playhead.
 - A nested sequence clip draws with its own effects, mask, chroma key, color grade, LUT, layer styles, crop, and motion blur, which were dropped.
@@ -2508,7 +2509,7 @@ Notes for the latest release. For previous releases, see the
 - **Splitting a title no longer slides its background card.** Every clip-relative
   curve travels with the clip through one walk, except that generated content had
   its own second list: the text rebase named the size, the fill, the spacing, the
-  outline and the shadow, and not the card. A title whose card colour or corner
+  outline and the shadow, and not the card. A title whose card color or corner
   radius animated kept that animation where the split found it, so the card ran
   against the words it sits behind, and a rate change had a third list again.
   Generated content is now walked with everything else, which is the mechanism
@@ -2783,7 +2784,7 @@ Notes for the latest release. For previous releases, see the
   constant, deleting every keyframe on it. It now writes the keyframe under the
   playhead; Reset is the one path that clears the animation.
 - The same defect in every block: a mask feather, a chroma tolerance, a layer
-  shadow offset, or a colour adjustment was written by rebuilding the whole
+  shadow offset, or a color adjustment was written by rebuilding the whole
   block — `SetClipMask`, `SetClipChroma`, `SetClipLayerStyles`,
   `SetClipAdjustments` — from what the panel could see, which is one constant
   per property, so every other animated property in that block lost its curve on
@@ -2812,7 +2813,7 @@ Notes for the latest release. For previous releases, see the
 - Scaling a scene for preview or non-native export resolution scales effect parameters measured in canvas pixels (`unit = "px"`), including `gaussian_blur.radius`, `pixelate.size`, and registered plugin parameters, on plain and nested layers, which also brings the `stack-4k` playback frame p50 at 1/2 resolution on Server from 98.92 ms and 99.17 ms to 82.58 ms and 82.79 ms over two paired runs.
 - Text drawn as one bitmap and as per-character glyphs draws the same pixels at any sub-pixel position and scale, so a title no longer shifts its edges when a character animation, transition, or matte starts or ends, and the outer edges of a title or text card between pixels fade instead of repeating the edge pixels.
 - Text under a character animation draws each letter once and in its place over its background card and underline, instead of over a card holding a second copy of the text, without its underline, or, when underlined, with each letter drawn up and to the left of its place.
-- The reference manual and the guide state no count of the members of each catalog, which disagreed with the catalogs, such as 17 animations where 31 ship and 16 colour filter presets where 10 ship.
+- The reference manual and the guide state no count of the members of each catalog, which disagreed with the catalogs, such as 17 animations where 31 ship and 16 color filter presets where 10 ship.
 - A workspace that does not open the timeline graph editor closes it when chosen, instead of keeping the editor the Animation workspace opened.
 - Opening a dialog, the command palette, or the unsaved-changes prompt, or returning to Home, closes an open menu, flyout, or popover instead of leaving it drawn beside the dialog.
 - Opening the scopes over a GPU-decoded frame measures the frame on screen instead of showing `No frame` until the playhead moves.
@@ -2829,6 +2830,7 @@ Notes for the latest release. For previous releases, see the
 - Playback or audio scrubbing whose sound cannot start, such as on a machine with no output device, states the reason on the error line, such as `No audio output device. Plug in speakers or a headset.`, instead of playing the picture in silence with no word.
 - Closing a floating panel window while the sequence plays leaves the picture following the sound between audio blocks, instead of advancing once per audio block for the rest of that play.
 - A context menu opens above or left of the pointer where it does not fit below or right of it, so a menu opened near the window's foot shows every row.
+- **Discard** in the Unsaved Changes prompt replaces the project with an empty one on Close or Home and deletes the recovery copy on Close, Home, or Quit, so Quit on Home no longer prompts a second time and the next launch no longer offers the discarded work as a session that ended early.
 
 ## [alpha-0.7.0] — 2026-07-22
 

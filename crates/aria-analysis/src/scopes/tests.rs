@@ -60,7 +60,7 @@ fn a_white_frame_sits_in_the_top_bin_and_stays_neutral() {
     assert_eq!(
         scopes.vectorscope.cell(centre, centre),
         32,
-        "white is unsaturated, so it belongs at the centre with black"
+        "white is unsaturated, so it belongs at the center with black"
     );
 }
 
@@ -81,7 +81,7 @@ fn primary_red_reads_its_own_luma_and_lands_upper_right() {
     for y in 0..scopes.vectorscope.size() {
         for x in 0..scopes.vectorscope.size() {
             if scopes.vectorscope.cell(x, y) > 0 {
-                assert!(hit.is_none(), "one colour must occupy one cell");
+                assert!(hit.is_none(), "one color must occupy one cell");
                 hit = Some((x, y));
             }
         }
@@ -283,7 +283,7 @@ fn every_grey_lands_on_the_centre_of_every_grid() {
         assert_eq!(
             scopes.vectorscope.cell(centre, centre),
             256,
-            "a grey left the centre of a {size}-cell grid"
+            "a gray left the center of a {size}-cell grid"
         );
     }
 }
@@ -294,7 +294,7 @@ fn every_grey_lands_on_the_centre_of_every_grid() {
 #[test]
 fn fixed_point_tracks_bt709_within_one_step() {
     for v in 0..=255u8 {
-        assert_eq!(luma709(v, v, v), v, "grey {v}");
+        assert_eq!(luma709(v, v, v), v, "gray {v}");
     }
     let size = MAX_VECTORSCOPE_SIZE;
     let last = (size - 1) as f64;
@@ -499,7 +499,7 @@ fn chroma_codes_are_neutral_for_grey_and_span_the_code_range() {
         assert_eq!(
             chroma_codes709(value, value, value),
             (128, 128),
-            "grey {value}"
+            "gray {value}"
         );
     }
     assert_eq!(chroma_codes709(0, 0, 255).0, 255, "blue is the most Cb");

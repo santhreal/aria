@@ -39,7 +39,7 @@ divider between them is draggable and sets how much height each side gets.
 Tracks that take less height than their side sit against the divider: the
 spare height is above the top video track and below the last audio track. A
 media drag over the spare height above the video tracks lands on the top one.
-A side with no tracks is one 22 px strip labelled "No video tracks" or "No
+A side with no tracks is one 22 px strip labeled "No video tracks" or "No
 audio tracks", and the divider above or below it does not drag.
 
 A Timeline narrower than the outline column plus 160 px draws the outline
@@ -53,7 +53,7 @@ columns, 49 px tall with its bottom border, the height of the ruler beside it.
 
 | Row | Left column | Right column, 120 px |
 | --- | --- | --- |
-| 1 | Sequence timecode, centred on both rows | Property search |
+| 1 | Sequence timecode, centered on both rows | Property search |
 | 2 | | Toggles |
 
 - Sequence timecode: 18 px, or 14 px when the outline column is narrower than
@@ -78,7 +78,7 @@ columns, 49 px tall with its bottom border, the height of the ruler beside it.
 - Work area: the In to Out range, drawn as a bar under the ruler. Dragging the
   bar moves both points; dragging an end moves one; double-clicking it sets it
   to the sequence length.
-- Render bar: one colour per frame range. Green: rendered or cached at the
+- Render bar: one color per frame range. Green: rendered or cached at the
   current resolution. Yellow: expected to play at the sequence rate without a
   render. Red: expected to drop frames. None: empty.
 
@@ -99,7 +99,7 @@ and at all times while its track departs from a new track: collapsed,
 locked, hidden, sync lock off, muted or soloed. Target shows at all times
 while the track is targeted. A hidden toggle keeps its place, so no control
 moves when the pointer enters the header. A lit toggle is drawn in the accent
-colour.
+color.
 
 Right-click on a header offers Add Track, Delete Track, Rename, Duplicate,
 Collapse, and track output routing for audio. Tracks are reordered by dragging
@@ -121,13 +121,13 @@ audio clips the volume line.
 
 | Element | Detail |
 | --- | --- |
-| Fill | The clip's label colour. Selected clips use the label's selected fill and a 1 px white border. |
+| Fill | The clip's label color. Selected clips use the label's selected fill and a 1 px white border. |
 | Name strip | Clip name, then the speed when it is not 100 % (`120%`, `-100%` reversed), then badges. |
-| fx badge | Grey: no effects. Yellow: effects applied. Purple: intrinsic properties changed. Yellow with purple underline: both. Clicking it opens a menu of the clip's effects and properties. |
+| fx badge | Gray: no effects. Yellow: effects applied. Purple: intrinsic properties changed. Yellow with purple underline: both. Clicking it opens a menu of the clip's effects and properties. |
 | Content strip | Video: thumbnails, per the display setting (head, head and tail, continuous). Audio: rectified waveform, logarithmic by default. Generators: their name and a solid swatch. |
 | Volume line | The clip volume as a horizontal line with keyframe dots. Dragging the line changes the volume; Ctrl+click adds a keyframe. |
 | Keyframe dots | Shown when the track is Medium or taller and the clip has keyframes on the property chosen in the clip's badge menu. |
-| Transition | A bar over the cut with its name, aligned to the cut (centre, start, or end). Dragging its edge changes its length. |
+| Transition | A bar over the cut with its name, aligned to the cut (center, start, or end). Dragging its edge changes its length. |
 | Offline | Red fill with "Media Offline" and the file name. |
 | Disabled | Clip drawn at 40 % opacity and excluded from render. |
 | Linked | Video and audio of one source move, trim, and select together while linked selection is on. A link that has drifted out of sync shows the offset in frames on both bars (`+3`). |
@@ -169,7 +169,7 @@ Each property row shows in the outline column:
 - Value: scrubbable; per-axis values are separate fields. Editing a value on an
   animated property sets or adds a keyframe at the playhead.
 - Navigator: previous keyframe, add or remove keyframe at the playhead, next
-  keyframe. The centre diamond is filled when a keyframe exists at the playhead.
+  keyframe. The center diamond is filled when a keyframe exists at the playhead.
 - Reset: returns the property to its default (a keyframe when animated).
 
 The time area of a property row draws its keyframes. In graph editor mode the

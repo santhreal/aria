@@ -157,8 +157,8 @@ pub(super) enum Change {
     Scopes,
     /// A letter typed in the effects search, or the search cleared.
     Search,
-    /// An effect starred under Favourites, or unstarred.
-    Favourite,
+    /// An effect starred under Favorites, or unstarred.
+    Favorite,
     /// The effects search box taking the keyboard, or giving it back.
     SearchFocus,
     /// A preset saved from the first clip's effect, or deleted.
@@ -187,7 +187,7 @@ const CHANGES: [Change; 20] = [
     Change::Job,
     Change::Title,
     Change::Scopes,
-    Change::Favourite,
+    Change::Favorite,
     Change::SearchFocus,
     Change::Preset,
     Change::Search,
@@ -410,8 +410,8 @@ pub(super) fn make(
                         state.clear_effects_query();
                     }
                 }),
-                Change::Favourite => notify(shell, cx, &|state| {
-                    state.toggle_effect_favourite(
+                Change::Favorite => notify(shell, cx, &|state| {
+                    state.toggle_effect_favorite(
                         crate::app::effects_browser::EntryKind::VideoEffect,
                         "vignette",
                     );

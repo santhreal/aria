@@ -20,7 +20,7 @@ fn aac_encoder() -> &'static str {
 /// composition offset shifts `segment.start` ahead of `segment.time` by that
 /// many frame periods.
 pub(crate) fn h264_aac_mp4(dir: &Path, bframes: u32) -> PathBuf {
-    crate::gst::ensure_init().expect("GStreamer initialises");
+    crate::gst::ensure_init().expect("GStreamer initializes");
     let path = dir.join(format!("keys-60-b{bframes}-aac.mp4"));
     let desc = format!(
         "videotestsrc num-buffers=240 pattern=ball ! video/x-raw,width=160,height=120,framerate=60/1 \

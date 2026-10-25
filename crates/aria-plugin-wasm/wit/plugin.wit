@@ -204,17 +204,17 @@ world plugin {
         location: panel-location,
     }
 
-    /// Text colour tone for `ui-node::text`.
+    /// Text color tone for `ui-node::text`.
     enum tone {
-        /// The body text colour.
+        /// The body text color.
         normal,
-        /// The secondary text colour.
+        /// The secondary text color.
         muted,
-        /// The theme's success colour.
+        /// The theme's success color.
         success,
-        /// The theme's warning colour.
+        /// The theme's warning color.
         warning,
-        /// The theme's danger colour.
+        /// The theme's danger color.
         danger,
     }
 
@@ -222,7 +222,7 @@ world plugin {
     record ui-text {
         /// The paragraph.
         text: string,
-        /// Its colour.
+        /// Its color.
         tone: tone,
     }
 
@@ -397,17 +397,17 @@ world plugin {
 
     /// Stroke or fill color for a viewer overlay shape.
     variant overlay-color {
-        /// The theme accent colour.
+        /// The theme accent color.
         accent,
-        /// The theme text colour.
+        /// The theme text color.
         text,
-        /// The theme muted colour.
+        /// The theme muted color.
         muted,
-        /// The theme success colour.
+        /// The theme success color.
         success,
-        /// The theme warning colour.
+        /// The theme warning color.
         warning,
-        /// The theme danger colour.
+        /// The theme danger color.
         danger,
         /// Straight-alpha sRGB bytes `(r, g, b, a)`.
         rgba(tuple<u8, u8, u8, u8>),
@@ -429,7 +429,7 @@ world plugin {
         %from: point,
         /// End point in canvas pixels.
         to: point,
-        /// Stroke colour.
+        /// Stroke color.
         color: overlay-color,
         /// Stroke width in window pixels, above 0 and at most 32.
         width: f32,
@@ -441,25 +441,25 @@ world plugin {
         origin: point,
         /// Width and height in canvas pixels, not negative.
         size: point,
-        /// Outline colour.
+        /// Outline color.
         color: overlay-color,
         /// Stroke width in window pixels, above 0 and at most 32.
         width: f32,
-        /// Fill colour, or none for an outline only.
+        /// Fill color, or none for an outline only.
         fill: option<overlay-color>,
     }
 
     /// Axis-aligned ellipse in a viewer overlay scene.
     record overlay-ellipse {
-        /// Centre in canvas pixels.
+        /// Center in canvas pixels.
         center: point,
         /// Horizontal and vertical radius in canvas pixels, not negative.
         radii: point,
-        /// Outline colour.
+        /// Outline color.
         color: overlay-color,
         /// Stroke width in window pixels, above 0 and at most 32.
         width: f32,
-        /// Fill colour, or none for an outline only.
+        /// Fill color, or none for an outline only.
         fill: option<overlay-color>,
     }
 
@@ -469,7 +469,7 @@ world plugin {
         points: list<point>,
         /// Joins the last point back to the first.
         closed: bool,
-        /// Stroke colour.
+        /// Stroke color.
         color: overlay-color,
         /// Stroke width in window pixels, above 0 and at most 32.
         width: f32,
@@ -481,7 +481,7 @@ world plugin {
         at: point,
         /// One line of text, with no line break.
         text: string,
-        /// Text colour.
+        /// Text color.
         color: overlay-color,
         /// Text size in window pixels, 6 to 96.
         size: f32,
@@ -491,9 +491,9 @@ world plugin {
     record overlay-handle {
         /// Handle id: unique among the scene's handles, 1 to 128 bytes, no control characters.
         id: string,
-        /// Centre in canvas pixels.
+        /// Center in canvas pixels.
         at: point,
-        /// Handle colour.
+        /// Handle color.
         color: overlay-color,
         /// The glyph, 12 pixels across.
         look: handle-look,
@@ -697,7 +697,7 @@ world plugin {
         height: u32,
         /// Pixel layout of every frame.
         format: frame-format,
-        /// Colour space of every frame.
+        /// Color space of every frame.
         color: frame-color,
         /// Frame rate numerator: `frame-rate-num / frame-rate-den` frames per second.
         frame-rate-num: s32,
@@ -748,7 +748,7 @@ world plugin {
         boolean,
         /// One option of `choices`.
         choice,
-        /// An RGBA colour; the shader reads linear RGBA in `0..1`.
+        /// An RGBA color; the shader reads linear RGBA in `0..1`.
         color,
         /// Two components in `min..=max`. A clip type's `handles` draws it on the Viewer.
         vec2,
@@ -760,7 +760,7 @@ world plugin {
         angle,
         /// A response curve over `0..1`, read by a shader as 64 samples.
         curve,
-        /// A colour gradient over `0..1`, read by a shader as 64 linear RGBA samples.
+        /// A color gradient over `0..1`, read by a shader as 64 linear RGBA samples.
         gradient,
         /// UTF-8 text. Shaders do not read it.
         text,
@@ -798,7 +798,7 @@ world plugin {
         y: f32,
     }
 
-    /// One colour stop on an `effect-param-kind::gradient` parameter.
+    /// One color stop on an `effect-param-kind::gradient` parameter.
     record effect-gradient-stop {
         /// Position along the gradient, in `0.0..=1.0`.
         position: f32,
@@ -993,7 +993,7 @@ world plugin {
         pixels: list<u16>,
     }
 
-    /// A label colour: a clip type's timeline tint and a marker's colour.
+    /// A label color: a clip type's timeline tint and a marker's color.
     enum marker-color {
         /// The Teal label.
         teal,
@@ -1023,7 +1023,7 @@ world plugin {
         label: string,
         /// Id of the generator that draws the type. Not empty.
         generator: string,
-        /// The timeline label colour.
+        /// The timeline label color.
         colour: marker-color,
         /// SVG source of the icon drawn before the clip's name, or none.
         icon-svg: option<string>,
@@ -1228,7 +1228,7 @@ world plugin {
         duration: rational-time,
         /// The marker name.
         name: string,
-        /// The marker colour.
+        /// The marker color.
         color: marker-color,
         /// Comment text, empty when none.
         comment: string,
@@ -1337,7 +1337,7 @@ world plugin {
     /// Write bytes to a permitted filesystem path or active export target.
     import fs-write: func(path: string, bytes: list<u8>) -> result<_, string>;
 
-    /// Start a background job on the jobs board, labelled with the plugin's
+    /// Start a background job on the jobs board, labeled with the plugin's
     /// name and `label`. The host calls `job-step` with the returned id until
     /// a step is done, Cancel is pressed, or a step fails, then `job-end`.
     import start-job: func(label: string) -> result<u64, string>;

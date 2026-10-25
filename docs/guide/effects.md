@@ -38,8 +38,8 @@ else in the tab, it goes at the end. The drop is one undo step. Any other entry
 that applies to a clip applies to the selected clip. A generator, clip type or
 sticker dropped there is refused, with a message to drop it on a lane.
 
-Click the star on an entry to list it under **Favourites**, the first folder.
-Click it again to remove it. Favourites are saved with the settings.
+Click the star on an entry to list it under **Favorites**, the first folder.
+Click it again to remove it. Favorites are saved with the settings.
 
 Type in the search box to filter the tree. The search ignores case and matches
 the name, the id, and the category. Every folder holding a match opens, and a
@@ -50,7 +50,7 @@ search. Esc returns keys to Aria.
 each preset file that did not read, with the reason.
 
 A workspace can list one group alone, as the Audio workspace lists Audio
-Effects. A caption over the tree states the group. Favourites from that group
+Effects. A caption over the tree states the group. Favorites from that group
 and Failed to Load stay listed. **Show All** lists every group again.
 
 ### Generators
@@ -102,9 +102,9 @@ value at the playhead.
 
 - A numeric parameter is a value: drag it left or right to scrub it, or click it
   to type one. A point parameter is two rows, x and y, and a 3D point is three.
-- A colour parameter prints its value beside the label, a preset's name or a
+- A color parameter prints its value beside the label, a preset's name or a
   hex such as `#ff0000`, with its swatches on the line under it. Click a
-  swatch to set the colour.
+  swatch to set the color.
 - A parameter that can be animated has the stopwatch, the keyframe navigator,
   the reset button, and the time area described in
   [Property controls](keyframes-and-graph-editor.md#property-controls). Editing an animated parameter writes

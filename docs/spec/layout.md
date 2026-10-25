@@ -67,7 +67,7 @@ The menu button and a right-click on a tab open the frame menu under the tab row
 | --- | --- |
 | Click a tab | That panel becomes the frame's visible panel. |
 | Drag a tab inside its row | Reorders the tabs. |
-| Drag a tab over another frame | Shows drop zones: centre (add as tab), top, bottom, left, right (split the frame). Releasing on a zone docks the panel there. |
+| Drag a tab over another frame | Shows drop zones: center (add as tab), top, bottom, left, right (split the frame). Releasing on a zone docks the panel there. |
 | Drag a tab outside the window | Opens the panel in a floating window. |
 | Drag a floating window's tab back over a frame | Docks it, with the same drop zones. |
 | Close a floating window (Close Window, or the window manager's close) | Closes its panels. The Window menu opens each one again in its default frame. |
@@ -76,7 +76,7 @@ The menu button and a right-click on a tab open the frame menu under the tab row
 | Middle-click a tab | Closes the panel. |
 | Ctrl+W on a focused panel | Closes the panel, or the sequence tab when the Timeline has focus. |
 
-A drop zone is a translucent accent rectangle covering the half or the centre
+A drop zone is a translucent accent rectangle covering the half or the center
 of the target frame. It appears 80 ms after the pointer enters the frame and
 follows the pointer between zones with a 120 ms fade.
 
@@ -104,10 +104,10 @@ windows. The shipped workspaces are:
 | Workspace | Arrangement |
 | --- | --- |
 | Editing | The window diagram above. |
-| Animation | Effect Controls and Project on the left, Viewer centre, Info, Effects & Presets, and Align on the right, Timeline at 50 % with the graph editor open. |
+| Animation | Effect Controls and Project on the left, Viewer center, Info, Effects & Presets, and Align on the right, Timeline at 50 % with the graph editor open. |
 | Color | Viewer and Scopes side by side above the Timeline, Color panel on the right. |
 | Audio | Audio Track Mixer above the Timeline, Viewer reduced, Audio Meters and Effects & Presets filtered to audio effects on the right. |
-| Effects | Effects & Presets and Effect Controls enlarged, Viewer centre. |
+| Effects | Effects & Presets and Effect Controls enlarged, Viewer center. |
 
 The workspace switcher sits in the tool bar. Changing workspace rearranges the
 frames over 180 ms; panel contents are not rebuilt. A workspace that does not
@@ -125,7 +125,7 @@ plugin panel docks, floats, and tabs the same way a shipped panel does.
 | Menu | Contents |
 | --- | --- |
 | File | New Project, New Sequence, Open, Use Template, Open Recent (one row per recent project, then All Recent Projects), Close, Rename Project, Save, Save As, Save a Copy, Save as Template, Revert, Import, Import Recent (one row per recently imported file, then Clear Recent Imports), Import Timeline, Relink All, Export (Media, Frame, Timeline, then one row per timeline exporter: EDL, OTIO, FCPXML), Install Plugin, Project Settings, Quit |
-| Edit | Undo, Redo, Cut, Copy, Paste, Paste Insert, Paste Attributes, Remove Attributes, Paste To Fit, Clear, Ripple Delete, Duplicate, Select All, Deselect All, Find, Label (one row per label colour, then None), Keyboard Shortcuts, Preferences |
+| Edit | Undo, Redo, Cut, Copy, Paste, Paste Insert, Paste Attributes, Remove Attributes, Paste To Fit, Clear, Ripple Delete, Duplicate, Select All, Deselect All, Find, Label (one row per label color, then None), Keyboard Shortcuts, Preferences |
 | Clip | Rename, Make Subclip, Speed/Duration, Time Remapping, Enable, Link, Unlink, Group, Ungroup, Nest, Replace with Clip (From Source Monitor), Freeze Frame, Render and Replace, Restore Unrendered, Audio Gain, Audio Channels (Stereo, Swap Channels, Left to Both, Right to Both, Mono), Extract Audio, Transform (Flip Horizontal, Flip Vertical, Reset Framing), Track Matte (Luma, Alpha, Remove) |
 | Sequence | Sequence Settings, Render In to Out, Render Selection, Delete Render Files, Add Edit, Add Edit to All Tracks, Trim Edit, Extend Edit, Apply Default Transitions, Lift, Extract, Snap, Linked Selection, Add Tracks (Video Track, Audio Track), Delete Empty Tracks, Add Adjustment Layer, Match Frame, Source (Insert, Overwrite, Insert Pool Selection), Ripple Trim In, Ripple Trim Out, Add Cross Fade at Cut, Remove Transition at Cut, lane shifts, Ducking, Nested Sequence |
 | Markers | Mark In, Mark Out, Mark Clip, Go to In, Go to Out, Clear In, Clear Out, Clear In and Out, Add Marker, Go to Next Marker, Go to Previous Marker, Clear Marker, Clear All Markers, Edit Marker, Move Nearest Marker to Playhead |
@@ -151,11 +151,11 @@ press outside the bar and the open drop closes the drop and lands where it was
 aimed. F10 or a lone Alt opens File with its first row lit. Up and Down move
 the light, a letter lights the next row starting with it, Right opens a lit
 submenu and Left closes it, Left and Right on
-a plain row move to the neighbouring menu, Enter runs the lit row, and Escape
+a plain row move to the neighboring menu, Enter runs the lit row, and Escape
 closes the drop. Opening a dialog, the command palette, or the unsaved-changes
 prompt, or returning to Home, closes an open drop, flyout, or popover, so the
 keys typed next reach the dialog. On macOS the bar is the native menu bar, with
-the same submenus, check marks and disabled rows. After the menu titles, centred, the
+the same submenus, check marks and disabled rows. After the menu titles, centered, the
 bar shows `Home / ` and the project name, with a dot before the name while the
 project has unsaved changes. Clicking Home returns to the Home screen.
 
@@ -176,7 +176,7 @@ keeps the window's full size. A floating panel window moves from the empty
 stretch of its tab row. Under a window manager
 that draws its own frame, the bar draws no window buttons and the frame moves
 and resizes the window. On Windows the empty stretches are the window caption,
-with the system's drag, snap, and double-click behaviour.
+with the system's drag, snap, and double-click behavior.
 
 Home has no menu bar. When the application draws the window's top edge (Linux
 without server-side decorations, Windows, and macOS, whose traffic lights sit
@@ -188,7 +188,7 @@ manager's frame Home has no bar and starts at the window's top edge.
 ## Tool bar
 
 Left to right: the tools ([editing.md](editing.md#tools)), a separator, the
-edit-mode button, the workspace switcher centred, then the Export button on
+edit-mode button, the workspace switcher centered, then the Export button on
 the right. Snapping, linked selection, and Timeline Display Settings are in
 the Timeline header ([timeline.md](timeline.md)), not in the tool bar.
 The transport and the playhead timecode are in the Viewer's control
@@ -209,7 +209,7 @@ its group's button shows it.
 
 Left: the message line (the last action, an error in `danger`, a refusal
 reason). The error is drawn here and in no panel, so posting or clearing one
-moves no control. Centre: background jobs with progress. Clicking a job opens
+moves no control. Center: background jobs with progress. Clicking a job opens
 the Jobs panel. Right, during playback: the achieved frame rate against the
 sequence's, the playback resolution, and the GPU device name. Once a frame
 drops, the dropped-frame count shows in `warning` until it is clicked. At rest

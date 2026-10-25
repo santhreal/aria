@@ -60,7 +60,7 @@ Split a clip at the playhead, add a crossfade transition, and open the Audio Gai
 | `pal-flip-v` | Flip Vertical | `none` | No clip is selected | Toggles vertical mirror flip (`flip_v`) on the selected clips. |
 | `pal-crop-reset` | Reset Framing | `none` | No clip is selected | Resets all four crop edges (`left`, `right`, `top`, `bottom`) to `0` on the selected clips. |
 | `pal-motion-blur` | Toggle Motion Blur | `none` | No clip is selected | Toggles transform shutter motion blur on the selected clips. |
-| `pal-grade-reset` | Reset Grade | `none` | No clip is selected | Resets colour adjustments (`ColorAdjustments`) on the selected clips to neutral. |
+| `pal-grade-reset` | Reset Grade | `none` | No clip is selected | Resets color adjustments (`ColorAdjustments`) on the selected clips to neutral. |
 | `pal-denoise` | Toggle Denoise | `none` | No clip is selected | Toggles audio noise reduction on the selected clips. |
 | `pal-pitch-lock` | Toggle Pitch Lock | `none` | No clip is selected | Toggles pitch preservation for retimed audio on the selected clips. |
 | `pal-mask-invert` | Invert Mask | `none` | Selected clip has no active mask | Toggles `invert` on the selected clip's active mask. |
@@ -72,7 +72,7 @@ Split a clip at the playhead, add a crossfade transition, and open the Audio Gai
 | `pal-mask-add-heart` | Add Heart Mask | `none` | No clip is selected | Appends a `heart` SDF mask to the selected clip's mask stack. |
 | `pal-mask-add-star` | Add Star Mask | `none` | No clip is selected | Appends a `star` five-pointed SDF mask to the selected clip's mask stack. |
 | `pal-mask-add-path` | Add Path Mask | `none` | No clip is selected | Appends a closed Bézier `path` mask to the selected clip's mask stack. |
-| `pal-chroma-green` | Key Green Screen | `none` | No clip is selected | Enables the built-in chroma keyer on the selected clip with target colour `[0, 177, 64]`. |
+| `pal-chroma-green` | Key Green Screen | `none` | No clip is selected | Enables the built-in chroma keyer on the selected clip with target color `[0, 177, 64]`. |
 | `pal-chroma-clear` | Remove Chroma Key | `none` | No clip is selected | Disables and clears the chroma keyer on the selected clips. |
 | `pal-matte-luma` | Track Matte from Luma Above | `none` | No clip is selected | Sets the selected clip's track matte source to `MatteSource::Luma` (luminance of the clip directly above). |
 | `pal-matte-alpha` | Track Matte from Alpha Above | `none` | No clip is selected | Sets the selected clip's track matte source to `MatteSource::Alpha` (alpha channel of the clip directly above). |
@@ -122,8 +122,8 @@ Split a clip at the playhead, add a crossfade transition, and open the Audio Gai
 | `pal-lane-shift-earlier` | Shift Lane One Second Earlier | `Alt+Left` | No clip is selected to identify a lane | Shifts every clip on the selected clip's track earlier by one second. |
 | `pal-ripple-insert` | Insert Pool Selection at Playhead | `Shift+,` | No online media item is selected in the pool | Ripple-inserts the selected pool media items at the playhead across patched tracks. |
 | `pal-marker-snap` | Move Nearest Marker to Playhead | `none` | No marker sits within one second of the playhead | Moves the sequence marker nearest the playhead (within 1 s) onto the playhead tick. |
-| `pal-effect-reset` | Reset Effect Parameters | `Ctrl+Alt+R` | Selected clip has no effects | Resets every scalar, colour, and vector parameter of every effect on the selected clip to its catalog default. |
-| `pal-canvas-background` | Reset Canvas Background | `none` | Always enabled | Restores the sequence canvas background colour to `CanvasSettings::default().background` (`[0, 0, 0, 255]`). |
+| `pal-effect-reset` | Reset Effect Parameters | `Ctrl+Alt+R` | Selected clip has no effects | Resets every scalar, color, and vector parameter of every effect on the selected clip to its catalog default. |
+| `pal-canvas-background` | Reset Canvas Background | `none` | Always enabled | Restores the sequence canvas background color to `CanvasSettings::default().background` (`[0, 0, 0, 255]`). |
 | `pal-media-filter-clear` | Clear Pool Filter | `none` | Always enabled | Clears the search query string in the Project panel media pool. |
 | `pal-font-next` | Next Font on Title | `none` | Selected clip is not a title clip | Cycles the selected title clip's font family forward through available fonts. |
 | `pal-font-prev` | Previous Font on Title | `none` | Selected clip is not a title clip | Cycles the selected title clip's font family backward through available fonts. |
@@ -147,8 +147,8 @@ Split a clip at the playhead, add a crossfade transition, and open the Audio Gai
 | `pal-media-verify` | Verify Decode of Selected Source | `none` | No media source is selected | Starts a background job that decodes every frame of the selected source to verify stream integrity. |
 | `pal-media-loudness` | Loudness Overview of Selected Source | `none` | Selected source has no audio | Starts a background job that samples peak levels across 200 buckets of the selected clip's source audio file and reports the loudest peak in dBFS, its position in the file, and how many buckets reach `-6 dBFS`. |
 | `pal-media-exposure` | Measure Exposure of the Frame on Screen | `none` | No frame is currently rendered | Reports luma min, max, mean, and clipping percentages for the current Viewer frame on the status line. |
-| `pal-media-normalise` | Normalise Selected Clip to Target | `none` | Selected clip has no audio | Adjusts the selected clip's volume so the peak of its measured Analysis loudness contour matches the active dBFS target level. |
-| `pal-media-target` | Cycle Normalise Target Level | `none` | Always enabled | Cycles the audio normalisation target peak level (`-23 dBFS`, `-18 dBFS`, `-14 dBFS`, `-9 dBFS`, `-6 dBFS`). |
+| `pal-media-normalise` | Normalize Selected Clip to Target | `none` | Selected clip has no audio | Adjusts the selected clip's volume so the peak of its measured Analysis loudness contour matches the active dBFS target level. |
+| `pal-media-target` | Cycle Normalize Target Level | `none` | Always enabled | Cycles the audio normalization target peak level (`-23 dBFS`, `-18 dBFS`, `-14 dBFS`, `-9 dBFS`, `-6 dBFS`). |
 | `pal-media-import-still` | Import Still or Animation… | `none` | Always enabled | Opens a file picker filtered to still images and animated image sequences and imports them into the pool. |
 | `pal-media-lottie` | Import Lottie Animation… | `none` | Always enabled | Opens a file picker for `.json` and `.lottie` files, validates the first frame, and places a Lottie generator clip on the timeline at its intrinsic dimensions. |
 | `pal-mixer-open` | Mixer: Open the Mixer | `Shift+6` | Always enabled | Opens and focuses the Audio Track Mixer (`aria.panel.mixer`). |

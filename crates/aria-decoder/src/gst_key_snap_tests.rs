@@ -51,7 +51,7 @@ fn segment_with_time(start_ms: u64, time_ms: u64) -> gst::Event {
 /// A snap that has seen `qtdemux` (or not), armed for `target_ms`, with the
 /// seek's flush and segment delivered.
 fn seeked(qtdemux: bool, target_ms: u64, start_ms: u64) -> KeySnap {
-    crate::gst::ensure_init().expect("GStreamer initialises");
+    crate::gst::ensure_init().expect("GStreamer initializes");
     let snap = KeySnap::default();
     snap.qtdemux.store(qtdemux, Ordering::Release);
     snap.arm(ms(target_ms));
@@ -129,7 +129,7 @@ fn a_delta_first_buffer_is_left_alone() {
 /// still in flight: they pass and do not decide.
 #[test]
 fn buffers_and_a_segment_before_the_flush_do_not_decide() {
-    crate::gst::ensure_init().expect("GStreamer initialises");
+    crate::gst::ensure_init().expect("GStreamer initializes");
     let snap = KeySnap::default();
     snap.qtdemux.store(true, Ordering::Release);
     snap.arm(ms(2000));
@@ -180,7 +180,7 @@ fn a_skip_without_a_keyframe_ends_after_the_target() {
 /// preceding 60-frame 4K HEVC GOP on every cold seek (~540 ms on santhserver).
 #[test]
 fn a_segment_with_an_edit_list_offset_skips_to_the_video_keyframe_and_bounds_at_shifted_target() {
-    crate::gst::ensure_init().expect("GStreamer initialises");
+    crate::gst::ensure_init().expect("GStreamer initializes");
     let snap = KeySnap::default();
     snap.qtdemux.store(true, Ordering::Release);
     snap.arm(ms(2000));
@@ -219,7 +219,7 @@ fn a_segment_with_an_edit_list_offset_skips_to_the_video_keyframe_and_bounds_at_
 /// Without a seek nothing is consumed, including after an unrelated flush.
 #[test]
 fn an_unarmed_snap_passes_everything() {
-    crate::gst::ensure_init().expect("GStreamer initialises");
+    crate::gst::ensure_init().expect("GStreamer initializes");
     let snap = KeySnap::default();
     snap.qtdemux.store(true, Ordering::Release);
     snap.event(&gst::event::FlushStop::new(true));

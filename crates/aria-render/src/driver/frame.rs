@@ -356,7 +356,7 @@ fn kind_name(value: &ParamValue) -> &'static str {
         ParamValue::Scalar(_) => "a number",
         ParamValue::Vec2(_) => "a pair",
         ParamValue::Vec3(_) => "a 3D point",
-        ParamValue::Color(_) => "a colour",
+        ParamValue::Color(_) => "a color",
         ParamValue::Rect(_) => "a rectangle",
     }
 }

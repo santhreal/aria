@@ -127,7 +127,7 @@ fn vibrance_reaches_muted_colours_further_than_saturated_ones() {
     let grey = vibrant.apply_secondary([0.4; 3]);
     assert!(
         grey.iter().all(|ch| close(*ch, 0.4)),
-        "a grey took colour: {grey:?}"
+        "a gray took color: {grey:?}"
     );
 }
 
@@ -142,7 +142,7 @@ fn the_secondary_reaches_only_the_keyed_hue() {
     let greyed = grey_out.apply_secondary(red);
     assert!(
         close(greyed[0], greyed[1]) && close(greyed[1], greyed[2]),
-        "the keyed red kept colour: {greyed:?}"
+        "the keyed red kept color: {greyed:?}"
     );
     assert_eq!(
         grey_out.apply_secondary(green),

@@ -130,7 +130,7 @@ fn only_clip(engine: &Engine, lane: TrackId) -> ClipId {
 }
 
 fn snapshot(engine: &Engine) -> serde_json::Value {
-    serde_json::to_value(engine.project()).expect("project serialises")
+    serde_json::to_value(engine.project()).expect("project serializes")
 }
 
 #[test]

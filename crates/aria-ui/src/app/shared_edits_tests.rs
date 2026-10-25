@@ -268,10 +268,10 @@ fn a_rows_reset_lights_for_a_copy_off_its_default_and_puts_it_back() {
     };
     let swatch = |state: &AppState| {
         let rows = state.effect_param_colors(0);
-        let row = rows.first().expect("a colour row");
+        let row = rows.first().expect("a color row");
         (row.mixed, row.off_default)
     };
-    assert_eq!(swatch(&state), (false, false), "two default colours");
+    assert_eq!(swatch(&state), (false, false), "two default colors");
     on(&mut state, twin, &both, |state| {
         state
             .set_param_color(colour, [0, 0, 255, 255])
@@ -280,10 +280,10 @@ fn a_rows_reset_lights_for_a_copy_off_its_default_and_puts_it_back() {
     assert_eq!(
         swatch(&state),
         (true, true),
-        "a copy off its default colour left the reset dim"
+        "a copy off its default color left the reset dim"
     );
     keyframe_rows::apply(&mut state, Row::Reset(colour)).expect("the reset lands");
-    assert_eq!(swatch(&state), (false, false), "the copy kept its colour");
+    assert_eq!(swatch(&state), (false, false), "the copy kept its color");
 }
 
 #[test]

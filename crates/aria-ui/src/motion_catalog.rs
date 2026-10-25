@@ -129,7 +129,7 @@ pub const CATALOG: &[SpecRow] = &[
         easing: Easing::EaseOut,
         delay_ms: 0,
         duration_ms: 150,
-        purpose: "The inspector's tab indicator travelling to the tab that was clicked.",
+        purpose: "The inspector's tab indicator traveling to the tab that was clicked.",
         file: "crates/aria-ui/src/panels/inspector/tab_strip.rs",
         symbol: "TAB_SLIDE",
     },

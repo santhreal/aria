@@ -108,7 +108,7 @@ replaced by the finished text rather than appended to it.
 | Ctrl+, | Settings |
 | Ctrl+Q | Quit |
 | With palette open | Printable keys filter. Ctrl+V pastes into the filter. Backspace deletes. Up / Down light the next or previous hit and wrap. Enter runs the lit hit. Esc closes. Every command and every menu row is offered by name. An effect is offered as its Effect menu row, after its category (`Blur & Sharpen: Gaussian Blur`), so typing an effect's name and pressing Enter applies it to the selection. A generator is offered by its own name and places a clip at the playhead. |
-| With a menu open | Up / Down light the next or previous row and wrap. Left / Right open the neighbouring menu. Home / End light the first or last row. A letter or digit lights the next row starting with it. Enter or Space runs the lit row. Esc closes. The pointer moves the light over a lit menu. |
+| With a menu open | Up / Down light the next or previous row and wrap. Left / Right open the neighboring menu. Home / End light the first or last row. A letter or digit lights the next row starting with it. Enter or Space runs the lit row. Esc closes. The pointer moves the light over a lit menu. |
 | With a rename open | Printable keys type, up to 64 characters. Backspace deletes. Enter applies. Esc cancels. An empty or unchanged name makes no change. |
 | With a dialog open | Enter runs the dialog's primary action: Export queues the export, the unsaved-changes prompt saves and continues. Every other dialog has no primary action and swallows the key. Esc closes. |
 
@@ -124,7 +124,7 @@ replaced by the finished text rather than appended to it.
 | R | Rate Stretch. Drag a clip edge to retime it instead of trimming. |
 | C | Razor |
 | Y | Slip. Drag inside a clip to change what it shows without moving it. |
-| U | Slide. Drag a clip between its neighbours; they absorb the move. |
+| U | Slide. Drag a clip between its neighbors; they absorb the move. |
 | H | Hand. Drag the timeline to pan. |
 | Z | Zoom. Click zooms in around the pointer. Alt-click zooms out. |
 | P | Pen. Add keyframes on a clip's line or motion path; draw or edit masks in the Viewer. |
@@ -174,7 +174,7 @@ clock stops the other, and focusing another tab stops the source.
 | Shift+I / Shift+O | Playhead to In / Out point |
 | Ctrl+Shift+I / Ctrl+Shift+O | Clear In / Out point, or the source's when one is loaded |
 | Ctrl+Shift+X | Clear In and Out |
-| M | Add marker at playhead, named and coloured automatically. On an existing marker, rename it. |
+| M | Add marker at playhead, named and colored automatically. On an existing marker, rename it. |
 | Shift+M / Ctrl+Shift+M | Playhead to next / previous marker |
 | Ctrl+Alt+M | Delete the marker at the playhead |
 | Ctrl+Shift+Alt+M | Delete every marker, as one undo step |
@@ -302,7 +302,7 @@ Reset all restores every row.
 The Settings filter also searches the bindings, by name and by chord: `razor`
 and `ctrl+k` each list the rows they match.
 
-Above the list, a keyboard image colours each key by the kinds of command it
+Above the list, a keyboard image colors each key by the kinds of command it
 holds: Editor, Timeline, Viewer, Home, and Plugin for a command a plugin
 contributed. Click Ctrl, Shift or Alt on the image to show the chords with that
 modifier held, and hover a key to read what it runs. Drag a row onto a key to

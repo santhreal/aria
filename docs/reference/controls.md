@@ -22,7 +22,7 @@ The editor tool strip (`crates/aria-ui/src/chrome/tool_strip.rs` and `crates/ari
 | `tool-razor` | Razor | Splits the targeted clip at the clicked frame on the timeline. | `C` |
 | `tool-ripple` | Ripple Trim | Trims a clip edge and shifts downstream clips on the track to close or open the gap. | `B` |
 | `tool-roll` | Rolling Edit | Moves the cut point between two adjacent clips without changing the combined duration. | `N` |
-| `tool-slide` | Slide | Moves a clip along the track while trimming the neighbouring clips to keep their outer bounds fixed. | `U` |
+| `tool-slide` | Slide | Moves a clip along the track while trimming the neighboring clips to keep their outer bounds fixed. | `U` |
 | `tool-slip` | Slip | Shifts the source media in and out points inside a clip without moving its timeline bounds. | `Y` |
 | `tool-track-backward` | Track Select Backward | Selects every clip on the targeted track or all unlocked tracks up to the clicked frame. | `Shift+A` |
 | `tool-track-forward` | Track Select Forward | Selects every clip on the targeted track or all unlocked tracks from the clicked frame forward. | `A` |
@@ -93,12 +93,12 @@ The Inspector panel (`crates/aria-ui/src/panels/inspector/**/*.rs`) renders para
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
 | `anim-clear` (per row) | Clear | Removes the in, out, or combo animation preset from the selected clip. | None |
-| `anim-preset` (per row) | Preset name | Applies the animation preset (Fade in, Slide up, Zoom in, and the rest of the animation catalog) to the in, out, or combo slot of the selected clip; a preset with no renderer is labelled `(no renderer)`. | None |
+| `anim-preset` (per row) | Preset name | Applies the animation preset (Fade in, Slide up, Zoom in, and the rest of the animation catalog) to the in, out, or combo slot of the selected clip; a preset with no renderer is labeled `(no renderer)`. | None |
 | `aud-role` (per row) | Music / Sound FX / Voiceover / Extracted | Tags the selected clip with the audio role. | None |
 | `aud-role-clear` | Untag | Clears the assigned audio role tag (Music, Sound FX, Voiceover, Extracted) from the selected clip. | None |
 | `blur-toggle` | On / Off | Toggles motion blur evaluation for transform animation on the selected clip. | None |
 | `chroma-clear` | Remove key | Removes the chroma key filter from the selected clip. | None |
-| `chroma-key-color` (per row) | Green / Blue / Cyan | Keys the selected clip on the green, blue, or cyan screen colour. | None |
+| `chroma-key-color` (per row) | Green / Blue / Cyan | Keys the selected clip on the green, blue, or cyan screen color. | None |
 | `clip-type-detach` | Detach | Detaches the linked audio stream from the selected video clip onto its own track item. | None |
 | `crop-clear` | Reset framing | Resets the crop rectangle and horizontal and vertical flip flags on the selected clip to their defaults. | None |
 | `duck-run` | Duck under voice | Computes and applies volume keyframes that lower music or effects gain during dialogue segments. | None |
@@ -109,7 +109,7 @@ The Inspector panel (`crates/aria-ui/src/panels/inspector/**/*.rs`) renders para
 | `fx-choice` (per row) | Option label | Selects a discrete enum option for an effect parameter. | None |
 | `fx-curve` (per row) | Curve preset | Applies a named curve preset (Linear, S-Curve, Invert) to an effect curve parameter. | None |
 | `fx-font` (per row) | Font family | Selects the font family for an effect text parameter. | None |
-| `fx-grad` (per row) | Gradient preset | Applies a preset colour stop ramp to an effect gradient parameter. | None |
+| `fx-grad` (per row) | Gradient preset | Applies a preset color stop ramp to an effect gradient parameter. | None |
 | `fx-group` (per row) | Parameter group | Expands or collapses a collapsible parameter group inside an applied effect. | None |
 | `fx-layer` (per row) | Layer clip | Selects another timeline clip as a secondary layer input for an effect parameter. | None |
 | `fx-layer-none` (per row) | None | Clears the secondary layer input slot on an effect parameter. | None |
@@ -157,8 +157,8 @@ The Inspector panel (`crates/aria-ui/src/panels/inspector/**/*.rs`) renders para
 | `relink-media` | Relink | Opens the Relink Media file picker, filtered to media files, and relinks the missing media pool item to the chosen file. Drawn in the Info tab and on a missing pool item. | None |
 | `speed-clear` | Clear ramp | Removes variable speed ramp segments and returns the clip to constant speed. | None |
 | `speed-preset` (per row) | Ramp up / Ramp down / Montage / Hero / Bullet / Jump cut / Flash in / Flash out | Applies the speed ramp preset to the selected clip. | None |
-| `style-color` (per row) | Black / White / Half black | Sets the colour of the shadow, glow, outline, or background layer style. | None |
-| `style-toggle` (per row) | Shadow / Glow / Outline / Background | Adds or removes the layer style on the selected clip; an applied style is labelled `on`. | None |
+| `style-color` (per row) | Black / White / Half black | Sets the color of the shadow, glow, outline, or background layer style. | None |
+| `style-toggle` (per row) | Shadow / Glow / Outline / Background | Adds or removes the layer style on the selected clip; an applied style is labeled `on`. | None |
 | `styles-clear` | Clear styles | Removes drop shadow, stroke, glow, and background layer styles from the selected clip. | None |
 | `template-accepts` (per row) | Any visual / Video only / Image only / Audio only | Sets the media a template slot on the selected clip accepts when the template is filled. | None |
 | `tr-bool` (per row) | On / Off | Toggles a boolean parameter on the selected timeline transition. | None |
@@ -266,32 +266,32 @@ The Character, Paragraph, and Inspector Text surfaces (`crates/aria-ui/src/panel
 
 ## Markers
 
-The Markers panel (`crates/aria-ui/src/panels/markers.rs`) renders playhead marker creation, colour filter reset, and per-marker edit, rename, note, and removal controls.
+The Markers panel (`crates/aria-ui/src/panels/markers.rs`) renders playhead marker creation, color filter reset, and per-marker edit, rename, note, and removal controls.
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
 | `marker-add` | Add at playhead | Adds a new sequence marker at the current playhead frame. | None |
 | `marker-edit` (per row) | Edit… | Opens the Marker Edit dialog for the marker row. | None |
-| `marker-filter-all` | All | Clears the marker colour filter in the Markers panel to show all markers. | None |
+| `marker-filter-all` | All | Clears the marker color filter in the Markers panel to show all markers. | None |
 | `marker-note` (per row) | Note | Opens the inline editor for the marker's comment. | None |
 | `marker-remove` (per row) | Remove | Deletes the marker row from the sequence or clip. | None |
 | `marker-rename` (per row) | Rename | Opens the inline editor for the marker's name. | None |
 
 ## Color
 
-The Color panel and grading blocks (`crates/aria-ui/src/panels/color_panel.rs`, `crates/aria-ui/src/panels/inspector/blocks/grade.rs`, `wheels.rs`, and `curve_editor/picker.rs`) render section headers, colour wheel resets, curve channel and axis chips, blend mode and stabilization level buttons, and grade reset buttons.
+The Color panel and grading blocks (`crates/aria-ui/src/panels/color_panel.rs`, `crates/aria-ui/src/panels/inspector/blocks/grade.rs`, `wheels.rs`, and `curve_editor/picker.rs`) render section headers, color wheel resets, curve channel and axis chips, blend mode and stabilization level buttons, and grade reset buttons.
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
 | `ce-preset` (per row) | Preset name | Applies a cubic-bezier easing preset (Snappy, Overshoot, Anticipate) to the segment leaving the keyframe at the playhead on the active property in the Inspector curve editor. | None |
-| `color-grade-clear` | Reset grade | Resets all colour correction sections on the selected clip from the Color panel header. | None |
+| `color-grade-clear` | Reset grade | Resets all color correction sections on the selected clip from the Color panel header. | None |
 | `color-section` (per row) | Section title | Expands or collapses a grading section (Basic Correction, Creative, RGB Curves, Hue Curves, Color Wheels, HSL Secondary, Vignette) in the Color panel. | None |
 | `curve-axis` (per row) | Curve axis | Selects the X or Y component axis for a two-dimensional animatable property in the Inspector curve editor. | None |
 | `curve-param` (per row) | Curve channel | Selects which animatable clip property is graphed in the Inspector curve editor. | None |
 | `denoise-toggle` | On / Off | Toggles temporal/spatial video denoise on the selected clip. | None |
 | `grade-blend` (per row) | Normal / Darken / Multiply / Color Burn / Lighten / Screen / Color Dodge / Add / Overlay / Soft Light / Hard Light / Difference / Exclusion | Sets the blend mode the selected clip composites with. | None |
-| `grade-clear` | Reset grade | Resets all colour grade adjustments on the selected clip from the Inspector Look tab. | None |
-| `inspector-wheel-reset` | Reset wheel | Resets the Lift, Gamma, or Gain colour wheel back to neutral. | None |
+| `grade-clear` | Reset grade | Resets all color grade adjustments on the selected clip from the Inspector Look tab. | None |
+| `inspector-wheel-reset` | Reset wheel | Resets the Lift, Gamma, or Gain color wheel back to neutral. | None |
 | `stabilize-level` (per row) | Recommended / Smooth / Max smooth | Enables video stabilization on the selected clip at the smoothing level. | None |
 | `stabilize-off` | Off | Disables video stabilization on the selected clip. | None |
 
@@ -318,7 +318,7 @@ The Alignment panel (`crates/aria-ui/src/panels/align_panel.rs`) renders the ali
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
-| `align-edge` (per row) | Left / Centre / Right / Top / Middle / Bottom | Aligns the selected clips to the edge or centre line of the selection bounds or the frame. | None |
+| `align-edge` (per row) | Left / Center / Right / Top / Middle / Bottom | Aligns the selected clips to the edge or center line of the selection bounds or the frame. | None |
 | `align-spread` (per row) | Across / Down | Distributes three or more selected clips evenly across or down. | None |
 | `align-to` (per row) | Selection / Frame | Selects whether the Alignment panel aligns clips relative to the selection bounds or the sequence frame. | None |
 
@@ -444,8 +444,8 @@ The application window frame, dock tab bars, and status strip (`crates/aria-ui/s
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
 | `caption-close` | Close window | Prompts to save unsaved project changes if dirty and closes the application window. | None |
-| `caption-max` | Maximise window | Toggles the application window between maximised and restored geometry. | None |
-| `caption-min` | Minimise window | Minimises the application window to the system taskbar or dock. | None |
+| `caption-max` | Maximize window | Toggles the application window between maximized and restored geometry. | None |
+| `caption-min` | Minimize window | Minimizes the application window to the system taskbar or dock. | None |
 | `dock-tab-more` (per row) | More panels | Opens the overflow menu listing dock panels hidden by narrow frame width. | None |
 | `plugin-panel-open` (per row) | Open | Loads the plugin package that declares the waiting panel and opens the panel. | None |
 | `plugin-ui-button` (per row) | Button text | Sends a press event to the plugin that declared the panel button. | None |
@@ -479,10 +479,10 @@ Modal dialogs (`crates/aria-ui/src/panels/*_dialog.rs`, `crates/aria-ui/src/pane
 | `marker-edit-cancel` | Cancel | Closes the Marker Edit dialog without saving changes. | None |
 | `marker-edit-field` (per row) | Name / Comment / Duration (timecode) | Edits the marker's name, comment, or duration in the Marker Edit dialog; Enter saves the marker. | None |
 | `marker-edit-kind` (per row) | Comment / Chapter / Segmentation | Sets the kind of the marker in the Marker Edit dialog. | None |
-| `marker-edit-save` | Save | Saves the edited marker name, notes, duration, colour, and kind. | None |
+| `marker-edit-save` | Save | Saves the edited marker name, notes, duration, color, and kind. | None |
 | `media-exposure` | Measure exposure | Measures the exposure of the frame on screen and keeps the readout. | None |
 | `media-loudness` | Loudness overview | Reports where the loudest moment of the selected source's audio stream is. | None |
-| `media-normalise` | Normalise selection | Sets the selected clip's gain so its measured peak lands on the target, from the loudness contour the Analysis panel measured. | None |
+| `media-normalise` | Normalize selection | Sets the selected clip's gain so its measured peak lands on the target, from the loudness contour the Analysis panel measured. | None |
 | `media-refresh` | Re-read | Rebuilds the Media Support report. | None |
 | `media-support-close` | Close | Closes the Media Support dialog. | None |
 | `media-verify` | Verify decode | Decodes the selected clip's still or animation from its path and from its bytes and compares the two. | None |

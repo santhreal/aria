@@ -151,7 +151,7 @@ fn linear_gradient(rig: &mut Rig) {
 fn radial_gradient(rig: &mut Rig) {
     let img = rig.draw("radial_gradient", defaults("radial_gradient"));
     // White at the centre, black from half the frame height out.
-    assert_px(&img, W / 2, H / 2, grey(255), 6, "the centre");
+    assert_px(&img, W / 2, H / 2, grey(255), 6, "the center");
     assert_px(&img, 0, 0, grey(0), 1, "a corner past the radius");
     // Halfway out along x: 18 px of a 36 px radius.
     assert_px(&img, W / 2 + 18, H / 2, grey(128), 6, "half the radius out");
@@ -225,7 +225,7 @@ fn fractal_noise(rig: &mut Rig) {
         assert_eq!(pixel[3], 255, "the noise is opaque");
         assert!(
             pixel[0] == pixel[1] && pixel[1] == pixel[2],
-            "between black and white the noise is grey: {pixel:?}"
+            "between black and white the noise is gray: {pixel:?}"
         );
         levels.insert(pixel[0]);
     }

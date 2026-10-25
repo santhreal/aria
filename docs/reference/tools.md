@@ -23,7 +23,7 @@ Trim a cut between two adjacent clips without changing the sequence duration, th
 | `tool-roll` | Rolling Edit | `n` | `Trim` | `none` | `Roll` | `none` | Moves the shared cut between two abutting clips in one undo step without changing their combined span. |
 | `tool-rate` | Rate Stretch | `r` | `Trim` | `none` | `Rate` | `none` | Changes how long a clip plays by dragging its edge while keeping the same source window (`speed` scales inversely with length). |
 | `tool-slip` | Slip | `y` | `Trim` | `Slip` | `none` | `none` | Moves the take (`source_in` and `source_out`) inside a clip while keeping the clip's timeline edges fixed. |
-| `tool-slide` | Slide | `u` | `Trim` | `Slide` | `none` | `none` | Moves a clip along its lane and gives the difference to its adjacent outgoing and incoming neighbours. |
+| `tool-slide` | Slide | `u` | `Trim` | `Slide` | `none` | `none` | Moves a clip along its lane and gives the difference to its adjacent outgoing and incoming neighbors. |
 | `tool-razor` | Razor | `c` | `Razor` | `none` | `none` | `none` | Splits the clicked clip at the pointer frame (`Shift+click` cuts every unlocked track at that frame). |
 | `tool-pen` | Pen | `p` | `Pen` | `none` | `none` | `none` | Adds a keyframe on a clip's rubber-band line in the timeline, or draws and edits Bézier masks and motion-path keyframes in the Viewer. |
 | `tool-hand` | Hand | `h` | `Navigate` | `none` | `none` | `none` | Scrolls the timeline horizontally on drag, or pans the Viewer frame when zoomed in. |

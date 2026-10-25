@@ -21,7 +21,7 @@ clicking it returns to fit. The buttons walk a fixed ladder: 25, 50, 75, 100,
 
 Above 100 per cent the frame can be panned: the cursor becomes an open hand and
 dragging moves the picture. Returning to fit, or zooming back to 100 per cent or
-below, re-centres it.
+below, re-centers it.
 
 The Scopes toggle opens a strip beside the Viewer with the waveform, the vectorscope,
 and the histogram of the frame on screen; the Scopes panel lays the same
@@ -42,10 +42,10 @@ Grid**, and **Grid**. A check mark shows each overlay that is on.
 - **Title safe** marks the inner 90 per cent of the frame.
 - **Action safe** marks the inner 93 per cent.
 - **Grid** draws thirds.
-- **Transparency Grid** draws a grid of two greys, in 8-pixel squares of the
+- **Transparency Grid** draws a grid of two grays, in 8-pixel squares of the
   rendered frame, where no layer covers the canvas, in place of the sequence's
-  background colour. A partly transparent layer shows the grid through it.
-  Export, Export Frame, and timeline thumbnails keep the background colour.
+  background color. A partly transparent layer shows the grid through it.
+  Export, Export Frame, and timeline thumbnails keep the background color.
   While the grid is on, each Viewer frame is read back from the GPU, as with
   Scopes open. The setting is saved.
 
@@ -54,7 +54,7 @@ Ctrl+Shift+R, draws rulers along the top and left of the Program view, numbered 
 canvas pixels and following the zoom and pan. Drag from the top ruler for a
 horizontal guide and from the left ruler for a vertical one; drag a guide to move
 it, and drop it back on its ruler or off the frame to delete it. With **Snap to Guides** on, a layer moved by its transform handle snaps its edges or its
-centre onto a guide within 6 pixels. **Show Guides** off hides the guides
+center onto a guide within 6 pixels. **Show Guides** off hides the guides
 and stops snapping to them without deleting them; pulling a new guide shows them
 again. **Clear Guides** deletes every guide. Guides are not saved with the
 project and are not edits.
@@ -131,8 +131,8 @@ of them enters the undo history or changes what an export produces.
 ### Info
 
 **Window > Info** or Shift+8 docks the Info panel. Over the Viewer it shows the
-canvas pixel under the pointer and the colour of the frame on screen there: a
-swatch, the hex value, the RGB channels, and alpha. The colour is read from the
+canvas pixel under the pointer and the color of the frame on screen there: a
+swatch, the hex value, the RGB channels, and alpha. The color is read from the
 picture as displayed, at the preview resolution, so a reduced resolution reads
 the pixel that covers the canvas point. Below that it shows the selected clip's
 name, In, Out, Duration, source, and Source In and Out; during a trim, the tool,
@@ -185,10 +185,10 @@ inset rows.
 
 **Window > Align** docks the Align panel. **Align to** selects what the selected
 clips line up against: the box around the selection, the frame, or the first
-selected clip. **Left**, **Centre**, and **Right** move each clip horizontally;
+selected clip. **Left**, **Center**, and **Right** move each clip horizontally;
 **Top**, **Middle**, and **Bottom** move it vertically. A single selected clip
 aligns to the frame. **Across** and **Down** under **Distribute** keep the two
-outermost of three or more clips in place and space the centres evenly between
+outermost of three or more clips in place and space the centers evenly between
 them.
 
 Bounds are what the compositor draws at the playhead: a rotated clip aligns by
@@ -208,7 +208,7 @@ Frame and crop a clip with safe margins, rulers, and crop handles, then render t
 1. Choose **View > Viewer Display Settings > Title Safe** (or click [`viewer-display-settings`](../reference/controls.md#viewer--source-monitor) and toggle **Title Safe**) and press <kbd>Ctrl+Shift+R</kbd> (`key-rulers`) or choose **View > Viewer Display Settings > Show Rulers**. The Viewer draws the inner title-safe rectangle and pixel rulers along the top and left edges.
 2. Select a clip on `V1` and click [`preview-handles-crop`](../reference/controls.md#viewer--source-monitor) in the Viewer control row (or choose **View > Canvas Handles > Crop**). The Viewer draws four edge and four corner crop handles around the selected clip's frame.
 3. Drag the left and right crop handles inward, or click [`crop-clear`](../reference/controls.md#inspector) in Effect Controls (or choose **Clip > Transform > Reset Framing** / run **Reset Framing** (`pal-crop-reset`)) to reset the crop edges. The Viewer updates the cropped frame in real time.
-4. Choose **Window > Align**, click [`align-to`](../reference/controls.md#alignment) to select frame alignment, and click **Centre** and **Middle**. The selected clip centers horizontally and vertically inside the sequence canvas.
+4. Choose **Window > Align**, click [`align-to`](../reference/controls.md#alignment) to select frame alignment, and click **Center** and **Middle**. The selected clip centers horizontally and vertically inside the sequence canvas.
 5. Mark an In and Out range on the sequence and press <kbd>Enter</kbd> (`key-render-in-to-out`) or choose **Sequence > Render In to Out** (or run **Render In to Out** (`pal-render-in-to-out`)). Aria renders QOI cache frames for the span and turns the timeline ruler render bar green across the work area.
 
 ## Reference

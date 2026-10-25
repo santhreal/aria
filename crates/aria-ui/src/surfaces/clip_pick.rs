@@ -172,7 +172,7 @@ impl Pick {
             Self::TextCase(_) => "the title's letter case",
             Self::TextAlignH(_) => "the title's horizontal alignment",
             Self::TextAlignV(_) => "the title's vertical alignment",
-            Self::ParamColor { .. } => "a colour swatch on a property row",
+            Self::ParamColor { .. } => "a color swatch on a property row",
             Self::Transition(_) => "a transition on the junction",
             Self::TransitionLength(_) => "the transition's length stepped",
             Self::TransitionAlignment(_) => "the transition's alignment",

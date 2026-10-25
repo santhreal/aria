@@ -82,13 +82,13 @@ in the tooltip. Typing filters the tree and opens the matching categories;
 the `×` at the right of the search field clears it. Double-click applies to
 the selection; dragging applies to the drop target (a clip on the timeline, an
 edit point for transitions, Effect Controls). An entry's tooltip states both.
-Favourites (star) appear in a top group. A contribution whose plugin failed to
+Favorites (star) appear in a top group. A contribution whose plugin failed to
 load is listed with its failure. Docked on its own, the panel's contents stand
 12 px inside the frame, as on the Project panel's Effects tab.
 
 ## Info
 
-The pixel colour and position under the pointer in the Viewer, the selected
+The pixel color and position under the pointer in the Viewer, the selected
 clip's in, out, duration, and source, and while dragging, the drag offset and
 the duration being trimmed. Errors from drivers and plugins show here with the
 property or effect they came from.
@@ -97,16 +97,16 @@ property or effect they came from.
 
 Waveform (luma, RGB parade, YCbCr parade), vectorscope (with skin tone line and
 75 % and 100 % targets), histogram, and RGB parade, each sized to the panel.
-Scopes analyse the presented frame on the GPU after presentation and update at
+Scopes analyze the presented frame on the GPU after presentation and update at
 most at 30 Hz during playback, off the UI thread.
 
 ## Color
 
 Basic correction (white balance, tone: exposure, contrast, highlights, shadows,
 whites, blacks, saturation), creative (look LUT with intensity, faded film,
-sharpen, vibrance), curves (RGB and hue-vs curves), colour wheels (shadows,
+sharpen, vibrance), curves (RGB and hue-vs curves), color wheels (shadows,
 midtones, highlights), HSL secondary, and vignette. Every control is a
-keyframeable property of the clip's colour effect.
+keyframeable property of the clip's color effect.
 
 ## Text
 
@@ -123,7 +123,7 @@ or the first selected clip.
 ## Markers
 
 A list of sequence and clip markers with time, duration, name, comment, and
-colour. Clicking a row moves the playhead; editing a cell edits the marker.
+color. Clicking a row moves the playhead; editing a cell edits the marker.
 
 ## History
 

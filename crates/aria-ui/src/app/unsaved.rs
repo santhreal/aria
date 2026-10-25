@@ -20,7 +20,8 @@ use super::{AppState, DialogKind};
 /// action was never going to touch.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PendingIntent {
-    /// Leave the project for Home, keeping it loaded.
+    /// Leave the project for Home. A saved project stays loaded; Discard
+    /// replaces it with an empty one.
     GoHome,
     /// Start an empty project.
     NewProject,
@@ -67,9 +68,9 @@ impl AppState {
             return true;
         }
         self.pending_intent = Some(intent);
-        // Set directly rather than through `open_dialog`: this prompt is the one
-        // dialog that must open on Home too, because a dirty session stays
-        // loaded on the way back to Home.
+        // Set directly rather than through `open_dialog`, which opens only
+        // Settings, Install Plugin and About on Home: a request made on Home
+        // over unsaved work still asks.
         self.dialog = DialogKind::UnsavedChanges;
         self.close_popovers();
         false
@@ -142,8 +143,26 @@ impl AppState {
         self.resolve_pending();
     }
 
-    /// Continue and lose the edits, as the Discard button requests.
+    /// Lose the edits, then continue, as the Discard button requests.
+    ///
+    /// Home and Quit replace nothing, so the edits are dropped here: a session
+    /// left dirty behind Home would ask again on the way out, and a recovery
+    /// copy left on disk would come back on the next launch as work a crash
+    /// interrupted. Every other intent replaces the session, which drops both.
+    /// A refused replacement keeps the prompt up and the intent parked, as a
+    /// failed save does.
     pub fn discard_and_continue(&mut self) {
+        match self.pending_intent {
+            Some(PendingIntent::GoHome) => {
+                if let Err(err) = self.empty_session() {
+                    self.report_error(&err);
+                    return;
+                }
+                self.sync_from_engine();
+            }
+            Some(PendingIntent::Quit) => self.clear_recovery(),
+            _ => {}
+        }
         self.resolve_pending();
     }
 

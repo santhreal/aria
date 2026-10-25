@@ -1,7 +1,7 @@
 # Clip types
 
 A clip type is a named kind of clip whose picture a generator draws. It has a
-name, a timeline colour, an icon, and Viewer handles bound to the generator's
+name, a timeline color, an icon, and Viewer handles bound to the generator's
 vec2 parameters. The Generators tab lists each type above the plain
 generators, and the palette offers it by name. Clicking a type places it at
 the playhead; dragging it places it on a lane.
@@ -82,7 +82,7 @@ them. `aria_sdk::MarkerColor` is `Teal`, `Blue`, `Purple`, `Pink`, `Red`,
 A handle value is a point on the clip's layer, as fractions of its width and
 height: `[0, 0]` is the top left corner and `[1, 1]` the bottom right. With
 the clip selected and the Viewer in Transform mode, each handle is a dot in
-the type's colour above the move surface and the scale corners. Dragging one
+the type's color above the move surface and the scale corners. Dragging one
 shows the value in the Viewer as it moves and writes one keyframe at the
 playhead on release, held inside the parameter's range. A press with no
 movement writes nothing. A type declares at most `CLIP_TYPE_MAX_HANDLES` (8)
@@ -90,7 +90,7 @@ handles.
 
 ## The clip
 
-The timeline draws a typed clip in the label of the type's colour unless the
+The timeline draws a typed clip in the label of the type's color unless the
 clip has a label of its own, with the type's icon before its name. `pink` draws
 as Magenta, `red` as Rose, and `orange` as Mango; the other five names are
 labels of the same name. Effect Controls shows the
@@ -120,7 +120,7 @@ hold it keep its id.
 ## Defined types
 
 A defined type declares its fields as effect parameters of any kind: scalar,
-angle, int, bool, choice, colour, vec2, size, point3, curve, gradient, text,
+angle, int, bool, choice, color, vec2, size, point3, curve, gradient, text,
 file, font, and layer. Each field is a row in Effect Controls and on the
 timeline, saved with the clip, edited as one undo step per change, and
 keyframed where its kind keyframes. A handle names a `vec2` field.

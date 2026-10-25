@@ -4,7 +4,7 @@
 //! The rows are [`crate::app::effects_browser::tree`]; this file draws them. A
 //! click on a folder opens or closes it, a click on an entry picks it, a
 //! double-click applies it to the selection, and a drag carries it to a clip,
-//! a cut or a lane. The star saves the entry under Favourites. An entry's tip
+//! a cut or a lane. The star saves the entry under Favorites. An entry's tip
 //! states its name and those two gestures.
 
 use crate::tooltip::WithTip as _;
@@ -59,7 +59,7 @@ pub(crate) fn effects_panel(
         failures,
         browser,
         focused,
-        favourites,
+        favorites,
     } = state.read(cx).effects_panel_inputs();
     let effects_browser::EffectsBrowser {
         query,
@@ -72,7 +72,7 @@ pub(crate) fn effects_panel(
     let nodes = effects_browser::tree(
         &[&entries[..], &presets[..]],
         &failures,
-        &favourites,
+        &favorites,
         &query,
         &open,
         only,
@@ -104,7 +104,7 @@ pub(crate) fn effects_panel(
                 entry,
                 group,
                 depth,
-                favourite,
+                favorite,
             } => {
                 let lit = picked
                     .as_ref()
@@ -116,7 +116,7 @@ pub(crate) fn effects_panel(
                     Place {
                         group,
                         depth,
-                        favourite,
+                        favorite,
                         picked: lit,
                     },
                     cx,
@@ -230,7 +230,7 @@ struct Folder {
 struct Place {
     group: Group,
     depth: u8,
-    favourite: bool,
+    favorite: bool,
     picked: bool,
 }
 
@@ -313,8 +313,8 @@ fn entry_row(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
     let kind = entry.kind;
-    // The group is part of the identity: a favourite is drawn twice, once
-    // under Favourites and once in its own folder.
+    // The group is part of the identity: a favorite is drawn twice, once
+    // under Favorites and once in its own folder.
     let row = motion::MotionKey::new("effects.entry", kind.tag())
         .with(&entry.id)
         .with(place.group.label());
@@ -391,22 +391,22 @@ fn entry_row(
                 .text_color(text)
                 .child(entry.label.clone()),
         )
-        .child(star(theme, row, kind, entry, place.favourite, cx))
+        .child(star(theme, row, kind, entry, place.favorite, cx))
         .into_any_element()
 }
 
-/// The favourite toggle at the end of an entry row: lit when starred.
+/// The favorite toggle at the end of an entry row: lit when starred.
 fn star(
     theme: &Theme,
     row: motion::MotionKey,
     kind: EntryKind,
     entry: &Entry,
-    favourite: bool,
+    favorite: bool,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     let hover = row.with("star");
     let lit = motion::hover_t(hover);
-    let colour = if favourite {
+    let colour = if favorite {
         theme.accent
     } else {
         motion::mix(theme.text_faint, theme.text, lit)
@@ -429,7 +429,7 @@ fn star(
             cx.listener(move |this, _: &MouseDownEvent, _, cx| {
                 cx.stop_propagation();
                 this.state.update(cx, |state, cx| {
-                    state.toggle_effect_favourite(kind, &starred);
+                    state.toggle_effect_favorite(kind, &starred);
                     state.persist_settings_later(cx);
                 });
                 cx.notify();

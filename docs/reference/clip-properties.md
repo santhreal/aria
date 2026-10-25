@@ -108,27 +108,27 @@ Every animatable clip property in Aria is registered in `crates/aria-models/src/
 | `chroma-strength` | Key strength | `chroma` | `Look(ChromaStrength)` | `Scalar` | `Visual` | `0..=1` |
 | `chroma-shadow` | Key shadow | `chroma` | `Look(ChromaShadow)` | `Scalar` | `Visual` | `0..=1` |
 | `matte-softness` | Matte softness | `matte` | `Look(MatteSoftness)` | `Scalar` | `Visual` | `0..=1` |
-| `style-shadow-color` | Shadow colour | `shadow` | `Style(ShadowColor)` | `Color` | `Visual` | `any` |
+| `style-shadow-color` | Shadow color | `shadow` | `Style(ShadowColor)` | `Color` | `Visual` | `any` |
 | `style-shadow-offset` | Shadow offset | `shadow` | `Style(ShadowOffset)` | `Vec2` | `Visual` | `any` |
 | `style-shadow-blur` | Shadow blur | `shadow` | `Style(ShadowBlur)` | `Scalar` | `Visual` | `>= 0` |
-| `style-glow-color` | Glow colour | `glow` | `Style(GlowColor)` | `Color` | `Visual` | `any` |
+| `style-glow-color` | Glow color | `glow` | `Style(GlowColor)` | `Color` | `Visual` | `any` |
 | `style-glow-radius` | Glow radius | `glow` | `Style(GlowRadius)` | `Scalar` | `Visual` | `>= 0` |
 | `style-glow-intensity` | Glow intensity | `glow` | `Style(GlowIntensity)` | `Scalar` | `Visual` | `0..=4` |
-| `style-outline-color` | Outline colour | `outline` | `Style(OutlineColor)` | `Color` | `Visual` | `any` |
+| `style-outline-color` | Outline color | `outline` | `Style(OutlineColor)` | `Color` | `Visual` | `any` |
 | `style-outline-width` | Outline width | `outline` | `Style(OutlineWidth)` | `Scalar` | `Visual` | `>= 0` |
-| `style-background-color` | Background colour | `background` | `Style(BackgroundColor)` | `Color` | `Visual` | `any` |
+| `style-background-color` | Background color | `background` | `Style(BackgroundColor)` | `Color` | `Visual` | `any` |
 | `style-background-padding` | Background padding | `background` | `Style(BackgroundPadding)` | `Scalar` | `Visual` | `>= 0` |
 | `style-background-radius` | Background radius | `background` | `Style(BackgroundRadius)` | `Scalar` | `Visual` | `>= 0` |
 | `text-size` | Text size | `text` | `Text(Size)` | `Scalar` | `Visual` | `> 0..=4096` |
-| `text-fill` | Text colour | `text` | `Text(Fill)` | `Color` | `Visual` | `any` |
+| `text-fill` | Text color | `text` | `Text(Fill)` | `Color` | `Visual` | `any` |
 | `text-letter-spacing` | Letter spacing | `text` | `Text(LetterSpacing)` | `Scalar` | `Visual` | `-4096..=4096` |
 | `text-line-spacing` | Line spacing | `text` | `Text(LineSpacing)` | `Scalar` | `Visual` | `> 0..=100` |
 | `text-stroke-width` | Text stroke width | `text` | `Text(StrokeWidth)` | `Scalar` | `Visual` | `0..=512` |
-| `text-stroke-color` | Text stroke colour | `text` | `Text(StrokeColor)` | `Color` | `Visual` | `any` |
+| `text-stroke-color` | Text stroke color | `text` | `Text(StrokeColor)` | `Color` | `Visual` | `any` |
 | `text-shadow-blur` | Text shadow blur | `text` | `Text(ShadowBlur)` | `Scalar` | `Visual` | `0..=1` |
 | `text-shadow-distance` | Text shadow distance | `text` | `Text(ShadowDistance)` | `Scalar` | `Visual` | `0..=4096` |
-| `text-shadow-color` | Text shadow colour | `text` | `Text(ShadowColor)` | `Color` | `Visual` | `any` |
-| `text-background-color` | Text card colour | `text` | `Text(BackgroundColor)` | `Color` | `Visual` | `any` |
+| `text-shadow-color` | Text shadow color | `text` | `Text(ShadowColor)` | `Color` | `Visual` | `any` |
+| `text-background-color` | Text card color | `text` | `Text(BackgroundColor)` | `Color` | `Visual` | `any` |
 | `text-background-radius` | Text card radius | `text` | `Text(BackgroundRadius)` | `Scalar` | `Visual` | `0..=1` |
 | `shape-width` | Shape width | `shape` | `Shape(Width)` | `Scalar` | `Visual` | `> 0..=8192` |
 | `shape-height` | Shape height | `shape` | `Shape(Height)` | `Scalar` | `Visual` | `> 0..=8192` |
@@ -136,7 +136,7 @@ Every animatable clip property in Aria is registered in `crates/aria-models/src/
 | `shape-inner-ratio` | Star inner ratio | `shape` | `Shape(InnerRatio)` | `Scalar` | `Visual` | `0..=1` |
 | `shape-fill` | Shape fill | `shape` | `Shape(Fill)` | `Color` | `Visual` | `any` |
 | `shape-stroke-width` | Shape stroke width | `shape` | `Shape(StrokeWidth)` | `Scalar` | `Visual` | `0..=512` |
-| `shape-stroke-color` | Shape stroke colour | `shape` | `Shape(StrokeColor)` | `Color` | `Visual` | `any` |
+| `shape-stroke-color` | Shape stroke color | `shape` | `Shape(StrokeColor)` | `Color` | `Visual` | `any` |
 
 ## Clip transform, framing, and motion blur (`ClipTransform`, `CropRect`, `MotionBlur`)
 
@@ -209,7 +209,7 @@ In the Viewer (`crates/aria-ui/src/app/canvas_overlay.rs`), scale and crop drags
 | Variant | Label | Axis |
 | --- | --- | --- |
 | `Left` | Left | Horizontal (`x`) |
-| `CenterX` | Centre | Horizontal (`x`) |
+| `CenterX` | Center | Horizontal (`x`) |
 | `Right` | Right | Horizontal (`x`) |
 | `Top` | Top | Vertical (`y`) |
 | `CenterY` | Middle | Vertical (`y`) |

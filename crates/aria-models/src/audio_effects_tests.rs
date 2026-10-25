@@ -75,7 +75,7 @@ fn the_registration_rules_accept_a_sound_spec_and_name_each_refusal() {
             spec(vec![scalar("a", 0.0, 1.0, 0.0)], 0),
             "inverted range",
         ),
-        ("a colour parameter", spec(vec![colour], 0), "scalar"),
+        ("a color parameter", spec(vec![colour], 0), "scalar"),
         ("a vector parameter", spec(vec![vec2], 0), "scalar"),
         (
             "a default above the range",

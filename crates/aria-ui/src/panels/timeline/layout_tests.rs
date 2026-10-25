@@ -230,7 +230,7 @@ fn the_header_column_is_one_grid_at_every_outline_width(cx: &mut gpui::TestAppCo
         let middle = (search.center().y + toggles[0].center().y) / 2.0;
         assert!(
             near(tc_field.center().y, middle),
-            "{width}: the timecode centres at {:?}, not between the rows at {middle:?}",
+            "{width}: the timecode centers at {:?}, not between the rows at {middle:?}",
             tc_field.center().y
         );
         assert!(
@@ -309,7 +309,7 @@ fn a_track_header_is_one_row_of_equal_controls(cx: &mut gpui::TestAppContext) {
             );
             assert!(
                 near(control.center().y, header.center().y),
-                "{width}: the {} toggle is off the header's centre line",
+                "{width}: the {} toggle is off the header's center line",
                 row.id
             );
             match row.rest {
@@ -321,7 +321,7 @@ fn a_track_header_is_one_row_of_equal_controls(cx: &mut gpui::TestAppContext) {
         assert!(
             near(twirl.size.width, px(Theme::ICON_HIT_ROW))
                 && near(twirl.center().y, header.center().y),
-            "{width}: the twirl is {twirl:?}, off the controls' size or centre line"
+            "{width}: the twirl is {twirl:?}, off the controls' size or center line"
         );
         let name = bounds(visual, intern(format!("track-name-{}", lane_id)));
         let first_toggle = toggles
@@ -479,7 +479,7 @@ fn the_graph_axis_stands_on_the_curve_ys(cx: &mut gpui::TestAppContext) {
             let label = bounds(visual, selector);
             assert!(
                 near(label.center().y - canvas.top(), px(y)),
-                "{width}: {selector} centres at {:?}, the curve maps it to {y}",
+                "{width}: {selector} centers at {:?}, the curve maps it to {y}",
                 label.center().y - canvas.top()
             );
             assert!(

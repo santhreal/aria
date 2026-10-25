@@ -3,7 +3,7 @@
 This specification defines the editor Aria is being built into: an After
 Effects style workspace and animation model over a Premiere Pro style track
 timeline and playback engine. Each chapter covers one concern. Every
-chapter describes the target behaviour; [status.md](status.md) compares the
+chapter describes the target behavior; [status.md](status.md) compares the
 current build with it, section by section.
 
 Where a chapter and a reference document under `docs/` disagree, the reference

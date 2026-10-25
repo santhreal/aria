@@ -163,7 +163,7 @@ fn a_smooth_follow_holds_the_playhead_centred_without_a_glide() {
     let width = state.timeline_viewport_px();
     for second in [30, 31, 200] {
         state.set_playhead(fps * second);
-        assert!(state.follow_playhead(), "{second}s is off centre");
+        assert!(state.follow_playhead(), "{second}s is off center");
         let offset = playhead_px(&state) - state.scroll_x;
         assert!(
             (offset - width / 2.0).abs() < 1.0,

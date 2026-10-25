@@ -352,13 +352,13 @@ fn a_mask_drag_commits_once_and_needs_a_mask_to_start() {
         "a mask pointer move reached the project"
     );
     let (center, ..) = state.overlay_mask().expect("a live mask");
-    approx(center[0], 0.25, "the mask centre followed the pointer");
-    approx(center[1], -0.25, "the mask centre followed the pointer");
+    approx(center[0], 0.25, "the mask center followed the pointer");
+    approx(center[1], -0.25, "the mask center followed the pointer");
 
     state.end_overlay_drag().expect("commit");
     let masks = state.selected_ui_clip().expect("clip").masks;
-    approx(masks[1].center[0], 0.25, "committed centre x");
-    approx(masks[1].center[1], -0.25, "committed centre y");
+    approx(masks[1].center[0], 0.25, "committed center x");
+    approx(masks[1].center[1], -0.25, "committed center y");
     for other in [0, 2] {
         assert_eq!(
             masks[other].center,
@@ -368,7 +368,7 @@ fn a_mask_drag_commits_once_and_needs_a_mask_to_start() {
     }
     assert!(state.undo(), "the mask move is one undo entry");
     let mask = state.selected_ui_clip().expect("clip").masks[1];
-    approx(mask.center[0], 0.0, "undo restored the centre");
+    approx(mask.center[0], 0.0, "undo restored the center");
 }
 
 /// A drag on a keyframed mask starts from the mask at the playhead and keys the
@@ -415,7 +415,7 @@ fn a_drag_on_a_keyframed_mask_keys_the_playhead_and_keeps_the_curves() {
     approx(
         center[0],
         0.1,
-        "the handles sit on the centre at the playhead",
+        "the handles sit on the center at the playhead",
     );
     approx(size[0], 0.75, "the handles sit on the size at the playhead");
     state.begin_mask_drag(MaskHandle::Center);
@@ -423,7 +423,7 @@ fn a_drag_on_a_keyframed_mask_keys_the_playhead_and_keeps_the_curves() {
     approx(
         center[0],
         0.1,
-        "the drag starts from the centre at the playhead",
+        "the drag starts from the center at the playhead",
     );
 
     let quad = state.overlay_frame.layer.expect("quad");
@@ -437,13 +437,13 @@ fn a_drag_on_a_keyframed_mask_keys_the_playhead_and_keeps_the_curves() {
         .iter()
         .map(|key| (key.tick, key.value))
         .collect();
-    assert_eq!(keys.len(), 3, "the drag did not key the centre: {keys:?}");
+    assert_eq!(keys.len(), 3, "the drag did not key the center: {keys:?}");
     assert_eq!(keys[0], (0, [0.0, 0.0]), "the first keyframe moved");
     assert_eq!(keys[2], (20, [0.2, 0.0]), "the last keyframe moved");
     assert_eq!(keys[1].0, 10, "the key is not at the playhead");
-    approx(keys[1].1[0], 0.25, "the keyed centre x");
-    approx(keys[1].1[1], -0.25, "the keyed centre y");
-    assert_eq!(mask.size, size_curve, "a centre drag rewrote the size");
+    approx(keys[1].1[0], 0.25, "the keyed center x");
+    approx(keys[1].1[1], -0.25, "the keyed center y");
+    assert_eq!(mask.size, size_curve, "a center drag rewrote the size");
 
     assert!(state.undo(), "the drag is one undo entry");
     let mask = state.active_model_mask().cloned().expect("the mask");

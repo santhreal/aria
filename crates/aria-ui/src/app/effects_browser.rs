@@ -25,7 +25,7 @@ pub const QUERY_MAX_LEN: usize = 64;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Group {
     /// The entries starred in this panel, saved in the UI settings.
-    Favourites,
+    Favorites,
     VideoEffects,
     AudioEffects,
     /// Picture blends: the transition catalog.
@@ -43,7 +43,7 @@ pub enum Group {
 impl Group {
     /// Every group, in the order the tree lists them.
     pub const ALL: [Self; 8] = [
-        Self::Favourites,
+        Self::Favorites,
         Self::VideoEffects,
         Self::AudioEffects,
         Self::Transitions,
@@ -56,7 +56,7 @@ impl Group {
     /// The caption over a tree that lists only this group.
     pub fn only_label(self) -> &'static str {
         match self {
-            Self::Favourites => "Favourites only",
+            Self::Favorites => "Favorites only",
             Self::VideoEffects => "Video effects only",
             Self::AudioEffects => "Audio effects only",
             Self::Transitions => "Video transitions only",
@@ -69,7 +69,7 @@ impl Group {
 
     pub fn label(self) -> &'static str {
         match self {
-            Self::Favourites => "Favourites",
+            Self::Favorites => "Favorites",
             Self::VideoEffects => "Video Effects",
             Self::AudioEffects => "Audio Effects",
             Self::Transitions => "Video Transitions",
@@ -125,7 +125,7 @@ impl EntryKind {
         }
     }
 
-    /// The prefix of the key a favourite of this kind is saved under.
+    /// The prefix of the key a favorite of this kind is saved under.
     pub fn tag(self) -> &'static str {
         match self {
             Self::VideoEffect => "video",
@@ -186,10 +186,10 @@ impl Entry {
         }
     }
 
-    /// The key the entry is saved under as a favourite: its kind's tag and its
+    /// The key the entry is saved under as a favorite: its kind's tag and its
     /// id, as `video:gaussian_blur`.
-    pub fn favourite_key(&self) -> String {
-        favourite_key(self.kind, &self.id)
+    pub fn favorite_key(&self) -> String {
+        favorite_key(self.kind, &self.id)
     }
 
     /// Whether `key`, as saved, names this entry.
@@ -205,8 +205,8 @@ impl Entry {
     }
 }
 
-/// The key an entry of `kind` named `id` is saved under as a favourite.
-pub fn favourite_key(kind: EntryKind, id: &str) -> String {
+/// The key an entry of `kind` named `id` is saved under as a favorite.
+pub fn favorite_key(kind: EntryKind, id: &str) -> String {
     format!("{}:{id}", kind.tag())
 }
 
@@ -249,10 +249,10 @@ pub enum Node<'a> {
     },
     Entry {
         entry: &'a Entry,
-        /// Where the row sits: under Favourites, or under its own group.
+        /// Where the row sits: under Favorites, or under its own group.
         group: Group,
         depth: u8,
-        favourite: bool,
+        favorite: bool,
     },
     Failed {
         failed: &'a Failed,
@@ -273,7 +273,7 @@ pub struct EffectsBrowser {
 }
 
 impl Default for EffectsBrowser {
-    /// Favourites and Failed to Load start open: the first holds what the
+    /// Favorites and Failed to Load start open: the first holds what the
     /// operator starred to keep within reach, and the second is listed so a
     /// failure is read rather than found.
     fn default() -> Self {
@@ -281,7 +281,7 @@ impl Default for EffectsBrowser {
             query: String::new(),
             focused: false,
             open: BTreeSet::from([
-                FolderKey::group(Group::Favourites),
+                FolderKey::group(Group::Favorites),
                 FolderKey::group(Group::Failed),
             ]),
             picked: None,
@@ -304,7 +304,7 @@ pub struct PanelInputs {
     /// Whether the search box holds the keyboard, as
     /// [`AppState::effects_search_focused`] reads it.
     pub focused: bool,
-    pub favourites: Vec<String>,
+    pub favorites: Vec<String>,
 }
 
 /// `c` lowercased, as one character. Search compares one character at a time,
@@ -357,14 +357,14 @@ pub fn sort_for_tree(rows: &mut [Entry]) {
 /// The rows the tree draws.
 ///
 /// `entries` are slices each sorted by [`sort_for_tree`] and holding disjoint
-/// groups. `favourites` are saved keys. A blank search lists every group and
+/// groups. `favorites` are saved keys. A blank search lists every group and
 /// the contents of each open folder; a search lists only matching entries and
 /// failures, with every folder that holds one open. `only` lists one group's
-/// entries, under Favourites as well as in the group; failures stay listed.
+/// entries, under Favorites as well as in the group; failures stay listed.
 pub fn tree<'a>(
     entries: &[&'a [Entry]],
     failed: &'a [Failed],
-    favourites: &[String],
+    favorites: &[String],
     query: &str,
     open: &BTreeSet<FolderKey>,
     only: Option<Group>,
@@ -375,22 +375,22 @@ pub fn tree<'a>(
         only.is_none_or(|group| entry.kind.group() == group)
             && needle.as_deref().is_none_or(|n| entry.matches(n))
     };
-    let favourite = |entry: &Entry| favourites.iter().any(|key| entry.is_saved_as(key));
+    let favorite = |entry: &Entry| favorites.iter().any(|key| entry.is_saved_as(key));
     let is_open = |key: &FolderKey| searching || open.contains(key);
     let mut rows = Vec::new();
 
-    // Favourites, in label order across groups.
+    // Favorites, in label order across groups.
     let mut starred: Vec<&'a Entry> = entries
         .iter()
         .flat_map(|slice| slice.iter())
-        .filter(|entry| favourite(entry) && shown(entry))
+        .filter(|entry| favorite(entry) && shown(entry))
         .collect();
     if !starred.is_empty() {
         starred.sort_by(|a, b| (&a.label, a.kind).cmp(&(&b.label, b.kind)));
-        let key = FolderKey::group(Group::Favourites);
+        let key = FolderKey::group(Group::Favorites);
         let open = is_open(&key);
         rows.push(Node::Folder {
-            label: SharedString::new_static(Group::Favourites.label()),
+            label: SharedString::new_static(Group::Favorites.label()),
             depth: 0,
             open,
             count: starred.len(),
@@ -399,15 +399,15 @@ pub fn tree<'a>(
         if open {
             rows.extend(starred.into_iter().map(|entry| Node::Entry {
                 entry,
-                group: Group::Favourites,
+                group: Group::Favorites,
                 depth: 1,
-                favourite: true,
+                favorite: true,
             }));
         }
     }
 
     for group in Group::ALL {
-        if matches!(group, Group::Favourites | Group::Failed)
+        if matches!(group, Group::Favorites | Group::Failed)
             || only.is_some_and(|only| only != group)
         {
             continue;
@@ -465,7 +465,7 @@ pub fn tree<'a>(
                 entry,
                 group,
                 depth,
-                favourite: favourite(entry),
+                favorite: favorite(entry),
             }));
             at = end;
         }
@@ -505,7 +505,7 @@ impl AppState {
             failures: self.effects_failures(),
             browser: self.effects_browser.clone(),
             focused: self.effects_search_focused(),
-            favourites: self.effect_favourites().to_vec(),
+            favorites: self.effect_favorites().to_vec(),
         }
     }
 
@@ -610,21 +610,21 @@ impl AppState {
         }
     }
 
-    /// The favourites the panel saved, as keys.
-    pub fn effect_favourites(&self) -> &[String] {
-        &self.ui_settings.favourite_effects
+    /// The favorites the panel saved, as keys.
+    pub fn effect_favorites(&self) -> &[String] {
+        &self.ui_settings.favorite_effects
     }
 
     /// Star the entry, or unstar it when it is starred. The caller persists
     /// the settings.
-    pub fn toggle_effect_favourite(&mut self, kind: EntryKind, id: &str) {
-        let key = favourite_key(kind, id);
-        let favourites = &mut self.ui_settings.favourite_effects;
-        match favourites.iter().position(|saved| *saved == key) {
+    pub fn toggle_effect_favorite(&mut self, kind: EntryKind, id: &str) {
+        let key = favorite_key(kind, id);
+        let favorites = &mut self.ui_settings.favorite_effects;
+        match favorites.iter().position(|saved| *saved == key) {
             Some(at) => {
-                favourites.remove(at);
+                favorites.remove(at);
             }
-            None => favourites.push(key),
+            None => favorites.push(key),
         }
     }
 

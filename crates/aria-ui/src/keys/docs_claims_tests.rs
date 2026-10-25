@@ -319,7 +319,7 @@ fn features_doc_claims_match_catalogs_and_capabilities() {
 
     // Markers.
     assert_eq!(MarkerColor::ALL.len(), 8);
-    assert!(doc.contains("eight colours"));
+    assert!(doc.contains("eight colors"));
     let marker_kinds: Vec<&str> = MarkerKind::ALL.iter().map(|k| k.label()).collect();
     assert_eq!(marker_kinds, vec!["Comment", "Chapter", "Segmentation"]);
     assert!(doc.contains("Comment/Chapter/Segmentation kinds"));

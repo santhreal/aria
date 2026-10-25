@@ -80,7 +80,7 @@ fn centre(state: &AppState) -> [u8; 4] {
 fn assert_grey(pixel: [u8; 4], level: u8) {
     assert!(
         pixel[..3].iter().all(|c| c.abs_diff(level) <= 2) && pixel[3] == 255,
-        "expected opaque grey {level}, drew {pixel:?}"
+        "expected opaque gray {level}, drew {pixel:?}"
     );
 }
 

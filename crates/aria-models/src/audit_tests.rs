@@ -248,7 +248,7 @@ fn the_cut_row_finds_the_abutting_pair() {
     assert_eq!(
         found.len(),
         1,
-        "exactly the left clip of the one junction abuts its neighbour"
+        "exactly the left clip of the one junction abuts its neighbor"
     );
 }
 

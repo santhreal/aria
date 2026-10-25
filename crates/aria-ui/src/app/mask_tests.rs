@@ -438,7 +438,7 @@ fn chroma_seeds_a_usable_tolerance_and_keeps_the_colour_across_rows() {
             .expect("chroma")
             .rgb,
         [0, 177, 64],
-        "a row edit must keep the colour"
+        "a row edit must keep the color"
     );
 
     // Re-keying keeps the dialled-in tolerance.

@@ -217,7 +217,7 @@ pub(super) fn theme_file_row(
         None => base,
     };
     let detail = match &candidate {
-        Some(file) if !file.covers(theme.appearance) => "Shipped colours in this appearance",
+        Some(file) if !file.covers(theme.appearance) => "Shipped colors in this appearance",
         Some(_) => "",
         None => "The built-in palette",
     };

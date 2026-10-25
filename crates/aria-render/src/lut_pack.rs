@@ -200,7 +200,7 @@ mod tests {
             assert_eq!(
                 swatch.len(),
                 SWATCH_REFERENCE.len(),
-                "{} swatched {} colours",
+                "{} swatched {} colors",
                 row.id,
                 swatch.len()
             );

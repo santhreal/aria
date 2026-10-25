@@ -7,11 +7,11 @@ Task-oriented manual for the Aria desktop editor. Each chapter covers one editor
 0. [Getting started](../getting-started.md) - Launch, create a project, import, place a clip, play, and export
 1. [Importing media](importing-media.md) - Dropped files, timeline interchange, missing media relink, stock, cloud catalogs, and generation
 2. [Media pool and bins](media-pool-and-bins.md) - Project panel tabs, pool views, search and sort, bins, and source previewing
-3. [The timeline and editing](timeline-and-editing.md) - Splitting, moving, three-point edits, copy and paste, timeline header, waveforms, filmstrips, label colours, and the command palette
+3. [The timeline and editing](timeline-and-editing.md) - Splitting, moving, three-point edits, copy and paste, timeline header, waveforms, filmstrips, label colors, and the command palette
 4. [Trimming](trimming.md) - Slip, Slide, Rolling Edit, Rate Stretch, and Ripple Trim tools
 5. [Tracks and routing](tracks-and-routing.md) - Track headers, solo and mute, clip bars, source patching, sync lock, and nested sequences
 6. [The viewer](viewer.md) - Transport, zoom, scopes, safe areas, rulers and guides, compare wipe, resolution, proxies, render files, info, framing, and alignment
-7. [Colour](colour.md) - Look presets, Lift/Gamma/Gain colour wheels, grading sliders, curves, HSL secondary, LUTs, and the Color panel
+7. [Color](color.md) - Look presets, Lift/Gamma/Gain color wheels, grading sliders, curves, HSL secondary, LUTs, and the Color panel
 8. [Masks and keys](masks-and-keys.md) - Shape and Bézier path masks, mask stack modes, mask tracking, chroma key, layer styles, and clip animations
 9. [Effects](effects.md) - Effects & Presets browser, procedural generators, the Effect Controls stack, and effect presets
 10. [Audio](audio.md) - Audio Track Mixer, submix buses, pre/post-fader sends, and clip, track, and master audio DSP chains
@@ -21,7 +21,7 @@ Task-oriented manual for the Aria desktop editor. Each chapter covers one editor
 14. [Text and captions](text-and-captions.md) - Titles, Type tool inline editing, text style presets, Character and Paragraph panels, and offline Whisper transcription
 15. [Analysis](analysis.md) - Shot, silence, and beat detection, moment navigation, splitting at shots, ripple-deleting silence, loudness contours, and auto-ducking music under voice
 16. [Multicam](multicam.md) - Grouping camera angles, audio waveform correlation sync, manual angle offset nudging, and live angle switching
-17. [Markers](markers.md) - Sequence and clip markers, the Edit Marker dialog, range markers, colour filters, and the Markers panel
+17. [Markers](markers.md) - Sequence and clip markers, the Edit Marker dialog, range markers, color filters, and the Markers panel
 18. [Export](export.md) - Saving projects, templates and .ariat bundles, the Export sheet, H.264/H.265 encoding, frame export, and crash recovery
 19. [History and jobs](history-and-jobs.md) - Session undo history panel, non-linear state jumping, background job board, publication boundaries, and revealing outputs
 20. [The assistant](assistant.md) - Prompting the AI assistant, streaming edits, Plan only mode, cloud and local skills, autonomy prompts, and per-project conversation history
@@ -36,7 +36,7 @@ Task-oriented manual for the Aria desktop editor. Each chapter covers one editor
 - [Trim with the trim tools](trimming.md#example)
 - [Nest a sequence](tracks-and-routing.md#example)
 - [Frame and crop a clip with safe margins, rulers, and crop handles, and render In to Out](viewer.md#example)
-- [Colour-correct and apply a filter preset](colour.md#example)
+- [Color-correct and apply a filter preset](color.md#example)
 - [Key a green-screen shot with a mask](masks-and-keys.md#example)
 - [Apply a video effect chain and save an effect preset](effects.md#example)
 - [Route audio through a submix bus, insert an audio effect chain, and normalize clip gain](audio.md#example)

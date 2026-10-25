@@ -17,7 +17,7 @@ Defined in `crates/aria-encoder/src/lib.rs` (`capability()` and `AUDIO_CAPABILIT
 
 ### Platform video encoders (`aria_encoder::capability`)
 
-| Target cfg | Backend | Container | Extension | Default video | Audio | Available | Codecs | Honours bitrate |
+| Target cfg | Backend | Container | Extension | Default video | Audio | Available | Codecs | Honors bitrate |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `target_vendor = "apple"` | `VideoToolbox` | `MP4` | `mp4` | `H.264` | `AAC` | `true` | `H.264` | `false` |
 | `target_os = "windows"` | `Media Foundation` | `MP4` | `mp4` | `H.264` | `AAC` | `true` | `H.264` | `false` |

@@ -296,7 +296,7 @@ fn settings_doc_matches_registries() {
                 follow,
             },
         waveform,
-        ref favourite_effects,
+        ref favorite_effects,
         ref window_placements,
         ref last_display_arrangement,
     } = ui_default;
@@ -308,7 +308,7 @@ fn settings_doc_matches_registries() {
         workspace_trees,
         active_workspace,
         theme_file,
-        favourite_effects,
+        favorite_effects,
         window_placements,
         last_display_arrangement,
     );
@@ -343,7 +343,7 @@ fn settings_doc_matches_registries() {
             follow,
         },
         waveform,
-        favourite_effects: Vec::new(),
+        favorite_effects: Vec::new(),
         window_placements: BTreeMap::from([("primary".into(), WindowPlacement::default())]),
         last_display_arrangement: Some("primary".into()),
     };

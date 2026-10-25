@@ -58,7 +58,7 @@ fn every_theme_field_is_a_theme_file_token() {
     }
     assert_eq!(other, ["appearance"], "fields that are not tokens");
     for (kind, mut fields, mut tokens) in [
-        ("colour", colors, names(COLOR_TOKENS)),
+        ("color", colors, names(COLOR_TOKENS)),
         ("font", fonts, names(FONT_TOKENS)),
     ] {
         let listed = tokens.len();
@@ -193,7 +193,7 @@ fn a_file_with_an_unknown_or_malformed_entry_is_rejected() {
             "[dark]\naccent = \"#336699\"\n[extra]\n",
             "unknown key `extra`",
         ),
-        ("colour = \"#fff\"\n", "unknown key `colour`"),
+        ("color = \"#fff\"\n", "unknown key `color`"),
         ("[dark]\naccnet = \"#336699\"\n", "no token `accnet`"),
         ("[light]\naccent = 3\n", "[light] accent is not a string"),
         ("[dark]\naccent = \"blue\"\n", "[dark] accent:"),

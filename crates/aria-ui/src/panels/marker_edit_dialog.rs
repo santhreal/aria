@@ -73,7 +73,7 @@ pub fn render(
             div()
                 .text_size(Theme::TEXT_TITLE)
                 .text_color(theme.text_muted)
-                .child("Colour"),
+                .child("Color"),
         )
         .child(div().flex().wraps().gap(px(Theme::SPACE_XS)).children(
             MarkerColor::ALL.into_iter().map(|color| {

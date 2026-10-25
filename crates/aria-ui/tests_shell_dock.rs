@@ -49,7 +49,7 @@ fn interaction_dock_keys_maximize_cycle_and_close_tabs(cx: &mut gpui::TestAppCon
     assert!(
         visual.read(|app| state.read(app).dock_tree.is_active(PANEL_VIEWER))
             || visual.read(|app| state.read(app).dock_tree.is_active(PANEL_ASSISTANT)),
-        "another tab in the centre frame becomes active"
+        "another tab in the center frame becomes active"
     );
 
     // Ctrl+Tab and Ctrl+Shift+Tab cycle `focused` across open frames in reading order.
@@ -79,7 +79,7 @@ fn interaction_dock_tab_drag_splits_frame_and_floating_window_shares_state(
 
     let center_rect = visual
         .read(|app| state.read(app).dock_frame_rect(FrameId::CENTER))
-        .expect("centre frame records its painted bounds");
+        .expect("center frame records its painted bounds");
     let right_rect = visual
         .read(|app| state.read(app).dock_frame_rect(FrameId::RIGHT))
         .expect("right frame records its painted bounds");
@@ -184,7 +184,7 @@ fn interaction_dock_pointer_middle_close_and_drag_to_zone(cx: &mut gpui::TestApp
     // drop zone of the right frame.
     let [cx_x, cx_y, _, _] = visual
         .read(|app| state.read(app).dock_frame_rect(FrameId::CENTER))
-        .expect("centre frame bounds");
+        .expect("center frame bounds");
     let [rx_x, rx_y, rx_w, rx_h] = visual
         .read(|app| state.read(app).dock_frame_rect(FrameId::RIGHT))
         .expect("right frame bounds");

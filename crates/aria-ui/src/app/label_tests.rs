@@ -75,7 +75,7 @@ fn selecting_by_label_reaches_every_clip_that_carries_it() {
     state.clear_selection();
 
     state.select_by_label(LabelColor::Blue);
-    assert_eq!(state.selection, vec![first], "exactly the labelled clip");
+    assert_eq!(state.selection, vec![first], "exactly the labeled clip");
     assert_eq!(
         state.label_counts(),
         vec![(LabelColor::Blue, 1), (LabelColor::Teal, 1)],
@@ -93,7 +93,7 @@ fn selecting_by_label_reaches_every_clip_that_carries_it() {
     assert_eq!(
         state.selection,
         vec![second],
-        "a colour nothing carries leaves the selection alone"
+        "a color nothing carries leaves the selection alone"
     );
     assert_eq!(
         state.status_message.as_deref(),
@@ -129,7 +129,7 @@ fn a_label_survives_a_save_and_load_round_trip() {
     state
         .set_selection_label(Some(LabelColor::Purple))
         .expect("set");
-    let path = state.data_dir.join("labelled.aria");
+    let path = state.data_dir.join("labeled.aria");
     state.project_path = Some(path.clone());
     state.save_project().expect("save");
     state.new_project().expect("clear the session");
@@ -168,7 +168,7 @@ fn the_pool_filter_matches_a_label_colour() {
     assert_eq!(
         state.pool_rows(SidebarTab::Media).len(),
         1,
-        "a colour name reaches the row it labels"
+        "a color name reaches the row it labels"
     );
 
     state.clear_media_query();
@@ -177,7 +177,7 @@ fn the_pool_filter_matches_a_label_colour() {
     }
     assert!(
         state.pool_rows(SidebarTab::Media).is_empty(),
-        "an unused colour name matches nothing"
+        "an unused color name matches nothing"
     );
 }
 
@@ -188,7 +188,7 @@ fn a_media_label_survives_a_save_and_load_round_trip() {
     state
         .set_media_label(media, Some(LabelColor::Caribbean))
         .expect("set");
-    let path = state.data_dir.join("labelled-pool.aria");
+    let path = state.data_dir.join("labeled-pool.aria");
     state.project_path = Some(path.clone());
     state.save_project().expect("save");
     state.new_project().expect("clear the session");

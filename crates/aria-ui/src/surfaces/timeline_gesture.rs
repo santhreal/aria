@@ -111,7 +111,7 @@ impl Gesture {
             Self::Body {
                 drag: Some(BodyDrag::Slide),
                 ..
-            } => "a clip slid into its neighbours",
+            } => "a clip slid into its neighbors",
             Self::Edge { drag: None, .. } => "a clip edge trimmed",
             Self::Edge {
                 drag: Some(EdgeDrag::Roll),

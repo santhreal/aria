@@ -101,7 +101,7 @@ motion blur; `.size(size)` and `.motion_blur(on)` change one field.
 | Field | Values |
 | --- | --- |
 | `source` | `FrameSource::Open`: the sequence open for editing. `FrameSource::Sequence(None)`: the root sequence; `Sequence(Some(id))`: a nested one, whichever is open. `FrameSource::Clip(id)`: one clip of any sequence as placed on its canvas, with its effects, over transparency |
-| `size` | `FrameSize::Canvas`; `Fit { max_width, max_height }`, scaled down only; `Exact { width, height }`, scaled to fit and centred over the background |
+| `size` | `FrameSize::Canvas`; `Fit { max_width, max_height }`, scaled down only; `Exact { width, height }`, scaled to fit and centered over the background |
 | `motion_blur` | Supersample moving transforms as an export does |
 
 ```rust

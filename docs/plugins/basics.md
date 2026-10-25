@@ -194,7 +194,7 @@ The host logs a failed mount and a failure after mount at `error`, with the
 backtrace from the panicking frame when a panic caused it, and a recovered
 fault at `warn`.
 
-A row with lines offers Log, which shows them oldest first and coloured by
+A row with lines offers Log, which shows them oldest first and colored by
 level, and Copy, which puts them on the clipboard as `level text` lines. The
 log of a plugin with an error or a fault opens by default. Lines outlive an
 unmount, a failure, and a reload; uninstalling the package drops them.

@@ -103,7 +103,7 @@ fn a_star_is_picked_by_its_ink_and_not_its_corners() {
     );
     assert!(
         covers(&star, [500.0, 500.0]),
-        "the centre of a star is not inside it"
+        "the center of a star is not inside it"
     );
     // A quad corner is outside every star: the outer vertices sit on the
     // inscribed circle, so the corners of the box are always empty.

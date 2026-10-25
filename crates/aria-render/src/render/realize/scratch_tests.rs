@@ -539,7 +539,7 @@ fn scene_is_nv12_passthrough_accepts_only_unmodified_full_canvas_bt709_cpu_nv12(
             }),
         ),
         (
-            "off-centre",
+            "off-center",
             Box::new(|s: &mut Scene| s.layers[0].center = [961.0, 540.0]),
         ),
         (
@@ -589,7 +589,7 @@ fn scene_is_nv12_passthrough_accepts_only_unmodified_full_canvas_bt709_cpu_nv12(
             }),
         ),
         (
-            "colour grade",
+            "color grade",
             Box::new(|s: &mut Scene| {
                 s.layers[0].color_grade = Some(aria_compositor::ColorGrade::default())
             }),
@@ -672,7 +672,7 @@ fn scene_is_nv12_passthrough_accepts_only_unmodified_full_canvas_bt709_cpu_nv12(
             Box::new(|f: &mut VideoFrame| f.rotation = Rotation::Cw90),
         ),
         (
-            "BT.601 colour",
+            "BT.601 color",
             Box::new(|f: &mut VideoFrame| f.color = ColorSpace::BT601),
         ),
     ];

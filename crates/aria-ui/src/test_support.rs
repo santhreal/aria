@@ -21,6 +21,7 @@ pub(crate) mod catalogs;
 pub(crate) mod control_sites;
 pub(crate) mod doc_tables;
 pub(crate) mod sources;
+pub(crate) mod us_spelling;
 
 /// Every `.rs` file under `dir`, recursively.
 ///

@@ -232,7 +232,7 @@ fn a_colour_swatch_sets_the_colour_and_a_repeat_is_inert() {
         param: TextParam::StrokeColor,
     };
     let held = colour(&state, fill).expect("a title draws its fill");
-    assert_eq!(colour(&state, stroke), None, "no stroke, no stroke colour");
+    assert_eq!(colour(&state, stroke), None, "no stroke, no stroke color");
     let picked = crate::app::clip_effects::PARAM_COLORS
         .iter()
         .map(|(_, _, rgba)| *rgba)
@@ -252,7 +252,7 @@ fn a_colour_swatch_sets_the_colour_and_a_repeat_is_inert() {
         .unwrap();
     assert!(
         colour(&state, stroke).is_some(),
-        "switching the stroke on drew no stroke colour"
+        "switching the stroke on drew no stroke color"
     );
 }
 

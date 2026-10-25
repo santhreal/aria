@@ -12,7 +12,7 @@
 | Rate Stretch | R | - | Change speed to fit the new length | - |
 | Razor | C | Split at the pointer; Shift splits all tracks | - | - |
 | Slip | Y | Shift the source under fixed edges | - | - |
-| Slide | U | Move the clip, trimming its neighbours | - | - |
+| Slide | U | Move the clip, trimming its neighbors | - | - |
 | Pen | P | Add volume or opacity keyframes on the clip's line; in the Viewer, draw masks | - | - |
 | Hand | H | Pan | - | Pan |
 | Zoom | Z | Zoom in; Alt zooms out | - | Same |
@@ -126,7 +126,7 @@ and the Animation workspace.
 
 M adds a marker at the playhead, on the selected clip if one is selected and
 the playhead is over it, otherwise on the sequence. Pressing M twice opens the
-marker dialog: name, comment, colour, duration, type (comment, chapter,
+marker dialog: name, comment, color, duration, type (comment, chapter,
 segmentation). Markers with a duration draw as a range. Shift+M / Ctrl+Shift+M
 go to the next / previous marker. The Markers panel lists every marker with its
-time, name, and comment, and filters by colour.
+time, name, and comment, and filters by color.

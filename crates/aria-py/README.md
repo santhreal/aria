@@ -112,7 +112,7 @@ m.time = 2.0
 [marker.name for marker in p.markers]
 ```
 
-Without a colour the palette cycles, so markers added in a loop stay
+Without a color the palette cycles, so markers added in a loop stay
 distinguishable. `aria.marker_colors()` lists the palette.
 
 ## Speed ramps

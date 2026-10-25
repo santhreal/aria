@@ -29,7 +29,7 @@ An icon is an SVG document of at most 64 KiB and 4096 XML nodes. It is parsed
 once, when the command is registered, and kept as the SVG the parser writes
 back: `<image>` elements and text are dropped, and a document with a DTD is
 refused. The palette and the menus draw the icon at 14 px as a mask in the text
-colour of the row, so only its shape shows; draw it in one solid colour on a
+color of the row, so only its shape shows; draw it in one solid color on a
 transparent ground. `CommandIcon::from_svg` returns the reason a document is
 refused.
 

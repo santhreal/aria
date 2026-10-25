@@ -81,7 +81,7 @@ fn a_mid_grey_frame_traces_the_middle() {
     let centre = (SCOPE_PX - 1) as f32 / 2.0;
     assert!(
         (mean - centre).abs() < 6.0,
-        "mid grey traced at {mean}, expected near {centre}"
+        "mid gray traced at {mean}, expected near {centre}"
     );
 }
 
@@ -103,7 +103,7 @@ fn a_monochrome_frame_lands_on_the_vectorscope_centre() {
     let distance = (x as f32 - centre).hypot(y as f32 - centre);
     assert!(
         distance <= 2.0,
-        "neutral chroma traced {distance} px from the centre of the grid"
+        "neutral chroma traced {distance} px from the center of the grid"
     );
 }
 

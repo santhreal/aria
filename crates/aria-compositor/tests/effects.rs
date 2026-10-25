@@ -205,19 +205,19 @@ fn chromatic_aberration_splits_channels_in_opposite_directions() {
     let left = img.pixel(8, 8);
     assert!(
         right[0] > right[2],
-        "right of centre: red {} should lead blue {}",
+        "right of center: red {} should lead blue {}",
         right[0],
         right[2]
     );
     assert!(
         left[0] < left[2],
-        "left of centre: red {} should trail blue {}",
+        "left of center: red {} should trail blue {}",
         left[0],
         left[2]
     );
     // The centre column has nowhere to split.
     let centre = img.pixel(32, 8);
-    assert_eq!(centre[0], centre[2], "centre column split anyway");
+    assert_eq!(centre[0], centre[2], "center column split anyway");
 }
 
 #[test]
@@ -290,7 +290,7 @@ fn zoom_blur_streaks_a_highlight_toward_the_centre() {
     let outside = img.pixel(32, 22)[0];
     assert!(outside > 8, "no streak outside the block: {outside}");
     // The centre is its own march origin and stays lit.
-    assert!(img.pixel(32, 32)[0] > 200, "the centre lost its highlight");
+    assert!(img.pixel(32, 32)[0] > 200, "the center lost its highlight");
 }
 
 #[test]

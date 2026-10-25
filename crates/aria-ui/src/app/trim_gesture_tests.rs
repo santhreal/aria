@@ -161,7 +161,7 @@ fn neighbours_are_the_clips_that_touch_and_nothing_further_away() {
     assert_eq!(
         after.map(|n| n.clip.raw()),
         Some(second.0),
-        "the abutting clip is the neighbour"
+        "the abutting clip is the neighbor"
     );
     let (before, after) = state.abutting(aria_models::ClipId::from_raw(second.0));
     assert_eq!(before.map(|n| n.clip.raw()), Some(first.0));
@@ -254,8 +254,8 @@ fn a_slide_keeps_the_clip_length_and_trades_with_the_neighbour() {
         .iter()
         .find(|item| item.0 == first.0)
         .copied()
-        .expect("the neighbour is still there");
-    assert_eq!(prev.2, first.2 - 10, "the neighbour absorbed the delta");
+        .expect("the neighbor is still there");
+    assert_eq!(prev.2, first.2 - 10, "the neighbor absorbed the delta");
     assert_eq!(prev.1, first.1, "its own start did not move");
     assert!(state.revision > before);
     assert!(state.undo(), "the pair of commands is one entry");

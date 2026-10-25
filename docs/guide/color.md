@@ -1,10 +1,10 @@
-# Colour
+# Color
 
 ## Look and grade
 
 The Look tab holds the filter catalog and, below it, the grade:
 
-- The colour wheels: Lift, Gamma and Gain. Press anywhere on a wheel to put
+- The color wheels: Lift, Gamma and Gain. Press anywhere on a wheel to put
   its puck under the pointer, then drag. The drag follows the pointer off the
   wheel and stops at the rim. A wheel moves the balance between its red, green
   and blue channels and leaves their level where the press found it; the
@@ -42,7 +42,7 @@ and export mix the same way.
 
 ## Example
 
-Colour-correct a video clip and apply a filter preset:
+Color-correct a video clip and apply a filter preset:
 
 1. Select a video clip on `V1` and press <kbd>Shift+Alt+3</kbd> (`key-workspace-3`) or choose **Window > Workspaces > Color** (or open **Window > Color** and press <kbd>Shift+7</kbd> (`key-scopes`) / click [`preview-scopes-toggle`](../reference/controls.md#scopes)). The Color panel and Scopes panel open beside the Viewer.
 2. In the Effect Controls **Look** tab, click a filter preset chip ([`look-choice`](../reference/controls.md#inspector)) such as **Warm** or **Cinema** to apply a base look, or click [`lut-load`](../reference/controls.md#inspector) to load a `.cube` 3D LUT file. The Viewer and the Scopes waveform and vectorscope update immediately to reflect the preset or LUT.

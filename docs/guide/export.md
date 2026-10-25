@@ -60,7 +60,7 @@ clicked, and none of them is an edit or is saved with the project:
   row fails and states it.
 - **Bitrate** is the encoder's own rate control, or a target of 4, 8, 16, or 40
   Mb/s. Only GStreamer takes a target; the other backends reject the row and state
-  so. A codec or bitrate the encoder cannot honour is refused by name before any
+  so. A codec or bitrate the encoder cannot honor is refused by name before any
   file is created, never swapped for something else.
 - **Keyframes** is the codec's own spacing or one every 15, 30, or 60 frames.
 - **Audio** includes the mix or writes a video-only file.
@@ -81,18 +81,20 @@ encoder, so the same choices write the same file from any of the three.
 
 ## Unsaved work
 
-New, Open, Close, Home, and a project dropped on Home all replace what is
+New, Open, Close, Home, Quit, and a project dropped on Home all leave what is
 loaded. With unsaved edits in the project, each one prompts first:
 
 - **Save** writes the project, then runs the requested action. A save that fails
   leaves the prompt up and the edits in place.
-- **Discard** runs the requested action and loses the edits.
+- **Discard** runs the requested action and loses the edits. Close and Home
+  replace the project with an empty one, so Quit on Home does not prompt again.
 - **Stay** cancels. Nothing is saved and nothing is replaced.
 
 While a project has unsaved edits, a copy is written to `~/.aria/recovery.aria`
 every twenty seconds, in the background, so editing continues while it is
-written. Saving, opening, or starting a project deletes it, so the copy only
-ever exists when the file on disk is behind the session.
+written. Saving, opening, or starting a project deletes it, as does **Discard**
+on Close, Home, or Quit, so the copy only ever exists when the file on disk is
+behind the session.
 
 If the app stops without saving (a crash, a kill, a power cut), Home shows the
 copy on the next launch:

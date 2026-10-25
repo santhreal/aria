@@ -569,7 +569,7 @@ fn panels_doc_matches_registry() {
         .iter()
         .map(|&g| {
             match g {
-                Group::Favourites
+                Group::Favorites
                 | Group::VideoEffects
                 | Group::AudioEffects
                 | Group::Transitions

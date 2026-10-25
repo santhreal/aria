@@ -73,7 +73,7 @@ pub fn normalisation_gain(measured_dbfs: f32, target_dbfs: f32) -> Result<f32, C
     if measured_dbfs <= NORMALISATION_FLOOR_DBFS {
         return Err(ConfigError::new(
             "measured_dbfs",
-            "is silence; there is nothing to normalise",
+            "is silence; there is nothing to normalize",
         ));
     }
     let change = (target_dbfs - measured_dbfs).min(MAX_NORMALISATION_BOOST_DB);

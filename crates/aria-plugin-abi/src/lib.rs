@@ -109,7 +109,7 @@ pub const ARIA_COLOR_SRGB: u32 = 3;
 pub const ARIA_PARAM_SCALAR: u32 = 0;
 /// [`AriaParamValue::kind`]: 2-d vector in `x` and `y`.
 pub const ARIA_PARAM_VEC2: u32 = 1;
-/// [`AriaParamValue::kind`]: RGBA8 colour in `r`, `g`, `b` and `a`.
+/// [`AriaParamValue::kind`]: RGBA8 color in `r`, `g`, `b` and `a`.
 pub const ARIA_PARAM_COLOR: u32 = 2;
 /// [`AriaParamValue::kind`]: axis-aligned rect, with its left edge in `x`, its top
 /// edge in `y`, its width in `z` and its height in `w`.

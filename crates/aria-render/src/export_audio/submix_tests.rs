@@ -290,7 +290,7 @@ fn each_lanes_meter_reads_its_own_post_fader_level() {
         .map(|(track, peak)| {
             assert!(
                 (peak[0] - peak[1]).abs() < 1e-6,
-                "lane {} reads {peak:?}: a centred source is the same in both bars",
+                "lane {} reads {peak:?}: a centered source is the same in both bars",
                 track.raw()
             );
             (track.raw(), peak[0])

@@ -3,7 +3,7 @@
 A workspace is a named arrangement of the editor: pane sizes, which panes are
 collapsed, whether the scope strip is open, and which pane has the keyboard.
 A plugin workspace is a row in the Window menu and in Settings > Workspaces,
-after the shipped Editing, Animation, Colour, Audio, and Effects rows. Settings
+after the shipped Editing, Animation, Color, Audio, and Effects rows. Settings
 shows the registering plugin's name beside the row's measurements.
 
 A package declares workspaces in `plugin.toml`, which serves every tier,

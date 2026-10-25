@@ -74,7 +74,7 @@ pub fn controls(theme: &Theme, cx: &mut Context<Gallery>) -> AnyElement {
                 "tab_bar(theme, &[(label, active)])",
                 components::tab_bar(
                     theme,
-                    &[("Clip", true), ("Levels", false), ("Colour", false)],
+                    &[("Clip", true), ("Levels", false), ("Color", false)],
                 ),
             ))
             .child(chip_rows(theme, cx))
@@ -141,7 +141,7 @@ fn chip_specimen(
 fn disclosure_rows(theme: &Theme, reduced: bool) -> AnyElement {
     group(
         theme,
-        "chevron(key, open, colour, reduced) / band_fill(theme, index)",
+        "chevron(key, open, color, reduced) / band_fill(theme, index)",
         div()
             .flex()
             .flex_col()
@@ -450,7 +450,7 @@ pub fn states(theme: &Theme, state: GalleryState, cx: &mut Context<Gallery>) -> 
                 theme,
                 "No components:: entry takes an enabled flag, so `disabled` is \
                  composed here from container opacity plus a blocked pointer. \
-                 The control itself still reports the same rest colours.",
+                 The control itself still reports the same rest colors.",
             ))
             .into_any_element(),
     )

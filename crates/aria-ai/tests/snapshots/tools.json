@@ -1445,7 +1445,7 @@
                           },
                           {
                             "const": "adjust_lift_r",
-                            "description": "Lift / gamma / gain, per channel and master: the colour wheels. Lift is\na signed offset (-1 … 1, 0 neutral); gamma and gain are multiplicative\n(0 … 4, 1 neutral).",
+                            "description": "Lift / gamma / gain, per channel and master: the color wheels. Lift is\na signed offset (-1 … 1, 0 neutral); gamma and gain are multiplicative\n(0 … 4, 1 neutral).",
                             "type": "string"
                           },
                           {
@@ -1488,7 +1488,7 @@
                           },
                           {
                             "const": "center",
-                            "description": "Centre offset as a fraction of the layer size.",
+                            "description": "Center offset as a fraction of the layer size.",
                             "type": "string"
                           },
                           {
@@ -1892,7 +1892,7 @@
                           },
                           {
                             "const": "adjust_lift_r",
-                            "description": "Lift / gamma / gain, per channel and master: the colour wheels. Lift is\na signed offset (-1 … 1, 0 neutral); gamma and gain are multiplicative\n(0 … 4, 1 neutral).",
+                            "description": "Lift / gamma / gain, per channel and master: the color wheels. Lift is\na signed offset (-1 … 1, 0 neutral); gamma and gain are multiplicative\n(0 … 4, 1 neutral).",
                             "type": "string"
                           },
                           {
@@ -1935,7 +1935,7 @@
                           },
                           {
                             "const": "center",
-                            "description": "Centre offset as a fraction of the layer size.",
+                            "description": "Center offset as a fraction of the layer size.",
                             "type": "string"
                           },
                           {
@@ -2259,7 +2259,7 @@
                           },
                           {
                             "const": "adjust_lift_r",
-                            "description": "Lift / gamma / gain, per channel and master: the colour wheels. Lift is\na signed offset (-1 … 1, 0 neutral); gamma and gain are multiplicative\n(0 … 4, 1 neutral).",
+                            "description": "Lift / gamma / gain, per channel and master: the color wheels. Lift is\na signed offset (-1 … 1, 0 neutral); gamma and gain are multiplicative\n(0 … 4, 1 neutral).",
                             "type": "string"
                           },
                           {
@@ -2302,7 +2302,7 @@
                           },
                           {
                             "const": "center",
-                            "description": "Centre offset as a fraction of the layer size.",
+                            "description": "Center offset as a fraction of the layer size.",
                             "type": "string"
                           },
                           {
@@ -2688,7 +2688,7 @@
                           },
                           {
                             "const": "adjust_lift_r",
-                            "description": "Lift / gamma / gain, per channel and master: the colour wheels. Lift is\na signed offset (-1 … 1, 0 neutral); gamma and gain are multiplicative\n(0 … 4, 1 neutral).",
+                            "description": "Lift / gamma / gain, per channel and master: the color wheels. Lift is\na signed offset (-1 … 1, 0 neutral); gamma and gain are multiplicative\n(0 … 4, 1 neutral).",
                             "type": "string"
                           },
                           {
@@ -2731,7 +2731,7 @@
                           },
                           {
                             "const": "center",
-                            "description": "Centre offset as a fraction of the layer size.",
+                            "description": "Center offset as a fraction of the layer size.",
                             "type": "string"
                           },
                           {
@@ -3059,7 +3059,7 @@
                           },
                           {
                             "const": "adjust_lift_r",
-                            "description": "Lift / gamma / gain, per channel and master: the colour wheels. Lift is\na signed offset (-1 … 1, 0 neutral); gamma and gain are multiplicative\n(0 … 4, 1 neutral).",
+                            "description": "Lift / gamma / gain, per channel and master: the color wheels. Lift is\na signed offset (-1 … 1, 0 neutral); gamma and gain are multiplicative\n(0 … 4, 1 neutral).",
                             "type": "string"
                           },
                           {
@@ -3102,7 +3102,7 @@
                           },
                           {
                             "const": "center",
-                            "description": "Centre offset as a fraction of the layer size.",
+                            "description": "Center offset as a fraction of the layer size.",
                             "type": "string"
                           },
                           {
@@ -4611,7 +4611,7 @@
             "type": "integer"
           },
           "contrast": {
-            "description": "Spread of the tonal range around mid grey.",
+            "description": "Spread of the tonal range around mid gray.",
             "format": "double",
             "type": [
               "number",
@@ -4723,7 +4723,7 @@
             ]
           },
           "faded_film": {
-            "description": "Lifts the blacks toward grey and leaves white in place.",
+            "description": "Lifts the blacks toward gray and leaves white in place.",
             "format": "double",
             "type": [
               "number",
@@ -4803,7 +4803,7 @@
             ]
           },
           "hsl_hue": {
-            "description": "Hue of the keyed colours; ±1 turns them 60°.",
+            "description": "Hue of the keyed colors; ±1 turns them 60°.",
             "format": "double",
             "type": [
               "number",
@@ -4811,7 +4811,7 @@
             ]
           },
           "hsl_key_hue": {
-            "description": "Centre of the keyed hue range; 0 is red, ±1 is cyan.",
+            "description": "Center of the keyed hue range; 0 is red, ±1 is cyan.",
             "format": "double",
             "type": [
               "number",
@@ -4827,7 +4827,7 @@
             ]
           },
           "hsl_luma": {
-            "description": "Luma of the keyed colours; ±1 is ±0.25.",
+            "description": "Luma of the keyed colors; ±1 is ±0.25.",
             "format": "double",
             "type": [
               "number",
@@ -4835,7 +4835,7 @@
             ]
           },
           "hsl_saturation": {
-            "description": "Saturation of the keyed colours; `-1` greys them.",
+            "description": "Saturation of the keyed colors; `-1` grays them.",
             "format": "double",
             "type": [
               "number",
@@ -4947,7 +4947,7 @@
             ]
           },
           "hue_sat_blue": {
-            "description": "Saturation of blues; `-1` greys them.",
+            "description": "Saturation of blues; `-1` grays them.",
             "format": "double",
             "type": [
               "number",
@@ -4955,7 +4955,7 @@
             ]
           },
           "hue_sat_cyan": {
-            "description": "Saturation of cyans; `-1` greys them.",
+            "description": "Saturation of cyans; `-1` grays them.",
             "format": "double",
             "type": [
               "number",
@@ -4963,7 +4963,7 @@
             ]
           },
           "hue_sat_green": {
-            "description": "Saturation of greens; `-1` greys them.",
+            "description": "Saturation of greens; `-1` grays them.",
             "format": "double",
             "type": [
               "number",
@@ -4971,7 +4971,7 @@
             ]
           },
           "hue_sat_magenta": {
-            "description": "Saturation of magentas; `-1` greys them.",
+            "description": "Saturation of magentas; `-1` grays them.",
             "format": "double",
             "type": [
               "number",
@@ -4979,7 +4979,7 @@
             ]
           },
           "hue_sat_red": {
-            "description": "Saturation of reds; `-1` greys them.",
+            "description": "Saturation of reds; `-1` grays them.",
             "format": "double",
             "type": [
               "number",
@@ -4987,7 +4987,7 @@
             ]
           },
           "hue_sat_yellow": {
-            "description": "Saturation of yellows; `-1` greys them.",
+            "description": "Saturation of yellows; `-1` grays them.",
             "format": "double",
             "type": [
               "number",
@@ -5027,7 +5027,7 @@
             ]
           },
           "saturation": {
-            "description": "Colour intensity; `-1` is monochrome.",
+            "description": "Color intensity; `-1` is monochrome.",
             "format": "double",
             "type": [
               "number",
@@ -5067,7 +5067,7 @@
             ]
           },
           "vibrance": {
-            "description": "Saturation weighted toward the least saturated colours.",
+            "description": "Saturation weighted toward the least saturated colors.",
             "format": "double",
             "type": [
               "number",
@@ -5075,7 +5075,7 @@
             ]
           },
           "vignette": {
-            "description": "Radial darkening from the layer centre.",
+            "description": "Radial darkening from the layer center.",
             "format": "double",
             "type": [
               "number",

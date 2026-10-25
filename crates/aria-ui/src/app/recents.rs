@@ -94,7 +94,7 @@ impl AppState {
 ///
 /// Home's relink and the recent row's Open both come here. The open goes
 /// through the unsaved-changes prompt like every other way of replacing the
-/// session: a dirty session stays loaded on the way back to Home.
+/// session.
 pub(crate) fn relink_recent(state: &mut AppState, old: &Path) {
     let old = old.to_path_buf();
     state.request_pick(

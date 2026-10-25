@@ -249,7 +249,7 @@ fn staged() -> Vec<Staged> {
                 .iter()
                 .map(|(_, _, rgba)| *rgba)
                 .find(|rgba| *rgba != row.value)
-                .expect("the swatches hold more than one colour");
+                .expect("the swatches hold more than one color");
             push(
                 Pick::ParamColor {
                     param: row.param,
@@ -465,9 +465,9 @@ fn every_catalog_these_blocks_loop_over_has_members() {
         ("text effects", aria_models::text_effect_catalog().len()),
         ("transitions", aria_models::transition_catalog().len()),
         ("animation knobs", animation_knobs().len()),
-        ("text colours", a_dressed_title().param_colors("text").len()),
+        ("text colors", a_dressed_title().param_colors("text").len()),
         (
-            "shape colours",
+            "shape colors",
             super::inspector::a_shape().param_colors("shape").len(),
         ),
     ] {

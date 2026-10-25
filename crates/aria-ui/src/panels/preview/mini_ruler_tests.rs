@@ -96,7 +96,7 @@ fn neighbouring_columns_of_one_colour_paint_as_one_run() {
         .collect();
     let (runs, columns) = drawn(&markers, last, left, width);
     assert_eq!(columns, expected(&markers, last, left, width));
-    assert_eq!(runs, 1, "one colour across touching columns is one quad");
+    assert_eq!(runs, 1, "one color across touching columns is one quad");
 }
 
 #[test]

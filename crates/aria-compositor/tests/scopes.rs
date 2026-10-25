@@ -296,7 +296,7 @@ fn transparent_pixels_are_not_counted_and_greys_are_neutral() {
     assert_eq!(
         counts.vectorscope[16 * 33 + 16],
         all,
-        "grey left the centre"
+        "gray left the center"
     );
 
     // A grey is its own luma and neutral Cb and Cr, code 128, in every column.

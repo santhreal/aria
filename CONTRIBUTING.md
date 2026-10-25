@@ -134,6 +134,13 @@ Two boundaries matter:
   [`.cursor/rules/perf.mdc`](.cursor/rules/perf.mdc).
 - **Comments explain intent, not mechanics.** Skip comments that just narrate
   what the code does; document non-obvious trade-offs and constraints.
+- **Text the editor shows** is spelled in US English: `Color`, `center`,
+  `Favorites`, `normalize`. Commands, menus, dialog titles and context menu
+  rows use Title Case; other labels and buttons use sentence case.
+  `commands::casing_tests` and `panels::panel_casing_tests` fail on a label
+  in the wrong case, `test_support::us_spelling` on a string literal in
+  British spelling, and `keys::docs_markdown_tests` on British spelling in
+  the documentation. Identifiers and published ids keep their spelling.
 - **Icons**: never block a feature on missing art. Ship a short
   text/char placeholder, register it in [`docs/icons.md`](docs/icons.md), and
   move on.

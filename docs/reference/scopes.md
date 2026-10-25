@@ -14,9 +14,9 @@ Defined in `crates/aria-ui/src/scopes.rs` (`WaveformMode::ALL`, `#[serde(rename_
 
 ## Waveform channels (`WaveformChannel`)
 
-Defined in `crates/aria-analysis/src/scopes.rs` (`WaveformChannel`) and `crates/aria-ui/src/scopes.rs` (`channel_colour`). BT.709 luma (`luma709`) uses 16-bit fixed-point weights `13933 / 46871 / 4732` over `65536` (`0.2126 / 0.7152 / 0.0722`). BT.709 chroma (`chroma_codes709`) uses 15-bit fixed-point offsets with neutral grey at code value `128`.
+Defined in `crates/aria-analysis/src/scopes.rs` (`WaveformChannel`) and `crates/aria-ui/src/scopes.rs` (`channel_colour`). BT.709 luma (`luma709`) uses 16-bit fixed-point weights `13933 / 46871 / 4732` over `65536` (`0.2126 / 0.7152 / 0.0722`). BT.709 chroma (`chroma_codes709`) uses 15-bit fixed-point offsets with neutral gray at code value `128`.
 
-| Variant | Trace RGB (`[u8; 3]`) | Grey (`128, 128, 128`) code | Measured quantity |
+| Variant | Trace RGB (`[u8; 3]`) | Gray (`128, 128, 128`) code | Measured quantity |
 | --- | --- | --- | --- |
 | `Luma` | `[120, 235, 170]` | `128` | BT.709 luma code value (`luma709`) |
 | `Red` | `[235, 80, 80]` | `128` | 8-bit red code value |
@@ -52,11 +52,11 @@ Defined in `crates/aria-ui/src/scopes.rs`. Drawn cell intensity scales by `(coun
 | `HISTOGRAM_W` | `256` | Width in pixels of the histogram bitmap and single-trace waveform bitmap |
 | `HISTOGRAM_H` | `96` | Height in pixels of the histogram bitmap |
 | `SKIN_TONE_DEGREES` | `123.0` | Vectorscope skin-tone line angle in degrees counter-clockwise from the positive Cb axis |
-| `TARGET_LEVELS` | `191, 255` | Vectorscope colour target code levels (75% and 100%) |
+| `TARGET_LEVELS` | `191, 255` | Vectorscope color target code levels (75% and 100%) |
 
-### Vectorscope colour targets (`TARGET_COLOURS`)
+### Vectorscope color targets (`TARGET_COLOURS`)
 
-Defined in `crates/aria-ui/src/scopes.rs` (`TARGET_COLOURS`). Each primary and secondary colour has a graticule target box at both `TARGET_LEVELS` (`191` for 75% saturation, `255` for 100% saturation).
+Defined in `crates/aria-ui/src/scopes.rs` (`TARGET_COLOURS`). Each primary and secondary color has a graticule target box at both `TARGET_LEVELS` (`191` for 75% saturation, `255` for 100% saturation).
 
 | Index | Target name | Full-scale RGB (`[u8; 3]`) | 75% cell on 128x128 grid (`(x, y)`) | 100% cell on 128x128 grid (`(x, y)`) |
 | --- | --- | --- | --- | --- |

@@ -19,7 +19,7 @@ Aria includes two shape and overlay catalogs under `crates/aria-models/data/`:
 2. Open **Window > Effect Controls** and switch to the **Mask** tab.
 3. Click **Circle** (`circle`) to add a circular mask to the clip's mask stack.
 4. Set **Mode** to **Subtract** (`subtract`) or enable **Inverted** (`inverted = true`), and drag **Feather** (`mask-0-feather`) to `0.15`.
-5. Click `◆` on **Centre** (`mask-0-center`) or **Size** (`mask-0-size`) to keyframe the mask across the clip.
+5. Click `◆` on **Center** (`mask-0-center`) or **Size** (`mask-0-size`) to keyframe the mask across the clip.
 
 ### Override `stickers.toml` to register a custom PNG or GIF sticker
 
@@ -90,7 +90,7 @@ Each mask at index `<index>` (`0..32`) in `clip.masks` exposes these animatable 
 | ID (`MaskParam::id`) | Shorthand (mask `0`) | Label | Kind | Unit | Min | Max | Default | Applies to | Animates |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `feather` | `mask-feather` | Feather | `scalar` | normalized | `0.0` | `1.0` | `0.0` | all `MaskKind` | `yes` |
-| `center` | none (`mask-0-center`) | Centre | `vec2` | layer fraction offset | `-10.0` | `10.0` | `[0.0, 0.0]` | all `MaskKind` | `yes` |
+| `center` | none (`mask-0-center`) | Center | `vec2` | layer fraction offset | `-10.0` | `10.0` | `[0.0, 0.0]` | all `MaskKind` | `yes` |
 | `size` | none (`mask-0-size`) | Size | `vec2` | layer fraction | `> 0.0` | `f32::MAX` | `[1.0, 1.0]` | all except `path` | `yes` |
 | `rotation` | none (`mask-0-rotation`) | Rotation | `scalar` | degrees | `-3600.0` | `3600.0` | `0.0` | all `MaskKind` | `yes` |
 | `roundness` | `mask-roundness` | Roundness | `scalar` | corner fraction | `0.0` | `1.0` | `0.0` | `rectangle` only | `yes` |

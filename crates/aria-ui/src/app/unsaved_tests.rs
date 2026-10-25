@@ -8,12 +8,16 @@
 //! that prompted the work, because the defect class is "this path forgot to
 //! ask".
 //!
-//! Not covered: `PickProject` and the drop-on-Home path past the prompt, which
-//! open a native file dialog and a plugin classifier respectively.
+//! Not covered: `PickProject` and the drop-on-Home path past a Save, which open
+//! a native file dialog and a plugin classifier respectively. The Discard test
+//! drives both, with the dialog answered and a project file dropped.
+
+use std::path::{Path, PathBuf};
 
 use aria_plugin::PluginContext;
 
 use crate::app::picker::Answer;
+use crate::app::recovery::recovery_path;
 use crate::app::unsaved::PendingIntent;
 use crate::app::{AppState, DialogKind};
 use crate::scratch_pool::scratch;
@@ -80,8 +84,7 @@ fn every_guarded_entry_point_asks() {
 
 /// A recent project that moved is relinked through a file dialog, and the file
 /// the dialog answers with replaces the session. Over unsaved work that waits
-/// for the prompt, from Home's relink and from the recent row's Open alike: a
-/// dirty session stays loaded on the way back to Home.
+/// for the prompt, from Home's relink and from the recent row's Open alike.
 #[test]
 fn relinking_a_moved_recent_asks_before_it_replaces_unsaved_work() {
     let gone = std::path::PathBuf::from("/nowhere/moved-away.aria");
@@ -154,19 +157,17 @@ fn quitting_waits_for_the_answer_when_work_is_unsaved() {
     assert!(state.quit_requested(), "Discard did not quit");
 }
 
+/// `open_dialog` opens only Settings, Install Plugin and About on Home, so
+/// `request` sets the prompt itself. `go_home` does not ask, so the session
+/// arrives on Home dirty.
 #[test]
 fn the_prompt_opens_on_home_too() {
-    // Home keeps the project loaded, so a dirty session is still at risk there —
-    // and `open_dialog` refuses every dialog but Settings on Home, which is why
-    // the prompt sets the field itself.
     let mut state = dirty();
-    state.request_go_home();
-    state.discard_and_continue();
+    state.go_home();
     assert_eq!(state.route, UiRoute::Home);
-    assert!(state.store.is_dirty, "going Home saved nothing");
-
     state.request_new_project();
     assert_eq!(state.dialog, DialogKind::UnsavedChanges);
+    assert_eq!(state.pending_intent(), Some(&PendingIntent::NewProject));
 }
 
 #[test]
@@ -182,19 +183,115 @@ fn staying_leaves_the_project_exactly_as_it_was() {
     assert_eq!(state.store.sequence.tracks.len(), lanes);
 }
 
+/// The lane every Discard must lose.
+const LOST: &str = "Discarded lane";
+
+/// A saved, empty project outside the data directory of the session under test.
+fn saved_elsewhere() -> PathBuf {
+    let mut maker = AppState::new(PluginContext::new(), scratch("unsaved-other")).expect("state");
+    maker.new_project().expect("a project to save");
+    let path = maker.data_dir.join("elsewhere.aria");
+    maker.project_path = Some(path.clone());
+    maker.save_project().expect("save");
+    path
+}
+
+fn has_lane(state: &AppState, name: &str) -> bool {
+    state
+        .engine()
+        .lock()
+        .project()
+        .timeline()
+        .tracks_ordered()
+        .any(|track| track.name == name)
+}
+
+/// Every way of leaving the project, walked from [`PendingIntent::GoHome`].
+///
+/// Each arm names the intent after it, so a new variant does not compile until
+/// it takes a place in the walk, and [`discard_leaves_no_unsaved_work_behind`]
+/// then holds it to the same rule. The intents that open a project open
+/// `other`.
+fn after(intent: &PendingIntent, other: &Path) -> Option<PendingIntent> {
+    match intent {
+        PendingIntent::GoHome => Some(PendingIntent::NewProject),
+        PendingIntent::NewProject => Some(PendingIntent::OpenProject(other.to_path_buf())),
+        PendingIntent::OpenProject(_) => Some(PendingIntent::PickProject),
+        PendingIntent::PickProject => Some(PendingIntent::OpenSample),
+        PendingIntent::OpenSample => Some(PendingIntent::DropOnHome(vec![other.to_path_buf()])),
+        PendingIntent::DropOnHome(_) => Some(PendingIntent::Quit),
+        PendingIntent::Quit => None,
+    }
+}
+
+/// Discard loses the edits whichever way the project is left.
+///
+/// The class this closes: Home and Quit replace nothing, and a Discard that
+/// only ran the intent left the edits behind. Home then held a dirty session
+/// that nothing on it leads back to, and Quit on Home asked about it a second
+/// time, so the window stayed open; a Discard on Quit left the recovery copy on
+/// disk, and the next launch offered the discarded work as work a crash
+/// interrupted. Each intent starts from a dirty session with its recovery copy
+/// written. After Discard the edit is gone from the session, or the session is
+/// ending, and no copy is on disk for the next launch.
+///
+/// Not covered: a replacement the plugin host refuses, which keeps the prompt
+/// up, because no fixture makes `replace_session` fail; and the chord that
+/// reaches `request_quit` on Home, which the headed tour presses.
 #[test]
-fn discarding_runs_the_intent_and_loses_the_edits() {
-    let mut state = dirty();
-    let lanes = state.store.sequence.tracks.len();
-    state.request_new_project();
-    state.discard_and_continue();
-    assert_eq!(state.dialog, DialogKind::None);
-    assert!(state.pending_intent().is_none());
-    assert!(!state.store.is_dirty, "a new session is not dirty");
-    assert!(
-        state.store.sequence.tracks.len() < lanes,
-        "the added lane survived the discard"
-    );
+fn discard_leaves_no_unsaved_work_behind() {
+    let other = saved_elsewhere();
+    let mut next = Some(PendingIntent::GoHome);
+    while let Some(intent) = next {
+        next = after(&intent, &other);
+        let dir = scratch("unsaved-discard");
+        let mut state = AppState::new(PluginContext::new(), dir.clone()).expect("state");
+        state.new_project().expect("a project to edit");
+        state
+            .add_track(aria_models::TrackKind::Video, LOST)
+            .expect("an edit to lose");
+        state.write_recovery().expect("a recovery copy of the edit");
+        if intent == PendingIntent::PickProject {
+            state.supply_pick(Answer::file(other.clone()));
+        }
+        assert!(!state.request(intent.clone()), "{intent:?} did not ask");
+        state.discard_and_continue();
+        assert_eq!(state.dialog, DialogKind::None, "{intent:?} kept the prompt");
+        assert!(state.pending_intent().is_none(), "{intent:?} stayed parked");
+        assert_eq!(state.last_error, None, "{intent:?} failed");
+        assert!(
+            !recovery_path(&dir).exists(),
+            "{intent:?} left the recovery copy on disk"
+        );
+        if intent == PendingIntent::Quit {
+            assert!(state.quit_requested(), "Discard did not quit");
+            drop(state);
+            let relaunched = AppState::new(PluginContext::new(), dir).expect("state");
+            assert_eq!(
+                relaunched.pending_recovery(),
+                None,
+                "the next launch offered the discarded work"
+            );
+            continue;
+        }
+        assert!(
+            !has_lane(&state, LOST),
+            "{intent:?} kept the discarded lane"
+        );
+        if intent == PendingIntent::GoHome {
+            assert_eq!(state.route, UiRoute::Home);
+            assert!(!state.store.is_dirty, "Home holds the discarded work");
+            assert_eq!(state.project_path, None, "Home kept the closed project");
+            state.request_quit();
+            assert!(
+                state.quit_requested(),
+                "Quit on Home asked about discarded work"
+            );
+            assert_eq!(state.dialog, DialogKind::None);
+        } else {
+            assert_eq!(state.route, UiRoute::Editor, "{intent:?}");
+        }
+    }
 }
 
 #[test]

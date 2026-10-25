@@ -8,7 +8,7 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 
 1. Move the playhead to the start of the range and choose **Markers > Mark In** (`seq-mark-in`, `I`).
 2. Move the playhead to the end of the range and choose **Markers > Mark Out** (`seq-mark-out`, `O`).
-3. Choose **Markers > Add Marker** (`seq-marker`, `M`), then choose **Markers > Edit Marker…** (`seq-marker-rename`) to assign a name and colour.
+3. Choose **Markers > Add Marker** (`seq-marker`, `M`), then choose **Markers > Edit Marker…** (`seq-marker-rename`) to assign a name and color.
 4. Choose **Sequence > Render In to Out** (`seq-render-in-to-out`, `Enter`) to start a preview-render job covering the marked span.
 
 ## File menu
@@ -57,23 +57,23 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `edit-select-all` | `none` | Select All | `Ctrl+A` | Always enabled | Selects every clip on unlocked tracks in the active sequence. |
 | `edit-deselect` | `none` | Deselect All | `Ctrl+Shift+A` | No clip is selected (`guards::selection`) | Clears the clip, transition, and keyframe selection. |
 | `edit-find` | `none` | Find… | `Ctrl+F` | Always enabled | Focuses the Project panel media search field. |
-| `edit-label-violet` | `Label` | Violet | `none` | No clip is selected (`guards::selection`) | Sets the label colour of selected clips to `LabelColor::Violet`. |
-| `edit-label-iris` | `Label` | Iris | `none` | No clip is selected (`guards::selection`) | Sets the label colour of selected clips to `LabelColor::Iris`. |
-| `edit-label-caribbean` | `Label` | Caribbean | `none` | No clip is selected (`guards::selection`) | Sets the label colour of selected clips to `LabelColor::Caribbean`. |
-| `edit-label-lavender` | `Label` | Lavender | `none` | No clip is selected (`guards::selection`) | Sets the label colour of selected clips to `LabelColor::Lavender`. |
-| `edit-label-cerulean` | `Label` | Cerulean | `none` | No clip is selected (`guards::selection`) | Sets the label colour of selected clips to `LabelColor::Cerulean`. |
-| `edit-label-forest` | `Label` | Forest | `none` | No clip is selected (`guards::selection`) | Sets the label colour of selected clips to `LabelColor::Forest`. |
-| `edit-label-rose` | `Label` | Rose | `none` | No clip is selected (`guards::selection`) | Sets the label colour of selected clips to `LabelColor::Rose`. |
-| `edit-label-mango` | `Label` | Mango | `none` | No clip is selected (`guards::selection`) | Sets the label colour of selected clips to `LabelColor::Mango`. |
-| `edit-label-purple` | `Label` | Purple | `none` | No clip is selected (`guards::selection`) | Sets the label colour of selected clips to `LabelColor::Purple`. |
-| `edit-label-blue` | `Label` | Blue | `none` | No clip is selected (`guards::selection`) | Sets the label colour of selected clips to `LabelColor::Blue`. |
-| `edit-label-teal` | `Label` | Teal | `none` | No clip is selected (`guards::selection`) | Sets the label colour of selected clips to `LabelColor::Teal`. |
-| `edit-label-magenta` | `Label` | Magenta | `none` | No clip is selected (`guards::selection`) | Sets the label colour of selected clips to `LabelColor::Magenta`. |
-| `edit-label-tan` | `Label` | Tan | `none` | No clip is selected (`guards::selection`) | Sets the label colour of selected clips to `LabelColor::Tan`. |
-| `edit-label-green` | `Label` | Green | `none` | No clip is selected (`guards::selection`) | Sets the label colour of selected clips to `LabelColor::Green`. |
-| `edit-label-brown` | `Label` | Brown | `none` | No clip is selected (`guards::selection`) | Sets the label colour of selected clips to `LabelColor::Brown`. |
-| `edit-label-yellow` | `Label` | Yellow | `none` | No clip is selected (`guards::selection`) | Sets the label colour of selected clips to `LabelColor::Yellow`. |
-| `edit-label-none` | `Label` | None | `none` | No clip is selected (`guards::selection`) | Clears the label colour (`None`) on selected clips. |
+| `edit-label-violet` | `Label` | Violet | `none` | No clip is selected (`guards::selection`) | Sets the label color of selected clips to `LabelColor::Violet`. |
+| `edit-label-iris` | `Label` | Iris | `none` | No clip is selected (`guards::selection`) | Sets the label color of selected clips to `LabelColor::Iris`. |
+| `edit-label-caribbean` | `Label` | Caribbean | `none` | No clip is selected (`guards::selection`) | Sets the label color of selected clips to `LabelColor::Caribbean`. |
+| `edit-label-lavender` | `Label` | Lavender | `none` | No clip is selected (`guards::selection`) | Sets the label color of selected clips to `LabelColor::Lavender`. |
+| `edit-label-cerulean` | `Label` | Cerulean | `none` | No clip is selected (`guards::selection`) | Sets the label color of selected clips to `LabelColor::Cerulean`. |
+| `edit-label-forest` | `Label` | Forest | `none` | No clip is selected (`guards::selection`) | Sets the label color of selected clips to `LabelColor::Forest`. |
+| `edit-label-rose` | `Label` | Rose | `none` | No clip is selected (`guards::selection`) | Sets the label color of selected clips to `LabelColor::Rose`. |
+| `edit-label-mango` | `Label` | Mango | `none` | No clip is selected (`guards::selection`) | Sets the label color of selected clips to `LabelColor::Mango`. |
+| `edit-label-purple` | `Label` | Purple | `none` | No clip is selected (`guards::selection`) | Sets the label color of selected clips to `LabelColor::Purple`. |
+| `edit-label-blue` | `Label` | Blue | `none` | No clip is selected (`guards::selection`) | Sets the label color of selected clips to `LabelColor::Blue`. |
+| `edit-label-teal` | `Label` | Teal | `none` | No clip is selected (`guards::selection`) | Sets the label color of selected clips to `LabelColor::Teal`. |
+| `edit-label-magenta` | `Label` | Magenta | `none` | No clip is selected (`guards::selection`) | Sets the label color of selected clips to `LabelColor::Magenta`. |
+| `edit-label-tan` | `Label` | Tan | `none` | No clip is selected (`guards::selection`) | Sets the label color of selected clips to `LabelColor::Tan`. |
+| `edit-label-green` | `Label` | Green | `none` | No clip is selected (`guards::selection`) | Sets the label color of selected clips to `LabelColor::Green`. |
+| `edit-label-brown` | `Label` | Brown | `none` | No clip is selected (`guards::selection`) | Sets the label color of selected clips to `LabelColor::Brown`. |
+| `edit-label-yellow` | `Label` | Yellow | `none` | No clip is selected (`guards::selection`) | Sets the label color of selected clips to `LabelColor::Yellow`. |
+| `edit-label-none` | `Label` | None | `none` | No clip is selected (`guards::selection`) | Clears the label color (`None`) on selected clips. |
 | `edit-keyboard-shortcuts` | `none` | Keyboard Shortcuts… | `Ctrl+Alt+K` | Always enabled | Opens `aria.dialog.settings` on the `Shortcuts` section. |
 | `edit-preferences` | `none` | Preferences… | `Ctrl+,` | Always enabled | Opens `aria.dialog.settings`. |
 
@@ -141,7 +141,7 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `seq-transition-clear` | `none` | Remove Transition at Cut | `none` | No clip is selected (`guards::selection`) | Removes the transition from the selected clip's cut. |
 | `seq-lane-shift-later` | `none` | Shift Lane One Second Later | `none` | Always enabled | Shifts every clip on the selected clip's track later by one second. |
 | `seq-lane-shift-earlier` | `none` | Shift Lane One Second Earlier | `none` | Always enabled | Shifts every clip on the selected clip's track earlier by one second. |
-| `seq-canvas-background` | `none` | Reset Canvas Background | `none` | Always enabled | Restores the sequence canvas background colour to `[0, 0, 0, 255]`. |
+| `seq-canvas-background` | `none` | Reset Canvas Background | `none` | Always enabled | Restores the sequence canvas background color to `[0, 0, 0, 255]`. |
 | `seq-duck-amount` | `Ducking` | Cycle Duck Amount | `none` | Always enabled | Cycles the sidechain ducking attenuation depth (`-6 dB`, `-12 dB`, `-18 dB`, `-24 dB`). |
 | `seq-duck-attack` | `Ducking` | Cycle Duck Attack | `none` | Always enabled | Cycles the sidechain ducking attack time. |
 | `seq-duck-release` | `Ducking` | Cycle Duck Release | `none` | Always enabled | Cycles the sidechain ducking release time. |
@@ -180,7 +180,7 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `fx-paste` | `none` | Paste Effect | `none` | No effect has been copied or no clip is selected (`guards::copied_effect`) | Pastes the copied effect onto the selected clips. |
 | `fx-remove-all` | `none` | Remove All Effects | `none` | Selected clips have no effects (`guards::effects`) | Removes all video effects from the selected clips. |
 | `seq-effect-reset` | `none` | Reset Effect Parameters | `Ctrl+Alt+R` | Selected clips have no effects (`guards::effects`) | Resets every parameter of every effect on the selected clip to its catalog default. |
-| `seq-grade-reset` | `none` | Reset Grade | `none` | No clip is selected (`guards::selection`) | Clears colour adjustments (`ColorAdjustments`) on the selected clips. |
+| `seq-grade-reset` | `none` | Reset Grade | `none` | No clip is selected (`guards::selection`) | Clears color adjustments (`ColorAdjustments`) on the selected clips. |
 | `seq-mask-clear` | `none` | Remove Mask | `none` | The selected clip has no mask (`guards::mask`) | Removes all masks from the selected clips. |
 | `seq-chroma-clear` | `none` | Remove Chroma Key | `none` | No clip is selected (`guards::selection`) | Removes the chroma keyer from the selected clips. |
 

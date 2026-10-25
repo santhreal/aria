@@ -173,7 +173,7 @@ fn distribute_spaces_centres_evenly_and_keeps_the_ends() {
         );
         assert!(
             close(now[1] - now[0], now[2] - now[1]),
-            "{axis:?} left the centres at {now:?}"
+            "{axis:?} left the centers at {now:?}"
         );
         assert!(
             !close(now[1], was[1]),

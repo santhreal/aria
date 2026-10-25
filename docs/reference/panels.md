@@ -50,14 +50,14 @@ Rows with a default frame carry a `DockSpec` and appear as dockable tabs in the 
 | `aria.dialog.unsaved` | `Dialog(UnsavedChanges)` | Confirmation prompt (**Save**, **Discard**, **Stay**) shown before New, Open, Close, or Quit replaces a dirty project. |
 | `aria.dialog.install-plugin` | `Dialog(InstallPlugin)` | Permission and tier confirmation prompt shown before unpacking an `.ariaplugin` archive. |
 | `aria.dialog.project-report` | `Dialog(ProjectReport)` | Project-wide counts (sources, folders, lanes, clips, markers, content end, transitions, soloed lane kinds) and one row per clip question with the number of clips that answer it; clicking a row selects the next such clip (**Window > Project Report**). |
-| `aria.dialog.media-support` | `Dialog(MediaSupport)` | Supported containers, codecs, and pixel formats, what the selected clip's source is made of, and the Re-read, Verify decode, Loudness overview, Measure exposure, and Normalise selection actions (**Media Support Report** in the command palette). |
+| `aria.dialog.media-support` | `Dialog(MediaSupport)` | Supported containers, codecs, and pixel formats, what the selected clip's source is made of, and the Re-read, Verify decode, Loudness overview, Measure exposure, and Normalize selection actions (**Media Support Report** in the command palette). |
 | `aria.dialog.timeline-report` | `Dialog(TimelineReport)` | Each item a timeline import or export placed or wrote the nearest way it could; opens when such a run finishes, and closing it drops the report. |
 | `aria.dialog.speed-duration` | `Dialog(SpeedDuration)` | Clip retiming dialog (`Ctrl+R` or **Clip > Speed/Duration…**) for constant speed (`5%` to `10000%`), duration, reverse, and pitch lock. |
 | `aria.dialog.audio-gain` | `Dialog(AudioGain)` | Clip gain dialog (`G` or **Clip > Audio Gain…**) for Set Gain, Adjust Gain, Normalize Max Peak, and Normalize All Peaks. |
 | `aria.dialog.about` | `Dialog(About)` | Version and build information dialog (**Help > About**). |
 | `aria.dialog.remove-attributes` | `Dialog(RemoveAttributes)` | Attribute reset checklist (**Edit > Remove Attributes…**) for Motion, Opacity, Crop, Time Remapping, Volume, Pan, Effects, Audio Effects, Grade, Mask, and Chroma Key. |
 | `aria.dialog.keyframe-velocity` | `Dialog(KeyframeVelocity)` | Incoming and outgoing velocity and influence dialog (**Animation > Keyframe Velocity…** or double-clicking a keyframe). |
-| `aria.dialog.marker-edit` | `Dialog(MarkerEdit)` | Marker editor (**Markers > Edit Marker…** or pressing `M` on an existing marker) for name, comment, colour, duration, and kind. |
+| `aria.dialog.marker-edit` | `Dialog(MarkerEdit)` | Marker editor (**Markers > Edit Marker…** or pressing `M` on an existing marker) for name, comment, color, duration, and kind. |
 | `aria.overlay.context-menu` | `ContextMenu` | Right-click context menu for clips, transitions, keyframes, tracks, pool items, and the Viewer. |
 | `aria.overlay.rename` | `Rename` | Centered inline text bar (`F2`) for renaming clips, tracks, markers, effects, workspaces, presets, or shifting selection by frames. |
 
@@ -203,7 +203,7 @@ Defined in `crates/aria-ui/src/app/analysis_kind.rs` (`AnalysisKind::ALL`).
 
 `EntryKind::ALL` (`crates/aria-ui/src/app/effects_browser.rs`) defines the entry kinds listed in the **Project > Effects** browser (`sidebar-tab-effects`):
 
-| Variant | Folder (`group().label()`) | Favourite prefix (`tag()`) | Drag payload (`drag()`) |
+| Variant | Folder (`group().label()`) | Favorite prefix (`tag()`) | Drag payload (`drag()`) |
 | --- | --- | --- | --- |
 | `VideoEffect` | `Video Effects` | `video` | `Effect` |
 | `AudioEffect` | `Audio Effects` | `audio` | `AudioEffect` |
@@ -219,7 +219,7 @@ Defined in `crates/aria-ui/src/app/analysis_kind.rs` (`AnalysisKind::ALL`).
 
 | Variant | Label (`label()`) | Single-group caption (`only_label()`) |
 | --- | --- | --- |
-| `Favourites` | `Favourites` | `Favourites only` |
+| `Favorites` | `Favorites` | `Favorites only` |
 | `VideoEffects` | `Video Effects` | `Video effects only` |
 | `AudioEffects` | `Audio Effects` | `Audio effects only` |
 | `Transitions` | `Video Transitions` | `Video transitions only` |

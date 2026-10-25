@@ -42,8 +42,8 @@ Helpers: `ink(alpha)` for fills, `hairline(alpha)` for borders,
 | `text_dim` | `#989898` | `neutral(0.50)` | Context rather than content: file paths |
 | `value` | `#5aa8ff` | `#1a73d9` | Editable numbers |
 | `caret` | accent family | accent family | The caret in a text box, solid, and in the rename bar, blinking |
-| `on_solid` | `#0e0e0e` | `neutral(0.985)` | Glyph and label colour on `solid` |
-| `on_accent` | `#141414` or `#f4f4f4` | `#141414` or `#f4f4f4` | Glyph and label colour on `accent` and `accent_strong` |
+| `on_solid` | `#0e0e0e` | `neutral(0.985)` | Glyph and label color on `solid` |
+| `on_accent` | `#141414` or `#f4f4f4` | `#141414` or `#f4f4f4` | Glyph and label color on `accent` and `accent_strong` |
 
 Fonts: Inter (Regular, Medium, SemiBold, Bold, embedded) for all UI text, with
 proportional figures; readouts (the playhead fields, the ruler, scrubbable
@@ -80,7 +80,7 @@ Use each hue only in its role. No sixth accent.
 Muted variants back a whole surface rather than a glyph: `danger_muted` the
 status strip while an error stands and a failed job row, `warning_muted` a
 project whose file has moved, `success_muted` a job that finished. `on_accent`
-is the glyph colour on an accent fill, as `on_solid` is on the solid one.
+is the glyph color on an accent fill, as `on_solid` is on the solid one.
 
 Primary buttons use `solid` / `on_solid` (neutral maximum contrast), not
 `accent`.
@@ -90,7 +90,7 @@ Primary buttons use `solid` / `on_solid` (neutral maximum contrast), not
 Settings > Appearance > **Accent** selects one family. A family sets
 `accent`, `accent_strong`, `caret`, `selection`, and `playhead` for each
 appearance; `on_accent` is near black or near white, whichever contrasts more
-with `accent`. Neutrals, track tints, and status colours do not change. Values
+with `accent`. Neutrals, track tints, and status colors do not change. Values
 are oklch `l, c, h`; `selection` adds an alpha.
 
 | Family | Appearance | `accent` | `accent_strong` | `caret` | `selection` | `playhead` |
@@ -131,7 +131,7 @@ Track tints are chroma 0.03 and paint the kind badge in a track header.
 
 ## Labels
 
-A clip bar is filled with its label colour, and a selected clip with the
+A clip bar is filled with its label color, and a selected clip with the
 label's selected fill: each channel moved a third of the way to white. Both are
 the same in either appearance. The name, icon, and waveform on a fill are drawn
 in near black (`#141414`) or near white (`#f4f4f4`), whichever contrasts more.
@@ -180,11 +180,11 @@ accent = "oklch(0.5 0.2 260 / 1)"
 
 - At least one of `[dark]` or `[light]` must set at least one token. Unknown
   top-level keys are rejected.
-- `[dark]` and `[light]` map token names to string values: every colour and font
+- `[dark]` and `[light]` map token names to string values: every color and font
   token in the tables above (`COLOR_TOKENS` and `FONT_TOKENS`, 49 tokens total).
   A token omitted from a table keeps its shipped value, and an appearance with
   no table uses the shipped theme.
-- Colour strings are `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, or `oklch(l c h)`
+- Color strings are `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, or `oklch(l c h)`
   with an optional `/ alpha`. Lightness `l` and `alpha` must be finite in
   `0.0..=1.0`, chroma `c` finite and `>= 0.0`, and hue `h` finite in degrees.
   Font tokens take a non-blank font family string.

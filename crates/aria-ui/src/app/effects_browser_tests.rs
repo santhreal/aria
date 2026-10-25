@@ -1,4 +1,4 @@
-//! Contracts for the Effects panel's tree, search, favourites and apply.
+//! Contracts for the Effects panel's tree, search, favorites and apply.
 //!
 //! The class closed here is "an entry the editor can apply is missing from the
 //! panel, listed in the wrong place, or applies to the wrong target". The tree
@@ -18,7 +18,7 @@ use aria_models::{ClipId, EffectInstance, Preset};
 use aria_plugin::{Plugin, PluginContext, PluginError, PluginManifest};
 
 use super::{
-    EffectsBrowser, Entry, EntryKind, Failed, FolderKey, Group, Node, QUERY_MAX_LEN, favourite_key,
+    EffectsBrowser, Entry, EntryKind, Failed, FolderKey, Group, Node, QUERY_MAX_LEN, favorite_key,
     sort_for_tree,
 };
 use crate::app::AppState;
@@ -88,13 +88,13 @@ fn shape(nodes: &[Node<'_>]) -> Vec<String> {
             Node::Entry {
                 entry,
                 depth,
-                favourite,
+                favorite,
                 ..
             } => format!(
                 "{}{}{}",
                 "  ".repeat(usize::from(*depth)),
                 entry.label,
-                if *favourite { " *" } else { "" }
+                if *favorite { " *" } else { "" }
             ),
             Node::Failed { failed } => format!("  ! {}: {}", failed.source, failed.reason),
         })
@@ -105,11 +105,11 @@ fn shape(nodes: &[Node<'_>]) -> Vec<String> {
 fn tree<'a>(
     entries: &[&'a [Entry]],
     failed: &'a [Failed],
-    favourites: &[String],
+    favorites: &[String],
     query: &str,
     open: &BTreeSet<FolderKey>,
 ) -> Vec<Node<'a>> {
-    super::tree(entries, failed, favourites, query, open, None)
+    super::tree(entries, failed, favorites, query, open, None)
 }
 
 fn open(keys: &[FolderKey]) -> BTreeSet<FolderKey> {
@@ -224,24 +224,24 @@ fn a_search_opens_matching_folders_and_hides_the_rest() {
     );
 }
 
-/// A starred entry is listed first under Favourites and again, marked, in its
+/// A starred entry is listed first under Favorites and again, marked, in its
 /// own folder. A key saved for another kind with the same id stars nothing.
 #[test]
-fn favourites_list_first_and_stay_in_their_own_folder() {
+fn favorites_list_first_and_stay_in_their_own_folder() {
     let rows = rows();
-    let favourites = [
-        favourite_key(EntryKind::VideoEffect, "vignette"),
-        favourite_key(EntryKind::Transition, "cross_dissolve"),
-        favourite_key(EntryKind::AudioEffect, "vignette"),
+    let favorites = [
+        favorite_key(EntryKind::VideoEffect, "vignette"),
+        favorite_key(EntryKind::Transition, "cross_dissolve"),
+        favorite_key(EntryKind::AudioEffect, "vignette"),
     ];
     let mut folders = EffectsBrowser::default().open;
     folders.insert(FolderKey::group(Group::VideoEffects));
     folders.insert(folder(Group::VideoEffects, "Stylize"));
-    let nodes = tree(&[&rows], &[], &favourites, "", &folders);
+    let nodes = tree(&[&rows], &[], &favorites, "", &folders);
     assert_eq!(
         shape(&nodes)[..6],
         [
-            "v Favourites (2)",
+            "v Favorites (2)",
             "  Cross Dissolve *",
             "  Vignette *",
             "v Video Effects (4)",
@@ -250,12 +250,12 @@ fn favourites_list_first_and_stay_in_their_own_folder() {
         ]
     );
     assert_eq!(shape(&nodes)[6], "    Vignette *");
-    // Under a search, Favourites lists only the starred matches.
-    let searched = tree(&[&rows], &[], &favourites, "vign", &folders);
+    // Under a search, Favorites lists only the starred matches.
+    let searched = tree(&[&rows], &[], &favorites, "vign", &folders);
     assert_eq!(
         shape(&searched),
         [
-            "v Favourites (1)",
+            "v Favorites (1)",
             "  Vignette *",
             "v Video Effects (1)",
             "  v Stylize (1)",
@@ -287,15 +287,15 @@ fn failures_list_last_with_their_reason() {
     );
 }
 
-/// Starring twice unstars, and the favourites survive the settings file.
+/// Starring twice unstars, and the favorites survive the settings file.
 #[test]
-fn a_favourite_toggles_and_round_trips_through_the_settings_file() {
+fn a_favorite_toggles_and_round_trips_through_the_settings_file() {
     let (mut state, _) = with_clip();
-    state.toggle_effect_favourite(EntryKind::VideoEffect, "vignette");
-    state.toggle_effect_favourite(EntryKind::Preset, "Warm");
-    assert_eq!(state.effect_favourites(), ["video:vignette", "preset:Warm"]);
-    state.toggle_effect_favourite(EntryKind::VideoEffect, "vignette");
-    assert_eq!(state.effect_favourites(), ["preset:Warm"]);
+    state.toggle_effect_favorite(EntryKind::VideoEffect, "vignette");
+    state.toggle_effect_favorite(EntryKind::Preset, "Warm");
+    assert_eq!(state.effect_favorites(), ["video:vignette", "preset:Warm"]);
+    state.toggle_effect_favorite(EntryKind::VideoEffect, "vignette");
+    assert_eq!(state.effect_favorites(), ["preset:Warm"]);
 
     let text = serde_json::to_string(&state.ui_settings).expect("serialize");
     assert!(
@@ -303,10 +303,10 @@ fn a_favourite_toggles_and_round_trips_through_the_settings_file() {
         "{text}"
     );
     let back: crate::settings::UiSettings = serde_json::from_str(&text).expect("deserialize");
-    assert_eq!(back.favourite_effects, ["preset:Warm"]);
+    assert_eq!(back.favorite_effects, ["preset:Warm"]);
     let older: crate::settings::UiSettings =
         serde_json::from_str(r#"{"sidebarWidth":300.0}"#).expect("older settings file");
-    assert!(older.favourite_effects.is_empty());
+    assert!(older.favorite_effects.is_empty());
 }
 
 #[test]
@@ -442,7 +442,7 @@ fn the_catalog_share_lists_every_catalog_entry_in_tree_order() {
 }
 
 /// Every kind lists under one group, carries a drag the timeline lands on the
-/// right target class, and saves favourites under a tag no other kind uses.
+/// right target class, and saves favorites under a tag no other kind uses.
 #[test]
 fn every_kind_has_a_group_a_drop_target_and_its_own_tag() {
     let mut tags = BTreeSet::new();
@@ -683,22 +683,22 @@ fn every_shipped_generator_is_listed_and_places_a_clip_of_its_own() {
     }
 }
 
-/// A filtered tree lists the one group, its starred entries under Favourites,
+/// A filtered tree lists the one group, its starred entries under Favorites,
 /// and every failure; a search inside it matches that group alone. Clearing
 /// the filter lists every group again.
 #[test]
-fn a_filter_lists_one_group_with_its_favourites_and_failures() {
+fn a_filter_lists_one_group_with_its_favorites_and_failures() {
     let rows = rows();
     let failed = [Failed {
         source: "Broken FX".into(),
         reason: "needs a GPU".into(),
     }];
-    let favourites = [
-        favourite_key(EntryKind::AudioEffect, "gain"),
-        favourite_key(EntryKind::VideoEffect, "vignette"),
+    let favorites = [
+        favorite_key(EntryKind::AudioEffect, "gain"),
+        favorite_key(EntryKind::VideoEffect, "vignette"),
     ];
     let folders = open(&[
-        FolderKey::group(Group::Favourites),
+        FolderKey::group(Group::Favorites),
         FolderKey::group(Group::AudioEffects),
         folder(Group::AudioEffects, "Amplitude"),
         FolderKey::group(Group::Failed),
@@ -708,13 +708,13 @@ fn a_filter_lists_one_group_with_its_favourites_and_failures() {
         shape(&super::tree(
             &[&rows],
             &failed,
-            &favourites,
+            &favorites,
             "",
             &folders,
             audio
         )),
         [
-            "v Favourites (1)",
+            "v Favorites (1)",
             "  Gain *",
             "v Audio Effects (1)",
             "  v Amplitude (1)",

@@ -1,10 +1,12 @@
 //! Markdown checks over every file under `docs/`: relative links and
 //! `#anchor` fragments resolve, fenced code blocks close, tables end at a
-//! blank line, and prose stays in the documentation register and counts no
-//! catalog members.
+//! blank line, and prose stays in the documentation register, is spelled in
+//! US English, and counts no catalog members.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
+
+use crate::test_support::us_spelling::british_words;
 
 pub(super) fn collect_md_files(dir: &Path, out: &mut Vec<PathBuf>) {
     let entries = std::fs::read_dir(dir).unwrap_or_else(|e| panic!("read_dir {dir:?}: {e}"));
@@ -428,6 +430,57 @@ fn docs_prose_has_no_em_dash_or_persona_noun() {
     assert!(
         found.is_empty(),
         "docs prose outside the register:\n{}",
+        found.join("\n")
+    );
+}
+
+/// WHY: the documentation is spelled in US English, as the editor's labels
+/// are, so a chapter does not write `colour` beside the Color panel it
+/// documents. This walks the repository README, the changelog, every file
+/// under `docs/` and each crate README outside fenced blocks and inline code
+/// spans, where identifiers and manifest keys keep their published spelling,
+/// and fails on a word [`british_words`] reports. Not caught: a British
+/// spelling that matcher does not hold, and the Rust doc comments outside the
+/// plugin ABI.
+#[test]
+fn docs_prose_is_spelled_in_us_english() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let mut md_files = vec![root.join("README.md"), root.join("CHANGELOG.md")];
+    collect_md_files(&root.join("docs"), &mut md_files);
+    let crates = std::fs::read_dir(root.join("crates")).expect("read crates/");
+    let mut readmes: Vec<PathBuf> = crates
+        .map(|entry| {
+            entry
+                .expect("read a crates/ entry")
+                .path()
+                .join("README.md")
+        })
+        .filter(|readme| readme.is_file())
+        .collect();
+    readmes.sort();
+    md_files.extend(readmes);
+    let mut read = 0usize;
+    let mut found: Vec<String> = Vec::new();
+    for md_file in &md_files {
+        let text =
+            std::fs::read_to_string(md_file).unwrap_or_else(|e| panic!("read {md_file:?}: {e}"));
+        for (line_no, line) in prose_lines(&text) {
+            read += 1;
+            for (word, us) in british_words(&strip_inline_code(line)) {
+                found.push(format!(
+                    "{}:{line_no}: `{word}`, US `{us}`",
+                    md_file.display()
+                ));
+            }
+        }
+    }
+    assert!(
+        read >= 10_000,
+        "expected at least 10000 prose lines across the READMEs and docs/, read {read}"
+    );
+    assert!(
+        found.is_empty(),
+        "British spellings in docs prose; write the US spelling:\n{}",
         found.join("\n")
     );
 }

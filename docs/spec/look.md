@@ -29,7 +29,7 @@ tokens and each family's values.
 Light inverts the neutral ramp and keeps the hues. No accent, label default, or
 track tint is violet. Graphite has no accent hue; its playhead is red.
 
-Clip colours come from the label set (Violet, Iris, Caribbean, Lavender,
+Clip colors come from the label set (Violet, Iris, Caribbean, Lavender,
 Cerulean, Forest, Rose, Mango, Purple, Blue, Teal, Magenta, Tan, Green, Brown,
 Yellow), each with a fill and a selected fill. Video clips default to Teal,
 audio clips to Forest, generators to Mango, nested sequences to Tan,
@@ -55,12 +55,12 @@ side padding, so the first label stands on the text edge of the column that
 holds the row. Menu and palette rows stand with no gap between them.
 
 An active tab's underline and a scrubbable value's hover underline draw over
-their box and take no layout, so a tab label stands on its neighbours' centre
+their box and take no layout, so a tab label stands on its neighbors' center
 line and a property value on the line of its label and keyframe navigator.
 Docked frames stand 6 px apart and 6 px in from the bars and the window's
-edges. Two parallel grey rules of different elements never touch or stand
+edges. Two parallel gray rules of different elements never touch or stand
 1 px apart. The workspace switcher, the breadcrumb and the transport stand on
-their bar's centre line while both side groups fit their halves. A round
+their bar's center line while both side groups fit their halves. A round
 control, such as a transform handle on a fitted picture's edge, is drawn
 whole inside the box that clips it.
 
@@ -71,7 +71,7 @@ because Inter's tabular one and hyphen are as wide as a zero. A monospace face i
 
 ## Controls
 
-A scrubbable value is drawn in `value` colour with a dotted underline on hover.
+A scrubbable value is drawn in `value` color with a dotted underline on hover.
 Dragging it horizontally changes the value: 1 unit per 2 px, Shift multiplies
 by 10, Ctrl divides by 10. Clicking without dragging opens a text field;
 Enter commits, Escape reverts, Tab commits and moves to the next value. The
@@ -86,7 +86,7 @@ tooltip stays hidden until the pointer leaves the control. A tooltip that
 states more than a name sets it on a dimmed line under the name, and wraps at
 280 px.
 
-A track header toggle that is on is drawn in the accent colour, with no plate;
+A track header toggle that is on is drawn in the accent color, with no plate;
 a Timeline header toggle lights as an armed tool in the tool bar does. A selected row in a list of choices holds the selected
 fill and shadow. A control that is shown only under the pointer keeps its
 place while hidden, so nothing moves when the pointer arrives.
@@ -96,7 +96,7 @@ click does not leave a focus ring.
 
 ## Icons
 
-One stroke icon set at 16 px, 1.5 px stroke, drawn in the text colour of the
+One stroke icon set at 16 px, 1.5 px stroke, drawn in the text color of the
 control that holds it. Each icon has one meaning; the same glyph is never used
 for two actions. [icons.md](../icons.md) lists the set.
 

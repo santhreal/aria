@@ -186,7 +186,7 @@ impl<'de> Deserialize<'de> for ColorAdjustments {
             type Value = ColorAdjustments;
 
             fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.write_str("a colour grade, keyed by slider name")
+                f.write_str("a color grade, keyed by slider name")
             }
 
             fn visit_map<M: MapAccess<'de>>(self, mut map: M) -> Result<Self::Value, M::Error> {

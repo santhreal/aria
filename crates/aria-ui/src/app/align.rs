@@ -76,7 +76,7 @@ impl AlignEdge {
     pub const fn label(self) -> &'static str {
         match self {
             Self::Left => "Left",
-            Self::CenterX => "Centre",
+            Self::CenterX => "Center",
             Self::Right => "Right",
             Self::Top => "Top",
             Self::CenterY => "Middle",

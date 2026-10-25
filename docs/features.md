@@ -37,8 +37,8 @@ Anything not listed here is not in the build.
   sound to the lanes lit in the lane headers, as linked clips.
 - Linked selection on or off: linked clips select, move, and trim together, or
   one at a time.
-- Sequence and clip markers with automatic names, eight colours, duration ranges,
-  Comment/Chapter/Segmentation kinds, the Edit Marker dialog, colour filtering
+- Sequence and clip markers with automatic names, eight colors, duration ranges,
+  Comment/Chapter/Segmentation kinds, the Edit Marker dialog, color filtering
   in the Markers panel, next and previous marker, and delete at the playhead.
 - Snapping to clip edges, markers, the playhead, and the in and out points,
   with a guide drawn at the edge that caught.
@@ -92,7 +92,7 @@ Anything not listed here is not in the build.
 - Nineteen effects and eight transitions, resolved from data files rather than
   code. Every catalog id has a GPU pass; an unknown effect is skipped and an
   unknown transition cross-dissolves.
-- Effect parameters per clip, including colour and vector slots, with
+- Effect parameters per clip, including color and vector slots, with
   keyframes and easing presets.
 - Animation presets (`.ariapreset`) capture a clip's visual effects, audio
   inserts, and keyframed properties, each mask's by its index in the stack,
@@ -104,7 +104,7 @@ Anything not listed here is not in the build.
   `presets/*.ariapreset`.
 - Keyframes on every animatable clip property, not a fixed list: the strip reads
   `clip_params_for(clip)` and offers what the selected clip can animate:
-  transform, opacity, volume, pan, crop, colour grade, each mask's geometry,
+  transform, opacity, volume, pan, crop, color grade, each mask's geometry,
   path, feather, opacity, and expansion, each effect's parameters, chroma tolerance,
   matte softness, layer shadow, glow, outline and background, text stroke,
   shadow and card, and shape fill, stroke and geometry. A property whose block
@@ -117,7 +117,7 @@ Anything not listed here is not in the build.
   animated and a constant when it is not, so a nudge moves a curve instead of
   replacing it.
 - Every chip and button in the inspector is a registry row with one writer:
-  filter, mask shape, key colour, matte source, layer style and its colour,
+  filter, mask shape, key color, matte source, layer style and its color,
   blend mode, stabilization level, the flips, motion blur, noise reduction, the
   audio role and fades, reverse, pitch lock, the animation chips and their knobs,
   the speed ramps, a template slot's media, kind, order and hint, the text
@@ -136,10 +136,10 @@ Anything not listed here is not in the build.
   opacity, an expansion, and an invert toggle, and the stack reorders. Masks
   apply to footage, stills, titles, shapes, stickers, animations, and
   adjustment layers, and cut what the clip draws before its effects, LUT, and
-  layer styles. Chroma key. Colour filters with an intensity per clip.
+  layer styles. Chroma key. Color filters with an intensity per clip.
 - Mask tracking: "Track Mask Forward from the Playhead" in the palette follows
   the picture under the active mask across the rest of the clip and writes its
-  centre keyframes. The pass runs as a job on a renderer of its own, so the window keeps
+  center keyframes. The pass runs as a job on a renderer of its own, so the window keeps
   drawing and stays scrubbable while it tracks, and the jobs board counts frames
   against the total. It stops when the feature is lost and reports the frame that
   lost it, and Cancel keeps the frames it already followed. What it wrote is one
@@ -147,7 +147,7 @@ Anything not listed here is not in the build.
   tracked mask removed or reshaped while the pass runs gets nothing, and the
   editor reports it.
 - Text generator with font, size, weight, slant, tracking, wrapping, padding,
-  alignment, colour, and stroke.
+  alignment, color, and stroke.
 - Shape generator: rounded rectangle, ellipse, polygon, star, line, arrow, and
   heart, each with fill and stroke.
 - Adjustment layers: a lane bar that applies its own effect stack, grade, and
@@ -155,7 +155,7 @@ Anything not listed here is not in the build.
   covers the marked range, else the selection, else the sequence, and stacks
   onto a second lane when the range is taken. Its effect parameters and its
   grade take keyframes on the same routes a clip's do, keyed in sequence time:
-  the look stays over the programme it was set on when the bar is dragged or
+  the look stays over the program it was set on when the bar is dragged or
   split. A mask on the bar limits its look to the masked area.
 - Track mattes: a clip is cut by the layer directly above it, reading either that
   layer's alpha or its luma, with an invert toggle and a softness that blurs the

@@ -130,14 +130,14 @@ scope supplies:
 | `expired` | Whether the evaluation is past its budget |
 
 Values are in model units: position is the anchor's offset from the canvas
-centre as a fraction of the canvas, scale and opacity are fractions, rotation
-is in degrees, a colour is four bytes.
+center as a fraction of the canvas, scale and opacity are fractions, rotation
+is in degrees, a color is four bytes.
 
 ## Failure
 
 An error, a panic, or a value of another kind leaves the property at its
 keyframed value and records a fault for that driver alone. Effect Controls shows
-the value in the danger colour with the fault in a tooltip;
+the value in the danger color with the fault in a tooltip;
 `aria_render::driver_fault` and `driver_faults` read faults back. A value
 outside the property's range is clamped.
 

@@ -123,7 +123,7 @@ fn every_context_row_draws_its_check_mark_in_the_lead_column(cx: &mut TestAppCon
                     checked += 1;
                     if (check.center().x - centre).abs() > px(EPS) {
                         faults.push(format!(
-                            "{target:?}: `{caption}`'s check is centred at {:?}, the column at {centre:?}",
+                            "{target:?}: `{caption}`'s check is centered at {:?}, the column at {centre:?}",
                             check.center().x
                         ));
                     }

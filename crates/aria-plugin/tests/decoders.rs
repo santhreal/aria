@@ -132,7 +132,7 @@ impl Plugin for SolidPlugin {
         ctx.register_decoder(
             DecoderSpec {
                 id: "solid".into(),
-                name: "Solid grey".into(),
+                name: "Solid gray".into(),
                 extensions: vec![self.extension.to_ascii_uppercase()],
                 priority: 0,
             },

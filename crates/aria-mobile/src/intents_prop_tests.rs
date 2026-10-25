@@ -82,7 +82,7 @@ fn set_transform_recentres_ui_coordinates() {
     assert_eq!(
         pose.anchor_point,
         [0.5, 0.5],
-        "the gesture rotates and scales about the clip's centre"
+        "the gesture rotates and scales about the clip's center"
     );
 
     // The centre of the canvas is the origin, not (0.5, 0.5).

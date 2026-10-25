@@ -174,7 +174,7 @@ Settings holds an AI section.
 Aria area is a tree of splits and tabbed frames. Each frame has a 24 px
 tab bar at the top. Click a tab to activate it, click `×` or middle-click to
 close it, drag a tab within its bar to reorder it, drag a tab onto another
-frame's centre or edge (`Left`, `Right`, `Top`, `Bottom`) to dock or split it,
+frame's center or edge (`Left`, `Right`, `Top`, `Bottom`) to dock or split it,
 or drag a tab outside the main window (or choose **Undock Panel** from the frame
 menu `≡`) to float it in a separate window. A floating window's **Dock** puts
 its panels back in their default frames; **Close Window**, or the window

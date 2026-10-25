@@ -96,7 +96,7 @@ fn a_refused_removal_changes_nothing() {
             source: tr(500, 50),
             start: end,
         }))
-        .expect("neighbour");
+        .expect("neighbor");
     let before = engine.project().clip(clip).expect("clip").clone();
     let refused = engine.apply(Command::Edit(EditCommand::RemoveAttributes {
         clip,
@@ -104,9 +104,9 @@ fn a_refused_removal_changes_nothing() {
     }));
     assert!(
         refused.is_err(),
-        "the cleared ramp would overlap the neighbour"
+        "the cleared ramp would overlap the neighbor"
     );
     assert_eq!(engine.project().clip(clip), Some(&before));
-    assert!(engine.undo(), "the neighbour is still the last step");
+    assert!(engine.undo(), "the neighbor is still the last step");
     assert_eq!(engine.project().timeline().clip_count(), 1);
 }

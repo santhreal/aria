@@ -1,6 +1,6 @@
 # Animation catalog
 
-Every appearance, disappearance, and travelling value in the UI uses a named
+Every appearance, disappearance, and traveling value in the UI uses a named
 `MotionSpec`: a reference preset from `gpui::motion::presets`, or one of the
 editor's own specs in `crates/aria-ui/src/motion.rs`. A spec is a duration, an
 optional delay, and a named curve.
@@ -28,9 +28,9 @@ read, and is clamped by `MotionPolicy::parse_duration_scale`. The choice in
 Settings overrides it for the rest of the session and persists to
 `ui-settings.json`.
 
-No motion is honoured in two places, not at each call site. A one-shot spec runs
+No motion is honored in two places, not at each call site. A one-shot spec runs
 through `with_animation`, which draws the end state and schedules no frames when
-motion is reduced. A travelling value runs through `motion::glide`, which reads
+motion is reduced. A traveling value runs through `motion::glide`, which reads
 the policy of the open motion frame, so a new eased value cannot forget it.
 Loaders read a phase of zero and hold still.
 
@@ -98,7 +98,7 @@ The hover store holds hover blends. `motion::hover_listener` sets a key's toggle
 notifies the cached panel body (or shell chrome beacon) that drew the key, and
 `motion::hover_blend` reads how far its fade has come.
 
-`motion::glide` holds travelling `f32` geometry (the playhead, lane heights,
+`motion::glide` holds traveling `f32` geometry (the playhead, lane heights,
 clip positions, pane widths, the timeline scroll offset, the horizontal scale, a
 clip card's selection and lock, and how far the route being drawn has arrived)
 as a target each value chases. The shell's playhead layer reads the playhead's

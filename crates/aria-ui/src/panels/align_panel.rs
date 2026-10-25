@@ -81,7 +81,7 @@ pub fn render(
     let hint = match selected {
         0 => "Select clips to align. A lone clip aligns to the frame.",
         1 | 2 => "Distribute needs three selected clips.",
-        _ => "Distribute keeps the two outermost clips and spaces the centres between them.",
+        _ => "Distribute keeps the two outermost clips and spaces the centers between them.",
     };
     crate::edge_fade::scroll_y(
         div()

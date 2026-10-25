@@ -1,6 +1,6 @@
 # Color Spaces, YUV Matrices, Starter LUT Pack, and Grading Controls Reference
 
-Frame colorimetry metadata, CPU RGBA/BGRA-to-YUV 4:2:0 conversion matrices, the baked `.cube` starter LUT pack, and Color panel sections and wheels defined in `crates/aria-core/src/color.rs`, `crates/aria-encoder/src/yuv.rs`, `crates/aria-render/src/lut_pack.rs`, `crates/aria-ui/src/panels/color_panel.rs`, and `crates/aria-ui/src/app/grade_controls.rs`. For the colour filter presets (`filters.toml`) and the individual `ColorAdjustments::SLIDERS` rows, see [filters.md](filters.md).
+Frame colorimetry metadata, CPU RGBA/BGRA-to-YUV 4:2:0 conversion matrices, the baked `.cube` starter LUT pack, and Color panel sections and wheels defined in `crates/aria-core/src/color.rs`, `crates/aria-encoder/src/yuv.rs`, `crates/aria-render/src/lut_pack.rs`, `crates/aria-ui/src/panels/color_panel.rs`, and `crates/aria-ui/src/app/grade_controls.rs`. For the color filter presets (`filters.toml`) and the individual `ColorAdjustments::SLIDERS` rows, see [filters.md](filters.md).
 
 ## Frame colorimetry (`ColorSpace`)
 
@@ -104,7 +104,7 @@ Chroma `(R, G, B)` inputs are 2x2 box-averaged (`(p00 + p01 + p10 + p11) >> 2`) 
 
 ### Grading wheels (`WheelControl`)
 
-`crates/aria-ui/src/app/grade_controls.rs` and `crates/aria-ui/src/panels/inspector/blocks/wheels.rs` render three circular colour wheels (`WHEEL_RADIUS = 36.0` px) with a 36-dot hue ring and a 9 px puck. Dragging the puck writes zero-sum RGB offsets (`dr = x`, `dg = -0.5 * x + 0.8660254 * y`, `db = -0.5 * x - 0.8660254 * y`) scaled by `reach()` around the three channels' mean at press start.
+`crates/aria-ui/src/app/grade_controls.rs` and `crates/aria-ui/src/panels/inspector/blocks/wheels.rs` render three circular color wheels (`WHEEL_RADIUS = 36.0` px) with a 36-dot hue ring and a 9 px puck. Dragging the puck writes zero-sum RGB offsets (`dr = x`, `dg = -0.5 * x + 0.8660254 * y`, `db = -0.5 * x - 0.8660254 * y`) scaled by `reach()` around the three channels' mean at press start.
 
 | Variant | ID | Label | Neutral Master | Reach | Master `LookParam` | RGB `LookParam` Triple | History Drag Label | History Reset Label |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |

@@ -452,7 +452,7 @@ fn docked_frames_stand_one_gutter_apart_and_in(cx: &mut TestAppContext) {
                     failures.push(format!(
                         "{case}: the {side} edge of the frame at {frame:?} stands neither \
                          {DOCK_GUTTER} px in from the dock area {area:?} nor {DOCK_GUTTER} px \
-                         from a neighbour"
+                         from a neighbor"
                     ));
                 }
             }
@@ -564,7 +564,7 @@ fn every_tab_label_stands_on_its_tab_centre_line(cx: &mut TestAppContext) {
             let down = f32::from(label.bounds.center().y - tab.center().y);
             if down.abs() > EPS {
                 failures.push(format!(
-                    "{case}: `{}` in {selector} stands {down} px off the tab's centre line \
+                    "{case}: `{}` in {selector} stands {down} px off the tab's center line \
                      ({:?} in {tab:?})",
                     label.text, label.bounds
                 ));
@@ -667,7 +667,7 @@ fn centred_controls_stand_on_their_bar_centre_line(cx: &mut TestAppContext) {
                 checked[index] += 1;
                 if off.abs() > EPS {
                     failures.push(format!(
-                        "{case}: the {what} stands {off} px off its bar's centre line"
+                        "{case}: the {what} stands {off} px off its bar's center line"
                     ));
                 }
             }

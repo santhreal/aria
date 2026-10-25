@@ -260,7 +260,7 @@ fn a_generator_draws_over_the_transparent_solid_that_carries_it() {
     assert_near(
         image.pixel(960, 540),
         [0, 128, 0, 255],
-        "the frame's centre",
+        "the frame's center",
     );
     assert_near(image.pixel(480, 540), [0, 64, 0, 255], "a quarter across");
 
@@ -361,7 +361,7 @@ fn a_layer_parameter_reads_the_referenced_clip() {
     assert_near(
         image.pixel(960, 540),
         [10, 200, 30, 255],
-        "the referenced clip's colour",
+        "the referenced clip's color",
     );
 
     drop(registration);
@@ -404,7 +404,7 @@ fn a_referenced_clip_reads_its_own_references_on_hidden_lanes() {
     assert_near(
         image.pixel(960, 540),
         [10, 200, 30, 255],
-        "the colour two references down",
+        "the color two references down",
     );
     drop(registration);
 }

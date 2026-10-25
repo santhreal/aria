@@ -256,10 +256,10 @@ declared priority, then mount order; command and event handlers in mount order.
 An effect declares parameters and a render graph.
 
 **Parameters.** Types: float (with range, soft range, unit, and display:
-slider, angle dial, percentage), int, bool, choice, colour (linear RGBA), point
+slider, angle dial, percentage), int, bool, choice, color (linear RGBA), point
 2D and 3D (shown as Viewer handles), size, angle, curve, gradient, text, font,
 file, and layer reference (another clip in the sequence, read as an input).
-Every numeric, colour, and point parameter is keyframeable and drivable. Groups,
+Every numeric, color, and point parameter is keyframeable and drivable. Groups,
 visibility conditions, and tooltips are declared. Parameter count and size are
 unbounded: values reach the shader through a storage buffer, not a fixed
 uniform block.
@@ -285,7 +285,7 @@ values. An effect that is not a pure function of those and its inputs declares
 ### Clip types
 
 A clip type defines a data schema stored in the project, its property rows, its
-Viewer handles, its icon and colour on the timeline, and a render callback or
+Viewer handles, its icon and color on the timeline, and a render callback or
 graph. Text, shape, adjustment, and multicam clips are shipped clip types.
 
 ### Property drivers
@@ -373,7 +373,7 @@ from the API definitions; `docs/plugins/README.md` is the guide.
 ## Shipped plugins
 
 The shipped set is every capability Aria has: media decoders and encoders,
-the effect and transition catalogs, text and shape clip types, colour, scopes,
+the effect and transition catalogs, text and shape clip types, color, scopes,
 audio effects and analysis, the assistant and its tools, `aria.expressions`,
 importers and exporters for EDL, FCPXML, and OTIO, and the shipped themes and
 workspaces. Each appears in the Plugins panel and can be disabled, except the

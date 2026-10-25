@@ -179,7 +179,7 @@ fn a_vertex_is_drawn_where_the_renderer_cuts_the_picture() {
     assert_eq!(
         alpha(drawn),
         255,
-        "the square's centre is drawn at {drawn:?}, off its stencil"
+        "the square's center is drawn at {drawn:?}, off its stencil"
     );
     let unturned = PathSpace::new(layer, center, 0.0).to_window(middle);
     assert_eq!(
@@ -229,11 +229,7 @@ fn splitting_a_straight_closing_segment_adds_a_corner_at_the_end() {
     let before = points.clone();
     assert_eq!(split_segment(&mut points, 2, 0.5), 3);
     assert_eq!(points[3], ShapePathPoint::corner([0.5, 0.5]));
-    assert_eq!(
-        points[..3],
-        before[..],
-        "a straight split moved a neighbour"
-    );
+    assert_eq!(points[..3], before[..], "a straight split moved a neighbor");
 }
 
 #[test]

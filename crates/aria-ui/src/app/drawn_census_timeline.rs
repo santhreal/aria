@@ -114,7 +114,7 @@ fn junction() -> Junction {
     let (start, end) = span_of(&state, subject);
     assert_eq!(
         start, cut,
-        "the dressed clip must still abut its neighbour, or a roll has no cut"
+        "the dressed clip must still abut its neighbor, or a roll has no cut"
     );
     Junction {
         state,
@@ -491,7 +491,7 @@ fn either_edge_of_a_wedge_lengthens_the_window_and_neither_moves_the_cut() {
         assert_eq!(
             span_of(&dressed.state, dressed.left).1,
             cut,
-            "a wedge drag moved the cut it is centred on"
+            "a wedge drag moved the cut it is centered on"
         );
     }
 }

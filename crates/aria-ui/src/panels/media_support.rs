@@ -68,7 +68,7 @@ const ACTIONS: &[Action] = &[
     },
     Action {
         id: "media-normalise",
-        label: "Normalise selection",
+        label: "Normalize selection",
         run: AppState::normalise_selected_clip,
     },
 ];
@@ -198,7 +198,7 @@ fn target_chip(
                 cx.notify();
             }),
         )
-        .child(div().text_color(theme.text_muted).child("Normalise to"))
+        .child(div().text_color(theme.text_muted).child("Normalize to"))
         .child(
             div()
                 .flex()

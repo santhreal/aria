@@ -92,7 +92,7 @@ fn the_meters_fill_their_frame_and_keep_every_label_inside_its_box(cx: &mut Test
             .unwrap_or_else(|| panic!("{layout}: no `CLIP` drawn in the frame {frame:?}"));
         assert!(
             across(label, light) && light.contains(&label.center()),
-            "{layout}: `CLIP` spans {:?}..{:?} centred at {:?}, the light {:?}..{:?}, in a \
+            "{layout}: `CLIP` spans {:?}..{:?} centered at {:?}, the light {:?}..{:?}, in a \
              {w} px frame",
             label.left(),
             label.right(),

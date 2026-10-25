@@ -80,7 +80,7 @@ mod tests {
         let want = now.maximum.map_or(OPEN_FILES, |hard| hard.min(OPEN_FILES));
         assert!(
             now.current.is_none_or(|soft| soft >= want),
-            "after GStreamer initialised the soft open-file limit is {:?}, below {want}",
+            "after GStreamer initialized the soft open-file limit is {:?}, below {want}",
             now.current
         );
     }

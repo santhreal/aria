@@ -28,11 +28,11 @@ layer's look to the masked area. The Look tab holds:
   step. The palette's **Invert Mask** (`pal-mask-invert`) and **Remove Mask** (`pal-mask-clear`) rows and the **Effect > Remove Mask**
   row act on the active mask; removing a mask makes the
   one above it active.
-- Mask handles on the preview for the active mask: a dot at the centre moves the
+- Mask handles on the preview for the active mask: a dot at the center moves the
   mask, one on its right edge resizes it, and one above it rotates it. The
   handles sit where the mask is at the playhead. The outline follows the
-  pointer; the composite catches up on release, which commits centre, size, and
-  rotation as one edit. A keyframed centre, size, or rotation that the drag
+  pointer; the composite catches up on release, which commits center, size, and
+  rotation as one edit. A keyframed center, size, or rotation that the drag
   changed gains a keyframe at the playhead and keeps its other keyframes; one
   the drag left alone keeps its curve. Escape abandons the drag.
 - Path masks, drawn with the Pen tool (P) on the selected clip in the preview. A
@@ -61,7 +61,7 @@ layer's look to the masked area. The Look tab holds:
   the segment to Linear. Each press is one undo step.
 - Mask tracking from the command palette: **Track Mask Forward from the
   Playhead** (`pal-track-mask`). It follows the picture under the active mask through the rest of
-  the clip and keyframes that mask's centre for every frame it followed. The
+  the clip and keyframes that mask's center for every frame it followed. The
   pass is a job, so Aria keeps drawing while it runs; the jobs board
   counts the frames it has read against the frames it will read, and Cancel
   stops it and keeps what it tracked. A pass that loses the feature stops there
@@ -69,11 +69,11 @@ layer's look to the masked area. The Look tab holds:
   removed, or reordered while it runs do not move the keyframes off the tracked
   mask; if the tracked mask is removed, dragged, or reshaped meanwhile, nothing
   is written and Aria reports it.
-- A chroma key. Pick Green, Blue, or Cyan to key on that colour at a
+- A chroma key. Pick Green, Blue, or Cyan to key on that color at a
   starting tolerance, then adjust Strength and Shadow. Re-keying keeps the
   tolerance. Remove key clears it.
 - Four layer styles: shadow, glow, outline, background. Click one to add it
-  at its default, then adjust its knobs and pick a colour. Clear styles
+  at its default, then adjust its knobs and pick a color. Clear styles
   removes all four.
 - A `.cube` LUT. **Load .cube…** picks a file; Intensity blends it over the
   ungraded image; Remove LUT clears it. Loading another LUT keeps the
@@ -93,9 +93,9 @@ Key a green-screen shot and isolate the subject with a garbage mask:
 
 1. Place the background plate on `V1` and the green-screen foreground clip directly above it on `V2`, then select the foreground clip on `V2` and press <kbd>Shift+4</kbd> (`key-pane-effect-controls`) or choose **Window > Effect Controls**. The Effect Controls panel opens on the selected `V2` clip.
 2. Run **Key Green Screen** (`pal-chroma-green`) in the Command Palette (or pick **Green** in the chroma key section of the **Look** tab) and adjust **Strength** and **Shadow**. The green backdrop becomes transparent in the Viewer, revealing the `V1` background behind the subject.
-3. Add a rectangle garbage mask around the talent by running **Add Rectangle Mask** (`pal-mask-add-rectangle`) in the Command Palette (or clicking **rectangle** under **Add a mask** in the **Look** tab), then click [`preview-handles-mask`](../reference/controls.md#viewer--source-monitor) in the Viewer control row (or choose **View > Canvas Handles > Mask**). The Viewer draws the active mask's centre, size, and rotation handles over the subject.
+3. Add a rectangle garbage mask around the talent by running **Add Rectangle Mask** (`pal-mask-add-rectangle`) in the Command Palette (or clicking **rectangle** under **Add a mask** in the **Look** tab), then click [`preview-handles-mask`](../reference/controls.md#viewer--source-monitor) in the Viewer control row (or choose **View > Canvas Handles > Mask**). The Viewer draws the active mask's center, size, and rotation handles over the subject.
 4. Drag the mask handles in the Viewer to crop out rigging outside the green backdrop, and scrub **Feather** in the mask rows to soften the edge (or press <kbd>P</kbd> (`key-tool-pen`) / click [`tool-pen`](../reference/controls.md#tool-strip) to draw a custom Bézier path mask and click [`path-watch`](../reference/controls.md#keyframes) to keyframe its path). Everything outside the mask is cut before the keyer and effects run.
-5. If the talent moves across the frame, park the playhead at the start of the move and run **Track Mask Forward from the Playhead** (`pal-track-mask`) in the Command Palette. Aria tracks the pixels under the active mask forward in a background job and writes centre keyframes across the clip, and the Viewer shows the keyed subject composited cleanly over `V1`.
+5. If the talent moves across the frame, park the playhead at the start of the move and run **Track Mask Forward from the Playhead** (`pal-track-mask`) in the Command Palette. Aria tracks the pixels under the active mask forward in a background job and writes center keyframes across the clip, and the Viewer shows the keyed subject composited cleanly over `V1`.
 
 ## Reference
 

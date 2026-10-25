@@ -358,7 +358,7 @@ far value on that side against three dressed fixtures. That test found sixteen
 rows whose real bounds lived only in the inspector's own knob table, where a
 stepper clamped to numbers the model had never agreed to.
 
-A colour adjustment is a row in `aria_models::adjust_slider_rows!`, and that row
+A color adjustment is a row in `aria_models::adjust_slider_rows!`, and that row
 reaches the GPU. The model's struct and save format, the parameter axis and its
 catalog row, the assistant's arguments, the filter recipe's keys, the
 compositor's `ColorGrade` with its neutral and its identity test, the packed
@@ -379,7 +379,7 @@ layer path and the canvas pass and requires the output pixels to change.
 | Panel, palette command, menu item, key binding, setting, inspector tab | one registry call |
 | Dialog | one registry call, plus one row in `app/dialog_primary.rs` saying what Enter does or why nothing does; the match is exhaustive, so a dialog with no row does not compile |
 | Animatable clip property | one `clip_param_catalog()` row, which is also its inspector row |
-| Colour adjustment slider | one `adjust_slider_rows!` row, plus its shader math |
+| Color adjustment slider | one `adjust_slider_rows!` row, plus its shader math |
 | Assistant tool | one `wire_tool_registry!` row, plus its group description, lowering arm and behavioral case; the row generates `WireCommand`, schema, decode, reverse name and group membership |
 | Lane kind | one `track_kind_specs()` row, which also selects what a bake of its clips renders to |
 | Plugin-owned animatable property | one effect parameter in the plugin's own descriptor |
@@ -441,7 +441,7 @@ rejects it with a diagnostic message. `LayerSource::kind()` returns one of the
 - A video frame drawn without layer effects, or an opaque solid fill, at full
   opacity and with a placed quad that contains every corner of its target draws
   with blending off in a render pass that neither clears nor loads the target.
-  Every built-in effect, transition, matte, mask stack, colour grade, LUT and
+  Every built-in effect, transition, matte, mask stack, color grade, LUT and
   blend-mode pass draws its offscreen target the same way through a
   `ReplacePipeline`, which is built only from compositor shaders that write
   every pixel of the target. A plugin pass draws blended over a cleared target.

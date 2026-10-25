@@ -251,7 +251,7 @@ pub(super) static CATALOG: LazyLock<Vec<ParamSpec>> = LazyLock::new(|| {
         // --- layer styles ---------------------------------------------------
         spec(
             "style-shadow-color",
-            "Shadow colour",
+            "Shadow color",
             "shadow",
             style(StyleParam::ShadowColor),
             Color,
@@ -290,7 +290,7 @@ pub(super) static CATALOG: LazyLock<Vec<ParamSpec>> = LazyLock::new(|| {
         ),
         spec(
             "style-glow-color",
-            "Glow colour",
+            "Glow color",
             "glow",
             style(StyleParam::GlowColor),
             Color,
@@ -329,7 +329,7 @@ pub(super) static CATALOG: LazyLock<Vec<ParamSpec>> = LazyLock::new(|| {
         ),
         spec(
             "style-outline-color",
-            "Outline colour",
+            "Outline color",
             "outline",
             style(StyleParam::OutlineColor),
             Color,
@@ -355,7 +355,7 @@ pub(super) static CATALOG: LazyLock<Vec<ParamSpec>> = LazyLock::new(|| {
         ),
         spec(
             "style-background-color",
-            "Background colour",
+            "Background color",
             "background",
             style(StyleParam::BackgroundColor),
             Color,
@@ -408,7 +408,7 @@ pub(super) static CATALOG: LazyLock<Vec<ParamSpec>> = LazyLock::new(|| {
         ),
         spec(
             "text-fill",
-            "Text colour",
+            "Text color",
             "text",
             text(TextParam::Fill),
             Color,
@@ -463,7 +463,7 @@ pub(super) static CATALOG: LazyLock<Vec<ParamSpec>> = LazyLock::new(|| {
         ),
         spec(
             "text-stroke-color",
-            "Text stroke colour",
+            "Text stroke color",
             "text",
             text(TextParam::StrokeColor),
             Color,
@@ -502,7 +502,7 @@ pub(super) static CATALOG: LazyLock<Vec<ParamSpec>> = LazyLock::new(|| {
         ),
         spec(
             "text-shadow-color",
-            "Text shadow colour",
+            "Text shadow color",
             "text",
             text(TextParam::ShadowColor),
             Color,
@@ -515,7 +515,7 @@ pub(super) static CATALOG: LazyLock<Vec<ParamSpec>> = LazyLock::new(|| {
         ),
         spec(
             "text-background-color",
-            "Text card colour",
+            "Text card color",
             "text",
             text(TextParam::BackgroundColor),
             Color,
@@ -620,7 +620,7 @@ pub(super) static CATALOG: LazyLock<Vec<ParamSpec>> = LazyLock::new(|| {
         ),
         spec(
             "shape-stroke-color",
-            "Shape stroke colour",
+            "Shape stroke color",
             "shape",
             shape(ShapeParam::StrokeColor),
             Color,

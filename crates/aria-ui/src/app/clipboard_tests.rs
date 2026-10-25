@@ -59,7 +59,7 @@ fn packed() -> (AppState, ClipId, ClipId) {
     let (_, end) = span(&state, first);
     state
         .drop_media_on_timeline(media, Some(track), end)
-        .expect("place the neighbour");
+        .expect("place the neighbor");
     let second = clips(&state)
         .into_iter()
         .map(|(id, _, _)| id)
@@ -105,7 +105,7 @@ fn paste_insert_opens_a_hole_instead_of_overwriting() {
     assert_eq!(
         span(&state, second).0,
         second_start + duration,
-        "the neighbour rippled right by the copy's length"
+        "the neighbor rippled right by the copy's length"
     );
     assert_eq!(span(&state, first), (start, end), "the source did not move");
     let pasted = clips(&state)

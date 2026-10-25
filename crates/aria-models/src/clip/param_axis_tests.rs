@@ -339,7 +339,7 @@ fn no_color_or_rect_parameter_accepts_an_easing_preset() {
             }
             assert!(
                 !param.supports_easing_preset(),
-                "{param:?} is a colour or a rect and advertises an easing preset"
+                "{param:?} is a color or a rect and advertises an easing preset"
             );
             checked += 1;
         }
@@ -350,11 +350,11 @@ fn no_color_or_rect_parameter_accepts_an_easing_preset() {
         }
         assert!(
             !param.supports_easing_preset(),
-            "{param:?} is a colour or a rect and advertises an easing preset"
+            "{param:?} is a color or a rect and advertises an easing preset"
         );
         checked += 1;
     }
-    assert!(checked > 0, "no colour or rect parameter is declared");
+    assert!(checked > 0, "no color or rect parameter is declared");
 }
 
 /// The accepted side has to be real. A row that advertises the preset and then

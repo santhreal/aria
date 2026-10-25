@@ -684,7 +684,7 @@ mod tests {
         }
         assert!(
             moved,
-            "the zoom never travelled, so the anchor was never tested"
+            "the zoom never traveled, so the anchor was never tested"
         );
     }
 
@@ -730,7 +730,7 @@ mod tests {
                         assert!(
                             (*smaller as f32) * px_per_tick < need,
                             "{display:?} at {rate:?}: {smaller} ticks would have fit but the \
-                             ruler labelled every {}",
+                             ruler labeled every {}",
                             scale.major
                         );
                     }

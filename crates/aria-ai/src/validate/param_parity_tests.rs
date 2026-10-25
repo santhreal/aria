@@ -41,7 +41,7 @@ fn any_clip() -> Clip {
 /// must answer to. Going through serde rather than a hand-written string keeps
 /// the two sides bound to one spelling.
 fn wire_name<T: serde::Serialize>(variant: &T) -> String {
-    serde_json::to_string(variant).expect("a unit enum variant serialises")
+    serde_json::to_string(variant).expect("a unit enum variant serializes")
 }
 
 #[test]

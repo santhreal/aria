@@ -29,7 +29,7 @@ fn renders_a_pool_video_with_an_empty_timeline() {
         .media_frame_fit(media, 0, 160, 90)
         .expect("source frame");
 
-    assert!(frame.width <= 160 && frame.height <= 90, "fit is honoured");
+    assert!(frame.width <= 160 && frame.height <= 90, "fit is honored");
     assert_eq!(
         frame.pixels.len(),
         usize::try_from(frame.width * frame.height * 4).unwrap()

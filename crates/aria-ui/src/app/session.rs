@@ -85,6 +85,17 @@ impl AppState {
     }
 
     pub fn new_project(&mut self) -> Result<(), EngineError> {
+        self.empty_session()?;
+        self.enter_editor();
+        self.sync_from_engine();
+        Ok(())
+    }
+
+    /// Replace the session with an empty, untitled one, and drop what was keyed
+    /// to the old one: its path, peaks, selection and recovery copy. A new
+    /// project is a new conversation: carrying the last one over would have the
+    /// model answering about a project that is no longer open.
+    pub(super) fn empty_session(&mut self) -> Result<(), EngineError> {
         self.host.replace_session(
             &aria_plugin::Origin::Editor,
             aria_engine::Engine::new_session,
@@ -93,11 +104,7 @@ impl AppState {
         self.waveforms.clear();
         self.clear_recovery();
         self.selection.clear();
-        // A new project is a new conversation: carrying the last one over would
-        // have the model answering about a project that is no longer open.
         self.load_conversation();
-        self.enter_editor();
-        self.sync_from_engine();
         Ok(())
     }
 

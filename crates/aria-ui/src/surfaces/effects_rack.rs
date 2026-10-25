@@ -112,7 +112,7 @@ impl Gesture {
             Self::TogglePresetAudioEffects => "audio inserts toggled in the preset draft",
             Self::TogglePresetProperty(_) => "a property toggled in the preset draft",
             Self::DeletePreset(_) => "a saved preset deleted",
-            Self::Color { .. } => "an effect's colour slot set",
+            Self::Color { .. } => "an effect's color slot set",
             Self::NudgeScalar { .. } => "an effect's number stepped",
             Self::NudgeVec2 { .. } => "one axis of an effect's vector stepped",
             Self::EditSlot { .. } => "an effect's parameter slot updated",

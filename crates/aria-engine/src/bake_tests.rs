@@ -48,7 +48,7 @@ pub(super) fn fixture() -> (Project, ClipId, ClipId) {
         .expect("target");
     let neighbour = project
         .add_clip(lower, media, tr(100, 60), rt(148))
-        .expect("neighbour");
+        .expect("neighbor");
     project
         .add_clip(upper, media, tr(0, 40), rt(60))
         .expect("above");
@@ -113,7 +113,7 @@ fn a_lane_bar_above_the_clip_is_not_folded_in() {
     assert_eq!(
         survivors(&pass),
         vec![(0, 100)],
-        "a lane bar's grade belongs to the programme, not to one clip"
+        "a lane bar's grade belongs to the program, not to one clip"
     );
 }
 

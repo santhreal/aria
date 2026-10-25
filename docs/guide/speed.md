@@ -23,7 +23,7 @@ nothing to retime.
 - **Clear ramp** returns the clip to flat speed and its original length.
 
 A ramp changes the clip's timeline length: the engine re-derives it from the
-curve. A ramp that would push the clip into its neighbour is refused.
+curve. A ramp that would push the clip into its neighbor is refused.
 
 **Clip > Speed/Duration…** sets constant speed (`5%` to `10000%`), duration,
 **Reverse Speed**, and **Maintain Audio Pitch** across the selected clips as one

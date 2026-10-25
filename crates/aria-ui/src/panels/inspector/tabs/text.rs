@@ -245,7 +245,7 @@ pub fn character_controls(
         section_label(theme, "Size and spacing").into_any_element(),
     ];
     out.extend(param_rows(theme, "text", state, cx));
-    out.push(section_label(theme, "Colour").into_any_element());
+    out.push(section_label(theme, "Color").into_any_element());
     out.extend(color_rows(theme, "text", state, cx));
     out
 }

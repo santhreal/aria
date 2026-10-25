@@ -42,7 +42,7 @@ are stored with the sequence: reopening the project gives back the layout you
 left.
 
 The chevron collapses a lane to a 20-pixel strip: each clip is drawn as a flat
-bar in its own colour, so the cut pattern stays readable while the lane takes
+bar in its own color, so the cut pattern stays readable while the lane takes
 almost no room. The height is kept, so expanding restores the lane you sized.
 
 **Shift Selection…**, in a clip's context menu, or **Shift Selection by Frames…** (`pal-shift-selection`) in the command palette, prompts for a
@@ -67,7 +67,7 @@ and a line across the bar.
 
 The name strip holds the clip's name, its speed when it is not 100 % (`120%`,
 `-100%` for a reversed clip; a speed ramp prints none), and its badges. The fx
-badge is grey on a clip with no changes, purple when a clip property such as
+badge is gray on a clip with no changes, purple when a clip property such as
 Opacity, Position, Crop, Time Remapping, Volume, or Pan differs from a new
 clip, yellow when an effect, a grade, a mask, or a key is applied, and yellow
 with a purple underline when both hold. Linked clips whose sources have drifted
@@ -75,7 +75,7 @@ apart print the offset in frames, such as `+3`, on both bars.
 
 The content strip draws thumbnails on a video clip, as the timeline display
 settings choose, and a rectified waveform on an audio clip. A generated clip
-draws its name and, for a colour generator, a swatch of its colour. A clip whose
+draws its name and, for a color generator, a swatch of its color. A clip whose
 media file is missing fills red and reads **Media Offline** with the file name.
 A disabled clip is drawn at 40 % opacity.
 
@@ -92,7 +92,7 @@ out as it moves, Escape puts it back, and the drag is one undo step. A drag
 between two keyframes moves both; a drag on a keyframe dot moves that keyframe.
 Ctrl+click on the line adds a keyframe at that time. On Medium and taller lanes
 the bar draws a dot at each keyframe of the property. A vector property draws
-its first axis, and a colour or a rectangle draws a level line; neither is
+its first axis, and a color or a rectangle draws a level line; neither is
 dragged.
 
 ### Routing
@@ -169,7 +169,7 @@ timeline is already open are each refused with what is missing.
 Nest a sequence of clips into a single compound clip, edit inside the nest, and return to the parent sequence:
 
 1. Click [`add-track`](../reference/controls.md#timeline) at the bottom-left of the timeline (or choose **Sequence > Add Tracks > Video Track**) and arrange the clips to group across `V1` and `V2`. The timeline shows the layered clips in the composite.
-2. Drag a marquee across the clips to group (or press <kbd>Ctrl+A</kbd> (`key-select-all`) / choose **Edit > Select All**), then choose **Clip > Nest…** or run **Nest Selection into a Sequence** (`pal-nest-selection`) in the Command Palette. Aria moves the selected clips into a new sequence and replaces them on the parent timeline with a single Tan-coloured nested sequence clip.
+2. Drag a marquee across the clips to group (or press <kbd>Ctrl+A</kbd> (`key-select-all`) / choose **Edit > Select All**), then choose **Clip > Nest…** or run **Nest Selection into a Sequence** (`pal-nest-selection`) in the Command Palette. Aria moves the selected clips into a new sequence and replaces them on the parent timeline with a single Tan-colored nested sequence clip.
 3. Select the nested sequence clip and choose **Sequence > Nested Sequence > Open Nested Sequence** (or run **Open the Selected Nested Sequence** (`pal-nest-open`)). The timeline switches to the nested sequence's own tracks and ruler, and the status bar shows the nest breadcrumb [`status-nest-breadcrumb`](../reference/controls.md#window--dock-chrome).
 4. Trim or reorder the clips inside the nested sequence, then click [`status-nest-breadcrumb`](../reference/controls.md#window--dock-chrome) in the status bar or choose **Sequence > Nested Sequence > Leave Nested Sequence** (or press <kbd>Ctrl+W</kbd> (`key-pane-close`) with the Timeline focused). The parent timeline returns to view and the Viewer composites the updated nested sequence as one clip.
 

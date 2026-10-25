@@ -86,7 +86,7 @@ Configured in **Effect Controls > Shape** (`crates/aria-models/src/clip/param_ca
 | `shape-inner-ratio` | Star inner ratio | `scalar` | ratio | `0.0` | `1.0` | `0.5` | `yes` |
 | `shape-fill` | Shape fill | `color` | RGBA (`0..=255`) | `0` | `255` | `[255, 255, 255, 255]` | `yes` |
 | `shape-stroke-width` | Shape stroke width | `scalar` | reference px | `0.0` | `512.0` | `4.0` | `yes` |
-| `shape-stroke-color` | Shape stroke colour | `color` | RGBA (`0..=255`) | `0` | `255` | `[0, 0, 0, 255]` | `yes` |
+| `shape-stroke-color` | Shape stroke color | `color` | RGBA (`0..=255`) | `0` | `255` | `[0, 0, 0, 255]` | `yes` |
 
 ## GPU effect generators
 

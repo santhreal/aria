@@ -84,7 +84,7 @@ A callback that fails returns [`ARIA_STATUS_ERR`](#status-codes) with the messag
 | --- | --- | --- |
 | `ARIA_PARAM_SCALAR` | `0u` | [`AriaParamValue.kind`](#ariaparamvalue): a scalar in `x`. |
 | `ARIA_PARAM_VEC2` | `1u` | [`AriaParamValue.kind`](#ariaparamvalue): 2-d vector in `x` and `y`. |
-| `ARIA_PARAM_COLOR` | `2u` | [`AriaParamValue.kind`](#ariaparamvalue): RGBA8 colour in `r`, `g`, `b` and `a`. |
+| `ARIA_PARAM_COLOR` | `2u` | [`AriaParamValue.kind`](#ariaparamvalue): RGBA8 color in `r`, `g`, `b` and `a`. |
 | `ARIA_PARAM_RECT` | `3u` | [`AriaParamValue.kind`](#ariaparamvalue): axis-aligned rect, with its left edge in `x`, its top edge in `y`, its width in `z` and its height in `w`. |
 | `ARIA_PARAM_VEC3` | `4u` | [`AriaParamValue.kind`](#ariaparamvalue): 3-d vector in `x`, `y` and `z`. |
 
@@ -314,7 +314,7 @@ The frame `scope_measure` reads and the image it draws.
 
 The frame and parameters `cpu_effect_process` reads and the output frame it writes.
 
-`input` and `output` each hold `width * height` premultiplied RGBA16F pixels in `pixels_len` 16-bit channel elements (`width * height * 4`), each an IEEE-754 binary16 value, top row first, with no row padding. `params` holds `params_len` flattened 32-bit float values in catalog order (1 per scalar, 2 per vec2, 4 per colour with each channel from 0 to 1).
+`input` and `output` each hold `width * height` premultiplied RGBA16F pixels in `pixels_len` 16-bit channel elements (`width * height * 4`), each an IEEE-754 binary16 value, top row first, with no row padding. `params` holds `params_len` flattened 32-bit float values in catalog order (1 per scalar, 2 per vec2, 4 per color with each channel from 0 to 1).
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -339,10 +339,10 @@ One parameter value passed to or returned from `driver_evaluate`. `kind` selects
 | `y` | `float` | Second component of a vector or rect. |
 | `z` | `float` | Third component of a 3-d vector, or the width of a rect. |
 | `w` | `float` | Height of a rect. |
-| `r` | `uint8_t` | Red channel of a colour. |
-| `g` | `uint8_t` | Green channel of a colour. |
-| `b` | `uint8_t` | Blue channel of a colour. |
-| `a` | `uint8_t` | Alpha channel of a colour. |
+| `r` | `uint8_t` | Red channel of a color. |
+| `g` | `uint8_t` | Green channel of a color. |
+| `b` | `uint8_t` | Blue channel of a color. |
+| `a` | `uint8_t` | Alpha channel of a color. |
 
 ### `AriaDriverEvalCall`
 

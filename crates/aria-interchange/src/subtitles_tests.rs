@@ -484,7 +484,7 @@ fn only_shown_text_tracks_are_written_and_what_a_cue_cannot_hold_is_reported() {
     assert_eq!(
         skipped,
         [
-            "1 text clip: font, colour, size and position are not written",
+            "1 text clip: font, color, size and position are not written",
             "Hidden: a hidden text track, not written",
             "Shown at 00:00:01.000: a text clip with no text",
         ]

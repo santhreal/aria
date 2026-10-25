@@ -398,7 +398,7 @@ pub(crate) fn blend_right_junction(state: &mut AppState, first: ClipId) {
         .id;
     state
         .drop_media_on_timeline(MediaId::from_raw(media), Some(track), end)
-        .expect("place a neighbour to blend into");
+        .expect("place a neighbor to blend into");
     state.sync_from_engine();
     let blend = crate::app::clip_transitions::transition_choices()
         .first()

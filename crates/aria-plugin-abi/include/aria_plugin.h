@@ -141,7 +141,7 @@ extern "C" {
 /// `AriaParamValue.kind`: 2-d vector in `x` and `y`.
 #define ARIA_PARAM_VEC2 1u
 
-/// `AriaParamValue.kind`: RGBA8 colour in `r`, `g`, `b` and `a`.
+/// `AriaParamValue.kind`: RGBA8 color in `r`, `g`, `b` and `a`.
 #define ARIA_PARAM_COLOR 2u
 
 /// `AriaParamValue.kind`: axis-aligned rect, with its left edge in `x`, its top
@@ -464,7 +464,7 @@ typedef struct AriaScopeCall {
 /// in `pixels_len` 16-bit channel elements (`width * height * 4`), each an IEEE-754
 /// binary16 value, top row first, with no row padding. `params` holds `params_len`
 /// flattened 32-bit float values in catalog order (1 per scalar, 2 per vec2, 4 per
-/// colour with each channel from 0 to 1).
+/// color with each channel from 0 to 1).
 typedef struct AriaCpuEffectCall {
     /// The source frame, or a transparent frame for a generator.
     const uint16_t *input;
@@ -514,16 +514,16 @@ typedef struct AriaParamValue {
     /// Height of a rect.
     float w;
 
-    /// Red channel of a colour.
+    /// Red channel of a color.
     uint8_t r;
 
-    /// Green channel of a colour.
+    /// Green channel of a color.
     uint8_t g;
 
-    /// Blue channel of a colour.
+    /// Blue channel of a color.
     uint8_t b;
 
-    /// Alpha channel of a colour.
+    /// Alpha channel of a color.
     uint8_t a;
 } AriaParamValue;
 

@@ -21,7 +21,7 @@ use crate::samples::{every_edit_command, every_project_command};
 /// The wire object a command serialises to, which is what a shell and the agent
 /// actually send. Used as the independent view of a command's payload.
 fn wire(command: &impl serde::Serialize) -> BTreeMap<String, Value> {
-    match serde_json::to_value(command).expect("a command serialises") {
+    match serde_json::to_value(command).expect("a command serializes") {
         Value::Object(map) => map.into_iter().collect(),
         other => panic!("a command is a JSON object, got {other}"),
     }
@@ -205,7 +205,7 @@ fn raw(ids: &[impl serde::Serialize]) -> Vec<u64> {
     ids.iter()
         .map(|id| {
             serde_json::to_value(id)
-                .expect("an id serialises")
+                .expect("an id serializes")
                 .as_u64()
                 .expect("an id is a whole number")
         })

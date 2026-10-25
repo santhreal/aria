@@ -219,7 +219,7 @@ pub fn typography(theme: &Theme) -> AnyElement {
             ))
             .child(group(
                 theme,
-                "text colour tokens",
+                "text color tokens",
                 div()
                     .flex()
                     .flex_col()
@@ -308,7 +308,7 @@ pub fn theme_tokens(theme: &Theme) -> AnyElement {
     section(
         theme,
         "Theme",
-        "every colour token, in the appearance selected in the header",
+        "every color token, in the appearance selected in the header",
         div()
             .flex()
             .flex_col()

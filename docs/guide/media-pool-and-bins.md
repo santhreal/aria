@@ -47,7 +47,7 @@ views, the order, **New bin**, and **New multicam**. Hover an icon for its
 name.
 
 The search box matches an item's name, its path, its kind, its frame size, and
-its label colour, so a search for `1920`, `wav`, or `teal` finds media whose name
+its label color, so a search for `1920`, `wav`, or `teal` finds media whose name
 includes none of them. The order button reads the current order; click it for
 **Name**, **Duration**, **Resolution**, or **Date added**. Duration and
 resolution sort largest first, and date added sorts newest first. An item from a
@@ -166,7 +166,7 @@ are the clip's. Marking In or Out in that tab trims the clip: a new In trims the
 head, a new Out the tail, and every frame that stays keeps its place on the
 timeline. Clearing a mark extends the clip to that end of the take. A reversed
 clip trims the opposite end, a retimed clip trims at its speed, and its linked
-sound trims with it. A trim that would overlap a neighbour, start before the
+sound trims with it. A trim that would overlap a neighbor, start before the
 sequence, or put Out before In is refused and changes nothing. Clips with a speed
 ramp and freeze frames trim on the timeline only. Undo puts the clip and the
 tab's marks back together. Deleting the clip leaves a plain Source tab with its

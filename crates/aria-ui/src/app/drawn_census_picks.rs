@@ -264,8 +264,8 @@ fn every_catalog_the_blocks_loop_over_has_members() {
         "the mask catalog is empty, so the mask block draws no shapes"
     );
     for (label, count) in [
-        ("key colours", KEY_COLORS.len()),
-        ("style colours", STYLE_COLORS.len()),
+        ("key colors", KEY_COLORS.len()),
+        ("style colors", STYLE_COLORS.len()),
         ("layer styles", crate::app::clip_styles::STYLES.len()),
         ("matte sources", MatteSource::ALL.len()),
         ("blend modes", BlendMode::ALL.len()),

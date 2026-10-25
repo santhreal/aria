@@ -23,7 +23,7 @@ does.
 
 **Window > Jobs** docks the Jobs panel, which lists background work: exports,
 cloud downloads, transcription, and analysis. **Jobs** (`pal-jobs`) in the command palette
-opens the same list as a dialog. While work runs, the centre of the status bar
+opens the same list as a dialog. While work runs, the center of the status bar
 shows the first running job, its progress, and how many others are running;
 click it to bring the Jobs panel forward.
 

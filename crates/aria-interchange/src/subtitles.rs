@@ -223,7 +223,7 @@ pub fn cues(project: &Project) -> Cues {
     cues.sort_by_key(|cue| (cue.start_ms, cue.end_ms));
     if styled > 0 {
         skipped.push(format!(
-            "{}: font, colour, size and position are not written",
+            "{}: font, color, size and position are not written",
             counted(styled, "text clip", "text clips")
         ));
     }

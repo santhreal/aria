@@ -257,7 +257,7 @@ static WARM_UP: Once = Once::new();
 /// first call in a process starts the warm-up.
 pub fn warm_up() {
     if let Err(err) = crate::gst::ensure_init() {
-        tracing::warn!(%err, "GStreamer did not initialise; the decode device warm-up is skipped");
+        tracing::warn!(%err, "GStreamer did not initialize; the decode device warm-up is skipped");
         return;
     }
     WARM_UP.start("aria-decode-warm-up", warm_devices);
@@ -317,7 +317,7 @@ const CORE_DECODE_FACTORIES: &[&str] = &[
 /// boot loads neither the plugin nor, through autoplugging, its decoders.
 fn warm_devices() {
     if let Err(err) = crate::gst::ensure_init() {
-        tracing::warn!(%err, "GStreamer did not initialise; the decode device warm-up is skipped");
+        tracing::warn!(%err, "GStreamer did not initialize; the decode device warm-up is skipped");
         return;
     }
     let records = crate::gst_unloadable::user_records();
@@ -409,7 +409,7 @@ mod tests {
     /// not prove a hardware decoder reads the context; that needs the device.
     #[test]
     fn a_posted_context_reaches_the_next_pipeline() {
-        crate::gst::ensure_init().expect("GStreamer initialises");
+        crate::gst::ensure_init().expect("GStreamer initializes");
         let ty = "aria.test.shared-context";
 
         let first = gst::Pipeline::new();
@@ -499,7 +499,7 @@ mod tests {
         use std::sync::Arc;
         use std::sync::atomic::{AtomicUsize, Ordering};
 
-        crate::gst::ensure_init().expect("GStreamer initialises");
+        crate::gst::ensure_init().expect("GStreamer initializes");
         let criticals = Arc::new(AtomicUsize::new(0));
         let count = Arc::clone(&criticals);
         let handler = gst::glib::log_set_handler(
@@ -522,7 +522,7 @@ mod tests {
     /// the contexts set on it as a device element holds the one it creates.
     #[test]
     fn a_lone_element_opens_on_the_store_and_lends_what_it_holds() {
-        crate::gst::ensure_init().expect("GStreamer initialises");
+        crate::gst::ensure_init().expect("GStreamer initializes");
         let shared = gst::Context::new("aria.test.lone-shared", true);
         let own = gst::Context::new("aria.test.lone-own", true);
         let store = Mutex::new(vec![shared]);
@@ -564,7 +564,7 @@ mod tests {
     /// with no NVENC element that loads and opens.
     #[test]
     fn a_lone_element_opens_on_the_kept_context_and_lends_its_own() {
-        crate::gst::ensure_init().expect("GStreamer initialises");
+        crate::gst::ensure_init().expect("GStreamer initializes");
         let Some(name) = ["nvh264enc", "nvh265enc"].into_iter().find(|name| {
             gst::ElementFactory::find(name).is_some_and(|factory| factory.load().is_ok())
         }) else {

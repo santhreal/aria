@@ -307,7 +307,7 @@ mod raster_coverage_tests {
             assert_eq!(
                 img.pixel(img.width / 2, img.height / 2),
                 OPAQUE,
-                "{name} left its centre unfilled"
+                "{name} left its center unfilled"
             );
         }
     }
@@ -352,7 +352,7 @@ mod raster_coverage_tests {
             assert_eq!(
                 img.pixel(img.width / 2, img.height / 2)[3],
                 0,
-                "{name} filled its centre with no fill colour set"
+                "{name} filled its center with no fill color set"
             );
             assert!(inked(&img) > 0, "{name} drew no stroke");
         }

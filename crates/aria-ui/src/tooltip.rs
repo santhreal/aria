@@ -81,7 +81,7 @@ pub const CONTROL_TIPS: &[ControlTip] = &[
     ControlTip::tool(EditorTool::Hand).key("key-tool-hand"),
     ControlTip::tool(EditorTool::Zoom).key("key-tool-zoom"),
     ControlTip::tool(EditorTool::Slip).key("key-tool-slip").detail("Move the take inside the clip"),
-    ControlTip::tool(EditorTool::Slide).key("key-tool-slide").detail("Move the clip and trim its neighbours"),
+    ControlTip::tool(EditorTool::Slide).key("key-tool-slide").detail("Move the clip and trim its neighbors"),
     ControlTip::tool(EditorTool::Roll).key("key-tool-roll").detail("Move the cut"),
     ControlTip::tool(EditorTool::Rate).key("key-tool-rate").detail("Retime without trimming"),
     ControlTip::tool(EditorTool::Ripple).key("key-tool-ripple").detail("Trim and close the gap"),
@@ -156,7 +156,7 @@ pub const CONTROL_TIPS: &[ControlTip] = &[
     ControlTip::named("sync-multicam-group", "Sync these angles from their audio"),
     // Inspector resets.
     ControlTip::named("inspector-reset", "Reset these values"),
-    ControlTip::named("inspector-wheel-reset", "Reset this colour wheel"),
+    ControlTip::named("inspector-wheel-reset", "Reset this color wheel"),
     // Driver source under a driven property.
     ControlTip::named("inspector-driver-whip", "Driver pick whip").detail("Click a property to read it in this driver"),
     // Parent row in the Transform tab.
@@ -183,8 +183,8 @@ pub const CONTROL_TIPS: &[ControlTip] = &[
     ControlTip::named("kf-at", "Add or remove a keyframe at the playhead"),
     ControlTip::named("kf-next", "Go to the next keyframe"),
     // The three window buttons. Each is a glyph with no word beside it.
-    ControlTip::named("caption-min", "Minimise the window"),
-    ControlTip::named("caption-max", "Maximise the window"),
+    ControlTip::named("caption-min", "Minimize the window"),
+    ControlTip::named("caption-max", "Maximize the window"),
     ControlTip::named("caption-close", "Close the window"),
     // A dock frame's tab row.
     ControlTip::named("dock-tab-more", "More panels"),

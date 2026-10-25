@@ -251,7 +251,7 @@ pub(super) fn parse_color(text: &str) -> Result<Hsla, String> {
         .and_then(|rest| rest.strip_suffix(')'))
     else {
         return Err(format!(
-            "`{text}` is not a colour: write #rrggbb, #rrggbbaa, or oklch(l c h)"
+            "`{text}` is not a color: write #rrggbb, #rrggbbaa, or oklch(l c h)"
         ));
     };
     let (channels, alpha) = match body.split_once('/') {

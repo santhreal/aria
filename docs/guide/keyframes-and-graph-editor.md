@@ -70,7 +70,7 @@ one undo step:
   have one when the first clip has one.
 - A chip or a switch reaches the clips of the first clip's kind that read what
   the first clip reads there.
-- The colour wheels' drag and reset reach every clip that grades.
+- The color wheels' drag and reset reach every clip that grades.
 - An effect added with **Add**, or dragged onto the Effects tab, lands on every
   clip on the same kind of lane; a shorter chain takes it at its end. A
   parameter edit, **fx**, a move, the reset button, and the effect menu's
@@ -125,7 +125,7 @@ Shift+F3 opens the graph editor under the timeline. It draws the curves of the
 properties chosen by clicking a row's name (Shift+click adds a property).
 
 - **Value** plots the property's value; **Speed** plots its rate of change.
-- Each keyframe has incoming and outgoing influence handles labelled with their
+- Each keyframe has incoming and outgoing influence handles labeled with their
   influence. Dragging a handle sets the ease speed and influence of that side.
 - On Position, the Value graph also draws the spatial tangent handles that bend
   the motion path.
@@ -162,8 +162,8 @@ clip's duration; clearing Volume keeps the fades.
 Animate a title's position with keyframes and an easing curve:
 
 1. Select a title clip on `T1`, move the playhead to the first frame of the clip, and press <kbd>Alt+P</kbd> (`key-reveal-position`) to reveal the **Position** row under the clip on the timeline (or open **Window > Effect Controls**). The **Position** property row opens beneath the track header.
-2. Click the stopwatch [`prop-watch`](../reference/controls.md#keyframes) (or click [`kf-toggle`](../reference/controls.md#keyframes) / choose **Animation > Add Keyframe** / run **Keyframe Position at Playhead** (`pal-key-position`)) and drag the title to its starting off-centre position in the Viewer. A diamond keyframe marker appears on the **Position** row at the clip's start frame.
-3. Move the playhead 24 frames forward, drag the title to the centre of the frame in the Viewer, and use [`kf-prev`](../reference/controls.md#keyframes) and [`kf-next`](../reference/controls.md#keyframes) (or press <kbd>Shift+Alt+Left</kbd> (`key-keyframe-prev`) and <kbd>Shift+Alt+Right</kbd> (`key-keyframe-next`)) to step between the two keyframes. Aria writes a second keyframe at the playhead and draws the motion path between the two positions.
+2. Click the stopwatch [`prop-watch`](../reference/controls.md#keyframes) (or click [`kf-toggle`](../reference/controls.md#keyframes) / choose **Animation > Add Keyframe** / run **Keyframe Position at Playhead** (`pal-key-position`)) and drag the title to its starting off-center position in the Viewer. A diamond keyframe marker appears on the **Position** row at the clip's start frame.
+3. Move the playhead 24 frames forward, drag the title to the center of the frame in the Viewer, and use [`kf-prev`](../reference/controls.md#keyframes) and [`kf-next`](../reference/controls.md#keyframes) (or press <kbd>Shift+Alt+Left</kbd> (`key-keyframe-prev`) and <kbd>Shift+Alt+Right</kbd> (`key-keyframe-next`)) to step between the two keyframes. Aria writes a second keyframe at the playhead and draws the motion path between the two positions.
 4. Select the second keyframe and press <kbd>F9</kbd> (`key-easy-ease`) or choose **Animation > Keyframe Assistant > Easy Ease** (or click [`graph-btn-easy-ease`](../reference/controls.md#timeline) in the timeline header). The keyframe icon changes from a linear diamond to an Easy Ease hourglass.
 5. Press <kbd>Shift+F3</kbd> (`key-graph-editor`) or click [`timeline-graph`](../reference/controls.md#timeline) (or choose **Animation > Graph Editor**) to open the graph editor under the timeline, click the **Position** row label, and drag the incoming Bézier influence handle (or choose **Animation > Keyframe Velocity…** and click [`keyframe-velocity-apply`](../reference/controls.md#modal-dialogs)). Playing the clip in the Viewer moves the title smoothly along the eased curve into its resting position.
 

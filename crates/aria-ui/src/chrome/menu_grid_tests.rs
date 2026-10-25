@@ -226,7 +226,7 @@ fn a_plugin_row_draws_its_icon_in_the_lead_column(cx: &mut TestAppContext) {
                 let centre = column + px(Theme::ICON_SIZE / 2.0);
                 match run_in(&row, "✓") {
                     Some(at) if (at.center().x - centre).abs() > px(EPS) => faults.push(format!(
-                        "{menu:?}: `{caption}`'s check is centred at {:?}, the column at {centre:?}",
+                        "{menu:?}: `{caption}`'s check is centered at {:?}, the column at {centre:?}",
                         at.center().x
                     )),
                     Some(_) => {}

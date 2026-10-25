@@ -415,7 +415,7 @@ fn the_equalizer_is_transparent_at_its_defaults_and_shapes_each_band() {
         ],
     );
     let boosted = tone_gain("parametric_eq", &bell, 1000.0);
-    assert!((boosted - 12.0).abs() < 0.1, "bell centre: {boosted} dB");
+    assert!((boosted - 12.0).abs() < 0.1, "bell center: {boosted} dB");
     let far = tone_gain("parametric_eq", &bell, 60.0);
     assert!(far.abs() < 0.5, "bell, five octaves away: {far} dB");
 

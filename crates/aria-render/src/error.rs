@@ -118,7 +118,7 @@ pub enum ExportFormatError {
         available: Vec<&'static str>,
     },
     /// The backend sets its own bitrate, so a target would be ignored.
-    #[error("{backend} sets its own bitrate; ask for one it honours or leave it unset")]
+    #[error("{backend} sets its own bitrate; ask for one it honors or leave it unset")]
     Bitrate { backend: &'static str },
     /// A size no encoder accepts.
     #[error("{}x{} is too small to encode; both sides must be at least {MIN_EXPORT_DIM}", asked.0, asked.1)]

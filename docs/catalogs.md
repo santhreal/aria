@@ -66,7 +66,7 @@ The keys are the inspector's grade sliders, in panel order:
 | key | range | effect |
 | --- | --- | --- |
 | `brightness` | -1 … 1 | overall lift of every channel |
-| `contrast` | -1 … 1 | spread of the tonal range around mid grey |
+| `contrast` | -1 … 1 | spread of the tonal range around mid gray |
 | `saturation` | -1 … 1 | -1 is monochrome |
 | `exposure` | -1 … 1 | stops, applied before the tone curve |
 | `temperature` | -1 … 1 | negative is cooler |
@@ -77,9 +77,9 @@ The keys are the inspector's grade sliders, in panel order:
 | `whites` | -1 … 1 | white point; +1 takes 0.75 to white |
 | `blacks` | -1 … 1 | black point; +1 lifts black to 0.2 |
 | `sharpness` | 0 … 1 | unsharp-mask strength |
-| `vignette` | 0 … 1 | radial darkening from the centre |
-| `vibrance` | -1 … 1 | saturation, weighted toward muted colours |
-| `faded_film` | 0 … 1 | lifts black toward grey, white stays |
+| `vignette` | 0 … 1 | radial darkening from the center |
+| `vibrance` | -1 … 1 | saturation, weighted toward muted colors |
+| `faded_film` | 0 … 1 | lifts black toward gray, white stays |
 | `lift_r` | -1 … 1 | shadow offset, red |
 | `lift_g` | -1 … 1 | shadow offset, green |
 | `lift_b` | -1 … 1 | shadow offset, blue |
@@ -122,11 +122,11 @@ The keys are the inspector's grade sliders, in panel order:
 | `hue_luma_cyan` | -1 … 1 | luma of cyans |
 | `hue_luma_blue` | -1 … 1 | luma of blues |
 | `hue_luma_magenta` | -1 … 1 | luma of magentas |
-| `hsl_key_hue` | -1 … 1 | keyed hue centre; 0 is red, ±1 is cyan |
+| `hsl_key_hue` | -1 … 1 | keyed hue center; 0 is red, ±1 is cyan |
 | `hsl_key_width` | -1 … 1 | keyed hue half-width; 30° at 0 |
-| `hsl_hue` | -1 … 1 | hue of the keyed colours; ±1 is ±60° |
-| `hsl_saturation` | -1 … 1 | saturation of the keyed colours |
-| `hsl_luma` | -1 … 1 | luma of the keyed colours |
+| `hsl_hue` | -1 … 1 | hue of the keyed colors; ±1 is ±60° |
+| `hsl_saturation` | -1 … 1 | saturation of the keyed colors |
+| `hsl_luma` | -1 … 1 | luma of the keyed colors |
 
 The gamma and gain keys multiply, so `1` is no change and the value a preset
 states is the multiplier at full intensity. A `0`, or a key left out, is read
@@ -161,7 +161,7 @@ its ramp. A speed curve is validated the way one you draw in the editor is, so a
 file cannot introduce a ramp the editor would refuse.
 
 An animation id needs a sampler behind it. An entry the renderer has no
-implementation for is still listed, labelled `(no renderer)`, and applying it
+implementation for is still listed, labeled `(no renderer)`, and applying it
 animates nothing. An effect id with no pass behind it is skipped rather than
 dispatched, so it changes nothing.
 

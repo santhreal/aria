@@ -202,7 +202,7 @@ pub struct AriaScopeCall {
 /// in `pixels_len` 16-bit channel elements (`width * height * 4`), each an IEEE-754
 /// binary16 value, top row first, with no row padding. `params` holds `params_len`
 /// flattened 32-bit float values in catalog order (1 per scalar, 2 per vec2, 4 per
-/// colour with each channel from 0 to 1).
+/// color with each channel from 0 to 1).
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct AriaCpuEffectCall {
@@ -243,13 +243,13 @@ pub struct AriaParamValue {
     pub z: f32,
     /// Height of a rect.
     pub w: f32,
-    /// Red channel of a colour.
+    /// Red channel of a color.
     pub r: u8,
-    /// Green channel of a colour.
+    /// Green channel of a color.
     pub g: u8,
-    /// Blue channel of a colour.
+    /// Blue channel of a color.
     pub b: u8,
-    /// Alpha channel of a colour.
+    /// Alpha channel of a color.
     pub a: u8,
 }
 

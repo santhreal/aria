@@ -34,12 +34,12 @@ pub(super) const MEDIA_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-media-normalise",
-        label: "Normalise Selected Clip to Target",
+        label: "Normalize Selected Clip to Target",
         run: |state| state.normalise_selected_clip(),
     },
     CommandEntry {
         id: "pal-media-target",
-        label: "Cycle Normalise Target Level",
+        label: "Cycle Normalize Target Level",
         run: |state| state.cycle_normalise_target(),
     },
     CommandEntry {

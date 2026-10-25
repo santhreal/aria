@@ -88,7 +88,7 @@ fn rows(theme: &Theme, rows: Vec<InfoRow>) -> impl Iterator<Item = AnyElement> +
 /// until the frame on screen has been read there.
 fn color_row(theme: &Theme, color: Option<[u8; 4]>) -> AnyElement {
     let Some([r, g, b, a]) = color else {
-        return readout(theme, "Colour", "–").into_any_element();
+        return readout(theme, "Color", "–").into_any_element();
     };
     div()
         .flex()
@@ -101,7 +101,7 @@ fn color_row(theme: &Theme, color: Option<[u8; 4]>) -> AnyElement {
                 .items_center()
                 .justify_between()
                 .text_size(Theme::TEXT_UI)
-                .child(div().text_color(theme.text_muted).child("Colour"))
+                .child(div().text_color(theme.text_muted).child("Color"))
                 .child(
                     div()
                         .flex()

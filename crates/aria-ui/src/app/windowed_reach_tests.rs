@@ -153,7 +153,7 @@ fn every_detector_has_a_chord() {
         assert_eq!(
             binding.route,
             crate::keys::KeyRoute::Editor,
-            "{id} is not on the editor route, where a selection exists to analyse"
+            "{id} is not on the editor route, where a selection exists to analyze"
         );
         assert!(
             matches!(binding.run, crate::keys::KeyBody::Windowed(_)),

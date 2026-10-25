@@ -119,7 +119,7 @@ Declared in `crates/aria-models/src/look/adjust_rows.rs` (`ColorAdjustments::SLI
 | Catalog ID | Recipe key | Label | Kind | Min | Max | Default | Animates | Stage formula (`grade.wgsl`) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `adjust-brightness` | `brightness` | Brightness | `scalar` | `-1.0` | `1.0` | `0.0` | `yes` | Adds `brightness * 0.25` to RGB. |
-| `adjust-contrast` | `contrast` | Contrast | `scalar` | `-1.0` | `1.0` | `0.0` | `yes` | Scales around mid-grey: `(c - 0.5) * (1.0 + contrast) + 0.5`. |
+| `adjust-contrast` | `contrast` | Contrast | `scalar` | `-1.0` | `1.0` | `0.0` | `yes` | Scales around mid-gray: `(c - 0.5) * (1.0 + contrast) + 0.5`. |
 | `adjust-saturation` | `saturation` | Saturation | `scalar` | `-1.0` | `1.0` | `0.0` | `yes` | Mixes Rec.709 luma (`0.2126 R + 0.7152 G + 0.0722 B`) with `c` by `1.0 + saturation`. |
 | `adjust-exposure` | `exposure` | Exposure | `scalar` | `-1.0` | `1.0` | `0.0` | `yes` | Multiplies RGB by `2^(2.0 * exposure)` (`±2` stops across `-1..=1`). |
 | `adjust-temperature` | `temperature` | Temperature | `scalar` | `-1.0` | `1.0` | `0.0` | `yes` | Adds `temperature * 0.25` to red and subtracts `temperature * 0.25` from blue. |

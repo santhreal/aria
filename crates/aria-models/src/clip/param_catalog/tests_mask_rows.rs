@@ -173,7 +173,7 @@ fn every_mask_row_id_parses_back_to_its_property_and_nothing_else_does() {
         "mask-+1-feather",
         "mask--feather",
         "mask-1-",
-        "mask-1-colour",
+        "mask-1-color",
         "mask-1-feather-",
         "mask-4294967296-feather",
         "mask-feather",

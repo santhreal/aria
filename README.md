@@ -17,9 +17,9 @@ project format that hasn't settled.
 | --- | --- |
 | ![Home](assets/screenshots/launch.png) | ![Editor](assets/screenshots/editor.png) |
 
-The chrome is neutral grey with one accent: a blue playhead and selection, an
+The chrome is neutral gray with one accent: a blue playhead and selection, an
 amber snap guide, a pink busy spinner. A clip bar is filled with its label
-colour. UI text is Inter.
+color. UI text is Inter.
 
 ## What works today
 
@@ -27,7 +27,7 @@ colour. UI text is Inter.
 - Cut, trim, split, move, duplicate, ripple-delete, multi-select, markers, and
   a media bin with folders.
 - Keyframes on every animatable property, with an easing curve per key.
-- Transform, colour grade, LUTs, masks, chroma key, track mattes, layer styles,
+- Transform, color grade, LUTs, masks, chroma key, track mattes, layer styles,
   adjustment layers, GPU effects, and transitions.
 - Titles and shapes, with per-field text styling.
 - Retiming: constant speed, reverse, and speed ramps, with the pitch either

@@ -225,7 +225,7 @@ mod tests {
         assert_eq!(page.target(500.0, 0.0, 0.0), None, "no viewport");
 
         let smooth = Follow::Smooth;
-        assert_eq!(smooth.target(500.0, 0.0, 1000.0), None, "already centred");
+        assert_eq!(smooth.target(500.0, 0.0, 1000.0), None, "already centered");
         assert_eq!(smooth.target(700.0, 0.0, 1000.0), Some(200.0));
         assert_eq!(
             smooth.target(100.0, 300.0, 1000.0),

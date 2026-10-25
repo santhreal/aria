@@ -4,7 +4,7 @@
 
 Every value in a property row ([timeline.md](timeline.md#property-rows)) and in
 Effect Controls is a property. A property has a type (scalar, angle, 2D point,
-3D point, colour, boolean, choice, text, path), a default, a range, and a
+3D point, color, boolean, choice, text, path), a default, a range, and a
 display unit. Scalar properties carry a soft range (the slider's span) and a
 hard range (the clamp); typing a value outside the soft range is allowed up to
 the hard range.
@@ -34,7 +34,7 @@ The keyframe glyph states its interpolation on each half:
 | Square | Hold |
 
 A half-and-half glyph means the two sides differ. Selected keyframes fill with
-the accent colour.
+the accent color.
 
 ### Keyframe gestures
 
@@ -68,8 +68,8 @@ bumped and a project from an older version is converted on load.
 ## Graph editor
 
 Shift+F3 replaces the keyframe rows of the opened clips with a graph of the
-selected properties. One property is drawn per colour; the outline column shows
-the colour next to each property name.
+selected properties. One property is drawn per color; the outline column shows
+the color next to each property name.
 
 | Control | Effect |
 | --- | --- |
@@ -108,7 +108,7 @@ instead.
 
 A driver replaces a property's keyframed value with a value computed per frame.
 Alt+click on a stopwatch adds one. The row then shows the driver's source text
-under the property, and the value in `value` colour turns red when the driver
+under the property, and the value in `value` color turns red when the driver
 fails, with the error in a tooltip and in the Info panel.
 
 Drivers are a plugin contribution point

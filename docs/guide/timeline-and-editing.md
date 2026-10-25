@@ -164,7 +164,7 @@ the ruler (see [Render files](viewer.md#render-files)).
 
 The zoom bar along the bottom of the timeline maps the whole sequence. Drag the
 window to scroll, drag either of its handles to zoom, and click outside the
-window to centre the view there. At its left, **+** adds a video track and the
+window to center the view there. At its left, **+** adds a video track and the
 zoom readout fits the sequence on a click.
 
 
@@ -200,7 +200,7 @@ Cells render one at a time in the background. A picture edit invalidates cells
 inside its changed timeline spans; audio, labels, lane display settings, and
 other picture-neutral edits retain them. Work started before an edit is rejected
 when it finishes. A cell that is not ready leaves its space empty rather than
-borrowing a neighbouring frame.
+borrowing a neighboring frame.
 
 ## Timeline display settings
 
@@ -220,22 +220,22 @@ are not edits.
 - **Hide Waveforms** draws no waveform and decodes no peaks.
 - **Page Scroll**, the default, moves the view a page when the playhead nears
   an edge during playback, leaving the playhead near the left.
-- **Smooth Scroll** scrolls the view with the playhead held at its centre.
+- **Smooth Scroll** scrolls the view with the playhead held at its center.
 
 A scroll by hand during playback stops the follow until the playhead leaves the
 view.
 
 
-## Label colours
+## Label colors
 
-A label colour groups clips that belong together. The sixteen labels are
+A label color groups clips that belong together. The sixteen labels are
 Violet, Iris, Caribbean, Lavender, Cerulean, Forest, Rose, Mango, Purple, Blue,
 Teal, Magenta, Tan, Green, Brown, and Yellow. Right-click a clip: the menu
 holds their swatches and an `×`. **Edit > Label** lists the same sixteen and
 **None**. Clicking a swatch labels every selected clip, `×` clears the label,
 and each is one undo entry per clip.
 
-A clip bar is filled with its label colour. A clip with no label takes its
+A clip bar is filled with its label color. A clip with no label takes its
 kind's label: Teal for video, Forest for audio, Mango for generators, titles
 and shapes, Tan for nested sequences, and Yellow for clips on adjustment,
 effect, and filter tracks. A selected clip is drawn in a lighter fill of its
@@ -243,17 +243,17 @@ label with a 1 px white border.
 
 The **Select** chips under the swatches list every label in use with its clip
 count; a clip with no label counts under its kind's label. Clicking a chip
-selects every clip drawn in that colour, in timeline order, and the status line
+selects every clip drawn in that color, in timeline order, and the status line
 reports how many it found.
 
 Labels are saved by name. A project saved when labels used the eight marker
-colours opens with `pink` as Magenta, `red` as Rose, and `orange` as Mango. A
+colors opens with `pink` as Magenta, `red` as Rose, and `orange` as Mango. A
 project saved with no labels is byte-for-byte what an older version of the app
 wrote.
 
 A media-pool row takes a label the same way: right-click the row and pick a
-swatch. The row draws a dot in its colour, and the pool filter matches the
-colour name, so typing `teal` in the filter box lists the teal group.
+swatch. The row draws a dot in its color, and the pool filter matches the
+color name, so typing `teal` in the filter box lists the teal group.
 
 
 ## Command palette

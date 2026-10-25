@@ -4,7 +4,7 @@ Playback runs in real time without a pre-render, as in Premiere Pro. Frames that
 cannot be produced in time are dropped and counted, never stretched; the audio
 clock does not wait for the picture.
 
-## Behaviour
+## Behavior
 
 | Input | Result |
 | --- | --- |
@@ -104,7 +104,7 @@ decode workers  ->  frame cache  ->  render (GPU)  ->  present (GPU, no copy)
    renders is the device that presents.
 5. **Edits.** An edit during playback invalidates the affected cache entries and
    playback continues; the next frame shown reflects the edit. The render bar's
-   colours are computed on a thread of their own, so the next Viewer frame
+   colors are computed on a thread of their own, so the next Viewer frame
    never waits for them; a newer edit stops an older computation.
 
 No thread is created per frame. The decode pool, render thread, audio thread,

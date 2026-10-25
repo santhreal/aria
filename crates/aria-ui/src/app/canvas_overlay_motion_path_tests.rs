@@ -672,7 +672,7 @@ fn auto_tangents_run_along_the_neighbours_a_third_of_the_way() {
     assert_eq!(
         auto_tangents(&folded, 1),
         None,
-        "neighbours on one point give no direction"
+        "neighbors on one point give no direction"
     );
     assert_eq!(
         auto_tangents(&keys[..1], 0),

@@ -66,7 +66,7 @@ fn a_drop_lands_on_the_lane_it_names_at_the_tick_it_names() {
         .find(|track| track.id == second.raw())
         .and_then(|track| track.clips.first())
         .expect("clip");
-    assert_eq!(clip.timeline_start_ticks, 48, "the tick was not honoured");
+    assert_eq!(clip.timeline_start_ticks, 48, "the tick was not honored");
 }
 
 #[test]

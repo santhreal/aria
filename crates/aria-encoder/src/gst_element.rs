@@ -291,7 +291,7 @@ mod tests {
     /// paid for closing the device and opening it again.
     #[test]
     fn the_picked_encoder_opens_on_this_machine() {
-        ensure_init().expect("GStreamer initialises");
+        ensure_init().expect("GStreamer initializes");
         for codec in [VideoCodec::H264, VideoCodec::H265] {
             let Ok((choice, element)) = pick_encoder(codec) else {
                 continue;
@@ -317,7 +317,7 @@ mod tests {
     /// encoder holds no device context, such as a software encoder.
     #[test]
     fn encoders_picked_in_a_row_open_on_one_device_context() {
-        ensure_init().expect("GStreamer initialises");
+        ensure_init().expect("GStreamer initializes");
         for codec in [VideoCodec::H264, VideoCodec::H265] {
             let Ok((choice, first)) = pick_encoder(codec) else {
                 continue;
@@ -353,7 +353,7 @@ mod tests {
     /// quality one unnoticed. Does not measure encode throughput.
     #[test]
     fn x264enc_runs_the_veryfast_preset_without_trellis() {
-        ensure_init().expect("GStreamer initialises");
+        ensure_init().expect("GStreamer initializes");
         let Ok(encoder) = gst::ElementFactory::make("x264enc").build() else {
             return;
         };
@@ -393,7 +393,7 @@ mod tests {
     /// cover the decoder warm-up's own demotion.
     #[test]
     fn a_candidate_of_a_demoted_plugin_is_refused_without_building_it() {
-        ensure_init().expect("GStreamer initialises");
+        ensure_init().expect("GStreamer initializes");
         let name = "wavparse";
         let Some(factory) = gst::ElementFactory::find(name) else {
             return;

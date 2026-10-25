@@ -196,19 +196,19 @@ impl AppState {
     /// different and worse answer.
     pub fn normalise_selected_clip(&mut self) {
         let Some(ui) = self.selected_ui_clip() else {
-            self.status_message = Some("Select a clip to normalise".into());
+            self.status_message = Some("Select a clip to normalize".into());
             return;
         };
         let Some(measured) = self.loudness_peak_dbfs() else {
             self.status_message =
-                Some("Measure loudness in the Analysis panel first, then normalise".into());
+                Some("Measure loudness in the Analysis panel first, then normalize".into());
             return;
         };
         let target = self.media_reach.target_dbfs;
         let gain = match normalisation_gain(measured, target) {
             Ok(gain) => gain,
             Err(err) => {
-                self.status_message = Some(format!("Cannot normalise: {err}"));
+                self.status_message = Some(format!("Cannot normalize: {err}"));
                 return;
             }
         };
@@ -228,11 +228,11 @@ impl AppState {
             .unwrap_or_else(|| "silence".to_string());
         self.status_message = Some(if capped {
             format!(
-                "Normalised to {level}; the {wanted:+.1} dB this needed is over the \
+                "Normalized to {level}; the {wanted:+.1} dB this needed is over the \
                  {MAX_NORMALISATION_BOOST_DB:+.0} dB boost cap"
             )
         } else {
-            format!("Normalised to {level} for {target:.0} dBFS from {measured:.1} dBFS")
+            format!("Normalized to {level} for {target:.0} dBFS from {measured:.1} dBFS")
         });
     }
 

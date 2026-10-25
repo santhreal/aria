@@ -112,7 +112,7 @@ pub enum WireLookParam {
     AdjustVignette,
     AdjustVibrance,
     AdjustFadedFilm,
-    /// Lift / gamma / gain, per channel and master: the colour wheels. Lift is
+    /// Lift / gamma / gain, per channel and master: the color wheels. Lift is
     /// a signed offset (-1 … 1, 0 neutral); gamma and gain are multiplicative
     /// (0 … 4, 1 neutral).
     AdjustLiftR,
@@ -177,7 +177,7 @@ pub enum WireLookParam {
 pub enum WireMaskParam {
     /// Edge softness, 0 … 1.
     Feather,
-    /// Centre offset as a fraction of the layer size.
+    /// Center offset as a fraction of the layer size.
     Center,
     /// Size as a fraction of the layer size.
     Size,

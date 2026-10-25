@@ -464,7 +464,7 @@ fn shift_scrolling_a_track_header_steps_its_preset_without_scrolling_the_timelin
     assert_eq!(
         visual.read(|app| state.read(app).lane_display(a1).height),
         48,
-        "neighbour track A1 height is untouched"
+        "neighbor track A1 height is untouched"
     );
     assert_eq!(
         visual.read(|app| state.read(app).scroll_x),

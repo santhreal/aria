@@ -32,11 +32,11 @@ Media scratch files for local development and tests are in the gitignored
 
 An icon sets `currentColor` on `stroke` or `fill`, never on the root `color`
 attribute: usvg cannot read `color="currentColor"` and logs a warning each
-time gpui rasterises the glyph at a new size.
+time gpui rasterizes the glyph at a new size.
 `every_registered_glyph_parses_without_a_warning` in
 `crates/aria-ui/src/icons.rs` parses every registered SVG through gpui's
 renderer and fails on any usvg warning. An icon paints its glyph in the text
-colour of the control around it.
+color of the control around it.
 
 `assets/icon/aria-icon.png` is the brand mark. `icons::brand_mark` draws it in
 the window, Linux packages install it, `scripts/package-macos.sh` turns it
@@ -161,11 +161,11 @@ Defined in `crates/aria-ui/src/panels/inspector/tabs/effects.rs`.
 
 | Constant | File | Use |
 | --- | --- | --- |
-| `ROTATE_CCW` | `assets/icon/inspector/rotate-ccw.svg` | Reset an effect, the transform (`tabs/transform.rs`), a colour wheel (`blocks/wheels.rs`), and a property row (`blocks/widgets_keys.rs`, `panels/timeline/property_rows.rs`). |
+| `ROTATE_CCW` | `assets/icon/inspector/rotate-ccw.svg` | Reset an effect, the transform (`tabs/transform.rs`), a color wheel (`blocks/wheels.rs`), and a property row (`blocks/widgets_keys.rs`, `panels/timeline/property_rows.rs`). |
 | `ELLIPSIS` | `assets/icon/inspector/ellipsis.svg` | An effect's menu. |
 | `TRASH` | `assets/icon/inspector/trash-2.svg` | Remove an effect, and remove an audio insert (`panels/insert_chain.rs`). |
 | `CHEVRON_UP` | `assets/icon/ui/chevron-up.svg` | Move an effect one place earlier, and move an audio insert one place earlier (`panels/insert_chain.rs`). |
-| `STAR` | `assets/icon/ui/star.svg` | Favourite an entry in Effects & Presets (`panels/effects_browser.rs`). |
+| `STAR` | `assets/icon/ui/star.svg` | Favorite an entry in Effects & Presets (`panels/effects_browser.rs`). |
 
 ## Text labels
 

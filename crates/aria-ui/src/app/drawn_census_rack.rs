@@ -477,7 +477,7 @@ fn a_named_draft() -> AppState {
 /// new one gaining a second colour changes what is pressed without an edit here.
 fn a_color_slot() -> (fn() -> AppState, usize) {
     let slot = effect_with(|id| color_params(id).first().map(|(slot, _)| slot))
-        .expect("some effect in the catalog has a colour slot")
+        .expect("some effect in the catalog has a color slot")
         .1;
     (a_color_effect, slot)
 }

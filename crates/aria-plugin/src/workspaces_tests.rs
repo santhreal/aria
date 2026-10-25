@@ -42,7 +42,7 @@ impl Plugin for WorkspacePlugin {
 
 fn plugin(id: &'static str) -> WorkspacePlugin {
     WorkspacePlugin {
-        manifest: PluginManifest::new(id, "Colour Room", "1.0.0", &[], &[]),
+        manifest: PluginManifest::new(id, "Color Room", "1.0.0", &[], &[]),
     }
 }
 
@@ -58,18 +58,18 @@ fn refusal(result: Result<Registration, PluginError>) -> String {
 fn a_mounted_workspace_lists_under_its_key_until_the_plugin_unmounts() {
     let ctx = PluginContext::new();
     assert_eq!(ctx.workspaces_revision(), 0);
-    ctx.mount(&plugin("com.example.colour")).expect("mounts");
+    ctx.mount(&plugin("com.example.color")).expect("mounts");
     let mounted = ctx.workspaces_revision();
     assert!(mounted > 0);
     let listed = ctx.workspaces();
     assert_eq!(listed.len(), 1);
-    assert_eq!(listed[0].key(), "com.example.colour/grading");
-    assert_eq!(&*listed[0].plugin_name, "Colour Room");
+    assert_eq!(listed[0].key(), "com.example.color/grading");
+    assert_eq!(&*listed[0].plugin_name, "Color Room");
     assert_eq!(*listed[0].spec, grading());
     let plugins = ctx.mounted();
     let info = plugins
         .iter()
-        .find(|info| info.manifest.id == "com.example.colour")
+        .find(|info| info.manifest.id == "com.example.color")
         .expect("listed");
     assert!(
         info.contributions
@@ -78,7 +78,7 @@ fn a_mounted_workspace_lists_under_its_key_until_the_plugin_unmounts() {
         "the Plugins list does not show the workspace"
     );
 
-    ctx.unmount("com.example.colour").expect("unmounts");
+    ctx.unmount("com.example.color").expect("unmounts");
     assert!(ctx.workspaces().is_empty());
     assert!(ctx.workspaces_revision() > mounted);
 }

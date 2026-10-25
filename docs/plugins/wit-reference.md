@@ -238,7 +238,7 @@ Write bytes to a permitted filesystem path or active export target.
 import start-job: func(label: string) -> result<u64, string>;
 ```
 
-Start a background job on the jobs board, labelled with the plugin's name and `label`. The host calls `job-step` with the returned id until a step is done, Cancel is pressed, or a step fails, then `job-end`.
+Start a background job on the jobs board, labeled with the plugin's name and `label`. The host calls `job-step` with the returned id until a step is done, Cancel is pressed, or a step fails, then `job-end`.
 
 ### import `register-decoder`
 
@@ -873,15 +873,15 @@ Registration metadata for a docked plugin panel.
 
 ### enum `tone`
 
-Text colour tone for `ui-node::text`.
+Text color tone for `ui-node::text`.
 
 | Case | Description |
 | --- | --- |
-| `normal` | The body text colour. |
-| `muted` | The secondary text colour. |
-| `success` | The theme's success colour. |
-| `warning` | The theme's warning colour. |
-| `danger` | The theme's danger colour. |
+| `normal` | The body text color. |
+| `muted` | The secondary text color. |
+| `success` | The theme's success color. |
+| `warning` | The theme's warning color. |
+| `danger` | The theme's danger color. |
 
 ### record `ui-text`
 
@@ -890,7 +890,7 @@ Paragraph text node with tone.
 | Field | Type | Description |
 | --- | --- | --- |
 | `text` | `string` | The paragraph. |
-| `tone` | [`tone`](#enum-tone) | Its colour. |
+| `tone` | [`tone`](#enum-tone) | Its color. |
 
 ### record `ui-field`
 
@@ -1057,12 +1057,12 @@ Stroke or fill color for a viewer overlay shape.
 
 | Case | Payload | Description |
 | --- | --- | --- |
-| `accent` |  | The theme accent colour. |
-| `text` |  | The theme text colour. |
-| `muted` |  | The theme muted colour. |
-| `success` |  | The theme success colour. |
-| `warning` |  | The theme warning colour. |
-| `danger` |  | The theme danger colour. |
+| `accent` |  | The theme accent color. |
+| `text` |  | The theme text color. |
+| `muted` |  | The theme muted color. |
+| `success` |  | The theme success color. |
+| `warning` |  | The theme warning color. |
+| `danger` |  | The theme danger color. |
 | `rgba` | `tuple<u8, u8, u8, u8>` | Straight-alpha sRGB bytes `(r, g, b, a)`. |
 
 ### enum `handle-look`
@@ -1083,7 +1083,7 @@ Straight line segment in a viewer overlay scene.
 | --- | --- | --- |
 | `from` | [`point`](#record-point) | Start point in canvas pixels. |
 | `to` | [`point`](#record-point) | End point in canvas pixels. |
-| `color` | [`overlay-color`](#variant-overlay-color) | Stroke colour. |
+| `color` | [`overlay-color`](#variant-overlay-color) | Stroke color. |
 | `width` | `f32` | Stroke width in window pixels, above 0 and at most 32. |
 
 ### record `overlay-rect`
@@ -1094,9 +1094,9 @@ Axis-aligned rectangle in a viewer overlay scene.
 | --- | --- | --- |
 | `origin` | [`point`](#record-point) | Top-left corner in canvas pixels. |
 | `size` | [`point`](#record-point) | Width and height in canvas pixels, not negative. |
-| `color` | [`overlay-color`](#variant-overlay-color) | Outline colour. |
+| `color` | [`overlay-color`](#variant-overlay-color) | Outline color. |
 | `width` | `f32` | Stroke width in window pixels, above 0 and at most 32. |
-| `fill` | `option<overlay-color>` | Fill colour, or none for an outline only. |
+| `fill` | `option<overlay-color>` | Fill color, or none for an outline only. |
 
 ### record `overlay-ellipse`
 
@@ -1104,11 +1104,11 @@ Axis-aligned ellipse in a viewer overlay scene.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `center` | [`point`](#record-point) | Centre in canvas pixels. |
+| `center` | [`point`](#record-point) | Center in canvas pixels. |
 | `radii` | [`point`](#record-point) | Horizontal and vertical radius in canvas pixels, not negative. |
-| `color` | [`overlay-color`](#variant-overlay-color) | Outline colour. |
+| `color` | [`overlay-color`](#variant-overlay-color) | Outline color. |
 | `width` | `f32` | Stroke width in window pixels, above 0 and at most 32. |
-| `fill` | `option<overlay-color>` | Fill colour, or none for an outline only. |
+| `fill` | `option<overlay-color>` | Fill color, or none for an outline only. |
 
 ### record `overlay-path`
 
@@ -1118,7 +1118,7 @@ Polyline or closed polygon in a viewer overlay scene.
 | --- | --- | --- |
 | `points` | `list<point>` | At least two points in canvas pixels. |
 | `closed` | `bool` | Joins the last point back to the first. |
-| `color` | [`overlay-color`](#variant-overlay-color) | Stroke colour. |
+| `color` | [`overlay-color`](#variant-overlay-color) | Stroke color. |
 | `width` | `f32` | Stroke width in window pixels, above 0 and at most 32. |
 
 ### record `overlay-text`
@@ -1129,7 +1129,7 @@ Text label in a viewer overlay scene.
 | --- | --- | --- |
 | `at` | [`point`](#record-point) | Top-left corner of the line in canvas pixels. |
 | `text` | `string` | One line of text, with no line break. |
-| `color` | [`overlay-color`](#variant-overlay-color) | Text colour. |
+| `color` | [`overlay-color`](#variant-overlay-color) | Text color. |
 | `size` | `f32` | Text size in window pixels, 6 to 96. |
 
 ### record `overlay-handle`
@@ -1139,8 +1139,8 @@ Draggable handle in a viewer overlay scene.
 | Field | Type | Description |
 | --- | --- | --- |
 | `id` | `string` | Handle id: unique among the scene's handles, 1 to 128 bytes, no control characters. |
-| `at` | [`point`](#record-point) | Centre in canvas pixels. |
-| `color` | [`overlay-color`](#variant-overlay-color) | Handle colour. |
+| `at` | [`point`](#record-point) | Center in canvas pixels. |
+| `color` | [`overlay-color`](#variant-overlay-color) | Handle color. |
 | `look` | [`handle-look`](#enum-handle-look) | The glyph, 12 pixels across. |
 
 ### variant `overlay-shape`
@@ -1329,7 +1329,7 @@ What `decoder-open-video` reports about the stream it opened.
 | `width` | `u32` | Even, at most 16384. |
 | `height` | `u32` | Even, at most 16384. |
 | `format` | [`frame-format`](#enum-frame-format) | Pixel layout of every frame. |
-| `color` | [`frame-color`](#enum-frame-color) | Colour space of every frame. |
+| `color` | [`frame-color`](#enum-frame-color) | Color space of every frame. |
 | `frame-rate-num` | `s32` | Frame rate numerator: `frame-rate-num / frame-rate-den` frames per second. |
 | `frame-rate-den` | `s32` | Frame rate denominator. |
 | `time-base-num` | `s32` | Every pts counts ticks at `time-base-num / time-base-den` ticks per second. |
@@ -1373,13 +1373,13 @@ Value kind of a visual effect or transition parameter.
 | `int` | An integer in `min..=max`, each bound rounded. |
 | `boolean` | A switch. |
 | `choice` | One option of `choices`. |
-| `color` | An RGBA colour; the shader reads linear RGBA in `0..1`. |
+| `color` | An RGBA color; the shader reads linear RGBA in `0..1`. |
 | `vec2` | Two components in `min..=max`. A clip type's `handles` draws it on the Viewer. |
 | `point3` | Three components in `min..=max`. |
 | `size` | Width and height in `min..=max`. |
 | `angle` | Degrees in `min..=max`. |
 | `curve` | A response curve over `0..1`, read by a shader as 64 samples. |
-| `gradient` | A colour gradient over `0..1`, read by a shader as 64 linear RGBA samples. |
+| `gradient` | A color gradient over `0..1`, read by a shader as 64 linear RGBA samples. |
 | `text` | UTF-8 text. Shaders do not read it. |
 | `font` | A font family name. Shaders do not read it. |
 | `file` | A file path. Shaders do not read it. |
@@ -1415,7 +1415,7 @@ One control point on an `effect-param-kind::curve` parameter (`x, y` in `0.0..=1
 
 ### record `effect-gradient-stop`
 
-One colour stop on an `effect-param-kind::gradient` parameter.
+One color stop on an `effect-param-kind::gradient` parameter.
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -1568,7 +1568,7 @@ One premultiplied RGBA16F video frame passed to and returned from `cpu-effect-pr
 
 ### enum `marker-color`
 
-A label colour: a clip type's timeline tint and a marker's colour.
+A label color: a clip type's timeline tint and a marker's color.
 
 | Case | Description |
 | --- | --- |
@@ -1590,7 +1590,7 @@ Generator-backed clip type registration metadata.
 | `id` | `string` | Namespaced id with at least one `.`: at most 128 bytes, no space or control character, not already in the catalog. |
 | `label` | `string` | The name in the Generators tab, the palette, Effect Controls, and on the clip: 1 to 64 bytes. |
 | `generator` | `string` | Id of the generator that draws the type. Not empty. |
-| `colour` | [`marker-color`](#enum-marker-color) | The timeline label colour. |
+| `colour` | [`marker-color`](#enum-marker-color) | The timeline label color. |
 | `icon-svg` | `option<string>` | SVG source of the icon drawn before the clip's name, or none. |
 | `handles` | `list<string>` | Names of the generator's `vec2` parameters drawn as Viewer handles: at most 8, each once. |
 
@@ -1768,6 +1768,6 @@ Ruler marker on a sequence timeline.
 | `tick` | [`rational-time`](#record-rational-time) | Position on the sequence timeline. |
 | `duration` | [`rational-time`](#record-rational-time) | Span of a range marker, or 0 ticks for a point marker. |
 | `name` | `string` | The marker name. |
-| `color` | [`marker-color`](#enum-marker-color) | The marker colour. |
+| `color` | [`marker-color`](#enum-marker-color) | The marker color. |
 | `comment` | `string` | Comment text, empty when none. |
 | `kind` | [`marker-kind`](#enum-marker-kind) | The marker category. |

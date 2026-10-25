@@ -224,7 +224,7 @@ fn a_side_frame_beside_a_lone_centre_frame_splits_it_at_the_editing_share() {
         assert!(
             matches!(&tree.root, Node::Split { axis: Axis::Column, children }
                 if matches!(&children[0].1, Node::Frame(f) if f.id == FrameId::CENTER)),
-            "the upper row collapsed to the centre frame: {:?}",
+            "the upper row collapsed to the center frame: {:?}",
             tree.root
         );
         assert_eq!(tree.open(panel), id);

@@ -78,7 +78,7 @@ fn the_palette_offers_every_colour_and_a_way_out() {
     assert_eq!(
         swatches.len(),
         LabelColor::ALL.len() + 1,
-        "the palette is not one swatch per colour plus a clear"
+        "the palette is not one swatch per color plus a clear"
     );
     assert_eq!(
         swatches.last(),
@@ -119,7 +119,7 @@ fn a_clip_label_and_a_pool_label_are_written_by_different_targets() {
     assert_eq!(
         state.selected_label(),
         None,
-        "labelling a pool row labelled the selection too"
+        "labeling a pool row labeled the selection too"
     );
 
     LabelTarget::Selection

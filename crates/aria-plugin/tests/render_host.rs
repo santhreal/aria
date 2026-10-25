@@ -91,7 +91,7 @@ fn a_sequence_frame_is_the_frame_the_renderer_draws() {
         "the host drew another frame"
     );
     // Green at half coverage over red.
-    assert_near(image.pixel(960, 540), [127, 128, 0, 255], "sequence centre");
+    assert_near(image.pixel(960, 540), [127, 128, 0, 255], "sequence center");
 }
 
 /// The root sequence and a nested one, each asked for while the other is
@@ -333,12 +333,12 @@ fn every_size_reports_and_renders_the_same_dimensions() {
         .frame(&project, rt(1), &FrameRequest::open().size(exact))
         .expect("a frame");
     assert_eq!(image.pixel(200, 0), [0, 0, 0, 255]);
-    assert_near(image.pixel(200, 200), [127, 128, 0, 255], "sequence centre");
+    assert_near(image.pixel(200, 200), [127, 128, 0, 255], "sequence center");
     let image = host
         .frame(&project, rt(1), &FrameRequest::clip(green).size(exact))
         .expect("a frame");
     assert_eq!(image.pixel(200, 0), [0, 0, 0, 0]);
-    assert_near(image.pixel(200, 200), [0, 255, 0, 128], "clip centre");
+    assert_near(image.pixel(200, 200), [0, 255, 0, 128], "clip center");
 }
 
 #[test]

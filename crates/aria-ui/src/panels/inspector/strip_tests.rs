@@ -368,7 +368,7 @@ async fn every_time_area_is_drawn_on_its_stopwatchs_line_in_one_column(cx: &mut 
 /// than the column.
 #[gpui::test]
 async fn a_colour_rows_time_area_lines_up_with_a_number_rows(cx: &mut TestAppContext) {
-    let (_state, visual) = drawn_on(cx, "effect-controls-colour", "effects", |state| {
+    let (_state, visual) = drawn_on(cx, "effect-controls-color", "effects", |state| {
         state
             .add_effect_to_selected("color_overlay")
             .expect("add an overlay");
@@ -383,7 +383,7 @@ async fn a_colour_rows_time_area_lines_up_with_a_number_rows(cx: &mut TestAppCon
     );
     assert!(
         (middle(watch) - middle(colour)).abs() < 1.0,
-        "the colour drew its time area at {colour:?}, off its stopwatch's line at {watch:?}"
+        "the color drew its time area at {colour:?}, off its stopwatch's line at {watch:?}"
     );
     let amount_param = ClipParam::Effect {
         effect: 0,
@@ -393,7 +393,7 @@ async fn a_colour_rows_time_area_lines_up_with_a_number_rows(cx: &mut TestAppCon
     assert_eq!(
         (colour.left(), colour.right()),
         (amount.left(), amount.right()),
-        "the colour's time area at {colour:?} is off the amount's at {amount:?}"
+        "the color's time area at {colour:?} is off the amount's at {amount:?}"
     );
     // The colour's name and the amount's number differ in width, and both stand
     // in one value column, so a narrower frame narrows both strips alike.
@@ -404,7 +404,7 @@ async fn a_colour_rows_time_area_lines_up_with_a_number_rows(cx: &mut TestAppCon
     assert_eq!(
         (name.left(), name.right()),
         (number.left(), number.right()),
-        "the colour's name at {name:?} is out of the amount's value column at {number:?}"
+        "the color's name at {name:?} is out of the amount's value column at {number:?}"
     );
 }
 
@@ -737,7 +737,7 @@ async fn every_inspector_tab_takes_a_share_by_its_label_under_its_underline(
             assert!(
                 down.abs() <= pixel + 0.01,
                 "frame edge {frame}: the label `{}` of tab {id} stands {down} px off the \
-                 tab's centre line ({:?} in {bounds:?})",
+                 tab's center line ({:?} in {bounds:?})",
                 run.text,
                 run.bounds
             );

@@ -1,6 +1,6 @@
 # Scopes
 
-A scope measures the Viewer frame and draws what it measured: a false-colour
+A scope measures the Viewer frame and draws what it measured: a false-color
 map, a zebra count, a per-channel parade, a loudness-style number. The scope
 strip shows every plugin scope below the built-in waveform, vectorscope, and
 histogram, with its caption, the registering plugin's name, the drawn image,

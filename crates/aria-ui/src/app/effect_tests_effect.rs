@@ -244,7 +244,7 @@ fn the_add_list_offers_every_model_effect_and_marks_the_unrenderable_ones() {
         assert_eq!(
             label.contains("passthrough"),
             !renderable,
-            "{id} is labelled passthrough={} but renderable={renderable}",
+            "{id} is labeled passthrough={} but renderable={renderable}",
             label.contains("passthrough")
         );
     }
@@ -305,7 +305,7 @@ fn every_colour_and_vec2_slot_sets_clamps_resets_and_undoes() {
                 assert_eq!(
                     state.selected_effect_color(index, slot),
                     Some(rgba),
-                    "{}/{} did not take the colour",
+                    "{}/{} did not take the color",
                     spec.id,
                     param.name
                 );
@@ -328,7 +328,7 @@ fn every_colour_and_vec2_slot_sets_clamps_resets_and_undoes() {
                 assert_eq!(
                     state.selected_effect_color(index, slot),
                     Some(last),
-                    "one undo must restore the previous colour"
+                    "one undo must restore the previous color"
                 );
             }
         }
@@ -383,7 +383,7 @@ fn every_colour_and_vec2_slot_sets_clamps_resets_and_undoes() {
 
     assert!(
         exercised > 0,
-        "the catalog has no colour or vec2 slot: this test proves nothing"
+        "the catalog has no color or vec2 slot: this test proves nothing"
     );
 }
 /// A write keeps a constant slot constant and keys an animated one where the
@@ -401,7 +401,7 @@ fn an_effect_write_keeps_a_constant_slot_constant_and_keys_an_animated_one() {
     state.add_effect_to_selected("color_overlay").expect("add");
     let (color, _) = color_params("color_overlay")
         .first()
-        .expect("color_overlay has a colour slot");
+        .expect("color_overlay has a color slot");
     let points = vec2_params("color_overlay");
     let (vec, vec_spec) = points.first().expect("color_overlay has a vec2 slot");
     let rate = state.store.sequence.frame_rate;
@@ -444,7 +444,7 @@ fn an_effect_write_keeps_a_constant_slot_constant_and_keys_an_animated_one() {
     assert_eq!(
         keys(&state, slot(color)),
         Vec::<i64>::new(),
-        "a constant colour grew keys"
+        "a constant color grew keys"
     );
     let point = [vec_spec.min, vec_spec.max];
     state.set_selected_effect_vec2(0, vec, point).expect("vec2");

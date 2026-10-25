@@ -118,9 +118,5 @@ fn a_lane_the_mix_started_carrying_meters_without_a_restart() {
         "a strip that started moving is a repaint even when the master did not"
     );
     assert_eq!(state.strip_meter(buses[0]), [0.45, 0.45]);
-    assert_eq!(
-        state.strip_meter(lane),
-        [0.0, 0.0],
-        "the neighbour is quiet"
-    );
+    assert_eq!(state.strip_meter(lane), [0.0, 0.0], "the neighbor is quiet");
 }

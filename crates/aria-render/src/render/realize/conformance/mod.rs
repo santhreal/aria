@@ -184,7 +184,7 @@ fn check(image: &RgbaImage, expect: &[Expect], what: &str) {
                 });
                 assert!(
                     opaque > 0,
-                    "{what}: no opaque pixel in {rect:?} to check the ink colour of"
+                    "{what}: no opaque pixel in {rect:?} to check the ink color of"
                 );
             }
             Expect::Empty { rect } => {

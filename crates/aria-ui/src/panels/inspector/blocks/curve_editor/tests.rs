@@ -346,13 +346,9 @@ fn picking_an_easing_writes_that_easing_and_leaves_neighbours_alone() {
             .expect("row");
         let keyframes = spec.keyframes(clip);
         assert_eq!(keyframes.len(), 3, "{id} added or dropped a keyframe");
-        assert_eq!(keyframes[0].1, Easing::Linear, "{id} touched its neighbour");
+        assert_eq!(keyframes[0].1, Easing::Linear, "{id} touched its neighbor");
         assert_eq!(keyframes[1].1.preset_id(), Some(id));
-        assert_eq!(
-            keyframes[2].1,
-            Easing::EaseOut,
-            "{id} touched its neighbour"
-        );
+        assert_eq!(keyframes[2].1, Easing::EaseOut, "{id} touched its neighbor");
     }
 
     // An id no catalog row carries is inert: the keyframe keeps the last
