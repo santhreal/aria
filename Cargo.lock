@@ -1711,7 +1711,7 @@ dependencies = [
 [[package]]
 name = "collections"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=6a5285abb2ff6c8c6e6a242368e1166b0cc953b6#6a5285abb2ff6c8c6e6a242368e1166b0cc953b6"
+source = "git+https://github.com/santhreal/santh-gpui?rev=996b78a26e1249866950e503e867982c598b548e#996b78a26e1249866950e503e867982c598b548e"
 dependencies = [
  "gpui_util",
  "indexmap 2.14.0",
@@ -2479,7 +2479,7 @@ dependencies = [
 [[package]]
 name = "derive_refineable"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=6a5285abb2ff6c8c6e6a242368e1166b0cc953b6#6a5285abb2ff6c8c6e6a242368e1166b0cc953b6"
+source = "git+https://github.com/santhreal/santh-gpui?rev=996b78a26e1249866950e503e867982c598b548e#996b78a26e1249866950e503e867982c598b548e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2741,7 +2741,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3029,7 +3029,7 @@ checksum = "94e7099f6313ecacbe1256e8ff9d617b75d1bcb16a6fddef94866d225a01a14a"
 dependencies = [
  "io-lifetimes 2.0.4",
  "rustix",
- "windows-sys 0.59.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3256,7 +3256,7 @@ dependencies = [
  "gobject-sys",
  "libc",
  "system-deps",
- "windows-sys 0.59.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3406,7 +3406,7 @@ dependencies = [
 [[package]]
 name = "gpui"
 version = "0.2.2"
-source = "git+https://github.com/santhreal/santh-gpui?rev=6a5285abb2ff6c8c6e6a242368e1166b0cc953b6#6a5285abb2ff6c8c6e6a242368e1166b0cc953b6"
+source = "git+https://github.com/santhreal/santh-gpui?rev=996b78a26e1249866950e503e867982c598b548e#996b78a26e1249866950e503e867982c598b548e"
 dependencies = [
  "accesskit",
  "anyhow",
@@ -3476,7 +3476,7 @@ dependencies = [
 [[package]]
 name = "gpui_apple"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=6a5285abb2ff6c8c6e6a242368e1166b0cc953b6#6a5285abb2ff6c8c6e6a242368e1166b0cc953b6"
+source = "git+https://github.com/santhreal/santh-gpui?rev=996b78a26e1249866950e503e867982c598b548e#996b78a26e1249866950e503e867982c598b548e"
 dependencies = [
  "anyhow",
  "block",
@@ -3499,7 +3499,7 @@ dependencies = [
 [[package]]
 name = "gpui_linux"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=6a5285abb2ff6c8c6e6a242368e1166b0cc953b6#6a5285abb2ff6c8c6e6a242368e1166b0cc953b6"
+source = "git+https://github.com/santhreal/santh-gpui?rev=996b78a26e1249866950e503e867982c598b548e#996b78a26e1249866950e503e867982c598b548e"
 dependencies = [
  "accesskit",
  "accesskit_unix",
@@ -3545,7 +3545,7 @@ dependencies = [
 [[package]]
 name = "gpui_macos"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=6a5285abb2ff6c8c6e6a242368e1166b0cc953b6#6a5285abb2ff6c8c6e6a242368e1166b0cc953b6"
+source = "git+https://github.com/santhreal/santh-gpui?rev=996b78a26e1249866950e503e867982c598b548e#996b78a26e1249866950e503e867982c598b548e"
 dependencies = [
  "accesskit",
  "accesskit_macos",
@@ -3591,7 +3591,7 @@ dependencies = [
 [[package]]
 name = "gpui_macros"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=6a5285abb2ff6c8c6e6a242368e1166b0cc953b6#6a5285abb2ff6c8c6e6a242368e1166b0cc953b6"
+source = "git+https://github.com/santhreal/santh-gpui?rev=996b78a26e1249866950e503e867982c598b548e#996b78a26e1249866950e503e867982c598b548e"
 dependencies = [
  "heck 0.5.0",
  "proc-macro2",
@@ -3602,7 +3602,7 @@ dependencies = [
 [[package]]
 name = "gpui_platform"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=6a5285abb2ff6c8c6e6a242368e1166b0cc953b6#6a5285abb2ff6c8c6e6a242368e1166b0cc953b6"
+source = "git+https://github.com/santhreal/santh-gpui?rev=996b78a26e1249866950e503e867982c598b548e#996b78a26e1249866950e503e867982c598b548e"
 dependencies = [
  "console_error_panic_hook",
  "gpui",
@@ -3617,7 +3617,7 @@ dependencies = [
 [[package]]
 name = "gpui_shared_string"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=6a5285abb2ff6c8c6e6a242368e1166b0cc953b6#6a5285abb2ff6c8c6e6a242368e1166b0cc953b6"
+source = "git+https://github.com/santhreal/santh-gpui?rev=996b78a26e1249866950e503e867982c598b548e#996b78a26e1249866950e503e867982c598b548e"
 dependencies = [
  "schemars",
  "serde",
@@ -3627,7 +3627,7 @@ dependencies = [
 [[package]]
 name = "gpui_util"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=6a5285abb2ff6c8c6e6a242368e1166b0cc953b6#6a5285abb2ff6c8c6e6a242368e1166b0cc953b6"
+source = "git+https://github.com/santhreal/santh-gpui?rev=996b78a26e1249866950e503e867982c598b548e#996b78a26e1249866950e503e867982c598b548e"
 dependencies = [
  "anyhow",
  "log",
@@ -3637,7 +3637,7 @@ dependencies = [
 [[package]]
 name = "gpui_web"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=6a5285abb2ff6c8c6e6a242368e1166b0cc953b6#6a5285abb2ff6c8c6e6a242368e1166b0cc953b6"
+source = "git+https://github.com/santhreal/santh-gpui?rev=996b78a26e1249866950e503e867982c598b548e#996b78a26e1249866950e503e867982c598b548e"
 dependencies = [
  "anyhow",
  "console_error_panic_hook",
@@ -3661,7 +3661,7 @@ dependencies = [
 [[package]]
 name = "gpui_wgpu"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=6a5285abb2ff6c8c6e6a242368e1166b0cc953b6#6a5285abb2ff6c8c6e6a242368e1166b0cc953b6"
+source = "git+https://github.com/santhreal/santh-gpui?rev=996b78a26e1249866950e503e867982c598b548e#996b78a26e1249866950e503e867982c598b548e"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -3687,7 +3687,7 @@ dependencies = [
 [[package]]
 name = "gpui_windows"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=6a5285abb2ff6c8c6e6a242368e1166b0cc953b6#6a5285abb2ff6c8c6e6a242368e1166b0cc953b6"
+source = "git+https://github.com/santhreal/santh-gpui?rev=996b78a26e1249866950e503e867982c598b548e#996b78a26e1249866950e503e867982c598b548e"
 dependencies = [
  "accesskit",
  "accesskit_windows",
@@ -4099,7 +4099,7 @@ dependencies = [
 [[package]]
 name = "http_client"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=6a5285abb2ff6c8c6e6a242368e1166b0cc953b6#6a5285abb2ff6c8c6e6a242368e1166b0cc953b6"
+source = "git+https://github.com/santhreal/santh-gpui?rev=996b78a26e1249866950e503e867982c598b548e#996b78a26e1249866950e503e867982c598b548e"
 dependencies = [
  "anyhow",
  "async-compression",
@@ -4352,7 +4352,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "20fd6de4ccfcc187e38bc21cfa543cb5a302cb86a8b114eb7f0bf0dc9f8ac00f"
 dependencies = [
  "io-lifetimes 3.0.1",
- "windows-sys 0.59.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -4402,7 +4402,7 @@ checksum = "3640c1c38b8e4e43584d8df18be5fc6b0aa314ce6ebf51b53313d4306cca8e46"
 dependencies = [
  "hermit-abi 0.5.2",
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -4825,7 +4825,7 @@ dependencies = [
 [[package]]
 name = "media"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=6a5285abb2ff6c8c6e6a242368e1166b0cc953b6#6a5285abb2ff6c8c6e6a242368e1166b0cc953b6"
+source = "git+https://github.com/santhreal/santh-gpui?rev=996b78a26e1249866950e503e867982c598b548e#996b78a26e1249866950e503e867982c598b548e"
 dependencies = [
  "anyhow",
  "bindgen 0.71.1",
@@ -4903,7 +4903,7 @@ dependencies = [
 [[package]]
 name = "motion"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=6a5285abb2ff6c8c6e6a242368e1166b0cc953b6#6a5285abb2ff6c8c6e6a242368e1166b0cc953b6"
+source = "git+https://github.com/santhreal/santh-gpui?rev=996b78a26e1249866950e503e867982c598b548e#996b78a26e1249866950e503e867982c598b548e"
 
 [[package]]
 name = "moxcms"
@@ -5851,7 +5851,7 @@ checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 [[package]]
 name = "perf"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=6a5285abb2ff6c8c6e6a242368e1166b0cc953b6#6a5285abb2ff6c8c6e6a242368e1166b0cc953b6"
+source = "git+https://github.com/santhreal/santh-gpui?rev=996b78a26e1249866950e503e867982c598b548e#996b78a26e1249866950e503e867982c598b548e"
 dependencies = [
  "collections",
  "serde",
@@ -6531,7 +6531,7 @@ dependencies = [
 [[package]]
 name = "refineable"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=6a5285abb2ff6c8c6e6a242368e1166b0cc953b6#6a5285abb2ff6c8c6e6a242368e1166b0cc953b6"
+source = "git+https://github.com/santhreal/santh-gpui?rev=996b78a26e1249866950e503e867982c598b548e#996b78a26e1249866950e503e867982c598b548e"
 dependencies = [
  "derive_refineable",
 ]
@@ -6744,7 +6744,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -6846,7 +6846,7 @@ dependencies = [
 [[package]]
 name = "scheduler"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=6a5285abb2ff6c8c6e6a242368e1166b0cc953b6#6a5285abb2ff6c8c6e6a242368e1166b0cc953b6"
+source = "git+https://github.com/santhreal/santh-gpui?rev=996b78a26e1249866950e503e867982c598b548e#996b78a26e1249866950e503e867982c598b548e"
 dependencies = [
  "async-task",
  "backtrace",
@@ -7318,7 +7318,7 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 [[package]]
 name = "sum_tree"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=6a5285abb2ff6c8c6e6a242368e1166b0cc953b6#6a5285abb2ff6c8c6e6a242368e1166b0cc953b6"
+source = "git+https://github.com/santhreal/santh-gpui?rev=996b78a26e1249866950e503e867982c598b548e#996b78a26e1249866950e503e867982c598b548e"
 dependencies = [
  "heapless",
  "log",
@@ -7426,7 +7426,7 @@ version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0811b01ca2c4e8718760713911feaf4675c24f94e50530a015ec646cfb622f7c"
 dependencies = [
- "skrifa 0.42.1",
+ "skrifa 0.36.0",
  "yazi",
  "zeno",
 ]
@@ -7502,11 +7502,10 @@ dependencies = [
 
 [[package]]
 name = "taffy"
-version = "0.13.0"
+version = "0.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c034e05f6ee85a12daa63863c2245797715075c70649947aa0da54f3f2ab1d0f"
+checksum = "31f7bd2d97198df05186f93a3a3c306845f40e8b3c22bf9279cdd7e5cf5fea7d"
 dependencies = [
- "arrayvec",
  "serde",
  "slotmap",
  "smallvec",
@@ -7562,7 +7561,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -8078,7 +8077,7 @@ checksum = "b6c140620e7ffbb22c2dee59cafe6084a59b5ffc27a8859a5f0d494b5d52b6be"
 [[package]]
 name = "util_macros"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=6a5285abb2ff6c8c6e6a242368e1166b0cc953b6#6a5285abb2ff6c8c6e6a242368e1166b0cc953b6"
+source = "git+https://github.com/santhreal/santh-gpui?rev=996b78a26e1249866950e503e867982c598b548e#996b78a26e1249866950e503e867982c598b548e"
 dependencies = [
  "perf",
  "quote",
@@ -8959,7 +8958,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -9421,7 +9420,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f3fd376f71958b862e7afb20cfe5a22830e1963462f3a17f49d82a6c1d1f42d"
 dependencies = [
  "bitflags 2.13.0",
- "windows-sys 0.59.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
