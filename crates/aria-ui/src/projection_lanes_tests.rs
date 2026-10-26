@@ -576,31 +576,50 @@ fn every_edit_reprojects_what_a_full_projection_would() {
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
 
+/// Run `case` until no catalog moved while it ran: a catalog moved by a test
+/// running beside this one changes what every lane reads, so every lane is
+/// rebuilt. `None` when the catalogs kept moving.
+fn steady<T>(mut case: impl FnMut() -> T) -> Option<T> {
+    (0..4).find_map(|_| {
+        let before = catalogs();
+        let outcome = case();
+        (catalogs() == before).then_some(outcome)
+    })
+}
+
 /// A selection change rebuilds the lanes of the clips it toggled and keeps the
-/// rest, and the kept store equals a full projection.
+/// rest, takes every row of the lanes it rebuilds, and the kept store equals a
+/// full projection.
 #[test]
 fn a_selection_change_rebuilds_the_lanes_it_toggles() {
     let (engine, targets) = fixture(Aim::Text);
     let project = engine.project();
-    let (before, basis) = project_to_ui_from(project, at(), &[], false, false, false, None);
     let selection = [targets.clip];
-    let previous = Previous {
-        store: &before,
-        basis: &basis,
-    };
-    let (after, _) = project_to_ui_from(
-        project,
-        at(),
-        &selection,
-        false,
-        false,
-        false,
-        Some(previous),
-    );
+    let (before, after, built) = steady(|| {
+        let (before, basis) = project_to_ui_from(project, at(), &[], false, false, false, None);
+        let previous = Previous {
+            store: &before,
+            basis: &basis,
+        };
+        super::reset_rows_built();
+        let (after, _) = project_to_ui_from(
+            project,
+            at(),
+            &selection,
+            false,
+            false,
+            false,
+            Some(previous),
+        );
+        let built = super::rows_built();
+        (before, after, built)
+    })
+    .expect("the catalogs kept moving");
     let full = project_to_ui_with(project, at(), &selection, false, false, false);
     if let Some(wrong) = difference(&after, &full) {
         panic!("a selection change left a lane stale\n{wrong}");
     }
+    assert_eq!(built, 0, "a selection change takes every row");
     let lane = targets.track.raw();
     for (old, new) in before.sequence.tracks.iter().zip(&after.sequence.tracks) {
         assert_eq!(
@@ -609,5 +628,141 @@ fn a_selection_change_rebuilds_the_lanes_it_toggles() {
             "lane {}: only the lane holding the toggled clip is rebuilt",
             new.name
         );
+    }
+}
+
+/// Three title lanes of twenty abutting clips each, and the clips of the
+/// middle lane in timeline order.
+fn rows_fixture() -> (Project, Vec<TrackId>, Vec<ClipId>) {
+    let mut project = Project::new("rows", RATE);
+    let mut lanes = Vec::new();
+    let mut middle = Vec::new();
+    for n in 0..3 {
+        let lane = project.add_track(TrackKind::Text, format!("T{n}"));
+        for at in 0..20 {
+            let clip = project
+                .add_generated(
+                    lane,
+                    Generator::text("t"),
+                    TimeRange::at_rate(at * 10, 10, RATE),
+                )
+                .expect("a title on an open stretch of its lane");
+            if n == 1 {
+                middle.push(clip);
+            }
+        }
+        lanes.push(lane);
+    }
+    (project, lanes, middle)
+}
+
+/// One write between two projections: to the project, aimed at the middle
+/// lane and its clips, and to the store the first projection built.
+type RowWrite = fn(&mut Project, &mut UiEditorStore, TrackId, &[ClipId]);
+
+/// A rebuilt lane builds the rows whose clip, right neighbor, or lane moved,
+/// and takes every other row from the previous store. The store still equals
+/// a full projection, and the lanes nothing wrote to are kept whole.
+///
+/// WHY: an Inspector scrub writes one clip per pointer move, and building
+/// every row of its lane again is a third of the projection on a long lane.
+/// The class closed: a row taken although something it reads moved (each
+/// input of `RowBasis` and `LaneHead` has a case), or taken from clips a
+/// caller wrote to after the projection. Linked clips, which read their
+/// partners, are covered by the census above.
+#[test]
+fn a_rebuilt_lane_builds_only_the_rows_that_moved() {
+    fn rename(project: &mut Project, clip: ClipId) {
+        project.clip_mut(clip).expect("a clip of the lane").name = Some("renamed".into());
+    }
+    let cases: [(&str, RowWrite, usize); 6] = [
+        (
+            "a rename builds the renamed row",
+            |project, _, _, clips| rename(project, clips[5]),
+            1,
+        ),
+        (
+            "a later start builds the row and the neighbor it no longer abuts",
+            |project, _, _, clips| {
+                project
+                    .clip_timeline_mut(clips[5])
+                    .expect("a clip of the lane")
+                    .timeline = TimeRange::at_rate(52, 8, RATE);
+            },
+            2,
+        ),
+        (
+            "a removal builds the neighbor it leaves",
+            |project, _, _, clips| {
+                project.remove_clip(clips[5]).expect("a clip of the lane");
+            },
+            1,
+        ),
+        (
+            "a lock builds every row of the lane",
+            |project, _, lane, _| {
+                project
+                    .timeline_mut()
+                    .track_mut(lane)
+                    .expect("the middle lane")
+                    .locked = true;
+            },
+            20,
+        ),
+        (
+            "a transition builds every row of the lane",
+            |project, _, _, clips| {
+                project
+                    .add_transition(clips[5], "dip_to_black")
+                    .expect("an abutting pair");
+            },
+            20,
+        ),
+        (
+            "clips the store wrote to since are not taken",
+            |project, store, lane, clips| {
+                let held = store
+                    .sequence
+                    .tracks
+                    .iter_mut()
+                    .find(|held| held.id == lane.raw())
+                    .expect("the middle lane in the store");
+                held.clips.to_mut()[3].name = "stale".into();
+                rename(project, clips[5]);
+            },
+            20,
+        ),
+    ];
+    for (what, write, expected) in cases {
+        let (start, lanes, clips) = rows_fixture();
+        let (before, project, after, built) = steady(|| {
+            let (mut before, basis) =
+                project_to_ui_from(&start, at(), &[], false, false, false, None);
+            let mut project = start.clone();
+            write(&mut project, &mut before, lanes[1], &clips);
+            let previous = Previous {
+                store: &before,
+                basis: &basis,
+            };
+            super::reset_rows_built();
+            let (after, _) =
+                project_to_ui_from(&project, at(), &[], false, false, false, Some(previous));
+            let built = super::rows_built();
+            (before, project, after, built)
+        })
+        .expect("the catalogs kept moving");
+        assert_eq!(built, expected, "{what}");
+        let full = project_to_ui_with(&project, at(), &[], false, false, false);
+        if let Some(wrong) = difference(&after, &full) {
+            panic!("{what}: the store is stale\n{wrong}");
+        }
+        for (old, new) in before.sequence.tracks.iter().zip(&after.sequence.tracks) {
+            assert_eq!(
+                old.clips.shares(&new.clips),
+                new.id != lanes[1].raw(),
+                "{what}: lane {} is kept whole unless written to",
+                new.name
+            );
+        }
     }
 }

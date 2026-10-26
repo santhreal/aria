@@ -5,7 +5,7 @@
 //! reach it by name; nothing else changed.
 
 use super::effect::{effect_to_ui, track_tint, transition_to_ui};
-use super::lanes::{LinkFacts, MediaFact, MediaFacts};
+use super::lanes::{LinkFacts, MediaFact};
 use super::*;
 use aria_models::LabelColor;
 use gpui::SharedString;
@@ -56,32 +56,6 @@ fn media_missing(path: &std::path::Path) -> bool {
 }
 pub(super) fn invalidate_media_statuses() {
     MEDIA_STATUS.lock().by_path.clear();
-}
-
-/// The clips of `track`, as its lane draws them. `links` holds what a linked
-/// clip reads of its partners, and `facts` the media pool of this projection
-/// by id.
-pub(super) fn lane_clips(
-    project: &Project,
-    track: &Track,
-    selection: &[ClipId],
-    links: &LinkFacts,
-    facts: &MediaFacts<'_>,
-) -> UiClips {
-    let ordered = track.clips_ordered();
-    ordered
-        .iter()
-        .enumerate()
-        .map(|(index, clip)| {
-            let abuts_right = ordered
-                .get(index + 1)
-                .is_some_and(|next| clip.timeline.end_tick() == next.timeline.start.value);
-            let fact = clip
-                .media()
-                .and_then(|media| facts.get(&media_id(media)).copied());
-            clip_to_ui(project, clip, track, selection, abuts_right, links, fact)
-        })
-        .collect()
 }
 
 /// `track` as a lane holding `clips`. Everything but the clips is read from the

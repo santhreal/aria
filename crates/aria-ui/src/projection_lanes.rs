@@ -13,20 +13,28 @@
 //!   the lane order changed, every lane holding a linked clip is rebuilt,
 //!   because drift is measured against the first partner in lane order.
 //!
+//! A rebuilt lane whose previous clips the store still holds takes each row
+//! from them that reads as it did: the clip's revision and whether it abuts
+//! the next clip are as they were ([`RowBasis`]), the lane's kind, lock and
+//! transitions are as they were ([`LaneHead`]), and the clip is not linked.
+//! A taken row is given the clip's selected flag. Every other row is built.
+//!
 //! Everything else a clip reads from outside its lane is in [`Globals`]: the
 //! sequence rate, the effect, transition, clip type and audio effect catalogs,
 //! the open sequence, the media pool, the sequence names and the multicam
-//! groups. When any of it changed, every lane is rebuilt.
+//! groups. When any of it changed, every lane is rebuilt and no row is taken.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Weak};
 
-use aria_models::{AudioLaneLinks, ClipId, MediaKind, Project, Rational, TrackId};
+use aria_models::{
+    AudioLaneLinks, ClipId, MediaKind, Project, Rational, Track, TrackId, TrackKind, Transition,
+};
 use gpui::SharedString;
 
-use super::clip::{lane_clips, lane_to_ui};
+use super::clip::{clip_to_ui, lane_to_ui};
 use crate::types::{
-    UiClip, UiClips, UiEditorStore, UiMediaItem, UiMulticamGroup, UiSequenceRef, UiTrack,
+    UiClip, UiClips, UiEditorStore, UiMediaItem, UiMulticamGroup, UiSequenceRef, UiTrack, media_id,
 };
 
 /// The store the last projection built, and what it was built from.
@@ -51,12 +59,63 @@ pub(crate) struct LaneBasis {
 struct Built {
     revision: u64,
     clips: Weak<Vec<UiClip>>,
+    rows: Arc<Rows>,
     has_links: bool,
     has_effects: bool,
     has_transitions: bool,
     has_clip_types: bool,
     clip_markers: usize,
     media_in_use: Arc<[u64]>,
+}
+
+/// What the rows of one lane were built from, beyond the [`Globals`].
+struct Rows {
+    lane: LaneHead,
+    /// One per row, in the order of the lane's clips.
+    clips: Vec<RowBasis>,
+}
+
+/// What every row of a lane reads of the lane itself.
+#[derive(PartialEq)]
+struct LaneHead {
+    kind: TrackKind,
+    locked: bool,
+    transitions: Vec<Transition>,
+}
+
+impl LaneHead {
+    fn of(track: &Track) -> Self {
+        Self {
+            kind: track.kind,
+            locked: track.locked,
+            transitions: track.transitions().to_vec(),
+        }
+    }
+}
+
+/// What one row read of its own clip and its neighbor.
+#[derive(Clone, Copy, PartialEq)]
+struct RowBasis {
+    /// The clip's revision on the lane; zero for a revision the lane did not
+    /// report, which no row is taken for.
+    revision: u64,
+    abuts_right: bool,
+}
+
+#[cfg(test)]
+std::thread_local! {
+    static ROWS_BUILT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// Rows built rather than taken on this thread since the last reset.
+#[cfg(test)]
+fn rows_built() -> usize {
+    ROWS_BUILT.with(std::cell::Cell::get)
+}
+
+#[cfg(test)]
+fn reset_rows_built() {
+    ROWS_BUILT.with(|n| n.set(0));
 }
 
 #[cfg(test)]
@@ -75,7 +134,7 @@ pub(crate) fn built_clip_probes() -> usize {
 }
 
 impl Built {
-    fn of(track: &aria_models::Track, clips: &UiClips) -> Self {
+    fn of(track: &aria_models::Track, clips: &UiClips, rows: Rows) -> Self {
         let mut has_links = false;
         let mut has_effects = false;
         let mut has_clip_types = false;
@@ -97,6 +156,7 @@ impl Built {
         Self {
             revision: track.revision(),
             clips: clips.downgrade(),
+            rows: Arc::new(rows),
             has_links,
             has_effects,
             has_transitions: !track.transitions().is_empty(),
@@ -234,7 +294,8 @@ impl Globals {
 
 /// Every lane of `project` in stacking order, bottom to top, and the basis the
 /// next projection compares against. With `previous`, a lane that did not move
-/// keeps the clips the previous store holds for it.
+/// keeps the clips the previous store holds for it, and a lane that moved
+/// takes each row that did not.
 pub(super) fn lanes(
     project: &Project,
     selection: &[ClipId],
@@ -242,9 +303,9 @@ pub(super) fn lanes(
     previous: Option<Previous<'_>>,
 ) -> (Vec<UiTrack>, LaneBasis) {
     let timeline = project.timeline();
-    let kept = previous
+    let taken = previous
         .filter(|previous| previous.basis.globals == globals)
-        .map(|previous| kept(project, selection, previous))
+        .map(|previous| carried(project, selection, previous))
         .unwrap_or_default();
     let mut linked = None;
     let unlinked = LinkFacts::default();
@@ -255,22 +316,27 @@ pub(super) fn lanes(
             .tracks_ordered()
             .map(|track| {
                 let id = track.id.raw();
-                let (clips, lane_built) = match kept.get(&id) {
-                    Some((clips, prev_built)) => {
+                let (clips, lane_built) = match taken.get(&id).copied() {
+                    Some(Take::Lane(clips, prev_built)) => {
                         let cloned = UiClips::clone(clips);
-                        let mut b = (*prev_built).clone();
+                        let mut b = prev_built.clone();
                         b.clips = cloned.downgrade();
                         (cloned, b)
                     }
-                    None => {
+                    take => {
                         let has_links = track.clips().any(|c| c.link.is_some());
                         let links = if has_links {
                             linked.get_or_insert_with(|| LinkFacts::of(project))
                         } else {
                             &unlinked
                         };
-                        let clips = lane_clips(project, track, selection, links, &facts);
-                        let b = Built::of(track, &clips);
+                        let donor = match take {
+                            Some(Take::Rows(clips, rows)) => Some((clips, rows)),
+                            Some(Take::Lane(..)) | None => None,
+                        };
+                        let (clips, rows) =
+                            lane_rows(project, track, selection, links, &facts, donor);
+                        let b = Built::of(track, &clips, rows);
                         (clips, b)
                     }
                 };
@@ -331,12 +397,32 @@ pub(crate) fn reselect(
     }
 }
 
-/// The lanes whose clips carry over from `previous`, by lane id.
-fn kept<'a>(
+/// What a lane takes from the previous projection.
+#[derive(Clone, Copy)]
+enum Take<'a> {
+    /// Its clips, whole.
+    Lane(&'a UiClips, &'a Built),
+    /// Each row whose basis did not move, from the clips the lane held.
+    Rows(&'a [UiClip], &'a Rows),
+}
+
+impl<'a> Take<'a> {
+    /// The rows of a lane that takes its clips whole.
+    fn rows(self) -> Self {
+        match self {
+            Self::Lane(clips, built) => Self::Rows(clips, &built.rows),
+            rows @ Self::Rows(..) => rows,
+        }
+    }
+}
+
+/// What each lane of `project` takes from `previous`, by lane id. A lane with
+/// no entry is built from nothing.
+fn carried<'a>(
     project: &Project,
     selection: &[ClipId],
     previous: Previous<'a>,
-) -> HashMap<u64, (&'a UiClips, &'a Built)> {
+) -> HashMap<u64, Take<'a>> {
     let timeline = project.timeline();
     let held: HashMap<u64, &UiTrack> = previous
         .store
@@ -345,18 +431,20 @@ fn kept<'a>(
         .iter()
         .map(|lane| (lane.id, lane))
         .collect();
-    let mut kept = HashMap::with_capacity(held.len());
+    let mut carried = HashMap::with_capacity(held.len());
     // Links held by a rebuilt or removed lane, before and after the edit.
     let mut links: HashSet<u64> = HashSet::new();
     for track in timeline.tracks_ordered() {
         let id = track.id.raw();
         let lane = held.get(&id);
         if let Some((lane, built)) = lane.zip(previous.basis.lanes.get(&id))
-            && built.revision == track.revision()
             && lane.clips.is(&built.clips)
         {
-            kept.insert(id, (&lane.clips, built));
-            continue;
+            if built.revision == track.revision() {
+                carried.insert(id, Take::Lane(&lane.clips, built));
+                continue;
+            }
+            carried.insert(id, Take::Rows(&lane.clips, &built.rows));
         }
         links.extend(
             track
@@ -376,8 +464,11 @@ fn kept<'a>(
     let was: HashSet<ClipId> = previous.basis.selection.iter().copied().collect();
     let now: HashSet<ClipId> = selection.iter().copied().collect();
     for clip in now.symmetric_difference(&was) {
-        if let Some(lane) = timeline.track_of(*clip) {
-            kept.remove(&lane.raw());
+        if let Some(take) = timeline
+            .track_of(*clip)
+            .and_then(|lane| carried.get_mut(&lane.raw()))
+        {
+            *take = take.rows();
         }
     }
     let reordered = !timeline.order().iter().map(|id| id.raw()).eq(previous
@@ -386,19 +477,94 @@ fn kept<'a>(
         .iter()
         .copied());
     if reordered || !links.is_empty() {
-        kept.retain(|id, (_, built)| {
-            if !built.has_links {
-                return true;
+        for (id, take) in &mut carried {
+            let Take::Lane(_, built) = *take else {
+                continue;
+            };
+            let partnered = built.has_links
+                && timeline.track(TrackId::from_raw(*id)).is_none_or(|track| {
+                    track.clips().any(|clip| {
+                        clip.link
+                            .is_some_and(|link| reordered || links.contains(&link.raw()))
+                    })
+                });
+            if partnered {
+                *take = take.rows();
             }
-            timeline.track(TrackId::from_raw(*id)).is_some_and(|track| {
-                !track.clips().any(|clip| {
-                    clip.link
-                        .is_some_and(|link| reordered || links.contains(&link.raw()))
-                })
-            })
-        });
+        }
     }
-    kept
+    carried
+}
+
+/// The clips of `track` as its lane draws them, and what each row read.
+/// `links` holds what a linked clip reads of its partners, and `facts` the
+/// media pool of this projection by id. With `donor`, the clips the previous
+/// projection built for the lane and what they read, a row that reads as it
+/// did is taken from them; see the module documentation.
+fn lane_rows(
+    project: &Project,
+    track: &Track,
+    selection: &[ClipId],
+    links: &LinkFacts,
+    facts: &MediaFacts<'_>,
+    donor: Option<(&[UiClip], &Rows)>,
+) -> (UiClips, Rows) {
+    let lane = LaneHead::of(track);
+    let donor = donor.filter(|(_, rows)| rows.lane == lane);
+    let ordered = track.clips_ordered();
+    let mut bases = Vec::with_capacity(ordered.len());
+    // Where the next row sits in the donor when no clip moved, and the donor's
+    // rows by clip id for when one did, built on the first miss.
+    let mut cursor = 0;
+    let mut by_id: Option<HashMap<u64, usize>> = None;
+    let clips = ordered
+        .iter()
+        .enumerate()
+        .map(|(index, clip)| {
+            let abuts_right = ordered
+                .get(index + 1)
+                .is_some_and(|next| clip.timeline.end_tick() == next.timeline.start.value);
+            let basis = RowBasis {
+                revision: track.clip_revision(clip.id).unwrap_or(0),
+                abuts_right,
+            };
+            bases.push(basis);
+            if let Some((held, rows)) = donor
+                && clip.link.is_none()
+                && basis.revision != 0
+            {
+                let raw = clip.id.raw();
+                let at = if held.get(cursor).is_some_and(|row| row.id == raw) {
+                    Some(cursor)
+                } else {
+                    by_id
+                        .get_or_insert_with(|| {
+                            held.iter()
+                                .enumerate()
+                                .map(|(at, row)| (row.id, at))
+                                .collect()
+                        })
+                        .get(&raw)
+                        .copied()
+                };
+                if let Some(at) = at {
+                    cursor = at + 1;
+                    if rows.clips.get(at) == Some(&basis) {
+                        let mut row = held[at].clone();
+                        row.selected = selection.contains(&clip.id);
+                        return row;
+                    }
+                }
+            }
+            #[cfg(test)]
+            ROWS_BUILT.with(|n| n.set(n.get() + 1));
+            let fact = clip
+                .media()
+                .and_then(|media| facts.get(&media_id(media)).copied());
+            clip_to_ui(project, clip, track, selection, abuts_right, links, fact)
+        })
+        .collect();
+    (clips, Rows { lane, clips: bases })
 }
 
 #[cfg(test)]

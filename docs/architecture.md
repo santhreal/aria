@@ -65,10 +65,22 @@ the projection holds the tick as a value and derives nothing from it, and the
 poll re-samples what is read at the playhead instead. That is every frame of
 playback and every frame of a scrub, so the walk of every track, clip and
 keyframe plus the magnet index rebuild happen on edits, not on transport.
-Anything else: a full re-projection. `app/scrub_stale_tests.rs` holds the two
+Anything else: a re-projection. `app/scrub_stale_tests.rs` holds the two
 halves of that claim, both without naming a field: a projection at two ticks may
 differ in `playhead_ticks` and nowhere else, and what a scrub leaves must equal a
 full re-projection at the same tick.
+
+A re-projection starts from the store it replaces (`projection_lanes.rs`). A
+lane whose `Track::revision` did not move keeps its clips without copying one.
+A lane that moved builds again the rows whose `Track::clip_revision`, whose
+abutting of the next clip, or whose lane kind, lock, or transitions moved, and
+takes every other row. A linked clip reads its partners and is always built. A
+change to what every clip reads (the sequence rate, a catalog, the media pool,
+the sequence names, the multicam groups) builds every lane. Both revisions are
+hashes of the saved content, kept until a write hands the lane or clip out, so
+a write to one clip hashes that clip again and no other.
+`projection_lanes_tests.rs` runs every edit command and its undo, and compares
+the store against a projection from nothing.
 
 The draw follows the same split. A dock panel body is a cached view that
 replays its last drawing until a change reaches something it draws (`UNMOVED`

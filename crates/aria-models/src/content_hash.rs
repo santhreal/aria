@@ -15,8 +15,10 @@
 //! does not hold: a unit variant and the string of its name, a struct and the
 //! map of its fields, or two NaN payloads write the same JSON and hash apart.
 
+use std::cell::Cell;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::Hasher;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use serde::Serialize;
 use serde::ser;
@@ -67,6 +69,81 @@ pub(crate) fn content_hash<T: Serialize + ?Sized>(value: &T) -> u64 {
     // it wrote before stopping, as the JSON writer's did.
     let _ = value.serialize(&mut feed);
     feed.finish()
+}
+
+std::thread_local! {
+    /// Set while [`summary_hash`] runs on this thread.
+    static SUMMARY: Cell<bool> = const { Cell::new(false) };
+}
+
+/// [`content_hash`] of `value`, with each part that holds a [`Kept`] hash of
+/// itself written as that hash instead of its content. A part tests
+/// [`in_summary`] to choose. A lane hashed this way re-hashes only the clips
+/// written to since its last hash, and two values that hash alike still hold
+/// the same content, unless SipHash collides.
+pub(crate) fn summary_hash<T: Serialize + ?Sized>(value: &T) -> u64 {
+    /// Puts back the flag the summary found, on return and on unwind.
+    struct Restore(bool);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            SUMMARY.with(|summary| summary.set(self.0));
+        }
+    }
+    let _restore = Restore(SUMMARY.with(|summary| summary.replace(true)));
+    content_hash(value)
+}
+
+/// Whether the value being serialized on this thread is being hashed by
+/// [`summary_hash`], so a part with a [`Kept`] hash writes the hash.
+pub(crate) fn in_summary() -> bool {
+    SUMMARY.with(Cell::get)
+}
+
+/// A [`content_hash`] held beside the value it hashes: computed on the first
+/// read and held until the holder's next write drops it.
+///
+/// A clone holds the same hash, since it holds the same content. Two holders
+/// compare equal whatever they hold: the hash follows the content, so equal
+/// content cannot hold two different hashes, and a holder that has not hashed
+/// yet holds none.
+#[derive(Default)]
+pub(crate) struct Kept(AtomicU64);
+
+impl Kept {
+    /// The held hash, or the result of `hash`, which is then held.
+    pub(crate) fn get_or(&self, hash: impl FnOnce() -> u64) -> u64 {
+        let kept = self.0.load(Ordering::Relaxed);
+        if kept != 0 {
+            return kept;
+        }
+        // Zero marks a hash not computed yet.
+        let hashed = hash().max(1);
+        self.0.store(hashed, Ordering::Relaxed);
+        hashed
+    }
+
+    /// Drop the held hash, so the next read computes it again.
+    pub(crate) fn forget(&mut self) {
+        *self.0.get_mut() = 0;
+    }
+}
+
+impl Clone for Kept {
+    fn clone(&self) -> Self {
+        Self(AtomicU64::new(self.0.load(Ordering::Relaxed)))
+    }
+}
+
+impl PartialEq for Kept {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl std::fmt::Debug for Kept {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Kept")
+    }
 }
 
 /// Encoded bytes on their way to the hasher.

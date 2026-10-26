@@ -4,11 +4,13 @@ use crate::Map;
 use crate::audio_effects::AudioEffectInstance;
 use crate::clip::generator_catalog::generator_spec;
 use crate::clip::{Clip, ClipSource, Generator};
+use crate::content_hash::Kept;
 use crate::error::ModelError;
 use crate::ids::{ClipId, TrackId};
 use crate::param::{Param, default_zero_param, is_zero_param};
 use crate::time::{RationalTime, TimeRange};
 use crate::track_catalog::{LaneZone, TrackKindSpec, track_kind_by_id, track_kind_spec};
+use crate::track_clips::LaneClips;
 use crate::track_routing::{AudioSend, AutomationMode, TrackOutput};
 use crate::transition::Transition;
 
@@ -332,8 +334,10 @@ pub struct Track {
     /// order, before its fader and its sends. Keyframes are sequence ticks.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub audio_effects: Vec<AudioEffectInstance>,
-    #[serde(with = "crate::serde_map")]
-    clips: Map<ClipId, Clip>,
+    /// Saved as `serde_map` saves a map. Inside the lane's revision each clip
+    /// is written as the revision the lane keeps for it; see [`LaneClips`].
+    #[serde(serialize_with = "LaneClips::serialize")]
+    clips: LaneClips,
     #[serde(skip)]
     order: Vec<ClipId>,
     /// Transitions at clip junctions, keyed by the left (outgoing) clip id.
@@ -343,18 +347,7 @@ pub struct Track {
     transitions: Vec<Transition>,
     /// See [`Track::revision`]. Not saved: a loaded lane takes a fresh one.
     #[serde(skip)]
-    revision: Revision,
-}
-
-#[derive(Debug, Default)]
-struct Revision(std::sync::atomic::AtomicU64);
-
-impl Clone for Revision {
-    fn clone(&self) -> Self {
-        Self(std::sync::atomic::AtomicU64::new(
-            self.0.load(std::sync::atomic::Ordering::Relaxed),
-        ))
-    }
+    revision: Kept,
 }
 
 #[cfg(test)]
@@ -439,10 +432,10 @@ impl<'de> Deserialize<'de> for Track {
             output: data.output,
             sends: data.sends,
             audio_effects: data.audio_effects,
-            clips: data.clips,
+            clips: LaneClips::new(data.clips),
             order: Vec::new(),
             transitions: data.transitions,
-            revision: Revision::default(),
+            revision: Kept::default(),
         };
         track.sort_order();
         Ok(track)
@@ -473,10 +466,10 @@ impl Track {
             output: TrackOutput::default(),
             sends: Vec::new(),
             audio_effects: Vec::new(),
-            clips: Map::default(),
+            clips: LaneClips::default(),
             order: Vec::new(),
             transitions: Vec::new(),
-            revision: Revision::default(),
+            revision: Kept::default(),
         }
     }
 
@@ -486,27 +479,34 @@ impl Track {
     /// A view of the timeline rebuilds a lane only when this moved.
     ///
     /// The hash is computed on the first read and kept: each `&mut Track` a
-    /// [`Timeline`](crate::Timeline) hands out, and each lane it takes in,
-    /// drops the kept value, and a clone keeps it. Reading the revision of a
-    /// lane nothing wrote to since the last read costs one load.
+    /// [`Timeline`](crate::Timeline) hands out, each lane it takes in, and
+    /// each clip the lane hands out for a write drops the kept value, and a
+    /// clone keeps it. Reading the revision of a lane nothing wrote to since
+    /// the last read costs one load.
+    ///
+    /// The lane keeps a revision for each clip the same way, and its hash
+    /// reads those rather than the clips' content: a write to one clip of a
+    /// lane hashes that clip again and no other.
     pub fn revision(&self) -> u64 {
-        use std::sync::atomic::Ordering;
-        let kept = self.revision.0.load(Ordering::Relaxed);
-        if kept != 0 {
-            return kept;
-        }
-        // Zero marks a revision not computed yet.
-        let hashed = crate::content_hash::content_hash(self).max(1);
-        #[cfg(test)]
-        HASHED.with(|count| count.set(count.get() + 1));
-        self.revision.0.store(hashed, Ordering::Relaxed);
-        hashed
+        self.revision.get_or(|| {
+            #[cfg(test)]
+            HASHED.with(|count| count.set(count.get() + 1));
+            crate::content_hash::summary_hash(self)
+        })
+    }
+
+    /// The revision of the clip `id` on this lane: a hash of everything the
+    /// clip saves, kept by the lane as [`Self::revision`] is. A view of the
+    /// lane rebuilds a clip only when this moved. `None` for a clip not on the
+    /// lane.
+    pub fn clip_revision(&self, id: ClipId) -> Option<u64> {
+        self.clips.revision(id)
     }
 
     /// Drop the kept [`revision`](Self::revision), so the next read hashes
     /// the lane again.
     pub(crate) fn touch(&mut self) {
-        *self.revision.0.get_mut() = 0;
+        self.revision.forget();
     }
 
     pub(crate) fn sort_order(&mut self) {
@@ -524,7 +524,8 @@ impl Track {
     }
 
     pub fn clip_mut(&mut self, id: ClipId) -> Option<&mut Clip> {
-        self.clips.get_mut(&id)
+        self.touch();
+        self.clips.get_mut(id)
     }
 
     /// Mutable access for edits that may change a clip's timeline start.
@@ -532,6 +533,7 @@ impl Track {
     /// The ordered index is refreshed when the returned guard is dropped.
     pub fn clip_timeline_mut(&mut self, id: ClipId) -> Option<ClipMut<'_>> {
         let original_start = self.clips.get(&id)?.timeline.start.value;
+        self.touch();
         Some(ClipMut {
             track: self,
             id,
@@ -545,6 +547,7 @@ impl Track {
 
     /// Applies `f` to every clip, then restores the maintained timeline order.
     pub fn for_each_clip_mut(&mut self, mut f: impl FnMut(&mut Clip)) {
+        self.touch();
         self.clips.values_mut().for_each(&mut f);
         self.sort_order();
     }
@@ -555,6 +558,7 @@ impl Track {
         &mut self,
         mut f: impl FnMut(&mut Clip) -> Result<(), E>,
     ) -> Result<(), E> {
+        self.touch();
         let result = self.clips.values_mut().try_for_each(&mut f);
         self.sort_order();
         result
@@ -693,8 +697,9 @@ impl Track {
     /// The clip takes its slot in the maintained order by binary search, so a
     /// placement costs a lookup per halving and not a re-sort of the lane.
     pub(crate) fn insert_clip(&mut self, clip: Clip) -> Option<Clip> {
+        self.touch();
         let key = (clip.timeline.start.value, clip.id);
-        let old = self.clips.insert(clip.id, clip);
+        let old = self.clips.insert(clip);
         if old.is_some() {
             self.order.retain(|&x| x != key.1);
         }
@@ -708,8 +713,9 @@ impl Track {
     }
 
     pub(crate) fn remove_clip(&mut self, id: ClipId) -> Option<Clip> {
+        self.touch();
         self.order.retain(|&x| x != id);
-        self.clips.remove(&id)
+        self.clips.remove(id)
     }
 
     // --- transitions (M4) -------------------------------------------------
@@ -813,7 +819,7 @@ impl std::ops::DerefMut for ClipMut<'_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.track
             .clips
-            .get_mut(&self.id)
+            .get_mut(self.id)
             .expect("clip remains present while mutably borrowed")
     }
 }

@@ -56,6 +56,7 @@ mod time;
 mod timeline;
 mod track;
 mod track_catalog;
+mod track_clips;
 mod track_routing;
 mod transition;
 
