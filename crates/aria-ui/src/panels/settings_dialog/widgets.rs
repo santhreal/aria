@@ -1,6 +1,6 @@
-//! The two shapes every settings section is built from.
+//! The shapes every settings section is built from.
 
-use gpui::{Div, IntoElement, ParentElement, SharedString, Styled, div, px};
+use gpui::{Div, IntoElement, ParentElement, SharedString, Stateful, Styled, div, px};
 
 use crate::theme::Theme;
 
@@ -19,6 +19,30 @@ pub(super) fn row_label(theme: &Theme, label: impl Into<SharedString>) -> Div {
         .text_size(Theme::TEXT_UI)
         .text_color(theme.text_muted)
         .child(label.into())
+}
+
+/// A row of choices: `label` in the label column, then one chip per choice
+/// with the one in force lit, `SPACE_XS` apart.
+pub(super) fn chip_row(
+    theme: &Theme,
+    label: &'static str,
+    chips: impl IntoIterator<Item = Stateful<Div>>,
+) -> gpui::AnyElement {
+    div()
+        .flex()
+        .flex_row()
+        .items_center()
+        .gap(px(Theme::SPACE_SM))
+        .child(row_label(theme, label))
+        .child(
+            div()
+                .flex()
+                .flex_row()
+                .flex_wrap()
+                .gap(px(Theme::SPACE_XS))
+                .children(chips),
+        )
+        .into_any_element()
 }
 
 /// One titled group of rows.

@@ -165,11 +165,10 @@ pub(super) fn motion_row(
         )
 }
 
-/// One selectable accent choice.
+/// One selectable accent choice, labelled with the accent's name.
 ///
-/// The label is the config key, so the row and `config.toml` name the same thing. The
-/// click both persists the choice and repaints: writing it without repainting would look
-/// like the setting did nothing until the next launch.
+/// The click both persists the choice and repaints: writing it without
+/// repainting would look like the setting did nothing until the next launch.
 pub(super) fn theme_row(
     theme: &Theme,
     candidate: aria_settings::ThemeChoice,

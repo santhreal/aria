@@ -19,18 +19,17 @@ use gpui::{
 
 use crate::app::AppState;
 use crate::app::settings_form::SettingsField;
-use crate::components;
+use crate::components::{self, ChipSize};
 use crate::theme::Theme;
 
-use super::widgets::{kv, row_label};
+use super::widgets::{chip_row, kv, row_label};
 
 // Beside this file rather than in a directory: the module tree is still
 // `settings_dialog::ai::models`.
 #[path = "ai_models.rs"]
 mod models;
 
-/// One row of mutually exclusive chips. The selected one is filled; the rest are ghosts,
-/// which is the same shape the sidebar tabs and the analysis filters use.
+/// One row of mutually exclusive chips, the one in force lit.
 fn choice_row<T: Copy + PartialEq + 'static>(
     theme: &Theme,
     prefix: &'static str,
@@ -41,23 +40,10 @@ fn choice_row<T: Copy + PartialEq + 'static>(
     cx: &mut gpui::Context<crate::shell::Shell>,
     apply: fn(&mut AppState, T) -> Result<(), String>,
 ) -> gpui::AnyElement {
-    let mut row = div()
-        .flex()
-        .flex_row()
-        .items_center()
-        .gap(px(Theme::SPACE_SM))
-        .child(row_label(theme, label));
-    for choice in choices {
-        let choice = *choice;
+    let chips = choices.iter().map(|&choice| {
         let name = name_of(choice);
         let id = crate::motion::MotionKey::new(prefix, name);
-        let selected = choice == current;
-        let chip = if selected {
-            components::button(id, name, theme)
-        } else {
-            components::ghost_button(id, name, theme)
-        };
-        row = row.child(chip.on_mouse_down(
+        components::chip(id, name, choice == current, ChipSize::Regular, theme).on_mouse_down(
             MouseButton::Left,
             cx.listener(move |this, _: &MouseDownEvent, _, cx| {
                 this.state.update(cx, |state, _| {
@@ -67,9 +53,9 @@ fn choice_row<T: Copy + PartialEq + 'static>(
                 });
                 cx.notify();
             }),
-        ));
-    }
-    row.into_any_element()
+        )
+    });
+    chip_row(theme, label, chips)
 }
 
 /// One typed value. Clicking focuses it; the shell routes the keys, Enter saves, Esc

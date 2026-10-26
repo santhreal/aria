@@ -2399,6 +2399,8 @@ Notes for the latest release. For previous releases, see the
 - The Export sheet's Range row names the marked span by its In and Out timecodes before it is chosen, and its Keyframes chips read `Every 15`, `Every 30`, and `Every 60`.
 - The Export sheet's `Choose…` button reads `Export As…` and its `Frames` button reads `Export Frames…`.
 - The Export sheet probes the codecs this machine writes once per process, on a thread of its own when the sheet first opens, and its Codec row states the chosen codec until the probe answers, instead of probing again on the thread that draws at every click of the Codec row.
+- Settings shows the On and Off choices of its Playback rows and the Source, Protocol, Reasoning, and Autonomy choices of its AI rows as chips with the choice in force lit, instead of filling the choice in force as a button is filled.
+- A Settings choice reports itself on the status line by the name the dialog prints, such as `AI protocol: Chat Completions` and `Accent: Ember`, instead of by its config key, such as `AI protocol is chat_completions`.
 
 ### Fixed
 

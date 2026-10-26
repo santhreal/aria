@@ -34,10 +34,10 @@ use crate::app::settings_form::SettingsField;
 use crate::app::{AppState, DialogKind};
 use crate::appearance::{self, AppearanceMode};
 use crate::chrome::dialog::{DialogBody, dialog_surface};
-use crate::components;
+use crate::components::{self, ChipSize};
 use crate::theme::Theme;
 
-use widgets::{group_divider, kv, row_label, section};
+use widgets::{chip_row, group_divider, kv, section};
 
 pub fn render(
     state: &Entity<AppState>,
@@ -215,7 +215,7 @@ fn playback_rows(
 }
 
 /// A label and an On and an Off chip; the lit chip is `value`, and a press
-/// stores the other through `set` and saves it.
+/// stores its value through `set` and saves it.
 fn on_off_row(
     theme: &Theme,
     id: impl Into<crate::motion::ControlId>,
@@ -225,21 +225,9 @@ fn on_off_row(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
     let id = id.into();
-    let mut row = div()
-        .id(id.element("settings-on-off"))
-        .flex()
-        .flex_row()
-        .items_center()
-        .gap(px(Theme::SPACE_SM))
-        .child(row_label(theme, label));
-    for (shown, on) in [("On", true), ("Off", false)] {
+    let chips = [("On", true), ("Off", false)].map(|(shown, on)| {
         let key = id.motion(shown);
-        let chip = if value == on {
-            components::button(key, shown, theme)
-        } else {
-            components::ghost_button(key, shown, theme)
-        };
-        row = row.child(chip.on_mouse_down(
+        components::chip(key, shown, value == on, ChipSize::Regular, theme).on_mouse_down(
             MouseButton::Left,
             cx.listener(move |this, _: &MouseDownEvent, _, cx| {
                 cx.stop_propagation();
@@ -250,9 +238,9 @@ fn on_off_row(
                 });
                 cx.notify();
             }),
-        ));
-    }
-    row.into_any_element()
+        )
+    });
+    chip_row(theme, label, chips)
 }
 
 /// The cloud endpoint. One field, because everything else about cloud access is a
@@ -375,3 +363,7 @@ mod rows_tests;
 #[cfg(test)]
 #[path = "settings_dialog/choice_fit_tests.rs"]
 mod choice_fit_tests;
+
+#[cfg(test)]
+#[path = "settings_dialog/choice_chips_tests.rs"]
+mod choice_chips_tests;

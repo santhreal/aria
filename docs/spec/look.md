@@ -91,6 +91,10 @@ a Timeline header toggle lights as an armed tool in the tool bar does. A selecte
 fill and shadow. A control that is shown only under the pointer keeps its
 place while hidden, so nothing moves when the pointer arrives.
 
+A choice from a short set is a row of chips. The chip in force has a faint
+wash and full-strength text; the others have muted text on no plate. A solid
+button is an action, such as Done or Export, and never marks a choice.
+
 Keyboard focus draws a 1 px accent ring around the focused control. A pointer
 click does not leave a focus ring.
 

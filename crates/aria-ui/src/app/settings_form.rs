@@ -405,7 +405,7 @@ impl AppState {
             settings.ai.source = source;
             Ok(())
         })?;
-        self.status_message = Some(format!("AI source is {}", source.key()));
+        self.status_message = Some(format!("AI source: {}", source.label()));
         Ok(())
     }
 
@@ -414,7 +414,7 @@ impl AppState {
             settings.ai.api_protocol = protocol;
             Ok(())
         })?;
-        self.status_message = Some(format!("AI protocol is {}", protocol.key()));
+        self.status_message = Some(format!("AI protocol: {}", protocol.label()));
         Ok(())
     }
 
@@ -423,7 +423,7 @@ impl AppState {
             settings.ai.autonomy = autonomy;
             Ok(())
         })?;
-        self.status_message = Some(format!("Assistant autonomy is {}", autonomy.key()));
+        self.status_message = Some(format!("AI autonomy: {}", autonomy.label()));
         Ok(())
     }
 
@@ -432,7 +432,7 @@ impl AppState {
             settings.ai.reasoning_summary = summary;
             Ok(())
         })?;
-        self.status_message = Some(format!("Reasoning summary is {}", summary.key()));
+        self.status_message = Some(format!("AI reasoning: {}", summary.label()));
         Ok(())
     }
 
@@ -442,7 +442,7 @@ impl AppState {
             settings.appearance.theme = theme;
             Ok(())
         })?;
-        self.status_message = Some(format!("Theme is {}", theme.key()));
+        self.status_message = Some(format!("Accent: {}", theme.label()));
         Ok(())
     }
 
