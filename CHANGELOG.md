@@ -2467,6 +2467,7 @@ Notes for the latest release. For previous releases, see the
 - `aria-bench startup` starts its private `Xvfb` on the next display when a lock file left by another user's stopped server holds the first one, instead of falling back to the in-process measurement.
 - `aria-bench` stops its private `Xvfb` with `SIGTERM`, so the server removes its `/tmp/.X<n>-lock` instead of leaving the display held for the next run.
 - `aria-bench memory` counts the codec libraries the decode warm-up loads in the empty session instead of in the `project-10k` delta, so on Server that delta reads 53.9 MiB, 53.9 MiB and 53.7 MiB over three runs instead of 90.5 MiB and 90.2 MiB.
+- A plugin CPU effect draws its output instead of passing the frame through, and the next frame no longer fails with a `wgpu` validation error, when another thread polls the shared GPU device while the effect's input is read back.
 - `aria new out.aria clip.mp4 --fps 60` writes a 60 fps sequence instead of failing with `rate mismatch: expected 24/1, got 60/1`.
 - On a 23.976, 29.97 or 59.94 fps sequence the timeline places clips, the playhead, markers and the ruler at their real times instead of a thousand times too close together, and the timeline timecode counts 24, 30 or 60 frames a second instead of reading `00:00:00:36`.
 - Open Gap and Close Gap at Playhead move clips by one timecode second at 23.976, 29.97 and 59.94 fps instead of by 24000, 30000 or 60000 frames.

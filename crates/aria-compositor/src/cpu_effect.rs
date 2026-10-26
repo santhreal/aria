@@ -242,21 +242,10 @@ pub(crate) fn execute_cpu_effect<'a>(
     let queue = pool.passes().queue();
     queue.submit(std::iter::once(submitted));
 
-    staging
-        .map_state
-        .store(0, std::sync::atomic::Ordering::Release);
-    let flag = Arc::clone(&staging.map_state);
     let slice = staging.readback_buffer.slice(..);
-    slice.map_async(wgpu::MapMode::Read, move |res| {
-        let code = if res.is_ok() { 1 } else { 2 };
-        flag.store(code, std::sync::atomic::Ordering::Release);
-    });
-    let _ = device.poll(wgpu::PollType::Wait {
-        submission_index: None,
-        timeout: None,
-    });
-    if staging.map_state.load(std::sync::atomic::Ordering::Acquire) != 1 {
-        pool.passes().return_cpu_staging(staging);
+    if crate::compositor::map_read(device, slice).is_err() {
+        // A failed map may still be pending on the staging buffer, so it is
+        // dropped here and the next CPU pass allocates its own.
         return None;
     }
 

@@ -73,6 +73,10 @@ name = "blend"
 path = "tests/blend.rs"
 
 [[test]]
+name = "cpu_effect_readback"
+path = "tests/cpu_effect_readback.rs"
+
+[[test]]
 name = "effects"
 path = "tests/effects.rs"
 

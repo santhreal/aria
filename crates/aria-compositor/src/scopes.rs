@@ -10,8 +10,7 @@
 //! same frame read back: the shader runs the same fixed-point arithmetic over
 //! the same pixels, so a scope reads one frame the same way on either path.
 
-use std::sync::mpsc::sync_channel;
-
+use crate::compositor::map_read;
 use crate::error::CompositorError;
 
 /// Bins per channel: one per 8-bit code value.
@@ -342,14 +341,11 @@ impl GpuScopes {
         encoder.copy_buffer_to_buffer(&counts.storage, 0, &counts.staging, 0, bytes);
         self.queue.submit(std::iter::once(encoder.finish()));
         let slice = counts.staging.slice(..);
-        let (sender, receiver) = sync_channel(1);
-        slice.map_async(wgpu::MapMode::Read, move |result| {
-            let _ = sender.send(result);
-        });
-        self.device
-            .poll(wgpu::PollType::wait_indefinitely())
-            .map_err(|_| CompositorError::MapFailed)?;
-        receiver.recv().map_err(|_| CompositorError::MapFailed)??;
+        if let Err(err) = map_read(&self.device, slice) {
+            // A failed map may still be pending on the staging buffer.
+            self.counts = None;
+            return Err(err);
+        }
         let read = {
             let mapped = slice.get_mapped_range();
             let all: &[u32] = bytemuck::cast_slice(&mapped[..]);

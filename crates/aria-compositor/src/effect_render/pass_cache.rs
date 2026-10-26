@@ -37,8 +37,6 @@
 //! at the cost of rebuilding after a scene far larger than the cap.
 
 use std::cell::{Cell, RefCell, RefMut};
-use std::sync::Arc;
-use std::sync::atomic::AtomicU8;
 use std::time::Duration;
 /// Live entries kept before the table is pruned.
 ///
@@ -160,7 +158,6 @@ pub(crate) struct CpuStaging {
     pub input_f16: Vec<u16>,
     pub output_f16: Vec<u16>,
     pub upload_rgba8: Vec<u8>,
-    pub map_state: Arc<AtomicU8>,
     pub width: u32,
     pub height: u32,
 }
@@ -232,7 +229,6 @@ impl PassCache {
             input_f16: vec![0u16; channels],
             output_f16: vec![0u16; channels],
             upload_rgba8: vec![0u8; channels],
-            map_state: Arc::new(AtomicU8::new(0)),
             width,
             height,
         }

@@ -156,3 +156,28 @@ impl Drop for PendingReadback {
         }
     }
 }
+
+/// Maps `slice` for reading and blocks until the map completes.
+///
+/// The device is shared between threads, and wgpu runs a map callback in the
+/// poll that collected it, after that poll releases the device. A poll on this
+/// thread can therefore return while a poll on another thread still holds the
+/// callback for this buffer, so the wait ends on the callback and not on the
+/// poll. On an error the map may still be pending, so the caller drops the
+/// buffer instead of mapping it again.
+pub(crate) fn map_read(
+    device: &wgpu::Device,
+    slice: wgpu::BufferSlice<'_>,
+) -> Result<(), CompositorError> {
+    let (sender, receiver) = sync_channel(1);
+    slice.map_async(wgpu::MapMode::Read, move |result| {
+        let _ = sender.send(result);
+    });
+    device
+        .poll(wgpu::PollType::wait_indefinitely())
+        .map_err(|_| CompositorError::MapFailed)?;
+    receiver
+        .recv()
+        .map_err(|_| CompositorError::MapFailed)?
+        .map_err(|_| CompositorError::MapFailed)
+}
