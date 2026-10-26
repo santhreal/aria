@@ -11,8 +11,9 @@ description = "Aria GPUI viewport: theme, motion, shell, and editor panels."
 name = "aria_ui"
 path = "src/lib.rs"
 
-# The one integration test: the shell, drawn in a headless window. A crate-root
-# file rather than a `tests/` directory, so the path is declared here.
+# The shell, drawn in a headless window. A crate-root file rather than one in
+# `tests/`, so the path is declared here; the files in `tests/` are found by
+# name.
 [[test]]
 name = "shell"
 path = "tests_shell.rs"

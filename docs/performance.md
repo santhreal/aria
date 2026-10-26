@@ -183,13 +183,15 @@ A project is copied per export and per assistant turn, where a snapshot is what
 is wanted: an export renders the timeline as it was when the job started, and an
 assistant turn rolls back to the state it began from. Neither is per command.
 
-## The workload budget test
+## The frame budget test
 
-`cargo test -p aria-ui --lib workload_budget` asserts the same work stays
-inside a ceiling and grows with the clip count rather than faster. The ceilings
-are set for a tenfold regression, not for these numbers: a machine several
-times slower than the one above still passes.
+`cargo test -p aria-ui --test frame_budget` asserts the same work stays inside
+a ceiling and grows with the clip count rather than faster. The ceilings are
+set for a tenfold regression, not for these numbers: a machine several times
+slower than the one above still passes. The test is a binary of its own and
+runs one measurement at a time, so no other test of the suite runs beside it.
 
-The budget test also asserts the magnet index holds the magnets the
-projection holds and no others, and that every `SnapKind` has something that produces it,
-so a magnet nobody builds fails the suite instead of shipping.
+`cargo test -p aria-ui --lib magnet_index` asserts the magnet index holds the
+magnets the projection holds and no others, and that every `SnapKind` has
+something that produces it, so a magnet nobody builds fails the suite instead
+of shipping.

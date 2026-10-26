@@ -10,20 +10,32 @@
 //! the failure (a tenfold regression), taken as the fastest of several runs so
 //! a busy machine reports its best rather than its worst, and the scaling
 //! assertion compares two arrangements of the *same* amount of work, so the
-//! machine's cache, allocator and neighbours cancel out of the ratio. A test
+//! machine's cache, allocator and neighbors cancel out of the ratio. A test
 //! that pinned a millisecond count would fail on somebody's laptop and teach
 //! everyone to ignore it.
 //!
+//! A separate test binary, with one clock reading at a time: cargo runs test
+//! binaries one after another, so no other test of the suite runs beside these.
+//! In the library's binary they ran beside every other test of the crate: on
+//! two cores with their SMT siblings the scaling ratio read 1.17x to 1.23x
+//! over 40 runs alone, and 0.68x to 1.79x over 200 runs beside the library's
+//! tests, 4 of them over the bound.
+//!
 //! What they do not catch: GPU cost, element construction (that needs a
 //! window — `tests_shell.rs` drives it), and the first projection of a project
-//! being loaded, which happens once and is not a frame.
+//! being loaded, which happens once and is not a frame. The magnet index's
+//! contents are checked in the library's `magnet_index_tests`.
 
+use std::sync::{Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
 use aria_models::{Project, Rational, RationalTime};
+use aria_ui::snap::{index_for, threshold_ticks};
+use aria_ui::{project_to_ui, workload};
 
-use crate::snap::{SnapKind, index_for, threshold_ticks};
-use crate::{project_to_ui, workload};
+/// Held for the whole of every test here, so no two of them run at once and
+/// none times another's setup.
+static CLOCK: Mutex<()> = Mutex::new(());
 
 /// The fastest of `runs` calls. The minimum, not the mean: every source of
 /// noise on a shared machine adds time, so the floor is the measurement and
@@ -64,6 +76,7 @@ const SNAP_QUERY_BUDGET: Duration = Duration::from_millis(10);
 
 #[test]
 fn projection_stays_within_the_frame_budget() {
+    let _clock = CLOCK.lock().unwrap_or_else(PoisonError::into_inner);
     let project = workload::standard();
     let cost = project_cost(&project);
     assert!(
@@ -74,6 +87,7 @@ fn projection_stays_within_the_frame_budget() {
 
 #[test]
 fn building_the_magnet_index_stays_within_the_frame_budget() {
+    let _clock = CLOCK.lock().unwrap_or_else(PoisonError::into_inner);
     let store = project_to_ui(&workload::standard(), playhead(), &[]);
     let cost = fastest(5, || index_for(&store));
     assert!(
@@ -84,6 +98,7 @@ fn building_the_magnet_index_stays_within_the_frame_budget() {
 
 #[test]
 fn a_drags_worth_of_magnet_queries_stays_within_the_frame_budget() {
+    let _clock = CLOCK.lock().unwrap_or_else(PoisonError::into_inner);
     let store = project_to_ui(&workload::standard(), playhead(), &[]);
     let index = index_for(&store);
     let threshold = threshold_ticks(40.0, 24.0);
@@ -106,11 +121,10 @@ fn a_drags_worth_of_magnet_queries_stays_within_the_frame_budget() {
 /// floor over `rounds`.
 ///
 /// Both sides do the same number of clip projections, touch the same total
-/// bytes of input and produce the same total bytes of view model, so cache
-/// behaviour, allocator behaviour and page faults are matched and cancel. What
-/// does not cancel is work that grows faster than the clip count: a term
-/// quadratic in the size of one sequence costs `split.len()` times more on the
-/// whole than on the pieces.
+/// bytes of input and produce the same total bytes of view model, so allocator
+/// behavior and page faults are matched and cancel. What does not cancel is
+/// work that grows faster than the clip count: a term quadratic in the size of
+/// one sequence costs `split.len()` times more on the whole than on the pieces.
 ///
 /// Every reading is a lower bound on the work, since interference can only add
 /// time, so the floor of many readings is the least contaminated estimate of
@@ -150,6 +164,7 @@ fn equal_work(rounds: usize, whole: &Project, split: &[Project]) -> (f64, Durati
 /// budget above is measured as well.
 #[test]
 fn projection_cost_follows_the_clip_count() {
+    let _clock = CLOCK.lock().unwrap_or_else(PoisonError::into_inner);
     // A lane is a video/audio pair, so 32 lanes of 60 is 3840 clips, and each
     // of the eight pieces carries an eighth of them.
     let split: Vec<Project> = (0..8).map(|_| workload::sequence(4, 60)).collect();
@@ -158,53 +173,4 @@ fn projection_cost_follows_the_clip_count() {
         ratio < 1.4,
         "one sequence cost {ratio:.2}x eight of an eighth ({whole:?} vs {pieces:?})"
     );
-}
-
-#[test]
-fn the_magnet_index_holds_every_magnet_the_projection_carries() {
-    let store = project_to_ui(&workload::standard(), playhead(), &[]);
-    let clips: usize = store
-        .sequence
-        .tracks
-        .iter()
-        .map(|track| track.clips.len())
-        .sum();
-    let beats: usize = store
-        .sequence
-        .tracks
-        .iter()
-        .flat_map(|track| track.clips.iter())
-        .map(|clip| clip.beat_ticks.len())
-        .sum();
-    let expected = 2 + store.sequence.markers.len() + clips * 2 + beats;
-    assert_eq!(
-        index_for(&store).rows().len(),
-        expected,
-        "the index is the sequence bounds, the markers, both edges of every clip, and every beat"
-    );
-}
-
-/// Fail-by-default: every [`SnapKind`] is produced either by the index or as a
-/// loose magnet passed to `nearest`. A tenth kind that nothing builds turns
-/// this red instead of shipping a magnet that can never fire.
-#[test]
-fn every_snap_kind_has_a_producer() {
-    let store = project_to_ui(&workload::standard(), playhead(), &[]);
-    let index = index_for(&store);
-    // The three the editor supplies per query, because they move without a
-    // projection (`AppState::loose_magnets`).
-    let loose = [SnapKind::Playhead, SnapKind::MarkIn, SnapKind::MarkOut];
-    // The one a keyframe drag in the property rows builds from the dragged
-    // clip's own keys (`AppState::update_timeline_keyframe_drag`): those are
-    // not edges of the sequence, so no clip drag snaps to them.
-    let keyframe_drag = [SnapKind::Keyframe];
-    for kind in SnapKind::ALL {
-        let produced = loose.contains(&kind)
-            || keyframe_drag.contains(&kind)
-            || index.rows().iter().any(|row| row.kind == kind);
-        assert!(
-            produced,
-            "{kind:?} is a magnet nothing builds: add it to the index or to the loose set"
-        );
-    }
 }

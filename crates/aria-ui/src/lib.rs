@@ -62,15 +62,15 @@ pub mod waveforms;
 pub mod workload;
 
 #[cfg(test)]
+#[path = "magnet_index_tests.rs"]
+mod magnet_index_tests;
+#[cfg(test)]
 mod scratch_pool;
 #[cfg(test)]
 mod test_support;
 #[cfg(test)]
 #[path = "types_census.rs"]
 mod types_census;
-#[cfg(test)]
-#[path = "workload_budget_tests.rs"]
-mod workload_budget_tests;
 
 pub use appearance::AppearanceMode;
 pub use projection::project_to_ui;
